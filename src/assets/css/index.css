@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+/*
+Disable text selection globally, but allow selection inside
+form controls and contenteditable elements.
+*/
+* {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+input,
+textarea,
+select,
+button,
+[contenteditable] {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}

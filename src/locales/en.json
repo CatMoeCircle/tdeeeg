@@ -1,0 +1,22 @@
+{
+  "login": {
+    "title": "Your Phone Number",
+    "descLine1": "Please confirm your country code and",
+    "descLine2": "enter your phone number.",
+    "phonePlaceholder": "Phone",
+    "next": "Next",
+    "scanTitle": "Scan From Mobile Telegram",
+    "step1": "Open Telegram on your phone",
+    "step2": "Go to Settings > Devices > Link Desktop Device",
+    "step3": "Scan this image to Log In",
+    "selectCountry": "Select Country",
+    "enterCode": "Enter Code",
+    "codeDesc": "We have sent a code to your other devices.",
+    "codePlaceholder": "Code",
+    "codeError": "Invalid Code",
+    "enterPassword": "Enter Password",
+    "passwordDesc": "Your account has 2FA enabled, please enter your password.",
+    "passwordPlaceholder": "Password",
+    "passwordError": "Invalid Password"
+  }
+}

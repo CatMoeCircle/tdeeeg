@@ -1,0 +1,30 @@
+{
+  "login": {
+    "title": "您的手机号码",
+    "descLine1": "请确认您的国家区号并",
+    "descLine2": "输入您的手机号码。",
+    "phonePlaceholder": "手机号",
+    "next": "下一步",
+    "scanTitle": "使用手机 Telegram 扫码登录",
+    "step1": "1. 在手机上打开 Telegram",
+    "step2": "2. 进入 设置 > 设备 > 关联 桌面设备",
+    "step3": "3. 扫描该图片以登录",
+    "tdlibParametersError": "TDLib初始化失败?",
+    "PremiumWarning": "目前无法处理,您似乎需要须购买Telegram Premium才能登录",
+
+    "SetEmailTips": "TDLib 需要用户设置电子邮件地址",
+    "CheckEmailTips": "TDLib 需要用户设置的电子邮件的中的验证码",
+    "RegisterTips": "此账户视乎是一个新账户",
+    "UnknownStateError": "未知授权状态或未处理",
+    "waiting": "正在等待二维码...",
+    "selectCountry": "选择国家",
+    "enterCode": "输入验证码",
+    "codeDesc": "我们已将验证码发送到您的其他设备。",
+    "codePlaceholder": "验证码",
+    "codeError": "验证码错误",
+    "enterPassword": "输入密码",
+    "passwordDesc": "您的账户启用了两步验证，请输入密码。",
+    "passwordPlaceholder": "密码",
+    "passwordError": "密码错误"
+  }
+}
