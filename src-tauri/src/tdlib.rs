@@ -1,3 +1,4 @@
+use crate::chat_store::ChatStore;
 use libloading::{Library, Symbol};
 use serde_json::json;
 use std::collections::HashMap;
@@ -62,6 +63,7 @@ pub struct AppState {
     pub pending_requests: Arc<Mutex<HashMap<i64, oneshot::Sender<serde_json::Value>>>>,
     pub request_id_counter: AtomicI64,
     pub config: Arc<Mutex<TdLibConfig>>,
+    pub chat_store: Arc<Mutex<ChatStore>>,
 }
 
 impl AppState {
@@ -77,6 +79,7 @@ impl AppState {
                 api_hash: env!("TG_API_HASH").to_string(),
                 use_test_dc: false,
             })),
+            chat_store: Arc::new(Mutex::new(ChatStore::new())),
         }
     }
 }
@@ -85,21 +88,40 @@ impl AppState {
 #[tauri::command]
 pub fn set_tdlib_parameters(
     state: State<AppState>,
-    api_id: i32,
-    api_hash: String,
-    use_test_dc: bool,
+    api_id: Option<i32>,
+    api_hash: Option<String>,
+    use_test_dc: Option<bool>,
 ) -> Result<(), String> {
-    if api_id <= 0 {
-        return Err("Invalid api_id: must be greater than 0".to_string());
+    // 验证参数组合：要么修改 use_test_dc，要么 api_id 和 api_hash 都修改，要么 3 个同时改
+    let has_creds = api_id.is_some() && api_hash.is_some();
+    let has_test_dc = use_test_dc.is_some();
+
+    // 检查是否只提供了 api_id 或 api_hash 其中之一
+    if api_id.is_some() != api_hash.is_some() {
+        return Err("api_id and api_hash must be provided together".to_string());
     }
-    if api_hash.trim().is_empty() {
-        return Err("Invalid api_hash: cannot be empty".to_string());
+
+    // 检查是否什么都没提供
+    if !has_creds && !has_test_dc {
+        return Err("No parameters provided to update".to_string());
     }
 
     let mut config = state.config.lock().map_err(|e| e.to_string())?;
-    config.api_id = api_id;
-    config.api_hash = api_hash;
-    config.use_test_dc = use_test_dc;
+
+    if let Some(test_dc) = use_test_dc {
+        config.use_test_dc = test_dc;
+    }
+
+    if let (Some(id), Some(hash)) = (api_id, api_hash) {
+        if id <= 0 {
+            return Err("Invalid api_id: must be greater than 0".to_string());
+        }
+        if hash.trim().is_empty() {
+            return Err("Invalid api_hash: cannot be empty".to_string());
+        }
+        config.api_id = id;
+        config.api_hash = hash;
+    }
     Ok(())
 }
 
@@ -200,6 +222,7 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
     let app_handle_clone = app_handle.clone();
     let pending_requests = state.pending_requests.clone();
     let config_clone = state.config.clone();
+    let chat_store = state.chat_store.clone();
 
     std::thread::spawn(move || {
         let client = client_ptr as *mut c_void;
@@ -269,6 +292,13 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
                         // 将 @type 转换为 _ 发送给前端
                         rename_json_key(&mut event, "@type", "_");
 
+                        // 处理 对话 store 的更新
+                        if let Some(events) = chat_store.lock().unwrap().handle_update(&event) {
+                            for (event_name, payload) in events {
+                                let _ = app_handle_clone.emit(&event_name, &payload);
+                            }
+                        }
+
                         // 如果是请求响应，发送到对应的 channel
                         if let Some(id) = request_id {
                             let mut map = pending_requests.lock().unwrap();
@@ -309,7 +339,7 @@ pub async fn tdlib_send(
     request: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
     let (tx, rx) = oneshot::channel();
-
+    println!("Sending request to TDLib: {}", request);
     // 使用代码块限制 MutexGuard 的生命周期
     {
         let guard = state.tdlib.lock().map_err(|e| e.to_string())?;
@@ -344,5 +374,38 @@ pub async fn tdlib_send(
     match rx.await {
         Ok(response) => Ok(response),
         Err(_) => Err("Failed to receive response from TDLib".into()),
+    }
+}
+
+#[tauri::command]
+pub fn get_chat_lists(state: State<AppState>) -> Result<serde_json::Value, String> {
+    let store = state.chat_store.lock().map_err(|e| e.to_string())?;
+    Ok(store.get_all_chat_lists_value())
+}
+
+#[tauri::command]
+pub fn get_chat_list(
+    state: State<AppState>,
+    list: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let store = state.chat_store.lock().map_err(|e| e.to_string())?;
+    let list_key = ChatStore::get_list_key(&list).ok_or("Invalid chat list type")?;
+
+    if let Some(list_state) = store.lists.get(&list_key) {
+        // Collect chat objects for the chat ids if available
+        let mut chats = Vec::new();
+        for id in &list_state.chat_ids {
+            if let Some(chat) = store.chats.get(id) {
+                chats.push(chat.clone());
+            }
+        }
+
+        Ok(json!({
+            "list_key": list_key,
+            "chat_ids": list_state.chat_ids,
+            "chats": chats
+        }))
+    } else {
+        Ok(json!({ "list_key": list_key, "chat_ids": [], "chats": [] }))
     }
 }

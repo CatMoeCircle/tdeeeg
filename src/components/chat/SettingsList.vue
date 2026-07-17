@@ -1,7 +1,21 @@
 <template>
     <div class="flex flex-col h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
-        <div class="p-4 border-b border-gray-200 dark:border-gray-800">
-            <h2 class="text-lg font-semibold">设置</h2>
+        <div class="mt-3">
+            <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center">
+                <avatar v-if="userProfile" :photo="userProfile.profile_photo"
+                    :title="userProfile.first_name + ' ' + userProfile.last_name" />
+                <div v-else class="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {{ userProfile ? (userProfile.first_name + ' ' + userProfile.last_name) : '加载中...' }}
+                    </p>
+                    <p class="text-xs text-gray-500">
+                        {{ userProfile ? ('@' + userProfile.usernames?.active_usernames[0]) : '' }} - id: {{ userProfile
+                            ?
+                            userProfile.id : '' }}
+                    </p>
+                </div>
+            </div>
         </div>
         <div class="flex-1 overflow-y-auto">
             <div class="py-2">
@@ -37,4 +51,10 @@
 
 <script setup lang="ts">
 import { PaletteIcon, ChevronRightIcon, GlobeIcon } from 'lucide-vue-next';
+import avatar from './avatar.vue';
+import { useUserStore } from '../../store/user';
+import { storeToRefs } from 'pinia';
+
+const userStore = useUserStore();
+const { userProfile } = storeToRefs(userStore);
 </script>

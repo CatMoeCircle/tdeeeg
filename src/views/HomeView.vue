@@ -1,10 +1,10 @@
 <template>
-    <div class="flex h-screen w-screen overflow-hidden bg-white dark:bg-black text-gray-900 dark:text-gray-100">
+    <div class="flex h-screen w-screen overflow-hidden dark:bg-black text-gray-900 dark:text-gray-100">
         <SideNavBar />
         <router-view />
     </div>
 </template>
-<script setup>
+<script setup lang="ts">
 import { onMounted } from 'vue';
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import SideNavBar from '../components/layout/SideNavBar.vue';

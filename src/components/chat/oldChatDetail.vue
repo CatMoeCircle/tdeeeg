@@ -4,7 +4,7 @@
         <div
             class="h-20 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 pt-4 flex items-center px-4 justify-between shrink-0">
             <div class="flex items-center gap-3" v-if="chat">
-                <Avatar :photo="chat.photo" :title="chat.title" sizeClass="w-10 h-10" />
+                <Avatar :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" />
                 <div class="flex flex-col">
                     <h2 class="font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight">{{ chat.title }}
                     </h2>
@@ -16,20 +16,19 @@
             </div>
 
             <div class="flex gap-4 text-gray-500">
-                <PhoneIcon class="w-5 h-5 cursor-pointer hover:text-blue-500" />
-                <VideoIcon class="w-5 h-5 cursor-pointer hover:text-blue-500" />
                 <SearchIcon class="w-5 h-5 cursor-pointer hover:text-blue-500" />
                 <MoreHorizontalIcon class="w-5 h-5 cursor-pointer hover:text-blue-500" />
             </div>
         </div>
 
         <!-- Messages Area -->
-        <div class="flex-1 overflow-y-auto p-4 custom-scrollbar pb-24" ref="messagesContainer"
-            @scroll.passive="onScroll">
-            <div v-if="isLoadingMore" class="flex justify-center py-2">
-                <span class="text-xs text-gray-400">Loading history...</span>
-            </div>
-            <div v-for="(msg, index) in messages" :key="msg.id" class="flex" :class="[
+        <div class="flex-1 overflow-y-auto p-4 custom-scrollbar pb-24 flex flex-col messages-scroll"
+            ref="messagesContainer" @scroll.passive="onScroll">
+
+            <!-- Spacer pushes消息到容器底部（当消息不足时） -->
+            <div class="flex-1"></div>
+
+            <div v-for="(msg, index) in messages" :key="msg.id" :data-msg-id="msg.id" class="flex" :class="[
                 isSelf(msg) ? 'justify-end' : 'justify-start',
                 isLastInGroup(index) ? 'mb-4' : 'mb-1'
             ]">
@@ -73,12 +72,14 @@
 </template>
 
 <script setup lang="ts">
-import { PhoneIcon, VideoIcon, SearchIcon, MoreHorizontalIcon } from 'lucide-vue-next';
-import MessageInput from './MessageInput.vue';
+import { SearchIcon, MoreHorizontalIcon } from 'lucide-vue-next';
+import MessageInput from './ChatDetail/MessageInput.vue';
 import Avatar from './avatar.vue';
-import MessageContent from './MessageContent.vue';
+import MessageContent from './ChatDetail/MessageContent.vue';
 import { ref, computed, watch, onMounted, nextTick, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
+import { useUserStore } from '../../store/user';
+import { storeToRefs } from 'pinia';
 import { tdlibSend } from '../../utils/tdlib';
 import { listen } from "@tauri-apps/api/event";
 import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup } from 'tdlib-types';
@@ -105,8 +106,11 @@ const chatId = computed(() => {
 const chat = ref<chat | null>(null);
 // 当前显示的消息数组，按时间正序（从上到下）
 const messages = ref<message[]>([]);
+// User Store
+const userStore = useUserStore();
+const { userProfile } = storeToRefs(userStore);
 // 当前用户 ID（自己）
-const myId = ref<number>(0);
+const myId = computed(() => userProfile.value?.id || 0);
 // 缓存用户信息，key 为 user_id
 const users = ref<Record<number, user>>({});
 // 缓存聊天/频道信息，key 为 chat_id
@@ -119,8 +123,9 @@ const basicGroups = ref<Record<number, basicGroup>>({});
 let unlisten: (() => void) | null = null;
 
 onMounted(async () => {
-    const me = await tdlibSend({ _: 'getMe' });
-    myId.value = me.id;
+    if (!userProfile.value) {
+        await userStore.fetchUser();
+    }
     // 监听 TDLib 更新
     unlisten = await listen<Update>("tdlib-update", (event) => {
         const update = event.payload;
@@ -195,7 +200,15 @@ watch(chatId, async (newId) => {
     try {
         const chatInfo = await tdlibSend({ _: "getChat", chat_id: currentId });
         if (chatId.value !== currentId) return;
+        console.log(chatInfo);
+
         chat.value = chatInfo;
+
+        // 记录进入时的 last_read id（取 inbox/outbox 的最大值），稍后用于定位
+        const inboxId = (chatInfo as any).last_read_inbox_message_id || 0;
+        const outboxId = (chatInfo as any).last_read_outbox_message_id || 0;
+        const lastReadId = Math.max(inboxId, outboxId);
+        initialScrollTarget.value = lastReadId > 0 ? lastReadId : null;
 
         // Fetch additional info
         if (chatInfo.type._ === 'chatTypeSupergroup') {
@@ -219,6 +232,23 @@ watch(chatId, async (newId) => {
             messages.value.length > 0
         ) {
             await loadMessages(currentId, messages.value[0].id);
+        }
+
+        // 如果有 last-read 目标且尚未定位，尝试确保目标消息被加载并滚动到该消息
+        if (initialScrollTarget.value && !initialPositionApplied.value) {
+            try {
+                const found = await ensureMessageLoaded(initialScrollTarget.value);
+                if (found) {
+                    scrollToMessage(initialScrollTarget.value);
+                } else {
+                    // 未找到则退到底部
+                    scrollToBottom();
+                }
+            } catch (err) {
+                console.error('Error while locating last-read message:', err);
+                scrollToBottom();
+            }
+            initialPositionApplied.value = true;
         }
     } catch (e) {
         console.error("Error loading chat:", e);
@@ -464,6 +494,75 @@ const shouldShowSenderName = computed(() => {
     return chat.value.type._ !== 'chatTypePrivate';
 });
 
+// 是否显示上方骨架（当没有消息且正在加载消息时）
+const showSkeleton = computed(() => {
+    return messages.value.length === 0 && isLoadingMessages.value;
+});
+
+// 定位到上次已读消息所需的状态
+const initialScrollTarget = ref<number | null>(null);
+const initialPositionApplied = ref(false);
+
+/**
+ * 将容器滚动，使指定消息元素出现在容器中间附近
+ */
+const scrollToMessage = (messageId: number) => {
+    nextTick(() => {
+        const el = messagesContainer.value;
+        if (!el) return;
+        const msgEl = el.querySelector(`[data-msg-id=\"${messageId}\"]`) as HTMLElement | null;
+        if (!msgEl) return;
+
+        const containerHeight = el.clientHeight;
+        const targetOffset = msgEl.offsetTop;
+        const targetHeight = msgEl.clientHeight;
+
+        // Prefer to place message slightly below center for context (45% from top)
+        let desired = Math.round(targetOffset - containerHeight * 0.45 + targetHeight / 2);
+        // Clamp to scrollable range
+        desired = Math.max(0, Math.min(desired, el.scrollHeight - containerHeight));
+
+        // If desired is 0 and we have content below, fallback to bottom to avoid showing solitary top
+        if (desired === 0 && el.scrollHeight > containerHeight) {
+            desired = Math.max(0, el.scrollHeight - containerHeight);
+        }
+
+        el.scrollTop = desired;
+    });
+};
+
+/**
+ * 确保目标消息被加载到 messages 中：若未加载且历史未耗尽，则继续上拉加载（最多 10 次）
+ */
+const ensureMessageLoaded = async (targetId: number, maxLoads = 10) => {
+    if (!chatId.value) return;
+    let attempts = 0;
+    while (attempts < maxLoads) {
+        const foundIndex = messages.value.findIndex(m => m.id === targetId);
+        if (foundIndex !== -1) {
+            // If the found message is the very first loaded message, try loading one more page
+            // to provide context (避免目标处于视口顶部)。
+            if (foundIndex === 0 && !isHistoryExhausted.value) {
+                const firstId = messages.value[0].id;
+                await loadMessages(chatId.value, firstId);
+                await nextTick();
+                attempts++;
+                // Continue loop to re-evaluate position
+                continue;
+            }
+            return true;
+        }
+        if (isHistoryExhausted.value) break;
+        if (messages.value.length === 0) break;
+
+        const firstId = messages.value[0].id;
+        await loadMessages(chatId.value, firstId);
+        await nextTick();
+        attempts++;
+    }
+    return messages.value.some(m => m.id === targetId);
+};
+
 // Grouping Helpers
 // 判断两条消息是否来自同一发送者
 const isSameSender = (m1: message, m2: message) => {
@@ -578,5 +677,10 @@ const canSend = computed(() => {
 
 .custom-scrollbar:hover::-webkit-scrollbar-thumb {
     background-color: rgba(156, 163, 175, 0.5);
+}
+
+/* Ensure flex overflow works: allow scroll child to shrink properly */
+.messages-scroll {
+    min-height: 0;
 }
 </style>

@@ -14,6 +14,7 @@
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "lucide-vue-next": "^0.556.0",
+    "pinia": "^3.0.4",
     "qr-code-styling": "^1.9.2",
     "tailwindcss": "^4.1.17",
     "tdesign-vue-next": "^1.17.6",

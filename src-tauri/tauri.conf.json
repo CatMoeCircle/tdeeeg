@@ -15,7 +15,10 @@
         "title": "tdgram",
         "width": 800,
         "height": 500,
-        "decorations": false
+        "decorations": false,
+        "windowEffects": {
+          "effects": ["micaLight"]
+        }
       }
     ],
     "security": {

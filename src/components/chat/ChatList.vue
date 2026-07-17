@@ -1,24 +1,23 @@
 <template>
-    <div class="flex flex-col h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800  pt-4">
+    <div class="flex flex-col h-full dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800  pt-4">
         <!-- Search Bar -->
-        <div class="p-3">
+        <div class="py-1 px-3">
             <div class="relative">
                 <input type="text" placeholder="搜索"
-                    class="w-full pl-8 pr-4 py-2 bg-gray-100 dark:bg-gray-800 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    class="w-full pl-8 pr-4 py-2 bg-white/60 shadow-(--box-shadow) dark:bg-gray-800 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 <SearchIcon class="w-4 h-4 absolute left-2.5 top-2.5 text-gray-400" />
             </div>
         </div>
-
         <!-- Folder Tabs -->
         <div v-if="tabs.length > 1" ref="tabsContainer" @wheel.prevent="handleWheel"
-            class="flex px-2 border-b border-gray-200 dark:border-gray-800 overflow-x-auto no-scrollbar gap-2 py-2">
+            class="flex px-2 border-b border-gray-200 dark:border-gray-800 overflow-x-auto no-scrollbar gap-2">
             <button v-for="tab in tabs" :key="tab.id" @click="activeTab = tab.id"
                 class="px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors shrink-0" :class="[
                     settings.folderStyle === 'tabs'
                         ? (activeTab === tab.id ? 'border-b-2 border-blue-500 text-blue-600' : 'border-b-2 border-transparent text-gray-500 hover:text-gray-700')
                         : '',
                     settings.folderStyle === 'pills'
-                        ? (activeTab === tab.id ? 'bg-blue-500 text-white rounded-full' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full')
+                        ? (activeTab === tab.id ? 'bg-blue-500 shadow-sm shadow-blue-500/50 text-white rounded-full my-1' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full my-1')
                         : '',
                     settings.folderStyle === 'text'
                         ? (activeTab === tab.id ? 'text-blue-600 font-bold' : 'text-gray-500 hover:text-gray-700')
@@ -29,10 +28,10 @@
         </div>
 
         <!-- Chat List -->
-        <div class="flex-1 overflow-y-auto custom-scrollbar" @scroll="onScroll">
+        <div class="flex-1 overflow-y-auto custom-scrollbar pl-1.5 pr-0.5 py-1" @scroll="onScroll">
             <div v-for="chat in displayChats" :key="chat.id" @click="selectChat(chat.id)"
-                class="flex items-center p-3 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer transition-colors"
-                :class="{ 'bg-blue-50 dark:bg-gray-800': selectedChatId === chat.id }">
+                class="flex items-center p-3 hover:bg-white/70 rounded-xl hover:shadow-(--box-shadow) dark:hover:bg-gray-800 cursor-pointer transition-colors"
+                :class="{ 'rounded-xl bg-white/70 shadow-(--box-shadow) dark:bg-gray-800': selectedChatId === chat.id }">
                 <Avatar :photo="chat.photo" :title="chat.title" sizeClass="mr-3" />
                 <div class="flex-1 min-w-0">
                     <div class="flex justify-between items-baseline mb-1">
@@ -48,15 +47,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { SearchIcon } from 'lucide-vue-next';
 import { settings } from '../../store/settings';
-import { ChatFolders, chats as allChats } from '../../utils/update';
+import { useChatStore } from '../../store/chat';
 import { tdlibSend } from '../../utils/tdlib';
-import type { ChatList, message } from 'tdlib-types';
+import Avatar from './avatar.vue';
+import type { message } from 'tdlib-types';
+
+const props = defineProps<{
+    isArchive?: boolean;
+}>();
 
 const router = useRouter();
+const chatStore = useChatStore();
 
 const tabsContainer = ref<HTMLElement | null>(null);
 
@@ -66,42 +71,47 @@ const handleWheel = (e: WheelEvent) => {
     }
 };
 
+onMounted(async () => {
+    await chatStore.initListener();
+    await chatStore.loadChatLists();
+});
+
+watch(() => chatStore.chatLists, async (lists) => {
+    for (const list of lists) {
+        await chatStore.loadList(list);
+    }
+}, { deep: true });
+
 const tabs = computed(() => {
-    return ChatFolders.value.map(f => {
-        if (f._ === 'chatListMain') return { id: 'chatListMain', name: '全部' };
-        if (f._ === 'chatListArchive') return { id: 'chatListArchive', name: '归档' };
-        if (f._ === 'chatListFolder') return { id: `folder_${f.chat_folder_id}`, name: `文件夹 ${f.chat_folder_id}` };
-        return { id: f._, name: '未知' };
+    if (props.isArchive) return [];
+    return chatStore.chatLists.filter(list => list._ !== 'chatListArchive').map(list => {
+        if (list._ === 'chatListMain') {
+            return { id: 'chatListMain', name: '全部' };
+        }
+        if (list._ === 'chatFolderInfo') {
+            return {
+                id: `chat_folder_id${list.id}`,
+                name: list.title || list.name?.text?.text || '文件夹'
+            };
+        }
+        return { id: 'unknown', name: '未知' }
     });
 });
 
-const activeTab = ref('chatListMain');
+const activeTab = ref(props.isArchive ? 'chatListArchive' : 'chatListMain');
 
 watch(tabs, (newTabs) => {
+    if (props.isArchive) {
+        activeTab.value = 'chatListArchive';
+        return;
+    }
     if (newTabs.length > 0 && !newTabs.find(t => t.id === activeTab.value)) {
         activeTab.value = newTabs[0].id;
     }
 }, { immediate: true });
 
 const displayChats = computed(() => {
-    const currentTab = tabs.value.find(t => t.id === activeTab.value);
-    if (!currentTab) return [];
-
-    let folderEntry;
-    if (currentTab.id === 'chatListMain') {
-        folderEntry = ChatFolders.value.find(f => f._ === 'chatListMain');
-    } else if (currentTab.id === 'chatListArchive') {
-        folderEntry = ChatFolders.value.find(f => f._ === 'chatListArchive');
-    } else {
-        const fid = parseInt(currentTab.id.replace('folder_', ''));
-        folderEntry = ChatFolders.value.find(f => f._ === 'chatListFolder' && f.chat_folder_id === fid);
-    }
-
-    if (!folderEntry) return [];
-
-    return folderEntry.chsts.map(chatId => {
-        return allChats.value.find(c => c.id === chatId);
-    }).filter((c): c is NonNullable<typeof c> => !!c);
+    return chatStore.getList(activeTab.value).value;
 });
 
 const selectedChatId = ref<number | null>(null);
@@ -126,10 +136,28 @@ const formatTime = (timestamp: number | undefined) => {
 
 const getMessagePreview = (message: message | undefined) => {
     if (!message) return '';
-    if (message.content?._ === 'messageText') {
-        return message.content.text.text;
+    const content = message.content;
+    if (!content) return '';
+
+    if (content._ === 'messageText') {
+        return content.text.text;
     }
-    return '[不支持的消息类型]';
+    if (content._ === 'messagePhoto') {
+        return '[图片]';
+    }
+    if (content._ === 'messageVideo') {
+        return '[视频]';
+    }
+    if (content._ === 'messageAnimation') {
+        return '[GIF]';
+    }
+    if (content._ === 'messageSticker') {
+        return '[贴纸]';
+    }
+    if (content._ === 'messageVoiceNote') {
+        return '[语音]';
+    }
+    return '[消息]';
 };
 
 const isLoading = ref(false);
@@ -138,6 +166,11 @@ const isFinished = ref(false);
 watch(activeTab, () => {
     isFinished.value = false;
     isLoading.value = false;
+    // If list is empty, try to load more
+    const currentList = chatStore.getList(activeTab.value).value;
+    if (currentList.length === 0) {
+        loadMore();
+    }
 });
 
 const onScroll = async (e: Event) => {
@@ -151,13 +184,13 @@ const loadMore = async () => {
     if (isLoading.value || isFinished.value) return;
     isLoading.value = true;
 
-    let chatList: ChatList;
+    let chatList: any;
     if (activeTab.value === 'chatListMain') {
         chatList = { _: 'chatListMain' };
     } else if (activeTab.value === 'chatListArchive') {
         chatList = { _: 'chatListArchive' };
-    } else if (activeTab.value.startsWith('folder_')) {
-        const id = parseInt(activeTab.value.replace('folder_', ''));
+    } else if (activeTab.value.startsWith('chat_folder_id')) {
+        const id = parseInt(activeTab.value.replace('chat_folder_id', ''));
         chatList = { _: 'chatListFolder', chat_folder_id: id };
     } else {
         isLoading.value = false;

@@ -8,7 +8,7 @@
             <div class="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 transition-colors z-10 opacity-0 group-hover:opacity-100 active:opacity-100 active:bg-blue-600"
                 @mousedown.prevent="startResize"></div>
         </div>
-        <div class="flex-1 h-full min-w-0 bg-gray-50 dark:bg-gray-900">
+        <div class="flex-1 h-full min-w-0  dark:bg-gray-900">
             <slot name="content"></slot>
         </div>
     </div>

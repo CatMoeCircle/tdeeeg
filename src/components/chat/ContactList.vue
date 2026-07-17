@@ -1,10 +1,61 @@
 <template>
-    <div class="flex flex-col h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
+    <div class="flex flex-col h-full bg-white border-r border-gray-200">
         <div class="p-4 border-b border-gray-200 dark:border-gray-800">
             <h2 class="text-lg font-semibold">联系人</h2>
         </div>
         <div class="flex-1 overflow-y-auto p-2">
-            <div class="text-center text-gray-500 mt-10">联系人列表开发中...</div>
+            <div v-for="user in Contacts ?? []" :key="user.id">
+                <div
+                    class="flex items-center p-2 hover:shadow-(--box-shadow) hover:bg-gray-200/50 rounded-xl cursor-pointer transition-colors">
+                    <Avatar :photo="user.profile_photo" :title="user.first_name + ` ` + user.last_name"
+                        sizeClass="mr-3" />
+                    <div class="flex-1 min-w-0">
+                        <h3 class="text-sm font-semibold text-gray-900">{{ user.first_name + ` ` +
+                            user.last_name }}</h3>
+                        <p v-if="user.status._ === 'userStatusOnline'" class="text-xs text-blue-500">
+                            在线</p>
+                        <p v-else class="text-xs text-gray-400">{{ formatStatus(user.status)
+                        }}</p>
+                    </div>
+                    <div class="flex items-center">
+                        <t-tooltip content="互为联系人" placement="bottom">
+                            <ArrowLeftRightIcon v-if="user.is_mutual_contact" class="w-4 h-4 text-gray-400 ml-2" />
+                        </t-tooltip>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </template>
+
+<script setup lang="ts">
+import { tdlibSend } from '../../utils/tdlib';
+import formatStatus from '../../utils/status';
+import { ArrowLeftRightIcon } from 'lucide-vue-next';
+import { onMounted, ref } from "vue"
+
+import type { user } from 'tdlib-types';
+
+const Contacts = ref<user[] | undefined>(undefined);
+
+onMounted(async () => {
+    console.log("加载联系人列表");
+
+    const users = await tdlibSend({
+        "_": "getContacts"
+    });
+    if (users.user_ids.length < 0) {
+        return;
+    }
+    const contactList: user[] = [];
+    for (const id of users.user_ids) {
+        const user = await tdlibSend({
+            "_": "getUser",
+            "user_id": id
+        });
+
+        contactList.push(user);
+    }
+    Contacts.value = contactList;
+});
+</script>

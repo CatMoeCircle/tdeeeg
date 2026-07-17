@@ -6,7 +6,7 @@ import { useI18n } from 'vue-i18n';
 import { tdlibSend } from "../utils/tdlib";
 import { listen } from "@tauri-apps/api/event";
 import { MessagePlugin } from 'tdesign-vue-next';
-import type { Update, countryInfo } from "tdlib-types";
+import type { AuthorizationState, Update, countryInfo } from "tdlib-types";
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 
 
@@ -95,6 +95,10 @@ const getqrlink = async () => {
     const State = await tdlibSend({
         _: "getAuthorizationState"
     })
+    AuthState(State);
+};
+
+const AuthState = (State: AuthorizationState) => {
     switch (State._) {
         case "authorizationStateWaitOtherDeviceConfirmation":
             console.log(State.link);
@@ -135,7 +139,7 @@ const getqrlink = async () => {
             MessagePlugin.error({ content: t('login.UnknownStateError'), placement: "top-right", offset: [0, 20] });
             break;
     }
-};
+}
 
 onMounted(async () => {
     await getCurrentWindow().setMinSize(new LogicalSize(700, 450));
@@ -143,12 +147,8 @@ onMounted(async () => {
 
     qrlinkupdate = await listen<Update>("tdlib-update", async (event) => {
         const update = event.payload;
-        if (update._ === "updateAuthorizationState" && update.authorization_state._ === "authorizationStateWaitOtherDeviceConfirmation") {
-            qrlink.value = update.authorization_state.link;
-        }
-        if (update._ === "updateAuthorizationState" && update.authorization_state._ === "authorizationStateReady") {
-            router.push("/home");
-        }
+        if (update._ !== "updateAuthorizationState") return;
+        AuthState(update.authorization_state);
     });
     tdlibSend({
         _: "getCountries",
@@ -158,6 +158,7 @@ onMounted(async () => {
             Countries.value = res.countries;
         }
     }).catch((err) => {
+        ``
         console.error("获取国家列表失败:", err);
     });
     getqrlink();
@@ -166,7 +167,6 @@ onMounted(async () => {
         height: 220,
         type: "svg",
         data: qrlink.value,
-        image: "https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg",
         dotsOptions: {
             color: "#000",
             type: "rounded"

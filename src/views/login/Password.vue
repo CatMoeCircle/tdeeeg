@@ -64,9 +64,9 @@ onUnmounted(() => {
                 </div>
             </div>
 
-            <t-button block :loading="loading" @click="submitPassword">
+            <button block :loading="loading" @click="submitPassword">
                 {{ t('login.next') }}
-            </t-button>
+            </button>
         </div>
     </div>
 </template>

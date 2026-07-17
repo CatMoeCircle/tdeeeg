@@ -1,11 +1,11 @@
 fn main() {
     dotenv::dotenv().ok();
-    if let Ok(api_id) = std::env::var("TG_API_ID") {
-        println!("cargo:rustc-env=TG_API_ID={}", api_id);
-    }
-    if let Ok(api_hash) = std::env::var("TG_API_HASH") {
-        println!("cargo:rustc-env=TG_API_HASH={}", api_hash);
-    }
+
+    let api_id = std::env::var("TG_API_ID").expect("缺少 TG_API_ID，请在 .env 中配置");
+    let api_hash = std::env::var("TG_API_HASH").expect("缺少 TG_API_HASH，请在 .env 中配置");
+
+    println!("cargo:rustc-env=TG_API_ID={}", api_id);
+    println!("cargo:rustc-env=TG_API_HASH={}", api_hash);
 
     tauri_build::build();
 

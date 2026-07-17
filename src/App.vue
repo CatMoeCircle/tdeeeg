@@ -6,7 +6,7 @@ import { onMounted } from "vue";
 import { tdlibSend } from "./utils/tdlib";
 import { useRouter } from "vue-router";
 import TitleBar from "./components/TitleBar.vue";
-import { listenForUpdates } from "./utils/update";
+import { MessagePlugin } from 'tdesign-vue-next';
 import { ref } from "vue";
 
 const router = useRouter();
@@ -18,10 +18,13 @@ const startTDLibError = ref<string | null>(null);
 
 async function initTdlib() {
   try {
-    await listen<Update>("tdlib-update", (event) => {
-      const update = event.payload;
-      console.log("Received update:", update);
-    });
+    if (import.meta.env.DEV) {
+      await listen<Update>("tdlib-update", (event) => {
+        const update = event.payload;
+        console.log("Received update:", update);
+      });
+    }
+
 
     // Listen for initialization errors (e.g. invalid API ID/Hash)
     await listen("tdlib-init-error", (event) => {
@@ -29,6 +32,7 @@ async function initTdlib() {
       // @ts-ignore
       const errorMsg = event.payload?.message || JSON.stringify(event.payload);
       startTDLibError.value = `TDLib Error: ${errorMsg}`;
+      MessagePlugin.error({ content: errorMsg, placement: "top-right" });
       initialized.value = false;
     });
 
@@ -62,8 +66,8 @@ async function get() {
 }
 
 onMounted(() => {
+  invoke('set_tdlib_parameters', { useTestDc: true });
   initTdlib();
-  listenForUpdates();
   setTimeout(() => {
     get();
   }, 2000);
@@ -72,14 +76,19 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-screen w-screen overflow-hidden">
-    <TitleBar />
-    <div v-if="initialized" class="flex-1 overflow-hidden relative">
-      <router-view />
-    </div>
-    <div v-else class="flex-1 flex items-center justify-center">
-      <p v-if="!startTDLibError" class="text-gray-500 text-lg">Initializing...</p>
-      <p v-else class="text-red-500 text-lg mt-2">{{ startTDLibError }}</p>
+  <div class="relative flex flex-col h-screen w-screen overflow-hidden">
+    <!-- 背景层 -->
+    <div class="absolute inset-0 bg-[url('../../assets/1.jpg')] bg-cover bg-center"></div>
+    <!-- 可选磨砂叠加 -->
+    <div class="absolute inset-0 bg-white/30 backdrop-blur-[2px]"></div>
+
+    <!-- 原有内容层 -->
+    <div class="relative z-10 flex flex-col h-full w-full overflow-hidden">
+      <TitleBar />
+
+      <div class="flex-1 overflow-hidden relative">
+        <router-view />
+      </div>
     </div>
   </div>
 </template>

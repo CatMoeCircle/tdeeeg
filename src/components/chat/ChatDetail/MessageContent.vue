@@ -1,5 +1,11 @@
 <template>
     <div class="message-content">
+        <!-- Reply preview: 点击可跳转到被回复的消息 -->
+        <div v-if="replyTo"
+            class="reply-preview p-1 mb-2 bg-gray-100 dark:bg-gray-800 rounded cursor-pointer text-xs text-gray-600 dark:text-gray-300"
+            @click="jumpToReply">
+            回复消息 · 点击跳转
+        </div>
         <!-- Text -->
         <p v-if="content._ === 'messageText'" class="text-sm whitespace-pre-wrap break-all">
             {{ content.text.text }}
@@ -73,7 +79,7 @@
         </div>
 
         <!-- Fallback -->
-        <p v-else class="text-sm italic text-gray-500">
+        <p v-else class="text-sm italic text-red-500">
             [Unsupported message type: {{ content._ }}]
         </p>
     </div>
@@ -82,12 +88,18 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import type { MessageContent, file } from 'tdlib-types';
-import { tdlibSend } from '../../utils/tdlib';
+import { tdlibSend } from '../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { MicIcon, FileIcon, DownloadIcon } from 'lucide-vue-next';
 
 const props = defineProps<{
     content: MessageContent;
+    replyTo?: number;
+    msgId?: number;
+}>();
+
+const emit = defineEmits<{
+    (e: 'jump-to-message', id: number): void;
 }>();
 
 const mediaSrc = ref<string | undefined>(undefined);
@@ -158,5 +170,11 @@ watch(() => props.content, () => {
     mediaSrc.value = undefined;
     loadMedia();
 }, { immediate: true });
+
+const jumpToReply = () => {
+    if (props.replyTo) {
+        emit('jump-to-message', props.replyTo);
+    }
+};
 
 </script>

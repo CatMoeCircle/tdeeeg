@@ -6,7 +6,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, watch } from 'vue';
 import type { chatPhotoInfo, profilePhoto } from "tdlib-types";
 import { tdlibSend, } from '../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -24,33 +24,47 @@ const initials = computed(() => {
 
 const containerClass = computed(() => {
     const base = 'w-12 h-12 rounded-full bg-gray-300 shrink-0 overflow-hidden';
-    if (props.sizeClass) return `${base} ${props.sizeClass}`;
+    if (props.sizeClass) return ` ${props.sizeClass} ${base}`;
     return base;
 });
 
 
 const avatar = ref<string | undefined>(props.photo?.minithumbnail ? `data:image/jpeg;base64,${props.photo.minithumbnail.data}` : undefined);
 
-onMounted(async () => {
-    if (props.photo) {
-        if (props.photo.small?.local?.is_downloading_completed) {
-            avatar.value = convertFileSrc(props.photo.small.local.path);
+watch(
+    () => props.photo,
+    async (photo) => {
+        if (!photo) {
+            avatar.value = undefined;
             return;
         }
 
-        const photo = await tdlibSend({
+        // 1️⃣ minithumbnail
+        if (photo.minithumbnail) {
+            avatar.value = `data:image/jpeg;base64,${photo.minithumbnail.data}`;
+        }
+
+        // 2️⃣ 已下载
+        if (photo.small?.local?.is_downloading_completed) {
+            avatar.value = convertFileSrc(photo.small.local.path);
+            return;
+        }
+
+        // 3️⃣ 触发下载
+        const file = await tdlibSend({
             _: "downloadFile",
-            file_id: props.photo?.small?.id,
+            file_id: photo.small?.id,
             priority: 1,
             offset: 0,
             limit: 0,
-            synchronous: true
+            synchronous: true,
         });
 
-        if (photo.local?.path) {
-            avatar.value = convertFileSrc(photo.local.path);
+        if (file.local?.path) {
+            avatar.value = convertFileSrc(file.local.path);
         }
-    }
-});
+    },
+    { immediate: true } // 🔥 非常重要
+);
 
 </script>

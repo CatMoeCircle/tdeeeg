@@ -28,3 +28,6 @@ bun run tauri dev
 ```
 bun run tauri build
 ```
+
+---
+This project was completed using GitHub Copilot.
