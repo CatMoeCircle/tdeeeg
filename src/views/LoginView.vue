@@ -298,7 +298,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="flex justify-center items-center h-full bg-white select-none">
+    <div class="flex justify-center items-center h-full select-none">
         <div class="flex w-[800px] items-center justify-between">
             <!-- Left Side: Phone Login -->
             <div class="flex-1 flex flex-col items-center text-center px-8">
