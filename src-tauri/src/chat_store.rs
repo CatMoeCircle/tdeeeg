@@ -266,6 +266,78 @@ impl ChatStore {
                     }
                 }
             }
+            "updateChatDraftMessage" => {
+                let chat_id = update["chat_id"].as_i64()?;
+                if let Some(chat) = self.chats.get_mut(&chat_id) {
+                    chat.draft_message = Some(update["draft_message"].clone());
+
+                    if let Some(positions) = update.get("positions").and_then(|p| p.as_array()) {
+                        chat.positions = Some(positions.clone());
+                        for pos in positions {
+                            if let Some(list) = pos.get("list") {
+                                if let Some(key) = Self::get_list_key(list) {
+                                    let order_str =
+                                        pos.get("order").and_then(|v| v.as_str()).unwrap_or("0");
+                                    let order = order_str.parse::<u64>().unwrap_or(0);
+                                    let list_state = self
+                                        .lists
+                                        .entry(key.clone())
+                                        .or_insert_with(|| ChatListState::new(key.clone()));
+                                    list_state.update_order(chat_id, order);
+                                    events.push((
+                                        "chat-list-update".to_string(),
+                                        serde_json::to_value(list_state).unwrap(),
+                                    ));
+                                }
+                            }
+                        }
+                    }
+
+                    events.push((
+                        "chat-update".to_string(),
+                        serde_json::to_value(chat).unwrap(),
+                    ));
+                }
+            }
+            "updateChatReadInbox" => {
+                let chat_id = update["chat_id"].as_i64()?;
+                if let Some(chat) = self.chats.get_mut(&chat_id) {
+                    if let Some(cnt) = update["unread_count"].as_i64() {
+                        chat.unread_count = cnt as i32;
+                    }
+                    events.push((
+                        "chat-update".to_string(),
+                        serde_json::to_value(chat).unwrap(),
+                    ));
+                }
+            }
+            "updateChatReadOutbox" => {
+                let chat_id = update["chat_id"].as_i64()?;
+                if let Some(chat) = self.chats.get_mut(&chat_id) {
+                    events.push((
+                        "chat-update".to_string(),
+                        serde_json::to_value(chat).unwrap(),
+                    ));
+                }
+            }
+            "updateChatUnreadMentionCount" => {
+                let chat_id = update["chat_id"].as_i64()?;
+                if let Some(chat) = self.chats.get_mut(&chat_id) {
+                    events.push((
+                        "chat-update".to_string(),
+                        serde_json::to_value(chat).unwrap(),
+                    ));
+                }
+            }
+            "updateChatIsMarkedAsUnread" => {
+                let chat_id = update["chat_id"].as_i64()?;
+                if let Some(chat) = self.chats.get_mut(&chat_id) {
+                    events.push((
+                        "chat-update".to_string(),
+                        serde_json::to_value(chat).unwrap(),
+                    ));
+                }
+            }
             _ => {}
         }
 

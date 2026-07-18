@@ -75,7 +75,7 @@
 import { SearchIcon, MoreHorizontalIcon } from 'lucide-vue-next';
 import MessageInput from './ChatDetail/MessageInput.vue';
 import Avatar from './avatar.vue';
-import MessageContent from './ChatDetail/MessageContent.vue';
+import MessageContent from './ChatDetail/MessageContent/index.vue';
 import { ref, computed, watch, onMounted, nextTick, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useUserStore } from '../../store/user';
@@ -494,10 +494,7 @@ const shouldShowSenderName = computed(() => {
     return chat.value.type._ !== 'chatTypePrivate';
 });
 
-// 是否显示上方骨架（当没有消息且正在加载消息时）
-const showSkeleton = computed(() => {
-    return messages.value.length === 0 && isLoadingMessages.value;
-});
+
 
 // 定位到上次已读消息所需的状态
 const initialScrollTarget = ref<number | null>(null);

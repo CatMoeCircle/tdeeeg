@@ -10,7 +10,7 @@ const close = () => appWindow.close();
 </script>
 
 <template>
-    <div data-tauri-drag-region class="h-8 flex justify-between items-center select-none z-50 absolute w-full">
+    <div data-tauri-drag-region class="h-8 flex justify-between items-center select-none w-full shrink-0">
         <div class="pl-4 text-sm font-medium text-gray-700 pointer-events-none"></div>
         <div class="flex h-full">
             <button @click="minimize"

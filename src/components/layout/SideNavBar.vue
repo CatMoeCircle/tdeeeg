@@ -1,40 +1,34 @@
+<!-- 侧边栏 -->
 <template>
-    <div
-        class="w-16 h-full dark:bg-gray-900 flex flex-col items-center py-4 border-r border-gray-200 dark:border-gray-800 pt-9">
+    <div class="w-14 h-full dark:bg-gray-900 flex flex-col items-center py-4 dark:border-gray-800 pt-1">
         <!-- Avatar / Profile -->
-        <div class="mb-6 ">
-            <Avatar v-if="userProfile" :photo="userProfile.profile_photo"
-                :title="userProfile.first_name + ' ' + userProfile.last_name" />
-            <div v-else class="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
+        <div class="mb-5 ">
+            <div v-if="userProfile" class="w-10 h-10">
+                <Avatar :photo="userProfile.profile_photo"
+                    :title="userProfile.first_name + ' ' + userProfile.last_name" />
+            </div>
+            <div v-else class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
         </div>
 
-        <!-- Navigation Items -->
-        <div class="flex-1 flex flex-col gap-4 w-full items-center">
-            <router-link to="/home/chats"
-                class="w-12 h-12 flex items-center justify-center text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors relative rounded-lg"
-                active-class="bg-white/60 dark:bg-gray-600 shadow-sm">
-                <MessageCircleIcon class="w-6 h-6" />
+        <!-- 侧边栏-上部分-->
+        <div class="flex-1 flex flex-col gap-2 w-full items-center">
+            <router-link to="/home/chats" :class="buttonStyle" active-class="bg-white/60 dark:bg-gray-600 shadow-sm">
+                <MessageCircleIcon :class="iconStyle" />
             </router-link>
 
-            <router-link to="/home/contacts"
-                class="w-12 h-12 flex items-center justify-center text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors relative rounded-lg"
-                active-class="bg-white/60 dark:bg-gray-600 shadow-sm">
-                <UsersIcon class="w-6 h-6" />
+            <router-link to="/home/contacts" :class="buttonStyle" active-class="bg-white/60 dark:bg-gray-600 shadow-sm">
+                <UsersIcon :class="iconStyle" />
             </router-link>
 
-            <router-link to="/home/archived"
-                class="w-12 h-12 flex items-center justify-center text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors relative rounded-lg"
-                active-class="bg-white/60 dark:bg-gray-600 shadow-sm">
-                <ArchiveIcon class="w-6 h-6" />
+            <router-link to="/home/archived" :class="buttonStyle" active-class="bg-white/60 dark:bg-gray-600 shadow-sm">
+                <ArchiveIcon :class="iconStyle" />
             </router-link>
         </div>
 
-        <!-- Bottom Actions -->
+        <!-- 侧边栏-下部分 -->
         <div class="mt-auto flex flex-col gap-4 w-full items-center">
-            <router-link to="/home/settings"
-                class="w-12 h-12 flex items-center justify-center text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors relative rounded-lg"
-                active-class="bg-white/60 dark:bg-gray-600 shadow-sm">
-                <SettingsIcon class="w-6 h-6" />
+            <router-link to="/home/settings" :class="buttonStyle" active-class="bg-white/60 dark:bg-gray-600 shadow-sm">
+                <SettingsIcon :class="iconStyle" />
             </router-link>
         </div>
     </div>
@@ -46,6 +40,9 @@ import Avatar from "../chat/avatar.vue";
 import { onMounted } from 'vue';
 import { useUserStore } from '../../store/user';
 import { storeToRefs } from 'pinia';
+
+const buttonStyle = 'w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-800/50 transition-colors relative rounded-lg';
+const iconStyle = 'w-5 h-5';
 
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);

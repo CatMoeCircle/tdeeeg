@@ -1,5 +1,5 @@
 <template>
-    <div class="flex flex-col h-full bg-white border-r border-gray-200">
+    <div class="flex flex-col h-full ">
         <div class="p-4 border-b border-gray-200 dark:border-gray-800">
             <h2 class="text-lg font-semibold">联系人</h2>
         </div>
@@ -7,8 +7,10 @@
             <div v-for="user in Contacts ?? []" :key="user.id">
                 <div
                     class="flex items-center p-2 hover:shadow-(--box-shadow) hover:bg-gray-200/50 rounded-xl cursor-pointer transition-colors">
-                    <Avatar :photo="user.profile_photo" :title="user.first_name + ` ` + user.last_name"
-                        sizeClass="mr-3" />
+
+                    <div class="w-13 h-13 mr-3">
+                        <Avatar :photo="user.profile_photo" :title="user.first_name + ` ` + user.last_name" />
+                    </div>
                     <div class="flex-1 min-w-0">
                         <h3 class="text-sm font-semibold text-gray-900">{{ user.first_name + ` ` +
                             user.last_name }}</h3>

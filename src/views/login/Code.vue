@@ -21,6 +21,7 @@ const submitCode = async () => {
             _: "checkAuthenticationCode",
             code: code.value,
         });
+        loading.value = false;
     } catch (error: any) {
         const msg = error.message || t('login.codeError');
         MessagePlugin.error({ content: msg, placement: "top-right" });

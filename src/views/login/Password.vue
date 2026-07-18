@@ -21,6 +21,7 @@ const submitPassword = async () => {
             _: "checkAuthenticationPassword",
             password: password.value,
         });
+        loading.value = false;
     } catch (error: any) {
         const msg = error.message || t('login.passwordError');
         MessagePlugin.error({ content: msg, placement: "top-right" });

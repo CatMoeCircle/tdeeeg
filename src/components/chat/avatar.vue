@@ -23,7 +23,7 @@ const initials = computed(() => {
 });
 
 const containerClass = computed(() => {
-    const base = 'w-12 h-12 rounded-full bg-gray-300 shrink-0 overflow-hidden';
+    const base = 'w-full h-full rounded-full bg-gray-300 shrink-0 overflow-hidden';
     if (props.sizeClass) return ` ${props.sizeClass} ${base}`;
     return base;
 });

@@ -6,6 +6,7 @@
     "phonePlaceholder": "Phone",
     "next": "Next",
     "scanTitle": "Scan From Mobile Telegram",
+    "clickToShowQr": "Click to show QR code",
     "step1": "Open Telegram on your phone",
     "step2": "Go to Settings > Devices > Link Desktop Device",
     "step3": "Scan this image to Log In",

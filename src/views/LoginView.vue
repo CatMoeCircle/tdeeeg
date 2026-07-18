@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import QRCodeStyling from "qr-code-styling";
 import { useI18n } from 'vue-i18n';
 import { tdlibSend } from "../utils/tdlib";
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { MessagePlugin } from 'tdesign-vue-next';
 import type { AuthorizationState, Update, countryInfo } from "tdlib-types";
@@ -20,6 +21,8 @@ const selectedCountry = ref("");
 const isAutoSwitching = ref(false);
 let qrCode: QRCodeStyling | null = null;
 const { t } = useI18n();
+/** 用户点击手机登录时，若正在二维码状态，先重置再发请求 */
+const pendingPhoneLogin = ref<string | null>(null);
 
 watch(selectedCountry, (newVal) => {
     if (isAutoSwitching.value) {
@@ -68,12 +71,98 @@ watch(phoneNumber, (newVal) => {
     }
 });
 
+/** 用户主动点击二维码区域时显示/刷新二维码 */
+const startQrLogin = async () => {
+    // 如果已有二维码链接，直接重新显示
+    if (qrlink.value) {
+        await nextTick();
+        if (qrCodeContainer.value) {
+            initOrUpdateQrCode(qrlink.value);
+        }
+        return;
+    }
+    // 无链接时查询当前状态，可能已在 WaitOtherDeviceConfirmation
+    try {
+        const state = await tdlibSend({ _: "getAuthorizationState" });
+        if (state._ === 'authorizationStateWaitOtherDeviceConfirmation') {
+            qrlink.value = (state as any).link;
+            return;
+        }
+        // 否则发起二维码认证
+        await tdlibSend({ _: "requestQrCodeAuthentication" });
+    } catch (e) {
+        console.error("QR auth failed:", e);
+    }
+};
+
+/** 清除二维码显示 */
+const clearQrCode = () => {
+    qrlink.value = '';
+    if (qrCodeContainer.value) {
+        qrCodeContainer.value.innerHTML = '';
+    }
+    qrCode = null;
+};
+
+/** 创建或重新创建二维码实例并挂载 */
+const initOrUpdateQrCode = (link: string) => {
+    if (!qrCodeContainer.value) return;
+    if (!qrCode) {
+        qrCode = new QRCodeStyling({
+            width: 220,
+            height: 220,
+            type: "svg",
+            data: link || "telegram.org",
+            dotsOptions: { color: "#000", type: "rounded" },
+            backgroundOptions: { color: "#ffffff" },
+            imageOptions: { crossOrigin: "anonymous" },
+            cornersSquareOptions: { type: "extra-rounded" }
+        });
+        qrCodeContainer.value.innerHTML = '';
+        qrCode.append(qrCodeContainer.value);
+    } else {
+        try {
+            qrCode.update({ data: link || "telegram.org" });
+        } catch (e) {
+            qrCodeContainer.value.innerHTML = '';
+            qrCode = new QRCodeStyling({
+                width: 220, height: 220, type: "svg",
+                data: link || "telegram.org",
+                dotsOptions: { color: "#000", type: "rounded" },
+                backgroundOptions: { color: "#ffffff" },
+                imageOptions: { crossOrigin: "anonymous" },
+                cornersSquareOptions: { type: "extra-rounded" }
+            });
+            qrCode.append(qrCodeContainer.value);
+        }
+    }
+};
+
 const login = async () => {
     if (!phoneNumber.value) return;
+
+    // 确保手机号有 + 前缀
+    const rawPhone = phoneNumber.value.startsWith('+')
+        ? phoneNumber.value
+        : '+' + phoneNumber.value;
+
+    // 检查当前授权状态
     try {
+        const state = await tdlibSend({ _: "getAuthorizationState" });
+        if (state._ === 'authorizationStateWaitOtherDeviceConfirmation') {
+            // 正在二维码等待状态，需要先重置 TDLib 才能切到手机号登录
+            clearQrCode();
+            pendingPhoneLogin.value = rawPhone;
+            await invoke("init_tdlib", { force: true });
+            // TDLib 重启后 auth state 会重新走初始化流程，
+            // 事件监听会在 WaitPhoneNumber 时处理 pendingPhoneLogin
+            return;
+        }
+
+        // 正常流程
         await tdlibSend({
             _: "setAuthenticationPhoneNumber",
-            phone_number: phoneNumber.value,
+            phone_number: rawPhone,
             settings: {
                 _: "phoneNumberAuthenticationSettings",
                 allow_flash_call: false,
@@ -98,7 +187,7 @@ const getqrlink = async () => {
     AuthState(State);
 };
 
-const AuthState = (State: AuthorizationState) => {
+const AuthState = async (State: AuthorizationState) => {
     switch (State._) {
         case "authorizationStateWaitOtherDeviceConfirmation":
             console.log(State.link);
@@ -108,10 +197,31 @@ const AuthState = (State: AuthorizationState) => {
             router.push("/home");
             break;
         case "authorizationStateWaitPhoneNumber":
-            tdlibSend({
-                _: "requestQrCodeAuthentication",
-            });
-
+            // 如果有待处理的手机号登录（从二维码切换过来）
+            if (pendingPhoneLogin.value) {
+                const phone = pendingPhoneLogin.value;
+                pendingPhoneLogin.value = null;
+                try {
+                    await tdlibSend({
+                        _: "setAuthenticationPhoneNumber",
+                        phone_number: phone,
+                        settings: {
+                            _: "phoneNumberAuthenticationSettings",
+                            allow_flash_call: false,
+                            allow_missed_call: false,
+                            is_current_phone_number: false,
+                            allow_sms_retriever_api: false,
+                            authentication_tokens: []
+                        }
+                    });
+                } catch (e) {
+                    console.error(e);
+                    MessagePlugin.error({ content: "Error setting phone number", placement: "top-right" });
+                }
+                return;
+            }
+            // 无待处理手机号，自动触发二维码（同时显示两种登录方式）
+            await tdlibSend({ _: "requestQrCodeAuthentication" });
             break;
         case "authorizationStateWaitTdlibParameters":
             MessagePlugin.error({ content: t('login.tdlibParametersError'), placement: "top-right", offset: [0, 20] });
@@ -158,61 +268,27 @@ onMounted(async () => {
             Countries.value = res.countries;
         }
     }).catch((err) => {
-        ``
         console.error("获取国家列表失败:", err);
     });
     getqrlink();
-    qrCode = new QRCodeStyling({
-        width: 220,
-        height: 220,
-        type: "svg",
-        data: qrlink.value,
-        dotsOptions: {
-            color: "#000",
-            type: "rounded"
-        },
-        backgroundOptions: {
-            color: "#ffffff",
-        },
-        imageOptions: {
-            crossOrigin: "anonymous",
-        },
-        cornersSquareOptions: {
-            type: "extra-rounded"
-        }
-    });
 
-    if (qrCodeContainer.value) {
-        qrCode.append(qrCodeContainer.value);
-    }
-
-    // 当 qrlink 变化时实时更新二维码的内容
+    // 当 qrlink 变化时实时更新或创建二维码
     watch(qrlink, async (val) => {
-        if (!qrCode) return;
-
+        if (!val) return;
         // 等待 Vue 完成 DOM 更新（v-if 条件变化后）
         await nextTick();
-
-        // 再次检查容器是否仍然存在且已挂载
         if (!qrCodeContainer.value) return;
-
-        try {
-            qrCode.update({ data: val || "telegram.org" });
-        } catch (e) {
-            // 如果库不支持 update，作为回退方案清空容器并重新 append
-            // 但要确保容器仍然存在
-            if (qrCodeContainer.value && qrCodeContainer.value.isConnected) {
-                qrCodeContainer.value.innerHTML = "";
-                qrCode.append(qrCodeContainer.value);
-            }
-        }
+        initOrUpdateQrCode(val);
     });
 });
 
 onUnmounted(() => {
+    // 清理待处理的手机号登录
+    pendingPhoneLogin.value = null;
 
     // 清理二维码 DOM
     if (qrCodeContainer.value) qrCodeContainer.value.innerHTML = "";
+    qrCode = null;
 
     // 取消 TDLib 事件监听
     if (qrlinkupdate) {
@@ -258,13 +334,14 @@ onUnmounted(() => {
 
             <!-- Right Side: QR Code -->
             <div class="flex-1 flex flex-col items-center text-center px-8">
-                <div ref="qrCodeContainer"
-                    class="mb-6 p-2 border border-gray-100 rounded-2xl shadow-sm relative w-[220px] h-[220px] flex items-center justify-center">
+                <div ref="qrCodeContainer" @click="startQrLogin"
+                    class="mb-6 p-2 border border-gray-100 rounded-2xl shadow-sm relative w-[220px] h-[220px] flex items-center justify-center cursor-pointer hover:border-blue-300 transition-colors">
                     <div v-if="!qrlink"
                         class="absolute inset-0 flex flex-col items-center justify-center text-center text-gray-400 px-4">
                         <div class="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center mb-3">
+                            <span class="text-2xl">QR</span>
                         </div>
-                        <div class="text-sm">{{ t('login.waiting') }}</div>
+                        <div class="text-sm">{{ t('login.clickToShowQr') }}</div>
                     </div>
                 </div>
 

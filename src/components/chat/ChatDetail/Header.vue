@@ -1,6 +1,6 @@
 <template>
     <div
-        class="h-20 border-b border-gray-200 dark:border-gray-800 pt-4 flex items-center px-4 justify-between shrink-0">
+        class="h-16 border-b border-gray-200 dark:border-gray-800 pt-0 flex items-center px-4 justify-between shrink-0">
         <div class="flex items-center gap-3" v-if="chat">
             <Avatar :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" />
             <div class="flex flex-col">

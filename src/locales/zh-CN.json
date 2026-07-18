@@ -16,6 +16,7 @@
     "CheckEmailTips": "TDLib 需要用户设置的电子邮件的中的验证码",
     "RegisterTips": "此账户视乎是一个新账户",
     "UnknownStateError": "未知授权状态或未处理",
+    "clickToShowQr": "点击显示二维码",
     "waiting": "正在等待二维码...",
     "selectCountry": "选择国家",
     "enterCode": "输入验证码",

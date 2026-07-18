@@ -78,9 +78,9 @@ onMounted(() => {
 <template>
   <div class="relative flex flex-col h-screen w-screen overflow-hidden">
     <!-- 背景层 -->
-    <div class="absolute inset-0 bg-[url('../../assets/1.jpg')] bg-cover bg-center"></div>
+    <div class="absolute inset-0 bg-white/50 bg-cover bg-center"></div>
     <!-- 可选磨砂叠加 -->
-    <div class="absolute inset-0 bg-white/30 backdrop-blur-[2px]"></div>
+    <!-- <div class="absolute inset-0 bg-white/50 backdrop-blur-[2px]"></div> -->
 
     <!-- 原有内容层 -->
     <div class="relative z-10 flex flex-col h-full w-full overflow-hidden">

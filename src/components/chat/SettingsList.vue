@@ -2,8 +2,11 @@
     <div class="flex flex-col h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
         <div class="mt-3">
             <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center">
-                <avatar v-if="userProfile" :photo="userProfile.profile_photo"
-                    :title="userProfile.first_name + ' ' + userProfile.last_name" />
+                <div class="w-10 h-10" v-if="userProfile">
+                    <avatar :photo="userProfile.profile_photo"
+                        :title="userProfile.first_name + ' ' + userProfile.last_name" />
+                </div>
+
                 <div v-else class="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
                 <div class="ml-3">
                     <p class="text-sm font-medium text-gray-900 dark:text-gray-100">

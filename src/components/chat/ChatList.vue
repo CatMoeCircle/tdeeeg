@@ -1,5 +1,6 @@
 <template>
-    <div class="flex flex-col h-full dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800  pt-4">
+    <div class="flex flex-col h-full dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 pt-4"
+        @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
         <!-- Search Bar -->
         <div class="py-1 px-3">
             <div class="relative">
@@ -10,8 +11,8 @@
         </div>
         <!-- Folder Tabs -->
         <div v-if="tabs.length > 1" ref="tabsContainer" @wheel.prevent="handleWheel"
-            class="flex px-2 border-b border-gray-200 dark:border-gray-800 overflow-x-auto no-scrollbar gap-2">
-            <button v-for="tab in tabs" :key="tab.id" @click="activeTab = tab.id"
+            class="flex px-2 border-b border-gray-200 dark:border-gray-800 overflow-x-auto no-scrollbar gap-2 shrink-0">
+            <button v-for="tab in tabs" :key="tab.id" @click="switchToTab(tab.id)"
                 class="px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors shrink-0" :class="[
                     settings.folderStyle === 'tabs'
                         ? (activeTab === tab.id ? 'border-b-2 border-blue-500 text-blue-600' : 'border-b-2 border-transparent text-gray-500 hover:text-gray-700')
@@ -27,19 +28,29 @@
             </button>
         </div>
 
-        <!-- Chat List -->
-        <div class="flex-1 overflow-y-auto custom-scrollbar pl-1.5 pr-0.5 py-1" @scroll="onScroll">
-            <div v-for="chat in displayChats" :key="chat.id" @click="selectChat(chat.id)"
-                class="flex items-center p-3 hover:bg-white/70 rounded-xl hover:shadow-(--box-shadow) dark:hover:bg-gray-800 cursor-pointer transition-colors"
-                :class="{ 'rounded-xl bg-white/70 shadow-(--box-shadow) dark:bg-gray-800': selectedChatId === chat.id }">
-                <Avatar :photo="chat.photo" :title="chat.title" sizeClass="mr-3" />
-                <div class="flex-1 min-w-0">
-                    <div class="flex justify-between items-baseline mb-1">
-                        <h3 class="text-sm font-semibold truncate text-gray-900 dark:text-gray-100">{{ chat.title }}
-                        </h3>
-                        <span class="text-xs text-gray-400">{{ formatTime(chat.last_message?.date) }}</span>
+        <!-- Swipeable Chat List Container -->
+        <div class="flex-1 overflow-hidden relative">
+            <div ref="swipeContainer" class="swipe-track absolute inset-0 flex"
+                :style="{ transform: `translateX(${swipeOffset}px)`, transition: isSwiping ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }">
+                <div v-for="tab in tabsWithContent" :key="tab.id"
+                    class="swipe-page h-full shrink-0 overflow-y-auto custom-scrollbar pl-1.5 pr-0.5 py-1"
+                    @scroll="(e: Event) => onScroll(e, tab.id)">
+                    <div v-for="chat in tab.chats" :key="chat.id" @click="selectChat(chat.id)"
+                        class="flex items-center p-3 hover:bg-white/70 rounded-xl hover:shadow-(--box-shadow) dark:hover:bg-gray-800 cursor-pointer transition-colors"
+                        :class="{ 'rounded-xl bg-white/70 shadow-(--box-shadow) dark:bg-gray-800': selectedChatId === chat.id }">
+                        <div class="w-14 h-14 mr-3">
+                            <Avatar :photo="chat.photo" :title="chat.title" />
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex justify-between items-baseline mb-1">
+                                <h3 class="text-sm font-semibold truncate text-gray-900 dark:text-gray-100">{{
+                                    chat.title }}
+                                </h3>
+                                <span class="text-xs text-gray-400">{{ formatTime(chat.last_message?.date) }}</span>
+                            </div>
+                            <p class="text-xs text-gray-500 truncate">{{ getMessagePreview(chat.last_message) }}</p>
+                        </div>
                     </div>
-                    <p class="text-xs text-gray-500 truncate">{{ getMessagePreview(chat.last_message) }}</p>
                 </div>
             </div>
         </div>
@@ -47,12 +58,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { SearchIcon } from 'lucide-vue-next';
 import { settings } from '../../store/settings';
 import { useChatStore } from '../../store/chat';
-import { tdlibSend } from '../../utils/tdlib';
 import Avatar from './avatar.vue';
 import type { message } from 'tdlib-types';
 
@@ -64,6 +74,45 @@ const router = useRouter();
 const chatStore = useChatStore();
 
 const tabsContainer = ref<HTMLElement | null>(null);
+const swipeContainer = ref<HTMLElement | null>(null);
+const pageWidth = ref(0);
+
+// ---- Swipe state ----
+const swipeOffset = ref(0);
+const isSwiping = ref(false);
+let touchStartX = 0;
+let touchStartY = 0;
+let currentTranslateX = 0;
+let isHorizontalSwipe: boolean | null = null;
+
+// ---- Resize observer for page width ----
+let resizeObserver: ResizeObserver | null = null;
+
+onMounted(async () => {
+    await chatStore.initListener();
+    await chatStore.loadChatLists();
+    updatePageWidth();
+
+    if (typeof ResizeObserver !== 'undefined') {
+        resizeObserver = new ResizeObserver(() => updatePageWidth());
+        const parent = swipeContainer.value?.parentElement;
+        if (parent) resizeObserver.observe(parent);
+    }
+});
+
+onUnmounted(() => {
+    resizeObserver?.disconnect();
+});
+
+function updatePageWidth() {
+    const parent = swipeContainer.value?.parentElement;
+    if (parent) {
+        pageWidth.value = parent.clientWidth;
+        // 更新 translateX 以匹配当前 tab
+        const idx = currentIndex.value;
+        swipeOffset.value = -idx * pageWidth.value;
+    }
+}
 
 const handleWheel = (e: WheelEvent) => {
     if (tabsContainer.value) {
@@ -71,16 +120,14 @@ const handleWheel = (e: WheelEvent) => {
     }
 };
 
-onMounted(async () => {
-    await chatStore.initListener();
-    await chatStore.loadChatLists();
-});
-
+// 当 chatLists 就绪后，先从 Rust store 拉取已有缓存（不会覆盖事件来的数据）
 watch(() => chatStore.chatLists, async (lists) => {
     for (const list of lists) {
         await chatStore.loadList(list);
     }
-}, { deep: true });
+    // 然后对当前 activeTab 发起首次 loadChats
+    triggerLoadMore(activeTab.value);
+}, { deep: true, once: true });
 
 const tabs = computed(() => {
     if (props.isArchive) return [];
@@ -91,7 +138,7 @@ const tabs = computed(() => {
         if (list._ === 'chatFolderInfo') {
             return {
                 id: `chat_folder_id${list.id}`,
-                name: list.title || list.name?.text?.text || '文件夹'
+                name: list.name?.text?.text || '文件夹'
             };
         }
         return { id: 'unknown', name: '未知' }
@@ -99,6 +146,12 @@ const tabs = computed(() => {
 });
 
 const activeTab = ref(props.isArchive ? 'chatListArchive' : 'chatListMain');
+
+const currentIndex = computed(() => {
+    if (props.isArchive) return 0;
+    const idx = tabs.value.findIndex(t => t.id === activeTab.value);
+    return idx >= 0 ? idx : 0;
+});
 
 watch(tabs, (newTabs) => {
     if (props.isArchive) {
@@ -110,8 +163,16 @@ watch(tabs, (newTabs) => {
     }
 }, { immediate: true });
 
-const displayChats = computed(() => {
-    return chatStore.getList(activeTab.value).value;
+// Computed that maps each tab to its chat data
+const tabsWithContent = computed(() => {
+    if (props.isArchive) {
+        const chats = chatStore.getList('chatListArchive').value;
+        return [{ id: 'chatListArchive', chats }];
+    }
+    return tabs.value.map(tab => ({
+        id: tab.id,
+        chats: chatStore.getList(tab.id).value
+    }));
 });
 
 const selectedChatId = ref<number | null>(null);
@@ -160,59 +221,138 @@ const getMessagePreview = (message: message | undefined) => {
     return '[消息]';
 };
 
-const isLoading = ref(false);
-const isFinished = ref(false);
-
-watch(activeTab, () => {
-    isFinished.value = false;
-    isLoading.value = false;
-    // If list is empty, try to load more
-    const currentList = chatStore.getList(activeTab.value).value;
-    if (currentList.length === 0) {
-        loadMore();
+// 切换 Tab 时重置该列表的加载状态，若列表为空则触发加载
+watch(activeTab, (newTab) => {
+    if (!pageWidth.value) return;
+    const idx = tabs.value.findIndex(t => t.id === newTab);
+    if (idx >= 0) {
+        swipeOffset.value = -idx * pageWidth.value;
+    }
+    chatStore.resetListState(newTab);
+    const currentList = chatStore.getList(newTab).value;
+    const hasRealChats = currentList.some(c => c.title !== '…');
+    if (!hasRealChats) {
+        triggerLoadMore(newTab);
     }
 });
 
-const onScroll = async (e: Event) => {
+const onScroll = (e: Event, tabId: string) => {
     const target = e.target as HTMLElement;
     if (target.scrollHeight - target.scrollTop <= target.clientHeight + 50) {
-        await loadMore();
+        triggerLoadMore(tabId);
     }
 };
 
-const loadMore = async () => {
-    if (isLoading.value || isFinished.value) return;
-    isLoading.value = true;
-
-    let chatList: any;
-    if (activeTab.value === 'chatListMain') {
-        chatList = { _: 'chatListMain' };
-    } else if (activeTab.value === 'chatListArchive') {
-        chatList = { _: 'chatListArchive' };
-    } else if (activeTab.value.startsWith('chat_folder_id')) {
-        const id = parseInt(activeTab.value.replace('chat_folder_id', ''));
-        chatList = { _: 'chatListFolder', chat_folder_id: id };
-    } else {
-        isLoading.value = false;
-        return;
+function buildChatListObject(tabKey: string): any {
+    if (tabKey === 'chatListMain') {
+        return { _: 'chatListMain' };
+    } else if (tabKey === 'chatListArchive') {
+        return { _: 'chatListArchive' };
+    } else if (tabKey.startsWith('chat_folder_id')) {
+        const id = parseInt(tabKey.replace('chat_folder_id', ''));
+        return { _: 'chatListFolder', chat_folder_id: id };
     }
+    return null;
+}
 
-    try {
-        await tdlibSend({
-            _: "loadChats",
-            chat_list: chatList,
-            limit: 50
-        });
-    } catch (error: any) {
-        if (error.code === 404) {
-            isFinished.value = true;
-        } else {
-            console.error("Failed to load chats:", error);
+function triggerLoadMore(tabKey: string) {
+    const chatList = buildChatListObject(tabKey);
+    if (!chatList) return;
+    chatStore.requestLoadMore(tabKey, chatList);
+}
+
+// ---- Tab click with animation ----
+function switchToTab(tabId: string) {
+    if (tabId === activeTab.value) return;
+    isSwiping.value = false; // use transition
+    activeTab.value = tabId;
+}
+
+// ---- Touch / Swipe handlers ----
+function onTouchStart(e: TouchEvent) {
+    if (tabs.value.length <= 1) return;
+    const touch = e.touches[0];
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+    isHorizontalSwipe = null;
+    currentTranslateX = swipeOffset.value;
+}
+
+function onTouchMove(e: TouchEvent) {
+    if (tabs.value.length <= 1) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - touchStartX;
+    const dy = touch.clientY - touchStartY;
+
+    // 判断滑动方向
+    if (isHorizontalSwipe === null) {
+        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+            isHorizontalSwipe = Math.abs(dx) > Math.abs(dy);
         }
-    } finally {
-        isLoading.value = false;
     }
-};
+
+    if (!isHorizontalSwipe) return; // 垂直滚动交给浏览器
+
+    e.preventDefault();
+
+    if (!pageWidth.value) return;
+    isSwiping.value = true;
+
+    const totalPages = tabs.value.length;
+    let newOffset = currentTranslateX + dx;
+
+    // 边界限制 + 弹性阻尼
+    if (currentIndex.value === 0 && dx > 0) {
+        newOffset = currentTranslateX + dx * 0.3;
+    } else if (currentIndex.value === totalPages - 1 && dx < 0) {
+        newOffset = currentTranslateX + dx * 0.3;
+    } else {
+        // 检查是否超出边界
+        const maxOffset = 0;
+        const minOffset = -(totalPages - 1) * pageWidth.value;
+        if (newOffset > maxOffset) {
+            newOffset = maxOffset + (newOffset - maxOffset) * 0.3;
+        } else if (newOffset < minOffset) {
+            newOffset = minOffset + (newOffset - minOffset) * 0.3;
+        }
+    }
+
+    swipeOffset.value = newOffset;
+}
+
+function onTouchEnd(e: TouchEvent) {
+    if (tabs.value.length <= 1) return;
+    if (!pageWidth.value) return;
+
+    isSwiping.value = false;
+
+    if (!isHorizontalSwipe) return;
+
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - touchStartX;
+    const threshold = pageWidth.value * 0.2;
+
+    const totalPages = tabs.value.length;
+    let targetIndex = currentIndex.value;
+
+    if (Math.abs(dx) > threshold) {
+        if (dx < 0 && currentIndex.value < totalPages - 1) {
+            targetIndex = currentIndex.value + 1;
+        } else if (dx > 0 && currentIndex.value > 0) {
+            targetIndex = currentIndex.value - 1;
+        }
+    }
+
+    const targetTab = tabs.value[targetIndex];
+    if (targetTab) {
+        activeTab.value = targetTab.id;
+    } else {
+        // 回弹到当前 tab
+        swipeOffset.value = -currentIndex.value * pageWidth.value;
+    }
+
+    isHorizontalSwipe = null;
+}
 </script>
 
 <style scoped>
@@ -237,5 +377,22 @@ const loadMore = async () => {
 
 .custom-scrollbar:hover::-webkit-scrollbar-thumb {
     background-color: rgba(156, 163, 175, 0.5);
+}
+
+/* Swipe track: horizontal layout for pages */
+.swipe-track {
+    will-change: transform;
+    touch-action: pan-y;
+}
+
+/* Each page takes full width of the container */
+.swipe-page {
+    width: 100%;
+}
+
+/* Prevent text selection while swiping */
+.swiping * {
+    user-select: none;
+    -webkit-user-select: none;
 }
 </style>

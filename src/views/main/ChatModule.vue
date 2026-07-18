@@ -7,7 +7,7 @@
         <template #content>
             <div class="relative w-full h-full">
                 <!-- 背景层 -->
-                <div v-if="false" class="absolute inset-0 bg-[url('../../assets/1.jpg')] bg-cover bg-center"></div>
+                <!-- <div v-if="false" class="absolute inset-0 bg-[url('../../assets/1.jpg')] bg-cover bg-center"></div> -->
 
                 <!-- 前景内容 -->
                 <router-view v-slot="{ Component }">

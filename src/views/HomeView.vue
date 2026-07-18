@@ -1,7 +1,9 @@
 <template>
-    <div class="flex h-screen w-screen overflow-hidden dark:bg-black text-gray-900 dark:text-gray-100">
+    <div class="flex h-full w-full overflow-hidden dark:bg-black text-gray-900 dark:text-gray-100">
         <SideNavBar />
-        <router-view />
+        <div class="flex-1 bg-white rounded-tl-xl">
+            <router-view />
+        </div>
     </div>
 </template>
 <script setup lang="ts">
