@@ -171,13 +171,28 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
         let _ = app_handle.emit("tdlib-init-error", json!({ "message": err_msg }));
         return Err(err_msg);
     }
-    let lib = unsafe {
-        Library::new(&dll_path).map_err(|e| {
-            let err_msg = format!("Failed to load {}: {}", dll_path.display(), e);
-            let _ = app_handle.emit("tdlib-init-error", json!({ "message": err_msg }));
-            err_msg
-        })?
+    #[cfg(windows)]
+    let lib_result = unsafe {
+        use libloading::os::windows::{
+            Library as WindowsLibrary, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS,
+            LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR,
+        };
+
+        WindowsLibrary::load_with_flags(
+            &dll_path,
+            LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS,
+        )
+        .map(Library::from)
     };
+
+    #[cfg(not(windows))]
+    let lib_result = unsafe { Library::new(&dll_path) };
+
+    let lib = lib_result.map_err(|e| {
+        let err_msg = format!("Failed to load {}: {}", dll_path.display(), e);
+        let _ = app_handle.emit("tdlib-init-error", json!({ "message": err_msg }));
+        err_msg
+    })?;
     let _ = app_handle.emit("tdlib-log", "DLL loaded successfully");
     // 2. 获取函数符号
 
