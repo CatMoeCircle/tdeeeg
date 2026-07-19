@@ -230,12 +230,17 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
     unsafe { execute_fn(ptr::null_mut(), log_config.as_ptr()) };
 
     // 注册 TDLib 数据目录到 asset protocol 作用域，使前端能加载图片等文件
-    let tdlib_data_dir = std::env::current_dir()
+    let tdlib_data_dir = app_handle.path().app_data_dir()
         .map_err(|e| e.to_string())?
         .join("TDLib");
+    // 确保数据子目录存在
+    std::fs::create_dir_all(tdlib_data_dir.join("tdlib_db"))
+        .map_err(|e| format!("Failed to create TDLib db directory: {}", e))?;
+    std::fs::create_dir_all(tdlib_data_dir.join("tdlib_files"))
+        .map_err(|e| format!("Failed to create TDLib files directory: {}", e))?;
     let _ = app_handle
         .asset_protocol_scope()
-        .allow_directory(tdlib_data_dir, true);
+        .allow_directory(tdlib_data_dir.clone(), true);
 
     // 3. 创建客户端
     println!("About to create TDLib client...");
@@ -254,6 +259,8 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
     let pending_requests = state.pending_requests.clone();
     let config_clone = state.config.clone();
     let chat_store = state.chat_store.clone();
+    let tdlib_db_dir = tdlib_data_dir.join("tdlib_db");
+    let tdlib_files_dir = tdlib_data_dir.join("tdlib_files");
     std::thread::spawn(move || {
         let client = client_ptr as *mut c_void;
         loop {
@@ -293,11 +300,14 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
                                                 let cfg = config_clone.lock().unwrap();
                                                 (cfg.api_id, cfg.api_hash.clone(), cfg.use_test_dc)
                                             };
+                                            // 使用绝对路径确保 TDLib 不依赖当前工作目录
+                                            let db_dir = tdlib_db_dir.to_string_lossy().to_string();
+                                            let files_dir = tdlib_files_dir.to_string_lossy().to_string();
                                             let request = json!({
                                                 "@type": "setTdlibParameters",
                                                 "use_test_dc": use_test_dc,
-                                                "database_directory": "TDLib/tdlib_db",
-                                                "files_directory": "TDLib/tdlib_files",
+                                                "database_directory": db_dir,
+                                                "files_directory": files_dir,
                                                 "use_file_database": true,
                                                 "use_chat_info_database": true,
                                                 "use_message_database": true,

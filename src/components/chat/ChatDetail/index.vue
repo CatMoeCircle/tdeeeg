@@ -26,7 +26,7 @@
 
             <!-- 消息列表容器：mt-auto 将消息推到底部 -->
             <div class="mt-auto flex flex-col">
-                <template v-for="(item, displayIdx) in messageItems" :key="item.key">
+                <template v-for="item in messageItems" :key="item.key">
                     <!-- Date separator -->
                     <div v-if="item.type === 'date'" class="flex justify-center my-2">
                         <span
@@ -125,16 +125,19 @@
                 <div class="shrink-0 h-4"></div>
             </div>
         </div>
-
+        <!-- ===== 底部渐变淡出遮罩 ===== -->
+        <div aria-hidden="true"
+            class="absolute bottom-0 left-0 right-0 h-24 z-3 pointer-events-none bg-linear-to-t from-[#f5f5f5] dark:from-[#1c1c1c] via-[#f5f5f5]/60 dark:via-[#1c1c1c]/60 to-transparent">
+        </div>
         <!-- ===== Header（顶层，磨砂玻璃） ===== -->
         <div
-            class="absolute top-0 left-0 right-0 z-10 bg-white/70 dark:bg-[#1c1c1c]/70 backdrop-blur-lg border-b border-gray-200/60 dark:border-gray-800/60">
+            class="absolute top-0 left-0 right-0 z-10 bg-white/30 dark:bg-[#1c1c1c]/70 backdrop-blur-lg border-b border-gray-200/60 dark:border-gray-800/60">
             <ChatDetailHeader :chat="chat" />
         </div>
 
         <!-- ===== Input Area（顶层，磨砂玻璃） ===== -->
         <div v-if="canSend"
-            class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-white/80 dark:from-gray-900/80 via-white/60 dark:via-gray-900/60 to-transparent backdrop-blur-md">
+            class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-white/80 dark:from-gray-900/80 via-white/60 dark:via-gray-900/60 to-transparent">
             <MessageInput v-model="messageInput" @send="handleSend" @attach="handleAttach" />
         </div>
 
@@ -166,7 +169,7 @@ import ChatDetailHeader from './Header.vue';
 
 import { tdlibSend } from '../../../utils/tdlib';
 
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { computed, watch, ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useUserStore } from '../../../store/user';
 import { storeToRefs } from 'pinia';
@@ -176,7 +179,6 @@ import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergro
 
 // ==================== Route ====================
 const route = useRoute();
-const router = useRouter();
 
 const chatId = computed(() => {
     const id = route.params.id;

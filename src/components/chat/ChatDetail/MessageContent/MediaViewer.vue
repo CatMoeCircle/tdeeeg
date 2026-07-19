@@ -196,9 +196,7 @@ const videoVolume = ref(0.7);
 const videoCurrent = ref(0);
 const videoDuration = ref(0);
 const videoLoaded = ref(false);
-const videoProgressPct = computed(() =>
-    videoDuration.value > 0 ? (videoCurrent.value / videoDuration.value) * 100 : 0
-);
+// Progress bar computed (videoProgressPct) placeholder for future UI
 
 // UI auto-hide state (video mode only)
 const uiVisible = ref(true);

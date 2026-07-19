@@ -148,13 +148,13 @@ function getMediaInfo(content: MessageContent, _msg: message): { mediaType: stri
     } else if (content._ === 'messageVideo') {
         mediaType = '视频';
         const thumb = content.video.thumbnail?.file;
-        if (isFileReady(thumb)) {
+        if (thumb && isFileReady(thumb)) {
             thumbSrc = convertFileSrc(thumb.local.path);
         }
     } else if (content._ === 'messageAnimation') {
         mediaType = 'GIF';
         const thumb = content.animation.thumbnail?.file;
-        if (isFileReady(thumb)) {
+        if (thumb && isFileReady(thumb)) {
             thumbSrc = convertFileSrc(thumb.local.path);
         }
     } else if (content._ === 'messageDocument') {
@@ -165,8 +165,9 @@ function getMediaInfo(content: MessageContent, _msg: message): { mediaType: stri
         mediaType = '语音';
     } else if (content._ === 'messageSticker') {
         mediaType = '贴纸';
-        if (isFileReady(content.sticker.thumbnail?.file)) {
-            thumbSrc = convertFileSrc(content.sticker.thumbnail.file.local.path);
+        const stickerThumb = content.sticker.thumbnail?.file;
+        if (stickerThumb && isFileReady(stickerThumb)) {
+            thumbSrc = convertFileSrc(stickerThumb.local.path);
         }
     }
 
