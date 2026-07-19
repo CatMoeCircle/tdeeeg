@@ -12,9 +12,10 @@
 
         <!-- Media messages -->
         <MessageMediaContent v-else-if="isMediaType" :content="content as any" :isSelf="isSelf ?? false" :date="date"
-            :forwardInfo="forwardInfo" :isFirstInGroup="isFirstInGroup" :isLastInGroup="isLastInGroup"
+            :forwardInfo="forwardInfo" :forwardName="forwardName" :forwardNavigable="forwardNavigable"
+            :isFirstInGroup="isFirstInGroup" :isLastInGroup="isLastInGroup"
             :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature"
-            :chatId="chatId" :messageId="messageId" />
+            :chatId="chatId" :messageId="messageId" @openForwardSource="onOpenForwardSource" />
 
         <!-- Stickers / animated emoji are rendered without a message bubble -->
         <div v-else-if="content._ === 'messageSticker' || content._ === 'messageAnimatedEmoji'"
@@ -125,6 +126,8 @@ const props = defineProps<{
     isSelf?: boolean;
     date?: number;
     forwardInfo?: messageForwardInfo;
+    forwardName?: string;
+    forwardNavigable?: boolean;
     isFirstInGroup?: boolean;
     isLastInGroup?: boolean;
     sendingState?: MessageSendingState;
@@ -139,10 +142,15 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     jumpToMessage: [messageId: number];
+    openForwardSource: [];
 }>();
 
 function onJumpToMessage(messageId: number) {
     emit('jumpToMessage', messageId);
+}
+
+function onOpenForwardSource() {
+    emit('openForwardSource');
 }
 
 const isServiceType = SERVICE_TYPES.has(props.content._);

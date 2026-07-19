@@ -48,18 +48,33 @@
                             :class="{ 'animate-message-in': isNewMessage(item.messages[0].id) }"
                             @animationend="removeNewMessageId(item.messages[0].id)">
                             <div class="flex mb-2" :class="isSelfAlbum(item) ? 'justify-end' : 'justify-start'">
-                                <div v-if="!isSelfAlbum(item) && showAvatarColumn" class="w-12 shrink-0 mr-2 self-end">
-                                    <div class="w-12 h-12">
-                                        <Avatar :photo="getSenderPhoto(item.messages[0])"
-                                            :title="getSenderName(item.messages[0])" />
+                                <div v-if="shouldReserveAvatarColumn(item.messages[0])"
+                                    class="w-9 shrink-0 mr-2 self-end">
+                                    <div class="w-9 h-9">
+                                        <Avatar :photo="getDisplaySenderPhoto(item.messages[0])"
+                                            :title="getDisplaySenderName(item.messages[0])" />
                                     </div>
                                 </div>
-                                <div class="shadow-sm max-w-[70%] overflow-hidden rounded-lg"
+                                <div class="w-min max-w-[70%] overflow-hidden rounded-lg shadow-sm"
                                     :class="isSelfAlbum(item) ? 'bg-blue-500 text-white' : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'">
                                     <p v-if="!isSelfAlbum(item) && showSenderName"
                                         class="text-xs font-semibold px-2 pt-2 pb-0.5 text-blue-500">
                                         {{ getSenderName(item.messages[0]) }}
                                     </p>
+                                    <button v-if="item.messages[0].forward_info" type="button"
+                                        :disabled="!canNavigateForward(item.messages[0].forward_info)"
+                                        class="flex min-w-0 w-full max-w-full items-center gap-1 overflow-hidden px-2 pt-2 pb-1 text-left text-xs font-semibold disabled:cursor-default"
+                                        :class="[
+                                            isSelfAlbum(item) ? 'text-blue-100' : 'text-blue-500 dark:text-blue-400',
+                                            canNavigateForward(item.messages[0].forward_info)
+                                                ? 'cursor-pointer hover:underline active:opacity-70'
+                                                : ''
+                                        ]"
+                                        :title="canNavigateForward(item.messages[0].forward_info) ? '跳转到来源' : undefined"
+                                        @click.stop="openForwardSource(item.messages[0].forward_info)">
+                                        <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
+                                        <span class="min-w-0 flex-1 truncate">{{ getForwardName(item.messages[0].forward_info) }}</span>
+                                    </button>
                                     <MessageAlbum :messages="item.messages" :isSelf="isSelfAlbum(item)" :chatId="chatId"
                                         :isRead="isMessageRead(item.messages[item.messages.length - 1])"
                                         :authorSignature="item.messages[0].author_signature || undefined" />
@@ -79,15 +94,16 @@
                                 isSelf(item.msg) ? 'justify-end' : 'justify-start',
                                 item.isLastInGroup ? 'mb-2' : 'mb-0.5'
                             ]">
-                                <div v-if="!isSelf(item.msg) && showAvatarColumn" class="w-12 shrink-0 mr-2 self-end"
+                                <div v-if="shouldReserveAvatarColumn(item.msg)" class="w-9 shrink-0 mr-2 self-end"
                                     :class="{ 'invisible': !item.showAvatar }">
-                                    <div class="w-12 h-12">
-                                        <Avatar :photo="getSenderPhoto(item.msg)" :title="getSenderName(item.msg)" />
+                                    <div class="w-9 h-9">
+                                        <Avatar :photo="getDisplaySenderPhoto(item.msg)"
+                                            :title="getDisplaySenderName(item.msg)" />
                                     </div>
                                 </div>
                                 <div :class="[
                                     isMediaMessage(item.msg)
-                                        ? 'shadow-sm max-w-[70%] overflow-hidden'
+                                        ? 'w-min max-w-[70%] overflow-hidden shadow-sm'
                                         : isStandaloneMessage(item.msg)
                                             ? 'relative max-w-[70%]'
                                             : 'px-3 py-2 shadow-sm max-w-[70%] min-w-[120px]',
@@ -102,11 +118,24 @@
                                         class="text-xs font-semibold mb-0.5 -mt-0.5 text-blue-500">
                                         {{ getSenderName(item.msg) }}
                                     </p>
-                                    <p v-if="item.msg.forward_info" class="text-xs font-semibold text-blue-500 mb-0.5">
-                                        {{ getForwardLabel(item.msg.forward_info) }}
-                                    </p>
+                                    <button v-if="item.msg.forward_info && !isMediaMessage(item.msg)" type="button"
+                                        :disabled="!canNavigateForward(item.msg.forward_info)"
+                                        class="flex min-w-0 max-w-full items-center gap-1 overflow-hidden mb-0.5 -mt-0.5 text-left text-xs font-semibold disabled:cursor-default"
+                                        :class="[
+                                            isSelf(item.msg) ? 'text-blue-100' : 'text-blue-500 dark:text-blue-400',
+                                            canNavigateForward(item.msg.forward_info)
+                                                ? 'cursor-pointer hover:underline active:opacity-70'
+                                                : ''
+                                        ]"
+                                        :title="canNavigateForward(item.msg.forward_info) ? '跳转到来源' : undefined"
+                                        @click.stop="openForwardSource(item.msg.forward_info)">
+                                        <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
+                                        <span class="min-w-0 flex-1 truncate">{{ getForwardName(item.msg.forward_info) }}</span>
+                                    </button>
                                     <MessageContent :content="item.msg.content" :isSelf="isSelf(item.msg)"
                                         :date="item.msg.date" :forwardInfo="item.msg.forward_info"
+                                        :forwardName="item.msg.forward_info ? getForwardName(item.msg.forward_info) : undefined"
+                                        :forwardNavigable="item.msg.forward_info ? canNavigateForward(item.msg.forward_info) : false"
                                         :isFirstInGroup="item.isFirstInGroup" :isLastInGroup="item.isLastInGroup"
                                         :sendingState="item.msg.sending_state"
                                         :isRead="isMessageRead(item.msg)"
@@ -114,7 +143,8 @@
                                         :authorSignature="item.msg.author_signature || undefined" :chatId="chatId"
                                         :messageId="item.msg.id"
                                         :replyTo="item.msg.reply_to?._ === 'messageReplyToMessage' ? item.msg.reply_to : undefined"
-                                        :messageList="messages" @jumpToMessage="scrollToMessage" />
+                                        :messageList="messages" @jumpToMessage="scrollToMessage"
+                                        @openForwardSource="item.msg.forward_info && openForwardSource(item.msg.forward_info)" />
                                     <span v-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isSelf(item.msg)"
                                         class="block text-right text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 leading-none">
                                         <MessageStatus :date="item.msg.date" :isOutgoing="false"
@@ -221,9 +251,10 @@ import MessageAlbum from './MessageContent/MessageAlbum.vue';
 import ChatDetailHeader from './Header.vue';
 
 import { tdlibSend } from '../../../utils/tdlib';
-import { isOutgoingMessageForDisplay } from '../../../utils/savedMessages';
+import { isOutgoingMessageForDisplay, isSavedMessagesChat } from '../../../utils/savedMessages';
+import { getForwardNavigationTarget, getForwardOriginKey } from '../../../utils/forwardedMessages';
 
-import { MessageCircleIcon } from 'lucide-vue-next';
+import { CornerUpRightIcon, MessageCircleIcon } from 'lucide-vue-next';
 import { useRoute, useRouter } from 'vue-router';
 import { computed, watch, ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useUserStore } from '../../../store/user';
@@ -287,6 +318,11 @@ onUnmounted(() => {
     if (unlisten) unlisten();
     if (readVisibilityTimer !== null) window.clearTimeout(readVisibilityTimer);
     if (chatLoadRetryTimer !== null) window.clearTimeout(chatLoadRetryTimer);
+});
+
+const forwardedTargetMessageId = computed(() => {
+    const id = Number(route.query.message);
+    return Number.isSafeInteger(id) && id > 0 ? id : 0;
 });
 
 // ==================== TDLib Updates ====================
@@ -413,7 +449,7 @@ let chatLoadRetryCount = 0;
 let chatLoadRetryTimer: number | null = null;
 
 // 监听 chatId 变化，加载聊天信息和消息
-watch([chatId, chatLoadRetryToken], async ([newChatId]) => {
+watch([chatId, chatLoadRetryToken, forwardedTargetMessageId], async ([newChatId, , requestedMessageId]) => {
     if (newChatId === undefined) return;
     if (chatLoadRetryId !== newChatId) {
         chatLoadRetryId = newChatId;
@@ -447,9 +483,19 @@ watch([chatId, chatLoadRetryToken], async ([newChatId]) => {
             : 0;
         lastReportedReadMessageId = chatData.last_read_inbox_message_id;
 
-        // 3. 围绕读点加载历史；没有未读消息时仍加载最新消息
-        let allMsgs = await fetchMessages(currentId, lastReadId, lastReadId > 0 ? 60 : 30, lastReadId > 0 ? -30 : 0);
+        // 3. 转发跳转优先围绕目标消息加载，否则围绕读点加载历史
+        const historyAnchorId = requestedMessageId || lastReadId;
+        let allMsgs = await fetchMessages(
+            currentId,
+            historyAnchorId,
+            historyAnchorId > 0 ? 60 : 30,
+            historyAnchorId > 0 ? -30 : 0
+        );
         if (activeChatId !== currentId) return;
+        if (requestedMessageId && allMsgs.length === 0) {
+            allMsgs = await fetchMessages(currentId, 0, 30);
+            if (activeChatId !== currentId) return;
+        }
         if (allMsgs.length === 0 && chatData.last_message) {
             throw new Error(`Chat ${currentId} returned empty history despite having a last message`);
         }
@@ -480,7 +526,7 @@ watch([chatId, chatLoadRetryToken], async ([newChatId]) => {
         await nextTick();
 
         // 4. 定位到新消息分界线后的第一条未读消息
-        const scrollTargetId = unreadBoundaryMessageId.value || lastReadId;
+        const scrollTargetId = requestedMessageId || unreadBoundaryMessageId.value || lastReadId;
         if (scrollTargetId > 0) {
             await scrollToTargetOrBottom(scrollTargetId, currentId);
         } else {
@@ -574,6 +620,25 @@ const fetchSenders = async (msgs: message[]) => {
             userIds.add(m.sender_id.user_id);
         } else if (m.sender_id._ === 'messageSenderChat' && !chats.value[m.sender_id.chat_id]) {
             chatIds.add(m.sender_id.chat_id);
+        }
+
+        const forwardInfo = m.forward_info;
+        if (!forwardInfo) return;
+
+        const origin = forwardInfo.origin;
+        if (origin._ === 'messageOriginUser' && !users.value[origin.sender_user_id]) {
+            userIds.add(origin.sender_user_id);
+        } else if (origin._ === 'messageOriginChat' && !chats.value[origin.sender_chat_id]) {
+            chatIds.add(origin.sender_chat_id);
+        } else if (origin._ === 'messageOriginChannel' && !chats.value[origin.chat_id]) {
+            chatIds.add(origin.chat_id);
+        }
+
+        const sourceSender = forwardInfo.source?.sender_id;
+        if (sourceSender?._ === 'messageSenderUser' && !users.value[sourceSender.user_id]) {
+            userIds.add(sourceSender.user_id);
+        } else if (sourceSender?._ === 'messageSenderChat' && !chats.value[sourceSender.chat_id]) {
+            chatIds.add(sourceSender.chat_id);
         }
     });
 
@@ -921,18 +986,78 @@ const getSenderPhoto = (msg: message): chatPhotoInfo | profilePhoto | undefined 
     return undefined;
 };
 
-const getForwardLabel = (fi: messageForwardInfo): string => {
-    if (fi._ === 'messageForwardInfo' && fi.origin._ === 'messageOriginUser') {
-        return `转发自 ${fi.origin.sender_user_id}`;
+const getForwardName = (forwardInfo: messageForwardInfo): string => {
+    const origin = forwardInfo.origin;
+    switch (origin._) {
+        case 'messageOriginUser': {
+            const sourceUser = users.value[origin.sender_user_id];
+            return sourceUser
+                ? `${sourceUser.first_name} ${sourceUser.last_name}`.trim()
+                : '用户';
+        }
+        case 'messageOriginHiddenUser':
+            return origin.sender_name || '隐藏用户';
+        case 'messageOriginChat':
+            return chats.value[origin.sender_chat_id]?.title || origin.author_signature || '聊天';
+        case 'messageOriginChannel':
+            return chats.value[origin.chat_id]?.title || origin.author_signature || '频道';
     }
-    if (fi._ === 'messageForwardInfo' && fi.origin._ === 'messageOriginChat') {
-        return `转发自 ${fi.origin.author_signature || '频道'}`;
-    }
-    if (fi._ === 'messageForwardInfo' && fi.origin._ === 'messageOriginHiddenUser') {
-        return `转发自 ${fi.origin.sender_name || '隐藏用户'}`;
-    }
-    return '转发消息';
 };
+
+const getForwardPhoto = (forwardInfo: messageForwardInfo): chatPhotoInfo | profilePhoto | undefined => {
+    const origin = forwardInfo.origin;
+    switch (origin._) {
+        case 'messageOriginUser':
+            return users.value[origin.sender_user_id]?.profile_photo;
+        case 'messageOriginChat':
+            return chats.value[origin.sender_chat_id]?.photo;
+        case 'messageOriginChannel':
+            return chats.value[origin.chat_id]?.photo;
+        case 'messageOriginHiddenUser':
+            return undefined;
+    }
+};
+
+const isSavedForwardedMessage = (msg: message) =>
+    !!msg.forward_info && !!chat.value && isSavedMessagesChat(chat.value, myId.value);
+
+const getDisplaySenderName = (msg: message) =>
+    isSavedForwardedMessage(msg) && msg.forward_info
+        ? getForwardName(msg.forward_info)
+        : getSenderName(msg);
+
+const getDisplaySenderPhoto = (msg: message): chatPhotoInfo | profilePhoto | undefined =>
+    isSavedForwardedMessage(msg) && msg.forward_info
+        ? getForwardPhoto(msg.forward_info)
+        : getSenderPhoto(msg);
+
+const canNavigateForward = (forwardInfo: messageForwardInfo) =>
+    !!getForwardNavigationTarget(forwardInfo);
+
+async function openForwardSource(forwardInfo: messageForwardInfo) {
+    const target = getForwardNavigationTarget(forwardInfo);
+    if (!target) return;
+
+    try {
+        if (target.type === 'user') {
+            const privateChat = await tdlibSend({
+                _: 'createPrivateChat',
+                user_id: target.userId,
+                force: false
+            }) as chat;
+            await router.push(`/home/chats/${privateChat.id}`);
+            return;
+        }
+
+        await router.push({
+            name: 'chat-detail',
+            params: { id: String(target.chatId) },
+            query: target.messageId ? { message: String(target.messageId) } : {}
+        });
+    } catch (error) {
+        console.error('Failed to open forwarded message source:', error);
+    }
+}
 
 // ==================== Computed ====================
 const showSenderName = computed(() => {
@@ -952,6 +1077,15 @@ const showAvatarColumn = computed(() => {
     return true;
 });
 
+/**
+ * 群聊头像属于实际发送者；收藏中的转发消息改用原始来源头像。
+ * 普通私聊仍不额外占用头像列。
+ */
+const shouldReserveAvatarColumn = (msg: message) => {
+    if (isSelf(msg)) return false;
+    return isSavedForwardedMessage(msg) || showAvatarColumn.value;
+};
+
 const showSkeleton = computed(() => messages.value.length === 0 && !isReady.value);
 
 // ==================== First/Last In Group (oldest-first) ====================
@@ -959,6 +1093,17 @@ const showSkeleton = computed(() => messages.value.length === 0 && !isReady.valu
 const isSameSender = (a: message | undefined, b: message | undefined) => {
     if (!a || !b) return false;
     if (isSelf(a) !== isSelf(b)) return false;
+
+    const aIsSavedForward = isSavedForwardedMessage(a);
+    const bIsSavedForward = isSavedForwardedMessage(b);
+    if (aIsSavedForward || bIsSavedForward) {
+        return aIsSavedForward
+            && bIsSavedForward
+            && !!a.forward_info
+            && !!b.forward_info
+            && getForwardOriginKey(a.forward_info) === getForwardOriginKey(b.forward_info);
+    }
+
     if (a.sender_id._ !== b.sender_id._) return false;
     if (a.sender_id._ === 'messageSenderUser' && b.sender_id._ === 'messageSenderUser') {
         return a.sender_id.user_id === b.sender_id.user_id;
@@ -1072,7 +1217,7 @@ const messageItems = computed<DisplayItem[]>(() => {
                 index: i,
                 isFirstInGroup: isFirst,
                 isLastInGroup: isLast,
-                showAvatar: isLast && showAvatarColumn.value
+                showAvatar: isLast && shouldReserveAvatarColumn(msg)
             });
             i++;
         }

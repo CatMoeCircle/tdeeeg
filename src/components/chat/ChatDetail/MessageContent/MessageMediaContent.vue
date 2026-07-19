@@ -1,13 +1,16 @@
 <template>
     <!-- 外层 div 使用媒体宽度，使图片+文字+时间共享统一宽度（仿 Telegram Web） -->
     <div class="message-media relative" :style="mediaContainerStyle">
-        <!-- Forward header -->
-        <div v-if="forwardInfo" class="forward-header px-2 pt-2 pb-1 flex items-center gap-1">
-            <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" :class="isSelf ? 'text-blue-200' : 'text-blue-400'" />
-            <span class="text-xs font-medium truncate" :class="isSelf ? 'text-blue-200' : 'text-blue-500'">
-                {{ forwardFromText }}
-            </span>
-        </div>
+        <button v-if="forwardInfo" type="button" :disabled="!forwardNavigable"
+            class="flex min-w-0 w-full items-center gap-1 overflow-hidden px-2 pt-2 pb-1 text-left text-xs font-semibold disabled:cursor-default"
+            :class="[
+                isSelf ? 'text-blue-100' : 'text-blue-500 dark:text-blue-400',
+                forwardNavigable ? 'cursor-pointer hover:underline active:opacity-70' : ''
+            ]"
+            :title="forwardNavigable ? '跳转到来源' : undefined" @click.stop="emit('openForwardSource')">
+            <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
+            <span class="min-w-0 flex-1 truncate">{{ forwardName }}</span>
+        </button>
 
         <!-- Caption above media -->
         <div v-if="showCaptionAbove && captionText" class="caption-text px-2 pt-2 pb-1">
@@ -174,6 +177,8 @@ const props = defineProps<{
     isSelf: boolean;
     date?: number;
     forwardInfo?: messageForwardInfo;
+    forwardName?: string;
+    forwardNavigable?: boolean;
     isFirstInGroup?: boolean;
     isLastInGroup?: boolean;
     sendingState?: MessageSendingState;
@@ -182,6 +187,10 @@ const props = defineProps<{
     authorSignature?: string;
     chatId?: number;
     messageId?: number;
+}>();
+
+const emit = defineEmits<{
+    openForwardSource: [];
 }>();
 
 const mediaSrc = ref<string | undefined>(undefined);
@@ -273,18 +282,6 @@ const hasSpoiler = computed(() => {
 });
 
 const captionBelow = computed(() => !!captionText.value && !showCaptionAbove.value);
-
-const forwardFromText = computed(() => {
-    if (!props.forwardInfo) return '';
-    const origin = props.forwardInfo.origin;
-    switch (origin._) {
-        case 'messageOriginUser': return `转发自用户 #${origin.sender_user_id}`;
-        case 'messageOriginHiddenUser': return `转发自 ${origin.sender_name}`;
-        case 'messageOriginChat': return `转发自聊天 #${origin.sender_chat_id}`;
-        case 'messageOriginChannel': return `转发自频道 #${origin.chat_id}`;
-        default: return '转发消息';
-    }
-});
 
 const borderRadiusClass = computed(() => {
     const first = props.isFirstInGroup;
