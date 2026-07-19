@@ -48,7 +48,13 @@
                                 </h3>
                                 <span class="text-xs text-gray-400">{{ formatTime(chat.last_message?.date) }}</span>
                             </div>
-                            <p class="text-xs text-gray-500 truncate">{{ getMessagePreview(chat.last_message) }}</p>
+                            <div class="flex items-center gap-2">
+                                <p class="flex-1 min-w-0 text-xs text-gray-500 truncate">{{ getMessagePreview(chat.last_message) }}</p>
+                                <span v-if="chat.unread_count > 0"
+                                    class="shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-blue-500 text-white text-[11px] font-semibold leading-5 text-center">
+                                    {{ formatUnreadCount(chat.unread_count) }}
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -194,6 +200,8 @@ const formatTime = (timestamp: number | undefined) => {
     }
     return date.toLocaleDateString();
 };
+
+const formatUnreadCount = (count: number) => count > 99 ? '99+' : count.toString();
 
 const getMessagePreview = (message: message | undefined) => {
     if (!message) return '';

@@ -35,6 +35,13 @@
                         </span>
                     </div>
 
+                    <!-- Unread separator -->
+                    <div v-else-if="item.type === 'unread'" class="flex items-center gap-3 my-3" aria-label="新消息">
+                        <div class="h-px flex-1 bg-blue-400/70 dark:bg-blue-500/70"></div>
+                        <span class="text-xs font-medium text-blue-500 dark:text-blue-400 select-none">新消息</span>
+                        <div class="h-px flex-1 bg-blue-400/70 dark:bg-blue-500/70"></div>
+                    </div>
+
                     <!-- Album group -->
                     <template v-else-if="item.type === 'album'">
                         <div :data-msg-id="item.messages[0].id"
@@ -234,6 +241,7 @@ const messagesContainer = ref<HTMLElement | null>(null);
 const isLoadingMore = ref(false);
 const isHistoryExhausted = ref(false);
 const isReady = ref(false);           // 标记初始加载和定位已完成
+const unreadBoundaryMessageId = ref<number | null>(null);
 
 const newMessageIds = ref<Set<number>>(new Set());
 const showScrollButton = ref(false);
@@ -268,6 +276,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
     if (unlisten) unlisten();
+    if (readVisibilityTimer !== null) window.clearTimeout(readVisibilityTimer);
 });
 
 // ==================== TDLib Updates ====================
@@ -384,15 +393,14 @@ watch(chatId, async (newChatId) => {
             syncNotificationMuteState(chatData, currentId)
         ]);
 
-        // 2. 计算定位目标（last_read 消息）
-        const lastReadId = Math.max(
-            (chatData as any).last_read_inbox_message_id || 0,
-            (chatData as any).last_read_outbox_message_id || 0
-        );
-        const scrollTarget = lastReadId > 0 ? lastReadId : null;
+        // 2. 有未读消息时，以最后一条已读收件箱消息作为历史定位锚点
+        const lastReadId = chatData.unread_count > 0
+            ? chatData.last_read_inbox_message_id
+            : 0;
+        lastReportedReadMessageId = chatData.last_read_inbox_message_id;
 
-        // 3. 加载首批消息（返回 旧→新 顺序）
-        let allMsgs = await fetchMessages(currentId, 0, 30);
+        // 3. 围绕读点加载历史；没有未读消息时仍加载最新消息
+        let allMsgs = await fetchMessages(currentId, lastReadId, lastReadId > 0 ? 60 : 30, lastReadId > 0 ? -30 : 0);
         if (activeChatId !== currentId) return;
 
         // 如果消息太少，多加载几页填充以确保可滚动
@@ -409,12 +417,21 @@ watch(chatId, async (newChatId) => {
             }
         }
 
+        const firstUnreadMessage = chatData.unread_count > 0
+            ? allMsgs.find(message => !message.is_outgoing && (lastReadId === 0 || message.id > lastReadId))
+            : undefined;
+        const unreadAlbumId = firstUnreadMessage?.media_album_id;
+        unreadBoundaryMessageId.value = unreadAlbumId && unreadAlbumId !== '0'
+            ? allMsgs.find(message => message.media_album_id === unreadAlbumId)?.id || firstUnreadMessage.id
+            : firstUnreadMessage?.id || null;
+
         messages.value = allMsgs;
         await nextTick();
 
-        // 4. 执行初始定位
-        if (scrollTarget) {
-            await scrollToTargetOrBottom(scrollTarget, currentId);
+        // 4. 定位到新消息分界线后的第一条未读消息
+        const scrollTargetId = unreadBoundaryMessageId.value || lastReadId;
+        if (scrollTargetId > 0) {
+            await scrollToTargetOrBottom(scrollTargetId, currentId);
         } else {
             await scrollToBottomAsync();
         }
@@ -435,6 +452,7 @@ watch(chatId, async (newChatId) => {
                 }
             }
         }
+        scheduleVisibleMessagesRead();
     } catch (e) {
         console.error("Error loading chat:", e);
         isReady.value = true;
@@ -450,13 +468,13 @@ watch(chatId, async (newChatId) => {
  * 从 TDLib 加载消息，返回 旧→新 顺序。
  * 注意：fromMessageId 会被 TDLib 包含在返回结果中，调用方需自行去重。
  */
-async function fetchMessages(chatIdNum: number, fromMessageId: number, limit: number): Promise<message[]> {
+async function fetchMessages(chatIdNum: number, fromMessageId: number, limit: number, offset = 0): Promise<message[]> {
     try {
         const result = await tdlibSend({
             _: 'getChatHistory',
             chat_id: chatIdNum,
             from_message_id: fromMessageId,
-            offset: 0,
+            offset,
             limit,
             only_local: false
         });
@@ -538,6 +556,67 @@ async function fetchGroupInfo(chatData: chat, guardId: number) {
 }
 
 // ==================== Scroll Management ====================
+let readVisibilityTimer: number | null = null;
+let lastReportedReadMessageId = 0;
+
+/** 滚动稳定后，将当前视口中的未读消息批量标记为已读 */
+function scheduleVisibleMessagesRead() {
+    if (!isReady.value) return;
+    if (readVisibilityTimer !== null) window.clearTimeout(readVisibilityTimer);
+    readVisibilityTimer = window.setTimeout(() => {
+        readVisibilityTimer = null;
+        void markVisibleMessagesAsRead();
+    }, 120);
+}
+
+async function markVisibleMessagesAsRead() {
+    const currentChatId = chatId.value;
+    const container = messagesContainer.value;
+    if (!currentChatId || !container) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const visibleUnreadIds = new Set<number>();
+    const renderedMessages = container.querySelectorAll<HTMLElement>('[data-msg-id]');
+
+    for (const element of renderedMessages) {
+        const rect = element.getBoundingClientRect();
+        if (rect.bottom <= containerRect.top || rect.top >= containerRect.bottom) continue;
+
+        const messageId = Number(element.dataset.msgId);
+        const renderedMessage = messages.value.find(message => message.id === messageId);
+        if (!renderedMessage) continue;
+
+        const visibleMessages = renderedMessage.media_album_id && renderedMessage.media_album_id !== '0'
+            ? messages.value.filter(message => message.media_album_id === renderedMessage.media_album_id)
+            : [renderedMessage];
+        for (const message of visibleMessages) {
+            if (!message.is_outgoing && message.id > lastReportedReadMessageId) {
+                visibleUnreadIds.add(message.id);
+            }
+        }
+    }
+
+    if (visibleUnreadIds.size === 0) return;
+    const messageIds = [...visibleUnreadIds].sort((a, b) => a - b);
+    const previousReportedId = lastReportedReadMessageId;
+    const latestVisibleId = messageIds[messageIds.length - 1];
+    lastReportedReadMessageId = latestVisibleId;
+
+    try {
+        await tdlibSend({
+            _: 'viewMessages',
+            chat_id: currentChatId,
+            message_ids: messageIds,
+            force_read: true
+        });
+    } catch (e) {
+        if (chatId.value === currentChatId && lastReportedReadMessageId === latestVisibleId) {
+            lastReportedReadMessageId = previousReportedId;
+        }
+        console.error('Failed to mark visible messages as read:', e);
+    }
+}
+
 /** 检测是否在底部附近 */
 const isAtBottom = (threshold = 150): boolean => {
     const el = messagesContainer.value;
@@ -569,7 +648,11 @@ const scrollToMessage = (messageId: number) => {
     nextTick(() => {
         const el = messagesContainer.value;
         if (!el) return;
-        const msgEl = el.querySelector(`[data-msg-id="${messageId}"]`) as HTMLElement | null;
+        const target = messages.value.find(message => message.id === messageId);
+        const renderedMessageId = target?.media_album_id && target.media_album_id !== '0'
+            ? messages.value.find(message => message.media_album_id === target.media_album_id)?.id || messageId
+            : messageId;
+        const msgEl = el.querySelector(`[data-msg-id="${renderedMessageId}"]`) as HTMLElement | null;
         if (!msgEl) return;
 
         const containerHeight = el.clientHeight;
@@ -587,6 +670,9 @@ async function scrollToTargetOrBottom(targetId: number, chatIdNum: number) {
         const exists = messages.value.some(m => m.id === targetId);
         if (exists) {
             scrollToMessage(targetId);
+            setTimeout(() => {
+                if (chatId.value === chatIdNum) scrollToMessage(targetId);
+            }, 200);
             return;
         }
         if (isHistoryExhausted.value || messages.value.length === 0) break;
@@ -594,21 +680,14 @@ async function scrollToTargetOrBottom(targetId: number, chatIdNum: number) {
         const more = await fetchMessages(chatIdNum, oldest.id, 30);
         if (more.length === 0) break;
         // 去重后合并
+        const previousCount = messages.value.length;
         messages.value = mergeMessages(messages.value, more);
         await nextTick();
-        // 如果没添加任何新消息，说明历史已耗尽
-        if (!messages.value.some(m => m.id === targetId) && olderMessagesEmpty(more, messages.value)) {
+        if (messages.value.length === previousCount) {
             break;
         }
     }
     scrollToBottom();
-}
-
-/** 检查新加载的消息是否全重复 */
-function olderMessagesEmpty(incoming: message[], current: message[]): boolean {
-    if (incoming.length === 0) return true;
-    const existingIds = new Set(current.map(m => m.id));
-    return incoming.every(m => existingIds.has(m.id));
 }
 
 // ==================== Scroll Events ====================
@@ -624,6 +703,7 @@ const onScroll = async (e: Event) => {
     if (atBottom && newMessageCount.value > 0) {
         newMessageCount.value = 0;
     }
+    scheduleVisibleMessagesRead();
 
     // 内容未溢出时忽略
     if (H <= C + 2) return;
@@ -699,10 +779,16 @@ const handleAttach = (files: FileList) => {
 
 // ==================== State Reset ====================
 function resetState() {
+    if (readVisibilityTimer !== null) {
+        window.clearTimeout(readVisibilityTimer);
+        readVisibilityTimer = null;
+    }
+    lastReportedReadMessageId = 0;
     messages.value = [];
     chat.value = undefined;
     isHistoryExhausted.value = false;
     isReady.value = false;
+    unreadBoundaryMessageId.value = null;
     showScrollButton.value = false;
     newMessageCount.value = 0;
     newMessageIds.value = new Set();
@@ -837,7 +923,12 @@ interface DateDisplayItem {
     text: string;
 }
 
-type DisplayItem = SingleDisplayItem | AlbumDisplayItem | DateDisplayItem;
+interface UnreadDisplayItem {
+    type: 'unread';
+    key: string;
+}
+
+type DisplayItem = SingleDisplayItem | AlbumDisplayItem | DateDisplayItem | UnreadDisplayItem;
 
 function formatDateLabel(timestamp: number): string {
     const d = new Date(timestamp * 1000);
@@ -865,6 +956,9 @@ const messageItems = computed<DisplayItem[]>(() => {
     // 日期分隔逻辑：不同日期的相邻消息之间插入
     // 先计算出所有日期分界点
     let lastDate = M[0].date;
+    let hasUnreadDivider = false;
+    const unreadBoundary = M.find(message => message.id === unreadBoundaryMessageId.value);
+    const unreadAlbumId = unreadBoundary?.media_album_id;
 
     let i = 0;
     while (i < M.length) {
@@ -874,6 +968,14 @@ const messageItems = computed<DisplayItem[]>(() => {
         if (!isSameCalendarDay(lastDate, msg.date)) {
             items.push({ type: 'date', key: `d-${msg.date}`, date: msg.date, text: formatDateLabel(msg.date) });
             lastDate = msg.date;
+        }
+
+        if (!hasUnreadDivider && (
+            msg.id === unreadBoundaryMessageId.value
+            || (unreadAlbumId && unreadAlbumId !== '0' && msg.media_album_id === unreadAlbumId)
+        )) {
+            items.push({ type: 'unread', key: `unread-${unreadBoundaryMessageId.value}` });
+            hasUnreadDivider = true;
         }
 
         // 相册分组
