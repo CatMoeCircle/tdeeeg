@@ -6,7 +6,7 @@
                 :class="{ 'bg-black': item.isVideo }" :style="item.style" @click="openViewer(item.index)">
                 <img v-if="item.thumbSrc" :src="item.thumbSrc"
                     class="absolute inset-0 w-full h-full object-cover blur-sm scale-105" />
-                <img v-if="item.mediaSrc" :src="item.mediaSrc" class="absolute inset-0 w-full h-full object-cover" />
+                <img v-if="item.mediaSrc && !item.isVideo" :src="item.mediaSrc" class="absolute inset-0 w-full h-full object-cover" />
                 <div v-if="!item.thumbSrc && !item.mediaSrc" class="absolute inset-0 flex items-center justify-center">
                     <svg v-if="item.isVideo" class="w-6 h-6 text-gray-400" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" stroke-width="1.5">
@@ -44,13 +44,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, reactive, watch } from 'vue';
 import type { message } from 'tdlib-types';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { tdlibSend, isFileReady } from '../../../../utils/tdlib';
 import MessageStatus from './MessageStatus.vue';
 import MediaViewer from './MediaViewer.vue';
 import type { MediaViewerItem } from './MediaViewer.vue';
+import { layoutMediaGroup, type MediaGroupSize } from '../../../../utils/mediaGroupLayout';
 
 const props = defineProps<{
     messages: message[];
@@ -62,30 +63,39 @@ const props = defineProps<{
 
 const viewerVisible = ref(false);
 const viewerIndex = ref(0);
-const viewerItems = computed<MediaViewerItem[]>(() => {
-    const items: MediaViewerItem[] = [];
-    for (const msg of props.messages) {
+const viewerEntries = computed(() => {
+    const entries: Array<{ messageIndex: number; item: MediaViewerItem }> = [];
+    for (const [messageIndex, msg] of props.messages.entries()) {
         const c = msg.content;
         const capt = 'caption' in c && c.caption?.text ? c.caption.text : '';
         if (c._ === 'messagePhoto') {
             const sizes = c.photo.sizes;
             if (sizes.length > 0) {
                 const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
-                if (isFileReady(largest.photo)) {
-                    items.push({ type: 'photo', src: convertFileSrc(largest.photo.local.path), caption: capt });
+                const src = mediaCache[msg.id] || (isFileReady(largest.photo) ? convertFileSrc(largest.photo.local.path) : '');
+                if (src) {
+                    entries.push({ messageIndex, item: { type: 'photo', src, caption: capt } });
                 }
             }
         } else if (c._ === 'messageVideo') {
-            if (isFileReady(c.video.video)) {
-                items.push({ type: 'video', src: convertFileSrc(c.video.video.local.path), caption: capt });
+            const file = c.video.video;
+            let src = mediaCache[msg.id] || (isFileReady(file) ? convertFileSrc(file.local.path) : '');
+            if (!src && c.video.supports_streaming && file.size > 0) {
+                src = `${convertFileSrc(String(file.id), 'tdstream')}?mime=${c.video.mime_type}`;
+            }
+            if (src) {
+                entries.push({ messageIndex, item: { type: 'video', src, caption: capt } });
             }
         }
     }
-    return items;
+    return entries;
 });
+const viewerItems = computed(() => viewerEntries.value.map(entry => entry.item));
 
 function openViewer(idx: number) {
-    viewerIndex.value = idx;
+    const entryIndex = viewerEntries.value.findIndex(entry => entry.messageIndex === idx);
+    if (entryIndex < 0) return;
+    viewerIndex.value = entryIndex;
     viewerVisible.value = true;
 }
 
@@ -95,30 +105,30 @@ interface LayoutItem {
     aspect: number; style: string; thumbSrc: string | null; mediaSrc: string | null;
 }
 
-function getAspect(msg: message): number {
+function getMediaSize(msg: message): MediaGroupSize {
     const c = msg.content;
     if (c._ === 'messagePhoto') {
-        const sizes = c.photo.sizes;
+        const sizes = [...c.photo.sizes].sort((a, b) => a.width * a.height - b.width * b.height);
         if (sizes.length > 0) {
-            const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
-            if (largest.height > 0) return largest.width / largest.height;
+            const largest = sizes[sizes.length - 1];
+            return { width: largest.width, height: largest.height };
         }
-        return 1;
+        return { width: 1, height: 1 };
     }
     if (c._ === 'messageVideo') {
         const { width, height } = c.video;
-        if (height > 0) return width / height;
-        return 16 / 9;
+        return { width, height };
     }
-    return 1;
+    return { width: 1, height: 1 };
 }
 
 const ALBUM_W = 340;
 
 // ---- Refs ----
 const layoutItems = ref<LayoutItem[]>([]);
-const thumbCache: Record<number, string> = {};
-const mediaCache: Record<number, string> = {};
+const layoutSize = ref({ width: ALBUM_W, height: ALBUM_W });
+const thumbCache = reactive<Record<number, string>>({});
+const mediaCache = reactive<Record<number, string>>({});
 
 // ---- Build layout ----
 function rebuildLayout() {
@@ -126,52 +136,22 @@ function rebuildLayout() {
     const n = msgs.length;
     if (n === 0) { layoutItems.value = []; return; }
 
-    const aspects = msgs.map(m => getAspect(m));
+    const sizes = msgs.map(m => getMediaSize(m));
+    const aspects = sizes.map(size => size.width / Math.max(1, size.height));
     const isVideos = msgs.map(m => m.content._ === 'messageVideo');
     const durations = msgs.map(m => m.content._ === 'messageVideo' ? m.content.video.duration : 0);
-
-    interface Row { items: number[]; rowH: number; itemW: number[] }
-    let rows: Row[] = [];
-
-    if (n === 1) {
-        rows = [{ items: [0], rowH: 100, itemW: [100] }];
-    } else if (n === 2) {
-        const a0 = Math.max(aspects[0], 0.5), a1 = Math.max(aspects[1], 0.5), t = a0 + a1;
-        rows = [{ items: [0, 1], rowH: 100, itemW: [a0 / t * 100, a1 / t * 100] }];
-    } else if (n === 3) {
-        const row0H = Math.min(aspects[0], 2) > 1.2 ? 50 : 60;
-        rows = [{ items: [0], rowH: row0H, itemW: [100] }, { items: [1, 2], rowH: 100 - row0H, itemW: [50, 50] }];
-    } else if (n === 4) {
-        rows = [{ items: [0, 1], rowH: 50, itemW: [50, 50] }, { items: [2, 3], rowH: 50, itemW: [50, 50] }];
-    } else if (n === 5) {
-        rows = [{ items: [0, 1, 2], rowH: 55, itemW: [34, 33, 33] }, { items: [3, 4], rowH: 45, itemW: [50, 50] }];
-    } else if (n === 6) {
-        rows = [{ items: [0, 1, 2], rowH: 55, itemW: [34, 33, 33] }, { items: [3, 4, 5], rowH: 45, itemW: [34, 33, 33] }];
-    } else {
-        const parts = n <= 7 ? [3, n - 3] : n <= 9 ? [3, 3, n - 6] : [3, 3, n - 6];
-        let idx = 0;
-        for (const count of parts) {
-            const indices: number[] = []; const widths: number[] = [];
-            for (let ci = 0; ci < count; ci++) { indices.push(idx); widths.push(100 / count); idx++; }
-            rows.push({ items: indices, rowH: count / n * 100, itemW: widths });
-        }
-    }
+    const layout = layoutMediaGroup(sizes, ALBUM_W);
+    layoutSize.value = { width: layout.width, height: layout.height };
 
     const result: LayoutItem[] = [];
-    let topPct = 0;
-    for (const row of rows) {
-        let leftPct = 0;
-        for (let ci = 0; ci < row.items.length; ci++) {
-            const mi = row.items[ci];
-            const msg = msgs[mi];
-            result.push({
-                msgId: msg.id, index: mi, isVideo: isVideos[mi], duration: durations[mi], aspect: aspects[mi],
-                style: `top:${topPct}%;left:${leftPct}%;width:${row.itemW[ci]}%;height:${row.rowH}%;`,
-                thumbSrc: thumbCache[msg.id] || null, mediaSrc: mediaCache[msg.id] || null,
-            });
-            leftPct += row.itemW[ci];
-        }
-        topPct += row.rowH;
+    for (let mi = 0; mi < layout.items.length; mi++) {
+        const msg = msgs[mi];
+        const item = layout.items[mi];
+        result.push({
+            msgId: msg.id, index: mi, isVideo: isVideos[mi], duration: durations[mi], aspect: aspects[mi],
+            style: `top:${item.y / layout.height * 100}%;left:${item.x / layout.width * 100}%;width:${item.width / layout.width * 100}%;height:${item.height / layout.height * 100}%;`,
+            thumbSrc: thumbCache[msg.id] || null, mediaSrc: mediaCache[msg.id] || null,
+        });
     }
     layoutItems.value = result;
 }
@@ -179,16 +159,11 @@ function rebuildLayout() {
 // Container height
 const containerStyle = computed(() => {
     if (layoutItems.value.length === 0) return {};
-    const n = props.messages.length;
-    let h: number;
-    if (n === 1) {
-        const a = getAspect(props.messages[0]);
-        h = Math.round(ALBUM_W / Math.max(a, 0.5));
-        h = Math.min(h, Math.round(ALBUM_W * 1.5));
-    } else {
-        h = Math.round(ALBUM_W * 0.85);
-    }
-    return { width: `${ALBUM_W}px`, height: `${h}px` };
+    return {
+        width: `${ALBUM_W}px`,
+        maxWidth: '100%',
+        aspectRatio: `${layoutSize.value.width} / ${layoutSize.value.height}`,
+    };
 });
 
 // ---- React to messages ----

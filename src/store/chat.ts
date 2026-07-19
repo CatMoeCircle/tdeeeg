@@ -11,6 +11,7 @@ import type {
   chatListMain,
   chatListArchive,
   chatFolderInfo,
+  ChatType,
 } from "tdlib-types";
 
 /** 聊天列表示例项：主列表 | 归档 | 文件夹信息 */
@@ -18,6 +19,7 @@ export type ChatListEntry = chatListMain | chatListArchive | chatFolderInfo;
 
 export interface Chat {
   id: number;
+  type?: ChatType;
   title: string;
   unread_count: number;
   last_message?: message;
@@ -106,8 +108,8 @@ export const useChatStore = defineStore("chat", () => {
       // Populate chat details if provided by backend
       if (res.chats && Array.isArray(res.chats)) {
         for (const c of res.chats) {
-          if (c && c.id && !chats.value[c.id]) {
-            chats.value[c.id] = c;
+          if (c && c.id) {
+            chats.value[c.id] = { ...chats.value[c.id], ...c };
           }
         }
       }

@@ -232,7 +232,7 @@ watch(videoDownloaded, (downloaded) => {
         // 手动触发一次播放
         videoElRef.value.play().catch(() => { });
     }
-});
+}, { flush: 'post' });
 
 // Viewer
 const viewerVisible = ref(false);
@@ -500,11 +500,18 @@ watch(() => props.content, () => {
 
 async function handleVideoDownload() {
     if (props.content._ !== 'messageVideo') return;
-    const videoFile = props.content.video.video;
+    const video = props.content.video;
+    const videoFile = video.video;
     const fileId = videoFile.id;
     videoFileId.value = fileId;
     if (isFileReady(videoFile)) {
         mediaSrc.value = convertFileSrc(videoFile.local.path);
+        videoDownloaded.value = true;
+        return;
+    }
+    if (video.supports_streaming && videoFile.size > 0) {
+        const streamUrl = convertFileSrc(String(fileId), 'tdstream');
+        mediaSrc.value = `${streamUrl}?mime=${video.mime_type}`;
         videoDownloaded.value = true;
         return;
     }

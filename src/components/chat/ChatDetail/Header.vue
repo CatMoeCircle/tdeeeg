@@ -1,9 +1,13 @@
 <template>
     <div class="h-16 pt-0 flex items-center px-4 justify-between shrink-0">
         <div class="flex items-center gap-3" v-if="chat">
-            <Avatar :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" />
+            <div v-if="isSavedMessages"
+                class="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center">
+                <BookmarkIcon class="w-5 h-5 fill-current" />
+            </div>
+            <Avatar v-else :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" />
             <div class="flex flex-col">
-                <h2 class="flex font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight">{{ chat.title
+                <h2 class="flex font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight">{{ chatTitle
                     }}<span v-if="verificationState" class="text-blue-500 ml-1">
                         <component :is="verificationState" />
                     </span>
@@ -27,11 +31,14 @@
 </template>
 
 <script setup lang="ts">
-import { SearchIcon, MoreHorizontalIcon, BadgeCheckIcon, ShieldAlert } from 'lucide-vue-next';
-import { h, ref, watch } from 'vue';
+import { SearchIcon, MoreHorizontalIcon, BadgeCheckIcon, ShieldAlert, BookmarkIcon } from 'lucide-vue-next';
+import { computed, h, ref, watch } from 'vue';
+import { storeToRefs } from 'pinia';
 import type { chat, user, verificationStatus } from "tdlib-types";
 import { tdlibSend } from '../../../utils/tdlib';
 import formatStatus from '../../../utils/status';
+import { useUserStore } from '../../../store/user';
+import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../../utils/savedMessages';
 
 const props = defineProps<{
     chat: chat | undefined;
@@ -41,6 +48,13 @@ const status = ref('');
 const verificationState = ref<null | ReturnType<typeof h>>(null);
 const numberFormatter = new Intl.NumberFormat('zh-CN');
 let statusRequestId = 0;
+
+const userStore = useUserStore();
+const { userProfile } = storeToRefs(userStore);
+const isSavedMessages = computed(() =>
+    !!props.chat && isSavedMessagesChat(props.chat, userProfile.value?.id)
+);
+const chatTitle = computed(() => isSavedMessages.value ? SAVED_MESSAGES_TITLE : props.chat?.title || '');
 
 const formatCount = (count: number) => numberFormatter.format(count);
 
@@ -55,11 +69,13 @@ const formatUserStatus = (currentUser: user) => {
 };
 
 // 对话状态
-watch(() => props.chat, async (newChat) => {
+watch([() => props.chat, () => userProfile.value?.id], async ([newChat]) => {
     const requestId = ++statusRequestId;
     status.value = '';
     verificationState.value = null;
     if (!newChat) return;
+
+    if (isSavedMessagesChat(newChat, userProfile.value?.id)) return;
 
     const isCurrentRequest = () => requestId === statusRequestId && props.chat?.id === newChat.id;
 

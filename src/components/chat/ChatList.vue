@@ -39,12 +39,16 @@
                         class="flex items-center p-3 hover:bg-white/70 rounded-xl hover:shadow-(--box-shadow) dark:hover:bg-gray-800 cursor-pointer transition-colors"
                         :class="{ 'rounded-xl bg-white/70 shadow-(--box-shadow) dark:bg-gray-800': selectedChatId === chat.id }">
                         <div class="w-14 h-14 mr-3">
-                            <Avatar :photo="chat.photo" :title="chat.title" />
+                            <div v-if="isSavedMessages(chat)"
+                                class="w-full h-full rounded-full bg-blue-500 text-white flex items-center justify-center">
+                                <BookmarkIcon class="w-7 h-7 fill-current" />
+                            </div>
+                            <Avatar v-else :photo="chat.photo" :title="chat.title" />
                         </div>
                         <div class="flex-1 min-w-0">
                             <div class="flex justify-between items-baseline mb-1">
                                 <h3 class="text-sm font-semibold truncate text-gray-900 dark:text-gray-100">{{
-                                    chat.title }}
+                                    getChatTitle(chat) }}
                                 </h3>
                                 <span class="text-xs text-gray-400">{{ formatTime(chat.last_message?.date) }}</span>
                             </div>
@@ -66,9 +70,13 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { SearchIcon } from 'lucide-vue-next';
+import { BookmarkIcon, SearchIcon } from 'lucide-vue-next';
+import { storeToRefs } from 'pinia';
 import { settings } from '../../store/settings';
 import { useChatStore } from '../../store/chat';
+import type { Chat } from '../../store/chat';
+import { useUserStore } from '../../store/user';
+import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../utils/savedMessages';
 import Avatar from './avatar.vue';
 import type { message } from 'tdlib-types';
 
@@ -78,6 +86,8 @@ const props = defineProps<{
 
 const router = useRouter();
 const chatStore = useChatStore();
+const userStore = useUserStore();
+const { userProfile } = storeToRefs(userStore);
 
 const tabsContainer = ref<HTMLElement | null>(null);
 const swipeContainer = ref<HTMLElement | null>(null);
@@ -95,6 +105,9 @@ let isHorizontalSwipe: boolean | null = null;
 let resizeObserver: ResizeObserver | null = null;
 
 onMounted(async () => {
+    if (!userProfile.value) {
+        await userStore.fetchUser();
+    }
     await chatStore.initListener();
     await chatStore.loadChatLists();
     updatePageWidth();
@@ -183,6 +196,9 @@ const tabsWithContent = computed(() => {
 
 const selectedChatId = ref<number | null>(null);
 
+const isSavedMessages = (chat: Chat) => isSavedMessagesChat(chat, userProfile.value?.id);
+const getChatTitle = (chat: Chat) => isSavedMessages(chat) ? SAVED_MESSAGES_TITLE : chat.title;
+
 /**
  * 通过 ID 选择对话
  */
@@ -212,19 +228,28 @@ const getMessagePreview = (message: message | undefined) => {
         return content.text.text;
     }
     if (content._ === 'messagePhoto') {
-        return '[图片]';
+        return content.caption.text || '[图片]';
     }
     if (content._ === 'messageVideo') {
-        return '[视频]';
+        return content.caption.text || '[视频]';
     }
     if (content._ === 'messageAnimation') {
-        return '[GIF]';
+        return content.caption.text || '[GIF]';
+    }
+    if (content._ === 'messageDocument') {
+        return content.caption.text || `[文件] ${content.document.file_name}`.trim();
     }
     if (content._ === 'messageSticker') {
-        return '[贴纸]';
+        return `${content.sticker.emoji || ''} [贴纸]`.trim();
     }
     if (content._ === 'messageVoiceNote') {
         return '[语音]';
+    }
+    if (content._ === 'messageAudio') {
+        return content.caption.text || `[音乐] ${content.audio.title || content.audio.file_name}`.trim();
+    }
+    if (content._ === 'messageVideoNote') {
+        return '[视频消息]';
     }
     return '[消息]';
 };

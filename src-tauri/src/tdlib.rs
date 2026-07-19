@@ -66,6 +66,7 @@ pub struct AppState {
     pub request_id_counter: AtomicI64,
     pub config: Arc<Mutex<TdLibConfig>>,
     pub chat_store: Arc<Mutex<ChatStore>>,
+    pub stream_lock: Mutex<()>,
 }
 
 impl AppState {
@@ -82,6 +83,7 @@ impl AppState {
                 use_test_dc: false,
             })),
             chat_store: Arc::new(Mutex::new(ChatStore::new())),
+            stream_lock: Mutex::new(()),
         }
     }
 }
@@ -376,6 +378,13 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
 #[tauri::command]
 pub async fn tdlib_send(
     state: State<'_, AppState>,
+    request: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    send_request(state.inner(), request).await
+}
+
+pub async fn send_request(
+    state: &AppState,
     request: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
     let (tx, rx) = oneshot::channel();

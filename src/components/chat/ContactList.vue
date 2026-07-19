@@ -43,14 +43,16 @@ const Contacts = ref<user[] | undefined>(undefined);
 onMounted(async () => {
     console.log("加载联系人列表");
 
-    const users = await tdlibSend({
-        "_": "getContacts"
-    });
+    const [users, currentUser] = await Promise.all([
+        tdlibSend({ "_": "getContacts" }),
+        tdlibSend({ "_": "getMe" })
+    ]);
     if (users.user_ids.length < 0) {
         return;
     }
     const contactList: user[] = [];
     for (const id of users.user_ids) {
+        if (id === currentUser.id) continue;
         const user = await tdlibSend({
             "_": "getUser",
             "user_id": id

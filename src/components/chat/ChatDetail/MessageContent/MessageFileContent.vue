@@ -2,7 +2,7 @@
     <div>
         <!-- Document -->
         <div v-if="content._ === 'messageDocument'"
-            class="flex items-center gap-3 bg-gray-100 dark:bg-gray-700 p-2 rounded-lg max-w-xs relative">
+            class="flex items-center gap-3 bg-gray-100 dark:bg-gray-700 text-black dark:text-white p-2 rounded-lg max-w-xs relative">
             <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded flex items-center justify-center shrink-0">
                 <FileIcon class="w-5 h-5 text-blue-500" />
             </div>

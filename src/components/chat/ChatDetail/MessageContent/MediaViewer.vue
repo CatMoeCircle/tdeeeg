@@ -78,7 +78,7 @@
                                 <!-- Caption card (below controls) -->
                                 <div v-if="caption" class="w-full bg-black/60 backdrop-blur-md rounded-xl px-4 py-2"
                                     @click.stop>
-                                    <p class="text-white/80 text-sm text-center">{{ caption }}</p>
+                                    <p class="line-clamp-3 text-white/80 text-sm text-center">{{ caption }}</p>
                                 </div>
                             </div>
                         </div>

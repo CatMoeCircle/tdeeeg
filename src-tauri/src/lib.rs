@@ -1,5 +1,6 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 mod chat_store;
+mod media_stream;
 mod tdlib;
 
 #[tauri::command]
@@ -20,6 +21,9 @@ fn set_window_effect(window: tauri::WebviewWindow, effect: String) -> Result<(),
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .register_asynchronous_uri_scheme_protocol("tdstream", |context, request, responder| {
+            media_stream::respond(context.app_handle().clone(), request, responder);
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .manage(tdlib::AppState::new())

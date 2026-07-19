@@ -221,6 +221,7 @@ import MessageAlbum from './MessageContent/MessageAlbum.vue';
 import ChatDetailHeader from './Header.vue';
 
 import { tdlibSend } from '../../../utils/tdlib';
+import { isOutgoingMessageForDisplay } from '../../../utils/savedMessages';
 
 import { MessageCircleIcon } from 'lucide-vue-next';
 import { useRoute, useRouter } from 'vue-router';
@@ -285,6 +286,7 @@ onMounted(async () => {
 onUnmounted(() => {
     if (unlisten) unlisten();
     if (readVisibilityTimer !== null) window.clearTimeout(readVisibilityTimer);
+    if (chatLoadRetryTimer !== null) window.clearTimeout(chatLoadRetryTimer);
 });
 
 // ==================== TDLib Updates ====================
@@ -405,15 +407,22 @@ const handleUpdate = async (update: Update) => {
 // ==================== Chat Loading ====================
 /** 当前正在加载的聊天 ID，用于防止异步返回时的竞态条件 */
 let activeChatId: number | null = null;
-/** 防止 watch(chatId) 意外重复触发 */
-let lastLoadedChatId: number | null = null;
+const chatLoadRetryToken = ref(0);
+let chatLoadRetryId: number | null = null;
+let chatLoadRetryCount = 0;
+let chatLoadRetryTimer: number | null = null;
 
 // 监听 chatId 变化，加载聊天信息和消息
-watch(chatId, async (newChatId) => {
+watch([chatId, chatLoadRetryToken], async ([newChatId]) => {
     if (newChatId === undefined) return;
-    // 如果已加载过同一个 chat，跳过（防止路由响应式干扰）
-    if (newChatId === lastLoadedChatId) return;
-    lastLoadedChatId = newChatId;
+    if (chatLoadRetryId !== newChatId) {
+        chatLoadRetryId = newChatId;
+        chatLoadRetryCount = 0;
+        if (chatLoadRetryTimer !== null) {
+            window.clearTimeout(chatLoadRetryTimer);
+            chatLoadRetryTimer = null;
+        }
+    }
     const currentId = newChatId;
     activeChatId = currentId;
 
@@ -441,6 +450,9 @@ watch(chatId, async (newChatId) => {
         // 3. 围绕读点加载历史；没有未读消息时仍加载最新消息
         let allMsgs = await fetchMessages(currentId, lastReadId, lastReadId > 0 ? 60 : 30, lastReadId > 0 ? -30 : 0);
         if (activeChatId !== currentId) return;
+        if (allMsgs.length === 0 && chatData.last_message) {
+            throw new Error(`Chat ${currentId} returned empty history despite having a last message`);
+        }
 
         // 如果消息太少，多加载几页填充以确保可滚动
         if (allMsgs.length > 0 && allMsgs.length < 80) {
@@ -477,6 +489,7 @@ watch(chatId, async (newChatId) => {
 
         // 5. 标记完成
         isReady.value = true;
+        chatLoadRetryCount = 0;
 
         // 6. 确保加载后消息容器可滚动（至少撑满视口）
         await nextTick();
@@ -494,7 +507,16 @@ watch(chatId, async (newChatId) => {
         scheduleVisibleMessagesRead();
     } catch (e) {
         console.error("Error loading chat:", e);
-        isReady.value = true;
+        if (activeChatId === currentId && chatId.value === currentId && chatLoadRetryCount < 2) {
+            chatLoadRetryCount++;
+            isReady.value = false;
+            chatLoadRetryTimer = window.setTimeout(() => {
+                chatLoadRetryTimer = null;
+                if (chatId.value === currentId) chatLoadRetryToken.value++;
+            }, chatLoadRetryCount * 300);
+        } else {
+            isReady.value = true;
+        }
     } finally {
         if (activeChatId === currentId) {
             activeChatId = null;
@@ -840,9 +862,10 @@ function resetState() {
 
 // ==================== Helpers ====================
 const isSelf = (msg: message) =>
-    msg.sender_id._ === 'messageSenderUser' && msg.sender_id.user_id === myId.value;
+    isOutgoingMessageForDisplay(msg, chat.value, myId.value);
 
 const MEDIA_TYPES = new Set(['messagePhoto', 'messageVideo', 'messageAnimation']);
+const ALBUM_MEDIA_TYPES = new Set(['messagePhoto', 'messageVideo']);
 const SERVICE_TYPES = new Set([
     'messageBasicGroupChatCreate', 'messageSupergroupChatCreate',
     'messageChatChangeTitle', 'messageChatChangePhoto', 'messageChatDeletePhoto',
@@ -868,6 +891,7 @@ const SERVICE_TYPES = new Set([
 ]);
 
 const isMediaMessage = (msg: message) => MEDIA_TYPES.has(msg.content._);
+const isAlbumMedia = (msg: message) => ALBUM_MEDIA_TYPES.has(msg.content._);
 const isStandaloneMessage = (msg: message) =>
     msg.content._ === 'messageSticker' || msg.content._ === 'messageAnimatedEmoji';
 const isServiceMessage = (msg: message) => SERVICE_TYPES.has(msg.content._);
@@ -934,6 +958,7 @@ const showSkeleton = computed(() => messages.value.length === 0 && !isReady.valu
 /** 判断两条消息是否是同一发送者 */
 const isSameSender = (a: message | undefined, b: message | undefined) => {
     if (!a || !b) return false;
+    if (isSelf(a) !== isSelf(b)) return false;
     if (a.sender_id._ !== b.sender_id._) return false;
     if (a.sender_id._ === 'messageSenderUser' && b.sender_id._ === 'messageSenderUser') {
         return a.sender_id.user_id === b.sender_id.user_id;
@@ -1025,10 +1050,10 @@ const messageItems = computed<DisplayItem[]>(() => {
         }
 
         // 相册分组
-        if (msg.media_album_id && msg.media_album_id !== '0' && !isServiceMessage(msg)) {
+        if (msg.media_album_id && msg.media_album_id !== '0' && isAlbumMedia(msg)) {
             const albumMsgs: message[] = [msg];
             let j = i + 1;
-            while (j < M.length && M[j].media_album_id === msg.media_album_id && !isServiceMessage(M[j])) {
+            while (j < M.length && M[j].media_album_id === msg.media_album_id && isAlbumMedia(M[j])) {
                 albumMsgs.push(M[j]);
                 j++;
             }

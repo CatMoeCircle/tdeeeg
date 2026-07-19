@@ -6,6 +6,8 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Chat {
     pub id: i64,
+    #[serde(rename = "type")]
+    pub chat_type: Value,
     pub title: String,
     #[serde(default)]
     pub unread_count: i32,
