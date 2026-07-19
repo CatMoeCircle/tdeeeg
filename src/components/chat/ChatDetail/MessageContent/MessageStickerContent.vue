@@ -1,5 +1,5 @@
 <template>
-    <div class="w-32 h-32">
+    <div :class="content._ === 'messageAnimatedEmoji' ? 'w-24 h-24' : 'w-40 h-40'">
         <!-- WEBP static sticker -->
         <img v-if="format === 'webp' && mediaSrc" :src="mediaSrc" class="w-full h-full object-contain" />
         <!-- TGS animated sticker (Lottie) -->
@@ -15,15 +15,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onUnmounted, nextTick } from 'vue';
-import type { messageSticker } from 'tdlib-types';
+import { computed, ref, watch, onUnmounted, nextTick } from 'vue';
+import type { messageAnimatedEmoji, messageSticker } from 'tdlib-types';
 import { tdlibSend, isFileReady } from '../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import lottie, { type AnimationItem } from 'lottie-web';
 import * as pako from 'pako';
 
 const props = defineProps<{
-    content: messageSticker;
+    content: messageSticker | messageAnimatedEmoji;
 }>();
 
 const lottieRef = ref<HTMLElement | null>(null);
@@ -31,14 +31,19 @@ const mediaSrc = ref<string | undefined>(undefined);
 const isDownloading = ref(false);
 let lottieAnim: AnimationItem | null = null;
 
-const emoji = props.content.sticker.emoji || '🧩';
+const sticker = computed(() => props.content._ === 'messageSticker'
+    ? props.content.sticker
+    : props.content.animated_emoji.sticker);
+const emoji = computed(() => props.content._ === 'messageSticker'
+    ? props.content.sticker.emoji || '🧩'
+    : props.content.emoji);
 
 /** 检测贴纸格式 */
-const format = props.content.sticker.format._ === 'stickerFormatTgs' ? 'tgs'
-    : props.content.sticker.format._ === 'stickerFormatWebm' ? 'webm'
-        : 'webp';
+const format = computed(() => sticker.value?.format._ === 'stickerFormatTgs' ? 'tgs'
+    : sticker.value?.format._ === 'stickerFormatWebm' ? 'webm'
+        : 'webp');
 
-const getFile = () => props.content.sticker.sticker;
+const getFile = () => sticker.value?.sticker;
 
 const loadMedia = async () => {
     const f = getFile();
@@ -75,11 +80,11 @@ const downloadFile = async (fileId: number) => {
 
 /** 加载贴纸（根据格式选择渲染方式） */
 async function loadSticker(filePath: string) {
-    if (format === 'webp') {
+    if (format.value === 'webp') {
         mediaSrc.value = convertFileSrc(filePath);
-    } else if (format === 'tgs') {
+    } else if (format.value === 'tgs') {
         await loadTgs(filePath);
-    } else if (format === 'webm') {
+    } else if (format.value === 'webm') {
         mediaSrc.value = convertFileSrc(filePath);
     }
 }

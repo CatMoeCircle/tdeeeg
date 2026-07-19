@@ -36,7 +36,7 @@
         </p>
         <span class="block text-right px-2 pb-1" :class="isSelf ? 'text-blue-100' : 'text-gray-400'">
             <MessageStatus :date="lastDate" :isOutgoing="isSelf" :sendingState="lastSendingState"
-                :viewCount="lastViewCount" :authorSignature="authorSignature" />
+                :isRead="isRead" :viewCount="lastViewCount" :authorSignature="authorSignature" />
         </span>
         <MediaViewer :visible="viewerVisible" :items="viewerItems" :initial-index="viewerIndex"
             @close="viewerVisible = false" />
@@ -57,6 +57,7 @@ const props = defineProps<{
     isSelf: boolean;
     chatId?: number;
     authorSignature?: string;
+    isRead?: boolean;
 }>();
 
 const viewerVisible = ref(false);

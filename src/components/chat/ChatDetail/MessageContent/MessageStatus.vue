@@ -23,8 +23,11 @@
             <!-- Failed -->
             <InfoIcon v-else-if="sendingState?._ === 'messageSendingStateFailed'" class="w-3.5 h-3.5 text-red-400" />
 
-            <!-- Sent successfully - Check or CheckCheck (TDLib doesn't distinguish, use is_outgoing) -->
-            <CheckCheckIcon v-else class="w-3.5 h-3.5 text-blue-200" />
+            <!-- Read by the recipient -->
+            <CheckCheckIcon v-else-if="isRead" class="w-3.5 h-3.5" />
+
+            <!-- Sent to the server, but not read yet -->
+            <CheckIcon v-else class="w-3.5 h-3.5" />
         </span>
     </span>
 </template>
@@ -38,6 +41,7 @@ import {
     ClockFading as ClockFadingIcon,
     Info as InfoIcon,
     CheckCheck as CheckCheckIcon,
+    Check as CheckIcon,
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -47,6 +51,8 @@ const props = defineProps<{
     isOutgoing: boolean;
     /** Sending state (pending/failed) */
     sendingState?: MessageSendingState;
+    /** Whether TDLib reports this outgoing message as read */
+    isRead?: boolean;
     /** View count (from interaction_info) */
     viewCount?: number;
     /** Author signature (for channel posts) */

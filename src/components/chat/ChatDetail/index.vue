@@ -61,6 +61,7 @@
                                         {{ getSenderName(item.messages[0]) }}
                                     </p>
                                     <MessageAlbum :messages="item.messages" :isSelf="isSelfAlbum(item)" :chatId="chatId"
+                                        :isRead="isMessageRead(item.messages[item.messages.length - 1])"
                                         :authorSignature="item.messages[0].author_signature || undefined" />
                                 </div>
                             </div>
@@ -87,11 +88,15 @@
                                 <div :class="[
                                     isMediaMessage(item.msg)
                                         ? 'shadow-sm max-w-[70%] overflow-hidden'
-                                        : 'px-3 py-2 shadow-sm max-w-[70%] min-w-[120px]',
-                                    isSelf(item.msg)
+                                        : isStandaloneMessage(item.msg)
+                                            ? 'relative max-w-[70%]'
+                                            : 'px-3 py-2 shadow-sm max-w-[70%] min-w-[120px]',
+                                    !isStandaloneMessage(item.msg) && isSelf(item.msg)
                                         ? 'bg-[#6ab2f2] dark:bg-[#6ab2f2] text-white'
-                                        : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200',
-                                    getMessageBorderRadius(item.msg, item)
+                                        : !isStandaloneMessage(item.msg)
+                                            ? 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'
+                                            : '',
+                                    isStandaloneMessage(item.msg) ? '' : getMessageBorderRadius(item.msg, item)
                                 ]">
                                     <p v-if="!isSelf(item.msg) && showSenderName && item.isFirstInGroup"
                                         class="text-xs font-semibold mb-0.5 -mt-0.5 text-blue-500">
@@ -104,22 +109,25 @@
                                         :date="item.msg.date" :forwardInfo="item.msg.forward_info"
                                         :isFirstInGroup="item.isFirstInGroup" :isLastInGroup="item.isLastInGroup"
                                         :sendingState="item.msg.sending_state"
+                                        :isRead="isMessageRead(item.msg)"
                                         :viewCount="item.msg.interaction_info?.view_count"
                                         :authorSignature="item.msg.author_signature || undefined" :chatId="chatId"
                                         :messageId="item.msg.id"
                                         :replyTo="item.msg.reply_to?._ === 'messageReplyToMessage' ? item.msg.reply_to : undefined"
                                         :messageList="messages" @jumpToMessage="scrollToMessage" />
-                                    <span v-if="!isMediaMessage(item.msg) && !isSelf(item.msg)"
+                                    <span v-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isSelf(item.msg)"
                                         class="block text-right text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 leading-none">
                                         <MessageStatus :date="item.msg.date" :isOutgoing="false"
                                             :sendingState="item.msg.sending_state"
+                                            :isRead="isMessageRead(item.msg)"
                                             :viewCount="item.msg.interaction_info?.view_count"
                                             :authorSignature="item.msg.author_signature || undefined" />
                                     </span>
-                                    <span v-else-if="!isMediaMessage(item.msg) && isSelf(item.msg)"
+                                    <span v-else-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && isSelf(item.msg)"
                                         class="block text-right text-[11px] text-blue-100 mt-0.5 leading-none">
                                         <MessageStatus :date="item.msg.date" :isOutgoing="true"
                                             :sendingState="item.msg.sending_state"
+                                            :isRead="isMessageRead(item.msg)"
                                             :viewCount="item.msg.interaction_info?.view_count"
                                             :authorSignature="item.msg.author_signature || undefined" />
                                     </span>
@@ -315,6 +323,37 @@ const handleUpdate = async (update: Update) => {
             if (update.chat_id !== chatId.value) return;
             const msg = messages.value.find(m => m.id === update.message_id);
             if (msg) msg.content = update.new_content;
+            break;
+        }
+
+        case 'updateMessageSendSucceeded':
+        case 'updateMessageSendFailed': {
+            if (!isReady.value) return;
+            if (update.message.chat_id !== chatId.value) return;
+            const oldIndex = messages.value.findIndex(m => m.id === update.old_message_id);
+            const currentIndex = messages.value.findIndex(m => m.id === update.message.id);
+
+            if (oldIndex >= 0) {
+                if (currentIndex >= 0 && currentIndex !== oldIndex) {
+                    messages.value.splice(oldIndex, 1);
+                } else {
+                    messages.value.splice(oldIndex, 1, update.message);
+                }
+            } else if (currentIndex >= 0) {
+                messages.value.splice(currentIndex, 1, update.message);
+            } else {
+                messages.value.push(update.message);
+            }
+
+            if (newMessageIds.value.delete(update.old_message_id)) {
+                newMessageIds.value.add(update.message.id);
+            }
+            break;
+        }
+
+        case 'updateChatReadOutbox': {
+            if (update.chat_id !== chatId.value || !chat.value) return;
+            chat.value.last_read_outbox_message_id = update.last_read_outbox_message_id;
             break;
         }
 
@@ -829,7 +868,14 @@ const SERVICE_TYPES = new Set([
 ]);
 
 const isMediaMessage = (msg: message) => MEDIA_TYPES.has(msg.content._);
+const isStandaloneMessage = (msg: message) =>
+    msg.content._ === 'messageSticker' || msg.content._ === 'messageAnimatedEmoji';
 const isServiceMessage = (msg: message) => SERVICE_TYPES.has(msg.content._);
+const isMessageRead = (msg: message) =>
+    msg.is_outgoing
+    && !msg.sending_state
+    && !!chat.value
+    && msg.id <= chat.value.last_read_outbox_message_id;
 
 const getSenderName = (msg: message) => {
     if (msg.sender_id._ === 'messageSenderUser') {

@@ -13,11 +13,19 @@
         <!-- Media messages -->
         <MessageMediaContent v-else-if="isMediaType" :content="content as any" :isSelf="isSelf ?? false" :date="date"
             :forwardInfo="forwardInfo" :isFirstInGroup="isFirstInGroup" :isLastInGroup="isLastInGroup"
-            :sendingState="sendingState" :viewCount="viewCount" :authorSignature="authorSignature" :chatId="chatId"
-            :messageId="messageId" />
+            :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature"
+            :chatId="chatId" :messageId="messageId" />
 
-        <!-- Stickers -->
-        <MessageStickerContent v-else-if="content._ === 'messageSticker'" :content="content" />
+        <!-- Stickers / animated emoji are rendered without a message bubble -->
+        <div v-else-if="content._ === 'messageSticker' || content._ === 'messageAnimatedEmoji'"
+            class="relative inline-block pb-3 align-bottom">
+            <MessageStickerContent :content="content" />
+            <span v-if="date"
+                class="absolute right-1 bottom-3 translate-y-1/2 rounded-md bg-black/55 px-1.5 py-0.4 text-white shadow-sm">
+                <MessageStatus :date="date" :isOutgoing="isSelf ?? false" :sendingState="sendingState" :isRead="isRead"
+                    :viewCount="viewCount" :authorSignature="authorSignature" overMedia />
+            </span>
+        </div>
 
         <!-- Voice / Video notes -->
         <MessageVoiceContent v-else-if="content._ === 'messageVoiceNote' || content._ === 'messageVideoNote'"
@@ -43,6 +51,7 @@ import MessageVoiceContent from './MessageVoiceContent.vue';
 import MessageFileContent from './MessageFileContent.vue';
 import MessageServiceContent from './MessageServiceContent.vue';
 import MessageOtherContent from './MessageOtherContent.vue';
+import MessageStatus from './MessageStatus.vue';
 
 const MEDIA_TYPES = new Set([
     'messagePhoto',
@@ -119,6 +128,7 @@ const props = defineProps<{
     isFirstInGroup?: boolean;
     isLastInGroup?: boolean;
     sendingState?: MessageSendingState;
+    isRead?: boolean;
     viewCount?: number;
     authorSignature?: string;
     chatId?: number;

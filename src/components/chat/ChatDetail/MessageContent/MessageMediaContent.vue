@@ -132,7 +132,7 @@
             <!-- Time overlay on media -->
             <div v-if="!captionBelow && date"
                 class="absolute right-1.5 bottom-1.5 bg-black/60 text-white px-1.5 py-0.5 rounded-md leading-none select-none pointer-events-none">
-                <MessageStatus :date="date" :isOutgoing="isSelf" :sendingState="sendingState" :viewCount="viewCount"
+                <MessageStatus :date="date" :isOutgoing="isSelf" :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount"
                     :authorSignature="authorSignature" overMedia />
             </div>
         </div>
@@ -148,7 +148,7 @@
         <!-- Time & status below -->
         <span v-if="captionBelow && date" class="block text-right px-2 pb-1"
             :class="isSelf ? 'text-blue-100' : 'text-gray-400'">
-            <MessageStatus :date="date" :isOutgoing="isSelf" :sendingState="sendingState" :viewCount="viewCount"
+            <MessageStatus :date="date" :isOutgoing="isSelf" :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount"
                 :authorSignature="authorSignature" />
         </span>
 
@@ -177,6 +177,7 @@ const props = defineProps<{
     isFirstInGroup?: boolean;
     isLastInGroup?: boolean;
     sendingState?: MessageSendingState;
+    isRead?: boolean;
     viewCount?: number;
     authorSignature?: string;
     chatId?: number;
