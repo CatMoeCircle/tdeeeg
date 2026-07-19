@@ -6,6 +6,7 @@ import { listen } from "@tauri-apps/api/event";
 import { MessagePlugin } from 'tdesign-vue-next';
 import { useI18n } from 'vue-i18n';
 import type { Update } from "tdlib-types";
+import { invoke } from "@tauri-apps/api/core";
 
 const router = useRouter();
 const code = ref("");
@@ -31,6 +32,12 @@ const submitCode = async () => {
 };
 
 onMounted(async () => {
+    try {
+        await invoke("set_window_effect", { effect: "mica" });
+    } catch (e) {
+        console.warn("设置 Mica 失败:", e);
+    }
+
     unlisten = await listen<Update>("tdlib-update", (event) => {
         const update = event.payload;
         if (update._ === "updateAuthorizationState") {

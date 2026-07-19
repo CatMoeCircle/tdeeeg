@@ -4,10 +4,12 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_double, c_void};
+#[cfg(windows)]
+use std::os::windows::ffi::OsStrExt;
 use std::ptr;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
-use tauri::{Emitter, State};
+use tauri::{Emitter, Manager, State};
 use tokio::sync::oneshot;
 
 // --- 辅助函数：递归重命名 JSON 键 ---
@@ -136,9 +138,6 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
 
     println!("Initializing TDLib...");
 
-    // 确保 TDLib 目录存在
-    std::fs::create_dir_all("TDLib").map_err(|e| e.to_string())?;
-
     // 1. 加载 DLL
     let exe_path = std::env::current_exe().map_err(|e| e.to_string())?;
     let exe_dir = exe_path.parent().ok_or("Cannot get exe directory")?;
@@ -171,28 +170,37 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
         let _ = app_handle.emit("tdlib-init-error", json!({ "message": err_msg }));
         return Err(err_msg);
     }
+
+    // 如果 DLL 在 bin/ 子目录中，将其加入 Windows DLL 搜索路径以加载其依赖
     #[cfg(windows)]
-    let lib_result = unsafe {
-        use libloading::os::windows::{
-            Library as WindowsLibrary, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS,
-            LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR,
-        };
+    if let Some(parent) = dll_path.parent() {
+        if parent != exe_dir {
+            let _ = app_handle.emit(
+                "tdlib-log",
+                format!("Adding DLL directory to search path: {:?}", parent),
+            );
+            // 将 DLL 所在目录路径转换为 UTF-16
+            let wide: Vec<u16> = parent
+                .as_os_str()
+                .encode_wide()
+                .chain(std::iter::once(0))
+                .collect();
+            extern "system" {
+                fn SetDllDirectoryW(lpPathName: *const u16) -> i32;
+            }
+            unsafe {
+                SetDllDirectoryW(wide.as_ptr());
+            }
+        }
+    }
 
-        WindowsLibrary::load_with_flags(
-            &dll_path,
-            LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS,
-        )
-        .map(Library::from)
+    let lib = unsafe {
+        Library::new(&dll_path).map_err(|e| {
+            let err_msg = format!("Failed to load {}: {}", dll_path.display(), e);
+            let _ = app_handle.emit("tdlib-init-error", json!({ "message": err_msg }));
+            err_msg
+        })?
     };
-
-    #[cfg(not(windows))]
-    let lib_result = unsafe { Library::new(&dll_path) };
-
-    let lib = lib_result.map_err(|e| {
-        let err_msg = format!("Failed to load {}: {}", dll_path.display(), e);
-        let _ = app_handle.emit("tdlib-init-error", json!({ "message": err_msg }));
-        err_msg
-    })?;
     let _ = app_handle.emit("tdlib-log", "DLL loaded successfully");
     // 2. 获取函数符号
 
@@ -221,6 +229,14 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
         CString::new(r#"{"@type": "setLogVerbosityLevel", "new_verbosity_level": 1}"#).unwrap();
     unsafe { execute_fn(ptr::null_mut(), log_config.as_ptr()) };
 
+    // 注册 TDLib 数据目录到 asset protocol 作用域，使前端能加载图片等文件
+    let tdlib_data_dir = std::env::current_dir()
+        .map_err(|e| e.to_string())?
+        .join("TDLib");
+    let _ = app_handle
+        .asset_protocol_scope()
+        .allow_directory(tdlib_data_dir, true);
+
     // 3. 创建客户端
     println!("About to create TDLib client...");
     let client = unsafe { create_fn() };
@@ -238,7 +254,6 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
     let pending_requests = state.pending_requests.clone();
     let config_clone = state.config.clone();
     let chat_store = state.chat_store.clone();
-
     std::thread::spawn(move || {
         let client = client_ptr as *mut c_void;
         loop {

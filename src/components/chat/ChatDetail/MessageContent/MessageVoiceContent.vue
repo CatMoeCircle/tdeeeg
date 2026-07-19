@@ -22,7 +22,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import type { messageVoiceNote, messageVideoNote } from 'tdlib-types';
-import { tdlibSend } from '../../../../utils/tdlib';
+import { tdlibSend, isFileReady } from '../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { MicIcon, VideoIcon } from 'lucide-vue-next';
 
@@ -50,7 +50,7 @@ const loadMedia = async () => {
     const f = getFile();
     if (!f) return;
 
-    if (f.local.is_downloading_completed) {
+    if (isFileReady(f)) {
         mediaSrc.value = convertFileSrc(f.local.path);
     } else if (f.local.can_be_downloaded && !f.local.is_downloading_active) {
         downloadFile(f.id);
@@ -69,7 +69,7 @@ const downloadFile = async (fileId: number) => {
             limit: 0,
             synchronous: true
         });
-        if (res.local.is_downloading_completed) {
+        if (isFileReady(res)) {
             mediaSrc.value = convertFileSrc(res.local.path);
         }
     } catch (e) {

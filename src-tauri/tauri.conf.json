@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "tdgram",
+  "productName": "tdeeeg",
   "version": "0.1.0",
-  "identifier": "com.xiaoqvan.tdgram",
+  "identifier": "com.xiaoqvan.tdeeeg",
   "build": {
     "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",
@@ -12,13 +12,13 @@
   "app": {
     "windows": [
       {
-        "title": "tdgram",
-        "width": 800,
-        "height": 500,
+        "title": "tdeeeg",
+        "width": 1000,
+        "height": 700,
         "decorations": false,
         "transparent": true,
         "windowEffects": {
-          "effects": ["acrylic"]
+          "effects": ["mica"]
         }
       }
     ],
@@ -26,14 +26,13 @@
       "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost; media-src 'self' asset: http://asset.localhost",
       "assetProtocol": {
         "enable": true,
-        "scope": ["$APPDATA/assets/*", "../assets/*", "./TDLib/**"]
+        "scope": ["$APPDATA/assets/*", "../assets/*"]
       }
     }
   },
   "bundle": {
     "active": true,
     "targets": "all",
-    "resources": ["./bin/*"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

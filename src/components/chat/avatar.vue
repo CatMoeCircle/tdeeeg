@@ -8,7 +8,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import type { chatPhotoInfo, profilePhoto } from "tdlib-types";
-import { tdlibSend, } from '../../utils/tdlib';
+import { tdlibSend, isFileReady } from '../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 
 const props = defineProps<{
@@ -45,7 +45,7 @@ watch(
         }
 
         // 2️⃣ 已下载
-        if (photo.small?.local?.is_downloading_completed) {
+        if (isFileReady(photo.small)) {
             avatar.value = convertFileSrc(photo.small.local.path);
             return;
         }

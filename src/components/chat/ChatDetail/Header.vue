@@ -1,11 +1,10 @@
 <template>
-    <div
-        class="h-16 border-b border-gray-200 dark:border-gray-800 pt-0 flex items-center px-4 justify-between shrink-0">
+    <div class="h-16 pt-0 flex items-center px-4 justify-between shrink-0">
         <div class="flex items-center gap-3" v-if="chat">
             <Avatar :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" />
             <div class="flex flex-col">
                 <h2 class="flex font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight">{{ chat.title
-                }}<span v-if="verificationState" class="text-blue-500 ml-1">
+                    }}<span v-if="verificationState" class="text-blue-500 ml-1">
                         <component :is="verificationState" />
                     </span>
                 </h2>

@@ -11,7 +11,9 @@ const close = () => appWindow.close();
 
 <template>
     <div data-tauri-drag-region class="h-8 flex justify-between items-center select-none w-full shrink-0">
-        <div class="pl-4 text-sm font-medium text-gray-700 pointer-events-none"></div>
+        <div class="pl-4 text-sm font-medium text-gray-700 pointer-events-none">
+            <p class="truncate w-48">TDEEEG</p>
+        </div>
         <div class="flex h-full">
             <button @click="minimize"
                 class="w-12 h-full flex items-center justify-center hover:bg-gray-100 text-gray-500 transition-colors focus:outline-none">

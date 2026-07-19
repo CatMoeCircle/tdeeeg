@@ -6,6 +6,7 @@ import { listen } from "@tauri-apps/api/event";
 import { MessagePlugin } from 'tdesign-vue-next';
 import { useI18n } from 'vue-i18n';
 import type { Update } from "tdlib-types";
+import { invoke } from "@tauri-apps/api/core";
 
 const router = useRouter();
 const password = ref("");
@@ -31,6 +32,12 @@ const submitPassword = async () => {
 };
 
 onMounted(async () => {
+    try {
+        await invoke("set_window_effect", { effect: "mica" });
+    } catch (e) {
+        console.warn("设置 Mica 失败:", e);
+    }
+
     unlisten = await listen<Update>("tdlib-update", (event) => {
         const update = event.payload;
         if (update._ === "updateAuthorizationState") {
@@ -50,7 +57,7 @@ onUnmounted(() => {
 
 <template>
     <div class="flex justify-center items-center h-full bg-white select-none">
-        <div class="flex flex-col items-center text-center px-8 w-[400px]">
+        <div class="flex flex-col items-center text-center px-8 w-400px">
             <h1 class="text-xl font-bold mb-4 text-gray-900">{{ t('login.enterPassword') }}</h1>
             <p class="text-gray-500 mb-8 text-base">
                 {{ t('login.passwordDesc') }}

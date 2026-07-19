@@ -9,6 +9,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
+import { invoke } from '@tauri-apps/api/core';
 import SideNavBar from '../components/layout/SideNavBar.vue';
 import { tdlibSend } from '../utils/tdlib';
 
@@ -29,6 +30,13 @@ onMounted(async () => {
     await appWindow.setSize(new LogicalSize(1000, 600));
     await appWindow.setMinSize(new LogicalSize(800, 450));
     console.log("加载聊天列表");
+
+    // 切换窗口效果为 Acrylic
+    try {
+        await invoke("set_window_effect", { effect: "acrylic" });
+    } catch (e) {
+        console.warn("切换 Acrylic 失败:", e);
+    }
 
     await loadChats();
 });

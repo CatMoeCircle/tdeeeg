@@ -14,3 +14,9 @@ export async function tdlibSend<T extends $Function>(
   }
   return response;
 }
+
+/** 检查 TDLib 文件是否已下载且本地路径存在（非空且可用） */
+export function isFileReady(file: { local: { is_downloading_completed: boolean; path?: string } } | undefined): boolean {
+  if (!file) return false;
+  return file.local.is_downloading_completed && !!file.local.path;
+}

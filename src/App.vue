@@ -2,12 +2,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { Update } from "tdlib-types";
-import { onMounted } from "vue";
+import { onMounted, ref } from "vue";
 import { tdlibSend } from "./utils/tdlib";
 import { useRouter } from "vue-router";
 import TitleBar from "./components/TitleBar.vue";
 import { MessagePlugin } from 'tdesign-vue-next';
-import { ref } from "vue";
 
 const router = useRouter();
 
@@ -66,7 +65,7 @@ async function get() {
 }
 
 onMounted(() => {
-  invoke('set_tdlib_parameters', { useTestDc: true });
+  invoke('set_tdlib_parameters', { useTestDc: false });
   initTdlib();
   setTimeout(() => {
     get();
@@ -76,13 +75,10 @@ onMounted(() => {
 </script>
 
 <template>
+  <!-- Main app window -->
   <div class="relative flex flex-col h-screen w-screen overflow-hidden">
-    <!-- 背景层 -->
     <div class="absolute inset-0 bg-white/50 bg-cover bg-center"></div>
-    <!-- 可选磨砂叠加 -->
-    <!-- <div class="absolute inset-0 bg-white/50 backdrop-blur-[2px]"></div> -->
 
-    <!-- 原有内容层 -->
     <div class="relative z-10 flex flex-col h-full w-full overflow-hidden">
       <TitleBar />
 
