@@ -39,18 +39,18 @@ watch(
             return;
         }
 
-        // 1️⃣ minithumbnail
+        // 缩略图
         if (photo.minithumbnail) {
             avatar.value = `data:image/jpeg;base64,${photo.minithumbnail.data}`;
         }
 
-        // 2️⃣ 已下载
+        // 已下载
         if (isFileReady(photo.small)) {
             avatar.value = convertFileSrc(photo.small.local.path);
             return;
         }
 
-        // 3️⃣ 触发下载
+        // 触发下载
         const file = await tdlibSend({
             _: "downloadFile",
             file_id: photo.small?.id,
@@ -64,7 +64,7 @@ watch(
             avatar.value = convertFileSrc(file.local.path);
         }
     },
-    { immediate: true } // 🔥 非常重要
+    { immediate: true } // 非常重要
 );
 
 </script>

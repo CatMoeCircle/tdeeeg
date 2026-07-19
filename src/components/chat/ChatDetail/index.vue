@@ -138,7 +138,45 @@
         <!-- ===== Input Area（顶层，磨砂玻璃） ===== -->
         <div v-if="canSend"
             class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-white/80 dark:from-gray-900/80 via-white/60 dark:via-gray-900/60 to-transparent">
-            <MessageInput v-model="messageInput" @send="handleSend" @attach="handleAttach" />
+            <div aria-hidden="true"
+                class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md [mask-image:linear-gradient(to_top,black,transparent)]">
+            </div>
+            <MessageInput class="relative z-10" v-model="messageInput" @send="handleSend" @attach="handleAttach" />
+        </div>
+
+        <!-- ===== 成员操作 ===== -->
+        <div v-else-if="showMembershipAction"
+            class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-white/80 dark:from-gray-900/80 via-white/60 dark:via-gray-900/60 to-transparent">
+            <div aria-hidden="true"
+                class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md [mask-image:linear-gradient(to_top,black,transparent)]">
+            </div>
+            <div class="relative z-10 flex items-center justify-center p-5">
+                <button type="button" :disabled="!canJoinCurrentChat || isJoinPending || joinRequestSent"
+                    class="h-12 min-w-32 px-5 rounded-full bg-white/60 dark:bg-gray-900/80 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg text-sm font-medium text-blue-500 dark:text-blue-400 hover:bg-white/80 dark:hover:bg-gray-800/90 disabled:opacity-60 disabled:cursor-default transition-colors"
+                    @click="joinCurrentChat">
+                    {{ membershipActionLabel }}
+                </button>
+            </div>
+        </div>
+
+        <!-- ===== 只读 ===== -->
+        <div v-else-if="showChannelActions"
+            class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-white/80 dark:from-gray-900/80 via-white/60 dark:via-gray-900/60 to-transparent">
+            <div aria-hidden="true"
+                class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md [mask-image:linear-gradient(to_top,black,transparent)]">
+            </div>
+            <div class="relative z-10 flex items-center justify-center gap-3 p-5">
+                <button type="button" :disabled="isNotificationTogglePending"
+                    class="h-12 min-w-32 px-5 rounded-full bg-white/60 dark:bg-gray-900/80 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg text-sm font-medium text-blue-500 dark:text-blue-400 hover:bg-white/80 dark:hover:bg-gray-800/90 disabled:opacity-60 disabled:cursor-wait transition-colors"
+                    @click="toggleNotifications">
+                    {{ notificationsMuted ? '开启通知' : '关闭通知' }}
+                </button>
+                <button v-if="linkedChatId" type="button" title="打开讨论组" aria-label="打开讨论组"
+                    class="w-12 h-12 rounded-full bg-white/60 dark:bg-gray-900/80 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg flex items-center justify-center text-blue-500 dark:text-blue-400 hover:bg-white/80 dark:hover:bg-gray-800/90 transition-colors"
+                    @click="openLinkedChat">
+                    <MessageCircleIcon class="w-5 h-5" />
+                </button>
+            </div>
         </div>
 
         <!-- ===== Floating scroll-to-bottom button ===== -->
@@ -169,16 +207,18 @@ import ChatDetailHeader from './Header.vue';
 
 import { tdlibSend } from '../../../utils/tdlib';
 
-import { useRoute } from 'vue-router';
+import { MessageCircleIcon } from 'lucide-vue-next';
+import { useRoute, useRouter } from 'vue-router';
 import { computed, watch, ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useUserStore } from '../../../store/user';
 import { storeToRefs } from 'pinia';
 import { listen } from "@tauri-apps/api/event";
 
-import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo } from 'tdlib-types';
+import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, ChatMemberStatus } from 'tdlib-types';
 
 // ==================== Route ====================
 const route = useRoute();
+const router = useRouter();
 
 const chatId = computed(() => {
     const id = route.params.id;
@@ -198,6 +238,11 @@ const isReady = ref(false);           // 标记初始加载和定位已完成
 const newMessageIds = ref<Set<number>>(new Set());
 const showScrollButton = ref(false);
 const newMessageCount = ref(0);
+const notificationsMuted = ref(false);
+const isNotificationTogglePending = ref(false);
+const linkedChatId = ref(0);
+const isJoinPending = ref(false);
+const joinRequestSent = ref(false);
 
 // 缓存
 const users = ref<Record<number, user>>({});
@@ -273,6 +318,37 @@ const handleUpdate = async (update: Update) => {
             break;
         }
 
+        case 'updateChatNotificationSettings': {
+            if (update.chat_id !== chatId.value || !chat.value) return;
+            chat.value.notification_settings = update.notification_settings;
+            await syncNotificationMuteState(chat.value, update.chat_id);
+            break;
+        }
+
+        case 'updateSupergroupFullInfo': {
+            const currentChat = chat.value;
+            if (currentChat?.type._ !== 'chatTypeSupergroup') return;
+            if (update.supergroup_id !== currentChat.type.supergroup_id) return;
+            linkedChatId.value = update.supergroup_full_info.linked_chat_id;
+            break;
+        }
+
+        case 'updateSupergroup': {
+            const currentChat = chat.value;
+            if (currentChat?.type._ !== 'chatTypeSupergroup') return;
+            if (update.supergroup.id !== currentChat.type.supergroup_id) return;
+            supergroups.value[update.supergroup.id] = update.supergroup;
+            break;
+        }
+
+        case 'updateBasicGroup': {
+            const currentChat = chat.value;
+            if (currentChat?.type._ !== 'chatTypeBasicGroup') return;
+            if (update.basic_group.id !== currentChat.type.basic_group_id) return;
+            basicGroups.value[update.basic_group.id] = update.basic_group;
+            break;
+        }
+
         default:
             break;
     }
@@ -303,7 +379,10 @@ watch(chatId, async (newChatId) => {
         chat.value = chatData;
 
         // 获取 supergroup / basicGroup 补充信息（用 activeChatId 守卫）
-        await fetchGroupInfo(chatData, currentId);
+        await Promise.all([
+            fetchGroupInfo(chatData, currentId),
+            syncNotificationMuteState(chatData, currentId)
+        ]);
 
         // 2. 计算定位目标（last_read 消息）
         const lastReadId = Math.max(
@@ -439,6 +518,18 @@ async function fetchGroupInfo(chatData: chat, guardId: number) {
         const sg = await tdlibSend({ _: 'getSupergroup', supergroup_id: chatData.type.supergroup_id });
         if (activeChatId !== guardId) return;
         supergroups.value[chatData.type.supergroup_id] = sg;
+        if (chatData.type.is_channel || sg.is_broadcast_group) {
+            try {
+                const fullInfo = await tdlibSend({
+                    _: 'getSupergroupFullInfo',
+                    supergroup_id: chatData.type.supergroup_id
+                });
+                if (activeChatId !== guardId) return;
+                linkedChatId.value = fullInfo.linked_chat_id;
+            } catch (e) {
+                console.error('Failed to load linked chat:', e);
+            }
+        }
     } else if (chatData.type._ === 'chatTypeBasicGroup') {
         const bg = await tdlibSend({ _: 'getBasicGroup', basic_group_id: chatData.type.basic_group_id });
         if (activeChatId !== guardId) return;
@@ -615,6 +706,11 @@ function resetState() {
     showScrollButton.value = false;
     newMessageCount.value = 0;
     newMessageIds.value = new Set();
+    notificationsMuted.value = false;
+    isNotificationTogglePending.value = false;
+    linkedChatId.value = 0;
+    isJoinPending.value = false;
+    joinRequestSent.value = false;
 }
 
 // ==================== Helpers ====================
@@ -842,11 +938,35 @@ const getMessageBorderRadius = (msg: message, item: { isFirstInGroup: boolean; i
 // ==================== Album Helpers ====================
 const isSelfAlbum = (item: AlbumDisplayItem) => isSelf(item.messages[0]);
 
-// ==================== Permissions ====================
+// ==================== 权限 ====================
+const currentMemberStatus = computed<ChatMemberStatus | undefined>(() => {
+    const currentChat = chat.value;
+    if (currentChat?.type._ === 'chatTypeSupergroup') {
+        return supergroups.value[currentChat.type.supergroup_id]?.status;
+    }
+    if (currentChat?.type._ === 'chatTypeBasicGroup') {
+        return basicGroups.value[currentChat.type.basic_group_id]?.status;
+    }
+    return undefined;
+});
+
+const isMemberStatus = (status: ChatMemberStatus) => {
+    if (status._ === 'chatMemberStatusMember' || status._ === 'chatMemberStatusAdministrator') return true;
+    if (status._ === 'chatMemberStatusCreator' || status._ === 'chatMemberStatusRestricted') return status.is_member;
+    return false;
+};
+
 const canSend = computed(() => {
     if (!chat.value) return false;
     const c = chat.value;
     if (c.type._ === 'chatTypePrivate') return true;
+
+    if (c.type._ === 'chatTypeSupergroup' || c.type._ === 'chatTypeBasicGroup') {
+        const status = currentMemberStatus.value;
+        if (!status || !isMemberStatus(status)) return false;
+        if (status._ === 'chatMemberStatusRestricted') return status.permissions.can_send_basic_messages;
+    }
+
     if (c.permissions?.can_send_basic_messages) return true;
     // 管理员或创建者
     if (c.type._ === 'chatTypeSupergroup') {
@@ -858,6 +978,117 @@ const canSend = computed(() => {
     }
     return false;
 });
+
+const showMembershipAction = computed(() => {
+    const currentChat = chat.value;
+    const status = currentMemberStatus.value;
+    if (!currentChat || !status) return false;
+    if (currentChat.type._ !== 'chatTypeSupergroup' && currentChat.type._ !== 'chatTypeBasicGroup') return false;
+    return !isMemberStatus(status);
+});
+
+const canJoinCurrentChat = computed(() => currentMemberStatus.value?._ !== 'chatMemberStatusBanned');
+
+const membershipActionLabel = computed(() => {
+    const currentChat = chat.value;
+    const noun = currentChat?.type._ === 'chatTypeSupergroup' && currentChat.type.is_channel ? '频道' : '群组';
+    if (isJoinPending.value) return '处理中...';
+    if (joinRequestSent.value) return '已发送加入申请';
+    if (!canJoinCurrentChat.value) return `无法加入${noun}`;
+
+    const needsRequest = currentChat?.type._ === 'chatTypeSupergroup'
+        && !!supergroups.value[currentChat.type.supergroup_id]?.join_by_request;
+    return needsRequest ? `申请加入${noun}` : `加入${noun}`;
+});
+
+async function joinCurrentChat() {
+    const currentChat = chat.value;
+    if (!currentChat || !canJoinCurrentChat.value || isJoinPending.value || joinRequestSent.value) return;
+
+    const currentChatId = currentChat.id;
+    isJoinPending.value = true;
+    try {
+        await tdlibSend({ _: 'joinChat', chat_id: currentChatId });
+        if (chat.value?.id !== currentChatId) return;
+
+        if (currentChat.type._ === 'chatTypeSupergroup') {
+            const group = await tdlibSend({ _: 'getSupergroup', supergroup_id: currentChat.type.supergroup_id });
+            if (chat.value?.id === currentChatId) supergroups.value[group.id] = group;
+        } else if (currentChat.type._ === 'chatTypeBasicGroup') {
+            const group = await tdlibSend({ _: 'getBasicGroup', basic_group_id: currentChat.type.basic_group_id });
+            if (chat.value?.id === currentChatId) basicGroups.value[group.id] = group;
+        }
+    } catch (e) {
+        if (typeof e === 'object' && e !== null && 'message' in e && e.message === 'INVITE_REQUEST_SENT') {
+            if (chat.value?.id === currentChatId) joinRequestSent.value = true;
+        } else {
+            console.error('Failed to join chat:', e);
+        }
+    } finally {
+        if (chat.value?.id === currentChatId) isJoinPending.value = false;
+    }
+}
+
+const showChannelActions = computed(() => {
+    const currentChat = chat.value;
+    if (!currentChat || canSend.value || currentChat.type._ !== 'chatTypeSupergroup') return false;
+    return currentChat.type.is_channel || !!supergroups.value[currentChat.type.supergroup_id]?.is_broadcast_group;
+});
+
+async function syncNotificationMuteState(chatData: chat, guardId?: number) {
+    const settings = chatData.notification_settings;
+    if (!settings.use_default_mute_for) {
+        if (guardId !== undefined && chat.value?.id !== guardId) return;
+        notificationsMuted.value = settings.mute_for > 0;
+        return;
+    }
+
+    const scope = chatData.type._ === 'chatTypeSupergroup' && chatData.type.is_channel
+        ? { _: 'notificationSettingsScopeChannelChats' as const }
+        : { _: 'notificationSettingsScopeGroupChats' as const };
+    try {
+        const scopeSettings = await tdlibSend({ _: 'getScopeNotificationSettings', scope });
+        if (guardId !== undefined && chat.value?.id !== guardId) return;
+        notificationsMuted.value = scopeSettings.mute_for > 0;
+    } catch (e) {
+        if (guardId !== undefined && chat.value?.id !== guardId) return;
+        notificationsMuted.value = settings.mute_for > 0;
+        console.error('Failed to load notification scope settings:', e);
+    }
+}
+
+async function toggleNotifications() {
+    const currentChat = chat.value;
+    if (!currentChat || isNotificationTogglePending.value) return;
+
+    isNotificationTogglePending.value = true;
+    const nextMuted = !notificationsMuted.value;
+    const currentChatId = currentChat.id;
+    try {
+        await tdlibSend({
+            _: 'setChatNotificationSettings',
+            chat_id: currentChat.id,
+            notification_settings: {
+                ...currentChat.notification_settings,
+                _: 'chatNotificationSettings',
+                use_default_mute_for: false,
+                mute_for: nextMuted ? 2147483647 : 0
+            }
+        });
+        if (chat.value?.id !== currentChatId) return;
+        currentChat.notification_settings.use_default_mute_for = false;
+        currentChat.notification_settings.mute_for = nextMuted ? 2147483647 : 0;
+        notificationsMuted.value = nextMuted;
+    } catch (e) {
+        console.error('Failed to update chat notification settings:', e);
+    } finally {
+        if (chat.value?.id === currentChatId) isNotificationTogglePending.value = false;
+    }
+}
+
+const openLinkedChat = () => {
+    if (linkedChatId.value) router.push(`/home/chats/${linkedChatId.value}`);
+};
 
 // ==================== New Message Animation ====================
 const isNewMessage = (id: number) => newMessageIds.value.has(id);
