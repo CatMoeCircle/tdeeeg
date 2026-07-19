@@ -8,7 +8,7 @@
                         <component :is="verificationState" />
                     </span>
                 </h2>
-                <span class="text-xs text-gray-400">{{ Status }}</span>
+                <span class="text-xs text-gray-400">{{ status }}</span>
             </div>
         </div>
         <div v-else class="flex items-center gap-3">
@@ -29,7 +29,7 @@
 <script setup lang="ts">
 import { SearchIcon, MoreHorizontalIcon, BadgeCheckIcon, ShieldAlert } from 'lucide-vue-next';
 import { h, ref, watch } from 'vue';
-import type { chat, verificationStatus } from "tdlib-types";
+import type { chat, user, verificationStatus } from "tdlib-types";
 import { tdlibSend } from '../../../utils/tdlib';
 import formatStatus from '../../../utils/status';
 
@@ -37,33 +37,81 @@ const props = defineProps<{
     chat: chat | undefined;
 }>();
 
-const Status = ref<string>('加载中...');
+const status = ref('');
 const verificationState = ref<null | ReturnType<typeof h>>(null);
+const numberFormatter = new Intl.NumberFormat('zh-CN');
+let statusRequestId = 0;
+
+const formatCount = (count: number) => numberFormatter.format(count);
+
+const formatUserStatus = (currentUser: user) => {
+    if (currentUser.type._ === 'userTypeBot') {
+        return currentUser.type.active_user_count > 0
+            ? `${formatCount(currentUser.type.active_user_count)} 位月活用户`
+            : '机器人';
+    }
+    if (currentUser.type._ === 'userTypeDeleted') return '已删除账号';
+    return formatStatus(currentUser.status);
+};
 
 // 对话状态
 watch(() => props.chat, async (newChat) => {
+    const requestId = ++statusRequestId;
+    status.value = '';
+    verificationState.value = null;
+    if (!newChat) return;
 
-    if (!newChat) return '未知';
-    if (newChat.type._ === 'chatTypePrivate') {
-        const user = await tdlibSend({
-            _: 'getUser',
-            user_id: newChat.type.user_id
-        })
-        Status.value = formatStatus(user.status);
-        updateVerificationState(user.verification_status);
-    }
+    const isCurrentRequest = () => requestId === statusRequestId && props.chat?.id === newChat.id;
 
-    if (newChat.type._ === 'chatTypeBasicGroup') {
-        const group = await tdlibSend({
-            _: 'getBasicGroup',
-            basic_group_id: newChat.type.basic_group_id
-        });
-        Status.value = `${group.member_count} 成员`;
+    try {
+        if (newChat.type._ === 'chatTypePrivate' || newChat.type._ === 'chatTypeSecret') {
+            const currentUser = await tdlibSend({
+                _: 'getUser',
+                user_id: newChat.type.user_id
+            });
+            if (!isCurrentRequest()) return;
+            status.value = formatUserStatus(currentUser);
+            updateVerificationState(currentUser.verification_status);
+            return;
+        }
+
+        if (newChat.type._ === 'chatTypeBasicGroup') {
+            status.value = '群组';
+            const group = await tdlibSend({
+                _: 'getBasicGroup',
+                basic_group_id: newChat.type.basic_group_id
+            });
+            if (!isCurrentRequest()) return;
+            status.value = group.member_count > 0
+                ? `${formatCount(group.member_count)} 位成员`
+                : '群组';
+            return;
+        }
+
+        if (newChat.type._ === 'chatTypeSupergroup') {
+            const fallback = newChat.type.is_channel ? '频道' : '超级群组';
+            status.value = fallback;
+            const [group, fullInfo] = await Promise.all([
+                tdlibSend({
+                    _: 'getSupergroup',
+                    supergroup_id: newChat.type.supergroup_id
+                }).catch(() => undefined),
+                tdlibSend({
+                    _: 'getSupergroupFullInfo',
+                    supergroup_id: newChat.type.supergroup_id
+                }).catch(() => undefined)
+            ]);
+            if (!isCurrentRequest()) return;
+
+            const memberCount = fullInfo?.member_count || group?.member_count || 0;
+            status.value = memberCount > 0
+                ? `${formatCount(memberCount)} 位${newChat.type.is_channel ? '订阅者' : '成员'}`
+                : fallback;
+            updateVerificationState(group?.verification_status);
+        }
+    } catch (error) {
+        if (isCurrentRequest()) console.error('Failed to load chat header status:', error);
     }
-    if (newChat.type._ === 'chatTypeSupergroup') {
-        return newChat.type.is_channel ? '频道' : '超级群组';
-    }
-    return '';
 }, { immediate: true });
 
 // 更新验证状态图标
