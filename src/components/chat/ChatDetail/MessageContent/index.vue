@@ -8,14 +8,14 @@
             :messageList="messageList" @jump="onJumpToMessage" />
 
         <!-- Text messages -->
-        <MessageTextContent v-if="content._ === 'messageText'" :text="content.text.text" />
+        <MessageTextContent v-if="content._ === 'messageText'" :formattedText="content.text" />
 
         <!-- Media messages -->
         <MessageMediaContent v-else-if="isMediaType" :content="content as any" :isSelf="isSelf ?? false" :date="date"
             :forwardInfo="forwardInfo" :forwardName="forwardName" :forwardNavigable="forwardNavigable"
-            :isFirstInGroup="isFirstInGroup" :isLastInGroup="isLastInGroup"
-            :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature"
-            :chatId="chatId" :messageId="messageId" @openForwardSource="onOpenForwardSource" />
+            :isFirstInGroup="isFirstInGroup" :isLastInGroup="isLastInGroup" :sendingState="sendingState"
+            :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature" :chatId="chatId"
+            :messageId="messageId" @openForwardSource="onOpenForwardSource" />
 
         <!-- Stickers / animated emoji are rendered without a message bubble -->
         <div v-else-if="content._ === 'messageSticker' || content._ === 'messageAnimatedEmoji'"

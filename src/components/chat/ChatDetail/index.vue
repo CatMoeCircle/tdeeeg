@@ -16,7 +16,7 @@
 
         <!-- Messages -->
         <div v-else ref="messagesContainer"
-            class="absolute inset-0 overflow-y-auto px-4 custom-scrollbar flex flex-col messages-scroll pt-16 pb-28"
+            class="absolute inset-0 overflow-y-auto px-4 custom-scrollbar flex flex-col messages-scroll pt-16 pb-15"
             @scroll.passive="onScroll">
 
             <!-- 顶部加载更多指示器 -->
@@ -73,7 +73,8 @@
                                         :title="canNavigateForward(item.messages[0].forward_info) ? '跳转到来源' : undefined"
                                         @click.stop="openForwardSource(item.messages[0].forward_info)">
                                         <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
-                                        <span class="min-w-0 flex-1 truncate">{{ getForwardName(item.messages[0].forward_info) }}</span>
+                                        <span class="min-w-0 flex-1 truncate">{{
+                                            getForwardName(item.messages[0].forward_info) }}</span>
                                     </button>
                                     <MessageAlbum :messages="item.messages" :isSelf="isSelfAlbum(item)" :chatId="chatId"
                                         :isRead="isMessageRead(item.messages[item.messages.length - 1])"
@@ -126,38 +127,37 @@
                                             canNavigateForward(item.msg.forward_info)
                                                 ? 'cursor-pointer hover:underline active:opacity-70'
                                                 : ''
-                                        ]"
-                                        :title="canNavigateForward(item.msg.forward_info) ? '跳转到来源' : undefined"
+                                        ]" :title="canNavigateForward(item.msg.forward_info) ? '跳转到来源' : undefined"
                                         @click.stop="openForwardSource(item.msg.forward_info)">
                                         <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
-                                        <span class="min-w-0 flex-1 truncate">{{ getForwardName(item.msg.forward_info) }}</span>
+                                        <span class="min-w-0 flex-1 truncate">{{ getForwardName(item.msg.forward_info)
+                                        }}</span>
                                     </button>
                                     <MessageContent :content="item.msg.content" :isSelf="isSelf(item.msg)"
                                         :date="item.msg.date" :forwardInfo="item.msg.forward_info"
                                         :forwardName="item.msg.forward_info ? getForwardName(item.msg.forward_info) : undefined"
                                         :forwardNavigable="item.msg.forward_info ? canNavigateForward(item.msg.forward_info) : false"
                                         :isFirstInGroup="item.isFirstInGroup" :isLastInGroup="item.isLastInGroup"
-                                        :sendingState="item.msg.sending_state"
-                                        :isRead="isMessageRead(item.msg)"
+                                        :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
                                         :viewCount="item.msg.interaction_info?.view_count"
                                         :authorSignature="item.msg.author_signature || undefined" :chatId="chatId"
                                         :messageId="item.msg.id"
                                         :replyTo="item.msg.reply_to?._ === 'messageReplyToMessage' ? item.msg.reply_to : undefined"
                                         :messageList="messages" @jumpToMessage="scrollToMessage"
                                         @openForwardSource="item.msg.forward_info && openForwardSource(item.msg.forward_info)" />
-                                    <span v-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isSelf(item.msg)"
+                                    <span
+                                        v-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isSelf(item.msg)"
                                         class="block text-right text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 leading-none">
                                         <MessageStatus :date="item.msg.date" :isOutgoing="false"
-                                            :sendingState="item.msg.sending_state"
-                                            :isRead="isMessageRead(item.msg)"
+                                            :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
                                             :viewCount="item.msg.interaction_info?.view_count"
                                             :authorSignature="item.msg.author_signature || undefined" />
                                     </span>
-                                    <span v-else-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && isSelf(item.msg)"
+                                    <span
+                                        v-else-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && isSelf(item.msg)"
                                         class="block text-right text-[11px] text-blue-100 mt-0.5 leading-none">
                                         <MessageStatus :date="item.msg.date" :isOutgoing="true"
-                                            :sendingState="item.msg.sending_state"
-                                            :isRead="isMessageRead(item.msg)"
+                                            :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
                                             :viewCount="item.msg.interaction_info?.view_count"
                                             :authorSignature="item.msg.author_signature || undefined" />
                                     </span>
@@ -176,7 +176,7 @@
         </div>
         <!-- ===== Header（顶层，磨砂玻璃） ===== -->
         <div
-            class="absolute top-0 left-0 right-0 z-10 bg-white/30 dark:bg-[#1c1c1c]/70 backdrop-blur-lg border-b border-gray-200/60 dark:border-gray-800/60">
+            class="absolute top-0 left-0 right-0 z-10 bg-white/80 dark:bg-[#1c1c1c]/70 backdrop-blur-lg border-b border-gray-200/60 dark:border-gray-800/60">
             <ChatDetailHeader :chat="chat" />
         </div>
 
@@ -299,6 +299,12 @@ const supergroups = ref<Record<number, supergroup>>({});
 const basicGroups = ref<Record<number, basicGroup>>({});
 let unlisten: (() => void) | null = null;
 
+/** 单调递增的加载代数，用于防止异步返回时的竞态条件 */
+let loadGeneration = 0;
+
+/** 消息数据版本号，用于 computed 依赖追踪，避免多余重算 */
+const messagesVersion = ref(0);
+
 // User Store
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
@@ -386,6 +392,8 @@ const handleUpdate = async (update: Update) => {
             if (newMessageIds.value.delete(update.old_message_id)) {
                 newMessageIds.value.add(update.message.id);
             }
+            // 为新消息获取发送者信息
+            await fetchSenders([update.message]);
             break;
         }
 
@@ -400,14 +408,18 @@ const handleUpdate = async (update: Update) => {
             if (update.chat_id !== chatId.value) return;
             // from_cache=true 的删除是本地缓存的过时标记，不是真实的删除，忽略
             if (update.from_cache) break;
+            const beforeCount = messages.value.length;
             messages.value = messages.value.filter(m => !update.message_ids.includes(m.id));
+            if (messages.value.length !== beforeCount) {
+                messagesVersion.value++;
+            }
             break;
         }
 
         case 'updateChatNotificationSettings': {
             if (update.chat_id !== chatId.value || !chat.value) return;
             chat.value.notification_settings = update.notification_settings;
-            await syncNotificationMuteState(chat.value, update.chat_id);
+            void syncNotificationMuteState(chat.value, update.chat_id);
             break;
         }
 
@@ -435,18 +447,37 @@ const handleUpdate = async (update: Update) => {
             break;
         }
 
+        case 'updateMessageEdited': {
+            if (update.chat_id !== chatId.value) return;
+            const msg = messages.value.find(m => m.id === update.message_id);
+            if (msg) {
+                msg.edit_date = update.edit_date;
+                if (update.reply_markup) {
+                    (msg as any).reply_markup = update.reply_markup;
+                }
+            }
+            break;
+        }
+
         default:
             break;
     }
 };
 
 // ==================== Chat Loading ====================
-/** 当前正在加载的聊天 ID，用于防止异步返回时的竞态条件 */
-let activeChatId: number | null = null;
 const chatLoadRetryToken = ref(0);
 let chatLoadRetryId: number | null = null;
 let chatLoadRetryCount = 0;
 let chatLoadRetryTimer: number | null = null;
+
+/** 滚动管理状态 — 必须声明在 watch 之前，因为 resetState 被 immediate watch 调用 */
+let readVisibilityTimer: number | null = null;
+let lastReportedReadMessageId = 0;
+
+/** 检查加载代数是否已过期（聊天已切换），过期则中止后续操作 */
+function isGenerationValid(gen: number): boolean {
+    return gen === loadGeneration;
+}
 
 // 监听 chatId 变化，加载聊天信息和消息
 watch([chatId, chatLoadRetryToken, forwardedTargetMessageId], async ([newChatId, , requestedMessageId]) => {
@@ -460,7 +491,7 @@ watch([chatId, chatLoadRetryToken, forwardedTargetMessageId], async ([newChatId,
         }
     }
     const currentId = newChatId;
-    activeChatId = currentId;
+    const gen = ++loadGeneration;
 
     // 重置全部状态
     resetState();
@@ -468,14 +499,15 @@ watch([chatId, chatLoadRetryToken, forwardedTargetMessageId], async ([newChatId,
     try {
         // 1. 获取 chat 基础信息
         const chatData = await tdlibSend({ _: 'getChat', chat_id: currentId }) as chat;
-        if (activeChatId !== currentId) return;
+        if (!isGenerationValid(gen)) return;
         chat.value = chatData;
 
-        // 获取 supergroup / basicGroup 补充信息（用 activeChatId 守卫）
+        // 获取 supergroup / basicGroup 补充信息
         await Promise.all([
-            fetchGroupInfo(chatData, currentId),
+            fetchGroupInfo(chatData, gen),
             syncNotificationMuteState(chatData, currentId)
         ]);
+        if (!isGenerationValid(gen)) return;
 
         // 2. 有未读消息时，以最后一条已读收件箱消息作为历史定位锚点
         const lastReadId = chatData.unread_count > 0
@@ -489,12 +521,13 @@ watch([chatId, chatLoadRetryToken, forwardedTargetMessageId], async ([newChatId,
             currentId,
             historyAnchorId,
             historyAnchorId > 0 ? 60 : 30,
-            historyAnchorId > 0 ? -30 : 0
+            historyAnchorId > 0 ? -30 : 0,
+            gen
         );
-        if (activeChatId !== currentId) return;
+        if (!isGenerationValid(gen)) return;
         if (requestedMessageId && allMsgs.length === 0) {
-            allMsgs = await fetchMessages(currentId, 0, 30);
-            if (activeChatId !== currentId) return;
+            allMsgs = await fetchMessages(currentId, 0, 30, 0, gen);
+            if (!isGenerationValid(gen)) return;
         }
         if (allMsgs.length === 0 && chatData.last_message) {
             throw new Error(`Chat ${currentId} returned empty history despite having a last message`);
@@ -503,10 +536,10 @@ watch([chatId, chatLoadRetryToken, forwardedTargetMessageId], async ([newChatId,
         // 如果消息太少，多加载几页填充以确保可滚动
         if (allMsgs.length > 0 && allMsgs.length < 80) {
             for (let i = 0; i < 3; i++) {
-                const oldest = allMsgs[0]; // 最旧的消息在索引 0
-                const more = await fetchMessages(currentId, oldest.id, 50);
+                if (!isGenerationValid(gen)) return;
+                const oldest = allMsgs[0];
+                const more = await fetchMessages(currentId, oldest.id, 50, 0, gen);
                 if (more.length === 0) break;
-                // 去重后再合并
                 const existingIds = new Set(allMsgs.map(m => m.id));
                 const unique = more.filter(m => !existingIds.has(m.id));
                 if (unique.length === 0) break;
@@ -523,12 +556,13 @@ watch([chatId, chatLoadRetryToken, forwardedTargetMessageId], async ([newChatId,
             : firstUnreadMessage?.id || null;
 
         messages.value = allMsgs;
+        messagesVersion.value++;
         await nextTick();
 
         // 4. 定位到新消息分界线后的第一条未读消息
         const scrollTargetId = requestedMessageId || unreadBoundaryMessageId.value || lastReadId;
         if (scrollTargetId > 0) {
-            await scrollToTargetOrBottom(scrollTargetId, currentId);
+            await scrollToTargetOrBottom(scrollTargetId, currentId, gen);
         } else {
             await scrollToBottomAsync();
         }
@@ -541,19 +575,19 @@ watch([chatId, chatLoadRetryToken, forwardedTargetMessageId], async ([newChatId,
         await nextTick();
         const container = messagesContainer.value;
         if (container && container.scrollHeight <= container.clientHeight + 2) {
-            // 内容太少无法滚动，尝试再加载一些旧消息
             if (messages.value.length > 0 && !isHistoryExhausted.value) {
                 const oldest = messages.value[0];
-                const more = await fetchMessages(currentId, oldest.id, 50);
+                const more = await fetchMessages(currentId, oldest.id, 50, 0, gen);
                 if (more.length > 0) {
                     messages.value = mergeMessages(messages.value, more);
+                    messagesVersion.value++;
                 }
             }
         }
         scheduleVisibleMessagesRead();
     } catch (e) {
         console.error("Error loading chat:", e);
-        if (activeChatId === currentId && chatId.value === currentId && chatLoadRetryCount < 2) {
+        if (chatId.value === currentId && chatLoadRetryCount < 2) {
             chatLoadRetryCount++;
             isReady.value = false;
             chatLoadRetryTimer = window.setTimeout(() => {
@@ -563,10 +597,6 @@ watch([chatId, chatLoadRetryToken, forwardedTargetMessageId], async ([newChatId,
         } else {
             isReady.value = true;
         }
-    } finally {
-        if (activeChatId === currentId) {
-            activeChatId = null;
-        }
     }
 }, { immediate: true });
 
@@ -575,7 +605,7 @@ watch([chatId, chatLoadRetryToken, forwardedTargetMessageId], async ([newChatId,
  * 从 TDLib 加载消息，返回 旧→新 顺序。
  * 注意：fromMessageId 会被 TDLib 包含在返回结果中，调用方需自行去重。
  */
-async function fetchMessages(chatIdNum: number, fromMessageId: number, limit: number, offset = 0): Promise<message[]> {
+async function fetchMessages(chatIdNum: number, fromMessageId: number, limit: number, offset = 0, generation?: number): Promise<message[]> {
     try {
         const result = await tdlibSend({
             _: 'getChatHistory',
@@ -585,6 +615,8 @@ async function fetchMessages(chatIdNum: number, fromMessageId: number, limit: nu
             limit,
             only_local: false
         });
+        // 如果生成代数已过期（聊天已切换），丢弃结果
+        if (generation !== undefined && !isGenerationValid(generation)) return [];
         const msgs: message[] = (result.messages || []).filter((m: any): m is message => !!m);
         if (msgs.length > 0) {
             await fetchSenders(msgs);
@@ -657,10 +689,10 @@ const fetchSenders = async (msgs: message[]) => {
 };
 
 /** 获取 supergroup / basicGroup 信息 */
-async function fetchGroupInfo(chatData: chat, guardId: number) {
+async function fetchGroupInfo(chatData: chat, gen: number) {
     if (chatData.type._ === 'chatTypeSupergroup') {
         const sg = await tdlibSend({ _: 'getSupergroup', supergroup_id: chatData.type.supergroup_id });
-        if (activeChatId !== guardId) return;
+        if (!isGenerationValid(gen)) return;
         supergroups.value[chatData.type.supergroup_id] = sg;
         if (chatData.type.is_channel || sg.is_broadcast_group) {
             try {
@@ -668,7 +700,7 @@ async function fetchGroupInfo(chatData: chat, guardId: number) {
                     _: 'getSupergroupFullInfo',
                     supergroup_id: chatData.type.supergroup_id
                 });
-                if (activeChatId !== guardId) return;
+                if (!isGenerationValid(gen)) return;
                 linkedChatId.value = fullInfo.linked_chat_id;
             } catch (e) {
                 console.error('Failed to load linked chat:', e);
@@ -676,15 +708,12 @@ async function fetchGroupInfo(chatData: chat, guardId: number) {
         }
     } else if (chatData.type._ === 'chatTypeBasicGroup') {
         const bg = await tdlibSend({ _: 'getBasicGroup', basic_group_id: chatData.type.basic_group_id });
-        if (activeChatId !== guardId) return;
+        if (!isGenerationValid(gen)) return;
         basicGroups.value[chatData.type.basic_group_id] = bg;
     }
 }
 
 // ==================== Scroll Management ====================
-let readVisibilityTimer: number | null = null;
-let lastReportedReadMessageId = 0;
-
 /** 滚动稳定后，将当前视口中的未读消息批量标记为已读 */
 function scheduleVisibleMessagesRead() {
     if (!isReady.value) return;
@@ -791,21 +820,21 @@ const scrollToMessage = (messageId: number) => {
 };
 
 /** 尝试定位到目标消息，找不到则到底部 */
-async function scrollToTargetOrBottom(targetId: number, chatIdNum: number) {
+async function scrollToTargetOrBottom(targetId: number, chatIdNum: number, gen: number) {
     for (let attempt = 0; attempt < 10; attempt++) {
+        if (!isGenerationValid(gen)) return;
         const exists = messages.value.some(m => m.id === targetId);
         if (exists) {
             scrollToMessage(targetId);
             setTimeout(() => {
-                if (chatId.value === chatIdNum) scrollToMessage(targetId);
+                if (isGenerationValid(gen)) scrollToMessage(targetId);
             }, 200);
             return;
         }
         if (isHistoryExhausted.value || messages.value.length === 0) break;
         const oldest = messages.value[0];
-        const more = await fetchMessages(chatIdNum, oldest.id, 30);
+        const more = await fetchMessages(chatIdNum, oldest.id, 30, 0, gen);
         if (more.length === 0) break;
-        // 去重后合并
         const previousCount = messages.value.length;
         messages.value = mergeMessages(messages.value, more);
         await nextTick();
@@ -845,31 +874,31 @@ const onScroll = async (e: Event) => {
         !isReady.value
     ) return;
 
-    // 用 activeChatId 避免竞态
+    // 用 loadGeneration 避免竞态
     const loadChat = chatId.value;
     if (!loadChat) { isLoadingMore.value = false; return; }
+    const scrollGen = loadGeneration;
 
     isLoadingMore.value = true;
     const oldestId = messages.value[0]?.id;
     if (oldestId) {
-        const older = await fetchMessages(loadChat, oldestId, 30);
+        const older = await fetchMessages(loadChat, oldestId, 30, 0, scrollGen);
         // 切换聊天后忽略旧结果
-        if (activeChatId !== null || chatId.value !== loadChat) {
+        if (!isGenerationValid(scrollGen) || chatId.value !== loadChat) {
             isLoadingMore.value = false;
             return;
         }
         if (older.length > 0) {
-            // 去重后 prepend
             const existingIds = new Set(messages.value.map(m => m.id));
             const unique = older.filter(m => !existingIds.has(m.id));
             if (unique.length > 0) {
                 const prevHeight = el.scrollHeight;
                 messages.value = [...unique, ...messages.value];
+                messagesVersion.value++;
                 await nextTick();
                 // 修正 scrollTop 以保持视觉位置不变
                 el.scrollTop = el.scrollHeight - prevHeight + T;
             } else {
-                // 没有新消息，标记历史已耗尽
                 isHistoryExhausted.value = true;
             }
         } else {
@@ -926,8 +955,22 @@ function resetState() {
 }
 
 // ==================== Helpers ====================
-const isSelf = (msg: message) =>
-    isOutgoingMessageForDisplay(msg, chat.value, myId.value);
+
+/** 判断当前频道是否开启了显示发送者信息（个人资料显示），
+ *  此时即使是自己发的消息也应和其他消息一样靠左显示 */
+const isChannelWithSenderDisplay = computed(() => {
+    if (!chat.value) return false;
+    if (chat.value.type._ !== 'chatTypeSupergroup' || !chat.value.type.is_channel) return false;
+    const sg = supergroups.value[chat.value.type.supergroup_id];
+    if (!sg) return false;
+    return sg.sign_messages || sg.show_message_sender;
+});
+
+const isSelf = (msg: message) => {
+    // 在开启了发送者显示的频道中，所有消息统一靠左，不区分颜色
+    if (isChannelWithSenderDisplay.value) return false;
+    return isOutgoingMessageForDisplay(msg, chat.value, myId.value);
+};
 
 const MEDIA_TYPES = new Set(['messagePhoto', 'messageVideo', 'messageAnimation']);
 const ALBUM_MEDIA_TYPES = new Set(['messagePhoto', 'messageVideo']);
@@ -1242,13 +1285,13 @@ const getMessageBorderRadius = (msg: message, item: { isFirstInGroup: boolean; i
 
     if (isMe) {
         if (first && last) return 'rounded-[18px] rounded-tr-[6px]';
-        if (first) return 'rounded-[18px] rounded-tr-[6px] rounded-br-[18px]';
-        if (last) return 'rounded-[18px] rounded-br-[6px] rounded-tr-[18px]';
+        if (first) return 'rounded-[18px] rounded-br-[6px]';
+        if (last) return 'rounded-[18px] rounded-tr-[6px]';
         return 'rounded-[18px] rounded-tr-[6px] rounded-br-[6px]';
     } else {
         if (first && last) return 'rounded-[18px] rounded-tl-[6px]';
-        if (first) return 'rounded-[18px] rounded-tl-[6px] rounded-bl-[18px]';
-        if (last) return 'rounded-[18px] rounded-bl-[6px] rounded-tl-[18px]';
+        if (first) return 'rounded-[18px] rounded-bl-[6px]';
+        if (last) return 'rounded-[18px] rounded-tl-[6px]';
         return 'rounded-[18px] rounded-tl-[6px] rounded-bl-[6px]';
     }
 };

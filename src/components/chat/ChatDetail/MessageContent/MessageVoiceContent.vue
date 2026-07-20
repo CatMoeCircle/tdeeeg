@@ -22,7 +22,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import type { messageVoiceNote, messageVideoNote } from 'tdlib-types';
-import { tdlibSend, isFileReady } from '../../../../utils/tdlib';
+import { tdlibSend, isFileReady, downloadingFiles } from '../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { MicIcon, VideoIcon } from 'lucide-vue-next';
 
@@ -59,7 +59,9 @@ const loadMedia = async () => {
 
 const downloadFile = async (fileId: number) => {
     if (isDownloading.value) return;
+    if (downloadingFiles.has(fileId)) return;
     isDownloading.value = true;
+    downloadingFiles.add(fileId);
     try {
         const res = await tdlibSend({
             _: "downloadFile",
@@ -75,6 +77,7 @@ const downloadFile = async (fileId: number) => {
     } catch (e) {
         console.error("Download failed", e);
     } finally {
+        downloadingFiles.delete(fileId);
         isDownloading.value = false;
     }
 };

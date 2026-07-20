@@ -17,7 +17,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onUnmounted, nextTick } from 'vue';
 import type { messageAnimatedEmoji, messageSticker } from 'tdlib-types';
-import { tdlibSend, isFileReady } from '../../../../utils/tdlib';
+import { tdlibSend, isFileReady, downloadingFiles } from '../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import lottie, { type AnimationItem } from 'lottie-web';
 import * as pako from 'pako';
@@ -58,7 +58,9 @@ const loadMedia = async () => {
 
 const downloadFile = async (fileId: number) => {
     if (isDownloading.value) return;
+    if (downloadingFiles.has(fileId)) return;
     isDownloading.value = true;
+    downloadingFiles.add(fileId);
     try {
         const res = await tdlibSend({
             _: "downloadFile",
@@ -74,6 +76,7 @@ const downloadFile = async (fileId: number) => {
     } catch (e) {
         console.error("Sticker download failed", e);
     } finally {
+        downloadingFiles.delete(fileId);
         isDownloading.value = false;
     }
 };

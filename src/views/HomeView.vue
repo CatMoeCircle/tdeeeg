@@ -1,5 +1,5 @@
 <template>
-    <div class="flex h-full w-full overflow-hidden dark:bg-black text-gray-900 dark:text-gray-100">
+    <div class="flex h-full w-full bg-white/40 overflow-hidden dark:bg-black text-gray-900 dark:text-gray-100">
         <SideNavBar />
         <div class="flex-1 bg-white rounded-tl-xl">
             <router-view />

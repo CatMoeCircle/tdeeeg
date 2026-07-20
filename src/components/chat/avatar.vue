@@ -8,7 +8,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import type { chatPhotoInfo, profilePhoto } from "tdlib-types";
-import { tdlibSend, isFileReady } from '../../utils/tdlib';
+import { tdlibSend, isFileReady, downloadingFiles } from '../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 
 const props = defineProps<{
@@ -50,18 +50,24 @@ watch(
             return;
         }
 
-        // 触发下载
-        const file = await tdlibSend({
-            _: "downloadFile",
-            file_id: photo.small?.id,
-            priority: 1,
-            offset: 0,
-            limit: 0,
-            synchronous: true,
-        });
-
-        if (file.local?.path) {
-            avatar.value = convertFileSrc(file.local.path);
+        // 仅当文件可下载且未在下载中时触发
+        if (photo.small?.id && !downloadingFiles.has(photo.small.id) && !isFileReady(photo.small)) {
+            downloadingFiles.add(photo.small.id);
+            try {
+                const file = await tdlibSend({
+                    _: "downloadFile",
+                    file_id: photo.small.id,
+                    priority: 1,
+                    offset: 0,
+                    limit: 0,
+                    synchronous: true,
+                });
+                if (file.local?.path) {
+                    avatar.value = convertFileSrc(file.local.path);
+                }
+            } finally {
+                downloadingFiles.delete(photo.small.id);
+            }
         }
     },
     { immediate: true } // 非常重要

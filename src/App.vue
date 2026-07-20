@@ -77,7 +77,7 @@ onMounted(() => {
 <template>
   <!-- Main app window -->
   <div class="relative flex flex-col h-screen w-screen overflow-hidden">
-    <div class="absolute inset-0 bg-white/50 bg-cover bg-center"></div>
+    <div class="absolute inset-0 bg-cover bg-center"></div>
 
     <div class="relative z-10 flex flex-col h-full w-full overflow-hidden">
       <TitleBar />

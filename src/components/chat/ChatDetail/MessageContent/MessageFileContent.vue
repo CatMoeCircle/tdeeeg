@@ -35,8 +35,7 @@
         </div>
 
         <!-- Audio -->
-        <div v-else-if="content._ === 'messageAudio'"
-            class="flex w-[280px] max-w-full min-w-0 items-center gap-3">
+        <div v-else-if="content._ === 'messageAudio'" class="flex w-[280px] max-w-full min-w-0 items-center gap-3">
             <div class="relative h-14 w-14 shrink-0">
                 <div class="group relative h-full w-full overflow-hidden rounded-xl bg-blue-100 dark:bg-blue-950">
                     <img v-if="coverSrc" :src="coverSrc" :alt="content.audio.title || content.audio.file_name"
@@ -70,9 +69,9 @@
                 <span class="truncate text-xs text-gray-500 dark:text-gray-400">
                     {{ content.audio.performer || '未知艺术家' }}
                 </span>
-                <input class="audio-progress mt-1.5 w-full" type="range" min="0" :max="playbackDuration || 1"
-                    step="0.1" :value="currentTime" :style="audioProgressStyle"
-                    :disabled="!mediaSrc || playbackDuration <= 0" aria-label="音乐播放进度" @input="seekAudio" />
+                <input class="audio-progress mt-1.5 w-full" type="range" min="0" :max="playbackDuration || 1" step="0.1"
+                    :value="currentTime" :style="audioProgressStyle" :disabled="!mediaSrc || playbackDuration <= 0"
+                    aria-label="音乐播放进度" @input="seekAudio" />
                 <div class="mt-0.5 flex justify-between text-[10px] leading-none text-gray-400 dark:text-gray-500">
                     <span>{{ formatDuration(currentTime) }}</span>
                     <span>{{ formatDuration(playbackDuration) }}</span>
@@ -84,11 +83,13 @@
                 @pause="isPlaying = false" @ended="onAudioEnded"></audio>
         </div>
 
-        <p v-if="captionSegments.length"
-            class="mt-2 whitespace-pre-wrap break-words text-sm leading-5">
+        <p v-if="captionSegments.length" class="mt-2 whitespace-pre-wrap break-words text-sm leading-5">
             <template v-for="(segment, index) in captionSegments" :key="index">
-                <a v-if="segment.href" :href="segment.href" class="text-blue-500 hover:underline dark:text-blue-400"
-                    :class="segment.className" @click.prevent.stop="openCaptionLink(segment.href)">{{ segment.text }}</a>
+                <a v-if="segment.href" :href="segment.href"
+                    class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
+                    :class="[segment.className, captionLoadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
+                    @click.prevent.stop="openCaptionLink(segment.href)">{{ segment.text
+                    }}</a>
                 <span v-else :class="segment.className">{{ segment.text }}</span>
             </template>
         </p>
@@ -97,11 +98,12 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
-import type { messageDocument, messageAudio, textEntity } from 'tdlib-types';
-import { tdlibSend, isFileReady } from '../../../../utils/tdlib';
+import type { messageDocument, messageAudio, textEntity, InternalLinkType } from 'tdlib-types';
+import { tdlibSend, isFileReady, downloadingFiles } from '../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { FileIcon, DownloadIcon, MusicIcon, PauseIcon, PlayIcon } from 'lucide-vue-next';
+import { useRouter } from 'vue-router';
 
 const props = defineProps<{
     content: messageDocument | messageAudio;
@@ -118,6 +120,8 @@ const loadedDuration = ref(0);
 const playAfterDownload = ref(false);
 const isDownloading = ref(false);
 const currentFileId = ref<number>(0);
+const router = useRouter();
+const captionLoadingLinks = ref<Set<string>>(new Set());
 const downloadProgress = ref(0);
 const downloadCurrentSize = ref(0);
 const downloadTotalSize = ref(0);
@@ -199,11 +203,56 @@ function getEntityClass(entity: textEntity): string {
     }
 }
 
-async function openCaptionLink(url: string) {
+async function openCaptionLink(href: string) {
+    if (href.startsWith('https://t.me/') || href.startsWith('tg://')) {
+        await resolveCaptionLink(href);
+    } else if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:')) {
+        try {
+            await openUrl(href);
+        } catch (error) {
+            console.error('Open caption link failed', error);
+        }
+    }
+}
+
+async function resolveCaptionLink(href: string) {
+    captionLoadingLinks.value = new Set(captionLoadingLinks.value).add(href);
     try {
-        await openUrl(url);
-    } catch (error) {
-        console.error('Open caption link failed', error);
+        const linkType = await tdlibSend({ _: 'getInternalLinkType', link: href }) as InternalLinkType;
+
+        switch (linkType._) {
+            case 'internalLinkTypeMessage': {
+                const info = await tdlibSend({ _: 'getMessageLinkInfo', url: linkType.url });
+                if (info.chat_id) {
+                    const query: Record<string, string> = {};
+                    if (info.message) {
+                        query.message = String(info.message.id);
+                    }
+                    await router.push({
+                        name: 'chat-detail',
+                        params: { id: String(info.chat_id) },
+                        query: Object.keys(query).length > 0 ? query : undefined,
+                    });
+                }
+                break;
+            }
+            case 'internalLinkTypePublicChat': {
+                const chat = await tdlibSend({ _: 'searchPublicChat', username: linkType.chat_username });
+                await router.push(`/home/chats/${chat.id}`);
+                break;
+            }
+            default: {
+                openUrl(href);
+                break;
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to resolve internal link, opening externally:', e);
+        openUrl(href);
+    } finally {
+        const next = new Set(captionLoadingLinks.value);
+        next.delete(href);
+        captionLoadingLinks.value = next;
     }
 }
 
@@ -268,8 +317,10 @@ async function loadAudioCover() {
 async function handleDownload(fileId: number, shouldPlay = false) {
     if (shouldPlay) playAfterDownload.value = true;
     if (isDownloading.value) return;
+    if (downloadingFiles.has(fileId)) return;
     isDownloading.value = true;
     currentFileId.value = fileId;
+    downloadingFiles.add(fileId);
 
     try {
         await tdlibSend({ _: 'downloadFile', file_id: fileId, priority: 1, offset: 0, limit: 0, synchronous: false });
@@ -278,6 +329,7 @@ async function handleDownload(fileId: number, shouldPlay = false) {
         console.error("Download failed", e);
         isDownloading.value = false;
         playAfterDownload.value = false;
+        downloadingFiles.delete(fileId);
     }
 }
 
@@ -294,6 +346,7 @@ function pollFileDownload(fileId: number) {
             downloadTotalSize.value = total;
             if (info.local?.is_downloading_completed && info.local?.path) {
                 if (filePollTimer) { clearInterval(filePollTimer); filePollTimer = null; }
+                downloadingFiles.delete(fileId);
                 isDownloading.value = false;
                 mediaSrc.value = convertFileSrc(info.local.path);
                 if (playAfterDownload.value) {
@@ -304,6 +357,7 @@ function pollFileDownload(fileId: number) {
             }
         } catch (_) {
             if (filePollTimer) { clearInterval(filePollTimer); filePollTimer = null; }
+            downloadingFiles.delete(fileId);
             isDownloading.value = false;
             playAfterDownload.value = false;
         }
@@ -461,6 +515,7 @@ onUnmounted(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
     .audio-cover-button,
     .audio-progress,
     .caption-spoiler {

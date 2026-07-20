@@ -20,3 +20,31 @@ export function isFileReady(file: { local: { is_downloading_completed: boolean; 
   if (!file) return false;
   return file.local.is_downloading_completed && !!file.local.path;
 }
+
+/**
+ * 全局文件下载去重集合。
+ * 所有组件在发起 downloadFile 前先检查此集合，避免对同一文件发起重复下载。
+ */
+export const downloadingFiles = new Set<number>();
+
+/**
+ * 安全发起文件下载，自动去重。
+ * 返回 true 表示已发起下载，false 表示已在下载中或文件已就绪。
+ */
+export async function safeDownloadFile(fileId: number, synchronous = true): Promise<boolean> {
+  if (downloadingFiles.has(fileId)) return false;
+  downloadingFiles.add(fileId);
+  try {
+    await tdlibSend({
+      _: 'downloadFile',
+      file_id: fileId,
+      priority: 1,
+      offset: 0,
+      limit: 0,
+      synchronous,
+    });
+    return true;
+  } finally {
+    downloadingFiles.delete(fileId);
+  }
+}

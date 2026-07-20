@@ -6,7 +6,8 @@
                 :class="{ 'bg-black': item.isVideo }" :style="item.style" @click="openViewer(item.index)">
                 <img v-if="item.thumbSrc" :src="item.thumbSrc"
                     class="absolute inset-0 w-full h-full object-cover blur-sm scale-105" />
-                <img v-if="item.mediaSrc && !item.isVideo" :src="item.mediaSrc" class="absolute inset-0 w-full h-full object-cover" />
+                <img v-if="item.mediaSrc && !item.isVideo" :src="item.mediaSrc"
+                    class="absolute inset-0 w-full h-full object-cover" />
                 <div v-if="!item.thumbSrc && !item.mediaSrc" class="absolute inset-0 flex items-center justify-center">
                     <svg v-if="item.isVideo" class="w-6 h-6 text-gray-400" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" stroke-width="1.5">
@@ -30,13 +31,13 @@
                 </span>
             </div>
         </div>
-        <p v-if="captionText" class="text-sm whitespace-pre-wrap break-all px-2 pt-1.5 pb-2"
-            :class="isSelf ? 'text-white' : 'text-gray-800 dark:text-gray-200'">
-            {{ captionText }}
-        </p>
+        <div v-if="captionText" class="px-2 pt-1.5 pb-2"
+            :class="isSelf ? 'text-white/90' : 'text-gray-800 dark:text-gray-200'">
+            <MessageTextContent :formattedText="captionFormatted" />
+        </div>
         <span class="block text-right px-2 pb-1" :class="isSelf ? 'text-blue-100' : 'text-gray-400'">
-            <MessageStatus :date="lastDate" :isOutgoing="isSelf" :sendingState="lastSendingState"
-                :isRead="isRead" :viewCount="lastViewCount" :authorSignature="authorSignature" />
+            <MessageStatus :date="lastDate" :isOutgoing="isSelf" :sendingState="lastSendingState" :isRead="isRead"
+                :viewCount="lastViewCount" :authorSignature="authorSignature" />
         </span>
         <MediaViewer :visible="viewerVisible" :items="viewerItems" :initial-index="viewerIndex"
             @close="viewerVisible = false" />
@@ -47,8 +48,9 @@
 import { ref, computed, reactive, watch } from 'vue';
 import type { message } from 'tdlib-types';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { tdlibSend, isFileReady } from '../../../../utils/tdlib';
+import { tdlibSend, isFileReady, downloadingFiles, safeDownloadFile } from '../../../../utils/tdlib';
 import MessageStatus from './MessageStatus.vue';
+import MessageTextContent from './MessageTextContent.vue';
 import MediaViewer from './MediaViewer.vue';
 import type { MediaViewerItem } from './MediaViewer.vue';
 import { layoutMediaGroup, type MediaGroupSize } from '../../../../utils/mediaGroupLayout';
@@ -189,9 +191,10 @@ async function loadPhoto(msg: message): Promise<boolean> {
     if (smallest?.photo) {
         const f = smallest.photo;
         if (isFileReady(f) && !thumbCache[msg.id]) { thumbCache[msg.id] = convertFileSrc(f.local.path); c = true; }
-        else if (f.local.can_be_downloaded && !f.local.is_downloading_active) {
+        else if (f.local.can_be_downloaded && !downloadingFiles.has(f.id)) {
             try {
-                const r = await tdlibSend({ _: 'downloadFile', file_id: f.id, priority: 1, offset: 0, limit: 0, synchronous: true });
+                await safeDownloadFile(f.id, true);
+                const r = await tdlibSend({ _: 'getFile', file_id: f.id });
                 if (isFileReady(r)) { thumbCache[msg.id] = convertFileSrc(r.local.path); c = true; }
             } catch (_) { }
         }
@@ -200,9 +203,10 @@ async function loadPhoto(msg: message): Promise<boolean> {
     const ff = largest?.photo;
     if (ff && !mediaCache[msg.id]) {
         if (isFileReady(ff)) { mediaCache[msg.id] = convertFileSrc(ff.local.path); c = true; }
-        else if (ff.local.can_be_downloaded) {
+        else if (ff.local.can_be_downloaded && !downloadingFiles.has(ff.id)) {
             try {
-                const r = await tdlibSend({ _: 'downloadFile', file_id: ff.id, priority: 1, offset: 0, limit: 0, synchronous: true });
+                await safeDownloadFile(ff.id, true);
+                const r = await tdlibSend({ _: 'getFile', file_id: ff.id });
                 if (isFileReady(r)) { mediaCache[msg.id] = convertFileSrc(r.local.path); c = true; }
             } catch (_) { }
         }
@@ -240,6 +244,14 @@ const captionText = computed(() => {
         if ('caption' in c && c.caption?.text) return c.caption.text;
     }
     return '';
+});
+
+const captionFormatted = computed(() => {
+    for (let i = props.messages.length - 1; i >= 0; i--) {
+        const c = props.messages[i].content;
+        if ('caption' in c && c.caption) return c.caption;
+    }
+    return { _: 'formattedText' as const, text: '', entities: [] };
 });
 const lastDate = computed(() => lastMsg.value?.date || 0);
 const lastSendingState = computed(() => lastMsg.value?.sending_state);

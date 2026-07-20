@@ -6,18 +6,15 @@
             :class="[
                 isSelf ? 'text-blue-100' : 'text-blue-500 dark:text-blue-400',
                 forwardNavigable ? 'cursor-pointer hover:underline active:opacity-70' : ''
-            ]"
-            :title="forwardNavigable ? '跳转到来源' : undefined" @click.stop="emit('openForwardSource')">
+            ]" :title="forwardNavigable ? '跳转到来源' : undefined" @click.stop="emit('openForwardSource')">
             <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
             <span class="min-w-0 flex-1 truncate">{{ forwardName }}</span>
         </button>
 
         <!-- Caption above media -->
-        <div v-if="showCaptionAbove && captionText" class="caption-text px-2 pt-2 pb-1">
-            <p class="text-sm whitespace-pre-wrap break-all"
-                :class="isSelf ? 'text-white' : 'text-gray-800 dark:text-gray-200'">
-                {{ captionText }}
-            </p>
+        <div v-if="showCaptionAbove && captionText" class="caption-text px-2 pt-2 pb-1"
+            :class="isSelf ? 'text-white/90' : 'text-gray-800 dark:text-gray-200'">
+            <MessageTextContent :formattedText="captionFormatted" />
         </div>
 
         <!-- Media element -->
@@ -55,9 +52,9 @@
                     <VideoIcon class="w-8 h-8 text-gray-400" />
                 </div>
 
-                <!-- Video element (循环播放) -->
+                <!-- Video element (循环播放, 由 IntersectionObserver 控制播放/暂停) -->
                 <video v-if="videoDownloaded" ref="videoElRef" :src="mediaSrc" class="w-full h-full object-cover"
-                    :class="{ 'invisible': viewerVisible }" :muted="videoMuted" autoplay loop playsinline
+                    :class="{ 'invisible': viewerVisible }" :muted="videoMuted" loop playsinline
                     @timeupdate="onInlineVideoTime" @loadedmetadata="onInlineVideoLoaded" @ended="onInlineVideoEnded" />
 
                 <!-- Download progress bar -->
@@ -135,24 +132,22 @@
             <!-- Time overlay on media -->
             <div v-if="!captionBelow && date"
                 class="absolute right-1.5 bottom-1.5 bg-black/60 text-white px-1.5 py-0.5 rounded-md leading-none select-none pointer-events-none">
-                <MessageStatus :date="date" :isOutgoing="isSelf" :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount"
-                    :authorSignature="authorSignature" overMedia />
+                <MessageStatus :date="date" :isOutgoing="isSelf" :sendingState="sendingState" :isRead="isRead"
+                    :viewCount="viewCount" :authorSignature="authorSignature" overMedia />
             </div>
         </div>
 
         <!-- Caption below -->
-        <div v-if="!showCaptionAbove && captionText" class="caption-text px-2 pb-2 pt-1">
-            <p class="text-sm whitespace-pre-wrap break-all"
-                :class="isSelf ? 'text-white' : 'text-gray-800 dark:text-gray-200'">
-                {{ captionText }}
-            </p>
+        <div v-if="!showCaptionAbove && captionText" class="caption-text px-2 pb-2 pt-1"
+            :class="isSelf ? 'text-white/90' : 'text-gray-800 dark:text-gray-200'">
+            <MessageTextContent :formattedText="captionFormatted" />
         </div>
 
         <!-- Time & status below -->
         <span v-if="captionBelow && date" class="block text-right px-2 pb-1"
             :class="isSelf ? 'text-blue-100' : 'text-gray-400'">
-            <MessageStatus :date="date" :isOutgoing="isSelf" :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount"
-                :authorSignature="authorSignature" />
+            <MessageStatus :date="date" :isOutgoing="isSelf" :sendingState="sendingState" :isRead="isRead"
+                :viewCount="viewCount" :authorSignature="authorSignature" />
         </span>
 
         <!-- Media Viewer portal -->
@@ -164,9 +159,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { MessageContent, messageForwardInfo, MessageSendingState } from 'tdlib-types';
-import { tdlibSend, isFileReady } from '../../../../utils/tdlib';
+import { tdlibSend, isFileReady, downloadingFiles, safeDownloadFile } from '../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { CornerUpRightIcon, VideoIcon } from 'lucide-vue-next';
+import MessageTextContent from './MessageTextContent.vue';
 import MessageStatus from './MessageStatus.vue';
 import MediaViewer from './MediaViewer.vue';
 import type { MediaViewerItem } from './MediaViewer.vue';
@@ -234,12 +230,12 @@ onUnmounted(() => {
 });
 
 // 当视频下载完成后，将 videoElRef 加入观察
+// IntersectionObserver 会在 observe() 时自动触发初始回调，
+// 根据视频是否在视口中决定播放或暂停
 watch(videoDownloaded, (downloaded) => {
     if (downloaded && videoElRef.value && videoObserver) {
         videoElRef.value.muted = videoMuted.value;
         videoObserver.observe(videoElRef.value);
-        // 手动触发一次播放
-        videoElRef.value.play().catch(() => { });
     }
 }, { flush: 'post' });
 
@@ -267,6 +263,12 @@ const captionText = computed(() => {
     const c = props.content;
     if ('caption' in c && c.caption?.text) return c.caption.text;
     return '';
+});
+
+const captionFormatted = computed(() => {
+    const c = props.content;
+    if ('caption' in c && c.caption) return c.caption;
+    return { _: 'formattedText' as const, text: '', entities: [] };
 });
 
 const showCaptionAbove = computed(() => {
@@ -411,12 +413,12 @@ function openViewer() {
 function onViewerClose(returnTime?: number) {
     viewerVisible.value = false;
     // 恢复内联视频，从播放器返回的位置继续
+    // IntersectionObserver 会在 observe() 时自动根据视口状态播放或暂停
     if (props.content._ === 'messageVideo' && videoElRef.value && videoDownloaded.value && videoObserver) {
         if (returnTime !== undefined) {
             videoElRef.value.currentTime = returnTime;
         }
         videoObserver.observe(videoElRef.value);
-        videoElRef.value.play().catch(() => { });
     }
 }
 
@@ -458,10 +460,10 @@ async function loadPhotoThumb() {
     const f = smallest.photo;
     if (!f) return;
     if (isFileReady(f)) { thumbSrc.value = convertFileSrc(f.local.path); return; }
-    try {
-        const res = await tdlibSend({ _: 'downloadFile', file_id: f.id, priority: 1, offset: 0, limit: 0, synchronous: true });
-        if (isFileReady(res)) thumbSrc.value = convertFileSrc(res.local.path);
-    } catch (_) { }
+    await safeDownloadFile(f.id, true);
+    // 下载完成后通过 updateFile 事件更新，此处重新检查
+    const updated = await tdlibSend({ _: 'getFile', file_id: f.id });
+    if (isFileReady(updated)) thumbSrc.value = convertFileSrc(updated.local.path);
 }
 
 async function loadVideoThumb() {
@@ -475,25 +477,24 @@ async function loadVideoThumb() {
     const thumb = c.video.thumbnail?.file;
     if (!thumb) return;
     if (isFileReady(thumb)) { thumbSrc.value = convertFileSrc(thumb.local.path); return; }
-    try {
-        const res = await tdlibSend({ _: 'downloadFile', file_id: thumb.id, priority: 1, offset: 0, limit: 0, synchronous: true });
-        if (isFileReady(res)) thumbSrc.value = convertFileSrc(res.local.path);
-    } catch (_) { }
+    await safeDownloadFile(thumb.id, true);
+    const updated = await tdlibSend({ _: 'getFile', file_id: thumb.id });
+    if (isFileReady(updated)) thumbSrc.value = convertFileSrc(updated.local.path);
 }
 
 const downloadFile = async (fileId: number) => {
     if (isDownloading.value) return;
+    if (downloadingFiles.has(fileId)) return;
     isDownloading.value = true;
+    downloadingFiles.add(fileId);
     try {
         const res = await tdlibSend({ _: "downloadFile", file_id: fileId, priority: 1, offset: 0, limit: 0, synchronous: true });
         if (isFileReady(res)) { mediaSrc.value = convertFileSrc(res.local.path); mediaLoaded.value = true; }
-    } catch (_) { } finally { isDownloading.value = false; }
+    } catch (_) { } finally {
+        downloadingFiles.delete(fileId);
+        isDownloading.value = false;
+    }
 };
-
-// Video download handler
-watch(() => props.content, () => {
-    if (props.content._ === 'messageVideo') handleVideoDownload();
-}, { immediate: false });
 
 async function handleVideoDownload() {
     if (props.content._ !== 'messageVideo') return;
@@ -512,13 +513,18 @@ async function handleVideoDownload() {
         videoDownloaded.value = true;
         return;
     }
+    if (downloadingFiles.has(fileId)) return;
     videoDownloading.value = true;
     videoProgress.value = 0;
+    downloadingFiles.add(fileId);
     try {
         await tdlibSend({ _: 'downloadFile', file_id: fileId, priority: 1, offset: 0, limit: 0, synchronous: false });
         // 轮询下载进度
         pollVideoDownload(fileId);
-    } catch (_) { videoDownloading.value = false; }
+    } catch (_) {
+        downloadingFiles.delete(fileId);
+        videoDownloading.value = false;
+    }
 }
 
 /** 轮询文件下载进度 */
@@ -541,6 +547,10 @@ function pollVideoDownload(fileId: number) {
             videoDownloading.value = false;
         }
     }, 500);
+    // 轮询结束后从去重集合中移除
+    if (!downloadPollTimer) {
+        downloadingFiles.delete(videoFileId.value);
+    }
 }
 
 function toggleMute() {
