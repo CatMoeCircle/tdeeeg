@@ -2,11 +2,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { Update } from "tdlib-types";
-import { onMounted, ref } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
 import { tdlibSend } from "./utils/tdlib";
 import { useRouter } from "vue-router";
 import TitleBar from "./components/TitleBar.vue";
 import { MessagePlugin } from 'tdesign-vue-next';
+import { useDownloadStore } from "./store/downloads";
 
 const router = useRouter();
 
@@ -14,14 +15,18 @@ const initialized = ref(false);
 
 const startTDLibError = ref<string | null>(null);
 
+const downloadStore = useDownloadStore();
 
 async function initTdlib() {
   try {
+    // 初始化下载管理器的 updateFile 监听
+    await downloadStore.init();
+
     if (import.meta.env.DEV) {
-      await listen<Update>("tdlib-update", (event) => {
-        const update = event.payload;
-        console.log("Received update:", update);
-      });
+      // await listen<Update>("tdlib-update", (event) => {
+      //   const update = event.payload;
+      // console.log("Received update:", update);
+      // });
     }
 
 
@@ -72,6 +77,10 @@ onMounted(() => {
   }, 2000);
 
 });
+
+onUnmounted(() => {
+  downloadStore.destroy();
+});
 </script>
 
 <template>
@@ -83,7 +92,11 @@ onMounted(() => {
       <TitleBar />
 
       <div class="flex-1 overflow-hidden relative">
-        <router-view />
+        <router-view v-slot="{ Component }">
+          <KeepAlive>
+            <component :is="Component" />
+          </KeepAlive>
+        </router-view>
       </div>
     </div>
   </div>

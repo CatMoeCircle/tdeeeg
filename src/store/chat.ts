@@ -48,6 +48,8 @@ export const useChatStore = defineStore("chat", () => {
   const chatLists = ref<ChatListEntry[]>([]);
   /** 每个列表独立的加载状态 */
   const listStates = ref<Record<string, ListLoadState>>({});
+  /** 防止重复注册事件监听器 */
+  let listenerInitialized = false;
 
   function getListState(listKey: string): ListLoadState {
     if (!listStates.value[listKey]) {
@@ -56,23 +58,21 @@ export const useChatStore = defineStore("chat", () => {
     return listStates.value[listKey];
   }
 
-  // Initialize listener
+  // Initialize listener — 单次注册，防止重复
   const initListener = async () => {
+    if (listenerInitialized) return;
+    listenerInitialized = true;
+
     await listen<ChatListState>("chat-list-update", (event) => {
       const { list_key, chat_ids } = event.payload;
-      // 合并而非覆盖：只把 chat_ids 中不存在的 ID 追加到末尾
-      // （事件系统是权威来源，但我们需要保留可能来自其他批次的、本批次未覆盖的 ID）
-      // 用新顺序完全替换（事件是权威顺序）
+      // 用事件（权威来源）的完整排序列表替换
       lists.value[list_key] = chat_ids;
 
-      // 释放该列表的 loading 状态
-      const state = getListState(list_key);
-      if (state.pendingBatch > 0) {
-        state.pendingBatch--;
-      }
-      if (state.pendingBatch <= 0) {
-        state.loading = false;
-      }
+      // 注意：loading 状态不由 chat-list-update 事件管理，
+      // 而是由 requestLoadMore 中的 loadChats 响应负责释放。
+      // 一个 loadChats 可能触发多个 updateNewChat 事件，
+      // 每个都产生 chat-list-update，如果在这里递减 pendingBatch
+      // 会导致 loading 被过早释放。
     });
 
     await listen<Chat>("chat-update", (event) => {
@@ -93,25 +93,31 @@ export const useChatStore = defineStore("chat", () => {
     }
   };
 
-  // Fetch initial list — 只填充首次加载用，避免覆盖事件已有数据
+  // Fetch initial list — 总是填充 Rust 缓存的 chat 对象，不覆盖列表顺序
   const loadList = async (list: ChatListEntry) => {
     try {
       const plainList = JSON.parse(JSON.stringify(list));
       const res = await invoke<any>("get_chat_list", { list: plainList });
       const key = res.list_key;
 
-      // 仅当该列表尚未有任何数据时才填充，避免覆盖事件来源的实时数据
-      if (!lists.value[key] || lists.value[key].length === 0) {
-        lists.value[key] = res.chat_ids || [];
-      }
-
-      // Populate chat details if provided by backend
+      // 总是填充 chat 对象（Rust 缓存），补全事件可能漏掉的数据
       if (res.chats && Array.isArray(res.chats)) {
         for (const c of res.chats) {
           if (c && c.id) {
-            chats.value[c.id] = { ...chats.value[c.id], ...c };
+            // 缓存数据作为兜底：如果还没有数据就填充，如果已有（来自事件）则保留事件数据
+            if (!chats.value[c.id]) {
+              chats.value[c.id] = c;
+            } else {
+              // 事件数据优先于缓存数据 — 缓存只是兜底，事件才是实时来源
+              chats.value[c.id] = { ...c, ...chats.value[c.id] };
+            }
           }
         }
+      }
+
+      // 仅当该列表尚未有任何数据时才填充 ID 列表
+      if (!lists.value[key] || lists.value[key].length === 0) {
+        lists.value[key] = res.chat_ids || [];
       }
     } catch (e) {
       console.error("Failed to load chat list:", e);
@@ -120,9 +126,10 @@ export const useChatStore = defineStore("chat", () => {
 
   /**
    * 调用 loadChats 并登记一个等待批次。
-   * 当下一次 chat-list-update 事件到来时，pendingBatch--；
-   * 当 pendingBatch <= 0 时 loading 自动释放。
-   * 若超过 timeout ms 仍未收到事件，强制释放。
+   * loading 状态由 loadChats 的响应（ok/error）释放，不由 chat-list-update 事件管理。
+   * 一个 loadChats 可能触发多个 updateNewChat 事件，每个都会产生 chat-list-update，
+   * 所以不能在事件处理中递减 pendingBatch。
+   * 若超过 timeout ms 未收到响应，强制释放防止死锁。
    */
   const requestLoadMore = (listKey: string, chatList: any) => {
     const state = getListState(listKey);
@@ -134,13 +141,19 @@ export const useChatStore = defineStore("chat", () => {
     invoke("tdlib_send", {
       request: { _: "loadChats", chat_list: chatList, limit: 50 },
     }).then((res: any) => {
-      // loadChats 返回 { _: "ok" } 表示成功，或 { _: "error", code: 404 } 表示已耗尽
-      if (res && res._ === "error" && res.code === 404) {
-        state.finished = true;
-        state.pendingBatch = Math.max(0, state.pendingBatch - 1);
-        if (state.pendingBatch <= 0) {
-          state.loading = false;
+      // loadChats 返回 { _: "ok" } 表示成功（可能有后续 updateNewChat 事件，也可能无新数据）
+      // 或 { _: "error", code: 404 } 表示已耗尽
+      if (res && res._ === "error") {
+        if (res.code === 404) {
+          state.finished = true;
+        } else {
+          console.error("loadChats returned error:", res);
         }
+      }
+      // 无论 ok 还是 error，都释放 batch
+      state.pendingBatch = Math.max(0, state.pendingBatch - 1);
+      if (state.pendingBatch <= 0) {
+        state.loading = false;
       }
     }).catch((e: any) => {
       console.error("loadChats failed:", e);
@@ -150,25 +163,25 @@ export const useChatStore = defineStore("chat", () => {
       }
     });
 
-    // 安全兜底：3秒后强制释放 loading 防止死锁
+    // 安全兜底：12秒后强制释放 loading 防止死锁（首次同步可能较慢）
     setTimeout(() => {
       if (state.loading) {
+        console.warn(`[ChatStore] loadChats timeout for ${listKey}, force releasing`);
         state.pendingBatch = 0;
         state.loading = false;
       }
-    }, 3000);
+    }, 12000);
   };
+
+  /** 占位对话，用于 chat_id 已在列表中但 chat 对象尚未到达时的稳定渲染 */
+  function createPlaceholderChat(id: number): Chat {
+    return { id, title: '…', unread_count: 0 };
+  }
 
   const getList = (listKey: string) =>
     computed(() => {
       const ids = lists.value[listKey] || [];
-      return ids
-        .map((id) => {
-          const c = chats.value[id];
-          if (c) return c;
-          // 返回占位对象，避免列表突然跳变
-          return { id, title: "…", unread_count: 0 } as Chat;
-        });
+      return ids.map((id) => chats.value[id] ?? createPlaceholderChat(id));
     });
 
   const isLoading = (listKey: string) => computed(() => getListState(listKey).loading);
@@ -180,6 +193,51 @@ export const useChatStore = defineStore("chat", () => {
     state.loading = false;
     state.finished = false;
     state.pendingBatch = 0;
+  };
+
+  /**
+   * 兜底补漏：扫描所有列表中仍为占位符的 chat，通过 TDLib getChat 主动拉取数据。
+   * 解决事件通知链路中可能的丢包/时序问题。
+   * 在初始加载完成后调用一次即可。
+   */
+  const fillPlaceholderChats = async () => {
+    // 收集所有列表中 title === '…' 的占位 chat_id
+    const allListIds = new Set<number>();
+    for (const ids of Object.values(lists.value)) {
+      for (const id of ids) {
+        const chat = chats.value[id];
+        if (!chat || chat.title === '…') {
+          allListIds.add(id);
+        }
+      }
+    }
+
+    if (allListIds.size === 0) return;
+    console.log(`[ChatStore] Fetching ${allListIds.size} placeholder chats via getChat...`);
+
+    // 并发请求，每个 getChat 独立
+    const promises = Array.from(allListIds).map(async (id) => {
+      try {
+        const result = await invoke<any>("tdlib_send", {
+          request: { _: "getChat", chat_id: id },
+        });
+        if (result && result._ !== "error" && result.id) {
+          // 合并到现有数据，保留事件数据优先
+          if (chats.value[id]) {
+            chats.value[id] = { ...result, ...chats.value[id], id: result.id };
+          } else {
+            chats.value[id] = result;
+          }
+        }
+      } catch (e) {
+        // getChat 可能暂时失败（如网络问题），忽略即可
+        console.warn(`[ChatStore] getChat failed for ${id}:`, e);
+      }
+    });
+
+    await Promise.allSettled(promises);
+    console.log(`[ChatStore] getChat fill completed, remaining: ${Array.from(allListIds).filter(id => !chats.value[id] || chats.value[id].title === '…').length
+      }`);
   };
 
   return {
@@ -195,5 +253,6 @@ export const useChatStore = defineStore("chat", () => {
     isLoading,
     isFinished,
     resetListState,
+    fillPlaceholderChats,
   };
 });

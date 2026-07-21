@@ -27,6 +27,16 @@
 
         <!-- 侧边栏-下部分 -->
         <div class="mt-auto flex flex-col gap-4 w-full items-center">
+            <router-link to="/home/downloads" :class="buttonStyle"
+                active-class="bg-white/60 dark:bg-gray-600 shadow-sm">
+                <span class="relative inline-flex">
+                    <DownloadIcon :class="iconStyle" />
+                    <span v-if="downloadStore.activeCount > 0"
+                        class="absolute -top-2 -right-2 min-w-4.5 h-4.5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1 leading-none">
+                        {{ downloadStore.activeCount > 99 ? '99+' : downloadStore.activeCount }}
+                    </span>
+                </span>
+            </router-link>
             <router-link to="/home/settings" :class="buttonStyle" active-class="bg-white/60 dark:bg-gray-600 shadow-sm">
                 <SettingsIcon :class="iconStyle" />
             </router-link>
@@ -35,10 +45,11 @@
 </template>
 
 <script setup lang="ts">
-import { MessageCircleIcon, UsersIcon, ArchiveIcon, SettingsIcon } from 'lucide-vue-next';
+import { MessageCircleIcon, UsersIcon, ArchiveIcon, DownloadIcon, SettingsIcon } from 'lucide-vue-next';
 import Avatar from "../chat/avatar.vue";
 import { onMounted } from 'vue';
 import { useUserStore } from '../../store/user';
+import { useDownloadStore } from '../../store/downloads';
 import { storeToRefs } from 'pinia';
 
 const buttonStyle = 'w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-800/50 transition-colors relative rounded-lg';
@@ -46,6 +57,7 @@ const iconStyle = 'w-5 h-5';
 
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
+const downloadStore = useDownloadStore();
 
 onMounted(() => {
     if (!userProfile.value) {

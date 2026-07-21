@@ -104,6 +104,8 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { FileIcon, DownloadIcon, MusicIcon, PauseIcon, PlayIcon } from 'lucide-vue-next';
 import { useRouter } from 'vue-router';
+import { useDownloadStore, type DownloadFileType } from '../../../../store/downloads';
+import { useChatStore } from '../../../../store/chat';
 
 const props = defineProps<{
     content: messageDocument | messageAudio;
@@ -125,6 +127,8 @@ const captionLoadingLinks = ref<Set<string>>(new Set());
 const downloadProgress = ref(0);
 const downloadCurrentSize = ref(0);
 const downloadTotalSize = ref(0);
+
+const downloadStore = useDownloadStore();
 
 const playbackDuration = computed(() => {
     if (loadedDuration.value > 0) return loadedDuration.value;
@@ -313,6 +317,38 @@ async function loadAudioCover() {
     }
 }
 
+/** 获取来源对话标题 */
+function getChatTitleById(id: number): string {
+    try {
+        const chatStore = useChatStore();
+        return chatStore.chats[id]?.title || `对话 #${id}`;
+    } catch { return `对话 #${id}`; }
+}
+
+/** 获取缩略图 data URL */
+function getThumbnailDataUrl(): string | undefined {
+    const c = props.content;
+    if (c._ === 'messageDocument') {
+        if (c.document.minithumbnail) return `data:image/jpeg;base64,${c.document.minithumbnail.data}`;
+        // document thumbnail is a file that needs downloading, skip for registration
+    }
+    return undefined;
+}
+
+/** 确定文件类型 */
+function getFileType(): DownloadFileType {
+    const c = props.content;
+    if (c._ === 'messageAudio') return 'audio';
+    if (c._ === 'messageDocument') {
+        const mime = c.document.mime_type || '';
+        if (mime.startsWith('image/')) return 'photo';
+        if (mime.startsWith('video/')) return 'video';
+        if (mime.startsWith('audio/')) return 'audio';
+        return 'document';
+    }
+    return 'document';
+}
+
 /** 处理文件下载 */
 async function handleDownload(fileId: number, shouldPlay = false) {
     if (shouldPlay) playAfterDownload.value = true;
@@ -322,9 +358,24 @@ async function handleDownload(fileId: number, shouldPlay = false) {
     currentFileId.value = fileId;
     downloadingFiles.add(fileId);
 
+    // 获取文件信息用于注册下载
+    try {
+        const fileInfo = await tdlibSend({ _: 'getFile', file_id: fileId }) as any;
+        const fileName = props.content._ === 'messageDocument'
+            ? props.content.document.file_name
+            : props.content._ === 'messageAudio'
+                ? (props.content.audio.title || props.content.audio.file_name)
+                : `文件 #${fileId}`;
+        const totalSize = fileInfo.size || fileInfo.expected_size || 0;
+        downloadTotalSize.value = totalSize;
+        const chatTitle = props.chatId ? getChatTitleById(props.chatId) : '';
+        const thumbUrl = getThumbnailDataUrl();
+        const fileType = getFileType();
+        downloadStore.registerDownload(fileId, fileName, chatTitle, totalSize, fileType, thumbUrl, props.chatId, props.messageId);
+    } catch (_) { /* ignore */ }
+
     try {
         await tdlibSend({ _: 'downloadFile', file_id: fileId, priority: 1, offset: 0, limit: 0, synchronous: false });
-        pollFileDownload(fileId);
     } catch (e) {
         console.error("Download failed", e);
         isDownloading.value = false;
@@ -333,36 +384,32 @@ async function handleDownload(fileId: number, shouldPlay = false) {
     }
 }
 
-/** 轮询文件下载进度 */
-let filePollTimer: ReturnType<typeof setInterval> | null = null;
-function pollFileDownload(fileId: number) {
-    filePollTimer = setInterval(async () => {
-        try {
-            const info = await tdlibSend({ _: 'getFile', file_id: fileId }) as any;
-            const total = info.size || 1;
-            const downloaded = info.local?.downloaded_size || 0;
-            downloadProgress.value = downloaded / total;
-            downloadCurrentSize.value = downloaded;
-            downloadTotalSize.value = total;
-            if (info.local?.is_downloading_completed && info.local?.path) {
-                if (filePollTimer) { clearInterval(filePollTimer); filePollTimer = null; }
+/** 通过下载 store 的 updateFile 事件持续跟踪进度 */
+let unsubFileWatch: (() => void) | null = null;
+watch(currentFileId, (fileId) => {
+    if (unsubFileWatch) { unsubFileWatch(); unsubFileWatch = null; }
+    if (!fileId) return;
+    unsubFileWatch = watch(
+        () => downloadStore.getDownloadInfo(fileId),
+        (info) => {
+            if (!info) return;
+            downloadProgress.value = info.progress;
+            downloadCurrentSize.value = info.downloadedSize;
+            downloadTotalSize.value = info.totalSize;
+
+            if (info.isCompleted && info.localPath) {
                 downloadingFiles.delete(fileId);
                 isDownloading.value = false;
-                mediaSrc.value = convertFileSrc(info.local.path);
+                mediaSrc.value = convertFileSrc(info.localPath);
                 if (playAfterDownload.value) {
                     playAfterDownload.value = false;
-                    await nextTick();
-                    audioElement.value?.play().catch(() => { });
+                    nextTick(() => audioElement.value?.play().catch(() => { }));
                 }
             }
-        } catch (_) {
-            if (filePollTimer) { clearInterval(filePollTimer); filePollTimer = null; }
-            downloadingFiles.delete(fileId);
-            isDownloading.value = false;
-            playAfterDownload.value = false;
-        }
-    }, 500);
-}
+        },
+        { immediate: true }
+    );
+});
 
 async function togglePlayback() {
     if (props.content._ !== 'messageAudio') return;
@@ -412,10 +459,6 @@ const formatSize = (size: number) => {
 
 watch(() => props.content, () => {
     audioElement.value?.pause();
-    if (filePollTimer) {
-        clearInterval(filePollTimer);
-        filePollTimer = null;
-    }
     mediaSrc.value = undefined;
     coverSrc.value = undefined;
     isPlaying.value = false;
@@ -424,13 +467,14 @@ watch(() => props.content, () => {
     downloadProgress.value = 0;
     playAfterDownload.value = false;
     isDownloading.value = false;
+    currentFileId.value = 0;
     loadMedia();
     loadAudioCover();
 }, { immediate: true });
 
 onUnmounted(() => {
     audioElement.value?.pause();
-    if (filePollTimer) clearInterval(filePollTimer);
+    if (unsubFileWatch) unsubFileWatch();
 });
 </script>
 

@@ -118,7 +118,13 @@ impl ChatStore {
                 if let Ok(chat) = serde_json::from_value::<Chat>(update["chat"].clone()) {
                     self.chats.insert(chat.id, chat.clone());
 
-                    // Initialize positions if any
+                    // 关键: 先发出 chat-update，确保前端先收到对话数据
+                    events.push((
+                        "chat-update".to_string(),
+                        serde_json::to_value(&chat).unwrap(),
+                    ));
+
+                    // 再发出 chat-list-update，此时前端已经有对话数据可用
                     if let Some(positions) = &chat.positions {
                         for pos in positions {
                             if let Some(list) = pos.get("list") {
@@ -141,11 +147,6 @@ impl ChatStore {
                             }
                         }
                     }
-                    // Emit chat update as well so frontend has the data
-                    events.push((
-                        "chat-update".to_string(),
-                        serde_json::to_value(&chat).unwrap(),
-                    ));
                 }
             }
             "updateChatPosition" => {
@@ -175,6 +176,13 @@ impl ChatStore {
                 if let Some(chat) = self.chats.get_mut(&chat_id) {
                     chat.last_message = Some(update["last_message"].clone());
 
+                    // 先发出 chat-update（clone 避免移动引用）
+                    events.push((
+                        "chat-update".to_string(),
+                        serde_json::to_value(chat.clone()).unwrap(),
+                    ));
+
+                    // 再更新列表排序
                     if let Some(positions) = update.get("positions").and_then(|p| p.as_array()) {
                         chat.positions = Some(positions.clone());
                         for pos in positions {
@@ -198,11 +206,6 @@ impl ChatStore {
                             }
                         }
                     }
-
-                    events.push((
-                        "chat-update".to_string(),
-                        serde_json::to_value(chat).unwrap(),
-                    ));
                 }
             }
             "updateChatAddedToList" => {
@@ -273,6 +276,13 @@ impl ChatStore {
                 if let Some(chat) = self.chats.get_mut(&chat_id) {
                     chat.draft_message = Some(update["draft_message"].clone());
 
+                    // 先发出 chat-update（clone 避免移动引用）
+                    events.push((
+                        "chat-update".to_string(),
+                        serde_json::to_value(chat.clone()).unwrap(),
+                    ));
+
+                    // 再更新列表排序
                     if let Some(positions) = update.get("positions").and_then(|p| p.as_array()) {
                         chat.positions = Some(positions.clone());
                         for pos in positions {
@@ -294,11 +304,6 @@ impl ChatStore {
                             }
                         }
                     }
-
-                    events.push((
-                        "chat-update".to_string(),
-                        serde_json::to_value(chat).unwrap(),
-                    ));
                 }
             }
             "updateChatReadInbox" => {

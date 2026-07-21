@@ -2,22 +2,22 @@
     <!-- ========== VIDEO MODE ========== -->
     <Teleport to="body">
         <Transition name="viewer-zoom">
-            <div v-if="visible && isVideo" class="fixed inset-0 z-9999 flex items-center justify-center"
+            <div v-if="visible && isVideo" class="fixed inset-0 z-999 flex items-center justify-center"
                 @click.self="close" @keydown="onKeydown" tabindex="0" ref="containerRef">
                 <!-- Video card -->
                 <div class="video-card relative flex flex-col overflow-hidden bg-black/70" :style="playerStyle"
                     @click.stop @mousemove="onVideoMouseMove" @mouseleave="onVideoMouseLeave">
                     <!-- Video element -->
-                    <video ref="videoRef" :src="currentSrc" preload="auto" playsinline
+                    <video ref="videoRef" :src="currentSrc" preload="auto" playsinline loop
                         class="w-full h-full object-contain" @timeupdate="onVideoTimeUpdate"
                         @loadedmetadata="onVideoLoaded" @ended="onVideoEnded" @click="toggleVideoPlay" />
 
                     <!-- UI overlay (close button + controls + caption) -->
                     <Transition name="fade-ui">
                         <div v-if="videoLoaded && uiVisible" class="absolute inset-0 z-10">
-                            <!-- Close button (top-right) -->
+                            <!-- Close button (top-left) -->
                             <button @click="close"
-                                class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/70 transition-colors">
+                                class="absolute top-3 left-3 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/70 transition-colors">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                                     class="w-5 h-5">
                                     <path d="M18 6L6 18M6 6l12 12" />
@@ -91,17 +91,20 @@
     <!-- ========== PHOTO MODE ========== -->
     <Teleport to="body">
         <div v-if="visible && isImage" class="fixed inset-0 z-9999 bg-black/95 flex flex-col" @wheel.prevent="onWheel"
-            @keydown="onKeydown" tabindex="0" ref="containerRef">
+            @keydown="onKeydown" @click.self="close" tabindex="0" ref="containerRef">
 
             <!-- Top bar -->
             <div
                 class="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 bg-linear-to-b from-black/60 to-transparent">
-                <button @click="close" class="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-6 h-6">
-                        <path d="M18 6L6 18M6 6l12 12" />
-                    </svg>
-                </button>
-                <span class="text-sm text-white/80">{{ currentIndex + 1 }} / {{ totalCount }}</span>
+                <div class="flex items-center gap-3">
+                    <button @click="close"
+                        class="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-6 h-6">
+                            <path d="M18 6L6 18M6 6l12 12" />
+                        </svg>
+                    </button>
+                    <span class="text-sm text-white/80">{{ currentIndex + 1 }} / {{ totalCount }}</span>
+                </div>
                 <div class="w-8"></div>
             </div>
 
@@ -110,10 +113,13 @@
                 ref="contentRef" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp"
                 @pointercancel="onPointerUp">
 
-                <img :src="currentSrc"
+                <img v-if="!isAnimation" :src="currentSrc"
                     class="max-w-full max-h-full transition-transform duration-200 ease-out select-none"
                     :style="{ transform: `scale(${zoom}) translate(${panX}px, ${panY}px)` }" draggable="false"
                     @dblclick="toggleZoom" />
+                <video v-else :src="currentSrc" autoplay loop muted playsinline
+                    class="max-w-full max-h-full transition-transform duration-200 ease-out select-none"
+                    :style="{ transform: `scale(${zoom}) translate(${panX}px, ${panY}px)` }" @dblclick="toggleZoom" />
 
                 <!-- Prev/Next arrows -->
                 <button v-if="totalCount > 1"
@@ -156,9 +162,10 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue';
+import { isMediaViewerActive } from '../../../../store/mediaViewer';
 
 export interface MediaViewerItem {
-    type: 'photo' | 'video';
+    type: 'photo' | 'video' | 'animation';
     src: string;
     thumb?: string;
     caption?: string;
@@ -232,8 +239,9 @@ const contentRef = ref<HTMLElement | null>(null);
 
 const totalCount = computed(() => props.items.length);
 const currentItem = computed(() => props.items[currentIndex.value]);
-const isImage = computed(() => currentItem.value?.type === 'photo');
+const isImage = computed(() => currentItem.value?.type === 'photo' || currentItem.value?.type === 'animation');
 const isVideo = computed(() => currentItem.value?.type === 'video');
+const isAnimation = computed(() => currentItem.value?.type === 'animation');
 const currentSrc = computed(() => currentItem.value?.src || '');
 const caption = computed(() => currentItem.value?.caption || '');
 
@@ -248,6 +256,7 @@ const playerStyle = computed(() => {
 });
 
 watch(() => props.visible, (v) => {
+    isMediaViewerActive.value = v;
     if (v) {
         currentIndex.value = props.initialIndex || 0;
         resetZoom();

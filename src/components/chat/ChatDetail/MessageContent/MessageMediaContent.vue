@@ -23,20 +23,43 @@
             <!-- ===== PHOTO ===== -->
             <div v-if="content._ === 'messagePhoto'"
                 class="relative overflow-hidden bg-gray-200 dark:bg-gray-700 cursor-pointer group"
-                :class="[borderRadiusClass, hasSpoiler ? 'blur-md' : '']" :style="photoSizeStyle" @click="openViewer">
+                :class="[borderRadiusClass, hasSpoiler ? 'blur-md' : '']" :style="photoSizeStyle"
+                @click="mediaSrc ? openViewer() : undefined">
                 <!-- Minithumbnail preview -->
                 <img v-if="thumbSrc && !mediaSrc" :src="thumbSrc"
                     class="absolute inset-0 w-full h-full object-cover blur-sm scale-105" />
                 <!-- Full image (object-cover fills area) -->
                 <img v-if="mediaSrc" :src="mediaSrc" class="w-full h-full object-cover select-none"
                     :class="{ 'opacity-0': !imageLoaded }" @load="onImageLoad" @error="onImageError" />
-                <!-- Placeholder (reserves space via parent's aspectRatio) -->
+                <!-- Placeholder -->
                 <div v-if="!mediaSrc && !thumbSrc" class="flex items-center justify-center w-full h-full">
                     <svg class="w-8 h-8 text-gray-400 animate-pulse" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" stroke-width="1.5">
                         <rect x="3" y="3" width="18" height="18" rx="2" />
                         <circle cx="8.5" cy="8.5" r="1.5" />
                         <path d="m21 15-5-5L5 21" />
+                    </svg>
+                </div>
+                <!-- Download button overlay -->
+                <div v-if="!mediaSrc && !isDownloading && canDownload"
+                    class="absolute inset-0 flex items-center justify-center cursor-pointer"
+                    @click.stop="handlePhotoDownload">
+                    <div
+                        class="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center group-hover:bg-black/70 transition-colors">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            class="w-6 h-6 text-white">
+                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                    </div>
+                </div>
+                <!-- Loading spinner -->
+                <div v-if="isDownloading" class="absolute inset-0 flex items-center justify-center bg-black/20">
+                    <svg class="w-6 h-6 text-white animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25" />
+                        <path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round"
+                            class="opacity-75" />
                     </svg>
                 </div>
             </div>
@@ -54,8 +77,8 @@
 
                 <!-- Video element (循环播放, 由 IntersectionObserver 控制播放/暂停) -->
                 <video v-if="videoDownloaded" ref="videoElRef" :src="mediaSrc" class="w-full h-full object-cover"
-                    :class="{ 'invisible': viewerVisible }" :muted="videoMuted" loop playsinline
-                    @timeupdate="onInlineVideoTime" @loadedmetadata="onInlineVideoLoaded" @ended="onInlineVideoEnded" />
+                    :muted="videoMuted" loop playsinline @timeupdate="onInlineVideoTime"
+                    @loadedmetadata="onInlineVideoLoaded" @ended="onInlineVideoEnded" />
 
                 <!-- Download progress bar -->
                 <div v-if="videoDownloading && videoProgress > 0 && videoProgress < 1"
@@ -121,11 +144,32 @@
             <!-- ===== ANIMATION (GIF) ===== -->
             <div v-else-if="content._ === 'messageAnimation'"
                 class="relative overflow-hidden bg-gray-200 dark:bg-gray-700 cursor-pointer group select-none"
-                :class="borderRadiusClass" :style="animSizeStyle" @click="openViewer">
+                :class="borderRadiusClass" :style="animSizeStyle" @click="mediaSrc ? openViewer() : undefined">
                 <video v-if="mediaSrc" :src="mediaSrc" autoplay loop muted playsinline
                     class="w-full h-full object-cover" />
                 <div v-else class="flex items-center justify-center w-full h-full">
                     <span class="text-xs text-gray-500">GIF</span>
+                </div>
+                <!-- Download button overlay -->
+                <div v-if="!mediaSrc && !animDownloading && animCanDownload"
+                    class="absolute inset-0 flex items-center justify-center cursor-pointer"
+                    @click.stop="handleAnimDownload">
+                    <div
+                        class="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center group-hover:bg-black/70 transition-colors">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            class="w-6 h-6 text-white">
+                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                    </div>
+                </div>
+                <div v-if="animDownloading" class="absolute inset-0 flex items-center justify-center bg-black/20">
+                    <svg class="w-6 h-6 text-white animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25" />
+                        <path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round"
+                            class="opacity-75" />
+                    </svg>
                 </div>
             </div>
 
@@ -150,9 +194,6 @@
                 :viewCount="viewCount" :authorSignature="authorSignature" />
         </span>
 
-        <!-- Media Viewer portal -->
-        <MediaViewer :visible="viewerVisible" :items="viewerItems" :initial-index="0" :initial-time="viewerInitialTime"
-            :source-rect="viewerSourceRect" @close="onViewerClose" />
     </div>
 </template>
 
@@ -164,8 +205,10 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { CornerUpRightIcon, VideoIcon } from 'lucide-vue-next';
 import MessageTextContent from './MessageTextContent.vue';
 import MessageStatus from './MessageStatus.vue';
-import MediaViewer from './MediaViewer.vue';
 import type { MediaViewerItem } from './MediaViewer.vue';
+import { useDownloadStore, type DownloadFileType } from '../../../../store/downloads';
+import { useChatStore } from '../../../../store/chat';
+import { registerMediaItem, unregisterMediaItem, openMediaViewer } from '../../../../store/mediaViewer';
 
 
 const props = defineProps<{
@@ -239,22 +282,24 @@ watch(videoDownloaded, (downloaded) => {
     }
 }, { flush: 'post' });
 
-// Viewer
-const viewerVisible = ref(false);
-const viewerInitialTime = ref(0);
-const viewerSourceRect = ref<{ x: number; y: number; width: number; height: number } | null>(null);
-const viewerItems = computed<MediaViewerItem[]>(() => {
-    const items: MediaViewerItem[] = [];
-    const c = props.content;
-    const capt = 'caption' in c && c.caption?.text ? c.caption.text : '';
-    if (c._ === 'messagePhoto' && mediaSrc.value) {
-        items.push({ type: 'photo', src: mediaSrc.value, thumb: thumbSrc.value, caption: capt });
-    } else if (c._ === 'messageVideo' && mediaSrc.value) {
-        items.push({ type: 'video', src: mediaSrc.value, caption: capt });
-    } else if (c._ === 'messageAnimation' && mediaSrc.value) {
-        items.push({ type: 'video', src: mediaSrc.value, caption: capt });
+// 注册媒体项到全局查看器
+watch(mediaSrc, (src) => {
+    if (src && props.messageId) {
+        const c = props.content;
+        const capt = 'caption' in c && c.caption?.text ? c.caption.text : '';
+        let item: MediaViewerItem | null = null;
+        if (c._ === 'messagePhoto') {
+            item = { type: 'photo', src, thumb: thumbSrc.value, caption: capt };
+        } else if (c._ === 'messageVideo') {
+            item = { type: 'video', src, caption: capt };
+        } else if (c._ === 'messageAnimation') {
+            item = { type: 'animation', src, caption: capt };
+        }
+        if (item) registerMediaItem(props.messageId, item);
     }
-    return items;
+});
+onUnmounted(() => {
+    if (props.messageId) unregisterMediaItem(props.messageId);
 });
 
 // ---- Computed ----
@@ -395,30 +440,14 @@ function onImageLoad() { imageLoaded.value = true; mediaLoaded.value = true; }
 function onImageError() { imageError.value = true; }
 
 function openViewer() {
-    if (viewerItems.value.length > 0) {
-        // 保存源元素位置用于动画
+    if (props.messageId && mediaSrc.value) {
+        const initialTime = (props.content._ === 'messageVideo' && videoElRef.value)
+            ? videoElRef.value.currentTime : 0;
         if (props.content._ === 'messageVideo' && videoElRef.value) {
-            viewerInitialTime.value = videoElRef.value.currentTime;
-            const rect = videoElRef.value.getBoundingClientRect();
-            viewerSourceRect.value = { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
             videoElRef.value.pause();
             if (videoObserver) videoObserver.unobserve(videoElRef.value);
-        } else {
-            viewerSourceRect.value = null;
         }
-        viewerVisible.value = true;
-    }
-}
-
-function onViewerClose(returnTime?: number) {
-    viewerVisible.value = false;
-    // 恢复内联视频，从播放器返回的位置继续
-    // IntersectionObserver 会在 observe() 时自动根据视口状态播放或暂停
-    if (props.content._ === 'messageVideo' && videoElRef.value && videoDownloaded.value && videoObserver) {
-        if (returnTime !== undefined) {
-            videoElRef.value.currentTime = returnTime;
-        }
-        videoObserver.observe(videoElRef.value);
+        openMediaViewer(props.messageId, 0, initialTime);
     }
 }
 
@@ -426,44 +455,114 @@ function onViewerClose(returnTime?: number) {
 
 onMounted(() => { loadMedia(); });
 
+// ---- Download store integration ---
+const downloadStore = useDownloadStore();
+
+function getChatTitle(id: number): string {
+    try {
+        const cs = useChatStore();
+        return cs.chats[id]?.title || `对话 #${id}`;
+    } catch { return `对话 #${id}`; }
+}
+
+/** 检查文件是否可下载（有 remote 数据） */
+function canDownloadFile(f: any): boolean {
+    return f && f.local && f.local.can_be_downloaded;
+}
+
+/** 注册到下载管理器 */
+function registerWithStore(fileId: number, fileName: string, fileType: DownloadFileType, thumbUrl?: string) {
+    const totalSize = 0; // 由 updateFile 事件更新
+    const chatTitle = props.chatId ? getChatTitle(props.chatId) : '';
+    downloadStore.registerDownload(fileId, fileName, chatTitle, totalSize, fileType, thumbUrl, props.chatId, props.messageId);
+}
+
 const loadMedia = async () => {
     const c = props.content;
     if (c._ === 'messageVideo') { await loadVideoThumb(); return; }
-    if (c._ === 'messagePhoto') await loadPhotoThumb();
-    const f = getFile();
-    if (!f) return;
-    if (isFileReady(f)) {
-        mediaSrc.value = convertFileSrc(f.local.path);
-        mediaLoaded.value = true;
-    } else if (f.local.can_be_downloaded && !f.local.is_downloading_active) {
-        downloadFile(f.id);
-    }
+    if (c._ === 'messagePhoto') { await loadPhotoThumb(); return; }
+    if (c._ === 'messageAnimation') { await loadAnimThumb(); return; }
 };
 
-const getFile = () => {
-    const c = props.content;
-    if (c._ === 'messagePhoto') return c.photo.sizes[c.photo.sizes.length - 1]?.photo;
-    if (c._ === 'messageVideo') return c.video.video;
-    if (c._ === 'messageAnimation') return c.animation.animation;
-    return undefined;
-};
+// ---- Photo ----
+const canDownload = computed(() => {
+    if (props.content._ !== 'messagePhoto') return false;
+    const f = props.content.photo.sizes[props.content.photo.sizes.length - 1]?.photo;
+    return canDownloadFile(f) && !isFileReady(f);
+});
 
 async function loadPhotoThumb() {
     if (props.content._ !== 'messagePhoto') return;
     const photo = props.content.photo;
     if (photo.minithumbnail?.data) {
         thumbSrc.value = `data:image/jpeg;base64,${photo.minithumbnail.data}`;
+    }
+    // 如果已下载完成，直接显示
+    const f = photo.sizes[photo.sizes.length - 1]?.photo;
+    if (f && isFileReady(f)) {
+        mediaSrc.value = convertFileSrc(f.local.path);
+        mediaLoaded.value = true;
+    }
+}
+
+async function handlePhotoDownload() {
+    if (props.content._ !== 'messagePhoto') return;
+    const f = props.content.photo.sizes[props.content.photo.sizes.length - 1]?.photo;
+    if (!f) return;
+    if (isFileReady(f)) {
+        mediaSrc.value = convertFileSrc(f.local.path);
+        mediaLoaded.value = true;
         return;
     }
-    const smallest = photo.sizes.reduce((a, b) => a.width * a.height < b.width * b.height ? a : b);
-    if (!smallest) return;
-    const f = smallest.photo;
+    if (!canDownloadFile(f) || downloadingFiles.has(f.id)) return;
+    isDownloading.value = true;
+    downloadingFiles.add(f.id);
+    // 注册到下载管理器
+    const fileName = `photo_${props.messageId || f.id}.jpg`;
+    registerWithStore(f.id, fileName, 'photo', thumbSrc.value);
+    try {
+        await tdlibSend({ _: 'downloadFile', file_id: f.id, priority: 1, offset: 0, limit: 0, synchronous: false });
+    } catch (_) {
+        downloadingFiles.delete(f.id);
+        isDownloading.value = false;
+    }
+}
+
+// ---- Animation (GIF) ----
+const animDownloading = ref(false);
+const animCanDownload = computed(() => {
+    if (props.content._ !== 'messageAnimation') return false;
+    const f = props.content.animation.animation;
+    return canDownloadFile(f) && !isFileReady(f);
+});
+
+async function loadAnimThumb() {
+    if (props.content._ !== 'messageAnimation') return;
+    const f = props.content.animation.animation;
+    if (f && isFileReady(f)) {
+        mediaSrc.value = convertFileSrc(f.local.path);
+    }
+}
+
+async function handleAnimDownload() {
+    if (props.content._ !== 'messageAnimation') return;
+    const f = props.content.animation.animation;
     if (!f) return;
-    if (isFileReady(f)) { thumbSrc.value = convertFileSrc(f.local.path); return; }
-    await safeDownloadFile(f.id, true);
-    // 下载完成后通过 updateFile 事件更新，此处重新检查
-    const updated = await tdlibSend({ _: 'getFile', file_id: f.id });
-    if (isFileReady(updated)) thumbSrc.value = convertFileSrc(updated.local.path);
+    if (isFileReady(f)) {
+        mediaSrc.value = convertFileSrc(f.local.path);
+        return;
+    }
+    if (!canDownloadFile(f) || downloadingFiles.has(f.id)) return;
+    animDownloading.value = true;
+    downloadingFiles.add(f.id);
+    const fileName = `animation_${props.messageId || f.id}.gif`;
+    registerWithStore(f.id, fileName, 'animation');
+    try {
+        await tdlibSend({ _: 'downloadFile', file_id: f.id, priority: 1, offset: 0, limit: 0, synchronous: false });
+    } catch (_) {
+        downloadingFiles.delete(f.id);
+        animDownloading.value = false;
+    }
 }
 
 async function loadVideoThumb() {
@@ -481,20 +580,6 @@ async function loadVideoThumb() {
     const updated = await tdlibSend({ _: 'getFile', file_id: thumb.id });
     if (isFileReady(updated)) thumbSrc.value = convertFileSrc(updated.local.path);
 }
-
-const downloadFile = async (fileId: number) => {
-    if (isDownloading.value) return;
-    if (downloadingFiles.has(fileId)) return;
-    isDownloading.value = true;
-    downloadingFiles.add(fileId);
-    try {
-        const res = await tdlibSend({ _: "downloadFile", file_id: fileId, priority: 1, offset: 0, limit: 0, synchronous: true });
-        if (isFileReady(res)) { mediaSrc.value = convertFileSrc(res.local.path); mediaLoaded.value = true; }
-    } catch (_) { } finally {
-        downloadingFiles.delete(fileId);
-        isDownloading.value = false;
-    }
-};
 
 async function handleVideoDownload() {
     if (props.content._ !== 'messageVideo') return;
@@ -514,6 +599,9 @@ async function handleVideoDownload() {
         return;
     }
     if (downloadingFiles.has(fileId)) return;
+    // 注册到下载管理器
+    const fileName = video.file_name || `video_${props.messageId || fileId}.mp4`;
+    registerWithStore(fileId, fileName, 'video', thumbSrc.value);
     videoDownloading.value = true;
     videoProgress.value = 0;
     downloadingFiles.add(fileId);

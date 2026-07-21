@@ -131,7 +131,7 @@
                                         @click.stop="openForwardSource(item.msg.forward_info)">
                                         <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
                                         <span class="min-w-0 flex-1 truncate">{{ getForwardName(item.msg.forward_info)
-                                        }}</span>
+                                            }}</span>
                                     </button>
                                     <MessageContent :content="item.msg.content" :isSelf="isSelf(item.msg)"
                                         :date="item.msg.date" :forwardInfo="item.msg.forward_info"
@@ -177,8 +177,33 @@
         <!-- ===== Header（顶层，磨砂玻璃） ===== -->
         <div
             class="absolute top-0 left-0 right-0 z-10 bg-white/80 dark:bg-[#1c1c1c]/70 backdrop-blur-lg border-b border-gray-200/60 dark:border-gray-800/60">
-            <ChatDetailHeader :chat="chat" />
+            <ChatDetailHeader :chat="chat" :showBack="showOverlay" @back="closeOverlay" @openInfo="openOverlay" />
         </div>
+
+        <!-- ===== 叠层面板 ===== -->
+        <Transition name="overlay-slide">
+            <div v-if="showOverlay && chat" class="absolute inset-0 z-20 bg-white dark:bg-gray-900 overflow-y-auto">
+                <div class="p-4 pt-20">
+                    <!-- 对话信息 -->
+                    <div class="flex flex-col items-center mb-6">
+                        <div class="w-20 h-20 mb-3">
+                            <Avatar :photo="chat.photo" :title="chat.title" sizeClass="!w-20 !h-20" />
+                        </div>
+                        <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">{{ chat.title }}</h2>
+                        <p class="text-sm text-gray-500 mt-1">{{ getChatSubtitle() }}</p>
+                    </div>
+
+                    <!-- 操作按钮 -->
+                    <div class="space-y-2 px-4">
+                        <button type="button" @click="openInNewChat"
+                            class="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left">
+                            <MessageCircleIcon class="w-5 h-5 text-blue-500" />
+                            <span class="text-sm font-medium">跳转到对话</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Transition>
 
         <!-- ===== Input Area（顶层，磨砂玻璃） ===== -->
         <div v-if="canSend"
@@ -240,6 +265,10 @@
                 </svg>
             </button>
         </Transition>
+
+        <!-- ===== 全局媒体查看器 ===== -->
+        <MediaViewer :visible="viewerVisible" :items="viewerItems" :initial-index="viewerIndex"
+            :initial-time="viewerInitialTime" @close="onViewerClose" />
     </div>
 </template>
 <script setup lang="ts">
@@ -249,6 +278,8 @@ import MessageContent from './MessageContent/index.vue';
 import MessageStatus from './MessageContent/MessageStatus.vue';
 import MessageAlbum from './MessageContent/MessageAlbum.vue';
 import ChatDetailHeader from './Header.vue';
+import MediaViewer from './MessageContent/MediaViewer.vue';
+import type { MediaViewerItem } from './MessageContent/MediaViewer.vue';
 
 import { tdlibSend } from '../../../utils/tdlib';
 import { isOutgoingMessageForDisplay, isSavedMessagesChat } from '../../../utils/savedMessages';
@@ -262,6 +293,9 @@ import { storeToRefs } from 'pinia';
 import { listen } from "@tauri-apps/api/event";
 
 import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, ChatMemberStatus } from 'tdlib-types';
+import { getViewerState, closeMediaViewer, registerMediaItem, unregisterMediaItem, isMediaViewerActive } from '../../../store/mediaViewer';
+import { isFileReady } from '../../../utils/tdlib';
+import { convertFileSrc } from '@tauri-apps/api/core';
 
 // ==================== Route ====================
 const route = useRoute();
@@ -271,6 +305,37 @@ const chatId = computed(() => {
     const id = route.params.id;
     return id ? parseInt(id as string) : undefined;
 });
+
+// ==================== Overlay State ====================
+const showOverlay = ref(false);
+
+function openOverlay() {
+    showOverlay.value = true;
+}
+
+function closeOverlay() {
+    showOverlay.value = false;
+}
+
+function getChatSubtitle(): string {
+    if (!chat.value) return '';
+    const c = chat.value;
+    if (c.type._ === 'chatTypePrivate' || c.type._ === 'chatTypeSecret') {
+        return '私聊';
+    }
+    if (c.type._ === 'chatTypeBasicGroup') {
+        return '群组';
+    }
+    if (c.type._ === 'chatTypeSupergroup') {
+        return c.type.is_channel ? '频道' : '超级群组';
+    }
+    return '';
+}
+
+function openInNewChat() {
+    showOverlay.value = false;
+    // 用户点击"跳转到对话"时的处理，这里只是关闭叠层
+}
 
 // ==================== State ====================
 const chat = ref<chat | undefined>(undefined);
@@ -309,6 +374,62 @@ const messagesVersion = ref(0);
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
 const myId = computed(() => userProfile.value?.id || 0);
+
+// ==================== 全局媒体查看器状态 ====================
+const { viewerVisible, viewerIndex, viewerInitialTime, viewerItems } = getViewerState();
+
+// 当消息列表变化时，将已有媒体消息注册到全局查看器
+const previousMsgIds = ref<Set<number>>(new Set());
+watch(messages, (msgs) => {
+    const newIds = new Set<number>();
+    for (const msg of msgs) {
+        newIds.add(msg.id);
+        if (previousMsgIds.value.has(msg.id)) continue;
+        const c = msg.content;
+        const capt = 'caption' in c && c.caption?.text ? c.caption.text : '';
+        let item: MediaViewerItem | null = null;
+        if (c._ === 'messagePhoto') {
+            const sizes = c.photo.sizes;
+            if (sizes.length > 0) {
+                const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
+                const f = largest.photo;
+                if (f && isFileReady(f)) {
+                    item = { type: 'photo', src: convertFileSrc(f.local.path), caption: capt };
+                }
+            }
+        } else if (c._ === 'messageVideo') {
+            const file = c.video.video;
+            if (isFileReady(file)) {
+                item = { type: 'video', src: convertFileSrc(file.local.path), caption: capt };
+            } else if (c.video.supports_streaming && file.size > 0) {
+                item = { type: 'video', src: `${convertFileSrc(String(file.id), 'tdstream')}?mime=${c.video.mime_type}`, caption: capt };
+            }
+        } else if (c._ === 'messageAnimation') {
+            const file = c.animation.animation;
+            if (isFileReady(file)) {
+                item = { type: 'animation', src: convertFileSrc(file.local.path), caption: capt };
+            }
+        }
+        if (item) registerMediaItem(msg.id, item);
+    }
+    // 清理已删除消息的注册
+    for (const oldId of previousMsgIds.value) {
+        if (!newIds.has(oldId)) unregisterMediaItem(oldId);
+    }
+    previousMsgIds.value = newIds;
+}, { immediate: true, deep: true });
+
+function onViewerClose() {
+    closeMediaViewer();
+}
+
+// 查看器打开时阻止滚动
+watch(isMediaViewerActive, (active) => {
+    const container = messagesContainer.value;
+    if (container) {
+        container.style.overflow = active ? 'hidden' : '';
+    }
+});
 
 // ==================== Lifecycle ====================
 onMounted(async () => {
@@ -1477,6 +1598,17 @@ const handleScrollToBottom = () => {
 
 .animate-message-in {
     animation: message-pop-in 0.25s ease-out;
+}
+
+/* 叠层面板滑动动画 */
+.overlay-slide-enter-active,
+.overlay-slide-leave-active {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.overlay-slide-enter-from,
+.overlay-slide-leave-to {
+    transform: translateX(100%);
 }
 
 /* 跳到底部按钮淡入淡出 */

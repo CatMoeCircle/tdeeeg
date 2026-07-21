@@ -5,8 +5,10 @@
         </template>
         <template #content>
             <router-view v-slot="{ Component }">
-                <component :is="Component" v-if="Component" />
-                <div v-else class="h-full flex items-center justify-center text-gray-400">
+                <KeepAlive>
+                    <component :is="Component" v-if="Component" />
+                </KeepAlive>
+                <div v-if="!Component" class="h-full flex items-center justify-center text-gray-400">
                     选择一个设置项
                 </div>
             </router-view>

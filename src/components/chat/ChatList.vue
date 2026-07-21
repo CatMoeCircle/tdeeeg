@@ -53,7 +53,8 @@
                                 <span class="text-xs text-gray-400">{{ formatTime(chat.last_message?.date) }}</span>
                             </div>
                             <div class="flex items-center gap-2">
-                                <p class="flex-1 min-w-0 text-xs text-gray-500 truncate">{{ getMessagePreview(chat.last_message) }}</p>
+                                <p class="flex-1 min-w-0 text-xs text-gray-500 truncate">{{
+                                    getMessagePreview(chat.last_message) }}</p>
                                 <span v-if="chat.unread_count > 0"
                                     class="shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-blue-500 text-white text-[11px] font-semibold leading-5 text-center">
                                     {{ formatUnreadCount(chat.unread_count) }}
@@ -146,6 +147,12 @@ watch(() => chatStore.chatLists, async (lists) => {
     }
     // 然后对当前 activeTab 发起首次 loadChats
     triggerLoadMore(activeTab.value);
+
+    // 兜底补漏：主动拉取可能因事件丢失而仍为占位符的 chat 数据
+    // 等待一小段时间让事件有机会到达，再补漏
+    setTimeout(() => {
+        chatStore.fillPlaceholderChats();
+    }, 1500);
 }, { deep: true, once: true });
 
 const tabs = computed(() => {

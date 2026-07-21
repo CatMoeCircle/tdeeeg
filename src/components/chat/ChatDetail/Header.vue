@@ -1,19 +1,30 @@
 <template>
     <div class="h-16 pt-0 flex items-center px-4 justify-between shrink-0">
-        <div class="flex items-center gap-3" v-if="chat">
-            <div v-if="isSavedMessages"
-                class="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center">
-                <BookmarkIcon class="w-5 h-5 fill-current" />
-            </div>
-            <Avatar v-else :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" />
-            <div class="flex flex-col">
-                <h2 class="flex font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight">{{ chatTitle
-                    }}<span v-if="verificationState" class="text-blue-500 ml-1">
-                        <component :is="verificationState" />
-                    </span>
-                </h2>
-                <span class="text-xs text-gray-400">{{ status }}</span>
-            </div>
+        <div class="flex items-center gap-3 min-w-0" v-if="chat">
+            <!-- 返回按钮（叠层模式） -->
+            <button v-if="showBack" type="button" @click="emit('back')"
+                class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shrink-0 -ml-1"
+                aria-label="返回">
+                <ArrowLeftIcon class="w-5 h-5 text-gray-600 dark:text-gray-300" />
+            </button>
+            <!-- 点击头像/标题区域打开对话信息叠层 -->
+            <button type="button" @click="emit('openInfo')"
+                class="flex items-center gap-3 min-w-0 text-left flex-1 cursor-pointer hover:opacity-80 transition-opacity">
+                <div v-if="isSavedMessages"
+                    class="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center shrink-0">
+                    <BookmarkIcon class="w-5 h-5 fill-current" />
+                </div>
+                <Avatar v-else :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" />
+                <div class="flex flex-col min-w-0">
+                    <h2 class="flex font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight truncate">{{
+                        chatTitle
+                    }}<span v-if="verificationState" class="text-blue-500 ml-1 shrink-0">
+                            <component :is="verificationState" />
+                        </span>
+                    </h2>
+                    <span class="text-xs text-gray-400 truncate">{{ status }}</span>
+                </div>
+            </button>
         </div>
         <div v-else class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
@@ -24,6 +35,7 @@
         </div>
 
         <div class="flex gap-4 text-gray-500">
+            <slot name="actions" />
             <SearchIcon class="w-5 h-5 cursor-pointer hover:text-blue-500" />
             <MoreHorizontalIcon class="w-5 h-5 cursor-pointer hover:text-blue-500" />
         </div>
@@ -31,7 +43,7 @@
 </template>
 
 <script setup lang="ts">
-import { SearchIcon, MoreHorizontalIcon, BadgeCheckIcon, ShieldAlert, BookmarkIcon } from 'lucide-vue-next';
+import { SearchIcon, MoreHorizontalIcon, ArrowLeftIcon, BadgeCheckIcon, ShieldAlert, BookmarkIcon } from 'lucide-vue-next';
 import { computed, h, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import type { chat, user, verificationStatus } from "tdlib-types";
@@ -42,6 +54,12 @@ import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../../utils/savedM
 
 const props = defineProps<{
     chat: chat | undefined;
+    showBack?: boolean;
+}>();
+
+const emit = defineEmits<{
+    back: [];
+    openInfo: [];
 }>();
 
 const status = ref('');

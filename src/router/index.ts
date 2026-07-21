@@ -48,6 +48,11 @@ const router = createRouter({
           component: () => import("../views/main/ArchivedModule.vue"),
         },
         {
+          path: "downloads",
+          name: "downloads",
+          component: () => import("../views/main/DownloadsModule.vue"),
+        },
+        {
           path: "settings",
           name: "settings",
           component: () => import("../views/main/SettingsModule.vue"),

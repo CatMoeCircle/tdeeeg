@@ -39,21 +39,19 @@
             <MessageStatus :date="lastDate" :isOutgoing="isSelf" :sendingState="lastSendingState" :isRead="isRead"
                 :viewCount="lastViewCount" :authorSignature="authorSignature" />
         </span>
-        <MediaViewer :visible="viewerVisible" :items="viewerItems" :initial-index="viewerIndex"
-            @close="viewerVisible = false" />
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, watch } from 'vue';
+import { ref, computed, reactive, watch, onUnmounted } from 'vue';
 import type { message } from 'tdlib-types';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { tdlibSend, isFileReady, downloadingFiles, safeDownloadFile } from '../../../../utils/tdlib';
 import MessageStatus from './MessageStatus.vue';
 import MessageTextContent from './MessageTextContent.vue';
-import MediaViewer from './MediaViewer.vue';
 import type { MediaViewerItem } from './MediaViewer.vue';
 import { layoutMediaGroup, type MediaGroupSize } from '../../../../utils/mediaGroupLayout';
+import { registerMediaItem, unregisterMediaItem, openMediaViewer } from '../../../../store/mediaViewer';
 
 const props = defineProps<{
     messages: message[];
@@ -63,20 +61,24 @@ const props = defineProps<{
     isRead?: boolean;
 }>();
 
-const viewerVisible = ref(false);
-const viewerIndex = ref(0);
-const viewerEntries = computed(() => {
-    const entries: Array<{ messageIndex: number; item: MediaViewerItem }> = [];
-    for (const [messageIndex, msg] of props.messages.entries()) {
+// ---- Refs ----
+const thumbCache = reactive<Record<number, string>>({});
+const mediaCache = reactive<Record<number, string>>({});
+
+// 将相册中每条消息的媒体项注册到全局查看器
+watch([() => props.messages, mediaCache], () => {
+    for (const msg of props.messages) {
         const c = msg.content;
         const capt = 'caption' in c && c.caption?.text ? c.caption.text : '';
+        let item: MediaViewerItem | null = null;
         if (c._ === 'messagePhoto') {
             const sizes = c.photo.sizes;
             if (sizes.length > 0) {
                 const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
                 const src = mediaCache[msg.id] || (isFileReady(largest.photo) ? convertFileSrc(largest.photo.local.path) : '');
+                const thumb = thumbCache[msg.id] || (c.photo.minithumbnail?.data ? `data:image/jpeg;base64,${c.photo.minithumbnail.data}` : '');
                 if (src) {
-                    entries.push({ messageIndex, item: { type: 'photo', src, caption: capt } });
+                    item = { type: 'photo', src, thumb: thumb || undefined, caption: capt };
                 }
             }
         } else if (c._ === 'messageVideo') {
@@ -86,19 +88,30 @@ const viewerEntries = computed(() => {
                 src = `${convertFileSrc(String(file.id), 'tdstream')}?mime=${c.video.mime_type}`;
             }
             if (src) {
-                entries.push({ messageIndex, item: { type: 'video', src, caption: capt } });
+                item = { type: 'video', src, caption: capt };
+            }
+        } else if (c._ === 'messageAnimation') {
+            const file = c.animation.animation;
+            const src = mediaCache[msg.id] || (isFileReady(file) ? convertFileSrc(file.local.path) : '');
+            if (src) {
+                item = { type: 'animation', src, caption: capt };
             }
         }
+        if (item) registerMediaItem(msg.id, item);
     }
-    return entries;
+}, { immediate: true, deep: true });
+
+onUnmounted(() => {
+    for (const msg of props.messages) {
+        unregisterMediaItem(msg.id);
+    }
 });
-const viewerItems = computed(() => viewerEntries.value.map(entry => entry.item));
 
 function openViewer(idx: number) {
-    const entryIndex = viewerEntries.value.findIndex(entry => entry.messageIndex === idx);
-    if (entryIndex < 0) return;
-    viewerIndex.value = entryIndex;
-    viewerVisible.value = true;
+    const msg = props.messages[idx];
+    if (msg) {
+        openMediaViewer(msg.id, 0, 0);
+    }
 }
 
 // ---- Layout types ----
@@ -129,8 +142,6 @@ const ALBUM_W = 340;
 // ---- Refs ----
 const layoutItems = ref<LayoutItem[]>([]);
 const layoutSize = ref({ width: ALBUM_W, height: ALBUM_W });
-const thumbCache = reactive<Record<number, string>>({});
-const mediaCache = reactive<Record<number, string>>({});
 
 // ---- Build layout ----
 function rebuildLayout() {
