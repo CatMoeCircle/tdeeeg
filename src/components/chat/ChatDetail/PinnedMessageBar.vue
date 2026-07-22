@@ -17,7 +17,7 @@
                 <div class="flex-1 min-w-0 flex items-center gap-2">
                     <span class="text-xs font-medium text-blue-500 dark:text-blue-400 shrink-0">顶置消息</span>
                     <span class="text-sm text-gray-700 dark:text-gray-300 truncate">{{ getMessagePreview(currentPinned)
-                        }}</span>
+                    }}</span>
                 </div>
                 <!-- 展开按钮 -->
                 <button v-if="pinnedMessages.length > 1" @click.stop="expanded = !expanded"
@@ -37,7 +37,7 @@
             <div v-else-if="expanded" class="px-2 py-2">
                 <div class="flex items-center justify-between px-2 mb-1">
                     <span class="text-xs font-semibold text-gray-500 dark:text-gray-400">顶置消息 ({{ pinnedMessages.length
-                        }})</span>
+                    }})</span>
                     <button @click="expanded = false"
                         class="text-xs text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
                         收起
@@ -229,6 +229,7 @@ watch(() => props.chatId, (newId) => {
 .line-clamp-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }

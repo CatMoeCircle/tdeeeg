@@ -2,14 +2,14 @@
     <Teleport to="body">
         <!-- 遮罩层 -->
         <Transition name="overlay-fade">
-            <div v-if="player.showOverlay" class="fixed inset-0 z-[9998] flex items-end sm:items-center justify-center"
+            <div v-if="player.showOverlay" class="fixed inset-0 z-9998 flex items-end sm:items-center justify-center"
                 @click.self="player.toggleOverlay()">
                 <!-- 背景遮罩 -->
                 <div class="absolute inset-0 bg-black/30 backdrop-blur-sm"></div>
 
                 <!-- 面板 -->
                 <div
-                    class="relative w-full sm:w-[380px] max-h-[90vh] sm:rounded-2xl rounded-t-2xl bg-white dark:bg-gray-800 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 overflow-hidden flex flex-col">
+                    class="relative w-full sm:w-95 max-h-[90vh] sm:rounded-2xl rounded-t-2xl bg-white dark:bg-gray-800 shadow-2xl border border-gray-200/50 dark:border-gray-700/50 overflow-hidden flex flex-col">
                     <!-- 手柄（移动端拖动提示） -->
                     <div class="sm:hidden flex justify-center pt-2 pb-1">
                         <div class="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600"></div>
@@ -27,7 +27,7 @@
                     <!-- 当前歌曲信息 -->
                     <div class="px-5 py-3 flex items-center gap-4">
                         <div
-                            class="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center shrink-0 shadow-lg overflow-hidden">
+                            class="w-16 h-16 rounded-xl bg-linear-to-br from-blue-400 to-purple-500 flex items-center justify-center shrink-0 shadow-lg overflow-hidden">
                             <img v-if="player.currentTrack?.coverPath" :src="player.currentTrack.coverPath"
                                 class="w-full h-full object-cover" @error="onCoverError" />
                             <MusicIcon v-else class="w-8 h-8 text-white/80" />
@@ -54,7 +54,7 @@
                         <div class="flex justify-between mt-1.5">
                             <span class="text-xs text-gray-400">{{ formatTime(player.currentTime) }}</span>
                             <span class="text-xs text-gray-400">{{ formatTime(player.currentTrack?.duration || 0)
-                            }}</span>
+                                }}</span>
                         </div>
                     </div>
 

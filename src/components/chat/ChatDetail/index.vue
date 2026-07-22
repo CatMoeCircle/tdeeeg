@@ -111,7 +111,7 @@
                                         ? 'w-min max-w-[70%] overflow-hidden shadow-sm'
                                         : isStandaloneMessage(item.msg)
                                             ? 'relative max-w-[70%]'
-                                            : 'px-3 py-2 shadow-sm max-w-[70%] min-w-[120px]',
+                                            : 'px-3 py-2 shadow-sm max-w-[70%] min-w-30',
                                     !isStandaloneMessage(item.msg) && isSelf(item.msg)
                                         ? 'bg-[#6ab2f2] dark:bg-[#6ab2f2] text-white'
                                         : !isStandaloneMessage(item.msg)
@@ -135,7 +135,7 @@
                                         @click.stop="openForwardSource(item.msg.forward_info)">
                                         <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
                                         <span class="min-w-0 flex-1 truncate">{{ getForwardName(item.msg.forward_info)
-                                            }}</span>
+                                        }}</span>
                                     </button>
                                     <MessageContent :content="item.msg.content" :isSelf="isSelf(item.msg)"
                                         :date="item.msg.date" :forwardInfo="item.msg.forward_info"
@@ -222,7 +222,7 @@
         <div v-if="canSend"
             class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-white/80 dark:from-gray-900/80 via-white/60 dark:via-gray-900/60 to-transparent">
             <div aria-hidden="true"
-                class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md [mask-image:linear-gradient(to_top,black,transparent)]">
+                class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
             </div>
             <MessageInput class="relative z-10" v-model="messageInput" @send="handleSend" @attach="handleAttach" />
         </div>
@@ -231,7 +231,7 @@
         <div v-else-if="showMembershipAction"
             class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-white/80 dark:from-gray-900/80 via-white/60 dark:via-gray-900/60 to-transparent">
             <div aria-hidden="true"
-                class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md [mask-image:linear-gradient(to_top,black,transparent)]">
+                class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
             </div>
             <div class="relative z-10 flex items-center justify-center p-5">
                 <button type="button" :disabled="!canJoinCurrentChat || isJoinPending || joinRequestSent"
@@ -246,7 +246,7 @@
         <div v-else-if="showChannelActions"
             class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-white/80 dark:from-gray-900/80 via-white/60 dark:via-gray-900/60 to-transparent">
             <div aria-hidden="true"
-                class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md [mask-image:linear-gradient(to_top,black,transparent)]">
+                class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
             </div>
             <div class="relative z-10 flex items-center justify-center gap-3 p-5">
                 <button type="button" :disabled="isNotificationTogglePending"
@@ -268,7 +268,7 @@
                 class="absolute bottom-28 right-4 z-20 w-10 h-10 bg-white dark:bg-gray-700 rounded-full shadow-lg flex items-center justify-center text-gray-500 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
                 @click="handleScrollToBottom" title="跳到底部">
                 <span v-if="newMessageCount > 0"
-                    class="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1 leading-none">
+                    class="absolute -top-1 -right-1 min-w-4.5 h-4.5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1 leading-none">
                     {{ newMessageCount > 99 ? '99+' : newMessageCount }}
                 </span>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">

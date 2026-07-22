@@ -40,7 +40,7 @@
                 </div>
 
                 <div :class="[
-                    'p-2 pb-3 shadow-sm max-w-[70%] min-w-[120px] relative',
+                    'p-2 pb-3 shadow-sm max-w-[70%] min-w-30 relative',
                     isSelf(msg)
                         ? 'bg-blue-500 text-white'
                         : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200',

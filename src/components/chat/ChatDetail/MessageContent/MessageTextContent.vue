@@ -1,5 +1,5 @@
 <template>
-    <p class="text-sm whitespace-pre-wrap break-words leading-5">
+    <p class="text-sm whitespace-pre-wrap wrap-break-word leading-5">
         <template v-for="(segment, index) in segments" :key="index">
             <a v-if="segment.href" :href="segment.href"
                 class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"

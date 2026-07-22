@@ -35,7 +35,7 @@
         </div>
 
         <!-- Audio -->
-        <div v-else-if="content._ === 'messageAudio'" class="flex w-[280px] max-w-full min-w-0 items-center gap-3">
+        <div v-else-if="content._ === 'messageAudio'" class="flex w-70 max-w-full min-w-0 items-center gap-3">
             <div class="relative h-14 w-14 shrink-0">
                 <div class="group relative h-full w-full overflow-hidden rounded-xl bg-blue-100 dark:bg-blue-950">
                     <img v-if="coverSrc" :src="coverSrc" :alt="content.audio.title || content.audio.file_name"
@@ -82,7 +82,7 @@
             </div>
         </div>
 
-        <p v-if="captionSegments.length" class="mt-2 whitespace-pre-wrap break-words text-sm leading-5">
+        <p v-if="captionSegments.length" class="mt-2 whitespace-pre-wrap wrap-break-word text-sm leading-5">
             <template v-for="(segment, index) in captionSegments" :key="index">
                 <a v-if="segment.href" :href="segment.href"
                     class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
