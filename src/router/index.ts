@@ -63,6 +63,12 @@ const router = createRouter({
               component: () =>
                 import("../components/settings/AppearanceSettings.vue"),
             },
+            {
+              path: "download",
+              name: "settings-download",
+              component: () =>
+                import("../components/settings/DownloadSettings.vue"),
+            },
           ],
         },
       ],

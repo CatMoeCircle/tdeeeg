@@ -3,6 +3,8 @@
         <div class="p-4 border-b border-gray-200 dark:border-gray-800">
             <h2 class="text-lg font-semibold">联系人</h2>
         </div>
+        <!-- 音乐播放器入口（聊天打开时由 ChatDetail 接管） -->
+        <MusicPlayerEntry v-if="!isChatOpen" compact />
         <div class="flex-1 overflow-y-auto p-2">
             <div v-for="user in Contacts ?? []" :key="user.id">
                 <div
@@ -35,8 +37,14 @@ import { tdlibSend } from '../../utils/tdlib';
 import formatStatus from '../../utils/status';
 import { ArrowLeftRightIcon } from 'lucide-vue-next';
 import { onMounted, ref } from "vue"
+import { useRoute } from 'vue-router';
+import { computed } from 'vue';
+import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
 
 import type { user } from 'tdlib-types';
+
+const route = useRoute();
+const isChatOpen = computed(() => /^\/home\/chats\/\d+/.test(route.path));
 
 const Contacts = ref<user[] | undefined>(undefined);
 

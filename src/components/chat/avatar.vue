@@ -1,7 +1,9 @@
 <template>
     <div :class="containerClass">
-        <img v-if="avatar" :src="avatar" alt="avatar" class="w-full h-full object-cover" />
-        <div v-else class="w-full h-full flex items-center justify-center text-gray-500 text-xs">{{ initials }}</div>
+        <img v-if="avatar && !imgError" :src="avatar" alt="avatar" class="w-full h-full object-cover"
+            @error="onImgError" />
+        <div v-else class="w-full h-full flex items-center justify-center text-gray-500 text-xs select-none">{{ initials
+            }}</div>
     </div>
 </template>
 
@@ -16,6 +18,12 @@ const props = defineProps<{
     title?: string;
     sizeClass?: string;
 }>();
+
+const imgError = ref(false);
+
+function onImgError() {
+    imgError.value = true;
+}
 
 const initials = computed(() => {
     const t = props.title || '';
@@ -34,6 +42,7 @@ const avatar = ref<string | undefined>(props.photo?.minithumbnail ? `data:image/
 watch(
     () => props.photo,
     async (photo) => {
+        imgError.value = false;
         if (!photo) {
             avatar.value = undefined;
             return;

@@ -1,8 +1,12 @@
 <template>
     <div class="flex h-full w-full bg-white/40 overflow-hidden dark:bg-black text-gray-900 dark:text-gray-100">
         <SideNavBar />
-        <div class="flex-1 bg-white rounded-tl-xl">
+        <div class="flex-1 bg-white rounded-tl-xl relative">
             <router-view />
+
+            <!-- 全局音乐播放器核心 + 弹出面板 -->
+            <AudioPlayerCore />
+            <MusicPlayerOverlay />
         </div>
     </div>
 </template>
@@ -11,6 +15,8 @@ import { onMounted } from 'vue';
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
 import SideNavBar from '../components/layout/SideNavBar.vue';
+import AudioPlayerCore from '../components/audio/AudioPlayerCore.vue';
+import MusicPlayerOverlay from '../components/audio/MusicPlayerOverlay.vue';
 
 onMounted(async () => {
     console.log("主页面加载");

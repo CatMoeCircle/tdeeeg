@@ -20,6 +20,8 @@
                 </div>
             </div>
         </div>
+        <!-- 音乐播放器入口（聊天打开时由 ChatDetail 接管） -->
+        <MusicPlayerEntry v-if="!isChatOpen" compact />
         <div class="flex-1 overflow-y-auto">
             <div class="py-2">
                 <router-link to="/home/settings/appearance"
@@ -32,6 +34,19 @@
                     <div class="flex-1">
                         <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">外观</h3>
                         <p class="text-xs text-gray-500">主题, 字体, 聊天背景</p>
+                    </div>
+                    <ChevronRightIcon class="w-4 h-4 text-gray-400" />
+                </router-link>
+
+                <router-link to="/home/settings/download"
+                    class="flex items-center px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    active-class="bg-blue-50 dark:bg-gray-800 text-blue-600">
+                    <div class="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center mr-3">
+                        <DatabaseIcon class="w-5 h-5" />
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">数据和存储</h3>
+                        <p class="text-xs text-gray-500">自动下载, 存储管理</p>
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                 </router-link>
@@ -53,11 +68,17 @@
 </template>
 
 <script setup lang="ts">
-import { PaletteIcon, ChevronRightIcon, GlobeIcon } from 'lucide-vue-next';
+import { PaletteIcon, ChevronRightIcon, GlobeIcon, DatabaseIcon } from 'lucide-vue-next';
 import avatar from './avatar.vue';
 import { useUserStore } from '../../store/user';
 import { storeToRefs } from 'pinia';
+import { useRoute } from 'vue-router';
+import { computed } from 'vue';
+import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
 
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
+
+const route = useRoute();
+const isChatOpen = computed(() => /^\/home\/chats\/\d+/.test(route.path));
 </script>

@@ -42,6 +42,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { MessageContent, messageForwardInfo, messageReplyToMessage, MessageSendingState, message } from 'tdlib-types';
 import MessageReply from './MessageReply.vue';
 
@@ -153,6 +154,6 @@ function onOpenForwardSource() {
     emit('openForwardSource');
 }
 
-const isServiceType = SERVICE_TYPES.has(props.content._);
-const isMediaType = MEDIA_TYPES.has(props.content._);
+const isServiceType = computed(() => SERVICE_TYPES.has(props.content._));
+const isMediaType = computed(() => MEDIA_TYPES.has(props.content._));
 </script>

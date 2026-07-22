@@ -2,9 +2,8 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
-import type { Update } from "tdlib-types";
 
-/** 文件类型分类 */
+/** 文件类型分类（与 Rust 端 DownloadFileType 对应） */
 export type DownloadFileType =
     | "document"   // 普通文件
     | "photo"      // 图片
@@ -16,26 +15,27 @@ export type DownloadFileType =
     | "avatar"     // 用户/群组头像
     | "other";     // 其他（缩略图缓存等）
 
+/** Rust 端 DownloadItem 的序列化结构 */
 export interface DownloadItem {
-    fileId: number;
-    fileName: string;
+    file_id: number;
+    file_name: string;
     /** 来源对话标题 */
-    chatTitle: string;
+    chat_title: string;
     /** 来源对话 ID */
-    chatId?: number;
-    messageId?: number;
-    totalSize: number;
-    downloadedSize: number;
+    chat_id?: number;
+    message_id?: number;
+    total_size: number;
+    downloaded_size: number;
     progress: number; // 0~1
-    isPaused: boolean;
-    isCompleted: boolean;
-    localPath?: string;
+    is_paused: boolean;
+    is_completed: boolean;
+    local_path?: string;
     /** 缩略图 base64（minithumbnail 或缩略图文件） */
-    thumbnailDataUrl?: string;
+    thumbnail_data_url?: string;
     /** 文件类型分类 */
-    fileType: DownloadFileType;
+    file_type: DownloadFileType;
     /** 通用资源标记（贴纸/emoji/头像等），默认隐藏且不计入红点 */
-    isGeneric: boolean;
+    is_generic: boolean;
     /** 在下载管理器中已手动关闭/移除 */
     dismissed: boolean;
 }
@@ -47,7 +47,7 @@ export const useDownloadStore = defineStore("downloads", () => {
     /** 非通用资源的活跃（进行中/暂停 + 未完成 + 未关闭）下载项 */
     const activeItems = computed(() =>
         Object.values(items.value).filter(
-            (item) => !item.isGeneric && !item.isCompleted && !item.dismissed
+            (item) => !item.is_generic && !item.is_completed && !item.dismissed
         )
     );
 
@@ -57,73 +57,77 @@ export const useDownloadStore = defineStore("downloads", () => {
     /** 可见的下载项（根据 showHidden 开关过滤） */
     const visibleItems = computed(() =>
         Object.values(items.value)
-            .filter((item) => !item.dismissed && (showHidden.value || !item.isGeneric))
-            .sort((a, b) => b.fileId - a.fileId)
+            .filter((item) => !item.dismissed && (showHidden.value || !item.is_generic))
+            .sort((a, b) => b.file_id - a.file_id)
     );
 
     /** 已完成且可见的项 */
     const completedItems = computed(() =>
-        visibleItems.value.filter((item) => item.isCompleted)
+        visibleItems.value.filter((item) => item.is_completed)
     );
 
     /** 进行中或暂停的可见项 */
     const pendingItems = computed(() =>
-        visibleItems.value.filter((item) => !item.isCompleted)
+        visibleItems.value.filter((item) => !item.is_completed)
     );
 
     /** 是否有隐藏的未完成下载 */
     const hasHiddenActive = computed(() =>
         Object.values(items.value).some(
-            (item) => item.isGeneric && !item.isCompleted && !item.dismissed
+            (item) => item.is_generic && !item.is_completed && !item.dismissed
         )
     );
 
-    /** 初始化：监听 updateFile 事件 */
-    let unlisten: (() => void) | null = null;
+    /** 初始化：从 Rust 加载历史记录 + 监听实时更新 */
+    let unlistenProgress: (() => void) | null = null;
 
     async function init() {
-        if (unlisten) return;
-        unlisten = await listen<Update>("tdlib-update", (event) => {
-            const update = event.payload;
-            if (update._ === "updateFile") {
-                handleUpdateFile(update.file);
-            }
-        });
-    }
+        // 1. 从 Rust 加载持久化的下载记录
+        await refreshFromRust();
 
-    function destroy() {
-        if (unlisten) {
-            unlisten();
-            unlisten = null;
+        // 2. 监听 Rust 发来的实时进度更新
+        if (!unlistenProgress) {
+            unlistenProgress = await listen<DownloadItem>("download-progress-update", (event) => {
+                const item = event.payload;
+                if (item && item.file_id) {
+                    items.value[item.file_id] = item;
+                }
+            });
         }
     }
 
-    function handleUpdateFile(file: any) {
-        if (!file || !file.id) return;
-        const existing = items.value[file.id];
-        if (!existing) return; // 只处理已注册的下载
+    /** 从 Rust 端重新拉取全量下载记录 */
+    async function refreshFromRust() {
+        try {
+            const rustItems: DownloadItem[] = await invoke("get_downloads");
+            const map: Record<number, DownloadItem> = {};
+            for (const item of rustItems) {
+                map[item.file_id] = item;
+            }
+            items.value = map;
 
-        const totalSize = file.size || file.expected_size || existing.totalSize;
-        const downloadedSize = file.local?.downloaded_size || 0;
-        const isDlActive = file.local?.is_downloading_active === true;
-        const isDlCompleted = file.local?.is_downloading_completed === true;
-        const progress = totalSize > 0 ? downloadedSize / totalSize : 0;
+            // 同步 showHidden 状态
+            try {
+                showHidden.value = await invoke("get_show_hidden_downloads");
+            } catch (e) {
+                console.warn("Failed to get show_hidden from Rust:", e);
+            }
+        } catch (e) {
+            console.error("Failed to load downloads from Rust:", e);
+        }
+    }
 
-        items.value[file.id] = {
-            ...existing,
-            downloadedSize,
-            totalSize,
-            progress,
-            isPaused: !isDlActive && !isDlCompleted,
-            isCompleted: isDlCompleted,
-            localPath: isDlCompleted ? (file.local?.path || existing.localPath) : existing.localPath,
-        };
+    function destroy() {
+        if (unlistenProgress) {
+            unlistenProgress();
+            unlistenProgress = null;
+        }
     }
 
     /**
      * 注册一个下载项（由组件在发起下载前调用）
      */
-    function registerDownload(
+    async function registerDownload(
         fileId: number,
         fileName: string,
         chatTitle: string,
@@ -133,49 +137,50 @@ export const useDownloadStore = defineStore("downloads", () => {
         chatId?: number,
         messageId?: number
     ) {
-        const existing = items.value[fileId];
-        if (existing && !existing.dismissed) {
-            // 更新已有记录中可能缺失的信息
+        try {
+            await invoke("register_download", {
+                fileId,
+                fileName,
+                chatTitle,
+                totalSize,
+                fileType,
+                thumbnailDataUrl: thumbnailDataUrl || null,
+                chatId: chatId || null,
+                messageId: messageId || null,
+            });
+            // 注册成功后，立即将本地状态置为进行中
             items.value[fileId] = {
-                ...existing,
-                fileName: existing.fileName.startsWith("文件 #") ? fileName : existing.fileName,
-                chatTitle: existing.chatTitle || chatTitle,
-                thumbnailDataUrl: existing.thumbnailDataUrl || thumbnailDataUrl,
-                fileType: existing.fileType === "other" ? fileType : existing.fileType,
+                file_id: fileId,
+                file_name: fileName,
+                chat_title: chatTitle,
+                total_size: totalSize,
+                downloaded_size: 0,
+                progress: 0,
+                is_paused: false,
+                is_completed: false,
+                file_type: fileType,
+                thumbnail_data_url: thumbnailDataUrl,
+                is_generic: fileType === "sticker" || fileType === "avatar" || fileType === "other",
+                dismissed: false,
+                chat_id: chatId,
+                message_id: messageId,
+                local_path: undefined,
             };
-            return;
+        } catch (e) {
+            console.error("registerDownload failed:", e);
         }
-
-        const isGeneric = fileType === "sticker" || fileType === "avatar" || fileType === "other";
-
-        items.value[fileId] = {
-            fileId,
-            fileName,
-            chatTitle,
-            totalSize,
-            downloadedSize: 0,
-            progress: 0,
-            isPaused: false,
-            isCompleted: false,
-            fileType,
-            thumbnailDataUrl,
-            isGeneric,
-            dismissed: false,
-            chatId,
-            messageId,
-        };
     }
 
     /** 获取指定文件的最新下载进度（0~1），-1 表示未找到 */
     function getProgress(fileId: number): number {
         const item = items.value[fileId];
         if (!item) return -1;
-        if (item.isCompleted) return 1;
+        if (item.is_completed) return 1;
         return item.progress;
     }
 
     /** 获取指定文件的下载状态 */
-    function getDownloadInfo(fileId: number) {
+    function getDownloadInfo(fileId: number): DownloadItem | undefined {
         return items.value[fileId];
     }
 
@@ -185,9 +190,10 @@ export const useDownloadStore = defineStore("downloads", () => {
         if (!item) return;
         try {
             await invoke("tdlib_send", {
-                request: { _: "toggleDownloadIsPaused", file_id: fileId, is_paused: !item.isPaused },
+                request: { _: "toggleDownloadIsPaused", file_id: fileId, is_paused: !item.is_paused },
             });
-            items.value[fileId] = { ...items.value[fileId], isPaused: !item.isPaused };
+            // 乐观更新本地状态
+            items.value[fileId] = { ...items.value[fileId], is_paused: !item.is_paused };
         } catch (e) {
             console.error("toggleDownloadIsPaused failed:", e);
         }
@@ -199,27 +205,47 @@ export const useDownloadStore = defineStore("downloads", () => {
             await invoke("tdlib_send", {
                 request: { _: "cancelDownloadFile", file_id: fileId },
             });
-            dismissItem(fileId);
+            await dismissItem(fileId);
         } catch (e) {
             console.error("cancelDownloadFile failed:", e);
         }
     }
 
     /** 标记已关闭（从下载管理器中移除） */
-    function dismissItem(fileId: number) {
-        if (items.value[fileId]) {
-            items.value[fileId].dismissed = true;
+    async function dismissItem(fileId: number) {
+        try {
+            await invoke("dismiss_download", { fileId });
+            if (items.value[fileId]) {
+                items.value[fileId] = { ...items.value[fileId], dismissed: true };
+            }
+        } catch (e) {
+            console.error("dismiss_download failed:", e);
         }
     }
 
     /** 清除所有已完成/已关闭的项 */
-    function clearCompleted() {
-        for (const key of Object.keys(items.value)) {
-            const id = Number(key);
-            const item = items.value[id];
-            if (item.isCompleted || item.dismissed) {
-                delete items.value[id];
+    async function clearCompleted() {
+        try {
+            await invoke("clear_completed_downloads");
+            for (const key of Object.keys(items.value)) {
+                const id = Number(key);
+                if (items.value[id]?.is_completed || items.value[id]?.dismissed) {
+                    delete items.value[id];
+                }
             }
+        } catch (e) {
+            console.error("clear_completed_downloads failed:", e);
+        }
+    }
+
+    /** 切换显示隐藏资源 */
+    async function toggleShowHidden() {
+        const newValue = !showHidden.value;
+        try {
+            await invoke("set_show_hidden_downloads", { value: newValue });
+            showHidden.value = newValue;
+        } catch (e) {
+            console.error("set_show_hidden_downloads failed:", e);
         }
     }
 
@@ -234,6 +260,7 @@ export const useDownloadStore = defineStore("downloads", () => {
         hasHiddenActive,
         init,
         destroy,
+        refreshFromRust,
         registerDownload,
         getProgress,
         getDownloadInfo,
@@ -241,5 +268,6 @@ export const useDownloadStore = defineStore("downloads", () => {
         cancelDownload,
         dismissItem,
         clearCompleted,
+        toggleShowHidden,
     };
 });

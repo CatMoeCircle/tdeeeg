@@ -30,7 +30,7 @@
                 <Transition name="fade">
                     <div v-if="menuOpen"
                         class="absolute right-0 top-10 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
-                        <button type="button" @click="store.showHidden = !store.showHidden; menuOpen = false"
+                        <button type="button" @click="store.toggleShowHidden(); menuOpen = false"
                             class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path v-if="!store.showHidden"
@@ -42,7 +42,7 @@
                             {{ store.showHidden ? '隐藏通用资源' : '显示隐藏的通用资源' }}
                             <span v-if="store.hasHiddenActive && !store.showHidden"
                                 class="ml-auto text-xs text-gray-400">({{
-                                    store.pendingItems.filter(i => i.isGeneric).length }})</span>
+                                    store.pendingItems.filter(i => i.is_generic).length}})</span>
                         </button>
                         <hr class="my-1 border-gray-200 dark:border-gray-700" />
                         <button type="button" @click="store.clearCompleted(); menuOpen = false"
@@ -65,7 +65,7 @@
                 <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
                 <line x1="1" y1="1" x2="23" y2="23" />
             </svg>
-            <span>有 {{store.pendingItems.filter(i => i.isGeneric).length}} 个通用资源下载已隐藏</span>
+            <span>有 {{store.pendingItems.filter(i => i.is_generic).length}} 个通用资源下载已隐藏</span>
             <button type="button" @click="store.showHidden = true"
                 class="ml-auto font-medium hover:underline shrink-0">查看</button>
         </div>
@@ -76,23 +76,25 @@
                 <div class="px-4 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wider">
                     进行中
                 </div>
-                <div v-for="item in store.pendingItems" :key="item.fileId"
+                <div v-for="item in store.pendingItems" :key="item.file_id"
                     class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
                     <!-- 文件图标 / 缩略图 -->
                     <div class="w-11 h-11 rounded-lg overflow-hidden shrink-0 relative">
                         <!-- 图片/视频缩略图 -->
-                        <img v-if="item.thumbnailDataUrl && (item.fileType === 'photo' || item.fileType === 'video')"
-                            :src="item.thumbnailDataUrl"
+                        <img v-if="item.thumbnail_data_url && (item.file_type === 'photo' || item.file_type === 'video')"
+                            :src="item.thumbnail_data_url"
                             class="w-full h-full object-cover bg-gray-100 dark:bg-gray-700" />
                         <!-- 下载完成后的完整文件 -->
-                        <img v-else-if="item.localPath && item.fileType === 'photo'" :src="toAssetUrl(item.localPath)"
+                        <img v-else-if="item.local_path && item.file_type === 'photo'"
+                            :src="toAssetUrl(item.local_path)"
                             class="w-full h-full object-cover bg-gray-100 dark:bg-gray-700" />
                         <!-- 通用图标 -->
                         <div v-else class="w-full h-full flex items-center justify-center" :class="iconBgClass(item)">
                             <component :is="fileIcon(item)" class="w-5 h-5" :class="iconColorClass(item)" />
                         </div>
                         <!-- 暂停覆盖层 -->
-                        <div v-if="item.isPaused" class="absolute inset-0 bg-black/30 flex items-center justify-center">
+                        <div v-if="item.is_paused"
+                            class="absolute inset-0 bg-black/30 flex items-center justify-center">
                             <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
                                 <rect x="6" y="4" width="4" height="16" rx="1" />
                                 <rect x="14" y="4" width="4" height="16" rx="1" />
@@ -102,33 +104,33 @@
 
                     <div class="flex-1 min-w-0">
                         <p class="text-sm font-medium truncate text-gray-900 dark:text-gray-100">
-                            {{ item.fileName }}
-                            <span v-if="item.isGeneric"
+                            {{ item.file_name }}
+                            <span v-if="item.is_generic"
                                 class="ml-1.5 text-[10px] text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-1 rounded">通用</span>
                         </p>
                         <p class="text-xs text-gray-400 truncate">
-                            {{ item.chatTitle || '未知来源' }}
+                            {{ item.chat_title || '未知来源' }}
                             <span class="mx-1">·</span>
-                            {{ formatSize(item.downloadedSize) }} / {{ formatSize(item.totalSize) }}
+                            {{ formatSize(item.downloaded_size) }} / {{ formatSize(item.total_size) }}
                         </p>
                         <div class="mt-1.5 w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                             <div class="h-full rounded-full transition-all duration-300"
-                                :class="item.isPaused ? 'bg-yellow-400' : 'bg-blue-500'"
+                                :class="item.is_paused ? 'bg-yellow-400' : 'bg-blue-500'"
                                 :style="{ width: Math.min(100, item.progress * 100) + '%' }">
                             </div>
                         </div>
                     </div>
 
                     <span class="text-xs text-gray-400 shrink-0 w-10 text-right">{{ (item.progress * 100).toFixed(0)
-                        }}%</span>
+                    }}%</span>
 
                     <!-- 操作按钮 -->
                     <div class="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                         <!-- 暂停/继续 -->
-                        <button type="button" @click="store.togglePause(item.fileId)"
+                        <button type="button" @click="store.togglePause(item.file_id)"
                             class="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg"
-                            :title="item.isPaused ? '继续' : '暂停'">
-                            <svg v-if="item.isPaused" class="w-4 h-4 text-gray-500" viewBox="0 0 24 24"
+                            :title="item.is_paused ? '继续' : '暂停'">
+                            <svg v-if="item.is_paused" class="w-4 h-4 text-gray-500" viewBox="0 0 24 24"
                                 fill="currentColor">
                                 <polygon points="5 3 19 12 5 21 5 3" />
                             </svg>
@@ -138,7 +140,7 @@
                             </svg>
                         </button>
                         <!-- 取消 -->
-                        <button type="button" @click="store.cancelDownload(item.fileId)"
+                        <button type="button" @click="store.cancelDownload(item.file_id)"
                             class="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg" title="取消">
                             <svg class="w-4 h-4 text-gray-400 hover:text-red-500" viewBox="0 0 24 24" fill="none"
                                 stroke="currentColor" stroke-width="2">
@@ -155,14 +157,14 @@
                 <div class="px-4 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wider">
                     已完成
                 </div>
-                <div v-for="item in store.completedItems" :key="item.fileId"
+                <div v-for="item in store.completedItems" :key="item.file_id"
                     class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
                     <!-- 完整展示 -->
                     <div class="w-11 h-11 rounded-lg overflow-hidden shrink-0">
-                        <img v-if="item.localPath && (item.fileType === 'photo' || item.fileType === 'video')"
-                            :src="toAssetUrl(item.localPath)"
+                        <img v-if="item.local_path && (item.file_type === 'photo' || item.file_type === 'video')"
+                            :src="toAssetUrl(item.local_path)"
                             class="w-full h-full object-cover bg-gray-100 dark:bg-gray-700" />
-                        <img v-else-if="item.thumbnailDataUrl" :src="item.thumbnailDataUrl"
+                        <img v-else-if="item.thumbnail_data_url" :src="item.thumbnail_data_url"
                             class="w-full h-full object-cover bg-gray-100 dark:bg-gray-700" />
                         <div v-else
                             class="w-full h-full flex items-center justify-center bg-green-100 dark:bg-green-900">
@@ -174,17 +176,17 @@
                     </div>
                     <div class="flex-1 min-w-0">
                         <p class="text-sm font-medium truncate text-gray-900 dark:text-gray-100">
-                            {{ item.fileName }}
-                            <span v-if="item.isGeneric"
+                            {{ item.file_name }}
+                            <span v-if="item.is_generic"
                                 class="ml-1.5 text-[10px] text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-1 rounded">通用</span>
                         </p>
                         <p class="text-xs text-gray-400 truncate">
-                            {{ item.chatTitle || '未知来源' }}
+                            {{ item.chat_title || '未知来源' }}
                             <span class="mx-1">·</span>
-                            {{ formatSize(item.totalSize) }}
+                            {{ formatSize(item.total_size) }}
                         </p>
                     </div>
-                    <button type="button" @click="store.dismissItem(item.fileId)"
+                    <button type="button" @click="store.dismissItem(item.file_id)"
                         class="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
                         <svg class="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2">
@@ -206,8 +208,8 @@
                 </svg>
                 <p class="text-sm">暂无下载任务</p>
                 <p v-if="store.hasHiddenActive" class="text-xs mt-2 text-blue-500">
-                    <button type="button" @click="store.showHidden = true" class="hover:underline">
-                        {{store.pendingItems.filter(i => i.isGeneric).length}} 个通用资源被隐藏，点击查看
+                    <button type="button" @click="store.toggleShowHidden()" class="hover:underline">
+                        {{store.pendingItems.filter(i => i.is_generic).length}} 个通用资源被隐藏，点击查看
                     </button>
                 </p>
             </div>
@@ -216,12 +218,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted } from "vue";
 import { useDownloadStore, type DownloadFileType } from "../../store/downloads";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import {
     FileIcon, ImageIcon, VideoIcon, MusicIcon, MicIcon,
-    FileJsonIcon, FileSpreadsheetIcon, FileArchiveIcon,
 } from 'lucide-vue-next';
 import type { Component } from "vue";
 
@@ -253,8 +254,8 @@ function formatSize(bytes: number): string {
     return value.toFixed(i === 0 ? 0 : 1) + " " + units[i];
 }
 
-function iconBgClass(item: { fileType: DownloadFileType }): string {
-    switch (item.fileType) {
+function iconBgClass(item: { file_type: DownloadFileType }): string {
+    switch (item.file_type) {
         case "photo": return "bg-purple-100 dark:bg-purple-900";
         case "video": return "bg-pink-100 dark:bg-pink-900";
         case "audio": return "bg-orange-100 dark:bg-orange-900";
@@ -266,8 +267,8 @@ function iconBgClass(item: { fileType: DownloadFileType }): string {
     }
 }
 
-function iconColorClass(item: { fileType: DownloadFileType }): string {
-    switch (item.fileType) {
+function iconColorClass(item: { file_type: DownloadFileType }): string {
+    switch (item.file_type) {
         case "photo": return "text-purple-500";
         case "video": return "text-pink-500";
         case "audio": return "text-orange-500";
@@ -283,8 +284,8 @@ function toAssetUrl(localPath: string): string {
     try { return convertFileSrc(localPath); } catch { return localPath; }
 }
 
-function fileIcon(item: { fileType: DownloadFileType }): Component {
-    switch (item.fileType) {
+function fileIcon(item: { file_type: DownloadFileType }): Component {
+    switch (item.file_type) {
         case "photo": return ImageIcon;
         case "video": return VideoIcon;
         case "audio": return MusicIcon;

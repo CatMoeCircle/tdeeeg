@@ -28,6 +28,9 @@
             </button>
         </div>
 
+        <!-- 音乐播放器入口（聊天打开时由 ChatDetail 接管，此处隐藏） -->
+        <MusicPlayerEntry v-if="!isChatOpen" compact />
+
         <!-- Swipeable Chat List Container -->
         <div class="flex-1 overflow-hidden relative">
             <div ref="swipeContainer" class="swipe-track absolute inset-0 flex"
@@ -70,7 +73,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { BookmarkIcon, SearchIcon } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
 import { settings } from '../../store/settings';
@@ -80,12 +83,19 @@ import { useUserStore } from '../../store/user';
 import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../utils/savedMessages';
 import Avatar from './avatar.vue';
 import type { message } from 'tdlib-types';
+import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
 
 const props = defineProps<{
     isArchive?: boolean;
 }>();
 
 const router = useRouter();
+const route = useRoute();
+
+/** 是否有聊天详情打开（route 包含 chat id） */
+const isChatOpen = computed(() => {
+    return /^\/home\/chats\/\d+/.test(route.path);
+});
 const chatStore = useChatStore();
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);

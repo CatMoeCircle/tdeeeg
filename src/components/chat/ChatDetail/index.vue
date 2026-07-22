@@ -3,7 +3,8 @@
         <!-- ===== Messages Area (底层，穿透 header/footer) ===== -->
         <!-- Skeleton -->
         <div v-if="showSkeleton"
-            class="absolute inset-0 overflow-y-auto px-4 custom-scrollbar flex flex-col messages-scroll pt-16">
+            class="absolute inset-0 overflow-y-auto px-4 custom-scrollbar flex flex-col messages-scroll"
+            :class="topPaddingClass">
             <div class="flex-1"></div>
             <div v-for="n in 8" :key="n" class="flex mb-4" :class="n % 3 === 0 ? 'justify-end' : 'justify-start'">
                 <div v-if="n % 3 !== 0" class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 mr-2 shrink-0"></div>
@@ -16,8 +17,8 @@
 
         <!-- Messages -->
         <div v-else ref="messagesContainer"
-            class="absolute inset-0 overflow-y-auto px-4 custom-scrollbar flex flex-col messages-scroll pt-16 pb-15"
-            @scroll.passive="onScroll">
+            class="absolute inset-0 overflow-y-auto px-4 custom-scrollbar flex flex-col messages-scroll pb-15"
+            :class="topPaddingClass" @scroll.passive="onScroll">
 
             <!-- 顶部加载更多指示器 -->
             <div v-if="isLoadingMore" class="text-center text-gray-400 text-sm py-3 shrink-0">
@@ -44,9 +45,10 @@
 
                     <!-- Album group -->
                     <template v-else-if="item.type === 'album'">
-                        <div :data-msg-id="item.messages[0].id"
-                            :class="{ 'animate-message-in': isNewMessage(item.messages[0].id) }"
-                            @animationend="removeNewMessageId(item.messages[0].id)">
+                        <div :data-msg-id="item.messages[0].id" :class="{
+                            'animate-message-in': isNewMessage(item.messages[0].id),
+                            'animate-flash-highlight': highlightedMessageId === item.messages[0].id
+                        }" @animationend="onMessageAnimEnd($event, item.messages[0].id)">
                             <div class="flex mb-2" :class="isSelfAlbum(item) ? 'justify-end' : 'justify-start'">
                                 <div v-if="shouldReserveAvatarColumn(item.messages[0])"
                                     class="w-9 shrink-0 mr-2 self-end">
@@ -86,8 +88,10 @@
 
                     <!-- Single message -->
                     <template v-else-if="item.type === 'single'">
-                        <div :data-msg-id="item.msg.id" :class="{ 'animate-message-in': isNewMessage(item.msg.id) }"
-                            @animationend="removeNewMessageId(item.msg.id)">
+                        <div :data-msg-id="item.msg.id" :class="{
+                            'animate-message-in': isNewMessage(item.msg.id),
+                            'animate-flash-highlight': highlightedMessageId === item.msg.id
+                        }" @animationend="onMessageAnimEnd($event, item.msg.id)">
                             <div v-if="isServiceMessage(item.msg)" class="flex justify-center my-1">
                                 <MessageContent :content="item.msg.content" />
                             </div>
@@ -178,6 +182,15 @@
         <div
             class="absolute top-0 left-0 right-0 z-10 bg-white/80 dark:bg-[#1c1c1c]/70 backdrop-blur-lg border-b border-gray-200/60 dark:border-gray-800/60">
             <ChatDetailHeader :chat="chat" :showBack="showOverlay" @back="closeOverlay" @openInfo="openOverlay" />
+        </div>
+
+        <!-- ===== 顶置消息栏 + 音乐播放器（合并同一卡片） ===== -->
+        <div class="absolute inset-x-0 z-10 flex justify-center pointer-events-none"
+            :class="showTopCard ? 'top-17.5' : 'hidden'">
+            <div class="w-full px-1 pointer-events-auto">
+                <PinnedMessageBar :chatId="chatId" @jumpToMessage="jumpToPinnedMessage"
+                    @visibleChange="onPinnedVisibleChange" />
+            </div>
         </div>
 
         <!-- ===== 叠层面板 ===== -->
@@ -280,6 +293,7 @@ import MessageAlbum from './MessageContent/MessageAlbum.vue';
 import ChatDetailHeader from './Header.vue';
 import MediaViewer from './MessageContent/MediaViewer.vue';
 import type { MediaViewerItem } from './MessageContent/MediaViewer.vue';
+import PinnedMessageBar from './PinnedMessageBar.vue';
 
 import { tdlibSend } from '../../../utils/tdlib';
 import { isOutgoingMessageForDisplay, isSavedMessagesChat } from '../../../utils/savedMessages';
@@ -289,6 +303,7 @@ import { CornerUpRightIcon, MessageCircleIcon } from 'lucide-vue-next';
 import { useRoute, useRouter } from 'vue-router';
 import { computed, watch, ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useUserStore } from '../../../store/user';
+import { useAudioPlayerStore } from '../../../store/audioPlayer';
 import { storeToRefs } from 'pinia';
 import { listen } from "@tauri-apps/api/event";
 
@@ -372,6 +387,7 @@ const messagesVersion = ref(0);
 
 // User Store
 const userStore = useUserStore();
+const player = useAudioPlayerStore();
 const { userProfile } = storeToRefs(userStore);
 const myId = computed(() => userProfile.value?.id || 0);
 
@@ -594,6 +610,37 @@ let chatLoadRetryTimer: number | null = null;
 /** 滚动管理状态 — 必须声明在 watch 之前，因为 resetState 被 immediate watch 调用 */
 let readVisibilityTimer: number | null = null;
 let lastReportedReadMessageId = 0;
+
+// ==================== Pinned Messages ====================
+const pinnedBarVisible = ref(false);
+
+function onPinnedVisibleChange(visible: boolean) {
+    pinnedBarVisible.value = visible;
+}
+
+/** 高亮闪烁的消息 ID，用于顶置消息跳转动画 */
+const highlightedMessageId = ref<number | null>(null);
+let highlightTimer: number | null = null;
+
+interface PinnedJumpContext {
+    minId: number;
+    maxId: number;
+    loading: boolean;
+    exhaustedOlder: boolean;
+    exhaustedNewer: boolean;
+}
+const pinnedJumpCtx = ref<PinnedJumpContext | null>(null);
+
+function flashMessage(messageId: number) {
+    if (highlightTimer !== null) {
+        window.clearTimeout(highlightTimer);
+    }
+    highlightedMessageId.value = messageId;
+    highlightTimer = window.setTimeout(() => {
+        highlightedMessageId.value = null;
+        highlightTimer = null;
+    }, 2000);
+}
 
 /** 检查加载代数是否已过期（聊天已切换），过期则中止后续操作 */
 function isGenerationValid(gen: number): boolean {
@@ -967,6 +1014,69 @@ async function scrollToTargetOrBottom(targetId: number, chatIdNum: number, gen: 
 }
 
 // ==================== Scroll Events ====================
+/**
+ * 加载顶置跳转上下文中更旧的消息（向 pinnedJumpCtx.minId 方向）。
+ * 当新加载的消息全部已在列表中（重叠），说明间隙已填满，标记 exhaustedOlder。
+ */
+async function loadPinnedJumpOlder(el: HTMLElement, gen: number) {
+    const ctx = pinnedJumpCtx.value;
+    const loadChat = chatId.value;
+    if (!ctx || !loadChat || ctx.exhaustedOlder) return;
+
+    isLoadingMore.value = true;
+    try {
+        // 加载的消息中可能包含已在列表中的消息（间隙已填满）
+        const older = await fetchMessages(loadChat, ctx.minId, 30, 0, gen);
+        if (!isGenerationValid(gen) || chatId.value !== loadChat) return;
+        if (older.length === 0) { ctx.exhaustedOlder = true; return; }
+
+        const existingIds = new Set(messages.value.map(m => m.id));
+        const unique = older.filter(m => !existingIds.has(m.id));
+        if (unique.length === 0) { ctx.exhaustedOlder = true; return; }
+
+        const prevHeight = el.scrollHeight;
+        messages.value = [...unique, ...messages.value];
+        ctx.minId = messages.value[0].id;
+        messagesVersion.value++;
+        await nextTick();
+        el.scrollTop = el.scrollHeight - prevHeight + el.scrollTop;
+    } finally {
+        isLoadingMore.value = false;
+    }
+}
+
+/**
+ * 加载顶置跳转上下文中更新消息（向 pinnedJumpCtx.maxId 方向）。
+ * 当新加载的消息全部已在列表中（重叠），说明间隙已填满，标记 exhaustedNewer。
+ */
+async function loadPinnedJumpNewer(gen: number) {
+    const ctx = pinnedJumpCtx.value;
+    const loadChat = chatId.value;
+    if (!ctx || !loadChat || ctx.exhaustedNewer) return;
+
+    isLoadingMore.value = true;
+    try {
+        // 用 maxId 作为 from_message_id，offset=-limit 获取更新消息
+        const newer = await fetchMessages(loadChat, ctx.maxId, 30, -30, gen);
+        if (!isGenerationValid(gen) || chatId.value !== loadChat) return;
+        // 过滤掉 maxId 自身（fetchMessages 会包含 from_message_id）
+        const filtered = newer.filter(m => m.id !== ctx.maxId);
+        if (filtered.length === 0) { ctx.exhaustedNewer = true; return; }
+
+        const existingIds = new Set(messages.value.map(m => m.id));
+        const unique = filtered.filter(m => !existingIds.has(m.id));
+        // 如果所有新加载消息都已存在，说明间隙已填满
+        if (unique.length === 0) { ctx.exhaustedNewer = true; return; }
+
+        messages.value = [...messages.value, ...unique].sort((a, b) => a.id - b.id);
+        ctx.maxId = messages.value[messages.value.length - 1].id;
+        messagesVersion.value++;
+        await nextTick();
+    } finally {
+        isLoadingMore.value = false;
+    }
+}
+
 const onScroll = async (e: Event) => {
     const el = e.currentTarget as HTMLElement;
     const H = el.scrollHeight;
@@ -984,21 +1094,54 @@ const onScroll = async (e: Event) => {
     // 内容未溢出时忽略
     if (H <= C + 2) return;
 
-    // 顶部检测 — 触发加载更旧消息
+    if (isLoadingMore.value || !chatId.value || !isReady.value) return;
+    const scrollGen = loadGeneration;
+    const loadChat = chatId.value;
+
+    // 顶置跳转上下文中的动态加载
+    const ctx = pinnedJumpCtx.value;
+    if (ctx) {
+        const oldestMsgEl = el.querySelector('[data-msg-id]') as HTMLElement | null;
+        const newestMsgEl = el.querySelectorAll('[data-msg-id]');
+        const lastMsgEl = newestMsgEl.length > 0 ? newestMsgEl[newestMsgEl.length - 1] as HTMLElement : null;
+
+        // 检测是否接近顶置上下文的旧端（向原始消息方向加载更旧消息）
+        if (!ctx.exhaustedOlder && oldestMsgEl) {
+            const msgId = parseInt(oldestMsgEl.dataset.msgId || '0');
+            if (msgId > 0 && msgId <= ctx.minId + 5 && T <= 60) {
+                await loadPinnedJumpOlder(el, scrollGen);
+                return;
+            }
+        }
+
+        // 检测是否接近顶置上下文的新端（向原始消息方向加载更新消息）
+        if (!ctx.exhaustedNewer && lastMsgEl) {
+            const msgId = parseInt(lastMsgEl.dataset.msgId || '0');
+            if (msgId > 0 && msgId >= ctx.maxId - 5) {
+                // 检查是否滚动到了列表尾部附近
+                const newestMsgBottom = lastMsgEl.offsetTop + lastMsgEl.clientHeight;
+                if (T + C >= newestMsgBottom - 100) {
+                    await loadPinnedJumpNewer(scrollGen);
+                    return;
+                }
+            }
+        }
+
+        // 如果两侧都已耗尽，清理上下文
+        if (ctx.exhaustedOlder && ctx.exhaustedNewer) {
+            pinnedJumpCtx.value = null;
+        }
+    }
+
+    // 顶部检测 — 触发加载更旧消息（仅在非顶置上下文或普通模式下）
     const atTop = T <= 30;
     if (
         !atTop ||
-        isLoadingMore.value ||
         isHistoryExhausted.value ||
-        messages.value.length === 0 ||
-        !chatId.value ||
-        !isReady.value
+        messages.value.length === 0
     ) return;
 
-    // 用 loadGeneration 避免竞态
-    const loadChat = chatId.value;
     if (!loadChat) { isLoadingMore.value = false; return; }
-    const scrollGen = loadGeneration;
 
     isLoadingMore.value = true;
     const oldestId = messages.value[0]?.id;
@@ -1073,6 +1216,13 @@ function resetState() {
     linkedChatId.value = 0;
     isJoinPending.value = false;
     joinRequestSent.value = false;
+    pinnedBarVisible.value = false;
+    pinnedJumpCtx.value = null;
+    if (highlightTimer !== null) {
+        window.clearTimeout(highlightTimer);
+        highlightTimer = null;
+    }
+    highlightedMessageId.value = null;
 }
 
 // ==================== Helpers ====================
@@ -1251,6 +1401,75 @@ const shouldReserveAvatarColumn = (msg: message) => {
 };
 
 const showSkeleton = computed(() => messages.value.length === 0 && !isReady.value);
+
+/** 动态顶部间距：同时考虑顶置栏和音乐播放器入口 */
+const showTopCard = computed(() => pinnedBarVisible.value || player.showEntry);
+
+const topPaddingClass = computed(() => {
+    if (showTopCard.value) return 'pt-33';
+    return 'pt-16';
+});
+
+/**
+ * 顶置消息跳转：如果消息已在列表中，直接滚动+闪烁；
+ * 否则从 TDLib 获取顶置消息前后的消息，合并到列表，再定位。
+ */
+async function jumpToPinnedMessage(messageId: number) {
+    const currentChatId = chatId.value;
+    if (!currentChatId) return;
+
+    // 1. 如果消息已在列表，直接跳转
+    if (messages.value.some(m => m.id === messageId)) {
+        scrollToMessage(messageId);
+        flashMessage(messageId);
+        return;
+    }
+
+    // 2. 获取顶置消息前后的消息
+    // getChatHistory with offset=0: 获取 messageId 及更旧的
+    // getChatHistory with offset=-limit: 获取 messageId 及更新的
+    // 各取 30 条以确保上下文充足
+    const LIMIT = 30;
+    try {
+        const [olderBatch, newerBatch] = await Promise.all([
+            fetchMessages(currentChatId, messageId, LIMIT, 0),
+            fetchMessages(currentChatId, messageId, LIMIT, -LIMIT),
+        ]);
+
+        // 合并去重
+        const batch = [...olderBatch, ...newerBatch.filter(m => m.id !== messageId)];
+        if (batch.length === 0) return;
+
+        // 记录本次跳转加载的范围
+        const batchMinId = batch[0].id;
+        const batchMaxId = batch[batch.length - 1].id;
+
+        // 合并到现有列表
+        const existingIds = new Set(messages.value.map(m => m.id));
+        const unique = batch.filter(m => !existingIds.has(m.id));
+        const previousLength = messages.value.length;
+        if (unique.length > 0) {
+            const allMsgs = [...messages.value, ...unique].sort((a, b) => a.id - b.id);
+            messages.value = allMsgs;
+            messagesVersion.value++;
+        }
+
+        // 设置跳转上下文
+        pinnedJumpCtx.value = {
+            minId: batchMinId,
+            maxId: batchMaxId,
+            loading: false,
+            exhaustedOlder: false,
+            exhaustedNewer: previousLength === 0,
+        };
+
+        await nextTick();
+        scrollToMessage(messageId);
+        flashMessage(messageId);
+    } catch (e) {
+        console.error('jumpToPinnedMessage error:', e);
+    }
+}
 
 // ==================== First/Last In Group (oldest-first) ====================
 /** 判断两条消息是否是同一发送者 */
@@ -1576,6 +1795,18 @@ const openLinkedChat = () => {
 const isNewMessage = (id: number) => newMessageIds.value.has(id);
 const removeNewMessageId = (id: number) => newMessageIds.value.delete(id);
 
+/** 消息动画结束处理：区分新消息弹出和高亮闪烁 */
+function onMessageAnimEnd(event: AnimationEvent, messageId: number) {
+    const name = event.animationName;
+    if (name === 'flash-highlight') {
+        if (highlightedMessageId.value === messageId) {
+            highlightedMessageId.value = null;
+        }
+    } else {
+        removeNewMessageId(messageId);
+    }
+}
+
 const handleScrollToBottom = () => {
     showScrollButton.value = false;
     newMessageCount.value = 0;
@@ -1598,6 +1829,39 @@ const handleScrollToBottom = () => {
 
 .animate-message-in {
     animation: message-pop-in 0.25s ease-out;
+}
+
+/* 顶置消息跳转闪烁高亮动画 */
+@keyframes flash-highlight {
+    0% {
+        box-shadow: 0 0 0 0 transparent;
+        background-color: transparent;
+    }
+
+    15% {
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.35);
+        background-color: rgba(59, 130, 246, 0.12);
+    }
+
+    50% {
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+        background-color: rgba(59, 130, 246, 0.10);
+    }
+
+    85% {
+        box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.10);
+        background-color: rgba(59, 130, 246, 0.04);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 transparent;
+        background-color: transparent;
+    }
+}
+
+.animate-flash-highlight {
+    animation: flash-highlight 0.7s ease-in-out 0.2s;
+    border-radius: 10px;
 }
 
 /* 叠层面板滑动动画 */

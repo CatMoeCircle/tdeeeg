@@ -1,7 +1,10 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 mod chat_store;
+mod download_store;
 mod media_stream;
 mod tdlib;
+
+use tauri::Manager;
 
 #[tauri::command]
 fn set_window_effect(window: tauri::WebviewWindow, effect: String) -> Result<(), String> {
@@ -26,13 +29,24 @@ pub fn run() {
         })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
-        .manage(tdlib::AppState::new())
+        .setup(|app| {
+            let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+            app.manage(tdlib::AppState::new(data_dir));
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             tdlib::init_tdlib,
             tdlib::tdlib_send,
             tdlib::set_tdlib_parameters,
             tdlib::get_chat_list,
             tdlib::get_chat_lists,
+            tdlib::get_downloads,
+            tdlib::get_download_active_count,
+            tdlib::register_download,
+            tdlib::dismiss_download,
+            tdlib::clear_completed_downloads,
+            tdlib::get_show_hidden_downloads,
+            tdlib::set_show_hidden_downloads,
             set_window_effect,
         ])
         .run(tauri::generate_context!())

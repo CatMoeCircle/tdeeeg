@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { Update } from "tdlib-types";
 import { onMounted, onUnmounted, ref } from "vue";
 import { tdlibSend } from "./utils/tdlib";
 import { useRouter } from "vue-router";

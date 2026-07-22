@@ -52,6 +52,9 @@ import MessageTextContent from './MessageTextContent.vue';
 import type { MediaViewerItem } from './MediaViewer.vue';
 import { layoutMediaGroup, type MediaGroupSize } from '../../../../utils/mediaGroupLayout';
 import { registerMediaItem, unregisterMediaItem, openMediaViewer } from '../../../../store/mediaViewer';
+import { settings } from '../../../../store/settings';
+import { getChatCategory } from '../../../../utils/autoDownload';
+import { useChatStore } from '../../../../store/chat';
 
 const props = defineProps<{
     messages: message[];
@@ -215,11 +218,24 @@ async function loadPhoto(msg: message): Promise<boolean> {
     if (ff && !mediaCache[msg.id]) {
         if (isFileReady(ff)) { mediaCache[msg.id] = convertFileSrc(ff.local.path); c = true; }
         else if (ff.local.can_be_downloaded && !downloadingFiles.has(ff.id)) {
-            try {
-                await safeDownloadFile(ff.id, true);
-                const r = await tdlibSend({ _: 'getFile', file_id: ff.id });
-                if (isFileReady(r)) { mediaCache[msg.id] = convertFileSrc(r.local.path); c = true; }
-            } catch (_) { }
+            // 检查自动下载设置
+            let shouldAuto = true;
+            if (props.chatId && settings.autoDownload.enabled) {
+                const cs = useChatStore();
+                const chatData = cs.chats[props.chatId] as any;
+                if (chatData) {
+                    const category = getChatCategory(chatData);
+                    const cfg = settings.autoDownload.photos;
+                    shouldAuto = cfg.enabled && cfg[category];
+                }
+            }
+            if (shouldAuto) {
+                try {
+                    await safeDownloadFile(ff.id, true);
+                    const r = await tdlibSend({ _: 'getFile', file_id: ff.id });
+                    if (isFileReady(r)) { mediaCache[msg.id] = convertFileSrc(r.local.path); c = true; }
+                } catch (_) { }
+            }
         }
     }
     return c;
@@ -230,6 +246,29 @@ async function loadVideo(msg: message): Promise<boolean> {
     let c = false;
     const v = msg.content.video;
     if (isFileReady(v.video) && !mediaCache[msg.id]) { mediaCache[msg.id] = convertFileSrc(v.video.local.path); return true; }
+    // 检查自动下载设置
+    if (props.chatId && settings.autoDownload.enabled) {
+        const cs = useChatStore();
+        const chatData = cs.chats[props.chatId] as any;
+        if (chatData) {
+            const category = getChatCategory(chatData);
+            const cfg = settings.autoDownload.videos;
+            const shouldAuto = cfg.enabled && cfg[category];
+            if (shouldAuto) {
+                const sizeMB = v.video.size / (1024 * 1024);
+                if (sizeMB <= cfg.maxSize && v.video.local.can_be_downloaded && !downloadingFiles.has(v.video.id)) {
+                    try {
+                        downloadingFiles.add(v.video.id);
+                        const r = await tdlibSend({ _: 'downloadFile', file_id: v.video.id, priority: 1, offset: 0, limit: 0, synchronous: true });
+                        if (isFileReady(r)) { mediaCache[msg.id] = convertFileSrc(r.local.path); return true; }
+                    } catch (_) { } finally {
+                        downloadingFiles.delete(v.video.id);
+                    }
+                }
+            }
+        }
+    }
+    // 不满足自动下载条件，仅加载缩略图
     const thumb = v.thumbnail?.file;
     if (!thumb) return false;
     if (isFileReady(thumb) && !thumbCache[msg.id]) { thumbCache[msg.id] = convertFileSrc(thumb.local.path); c = true; }

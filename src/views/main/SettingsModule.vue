@@ -6,7 +6,7 @@
         <template #content>
             <router-view v-slot="{ Component }">
                 <KeepAlive>
-                    <component :is="Component" v-if="Component" />
+                    <component :is="Component" />
                 </KeepAlive>
                 <div v-if="!Component" class="h-full flex items-center justify-center text-gray-400">
                     选择一个设置项

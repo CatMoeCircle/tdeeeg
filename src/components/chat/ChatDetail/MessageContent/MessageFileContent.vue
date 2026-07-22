@@ -45,13 +45,13 @@
                     </div>
                     <button type="button"
                         class="audio-cover-button absolute inset-0 flex items-center justify-center bg-black/20 text-white transition-colors hover:bg-black/30"
-                        :aria-label="isPlaying ? '暂停' : '播放'" @click="togglePlayback">
-                        <PauseIcon v-if="isPlaying" class="h-6 w-6 fill-current" />
+                        :aria-label="isGloballyPlaying ? '暂停' : '播放'" @click="togglePlayback">
+                        <PauseIcon v-if="isGloballyPlaying" class="h-6 w-6 fill-current" />
                         <PlayIcon v-else class="ml-0.5 h-6 w-6 fill-current" />
                     </button>
                 </div>
 
-                <button v-if="!mediaSrc" type="button"
+                <button v-if="!fileReady" type="button"
                     class="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-blue-500 text-white shadow-sm transition-transform active:scale-90 dark:border-gray-800"
                     :aria-label="isDownloading ? '正在下载' : '下载音乐'" :disabled="isDownloading"
                     @click.stop="handleDownload(content.audio.audio.id)">
@@ -65,22 +65,21 @@
             </div>
 
             <div class="flex min-w-0 flex-1 flex-col">
-                <span class="truncate text-sm font-medium">{{ content.audio.title || content.audio.file_name }}</span>
+                <span class="truncate text-sm font-medium"
+                    :class="isCurrentTrack ? 'text-blue-600 dark:text-blue-400' : ''">
+                    {{ content.audio.title || content.audio.file_name }}
+                </span>
                 <span class="truncate text-xs text-gray-500 dark:text-gray-400">
                     {{ content.audio.performer || '未知艺术家' }}
                 </span>
-                <input class="audio-progress mt-1.5 w-full" type="range" min="0" :max="playbackDuration || 1" step="0.1"
-                    :value="currentTime" :style="audioProgressStyle" :disabled="!mediaSrc || playbackDuration <= 0"
+                <input class="audio-progress mt-1.5 w-full" type="range" min="0" :max="displayDuration || 1" step="0.1"
+                    :value="displayTime" :style="audioProgressStyle" :disabled="!isCurrentTrack || displayDuration <= 0"
                     aria-label="音乐播放进度" @input="seekAudio" />
                 <div class="mt-0.5 flex justify-between text-[10px] leading-none text-gray-400 dark:text-gray-500">
-                    <span>{{ formatDuration(currentTime) }}</span>
-                    <span>{{ formatDuration(playbackDuration) }}</span>
+                    <span>{{ formatDuration(displayTime) }}</span>
+                    <span>{{ formatDuration(displayDuration) }}</span>
                 </div>
             </div>
-
-            <audio ref="audioElement" :src="mediaSrc" preload="metadata" class="hidden"
-                @loadedmetadata="onAudioMetadata" @timeupdate="onAudioTimeUpdate" @play="isPlaying = true"
-                @pause="isPlaying = false" @ended="onAudioEnded"></audio>
         </div>
 
         <p v-if="captionSegments.length" class="mt-2 whitespace-pre-wrap break-words text-sm leading-5">
@@ -97,7 +96,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import type { messageDocument, messageAudio, textEntity, InternalLinkType } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -106,6 +105,9 @@ import { FileIcon, DownloadIcon, MusicIcon, PauseIcon, PlayIcon } from 'lucide-v
 import { useRouter } from 'vue-router';
 import { useDownloadStore, type DownloadFileType } from '../../../../store/downloads';
 import { useChatStore } from '../../../../store/chat';
+import { settings } from '../../../../store/settings';
+import { getChatCategory } from '../../../../utils/autoDownload';
+import { useAudioPlayerStore } from '../../../../store/audioPlayer';
 
 const props = defineProps<{
     content: messageDocument | messageAudio;
@@ -115,11 +117,6 @@ const props = defineProps<{
 
 const mediaSrc = ref<string | undefined>(undefined);
 const coverSrc = ref<string | undefined>(undefined);
-const audioElement = ref<HTMLAudioElement | null>(null);
-const isPlaying = ref(false);
-const currentTime = ref(0);
-const loadedDuration = ref(0);
-const playAfterDownload = ref(false);
 const isDownloading = ref(false);
 const currentFileId = ref<number>(0);
 const router = useRouter();
@@ -129,17 +126,37 @@ const downloadCurrentSize = ref(0);
 const downloadTotalSize = ref(0);
 
 const downloadStore = useDownloadStore();
+const audioPlayer = useAudioPlayerStore();
 
-const playbackDuration = computed(() => {
-    if (loadedDuration.value > 0) return loadedDuration.value;
+/** 当前消息是否为全局播放器中正在播放的曲目 */
+const isCurrentTrack = computed(() => {
+    if (props.content._ !== 'messageAudio' || !props.messageId) return false;
+    return audioPlayer.currentTrack?.messageId === props.messageId;
+});
+
+/** 是否正在播放（全局播放器中当前曲目且正在播放） */
+const isGloballyPlaying = computed(() => isCurrentTrack.value && audioPlayer.isPlaying);
+
+/** 显示进度（全局播放器同步） */
+const displayTime = computed(() => isCurrentTrack.value ? audioPlayer.currentTime : 0);
+const displayDuration = computed(() => {
+    if (isCurrentTrack.value && audioPlayer.currentTrack) {
+        return audioPlayer.currentTrack.duration;
+    }
     return props.content._ === 'messageAudio' ? props.content.audio.duration : 0;
 });
 
 const audioProgressStyle = computed<Record<string, string>>(() => {
-    const ratio = mediaSrc.value && playbackDuration.value > 0
-        ? currentTime.value / playbackDuration.value
+    const ratio = isCurrentTrack.value && displayDuration.value > 0
+        ? displayTime.value / displayDuration.value
         : downloadProgress.value;
     return { '--audio-progress': `${Math.min(1, Math.max(0, ratio)) * 100}%` };
+});
+
+/** 音频文件是否已下载就绪 */
+const fileReady = computed(() => {
+    if (props.content._ !== 'messageAudio') return false;
+    return isFileReady(props.content.audio.audio);
 });
 
 type CaptionSegment = {
@@ -272,8 +289,27 @@ const loadMedia = async () => {
     if (!f) return;
     if (isFileReady(f)) {
         mediaSrc.value = convertFileSrc(f.local.path);
-    } else if (props.content._ === 'messageDocument' && f.local.can_be_downloaded && !f.local.is_downloading_active) {
-        handleDownload(f.id);
+        return;
+    }
+    // 文档（文件）：仅在自动下载设置允许时自动下载
+    if (props.content._ === 'messageDocument' && f.local.can_be_downloaded && !f.local.is_downloading_active) {
+        if (props.chatId && settings.autoDownload.enabled) {
+            const cs = useChatStore();
+            const chatData = cs.chats[props.chatId] as any;
+            if (chatData) {
+                const category = getChatCategory(chatData);
+                const cfg = settings.autoDownload.files;
+                const shouldAuto = cfg.enabled && cfg[category];
+                if (shouldAuto) {
+                    const sizeMB = props.content.document.document.size / (1024 * 1024);
+                    if (sizeMB <= cfg.maxSize) {
+                        handleDownload(f.id);
+                        return;
+                    }
+                }
+            }
+        }
+        // 不自动下载，仅显示下载按钮（由模板中的 handleDownload 按钮触发）
     }
 };
 
@@ -350,8 +386,7 @@ function getFileType(): DownloadFileType {
 }
 
 /** 处理文件下载 */
-async function handleDownload(fileId: number, shouldPlay = false) {
-    if (shouldPlay) playAfterDownload.value = true;
+async function handleDownload(fileId: number) {
     if (isDownloading.value) return;
     if (downloadingFiles.has(fileId)) return;
     isDownloading.value = true;
@@ -371,7 +406,7 @@ async function handleDownload(fileId: number, shouldPlay = false) {
         const chatTitle = props.chatId ? getChatTitleById(props.chatId) : '';
         const thumbUrl = getThumbnailDataUrl();
         const fileType = getFileType();
-        downloadStore.registerDownload(fileId, fileName, chatTitle, totalSize, fileType, thumbUrl, props.chatId, props.messageId);
+        await downloadStore.registerDownload(fileId, fileName, chatTitle, totalSize, fileType, thumbUrl, props.chatId, props.messageId);
     } catch (_) { /* ignore */ }
 
     try {
@@ -379,7 +414,6 @@ async function handleDownload(fileId: number, shouldPlay = false) {
     } catch (e) {
         console.error("Download failed", e);
         isDownloading.value = false;
-        playAfterDownload.value = false;
         downloadingFiles.delete(fileId);
     }
 }
@@ -394,17 +428,13 @@ watch(currentFileId, (fileId) => {
         (info) => {
             if (!info) return;
             downloadProgress.value = info.progress;
-            downloadCurrentSize.value = info.downloadedSize;
-            downloadTotalSize.value = info.totalSize;
+            downloadCurrentSize.value = info.downloaded_size;
+            downloadTotalSize.value = info.total_size;
 
-            if (info.isCompleted && info.localPath) {
+            if (info.is_completed && info.local_path) {
                 downloadingFiles.delete(fileId);
                 isDownloading.value = false;
-                mediaSrc.value = convertFileSrc(info.localPath);
-                if (playAfterDownload.value) {
-                    playAfterDownload.value = false;
-                    nextTick(() => audioElement.value?.play().catch(() => { }));
-                }
+                mediaSrc.value = convertFileSrc(info.local_path);
             }
         },
         { immediate: true }
@@ -413,36 +443,32 @@ watch(currentFileId, (fileId) => {
 
 async function togglePlayback() {
     if (props.content._ !== 'messageAudio') return;
-    if (!mediaSrc.value) {
-        await handleDownload(props.content.audio.audio.id, true);
+
+    // 如果当前消息正是全局播放器的曲目，切换播放/暂停
+    if (isCurrentTrack.value) {
+        audioPlayer.togglePlay();
         return;
     }
-    const player = audioElement.value;
-    if (!player) return;
-    if (player.paused) await player.play().catch(() => { });
-    else player.pause();
-}
 
-function onAudioMetadata() {
-    const duration = audioElement.value?.duration;
-    loadedDuration.value = duration && Number.isFinite(duration) ? duration : 0;
-}
-
-function onAudioTimeUpdate() {
-    currentTime.value = audioElement.value?.currentTime || 0;
-}
-
-function onAudioEnded() {
-    isPlaying.value = false;
-    currentTime.value = 0;
+    // 否则通知全局播放器播放此消息
+    // 构造一个 message 对象传入
+    const msg: any = {
+        _: 'message',
+        id: props.messageId ?? 0,
+        chat_id: props.chatId ?? 0,
+        content: props.content,
+        date: 0,
+        is_outgoing: false,
+        media_album_id: '0',
+        sender_id: { _: 'messageSenderUser', user_id: 0 },
+    };
+    await audioPlayer.playMessageAudio(msg);
 }
 
 function seekAudio(event: Event) {
-    const player = audioElement.value;
-    if (!player) return;
+    if (!isCurrentTrack.value) return;
     const nextTime = Number((event.target as HTMLInputElement).value);
-    player.currentTime = nextTime;
-    currentTime.value = nextTime;
+    audioPlayer.seek(nextTime);
 }
 
 function formatDuration(seconds: number) {
@@ -458,14 +484,9 @@ const formatSize = (size: number) => {
 };
 
 watch(() => props.content, () => {
-    audioElement.value?.pause();
     mediaSrc.value = undefined;
     coverSrc.value = undefined;
-    isPlaying.value = false;
-    currentTime.value = 0;
-    loadedDuration.value = 0;
     downloadProgress.value = 0;
-    playAfterDownload.value = false;
     isDownloading.value = false;
     currentFileId.value = 0;
     loadMedia();
@@ -473,7 +494,6 @@ watch(() => props.content, () => {
 }, { immediate: true });
 
 onUnmounted(() => {
-    audioElement.value?.pause();
     if (unsubFileWatch) unsubFileWatch();
 });
 </script>

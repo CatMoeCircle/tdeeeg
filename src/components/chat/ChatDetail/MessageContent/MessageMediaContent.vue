@@ -77,7 +77,7 @@
 
                 <!-- Video element (循环播放, 由 IntersectionObserver 控制播放/暂停) -->
                 <video v-if="videoDownloaded" ref="videoElRef" :src="mediaSrc" class="w-full h-full object-cover"
-                    :muted="videoMuted" loop playsinline @timeupdate="onInlineVideoTime"
+                    :muted="videoMuted" loop playsinline :data-video-msg-id="messageId" @timeupdate="onInlineVideoTime"
                     @loadedmetadata="onInlineVideoLoaded" @ended="onInlineVideoEnded" />
 
                 <!-- Download progress bar -->
@@ -208,7 +208,16 @@ import MessageStatus from './MessageStatus.vue';
 import type { MediaViewerItem } from './MediaViewer.vue';
 import { useDownloadStore, type DownloadFileType } from '../../../../store/downloads';
 import { useChatStore } from '../../../../store/chat';
-import { registerMediaItem, unregisterMediaItem, openMediaViewer } from '../../../../store/mediaViewer';
+import { registerMediaItem, unregisterMediaItem, openMediaViewer, isMediaViewerActive } from '../../../../store/mediaViewer';
+import { settings } from '../../../../store/settings';
+import { getChatCategory } from '../../../../utils/autoDownload';
+import {
+    currentlyPlayingId,
+    globalVideoMuted,
+    registerPlaying,
+    unregisterPlaying,
+    toggleGlobalMute,
+} from '../../../../store/videoPlayback';
 
 
 const props = defineProps<{
@@ -245,7 +254,10 @@ const videoFileId = ref<number>(0);
 const videoElRef = ref<HTMLVideoElement | null>(null);
 const inlineVideoCurrent = ref(0);
 const inlineVideoDuration = ref(0);
-const videoMuted = ref(true);
+const isVideo = computed(() => props.content._ === 'messageVideo');
+
+/** 使用全局静音状态，同一时间所有视频共享 mute 开关 */
+const videoMuted = computed(() => globalVideoMuted.value);
 
 const videoDuration = computed(() => {
     if (props.content._ === 'messageVideo') return props.content.video.duration;
@@ -253,16 +265,35 @@ const videoDuration = computed(() => {
 });
 
 // 已下载视频自动循环播放（IntersectionObserver 控制）
+// 同一时间只允许一个视频播放，GIF（animation）不受影响
 let videoObserver: IntersectionObserver | null = null;
 
 onMounted(() => {
     videoObserver = new IntersectionObserver((entries) => {
         for (const entry of entries) {
             const vid = entry.target as HTMLVideoElement;
-            if (entry.isIntersecting) {
+            if (!isVideo.value) {
+                // GIF / Animation — 不受单视频播放限制
+                if (entry.isIntersecting) {
+                    vid.play().catch(() => { });
+                } else {
+                    vid.pause();
+                }
+                continue;
+            }
+            if (entry.isIntersecting && props.messageId) {
+                // 新视频进入视口：暂停之前的视频，注册当前视频
+                registerPlaying(props.messageId, (prevId) => {
+                    // 通过 DOM 查找之前视频的 video 元素并暂停
+                    const prevEl = document.querySelector(
+                        `[data-video-msg-id="${prevId}"]`
+                    ) as HTMLVideoElement | null;
+                    prevEl?.pause();
+                });
                 vid.play().catch(() => { });
-            } else {
+            } else if (!entry.isIntersecting && props.messageId) {
                 vid.pause();
+                unregisterPlaying(props.messageId);
             }
         }
     }, { threshold: 0.6 });
@@ -270,6 +301,7 @@ onMounted(() => {
 
 onUnmounted(() => {
     if (videoObserver) videoObserver.disconnect();
+    if (props.messageId) unregisterPlaying(props.messageId);
 });
 
 // 当视频下载完成后，将 videoElRef 加入观察
@@ -281,6 +313,29 @@ watch(videoDownloaded, (downloaded) => {
         videoObserver.observe(videoElRef.value);
     }
 }, { flush: 'post' });
+
+// 媒体查看器关闭后，恢复视频的 IntersectionObserver 观察
+// 这样当视频重新进入视口时会自动播放
+watch(isMediaViewerActive, (active, wasActive) => {
+    if (wasActive && !active && videoElRef.value && videoObserver && videoDownloaded.value) {
+        videoObserver.observe(videoElRef.value);
+    }
+});
+
+// 当其他视频开始播放时，暂停当前视频（仅限视频，不影响 GIF）
+watch(currentlyPlayingId, (newId) => {
+    if (!isVideo.value) return;
+    if (newId !== props.messageId && videoElRef.value) {
+        videoElRef.value.pause();
+    }
+});
+
+// 全局静音状态同步到 video 元素
+watch(globalVideoMuted, (muted) => {
+    if (videoElRef.value) {
+        videoElRef.value.muted = muted;
+    }
+});
 
 // 注册媒体项到全局查看器
 watch(mediaSrc, (src) => {
@@ -471,10 +526,10 @@ function canDownloadFile(f: any): boolean {
 }
 
 /** 注册到下载管理器 */
-function registerWithStore(fileId: number, fileName: string, fileType: DownloadFileType, thumbUrl?: string) {
+async function registerWithStore(fileId: number, fileName: string, fileType: DownloadFileType, thumbUrl?: string) {
     const totalSize = 0; // 由 updateFile 事件更新
     const chatTitle = props.chatId ? getChatTitle(props.chatId) : '';
-    downloadStore.registerDownload(fileId, fileName, chatTitle, totalSize, fileType, thumbUrl, props.chatId, props.messageId);
+    await downloadStore.registerDownload(fileId, fileName, chatTitle, totalSize, fileType, thumbUrl, props.chatId, props.messageId);
 }
 
 const loadMedia = async () => {
@@ -502,6 +557,32 @@ async function loadPhotoThumb() {
     if (f && isFileReady(f)) {
         mediaSrc.value = convertFileSrc(f.local.path);
         mediaLoaded.value = true;
+        return;
+    }
+    // 根据自动下载设置决定是否自动下载图片
+    if (f && props.chatId && settings.autoDownload.enabled) {
+        const cs = useChatStore();
+        const chatData = cs.chats[props.chatId] as any;
+        if (chatData) {
+            const category = getChatCategory(chatData);
+            const cfg = settings.autoDownload.photos;
+            const shouldAutoDl = cfg.enabled && cfg[category];
+            if (shouldAutoDl && canDownloadFile(f) && !downloadingFiles.has(f.id)) {
+                isDownloading.value = true;
+                downloadingFiles.add(f.id);
+                try {
+                    await tdlibSend({ _: 'downloadFile', file_id: f.id, priority: 1, offset: 0, limit: 0, synchronous: true });
+                    const updated = await tdlibSend({ _: 'getFile', file_id: f.id });
+                    if (isFileReady(updated)) {
+                        mediaSrc.value = convertFileSrc(updated.local.path);
+                        mediaLoaded.value = true;
+                    }
+                } catch (_) { } finally {
+                    downloadingFiles.delete(f.id);
+                    isDownloading.value = false;
+                }
+            }
+        }
     }
 }
 
@@ -519,7 +600,7 @@ async function handlePhotoDownload() {
     downloadingFiles.add(f.id);
     // 注册到下载管理器
     const fileName = `photo_${props.messageId || f.id}.jpg`;
-    registerWithStore(f.id, fileName, 'photo', thumbSrc.value);
+    await registerWithStore(f.id, fileName, 'photo', thumbSrc.value);
     try {
         await tdlibSend({ _: 'downloadFile', file_id: f.id, priority: 1, offset: 0, limit: 0, synchronous: false });
     } catch (_) {
@@ -556,7 +637,7 @@ async function handleAnimDownload() {
     animDownloading.value = true;
     downloadingFiles.add(f.id);
     const fileName = `animation_${props.messageId || f.id}.gif`;
-    registerWithStore(f.id, fileName, 'animation');
+    await registerWithStore(f.id, fileName, 'animation');
     try {
         await tdlibSend({ _: 'downloadFile', file_id: f.id, priority: 1, offset: 0, limit: 0, synchronous: false });
     } catch (_) {
@@ -573,6 +654,24 @@ async function loadVideoThumb() {
         videoDownloaded.value = true;
         return;
     }
+    // 检查自动下载设置：如果视频体积 <= maxSize，自动下载
+    if (props.chatId && settings.autoDownload.enabled) {
+        const cs = useChatStore();
+        const chatData = cs.chats[props.chatId] as any;
+        if (chatData) {
+            const category = getChatCategory(chatData);
+            const cfg = settings.autoDownload.videos;
+            const shouldAutoDl = cfg.enabled && cfg[category];
+            if (shouldAutoDl) {
+                const sizeMB = c.video.video.size / (1024 * 1024);
+                if (sizeMB <= cfg.maxSize) {
+                    await handleVideoDownload();
+                    return;
+                }
+            }
+        }
+    }
+    // 否则只下载缩略图
     const thumb = c.video.thumbnail?.file;
     if (!thumb) return;
     if (isFileReady(thumb)) { thumbSrc.value = convertFileSrc(thumb.local.path); return; }
@@ -601,7 +700,7 @@ async function handleVideoDownload() {
     if (downloadingFiles.has(fileId)) return;
     // 注册到下载管理器
     const fileName = video.file_name || `video_${props.messageId || fileId}.mp4`;
-    registerWithStore(fileId, fileName, 'video', thumbSrc.value);
+    await registerWithStore(fileId, fileName, 'video', thumbSrc.value);
     videoDownloading.value = true;
     videoProgress.value = 0;
     downloadingFiles.add(fileId);
@@ -642,8 +741,8 @@ function pollVideoDownload(fileId: number) {
 }
 
 function toggleMute() {
-    videoMuted.value = !videoMuted.value;
-    if (videoElRef.value) videoElRef.value.muted = videoMuted.value;
+    const newMuted = toggleGlobalMute();
+    if (videoElRef.value) videoElRef.value.muted = newMuted;
 }
 function onInlineVideoTime() {
     if (videoElRef.value) inlineVideoCurrent.value = videoElRef.value.currentTime;

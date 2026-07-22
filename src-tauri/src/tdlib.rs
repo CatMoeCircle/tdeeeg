@@ -1,4 +1,5 @@
 use crate::chat_store::ChatStore;
+use crate::download_store::DownloadStore;
 use libloading::{Library, Symbol};
 use serde_json::json;
 use std::collections::HashMap;
@@ -66,11 +67,12 @@ pub struct AppState {
     pub request_id_counter: AtomicI64,
     pub config: Arc<Mutex<TdLibConfig>>,
     pub chat_store: Arc<Mutex<ChatStore>>,
+    pub download_store: Arc<Mutex<DownloadStore>>,
     pub stream_lock: Mutex<()>,
 }
 
 impl AppState {
-    pub fn new() -> Self {
+    pub fn new(data_dir: std::path::PathBuf) -> Self {
         Self {
             tdlib: Mutex::new(None),
             pending_requests: Arc::new(Mutex::new(HashMap::new())),
@@ -83,6 +85,7 @@ impl AppState {
                 use_test_dc: false,
             })),
             chat_store: Arc::new(Mutex::new(ChatStore::new())),
+            download_store: Arc::new(Mutex::new(DownloadStore::new(data_dir))),
             stream_lock: Mutex::new(()),
         }
     }
@@ -232,7 +235,9 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
     unsafe { execute_fn(ptr::null_mut(), log_config.as_ptr()) };
 
     // 注册 TDLib 数据目录到 asset protocol 作用域，使前端能加载图片等文件
-    let tdlib_data_dir = app_handle.path().app_data_dir()
+    let tdlib_data_dir = app_handle
+        .path()
+        .app_data_dir()
         .map_err(|e| e.to_string())?
         .join("TDLib");
     // 确保数据子目录存在
@@ -261,6 +266,7 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
     let pending_requests = state.pending_requests.clone();
     let config_clone = state.config.clone();
     let chat_store = state.chat_store.clone();
+    let download_store = state.download_store.clone();
     let tdlib_db_dir = tdlib_data_dir.join("tdlib_db");
     let tdlib_files_dir = tdlib_data_dir.join("tdlib_files");
     std::thread::spawn(move || {
@@ -304,7 +310,8 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
                                             };
                                             // 使用绝对路径确保 TDLib 不依赖当前工作目录
                                             let db_dir = tdlib_db_dir.to_string_lossy().to_string();
-                                            let files_dir = tdlib_files_dir.to_string_lossy().to_string();
+                                            let files_dir =
+                                                tdlib_files_dir.to_string_lossy().to_string();
                                             let request = json!({
                                                 "@type": "setTdlibParameters",
                                                 "use_test_dc": use_test_dc,
@@ -338,6 +345,54 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
                         if let Some(events) = chat_store.lock().unwrap().handle_update(&event) {
                             for (event_name, payload) in events {
                                 let _ = app_handle_clone.emit(&event_name, &payload);
+                            }
+                        }
+
+                        // 处理下载管理器的 updateFile 事件
+                        if event.get("_").and_then(|v| v.as_str()) == Some("updateFile") {
+                            if let Some(file) = event.get("file") {
+                                if let Some(file_id) = file.get("id").and_then(|v| v.as_i64()) {
+                                    let downloaded_size = file
+                                        .pointer("/local/downloaded_size")
+                                        .and_then(|v| v.as_i64())
+                                        .unwrap_or(0);
+                                    let total_size =
+                                        file.get("size").and_then(|v| v.as_i64()).unwrap_or(0);
+                                    let expected = file
+                                        .get("expected_size")
+                                        .and_then(|v| v.as_i64())
+                                        .unwrap_or(0);
+                                    let effective_total =
+                                        if total_size > 0 { total_size } else { expected };
+                                    let is_dl_active = file
+                                        .pointer("/local/is_downloading_active")
+                                        .and_then(|v| v.as_bool())
+                                        .unwrap_or(false);
+                                    let is_dl_completed = file
+                                        .pointer("/local/is_downloading_completed")
+                                        .and_then(|v| v.as_bool())
+                                        .unwrap_or(false);
+                                    let local_path = file
+                                        .pointer("/local/path")
+                                        .and_then(|v| v.as_str())
+                                        .map(|s| s.to_string());
+
+                                    let mut dl_store = download_store.lock().unwrap();
+                                    dl_store.update_progress(
+                                        file_id as i32,
+                                        downloaded_size,
+                                        effective_total,
+                                        is_dl_active,
+                                        is_dl_completed,
+                                        local_path,
+                                    );
+
+                                    // 发送下载进度更新事件（前端用于实时刷新）
+                                    if let Some(item) = dl_store.get_item(file_id as i32) {
+                                        let _ = app_handle_clone
+                                            .emit("download-progress-update", &item);
+                                    }
+                                }
                             }
                         }
 
@@ -457,4 +512,73 @@ pub fn get_chat_list(
     } else {
         Ok(json!({ "list_key": list_key, "chat_ids": [], "chats": [] }))
     }
+}
+
+// ==================== 下载管理器 Tauri 命令 ====================
+
+#[tauri::command]
+pub fn get_downloads(
+    state: State<AppState>,
+) -> Result<Vec<crate::download_store::DownloadItem>, String> {
+    let store = state.download_store.lock().map_err(|e| e.to_string())?;
+    Ok(store.get_all_items())
+}
+
+#[tauri::command]
+pub fn get_download_active_count(state: State<AppState>) -> Result<usize, String> {
+    let store = state.download_store.lock().map_err(|e| e.to_string())?;
+    Ok(store.get_active_count())
+}
+
+#[tauri::command]
+pub fn register_download(
+    state: State<AppState>,
+    file_id: i32,
+    file_name: String,
+    chat_title: String,
+    total_size: i64,
+    file_type: String,
+    thumbnail_data_url: Option<String>,
+    chat_id: Option<i64>,
+    message_id: Option<i64>,
+) -> Result<(), String> {
+    let mut store = state.download_store.lock().map_err(|e| e.to_string())?;
+    store.register_download(
+        file_id,
+        file_name,
+        chat_title,
+        total_size,
+        file_type,
+        thumbnail_data_url,
+        chat_id,
+        message_id,
+    );
+    Ok(())
+}
+
+#[tauri::command]
+pub fn dismiss_download(state: State<AppState>, file_id: i32) -> Result<(), String> {
+    let mut store = state.download_store.lock().map_err(|e| e.to_string())?;
+    store.dismiss_item(file_id);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn clear_completed_downloads(state: State<AppState>) -> Result<(), String> {
+    let mut store = state.download_store.lock().map_err(|e| e.to_string())?;
+    store.clear_completed();
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_show_hidden_downloads(state: State<AppState>) -> Result<bool, String> {
+    let store = state.download_store.lock().map_err(|e| e.to_string())?;
+    Ok(store.get_show_hidden())
+}
+
+#[tauri::command]
+pub fn set_show_hidden_downloads(state: State<AppState>, value: bool) -> Result<(), String> {
+    let mut store = state.download_store.lock().map_err(|e| e.to_string())?;
+    store.set_show_hidden(value);
+    Ok(())
 }
