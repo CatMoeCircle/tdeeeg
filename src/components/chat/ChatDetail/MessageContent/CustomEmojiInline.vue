@@ -1,0 +1,96 @@
+<template>
+  <span class="inline-flex items-center align-middle mx-0.5 overflow-hidden"
+    :style="{ width: size + 'px', height: size + 'px' }">
+    <!-- 已下载完成：根据格式渲染 -->
+    <template v-if="state.ready && state.filePath && state.sticker">
+      <!-- WEBP static -->
+      <img v-if="emojiFormat === 'webp'" :src="state.filePath"
+        class="w-full h-full object-contain" />
+      <!-- TGS animated (Lottie) -->
+      <div v-else-if="emojiFormat === 'tgs'" ref="lottieRef" class="w-full h-full"></div>
+      <!-- WEBM video -->
+      <video v-else-if="emojiFormat === 'webm'" :src="state.filePath" autoplay loop muted playsinline
+        class="w-full h-full object-contain" />
+    </template>
+    <!-- 缩略图预览（模糊） -->
+    <img v-else-if="state.thumbnailUrl" :src="state.thumbnailUrl"
+      class="w-full h-full object-contain rounded"
+      :style="{ filter: 'blur(1.5px)', transform: 'scale(1.2)' }" />
+    <!-- 加载中灰色骨架 -->
+    <div v-else class="w-full h-full rounded bg-gray-200 dark:bg-gray-700 animate-pulse">
+    </div>
+  </span>
+</template>
+
+<script setup lang="ts">
+import { computed, ref, watch, onUnmounted, nextTick } from 'vue';
+import { useCustomEmoji } from '../../../../store/customEmoji';
+import lottie, { type AnimationItem } from 'lottie-web';
+import * as pako from 'pako';
+import { convertFileSrc } from '@tauri-apps/api/core';
+
+const props = defineProps<{
+  emojiId: string;
+  size?: number;
+}>();
+
+const size = computed(() => props.size || 22);
+const state = useCustomEmoji(props.emojiId);
+const lottieRef = ref<HTMLElement | null>(null);
+let lottieAnim: AnimationItem | null = null;
+
+/** 检测贴纸格式 */
+const emojiFormat = computed(() => {
+  if (!state.sticker) return 'webp';
+  const fmt = state.sticker.format._;
+  if (fmt === 'stickerFormatTgs') return 'tgs';
+  if (fmt === 'stickerFormatWebm') return 'webm';
+  return 'webp';
+});
+
+/** 加载 TGS（gzipped Lottie JSON）并播放 */
+async function loadTgs(path: string) {
+  destroyLottie();
+  try {
+    const url = convertFileSrc(path);
+    const resp = await fetch(url);
+    const compressed = new Uint8Array(await resp.arrayBuffer());
+    let jsonStr: string;
+    try {
+      const decompressed = pako.inflate(compressed);
+      jsonStr = new TextDecoder('utf-8').decode(decompressed);
+    } catch {
+      jsonStr = new TextDecoder('utf-8').decode(compressed);
+    }
+    const animData = JSON.parse(jsonStr);
+    await nextTick();
+    if (!lottieRef.value) return;
+    lottieAnim = lottie.loadAnimation({
+      container: lottieRef.value,
+      animationData: animData,
+      loop: true,
+      autoplay: true,
+    });
+  } catch (e) {
+    console.error('Failed to load TGS custom emoji:', e);
+  }
+}
+
+function destroyLottie() {
+  if (lottieAnim) {
+    lottieAnim.destroy();
+    lottieAnim = null;
+  }
+}
+
+// 当 emoji 就绪且为 tgs 格式时，加载 Lottie
+watch([() => state.ready, () => state.filePath, emojiFormat], async ([ready, filePath, fmt]) => {
+  if (ready && filePath && fmt === 'tgs') {
+    await loadTgs(filePath);
+  }
+});
+
+onUnmounted(() => {
+  destroyLottie();
+});
+</script>

@@ -1,10 +1,14 @@
 <template>
     <p class="text-sm whitespace-pre-wrap wrap-break-word leading-5">
         <template v-for="(segment, index) in segments" :key="index">
-            <a v-if="segment.href" :href="segment.href"
+            <!-- Custom emoji -->
+            <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId" :size="emojiSize" />
+            <!-- Link -->
+            <a v-else-if="segment.href" :href="segment.href"
                 class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
                 :class="[segment.className, loadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
                 @click.prevent.stop="openLink(segment.href)">{{ segment.text }}</a>
+            <!-- Regular text -->
             <span v-else :class="segment.className">{{ segment.text }}</span>
         </template>
     </p>
@@ -16,18 +20,21 @@ import type { formattedText, textEntity, InternalLinkType } from 'tdlib-types';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { tdlibSend } from '../../../../utils/tdlib';
 import { useRouter } from 'vue-router';
-
+import CustomEmojiInline from './CustomEmojiInline.vue';
 const props = defineProps<{
     formattedText: formattedText;
 }>();
 
 const router = useRouter();
 const loadingLinks = ref<Set<string>>(new Set());
+const emojiSize = 22; // 自定义 emoji 显示尺寸（px）
 
 type Segment = {
     text: string;
     href?: string;
     className: string;
+    /** 自定义 emoji ID（有值时表示这是一个自定义 emoji 段） */
+    customEmojiId?: string;
 };
 
 const segments = computed<Segment[]>(() => {
@@ -54,6 +61,21 @@ const segments = computed<Segment[]>(() => {
         const activeEntities = entities
             .filter(item => item.start <= start && item.end >= end)
             .map(item => item.entity);
+
+        // 检查是否包含自定义 emoji
+        const customEmojiEntity = activeEntities.find(
+            e => e.type._ === 'textEntityTypeCustomEmoji'
+        );
+        if (customEmojiEntity) {
+            const emojiId = (customEmojiEntity.type as any).custom_emoji_id as string;
+            return {
+                text: segmentText,
+                href: undefined,
+                className: '',
+                customEmojiId: emojiId,
+            };
+        }
+
         const href = activeEntities
             .map(entity => getEntityHref(entity, segmentText))
             .find((value): value is string => !!value);

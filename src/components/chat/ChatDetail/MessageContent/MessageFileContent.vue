@@ -21,11 +21,11 @@
                     </div>
                 </div>
             </div>
-            <button v-if="!mediaSrc && !isDownloading" @click="handleDownload(content.document.document.id)"
+            <button v-if="!mediaSrc && !isDownloadingOrGlobally" @click="handleDownload(content.document.document.id)"
                 class="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded shrink-0">
                 <DownloadIcon class="w-4 h-4" />
             </button>
-            <button v-if="isDownloading" class="p-1 shrink-0">
+            <button v-if="isDownloadingOrGlobally" class="p-1 shrink-0">
                 <svg class="w-4 h-4 text-blue-500 animate-spin" viewBox="0 0 24 24" fill="none">
                     <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25" />
                     <path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round"
@@ -53,9 +53,9 @@
 
                 <button v-if="!fileReady" type="button"
                     class="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-blue-500 text-white shadow-sm transition-transform active:scale-90 dark:border-gray-800"
-                    :aria-label="isDownloading ? '正在下载' : '下载音乐'" :disabled="isDownloading"
+                    :aria-label="dlLabel" :disabled="isDownloadingOrGlobally"
                     @click.stop="handleDownload(content.audio.audio.id)">
-                    <svg v-if="isDownloading" class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <svg v-if="isDownloadingOrGlobally" class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
                         <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" class="opacity-25" />
                         <path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round"
                             class="opacity-80" />
@@ -98,7 +98,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue';
 import type { messageDocument, messageAudio, textEntity, InternalLinkType } from 'tdlib-types';
-import { tdlibSend, isFileReady, downloadingFiles } from '../../../../utils/tdlib';
+import { tdlibSend, isFileReady, downloadingFiles, reactiveDownloadingFiles } from '../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { FileIcon, DownloadIcon, MusicIcon, PauseIcon, PlayIcon } from 'lucide-vue-next';
@@ -118,6 +118,21 @@ const props = defineProps<{
 const mediaSrc = ref<string | undefined>(undefined);
 const coverSrc = ref<string | undefined>(undefined);
 const isDownloading = ref(false);
+
+/** 合并本地下载状态 + 全局下载状态（响应式） */
+const isDownloadingOrGlobally = computed(() => {
+    if (isDownloading.value) return true;
+    // 检查全局是否有该文件正在下载（如被音频播放器触发）
+    const fileId = props.content._ === 'messageAudio'
+        ? props.content.audio.audio.id
+        : props.content._ === 'messageDocument'
+            ? props.content.document.document.id
+            : 0;
+    return fileId > 0 ? reactiveDownloadingFiles.value.has(fileId) : false;
+});
+
+/** 下载按钮的 aria-label */
+const dlLabel = computed(() => isDownloadingOrGlobally.value ? '正在下载' : '下载音乐');
 const currentFileId = ref<number>(0);
 const router = useRouter();
 const captionLoadingLinks = ref<Set<string>>(new Set());

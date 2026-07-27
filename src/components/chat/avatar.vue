@@ -3,7 +3,7 @@
         <img v-if="avatar && !imgError" :src="avatar" alt="avatar" class="w-full h-full object-cover"
             @error="onImgError" />
         <div v-else class="w-full h-full flex items-center justify-center text-gray-500 text-xs select-none">{{ initials
-            }}</div>
+        }}</div>
     </div>
 </template>
 
@@ -17,6 +17,8 @@ const props = defineProps<{
     photo?: chatPhotoInfo | profilePhoto;
     title?: string;
     sizeClass?: string;
+    /** 是否使用方形圆角（用于话题群组头像） */
+    square?: boolean;
 }>();
 
 const imgError = ref(false);
@@ -31,7 +33,8 @@ const initials = computed(() => {
 });
 
 const containerClass = computed(() => {
-    const base = 'w-full h-full rounded-full bg-gray-300 shrink-0 overflow-hidden';
+    const round = props.square ? 'rounded-xl' : 'rounded-full';
+    const base = `w-full h-full ${round} bg-gray-300 shrink-0 overflow-hidden`;
     if (props.sizeClass) return ` ${props.sizeClass} ${base}`;
     return base;
 });

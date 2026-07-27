@@ -1,71 +1,183 @@
 <template>
     <div class="flex flex-col h-full dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 pt-4"
         @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
-        <!-- Search Bar -->
-        <div class="py-1 px-3">
-            <div class="relative">
-                <input type="text" placeholder="搜索"
-                    class="w-full pl-8 pr-4 py-2 bg-white/60 shadow-(--box-shadow) dark:bg-gray-800 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                <SearchIcon class="w-4 h-4 absolute left-2.5 top-2.5 text-gray-400" />
+        <!-- Search Bar (forum mode 时向上滑动隐藏) -->
+        <Transition name="slide-up">
+            <div v-if="!forumMode" class="py-1 px-3 overflow-hidden">
+                <div class="relative">
+                    <input type="text" placeholder="搜索"
+                        class="w-full pl-8 pr-4 py-2 bg-white/60 shadow-(--box-shadow) dark:bg-gray-800 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <SearchIcon class="w-4 h-4 absolute left-2.5 top-2.5 text-gray-400" />
+                </div>
             </div>
-        </div>
-        <!-- Folder Tabs -->
-        <div v-if="tabs.length > 1" ref="tabsContainer" @wheel.prevent="handleWheel"
-            class="flex px-2 border-b border-gray-200 dark:border-gray-800 overflow-x-auto no-scrollbar gap-2 shrink-0">
-            <button v-for="tab in tabs" :key="tab.id" @click="switchToTab(tab.id)"
-                class="px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors shrink-0" :class="[
-                    settings.folderStyle === 'tabs'
-                        ? (activeTab === tab.id ? 'border-b-2 border-blue-500 text-blue-600' : 'border-b-2 border-transparent text-gray-500 hover:text-gray-700')
-                        : '',
-                    settings.folderStyle === 'pills'
-                        ? (activeTab === tab.id ? 'bg-blue-500 shadow-sm shadow-blue-500/50 text-white rounded-full my-1' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full my-1')
-                        : '',
-                    settings.folderStyle === 'text'
-                        ? (activeTab === tab.id ? 'text-blue-600 font-bold' : 'text-gray-500 hover:text-gray-700')
-                        : ''
-                ]">
-                {{ tab.name }}
-            </button>
-        </div>
+        </Transition>
+        <!-- Folder Tabs (forum mode 时向上滑动隐藏) -->
+        <Transition name="slide-up">
+            <div v-if="!forumMode && tabs.length > 1" ref="tabsContainer" @wheel.prevent="handleWheel"
+                class="flex px-2 border-b border-gray-200 dark:border-gray-800 overflow-x-auto no-scrollbar gap-2 shrink-0">
+                <button v-for="tab in tabs" :key="tab.id" @click="switchToTab(tab.id)"
+                    class="px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors shrink-0" :class="[
+                        settings.folderStyle === 'tabs'
+                            ? (activeTab === tab.id ? 'border-b-2 border-blue-500 text-blue-600' : 'border-b-2 border-transparent text-gray-500 hover:text-gray-700')
+                            : '',
+                        settings.folderStyle === 'pills'
+                            ? (activeTab === tab.id ? 'bg-blue-500 shadow-sm shadow-blue-500/50 text-white rounded-full my-1' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full my-1')
+                            : '',
+                        settings.folderStyle === 'text'
+                            ? (activeTab === tab.id ? 'text-blue-600 font-bold' : 'text-gray-500 hover:text-gray-700')
+                            : ''
+                    ]">
+                    {{ tab.name }}
+                </button>
+            </div>
+        </Transition>
 
         <!-- 音乐播放器入口（聊天打开时由 ChatDetail 接管，此处隐藏） -->
-        <MusicPlayerEntry v-if="!isChatOpen" compact />
+        <Transition name="slide-up">
+            <MusicPlayerEntry v-if="!isChatOpen && !forumMode" compact />
+        </Transition>
 
-        <!-- Swipeable Chat List Container -->
+        <!-- Main Container: Swipeable Chat List OR Forum Mode -->
         <div class="flex-1 overflow-hidden relative">
-            <div ref="swipeContainer" class="swipe-track absolute inset-0 flex"
-                :style="{ transform: `translateX(${swipeOffset}px)`, transition: isSwiping ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }">
-                <div v-for="tab in tabsWithContent" :key="tab.id"
-                    class="swipe-page h-full shrink-0 overflow-y-auto custom-scrollbar pl-1.5 pr-0.5 py-1"
-                    @scroll="(e: Event) => onScroll(e, tab.id)">
-                    <div v-for="chat in tab.chats" :key="chat.id" @click="selectChat(chat.id)"
-                        class="flex items-center p-3 hover:bg-white/70 rounded-xl hover:shadow-(--box-shadow) dark:hover:bg-gray-800 cursor-pointer transition-colors"
-                        :class="{ 'rounded-xl bg-white/70 shadow-(--box-shadow) dark:bg-gray-800': selectedChatId === chat.id }">
-                        <div class="w-14 h-14 mr-3">
-                            <div v-if="isSavedMessages(chat)"
-                                class="w-full h-full rounded-full bg-blue-500 text-white flex items-center justify-center">
-                                <BookmarkIcon class="w-7 h-7 fill-current" />
-                            </div>
-                            <Avatar v-else :photo="chat.photo" :title="chat.title" />
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <div class="flex justify-between items-baseline mb-1">
-                                <h3 class="text-sm font-semibold truncate text-gray-900 dark:text-gray-100">{{
-                                    getChatTitle(chat) }}
-                                </h3>
-                                <span class="text-xs text-gray-400">{{ formatTime(chat.last_message?.date) }}</span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <p class="flex-1 min-w-0 text-xs text-gray-500 truncate">{{
-                                    getMessagePreview(chat.last_message) }}</p>
-                                <span v-if="chat.unread_count > 0"
-                                    class="shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-blue-500 text-white text-[11px] font-semibold leading-5 text-center">
-                                    {{ formatUnreadCount(chat.unread_count) }}
-                                </span>
-                            </div>
+            <div class="absolute inset-0 flex transition-all duration-300 ease-in-out" :class="forumMode ? '' : ''">
+                <!-- Swipe Track (shrinks in forum mode) -->
+                <div ref="swipeContainer" class="h-full overflow-hidden transition-all duration-300 ease-in-out"
+                    :class="forumMode ? 'w-17 shrink-0' : 'flex-1'">
+                    <div class="swipe-track h-full flex"
+                        :style="{ transform: forumMode ? 'translateX(0px)' : `translateX(${swipeOffset}px)`, transition: isSwiping || forumMode ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }">
+                        <div v-for="tab in tabsWithContent" :key="tab.id"
+                            class="swipe-page h-full shrink-0 overflow-y-auto custom-scrollbar"
+                            :class="forumMode ? 'w-17 px-0.5 py-1' : 'w-full pl-1.5 pr-0.5 py-1'"
+                            @scroll="(e: Event) => onScroll(e, tab.id)">
+                            <!-- Forum Mode: compact avatar only -->
+                            <template v-if="forumMode">
+                                <div v-for="chat in tab.chats" :key="chat.id" @click="selectForumChat(chat)"
+                                    class="relative flex items-center justify-center py-2.5 cursor-pointer transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+                                    :class="forumChatId === chat.id ? 'bg-gray-100 dark:bg-gray-800 rounded-lg' : ''">
+                                    <!-- 选中标记：左侧色条 -->
+                                    <div v-if="forumChatId === chat.id"
+                                        class="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-blue-500 rounded-full">
+                                    </div>
+                                    <div class="relative w-10 h-10">
+                                        <div v-if="isSavedMessages(chat)"
+                                            class="w-full h-full rounded-xl bg-blue-500 text-white flex items-center justify-center">
+                                            <BookmarkIcon class="w-5 h-5 fill-current" />
+                                        </div>
+                                        <Avatar v-else :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10"
+                                            :square="isForumChat(chat)" />
+                                        <!-- 未读角标：显示在头像右下角 -->
+                                        <span v-if="chat.unread_count > 0"
+                                            class="absolute -bottom-0.5 -right-0.5 min-w-4.5 h-4.5 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold leading-4.5 text-center border-2 border-white dark:border-gray-900">
+                                            {{ formatUnreadCount(chat.unread_count) }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </template>
+                            <!-- Normal Mode: full chat item -->
+                            <template v-else>
+                                <div v-for="chat in tab.chats" :key="chat.id" @click="selectChat(chat)"
+                                    class="flex items-center p-3 hover:bg-white/70 rounded-xl hover:shadow-(--box-shadow) dark:hover:bg-gray-800 cursor-pointer transition-colors"
+                                    :class="{ 'rounded-xl bg-white/70 shadow-(--box-shadow) dark:bg-gray-800': selectedChatId === chat.id }">
+                                    <div class="w-14 h-14 mr-3">
+                                        <div v-if="isSavedMessages(chat)"
+                                            class="w-full h-full rounded-full bg-blue-500 text-white flex items-center justify-center">
+                                            <BookmarkIcon class="w-7 h-7 fill-current" />
+                                        </div>
+                                        <Avatar v-else :photo="chat.photo" :title="chat.title"
+                                            :square="isForumChat(chat)" />
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex justify-between items-baseline mb-1">
+                                            <h3 class="text-sm font-semibold truncate text-gray-900 dark:text-gray-100">
+                                                {{
+                                                    getChatTitle(chat) }}
+                                            </h3>
+                                            <span class="text-xs text-gray-400">{{ formatTime(chat.last_message?.date)
+                                            }}</span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <p class="flex-1 min-w-0 text-xs text-gray-500 truncate">{{
+                                                getMessagePreview(chat.last_message) }}</p>
+                                            <span v-if="chat.unread_count > 0"
+                                                class="shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-blue-500 text-white text-[11px] font-semibold leading-5 text-center">
+                                                {{ formatUnreadCount(chat.unread_count) }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
                         </div>
                     </div>
                 </div>
+
+                <!-- Forum Topic Panel (slides in from right) -->
+                <Transition name="topic-slide">
+                    <div v-if="forumMode && forumChatId"
+                        class="h-full flex-1 border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden flex flex-col">
+                        <!-- Topics Header -->
+                        <div
+                            class="flex items-center gap-2 px-3 py-2.5 border-b border-gray-200 dark:border-gray-800 shrink-0">
+                            <button type="button" @click="exitForumMode"
+                                class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shrink-0"
+                                aria-label="返回">
+                                <ArrowLeftIcon class="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                            </button>
+                            <span class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{{
+                                forumChatTitle
+                            }}</span>
+                        </div>
+                        <!-- Topic List -->
+                        <div class="flex-1 overflow-y-auto custom-scrollbar">
+                            <div v-if="topicsLoading" class="flex flex-col gap-2 p-3">
+                                <div v-for="n in 5" :key="n" class="flex items-center gap-2.5 p-2.5">
+                                    <div class="w-9 h-9 rounded-xl bg-gray-200 dark:bg-gray-700 animate-pulse shrink-0">
+                                    </div>
+                                    <div class="flex-1">
+                                        <div
+                                            class="h-3.5 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-1.5 animate-pulse">
+                                        </div>
+                                        <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2 animate-pulse"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div v-else-if="forumTopics.length === 0"
+                                class="flex flex-col items-center justify-center h-full text-gray-400">
+                                <MessageCircleIcon class="w-10 h-10 mb-2 opacity-50" />
+                                <p class="text-sm">暂无话题</p>
+                            </div>
+                            <div v-else class="py-1">
+                                <button v-for="topic in forumTopics" :key="topic.info.forum_topic_id" type="button"
+                                    @click="selectTopic(topic.info.forum_topic_id)"
+                                    class="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left">
+                                    <div class="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center text-white text-base font-bold"
+                                        :style="{ backgroundColor: topicIconColor(topic.info.icon.color) }">
+                                        {{ topicNameInitial(topic.info.name) }}
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex justify-between items-baseline mb-0.5">
+                                            <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                                                {{ topic.info.name }}
+                                                <span v-if="topic.info.is_closed"
+                                                    class="text-xs text-gray-400 ml-1">[已关闭]</span>
+                                            </h3>
+                                            <span class="text-xs text-gray-400 ml-1 shrink-0">{{
+                                                formatTime(topic.last_message?.date)
+                                            }}</span>
+                                        </div>
+                                        <div class="flex items-center gap-1.5">
+                                            <p class="flex-1 min-w-0 text-xs text-gray-500 truncate">{{
+                                                getTopicPreview(topic) }}</p>
+                                            <span v-if="topic.unread_count > 0"
+                                                class="shrink-0 min-w-4.5 h-4.5 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold leading-4.5 text-center">
+                                                {{ formatUnreadCount(topic.unread_count) }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </Transition>
             </div>
         </div>
     </div>
@@ -74,7 +186,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { BookmarkIcon, SearchIcon } from 'lucide-vue-next';
+import { BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
 import { settings } from '../../store/settings';
 import { useChatStore } from '../../store/chat';
@@ -82,7 +194,8 @@ import type { Chat } from '../../store/chat';
 import { useUserStore } from '../../store/user';
 import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../utils/savedMessages';
 import Avatar from './avatar.vue';
-import type { message } from 'tdlib-types';
+import type { message, forumTopic, forumTopics } from 'tdlib-types';
+import { tdlibSend } from '../../utils/tdlib';
 import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
 
 const props = defineProps<{
@@ -92,7 +205,7 @@ const props = defineProps<{
 const router = useRouter();
 const route = useRoute();
 
-/** 是否有聊天详情打开（route 包含 chat id） */
+/** 是否有聊天详情或话题列表打开（route 包含 chat id） */
 const isChatOpen = computed(() => {
     return /^\/home\/chats\/\d+/.test(route.path);
 });
@@ -213,15 +326,107 @@ const tabsWithContent = computed(() => {
 
 const selectedChatId = ref<number | null>(null);
 
+// ---- Forum Mode State ----
+const forumMode = ref(false);
+const forumChatId = ref<number | null>(null);
+const forumChatTitle = ref('');
+const forumTopics = ref<forumTopic[]>([]);
+const topicsLoading = ref(false);
+let forumNextOffsetDate = 0;
+let forumNextOffsetMessageId = 0;
+let forumNextOffsetForumTopicId = 0;
+let forumHasMore = true;
+
 const isSavedMessages = (chat: Chat) => isSavedMessagesChat(chat, userProfile.value?.id);
 const getChatTitle = (chat: Chat) => isSavedMessages(chat) ? SAVED_MESSAGES_TITLE : chat.title;
 
 /**
- * 通过 ID 选择对话
+ * 检测是否为话题模式论坛群组
+ * 条件：chat.type 为 chatTypeSupergroup 且 view_as_topics 为 true
  */
-const selectChat = (id: number) => {
-    selectedChatId.value = id;
-    router.push(`/home/chats/${id}`);
+const isForumChat = (chat: Chat): boolean => {
+    return !!(chat.type?._ === 'chatTypeSupergroup' && (chat as any).view_as_topics);
+};
+
+/** 进入论坛模式：选中论坛群组，加载话题列表 */
+const selectForumChat = async (chat: Chat) => {
+    if (forumChatId.value === chat.id) return; // 已经选中
+    forumChatId.value = chat.id;
+    forumChatTitle.value = chat.title;
+    forumTopics.value = [];
+    topicsLoading.value = true;
+
+    // 加载话题
+    await loadForumTopics(chat.id, false);
+};
+
+/** 加载论坛话题 */
+async function loadForumTopics(chatIdNum: number, loadMore: boolean) {
+    if (loadMore && !forumHasMore) return;
+    if (!loadMore) {
+        forumNextOffsetDate = 0;
+        forumNextOffsetMessageId = 0;
+        forumNextOffsetForumTopicId = 0;
+        forumHasMore = true;
+    }
+
+    topicsLoading.value = !loadMore;
+    try {
+        const result = await tdlibSend({
+            _: 'getForumTopics',
+            chat_id: chatIdNum,
+            offset_date: loadMore ? forumNextOffsetDate : 0,
+            offset_message_id: loadMore ? forumNextOffsetMessageId : 0,
+            offset_forum_topic_id: loadMore ? forumNextOffsetForumTopicId : 0,
+            limit: 50,
+        }) as forumTopics;
+
+        if (loadMore) {
+            forumTopics.value = [...forumTopics.value, ...result.topics];
+        } else {
+            forumTopics.value = result.topics;
+        }
+
+        forumNextOffsetDate = result.next_offset_date;
+        forumNextOffsetMessageId = result.next_offset_message_id;
+        forumNextOffsetForumTopicId = result.next_offset_forum_topic_id;
+        forumHasMore = result.topics.length > 0 && forumTopics.value.length < result.total_count;
+    } catch (e) {
+        console.error('Failed to load forum topics:', e);
+    } finally {
+        topicsLoading.value = false;
+    }
+}
+
+/** 退出论坛模式 */
+const exitForumMode = () => {
+    forumMode.value = false;
+    forumChatId.value = null;
+    forumChatTitle.value = '';
+    forumTopics.value = [];
+};
+
+/** 选择话题：导航到话题详情 */
+const selectTopic = (topicId: number) => {
+    if (!forumChatId.value) return;
+    router.push(`/home/chats/${forumChatId.value}/topics/${topicId}`);
+};
+
+/** 选择对话：论坛群组展开内联话题列表，普通对话进入聊天详情 */
+const selectChat = (chat: Chat) => {
+    if (isForumChat(chat)) {
+        // 进入论坛模式
+        selectedChatId.value = chat.id;
+        forumMode.value = true;
+        forumChatId.value = chat.id;
+        forumChatTitle.value = chat.title;
+        forumTopics.value = [];
+        topicsLoading.value = true;
+        loadForumTopics(chat.id, false);
+    } else {
+        selectedChatId.value = chat.id;
+        router.push(`/home/chats/${chat.id}`);
+    }
 };
 
 const formatTime = (timestamp: number | undefined) => {
@@ -320,6 +525,7 @@ function switchToTab(tabId: string) {
 
 // ---- Touch / Swipe handlers ----
 function onTouchStart(e: TouchEvent) {
+    if (forumMode.value) return; // 论坛模式禁用滑动切换
     if (tabs.value.length <= 1) return;
     const touch = e.touches[0];
     touchStartX = touch.clientX;
@@ -329,6 +535,7 @@ function onTouchStart(e: TouchEvent) {
 }
 
 function onTouchMove(e: TouchEvent) {
+    if (forumMode.value) return; // 论坛模式禁用滑动切换
     if (tabs.value.length <= 1) return;
     const touch = e.touches[0];
     const dx = touch.clientX - touchStartX;
@@ -371,6 +578,7 @@ function onTouchMove(e: TouchEvent) {
 }
 
 function onTouchEnd(e: TouchEvent) {
+    if (forumMode.value) return; // 论坛模式禁用滑动切换
     if (tabs.value.length <= 1) return;
     if (!pageWidth.value) return;
 
@@ -402,6 +610,61 @@ function onTouchEnd(e: TouchEvent) {
     }
 
     isHorizontalSwipe = null;
+}
+
+// ---- Forum Topic Helpers ----
+const topicIconColors: Record<number, string> = {
+    0x6FB9F0: '#6FB9F0',
+    0xFFD67E: '#FFD67E',
+    0xCB86DB: '#CB86DB',
+    0x8EEE98: '#8EEE98',
+    0xFF93B2: '#FF93B2',
+    0xFB6F5F: '#FB6F5F',
+};
+
+function topicIconColor(color: number): string {
+    return topicIconColors[color] || '#6FB9F0';
+}
+
+function topicNameInitial(name: string): string {
+    return name.substring(0, 1).toUpperCase() || '#';
+}
+
+function getTopicPreview(topic: forumTopic): string {
+    const msg = topic.last_message;
+    if (!msg) return '';
+
+    const content = msg.content;
+    if (!content) return '';
+
+    if (content._ === 'messageText') {
+        return content.text.text;
+    }
+    if (content._ === 'messagePhoto') {
+        return content.caption.text || '[图片]';
+    }
+    if (content._ === 'messageVideo') {
+        return content.caption.text || '[视频]';
+    }
+    if (content._ === 'messageAnimation') {
+        return content.caption.text || '[GIF]';
+    }
+    if (content._ === 'messageDocument') {
+        return content.caption.text || `[文件] ${content.document.file_name}`.trim();
+    }
+    if (content._ === 'messageSticker') {
+        return `${content.sticker.emoji || ''} [贴纸]`.trim();
+    }
+    if (content._ === 'messageVoiceNote') {
+        return '[语音]';
+    }
+    if (content._ === 'messageAudio') {
+        return content.caption.text || `[音乐] ${content.audio.title || content.audio.file_name}`.trim();
+    }
+    if (content._ === 'messageVideoNote') {
+        return '[视频消息]';
+    }
+    return '[消息]';
 }
 </script>
 
@@ -436,6 +699,72 @@ function onTouchEnd(e: TouchEvent) {
 }
 
 /* Each page takes full width of the container */
+
+/* Forum topic panel slide animation */
+.topic-slide-enter-active {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.topic-slide-leave-active {
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.topic-slide-enter-from {
+    transform: translateX(100%);
+    opacity: 0.5;
+}
+
+.topic-slide-leave-to {
+    transform: translateX(100%);
+    opacity: 0.5;
+}
+
+/* w-17 custom width (68px) for avatar column */
+.w-17 {
+    width: 68px;
+}
+
+/* Forum mode avatar column scrollbar */
+.w-17::-webkit-scrollbar {
+    width: 2px;
+}
+
+.w-17::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 1px;
+}
+
+.w-17:hover::-webkit-scrollbar-thumb {
+    background: rgba(156, 163, 175, 0.3);
+}
+
+/* Slide-up transition for search bar, tabs, music player */
+.slide-up-enter-active {
+    transition: all 0.25s ease-out;
+    overflow: hidden;
+}
+
+.slide-up-leave-active {
+    transition: all 0.2s ease-in;
+    overflow: hidden;
+}
+
+.slide-up-enter-from {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-100%);
+}
+
+.slide-up-leave-to {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-100%);
+    margin: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border: none;
+}
+
 .swipe-page {
     width: 100%;
 }

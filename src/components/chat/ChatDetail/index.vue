@@ -135,7 +135,7 @@
                                         @click.stop="openForwardSource(item.msg.forward_info)">
                                         <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
                                         <span class="min-w-0 flex-1 truncate">{{ getForwardName(item.msg.forward_info)
-                                        }}</span>
+                                            }}</span>
                                     </button>
                                     <MessageContent :content="item.msg.content" :isSelf="isSelf(item.msg)"
                                         :date="item.msg.date" :forwardInfo="item.msg.forward_info"
@@ -181,7 +181,7 @@
         <!-- ===== Header（顶层，磨砂玻璃） ===== -->
         <div
             class="absolute top-0 left-0 right-0 z-10 bg-white/80 dark:bg-[#1c1c1c]/70 backdrop-blur-lg border-b border-gray-200/60 dark:border-gray-800/60">
-            <ChatDetailHeader :chat="chat" :showBack="showOverlay" @back="closeOverlay" @openInfo="openOverlay" />
+            <ChatDetailHeader :chat="chat" :showBack="showBackBtn" @back="handleBack" @openInfo="openOverlay" />
         </div>
 
         <!-- ===== 顶置消息栏 + 音乐播放器（合并同一卡片） ===== -->
@@ -321,6 +321,12 @@ const chatId = computed(() => {
     return id ? parseInt(id as string) : undefined;
 });
 
+/** 话题 ID（论坛群组话题模式时存在） */
+const topicId = computed(() => {
+    const tid = route.params.topicId;
+    return tid ? parseInt(tid as string) : undefined;
+});
+
 // ==================== Overlay State ====================
 const showOverlay = ref(false);
 
@@ -330,6 +336,18 @@ function openOverlay() {
 
 function closeOverlay() {
     showOverlay.value = false;
+}
+
+/** 话题模式时显示返回按钮 */
+const showBackBtn = computed(() => showOverlay.value || !!topicId.value);
+
+/** 返回按钮处理：话题模式返回聊天列表（话题列表已内联在侧边栏），叠层模式关闭叠层 */
+function handleBack() {
+    if (topicId.value) {
+        router.push('/home/chats');
+    } else {
+        closeOverlay();
+    }
 }
 
 function getChatSubtitle(): string {
@@ -476,6 +494,12 @@ const handleUpdate = async (update: Update) => {
             const msg = update.message;
             if (msg.chat_id !== chatId.value) return;
             if (messages.value.find(m => m.id === msg.id)) return;
+
+            // 话题模式下只显示属于当前话题的消息
+            if (topicId.value) {
+                const msgTopicId = msg.topic_id?._ === 'messageTopicForum' ? msg.topic_id.forum_topic_id : 0;
+                if (msgTopicId !== topicId.value) return;
+            }
 
             const senderIsMe =
                 msg.sender_id._ === 'messageSenderUser' &&
@@ -648,7 +672,7 @@ function isGenerationValid(gen: number): boolean {
 }
 
 // 监听 chatId 变化，加载聊天信息和消息
-watch([chatId, chatLoadRetryToken, forwardedTargetMessageId], async ([newChatId, , requestedMessageId]) => {
+watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([newChatId, , , requestedMessageId]) => {
     if (newChatId === undefined) return;
     if (chatLoadRetryId !== newChatId) {
         chatLoadRetryId = newChatId;
@@ -775,7 +799,16 @@ watch([chatId, chatLoadRetryToken, forwardedTargetMessageId], async ([newChatId,
  */
 async function fetchMessages(chatIdNum: number, fromMessageId: number, limit: number, offset = 0, generation?: number): Promise<message[]> {
     try {
-        const result = await tdlibSend({
+        // 话题模式使用 getForumTopicHistory
+        const tid = topicId.value;
+        const result = await tdlibSend(tid ? {
+            _: 'getForumTopicHistory',
+            chat_id: chatIdNum,
+            forum_topic_id: tid,
+            from_message_id: fromMessageId,
+            offset,
+            limit,
+        } : {
             _: 'getChatHistory',
             chat_id: chatIdNum,
             from_message_id: fromMessageId,
@@ -930,8 +963,9 @@ async function markVisibleMessagesAsRead() {
             _: 'viewMessages',
             chat_id: currentChatId,
             message_ids: messageIds,
-            force_read: true
-        });
+            force_read: true,
+            source: topicId.value ? { _: 'messageSourceForumTopicHistory' } : undefined,
+        } as any);
     } catch (e) {
         if (chatId.value === currentChatId && lastReportedReadMessageId === latestVisibleId) {
             lastReportedReadMessageId = previousReportedId;
@@ -1176,7 +1210,7 @@ const onScroll = async (e: Event) => {
 const handleSend = async (text: string) => {
     if (!chatId.value || !text.trim()) return;
     try {
-        await tdlibSend({
+        const params: any = {
             _: 'sendMessage',
             chat_id: chatId.value,
             input_message_content: {
@@ -1185,7 +1219,12 @@ const handleSend = async (text: string) => {
                 disable_web_page_preview: false,
                 clear_draft: true
             }
-        });
+        };
+        // 话题模式时指定 topic_id
+        if (topicId.value) {
+            params.topic_id = { _: 'messageTopicForum', forum_topic_id: topicId.value };
+        }
+        await tdlibSend(params);
         messageInput.value = '';
     } catch (e) {
         console.error("Failed to send message:", e);

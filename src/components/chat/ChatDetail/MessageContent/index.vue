@@ -30,11 +30,11 @@
 
         <!-- Voice / Video notes -->
         <MessageVoiceContent v-else-if="content._ === 'messageVoiceNote' || content._ === 'messageVideoNote'"
-            :content="content as any" />
+            :content="content" />
 
         <!-- Document / Audio -->
         <MessageFileContent v-else-if="content._ === 'messageDocument' || content._ === 'messageAudio'"
-            :content="content as any" :chatId="chatId" :messageId="messageId" />
+            :content="content" :chatId="chatId" :messageId="messageId" />
 
         <!-- Other types -->
         <MessageOtherContent v-else :content="content" />

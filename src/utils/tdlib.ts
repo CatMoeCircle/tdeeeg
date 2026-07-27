@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { $Function, $FunctionResultByName } from "tdlib-types";
+import { ref } from 'vue';
 
 /**
  * Sends a request to TDLib.
@@ -28,12 +29,33 @@ export function isFileReady(file: { local: { is_downloading_completed: boolean; 
 export const downloadingFiles = new Set<number>();
 
 /**
+ * 响应式的正在下载文件 ID 集合，供组件渲染下载状态时使用。
+ * 与 downloadingFiles Set 同步更新。
+ */
+export const reactiveDownloadingFiles = ref<Set<number>>(new Set());
+
+function addDownloading(fileId: number) {
+  downloadingFiles.add(fileId);
+  reactiveDownloadingFiles.value = new Set(downloadingFiles);
+}
+
+function deleteDownloading(fileId: number) {
+  downloadingFiles.delete(fileId);
+  reactiveDownloadingFiles.value = new Set(downloadingFiles);
+}
+
+/** 检查指定 file_id 是否正在下载中（响应式） */
+export function isFileDownloading(fileId: number): boolean {
+  return reactiveDownloadingFiles.value.has(fileId);
+}
+
+/**
  * 安全发起文件下载，自动去重。
  * 返回 true 表示已发起下载，false 表示已在下载中或文件已就绪。
  */
 export async function safeDownloadFile(fileId: number, synchronous = true): Promise<boolean> {
   if (downloadingFiles.has(fileId)) return false;
-  downloadingFiles.add(fileId);
+  addDownloading(fileId);
   try {
     await tdlibSend({
       _: 'downloadFile',
@@ -45,6 +67,6 @@ export async function safeDownloadFile(fileId: number, synchronous = true): Prom
     });
     return true;
   } finally {
-    downloadingFiles.delete(fileId);
+    deleteDownloading(fileId);
   }
 }

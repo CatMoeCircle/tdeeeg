@@ -27,6 +27,8 @@ export interface Chat {
   chat_lists?: Array<ChatList>;
   photo?: chatPhotoInfo;
   draft_message?: draftMessage;
+  /** 是否为话题模式论坛群组 */
+  view_as_topics?: boolean;
 }
 
 export interface ChatListState {

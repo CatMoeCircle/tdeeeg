@@ -14,11 +14,11 @@
                     class="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center shrink-0">
                     <BookmarkIcon class="w-5 h-5 fill-current" />
                 </div>
-                <Avatar v-else :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" />
+                <Avatar v-else :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" :square="isForumChat" />
                 <div class="flex flex-col min-w-0">
                     <h2 class="flex font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight truncate">{{
                         chatTitle
-                    }}<span v-if="verificationState" class="text-blue-500 ml-1 shrink-0">
+                        }}<span v-if="verificationState" class="text-blue-500 ml-1 shrink-0">
                             <component :is="verificationState" />
                         </span>
                     </h2>
@@ -73,6 +73,9 @@ const isSavedMessages = computed(() =>
     !!props.chat && isSavedMessagesChat(props.chat, userProfile.value?.id)
 );
 const chatTitle = computed(() => isSavedMessages.value ? SAVED_MESSAGES_TITLE : props.chat?.title || '');
+const isForumChat = computed(() =>
+    !!props.chat && props.chat.type?._ === 'chatTypeSupergroup' && !!(props.chat as any).view_as_topics
+);
 
 const formatCount = (count: number) => numberFormatter.format(count);
 

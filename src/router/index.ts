@@ -30,6 +30,12 @@ const router = createRouter({
           component: () => import("../views/main/ChatModule.vue"),
           children: [
             {
+              path: ":id/topics/:topicId",
+              name: "chat-topic-detail",
+              component: () =>
+                import("../components/chat/ChatDetail/index.vue"),
+            },
+            {
               path: ":id",
               name: "chat-detail",
               component: () =>
