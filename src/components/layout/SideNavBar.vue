@@ -37,7 +37,7 @@
                     </span>
                 </span>
             </router-link>
-            <router-link to="/home/settings" :class="buttonStyle" active-class="bg-white/60 dark:bg-gray-600 shadow-sm">
+            <router-link to="/home/settings" :class="buttonStyle" active-class="bg-white/60 shadow-sm">
                 <SettingsIcon :class="iconStyle" />
             </router-link>
         </div>
@@ -52,7 +52,7 @@ import { useUserStore } from '../../store/user';
 import { useDownloadStore } from '../../store/downloads';
 import { storeToRefs } from 'pinia';
 
-const buttonStyle = 'w-10 h-10 flex items-center justify-center text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-800/50 transition-colors relative rounded-lg';
+const buttonStyle = 'w-10 h-10 flex items-center justify-center text-gray-500 transition-colors relative rounded-lg hover:bg-white/60 hover:shadow-sm';
 const iconStyle = 'w-5 h-5';
 
 const userStore = useUserStore();

@@ -82,14 +82,15 @@
             </div>
         </div>
 
-        <p v-if="captionSegments.length" class="mt-2 whitespace-pre-wrap wrap-break-word text-sm leading-5">
+        <p v-if="captionSegments.length" class="mt-2 text-sm whitespace-pre-wrap leading-5">
             <template v-for="(segment, index) in captionSegments" :key="index">
                 <a v-if="segment.href" :href="segment.href"
                     class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
                     :class="[segment.className, captionLoadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
-                    @click.prevent.stop="openCaptionLink(segment.href)">{{ segment.text
+                    @click.prevent.stop="handleCaptionSegmentClick($event, segment)">{{ segment.text
                     }}</a>
-                <span v-else :class="segment.className">{{ segment.text }}</span>
+                <span v-else :class="[segment.className, { 'cursor-pointer': segment.copyable }]"
+                    @click="segment.copyable ? handleCaptionSegmentClick($event, segment) : undefined">{{ segment.text }}</span>
             </template>
         </p>
     </div>
@@ -103,6 +104,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { FileIcon, DownloadIcon, MusicIcon, PauseIcon, PlayIcon } from 'lucide-vue-next';
 import { useRouter } from 'vue-router';
+import { MessagePlugin } from 'tdesign-vue-next';
 import { useDownloadStore, type DownloadFileType } from '../../../../store/downloads';
 import { useChatStore } from '../../../../store/chat';
 import { settings } from '../../../../store/settings';
@@ -178,6 +180,8 @@ type CaptionSegment = {
     text: string;
     href?: string;
     className: string;
+    /** 是否可点击复制 */
+    copyable?: boolean;
 };
 
 const captionSegments = computed<CaptionSegment[]>(() => {
@@ -208,7 +212,8 @@ const captionSegments = computed<CaptionSegment[]>(() => {
             .map(entity => getEntityHref(entity, segmentText))
             .find((value): value is string => !!value);
         const className = activeEntities.map(getEntityClass).filter(Boolean).join(' ');
-        return { text: segmentText, href, className };
+        const copyable = activeEntities.some(e => isCopyableEntity(e));
+        return { text: segmentText, href, className, copyable };
     });
 });
 
@@ -236,6 +241,47 @@ function getEntityClass(entity: textEntity): string {
             return 'rounded bg-black/5 px-0.5 font-mono dark:bg-white/10';
         case 'textEntityTypeSpoiler': return 'caption-spoiler';
         default: return '';
+    }
+}
+
+function isCopyableEntity(entity: textEntity): boolean {
+    switch (entity.type._) {
+        case 'textEntityTypeUrl':
+        case 'textEntityTypeTextUrl':
+        case 'textEntityTypeEmailAddress':
+        case 'textEntityTypePhoneNumber':
+        case 'textEntityTypeCode':
+        case 'textEntityTypePre':
+        case 'textEntityTypePreCode':
+        case 'textEntityTypeHashtag':
+        case 'textEntityTypeCashtag':
+        case 'textEntityTypeBotCommand':
+        case 'textEntityTypeBankCardNumber':
+        case 'textEntityTypeMention':
+        case 'textEntityTypeMentionName':
+            return true;
+        default:
+            return false;
+    }
+}
+
+async function copyToClipboard(text: string) {
+    try {
+        await navigator.clipboard.writeText(text);
+        await MessagePlugin.success({ content: '已复制', placement: 'top-right' });
+    } catch (e) {
+        console.error('Copy failed:', e);
+    }
+}
+
+function handleCaptionSegmentClick(event: MouseEvent, segment: CaptionSegment) {
+    if (segment.href) {
+        if (segment.copyable) {
+            copyToClipboard(segment.text);
+        }
+        openCaptionLink(segment.href);
+    } else if (segment.copyable) {
+        copyToClipboard(segment.text);
     }
 }
 

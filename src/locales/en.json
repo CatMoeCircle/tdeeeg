@@ -19,5 +19,11 @@
     "passwordDesc": "Your account has 2FA enabled, please enter your password.",
     "passwordPlaceholder": "Password",
     "passwordError": "Invalid Password"
+  },
+  "connection": {
+    "connecting": "Connecting",
+    "updating": "Updating",
+    "connectingToProxy": "Connecting to proxy",
+    "waitingForNetwork": "Waiting for network"
   }
 }

@@ -22,3 +22,76 @@ button,
   -ms-user-select: text;
   user-select: text;
 }
+
+/* ===== 连接状态点号渐现动画 ===== */
+.animated-dots {
+  display: inline;
+}
+.animated-dots span {
+  animation: dot-fade 1.4s infinite;
+  opacity: 0;
+}
+.animated-dots .dot-2 {
+  animation-delay: 0.35s;
+}
+.animated-dots .dot-3 {
+  animation-delay: 0.7s;
+}
+
+@keyframes dot-fade {
+  0%,
+  60%,
+  100% {
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+/* ===== 拖拽分隔线时禁用过渡动画，防止面板抽搐 ===== */
+body.is-resizing,
+body.is-resizing * {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* ===== 自定义滚动条：overlay 模式 + 悬停增宽 ===== */
+
+/* 使用 overlay 使滚动条不占用内容空间 */
+.custom-scrollbar {
+  overflow-y: overlay !important;
+}
+
+/* 默认：细滚动条 4px，滑块极淡始终可见 */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.25);
+  border-radius: 3px;
+}
+
+/* 容器悬停：滑块变明显 */
+.custom-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.5);
+}
+
+/* 直接悬停在滚动条区域上：增宽到 10px，方便拖拽 */
+.custom-scrollbar::-webkit-scrollbar:hover {
+  width: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(156, 163, 175, 0.75);
+}
+
+.custom-scrollbar::-webkit-scrollbar-track:hover {
+  background: rgba(0, 0, 0, 0.04);
+}

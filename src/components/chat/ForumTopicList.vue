@@ -58,7 +58,7 @@
                                 <span v-if="topic.info.is_closed" class="text-xs text-gray-400 ml-1">[已关闭]</span>
                             </h3>
                             <span class="text-xs text-gray-400 ml-2 shrink-0">{{ formatTime(topic.last_message?.date)
-                                }}</span>
+                            }}</span>
                         </div>
                         <div class="flex items-center gap-2">
                             <p class="flex-1 min-w-0 text-xs text-gray-500 truncate">{{ getTopicPreview(topic) }}</p>
@@ -81,8 +81,6 @@ import { ArrowLeftIcon, MessageCircleIcon } from 'lucide-vue-next';
 import { tdlibSend } from '../../utils/tdlib';
 import type { chat, forumTopic, forumTopics, supergroup } from 'tdlib-types';
 import Avatar from './avatar.vue';
-import { useChatStore } from '../../store/chat';
-
 const route = useRoute();
 const router = useRouter();
 
@@ -91,7 +89,6 @@ const chatId = computed(() => {
     return id ? parseInt(id as string) : undefined;
 });
 
-const chatStore = useChatStore();
 const chat = ref<chat | undefined>(undefined);
 const supergroupInfo = ref<supergroup | undefined>(undefined);
 const topics = ref<forumTopic[]>([]);
@@ -240,18 +237,4 @@ function getTopicPreview(topic: forumTopic): string {
 }
 </script>
 
-<style scoped>
-.custom-scrollbar::-webkit-scrollbar {
-    width: 4px;
-    background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-    background-color: transparent;
-    border-radius: 2px;
-}
-
-.custom-scrollbar:hover::-webkit-scrollbar-thumb {
-    background-color: rgba(156, 163, 175, 0.5);
-}
-</style>
+<style scoped></style>

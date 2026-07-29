@@ -22,7 +22,13 @@
                             <component :is="verificationState" />
                         </span>
                     </h2>
-                    <span class="text-xs text-gray-400 truncate">{{ status }}</span>
+                    <span class="text-xs text-gray-400 truncate">
+                        <template v-if="showConnectionStatus">
+                            {{ displayStatus }}<span class="animated-dots"><span class="dot-1">.</span><span
+                                    class="dot-2">.</span><span class="dot-3">.</span></span>
+                        </template>
+                        <template v-else>{{ displayStatus }}</template>
+                    </span>
                 </div>
             </button>
         </div>
@@ -46,10 +52,12 @@
 import { SearchIcon, MoreHorizontalIcon, ArrowLeftIcon, BadgeCheckIcon, ShieldAlert, BookmarkIcon } from 'lucide-vue-next';
 import { computed, h, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
+import { useI18n } from 'vue-i18n';
 import type { chat, user, verificationStatus } from "tdlib-types";
 import { tdlibSend } from '../../../utils/tdlib';
 import formatStatus from '../../../utils/status';
 import { useUserStore } from '../../../store/user';
+import { useConnectionStore } from '../../../store/connectionState';
 import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../../utils/savedMessages';
 
 const props = defineProps<{
@@ -69,6 +77,8 @@ let statusRequestId = 0;
 
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
+const connectionStore = useConnectionStore();
+const { t } = useI18n();
 const isSavedMessages = computed(() =>
     !!props.chat && isSavedMessagesChat(props.chat, userProfile.value?.id)
 );
@@ -76,6 +86,24 @@ const chatTitle = computed(() => isSavedMessages.value ? SAVED_MESSAGES_TITLE : 
 const isForumChat = computed(() =>
     !!props.chat && props.chat.type?._ === 'chatTypeSupergroup' && !!(props.chat as any).view_as_topics
 );
+
+/** 是否显示连接状态（替代对话原有状态文本） */
+const showConnectionStatus = computed(() =>
+    connectionStore.isConnecting && !!connectionStore.connectionLabel
+);
+
+/** 连接状态的基底文本（不含动画点号） */
+const connectionStatusText = computed(() =>
+    showConnectionStatus.value ? t(connectionStore.connectionLabel) : ''
+);
+
+/** 显示状态：连接异常时优先显示连接状态，否则显示对话状态 */
+const displayStatus = computed(() => {
+    if (showConnectionStatus.value) {
+        return connectionStatusText.value;
+    }
+    return status.value;
+});
 
 const formatCount = (count: number) => numberFormatter.format(count);
 

@@ -54,7 +54,7 @@
                         <div class="flex justify-between mt-1.5">
                             <span class="text-xs text-gray-400">{{ formatTime(player.currentTime) }}</span>
                             <span class="text-xs text-gray-400">{{ formatTime(player.currentTrack?.duration || 0)
-                                }}</span>
+                            }}</span>
                         </div>
                     </div>
 
@@ -105,7 +105,8 @@
                     </div>
 
                     <!-- 播放列表 -->
-                    <div class="flex-1 overflow-y-auto border-t border-gray-100 dark:border-gray-700 mt-2">
+                    <div
+                        class="flex-1 overflow-y-auto custom-scrollbar border-t border-gray-100 dark:border-gray-700 mt-2">
                         <div class="px-4 py-2 flex items-center justify-between">
                             <span class="text-xs font-medium text-gray-500 dark:text-gray-400">播放列表 ({{
                                 player.playlist.length }})</span>

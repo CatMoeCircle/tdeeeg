@@ -14,7 +14,7 @@
             <!-- 中间输入容器（圆角样式） -->
             <div class="flex-1 rounded-full dark:bg-gray-800 flex items-center px-2 my-2">
                 <textarea v-model="localValue" :placeholder="placeholder || '输入消息...'"
-                    class="message-input-scrollbar flex-1 bg-transparent resize-none focus:outline-none text-sm leading-5 text-gray-800 dark:text-gray-200 px-2 py-2 min-h-9 max-h-40 overflow-y-auto [field-sizing:content]"
+                    class="message-input-scrollbar flex-1 bg-transparent resize-none focus:outline-none text-sm leading-5 text-gray-800 dark:text-gray-200 px-2 py-2 min-h-9 max-h-40 overflow-y-auto field-sizing-content"
                     rows="1" @keydown.enter.exact.prevent="onEnter" @keydown.enter.shift.stop></textarea>
             </div>
 

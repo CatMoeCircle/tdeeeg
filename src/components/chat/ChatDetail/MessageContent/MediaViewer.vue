@@ -161,8 +161,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { isMediaViewerActive } from '../../../../store/mediaViewer';
+import { pauseAudioForVideo, onVideoStopped } from '../../../../store/videoPlayback';
 
 export interface MediaViewerItem {
     type: 'photo' | 'video' | 'animation';
@@ -284,6 +285,7 @@ watch(currentIndex, () => {
 });
 
 function close() {
+    if (isVideo.value) onVideoStopped();
     emit('close', isVideo.value ? videoCurrent.value : undefined);
 }
 
@@ -440,6 +442,7 @@ function onVideoLoaded() {
 function onVideoEnded() {
     isVideoPlaying.value = false;
     videoCurrent.value = 0;
+    onVideoStopped();
 }
 
 function onSeekDrag(e: Event) {
@@ -460,6 +463,11 @@ watch(() => props.visible, (v) => {
     if (v) {
         setTimeout(() => containerRef.value?.focus(), 100);
     }
+});
+
+// 全屏打开视频时暂停音乐
+onMounted(() => {
+    if (isVideo.value) pauseAudioForVideo();
 });
 
 // Cleanup idle timer on unmount

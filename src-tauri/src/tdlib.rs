@@ -69,6 +69,8 @@ pub struct AppState {
     pub chat_store: Arc<Mutex<ChatStore>>,
     pub download_store: Arc<Mutex<DownloadStore>>,
     pub stream_lock: Mutex<()>,
+    pub connection_state: Arc<Mutex<Option<String>>>,
+    pub options: Arc<Mutex<HashMap<String, String>>>,
 }
 
 impl AppState {
@@ -87,6 +89,8 @@ impl AppState {
             chat_store: Arc::new(Mutex::new(ChatStore::new())),
             download_store: Arc::new(Mutex::new(DownloadStore::new(data_dir))),
             stream_lock: Mutex::new(()),
+            connection_state: Arc::new(Mutex::new(None)),
+            options: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -269,6 +273,8 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
     let download_store = state.download_store.clone();
     let tdlib_db_dir = tdlib_data_dir.join("tdlib_db");
     let tdlib_files_dir = tdlib_data_dir.join("tdlib_files");
+    let connection_state = state.connection_state.clone();
+    let options = state.options.clone();
     std::thread::spawn(move || {
         let client = client_ptr as *mut c_void;
         loop {
@@ -340,6 +346,32 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
 
                         // 将 @type 转换为 _ 发送给前端
                         rename_json_key(&mut event, "@type", "_");
+
+                        // 缓存 updateConnectionState 到 AppState，供前端首次加载时查询
+                        if event.get("_").and_then(|v| v.as_str()) == Some("updateConnectionState")
+                        {
+                            if let Some(state_val) = event.get("state") {
+                                if let Ok(state_json) = serde_json::to_string(state_val) {
+                                    if let Ok(mut cs) = connection_state.lock() {
+                                        *cs = Some(state_json);
+                                    }
+                                }
+                            }
+                        }
+
+                        // 缓存 updateOption 到 AppState，供前端首次加载时查询
+                        if event.get("_").and_then(|v| v.as_str()) == Some("updateOption") {
+                            if let (Some(name), Some(value)) = (
+                                event.get("name").and_then(|v| v.as_str()),
+                                event.get("value"),
+                            ) {
+                                if let Ok(value_json) = serde_json::to_string(value) {
+                                    if let Ok(mut opts) = options.lock() {
+                                        opts.insert(name.to_string(), value_json);
+                                    }
+                                }
+                            }
+                        }
 
                         // 处理 对话 store 的更新
                         if let Some(events) = chat_store.lock().unwrap().handle_update(&event) {
@@ -581,4 +613,55 @@ pub fn set_show_hidden_downloads(state: State<AppState>, value: bool) -> Result<
     let mut store = state.download_store.lock().map_err(|e| e.to_string())?;
     store.set_show_hidden(value);
     Ok(())
+}
+
+// ==================== 连接状态缓存命令 ====================
+
+/// 返回 Rust 端缓存的最近一次 updateConnectionState 的 state 字段（JSON 字符串）。
+/// 前端首次加载时调用此命令获取缓存状态，避免等待事件到达。
+/// 如果从未收到过 updateConnectionState，返回 null。
+#[tauri::command]
+pub fn get_cached_connection_state(
+    state: State<AppState>,
+) -> Result<Option<serde_json::Value>, String> {
+    let cs = state.connection_state.lock().map_err(|e| e.to_string())?;
+    match cs.as_ref() {
+        Some(json_str) => {
+            let v: serde_json::Value = serde_json::from_str(json_str).map_err(|e| e.to_string())?;
+            Ok(Some(v))
+        }
+        None => Ok(None),
+    }
+}
+
+// ==================== Options 缓存命令 ====================
+
+/// 返回 Rust 端缓存的所有 TDLib option 值（key → JSON Value）。
+#[tauri::command]
+pub fn get_cached_options(state: State<AppState>) -> Result<serde_json::Value, String> {
+    let opts = state.options.lock().map_err(|e| e.to_string())?;
+    let mut map = serde_json::Map::new();
+    for (name, value_json) in opts.iter() {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(value_json) {
+            map.insert(name.clone(), v);
+        }
+    }
+    Ok(serde_json::Value::Object(map))
+}
+
+/// 返回 Rust 端缓存的指定 option 值（JSON Value），未缓存则返回 null。
+#[tauri::command]
+pub fn get_cached_option(
+    state: State<AppState>,
+    name: String,
+) -> Result<Option<serde_json::Value>, String> {
+    let opts = state.options.lock().map_err(|e| e.to_string())?;
+    match opts.get(&name) {
+        Some(value_json) => {
+            let v: serde_json::Value =
+                serde_json::from_str(value_json).map_err(|e| e.to_string())?;
+            Ok(Some(v))
+        }
+        None => Ok(None),
+    }
 }

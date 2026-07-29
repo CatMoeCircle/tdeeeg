@@ -11,5 +11,11 @@
     "step3": "3. 掃描此圖像以登入",
     "clickToShowQr": "點擊顯示二維碼",
     "waiting": "正在等待二維碼..."
+  },
+  "connection": {
+    "connecting": "正在連接",
+    "updating": "正在更新",
+    "connectingToProxy": "正在連接代理",
+    "waitingForNetwork": "等待網路連接"
   }
 }

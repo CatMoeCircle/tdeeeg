@@ -120,7 +120,7 @@
                                     isStandaloneMessage(item.msg) ? '' : getMessageBorderRadius(item.msg, item)
                                 ]">
                                     <p v-if="!isSelf(item.msg) && showSenderName && item.isFirstInGroup"
-                                        class="text-xs font-semibold mb-0.5 -mt-0.5 text-blue-500">
+                                        class="text-xs font-semibold mx-2 m-0.5 text-blue-500">
                                         {{ getSenderName(item.msg) }}
                                     </p>
                                     <button v-if="item.msg.forward_info && !isMediaMessage(item.msg)" type="button"
@@ -135,7 +135,7 @@
                                         @click.stop="openForwardSource(item.msg.forward_info)">
                                         <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
                                         <span class="min-w-0 flex-1 truncate">{{ getForwardName(item.msg.forward_info)
-                                            }}</span>
+                                        }}</span>
                                     </button>
                                     <MessageContent :content="item.msg.content" :isSelf="isSelf(item.msg)"
                                         :date="item.msg.date" :forwardInfo="item.msg.forward_info"
@@ -195,7 +195,8 @@
 
         <!-- ===== 叠层面板 ===== -->
         <Transition name="overlay-slide">
-            <div v-if="showOverlay && chat" class="absolute inset-0 z-20 bg-white dark:bg-gray-900 overflow-y-auto">
+            <div v-if="showOverlay && chat"
+                class="absolute inset-0 z-20 bg-white dark:bg-gray-900 overflow-y-auto custom-scrollbar">
                 <div class="p-4 pt-20">
                     <!-- 对话信息 -->
                     <div class="flex flex-col items-center mb-6">
@@ -410,7 +411,7 @@ const { userProfile } = storeToRefs(userStore);
 const myId = computed(() => userProfile.value?.id || 0);
 
 // ==================== 全局媒体查看器状态 ====================
-const { viewerVisible, viewerIndex, viewerInitialTime, viewerItems } = getViewerState();
+const { viewerVisible, viewerIndex, viewerInitialTime, viewerItems, viewerCurrentMsgId } = getViewerState();
 
 // 当消息列表变化时，将已有媒体消息注册到全局查看器
 const previousMsgIds = ref<Set<number>>(new Set());
@@ -453,7 +454,16 @@ watch(messages, (msgs) => {
     previousMsgIds.value = newIds;
 }, { immediate: true, deep: true });
 
-function onViewerClose() {
+function onViewerClose(currentTime?: number) {
+    // 同步全屏查看器关闭时的视频进度到内联视频
+    if (currentTime !== undefined && viewerCurrentMsgId.value) {
+        const videoEl = document.querySelector(
+            `[data-video-msg-id="${viewerCurrentMsgId.value}"]`
+        ) as HTMLVideoElement | null;
+        if (videoEl) {
+            videoEl.currentTime = currentTime;
+        }
+    }
     closeMediaViewer();
 }
 
@@ -1926,20 +1936,6 @@ const handleScrollToBottom = () => {
 }
 </style>
 <style>
-.custom-scrollbar::-webkit-scrollbar {
-    width: 4px;
-    background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-    background-color: transparent;
-    border-radius: 2px;
-}
-
-.custom-scrollbar:hover::-webkit-scrollbar-thumb {
-    background-color: rgba(156, 163, 175, 0.5);
-}
-
 .messages-scroll {
     min-height: 0;
 }

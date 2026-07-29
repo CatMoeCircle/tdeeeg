@@ -217,6 +217,8 @@ import {
     registerPlaying,
     unregisterPlaying,
     toggleGlobalMute,
+    pauseAudioForVideo,
+    onVideoStopped,
 } from '../../../../store/videoPlayback';
 
 
@@ -282,6 +284,11 @@ onMounted(() => {
                 continue;
             }
             if (entry.isIntersecting && props.messageId) {
+                // 刚关闭查看器恢复时不自动播放，仅注册
+                if (restoringFromViewer) {
+                    restoringFromViewer = false;
+                    return;
+                }
                 // 新视频进入视口：暂停之前的视频，注册当前视频
                 registerPlaying(props.messageId, (prevId) => {
                     // 通过 DOM 查找之前视频的 video 元素并暂停
@@ -314,11 +321,24 @@ watch(videoDownloaded, (downloaded) => {
     }
 }, { flush: 'post' });
 
+/** 刚从全屏查看器恢复，避免立即自动播放 */
+let restoringFromViewer = false;
+
+/** 进入全屏前视频是否正在播放，用于关闭查看器后恢复 */
+let wasPlayingBeforeViewer = false;
+
 // 媒体查看器关闭后，恢复视频的 IntersectionObserver 观察
-// 这样当视频重新进入视口时会自动播放
 watch(isMediaViewerActive, (active, wasActive) => {
     if (wasActive && !active && videoElRef.value && videoObserver && videoDownloaded.value) {
-        videoObserver.observe(videoElRef.value);
+        if (wasPlayingBeforeViewer) {
+            wasPlayingBeforeViewer = false;
+            // 之前就在播放的：正常观察，IntersectionObserver 会立即触发播放
+            videoObserver.observe(videoElRef.value);
+        } else {
+            // 之前没在播放的：标记恢复状态，避免自动播放
+            restoringFromViewer = true;
+            videoObserver.observe(videoElRef.value);
+        }
     }
 });
 
@@ -499,8 +519,11 @@ function openViewer() {
         const initialTime = (props.content._ === 'messageVideo' && videoElRef.value)
             ? videoElRef.value.currentTime : 0;
         if (props.content._ === 'messageVideo' && videoElRef.value) {
+            wasPlayingBeforeViewer = !videoElRef.value.paused;
             videoElRef.value.pause();
             if (videoObserver) videoObserver.unobserve(videoElRef.value);
+            // 全屏播放视频时暂停音乐
+            pauseAudioForVideo();
         }
         openMediaViewer(props.messageId, 0, initialTime);
     }

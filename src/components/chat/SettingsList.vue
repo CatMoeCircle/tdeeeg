@@ -12,6 +12,9 @@
                     <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
                         {{ userProfile ? (userProfile.first_name + ' ' + userProfile.last_name) : '加载中...' }}
                     </p>
+                    <p class="text-xs text-gray-400">
+                        {{ userStatusText }}
+                    </p>
                     <p class="text-xs text-gray-500">
                         {{ userProfile ? ('@' + userProfile.usernames?.active_usernames[0]) : '' }} - id: {{ userProfile
                             ?
@@ -22,7 +25,7 @@
         </div>
         <!-- 音乐播放器入口（聊天打开时由 ChatDetail 接管） -->
         <MusicPlayerEntry v-if="!isChatOpen" compact />
-        <div class="flex-1 overflow-y-auto">
+        <div class="flex-1 overflow-y-auto custom-scrollbar">
             <div class="py-2">
                 <router-link to="/home/settings/appearance"
                     class="flex items-center px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -75,10 +78,19 @@ import { storeToRefs } from 'pinia';
 import { useRoute } from 'vue-router';
 import { computed } from 'vue';
 import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
+import formatStatus from '../../utils/status';
 
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
 
 const route = useRoute();
 const isChatOpen = computed(() => /^\/home\/chats\/\d+/.test(route.path));
+
+/** 用户状态显示文本：优先用 formatStatus 显示上次在线时间，无数据时显示离线 */
+const userStatusText = computed(() => {
+    if (!userProfile.value) return '加载中...';
+    const status = userProfile.value.status;
+    if (!status) return '离线';
+    return formatStatus(status);
+});
 </script>

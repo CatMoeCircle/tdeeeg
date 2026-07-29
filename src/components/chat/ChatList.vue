@@ -53,7 +53,8 @@
                             <template v-if="forumMode">
                                 <div v-for="chat in tab.chats" :key="chat.id" @click="selectForumChat(chat)"
                                     class="relative flex items-center justify-center py-2.5 cursor-pointer transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
-                                    :class="forumChatId === chat.id ? 'bg-gray-100 dark:bg-gray-800 rounded-lg' : ''">
+                                    :class="forumChatId === chat.id ? 'bg-gray-100 dark:bg-gray-800 rounded-lg' : ''"
+                                    style="content-visibility: auto; contain-intrinsic-size: 60px">
                                     <!-- 选中标记：左侧色条 -->
                                     <div v-if="forumChatId === chat.id"
                                         class="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-blue-500 rounded-full">
@@ -77,7 +78,8 @@
                             <template v-else>
                                 <div v-for="chat in tab.chats" :key="chat.id" @click="selectChat(chat)"
                                     class="flex items-center p-3 hover:bg-white/70 rounded-xl hover:shadow-(--box-shadow) dark:hover:bg-gray-800 cursor-pointer transition-colors"
-                                    :class="{ 'rounded-xl bg-white/70 shadow-(--box-shadow) dark:bg-gray-800': selectedChatId === chat.id }">
+                                    :class="{ 'rounded-xl bg-white/70 shadow-(--box-shadow) dark:bg-gray-800': selectedChatId === chat.id }"
+                                    style="content-visibility: auto; contain-intrinsic-size: 80px">
                                     <div class="w-14 h-14 mr-3">
                                         <div v-if="isSavedMessages(chat)"
                                             class="w-full h-full rounded-full bg-blue-500 text-white flex items-center justify-center">
@@ -93,7 +95,7 @@
                                                     getChatTitle(chat) }}
                                             </h3>
                                             <span class="text-xs text-gray-400">{{ formatTime(chat.last_message?.date)
-                                            }}</span>
+                                                }}</span>
                                         </div>
                                         <div class="flex items-center gap-2">
                                             <p class="flex-1 min-w-0 text-xs text-gray-500 truncate">{{
@@ -124,7 +126,7 @@
                             </button>
                             <span class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{{
                                 forumChatTitle
-                            }}</span>
+                                }}</span>
                         </div>
                         <!-- Topic List -->
                         <div class="flex-1 overflow-y-auto custom-scrollbar">
@@ -148,7 +150,8 @@
                             <div v-else class="py-1">
                                 <button v-for="topic in forumTopics" :key="topic.info.forum_topic_id" type="button"
                                     @click="selectTopic(topic.info.forum_topic_id)"
-                                    class="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left">
+                                    class="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left"
+                                    style="content-visibility: auto; contain-intrinsic-size: 68px">
                                     <div class="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center text-white text-base font-bold"
                                         :style="{ backgroundColor: topicIconColor(topic.info.icon.color) }">
                                         {{ topicNameInitial(topic.info.name) }}
@@ -162,7 +165,7 @@
                                             </h3>
                                             <span class="text-xs text-gray-400 ml-1 shrink-0">{{
                                                 formatTime(topic.last_message?.date)
-                                            }}</span>
+                                                }}</span>
                                         </div>
                                         <div class="flex items-center gap-1.5">
                                             <p class="flex-1 min-w-0 text-xs text-gray-500 truncate">{{
@@ -678,19 +681,8 @@ function getTopicPreview(topic: forumTopic): string {
     scrollbar-width: none;
 }
 
-.custom-scrollbar::-webkit-scrollbar {
-    width: 4px;
-    background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-    background-color: transparent;
-    border-radius: 2px;
-}
-
-.custom-scrollbar:hover::-webkit-scrollbar-thumb {
-    background-color: rgba(156, 163, 175, 0.5);
-}
+/* 全局 scrollbar 样式已移至 index.css (overlay + 悬停增宽) */
+/* 此处仅保留 ChatList 特有的滚动条覆盖 */
 
 /* Swipe track: horizontal layout for pages */
 .swipe-track {

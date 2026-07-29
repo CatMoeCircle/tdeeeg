@@ -662,20 +662,6 @@ const canSend = computed(() => {
 </script>
 
 <style scoped>
-.custom-scrollbar::-webkit-scrollbar {
-    width: 4px;
-    background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-    background-color: transparent;
-    border-radius: 2px;
-}
-
-.custom-scrollbar:hover::-webkit-scrollbar-thumb {
-    background-color: rgba(156, 163, 175, 0.5);
-}
-
 /* Ensure flex overflow works: allow scroll child to shrink properly */
 .messages-scroll {
     min-height: 0;

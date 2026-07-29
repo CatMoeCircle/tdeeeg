@@ -47,6 +47,9 @@ pub fn run() {
             tdlib::clear_completed_downloads,
             tdlib::get_show_hidden_downloads,
             tdlib::set_show_hidden_downloads,
+            tdlib::get_cached_connection_state,
+            tdlib::get_cached_options,
+            tdlib::get_cached_option,
             set_window_effect,
         ])
         .run(tauri::generate_context!())

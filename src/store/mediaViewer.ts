@@ -13,9 +13,11 @@ const viewerVisible = ref(false);
 const viewerIndex = ref(0);
 const viewerInitialTime = ref(0);
 const viewerItems = ref<MediaViewerItem[]>([]);
+/** 当前查看的视频所属消息 ID，用于关闭时同步时长 */
+const viewerCurrentMsgId = ref(0);
 
 export function getViewerState() {
-    return { viewerVisible, viewerIndex, viewerInitialTime, viewerItems };
+    return { viewerVisible, viewerIndex, viewerInitialTime, viewerItems, viewerCurrentMsgId };
 }
 
 /** 注册或更新某条消息的媒体项 */
@@ -39,6 +41,7 @@ export function openMediaViewer(targetMsgId: number, subIndex = 0, initialTime =
     const idx = sortedIds.indexOf(targetMsgId);
     viewerIndex.value = Math.max(0, idx) + subIndex;
     viewerInitialTime.value = initialTime;
+    viewerCurrentMsgId.value = targetMsgId;
     viewerVisible.value = true;
     isMediaViewerActive.value = true;
 }

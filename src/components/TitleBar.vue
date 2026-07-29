@@ -1,8 +1,25 @@
 <script setup lang="ts">
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Minus, Square, X } from 'lucide-vue-next';
+import { useConnectionStore } from '../store/connectionState';
+import { useI18n } from 'vue-i18n';
+import { computed } from 'vue';
 
 const appWindow = getCurrentWindow();
+const connectionStore = useConnectionStore();
+const { t } = useI18n();
+
+const titleText = computed(() => {
+    if (connectionStore.isConnecting && connectionStore.connectionLabel) {
+        return t(connectionStore.connectionLabel);
+    }
+    return 'TDEEEG';
+});
+
+/** 是否显示连接状态 */
+const showConnectionStatus = computed(() =>
+    connectionStore.isConnecting && !!connectionStore.connectionLabel
+);
 
 const minimize = () => appWindow.minimize();
 const maximize = () => appWindow.toggleMaximize();
@@ -12,7 +29,13 @@ const close = () => appWindow.close();
 <template>
     <div data-tauri-drag-region class="h-8 flex justify-between items-center select-none w-full shrink-0 bg-white/40">
         <div class="pl-4 text-sm font-medium text-gray-700 pointer-events-none">
-            <p class="truncate w-48">TDEEEG</p>
+            <p class="truncate w-48">
+                <template v-if="showConnectionStatus">
+                    {{ titleText }}<span class="animated-dots"><span class="dot-1">.</span><span
+                            class="dot-2">.</span><span class="dot-3">.</span></span>
+                </template>
+                <template v-else>{{ titleText }}</template>
+            </p>
         </div>
         <Teleport to="body">
             <div class="fixed top-0 right-0 flex h-8 z-9999">

@@ -308,8 +308,31 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
             return;
         }
 
-        // 添加到列表
         const ready = isFileReady(file);
+
+        // 先确保文件下载完成，再添加到播放列表
+        if (!ready) {
+            try {
+                await safeDownloadFile(file.id, true);
+            } catch (e) {
+                console.error('Failed to download audio:', e);
+                return;
+            }
+        }
+
+        // 下载完成后获取文件路径
+        let filePath = '';
+        if (isFileReady(file)) {
+            filePath = convertFileSrc(file.local.path);
+        } else {
+            try {
+                const fileInfo = await tdlibSend({ _: 'getFile', file_id: file.id }) as any;
+                if (fileInfo?.local?.path) {
+                    filePath = convertFileSrc(fileInfo.local.path);
+                }
+            } catch (_) { }
+        }
+
         const track: AudioTrack = {
             messageId: msg.id,
             chatId: msg.chat_id,
@@ -317,8 +340,8 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
             performer: audio.performer || '未知艺术家',
             duration: audio.duration,
             fileId: file.id,
-            filePath: ready ? convertFileSrc(file.local.path) : '',
-            ready,
+            filePath,
+            ready: true,
         };
 
         // 异步加载封面（不阻塞播放）
@@ -327,9 +350,11 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
             if (idx >= 0) playlist.value[idx].coverPath = url;
         });
 
+        // 下载完成后再添加到列表（此时 track 已就绪）
         playlist.value.push(track);
         originalPlaylist.value.push(track);
-        showEntry.value = true;
+
+        // playTrack 内部会设置 showEntry = true
         await playTrack(playlist.value.length - 1);
     }
 

@@ -7,6 +7,8 @@ import { useRouter } from "vue-router";
 import TitleBar from "./components/TitleBar.vue";
 import { MessagePlugin } from 'tdesign-vue-next';
 import { useDownloadStore } from "./store/downloads";
+import { useConnectionStore } from "./store/connectionState";
+import { useOptionsStore } from "./store/options";
 
 const router = useRouter();
 
@@ -15,11 +17,17 @@ const initialized = ref(false);
 const startTDLibError = ref<string | null>(null);
 
 const downloadStore = useDownloadStore();
+const connectionStore = useConnectionStore();
+const optionsStore = useOptionsStore();
 
 async function initTdlib() {
   try {
     // 初始化下载管理器的 updateFile 监听
     await downloadStore.init();
+    // 初始化连接状态监听（updateConnectionState）
+    connectionStore.init();
+    // 初始化 TDLib options 缓存监听
+    optionsStore.init();
 
     if (import.meta.env.DEV) {
       // await listen<Update>("tdlib-update", (event) => {
@@ -79,6 +87,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   downloadStore.destroy();
+  connectionStore.destroy();
+  optionsStore.destroy();
 });
 </script>
 

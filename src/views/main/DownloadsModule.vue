@@ -70,7 +70,7 @@
                 class="ml-auto font-medium hover:underline shrink-0">查看</button>
         </div>
 
-        <div class="flex-1 overflow-y-auto">
+        <div class="flex-1 overflow-y-auto custom-scrollbar">
             <!-- 进行中/暂停 -->
             <div v-if="store.pendingItems.length > 0" class="py-2">
                 <div class="px-4 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wider">
@@ -122,7 +122,7 @@
                     </div>
 
                     <span class="text-xs text-gray-400 shrink-0 w-10 text-right">{{ (item.progress * 100).toFixed(0)
-                    }}%</span>
+                        }}%</span>
 
                     <!-- 操作按钮 -->
                     <div class="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">

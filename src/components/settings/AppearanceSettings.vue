@@ -3,7 +3,7 @@
         <div class="p-4 border-b border-gray-200 dark:border-gray-800">
             <h2 class="text-lg font-semibold">外观设置</h2>
         </div>
-        <div class="flex-1 overflow-y-auto p-6">
+        <div class="flex-1 overflow-y-auto custom-scrollbar p-6">
             <div class="max-w-2xl">
                 <div class="mb-8">
                     <h3 class="text-sm font-medium text-gray-500 mb-4 uppercase tracking-wider">分组文件夹样式</h3>

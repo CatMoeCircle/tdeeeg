@@ -27,5 +27,11 @@
     "passwordDesc": "您的账户启用了两步验证，请输入密码。",
     "passwordPlaceholder": "密码",
     "passwordError": "密码错误"
+  },
+  "connection": {
+    "connecting": "正在连接",
+    "updating": "正在更新",
+    "connectingToProxy": "正在连接代理",
+    "waitingForNetwork": "等待网络连接"
   }
 }
