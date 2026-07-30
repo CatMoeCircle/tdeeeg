@@ -1,9 +1,7 @@
 <template>
     <ResizableLayout>
         <template #sidebar>
-            <div class="h-full flex flex-col bg-white dark:bg-gray-900">
-                <ChatList :is-archive="true" class="flex-1" />
-            </div>
+            <ChatList :is-archive="true" />
         </template>
         <template #content>
             <div class="relative w-full h-full">

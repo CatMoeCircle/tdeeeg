@@ -108,7 +108,7 @@
                                 </div>
                                 <div :class="[
                                     isMediaMessage(item.msg)
-                                        ? 'w-min max-w-[70%] overflow-hidden shadow-sm'
+                                        ? 'w-fit max-w-[70%] min-w-0 overflow-hidden shadow-sm'
                                         : isStandaloneMessage(item.msg)
                                             ? 'relative max-w-[70%]'
                                             : 'px-3 py-2 shadow-sm max-w-[70%] min-w-30',
@@ -135,7 +135,7 @@
                                         @click.stop="openForwardSource(item.msg.forward_info)">
                                         <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
                                         <span class="min-w-0 flex-1 truncate">{{ getForwardName(item.msg.forward_info)
-                                        }}</span>
+                                            }}</span>
                                     </button>
                                     <MessageContent :content="item.msg.content" :isSelf="isSelf(item.msg)"
                                         :date="item.msg.date" :forwardInfo="item.msg.forward_info"

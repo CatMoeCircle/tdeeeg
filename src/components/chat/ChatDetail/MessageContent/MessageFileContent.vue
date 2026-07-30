@@ -1,14 +1,14 @@
 <template>
-    <div class="min-w-0">
+    <div class="min-w-0 w-full max-w-full">
         <!-- Document -->
         <div v-if="content._ === 'messageDocument'"
-            class="flex items-center gap-3 bg-gray-100 dark:bg-gray-700 text-black dark:text-white p-2 rounded-lg max-w-xs relative">
+            class="flex w-full max-w-full min-w-0 items-center gap-3 bg-gray-100 dark:bg-gray-700 text-black dark:text-white p-2 rounded-lg relative">
             <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded flex items-center justify-center shrink-0">
                 <FileIcon class="w-5 h-5 text-blue-500" />
             </div>
-            <div class="flex flex-col overflow-hidden flex-1 min-w-0">
-                <span class="text-sm truncate font-medium">{{ content.document.file_name }}</span>
-                <span class="text-xs text-gray-500">
+            <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
+                <span class="max-w-full truncate text-sm font-medium">{{ content.document.file_name }}</span>
+                <span class="truncate text-xs text-gray-500">
                     {{ downloadProgress > 0 && downloadProgress < 1 ? formatSize(downloadCurrentSize) + ' / ' +
                         formatSize(downloadTotalSize) : formatSize(content.document.document.size) }} <span
                         v-if="isDownloading" class="text-blue-500 ml-1">下载中...</span>
@@ -35,7 +35,7 @@
         </div>
 
         <!-- Audio -->
-        <div v-else-if="content._ === 'messageAudio'" class="flex w-70 max-w-full min-w-0 items-center gap-3">
+        <div v-else-if="content._ === 'messageAudio'" class="flex w-full max-w-full min-w-0 items-center gap-3">
             <div class="relative h-14 w-14 shrink-0">
                 <div class="group relative h-full w-full overflow-hidden rounded-xl bg-blue-100 dark:bg-blue-950">
                     <img v-if="coverSrc" :src="coverSrc" :alt="content.audio.title || content.audio.file_name"
@@ -90,7 +90,8 @@
                     @click.prevent.stop="handleCaptionSegmentClick($event, segment)">{{ segment.text
                     }}</a>
                 <span v-else :class="[segment.className, { 'cursor-pointer': segment.copyable }]"
-                    @click="segment.copyable ? handleCaptionSegmentClick($event, segment) : undefined">{{ segment.text }}</span>
+                    @click="segment.copyable ? handleCaptionSegmentClick($event, segment) : undefined">{{ segment.text
+                    }}</span>
             </template>
         </p>
     </div>
