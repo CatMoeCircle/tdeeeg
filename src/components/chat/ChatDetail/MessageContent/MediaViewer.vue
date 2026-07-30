@@ -329,6 +329,10 @@ function onWheel(e: WheelEvent) {
 
 // Pan / Swipe
 function onPointerDown(e: PointerEvent) {
+    const target = e.target as HTMLElement | null;
+    // 不要去劫持控件的指针事件，否则无法点击方向键按钮。
+    if (target?.closest('button, input, textarea, a')) return;
+
     isDragging.value = true;
     dragStartX.value = e.clientX;
     dragStartY.value = e.clientY;
