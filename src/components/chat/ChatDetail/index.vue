@@ -106,7 +106,7 @@
                                             :title="getDisplaySenderName(item.msg)" />
                                     </div>
                                 </div>
-                                <div :class="[
+                                <div :data-bubble-msg-id="item.msg.id" :class="[
                                     isMediaMessage(item.msg)
                                         ? 'w-fit max-w-[70%] min-w-0 overflow-hidden shadow-sm'
                                         : isStandaloneMessage(item.msg)
@@ -181,7 +181,8 @@
         <!-- ===== Header（顶层，磨砂玻璃） ===== -->
         <div
             class="absolute top-0 left-0 right-0 z-10 bg-white/80 dark:bg-[#1c1c1c]/70 backdrop-blur-lg border-b border-gray-200/60 dark:border-gray-800/60">
-            <ChatDetailHeader :chat="chat" :showBack="showBackBtn" @back="handleBack" @openInfo="openOverlay" />
+            <ChatDetailHeader :chat="chat" :topic="topic" :showBack="showBackBtn" @back="handleBack"
+                @openInfo="openOverlay" />
         </div>
 
         <!-- ===== 顶置消息栏 + 音乐播放器（合并同一卡片） ===== -->
@@ -308,7 +309,7 @@ import { useAudioPlayerStore } from '../../../store/audioPlayer';
 import { storeToRefs } from 'pinia';
 import { listen } from "@tauri-apps/api/event";
 
-import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, ChatMemberStatus } from 'tdlib-types';
+import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, ChatMemberStatus, forumTopic } from 'tdlib-types';
 import { getViewerState, closeMediaViewer, registerMediaItem, unregisterMediaItem, isMediaViewerActive } from '../../../store/mediaViewer';
 import { isFileReady } from '../../../utils/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -373,6 +374,8 @@ function openInNewChat() {
 
 // ==================== State ====================
 const chat = ref<chat | undefined>(undefined);
+/** 当前话题信息（话题模式时存在） */
+const topic = ref<forumTopic | undefined>(undefined);
 const messageInput = ref('');
 const messages = ref<message[]>([]);
 const messagesContainer = ref<HTMLElement | null>(null);
@@ -454,6 +457,51 @@ watch(messages, (msgs) => {
     previousMsgIds.value = newIds;
 }, { immediate: true, deep: true });
 
+// ==================== 气泡宽度测量（同宽消息右侧连接） ====================
+/** 记录每条消息气泡的实际渲染宽度（msgId → px），用于判断相邻消息是否同宽 */
+const bubbleWidths = ref<Record<number, number>>({});
+
+/** 重新测量所有消息气泡的宽度 */
+function measureBubbleWidths() {
+    const container = messagesContainer.value;
+    if (!container) return;
+    const next: Record<number, number> = {};
+    container.querySelectorAll<HTMLElement>('[data-bubble-msg-id]').forEach((el) => {
+        const id = Number(el.dataset.bubbleMsgId || '0');
+        if (id > 0) next[id] = Math.round(el.getBoundingClientRect().width);
+    });
+    // 仅在实际变化时更新，避免触发不必要的重渲染
+    const cur = bubbleWidths.value;
+    let changed = Object.keys(cur).length !== Object.keys(next).length;
+    if (!changed) {
+        for (const k in next) {
+            if (cur[k] !== next[k]) { changed = true; break; }
+        }
+    }
+    if (changed) bubbleWidths.value = next;
+}
+
+// 消息变化（新增/删除/内容编辑等）后重新测量宽度
+watch(
+    messages,
+    async () => {
+        await nextTick();
+        measureBubbleWidths();
+    },
+    { immediate: true, deep: true }
+);
+
+// 容器尺寸变化（窗口缩放/布局变化）时重新测量
+let bubbleWidthObserver: ResizeObserver | null = null;
+watch(messagesContainer, (el) => {
+    if (bubbleWidthObserver) bubbleWidthObserver.disconnect();
+    bubbleWidthObserver = null;
+    if (el) {
+        bubbleWidthObserver = new ResizeObserver(() => measureBubbleWidths());
+        bubbleWidthObserver.observe(el);
+    }
+});
+
 function onViewerClose(currentTime?: number) {
     // 同步全屏查看器关闭时的视频进度到内联视频
     if (currentTime !== undefined && viewerCurrentMsgId.value) {
@@ -487,6 +535,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
     if (unlisten) unlisten();
+    if (bubbleWidthObserver) bubbleWidthObserver.disconnect();
     if (readVisibilityTimer !== null) window.clearTimeout(readVisibilityTimer);
     if (chatLoadRetryTimer !== null) window.clearTimeout(chatLoadRetryTimer);
 });
@@ -537,7 +586,13 @@ const handleUpdate = async (update: Update) => {
             if (!isReady.value) return;
             if (update.chat_id !== chatId.value) return;
             const msg = messages.value.find(m => m.id === update.message_id);
-            if (msg) msg.content = update.new_content;
+            if (msg) {
+                // 内容变化（如编辑文本变长）会改变气泡高度，
+                // 若用户停在底部附近则保持贴底，避免底部内容被顶出视口
+                const atBottom = isAtBottom();
+                msg.content = update.new_content;
+                if (atBottom) scrollToBottom();
+            }
             break;
         }
 
@@ -703,6 +758,24 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
         const chatData = await tdlibSend({ _: 'getChat', chat_id: currentId }) as chat;
         if (!isGenerationValid(gen)) return;
         chat.value = chatData;
+
+        // 话题模式：加载当前话题信息（用于头部显示话题名称/图标）
+        if (topicId.value) {
+            topic.value = undefined;
+            try {
+                const t = await tdlibSend({
+                    _: 'getForumTopic',
+                    chat_id: currentId,
+                    forum_topic_id: topicId.value,
+                }) as forumTopic;
+                if (!isGenerationValid(gen)) return;
+                topic.value = t;
+            } catch (e) {
+                console.error('Failed to load forum topic:', e);
+            }
+        } else {
+            topic.value = undefined;
+        }
 
         // 获取 supergroup / basicGroup 补充信息
         await Promise.all([
@@ -1254,6 +1327,7 @@ function resetState() {
     lastReportedReadMessageId = 0;
     messages.value = [];
     chat.value = undefined;
+    topic.value = undefined;
     isHistoryExhausted.value = false;
     isReady.value = false;
     unreadBoundaryMessageId.value = null;
@@ -1595,6 +1669,22 @@ function isSameCalendarDay(a: number, b: number): boolean {
         && da.getDate() === db.getDate();
 }
 
+/**
+ * 判断两条相邻消息之间是否存在“显示分隔”。
+ * 存在分隔时（日期、系统消息、相册），连续消息分组会被打断，需要重新显示头像。
+ */
+const isDisplayBreak = (a: message | undefined, b: message | undefined): boolean => {
+    if (!a || !b) return true;
+    // 日期分隔
+    if (!isSameCalendarDay(a.date, b.date)) return true;
+    // 系统消息（居中显示，自成一组）
+    if (isServiceMessage(a) || isServiceMessage(b)) return true;
+    // 相册（整体显示，自成一组）
+    if (a.media_album_id && a.media_album_id !== '0' && isAlbumMedia(a)) return true;
+    if (b.media_album_id && b.media_album_id !== '0' && isAlbumMedia(b)) return true;
+    return false;
+};
+
 /** 构建显示条目：日期分隔 + 单条消息(含分组信息) + 相册分组 */
 const messageItems = computed<DisplayItem[]>(() => {
     const items: DisplayItem[] = [];
@@ -1602,11 +1692,14 @@ const messageItems = computed<DisplayItem[]>(() => {
     if (M.length === 0) return items;
 
     // 日期分隔逻辑：不同日期的相邻消息之间插入
-    // 先计算出所有日期分界点
     let lastDate = M[0].date;
     let hasUnreadDivider = false;
     const unreadBoundary = M.find(message => message.id === unreadBoundaryMessageId.value);
     const unreadAlbumId = unreadBoundary?.media_album_id;
+
+    // 上一条“可分组”的普通消息（非系统消息/相册）。
+    // 遇到日期、未读、系统消息、相册分隔时清空，使被分隔的连续消息重新成组并显示头像
+    let prevGroupable: message | undefined = undefined;
 
     let i = 0;
     while (i < M.length) {
@@ -1616,17 +1709,20 @@ const messageItems = computed<DisplayItem[]>(() => {
         if (!isSameCalendarDay(lastDate, msg.date)) {
             items.push({ type: 'date', key: `d-${msg.date}`, date: msg.date, text: formatDateLabel(msg.date) });
             lastDate = msg.date;
+            prevGroupable = undefined; // 日期打断连续消息
         }
 
+        // 未读分隔
         if (!hasUnreadDivider && (
             msg.id === unreadBoundaryMessageId.value
             || (unreadAlbumId && unreadAlbumId !== '0' && msg.media_album_id === unreadAlbumId)
         )) {
             items.push({ type: 'unread', key: `unread-${unreadBoundaryMessageId.value}` });
             hasUnreadDivider = true;
+            prevGroupable = undefined; // 未读分隔打断连续消息
         }
 
-        // 相册分组
+        // 相册分组（相册整体显示，打断前后的连续消息）
         if (msg.media_album_id && msg.media_album_id !== '0' && isAlbumMedia(msg)) {
             const albumMsgs: message[] = [msg];
             let j = i + 1;
@@ -1635,54 +1731,93 @@ const messageItems = computed<DisplayItem[]>(() => {
                 j++;
             }
             items.push({ type: 'album', key: `a-${msg.media_album_id}`, messages: albumMsgs, firstIndex: i });
+            prevGroupable = undefined; // 相册打断连续消息
             i = j;
-        } else {
-            // 单条消息
-            const prev = M[i - 1];
-            const next = M[i + 1];
-            const isFirst = !isSameSender(prev, msg);
-            const isLast = !isSameSender(msg, next);
+            continue;
+        }
+
+        // 系统消息：居中显示，单独成组，不占用头像列
+        if (isServiceMessage(msg)) {
             items.push({
                 type: 'single',
                 key: `m-${msg.id}`,
                 msg,
                 index: i,
-                isFirstInGroup: isFirst,
-                isLastInGroup: isLast,
-                showAvatar: isLast && shouldReserveAvatarColumn(msg)
+                isFirstInGroup: true,
+                isLastInGroup: true,
+                showAvatar: false
             });
+            prevGroupable = undefined; // 系统消息打断连续消息
             i++;
+            continue;
         }
-    }
 
-    // 在第一条消息前插入日期分隔（如果第一条消息不是当前日期的第一条）
-    // 实际上用 lastDate 逻辑已经处理了，但第一组之前没有日期分隔
-    // Telegram Web 在第一组消息前也有日期分隔，但我们的逻辑是从第二条消息开始才有分隔
-    // 为了与 Telegram Web 一致，在第一条消息前也插入日期分隔
-    // 但 Telegram Web 似乎只在首条消息前有日期分隔（如果是最新消息所在的日期）
-    // 这里不插入首条分隔，避免多余的分隔线
+        // 普通消息
+        const isFirst = !prevGroupable || !isSameSender(prevGroupable, msg);
+        const next = M[i + 1];
+        const unreadNext = !!next && (
+            next.id === unreadBoundaryMessageId.value
+            || (unreadAlbumId && unreadAlbumId !== '0' && next.media_album_id === unreadAlbumId)
+        );
+        const isLast = !next || isDisplayBreak(msg, next) || unreadNext || !isSameSender(msg, next);
+        items.push({
+            type: 'single',
+            key: `m-${msg.id}`,
+            msg,
+            index: i,
+            isFirstInGroup: isFirst,
+            isLastInGroup: isLast,
+            showAvatar: isLast && shouldReserveAvatarColumn(msg)
+        });
+        prevGroupable = msg;
+        i++;
+    }
 
     return items;
 });
 
 // ==================== Bubble Border Radius ====================
-/** 根据消息在组内的位置计算气泡圆角 */
-const getMessageBorderRadius = (msg: message, item: { isFirstInGroup: boolean; isLastInGroup: boolean }) => {
+/**
+ * 连接式分组圆角（连续消息）：
+ * - 他人消息（左侧，头像在左下角）：左下角始终为小圆角（底部消息尾巴朝向头像 / 顶部消息连接下一条）；
+ *   非组内第一条时左上角连接上一条（小圆角），第一条的左上角保持明显圆角（组的头部）。
+ * - 自己发的消息（右侧，无头像）对应处理右侧角。
+ * - 他人消息的右侧：仅当相邻消息气泡宽度一致时连接（小圆角），宽度不一致则保持明显圆角。
+ */
+const getMessageBorderRadius = (msg: message, item: { isFirstInGroup: boolean; isLastInGroup: boolean; index: number }) => {
     const isMe = isSelf(msg);
     const first = item.isFirstInGroup;
-    const last = item.isLastInGroup;
 
     if (isMe) {
+        const last = item.isLastInGroup;
         if (first && last) return 'rounded-[18px] rounded-tr-[6px]';
         if (first) return 'rounded-[18px] rounded-br-[6px]';
         if (last) return 'rounded-[18px] rounded-tr-[6px]';
         return 'rounded-[18px] rounded-tr-[6px] rounded-br-[6px]';
-    } else {
-        if (first && last) return 'rounded-[18px] rounded-tl-[6px]';
-        if (first) return 'rounded-[18px] rounded-bl-[6px]';
-        if (last) return 'rounded-[18px] rounded-tl-[6px]';
-        return 'rounded-[18px] rounded-tl-[6px] rounded-bl-[6px]';
     }
+
+    // 他人消息（左侧，头像在左下角）：左下角始终为小圆角；
+    // 非组内第一条时左上角连接上一条（小圆角），第一条保持明显圆角
+    let cls = 'rounded-[18px] rounded-bl-[6px]';
+    if (!first) cls += ' rounded-tl-[6px]';
+
+    // 右侧：仅当相邻消息宽度一致时才连接（中间消息左右对称连接）
+    const myWidth = bubbleWidths.value[msg.id];
+    if (myWidth === undefined) return cls; // 尚未测量，先保持左侧连接
+    const M = messages.value;
+    if (!item.isFirstInGroup) {
+        const prevMsg = M[item.index - 1];
+        if (prevMsg && !isStandaloneMessage(prevMsg) && bubbleWidths.value[prevMsg.id] === myWidth) {
+            cls += ' rounded-tr-[6px]';
+        }
+    }
+    if (!item.isLastInGroup) {
+        const nextMsg = M[item.index + 1];
+        if (nextMsg && !isStandaloneMessage(nextMsg) && bubbleWidths.value[nextMsg.id] === myWidth) {
+            cls += ' rounded-br-[6px]';
+        }
+    }
+    return cls;
 };
 
 // ==================== Album Helpers ====================

@@ -573,6 +573,7 @@ pub fn register_download(
     thumbnail_data_url: Option<String>,
     chat_id: Option<i64>,
     message_id: Option<i64>,
+    is_generic: bool,
 ) -> Result<(), String> {
     let mut store = state.download_store.lock().map_err(|e| e.to_string())?;
     store.register_download(
@@ -584,6 +585,7 @@ pub fn register_download(
         thumbnail_data_url,
         chat_id,
         message_id,
+        is_generic,
     );
     Ok(())
 }

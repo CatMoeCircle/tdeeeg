@@ -83,11 +83,6 @@ body.is-resizing * {
   background-color: rgba(156, 163, 175, 0.5);
 }
 
-/* 直接悬停在滚动条区域上：增宽到 10px，方便拖拽 */
-.custom-scrollbar::-webkit-scrollbar:hover {
-  width: 10px;
-}
-
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: rgba(156, 163, 175, 0.75);
 }

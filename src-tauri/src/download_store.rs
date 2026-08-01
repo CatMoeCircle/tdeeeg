@@ -159,6 +159,8 @@ impl DownloadStore {
     // ==================== 写入操作 ====================
 
     /// 注册一个下载项
+    /// `is_generic` 标记是否为隐藏/通用资源（自动下载、头像、贴纸、表情等），
+    /// 隐藏资源默认不计入红点，需在下载管理器中开启"显示隐藏资源"才会展示。
     pub fn register_download(
         &mut self,
         file_id: i32,
@@ -169,9 +171,8 @@ impl DownloadStore {
         thumbnail_data_url: Option<String>,
         chat_id: Option<i64>,
         message_id: Option<i64>,
+        is_generic: bool,
     ) {
-        let is_generic = file_type == "sticker" || file_type == "avatar" || file_type == "other";
-
         if let Some(existing) = self.items.get(&file_id) {
             if !existing.dismissed {
                 // 更新已有记录中可能缺失的信息
@@ -192,6 +193,8 @@ impl DownloadStore {
                     } else {
                         existing.file_type.clone()
                     },
+                    // 一旦被标记为通用资源则保持通用标记（自动下载→手动下载不改变隐藏状态）
+                    is_generic: existing.is_generic || is_generic,
                     ..existing.clone()
                 };
                 self.items.insert(file_id, updated);

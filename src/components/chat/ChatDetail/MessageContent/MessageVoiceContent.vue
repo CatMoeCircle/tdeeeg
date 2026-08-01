@@ -1,6 +1,6 @@
 <template>
     <!-- Voice Note -->
-    <div v-if="content._ === 'messageVoiceNote'" class="flex items-center gap-2 min-w-[150px]">
+    <div v-if="content._ === 'messageVoiceNote'" class="flex items-center gap-2 min-w-37.5">
         <div class="p-2 bg-blue-100 dark:bg-blue-900 rounded-full">
             <MicIcon class="w-4 h-4 text-blue-500" />
         </div>

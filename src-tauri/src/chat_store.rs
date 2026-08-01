@@ -16,6 +16,11 @@ pub struct Chat {
     pub chat_lists: Option<Vec<Value>>,
     pub photo: Option<Value>,
     pub draft_message: Option<Value>,
+    #[serde(default)]
+    pub notification_settings: Option<Value>,
+    /// 是否为话题模式论坛群组（view_as_topics）
+    #[serde(default)]
+    pub view_as_topics: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -245,8 +250,40 @@ impl ChatStore {
                     chat.chat_lists = Some(updated_lists);
                     events.push((
                         "chat-update".to_string(),
-                        serde_json::to_value(chat).unwrap(),
+                        serde_json::to_value(&*chat).unwrap(),
                     ));
+
+                    // 将对话加入对应分组/列表（chat-list-update），确保新对话能出现在该分组中
+                    if let Some(key) = Self::get_list_key(new_list) {
+                        // 顺序从 chat.positions 中取该列表对应的 order（updateChatPosition 也会校正）
+                        let order = chat
+                            .positions
+                            .as_ref()
+                            .and_then(|positions| {
+                                positions.iter().find_map(|pos| {
+                                    let pos_list = pos.get("list")?;
+                                    if Self::get_list_key(pos_list).as_deref() == Some(key.as_str())
+                                    {
+                                        pos.get("order")?.as_str()
+                                    } else {
+                                        None
+                                    }
+                                })
+                            })
+                            .and_then(|s| s.parse::<u64>().ok())
+                            .unwrap_or(0);
+                        if order != 0 {
+                            let list_state = self
+                                .lists
+                                .entry(key.clone())
+                                .or_insert_with(|| ChatListState::new(key.clone()));
+                            list_state.update_order(chat_id, order);
+                            events.push((
+                                "chat-list-update".to_string(),
+                                serde_json::to_value(list_state).unwrap(),
+                            ));
+                        }
+                    }
                 }
             }
             "updateChatPhoto" => {
@@ -264,6 +301,18 @@ impl ChatStore {
                 if let Some(chat) = self.chats.get_mut(&chat_id) {
                     if let Some(title) = update["title"].as_str() {
                         chat.title = title.to_string();
+                        events.push((
+                            "chat-update".to_string(),
+                            serde_json::to_value(chat).unwrap(),
+                        ));
+                    }
+                }
+            }
+            "updateChatViewAsTopics" => {
+                let chat_id = update["chat_id"].as_i64()?;
+                if let Some(chat) = self.chats.get_mut(&chat_id) {
+                    if let Some(view_as_topics) = update["view_as_topics"].as_bool() {
+                        chat.view_as_topics = view_as_topics;
                         events.push((
                             "chat-update".to_string(),
                             serde_json::to_value(chat).unwrap(),
@@ -312,6 +361,16 @@ impl ChatStore {
                     if let Some(cnt) = update["unread_count"].as_i64() {
                         chat.unread_count = cnt as i32;
                     }
+                    events.push((
+                        "chat-update".to_string(),
+                        serde_json::to_value(chat).unwrap(),
+                    ));
+                }
+            }
+            "updateChatNotificationSettings" => {
+                let chat_id = update["chat_id"].as_i64()?;
+                if let Some(chat) = self.chats.get_mut(&chat_id) {
+                    chat.notification_settings = Some(update["notification_settings"].clone());
                     events.push((
                         "chat-update".to_string(),
                         serde_json::to_value(chat).unwrap(),

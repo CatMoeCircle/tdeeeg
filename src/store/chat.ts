@@ -27,6 +27,8 @@ export interface Chat {
   chat_lists?: Array<ChatList>;
   photo?: chatPhotoInfo;
   draft_message?: draftMessage;
+  /** 通知设置（用于判断是否静音） */
+  notification_settings?: { mute_for?: number } | any;
   /** 是否为话题模式论坛群组 */
   view_as_topics?: boolean;
 }
@@ -126,11 +128,16 @@ export const useChatStore = defineStore("chat", () => {
     }
   };
 
+  /** loadChats 单次加载上限 */
+  const LOAD_CHAT_LIMIT = 50;
+
   /**
    * 调用 loadChats 并登记一个等待批次。
    * loading 状态由 loadChats 的响应（ok/error）释放，不由 chat-list-update 事件管理。
    * 一个 loadChats 可能触发多个 updateNewChat 事件，每个都会产生 chat-list-update，
    * 所以不能在事件处理中递减 pendingBatch。
+   * ok 响应后，若本次新增对话不足一页（接近列表末尾），会自动连发 loadChats 直到 404，
+   * 避免只有一个/少量对话的分组永远不触发后续加载、也无法标记 finished（归档同理）。
    * 若超过 timeout ms 未收到响应，强制释放防止死锁。
    */
   const requestLoadMore = (listKey: string, chatList: any) => {
@@ -139,9 +146,12 @@ export const useChatStore = defineStore("chat", () => {
     state.loading = true;
     state.pendingBatch++;
 
+    // 记录请求前的列表数量，用于判断本次加载是否已接近列表末尾
+    const beforeCount = (lists.value[listKey] || []).length;
+
     // 发送 loadChats 请求（异步，不 await）
     invoke("tdlib_send", {
-      request: { _: "loadChats", chat_list: chatList, limit: 50 },
+      request: { _: "loadChats", chat_list: chatList, limit: LOAD_CHAT_LIMIT },
     }).then((res: any) => {
       // loadChats 返回 { _: "ok" } 表示成功（可能有后续 updateNewChat 事件，也可能无新数据）
       // 或 { _: "error", code: 404 } 表示已耗尽
@@ -151,6 +161,9 @@ export const useChatStore = defineStore("chat", () => {
         } else {
           console.error("loadChats returned error:", res);
         }
+      } else {
+        // ok：稍等事件到位后判断是否需要继续连发
+        scheduleFollowUpLoad(listKey, chatList, beforeCount);
       }
       // 无论 ok 还是 error，都释放 batch
       state.pendingBatch = Math.max(0, state.pendingBatch - 1);
@@ -174,6 +187,23 @@ export const useChatStore = defineStore("chat", () => {
       }
     }, 12000);
   };
+
+  /**
+   * 等本次加载的 chat-list-update 事件到位后，判断是否继续连发 loadChats 直到 404。
+   * 只有当本次新增对话不足一页（< limit）时才继续连发，说明已接近列表末尾；
+   * 若新增达到一页（后面还有大量对话），则停止自动连发，交由滚动加载。
+   */
+  function scheduleFollowUpLoad(listKey: string, chatList: any, beforeCount: number) {
+    setTimeout(() => {
+      const state = getListState(listKey);
+      if (state.finished || state.loading) return;
+      const currentCount = (lists.value[listKey] || []).length;
+      const added = currentCount - beforeCount;
+      if (added < LOAD_CHAT_LIMIT) {
+        requestLoadMore(listKey, chatList);
+      }
+    }, 400);
+  }
 
   /** 占位对话，用于 chat_id 已在列表中但 chat 对象尚未到达时的稳定渲染 */
   function createPlaceholderChat(id: number): Chat {

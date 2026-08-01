@@ -10,6 +10,10 @@
         <!-- Text messages -->
         <MessageTextContent v-if="content._ === 'messageText'" :formattedText="content.text" />
 
+        <!-- Rich messages -->
+        <MessageRichMessage v-else-if="content._ === 'messageRichMessage'" :blocks="content.message.blocks"
+            :is-rtl="content.message.is_rtl" />
+
         <!-- Media messages -->
         <MessageMediaContent v-else-if="isMediaType" :content="content as any" :isSelf="isSelf ?? false" :date="date"
             :forwardInfo="forwardInfo" :forwardName="forwardName" :forwardNavigable="forwardNavigable"
@@ -30,7 +34,7 @@
 
         <!-- Voice / Video notes -->
         <MessageVoiceContent v-else-if="content._ === 'messageVoiceNote' || content._ === 'messageVideoNote'"
-            :content="content" />
+            :content="content" :chatId="chatId" :messageId="messageId" />
 
         <!-- Document / Audio -->
         <MessageFileContent v-else-if="content._ === 'messageDocument' || content._ === 'messageAudio'"
@@ -47,6 +51,7 @@ import type { MessageContent, messageForwardInfo, messageReplyToMessage, Message
 import MessageReply from './MessageReply.vue';
 
 import MessageTextContent from './MessageTextContent.vue';
+import MessageRichMessage from './MessageRichMessage.vue';
 import MessageMediaContent from './MessageMediaContent.vue';
 import MessageStickerContent from './MessageStickerContent.vue';
 import MessageVoiceContent from './MessageVoiceContent.vue';

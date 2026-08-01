@@ -19,6 +19,7 @@ import { computed, ref, watch, onUnmounted, nextTick } from 'vue';
 import type { messageAnimatedEmoji, messageSticker } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { useDownloadStore } from '../../../../store/downloads';
 import lottie, { type AnimationItem } from 'lottie-web';
 import * as pako from 'pako';
 
@@ -61,6 +62,9 @@ const downloadFile = async (fileId: number) => {
     if (downloadingFiles.has(fileId)) return;
     isDownloading.value = true;
     downloadingFiles.add(fileId);
+    // 贴纸：记录为隐藏资源，不需要来源
+    const ext = format.value === 'tgs' ? 'tgs' : format.value === 'webm' ? 'webm' : 'webp';
+    await useDownloadStore().registerDownload(fileId, `sticker_${fileId}.${ext}`, '', 0, 'sticker', undefined, undefined, undefined, true);
     try {
         const res = await tdlibSend({
             _: "downloadFile",

@@ -8,6 +8,11 @@ import "./assets/css/index.css";
 import "tdesign-vue-next/es/style/index.css";
 import i18n from "./i18n";
 
+// 屏蔽整个应用的所有右键菜单
+window.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+});
+
 const app = createApp(App);
 const pinia = createPinia();
 

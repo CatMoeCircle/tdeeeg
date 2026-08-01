@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import { tdlibSend, isFileReady, downloadingFiles } from '../utils/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { sticker, file } from 'tdlib-types';
+import { useDownloadStore } from './downloads';
 
 /** 单个自定义 emoji 的加载状态 */
 export interface CustomEmojiState {
@@ -90,6 +91,8 @@ async function downloadThumbnail(emojiId: string, fileId: number) {
   if (!state) return;
 
   downloadingFiles.add(fileId);
+  // 自定义表情缩略图：记录为隐藏资源，不需要来源
+  await useDownloadStore().registerDownload(fileId, `emoji_${emojiId}_thumb.webp`, '', 0, 'other', undefined, undefined, undefined, true);
   try {
     const result = await tdlibSend({
       _: 'downloadFile',
@@ -116,6 +119,8 @@ async function downloadStickerFile(emojiId: string, fileId: number) {
   if (!state) return;
   state.loadingFile = true;
   downloadingFiles.add(fileId);
+  // 自定义表情完整贴纸：记录为隐藏资源，不需要来源
+  await useDownloadStore().registerDownload(fileId, `emoji_${emojiId}.webp`, '', 0, 'sticker', undefined, undefined, undefined, true);
 
   try {
     const result = await tdlibSend({

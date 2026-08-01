@@ -1,74 +1,94 @@
 <template>
-    <div class="flex flex-col h-full dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 pt-4"
-        @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
+    <div class="flex flex-col h-full border-r border-gray-200 pt-4" @touchstart="onTouchStart" @touchmove="onTouchMove"
+        @touchend="onTouchEnd">
         <!-- Search Bar (forum mode 时向上滑动隐藏) -->
         <Transition name="slide-up">
-            <div v-if="!forumMode" class="py-1 px-3 overflow-hidden">
+            <div v-if="!forumMode" class="py-1 px-3 overflow-hidden max-h-14">
                 <div class="relative">
                     <input type="text" placeholder="搜索"
-                        class="w-full pl-8 pr-4 py-2 bg-white/60 shadow-(--box-shadow) dark:bg-gray-800 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    <SearchIcon class="w-4 h-4 absolute left-2.5 top-2.5 text-gray-400" />
+                        class="w-full pl-7 pr-3.5 py-1.5 bg-white/60 shadow-(--box-shadow) rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <SearchIcon class="w-3.5 h-3.5 absolute left-2.5 top-2 text-gray-400" />
                 </div>
             </div>
         </Transition>
         <!-- Folder Tabs (forum mode 时向上滑动隐藏) -->
         <Transition name="slide-up">
             <div v-if="!forumMode && tabs.length > 1" ref="tabsContainer" @wheel.prevent="handleWheel"
-                class="flex px-2 border-b border-gray-200 dark:border-gray-800 overflow-x-auto no-scrollbar gap-2 shrink-0">
-                <button v-for="tab in tabs" :key="tab.id" @click="switchToTab(tab.id)"
-                    class="px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors shrink-0" :class="[
+                class="flex px-2 border-b border-gray-200 overflow-x-auto no-scrollbar gap-1.5 shrink-0 max-h-12">
+                <button v-for="tab in tabs" :key="tab.id" :data-tab-id="tab.id" @click="switchToTab(tab.id)"
+                    class="px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors shrink-0 inline-flex items-center gap-1"
+                    :class="[
                         settings.folderStyle === 'tabs'
                             ? (activeTab === tab.id ? 'border-b-2 border-blue-500 text-blue-600' : 'border-b-2 border-transparent text-gray-500 hover:text-gray-700')
                             : '',
                         settings.folderStyle === 'pills'
-                            ? (activeTab === tab.id ? 'bg-blue-500 shadow-sm shadow-blue-500/50 text-white rounded-full my-1' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full my-1')
+                            ? (activeTab === tab.id ? 'bg-blue-500 shadow-sm shadow-blue-500/50 text-white rounded-full my-1' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 rounded-full my-1')
                             : '',
                         settings.folderStyle === 'text'
                             ? (activeTab === tab.id ? 'text-blue-600 font-bold' : 'text-gray-500 hover:text-gray-700')
                             : ''
                     ]">
-                    {{ tab.name }}
+                    <!-- 分组图标（全部对话默认对话图标） -->
+                    <component :is="folderIcon(tab)" v-if="settings.showFolderIcons" class="w-3 h-3 shrink-0" />
+                    <FormattedTextInline v-if="tab.formattedName" :formattedText="tab.formattedName" :size="12" />
+                    <span v-else>{{ tab.name }}</span>
+                    <!-- 未读消息计数：未选中的分组显示为灰色 -->
+                    <span v-if="settings.showFolderUnread && tabUnread(tab.id) > 0"
+                        class="min-w-3.5 h-3.5 px-1 rounded-full text-white text-[9px] font-bold leading-3.5 text-center shrink-0"
+                        :class="activeTab === tab.id ? 'bg-blue-500' : 'bg-gray-400'">
+                        {{ formatUnreadCount(tabUnread(tab.id)) }}
+                    </span>
                 </button>
             </div>
         </Transition>
 
         <!-- 音乐播放器入口（聊天打开时由 ChatDetail 接管，此处隐藏） -->
         <Transition name="slide-up">
-            <MusicPlayerEntry v-if="!isChatOpen && !forumMode" compact />
+            <div v-if="!isChatOpen && !forumMode" class="overflow-hidden max-h-12">
+                <MusicPlayerEntry compact />
+            </div>
         </Transition>
 
         <!-- Main Container: Swipeable Chat List OR Forum Mode -->
         <div class="flex-1 overflow-hidden relative">
-            <div class="absolute inset-0 flex transition-all duration-300 ease-in-out" :class="forumMode ? '' : ''">
+            <!-- 左侧列表宽度瞬时切换（不做宽度过渡，避免内容被横向拉伸成“整页横移”观感），
+                 左列内容切换由 forum-avatar-column 淡入柔化 -->
+            <div class="absolute inset-0 flex">
                 <!-- Swipe Track (shrinks in forum mode) -->
-                <div ref="swipeContainer" class="h-full overflow-hidden transition-all duration-300 ease-in-out"
+                <div ref="swipeContainer" class="h-full overflow-hidden"
                     :class="forumMode ? 'w-17 shrink-0' : 'flex-1'">
                     <div class="swipe-track h-full flex"
                         :style="{ transform: forumMode ? 'translateX(0px)' : `translateX(${swipeOffset}px)`, transition: isSwiping || forumMode ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }">
-                        <div v-for="tab in tabsWithContent" :key="tab.id"
+                        <!-- forum 模式只需渲染当前激活分组的单一页面（68px 头像列），
+                             避免把全部分组页面并排渲染而露出相邻分组头像 -->
+                        <div v-for="tab in tabsWithContent" :key="tab.id" v-show="!forumMode || tab.id === activeTab"
                             class="swipe-page h-full shrink-0 overflow-y-auto custom-scrollbar"
-                            :class="forumMode ? 'w-17 px-0.5 py-1' : 'w-full pl-1.5 pr-0.5 py-1'"
+                            :class="forumMode ? 'w-17 px-0.5 py-1 forum-avatar-column' : 'w-full pl-1.5 pr-0.5 py-1 chat-list-fade-in'"
                             @scroll="(e: Event) => onScroll(e, tab.id)">
                             <!-- Forum Mode: compact avatar only -->
                             <template v-if="forumMode">
                                 <div v-for="chat in tab.chats" :key="chat.id" @click="selectForumChat(chat)"
-                                    class="relative flex items-center justify-center py-2.5 cursor-pointer transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
-                                    :class="forumChatId === chat.id ? 'bg-gray-100 dark:bg-gray-800 rounded-lg' : ''"
-                                    style="content-visibility: auto; contain-intrinsic-size: 60px">
+                                    class="relative flex items-center justify-center py-2.5 cursor-pointer transition-colors hover:bg-gray-100"
+                                    :class="forumChatId === chat.id ? 'bg-gray-100 rounded-lg' : ''"
+                                    style="content-visibility: auto; contain-intrinsic-size: 68px">
                                     <!-- 选中标记：左侧色条 -->
                                     <div v-if="forumChatId === chat.id"
                                         class="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-blue-500 rounded-full">
                                     </div>
-                                    <div class="relative w-10 h-10">
+                                    <!-- 头像尺寸与普通模式列表一致（w-12 h-12 = 48px）；
+                                         圆角用 chatAvatarRadius 与普通列表一致，话题群组保持方形（未开启“跟随圆角”时） -->
+                                    <div class="relative w-12 h-12">
                                         <div v-if="isSavedMessages(chat)"
-                                            class="w-full h-full rounded-xl bg-blue-500 text-white flex items-center justify-center">
-                                            <BookmarkIcon class="w-5 h-5 fill-current" />
+                                            class="w-full h-full bg-blue-500 text-white flex items-center justify-center"
+                                            :style="{ borderRadius: avatarRadius + '%' }">
+                                            <BookmarkIcon class="w-7 h-7 fill-current" />
                                         </div>
-                                        <Avatar v-else :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10"
-                                            :square="isForumChat(chat)" />
-                                        <!-- 未读角标：显示在头像右下角 -->
+                                        <Avatar v-else :photo="chat.photo" :title="chat.title" sizeClass="!w-12 !h-12"
+                                            :radius="chatAvatarRadius(chat)" />
+                                        <!-- 未读角标：显示在头像右下角（静音对话灰显） -->
                                         <span v-if="chat.unread_count > 0"
-                                            class="absolute -bottom-0.5 -right-0.5 min-w-4.5 h-4.5 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold leading-4.5 text-center border-2 border-white dark:border-gray-900">
+                                            class="absolute -bottom-0.5 -right-0.5 min-w-4.5 h-4.5 px-1 rounded-full text-white text-[10px] font-bold leading-4.5 text-center border-2 border-white"
+                                            :class="isChatMuted(chat) ? 'bg-gray-400' : 'bg-blue-500'">
                                             {{ formatUnreadCount(chat.unread_count) }}
                                         </span>
                                     </div>
@@ -76,32 +96,83 @@
                             </template>
                             <!-- Normal Mode: full chat item -->
                             <template v-else>
-                                <div v-for="chat in tab.chats" :key="chat.id" @click="selectChat(chat)"
-                                    class="flex items-center p-3 hover:bg-white/70 rounded-xl hover:shadow-(--box-shadow) dark:hover:bg-gray-800 cursor-pointer transition-colors"
-                                    :class="{ 'rounded-xl bg-white/70 shadow-(--box-shadow) dark:bg-gray-800': selectedChatId === chat.id }"
-                                    style="content-visibility: auto; contain-intrinsic-size: 80px">
-                                    <div class="w-14 h-14 mr-3">
-                                        <div v-if="isSavedMessages(chat)"
-                                            class="w-full h-full rounded-full bg-blue-500 text-white flex items-center justify-center">
-                                            <BookmarkIcon class="w-7 h-7 fill-current" />
+                                <!-- 归档入口：归档位置为“全部对话顶部”时显示 -->
+                                <div v-if="settings.chatList.archivePosition === 'top' && tab.id === 'chatListMain' && !props.isArchive"
+                                    @click="goToArchive"
+                                    class="flex items-center p-2.5 mb-1 cursor-pointer rounded-xl hover:bg-white/70 hover:shadow-(--box-shadow) transition-colors"
+                                    style="content-visibility: auto; contain-intrinsic-size: 72px">
+                                    <div class="w-12 h-12 mr-2.5">
+                                        <div class="w-full h-full bg-gray-200 text-gray-500 flex items-center justify-center"
+                                            :style="{ borderRadius: avatarRadius + '%' }">
+                                            <ArchiveIcon class="w-6 h-6" />
                                         </div>
-                                        <Avatar v-else :photo="chat.photo" :title="chat.title"
-                                            :square="isForumChat(chat)" />
                                     </div>
                                     <div class="flex-1 min-w-0">
                                         <div class="flex justify-between items-baseline mb-1">
-                                            <h3 class="text-sm font-semibold truncate text-gray-900 dark:text-gray-100">
-                                                {{
-                                                    getChatTitle(chat) }}
+                                            <h3 class="text-sm font-semibold truncate text-gray-900">
+                                                归档
                                             </h3>
-                                            <span class="text-xs text-gray-400">{{ formatTime(chat.last_message?.date)
+                                            <ChevronRightIcon class="w-4 h-4 text-gray-400 shrink-0" />
+                                        </div>
+                                        <p class="text-xs text-gray-500 truncate">已归档的对话</p>
+                                    </div>
+                                </div>
+
+                                <div v-for="chat in tab.chats" :key="chat.id" @click="selectChat(chat)"
+                                    class="flex items-center p-2.5 hover:bg-white/70 rounded-xl hover:shadow-(--box-shadow) cursor-pointer transition-colors"
+                                    :class="{ 'rounded-xl bg-gray-100 border border-gray-300': selectedChatId === chat.id }"
+                                    style="content-visibility: auto; contain-intrinsic-size: 72px">
+                                    <div class="w-12 h-12 mr-2.5">
+                                        <div v-if="isSavedMessages(chat)"
+                                            class="w-full h-full bg-blue-500 text-white flex items-center justify-center"
+                                            :style="{ borderRadius: avatarRadius + '%' }">
+                                            <BookmarkIcon class="w-7 h-7 fill-current" />
+                                        </div>
+                                        <Avatar v-else :photo="chat.photo" :title="chat.title"
+                                            :radius="chatAvatarRadius(chat)" />
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex justify-between items-baseline mb-1">
+                                            <h3
+                                                class="text-sm font-semibold text-gray-900 flex items-center gap-1 min-w-0">
+                                                <span class="truncate">{{ getChatTitle(chat) }}</span>
+                                                <!-- 静音图标 -->
+                                                <BellOffIcon v-if="isChatMuted(chat)"
+                                                    class="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                            </h3>
+                                            <span class="text-xs text-gray-400 shrink-0 ml-1">{{
+                                                formatTime(chat.last_message?.date)
                                                 }}</span>
                                         </div>
                                         <div class="flex items-center gap-2">
-                                            <p class="flex-1 min-w-0 text-xs text-gray-500 truncate">{{
-                                                getMessagePreview(chat.last_message) }}</p>
-                                            <span v-if="chat.unread_count > 0"
-                                                class="shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-blue-500 text-white text-[11px] font-semibold leading-5 text-center">
+                                            <div class="flex-1 min-w-0 flex items-center gap-1.5">
+                                                <!-- 左侧未读角标：[12] user: hel -->
+                                                <span v-if="showLeftBadge(chat) && chat.unread_count > 0"
+                                                    class="shrink-0 text-xs font-semibold leading-4.5 text-blue-500">
+                                                    [{{ formatUnreadCount(chat.unread_count) }}]
+                                                </span>
+                                                <!-- 发送者迷你头像 + 名称（群组，私聊/频道不显示） -->
+                                                <template v-if="isChatGroup(chat) && senderName(chat)">
+                                                    <Avatar
+                                                        v-if="settings.chatList.showSenderMiniAvatar && senderMiniAvatar(chat)"
+                                                        :photo="senderMiniAvatar(chat)" :title="senderName(chat)"
+                                                        sizeClass="!w-4 !h-4" :radius="avatarRadius" class="shrink-0" />
+                                                    <span class="shrink-0 text-xs text-gray-400">{{
+                                                        senderName(chat) }}：</span>
+                                                </template>
+                                                <p class="min-w-0 truncate text-xs text-gray-500">
+                                                    <FormattedTextInline
+                                                        :formattedText="getMessagePreview(chat.last_message)"
+                                                        :size="14" />
+                                                </p>
+                                            </div>
+                                            <!-- 顶置图标：显示在未读消息位置，无未读时显示 -->
+                                            <PinIcon v-if="isChatPinned(chat) && chat.unread_count === 0"
+                                                class="shrink-0 w-4 h-4 text-gray-400" />
+                                            <!-- 未读计数：静音对话灰显（启用左侧角标时不显示） -->
+                                            <span v-if="chat.unread_count > 0 && !showLeftBadge(chat)"
+                                                class="shrink-0 min-w-4.5 h-4.5 px-1.5 rounded-full text-white text-[10px] font-semibold leading-4.5 text-center"
+                                                :class="isChatMuted(chat) ? 'bg-gray-400' : 'bg-blue-500'">
                                                 {{ formatUnreadCount(chat.unread_count) }}
                                             </span>
                                         </div>
@@ -112,19 +183,20 @@
                     </div>
                 </div>
 
-                <!-- Forum Topic Panel (slides in from right) -->
+                <!-- Forum Topic Panel (slides in from right)
+                     绝对定位使其脱离外层 flex 流式：退出时 translateX(100%) 只相对自身宽度滑动，
+                     从头像列(68px)分界线右侧滑出，不会带动/挤压左侧聊天列表 -->
                 <Transition name="topic-slide">
                     <div v-if="forumMode && forumChatId"
-                        class="h-full flex-1 border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden flex flex-col">
+                        class="absolute top-0 bottom-0 left-17 right-0 border-l border-gray-200 bg-white overflow-hidden flex flex-col">
                         <!-- Topics Header -->
-                        <div
-                            class="flex items-center gap-2 px-3 py-2.5 border-b border-gray-200 dark:border-gray-800 shrink-0">
+                        <div class="flex items-center gap-2 px-3 py-2.5 border-b border-gray-200 shrink-0">
                             <button type="button" @click="exitForumMode"
-                                class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shrink-0"
+                                class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-200 transition-colors shrink-0"
                                 aria-label="返回">
-                                <ArrowLeftIcon class="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                                <ArrowLeftIcon class="w-4 h-4 text-gray-600" />
                             </button>
-                            <span class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{{
+                            <span class="text-sm font-medium text-gray-500 truncate">{{
                                 forumChatTitle
                                 }}</span>
                         </div>
@@ -132,13 +204,12 @@
                         <div class="flex-1 overflow-y-auto custom-scrollbar">
                             <div v-if="topicsLoading" class="flex flex-col gap-2 p-3">
                                 <div v-for="n in 5" :key="n" class="flex items-center gap-2.5 p-2.5">
-                                    <div class="w-9 h-9 rounded-xl bg-gray-200 dark:bg-gray-700 animate-pulse shrink-0">
+                                    <div class="w-9 h-9 rounded-xl bg-gray-200 animate-pulse shrink-0">
                                     </div>
                                     <div class="flex-1">
-                                        <div
-                                            class="h-3.5 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-1.5 animate-pulse">
+                                        <div class="h-3.5 bg-gray-200 rounded w-3/4 mb-1.5 animate-pulse">
                                         </div>
-                                        <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2 animate-pulse"></div>
+                                        <div class="h-3 bg-gray-200 rounded w-1/2 animate-pulse"></div>
                                     </div>
                                 </div>
                             </div>
@@ -150,31 +221,50 @@
                             <div v-else class="py-1">
                                 <button v-for="topic in forumTopics" :key="topic.info.forum_topic_id" type="button"
                                     @click="selectTopic(topic.info.forum_topic_id)"
-                                    class="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left"
+                                    class="w-full px-3 py-2.5 hover:bg-gray-100 transition-colors text-left"
                                     style="content-visibility: auto; contain-intrinsic-size: 68px">
-                                    <div class="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center text-white text-base font-bold"
-                                        :style="{ backgroundColor: topicIconColor(topic.info.icon.color) }">
-                                        {{ topicNameInitial(topic.info.name) }}
+                                    <!-- 第一排：图标(头像)与标题同一排内联 + 时间；
+                                         图标：General 用带主题色的 #，有自定义 emoji 用透明 emoji(无背景)，否则首字母小方块 -->
+                                    <div class="flex justify-between items-baseline mb-0.5">
+                                        <h3 class="flex items-center gap-1.5 min-w-0 text-sm font-medium text-gray-900">
+                                            <template v-if="topic.info.is_general">
+                                                <span class="text-base font-bold leading-none shrink-0"
+                                                    :style="{ color: topicIconColor(topic.info.icon.color) }">#</span>
+                                            </template>
+                                            <CustomEmojiInline v-else-if="topicIconCustomEmojiId(topic)"
+                                                :emojiId="topicIconCustomEmojiId(topic)" :size="16" class="shrink-0" />
+                                            <span v-else
+                                                class="w-5 h-5 rounded shrink-0 inline-flex items-center justify-center text-white text-[11px] font-bold"
+                                                :style="{ backgroundColor: topicIconColor(topic.info.icon.color) }">{{
+                                                    topicNameInitial(topic.info.name) }}</span>
+                                            <span class="min-w-0 truncate">{{ topic.info.name }}</span>
+                                            <span v-if="topic.info.is_closed"
+                                                class="text-xs text-gray-400 ml-0.5 shrink-0">[已关闭]</span>
+                                        </h3>
+                                        <span class="text-xs text-gray-400 ml-1 shrink-0">{{
+                                            formatTime(topic.last_message?.date)
+                                            }}</span>
                                     </div>
-                                    <div class="flex-1 min-w-0">
-                                        <div class="flex justify-between items-baseline mb-0.5">
-                                            <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                                                {{ topic.info.name }}
-                                                <span v-if="topic.info.is_closed"
-                                                    class="text-xs text-gray-400 ml-1">[已关闭]</span>
-                                            </h3>
-                                            <span class="text-xs text-gray-400 ml-1 shrink-0">{{
-                                                formatTime(topic.last_message?.date)
-                                                }}</span>
+                                    <!-- 第二排：发送人（迷你头像）+ 消息，复用对话列表的发送人标记 -->
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex-1 min-w-0 flex items-center gap-1.5">
+                                            <template v-if="topicSender(topic)">
+                                                <Avatar
+                                                    v-if="settings.chatList.showSenderMiniAvatar && topicMiniAvatar(topic)"
+                                                    :photo="topicMiniAvatar(topic)" :title="topicSender(topic)"
+                                                    sizeClass="!w-4 !h-4" :radius="avatarRadius" class="shrink-0" />
+                                                <span class="shrink-0 text-xs text-gray-400">{{
+                                                    topicSender(topic) }}：</span>
+                                            </template>
+                                            <p class="min-w-0 truncate text-xs text-gray-500">
+                                                <FormattedTextInline :formattedText="getTopicPreview(topic)"
+                                                    :size="14" />
+                                            </p>
                                         </div>
-                                        <div class="flex items-center gap-1.5">
-                                            <p class="flex-1 min-w-0 text-xs text-gray-500 truncate">{{
-                                                getTopicPreview(topic) }}</p>
-                                            <span v-if="topic.unread_count > 0"
-                                                class="shrink-0 min-w-4.5 h-4.5 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold leading-4.5 text-center">
-                                                {{ formatUnreadCount(topic.unread_count) }}
-                                            </span>
-                                        </div>
+                                        <span v-if="topic.unread_count > 0"
+                                            class="shrink-0 min-w-4.5 h-4.5 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold leading-4.5 text-center">
+                                            {{ formatUnreadCount(topic.unread_count) }}
+                                        </span>
                                     </div>
                                 </button>
                             </div>
@@ -187,19 +277,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, type Component } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon } from 'lucide-vue-next';
+import { BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon, UserIcon, UsersIcon, MegaphoneIcon, BotIcon, FolderIcon, BellOffIcon, PinIcon, ArchiveIcon, ChevronRightIcon } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
 import { settings } from '../../store/settings';
+import {
+    getSenderName, getSenderPhoto, ensureSenderLoaded,
+    isChatGroup, isChatMuted, isChatPinned,
+} from '../../utils/senderInfo';
 import { useChatStore } from '../../store/chat';
 import type { Chat } from '../../store/chat';
 import { useUserStore } from '../../store/user';
 import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../utils/savedMessages';
 import Avatar from './avatar.vue';
-import type { message, forumTopic, forumTopics } from 'tdlib-types';
+import type { message, forumTopic, forumTopics, formattedText } from 'tdlib-types';
 import { tdlibSend } from '../../utils/tdlib';
 import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
+import FormattedTextInline from './FormattedTextInline.vue';
+import CustomEmojiInline from './ChatDetail/MessageContent/CustomEmojiInline.vue';
 
 const props = defineProps<{
     isArchive?: boolean;
@@ -281,21 +377,63 @@ watch(() => chatStore.chatLists, async (lists) => {
     }, 1500);
 }, { deep: true, once: true });
 
-const tabs = computed(() => {
+/** 分组栏选项卡 */
+type ChatListTab = {
+    id: string;
+    name: string;
+    iconName?: string;
+    /** 分组名称富文本（含自定义 emoji 实体） */
+    formattedName?: formattedText | null;
+};
+
+const tabs = computed<ChatListTab[]>(() => {
     if (props.isArchive) return [];
     return chatStore.chatLists.filter(list => list._ !== 'chatListArchive').map(list => {
         if (list._ === 'chatListMain') {
-            return { id: 'chatListMain', name: '全部' };
+            return { id: 'chatListMain', name: '全部', iconName: 'All' };
         }
         if (list._ === 'chatFolderInfo') {
+            const nameText = list.name?.text?.text;
             return {
                 id: `chat_folder_id${list.id}`,
-                name: list.name?.text?.text || '文件夹'
+                name: nameText || '文件夹',
+                formattedName: nameText ? (list.name?.text ?? null) : null,
+                iconName: list.icon?.name
             };
         }
         return { id: 'unknown', name: '未知' }
     });
 });
+
+// 分组图标映射（对应 TDLib chatFolderIcon.name，如 "All"、"Private"、"Groups"、"Channels"）
+const FOLDER_ICON_MAP: Record<string, Component> = {
+    All: MessageCircleIcon,
+    Unread: MessageCircleIcon,
+    Unmuted: MessageCircleIcon,
+    Bots: BotIcon,
+    Channels: MegaphoneIcon,
+    Groups: UsersIcon,
+    Private: UserIcon,
+};
+
+/** 分组选项卡图标：全部对话始终显示对话图标 */
+const folderIcon = (tab: { id: string; iconName?: string }): Component => {
+    if (tab.id === 'chatListMain') return MessageCircleIcon;
+    return FOLDER_ICON_MAP[tab.iconName || ''] || FolderIcon;
+};
+
+/**
+ * 分组未读计数：
+ * - chats（默认）：未读对话数量（有未读消息的对话个数）
+ * - messages：未读消息总数（所有对话 unread_count 之和）
+ */
+const tabUnread = (tabId: string): number => {
+    const chats = chatStore.getList(tabId).value;
+    if (settings.chatList.unreadCountMode === 'messages') {
+        return chats.reduce((sum, c) => sum + (c.unread_count || 0), 0);
+    }
+    return chats.filter(c => (c.unread_count || 0) > 0).length;
+};
 
 const activeTab = ref(props.isArchive ? 'chatListArchive' : 'chatListMain');
 
@@ -401,6 +539,11 @@ async function loadForumTopics(chatIdNum: number, loadMore: boolean) {
     }
 }
 
+// 话题列表变化时异步加载各话题最后消息发送者信息（用户/频道，缓存去重）
+watch(forumTopics, (topics) => {
+    topics.forEach(t => ensureSenderLoaded(t.last_message?.sender_id));
+}, { deep: true });
+
 /** 退出论坛模式 */
 const exitForumMode = () => {
     forumMode.value = false;
@@ -416,20 +559,38 @@ const selectTopic = (topicId: number) => {
 };
 
 /** 选择对话：论坛群组展开内联话题列表，普通对话进入聊天详情 */
-const selectChat = (chat: Chat) => {
+/** 进入论坛模式：选中论坛群组，展开内联话题列表 */
+const enterForumMode = (chat: Chat) => {
+    selectedChatId.value = chat.id;
+    forumMode.value = true;
+    forumChatId.value = chat.id;
+    forumChatTitle.value = chat.title;
+    forumTopics.value = [];
+    topicsLoading.value = true;
+    loadForumTopics(chat.id, false);
+};
+
+/** 选择对话：论坛群组展开内联话题列表，普通对话进入聊天详情 */
+const selectChat = async (chat: Chat) => {
     if (isForumChat(chat)) {
-        // 进入论坛模式
-        selectedChatId.value = chat.id;
-        forumMode.value = true;
-        forumChatId.value = chat.id;
-        forumChatTitle.value = chat.title;
-        forumTopics.value = [];
-        topicsLoading.value = true;
-        loadForumTopics(chat.id, false);
-    } else {
-        selectedChatId.value = chat.id;
-        router.push(`/home/chats/${chat.id}`);
+        enterForumMode(chat);
+        return;
     }
+    // 兜底：view_as_topics 字段缺失（未随数据下发）时，主动 getChat 确认是否为论坛群组
+    if (chat.type?._ === 'chatTypeSupergroup' && chat.view_as_topics === undefined) {
+        try {
+            const fresh = await tdlibSend({ _: 'getChat', chat_id: chat.id }) as any;
+            if (fresh && fresh._ !== 'error' && fresh.type?._ === 'chatTypeSupergroup' && fresh.view_as_topics) {
+                enterForumMode(chat);
+                return;
+            }
+        } catch (e) {
+            console.warn('Failed to confirm forum chat via getChat:', e);
+        }
+    }
+    // 标记当前选中的对话（进入详情后列表中也保持高亮）
+    selectedChatId.value = chat.id;
+    router.push(`/home/chats/${chat.id}`);
 };
 
 const formatTime = (timestamp: number | undefined) => {
@@ -444,42 +605,85 @@ const formatTime = (timestamp: number | undefined) => {
 
 const formatUnreadCount = (count: number) => count > 99 ? '99+' : count.toString();
 
-const getMessagePreview = (message: message | undefined) => {
-    if (!message) return '';
+/** 构造仅含纯文本的 formattedText */
+const plainText = (text: string): formattedText => ({ _: 'formattedText', text, entities: [] });
+
+const EMPTY_TEXT = plainText('');
+
+const getMessagePreview = (message: message | undefined): formattedText => {
+    if (!message) return EMPTY_TEXT;
     const content = message.content;
-    if (!content) return '';
+    if (!content) return EMPTY_TEXT;
 
     if (content._ === 'messageText') {
-        return content.text.text;
+        return content.text;
     }
     if (content._ === 'messagePhoto') {
-        return content.caption.text || '[图片]';
+        return content.caption?.text ? content.caption : plainText('[图片]');
     }
     if (content._ === 'messageVideo') {
-        return content.caption.text || '[视频]';
+        return content.caption?.text ? content.caption : plainText('[视频]');
     }
     if (content._ === 'messageAnimation') {
-        return content.caption.text || '[GIF]';
+        return content.caption?.text ? content.caption : plainText('[GIF]');
     }
     if (content._ === 'messageDocument') {
-        return content.caption.text || `[文件] ${content.document.file_name}`.trim();
+        return content.caption?.text ? content.caption : plainText(`[文件] ${content.document.file_name}`.trim());
     }
     if (content._ === 'messageSticker') {
-        return `${content.sticker.emoji || ''} [贴纸]`.trim();
+        return plainText(`${content.sticker.emoji || ''} [贴纸]`.trim());
     }
     if (content._ === 'messageVoiceNote') {
-        return '[语音]';
+        return plainText('[语音]');
     }
     if (content._ === 'messageAudio') {
-        return content.caption.text || `[音乐] ${content.audio.title || content.audio.file_name}`.trim();
+        return content.caption?.text ? content.caption : plainText(`[音乐] ${content.audio.title || content.audio.file_name}`.trim());
     }
     if (content._ === 'messageVideoNote') {
-        return '[视频消息]';
+        return plainText('[视频消息]');
     }
-    return '[消息]';
+    return plainText('[消息]');
 };
 
-// 切换 Tab 时重置该列表的加载状态，若列表为空则触发加载
+// ---- 聊天列表增强：发送者名称/迷你头像、静音、顶置、归档 ----
+/** 头像圆角角度（来自外观设置） */
+const avatarRadius = computed(() => settings.chatList.avatarCornerRadius);
+/** 话题模式群组头像未跟随全局圆角时的正方形小圆角角度（25% border-radius） */
+const FORUM_SQUARE_RADIUS = 50;
+/**
+ * 聊天列表中对话头像的圆角：
+ * 话题模式群组且未开启"跟随圆角"时，按正方形+较小圆角显示；其余情况使用全局圆角
+ */
+const chatAvatarRadius = (chat: Chat) =>
+    isForumChat(chat) && settings.chatList.forumAvatarFollowsRadius === false
+        ? FORUM_SQUARE_RADIUS
+        : avatarRadius.value;
+
+/** 是否在消息预览左侧显示未读角标（badgeOnLeft，且可选仅对静音对话生效） */
+const showLeftBadge = (chat: Chat) => {
+    if (!settings.chatList.badgeOnLeft) return false;
+    if (settings.chatList.badgeOnLeftMutedOnly && !isChatMuted(chat)) return false;
+    return true;
+};
+
+/** 进入归档页 */
+const goToArchive = () => router.push('/home/archived');
+
+/** 最后消息发送者名称 */
+const senderName = (chat: Chat) => getSenderName(chat.last_message?.sender_id);
+
+/** 最后消息发送者迷你头像 */
+const senderMiniAvatar = (chat: Chat) => getSenderPhoto(chat.last_message?.sender_id);
+
+// 列表内容变化时异步加载发送者信息（用户/频道数据，缓存去重）
+watch(tabsWithContent, (list) => {
+    list.forEach(({ chats }) => {
+        chats.forEach(c => ensureSenderLoaded(c.last_message?.sender_id));
+    });
+}, { deep: true });
+
+// 切换 Tab 时重置该列表的加载状态，并始终发起 loadChats
+// （即使分组已有对话也要加载，否则只有一个/少量对话的分组永远不会继续拉取直到 404）
 watch(activeTab, (newTab) => {
     if (!pageWidth.value) return;
     const idx = tabs.value.findIndex(t => t.id === newTab);
@@ -487,12 +691,19 @@ watch(activeTab, (newTab) => {
         swipeOffset.value = -idx * pageWidth.value;
     }
     chatStore.resetListState(newTab);
-    const currentList = chatStore.getList(newTab).value;
-    const hasRealChats = currentList.some(c => c.title !== '…');
-    if (!hasRealChats) {
-        triggerLoadMore(newTab);
-    }
+    triggerLoadMore(newTab);
+    // 将选中的分组选项卡聚焦到标签栏可视范围内（横向滚动）
+    scrollTabIntoView(newTab);
 });
+
+/** 将指定分组选项卡滚动到标签栏可视范围内 */
+function scrollTabIntoView(tabId: string) {
+    const container = tabsContainer.value;
+    const el = container?.querySelector(`[data-tab-id="${tabId}"]`);
+    if (el instanceof HTMLElement) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    }
+}
 
 const onScroll = (e: Event, tabId: string) => {
     const target = e.target as HTMLElement;
@@ -633,41 +844,54 @@ function topicNameInitial(name: string): string {
     return name.substring(0, 1).toUpperCase() || '#';
 }
 
-function getTopicPreview(topic: forumTopic): string {
+/** 话题图标自定义 emoji ID（无则返回空字符串；General 话题忽略） */
+function topicIconCustomEmojiId(topic: forumTopic): string {
+    if (topic.info.is_general) return '';
+    const id = topic.info.icon.custom_emoji_id;
+    return id && id !== '0' ? String(id) : '';
+}
+
+/** 话题最后消息发送者名称 */
+const topicSender = (topic: forumTopic) => getSenderName(topic.last_message?.sender_id);
+
+/** 话题最后消息发送者迷你头像 */
+const topicMiniAvatar = (topic: forumTopic) => getSenderPhoto(topic.last_message?.sender_id);
+
+function getTopicPreview(topic: forumTopic): formattedText {
     const msg = topic.last_message;
-    if (!msg) return '';
+    if (!msg) return EMPTY_TEXT;
 
     const content = msg.content;
-    if (!content) return '';
+    if (!content) return EMPTY_TEXT;
 
     if (content._ === 'messageText') {
-        return content.text.text;
+        return content.text;
     }
     if (content._ === 'messagePhoto') {
-        return content.caption.text || '[图片]';
+        return content.caption?.text ? content.caption : plainText('[图片]');
     }
     if (content._ === 'messageVideo') {
-        return content.caption.text || '[视频]';
+        return content.caption?.text ? content.caption : plainText('[视频]');
     }
     if (content._ === 'messageAnimation') {
-        return content.caption.text || '[GIF]';
+        return content.caption?.text ? content.caption : plainText('[GIF]');
     }
     if (content._ === 'messageDocument') {
-        return content.caption.text || `[文件] ${content.document.file_name}`.trim();
+        return content.caption?.text ? content.caption : plainText(`[文件] ${content.document.file_name}`.trim());
     }
     if (content._ === 'messageSticker') {
-        return `${content.sticker.emoji || ''} [贴纸]`.trim();
+        return plainText(`${content.sticker.emoji || ''} [贴纸]`.trim());
     }
     if (content._ === 'messageVoiceNote') {
-        return '[语音]';
+        return plainText('[语音]');
     }
     if (content._ === 'messageAudio') {
-        return content.caption.text || `[音乐] ${content.audio.title || content.audio.file_name}`.trim();
+        return content.caption?.text ? content.caption : plainText(`[音乐] ${content.audio.title || content.audio.file_name}`.trim());
     }
     if (content._ === 'messageVideoNote') {
-        return '[视频消息]';
+        return plainText('[视频消息]');
     }
-    return '[消息]';
+    return plainText('[消息]');
 }
 </script>
 
@@ -731,16 +955,18 @@ function getTopicPreview(topic: forumTopic): string {
 }
 
 /* Slide-up transition for search bar, tabs, music player */
-.slide-up-enter-active {
-    transition: all 0.25s ease-out;
-    overflow: hidden;
-}
-
+/* 统一为与宽度收缩 / 话题滑入一致的时序 (0.3s, cubic-bezier(0.4,0,0.2,1)) */
+.slide-up-enter-active,
 .slide-up-leave-active {
-    transition: all 0.2s ease-in;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
 }
 
+/*
+ * 折叠动画说明：
+ * 每个目标元素自身设定了固定 max-h-12 / max-h-14，使 max-height 可被插值，
+ * 从而真正平滑地从具体高度折叠到 0（auto → 0 是无动画的硬跳变）。
+ */
 .slide-up-enter-from {
     opacity: 0;
     max-height: 0;
@@ -750,15 +976,36 @@ function getTopicPreview(topic: forumTopic): string {
 .slide-up-leave-to {
     opacity: 0;
     max-height: 0;
-    transform: translateY(-100%);
+    transform: translateY(-20%);
     margin: 0;
     padding-top: 0;
     padding-bottom: 0;
     border: none;
 }
 
+/* Forum 头像列切换时淡入，避免硬切换生硬 */
+@keyframes chat-list-fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.forum-avatar-column,
+.chat-list-fade-in {
+    animation: chat-list-fade-in 0.3s ease both;
+}
+
 .swipe-page {
     width: 100%;
+}
+
+/* forum 模式头像列：优先级高于上面的 width:100%，确保收缩到 68px */
+.swipe-page.w-17 {
+    width: 68px;
 }
 
 /* Prevent text selection while swiping */

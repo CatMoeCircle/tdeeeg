@@ -135,8 +135,11 @@ export const useDownloadStore = defineStore("downloads", () => {
         fileType: DownloadFileType,
         thumbnailDataUrl?: string,
         chatId?: number,
-        messageId?: number
+        messageId?: number,
+        /** 显式指定是否为隐藏/通用资源（自动下载、头像、贴纸、表情等），默认按文件类型推断 */
+        isGeneric?: boolean,
     ) {
+        const generic = isGeneric ?? (fileType === "sticker" || fileType === "avatar" || fileType === "other");
         try {
             await invoke("register_download", {
                 fileId,
@@ -147,6 +150,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                 thumbnailDataUrl: thumbnailDataUrl || null,
                 chatId: chatId || null,
                 messageId: messageId || null,
+                isGeneric: generic,
             });
             // 注册成功后，立即将本地状态置为进行中
             items.value[fileId] = {
@@ -160,7 +164,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                 is_completed: false,
                 file_type: fileType,
                 thumbnail_data_url: thumbnailDataUrl,
-                is_generic: fileType === "sticker" || fileType === "avatar" || fileType === "other",
+                is_generic: generic,
                 dismissed: false,
                 chat_id: chatId,
                 message_id: messageId,

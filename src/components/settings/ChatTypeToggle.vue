@@ -1,6 +1,6 @@
 <template>
     <div class="flex items-center justify-between py-1.5">
-        <span class="text-sm text-gray-600 dark:text-gray-400">{{ label }}</span>
+        <span class="text-sm text-gray-600 ">{{ label }}</span>
         <ToggleSwitch :modelValue="modelValue" @update:modelValue="$emit('update:modelValue', $event)" />
     </div>
 </template>

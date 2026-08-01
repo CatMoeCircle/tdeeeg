@@ -10,20 +10,38 @@
             <!-- 点击头像/标题区域打开对话信息叠层 -->
             <button type="button" @click="emit('openInfo')"
                 class="flex items-center gap-3 min-w-0 text-left flex-1 cursor-pointer hover:opacity-80 transition-opacity">
-                <div v-if="isSavedMessages"
-                    class="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center shrink-0">
-                    <BookmarkIcon class="w-5 h-5 fill-current" />
-                </div>
+                <template v-if="isTopicMode">
+                    <!-- 话题图标：General 用主题色 #，自定义 emoji 用 emoji，否则首字母色块 -->
+                    <div v-if="topic!.info.is_general"
+                        class="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-white text-xl font-bold"
+                        :style="{ backgroundColor: topicIconColor(topic!.info.icon.color) }">#</div>
+                    <CustomEmojiInline v-else-if="topicCustomEmojiId" :emojiId="topicCustomEmojiId" :size="40"
+                        class="shrink-0" />
+                    <div v-else
+                        class="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-white text-lg font-bold"
+                        :style="{ backgroundColor: topicIconColor(topic!.info.icon.color) }">
+                        {{ topicNameInitial(topic!.info.name) }}
+                    </div>
+                </template>
+                <template v-else-if="isSavedMessages">
+                    <div
+                        class="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center shrink-0">
+                        <BookmarkIcon class="w-5 h-5 fill-current" />
+                    </div>
+                </template>
                 <Avatar v-else :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" :square="isForumChat" />
                 <div class="flex flex-col min-w-0">
                     <h2 class="flex font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight truncate">{{
-                        chatTitle
-                        }}<span v-if="verificationState" class="text-blue-500 ml-1 shrink-0">
+                        headerTitle
+                    }}<span v-if="verificationState" class="text-blue-500 ml-1 shrink-0">
                             <component :is="verificationState" />
                         </span>
                     </h2>
                     <span class="text-xs text-gray-400 truncate">
-                        <template v-if="showConnectionStatus">
+                        <template v-if="isTopicMode">
+                            在 {{ props.chat?.title || '' }}
+                        </template>
+                        <template v-else-if="showConnectionStatus">
                             {{ displayStatus }}<span class="animated-dots"><span class="dot-1">.</span><span
                                     class="dot-2">.</span><span class="dot-3">.</span></span>
                         </template>
@@ -53,15 +71,17 @@ import { SearchIcon, MoreHorizontalIcon, ArrowLeftIcon, BadgeCheckIcon, ShieldAl
 import { computed, h, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useI18n } from 'vue-i18n';
-import type { chat, user, verificationStatus } from "tdlib-types";
+import type { chat, user, verificationStatus, forumTopic } from "tdlib-types";
 import { tdlibSend } from '../../../utils/tdlib';
 import formatStatus from '../../../utils/status';
 import { useUserStore } from '../../../store/user';
 import { useConnectionStore } from '../../../store/connectionState';
 import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../../utils/savedMessages';
+import CustomEmojiInline from './MessageContent/CustomEmojiInline.vue';
 
 const props = defineProps<{
     chat: chat | undefined;
+    topic?: forumTopic | undefined;
     showBack?: boolean;
 }>();
 
@@ -86,6 +106,40 @@ const chatTitle = computed(() => isSavedMessages.value ? SAVED_MESSAGES_TITLE : 
 const isForumChat = computed(() =>
     !!props.chat && props.chat.type?._ === 'chatTypeSupergroup' && !!(props.chat as any).view_as_topics
 );
+
+/** 是否为话题模式（在话题详情页中） */
+const isTopicMode = computed(() => !!props.topic);
+
+/** 头部标题：话题模式显示话题名，否则显示对话名 */
+const headerTitle = computed(() => {
+    if (isTopicMode.value) return props.topic!.info.name;
+    return chatTitle.value;
+});
+
+/** 话题图标自定义 emoji ID（无则返回空字符串；General 话题忽略） */
+const topicCustomEmojiId = computed(() => {
+    const topic = props.topic;
+    if (!topic || topic.info.is_general) return '';
+    const id = topic.info.icon.custom_emoji_id;
+    return id && id !== '0' ? String(id) : '';
+});
+
+const topicIconColors: Record<number, string> = {
+    0x6FB9F0: '#6FB9F0',
+    0xFFD67E: '#FFD67E',
+    0xCB86DB: '#CB86DB',
+    0x8EEE98: '#8EEE98',
+    0xFF93B2: '#FF93B2',
+    0xFB6F5F: '#FB6F5F',
+};
+
+function topicIconColor(color: number): string {
+    return topicIconColors[color] || '#6FB9F0';
+}
+
+function topicNameInitial(name: string): string {
+    return name.substring(0, 1).toUpperCase() || '#';
+}
 
 /** 是否显示连接状态（替代对话原有状态文本） */
 const showConnectionStatus = computed(() =>

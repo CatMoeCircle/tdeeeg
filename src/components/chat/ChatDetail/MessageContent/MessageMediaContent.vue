@@ -218,7 +218,6 @@ import {
     unregisterPlaying,
     toggleGlobalMute,
     pauseAudioForVideo,
-    onVideoStopped,
 } from '../../../../store/videoPlayback';
 
 

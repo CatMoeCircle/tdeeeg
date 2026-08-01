@@ -1,9 +1,9 @@
 <template>
-    <div :class="containerClass">
+    <div :class="containerClass" :style="containerStyle">
         <img v-if="avatar && !imgError" :src="avatar" alt="avatar" class="w-full h-full object-cover"
             @error="onImgError" />
         <div v-else class="w-full h-full flex items-center justify-center text-gray-500 text-xs select-none">{{ initials
-        }}</div>
+            }}</div>
     </div>
 </template>
 
@@ -12,13 +12,16 @@ import { computed, ref, watch } from 'vue';
 import type { chatPhotoInfo, profilePhoto } from "tdlib-types";
 import { tdlibSend, isFileReady, downloadingFiles } from '../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { useDownloadStore } from '../../store/downloads';
 
 const props = defineProps<{
     photo?: chatPhotoInfo | profilePhoto;
     title?: string;
     sizeClass?: string;
-    /** 是否使用方形圆角（用于话题群组头像） */
+    /** 是否使用方形圆角（用于话题群组头像），radius 提供时优先使用 radius */
     square?: boolean;
+    /** 圆角角度 0~100（0=方形，100=圆形），话题群组统一使用 */
+    radius?: number;
 }>();
 
 const imgError = ref(false);
@@ -32,9 +35,19 @@ const initials = computed(() => {
     return t.substring(0, 2);
 });
 
+/** 圆角百分比：radius 0~100 → 0%~50%（0=方形，100=圆形） */
+const radiusPct = computed(() => {
+    if (typeof props.radius === 'number') {
+        return props.radius * 0.5;
+    }
+    if (props.square) return 0;
+    return 50;
+});
+
+const containerStyle = computed(() => ({ borderRadius: `${radiusPct.value}%` }));
+
 const containerClass = computed(() => {
-    const round = props.square ? 'rounded-xl' : 'rounded-full';
-    const base = `w-full h-full ${round} bg-gray-300 shrink-0 overflow-hidden`;
+    const base = `w-full h-full bg-gray-300 shrink-0 overflow-hidden`;
     if (props.sizeClass) return ` ${props.sizeClass} ${base}`;
     return base;
 });
@@ -65,6 +78,9 @@ watch(
         // 仅当文件可下载且未在下载中时触发
         if (photo.small?.id && !downloadingFiles.has(photo.small.id) && !isFileReady(photo.small)) {
             downloadingFiles.add(photo.small.id);
+            // 头像：记录为隐藏资源，不需要来源（chat_id/message_id 留空）
+            const fileName = `${props.title || '头像'}_${photo.small.id}.jpg`;
+            await useDownloadStore().registerDownload(photo.small.id, fileName, '', 0, 'avatar', undefined, undefined, undefined, true);
             try {
                 const file = await tdlibSend({
                     _: "downloadFile",

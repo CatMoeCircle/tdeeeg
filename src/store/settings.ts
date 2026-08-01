@@ -31,6 +31,27 @@ export interface AutoDownloadFilesConfig extends AutoDownloadByType {
 
 interface Settings {
   folderStyle: "tabs" | "pills" | "text";
+  /** 是否在分组栏选项卡中显示未读消息计数器 */
+  showFolderUnread: boolean;
+  /** 是否在分组栏选项卡中显示分组图标 */
+  showFolderIcons: boolean;
+  /** 聊天列表显示设置 */
+  chatList: {
+    /** 头像圆角角度 0~100（0=方形，100=圆形） */
+    avatarCornerRadius: number;
+    /** 话题模式（论坛群组）头像是否跟随头像圆角；关闭时按方形显示 */
+    forumAvatarFollowsRadius: boolean;
+    /** 最后消息前显示发送者迷你头像 */
+    showSenderMiniAvatar: boolean;
+    /** 未读消息角标显示在消息预览左侧 */
+    badgeOnLeft: boolean;
+    /** 左侧未读角标仅对静音对话生效 */
+    badgeOnLeftMutedOnly: boolean;
+    /** 分组栏未读计数模式：chats=未读对话数量（默认），messages=未读消息总数 */
+    unreadCountMode: "chats" | "messages";
+    /** 归档位置：top=全部对话顶部，sidebar=侧边栏导航，hidden=隐藏 */
+    archivePosition: "top" | "sidebar" | "hidden";
+  };
   autoDownload: {
     /** 自动下载总开关 */
     enabled: boolean;
@@ -45,6 +66,17 @@ interface Settings {
 
 const defaultSettings: Settings = {
   folderStyle: "tabs",
+  showFolderUnread: true,
+  showFolderIcons: true,
+  chatList: {
+    avatarCornerRadius: 50,
+    forumAvatarFollowsRadius: true,
+    showSenderMiniAvatar: false,
+    badgeOnLeft: false,
+    badgeOnLeftMutedOnly: false,
+    unreadCountMode: "chats",
+    archivePosition: "sidebar",
+  },
   autoDownload: {
     enabled: true,
     photos: {
@@ -73,11 +105,23 @@ const defaultSettings: Settings = {
   },
 };
 
-// Load from localStorage
+// Load from localStorage（与默认值深度合并，确保新增的嵌套字段始终有默认值）
+function mergeSettings(defaults: any, saved: any): any {
+  if (
+    typeof defaults === "object" && defaults !== null && !Array.isArray(defaults) &&
+    typeof saved === "object" && saved !== null && !Array.isArray(saved)
+  ) {
+    const result: any = { ...defaults };
+    for (const key of Object.keys(saved)) {
+      result[key] = mergeSettings(defaults[key], saved[key]);
+    }
+    return result;
+  }
+  return saved !== undefined ? saved : defaults;
+}
+
 const savedSettings = localStorage.getItem(SETTINGS_KEY);
-const initialState = savedSettings
-  ? JSON.parse(savedSettings)
-  : defaultSettings;
+const initialState = mergeSettings(defaultSettings, savedSettings ? JSON.parse(savedSettings) : {});
 
 export const settings = reactive<Settings>(initialState);
 

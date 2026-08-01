@@ -275,7 +275,7 @@ async function copyToClipboard(text: string) {
     }
 }
 
-function handleCaptionSegmentClick(event: MouseEvent, segment: CaptionSegment) {
+function handleCaptionSegmentClick(_event: MouseEvent, segment: CaptionSegment) {
     if (segment.href) {
         if (segment.copyable) {
             copyToClipboard(segment.text);

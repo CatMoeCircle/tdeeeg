@@ -3,6 +3,8 @@ import { ref, computed } from 'vue';
 import { tdlibSend, safeDownloadFile, isFileReady } from '../utils/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { message } from 'tdlib-types';
+import { useDownloadStore } from './downloads';
+import { useChatStore } from './chat';
 
 export interface AudioTrack {
     messageId: number;
@@ -56,6 +58,12 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
     });
 
     // ======== Actions ========
+
+    /** 获取对话标题 */
+    function getChatTitle(chatId: number): string {
+        const cs = useChatStore();
+        return cs.chats[chatId]?.title || `对话 #${chatId}`;
+    }
 
     /** 搜索聊天中的所有音频消息，构建播放列表 */
     async function loadChatAudio(chatId: number, fromMessageId = 0) {
@@ -134,6 +142,8 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         // 先确保文件已下载就绪，再切换曲目
         if (!track.ready) {
             try {
+                // 音乐播放触发下载：记录到正常下载列表，保留来源对话与消息
+                await useDownloadStore().registerDownload(track.fileId, track.title || `audio_${track.fileId}.mp3`, getChatTitle(track.chatId), 0, 'audio', undefined, track.chatId, track.messageId, false);
                 await safeDownloadFile(track.fileId, true);
                 track.ready = true;
                 // 重新获取文件路径
@@ -313,6 +323,8 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         // 先确保文件下载完成，再添加到播放列表
         if (!ready) {
             try {
+                // 音乐播放触发下载：记录到正常下载列表，保留来源对话与消息
+                await useDownloadStore().registerDownload(file.id, audio.title || audio.file_name || `audio_${file.id}.mp3`, getChatTitle(msg.chat_id), 0, 'audio', undefined, msg.chat_id, msg.id, false);
                 await safeDownloadFile(file.id, true);
             } catch (e) {
                 console.error('Failed to download audio:', e);
