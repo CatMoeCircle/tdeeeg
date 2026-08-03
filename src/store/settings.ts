@@ -87,8 +87,8 @@ const defaultSettings: Settings = {
   showFolderUnread: true,
   showFolderIcons: true,
   chatList: {
-    avatarCornerRadius: 50,
-    forumAvatarFollowsRadius: true,
+    avatarCornerRadius: 100,
+    forumAvatarFollowsRadius: false,
     showSenderMiniAvatar: false,
     badgeOnLeft: false,
     badgeOnLeftMutedOnly: false,
@@ -99,7 +99,7 @@ const defaultSettings: Settings = {
     cornerRadius: 18,
     fontSize: 14,
     scale: 1,
-    botCommandInsert: true,
+    botCommandInsert: false,
   },
   sticker: {
     size: 160,

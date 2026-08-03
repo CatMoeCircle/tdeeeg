@@ -23,6 +23,7 @@ declare module 'vue' {
     CustomEmojiInline: typeof import('./components/chat/ChatDetail/MessageContent/CustomEmojiInline.vue')['default']
     DeleteMessageConfirm: typeof import('./components/contextMenu/DeleteMessageConfirm.vue')['default']
     DownloadSettings: typeof import('./components/settings/DownloadSettings.vue')['default']
+    EditableNumber: typeof import('./components/settings/EditableNumber.vue')['default']
     ExternalLinkConfirm: typeof import('./components/contextMenu/ExternalLinkConfirm.vue')['default']
     FormattedTextInline: typeof import('./components/chat/FormattedTextInline.vue')['default']
     ForumTopicList: typeof import('./components/chat/ForumTopicList.vue')['default']

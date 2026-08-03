@@ -46,8 +46,8 @@
                                     <input type="range" min="1" max="500" step="1"
                                         v-model.number="settings.autoDownload.videos.maxSize"
                                         class="w-24 h-1 accent-blue-500" />
-                                    <span class="text-sm font-medium tabular-nums min-w-16 text-right">{{
-                                        settings.autoDownload.videos.maxSize }} MB</span>
+                                    <EditableNumber :value="settings.autoDownload.videos.maxSize" unit="MB" :min="1"
+                                        :max="500" @update:value="settings.autoDownload.videos.maxSize = $event" />
                                 </div>
                             </div>
                         </CollapsibleSection>
@@ -64,8 +64,8 @@
                                     <input type="range" min="1" max="500" step="1"
                                         v-model.number="settings.autoDownload.files.maxSize"
                                         class="w-24 h-1 accent-blue-500" />
-                                    <span class="text-sm font-medium tabular-nums min-w-16 text-right">{{
-                                        settings.autoDownload.files.maxSize }} MB</span>
+                                    <EditableNumber :value="settings.autoDownload.files.maxSize" unit="MB" :min="1"
+                                        :max="500" @update:value="settings.autoDownload.files.maxSize = $event" />
                                 </div>
                             </div>
                         </CollapsibleSection>
@@ -99,6 +99,7 @@ import type { AutoDownloadByType } from '../../store/settings';
 import ToggleSwitch from './ToggleSwitch.vue';
 import CollapsibleSection from './CollapsibleSection.vue';
 import ChatTypeToggle from './ChatTypeToggle.vue';
+import EditableNumber from './EditableNumber.vue';
 
 
 const categories: { key: keyof AutoDownloadByType; label: string }[] = [

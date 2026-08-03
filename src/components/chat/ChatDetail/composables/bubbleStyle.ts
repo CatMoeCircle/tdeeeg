@@ -165,7 +165,8 @@ export function bubbleStyle(
             cornerRadius: deps.settings.cornerRadius,
         }),
     };
-    if (deps.isSelf(item.msg)) {
+    // 独立消息（贴纸 / 动画表情）不渲染消息气泡，不叠加背景
+    if (deps.isSelf(item.msg) && !isStandaloneMessage(item.msg)) {
         Object.assign(style, selfBubbleStyle(item.msg, deps));
     }
     return style;

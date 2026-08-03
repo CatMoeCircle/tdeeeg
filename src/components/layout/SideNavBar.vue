@@ -20,7 +20,8 @@
                 <UsersIcon :class="iconStyle" />
             </router-link>
 
-            <router-link to="/home/archived" :class="buttonStyle" active-class="bg-white/60 dark:bg-gray-600 shadow-sm">
+            <router-link v-if="settings.chatList.archivePosition !== 'hidden'" to="/home/archived" :class="buttonStyle"
+                active-class="bg-white/60 dark:bg-gray-600 shadow-sm">
                 <ArchiveIcon :class="iconStyle" />
             </router-link>
         </div>
@@ -51,6 +52,7 @@ import { onMounted } from 'vue';
 import { useUserStore } from '../../store/user';
 import { useDownloadStore } from '../../store/downloads';
 import { storeToRefs } from 'pinia';
+import { settings } from '../../store/settings';
 
 const buttonStyle = 'w-10 h-10 flex items-center justify-center text-gray-500 transition-colors relative rounded-lg hover:bg-white/60 hover:shadow-sm';
 const iconStyle = 'w-5 h-5';

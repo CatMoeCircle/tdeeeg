@@ -59,9 +59,12 @@
                         <div class="px-4 py-3">
                             <div class="flex items-center justify-between mb-2">
                                 <span class="text-sm text-gray-600 dark:text-gray-400">消息圆角</span>
-                                <span class="text-sm font-medium text-blue-600">{{ settings.message.cornerRadius
-                                    }}px<span v-if="settings.message.cornerRadius === DEFAULT_MESSAGE.cornerRadius"
-                                        class="text-xs font-normal text-gray-400 ml-1">(默认)</span></span>
+                                <span class="flex items-center gap-1">
+                                    <EditableNumber :value="settings.message.cornerRadius" unit="px" :min="0" :max="24"
+                                        @update:value="settings.message.cornerRadius = $event" />
+                                    <span v-if="settings.message.cornerRadius === DEFAULT_MESSAGE.cornerRadius"
+                                        class="text-xs font-normal text-gray-400">(默认)</span>
+                                </span>
                             </div>
                             <input type="range" min="0" max="24" step="1" v-model.number="settings.message.cornerRadius"
                                 class="w-full accent-blue-500" />
@@ -71,9 +74,12 @@
                         <div class="px-4 py-3">
                             <div class="flex items-center justify-between mb-2">
                                 <span class="text-sm text-gray-600 dark:text-gray-400">字体大小</span>
-                                <span class="text-sm font-medium text-blue-600">{{ settings.message.fontSize }}px<span
-                                        v-if="settings.message.fontSize === DEFAULT_MESSAGE.fontSize"
-                                        class="text-xs font-normal text-gray-400 ml-1">(默认)</span></span>
+                                <span class="flex items-center gap-1">
+                                    <EditableNumber :value="settings.message.fontSize" unit="px" :min="11" :max="20"
+                                        @update:value="settings.message.fontSize = $event" />
+                                    <span v-if="settings.message.fontSize === DEFAULT_MESSAGE.fontSize"
+                                        class="text-xs font-normal text-gray-400">(默认)</span>
+                                </span>
                             </div>
                             <input type="range" min="11" max="20" step="1" v-model.number="settings.message.fontSize"
                                 class="w-full accent-blue-500" />
@@ -84,9 +90,8 @@
                         <div class="px-4 py-3">
                             <div class="flex items-center justify-between mb-2">
                                 <span class="text-sm text-gray-600 dark:text-gray-400">消息整体比例缩放</span>
-                                <span class="text-sm font-medium text-blue-600">{{ Math.round(settings.message.scale *
-                                    100)
-                                    }}%</span>
+                                <EditableNumber :value="Math.round(settings.message.scale * 100)" unit="%" :min="80"
+                                    :max="120" @update:value="settings.message.scale = $event / 100" />
                             </div>
                             <input type="range" min="80" max="120" step="1"
                                 :value="Math.round(settings.message.scale * 100)" @input="onScaleInput"
@@ -98,9 +103,12 @@
                         <div class="px-4 py-3">
                             <div class="flex items-center justify-between mb-2">
                                 <span class="text-sm text-gray-600 dark:text-gray-400">贴纸大小</span>
-                                <span class="text-sm font-medium text-blue-600">{{ settings.sticker.size }}px<span
-                                        v-if="settings.sticker.size === DEFAULT_MESSAGE.stickerSize"
-                                        class="text-xs font-normal text-gray-400 ml-1">(默认)</span></span>
+                                <span class="flex items-center gap-1">
+                                    <EditableNumber :value="settings.sticker.size" unit="px" :min="96" :max="320"
+                                        :step="4" @update:value="settings.sticker.size = $event" />
+                                    <span v-if="settings.sticker.size === DEFAULT_MESSAGE.stickerSize"
+                                        class="text-xs font-normal text-gray-400">(默认)</span>
+                                </span>
                             </div>
                             <input type="range" min="96" max="320" step="4" v-model.number="settings.sticker.size"
                                 class="w-full accent-blue-500" />
@@ -247,12 +255,12 @@
                         <div class="px-4 py-3">
                             <div class="flex items-center justify-between mb-2">
                                 <span class="text-sm text-gray-600 dark:text-gray-400">头像圆角角度</span>
-                                <span class="text-sm font-medium text-blue-600">{{ settings.chatList.avatarCornerRadius
-                                    }}</span>
+                                <EditableNumber :value="settings.chatList.avatarCornerRadius" :min="0" :max="100"
+                                    :step="5" @update:value="settings.chatList.avatarCornerRadius = $event" />
                             </div>
                             <input type="range" min="0" max="100" step="5"
                                 v-model.number="settings.chatList.avatarCornerRadius" class="w-full accent-blue-500" />
-                            <p class="mt-1 text-xs text-gray-400">0 = 方形，100 = 圆形</p>
+                            <p class="mt-1 text-xs text-gray-400">0 = 方形，100 = 圆形 (包括消息旁边的头像)</p>
                         </div>
 
                         <!-- 话题模式头像跟随圆角 -->
@@ -291,7 +299,7 @@
                                 <button type="button" @click="settings.chatList.archivePosition = 'top'"
                                     class="px-2 py-1.5 text-xs rounded-md border transition-colors"
                                     :class="settings.chatList.archivePosition === 'top' ? 'border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'">
-                                    全部顶部
+                                    全部对话
                                 </button>
                                 <button type="button" @click="settings.chatList.archivePosition = 'sidebar'"
                                     class="px-2 py-1.5 text-xs rounded-md border transition-colors"
@@ -322,6 +330,7 @@ import { settings } from '../../store/settings';
 import { useUserStore } from '../../store/user';
 import ChatTypeToggle from './ChatTypeToggle.vue';
 import Avatar from '../chat/avatar.vue';
+import EditableNumber from './EditableNumber.vue';
 
 /** 消息显示/贴纸设置默认值（用于显示“(默认)”标记，与 settings.ts 默认值一致） */
 const DEFAULT_MESSAGE = { cornerRadius: 18, fontSize: 14, stickerSize: 160 };

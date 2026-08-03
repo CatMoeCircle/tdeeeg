@@ -62,9 +62,8 @@
                         <!-- forum 模式只需渲染当前激活分组的单一页面（68px 头像列），
                              避免把全部分组页面并排渲染而露出相邻分组头像 -->
                         <div v-for="tab in tabsWithContent" :key="tab.id" v-show="!forumMode || tab.id === activeTab"
-                            v-smooth-wheel
-                            class="swipe-page h-full shrink-0 overflow-y-auto custom-scrollbar"
-                            :class="forumMode ? 'w-17 px-0.5 py-1 forum-avatar-column' : 'w-full pl-1.5 pr-0.5 py-1 chat-list-fade-in'"
+                            v-smooth-wheel class="swipe-page h-full shrink-0 overflow-y-auto custom-scrollbar"
+                            :class="forumMode ? 'w-17 px-0.5 py-1 forum-avatar-column gap-0.5' : 'w-full pl-1.5 pr-0.5 py-1 chat-list-fade-in'"
                             @scroll="(e: Event) => onScroll(e, tab.id)">
                             <!-- Forum Mode: compact avatar only -->
                             <template v-if="forumMode">
@@ -124,7 +123,7 @@
 
                                 <div v-for="chat in tab.chats" :key="chat.id" @click="selectChat(chat)"
                                     v-context-menu="buildChatContextMenu(chat)"
-                                    class="flex items-center p-2.5 hover:bg-white/70 rounded-xl hover:shadow-(--box-shadow) cursor-pointer transition-colors"
+                                    class="flex items-center p-2.5 mb-0.5 hover:bg-white/70 rounded-xl hover:shadow-(--box-shadow) cursor-pointer transition-colors"
                                     :class="{ 'rounded-xl bg-gray-100 border border-gray-300': selectedChatId === chat.id, 'ring-2 ring-blue-500': chatSelectionMode && selectedChatIds.has(chat.id) }"
                                     style="content-visibility: auto; contain-intrinsic-size: 72px">
                                     <div class="w-12 h-12 mr-2.5">
@@ -283,36 +282,40 @@
 
         <!-- ===== 对话选择模式操作栏 ===== -->
         <Transition name="slide-up">
-            <div v-if="chatSelectionMode"
+            <div v-if="chatSelectionMode" ref="toolbarRef"
                 class="border-t border-gray-200 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shrink-0 px-3 py-2.5">
-                <div class="flex items-center gap-2">
-                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300 shrink-0">
-                        已选 {{ selectedChatIds.size }} 个对话
-                    </span>
+                <div class="flex items-stretch gap-2">
+                    <div class="flex items-center gap-2">
+                        <button type="button" aria-label="取消"
+                            class="flex items-center justify-center w-8 h-8 shrink-0 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            @click="exitChatSelectionMode">
+                            <XIcon class="w-4 h-4" />
+                        </button>
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300 shrink-0">
+                            {{ selectedChatIds.size }}
+                        </span>
+                    </div>
                     <div class="flex-1"></div>
-                    <button type="button"
-                        class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-blue-500 hover:bg-blue-500/10 disabled:opacity-40"
-                        :disabled="selectedChatIds.size === 0" @click="archiveSelectedChats">
-                        <ArchiveIcon class="w-3.5 h-3.5" />
-                        归档
+                    <button type="button" :title="toolbarNarrow ? '归档' : ''"
+                        class="flex flex-col items-center justify-center px-2 py-1 rounded-lg text-xs text-blue-500 hover:bg-blue-500/10 disabled:opacity-40"
+                        :class="toolbarNarrow ? 'w-9 h-9' : 'gap-0.5'" :disabled="selectedChatIds.size === 0"
+                        @click="archiveSelectedChats">
+                        <ArchiveIcon class="w-5 h-5" />
+                        <span v-if="!toolbarNarrow">归档</span>
                     </button>
-                    <button type="button"
-                        class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-blue-500 hover:bg-blue-500/10 disabled:opacity-40"
-                        :disabled="selectedChatIds.size === 0" @click="muteSelectedChats">
-                        <BellOffIcon class="w-3.5 h-3.5" />
-                        静音
+                    <button type="button" :title="toolbarNarrow ? '静音' : ''"
+                        class="flex flex-col items-center justify-center px-2 py-1 rounded-lg text-xs text-blue-500 hover:bg-blue-500/10 disabled:opacity-40"
+                        :class="toolbarNarrow ? 'w-9 h-9' : 'gap-0.5'" :disabled="selectedChatIds.size === 0"
+                        @click="muteSelectedChats">
+                        <BellOffIcon class="w-5 h-5" />
+                        <span v-if="!toolbarNarrow">静音</span>
                     </button>
-                    <button type="button"
-                        class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-red-500 hover:bg-red-500/10 disabled:opacity-40"
-                        :disabled="selectedChatIds.size === 0" @click="deleteSelectedChats">
-                        <Trash2Icon class="w-3.5 h-3.5" />
-                        删除
-                    </button>
-                    <button type="button"
-                        class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
-                        @click="exitChatSelectionMode">
-                        <XIcon class="w-3.5 h-3.5" />
-                        取消
+                    <button type="button" :title="toolbarNarrow ? '删除' : ''"
+                        class="flex flex-col items-center justify-center px-2 py-1 rounded-lg text-xs text-red-500 hover:bg-red-500/10 disabled:opacity-40"
+                        :class="toolbarNarrow ? 'w-9 h-9' : 'gap-0.5'" :disabled="selectedChatIds.size === 0"
+                        @click="deleteSelectedChats">
+                        <Trash2Icon class="w-5 h-5" />
+                        <span v-if="!toolbarNarrow">删除</span>
                     </button>
                 </div>
             </div>
@@ -396,6 +399,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
     resizeObserver?.disconnect();
+    toolbarObserver?.disconnect();
+    toolbarObserver = null;
 });
 
 function updatePageWidth() {
@@ -516,6 +521,34 @@ const selectedChatId = ref<number | null>(null);
 // ==================== 对话选择模式（多选） ====================
 const chatSelectionMode = ref(false);
 const selectedChatIds = ref<Set<number>>(new Set());
+
+/** 对话选择模式操作栏容器 */
+const toolbarRef = ref<HTMLElement | null>(null);
+/** 操作栏是否过窄（文本被压缩到只有一行，此时仅显示图标） */
+const toolbarNarrow = ref(false);
+let toolbarObserver: ResizeObserver | null = null;
+
+watch(chatSelectionMode, (on) => {
+    if (on) {
+        // 操作栏出现后再观察宽度，立即计算一次
+        requestAnimationFrame(() => measureToolbar());
+        const el = toolbarRef.value;
+        if (el && typeof ResizeObserver !== 'undefined') {
+            toolbarObserver = new ResizeObserver(measureToolbar);
+            toolbarObserver.observe(el);
+        }
+    } else {
+        toolbarObserver?.disconnect();
+        toolbarObserver = null;
+        toolbarNarrow.value = false;
+    }
+});
+
+function measureToolbar() {
+    const el = toolbarRef.value;
+    if (!el) return;
+    toolbarNarrow.value = el.clientWidth < 360;
+}
 
 /** 通过右键菜单“选择”进入/切换多选状态 */
 function onChatSelect(chat: Chat) {
