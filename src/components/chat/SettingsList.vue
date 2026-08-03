@@ -85,7 +85,7 @@ const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
 
 const route = useRoute();
-const isChatOpen = computed(() => /^\/home\/chats\/\d+/.test(route.path));
+const isChatOpen = computed(() => /^\/home\/chat\/\d+/.test(route.path));
 
 /** 用户状态显示文本：优先用 formatStatus 显示上次在线时间，无数据时显示离线 */
 const userStatusText = computed(() => {

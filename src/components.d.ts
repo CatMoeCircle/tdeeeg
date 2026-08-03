@@ -29,6 +29,7 @@ declare module 'vue' {
     ForumTopicList: typeof import('./components/chat/ForumTopicList.vue')['default']
     ForwardPicker: typeof import('./components/contextMenu/ForwardPicker.vue')['default']
     Header: typeof import('./components/chat/ChatDetail/Header.vue')['default']
+    HomeEmptyContent: typeof import('./components/layout/HomeEmptyContent.vue')['default']
     MediaViewer: typeof import('./components/chat/ChatDetail/MessageContent/MediaViewer.vue')['default']
     MessageAlbum: typeof import('./components/chat/ChatDetail/MessageContent/MessageAlbum.vue')['default']
     MessageContent: typeof import('./components/chat/ChatDetail/MessageContent/index.vue')['default']

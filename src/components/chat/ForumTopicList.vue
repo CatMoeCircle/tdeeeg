@@ -166,7 +166,7 @@ function goBack() {
 
 function selectTopic(topicId: number) {
     if (!chatId.value) return;
-    router.push(`/home/chats/${chatId.value}/topics/${topicId}`);
+    router.push(`/home/chat/${chatId.value}/topics/${topicId}`);
 }
 
 const topicIconColors: Record<number, string> = {

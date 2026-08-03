@@ -12,7 +12,7 @@
 
         <!-- 侧边栏-上部分-->
         <div class="flex-1 flex flex-col gap-2 w-full items-center">
-            <router-link to="/home/chats" :class="buttonStyle" active-class="bg-white/60 dark:bg-gray-600 shadow-sm">
+            <router-link to="/home/chats" :class="[buttonStyle, { 'bg-white/60 dark:bg-gray-600 shadow-sm': isChatNavActive }]">
                 <MessageCircleIcon :class="iconStyle" />
             </router-link>
 
@@ -38,7 +38,7 @@
                     </span>
                 </span>
             </router-link>
-            <router-link to="/home/settings" :class="buttonStyle" active-class="bg-white/60 shadow-sm">
+            <router-link to="/home/settings" :class="[buttonStyle, { 'bg-white/60 dark:bg-gray-600 shadow-sm': isSettingsNavActive }]">
                 <SettingsIcon :class="iconStyle" />
             </router-link>
         </div>
@@ -48,7 +48,8 @@
 <script setup lang="ts">
 import { MessageCircleIcon, UsersIcon, ArchiveIcon, DownloadIcon, SettingsIcon } from 'lucide-vue-next';
 import Avatar from "../chat/avatar.vue";
-import { onMounted } from 'vue';
+import { computed, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import { useUserStore } from '../../store/user';
 import { useDownloadStore } from '../../store/downloads';
 import { storeToRefs } from 'pinia';
@@ -60,6 +61,9 @@ const iconStyle = 'w-5 h-5';
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
 const downloadStore = useDownloadStore();
+const route = useRoute();
+const isChatNavActive = computed(() => route.name === 'chats' || route.name === 'chat-detail' || route.name === 'chat-topic-detail');
+const isSettingsNavActive = computed(() => route.name === 'settings' || route.name === 'settings-appearance' || route.name === 'settings-download');
 
 onMounted(() => {
     if (!userProfile.value) {

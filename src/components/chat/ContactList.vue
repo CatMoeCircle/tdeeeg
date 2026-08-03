@@ -45,7 +45,7 @@ import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
 import type { user } from 'tdlib-types';
 
 const route = useRoute();
-const isChatOpen = computed(() => /^\/home\/chats\/\d+/.test(route.path));
+const isChatOpen = computed(() => /^\/home\/chat\/\d+/.test(route.path));
 
 const Contacts = ref<user[] | undefined>(undefined);
 

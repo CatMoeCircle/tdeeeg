@@ -32,31 +32,28 @@ const router = createRouter({
         {
           path: "chats",
           name: "chats",
-          component: () => import("../views/main/ChatModule.vue"),
-          children: [
-            {
-              path: ":id/topics/:topicId",
-              name: "chat-topic-detail",
-              component: () =>
-                import("../components/chat/ChatDetail/index.vue"),
-            },
-            {
-              path: ":id",
-              name: "chat-detail",
-              component: () =>
-                import("../components/chat/ChatDetail/index.vue"),
-            },
-          ],
+          component: () => import("../components/layout/HomeEmptyContent.vue"),
+        },
+        {
+          // Chat detail is a top-level home page, not a nested chat-list page.
+          path: "chat/:id/topics/:topicId",
+          name: "chat-topic-detail",
+          component: () => import("../components/chat/ChatDetail/index.vue"),
+        },
+        {
+          path: "chat/:id",
+          name: "chat-detail",
+          component: () => import("../components/chat/ChatDetail/index.vue"),
         },
         {
           path: "contacts",
           name: "contacts",
-          component: () => import("../views/main/ContactModule.vue"),
+          component: () => import("../components/layout/HomeEmptyContent.vue"),
         },
         {
           path: "archived",
           name: "archived",
-          component: () => import("../views/main/ArchivedModule.vue"),
+          component: () => import("../components/layout/HomeEmptyContent.vue"),
         },
         {
           path: "downloads",
@@ -66,21 +63,17 @@ const router = createRouter({
         {
           path: "settings",
           name: "settings",
-          component: () => import("../views/main/SettingsModule.vue"),
-          children: [
-            {
-              path: "appearance",
-              name: "settings-appearance",
-              component: () =>
-                import("../components/settings/AppearanceSettings.vue"),
-            },
-            {
-              path: "download",
-              name: "settings-download",
-              component: () =>
-                import("../components/settings/DownloadSettings.vue"),
-            },
-          ],
+          component: () => import("../components/layout/HomeEmptyContent.vue"),
+        },
+        {
+          path: "settings/appearance",
+          name: "settings-appearance",
+          component: () => import("../components/settings/AppearanceSettings.vue"),
+        },
+        {
+          path: "settings/download",
+          name: "settings-download",
+          component: () => import("../components/settings/DownloadSettings.vue"),
         },
       ],
     },

@@ -1,9 +1,9 @@
 <template>
     <div v-if="replyData"
-        class="flex items-stretch gap-2 mb-1.5 px-2 pt-1.5 cursor-pointer select-none rounded-lg overflow-hidden"
+        class="flex items-stretch gap-2 mb-1.5 px-2 py-1.5 cursor-pointer select-none rounded-lg overflow-hidden"
         :class="isSelf ? 'bg-blue-400/20' : 'bg-gray-100 dark:bg-gray-700/50'" @click="jumpToMessage">
         <!-- Left color bar -->
-        <div class="w-0.5 shrink-0 rounded-full" :style="barStyle"></div>
+        <div class="w-0.5 h-8 self-center shrink-0 rounded-full" :style="barStyle"></div>
 
         <div class="flex-1 min-w-0 py-0.5">
             <!-- Sender name -->

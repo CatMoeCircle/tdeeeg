@@ -361,7 +361,7 @@ const route = useRoute();
 
 /** 是否有聊天详情或话题列表打开（route 包含 chat id） */
 const isChatOpen = computed(() => {
-    return /^\/home\/chats\/\d+/.test(route.path);
+    return route.name === 'chat-detail' || route.name === 'chat-topic-detail';
 });
 const chatStore = useChatStore();
 const userStore = useUserStore();
@@ -517,6 +517,9 @@ const tabsWithContent = computed(() => {
 });
 
 const selectedChatId = ref<number | null>(null);
+watch(() => route.params.id, (id) => {
+    selectedChatId.value = id ? Number(id) : null;
+}, { immediate: true });
 
 // ==================== 对话选择模式（多选） ====================
 const chatSelectionMode = ref(false);
@@ -700,7 +703,13 @@ const exitForumMode = () => {
 /** 选择话题：导航到话题详情 */
 const selectTopic = (topicId: number) => {
     if (!forumChatId.value) return;
-    router.push(`/home/chats/${forumChatId.value}/topics/${topicId}`);
+    router.push({
+        name: 'chat-topic-detail',
+        params: {
+            id: String(forumChatId.value),
+            topicId: String(topicId),
+        },
+    });
 };
 
 /** 选择对话：论坛群组展开内联话题列表，普通对话进入聊天详情 */
@@ -728,19 +737,32 @@ const selectChat = async (chat: Chat) => {
     }
     // 兜底：view_as_topics 字段缺失（未随数据下发）时，主动 getChat 确认是否为论坛群组
     if (chat.type?._ === 'chatTypeSupergroup' && chat.view_as_topics === undefined) {
+        let timeoutId: number | undefined;
         try {
-            const fresh = await tdlibSend({ _: 'getChat', chat_id: chat.id }) as any;
+            // 不让论坛类型确认阻塞普通聊天的打开；TDLib 异常或未响应时按普通聊天处理。
+            const timeout = new Promise<undefined>((resolve) => {
+                timeoutId = window.setTimeout(() => resolve(undefined), 1000);
+            });
+            const fresh = await Promise.race([
+                tdlibSend({ _: 'getChat', chat_id: chat.id }),
+                timeout,
+            ]) as any;
             if (fresh && fresh._ !== 'error' && fresh.type?._ === 'chatTypeSupergroup' && fresh.view_as_topics) {
                 enterForumMode(chat);
                 return;
             }
         } catch (e) {
             console.warn('Failed to confirm forum chat via getChat:', e);
+        } finally {
+            if (timeoutId !== undefined) window.clearTimeout(timeoutId);
         }
     }
     // 标记当前选中的对话（进入详情后列表中也保持高亮）
     selectedChatId.value = chat.id;
-    router.push(`/home/chats/${chat.id}`);
+    await router.push({
+        name: 'chat-detail',
+        params: { id: String(chat.id) },
+    });
 };
 
 const formatTime = (timestamp: number | undefined) => {

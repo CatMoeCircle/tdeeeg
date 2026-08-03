@@ -436,16 +436,23 @@ import {
 // ==================== Route ====================
 const route = useRoute();
 const router = useRouter();
+const emit = defineEmits<{
+    close: [];
+}>();
+const props = defineProps<{
+    chatId?: number | null;
+    topicId?: number | null;
+}>();
 
 const chatId = computed(() => {
-    const id = route.params.id;
-    return id ? parseInt(id as string) : undefined;
+    const id = props.chatId ?? route.params.id;
+    return id !== undefined && id !== null && id !== '' ? Number(id) : undefined;
 });
 
 /** 话题 ID（论坛群组话题模式时存在） */
 const topicId = computed(() => {
-    const tid = route.params.topicId;
-    return tid ? parseInt(tid as string) : undefined;
+    const tid = props.topicId ?? route.params.topicId;
+    return tid !== undefined && tid !== null && tid !== '' ? Number(tid) : undefined;
 });
 
 // ==================== Overlay State ====================
@@ -467,6 +474,7 @@ function handleBack() {
     if (showOverlay.value) {
         closeOverlay();
     } else {
+        emit('close');
         router.push('/home/chats');
     }
 }
@@ -2140,7 +2148,7 @@ async function openForwardSource(forwardInfo: messageForwardInfo) {
                 user_id: target.userId,
                 force: false
             }) as chat;
-            await router.push(`/home/chats/${privateChat.id}`);
+            await router.push(`/home/chat/${privateChat.id}`);
             return;
         }
 
@@ -2320,7 +2328,7 @@ async function toggleNotifications() {
 }
 
 const openLinkedChat = () => {
-    if (linkedChatId.value) router.push(`/home/chats/${linkedChatId.value}`);
+    if (linkedChatId.value) router.push(`/home/chat/${linkedChatId.value}`);
 };
 
 // ==================== New Message Animation ====================
