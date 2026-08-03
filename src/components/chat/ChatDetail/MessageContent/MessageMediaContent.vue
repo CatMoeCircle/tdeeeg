@@ -68,9 +68,12 @@
             <div v-else-if="content._ === 'messageVideo'"
                 class="relative overflow-hidden bg-black cursor-pointer group select-none" :class="borderRadiusClass"
                 :style="videoSizeStyle" @click="openViewer">
-                <!-- Thumbnail (object-cover fill) -->
-                <img v-if="thumbSrc && !videoDownloaded" :src="thumbSrc"
+                <!-- Thumbnail: 静态位图用 <img>，MPEG4/WEBM 动态图用 <video>，Lottie/无可显示时回退图标 -->
+                <img v-if="videoThumbSrc && !videoThumbIsVideo && !videoDownloaded" :src="videoThumbSrc"
                     class="absolute inset-0 w-full h-full object-cover" :class="hasSpoiler ? 'blur-md' : ''" />
+                <video v-else-if="videoThumbSrc && videoThumbIsVideo && !videoDownloaded" :src="videoThumbSrc" autoplay
+                    loop muted playsinline class="absolute inset-0 w-full h-full object-cover"
+                    :class="hasSpoiler ? 'blur-md' : ''" />
                 <div v-else-if="!videoDownloaded" class="absolute inset-0 flex items-center justify-center">
                     <VideoIcon class="w-8 h-8 text-gray-400" />
                 </div>
@@ -78,7 +81,18 @@
                 <!-- Video element (循环播放, 由 IntersectionObserver 控制播放/暂停) -->
                 <video v-if="videoDownloaded" ref="videoElRef" :src="mediaSrc" class="w-full h-full object-cover"
                     :muted="videoMuted" loop playsinline :data-video-msg-id="messageId" @timeupdate="onInlineVideoTime"
-                    @loadedmetadata="onInlineVideoLoaded" @ended="onInlineVideoEnded" />
+                    @loadedmetadata="onInlineVideoLoaded" @ended="onInlineVideoEnded" @waiting="onVideoWaiting"
+                    @playing="onVideoPlaying" @canplay="onVideoPlaying" />
+
+                <!-- 边下边播（流式 tdstream://）缓冲加载指示：video 元素 waiting/playing 驱动 -->
+                <div v-if="videoDownloaded && videoBuffering"
+                    class="absolute inset-0 flex items-center justify-center bg-black/40">
+                    <svg class="w-8 h-8 text-white animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25" />
+                        <path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round"
+                            class="opacity-75" />
+                    </svg>
+                </div>
 
                 <!-- Download progress bar -->
                 <div v-if="videoDownloading && videoProgress > 0 && videoProgress < 1"
@@ -211,6 +225,7 @@ import { useChatStore } from '../../../../store/chat';
 import { registerMediaItem, unregisterMediaItem, openMediaViewer, isMediaViewerActive } from '../../../../store/mediaViewer';
 import { settings } from '../../../../store/settings';
 import { getChatCategory } from '../../../../utils/autoDownload';
+import { isThumbnailImgRenderable, isThumbnailVideoRenderable } from '../../../../utils/thumbnail';
 import {
     currentlyPlayingId,
     globalVideoMuted,
@@ -251,6 +266,12 @@ const thumbSrc = ref<string | undefined>(undefined);
 const videoDownloaded = ref(false);
 const videoDownloading = ref(false);
 const videoProgress = ref(0);
+/** 视频缩略图：静态位图路径（<img>）或动态图路径（<video>） */
+const videoThumbSrc = ref<string | undefined>(undefined);
+/** 视频缩略图是否为 MPEG4/WEBM 动态图（需用 <video> 渲染） */
+const videoThumbIsVideo = ref(false);
+/** 边下边播（流式 tdstream://）时的缓冲状态，用于显示加载转圈 */
+const videoBuffering = ref(false);
 const videoFileId = ref<number>(0);
 const videoElRef = ref<HTMLVideoElement | null>(null);
 const inlineVideoCurrent = ref(0);
@@ -593,8 +614,9 @@ async function loadPhotoThumb() {
                 isDownloading.value = true;
                 downloadingFiles.add(f.id);
                 try {
-                    await tdlibSend({ _: 'downloadFile', file_id: f.id, priority: 1, offset: 0, limit: 0, synchronous: true });
-                    const updated = await tdlibSend({ _: 'getFile', file_id: f.id });
+                    // downloadFile (synchronous) 直接返回下载完成的 file 对象，
+                    // 无需再额外 getFile（避免每次图片多一次 RPC 往返）。
+                    const updated = await tdlibSend({ _: 'downloadFile', file_id: f.id, priority: 1, offset: 0, limit: 0, synchronous: true });
                     if (isFileReady(updated)) {
                         mediaSrc.value = convertFileSrc(updated.local.path);
                         mediaLoaded.value = true;
@@ -693,13 +715,24 @@ async function loadVideoThumb() {
             }
         }
     }
-    // 否则只下载缩略图
-    const thumb = c.video.thumbnail?.file;
+    // 否则只下载缩略图（按格式分类：静态位图→<img>，MPEG4/WEBM→<video>）
+    const thumb = c.video.thumbnail;
     if (!thumb) return;
-    if (isFileReady(thumb)) { thumbSrc.value = convertFileSrc(thumb.local.path); return; }
-    await safeDownloadFile(thumb.id, true);
-    const updated = await tdlibSend({ _: 'getFile', file_id: thumb.id });
-    if (isFileReady(updated)) thumbSrc.value = convertFileSrc(updated.local.path);
+    const isVideoThumb = isThumbnailVideoRenderable(thumb.format);
+    const isImgThumb = isThumbnailImgRenderable(thumb.format);
+    if (!isVideoThumb && !isImgThumb) return; // TGS 等无法直接显示的缩略图回退到图标
+    const file = thumb.file;
+    if (isFileReady(file)) {
+        videoThumbSrc.value = convertFileSrc(file.local.path);
+        videoThumbIsVideo.value = isVideoThumb;
+        return;
+    }
+    await safeDownloadFile(file.id, true);
+    const updated = await tdlibSend({ _: 'getFile', file_id: file.id });
+    if (isFileReady(updated)) {
+        videoThumbSrc.value = convertFileSrc(updated.local.path);
+        videoThumbIsVideo.value = isVideoThumb;
+    }
 }
 
 async function handleVideoDownload() {
@@ -717,12 +750,14 @@ async function handleVideoDownload() {
         const streamUrl = convertFileSrc(String(fileId), 'tdstream');
         mediaSrc.value = `${streamUrl}?mime=${video.mime_type}`;
         videoDownloaded.value = true;
+        // 边下边播：初始置为缓冲中，等 video 触发 canplay/playing 后清除（见 onVideoPlaying）
+        videoBuffering.value = true;
         return;
     }
     if (downloadingFiles.has(fileId)) return;
     // 注册到下载管理器
     const fileName = video.file_name || `video_${props.messageId || fileId}.mp4`;
-    await registerWithStore(fileId, fileName, 'video', thumbSrc.value);
+    await registerWithStore(fileId, fileName, 'video', videoThumbIsVideo.value ? undefined : videoThumbSrc.value);
     videoDownloading.value = true;
     videoProgress.value = 0;
     downloadingFiles.add(fileId);
@@ -774,6 +809,15 @@ function onInlineVideoLoaded() {
 }
 function onInlineVideoEnded() {
     if (videoElRef.value) { videoElRef.value.currentTime = 0; videoElRef.value.play(); }
+}
+
+/** 视频进入缓冲（边下边播在拉取数据时触发）→ 显示加载转圈 */
+function onVideoWaiting() {
+    videoBuffering.value = true;
+}
+/** 视频可继续播放 → 隐藏加载转圈 */
+function onVideoPlaying() {
+    videoBuffering.value = false;
 }
 
 function formatDuration(seconds: number): string {

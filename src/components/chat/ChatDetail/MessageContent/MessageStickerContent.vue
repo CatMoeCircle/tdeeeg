@@ -1,5 +1,6 @@
 <template>
-    <div :class="content._ === 'messageAnimatedEmoji' ? 'w-24 h-24' : 'w-40 h-40'">
+    <div :class="content._ === 'messageAnimatedEmoji' ? 'w-24 h-24' : ''"
+        :style="content._ !== 'messageAnimatedEmoji' ? stickerSizeStyle : undefined">
         <!-- WEBP static sticker -->
         <img v-if="format === 'webp' && mediaSrc" :src="mediaSrc" class="w-full h-full object-contain" />
         <!-- TGS animated sticker (Lottie) -->
@@ -20,6 +21,7 @@ import type { messageAnimatedEmoji, messageSticker } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useDownloadStore } from '../../../../store/downloads';
+import { settings } from '../../../../store/settings';
 import lottie, { type AnimationItem } from 'lottie-web';
 import * as pako from 'pako';
 
@@ -31,6 +33,12 @@ const lottieRef = ref<HTMLElement | null>(null);
 const mediaSrc = ref<string | undefined>(undefined);
 const isDownloading = ref(false);
 let lottieAnim: AnimationItem | null = null;
+
+/** 贴纸尺寸样式（跟随设置，仅对普通贴纸生效；动画表情保持固定） */
+const stickerSizeStyle = computed<Record<string, string>>(() => ({
+    width: `${settings.sticker.size}px`,
+    height: `${settings.sticker.size}px`,
+}));
 
 const sticker = computed(() => props.content._ === 'messageSticker'
     ? props.content.sticker

@@ -70,7 +70,7 @@
                 class="ml-auto font-medium hover:underline shrink-0">查看</button>
         </div>
 
-        <div class="flex-1 overflow-y-auto custom-scrollbar">
+        <div class="flex-1 overflow-y-auto custom-scrollbar" v-smooth-wheel>
             <!-- 进行中/暂停 -->
             <div v-if="store.pendingItems.length > 0" class="py-2">
                 <div class="px-4 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wider">

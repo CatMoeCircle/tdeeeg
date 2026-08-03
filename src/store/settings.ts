@@ -52,6 +52,24 @@ interface Settings {
     /** 归档位置：top=全部对话顶部，sidebar=侧边栏导航，hidden=隐藏 */
     archivePosition: "top" | "sidebar" | "hidden";
   };
+  /** 消息显示设置 */
+  message: {
+    /** 消息气泡圆角半径（px） */
+    cornerRadius: number;
+    /** 消息文本字体大小（px） */
+    fontSize: number;
+    /** 消息整体比例缩放（0.8 ~ 1.2） */
+    scale: number;
+    /** 点击 bot 命令（如 /start）时：true=添加到输入框（而非直接发送） */
+    botCommandInsert: boolean;
+  };
+  /** 贴纸显示设置 */
+  sticker: {
+    /** 贴纸大小（px） */
+    size: number;
+    /** 是否隐藏贴纸右下角发送时间小胶囊 */
+    hideTimestamp: boolean;
+  };
   autoDownload: {
     /** 自动下载总开关 */
     enabled: boolean;
@@ -76,6 +94,16 @@ const defaultSettings: Settings = {
     badgeOnLeftMutedOnly: false,
     unreadCountMode: "chats",
     archivePosition: "sidebar",
+  },
+  message: {
+    cornerRadius: 18,
+    fontSize: 14,
+    scale: 1,
+    botCommandInsert: true,
+  },
+  sticker: {
+    size: 160,
+    hideTimestamp: false,
   },
   autoDownload: {
     enabled: true,

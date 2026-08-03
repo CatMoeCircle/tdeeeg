@@ -4,7 +4,8 @@
             <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center">
                 <div class="w-10 h-10" v-if="userProfile">
                     <avatar :photo="userProfile.profile_photo"
-                        :title="userProfile.first_name + ' ' + userProfile.last_name" />
+                        :title="userProfile.first_name + ' ' + userProfile.last_name"
+                        :accentColorId="userProfile.profile_accent_color_id" />
                 </div>
 
                 <div v-else class="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
@@ -25,7 +26,7 @@
         </div>
         <!-- 音乐播放器入口（聊天打开时由 ChatDetail 接管） -->
         <MusicPlayerEntry v-if="!isChatOpen" compact />
-        <div class="flex-1 overflow-y-auto custom-scrollbar">
+        <div class="flex-1 overflow-y-auto custom-scrollbar" v-smooth-wheel>
             <div class="py-2">
                 <router-link to="/home/settings/appearance"
                     class="flex items-center px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"

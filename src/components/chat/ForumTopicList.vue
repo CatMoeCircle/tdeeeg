@@ -9,7 +9,8 @@
             </button>
             <div class="flex items-center gap-3 ml-2 min-w-0">
                 <div class="w-10 h-10 shrink-0">
-                    <Avatar v-if="chat" :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" square />
+                    <Avatar v-if="chat" :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" square
+                        :accentColorId="(chat as any).profile_accent_color_id" />
                     <div v-else class="w-10 h-10 rounded-xl bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
                 </div>
                 <div class="flex flex-col min-w-0">
@@ -22,7 +23,7 @@
         </div>
 
         <!-- Topic List -->
-        <div class="flex-1 overflow-y-auto custom-scrollbar">
+        <div class="flex-1 overflow-y-auto custom-scrollbar" v-smooth-wheel>
             <!-- Loading -->
             <div v-if="loading" class="flex flex-col gap-2 p-4">
                 <div v-for="n in 6" :key="n" class="flex items-center gap-3 p-3">
@@ -58,7 +59,7 @@
                                 <span v-if="topic.info.is_closed" class="text-xs text-gray-400 ml-1">[已关闭]</span>
                             </h3>
                             <span class="text-xs text-gray-400 ml-2 shrink-0">{{ formatTime(topic.last_message?.date)
-                            }}</span>
+                                }}</span>
                         </div>
                         <div class="flex items-center gap-2">
                             <p class="flex-1 min-w-0 text-xs text-gray-500 truncate">{{ getTopicPreview(topic) }}</p>

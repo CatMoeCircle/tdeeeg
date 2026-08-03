@@ -3,6 +3,11 @@ import { createRouter, createWebHashHistory } from "vue-router";
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
+    // 根路径占位：App 初始化完成后由 navigateAfterInit 跳转到 /home 或 /login
+    {
+      path: "/",
+      redirect: "/login",
+    },
     {
       path: "/login",
       name: "login",

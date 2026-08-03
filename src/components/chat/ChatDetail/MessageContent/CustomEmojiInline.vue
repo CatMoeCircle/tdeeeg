@@ -4,8 +4,7 @@
     <!-- 已下载完成：根据格式渲染 -->
     <template v-if="state.ready && state.filePath && state.sticker">
       <!-- WEBP static -->
-      <img v-if="emojiFormat === 'webp'" :src="state.filePath"
-        class="w-full h-full object-contain" />
+      <img v-if="emojiFormat === 'webp'" :src="state.filePath" class="w-full h-full object-contain" />
       <!-- TGS animated (Lottie) -->
       <div v-else-if="emojiFormat === 'tgs'" ref="lottieRef" class="w-full h-full"></div>
       <!-- WEBM video -->
@@ -13,8 +12,7 @@
         class="w-full h-full object-contain" />
     </template>
     <!-- 缩略图预览（模糊） -->
-    <img v-else-if="state.thumbnailUrl" :src="state.thumbnailUrl"
-      class="w-full h-full object-contain rounded"
+    <img v-else-if="state.thumbnailUrl" :src="state.thumbnailUrl" class="w-full h-full object-contain rounded"
       :style="{ filter: 'blur(1.5px)', transform: 'scale(1.2)' }" />
     <!-- 加载中灰色骨架 -->
     <div v-else class="w-full h-full rounded bg-gray-200 dark:bg-gray-700 animate-pulse">
@@ -27,7 +25,6 @@ import { computed, ref, watch, onUnmounted, nextTick } from 'vue';
 import { useCustomEmoji } from '../../../../store/customEmoji';
 import lottie, { type AnimationItem } from 'lottie-web';
 import * as pako from 'pako';
-import { convertFileSrc } from '@tauri-apps/api/core';
 
 const props = defineProps<{
   emojiId: string;
@@ -52,8 +49,9 @@ const emojiFormat = computed(() => {
 async function loadTgs(path: string) {
   destroyLottie();
   try {
-    const url = convertFileSrc(path);
-    const resp = await fetch(url);
+    // state.filePath 已在 store 中经过 convertFileSrc 转为 asset protocol URL，
+    // 此处直接使用，避免重复转换导致无效 URL
+    const resp = await fetch(path);
     const compressed = new Uint8Array(await resp.arrayBuffer());
     let jsonStr: string;
     try {
@@ -68,6 +66,7 @@ async function loadTgs(path: string) {
     lottieAnim = lottie.loadAnimation({
       container: lottieRef.value,
       animationData: animData,
+      renderer: 'canvas',
       loop: true,
       autoplay: true,
     });

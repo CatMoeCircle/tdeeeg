@@ -2,6 +2,7 @@ use crate::tdlib::{send_request, AppState};
 use serde_json::{json, Value};
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
+use std::sync::{Arc, Mutex};
 use tauri::http::{
     header::{ACCEPT_RANGES, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE, RANGE},
     Request, Response, StatusCode,
@@ -40,7 +41,17 @@ fn stream_response<R: Runtime>(
         .to_string();
 
     let state = app.state::<AppState>();
-    let _stream_guard = state.stream_lock.lock().map_err(|e| e.to_string())?;
+    // 只对“同一 file_id”的流式请求加互斥锁，避免并发下载同一文件产生冲突的 range 请求；
+    // 不同文件的视频流可并行，不再像全局锁那样把 tdstream:// 请求全部串行化。
+    // lock（Arc）与 _stream_guard 都是本函数作用域内的绑定：guard 借用 lock 保持有效，
+    // 取到 guard 后立即 drop(map)，避免持有 map 锁的同时阻塞等待 per-file 锁。
+    let mut stream_lock_map = state.stream_locks.lock().map_err(|e| e.to_string())?;
+    let lock = stream_lock_map
+        .entry(file_id)
+        .or_insert_with(|| Arc::new(Mutex::new(())))
+        .clone();
+    let _stream_guard = lock.lock().map_err(|e| e.to_string())?;
+    drop(stream_lock_map);
     let file = tdlib_request(&state, json!({ "_": "getFile", "file_id": file_id }))?;
     let total = file_size(&file).ok_or_else(|| "TDLib file size is unknown".to_string())?;
     let (start, requested_end) = parse_range(

@@ -4,8 +4,8 @@
         <!-- Avatar / Profile -->
         <div class="mb-5 ">
             <div v-if="userProfile" class="w-10 h-10">
-                <Avatar :photo="userProfile.profile_photo"
-                    :title="userProfile.first_name + ' ' + userProfile.last_name" />
+                <Avatar :photo="userProfile.profile_photo" :title="userProfile.first_name + ' ' + userProfile.last_name"
+                    :accentColorId="userProfile.profile_accent_color_id" />
             </div>
             <div v-else class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
         </div>

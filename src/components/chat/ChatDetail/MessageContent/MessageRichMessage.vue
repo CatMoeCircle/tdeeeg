@@ -1,5 +1,6 @@
 <template>
-    <div class="rich-message text-sm leading-5" :dir="isRtl ? 'rtl' : 'ltr'">
+    <div class="rich-message" :style="{ fontSize: 'var(--msg-font-size, 14px)', lineHeight: '1.4' }"
+        :dir="isRtl ? 'rtl' : 'ltr'">
         <template v-for="(block, bi) in blocks" :key="bi">
             <!-- 标题 / 副标题 / 页头 / 段头 / 章节标题 / kicker -->
             <h1 v-if="block._ === 'pageBlockTitle'" class="text-xl font-bold mb-2">
@@ -112,8 +113,8 @@
             <!-- 视频 -->
             <figure v-else-if="block._ === 'pageBlockVideo'" class="my-1.5">
                 <div class="overflow-hidden rounded-lg bg-black/5 dark:bg-white/10 relative">
-                    <RichImage v-if="block.video?.thumbnail?.file" :file="block.video?.thumbnail?.file" :alt="''"
-                        square />
+                    <RichImage v-if="block.video?.thumbnail?.file" :file="block.video?.thumbnail?.file"
+                        :format="block.video?.thumbnail?.format" :alt="''" square />
                     <div v-else class="h-32 flex items-center justify-center text-gray-400">视频不可用</div>
                     <span class="absolute inset-0 flex items-center justify-center pointer-events-none">
                         <PlayIcon class="w-8 h-8 text-white drop-shadow" />
@@ -126,7 +127,7 @@
             <figure v-else-if="block._ === 'pageBlockAnimation'" class="my-1.5">
                 <div class="overflow-hidden rounded-lg bg-black/5 dark:bg-white/10">
                     <RichImage v-if="block.animation?.thumbnail?.file" :file="block.animation?.thumbnail?.file"
-                        :alt="''" square />
+                        :format="block.animation?.thumbnail?.format" :alt="''" square />
                     <div v-else class="h-32 flex items-center justify-center text-gray-400">动画不可用</div>
                 </div>
                 <RichCaption v-if="block.caption" :caption="block.caption" />
@@ -151,7 +152,7 @@
                     <MicIcon class="w-4 h-4 text-gray-500 shrink-0" />
                     <span v-if="block.voice_note" class="text-xs text-gray-500">{{
                         formatDuration(block.voice_note.duration)
-                        }}</span>
+                    }}</span>
                     <span v-else class="text-xs text-gray-400">语音不可用</span>
                 </div>
                 <RichCaption v-if="block.caption" :caption="block.caption" />
@@ -235,7 +236,7 @@
                     <div v-else class="w-9 h-9 flex items-center justify-center">
                         <span class="font-semibold" :style="{ color: accentColor(block.accent_color_id) }">{{
                             block.title.slice(0,
-                            1) }}</span>
+                                1) }}</span>
                     </div>
                 </span>
                 <span class="font-medium">{{ block.title }}</span>
@@ -252,7 +253,7 @@
                         @click.prevent.stop="openExternal(article.url)">
                         <p class="font-medium">{{ article.title }}</p>
                         <p v-if="article.description" class="text-xs text-gray-500 line-clamp-2">{{ article.description
-                            }}</p>
+                        }}</p>
                     </a>
                 </div>
             </div>
@@ -288,6 +289,7 @@ import { MusicIcon, MicIcon, PlayIcon } from 'lucide-vue-next';
 import { tdlibSend } from '../../../../utils/tdlib';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { useRouter } from 'vue-router';
+import { confirmAndOpenExternalLink } from '../../../../utils/openExternalLink';
 
 defineProps<{
     blocks: PageBlock[];
@@ -393,7 +395,10 @@ async function openChatLink(username: string) {
 }
 
 function openExternal(url: string) {
-    if (url) openUrl(url);
+    if (url) {
+        // 外部链接：先询问用户是否跳转外部
+        confirmAndOpenExternalLink(url).catch(() => { /* 用户取消 */ });
+    }
 }
 </script>
 

@@ -1,5 +1,22 @@
 <template>
     <div class="p-5 bg-transparent">
+        <!-- 回复目标气泡 -->
+        <Transition name="mi-fade">
+            <div v-if="replyTarget"
+                class="flex items-start gap-2 mb-2 mx-1 px-3 py-2 rounded-2xl bg-white/70 dark:bg-gray-800/90 shadow-sm border border-gray-200/60 dark:border-gray-700/60">
+                <CornerUpLeftIcon class="w-4 h-4 shrink-0 mt-0.5 text-blue-500" />
+                <div class="min-w-0 flex-1">
+                    <p class="text-xs font-semibold text-blue-500 truncate">{{ replyTarget.title }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ replyTarget.text || '（无文本内容）' }}</p>
+                </div>
+                <button type="button" aria-label="取消回复"
+                    class="w-6 h-6 shrink-0 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400"
+                    @click="emit('clearReply')">
+                    <XIcon class="w-3.5 h-3.5" />
+                </button>
+            </div>
+        </Transition>
+
         <div
             class="flex items-end gap-3 bg-white/60 dark:bg-gray-900/80 backdrop-blur-md px-2 rounded-4xl shadow-lg border border-gray-200/50 dark:border-gray-700/50">
             <!-- 文件选择（左侧） -->
@@ -35,14 +52,23 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import { PaperclipIcon, Smile, SendIcon } from 'lucide-vue-next';
+import { PaperclipIcon, Smile, SendIcon, CornerUpLeftIcon, XIcon } from 'lucide-vue-next';
+
+/** 回复目标摘要 */
+export interface ReplyTarget {
+    /** 发送者标题（名称） */
+    title: string;
+    /** 内容摘要（纯文本） */
+    text: string;
+}
 
 const props = defineProps<{
     modelValue?: string;
     placeholder?: string;
+    replyTarget?: ReplyTarget | null;
 }>();
 
-const emit = defineEmits(['update:modelValue', 'send', 'sticker', 'language', 'attach']);
+const emit = defineEmits(['update:modelValue', 'send', 'sticker', 'language', 'attach', 'clearReply']);
 
 const localValue = ref(props.modelValue || '');
 
@@ -69,5 +95,16 @@ const onEnter = () => {
 <style scoped>
 .message-input-scrollbar::-webkit-scrollbar {
     width: 4px;
+}
+
+.mi-fade-enter-active,
+.mi-fade-leave-active {
+    transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.mi-fade-enter-from,
+.mi-fade-leave-to {
+    opacity: 0;
+    transform: translateY(-4px);
 }
 </style>

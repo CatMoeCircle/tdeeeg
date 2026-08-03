@@ -3,7 +3,7 @@
         <div class="p-4 border-b border-gray-200 dark:border-gray-800">
             <h2 class="text-lg font-semibold">数据和存储</h2>
         </div>
-        <div class="flex-1 overflow-y-auto custom-scrollbar p-6">
+        <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
             <div class="max-w-2xl">
 
                 <!-- ===== 自动下载区域 ===== -->

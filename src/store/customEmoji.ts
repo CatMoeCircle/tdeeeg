@@ -3,6 +3,7 @@ import { tdlibSend, isFileReady, downloadingFiles } from '../utils/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { sticker, file } from 'tdlib-types';
 import { useDownloadStore } from './downloads';
+import { isThumbnailImgRenderable } from '../utils/thumbnail';
 
 /** 单个自定义 emoji 的加载状态 */
 export interface CustomEmojiState {
@@ -49,13 +50,14 @@ async function fetchCustomEmojiStickers(ids: string[]) {
 
       state.sticker = s;
 
-      // 尝试加载缩略图
-      if (s.thumbnail && isFileReady(s.thumbnail.file)) {
-        state.thumbnailUrl = convertFileSrc(s.thumbnail.file.local.path);
+      // 尝试加载缩略图（仅静态位图格式可用于 <img>；TGS/WEBM/MPEG4 动态缩略图跳过）
+      const thumb = s.thumbnail && isThumbnailImgRenderable(s.thumbnail.format) ? s.thumbnail : undefined;
+      if (thumb && isFileReady(thumb.file)) {
+        state.thumbnailUrl = convertFileSrc(thumb.file.local.path);
         state.loadingThumbnail = false;
-      } else if (s.thumbnail && s.thumbnail.file.local.can_be_downloaded && !s.thumbnail.file.local.is_downloading_active) {
+      } else if (thumb && thumb.file.local.can_be_downloaded && !thumb.file.local.is_downloading_active) {
         // 下载缩略图
-        downloadThumbnail(s.id, s.thumbnail.file.id);
+        downloadThumbnail(s.id, thumb.file.id);
       } else {
         state.loadingThumbnail = false;
       }

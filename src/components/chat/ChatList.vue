@@ -13,7 +13,7 @@
         </Transition>
         <!-- Folder Tabs (forum mode 时向上滑动隐藏) -->
         <Transition name="slide-up">
-            <div v-if="!forumMode && tabs.length > 1" ref="tabsContainer" @wheel.prevent="handleWheel"
+            <div v-if="!forumMode && tabs.length > 1" ref="tabsContainer" v-smooth-wheel="'horizontal'"
                 class="flex px-2 border-b border-gray-200 overflow-x-auto no-scrollbar gap-1.5 shrink-0 max-h-12">
                 <button v-for="tab in tabs" :key="tab.id" :data-tab-id="tab.id" @click="switchToTab(tab.id)"
                     class="px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors shrink-0 inline-flex items-center gap-1"
@@ -62,12 +62,14 @@
                         <!-- forum 模式只需渲染当前激活分组的单一页面（68px 头像列），
                              避免把全部分组页面并排渲染而露出相邻分组头像 -->
                         <div v-for="tab in tabsWithContent" :key="tab.id" v-show="!forumMode || tab.id === activeTab"
+                            v-smooth-wheel
                             class="swipe-page h-full shrink-0 overflow-y-auto custom-scrollbar"
                             :class="forumMode ? 'w-17 px-0.5 py-1 forum-avatar-column' : 'w-full pl-1.5 pr-0.5 py-1 chat-list-fade-in'"
                             @scroll="(e: Event) => onScroll(e, tab.id)">
                             <!-- Forum Mode: compact avatar only -->
                             <template v-if="forumMode">
                                 <div v-for="chat in tab.chats" :key="chat.id" @click="selectForumChat(chat)"
+                                    v-context-menu="buildChatContextMenu(chat)"
                                     class="relative flex items-center justify-center py-2.5 cursor-pointer transition-colors hover:bg-gray-100"
                                     :class="forumChatId === chat.id ? 'bg-gray-100 rounded-lg' : ''"
                                     style="content-visibility: auto; contain-intrinsic-size: 68px">
@@ -84,7 +86,9 @@
                                             <BookmarkIcon class="w-7 h-7 fill-current" />
                                         </div>
                                         <Avatar v-else :photo="chat.photo" :title="chat.title" sizeClass="!w-12 !h-12"
-                                            :radius="chatAvatarRadius(chat)" />
+                                            :radius="chatAvatarRadius(chat)"
+                                            :accentColorId="getChatProfileAccentColorId(chat)"
+                                            :deletedAccount="isDeletedChat(chat)" />
                                         <!-- 未读角标：显示在头像右下角（静音对话灰显） -->
                                         <span v-if="chat.unread_count > 0"
                                             class="absolute -bottom-0.5 -right-0.5 min-w-4.5 h-4.5 px-1 rounded-full text-white text-[10px] font-bold leading-4.5 text-center border-2 border-white"
@@ -119,8 +123,9 @@
                                 </div>
 
                                 <div v-for="chat in tab.chats" :key="chat.id" @click="selectChat(chat)"
+                                    v-context-menu="buildChatContextMenu(chat)"
                                     class="flex items-center p-2.5 hover:bg-white/70 rounded-xl hover:shadow-(--box-shadow) cursor-pointer transition-colors"
-                                    :class="{ 'rounded-xl bg-gray-100 border border-gray-300': selectedChatId === chat.id }"
+                                    :class="{ 'rounded-xl bg-gray-100 border border-gray-300': selectedChatId === chat.id, 'ring-2 ring-blue-500': chatSelectionMode && selectedChatIds.has(chat.id) }"
                                     style="content-visibility: auto; contain-intrinsic-size: 72px">
                                     <div class="w-12 h-12 mr-2.5">
                                         <div v-if="isSavedMessages(chat)"
@@ -129,7 +134,9 @@
                                             <BookmarkIcon class="w-7 h-7 fill-current" />
                                         </div>
                                         <Avatar v-else :photo="chat.photo" :title="chat.title"
-                                            :radius="chatAvatarRadius(chat)" />
+                                            :radius="chatAvatarRadius(chat)"
+                                            :accentColorId="getChatProfileAccentColorId(chat)"
+                                            :deletedAccount="isDeletedChat(chat)" />
                                     </div>
                                     <div class="flex-1 min-w-0">
                                         <div class="flex justify-between items-baseline mb-1">
@@ -142,7 +149,7 @@
                                             </h3>
                                             <span class="text-xs text-gray-400 shrink-0 ml-1">{{
                                                 formatTime(chat.last_message?.date)
-                                                }}</span>
+                                            }}</span>
                                         </div>
                                         <div class="flex items-center gap-2">
                                             <div class="flex-1 min-w-0 flex items-center gap-1.5">
@@ -198,10 +205,10 @@
                             </button>
                             <span class="text-sm font-medium text-gray-500 truncate">{{
                                 forumChatTitle
-                                }}</span>
+                            }}</span>
                         </div>
                         <!-- Topic List -->
-                        <div class="flex-1 overflow-y-auto custom-scrollbar">
+                        <div class="flex-1 overflow-y-auto custom-scrollbar" v-smooth-wheel>
                             <div v-if="topicsLoading" class="flex flex-col gap-2 p-3">
                                 <div v-for="n in 5" :key="n" class="flex items-center gap-2.5 p-2.5">
                                     <div class="w-9 h-9 rounded-xl bg-gray-200 animate-pulse shrink-0">
@@ -243,7 +250,7 @@
                                         </h3>
                                         <span class="text-xs text-gray-400 ml-1 shrink-0">{{
                                             formatTime(topic.last_message?.date)
-                                            }}</span>
+                                        }}</span>
                                     </div>
                                     <!-- 第二排：发送人（迷你头像）+ 消息，复用对话列表的发送人标记 -->
                                     <div class="flex items-center gap-2">
@@ -273,18 +280,56 @@
                 </Transition>
             </div>
         </div>
+
+        <!-- ===== 对话选择模式操作栏 ===== -->
+        <Transition name="slide-up">
+            <div v-if="chatSelectionMode"
+                class="border-t border-gray-200 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shrink-0 px-3 py-2.5">
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-300 shrink-0">
+                        已选 {{ selectedChatIds.size }} 个对话
+                    </span>
+                    <div class="flex-1"></div>
+                    <button type="button"
+                        class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-blue-500 hover:bg-blue-500/10 disabled:opacity-40"
+                        :disabled="selectedChatIds.size === 0" @click="archiveSelectedChats">
+                        <ArchiveIcon class="w-3.5 h-3.5" />
+                        归档
+                    </button>
+                    <button type="button"
+                        class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-blue-500 hover:bg-blue-500/10 disabled:opacity-40"
+                        :disabled="selectedChatIds.size === 0" @click="muteSelectedChats">
+                        <BellOffIcon class="w-3.5 h-3.5" />
+                        静音
+                    </button>
+                    <button type="button"
+                        class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-red-500 hover:bg-red-500/10 disabled:opacity-40"
+                        :disabled="selectedChatIds.size === 0" @click="deleteSelectedChats">
+                        <Trash2Icon class="w-3.5 h-3.5" />
+                        删除
+                    </button>
+                    <button type="button"
+                        class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        @click="exitChatSelectionMode">
+                        <XIcon class="w-3.5 h-3.5" />
+                        取消
+                    </button>
+                </div>
+            </div>
+        </Transition>
     </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, type Component } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon, UserIcon, UsersIcon, MegaphoneIcon, BotIcon, FolderIcon, BellOffIcon, PinIcon, ArchiveIcon, ChevronRightIcon } from 'lucide-vue-next';
+import { BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon, UserIcon, UsersIcon, MegaphoneIcon, BotIcon, FolderIcon, BellOffIcon, PinIcon, ArchiveIcon, ChevronRightIcon, ArchiveRestore as ArchiveRestoreIcon, PinOff as PinOffIcon, FolderPlus as FolderPlusIcon, FolderMinus as FolderMinusIcon, BellRing as BellRingIcon, LogOut as LogOutIcon, CheckCheck as CheckCheckIcon, Trash2 as Trash2Icon, X as XIcon, Copy as CopyIcon } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
 import { settings } from '../../store/settings';
 import {
     getSenderName, getSenderPhoto, ensureSenderLoaded,
-    isChatGroup, isChatMuted, isChatPinned,
+    getChatProfileAccentColorId, ensureChatAccentLoaded, isDeletedChat,
+    isChatGroup, isChatMuted, isChatPinned, DELETED_ACCOUNT_LABEL,
 } from '../../utils/senderInfo';
 import { useChatStore } from '../../store/chat';
 import type { Chat } from '../../store/chat';
@@ -293,6 +338,13 @@ import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../utils/savedMess
 import Avatar from './avatar.vue';
 import type { message, forumTopic, forumTopics, formattedText } from 'tdlib-types';
 import { tdlibSend } from '../../utils/tdlib';
+import type { ContextMenuItem } from '../contextMenu/types';
+import { MessagePlugin } from 'tdesign-vue-next';
+import {
+    isChatArchived, isChatPinned as chatIsPinned, isChatMuted as chatIsMuted,
+    canLeaveChat, archiveChat, unarchiveChat, toggleChatPinned, muteChat, unmuteChat,
+    leaveChat, isChatInFolder, toggleChatInFolder,
+} from '../contextMenu/chatActions';
 import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
 import FormattedTextInline from './FormattedTextInline.vue';
 import CustomEmojiInline from './ChatDetail/MessageContent/CustomEmojiInline.vue';
@@ -355,12 +407,6 @@ function updatePageWidth() {
         swipeOffset.value = -idx * pageWidth.value;
     }
 }
-
-const handleWheel = (e: WheelEvent) => {
-    if (tabsContainer.value) {
-        tabsContainer.value.scrollLeft += e.deltaY;
-    }
-};
 
 // 当 chatLists 就绪后，先从 Rust store 拉取已有缓存（不会覆盖事件来的数据）
 watch(() => chatStore.chatLists, async (lists) => {
@@ -467,6 +513,68 @@ const tabsWithContent = computed(() => {
 
 const selectedChatId = ref<number | null>(null);
 
+// ==================== 对话选择模式（多选） ====================
+const chatSelectionMode = ref(false);
+const selectedChatIds = ref<Set<number>>(new Set());
+
+/** 通过右键菜单“选择”进入/切换多选状态 */
+function onChatSelect(chat: Chat) {
+    chatSelectionMode.value = true;
+    if (selectedChatIds.value.has(chat.id)) {
+        selectedChatIds.value.delete(chat.id);
+    } else {
+        selectedChatIds.value.add(chat.id);
+    }
+}
+
+/** 退出对话选择模式 */
+const exitChatSelectionMode = () => {
+    chatSelectionMode.value = false;
+    selectedChatIds.value.clear();
+};
+
+/** 删除选中的对话 */
+const deleteSelectedChats = async () => {
+    const ids = Array.from(selectedChatIds.value);
+    if (ids.length === 0) return;
+    const revoke = window.confirm(`确定要删除选中的 ${ids.length} 个对话吗？\n\n将清空对话历史并从聊天列表移除。`)
+        ? true
+        : false;
+    try {
+        // 通过 deleteChatHistory 清空历史（仅本端），并标记为已删除
+        for (const id of ids) {
+            await tdlibSend({
+                _: 'deleteChatHistory',
+                chat_id: id,
+                remove_from_chat_list: true,
+                revoke,
+            } as any);
+        }
+        MessagePlugin.success('已删除');
+        exitChatSelectionMode();
+    } catch (e: any) {
+        MessagePlugin.error(e?.message || '操作失败');
+    }
+};
+
+/** 归档选中的对话 */
+const archiveSelectedChats = async () => {
+    const ids = Array.from(selectedChatIds.value);
+    for (const id of ids) {
+        await archiveChat(id);
+    }
+    exitChatSelectionMode();
+};
+
+/** 退出：批量静音选中对话 */
+const muteSelectedChats = async () => {
+    const ids = Array.from(selectedChatIds.value);
+    for (const id of ids) {
+        await muteChat(id);
+    }
+    exitChatSelectionMode();
+};
+
 // ---- Forum Mode State ----
 const forumMode = ref(false);
 const forumChatId = ref<number | null>(null);
@@ -479,7 +587,11 @@ let forumNextOffsetForumTopicId = 0;
 let forumHasMore = true;
 
 const isSavedMessages = (chat: Chat) => isSavedMessagesChat(chat, userProfile.value?.id);
-const getChatTitle = (chat: Chat) => isSavedMessages(chat) ? SAVED_MESSAGES_TITLE : chat.title;
+const getChatTitle = (chat: Chat) => {
+    if (isSavedMessages(chat)) return SAVED_MESSAGES_TITLE;
+    if (isDeletedChat(chat)) return DELETED_ACCOUNT_LABEL;
+    return chat.title;
+};
 
 /**
  * 检测是否为话题模式论坛群组
@@ -572,6 +684,11 @@ const enterForumMode = (chat: Chat) => {
 
 /** 选择对话：论坛群组展开内联话题列表，普通对话进入聊天详情 */
 const selectChat = async (chat: Chat) => {
+    // 选择模式下点击对话切换选中态，不导航
+    if (chatSelectionMode.value) {
+        onChatSelect(chat);
+        return;
+    }
     if (isForumChat(chat)) {
         enterForumMode(chat);
         return;
@@ -675,10 +792,166 @@ const senderName = (chat: Chat) => getSenderName(chat.last_message?.sender_id);
 /** 最后消息发送者迷你头像 */
 const senderMiniAvatar = (chat: Chat) => getSenderPhoto(chat.last_message?.sender_id);
 
+// ==================== 对话右键菜单 ====================
+const buildChatContextMenu = (chat: Chat): ContextMenuItem[] => {
+    const items: ContextMenuItem[] = [];
+    const chatId = chat.id;
+    const pinned = chatIsPinned(chat);
+    const muted = chatIsMuted(chat);
+    const archived = isChatArchived(chat);
+    const saved = isSavedMessagesChat(chat, userProfile.value?.id);
+
+    // 收藏的消息：仅保留"选择"
+    if (saved) {
+        items.push({
+            key: 'select',
+            label: '选择',
+            icon: CheckCheckIcon,
+            onClick: () => onChatSelect(chat),
+        });
+        return items;
+    }
+
+    // 归档对话：归档/取消归档（根据当前状态切换）
+    items.push({
+        key: 'archive',
+        label: archived ? '取消归档' : '归档对话',
+        icon: archived ? ArchiveRestoreIcon : ArchiveIcon,
+        onClick: () => (archived ? unarchiveChat(chatId) : archiveChat(chatId)),
+    });
+
+    // 取消置顶 / 置顶
+    items.push({
+        key: 'pin',
+        label: pinned ? '取消置顶' : '置顶',
+        icon: pinned ? PinOffIcon : PinIcon,
+        onClick: () => {
+            const list = archived ? { _: 'chatListArchive' } : undefined;
+            toggleChatPinned(chatId, !pinned, list);
+        },
+    });
+
+    // 加到分组 / 移出分组
+    const folderChildren = buildFolderMenu(chat);
+    if (folderChildren.length === 0) {
+        items.push({
+            key: 'folder',
+            label: '加到分组',
+            icon: FolderPlusIcon,
+            disabled: true,
+        });
+    } else {
+        items.push({
+            key: 'folder',
+            label: '加到分组',
+            icon: FolderPlusIcon,
+            children: folderChildren,
+        });
+    }
+
+    // 关闭通知 / 开启通知
+    if (!archived) {
+        items.push({
+            key: 'notify',
+            label: muted ? '开启通知' : '关闭通知',
+            icon: muted ? BellRingIcon : BellOffIcon,
+            onClick: () => (muted ? unmuteChat(chatId) : muteChat(chatId)),
+        });
+    }
+
+    // 退出群组（仅群组/超级群组）
+    if (canLeaveChat(chat)) {
+        items.push({
+            key: 'leave',
+            label: '退出群组',
+            icon: LogOutIcon,
+            danger: true,
+            divider: true,
+            onClick: () => {
+                if (window.confirm(`确定要退出群组「${chat.title}」吗？`)) {
+                    leaveChat(chatId);
+                }
+            },
+        });
+    }
+
+    // 选择
+    items.push({
+        key: 'select',
+        label: '选择',
+        icon: CheckCheckIcon,
+        onClick: () => onChatSelect(chat),
+    });
+
+    // 开发环境：复制对话原始 JSON 数据
+    if (import.meta.env.DEV) {
+        items.push({
+            key: 'copy-json',
+            label: '复制对话原始 JSON',
+            icon: CopyIcon,
+            divider: true,
+            onClick: () => copyChatJson(chat),
+        });
+    }
+
+    return items;
+};
+
+/** 复制对话原始 JSON 到剪贴板（开发调试用） */
+function copyChatJson(chat: Chat) {
+    const json = JSON.stringify(chat, null, 2);
+    navigator.clipboard.writeText(json)
+        .then(() => MessagePlugin.success('对话 JSON 已复制'))
+        .catch(() => MessagePlugin.error('复制失败'));
+}
+
+/** “加到分组/移出分组”子菜单构建（基于 chat store 已加载的分组文件夹） */
+function buildFolderMenu(chat: Chat): ContextMenuItem[] {
+    const chatId = chat.id;
+    // chatStore.chatLists: ChatListEntry[]，其中 chatFolderInfo 含 id
+    const folders = chatStore.chatLists.filter((l): l is any => l._ === 'chatFolderInfo');
+    const children: ContextMenuItem[] = [];
+    let addedOne = false;
+    for (const folder of folders) {
+        const folderId = folder.id;
+        const inFolder = isChatInFolder(chat, folderId);
+        // 加到分组：列出不在其中的分组
+        if (!inFolder) {
+            children.push({
+                key: `add-${folderId}`,
+                label: folder.title?.text?.text ?? `分组 ${folderId}`,
+                icon: FolderPlusIcon,
+                onClick: () => toggleChatInFolder(chatId, folderId, true),
+            });
+        } else {
+            // 移出分组：列出已在该分组的分组
+            addedOne = true;
+            children.push({
+                key: `remove-${folderId}`,
+                label: `从「${folder.title?.text?.text ?? `分组 ${folderId}`}」移出`,
+                icon: FolderMinusIcon,
+                danger: true,
+                onClick: () => toggleChatInFolder(chatId, folderId, false),
+            });
+        }
+    }
+
+    // 若没有"移出"项，则把所有分组都列为"加到分组"供加入
+    if (!addedOne && children.length === 0) {
+        // 没有任何可操作的文件夹时返回空数组（上方会显示禁用项）
+        return [];
+    }
+    return children;
+}
+
 // 列表内容变化时异步加载发送者信息（用户/频道数据，缓存去重）
 watch(tabsWithContent, (list) => {
     list.forEach(({ chats }) => {
-        chats.forEach(c => ensureSenderLoaded(c.last_message?.sender_id));
+        chats.forEach(c => {
+            ensureSenderLoaded(c.last_message?.sender_id);
+            // 私聊需加载用户以取得 accent 色；群组/频道走 chat.accent_color_id
+            ensureChatAccentLoaded(c);
+        });
     });
 }, { deep: true });
 

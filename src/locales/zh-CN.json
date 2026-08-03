@@ -33,5 +33,11 @@
     "updating": "正在更新",
     "connectingToProxy": "正在连接代理",
     "waitingForNetwork": "等待网络连接"
+  },
+  "link": {
+    "openExternalTitle": "打开外部链接",
+    "openExternalMessage": "是否在外部浏览器中打开该网站？",
+    "openExternalConfirm": "打开",
+    "openExternalCancel": "取消"
   }
 }

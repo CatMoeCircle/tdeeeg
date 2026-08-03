@@ -4,11 +4,12 @@
 
     <template v-else>
         <!-- Reply preview -->
-        <MessageReply v-if="replyTo" :replyTo="replyTo" :isSelf="isSelf ?? false" :chatId="chatId"
-            :messageList="messageList" @jump="onJumpToMessage" />
+        <MessageReply v-if="replyTo && !isStickerLikeContent" :replyTo="replyTo" :isSelf="isSelf ?? false"
+            :chatId="chatId" :messageList="messageList" :accentColorId="accentColorId" @jump="onJumpToMessage" />
 
         <!-- Text messages -->
-        <MessageTextContent v-if="content._ === 'messageText'" :formattedText="content.text" />
+        <MessageTextContent v-if="content._ === 'messageText'" :formattedText="content.text"
+            :accentColorId="accentColorId" />
 
         <!-- Rich messages -->
         <MessageRichMessage v-else-if="content._ === 'messageRichMessage'" :blocks="content.message.blocks"
@@ -21,15 +22,39 @@
             :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature" :chatId="chatId"
             :messageId="messageId" @openForwardSource="onOpenForwardSource" />
 
-        <!-- Stickers / animated emoji are rendered without a message bubble -->
-        <div v-else-if="content._ === 'messageSticker' || content._ === 'messageAnimatedEmoji'"
-            class="relative inline-block pb-3 align-bottom">
-            <MessageStickerContent :content="content" />
-            <span v-if="date"
-                class="absolute right-1 bottom-3 translate-y-1/2 rounded-md bg-black/55 px-1.5 py-0.4 text-white shadow-sm">
-                <MessageStatus :date="date" :isOutgoing="isSelf ?? false" :sendingState="sendingState" :isRead="isRead"
-                    :viewCount="viewCount" :authorSignature="authorSignature" overMedia />
-            </span>
+        <!-- Stickers / animated emoji are rendered without a message bubble.
+             回复预览显示在贴纸旁边（小宽度），而非贴纸上方 -->
+        <div v-else-if="isStickerLikeContent" class="flex items-end gap-1.5 pb-2">
+            <!-- 自己消息：贴纸在右，回复在左 -->
+            <template v-if="isSelf">
+                <div v-if="replyTo" class="w-40 shrink-0">
+                    <MessageReply :replyTo="replyTo" :isSelf="true" :chatId="chatId" :messageList="messageList"
+                        :accentColorId="accentColorId" @jump="onJumpToMessage" />
+                </div>
+                <div class="relative inline-block align-bottom">
+                    <MessageStickerContent :content="stickerContent" />
+                    <span v-if="date && !settings.sticker.hideTimestamp"
+                        class="absolute right-1 bottom-3 translate-y-1/2 rounded-md bg-black/55 px-1.5 py-0.4 text-white shadow-sm">
+                        <MessageStatus :date="date" :isOutgoing="true" :sendingState="sendingState" :isRead="isRead"
+                            :viewCount="viewCount" :authorSignature="authorSignature" overMedia />
+                    </span>
+                </div>
+            </template>
+            <!-- 他人消息：贴纸在左，回复在右 -->
+            <template v-else>
+                <div class="relative inline-block align-bottom">
+                    <MessageStickerContent :content="stickerContent" />
+                    <span v-if="date && !settings.sticker.hideTimestamp"
+                        class="absolute right-1 bottom-3 translate-y-1/2 rounded-md bg-black/55 px-1.5 py-0.4 text-white shadow-sm">
+                        <MessageStatus :date="date" :isOutgoing="false" :sendingState="sendingState" :isRead="isRead"
+                            :viewCount="viewCount" :authorSignature="authorSignature" overMedia />
+                    </span>
+                </div>
+                <div v-if="replyTo" class="w-40 shrink-0">
+                    <MessageReply :replyTo="replyTo" :isSelf="false" :chatId="chatId" :messageList="messageList"
+                        :accentColorId="accentColorId" @jump="onJumpToMessage" />
+                </div>
+            </template>
         </div>
 
         <!-- Voice / Video notes -->
@@ -47,7 +72,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { MessageContent, messageForwardInfo, messageReplyToMessage, MessageSendingState, message } from 'tdlib-types';
+import type { MessageContent, messageForwardInfo, messageReplyToMessage, MessageSendingState, message, messageSticker, messageAnimatedEmoji } from 'tdlib-types';
 import MessageReply from './MessageReply.vue';
 
 import MessageTextContent from './MessageTextContent.vue';
@@ -59,6 +84,7 @@ import MessageFileContent from './MessageFileContent.vue';
 import MessageServiceContent from './MessageServiceContent.vue';
 import MessageOtherContent from './MessageOtherContent.vue';
 import MessageStatus from './MessageStatus.vue';
+import { settings } from '../../../../store/settings';
 
 const MEDIA_TYPES = new Set([
     'messagePhoto',
@@ -144,6 +170,8 @@ const props = defineProps<{
     messageId?: number;
     replyTo?: messageReplyToMessage;
     messageList?: message[];
+    /** 发送者 accent_color_id（用于回复栏/引用标记配色） */
+    accentColorId?: number;
 }>();
 
 const emit = defineEmits<{
@@ -161,4 +189,12 @@ function onOpenForwardSource() {
 
 const isServiceType = computed(() => SERVICE_TYPES.has(props.content._));
 const isMediaType = computed(() => MEDIA_TYPES.has(props.content._));
+/** 贴纸 / 动画表情：无气泡渲染，回复显示在贴纸旁边（小宽度） */
+const isStickerLikeContent = computed(
+    () => props.content._ === 'messageSticker' || props.content._ === 'messageAnimatedEmoji',
+);
+/** 贴纸 / 动画表情的窄化内容（供 MessageStickerContent 使用） */
+const stickerContent = computed<messageSticker | messageAnimatedEmoji>(
+    () => props.content as messageSticker | messageAnimatedEmoji,
+);
 </script>

@@ -21,6 +21,12 @@ pub struct Chat {
     /// 是否为话题模式论坛群组（view_as_topics）
     #[serde(default)]
     pub view_as_topics: bool,
+    /// 名称/文本 accent 色 id（用于群聊名称、频道；群组用 chat.accent_color_id）
+    #[serde(default)]
+    pub accent_color_id: i32,
+    /// 头像渐变 profile accent 色 id（-1 表示无）
+    #[serde(default)]
+    pub profile_accent_color_id: i32,
 }
 
 #[derive(Debug, Clone, Serialize)]

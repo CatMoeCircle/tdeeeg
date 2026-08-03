@@ -67,6 +67,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { useRouter } from 'vue-router';
 import { tdlibSend } from '../../../../utils/tdlib';
 import CustomEmojiInline from './CustomEmojiInline.vue';
+import { confirmAndOpenExternalLink } from '../../../../utils/openExternalLink';
 
 const props = defineProps<{
     text?: RichText;
@@ -149,7 +150,8 @@ function handleClick(_event: MouseEvent, node: RichNode) {
     if (href.startsWith('https://t.me/') || href.startsWith('tg://')) {
         resolveInternalLink(href);
     } else if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:')) {
-        openUrl(href);
+        // 外部链接：先询问用户是否跳转外部
+        confirmAndOpenExternalLink(href).catch(() => { /* 用户取消 */ });
     }
 }
 

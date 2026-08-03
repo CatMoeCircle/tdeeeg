@@ -3,10 +3,126 @@
         <div class="p-4 border-b border-gray-200 ">
             <h2 class="text-lg font-semibold">外观设置</h2>
         </div>
-        <div class="flex-1 overflow-y-auto custom-scrollbar p-6">
+        <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
             <div class="max-w-2xl">
-                <div class="mb-8">
-                    <h3 class="text-sm font-medium text-gray-500 mb-4 uppercase tracking-wider">分组文件夹样式</h3>
+                <!-- 消息显示设置 -->
+                <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
+                        消息显示</h3>
+
+                    <!-- 预览：模拟消息气泡，实时反映圆角/字体/缩放 -->
+                    <div class="mb-6 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+                        <div
+                            class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">预览</span>
+                            <span class="text-xs text-gray-400 dark:text-gray-500">消息气泡</span>
+                        </div>
+                        <div class="bg-[#f5f5f5] dark:bg-[#1c1c1c] p-4 flex flex-col gap-3">
+                            <!-- 他人消息：左侧完整头像 + 气泡 -->
+                            <div class="flex justify-start">
+                                <div class="w-9 shrink-0 mr-2 self-end">
+                                    <Avatar :photo="userPhoto" :title="userName"
+                                        :radius="settings.chatList.avatarCornerRadius" sizeClass="!w-9 !h-9" />
+                                </div>
+                                <div class="max-w-[70%] bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 px-3 py-2 shadow-sm"
+                                    :style="previewBubbleStyle('in', true)">
+                                    <p class="font-semibold text-xs mb-0.5 text-blue-500">{{ userName }}</p>
+                                    <p class="whitespace-pre-wrap" :style="previewTextStyle">这是他人发来的一条消息预览</p>
+                                </div>
+                            </div>
+                            <!-- 自己消息 -->
+                            <div class="flex justify-end">
+                                <div class="max-w-[70%] text-gray-900 dark:text-white px-3 py-2 shadow-sm"
+                                    :style="previewBubbleStyle('out', false)">
+                                    <p class="whitespace-pre-wrap" :style="previewTextStyle">这是你发送的一条消息预览</p>
+                                </div>
+                            </div>
+                            <!-- 贴纸消息预览（右下角时间胶囊 + 大小调整） -->
+                            <div class="flex justify-start">
+                                <div class="w-9 shrink-0 mr-2 self-end">
+                                    <Avatar :photo="userPhoto" :title="userName"
+                                        :radius="settings.chatList.avatarCornerRadius" sizeClass="!w-9 !h-9" />
+                                </div>
+                                <div class="relative self-end" :style="previewStickerWrapStyle">
+                                    <div class="w-full h-full bg-gray-200 dark:bg-gray-600"></div>
+                                    <span v-if="!settings.sticker.hideTimestamp"
+                                        class="absolute right-1 bottom-1 translate-y-1/2 rounded-md bg-black/55 px-1.5 py-0.5 text-white text-[10px] leading-none shadow-sm my-2.5 mx-1">12:00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 消息显示选项 -->
+                    <div
+                        class="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
+                        <!-- 消息圆角 -->
+                        <div class="px-4 py-3">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm text-gray-600 dark:text-gray-400">消息圆角</span>
+                                <span class="text-sm font-medium text-blue-600">{{ settings.message.cornerRadius
+                                    }}px<span v-if="settings.message.cornerRadius === DEFAULT_MESSAGE.cornerRadius"
+                                        class="text-xs font-normal text-gray-400 ml-1">(默认)</span></span>
+                            </div>
+                            <input type="range" min="0" max="24" step="1" v-model.number="settings.message.cornerRadius"
+                                class="w-full accent-blue-500" />
+                        </div>
+
+                        <!-- 字体大小 -->
+                        <div class="px-4 py-3">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm text-gray-600 dark:text-gray-400">字体大小</span>
+                                <span class="text-sm font-medium text-blue-600">{{ settings.message.fontSize }}px<span
+                                        v-if="settings.message.fontSize === DEFAULT_MESSAGE.fontSize"
+                                        class="text-xs font-normal text-gray-400 ml-1">(默认)</span></span>
+                            </div>
+                            <input type="range" min="11" max="20" step="1" v-model.number="settings.message.fontSize"
+                                class="w-full accent-blue-500" />
+                            <p class="mt-1 text-xs text-gray-400">控制消息内文字大小</p>
+                        </div>
+
+                        <!-- 消息整体比例缩放 -->
+                        <div class="px-4 py-3">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm text-gray-600 dark:text-gray-400">消息整体比例缩放</span>
+                                <span class="text-sm font-medium text-blue-600">{{ Math.round(settings.message.scale *
+                                    100)
+                                    }}%</span>
+                            </div>
+                            <input type="range" min="80" max="120" step="1"
+                                :value="Math.round(settings.message.scale * 100)" @input="onScaleInput"
+                                class="w-full accent-blue-500" />
+                            <p class="mt-1 text-xs text-gray-400">整体缩放消息气泡大小（含间距与文字）</p>
+                        </div>
+
+                        <!-- 贴纸大小 -->
+                        <div class="px-4 py-3">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm text-gray-600 dark:text-gray-400">贴纸大小</span>
+                                <span class="text-sm font-medium text-blue-600">{{ settings.sticker.size }}px<span
+                                        v-if="settings.sticker.size === DEFAULT_MESSAGE.stickerSize"
+                                        class="text-xs font-normal text-gray-400 ml-1">(默认)</span></span>
+                            </div>
+                            <input type="range" min="96" max="320" step="4" v-model.number="settings.sticker.size"
+                                class="w-full accent-blue-500" />
+                        </div>
+
+                        <!-- 隐藏贴纸发送时间 -->
+                        <div class="px-4 py-2">
+                            <ChatTypeToggle label="隐藏贴纸右下角发送时间" v-model="settings.sticker.hideTimestamp" />
+                            <p class="mt-1 text-xs text-gray-400">开启后贴纸右下角的时间小胶囊不再显示</p>
+                        </div>
+
+                        <!-- 点击 bot 命令添加到输入框 -->
+                        <div class="px-4 py-2">
+                            <ChatTypeToggle label="点击机器人命令添加到输入框" v-model="settings.message.botCommandInsert" />
+                            <p class="mt-1 text-xs text-gray-400">点击 /start 等命令时添加到输入框最前面（空格分隔），而非直接发送</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
+                        分组文件夹样式</h3>
 
                     <!-- 实时预览：分组栏即样式 -->
                     <div class="mb-6 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
@@ -48,7 +164,7 @@
                                             <span
                                                 class="min-w-4 h-4 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold leading-4 text-center inline-flex items-center justify-center">
                                                 {{ settings.chatList.unreadCountMode === 'messages' ? '99+' :
-                                                folder.unread }}
+                                                    folder.unread }}
                                             </span>
                                         </span>
                                     </button>
@@ -80,7 +196,8 @@
 
                 <!-- 聊天列表设置 -->
                 <div class="mb-8">
-                    <h3 class="text-sm font-medium text-gray-500 mb-4 uppercase tracking-wider">聊天列表</h3>
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
+                        聊天列表</h3>
 
                     <!-- 预览：模拟聊天列表项 -->
                     <div class="mb-6 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
@@ -131,7 +248,7 @@
                             <div class="flex items-center justify-between mb-2">
                                 <span class="text-sm text-gray-600 dark:text-gray-400">头像圆角角度</span>
                                 <span class="text-sm font-medium text-blue-600">{{ settings.chatList.avatarCornerRadius
-                                }}</span>
+                                    }}</span>
                             </div>
                             <input type="range" min="0" max="100" step="5"
                                 v-model.number="settings.chatList.avatarCornerRadius" class="w-full accent-blue-500" />
@@ -205,6 +322,9 @@ import { settings } from '../../store/settings';
 import { useUserStore } from '../../store/user';
 import ChatTypeToggle from './ChatTypeToggle.vue';
 import Avatar from '../chat/avatar.vue';
+
+/** 消息显示/贴纸设置默认值（用于显示“(默认)”标记，与 settings.ts 默认值一致） */
+const DEFAULT_MESSAGE = { cornerRadius: 18, fontSize: 14, stickerSize: 160 };
 
 /** 预览分组数据（全部对话默认使用对话图标） */
 const folders: { id: string; name: string; unread: number; icon: Component }[] = [
@@ -283,6 +403,45 @@ function folderClass(id: string) {
                 ? 'text-blue-600 font-bold'
                 : 'text-gray-500 dark:text-gray-400';
     }
+}
+
+/** 预览消息气泡内联样式（圆角 + 缩放） */
+function previewBubbleStyle(kind: 'in' | 'out', isFirst: boolean) {
+    const r = settings.message.cornerRadius;
+    const style: Record<string, string> = {
+        zoom: String(settings.message.scale),
+        borderRadius: `${r}px ${r}px ${r}px ${r}px`,
+    };
+    if (kind === 'in') {
+        // 他人消息：左下角朝向头像小圆角
+        style.borderRadius = isFirst
+            ? `${r}px ${r}px ${r}px 6px`
+            : `6px ${r}px ${r}px 6px`;
+    } else {
+        // 自己消息：右上角小圆角
+        style.borderRadius = `${r}px 6px ${r}px ${r}px`;
+    }
+    return style;
+}
+
+/** 预览消息文字样式（字体大小） */
+const previewTextStyle = computed<Record<string, string>>(() => ({
+    fontSize: `${settings.message.fontSize}px`,
+    lineHeight: '1.4',
+}));
+
+/** 预览贴纸容器样式（大小 + 圆角跟随消息圆角设置） */
+const previewStickerWrapStyle = computed<Record<string, string>>(() => ({
+    width: `${settings.sticker.size}px`,
+    height: `${settings.sticker.size}px`,
+    borderRadius: `${settings.message.cornerRadius}px`,
+    overflow: 'hidden',
+}));
+
+/** 缩放滑动条 input 事件（百分比转小数） */
+function onScaleInput(event: Event) {
+    const target = event.target as HTMLInputElement;
+    settings.message.scale = Number(target.value) / 100;
 }
 </script>
 

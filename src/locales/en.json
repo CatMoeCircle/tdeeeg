@@ -25,5 +25,11 @@
     "updating": "Updating",
     "connectingToProxy": "Connecting to proxy",
     "waitingForNetwork": "Waiting for network"
+  },
+  "link": {
+    "openExternalTitle": "Open external link",
+    "openExternalMessage": "Open this website in an external browser?",
+    "openExternalConfirm": "Open",
+    "openExternalCancel": "Cancel"
   }
 }

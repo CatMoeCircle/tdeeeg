@@ -4,8 +4,12 @@ import tailwindcss from "@tailwindcss/vite";
 import AutoImport from "unplugin-auto-import/vite";
 import Components from "unplugin-vue-components/vite";
 import { TDesignResolver } from "@tdesign-vue-next/auto-import-resolver";
+import vueDevTools from 'vite-plugin-vue-devtools'
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-// @ts-expect-error process is a nodejs global
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
+
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
@@ -31,7 +35,16 @@ export default defineConfig(async () => ({
       // put generated component typings into src so IDE/TS finds them
       dts: "src/components.d.ts",
     }),
+    vueDevTools(),
   ],
+  // 单入口：主应用 index.html
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, "index.html"),
+      },
+    },
+  },
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors

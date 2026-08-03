@@ -2,9 +2,10 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { tdlibSend, safeDownloadFile, isFileReady } from '../utils/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import type { message } from 'tdlib-types';
+import type { message, thumbnail } from 'tdlib-types';
 import { useDownloadStore } from './downloads';
 import { useChatStore } from './chat';
+import { isThumbnailImgRenderable } from '../utils/thumbnail';
 
 export interface AudioTrack {
     messageId: number;
@@ -271,11 +272,20 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
             return `data:image/jpeg;base64,${audio.album_cover_minithumbnail.data}`;
         }
 
-        // 尝试缩略图文件
-        const candidates = [
-            audio.album_cover_thumbnail,
-            ...(audio.external_album_covers ?? []),
-        ].filter(Boolean);
+        // 尝试缩略图文件（仅静态位图格式可用作 <img> 封面；动态/Lottie 跳过）
+        // 优先使用内嵌封面 thumbnail；album_cover_thumbnail 不可用时回退到外部封面列表，
+        // external_album_covers 按分辨率升序排列，取最高清（at(-1)）优先尝试，失败逐级回退。
+        const imgRenderable = (t: thumbnail | undefined): t is thumbnail =>
+            !!t && isThumbnailImgRenderable(t.format) && !!t.file.local?.can_be_downloaded;
+
+        const primary = imgRenderable(audio.album_cover_thumbnail) ? audio.album_cover_thumbnail : undefined;
+        const external = (audio.external_album_covers ?? [])
+            .filter(imgRenderable)
+            .sort((a, b) => (a.width * a.height) - (b.width * b.height));
+
+        const candidates: thumbnail[] = primary
+            ? [primary, ...external.reverse()]
+            : [...external.reverse()];
 
         for (const thumb of candidates) {
             if (!thumb) continue;

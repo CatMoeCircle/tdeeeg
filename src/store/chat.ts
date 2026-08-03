@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref, computed } from "vue";
+import { ref, shallowRef, computed } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import type {
@@ -31,6 +31,10 @@ export interface Chat {
   notification_settings?: { mute_for?: number } | any;
   /** 是否为话题模式论坛群组 */
   view_as_topics?: boolean;
+  /** 名称/文本 accent 色 id（群组/频道） */
+  accent_color_id?: number;
+  /** 头像渐变 profile accent 色 id（-1 表示无） */
+  profile_accent_color_id?: number;
 }
 
 export interface ChatListState {
@@ -47,13 +51,63 @@ export interface ListLoadState {
 }
 
 export const useChatStore = defineStore("chat", () => {
-  const chats = ref<Record<number, Chat>>({});
-  const lists = ref<Record<string, number[]>>({});
+  // 使用 shallowRef：chat/lists 对象只被整体读取，不需要 Vue 对内部字段做深层
+  // 依赖追踪。配合下面的“缓冲 + 一次性 flush”模式，能避免每个 update 事件
+  // 单独触发一次响应式写入 → computed 全量失效 → DOM 全量重建的性能雪崩。
+  const chats = shallowRef<Record<number, Chat>>({});
+  const lists = shallowRef<Record<string, number[]>>({});
   const chatLists = ref<ChatListEntry[]>([]);
   /** 每个列表独立的加载状态 */
   const listStates = ref<Record<string, ListLoadState>>({});
   /** 防止重复注册事件监听器 */
   let listenerInitialized = false;
+
+  // ---- 非响应式工作缓冲 + 帧合并 flush ----
+  // 大量 chat-list-update / chat-update 事件会在短时间内涌入。若每个事件都
+  // 直接写 shallowRef.value，仍会反复触发依赖。这里先把变更累积到普通对象，
+  // 再在下一次宏任务/渲染帧统一应用，从而在单个 tick 内只触发一次依赖更新。
+  let chatBuffer: Record<number, Chat> = {};
+  let listBuffer: Record<string, number[]> = {};
+  let flushScheduled = false;
+
+  /** 把缓冲中的变更一次性应用到响应式状态（整个对象替换，只触发一次依赖） */
+  function applyBuffers() {
+    const hasChats = Object.keys(chatBuffer).length > 0;
+    const hasLists = Object.keys(listBuffer).length > 0;
+    if (hasChats) {
+      chats.value = { ...chats.value, ...chatBuffer };
+      chatBuffer = {};
+    }
+    if (hasLists) {
+      const next = { ...lists.value };
+      for (const k in listBuffer) next[k] = listBuffer[k];
+      lists.value = next;
+      listBuffer = {};
+    }
+  }
+
+  /** 把当前宏任务内累积的变更合并到下一次 flush 统一应用 */
+  function scheduleFlush() {
+    if (flushScheduled) return;
+    flushScheduled = true;
+    setTimeout(() => {
+      flushScheduled = false;
+      if (Object.keys(chatBuffer).length === 0 && Object.keys(listBuffer).length === 0) return;
+      applyBuffers();
+    }, 0);
+  }
+
+  /** 缓冲一个 chat 更新（不立即触发响应式） */
+  function setChatBuffered(id: number, chat: Chat) {
+    chatBuffer[id] = chat;
+    scheduleFlush();
+  }
+
+  /** 缓冲一个列表更新（key 处的完整排序 ID 数组） */
+  function setListBuffered(key: string, ids: number[]) {
+    listBuffer[key] = ids;
+    scheduleFlush();
+  }
 
   function getListState(listKey: string): ListLoadState {
     if (!listStates.value[listKey]) {
@@ -70,7 +124,8 @@ export const useChatStore = defineStore("chat", () => {
     await listen<ChatListState>("chat-list-update", (event) => {
       const { list_key, chat_ids } = event.payload;
       // 用事件（权威来源）的完整排序列表替换
-      lists.value[list_key] = chat_ids;
+      // 只写入缓冲，由 flush 统一应用，避免逐个事件触发响应式
+      setListBuffered(list_key, chat_ids);
 
       // 注意：loading 状态不由 chat-list-update 事件管理，
       // 而是由 requestLoadMore 中的 loadChats 响应负责释放。
@@ -81,7 +136,8 @@ export const useChatStore = defineStore("chat", () => {
 
     await listen<Chat>("chat-update", (event) => {
       const chat = event.payload;
-      chats.value[chat.id] = chat;
+      // 只写入缓冲，由 flush 统一应用（同一 tick 内多个 chat-update 只触发一次更新）
+      setChatBuffered(chat.id, chat);
     });
 
     await listen<any>("chat-folders-update", (event) => {
@@ -110,10 +166,10 @@ export const useChatStore = defineStore("chat", () => {
           if (c && c.id) {
             // 缓存数据作为兜底：如果还没有数据就填充，如果已有（来自事件）则保留事件数据
             if (!chats.value[c.id]) {
-              chats.value[c.id] = c;
+              setChatBuffered(c.id, c);
             } else {
               // 事件数据优先于缓存数据 — 缓存只是兜底，事件才是实时来源
-              chats.value[c.id] = { ...c, ...chats.value[c.id] };
+              setChatBuffered(c.id, { ...c, ...chats.value[c.id] });
             }
           }
         }
@@ -121,7 +177,7 @@ export const useChatStore = defineStore("chat", () => {
 
       // 仅当该列表尚未有任何数据时才填充 ID 列表
       if (!lists.value[key] || lists.value[key].length === 0) {
-        lists.value[key] = res.chat_ids || [];
+        setListBuffered(key, res.chat_ids || []);
       }
     } catch (e) {
       console.error("Failed to load chat list:", e);
@@ -129,7 +185,7 @@ export const useChatStore = defineStore("chat", () => {
   };
 
   /** loadChats 单次加载上限 */
-  const LOAD_CHAT_LIMIT = 50;
+  const LOAD_CHAT_LIMIT = 20;
 
   /**
    * 调用 loadChats 并登记一个等待批次。
@@ -148,7 +204,7 @@ export const useChatStore = defineStore("chat", () => {
 
     // 记录请求前的列表数量，用于判断本次加载是否已接近列表末尾
     const beforeCount = (lists.value[listKey] || []).length;
-
+    console.log(`[ChatStore] requestLoadMore for ${listKey}, beforeCount=${beforeCount}, pendingBatch=${state.pendingBatch}`);
     // 发送 loadChats 请求（异步，不 await）
     invoke("tdlib_send", {
       request: { _: "loadChats", chat_list: chatList, limit: LOAD_CHAT_LIMIT },
@@ -256,9 +312,9 @@ export const useChatStore = defineStore("chat", () => {
         if (result && result._ !== "error" && result.id) {
           // 合并到现有数据，保留事件数据优先
           if (chats.value[id]) {
-            chats.value[id] = { ...result, ...chats.value[id], id: result.id };
+            setChatBuffered(id, { ...result, ...chats.value[id], id: result.id });
           } else {
-            chats.value[id] = result;
+            setChatBuffered(id, result);
           }
         }
       } catch (e) {
@@ -268,6 +324,8 @@ export const useChatStore = defineStore("chat", () => {
     });
 
     await Promise.allSettled(promises);
+    // 确保缓冲已应用到响应式状态，以便下面统计 remaining 时读取的是最新结果
+    applyBuffers();
     console.log(`[ChatStore] getChat fill completed, remaining: ${Array.from(allListIds).filter(id => !chats.value[id] || chats.value[id].title === '…').length
       }`);
   };

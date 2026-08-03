@@ -68,7 +68,9 @@ pub struct AppState {
     pub config: Arc<Mutex<TdLibConfig>>,
     pub chat_store: Arc<Mutex<ChatStore>>,
     pub download_store: Arc<Mutex<DownloadStore>>,
-    pub stream_lock: Mutex<()>,
+    /// 每个 TDLib file_id 的流式互斥锁（用于串行化同一文件的并发 range 下载，
+    /// 但不同文件可并行流式传输，避免全局锁把视频流请求全部串行化）
+    pub stream_locks: Mutex<HashMap<i32, Arc<Mutex<()>>>>,
     pub connection_state: Arc<Mutex<Option<String>>>,
     pub options: Arc<Mutex<HashMap<String, String>>>,
 }
@@ -88,7 +90,7 @@ impl AppState {
             })),
             chat_store: Arc::new(Mutex::new(ChatStore::new())),
             download_store: Arc::new(Mutex::new(DownloadStore::new(data_dir))),
-            stream_lock: Mutex::new(()),
+            stream_locks: Mutex::new(HashMap::new()),
             connection_state: Arc::new(Mutex::new(None)),
             options: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -286,6 +288,12 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
 
                     // 尝试解析 JSON 以检查是否需要自动处理
                     if let Ok(mut event) = serde_json::from_str::<serde_json::Value>(&json_str) {
+                        // 打印收到的 update（调试）
+                        if let Some(t) = event.get("@type").and_then(|v| v.as_str()) {
+                            println!("[tdlib-update] {}", t);
+                        } else {
+                            println!("[tdlib-update] (no @type) {}", json_str);
+                        }
                         // 检查是否有 @extra.request_id
                         let mut request_id = None;
                         if let Some(extra) = event.get("@extra") {
@@ -475,6 +483,9 @@ pub async fn send_request(
     request: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
     let (tx, rx) = oneshot::channel();
+    // 仅在 debug 构建打印完整请求 JSON。生产 (release) 下每个请求都向 stdout 打印
+    // 完整 payload（downloadFile/getChatHistory 等可能很大）会阻塞 I/O，拖慢数据灌入。
+    #[cfg(debug_assertions)]
     println!("Sending request to TDLib: {}", request);
     // 使用代码块限制 MutexGuard 的生命周期
     {

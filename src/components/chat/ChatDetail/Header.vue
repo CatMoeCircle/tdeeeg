@@ -29,11 +29,12 @@
                         <BookmarkIcon class="w-5 h-5 fill-current" />
                     </div>
                 </template>
-                <Avatar v-else :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" :square="isForumChat" />
+                <Avatar v-else :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" :square="isForumChat"
+                    :accentColorId="headerAccentColorId" :deletedAccount="isDeletedChat(props.chat as any)" />
                 <div class="flex flex-col min-w-0">
                     <h2 class="flex font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight truncate">{{
                         headerTitle
-                    }}<span v-if="verificationState" class="text-blue-500 ml-1 shrink-0">
+                        }}<span v-if="verificationState" class="text-blue-500 ml-1 shrink-0">
                             <component :is="verificationState" />
                         </span>
                     </h2>
@@ -78,6 +79,7 @@ import { useUserStore } from '../../../store/user';
 import { useConnectionStore } from '../../../store/connectionState';
 import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../../utils/savedMessages';
 import CustomEmojiInline from './MessageContent/CustomEmojiInline.vue';
+import { getChatProfileAccentColorId, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
 
 const props = defineProps<{
     chat: chat | undefined;
@@ -102,10 +104,17 @@ const { t } = useI18n();
 const isSavedMessages = computed(() =>
     !!props.chat && isSavedMessagesChat(props.chat, userProfile.value?.id)
 );
-const chatTitle = computed(() => isSavedMessages.value ? SAVED_MESSAGES_TITLE : props.chat?.title || '');
+const chatTitle = computed(() => {
+    if (isSavedMessages.value) return SAVED_MESSAGES_TITLE;
+    if (props.chat && isDeletedChat(props.chat)) return DELETED_ACCOUNT_LABEL;
+    return props.chat?.title || '';
+});
 const isForumChat = computed(() =>
-    !!props.chat && props.chat.type?._ === 'chatTypeSupergroup' && !!(props.chat as any).view_as_topics
+    !!props.chat && props.chat.type?._ === 'chatTypeSupergroup' && !!(props.chat).view_as_topics
 );
+
+/** 头部头像的无头像背景色（私聊取用户 profile accent，群组取 chat profile accent） */
+const headerAccentColorId = computed(() => getChatProfileAccentColorId(props.chat));
 
 /** 是否为话题模式（在话题详情页中） */
 const isTopicMode = computed(() => !!props.topic);

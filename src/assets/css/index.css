@@ -1,6 +1,32 @@
 @import "tailwindcss";
 @import "./theme.css";
 
+/* ===== Telegram 官方图标字体 tgico ===== */
+@font-face {
+  font-family: "tgico";
+  src: url("../tgico.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+.tgico {
+  font-family: "tgico", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1;
+  font-style: normal;
+  font-weight: normal;
+  display: inline-block;
+  user-select: none;
+}
+/* 已删除账户图标（Web K: avatar-icon-deletedaccount） */
+.tgico-avatar-deletedaccount::before {
+  content: "\e979";
+}
+
+/* ===== Telegram 官方图标字体 tgico ===== */
+
 /*
 Disable text selection globally, but allow selection inside
 form controls and contenteditable elements.

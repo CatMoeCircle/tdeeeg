@@ -82,15 +82,17 @@
             </div>
         </div>
 
-        <p v-if="captionSegments.length" class="mt-2 text-sm whitespace-pre-wrap leading-5">
+        <p v-if="captionSegments.length" class="mt-2 whitespace-pre-wrap"
+            :style="{ fontSize: 'var(--msg-font-size, 14px)', lineHeight: '1.4' }">
             <template v-for="(segment, index) in captionSegments" :key="index">
                 <a v-if="segment.href" :href="segment.href"
                     class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
                     :class="[segment.className, captionLoadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
                     @click.prevent.stop="handleCaptionSegmentClick($event, segment)">{{ segment.text
                     }}</a>
-                <span v-else :class="[segment.className, { 'cursor-pointer': segment.copyable }]"
-                    @click="segment.copyable ? handleCaptionSegmentClick($event, segment) : undefined">{{ segment.text
+                <span v-else :class="[segment.className, { 'cursor-pointer': segment.copyable || segment.isCommand }]"
+                    @click="(segment.copyable || segment.isCommand) ? handleCaptionSegmentClick($event, segment) : undefined">{{
+                        segment.text
                     }}</span>
             </template>
         </p>
@@ -99,7 +101,7 @@
 
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue';
-import type { messageDocument, messageAudio, textEntity, InternalLinkType } from 'tdlib-types';
+import type { messageDocument, messageAudio, textEntity, InternalLinkType, thumbnail } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles, reactiveDownloadingFiles } from '../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -109,8 +111,11 @@ import { MessagePlugin } from 'tdesign-vue-next';
 import { useDownloadStore, type DownloadFileType } from '../../../../store/downloads';
 import { useChatStore } from '../../../../store/chat';
 import { settings } from '../../../../store/settings';
+import { requestInsertCommand } from '../../../../store/commandInsert';
 import { getChatCategory } from '../../../../utils/autoDownload';
 import { useAudioPlayerStore } from '../../../../store/audioPlayer';
+import { confirmAndOpenExternalLink } from '../../../../utils/openExternalLink';
+import { isThumbnailImgRenderable } from '../../../../utils/thumbnail';
 
 const props = defineProps<{
     content: messageDocument | messageAudio;
@@ -183,6 +188,8 @@ type CaptionSegment = {
     className: string;
     /** 是否可点击复制 */
     copyable?: boolean;
+    /** 是否为 bot 命令（/command），点击后插入输入框（可设置） */
+    isCommand?: boolean;
 };
 
 const captionSegments = computed<CaptionSegment[]>(() => {
@@ -214,7 +221,8 @@ const captionSegments = computed<CaptionSegment[]>(() => {
             .find((value): value is string => !!value);
         const className = activeEntities.map(getEntityClass).filter(Boolean).join(' ');
         const copyable = activeEntities.some(e => isCopyableEntity(e));
-        return { text: segmentText, href, className, copyable };
+        const isCommand = activeEntities.some(e => e.type._ === 'textEntityTypeBotCommand');
+        return { text: segmentText, href, className, copyable, isCommand };
     });
 });
 
@@ -247,19 +255,9 @@ function getEntityClass(entity: textEntity): string {
 
 function isCopyableEntity(entity: textEntity): boolean {
     switch (entity.type._) {
-        case 'textEntityTypeUrl':
-        case 'textEntityTypeTextUrl':
-        case 'textEntityTypeEmailAddress':
-        case 'textEntityTypePhoneNumber':
-        case 'textEntityTypeCode':
-        case 'textEntityTypePre':
-        case 'textEntityTypePreCode':
+        // 目前仅 #话题标签 点击复制（临时方案，后续搜索功能优化时改为搜索该标签）。
+        // URL / @提及 / 邮箱 / 电话 / 代码 等不再复制（点击各有其导航/默认行为）。
         case 'textEntityTypeHashtag':
-        case 'textEntityTypeCashtag':
-        case 'textEntityTypeBotCommand':
-        case 'textEntityTypeBankCardNumber':
-        case 'textEntityTypeMention':
-        case 'textEntityTypeMentionName':
             return true;
         default:
             return false;
@@ -276,6 +274,13 @@ async function copyToClipboard(text: string) {
 }
 
 function handleCaptionSegmentClick(_event: MouseEvent, segment: CaptionSegment) {
+    // bot 命令（/start 等）：通用设置 message.botCommandInsert 开启时添加到输入框
+    if (segment.isCommand) {
+        if (settings.message.botCommandInsert) {
+            requestInsertCommand(segment.text);
+        }
+        return;
+    }
     if (segment.href) {
         if (segment.copyable) {
             copyToClipboard(segment.text);
@@ -290,10 +295,11 @@ async function openCaptionLink(href: string) {
     if (href.startsWith('https://t.me/') || href.startsWith('tg://')) {
         await resolveCaptionLink(href);
     } else if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:')) {
+        // 外部链接：先询问用户是否跳转外部
         try {
-            await openUrl(href);
+            await confirmAndOpenExternalLink(href);
         } catch (error) {
-            console.error('Open caption link failed', error);
+            /* 用户取消 */
         }
     }
 }
@@ -377,6 +383,8 @@ const loadMedia = async () => {
 
 /** 只下载专辑封面，不为显示封面而下载整首音乐。 */
 async function loadAudioCover() {
+    console.log("加载封面");
+
     if (props.content._ !== 'messageAudio') return;
     const audio = props.content.audio;
     const audioFileId = audio.audio.id;
@@ -385,7 +393,25 @@ async function loadAudioCover() {
         ? `data:image/jpeg;base64,${audio.album_cover_minithumbnail.data}`
         : undefined;
 
-    const candidates = [audio.album_cover_thumbnail, ...(audio.external_album_covers ?? [])].filter(Boolean);
+    // 专辑封面只取能在 <img> 中渲染的静态位图格式（JPEG/PNG/WEBP/GIF）。
+    // 动态格式（MPEG4/WEBM）与 Lottie（TGS）无法作为图片源，直接跳过。
+    const imgRenderable = (t: thumbnail | undefined): t is thumbnail =>
+        !!t && isThumbnailImgRenderable(t.format) && !!t.file.local?.can_be_downloaded;
+
+    // 优先使用内嵌封面 thumbnail；album_cover_thumbnail 不可用时回退到外部封面列表。
+    const primary = imgRenderable(audio.album_cover_thumbnail) ? audio.album_cover_thumbnail : undefined;
+
+    // external_album_covers 通常按分辨率升序排列，取 at(-1) 即最高清那个；
+    // 若最高清无法下载则依次回退到较低分辨率的封面。
+    const external = (audio.external_album_covers ?? [])
+        .filter(imgRenderable)
+        .sort((a, b) => (a.width * a.height) - (b.width * b.height));
+
+    // 尝试顺序：有内嵌封面则内嵌优先；否则从最高清外部封面开始。
+    const candidates: thumbnail[] = primary
+        ? [primary, ...external.reverse()]
+        : [...external.reverse()];
+
     for (const thumbnail of candidates) {
         if (!thumbnail) continue;
         const file = thumbnail.file;

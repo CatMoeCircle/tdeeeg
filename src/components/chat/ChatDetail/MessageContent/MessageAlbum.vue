@@ -30,12 +30,18 @@
                     {{ formatDuration(item.duration) }}
                 </span>
             </div>
+            <!-- 无描述时：时间状态以胶囊叠加在相册右下角，不占底部独立行 -->
+            <div v-if="!captionText && lastDate"
+                class="absolute right-1.5 bottom-1.5 bg-black/60 text-white px-1.5 py-0.5 rounded-md leading-none select-none pointer-events-none">
+                <MessageStatus :date="lastDate" :isOutgoing="isSelf" :sendingState="lastSendingState" :isRead="isRead"
+                    :viewCount="lastViewCount" :authorSignature="authorSignature" overMedia />
+            </div>
         </div>
         <div v-if="captionText" class="px-2 pt-1.5 pb-2"
             :class="isSelf ? 'text-white/90' : 'text-gray-800 dark:text-gray-200'">
             <MessageTextContent :formattedText="captionFormatted" />
         </div>
-        <span class="block text-right px-2 pb-1" :class="isSelf ? 'text-blue-100' : 'text-gray-400'">
+        <span v-if="captionText" class="block text-right px-2 pb-1" :class="isSelf ? 'text-blue-100' : 'text-gray-400'">
             <MessageStatus :date="lastDate" :isOutgoing="isSelf" :sendingState="lastSendingState" :isRead="isRead"
                 :viewCount="lastViewCount" :authorSignature="authorSignature" />
         </span>
@@ -54,6 +60,7 @@ import { layoutMediaGroup, type MediaGroupSize } from '../../../../utils/mediaGr
 import { registerMediaItem, unregisterMediaItem, openMediaViewer } from '../../../../store/mediaViewer';
 import { settings } from '../../../../store/settings';
 import { getChatCategory } from '../../../../utils/autoDownload';
+import { isThumbnailImgRenderable } from '../../../../utils/thumbnail';
 import { useChatStore } from '../../../../store/chat';
 
 const props = defineProps<{
@@ -185,14 +192,37 @@ const containerStyle = computed(() => {
 // ---- React to messages ----
 watch(() => props.messages, () => rebuildLayout(), { immediate: true, deep: true });
 
-// ---- Thumbnail loading ----
-watch(() => props.messages, async (msgs) => {
+/**
+ * 以受限并发执行一组异步任务，避免相册内图片被 for...of await 串行下载。
+ * 生产环境每个 RPC（downloadFile/getFile）延迟更高，串行瀑布会把整个相册的
+ * 加载时间逐张累加；并发加载能显著提速。限制并发数防止一次性灌爆 Rust 的单线程接收循环。
+ */
+async function limitConcurrency<T>(items: T[], limit: number, worker: (item: T) => Promise<boolean>): Promise<boolean> {
     let changed = false;
-    for (const msg of msgs) {
+    let next = 0;
+    const runWorker = async (): Promise<void> => {
+        while (next < items.length) {
+            const index = next++;
+            try {
+                if (await worker(items[index])) changed = true;
+            } catch (_) { /* 单条失败不影响其它 */ }
+        }
+    };
+    const workers: Promise<void>[] = [];
+    for (let i = 0; i < Math.min(limit, items.length); i++) workers.push(runWorker());
+    await Promise.all(workers);
+    return changed;
+}
+
+// ---- Thumbnail loading ----
+// 相册内图片/视频改为受限并发加载（原 for...of await 是串行瀑布，放大了生产环境的 RPC 延迟）
+watch(() => props.messages, async (msgs) => {
+    const changed = await limitConcurrency(msgs, 4, async (msg) => {
         const c = msg.content;
-        if (c._ === 'messagePhoto') { if (await loadPhoto(msg)) changed = true; }
-        else if (c._ === 'messageVideo') { if (await loadVideo(msg)) changed = true; }
-    }
+        if (c._ === 'messagePhoto') return await loadPhoto(msg);
+        if (c._ === 'messageVideo') return await loadVideo(msg);
+        return false;
+    });
     if (changed) rebuildLayout();
 }, { immediate: true, deep: true });
 
@@ -268,13 +298,15 @@ async function loadVideo(msg: message): Promise<boolean> {
             }
         }
     }
-    // 不满足自动下载条件，仅加载缩略图
-    const thumb = v.thumbnail?.file;
-    if (!thumb) return false;
-    if (isFileReady(thumb) && !thumbCache[msg.id]) { thumbCache[msg.id] = convertFileSrc(thumb.local.path); c = true; }
-    else if (thumb.local.can_be_downloaded) {
+    // 不满足自动下载条件，仅加载缩略图（相册用 <img> 渲染，仅取静态位图格式；
+    // MPEG4/WEBM 动态缩略图无法在 <img> 中显示，跳过以免出现破碎图）
+    const thumb = v.thumbnail;
+    if (!thumb || !isThumbnailImgRenderable(thumb.format)) return false;
+    const thumbFile = thumb.file;
+    if (isFileReady(thumbFile) && !thumbCache[msg.id]) { thumbCache[msg.id] = convertFileSrc(thumbFile.local.path); c = true; }
+    else if (thumbFile.local.can_be_downloaded) {
         try {
-            const r = await tdlibSend({ _: 'downloadFile', file_id: thumb.id, priority: 1, offset: 0, limit: 0, synchronous: true });
+            const r = await tdlibSend({ _: 'downloadFile', file_id: thumbFile.id, priority: 1, offset: 0, limit: 0, synchronous: true });
             if (isFileReady(r)) { thumbCache[msg.id] = convertFileSrc(r.local.path); c = true; }
         } catch (_) { }
     }
@@ -288,20 +320,25 @@ const borderRadiusClass = computed(() => {
 });
 
 const lastMsg = computed(() => props.messages[props.messages.length - 1]);
+
+// 相册描述显示规则：
+// 仅当相册中【恰好一条】媒体带有非空描述时，才在相册下方显示该描述；
+// 0 条或 2 条及以上媒体带描述时都不显示（否则会显得描述归属不明）。
+const captionedMessages = computed(() =>
+    props.messages.filter((m) => {
+        const c = m.content;
+        return 'caption' in c && !!c.caption?.text;
+    }),
+);
+
 const captionText = computed(() => {
-    for (let i = props.messages.length - 1; i >= 0; i--) {
-        const c = props.messages[i].content;
-        if ('caption' in c && c.caption?.text) return c.caption.text;
-    }
-    return '';
+    if (captionedMessages.value.length !== 1) return '';
+    return (captionedMessages.value[0].content as any).caption?.text || '';
 });
 
 const captionFormatted = computed(() => {
-    for (let i = props.messages.length - 1; i >= 0; i--) {
-        const c = props.messages[i].content;
-        if ('caption' in c && c.caption) return c.caption;
-    }
-    return { _: 'formattedText' as const, text: '', entities: [] };
+    if (captionedMessages.value.length !== 1) return { _: 'formattedText' as const, text: '', entities: [] };
+    return (captionedMessages.value[0].content as any).caption || { _: 'formattedText' as const, text: '', entities: [] };
 });
 const lastDate = computed(() => lastMsg.value?.date || 0);
 const lastSendingState = computed(() => lastMsg.value?.sending_state);

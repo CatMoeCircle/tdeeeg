@@ -1,9 +1,10 @@
 <template>
-    <p class="text-sm whitespace-pre-wrap leading-5">
+    <p class="whitespace-pre-wrap" :style="{ fontSize: 'var(--msg-font-size, 14px)', lineHeight: '1.4' }">
         <template v-for="(group, gi) in renderGroups" :key="gi">
             <!-- Blockquote group: 用容器包裹，加引用竖线 -->
             <span v-if="group.type === 'blockquote'"
-                class="relative block border-l-2 border-gray-300 dark:border-gray-600 pl-2 my-0.5 text-gray-600 dark:text-gray-400">
+                class="relative block border-l-2 pl-2 my-0.5 text-gray-600 dark:text-gray-400"
+                :style="quoteBorderStyle">
                 <!-- 可折叠引用：默认折叠，点击展开（4行+底部渐变） -->
                 <span v-if="group.isExpandable" :ref="(el) => measureContent(gi, el as HTMLElement | null)"
                     class="block overflow-hidden transition-[max-height] duration-300 ease-in-out"
@@ -16,8 +17,10 @@
                             class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
                             :class="[segment.className, loadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
                             @click.prevent.stop="handleSegmentClick($event, segment)">{{ segment.text }}</a>
-                        <span v-else :class="[segment.className, { 'cursor-pointer': segment.copyable }]"
-                            @click="segment.copyable ? handleSegmentClick($event, segment) : undefined">{{ segment.text
+                        <span v-else
+                            :class="[segment.className, { 'cursor-pointer': segment.copyable || segment.isCommand }]"
+                            @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined">{{
+                                segment.text
                             }}</span>
                     </template>
                 </span>
@@ -30,8 +33,10 @@
                             class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
                             :class="[segment.className, loadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
                             @click.prevent.stop="handleSegmentClick($event, segment)">{{ segment.text }}</a>
-                        <span v-else :class="[segment.className, { 'cursor-pointer': segment.copyable }]"
-                            @click="segment.copyable ? handleSegmentClick($event, segment) : undefined">{{ segment.text
+                        <span v-else
+                            :class="[segment.className, { 'cursor-pointer': segment.copyable || segment.isCommand }]"
+                            @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined">{{
+                                segment.text
                             }}</span>
                     </template>
                 </template>
@@ -55,9 +60,11 @@
                     <a v-else-if="segment.href" :href="segment.href"
                         class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
                         :class="[segment.className]" @click.prevent.stop="handleSegmentClick($event, segment)">{{
-                        segment.text }}</a>
-                    <span v-else class="font-mono" :class="[segment.className, { 'cursor-pointer': segment.copyable }]"
-                        @click="segment.copyable ? handleSegmentClick($event, segment) : undefined">{{ segment.text
+                            segment.text }}</a>
+                    <span v-else class="font-mono"
+                        :class="[segment.className, { 'cursor-pointer': segment.copyable || segment.isCommand }]"
+                        @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined">{{
+                            segment.text
                         }}</span>
                 </template>
             </span>
@@ -70,8 +77,10 @@
                         class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
                         :class="[segment.className, loadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
                         @click.prevent.stop="handleSegmentClick($event, segment)">{{ segment.text }}</a>
-                    <span v-else :class="[segment.className, { 'cursor-pointer': segment.copyable }]"
-                        @click="segment.copyable ? handleSegmentClick($event, segment) : undefined">{{ segment.text
+                    <span v-else
+                        :class="[segment.className, { 'cursor-pointer': segment.copyable || segment.isCommand }]"
+                        @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined">{{
+                            segment.text
                         }}</span>
                 </template>
             </template>
@@ -87,13 +96,28 @@ import { tdlibSend } from '../../../../utils/tdlib';
 import { useRouter } from 'vue-router';
 import { MessagePlugin } from 'tdesign-vue-next';
 import CustomEmojiInline from './CustomEmojiInline.vue';
+import { useColors } from '../../../../store/colors';
+import { confirmAndOpenExternalLink } from '../../../../utils/openExternalLink';
+import { requestInsertCommand } from '../../../../store/commandInsert';
+import { settings } from '../../../../store/settings';
 const props = defineProps<{
     formattedText: formattedText;
+    /** 发送者 accent_color_id，用于引用标记竖线配色 */
+    accentColorId?: number;
 }>();
 
 const router = useRouter();
 const loadingLinks = ref<Set<string>>(new Set());
 const emojiSize = 22; // 自定义 emoji 显示尺寸（px）
+
+// 主题配色：引用标记竖线用发送者的 accent 主色
+const { accentColorStyle } = useColors();
+const quoteBorderStyle = computed(() => {
+    if (typeof props.accentColorId === 'number') {
+        return { borderColor: accentColorStyle(props.accentColorId).color };
+    }
+    return undefined;
+});
 
 type Segment = {
     text: string;
@@ -103,6 +127,8 @@ type Segment = {
     customEmojiId?: string;
     /** 是否可点击复制 */
     copyable?: boolean;
+    /** 是否为 bot 命令（如 /start），点击后插入输入框（可设置） */
+    isCommand?: boolean;
     /** 是否在引用块内 */
     isBlockquote?: boolean;
     /** 引用块类型：'expandable' 表示可折叠引用 */
@@ -182,7 +208,9 @@ const segments = computed<Segment[]>(() => {
             .filter(Boolean)
             .join(' ');
         const copyable = activeEntities.some(e => isCopyableEntity(e));
-        return { text: segmentText, href, className, copyable, isBlockquote, blockquoteType, isCodeBlock };
+        // 是否为 bot 命令（/command）：点击插入输入框（由设置控制）
+        const isCommand = activeEntities.some(e => e.type._ === 'textEntityTypeBotCommand');
+        return { text: segmentText, href, className, copyable, isCommand, isBlockquote, blockquoteType, isCodeBlock };
     });
 });
 
@@ -284,19 +312,9 @@ function getEntityClass(entity: textEntity): string {
 
 function isCopyableEntity(entity: textEntity): boolean {
     switch (entity.type._) {
-        case 'textEntityTypeUrl':
-        case 'textEntityTypeTextUrl':
-        case 'textEntityTypeEmailAddress':
-        case 'textEntityTypePhoneNumber':
-        case 'textEntityTypeCode':
-        case 'textEntityTypePre':
-        case 'textEntityTypePreCode':
+        // 目前仅 #话题标签 点击复制（临时方案，后续搜索功能优化时改为搜索该标签）。
+        // URL / @提及 / 邮箱 / 电话 / 代码 等不再复制（点击各有其导航/默认行为）。
         case 'textEntityTypeHashtag':
-        case 'textEntityTypeCashtag':
-        case 'textEntityTypeBotCommand':
-        case 'textEntityTypeBankCardNumber':
-        case 'textEntityTypeMention':
-        case 'textEntityTypeMentionName':
             return true;
         default:
             return false;
@@ -313,6 +331,14 @@ async function copyToClipboard(text: string) {
 }
 
 function handleSegmentClick(_event: MouseEvent, segment: Segment) {
+    // bot 命令（/start 等）：通用设置 message.botCommandInsert 开启时添加到输入框；
+    // 关闭时不处理（默认逻辑，避免点击直接发送产生误发）。
+    if (segment.isCommand) {
+        if (settings.message.botCommandInsert) {
+            requestInsertCommand(segment.text);
+        }
+        return;
+    }
     if (segment.href) {
         // 链接：复制文本 + 导航
         if (segment.copyable) {
@@ -329,7 +355,12 @@ async function openLink(href: string) {
     if (href.startsWith('https://t.me/') || href.startsWith('tg://')) {
         await resolveInternalLink(href);
     } else if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:')) {
-        openUrl(href);
+        // 外部链接：先询问用户是否跳转外部
+        try {
+            await confirmAndOpenExternalLink(href);
+        } catch (e) {
+            /* 用户取消，不跳转 */
+        }
     }
 }
 

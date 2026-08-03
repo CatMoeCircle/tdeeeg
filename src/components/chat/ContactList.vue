@@ -5,13 +5,14 @@
         </div>
         <!-- 音乐播放器入口（聊天打开时由 ChatDetail 接管） -->
         <MusicPlayerEntry v-if="!isChatOpen" compact />
-        <div class="flex-1 overflow-y-auto custom-scrollbar p-2">
+        <div class="flex-1 overflow-y-auto custom-scrollbar p-2" v-smooth-wheel>
             <div v-for="user in Contacts ?? []" :key="user.id">
                 <div
                     class="flex items-center p-2 hover:shadow-(--box-shadow) hover:bg-gray-200/50 rounded-xl cursor-pointer transition-colors">
 
                     <div class="w-13 h-13 mr-3">
-                        <Avatar :photo="user.profile_photo" :title="user.first_name + ` ` + user.last_name" />
+                        <Avatar :photo="user.profile_photo" :title="user.first_name + ` ` + user.last_name"
+                            :accentColorId="user.profile_accent_color_id" />
                     </div>
                     <div class="flex-1 min-w-0">
                         <h3 class="text-sm font-semibold text-gray-900">{{ user.first_name + ` ` +
@@ -19,7 +20,7 @@
                         <p v-if="user.status._ === 'userStatusOnline'" class="text-xs text-blue-500">
                             在线</p>
                         <p v-else class="text-xs text-gray-400">{{ formatStatus(user.status)
-                            }}</p>
+                        }}</p>
                     </div>
                     <div class="flex items-center">
                         <t-tooltip content="互为联系人" placement="bottom">

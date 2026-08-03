@@ -1,7 +1,7 @@
 <template>
     <span class="inline-flex items-center gap-0.5" :class="containerClass">
         <!-- Author signature -->
-        <span v-if="authorSignature" class="truncate max-w-[80px]" :title="authorSignature">
+        <span v-if="authorSignature" class="truncate max-w-20" :title="authorSignature">
             {{ authorSignature }}
         </span>
 
