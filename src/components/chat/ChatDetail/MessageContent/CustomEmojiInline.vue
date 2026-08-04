@@ -15,6 +15,10 @@
     <img v-else-if="state.thumbnailUrl" :src="state.thumbnailUrl" class="w-full h-full object-contain rounded"
       :style="{ filter: 'blur(1.5px)', transform: 'scale(1.2)' }" />
     <!-- 加载中灰色骨架 -->
+    <div v-else-if="fallbackText" class="w-full h-full flex items-center justify-center select-none"
+      :style="{ fontSize: Math.max(12, size - 2) + 'px', lineHeight: '1' }">
+      {{ fallbackText }}
+    </div>
     <div v-else class="w-full h-full rounded bg-gray-200 dark:bg-gray-700 animate-pulse">
     </div>
   </span>
@@ -29,6 +33,8 @@ import * as pako from 'pako';
 const props = defineProps<{
   emojiId: string;
   size?: number;
+  /** 未加载完成或加载失败时显示的原始 emoji 兜底 */
+  fallbackText?: string;
 }>();
 
 const size = computed(() => props.size || 22);
@@ -91,7 +97,7 @@ watch([() => state.ready, () => state.filePath, emojiFormat], async ([ready, fil
   if (ready && filePath && fmt === 'tgs') {
     await loadTgs(filePath);
   }
-});
+}, { immediate: true });
 
 /**
  * 滚动性能优化：滚轮平滑滚动期间暂停 Lottie（canvas 每帧重绘代价高），

@@ -12,7 +12,7 @@
                     :style="{ maxHeight: isExpanded(gi) ? (contentHeights[gi] ?? 9999) + 'px' : '5rem' }">
                     <template v-for="(segment, si) in group.segments" :key="si">
                         <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId"
-                            :size="emojiSize" />
+                            :size="emojiSize" :fallback-text="segment.text" />
                         <a v-else-if="segment.href" :href="segment.href"
                             class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
                             :class="[segment.className, loadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
@@ -29,7 +29,7 @@
                 <template v-else>
                     <template v-for="(segment, si) in group.segments" :key="si">
                         <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId"
-                            :size="emojiSize" />
+                            :size="emojiSize" :fallback-text="segment.text" />
                         <a v-else-if="segment.href" :href="segment.href"
                             class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
                             :class="[segment.className, loadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
@@ -58,7 +58,7 @@
                 class="relative my-1 block overflow-x-auto rounded-lg bg-black/5 border border-black/10 dark:bg-white/10 dark:border-white/10 p-2.5 text-[13px] leading-5 whitespace-pre-wrap">
                 <template v-for="(segment, si) in group.segments" :key="si">
                     <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId"
-                        :size="emojiSize" />
+                        :size="emojiSize" :fallback-text="segment.text" />
                     <a v-else-if="segment.href" :href="segment.href"
                         class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
                         :class="[segment.className]" @click.prevent.stop="handleSegmentClick($event, segment)">{{
@@ -74,7 +74,7 @@
             <template v-else>
                 <template v-for="(segment, si) in group.segments" :key="si">
                     <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId"
-                        :size="emojiSize" />
+                        :size="emojiSize" :fallback-text="segment.text" />
                     <a v-else-if="segment.href" :href="segment.href"
                         class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
                         :class="[segment.className, loadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
@@ -180,7 +180,7 @@ const segments = computed<Segment[]>(() => {
             e => e.type._ === 'textEntityTypeCustomEmoji'
         );
         if (customEmojiEntity) {
-            const emojiId = (customEmojiEntity.type as any).custom_emoji_id as string;
+            const emojiId = String((customEmojiEntity.type as any).custom_emoji_id);
             const hasExpandableBq = activeEntities.some(e => e.type._ === 'textEntityTypeExpandableBlockQuote');
             const hasNormalBq = activeEntities.some(e => e.type._ === 'textEntityTypeBlockQuote');
             return {

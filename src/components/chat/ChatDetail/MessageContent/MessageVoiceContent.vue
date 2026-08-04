@@ -7,6 +7,7 @@
         <div class="flex flex-col">
             <span class="text-xs">语音 ({{ duration }}s)</span>
             <audio v-if="mediaSrc" :src="mediaSrc" controls class="h-8 w-40 mt-1"></audio>
+            <MessageTextContent v-if="content.caption?.text" :formattedText="content.caption" class="mt-1" />
         </div>
     </div>
 
@@ -25,6 +26,7 @@ import type { messageVoiceNote, messageVideoNote } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { MicIcon, VideoIcon } from 'lucide-vue-next';
+import MessageTextContent from './MessageTextContent.vue';
 
 const props = defineProps<{
     content: messageVoiceNote | messageVideoNote;

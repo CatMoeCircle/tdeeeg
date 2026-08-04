@@ -1,6 +1,7 @@
 <template>
     <template v-for="(seg, i) in segments" :key="i">
-        <CustomEmojiInline v-if="seg.customEmojiId" :emojiId="seg.customEmojiId" :size="size" />
+        <CustomEmojiInline v-if="seg.customEmojiId" :emojiId="seg.customEmojiId" :size="size"
+            :fallback-text="seg.text" />
         <span v-else>{{ seg.text }}</span>
     </template>
 </template>

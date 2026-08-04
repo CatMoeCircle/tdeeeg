@@ -45,7 +45,7 @@
             <RichText :text="node.text" />
         </a>
         <CustomEmojiInline v-else-if="node.type === 'customEmoji' && node.emojiId" :emojiId="node.emojiId"
-            :size="emojiSize" />
+            :size="emojiSize" :fallback-text="node.textStr" />
         <span v-else-if="node.type === 'mathematicalExpression'" class="italic font-serif">{{ node.textStr }}</span>
         <template v-else-if="node.type === 'texts'">
             <RichText v-for="(child, ci) in node.children" :key="ci" :text="child" />

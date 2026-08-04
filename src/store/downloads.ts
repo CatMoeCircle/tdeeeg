@@ -261,6 +261,16 @@ export const useDownloadStore = defineStore("downloads", () => {
         return item.progress;
     }
 
+    /** 将本地已完成下载的文件标记为完成 */
+    function markCompleted(fileId: number, localPath: string) {
+        const item = items.value[fileId];
+        if (!item) return;
+        item.local_path = localPath;
+        item.is_completed = true;
+        item.progress = 1;
+        item.downloaded_size = item.total_size;
+    }
+
     /** 获取指定文件的下载状态 */
     function getDownloadInfo(fileId: number): DownloadItem | undefined {
         return items.value[fileId];
@@ -345,6 +355,7 @@ export const useDownloadStore = defineStore("downloads", () => {
         refreshFromRust,
         registerDownload,
         getProgress,
+        markCompleted,
         getDownloadInfo,
         togglePause,
         cancelDownload,
