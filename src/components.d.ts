@@ -12,6 +12,8 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AppearanceSettings: typeof import('./components/settings/AppearanceSettings.vue')['default']
+    AttachmentMenu: typeof import('./components/chat/ChatDetail/AttachmentMenu.vue')['default']
+    AttachmentTray: typeof import('./components/chat/ChatDetail/AttachmentTray.vue')['default']
     AudioPlayerCore: typeof import('./components/audio/AudioPlayerCore.vue')['default']
     Avatar: typeof import('./components/chat/avatar.vue')['default']
     ChatDetail: typeof import('./components/chat/ChatDetail/index.vue')['default']
