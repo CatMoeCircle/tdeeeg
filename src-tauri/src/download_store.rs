@@ -34,6 +34,10 @@ pub struct DownloadItem {
     /// 通用资源标记（贴纸/emoji/头像等），默认隐藏且不计入红点
     #[serde(default)]
     pub is_generic: bool,
+    /// 自动下载图片标记（频道/群组中自动下载的图片），默认隐藏且不计入红点，
+    /// 由独立的「显示自动下载图片」开关控制（与通用资源分开）。
+    #[serde(default)]
+    pub is_auto_photo: bool,
     /// 在下载管理器中已手动关闭/移除
     #[serde(default)]
     pub dismissed: bool,
@@ -44,12 +48,15 @@ struct PersistedData {
     items: HashMap<i32, DownloadItem>,
     #[serde(default)]
     show_hidden: bool,
+    #[serde(default)]
+    show_auto_photos: bool,
 }
 
 pub struct DownloadStore {
     items: HashMap<i32, DownloadItem>,
     storage_path: PathBuf,
     show_hidden: bool,
+    show_auto_photos: bool,
 }
 
 #[allow(dead_code)]
@@ -63,6 +70,7 @@ impl DownloadStore {
             items: HashMap::new(),
             storage_path,
             show_hidden: false,
+            show_auto_photos: false,
         };
         store.load_from_disk();
         store
@@ -79,6 +87,7 @@ impl DownloadStore {
                 if let Ok(data) = serde_json::from_str::<PersistedData>(&content) {
                     self.items = data.items;
                     self.show_hidden = data.show_hidden;
+                    self.show_auto_photos = data.show_auto_photos;
                 }
             }
             Err(e) => eprintln!("Failed to load downloads.json: {}", e),
@@ -89,6 +98,7 @@ impl DownloadStore {
         let data = PersistedData {
             items: self.items.clone(),
             show_hidden: self.show_hidden,
+            show_auto_photos: self.show_auto_photos,
         };
         if let Ok(content) = serde_json::to_string_pretty(&data) {
             fs::write(&self.storage_path, content).ok();
@@ -107,11 +117,16 @@ impl DownloadStore {
         self.items.get(&file_id).cloned()
     }
 
-    /// 非通用资源的活跃（进行中/暂停 + 未完成 + 未关闭）下载项
+    /// 非通用资源且非自动下载图片的活跃（进行中/暂停 + 未完成 + 未关闭）下载项
     pub fn get_active_items(&self) -> Vec<DownloadItem> {
         self.items
             .values()
-            .filter(|item| !item.is_generic && !item.is_completed && !item.dismissed)
+            .filter(|item| {
+                !item.is_generic
+                    && !item.is_auto_photo
+                    && !item.is_completed
+                    && !item.dismissed
+            })
             .cloned()
             .collect()
     }
@@ -121,12 +136,16 @@ impl DownloadStore {
         self.get_active_items().len()
     }
 
-    /// 可见的下载项（根据 show_hidden 开关过滤）
+    /// 可见的下载项（根据 show_hidden / show_auto_photos 开关过滤）
     pub fn get_visible_items(&self) -> Vec<DownloadItem> {
         let mut items: Vec<DownloadItem> = self
             .items
             .values()
-            .filter(|item| !item.dismissed && (self.show_hidden || !item.is_generic))
+            .filter(|item| {
+                !item.dismissed
+                    && (self.show_hidden || !item.is_generic)
+                    && (self.show_auto_photos || !item.is_auto_photo)
+            })
             .cloned()
             .collect();
         items.sort_by(|a, b| b.file_id.cmp(&a.file_id));
@@ -149,18 +168,26 @@ impl DownloadStore {
             .collect()
     }
 
-    /// 是否有隐藏的未完成下载
+    /// 是否有隐藏（通用资源或自动下载图片）的未完成下载
     pub fn has_hidden_active(&self) -> bool {
-        self.items
-            .values()
-            .any(|item| item.is_generic && !item.is_completed && !item.dismissed)
+        self.items.values().any(|item| {
+            (item.is_generic || item.is_auto_photo)
+                && !item.is_completed
+                && !item.dismissed
+        })
     }
 
     // ==================== 写入操作 ====================
 
     /// 注册一个下载项
-    /// `is_generic` 标记是否为隐藏/通用资源（自动下载、头像、贴纸、表情等），
-    /// 隐藏资源默认不计入红点，需在下载管理器中开启"显示隐藏资源"才会展示。
+    /// - `is_generic` 标记是否为隐藏/通用资源（头像、贴纸、表情等），默认不计入红点，
+    ///   需在下载管理器中开启"显示隐藏资源"才会展示。
+    /// - `is_auto_photo` 标记是否为自动下载图片（频道/群组中自动下载的图片），
+    ///   默认隐藏且不计入红点，由独立的"显示自动下载图片"开关控制。
+    ///
+    /// 若已有条目是由 `updateFile` 自动兜底创建的（`file_type == "other"` 且无类别信息），
+    /// 则以本次显式注册的类别/隐藏标记为准进行覆盖，保证自动下载的视频能正常显示、
+    /// 自动下载的图片按独立开关隐藏。
     pub fn register_download(
         &mut self,
         file_id: i32,
@@ -172,9 +199,27 @@ impl DownloadStore {
         chat_id: Option<i64>,
         message_id: Option<i64>,
         is_generic: bool,
+        is_auto_photo: bool,
     ) {
         if let Some(existing) = self.items.get(&file_id) {
             if !existing.dismissed {
+                // 兜底条目（other/generic）被显式注册覆盖，否则保留已有分类
+                let is_fallback = existing.file_type == "other" && existing.is_generic;
+                let file_type = if is_fallback {
+                    file_type
+                } else {
+                    existing.file_type.clone()
+                };
+                let is_generic = if is_fallback {
+                    is_generic
+                } else {
+                    existing.is_generic
+                };
+                let is_auto_photo = if is_fallback {
+                    is_auto_photo
+                } else {
+                    existing.is_auto_photo
+                };
                 // 更新已有记录中可能缺失的信息
                 let updated = DownloadItem {
                     file_name: if existing.file_name.starts_with("文件 #") {
@@ -188,13 +233,9 @@ impl DownloadStore {
                         existing.chat_title.clone()
                     },
                     thumbnail_data_url: existing.thumbnail_data_url.clone().or(thumbnail_data_url),
-                    file_type: if existing.file_type == "other" {
-                        file_type
-                    } else {
-                        existing.file_type.clone()
-                    },
-                    // 一旦被标记为通用资源则保持通用标记（自动下载→手动下载不改变隐藏状态）
-                    is_generic: existing.is_generic || is_generic,
+                    file_type,
+                    is_generic,
+                    is_auto_photo,
                     ..existing.clone()
                 };
                 self.items.insert(file_id, updated);
@@ -218,6 +259,7 @@ impl DownloadStore {
             thumbnail_data_url,
             file_type,
             is_generic,
+            is_auto_photo,
             dismissed: false,
         };
         self.items.insert(file_id, item);
@@ -295,6 +337,16 @@ impl DownloadStore {
 
     pub fn set_show_hidden(&mut self, value: bool) {
         self.show_hidden = value;
+        self.save_to_disk();
+    }
+
+    /// 是否显示自动下载图片（独立的隐藏开关）
+    pub fn get_show_auto_photos(&self) -> bool {
+        self.show_auto_photos
+    }
+
+    pub fn set_show_auto_photos(&mut self, value: bool) {
+        self.show_auto_photos = value;
         self.save_to_disk();
     }
 }

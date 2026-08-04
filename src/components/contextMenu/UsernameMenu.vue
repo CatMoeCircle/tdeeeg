@@ -6,7 +6,7 @@
                     <!-- ① 顶部：用户名 + 复制 -->
                     <button type="button" class="um-copy" @click="copyUsername">
                         <AtSignIcon class="w-4 h-4" />
-                        <span class="min-w-0 flex-1 truncate text-left">@{{ username }}</span>
+                        <span class="min-w-0 flex-1 truncate text-left">{{ username }}</span>
                         <span class="um-copy-hint">复制用户名</span>
                     </button>
 
@@ -41,7 +41,7 @@
                         </div>
                         <div class="flex-1 min-w-0">
                             <p class="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{{ display.name
-                            }}</p>
+                                }}</p>
                             <p class="text-xs text-blue-500 dark:text-blue-400">{{ typeLabel }}</p>
                         </div>
                         <span class="um-go">

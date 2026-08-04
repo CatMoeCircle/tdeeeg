@@ -1,7 +1,9 @@
 <template>
     <div class="flex flex-col h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
         <div class="mt-3">
-            <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center">
+            <div
+                class="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                @click="openMyProfile">
                 <div class="w-10 h-10" v-if="userProfile">
                     <avatar :photo="userProfile.profile_photo"
                         :title="userProfile.first_name + ' ' + userProfile.last_name"
@@ -76,13 +78,20 @@ import { PaletteIcon, ChevronRightIcon, GlobeIcon, DatabaseIcon } from 'lucide-v
 import avatar from './avatar.vue';
 import { useUserStore } from '../../store/user';
 import { storeToRefs } from 'pinia';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { computed } from 'vue';
 import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
 import formatStatus from '../../utils/status';
 
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
+const router = useRouter();
+
+/** 点击自己的头像/名字 → 打开自己的个人资料页 */
+function openMyProfile() {
+    if (!userProfile.value) return;
+    router.push({ name: 'user-profile', params: { id: String(userProfile.value.id) } });
+}
 
 const route = useRoute();
 const isChatOpen = computed(() => /^\/home\/chat\/\d+/.test(route.path));

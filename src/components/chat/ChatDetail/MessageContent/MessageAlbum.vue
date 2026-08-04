@@ -66,6 +66,7 @@ import { settings } from '../../../../store/settings';
 import { getChatCategory } from '../../../../utils/autoDownload';
 import { isThumbnailImgRenderable } from '../../../../utils/thumbnail';
 import { useChatStore } from '../../../../store/chat';
+import { useDownloadStore } from '../../../../store/downloads';
 
 const props = defineProps<{
     messages: message[];
@@ -271,6 +272,7 @@ watch(() => props.messages, async (msgs) => {
 
 async function loadPhoto(msg: message): Promise<boolean> {
     if (msg.content._ !== 'messagePhoto') return false;
+    const downloadStore = useDownloadStore();
     let c = false;
     const photo = msg.content.photo;
     if (photo.minithumbnail?.data && !thumbCache[msg.id]) { thumbCache[msg.id] = `data:image/jpeg;base64,${photo.minithumbnail.data}`; c = true; }
@@ -303,6 +305,10 @@ async function loadPhoto(msg: message): Promise<boolean> {
                 }
             }
             if (shouldAuto) {
+                // 自动下载的图片注册到下载管理器（独立隐藏分类：isAutoPhoto）
+                const fileName = `photo_${msg.id || ff.id}.jpg`;
+                const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
+                await downloadStore.registerDownload(ff.id, fileName, chatTitle, 0, 'photo', thumbCache[msg.id], props.chatId, msg.id, undefined, true);
                 try {
                     await safeDownloadFile(ff.id, true);
                     const r = await tdlibSend({ _: 'getFile', file_id: ff.id });
@@ -316,6 +322,7 @@ async function loadPhoto(msg: message): Promise<boolean> {
 
 async function loadVideo(msg: message): Promise<boolean> {
     if (msg.content._ !== 'messageVideo') return false;
+    const downloadStore = useDownloadStore();
     let c = false;
     const v = msg.content.video;
     if (isFileReady(v.video) && !mediaCache[msg.id]) { mediaCache[msg.id] = convertFileSrc(v.video.local.path); return true; }
@@ -330,6 +337,10 @@ async function loadVideo(msg: message): Promise<boolean> {
             if (shouldAuto) {
                 const sizeMB = v.video.size / (1024 * 1024);
                 if (sizeMB <= cfg.maxSize && v.video.local.can_be_downloaded && !downloadingFiles.has(v.video.id)) {
+                    // 自动下载的视频注册到下载管理器（正常显示，不隐藏）
+                    const fileName = v.file_name || `video_${msg.id || v.video.id}.mp4`;
+                    const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
+                    await downloadStore.registerDownload(v.video.id, fileName, chatTitle, v.video.size, 'video', undefined, props.chatId, msg.id, false, false);
                     try {
                         downloadingFiles.add(v.video.id);
                         const r = await tdlibSend({ _: 'downloadFile', file_id: v.video.id, priority: 1, offset: 0, limit: 0, synchronous: true });

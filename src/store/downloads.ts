@@ -36,6 +36,8 @@ export interface DownloadItem {
     file_type: DownloadFileType;
     /** 通用资源标记（贴纸/emoji/头像等），默认隐藏且不计入红点 */
     is_generic: boolean;
+    /** 自动下载图片标记（频道/群组中自动下载的图片），默认隐藏，由独立开关控制 */
+    is_auto_photo: boolean;
     /** 在下载管理器中已手动关闭/移除 */
     dismissed: boolean;
 }
@@ -43,21 +45,25 @@ export interface DownloadItem {
 export const useDownloadStore = defineStore("downloads", () => {
     const items = ref<Record<number, DownloadItem>>({});
     const showHidden = ref(false);
+    /** 是否显示自动下载图片（独立开关） */
+    const showAutoPhotos = ref(false);
 
-    /** 非通用资源的活跃（进行中/暂停 + 未完成 + 未关闭）下载项 */
+    /** 非通用资源且非自动下载图片的活跃（进行中/暂停 + 未完成 + 未关闭）下载项 */
     const activeItems = computed(() =>
         Object.values(items.value).filter(
-            (item) => !item.is_generic && !item.is_completed && !item.dismissed
+            (item) => !item.is_generic && !item.is_auto_photo && !item.is_completed && !item.dismissed
         )
     );
 
-    /** 活跃下载数量（排除通用资源） */
+    /** 活跃下载数量（排除通用资源与自动下载图片） */
     const activeCount = computed(() => activeItems.value.length);
 
-    /** 可见的下载项（根据 showHidden 开关过滤） */
+    /** 可见的下载项（根据 showHidden / showAutoPhotos 开关过滤） */
     const visibleItems = computed(() =>
         Object.values(items.value)
-            .filter((item) => !item.dismissed && (showHidden.value || !item.is_generic))
+            .filter((item) => !item.dismissed
+                && (showHidden.value || !item.is_generic)
+                && (showAutoPhotos.value || !item.is_auto_photo))
             .sort((a, b) => b.file_id - a.file_id)
     );
 
@@ -71,10 +77,17 @@ export const useDownloadStore = defineStore("downloads", () => {
         visibleItems.value.filter((item) => !item.is_completed)
     );
 
-    /** 是否有隐藏的未完成下载 */
+    /** 是否有隐藏（通用资源或自动下载图片）的未完成下载 */
     const hasHiddenActive = computed(() =>
         Object.values(items.value).some(
-            (item) => item.is_generic && !item.is_completed && !item.dismissed
+            (item) => (item.is_generic || item.is_auto_photo) && !item.is_completed && !item.dismissed
+        )
+    );
+
+    /** 是否有自动下载图片的未完成下载 */
+    const hasHiddenAutoPhotos = computed(() =>
+        Object.values(items.value).some(
+            (item) => item.is_auto_photo && !item.is_completed && !item.dismissed
         )
     );
 
@@ -130,6 +143,7 @@ export const useDownloadStore = defineStore("downloads", () => {
         if (typeof item.message_id === "number") existing.message_id = item.message_id;
         if (item.thumbnail_data_url !== undefined) existing.thumbnail_data_url = item.thumbnail_data_url;
         if (item.is_generic !== undefined) existing.is_generic = item.is_generic;
+        if (item.is_auto_photo !== undefined) existing.is_auto_photo = item.is_auto_photo;
         if (item.dismissed !== undefined) existing.dismissed = item.dismissed;
     }
 
@@ -157,7 +171,12 @@ export const useDownloadStore = defineStore("downloads", () => {
     async function init() {
         // 1. 从 Rust 加载持久化的下载记录
         await refreshFromRust();
-
+        // 同步显示自动下载图片开关
+        try {
+            showAutoPhotos.value = await invoke("get_show_auto_photos_downloads");
+        } catch (e) {
+            console.warn("Failed to get show_auto_photos from Rust:", e);
+        }
         // 2. 监听 Rust 发来的实时进度更新
         if (!unlistenProgress) {
             unlistenProgress = await listen<DownloadItem>("download-progress-update", (event) => {
@@ -214,8 +233,10 @@ export const useDownloadStore = defineStore("downloads", () => {
         thumbnailDataUrl?: string,
         chatId?: number,
         messageId?: number,
-        /** 显式指定是否为隐藏/通用资源（自动下载、头像、贴纸、表情等），默认按文件类型推断 */
+        /** 显式指定是否为隐藏/通用资源（头像、贴纸、表情等），默认按文件类型推断 */
         isGeneric?: boolean,
+        /** 是否为自动下载图片（频道/群组中自动下载的图片，默认隐藏、独立开关控制） */
+        isAutoPhoto?: boolean,
     ) {
         const generic = isGeneric ?? (fileType === "sticker" || fileType === "avatar" || fileType === "other");
         try {
@@ -229,6 +250,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                 chatId: chatId || null,
                 messageId: messageId || null,
                 isGeneric: generic,
+                isAutoPhoto: isAutoPhoto ?? false,
             });
             // 注册成功后，立即将本地状态置为进行中
             items.value[fileId] = {
@@ -243,6 +265,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                 file_type: fileType,
                 thumbnail_data_url: thumbnailDataUrl,
                 is_generic: generic,
+                is_auto_photo: isAutoPhoto ?? false,
                 dismissed: false,
                 chat_id: chatId,
                 message_id: messageId,
@@ -341,6 +364,17 @@ export const useDownloadStore = defineStore("downloads", () => {
         }
     }
 
+    /** 切换显示自动下载图片 */
+    async function toggleShowAutoPhotos() {
+        const newValue = !showAutoPhotos.value;
+        try {
+            await invoke("set_show_auto_photos_downloads", { value: newValue });
+            showAutoPhotos.value = newValue;
+        } catch (e) {
+            console.error("set_show_auto_photos_downloads failed:", e);
+        }
+    }
+
     return {
         items,
         activeItems,
@@ -349,7 +383,9 @@ export const useDownloadStore = defineStore("downloads", () => {
         completedItems,
         pendingItems,
         showHidden,
+        showAutoPhotos,
         hasHiddenActive,
+        hasHiddenAutoPhotos,
         init,
         destroy,
         refreshFromRust,
@@ -362,5 +398,6 @@ export const useDownloadStore = defineStore("downloads", () => {
         dismissItem,
         clearCompleted,
         toggleShowHidden,
+        toggleShowAutoPhotos,
     };
 });

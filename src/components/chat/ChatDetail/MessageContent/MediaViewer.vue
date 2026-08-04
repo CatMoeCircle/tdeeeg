@@ -154,7 +154,7 @@
                                 </div>
                                 <!-- Caption card (below controls) -->
                                 <div v-if="caption"
-                                    class="media-caption-scroll w-full max-h-[4.2rem] overflow-y-auto bg-black/60 backdrop-blur-md rounded-xl px-4 py-2"
+                                    class="media-caption-scroll text-white w-full max-h-[4.2rem] overflow-y-auto bg-black/60 backdrop-blur-md rounded-xl px-4 py-2"
                                     @click.stop>
                                     <MessageTextContent v-if="captionFormatted?.text"
                                         :formattedText="captionFormatted"
@@ -250,7 +250,7 @@
                 <!-- Center: caption card -->
                 <div class="flex-1 flex justify-center min-w-0 pointer-events-auto" @wheel.stop>
                     <div v-if="caption"
-                        class="media-caption-scroll max-h-[4.2rem] overflow-y-auto bg-black/60 backdrop-blur-md rounded-2xl px-4 py-2 max-w-full">
+                        class="media-caption-scroll text-white max-h-[4.2rem] overflow-y-auto bg-black/60 backdrop-blur-md rounded-2xl px-4 py-2 max-w-full">
                         <MessageTextContent v-if="captionFormatted?.text" :formattedText="captionFormatted"
                             class="text-center text-white/90 dark:text-white/90" />
                         <p v-else class="text-sm text-white/85 text-center">{{ caption }}</p>

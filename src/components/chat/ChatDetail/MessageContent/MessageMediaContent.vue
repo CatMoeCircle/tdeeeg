@@ -604,10 +604,10 @@ function canDownloadFile(f: any): boolean {
 }
 
 /** 注册到下载管理器 */
-async function registerWithStore(fileId: number, fileName: string, fileType: DownloadFileType, thumbUrl?: string) {
+async function registerWithStore(fileId: number, fileName: string, fileType: DownloadFileType, thumbUrl?: string, isAutoPhoto?: boolean) {
     const totalSize = 0; // 由 updateFile 事件更新
     const chatTitle = props.chatId ? getChatTitle(props.chatId) : '';
-    await downloadStore.registerDownload(fileId, fileName, chatTitle, totalSize, fileType, thumbUrl, props.chatId, props.messageId);
+    await downloadStore.registerDownload(fileId, fileName, chatTitle, totalSize, fileType, thumbUrl, props.chatId, props.messageId, undefined, isAutoPhoto);
 }
 
 const loadMedia = async () => {
@@ -648,6 +648,9 @@ async function loadPhotoThumb() {
             if (shouldAutoDl && canDownloadFile(f) && !downloadingFiles.has(f.id)) {
                 isDownloading.value = true;
                 downloadingFiles.add(f.id);
+                // 自动下载的图片注册到下载管理器（独立隐藏分类：isAutoPhoto）
+                const fileName = `photo_${props.messageId || f.id}.jpg`;
+                await registerWithStore(f.id, fileName, 'photo', thumbSrc.value, true);
                 try {
                     // downloadFile (synchronous) 直接返回下载完成的 file 对象，
                     // 无需再额外 getFile（避免每次图片多一次 RPC 往返）。

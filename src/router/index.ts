@@ -75,6 +75,11 @@ const router = createRouter({
           name: "settings-download",
           component: () => import("../components/settings/DownloadSettings.vue"),
         },
+        {
+          path: "user/:id",
+          name: "user-profile",
+          component: () => import("../views/UserProfile.vue"),
+        },
       ],
     },
   ],

@@ -9,7 +9,7 @@
                         {{ store.activeCount }} 个文件正在下载
                     </template>
                     <template v-else-if="store.hasHiddenActive">
-                        {{ store.pendingItems.length }} 个隐藏下载进行中
+                        {{ hiddenActiveCount }} 个隐藏下载进行中
                     </template>
                     <template v-else>
                         暂无活跃下载
@@ -43,6 +43,18 @@
                             <span v-if="store.hasHiddenActive && !store.showHidden"
                                 class="ml-auto text-xs text-gray-400">({{ hiddenGenericsCount }})</span>
                         </button>
+                        <!-- 显示自动下载图片（独立的隐藏开关） -->
+                        <button type="button" @click="store.toggleShowAutoPhotos(); menuOpen = false"
+                            class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                                <path d="M7 10l4 4 9-9" />
+                                <line x1="1" y1="1" x2="23" y2="23" v-if="!store.showAutoPhotos" />
+                            </svg>
+                            {{ store.showAutoPhotos ? '隐藏自动下载图片' : '显示自动下载图片' }}
+                            <span v-if="store.hasHiddenAutoPhotos && !store.showAutoPhotos"
+                                class="ml-auto text-xs text-gray-400">({{ hiddenAutoPhotosCount }})</span>
+                        </button>
                         <hr class="my-1 border-gray-200 dark:border-gray-700" />
                         <button type="button" @click="store.clearCompleted(); menuOpen = false"
                             class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
@@ -66,6 +78,19 @@
             </svg>
             <span>有 {{ hiddenGenericsCount }} 个通用资源下载已隐藏</span>
             <button type="button" @click="store.showHidden = true"
+                class="ml-auto font-medium hover:underline shrink-0">查看</button>
+        </div>
+
+        <!-- 自动下载图片隐藏提示条（独立开关） -->
+        <div v-if="store.hasHiddenAutoPhotos && !store.showAutoPhotos"
+            class="px-4 py-2 bg-purple-50 dark:bg-purple-900/20 border-b border-purple-100 dark:border-purple-800/30 flex items-center gap-2 text-xs text-purple-600 dark:text-purple-400">
+            <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <path d="M21 15l-5-5L5 21" />
+            </svg>
+            <span>有 {{ hiddenAutoPhotosCount }} 个自动下载图片已隐藏</span>
+            <button type="button" @click="store.toggleShowAutoPhotos()"
                 class="ml-auto font-medium hover:underline shrink-0">查看</button>
         </div>
 
@@ -210,8 +235,8 @@
                 </svg>
                 <p class="text-sm">暂无下载任务</p>
                 <p v-if="store.hasHiddenActive" class="text-xs mt-2 text-blue-500">
-                    <button type="button" @click="store.toggleShowHidden()" class="hover:underline">
-                        {{ hiddenGenericsCount }} 个通用资源被隐藏，点击查看
+                    <button type="button" @click="revealAllHidden()" class="hover:underline">
+                        {{ hiddenActiveCount }} 个隐藏下载被隐藏，点击查看
                     </button>
                 </p>
             </div>
@@ -229,7 +254,7 @@ import { revealItemInDir, openPath } from "@tauri-apps/plugin-opener";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import {
     FileIcon, ImageIcon, VideoIcon, MusicIcon, MicIcon,
-    MessageCircleIcon, FolderOpenIcon, TrashIcon,
+    MessageCircleIcon, FolderOpenIcon, TrashIcon, PauseIcon, PlayIcon,
 } from 'lucide-vue-next';
 import type { Component } from "vue";
 
@@ -238,9 +263,30 @@ const router = useRouter();
 const menuOpen = ref(false);
 const menuEl = ref<HTMLElement | null>(null);
 
+/** 一键显示所有隐藏项（通用资源 + 自动下载图片） */
+async function revealAllHidden() {
+    if (!store.showHidden) await store.toggleShowHidden();
+    if (!store.showAutoPhotos) await store.toggleShowAutoPhotos();
+    menuOpen.value = false;
+}
+
 /** 已隐藏（通用资源）的进行中下载数量 —— 模板中多处引用，缓存避免每次渲染重复 filter */
 const hiddenGenericsCount = computed(() =>
     store.pendingItems.filter((i) => i.is_generic).length
+);
+
+/** 已隐藏（自动下载图片）的进行中下载数量 */
+const hiddenAutoPhotosCount = computed(() => {
+    return Object.values(store.items).filter(
+        (i) => i.is_auto_photo && !i.is_completed && !i.dismissed
+    ).length;
+});
+
+/** 隐藏（通用资源 + 自动下载图片）的进行中下载总数量 */
+const hiddenActiveCount = computed(() =>
+    Object.values(store.items).filter(
+        (i) => (i.is_generic || i.is_auto_photo) && !i.is_completed && !i.dismissed
+    ).length
 );
 
 /** 打开文件所在位置（文件管理器定位） */
@@ -344,7 +390,7 @@ function buildItemMenu(item: DownloadItem): ContextMenuItem[] {
         items.push({
             key: "pause",
             label: item.is_paused ? "继续下载" : "暂停下载",
-            icon: MusicIcon,
+            icon: item.is_paused ? PlayIcon : PauseIcon,
             divider: items.length > 0,
             onClick: () => store.togglePause(item.file_id),
         });

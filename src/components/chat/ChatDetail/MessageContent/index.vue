@@ -20,7 +20,8 @@
             :forwardInfo="forwardInfo" :forwardName="forwardName" :forwardNavigable="forwardNavigable"
             :isFirstInGroup="isFirstInGroup" :isLastInGroup="isLastInGroup" :sendingState="sendingState"
             :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature" :chatId="chatId"
-            :messageId="messageId" :senderName="senderName" @openForwardSource="onOpenForwardSource" />
+            :messageId="messageId" :senderName="senderName"
+            @openForwardSource="onOpenForwardSource" />
 
         <!-- Stickers / animated emoji are rendered without a message bubble.
              回复预览显示在贴纸旁边（小宽度），而非贴纸上方 -->

@@ -9,9 +9,9 @@
             </div>
             <ResizableLayout v-else>
                 <template #sidebar>
-                    <ChatList v-if="isChatSection" :is-archive="isArchiveSection" />
-                    <ContactList v-else-if="isContacts" />
-                    <SettingsList v-else-if="isSettings" />
+                    <ChatList v-if="sidebarShowsChats" :is-archive="isArchiveSection" />
+                    <ContactList v-else-if="sidebarShowsContacts" />
+                    <SettingsList v-else-if="sidebarShowsSettings" />
                 </template>
 
                 <template #content>
@@ -61,7 +61,22 @@ const isContacts = computed(() => route.name === 'contacts');
 const isSettings = computed(() => route.name === 'settings' || route.name === 'settings-appearance' || route.name === 'settings-download');
 const isSettingsDetail = computed(() => route.name === 'settings-appearance' || route.name === 'settings-download');
 const isArchiveSection = computed(() => route.name === 'archived');
-const isChatSection = computed(() => !isDownloads.value && !isContacts.value && !isSettings.value);
+const isProfile = computed(() => route.name === 'user-profile');
+
+// 进入个人资料页时，记住来源栏目，让左侧列表保持不变（从设置进→仍是设置，
+// 从聊天进→仍是聊天），避免进入资料页后左侧被误切到聊天列表。
+type SidebarSection = 'chats' | 'contacts' | 'settings';
+const profileFromSection = ref<SidebarSection | null>(null);
+/** 左侧应显示的栏目（资料页期间沿用进入前的栏目） */
+const activeSection = computed<SidebarSection>(() => {
+    if (isProfile.value && profileFromSection.value) return profileFromSection.value;
+    if (isContacts.value) return 'contacts';
+    if (isSettings.value) return 'settings';
+    return 'chats';
+});
+const sidebarShowsChats = computed(() => activeSection.value === 'chats');
+const sidebarShowsContacts = computed(() => activeSection.value === 'contacts');
+const sidebarShowsSettings = computed(() => activeSection.value === 'settings');
 const activeChatId = ref<number | null>(null);
 const activeTopicId = ref<number | null>(null);
 const isChatRoute = (name: unknown) => name === 'chat-detail' || name === 'chat-topic-detail';
@@ -69,7 +84,16 @@ const closeActiveChat = () => {
     activeChatId.value = null;
     activeTopicId.value = null;
 };
-const showActiveChat = computed(() => activeChatId.value !== null && !isSettingsDetail.value && !isDownloads.value);
+// 个人资料页（user-profile）是独立路由页面，走 router-view 渲染，
+// 绝不复用聊天详情容器。加上该判断确保即使 activeChatId 尚未被
+// watch 清除（时序竞态），右侧也强制渲染资料页而非聊天面板。
+const showActiveChat = computed(
+    () =>
+        activeChatId.value !== null &&
+        !isSettingsDetail.value &&
+        !isDownloads.value &&
+        route.name !== 'user-profile',
+);
 
 // 聊天详情独立于二级导航路由。切换联系人、设置等栏目时，只更新中间栏，
 // 保留当前聊天组件，避免右侧聊天被 router-view 卸载。
@@ -86,6 +110,22 @@ watch(
         if (name === 'settings-appearance' || name === 'settings-download') {
             closeActiveChat();
             return;
+        }
+
+        // 进入个人资料页时关闭当前聊天，在内容区渲染资料页。
+        // 同时记忆来源栏目，令左侧列表保持不变。
+        if (name === 'user-profile') {
+            closeActiveChat();
+            const prev = previous?.[0];
+            if (prev === 'contacts') profileFromSection.value = 'contacts';
+            else if (prev === 'settings' || prev === 'settings-appearance' || prev === 'settings-download') profileFromSection.value = 'settings';
+            else profileFromSection.value = 'chats';
+            return;
+        }
+
+        // 离开个人资料页后清除来源栏目记忆。
+        if (profileFromSection.value !== null) {
+            profileFromSection.value = null;
         }
 
         // 聊天详情自己的返回按钮进入 /home/chats 时关闭右侧聊天；

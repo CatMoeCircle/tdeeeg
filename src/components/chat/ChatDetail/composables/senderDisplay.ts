@@ -208,11 +208,14 @@ export function getDisplaySenderName(
     if (isSavedForwardedMessage(msg, deps) && msg.forward_info) {
         return getForwardName(msg.forward_info, deps);
     }
+    // 自己发送的消息显示为「你」（内联 bot 消息的名称行也用「你」）
+    if (deps.isSelf(msg)) return '你';
     return getSenderName(msg, deps);
 }
 
 /**
  * 判断是否显示发送者名称：有 author_signature 时显示；否则非自己消息且开启了发送者名称才显示。
+ * 自己通过内联机器人发送的消息也显示名称行（用于在名称旁展示 `via @bot`）。
  *
  * @param msg - 消息对象
  * @param deps - 外部依赖
@@ -222,7 +225,10 @@ export function showSenderDisplayName(
     msg: message,
     deps: SenderDisplayDeps,
 ): boolean {
-    return deps.showSenderName && (msg.author_signature?.trim() ? true : !deps.isSelf(msg));
+    if (!deps.showSenderName) return false;
+    if (msg.author_signature?.trim()) return true;
+    if (deps.isSelf(msg)) return !!msg.via_bot_user_id;
+    return true;
 }
 
 /**
@@ -309,4 +315,27 @@ export function forwardColor(
  */
 export function getDisplaySenderDeleted(msg: message): boolean {
     return isDeletedSender(msg.sender_id);
+}
+
+/**
+ * 计算消息通过内联机器人发送时的 bot 用户名（`via @username`）。
+ *
+ * @param msg - 消息对象
+ * @param caches - 用户 / 聊天缓存
+ * @param maxLength - 用户名最大显示长度（超过则省略为 `...`），默认 20
+ * @returns 形如 `@botname` 的字符串；无内联 bot 或无用户名时返回空串
+ */
+export function getViaBotText(
+    msg: message,
+    caches: SenderCache,
+    maxLength = 20,
+): string {
+    if (!msg.via_bot_user_id) return '';
+    const u = caches.users[msg.via_bot_user_id];
+    const username = u?.usernames?.active_usernames?.[0];
+    if (!username) return '';
+    // 消息不够长时（无法容纳完整用户名）可省略 @ 后的内容为 ...
+    const truncated =
+        username.length > maxLength ? `${username.slice(0, maxLength)}…` : username;
+    return `via @${truncated}`;
 }

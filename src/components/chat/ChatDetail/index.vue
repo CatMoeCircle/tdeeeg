@@ -61,12 +61,16 @@
                             <div class="flex mb-2" :class="isSelfAlbum(item) ? 'justify-end' : 'justify-start'">
                                 <div v-if="shouldReserveAvatarColumn(item.messages[0])"
                                     class="w-9 shrink-0 mr-2 self-end">
-                                    <div class="w-9 h-9">
+                                    <button type="button"
+                                        class="block w-9 h-9 rounded-full overflow-hidden focus:outline-none"
+                                        :class="{ 'cursor-pointer': true }"
+                                        @click.stop="openSenderProfile(item.messages[0])"
+                                        :disabled="!senderUserId(item.messages[0])">
                                         <Avatar :photo="getDisplaySenderPhoto(item.messages[0])"
                                             :title="getDisplaySenderName(item.messages[0])"
                                             :accentColorId="getDisplaySenderProfileAccentId(item.messages[0])"
                                             :deletedAccount="getDisplaySenderDeleted(item.messages[0])" />
-                                    </div>
+                                    </button>
                                 </div>
                                 <div class="w-min max-w-[70%] overflow-hidden shadow-sm"
                                     :class="isSelfAlbum(item) ? 'text-gray-900' : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'"
@@ -75,11 +79,14 @@
                                         class="text-xs font-semibold px-2 pt-2 pb-0.5 flex items-center gap-1.5"
                                         :style="senderNameColor(item.messages[0])">
                                         <span class="min-w-0 flex-1 truncate">{{ getDisplaySenderName(item.messages[0])
-                                        }}</span>
+                                            }}</span>
                                         <span v-if="getMessageLabel(item.messages[0])"
                                             class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
                                             :class="getMessageLabelClass(item.messages[0])">{{
                                                 getMessageLabel(item.messages[0]) }}</span>
+                                        <span v-if="getViaBotText(item.messages[0])"
+                                            class="shrink-0 font-normal text-[10px] leading-none text-gray-400 dark:text-gray-500 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{{
+                                                getViaBotText(item.messages[0]) }}</span>
                                     </p>
                                     <button
                                         v-if="item.messages[0].forward_info && !isLinkedChannelMessage(item.messages[0])"
@@ -101,8 +108,9 @@
                                         :isRead="isMessageRead(item.messages[item.messages.length - 1])"
                                         :authorSignature="getDisplayAuthorSignature(item.messages[0])"
                                         @message-context-menu="onAlbumMessageContextMenu" />
-                                    <InlineKeyboard v-if="getInlineKeyboard(item.messages[0])" :rows="getInlineKeyboard(item.messages[0])!.rows"
-                                        :chat-id="chatId" :message-id="item.messages[0].id" />
+                                    <InlineKeyboard v-if="getInlineKeyboard(item.messages[0])"
+                                        :rows="getInlineKeyboard(item.messages[0])!.rows" :chat-id="chatId"
+                                        :message-id="item.messages[0].id" />
                                 </div>
                             </div>
                         </div>
@@ -132,12 +140,14 @@
                             ]">
                                 <div v-if="shouldReserveAvatarColumn(item.msg)" class="w-9 shrink-0 mr-2 self-end"
                                     :class="{ 'invisible': !item.showAvatar }">
-                                    <div class="w-9 h-9">
+                                    <button type="button"
+                                        class="block w-9 h-9 rounded-full overflow-hidden focus:outline-none"
+                                        @click.stop="openSenderProfile(item.msg)" :disabled="!senderUserId(item.msg)">
                                         <Avatar :photo="getDisplaySenderPhoto(item.msg)"
                                             :title="getDisplaySenderName(item.msg)"
                                             :accentColorId="getDisplaySenderProfileAccentId(item.msg)"
                                             :deletedAccount="getDisplaySenderDeleted(item.msg)" />
-                                    </div>
+                                    </button>
                                 </div>
                                 <div :data-bubble-msg-id="item.msg.id" :class="[
                                     isMediaMessage(item.msg)
@@ -152,14 +162,17 @@
                                             : ''
                                 ]" :style="bubbleStyle(item)">
                                     <p v-if="showSenderDisplayName(item.msg) && item.isFirstInGroup"
-                                        class="text-xs font-semibold mx-1 m-0.5 flex items-center gap-1.5"
+                                        class="text-xs font-semibold mx-2 m-1.5 flex items-center gap-1.5"
                                         :style="senderNameColor(item.msg)">
                                         <span class="min-w-0 flex-1 truncate">{{ getDisplaySenderName(item.msg)
-                                        }}</span>
+                                            }}</span>
                                         <span v-if="getMessageLabel(item.msg)"
                                             class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
                                             :class="getMessageLabelClass(item.msg)">{{
                                                 getMessageLabel(item.msg) }}</span>
+                                        <span v-if="getViaBotText(item.msg)"
+                                            class="shrink-0 font-normal text-[10px] leading-none text-gray-400 dark:text-gray-500 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{{
+                                                getViaBotText(item.msg) }}</span>
                                     </p>
                                     <button
                                         v-if="item.msg.forward_info && !isMediaMessage(item.msg) && !isLinkedChannelMessage(item.msg)"
@@ -175,7 +188,7 @@
                                         @click.stop="openForwardSource(item.msg.forward_info)">
                                         <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
                                         <span class="min-w-0 flex-1 truncate">{{ getForwardName(item.msg.forward_info)
-                                            }}</span>
+                                        }}</span>
                                     </button>
                                     <MessageContent :content="item.msg.content" :isSelf="isSelf(item.msg)"
                                         :date="item.msg.date" :forwardInfo="getDisplayForwardInfo(item.msg)"
@@ -190,8 +203,9 @@
                                         :messageList="messages" :accentColorId="getSenderAccentId(item.msg)"
                                         @jumpToMessage="handleReplyJumpToMessage"
                                         @openForwardSource="item.msg.forward_info && openForwardSource(item.msg.forward_info)" />
-                                    <InlineKeyboard v-if="getInlineKeyboard(item.msg)" :rows="getInlineKeyboard(item.msg)!.rows"
-                                        :chat-id="chatId" :message-id="item.msg.id" />
+                                    <InlineKeyboard v-if="getInlineKeyboard(item.msg)"
+                                        :rows="getInlineKeyboard(item.msg)!.rows" :chat-id="chatId"
+                                        :message-id="item.msg.id" />
                                     <span
                                         v-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isSelf(item.msg)"
                                         class="block text-right text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 leading-none">
@@ -225,7 +239,7 @@
         <div
             class="absolute top-0 left-0 right-0 z-10 bg-white/80 dark:bg-[#1c1c1c]/70 backdrop-blur-lg border-b border-gray-200/60 dark:border-gray-800/60">
             <ChatDetailHeader :chat="chat" :topic="topic" :showBack="showBackBtn" @back="handleBack"
-                @openInfo="openOverlay" />
+                @openInfo="handleTopClick" />
         </div>
 
         <!-- ===== 多选操作栏（多选模式时替换 Header） ===== -->
@@ -277,16 +291,23 @@
                 <div class="p-4 pt-20">
                     <!-- 对话信息 -->
                     <div class="flex flex-col items-center mb-6">
-                        <div class="w-20 h-20 mb-3">
+                        <button type="button"
+                            class="w-20 h-20 mb-3 rounded-full overflow-hidden focus:outline-none cursor-pointer"
+                            :disabled="!overlayUserId" @click="openOverlayUserProfile">
                             <Avatar :photo="chat.photo" :title="chat.title" sizeClass="!w-20 !h-20"
                                 :accentColorId="getChatProfileAccentColorId(chat as any)" />
-                        </div>
+                        </button>
                         <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">{{ overlayChatTitle }}</h2>
                         <p class="text-sm text-gray-500 mt-1">{{ getChatSubtitle() }}</p>
                     </div>
 
                     <!-- 操作按钮 -->
                     <div class="space-y-2 px-4">
+                        <button v-if="overlayUserId" type="button" @click="openOverlayUserProfile"
+                            class="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left">
+                            <UserIcon class="w-5 h-5 text-blue-500" />
+                            <span class="text-sm font-medium">查看个人资料</span>
+                        </button>
                         <button type="button" @click="openInNewChat"
                             class="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left">
                             <MessageCircleIcon class="w-5 h-5 text-blue-500" />
@@ -391,7 +412,7 @@ import { useAttachmentStore } from '../../../store/attachment';
 import { isOutgoingMessageForDisplay } from '../../../utils/savedMessages';
 import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
 
-import { CornerUpRightIcon, MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, CornerUpLeftIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon } from 'lucide-vue-next';
+import { CornerUpRightIcon, MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, CornerUpLeftIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, User as UserIcon } from 'lucide-vue-next';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { useRoute, useRouter } from 'vue-router';
 import { computed, watch, ref, onMounted, onUnmounted, nextTick } from 'vue';
@@ -439,6 +460,7 @@ import {
     isSavedForwardedMessage as computeIsSavedForwardedMessage,
     senderNameColor as computeSenderNameColor, forwardColor as computeForwardColor,
     showSenderDisplayName as computeShowSenderDisplayName,
+    getViaBotText as computeViaBotText,
 } from './composables/senderDisplay';
 import type { SenderDisplayDeps } from './composables/senderDisplay';
 import {
@@ -475,6 +497,36 @@ const showOverlay = ref(false);
 
 function openOverlay() {
     showOverlay.value = true;
+}
+
+/**
+ * 点击聊天顶部头像/标题：
+ * - 私聊 / 密聊 → 直接跳转到对应用户的个人资料页（不再弹「打开对话/发消息」叠层）
+ * - 群组 / 频道 / 话题 → 打开叠层显示对话信息
+ */
+function handleTopClick() {
+    if (overlayUserId.value !== undefined) {
+        openOverlayUserProfile();
+    } else {
+        openOverlay();
+    }
+}
+
+/** 叠层面板中当前对话对应的用户 id（仅私聊/密聊场景有值；用于打开发送者或个人资料） */
+const overlayUserId = computed<number | undefined>(() => {
+    const t = chat.value?.type;
+    if (t?._ === 'chatTypePrivate' || t?._ === 'chatTypeSecret') {
+        return t.user_id;
+    }
+    return undefined;
+});
+
+/** 打开叠层面板中用户的个人资料页 */
+function openOverlayUserProfile() {
+    const uid = overlayUserId.value;
+    if (!uid) return;
+    closeOverlay();
+    router.push({ name: 'user-profile', params: { id: String(uid) } });
 }
 
 function closeOverlay() {
@@ -1398,6 +1450,11 @@ const fetchSenders = async (msgs: message[]) => {
         } else if (sourceSender?._ === 'messageSenderChat' && !chats.value[sourceSender.chat_id]) {
             chatIds.add(sourceSender.chat_id);
         }
+
+        // 内联机器人（via_bot_user_id）用户信息
+        if (m.via_bot_user_id && !users.value[m.via_bot_user_id]) {
+            userIds.add(m.via_bot_user_id);
+        }
     });
 
     await Promise.all([
@@ -2313,12 +2370,28 @@ const getDisplaySenderName = (msg: message): string =>
 const showSenderDisplayName = (msg: message): boolean =>
     computeShowSenderDisplayName(msg, senderDeps());
 
+/** 消息通过内联机器人发送的 `via @bot` 文本（无则空串） */
+const getViaBotText = (msg: message): string =>
+    computeViaBotText(msg, senderCaches());
+
 const getDisplaySenderPhoto = (msg: message): chatPhotoInfo | profilePhoto | undefined =>
     computeDisplaySenderPhoto(msg, senderDeps());
 
 /** 展示发送者是否已删除账户（用于头像显示删除图标） */
 const getDisplaySenderDeleted = (msg: message): boolean =>
     computeDisplaySenderDeleted(msg);
+
+/** 消息发送者的 user_id（仅当发送者为用户时返回，频道/群组等返回 undefined） */
+const senderUserId = (msg: message): number | undefined =>
+    msg.sender_id?._ === 'messageSenderUser' ? msg.sender_id.user_id : undefined;
+
+/** 点击消息头像 → 打开发送者个人资料页（仅限用户发送者或自己） */
+async function openSenderProfile(msg: message) {
+    const uid = senderUserId(msg);
+    if (!uid) return;
+    // 发送者是自己时也打开自己的资料页
+    router.push({ name: 'user-profile', params: { id: String(uid) } });
+}
 
 const canNavigateForward = (forwardInfo: messageForwardInfo) =>
     !!getForwardNavigationTarget(forwardInfo);
@@ -2623,6 +2696,14 @@ const handleScrollToBottom = () => {
 <style>
 .messages-scroll {
     min-height: 0;
+}
+
+/* 允许选择/复制消息中的文本（全局 user-select:none 会拦截文本选择，这里恢复） */
+.messages-scroll {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
 }
 
 /* Telegram-like bubble style: text should wrap nicely */

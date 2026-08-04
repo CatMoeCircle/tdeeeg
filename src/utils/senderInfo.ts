@@ -198,6 +198,29 @@ export async function ensureSenderLoaded(senderId?: MessageSender): Promise<void
   }
 }
 
+/** 用户的主用户名（active_usernames[0]），无则返回空串 */
+export function getUserUsername(userId: number): string {
+  const u = users.get(userId);
+  return u?.usernames?.active_usernames?.[0] ?? "";
+}
+
+/** 响应式获取缓存的用户对象（未加载返回 undefined，加载后自动驱动视图更新） */
+export function getReactiveUser(userId: number): user | undefined {
+  return users.get(userId);
+}
+
+/** 响应式获取缓存的对话对象（未加载返回 undefined，加载后自动驱动视图更新） */
+export function getReactiveChat(chatId: number): chat | undefined {
+  return chats.get(chatId);
+}
+
+/** 确保内联机器人（via_bot_user_id）的用户数据已加载 */
+export async function ensureViaBotLoaded(viaBotUserId?: number): Promise<void> {
+  if (viaBotUserId && viaBotUserId > 0) {
+    await ensureUser(viaBotUserId);
+  }
+}
+
 /** 已注销账户的显示名称 */
 export const DELETED_ACCOUNT_LABEL = "已注销账户";
 

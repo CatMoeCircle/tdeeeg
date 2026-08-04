@@ -8,7 +8,8 @@
         <div class="flex-1 overflow-y-auto custom-scrollbar p-2" v-smooth-wheel>
             <div v-for="user in Contacts ?? []" :key="user.id">
                 <div
-                    class="flex items-center p-2 hover:shadow-(--box-shadow) hover:bg-gray-200/50 rounded-xl cursor-pointer transition-colors">
+                    class="flex items-center p-2 hover:shadow-(--box-shadow) hover:bg-gray-200/50 rounded-xl cursor-pointer transition-colors"
+                    @click="openProfile(user.id)">
 
                     <div class="w-13 h-13 mr-3">
                         <Avatar :photo="user.profile_photo" :title="user.first_name + ` ` + user.last_name"
@@ -38,14 +39,20 @@ import { tdlibSend } from '../../utils/tdlib';
 import formatStatus from '../../utils/status';
 import { ArrowLeftRightIcon } from 'lucide-vue-next';
 import { onMounted, ref } from "vue"
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { computed } from 'vue';
 import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
 
 import type { user } from 'tdlib-types';
 
 const route = useRoute();
+const router = useRouter();
 const isChatOpen = computed(() => /^\/home\/chat\/\d+/.test(route.path));
+
+/** 点击联系人行 → 打开该用户的个人资料页 */
+function openProfile(userId: number) {
+    router.push({ name: 'user-profile', params: { id: String(userId) } });
+}
 
 const Contacts = ref<user[] | undefined>(undefined);
 
