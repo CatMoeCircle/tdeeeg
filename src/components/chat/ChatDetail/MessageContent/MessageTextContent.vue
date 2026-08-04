@@ -387,7 +387,7 @@ async function resolveInternalLink(href: string) {
             }
             case 'internalLinkTypePublicChat': {
                 const chat = await tdlibSend({ _: 'searchPublicChat', username: linkType.chat_username });
-                await router.push(`/home/chats/${chat.id}`);
+                await router.push(`/home/chat/${chat.id}`);
                 break;
             }
             default: {

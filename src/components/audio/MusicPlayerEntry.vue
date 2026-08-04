@@ -70,11 +70,11 @@
                         transition-all duration-150 ease-out">
                 <div class="h-full bg-blue-500 rounded-full transition-none" :style="displayStyle"></div>
             </div>
-            <!-- 拖拽圆点（hover 时显示） -->
+            <!-- 拖拽圆点（hover 时显示；仅透明度过渡，left 实时跟手不加动画） -->
             <div class="absolute bottom-0 -translate-x-1/2
                         w-3 h-3 -mb-0.5 rounded-full bg-blue-500 shadow-md border-2 border-white dark:border-gray-800
                         opacity-0 group-hover/progress:opacity-100
-                        transition-all duration-150 ease-out pointer-events-none"
+                        transition-opacity pointer-events-none"
                 :style="{ left: displayStyle.width || '0%' }">
             </div>
         </div>
@@ -130,8 +130,8 @@ function handleProgressStart(e: MouseEvent) {
     const bar = e.currentTarget as HTMLElement;
 
     const update = (clientX: number) => {
-        const r = calcRatio(bar, clientX);
-        dragRatio.value = r;
+        // 拖动只更新跟手位置，松手（onUp）时才真正 seek
+        dragRatio.value = calcRatio(bar, clientX);
     };
 
     update(e.clientX);

@@ -152,7 +152,7 @@
                     <MicIcon class="w-4 h-4 text-gray-500 shrink-0" />
                     <span v-if="block.voice_note" class="text-xs text-gray-500">{{
                         formatDuration(block.voice_note.duration)
-                    }}</span>
+                        }}</span>
                     <span v-else class="text-xs text-gray-400">语音不可用</span>
                 </div>
                 <RichCaption v-if="block.caption" :caption="block.caption" />
@@ -253,7 +253,7 @@
                         @click.prevent.stop="openExternal(article.url)">
                         <p class="font-medium">{{ article.title }}</p>
                         <p v-if="article.description" class="text-xs text-gray-500 line-clamp-2">{{ article.description
-                        }}</p>
+                            }}</p>
                     </a>
                 </div>
             </div>
@@ -386,7 +386,7 @@ async function openChatLink(username: string) {
     try {
         const chat = await tdlibSend({ _: 'searchPublicChat', username });
         if (chat?.id) {
-            await router.push(`/home/chats/${chat.id}`);
+            await router.push(`/home/chat/${chat.id}`);
         }
     } catch (e) {
         console.warn('Failed to open chat link:', e);

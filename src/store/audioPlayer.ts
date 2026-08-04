@@ -16,6 +16,12 @@ export interface AudioTrack {
     fileId: number;
     filePath: string;
     coverPath?: string;
+    /**
+     * 封面原始来源，供原生 SMTC 使用：
+     * - `{ file }`：已下载的缩略图本地路径（优先，最清晰）
+     * - `{ buffer }`：图片原始字节（minithumbnail base64 解码）
+     */
+    coverSource?: { file?: string; buffer?: number[] };
     /** 是否已下载完成可供播放 */
     ready: boolean;
 }
@@ -98,17 +104,20 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
                     filePath: ready ? convertFileSrc(file.local.path) : '',
                     ready,
                 });
-                // 异步加载封面
+                // 异步加载封面（UI URL + 原生 SMTC 来源）
                 coverPromises.push(
-                    loadCoverUrl(msg).then(url => {
+                    (async () => {
                         const idx = tracks.findIndex(t => t.messageId === msg.id);
-                        if (idx >= 0) tracks[idx].coverPath = url;
-                    })
+                        if (idx < 0) return;
+                        const [url, source] = await Promise.all([
+                            loadCoverUrl(msg),
+                            loadCoverSource(msg),
+                        ]);
+                        tracks[idx].coverPath = url;
+                        tracks[idx].coverSource = source;
+                    })()
                 );
             }
-            // 等待封面加载完成，但不阻塞后续流程
-            Promise.allSettled(coverPromises);
-
             // searchChatMessages 返回逆序（最新的在前），反转成正序
             tracks.reverse();
 
@@ -124,6 +133,10 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
             if (!showEntry.value && playlist.value.length > 0) {
                 showEntry.value = true;
             }
+
+            // 等待封面加载完成（确保播放器/系统媒体控件一开始就有封面），
+            // 再决定自动播放。封面来自 minithumbnail 同步可得的会立即返回。
+            await Promise.allSettled(coverPromises);
 
             // 如果还没有正在播放，自动播放第一个新添加的
             if (currentIndex.value === -1) {
@@ -262,19 +275,41 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         showOverlay.value = !showOverlay.value;
     }
 
-    /** 从 messageAudio 中获取封面图片 URL（异步下载缩略图） */
-    async function loadCoverUrl(audioMsg: message): Promise<string | undefined> {
-        if (audioMsg.content._ !== 'messageAudio') return undefined;
+    /** 封面解析结果 */
+    interface CoverResult {
+        /** 用于 UI 渲染的图片 URL */
+        url?: string;
+        /** 原生 SMTC 使用的封面来源 */
+        source?: { file?: string; buffer?: number[] };
+    }
+
+    /** Base64 → Uint8Array */
+    function base64ToBytes(b64: string): number[] {
+        try {
+            const bin = atob(b64);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            return Array.from(bytes);
+        } catch {
+            return [];
+        }
+    }
+
+    /** 从 messageAudio 中获取封面（URL 与原生来源）。不阻塞内部解析。 */
+    function resolveCover(audioMsg: message): CoverResult {
+        if (audioMsg.content._ !== 'messageAudio') return {};
         const audio = audioMsg.content.audio;
 
-        // 优先用 minithumbnail base64
-        if (audio.album_cover_minithumbnail?.data) {
-            return `data:image/jpeg;base64,${audio.album_cover_minithumbnail.data}`;
-        }
+        // ① 内嵌 minithumbnail base64：始终可用（40x40，清晰度较低，作为原生缓冲来源兜底）
+        const miniData = audio.album_cover_minithumbnail?.data;
+        const miniCover: CoverResult | undefined = miniData
+            ? {
+                url: `data:image/jpeg;base64,${miniData}`,
+                source: { buffer: base64ToBytes(miniData) },
+            }
+            : undefined;
 
-        // 尝试缩略图文件（仅静态位图格式可用作 <img> 封面；动态/Lottie 跳过）
-        // 优先使用内嵌封面 thumbnail；album_cover_thumbnail 不可用时回退到外部封面列表，
-        // external_album_covers 按分辨率升序排列，取最高清（at(-1)）优先尝试，失败逐级回退。
+        // ② 缩略图文件（静态位图，取最高清优先下载返回本地路径）
         const imgRenderable = (t: thumbnail | undefined): t is thumbnail =>
             !!t && isThumbnailImgRenderable(t.format) && !!t.file.local?.can_be_downloaded;
 
@@ -287,28 +322,107 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
             ? [primary, ...external.reverse()]
             : [...external.reverse()];
 
+        // 同步扫描已下载的缩略图（无需异步）
         for (const thumb of candidates) {
             if (!thumb) continue;
             const file = thumb.file;
-            if (isFileReady(file)) {
-                return convertFileSrc(file.local.path);
+            if (isFileReady(file) && file.local.path) {
+                // 同时携带 minithumbnail buffer：Media Session 优先用数据 URL 渲染封面，
+                // 原生 SMTC 优先用高清文件路径；两者都提供以最大化封面成功率。
+                return {
+                    url: convertFileSrc(file.local.path),
+                    source: {
+                        file: file.local.path,
+                        ...(miniCover?.source?.buffer ? { buffer: miniCover.source.buffer } : {}),
+                    },
+                };
             }
-            if (!file.local.can_be_downloaded) continue;
+        }
+
+        // 无可立即使用的文件缩略图，退回 minithumbnail base64
+        return miniCover ?? {};
+    }
+
+    /** 从 messageAudio 中异步下载封面缩略图并返回其 URL（供 UI 使用） */
+    async function loadCoverUrl(audioMsg: message): Promise<string | undefined> {
+        const sync = resolveCover(audioMsg);
+        if (sync.url) return sync.url;
+        if (audioMsg.content._ !== 'messageAudio') return undefined;
+        const audio = audioMsg.content.audio;
+
+        // 尝试异步下载缩略图文件
+        const imgRenderable = (t: thumbnail | undefined): t is thumbnail =>
+            !!t && isThumbnailImgRenderable(t.format) && !!t.file.local?.can_be_downloaded;
+        const primary = imgRenderable(audio.album_cover_thumbnail) ? audio.album_cover_thumbnail : undefined;
+        const external = (audio.external_album_covers ?? [])
+            .filter(imgRenderable)
+            .sort((a, b) => (a.width * a.height) - (b.width * b.height));
+        const candidates: thumbnail[] = primary
+            ? [primary, ...external.reverse()]
+            : [...external.reverse()];
+
+        for (const thumb of candidates) {
+            if (!thumb) continue;
+            const file = thumb.file;
+            if (file.local.can_be_downloaded && !isFileReady(file)) {
+                try {
+                    const downloaded = await tdlibSend({
+                        _: 'downloadFile',
+                        file_id: file.id,
+                        priority: 1,
+                        offset: 0,
+                        limit: 0,
+                        synchronous: true,
+                    });
+                    if (isFileReady(downloaded) && downloaded.local?.path) {
+                        return convertFileSrc(downloaded.local.path);
+                    }
+                } catch (_) { }
+            }
+        }
+        return sync.url;
+    }
+
+    /** 异步获取封面原始来源（优先下载文件缩略图路径，失败退回 minithumbnail buffer） */
+    async function loadCoverSource(audioMsg: message): Promise<{ file?: string; buffer?: number[] } | undefined> {
+        const sync = resolveCover(audioMsg);
+        if (sync.source?.file || sync.source?.buffer) return sync.source;
+        if (audioMsg.content._ !== 'messageAudio') return undefined;
+        const audio = audioMsg.content.audio;
+
+        const imgRenderable = (t: thumbnail | undefined): t is thumbnail =>
+            !!t && isThumbnailImgRenderable(t.format) && !!t.file.local?.can_be_downloaded;
+        const primary = imgRenderable(audio.album_cover_thumbnail) ? audio.album_cover_thumbnail : undefined;
+        const external = (audio.external_album_covers ?? [])
+            .filter(imgRenderable)
+            .sort((a, b) => (a.width * a.height) - (b.width * b.height));
+        const candidates: thumbnail[] = primary
+            ? [primary, ...external.reverse()]
+            : [...external.reverse()];
+
+        for (const thumb of candidates) {
+            if (!thumb) continue;
+            const file = thumb.file;
             try {
-                const downloaded = await tdlibSend({
-                    _: 'downloadFile',
-                    file_id: file.id,
-                    priority: 1,
-                    offset: 0,
-                    limit: 0,
-                    synchronous: true,
-                });
-                if (isFileReady(downloaded)) {
-                    return convertFileSrc(downloaded.local.path);
+                if (!isFileReady(file)) {
+                    if (!file.local.can_be_downloaded) continue;
+                    const downloaded = await tdlibSend({
+                        _: 'downloadFile',
+                        file_id: file.id,
+                        priority: 1,
+                        offset: 0,
+                        limit: 0,
+                        synchronous: true,
+                    });
+                    if (isFileReady(downloaded) && downloaded.local?.path) {
+                        return { file: downloaded.local.path };
+                    }
+                } else if (file.local.path) {
+                    return { file: file.local.path };
                 }
             } catch (_) { }
         }
-        return undefined;
+        return sync.source;
     }
 
     /** 播放指定消息（从外部调用，如 MessageFileContent） */
@@ -366,15 +480,33 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
             ready: true,
         };
 
-        // 异步加载封面（不阻塞播放）
-        loadCoverUrl(msg).then(url => {
-            const idx = playlist.value.findIndex(t => t.messageId === msg.id);
-            if (idx >= 0) playlist.value[idx].coverPath = url;
-        });
-
-        // 下载完成后再添加到列表（此时 track 已就绪）
+        // 下载完成后再添加到列表（此时 track 已就绪），
+        // 随后立即加载封面并写回，确保播放器一开始就有封面、
+        // 播放列表中也能显示封面。
         playlist.value.push(track);
         originalPlaylist.value.push(track);
+
+        // 同步可得的封面（minithumbnail base64 或已下载缩略图）立即写入，避免闪烁
+        const syncCover = resolveCover(msg);
+        if (syncCover.url || syncCover.source) {
+            const idx = playlist.value.findIndex(t => t.messageId === msg.id);
+            if (idx >= 0) {
+                if (syncCover.url) playlist.value[idx].coverPath = syncCover.url;
+                if (syncCover.source) playlist.value[idx].coverSource = syncCover.source;
+            }
+        }
+
+        // 异步补齐高清单个缩略图封面
+        (async () => {
+            const idx = playlist.value.findIndex(t => t.messageId === msg.id);
+            if (idx < 0) return;
+            const [url, source] = await Promise.all([
+                loadCoverUrl(msg),
+                loadCoverSource(msg),
+            ]);
+            if (url) playlist.value[idx].coverPath = url;
+            if (source) playlist.value[idx].coverSource = source;
+        })();
 
         // playTrack 内部会设置 showEntry = true
         await playTrack(playlist.value.length - 1);

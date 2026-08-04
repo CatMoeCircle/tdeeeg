@@ -1,6 +1,6 @@
-import { reactive, ref } from 'vue';
+﻿import { reactive, ref } from 'vue';
 import { listen } from '@tauri-apps/api/event';
-import type { accentColor, profileAccentColor } from 'tdlib-types';
+import type { accentColor, profileAccentColor, Update, Updates } from 'tdlib-types';
 import { tdlibSend } from '../utils/tdlib';
 
 /**
@@ -12,7 +12,7 @@ import { tdlibSend } from '../utils/tdlib';
  *
  * 特殊说明：编号 0-6（红/橙/紫/violet/绿/青/蓝/粉）是「内置色」，TDLib 不会把它们放进
  * `updateAccentColors` 列表，而是要求从应用自身主题读取。因此这里为 0-6 提供了内置色表
- * （取自 Telegram Default 主题的 accent 值）。
+ * （取自 Telegram 官方客户端的精确色值）。
  *
  * 用法：
  *   - 组件的 `<script setup>` 里调用 `useColors()` 拿到响应式状态与工具函数
@@ -20,8 +20,7 @@ import { tdlibSend } from '../utils/tdlib';
  */
 
 // ============================================================================
-// 内置头像渐变色板（accent_color_id 0-6）— 取自 Telegram Web K 官方 CSS
-// `--peer-avatar-{color}-top/bottom`，[顶色, 底色]，用于无照片头像的垂直渐变背景。
+// 内置色板 — 取自官方客户端精确色值
 // 0=红 1=橙 2=紫罗兰 3=绿 4=青 5=蓝 6=粉
 // ============================================================================
 
@@ -31,17 +30,31 @@ function darkenColor(rgb: number[], factor = 0.78): number[] {
 }
 
 /**
+ * 内置 accent 色板（accent_color_id 0-6）—— 从官方客户端提取的精确色值。
+ * 用于名称文字、回复栏、引用标记等 accent 主色。
+ */
+const BUILT_IN_ACCENTS: number[][] = [
+    [0xEC, 0x5F, 0x6D], // 0 red     #EC5F6D
+    [0xF2, 0xAC, 0x6A], // 1 orange  #F2AC6A
+    [0x65, 0x60, 0xF6], // 2 violet  #6560F6
+    [0x75, 0xC8, 0x73], // 3 green   #75C873
+    [0x62, 0xC6, 0xB7], // 4 cyan    #62C6B7
+    [0x51, 0x9D, 0xEA], // 5 blue    #519DEA
+    [0xF2, 0x74, 0x9A], // 6 pink    #F2749A
+];
+
+/**
  * Telegram Web K 内置头像渐变色（[top, bottom] 顺序，垂直渐变）。
  * 取自官方 CSS 变量 --peer-avatar-{color}-top / -bottom。
  */
 const AVATAR_GRADIENTS: number[][][] = [
-    [[0xff, 0x84, 0x5e], [0xd4, 0x52, 0x46]], // 0 red     #FF845E → #D45246
-    [[0xfe, 0xbb, 0x5b], [0xf6, 0x81, 0x36]], // 1 orange  #FEBB5B → #F68136
-    [[0xb6, 0x94, 0xf9], [0x6c, 0x61, 0xdf]], // 2 violet  #B694F9 → #6C61DF
-    [[0x9a, 0xd1, 0x64], [0x46, 0xba, 0x43]], // 3 green   #9AD164 → #46BA43
-    [[0x53, 0xed, 0xd6], [0x28, 0xc9, 0xb7]], // 4 cyan    #53EDD6 → #28C9B7
-    [[0x5c, 0xaf, 0xfa], [0x40, 0x8a, 0xcf]], // 5 blue    #5CAFFA → #408ACF
-    [[0xff, 0x8a, 0xac], [0xd9, 0x55, 0x74]], // 6 pink    #FF8AAC → #D95574
+    [[0xff, 0x84, 0x5e], [0xd4, 0x52, 0x46]], // 0 red
+    [[0xfe, 0xbb, 0x5b], [0xf6, 0x81, 0x36]], // 1 orange
+    [[0xb6, 0x94, 0xf9], [0x6c, 0x61, 0xdf]], // 2 violet
+    [[0x9a, 0xd1, 0x64], [0x46, 0xba, 0x43]], // 3 green
+    [[0x53, 0xed, 0xd6], [0x28, 0xc9, 0xb7]], // 4 cyan
+    [[0x5c, 0xaf, 0xfa], [0x40, 0x8a, 0xcf]], // 5 blue
+    [[0xff, 0x8a, 0xac], [0xd9, 0x55, 0x74]], // 6 pink
 ];
 
 /** 取内置色（0-6）的头像渐变对 [top, bottom]，明暗主题共用同色板 */
@@ -49,39 +62,10 @@ function builtInGradient(id: number, _useDark: boolean): number[][] {
     return AVATAR_GRADIENTS[id] || AVATAR_GRADIENTS[5];
 }
 
-/** 内置色（0-6）的文本色（名称文字用主色调；这里取渐变顶色） */
+/** 内置色（0-6）的文本色（名称文字用主色调） */
 function builtInTextRgb(id: number, _useDark: boolean): number[] {
-    return builtInGradient(id, false)[0];
+    return BUILT_IN_ACCENTS[id] || BUILT_IN_ACCENTS[5];
 }
-
-/**
- * 官方 peer 色板兜底（Telegram Web K `--peer-{n}-color-rgb`）。
- * 当 `updateAccentColors` 缓存尚未填充时，用于自定义 accent id(≥7) 的主色回退。
- * 仅作兜底——正常情况下应优先使用 TDLib 下发到 accentColors 缓存的真实数据。
- */
-const PEER_COLORS_FALLBACK: Record<number, number[]> = {
-    0: [204, 80, 73],
-    1: [214, 119, 34],
-    2: [149, 92, 219],
-    3: [64, 169, 32],
-    4: [48, 158, 186],
-    5: [54, 138, 209],
-    6: [199, 80, 139],
-    7: [255, 147, 128],
-    8: [236, 176, 78],
-    9: [198, 151, 255],
-    10: [167, 235, 110],
-    11: [64, 216, 208],
-    12: [82, 191, 255],
-    13: [255, 134, 166],
-    14: [63, 162, 254],
-    15: [255, 144, 94],
-    16: [102, 211, 100],
-    17: [34, 188, 226],
-    18: [34, 188, 226],
-    19: [151, 145, 255],
-    20: [61, 166, 235],
-};
 
 // ============================================================================
 // 响应式状态
@@ -106,7 +90,7 @@ export async function initColors(): Promise<void> {
     initialized = true;
 
     // 监听主题色彩更新
-    await listen('tdlib-update', (event: any) => {
+    await listen<Update>('tdlib-update', (event) => {
         const update = event.payload;
         if (!update || typeof update !== 'object') return;
         if (update._ === 'updateAccentColors') {
@@ -131,7 +115,7 @@ export async function initColors(): Promise<void> {
 }
 
 /** 播种某个 update 到对应缓存（updateAccentColors / updateProfileAccentColors） */
-function seedUpdate(update: any) {
+function seedUpdate(update: Update) {
     if (!update || typeof update !== "object") return;
     if (update._ === "updateAccentColors") {
         if (Array.isArray(update.colors)) {
@@ -154,40 +138,31 @@ function seedUpdate(update: any) {
 async function fetchAccentColors(): Promise<void> {
     if (fetchPromise) return fetchPromise;
     fetchPromise = (async () => {
-        // getAccentColors / getProfileAccentColors 在部分 TDLib 版本可能不可用，静默失败
         try {
-            const r = (await tdlibSend({ _: 'getAccentColors' } as any)) as any;
+            const r = (await tdlibSend({ _: 'getAccentColors' } as unknown as Parameters<typeof tdlibSend>[0])) as { colors?: accentColor[]; available_accent_color_ids?: number[] };
             if (r?.colors) {
                 for (const c of r.colors) accentColors.set(c.id, c);
             }
             if (r?.available_accent_color_ids) {
                 availableIds.value = r.available_accent_color_ids;
             }
-        } catch (_) {
-            /* 忽略 */
-        }
+        } catch (_) { }
         try {
-            const r = (await tdlibSend({ _: 'getProfileAccentColors' } as any)) as any;
+            const r = (await tdlibSend({ _: 'getProfileAccentColors' } as unknown as Parameters<typeof tdlibSend>[0])) as { colors?: profileAccentColor[]; available_accent_color_ids?: number[] };
             if (r?.colors) {
                 for (const c of r.colors) profileAccentColors.set(c.id, c);
             }
             if (r?.available_accent_color_ids) {
                 profileAvailableIds.value = r.available_accent_color_ids;
             }
-        } catch (_) {
-            /* 忽略 */
-        }
-        // 若上面两个方法不可用（types 里没有，部分版本无此方法），
-        // 用 getCurrentState 拿到初始 update（含 updateAccentColors / updateProfileAccentColors）补种。
+        } catch (_) { }
         if (accentColors.size === 0 && profileAccentColors.size === 0) {
             try {
-                const st = (await tdlibSend({ _: 'getCurrentState' } as any)) as any;
+                const st = await tdlibSend({ _: 'getCurrentState' }) as Updates;
                 if (Array.isArray(st?.updates)) {
-                    for (const u of st.updates) seedUpdate(u);
+                    for (const u of st.updates) seedUpdate(u as Update);
                 }
-            } catch (_) {
-                /* 忽略 */
-            }
+            } catch (_) { }
         }
     })();
     return fetchPromise;
@@ -197,89 +172,72 @@ async function fetchAccentColors(): Promise<void> {
 // 颜色工具函数
 // ============================================================================
 
-/** 把 0xFF0000 数值转成 CSS hex */
 export function intToCss(value: number): string {
     const s = (value & 0xffffff).toString(16).padStart(6, '0');
     return `#${s}`;
 }
 
-/** 把 RGB 三色转成 CSS rgba（alpha 可选） */
 export function rgbToCss(rgb: number[], alpha = 1): string {
     const [r = 0, g = 0, b = 0] = rgb;
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-/** 把 RGB 数组转成 CSS hex */
 export function rgbToHex(rgb: number[]): string {
     const [r = 0, g = 0, b = 0] = rgb;
     return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
 }
 
-/** 把 0xRRGGBB 整数转为 [r,g,b] 三元组 */
 export function intToRgb(value: number): number[] {
     return [(value >> 16) & 0xff, (value >> 8) & 0xff, value & 0xff];
 }
 
-/**
- * 解析 lib 返回的 accent 颜色数组。
- * 注意：light_theme_colors / dark_theme_colors 是「整数 RGB 色」的扁平数组
- * （每个元素是一个 0xRRGGBB 整数，如 [0xDF2020, 0xDFA520]），不是 [r,g,b] 三元组数组。
- */
 function parseColorInts(list: number[] | undefined): number[][] {
     if (!Array.isArray(list)) return [];
     return list.filter((v) => typeof v === 'number').map((v) => intToRgb(v));
 }
 
-/** 取主题对应的主色 RGB 数组（单色） */
-function getAccentRgb(
-    id: number,
-    list: Map<number, accentColor>,
-    useDark: boolean,
-): number[] {
-    // 0-6 为内置色
+/** 主色 RGB（始终返回第一个颜色） */
+function getAccentRgb(id: number, list: Map<number, accentColor>, useDark: boolean): number[] {
     if (id >= 0 && id <= 6) {
-        return builtInGradient(id, useDark)[0];
+        return [...(BUILT_IN_ACCENTS[id] || BUILT_IN_ACCENTS[5])];
     }
     const entry = list.get(id);
     if (entry) {
         const arr = parseColorInts(useDark ? entry.dark_theme_colors : entry.light_theme_colors);
         if (arr.length > 0) return [...arr[0]];
     }
-    // 兜底：官方 peer 色板；没有则回退到蓝色（5）
-    return PEER_COLORS_FALLBACK[id] || builtInGradient(5, useDark)[0];
+    return [...BUILT_IN_ACCENTS[5]];
 }
 
-/** 取文本主题色对应的 RGB 数组 */
-function getAccentTextRgb(id: number, useDark: boolean): number[] {
+/** 全部 accent 颜色（1-3 色，用于回复栏多色条） */
+function getAccentAllColors(id: number, list: Map<number, accentColor>, useDark: boolean): number[][] {
     if (id >= 0 && id <= 6) {
-        return builtInTextRgb(id, useDark);
+        return [[...(BUILT_IN_ACCENTS[id] || BUILT_IN_ACCENTS[5])]];
     }
-    // 非内置色：用主题主色作为文字色
+    const entry = list.get(id);
+    if (entry) {
+        const arr = parseColorInts(useDark ? entry.dark_theme_colors : entry.light_theme_colors);
+        if (arr.length > 0) return arr.map((a) => [...a]);
+    }
+    return [[...BUILT_IN_ACCENTS[5]]];
+}
+
+function getAccentTextRgb(id: number, useDark: boolean): number[] {
+    if (id >= 0 && id <= 6) return builtInTextRgb(id, useDark);
     return getAccentRgb(id, accentColors, useDark);
 }
 
-/** 生成该 accent 的完整渐变对 [from, to]，供头像背景使用 */
 function getAccentGradient(id: number, useDark: boolean): number[][] {
-    // 内置色：直接用官方 base 色渐变对
-    if (id >= 0 && id <= 6) {
-        return builtInGradient(id, useDark);
-    }
+    if (id >= 0 && id <= 6) return builtInGradient(id, useDark);
     const entry = accentColors.get(id);
     if (entry) {
         const arr = parseColorInts(useDark ? entry.dark_theme_colors : entry.light_theme_colors);
         if (arr.length > 0) {
             const from = [...arr[0]];
-            // 有次色则用次色，否则加深主色作为渐变终点
             const to = arr.length >= 2 ? [...arr[arr.length - 1]] : darkenColor(from);
             return [from, to];
         }
     }
-    // 兜底：官方 peer 色主色 + 加深，保证自定义色在缓存未到时有正确渐变
-    const fallback = PEER_COLORS_FALLBACK[id];
-    if (fallback) {
-        return [[...fallback], darkenColor(fallback, 0.8)];
-    }
-    // 回退：内置蓝
     return builtInGradient(5, useDark);
 }
 
@@ -288,119 +246,69 @@ function getAccentGradient(id: number, useDark: boolean): number[][] {
 // ============================================================================
 
 export interface AccentColorStyle {
-    /** 主要 RGB 颜色 */
     main: number[];
-    /** 次色 RGB（可能为空） */
     secondary: number[];
-    /** 主要颜色 CSS（hex），用于文字/描边 */
+    /** 全部 accent 颜色（1-3 色，用于回复栏多色条） */
+    allColors: number[][];
     color: string;
-    /** 单色 CSS（hex/id 0-6 的文本色） */
     text: string;
-    /** 主色半透明（用于回复栏背景等） */
     soft: string;
 }
 
-/** 计算某个 accent_color_id 在当前主题下的样式集 */
 export function accentColorStyle(id: number): AccentColorStyle {
     const useDark = isDark.value;
     const main = getAccentRgb(id, accentColors, useDark);
     const grad = getAccentGradient(id, useDark);
     const secondary = grad.length > 0 ? [...grad[grad.length - 1]] : [];
+    const all = getAccentAllColors(id, accentColors, useDark);
     return {
-        main,
-        secondary,
+        main, secondary, allColors: all,
         color: rgbToHex(main),
         text: rgbToHex(getAccentTextRgb(id, useDark)),
         soft: rgbToCss(main, 0.18),
     };
 }
 
-/**
- * 名称文字颜色（群聊中发送者名称、回复发送者名、forward 来源名等）。
- * Telegram 中名称文字色=该发送者的 accent 主色（文字用 `text`）。
- */
 export function accentTextColor(id: number): string {
     return accentColorStyle(id).text;
 }
 
-/**
- * 生成无头像的「头像背景渐变」，使用 TDLib 的 profile accent 数据。
- *
- * Telegram 的头像渐变色来自 `updateProfileAccentColors` 中每个 profileAccentColor 的
- * `background_colors`（整数 RGB 数组：1 个=纯色背景，2 个=渐变）。对应的字段是
- * user/chat 的 `profile_accent_color_id`（-1 表示无特殊头像色）。
- *
- * 要点（避免渐变色"不对"）：
- * - 内置色 0-6：Telegram 各端（Web K / 移动端）对这些内置头像色固定渲染为
- *   「双色垂直渐变」（Web K 的 --peer-avatar-{color}-top/bottom），而不是 TDLib
- *   background_colors 里给出的单色。因此 0-6 **始终**使用内置渐变色板
- *   （AVATAR_GRADIENTS），保证与官方一致、永不变为扁平单色或错误色。
- * - 自定义色 ≥7：优先用 TDLib background_colors 的渐变；缓存未填充/缺失时
- *   回退到同 id 的强化 peer 色渐变，而非一律蓝色。
- */
 export function accentAvatarBackground(profileAccentColorId: number): string {
     const useDark = isDark.value;
-
-    // 内置色 0-6：始终使用 Web K 官方头像渐变色板（双色垂直渐变）
     if (profileAccentColorId >= 0 && profileAccentColorId <= 6) {
         const [from, to] = builtInGradient(profileAccentColorId, useDark);
         return `linear-gradient(${rgbToCss(from)}, ${rgbToCss(to)})`;
     }
-
-    // 自定义色 ≥7：优先用 TDLib 下发的真实 background_colors
     const entry = profileAccentColors.get(profileAccentColorId);
     if (entry) {
         const theme = useDark ? entry.dark_theme_colors : entry.light_theme_colors;
         const bg = parseColorInts(theme?.background_colors);
-        if (bg.length === 1) {
-            return rgbToCss(bg[0]);
-        }
-        if (bg.length >= 2) {
-            return `linear-gradient(${rgbToCss(bg[0])}, ${rgbToCss(bg[1])})`;
-        }
+        if (bg.length === 1) return rgbToCss(bg[0]);
+        if (bg.length >= 2) return `linear-gradient(${rgbToCss(bg[0])}, ${rgbToCss(bg[1])})`;
     }
-
-    // 回退：同 id 的 peer 色渐变（主色 + 加深），避免缓存未到时的"全蓝/全错"
-    const fallback = PEER_COLORS_FALLBACK[profileAccentColorId];
-    if (fallback) {
-        return `linear-gradient(${rgbToCss(fallback)}, ${rgbToCss(darkenColor(fallback, 0.8))})`;
-    }
-    // 再兜底：内置蓝色（5）
     const [from, to] = builtInGradient(5, useDark);
     return `linear-gradient(${rgbToCss(from)}, ${rgbToCss(to)})`;
 }
 
-/** 判断当前是否暗色模式（跟随系统，与 Tailwind dark: 一致） */
 export const isDark = ref<boolean>(
     typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches,
 );
 
 let mediaListener: MediaQueryList | null = null;
 
-/** 订阅系统明暗模式变化 */
 export function watchSystemColorScheme(): () => void {
     if (mediaListener) return () => { };
     mediaListener = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = (e: MediaQueryListEvent) => {
-        isDark.value = e.matches;
-    };
+    const handler = (e: MediaQueryListEvent) => { isDark.value = e.matches; };
     mediaListener.addEventListener('change', handler);
     return () => mediaListener?.removeEventListener('change', handler);
 }
 
-/** 便捷组合式 API：组件里调用 useColors() 使用 */
 export function useColors() {
     return {
-        isDark,
-        accentColors,
-        profileAccentColors,
-        availableIds,
-        profileAvailableIds,
-        accentColorStyle,
-        accentAvatarBackground,
-        accentTextColor,
-        intToCss,
-        rgbToCss,
-        rgbToHex,
+        isDark, accentColors, profileAccentColors,
+        availableIds, profileAvailableIds,
+        accentColorStyle, accentAvatarBackground, accentTextColor,
+        intToCss, rgbToCss, rgbToHex,
     };
 }

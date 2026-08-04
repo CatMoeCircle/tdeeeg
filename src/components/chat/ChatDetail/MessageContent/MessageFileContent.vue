@@ -327,7 +327,7 @@ async function resolveCaptionLink(href: string) {
             }
             case 'internalLinkTypePublicChat': {
                 const chat = await tdlibSend({ _: 'searchPublicChat', username: linkType.chat_username });
-                await router.push(`/home/chats/${chat.id}`);
+                await router.push(`/home/chat/${chat.id}`);
                 break;
             }
             default: {
@@ -528,6 +528,22 @@ watch(currentFileId, (fileId) => {
         { immediate: true }
     );
 });
+
+/** 当下载由音频播放器或其他路径触发（非 handleDownload）时，
+ * 自动设置 currentFileId 以激活进度跟踪，确保进度条始终更新。 */
+watch(isDownloadingOrGlobally, (downloading) => {
+    if (downloading && currentFileId.value === 0) {
+        const fid = props.content._ === 'messageAudio'
+            ? props.content.audio.audio.id
+            : props.content._ === 'messageDocument'
+                ? props.content.document.document.id
+                : 0;
+        if (fid > 0) {
+            currentFileId.value = fid;
+            isDownloading.value = true;
+        }
+    }
+}, { immediate: true });
 
 async function togglePlayback() {
     if (props.content._ !== 'messageAudio') return;

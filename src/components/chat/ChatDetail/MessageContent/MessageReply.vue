@@ -1,25 +1,26 @@
 <template>
-    <div v-if="replyData"
-        class="flex items-stretch gap-2 mb-1.5 px-2 py-1.5 cursor-pointer select-none rounded-lg overflow-hidden"
-        :class="isSelf ? 'bg-blue-400/20' : 'bg-gray-100 dark:bg-gray-700/50'" @click="jumpToMessage">
+    <div class="flex items-stretch gap-2 mb-1.5 px-2 py-1.5 rounded-lg overflow-hidden select-none"
+        :class="status === 'found' ? 'cursor-pointer' : ''" :style="replyBgStyle"
+        @click="status === 'found' && jumpToMessage()">
         <!-- Left color bar -->
         <div class="w-0.5 h-8 self-center shrink-0 rounded-full" :style="barStyle"></div>
 
         <div class="flex-1 min-w-0 py-0.5">
-            <!-- Sender name -->
+            <!-- 被回复方名称 / 占位文案 -->
             <div class="text-xs font-semibold truncate" :class="isSelf ? 'text-gray-900 dark:text-white' : ''"
                 :style="senderNameStyle">
-                {{ replyData.senderName }}
+                {{ titleText }}
             </div>
-            <!-- Content preview -->
+            <!-- 内容预览 -->
             <div class="text-xs truncate opacity-70 mt-0.5">
-                <template v-if="replyData.mediaType">[{{ replyData.mediaType }}] </template>
-                {{ replyData.text }}
+                <template v-if="status === 'found' && replyData && replyData.mediaType">[{{ replyData.mediaType }}]
+                </template>
+                {{ status === 'found' && replyData ? replyData.text : subText }}
             </div>
         </div>
 
         <!-- Media thumbnail -->
-        <div v-if="replyData.thumbSrc"
+        <div v-if="status === 'found' && replyData && replyData.thumbSrc"
             class="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-gray-300 dark:bg-gray-600">
             <img :src="replyData.thumbSrc" class="w-full h-full object-cover" />
         </div>
@@ -32,7 +33,8 @@ import type { message, MessageContent, messageReplyToMessage } from 'tdlib-types
 import { tdlibSend, isFileReady } from '../../../../utils/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { isThumbnailImgRenderable } from '../../../../utils/thumbnail';
-import { useColors } from '../../../../store/colors';
+import { useColors, rgbToCss } from '../../../../store/colors';
+import { getSenderAccentColorId } from '../../../../utils/senderInfo';
 
 const props = defineProps<{
     replyTo: messageReplyToMessage;
@@ -58,18 +60,69 @@ interface ReplyDisplayData {
 
 const replyData = ref<ReplyDisplayData | null>(null);
 
+/** 回复目标的加载状态：
+ *  - loading：尚未查到消息（正在获取中）
+ *  - found：已找到被回复消息
+ *  - deleted：被回复消息已被删除 / 无法获取（如 MESSAGE_NOT_FOUND）
+ */
+type ReplyStatus = 'loading' | 'found' | 'deleted';
+const status = ref<ReplyStatus>('loading');
+
+/** 顶部名称/占位文案：已删除显示「消息已被删除」，获取中显示「消息正在获取中」 */
+const titleText = computed(() => {
+    if (status.value === 'found' && replyData.value) return replyData.value.senderName;
+    if (status.value === 'deleted') return '消息已被删除';
+    return '消息正在获取中';
+});
+
+/** 次级说明文字：删除/获取中时给出补充说明 */
+const subText = computed(() => {
+    if (status.value === 'deleted') return '该消息已被删除';
+    if (status.value === 'loading') return '正在获取消息内容…';
+    return '';
+});
+
 // 主题配色工具
 const { accentColorStyle } = useColors();
 
-/** 当前主题下的 accent 样式（无则回退系统蓝） */
-const accentStyle = computed(() =>
-    typeof props.accentColorId === 'number' ? accentColorStyle(props.accentColorId) : undefined,
-);
+/** 被回复（被引用）消息发送者的主题色 id；
+ * 回复/引用的左边条与发送者名颜色应使用「被回复方」的颜色，而非回复方。 */
+const replyAccentColorId = ref<number | undefined>(undefined);
 
-/** 左色条：自己消息用浅色，他人用 accent 主色 */
-const barStyle = computed(() =>
-    accentStyle.value ? { backgroundColor: accentStyle.value.color } : undefined,
-);
+/** 当前主题下的 accent 样式（优先用被回复方颜色，其次回退到回复方/系统蓝） */
+const accentStyle = computed(() => {
+    const id = replyAccentColorId.value ?? props.accentColorId;
+    return typeof id === 'number' ? accentColorStyle(id) : undefined;
+});
+
+/** 左色条：网页风格 diagonal stripes 
+ * 单色=纯色，多色=对角斜条纹 repeating-linear-gradient（TDLib 最多 3 色） */
+const barStyle = computed(() => {
+    if (!accentStyle.value) return undefined;
+    const colors = accentStyle.value.allColors;
+    if (colors.length <= 1) return { backgroundColor: accentStyle.value.color };
+    var SEG = 5;
+    var cycle = (colors.length + 1) * SEG;
+    var stops = '';
+    var pos = 0;
+    for (var ci = colors.length - 1; ci >= 0; ci--) {
+        var c = colors[ci];
+        stops += ', ' + rgbToCss(c) + ' ' + pos + 'px, ' + rgbToCss(c) + ' ' + (pos + SEG) + 'px';
+        pos += SEG;
+    }
+    stops += ', transparent ' + pos + 'px, transparent ' + cycle + 'px';
+    return { background: 'repeating-linear-gradient(-45deg' + stops + ')' };
+});
+
+/** 回复块背景：被回复方主题色的 10% 透明度底色调（网页版风格）。
+ * 仅他人回复有底色+左边条，自己回复仅左边条无底色。 */
+const replyBgStyle = computed(() => {
+    if (props.isSelf) return undefined;
+    if (accentStyle.value) {
+        return { backgroundColor: rgbToCss(accentStyle.value.main, 0.1) };
+    }
+    return undefined;
+});
 
 /** 发送者名：他人消息用 accent 文字色 */
 const senderNameStyle = computed(() => {
@@ -84,7 +137,10 @@ onMounted(async () => {
 
 async function loadReplyData() {
     const rt = props.replyTo;
-    if (!rt.chat_id || !rt.message_id) return;
+    if (!rt.chat_id || !rt.message_id) {
+        status.value = 'deleted';
+        return;
+    }
 
     const targetChatId = rt.chat_id;
     const targetMsgId = rt.message_id;
@@ -103,26 +159,34 @@ async function loadReplyData() {
                 chat_id: targetChatId,
                 message_id: targetMsgId,
             }) as any;
-        } catch (_) { }
+        } catch (e) {
+            // 获取失败（如 MESSAGE_NOT_FOUND）通常意味着被回复消息已不存在/被删除
+            console.warn('获取被回复消息失败', targetChatId, targetMsgId, e);
+            status.value = 'deleted';
+            return;
+        }
     }
 
     if (!foundMsg) {
-        // 回退显示基本数据
-        replyData.value = {
-            senderName: '消息',
-            text: '',
-            mediaType: '',
-            thumbSrc: null,
-            messageId: targetMsgId,
-        };
+        // 查不到（本地列表与 TDLib 均无）→ 视为已被删除
+        status.value = 'deleted';
         return;
     }
+
+    status.value = 'found';
+
+    // 记录被回复发送者的主题色（回复/引用配色用被回复方颜色）
+    replyAccentColorId.value = getSenderAccentColorId(foundMsg.sender_id);
 
     // 提取发送者名称
     let senderName = '未知';
     if (foundMsg.sender_id._ === 'messageSenderUser') {
         try {
             const u = await tdlibSend({ _: 'getUser', user_id: foundMsg.sender_id.user_id }) as any;
+            // 若本地缓存未命中，用接口返回的 accent_color_id 补充被回复方主题色
+            if (replyAccentColorId.value === undefined && typeof u?.accent_color_id === 'number') {
+                replyAccentColorId.value = u.accent_color_id;
+            }
             senderName = u.type?._ === 'userTypeDeleted'
                 ? '已注销账户'
                 : `${u.first_name || ''} ${u.last_name || ''}`.trim() || '用户';
@@ -130,6 +194,9 @@ async function loadReplyData() {
     } else if (foundMsg.sender_id._ === 'messageSenderChat') {
         try {
             const c = await tdlibSend({ _: 'getChat', chat_id: foundMsg.sender_id.chat_id }) as any;
+            if (replyAccentColorId.value === undefined && typeof c?.accent_color_id === 'number') {
+                replyAccentColorId.value = c.accent_color_id;
+            }
             senderName = c.title || '群组';
         } catch (_) { }
     }

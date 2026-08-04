@@ -1429,18 +1429,21 @@ const getSenderRole = (sender: MessageSender | undefined): 'creator' | 'admin' |
 
 /**
  * 消息右上角标签文本：
- * - 创建者 → 「群主」
- * - 管理员 → 「管理员」
- * - 普通成员 → 若 TDLib 提供了自定义 tag 则显示该 tag，否则返回空串（什么都不显示）
+ * - 若有自定义标签（管理员 custom title 或个人信息标签），优先显示之（含群主/管理员）
+ * - 无自定义标签时：
+ *   创建者 → 「群主」
+ *   管理员 → 「管理员」
+ *   普通成员 → 空串（不显示）
+ * 颜色（getSenderRoleClass）始终按角色保持不变：群主=紫、管理员=绿、成员=灰。
  */
 const getSenderRoleText = (sender: MessageSender | undefined): string => {
     if (!sender || sender._ !== 'messageSenderUser') return '';
     const member = memberStatus.value[sender.user_id];
+    // 自定义标签优先（群主和管理员也可能有 custom title）
+    if (member?.tag) return member.tag;
     const role = getSenderRole(sender);
     if (role === 'creator') return '群主';
     if (role === 'admin') return '管理员';
-    // 普通成员：仅有自定义 tag 时才显示
-    if (role === 'member') return member?.tag || '';
     return '';
 };
 

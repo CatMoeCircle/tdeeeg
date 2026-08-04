@@ -1,5 +1,5 @@
 use crate::chat_store::ChatStore;
-use crate::download_store::DownloadStore;
+use crate::download_store::{DownloadItem, DownloadStore};
 use libloading::{Library, Symbol};
 use serde_json::json;
 use std::collections::HashMap;
@@ -424,14 +424,51 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
                                         effective_total,
                                         is_dl_active,
                                         is_dl_completed,
-                                        local_path,
+                                        local_path.clone(),
                                     );
 
-                                    // 发送下载进度更新事件（前端用于实时刷新）
-                                    if let Some(item) = dl_store.get_item(file_id as i32) {
-                                        let _ = app_handle_clone
-                                            .emit("download-progress-update", &item);
-                                    }
+                                    // 发送下载进度更新事件（前端用于实时刷新）。
+                                    // 即使未注册也创建轻量条目并 emit，
+                                    // 让前端消息列表始终能跟踪文件下载进度。
+                                    let item = dl_store
+                                        .get_item(file_id as i32)
+                                        .unwrap_or_else(|| {
+                                            let name = file
+                                                .pointer("/local/path")
+                                                .and_then(|v| v.as_str())
+                                                .map(|s| {
+                                                    std::path::Path::new(s)
+                                                        .file_name()
+                                                        .and_then(|n| n.to_str())
+                                                        .unwrap_or("")
+                                                        .to_string()
+                                                })
+                                                .unwrap_or_default();
+                                            DownloadItem {
+                                                file_id: file_id as i32,
+                                                file_name: name,
+                                                chat_title: String::new(),
+                                                chat_id: None,
+                                                message_id: None,
+                                                total_size: effective_total,
+                                                downloaded_size,
+                                                progress: if effective_total > 0 {
+                                                    downloaded_size as f64
+                                                        / effective_total as f64
+                                                } else {
+                                                    0.0
+                                                },
+                                                is_paused: !is_dl_active && !is_dl_completed,
+                                                is_completed: is_dl_completed,
+                                                local_path,
+                                                thumbnail_data_url: None,
+                                                file_type: "other".to_string(),
+                                                is_generic: true,
+                                                dismissed: false,
+                                            }
+                                        });
+                                    let _ = app_handle_clone
+                                        .emit("download-progress-update", &item);
                                 }
                             }
                         }

@@ -13,7 +13,7 @@ import { initSenderInfo } from "./utils/senderInfo";
 import { initColors, watchSystemColorScheme } from "./store/colors";
 import ContextMenu from "./components/contextMenu/ContextMenu.vue";
 import ExternalLinkConfirm from "./components/contextMenu/ExternalLinkConfirm.vue";
-// import type { Update } from "tdlib-types";
+import type { Update } from "tdlib-types";
 
 const router = useRouter();
 
@@ -41,10 +41,10 @@ async function initTdlib() {
     watchSystemColorScheme();
 
     if (import.meta.env.DEV) {
-      // await listen<Update>("tdlib-update", (event) => {
-      //   const update = event.payload;
-      //   console.log("Received update:", update);
-      // });
+      await listen<Update>("tdlib-update", (event) => {
+        const update = event.payload;
+        console.log("Received update:", update);
+      });
     }
 
 
