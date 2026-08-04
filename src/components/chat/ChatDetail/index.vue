@@ -69,7 +69,7 @@
                                     </div>
                                 </div>
                                 <div class="w-min max-w-[70%] overflow-hidden shadow-sm"
-                                    :class="isSelfAlbum(item) ? 'text-gray-900 dark:text-white' : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'"
+                                    :class="isSelfAlbum(item) ? 'text-gray-900' : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'"
                                     :style="albumStyle(item)">
                                     <p v-if="showSenderDisplayName(item.messages[0])"
                                         class="text-xs font-semibold px-2 pt-2 pb-0.5 flex items-center gap-1.5"
@@ -86,7 +86,7 @@
                                         type="button" :disabled="!canNavigateForward(item.messages[0].forward_info)"
                                         class="flex min-w-0 w-full max-w-full items-center gap-1 overflow-hidden px-2 pt-2 pb-1 text-left text-xs font-semibold disabled:cursor-default"
                                         :class="[
-                                            isSelfAlbum(item) ? 'text-gray-600/70 dark:text-white/70' : '',
+                                            isSelfAlbum(item) ? 'text-gray-700/70' : '',
                                             canNavigateForward(item.messages[0].forward_info)
                                                 ? 'cursor-pointer hover:underline active:opacity-70'
                                                 : ''
@@ -143,7 +143,7 @@
                                             ? 'relative max-w-[70%]'
                                             : 'px-2.5 py-1.5 shadow-sm max-w-[70%] min-w-30',
                                     !isStandaloneMessage(item.msg) && isSelf(item.msg)
-                                        ? 'text-gray-900 dark:text-white'
+                                        ? 'text-gray-900'
                                         : !isStandaloneMessage(item.msg)
                                             ? 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'
                                             : ''
@@ -163,7 +163,7 @@
                                         type="button" :disabled="!canNavigateForward(item.msg.forward_info)"
                                         class="flex min-w-0 max-w-full items-center gap-1 overflow-hidden mb-0.5 -mt-0.5 text-left text-xs font-semibold disabled:cursor-default"
                                         :class="[
-                                            isSelf(item.msg) ? 'text-gray-600/70 dark:text-white/70' : '',
+                                            isSelf(item.msg) ? 'text-gray-700/70' : '',
                                             canNavigateForward(item.msg.forward_info)
                                                 ? 'cursor-pointer hover:underline active:opacity-70'
                                                 : ''
@@ -197,7 +197,7 @@
                                     </span>
                                     <span
                                         v-else-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && isSelf(item.msg)"
-                                        class="block text-right text-[11px] text-gray-600/70 dark:text-white/70 mt-0.5 leading-none">
+                                        class="block text-right text-[11px] text-gray-700/70 mt-0.5 leading-none">
                                         <MessageStatus :date="item.msg.date" :isOutgoing="true"
                                             :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
                                             :viewCount="item.msg.interaction_info?.view_count"

@@ -51,26 +51,25 @@ export interface BubbleBackgroundDeps {
 }
 
 /**
- * 计算自己消息气泡背景：用发送者（通常为当前用户）的 accent 主色做柔和渐变。
- * 暗色下用较深 tint + 白字，亮色下用较浅 tint + 深字。
+ * 计算自己消息气泡背景：固定为「绿色气泡 + 黑字」。
+ * 这是用户要求的样式：无论明暗主题，自己发送的消息都使用同一块绿色，
+ * 且配深色文本（见 ChatDetail 模板里 self 的 `text-gray-900` 文字色）。
+ * 选较浅的绿色以保证黑字可读。
  *
  * @param msg - 消息对象
- * @param deps - 外部依赖
+ * @param deps - 外部依赖（此处未使用，保留签名以兼容调用）
  * @returns 内联 background 样式对象
  */
+const SELF_BUBBLE_GREEN = [227, 254, 224]; // #E3FEE0 官方 Telegram 出站消息绿，黑字可读
+
 export function selfBubbleStyle(
     msg: message,
     deps: BubbleBackgroundDeps,
 ): Record<string, string> {
-    const id = deps.getSenderAccentId(msg);
-    const main = id === undefined ? [106, 178, 242] : deps.accentColorStyle(id).main;
-    const [r = 106, g = 178, b = 242] = main;
-    if (deps.isDark) {
-        // 暗色：主色加深 + 半透明白叠出柔和底
-        return { background: `linear-gradient(135deg, rgba(${r},${g},${b},0.28), rgba(${r},${g},${b},0.16))` };
-    }
-    // 亮色：主色浅 tint
-    return { background: `linear-gradient(135deg, rgba(${r},${g},${b},0.18), rgba(${r},${g},${b},0.10))` };
+    void msg;
+    void deps;
+    const [r, g, b] = SELF_BUBBLE_GREEN;
+    return { background: `rgb(${r},${g},${b})` };
 }
 
 /**

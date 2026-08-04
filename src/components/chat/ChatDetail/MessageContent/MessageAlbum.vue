@@ -38,11 +38,11 @@
             </div>
         </div>
         <div v-if="captionText" class="px-2 pt-1.5 pb-2"
-            :class="isSelf ? 'text-gray-900 dark:text-white' : 'text-gray-800 dark:text-gray-200'">
+            :class="isSelf ? 'text-gray-900' : 'text-gray-800 dark:text-gray-200'">
             <MessageTextContent :formattedText="captionFormatted" />
         </div>
         <span v-if="captionText" class="block text-right px-2 pb-1"
-            :class="isSelf ? 'text-black/50 dark:text-white/50' : 'text-gray-400'">
+            :class="isSelf ? 'text-black/50' : 'text-gray-400'">
             <MessageStatus :date="lastDate" :isOutgoing="isSelf" :sendingState="lastSendingState" :isRead="isRead"
                 :viewCount="lastViewCount" :authorSignature="authorSignature" />
         </span>

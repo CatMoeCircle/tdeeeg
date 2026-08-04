@@ -4,7 +4,7 @@
         <button v-if="forwardInfo" type="button" :disabled="!forwardNavigable"
             class="flex min-w-0 w-full items-center gap-1 overflow-hidden px-2 pt-2 pb-1 text-left text-xs font-semibold disabled:cursor-default"
             :class="[
-                isSelf ? 'text-blue-100' : 'text-blue-500 dark:text-blue-400',
+                isSelf ? 'text-gray-700/80' : 'text-blue-500 dark:text-blue-400',
                 forwardNavigable ? 'cursor-pointer hover:underline active:opacity-70' : ''
             ]" :title="forwardNavigable ? '跳转到来源' : undefined" @click.stop="emit('openForwardSource')">
             <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
@@ -197,13 +197,13 @@
 
         <!-- Caption below -->
         <div v-if="!showCaptionAbove && captionText" class="caption-text px-2 pb-2 pt-1"
-            :class="isSelf ? 'text-white/90' : 'text-gray-800 dark:text-gray-200'">
+            :class="isSelf ? 'text-gray-900' : 'text-gray-800 dark:text-gray-200'">
             <MessageTextContent :formattedText="captionFormatted" />
         </div>
 
         <!-- Time & status below -->
         <span v-if="captionBelow && date" class="block text-right px-2 pb-1"
-            :class="isSelf ? 'text-blue-100' : 'text-gray-400'">
+            :class="isSelf ? 'text-gray-700/70' : 'text-gray-400'">
             <MessageStatus :date="date" :isOutgoing="isSelf" :sendingState="sendingState" :isRead="isRead"
                 :viewCount="viewCount" :authorSignature="authorSignature" />
         </span>

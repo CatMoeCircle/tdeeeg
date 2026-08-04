@@ -7,7 +7,7 @@
 
         <div class="flex-1 min-w-0 py-0.5">
             <!-- 被回复方名称 / 占位文案 -->
-            <div class="text-xs font-semibold truncate" :class="isSelf ? 'text-gray-900 dark:text-white' : ''"
+            <div class="text-xs font-semibold truncate" :class="isSelf ? 'text-gray-900' : ''"
                 :style="senderNameStyle">
                 {{ titleText }}
             </div>
