@@ -331,6 +331,7 @@ onMounted(() => {
 
 onUnmounted(() => {
     if (videoObserver) videoObserver.disconnect();
+    stopAnimDownloadPolling();
     if (props.messageId) unregisterPlaying(props.messageId);
 });
 
@@ -717,11 +718,49 @@ async function handleAnimDownload() {
     const fileName = `animation_${props.messageId || f.id}.gif`;
     await registerWithStore(f.id, fileName, 'animation');
     try {
-        await tdlibSend({ _: 'downloadFile', file_id: f.id, priority: 1, offset: 0, limit: 0, synchronous: false });
+        const updated = await tdlibSend({ _: 'downloadFile', file_id: f.id, priority: 1, offset: 0, limit: 0, synchronous: false });
+        if (isFileReady(updated)) {
+            finishAnimDownload(f.id, updated.local.path);
+        } else {
+            pollAnimDownload(f.id);
+        }
     } catch (_) {
         downloadingFiles.delete(f.id);
         animDownloading.value = false;
     }
+}
+
+let animDownloadPollTimer: ReturnType<typeof setInterval> | null = null;
+
+function stopAnimDownloadPolling() {
+    if (animDownloadPollTimer) {
+        clearInterval(animDownloadPollTimer);
+        animDownloadPollTimer = null;
+    }
+}
+
+function finishAnimDownload(fileId: number, path: string) {
+    stopAnimDownloadPolling();
+    downloadingFiles.delete(fileId);
+    animDownloading.value = false;
+    mediaSrc.value = convertFileSrc(path);
+    void downloadStore.markCompleted(fileId, path);
+}
+
+function pollAnimDownload(fileId: number) {
+    stopAnimDownloadPolling();
+    animDownloadPollTimer = setInterval(async () => {
+        try {
+            const info = await tdlibSend({ _: 'getFile', file_id: fileId });
+            if (isFileReady(info)) {
+                finishAnimDownload(fileId, info.local.path);
+            }
+        } catch (_) {
+            stopAnimDownloadPolling();
+            downloadingFiles.delete(fileId);
+            animDownloading.value = false;
+        }
+    }, 500);
 }
 
 async function loadVideoThumb() {

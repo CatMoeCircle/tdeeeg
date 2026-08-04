@@ -90,11 +90,9 @@ export async function classifyAttachment(input: ClassifyInput): Promise<Classify
             return { status: 'ok', kind: 'document', probeFailed: true };
         }
 
-        // 多帧 GIF
-        if (probe.gif) {
-            if (album) {
-                return rejected('相册中不能包含 GIF');
-            }
+        // GIF 不能进入相册；即使当前已有相册媒体，也保留为 animation，
+        // 发送阶段会单独走 sendMessage，不会混入 sendMessageAlbum。
+        if (ext === 'gif' || probe.gif) {
             return { status: 'ok', kind: 'animation', width: probe.width, height: probe.height };
         }
 
@@ -193,7 +191,7 @@ function baseParams(ctx: SendCtx) {
 /**
  * 发送附件列表。
  * - 图片/视频构成相册（每 10 个一组）；单个图片/视频单独发送。
- * - GIF 按动画发送；其余按文档发送（各自单独发送）。
+ * - GIF 按动画发送；其余按文档发送（各自单独发送，不会混入相册）。
  * - description 作为描述附加到首个媒体消息。
  */
 export async function sendAttachments(

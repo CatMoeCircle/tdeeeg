@@ -519,10 +519,20 @@ const onClickOutside = (e: MouseEvent) => {
 };
 
 // ==================== 剪贴板粘贴图片 ====================
+/** 根据剪贴板图片 MIME 保留真实扩展名，避免 GIF 被存成 PNG 后混入相册 */
+function imageExtFromMime(type: string): string {
+    const mime = type.toLowerCase();
+    if (mime.includes('gif')) return 'gif';
+    if (mime.includes('webp')) return 'webp';
+    if (mime.includes('bmp')) return 'bmp';
+    if (mime.includes('jpeg') || mime.includes('jpg')) return 'jpg';
+    return 'png';
+}
+
 /** 生成时间戳文件名（重名自动加后缀） */
-function timestampName(now: Date): string {
+function timestampName(now: Date, ext = 'png'): string {
     const pad = (n: number) => String(n).padStart(2, '0');
-    return `image_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.png`;
+    return `image_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.${ext}`;
 }
 
 /** 删除临时文件（幂等） */
@@ -541,7 +551,7 @@ async function writeClipboardImage(blob: Blob): Promise<string> {
     const { writeFile } = await import('@tauri-apps/plugin-fs');
     const dir = await tempDir();
     const buf = new Uint8Array(await blob.arrayBuffer());
-    const base = timestampName(new Date());
+    const base = timestampName(new Date(), imageExtFromMime(blob.type));
     let target = `${dir}\\${base}`.replace(/\/$/, '');
     let n = 1;
     // 重名自动加后缀
