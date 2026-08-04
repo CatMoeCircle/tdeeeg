@@ -12,15 +12,6 @@ import { useAudioPlayerStore } from '../../store/audioPlayer';
 const player = useAudioPlayerStore();
 const audioRef = ref<HTMLAudioElement | null>(null);
 
-// =====================================================================
-// Windows 系统媒体传输控件 (SMTC) 同步 —— 仅用前端 Media Session API。
-// 原生 Rust 的 SystemMediaTransportControls.GetForCurrentView() 在 Tauri
-// Win32 环境会抛 0x80070578（找不到关联视图，无 WinRT 视图），无法工作，
-// 因此不再调用原生后端，改由 WebView2 原生支持的 navigator.mediaSession
-// 承载 SMTC：同步标题/艺术家/封面/状态/进度并接收系统命令。
-// 封面优先用 minithumbnail base64 数据 URL（无 CORS，必然可加载）。
-// =====================================================================
-
 const mediaSession =
     typeof navigator !== 'undefined' && 'mediaSession' in navigator ? navigator.mediaSession : null;
 const hasMediaSession = !!mediaSession;
@@ -125,22 +116,27 @@ function syncMediaSessionPosition() {
     }
 }
 
-/** 同步元数据/封面/状态/进度到 Media Session（带微任务合并节流） */
-let pendingSync = false;
+
+let syncPositionQueued = false;
+/** 高频进度同步：用 requestAnimationFrame 合并，只在播放中更新进度。 */
+function pushPosition() {
+    if (syncPositionQueued) return;
+    syncPositionQueued = true;
+    requestAnimationFrame(() => {
+        syncPositionQueued = false;
+        if (player.isPlaying) {
+            syncMediaSessionPosition();
+        }
+    });
+}
+
+/** 低频元数据/封面/状态同步（仅在曲目或封面变化、播放状态切换时调用）。 */
 function pushSmtc(force = false) {
+    void force;
     syncMediaSession();
     syncMediaSessionState();
+    // 同步进度一次；进度本身由 pushPosition 高频接管。
     syncMediaSessionPosition();
-    // 进度由 timeupdate 高频触发，用微任务合并避免每 tick 都重算
-    if (!force && !pendingSync) {
-        pendingSync = true;
-        queueMicrotask(() => {
-            pendingSync = false;
-            syncMediaSession();
-            syncMediaSessionState();
-            syncMediaSessionPosition();
-        });
-    }
 }
 
 /** 注册 Media Session 系统命令（一次性注册） */
@@ -230,7 +226,7 @@ watch(() => player.isPlaying, (playing) => {
     } else if (!playing && !audio.paused) {
         audio.pause();
     }
-    // 同步系统媒体控件播放状态
+    // 同步系统媒体控件播放状态（低频，元数据路径）
     pushSmtc();
 });
 
@@ -242,8 +238,6 @@ watch(() => player.currentTime, (time) => {
     if (Math.abs(audio.currentTime - time) > 0.5) {
         audio.currentTime = time;
     }
-    // 同步系统媒体控件进度（内部节流）
-    pushSmtc();
 });
 
 // 监听音量
@@ -263,8 +257,9 @@ function onTimeUpdate() {
     if (audio && !isNaN(audio.currentTime)) {
         player.currentTime = audio.currentTime;
     }
-    // 进度更新（内置微任务合并节流）
-    pushSmtc();
+    // 进度更新：高频且轻量（requestAnimationFrame 合并，仅 setPositionState），
+    // 避免在视图切换等主线程繁忙时段造成 SMTC 大量重建而卡慢音频。
+    pushPosition();
 }
 
 function onLoaded() {
