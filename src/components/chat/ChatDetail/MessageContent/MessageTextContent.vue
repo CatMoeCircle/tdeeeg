@@ -1,4 +1,6 @@
 <template>
+    <MessageLinkPreview v-if="linkPreview?.show_above_text" :preview="linkPreview"
+        :accentColorId="accentColorId" @open="openLink" />
     <p class="whitespace-pre-wrap" :style="{ fontSize: 'var(--msg-font-size, 14px)', lineHeight: '1.4' }">
         <template v-for="(group, gi) in renderGroups" :key="gi">
             <!-- Blockquote group: 用容器包裹，加引用竖线 -->
@@ -89,11 +91,13 @@
             </template>
         </template>
     </p>
+    <MessageLinkPreview v-if="linkPreview && !linkPreview.show_above_text" :preview="linkPreview"
+        :accentColorId="accentColorId" @open="openLink" />
 </template>
 
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
-import type { formattedText, textEntity, InternalLinkType } from 'tdlib-types';
+import type { formattedText, textEntity, InternalLinkType, linkPreview as LinkPreview } from 'tdlib-types';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { tdlibSend } from '../../../../utils/tdlib';
 import { useRouter } from 'vue-router';
@@ -104,8 +108,10 @@ import { confirmAndOpenExternalLink } from '../../../../utils/openExternalLink';
 import { requestInsertCommand } from '../../../../store/commandInsert';
 import { openUsernameMenu } from '../../../../store/usernameMenu';
 import { settings } from '../../../../store/settings';
+import MessageLinkPreview from './MessageLinkPreview.vue';
 const props = defineProps<{
     formattedText: formattedText;
+    linkPreview?: LinkPreview;
     /** 发送者 accent_color_id，用于引用标记竖线配色 */
     accentColorId?: number;
 }>();

@@ -8,7 +8,7 @@
             :chatId="chatId" :messageList="messageList" :accentColorId="accentColorId" @jump="onJumpToMessage" />
 
         <!-- Text messages -->
-        <MessageTextContent v-if="content._ === 'messageText'" :formattedText="content.text"
+        <MessageTextContent v-if="content._ === 'messageText'" :formattedText="content.text" :linkPreview="content.link_preview"
             :accentColorId="accentColorId" />
 
         <!-- Rich messages -->
