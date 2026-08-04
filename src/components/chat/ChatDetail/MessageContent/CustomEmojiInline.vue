@@ -35,6 +35,8 @@ const size = computed(() => props.size || 22);
 const state = useCustomEmoji(props.emojiId);
 const lottieRef = ref<HTMLElement | null>(null);
 let lottieAnim: AnimationItem | null = null;
+/** 当前是否处于全局平滑滚动中（滚动期间暂停 Lottie canvas 重绘以避免卡顿） */
+let scrolling = false;
 
 /** 检测贴纸格式 */
 const emojiFormat = computed(() => {
@@ -70,6 +72,8 @@ async function loadTgs(path: string) {
       loop: true,
       autoplay: true,
     });
+    // 若创建时正处于全局滚动中，立即暂停（避免异步加载完成后仍每帧重绘）
+    if (scrolling) lottieAnim.pause();
   } catch (e) {
     console.error('Failed to load TGS custom emoji:', e);
   }
@@ -89,7 +93,24 @@ watch([() => state.ready, () => state.filePath, emojiFormat], async ([ready, fil
   }
 });
 
+/**
+ * 滚动性能优化：滚轮平滑滚动期间暂停 Lottie（canvas 每帧重绘代价高），
+ * 滚动结束后恢复。WebP 为静态图、WebM 走 <video>，均不受影响。
+ */
+function onScrollActive(e: Event) {
+  const active = (e as CustomEvent<boolean>).detail;
+  if (active === scrolling || emojiFormat.value !== 'tgs') return;
+  scrolling = active;
+  if (lottieAnim) {
+    if (active) lottieAnim.pause();
+    else lottieAnim.play();
+  }
+}
+
+document.addEventListener('tdgram:scroll-active', onScrollActive);
+
 onUnmounted(() => {
+  document.removeEventListener('tdgram:scroll-active', onScrollActive);
   destroyLottie();
 });
 </script>

@@ -38,30 +38,44 @@ const albumThumbsCache = new Map<string, ThumbData[] | null>();
 /** 正在进行的相册抓取，避免同一相册并发重复请求 */
 const albumFetchPending = new Map<string, Promise<ThumbData[] | null>>();
 
-/** 单条消息的可预览缩略图（优先用 minithumbnail「超小预览图」，无需下载、即时可用） */
+/** 单条消息的可预览缩略图（优先用已下载的真实图片，未下载完成时才用 base64 minithumbnail 预览） */
 function messageThumb(msg: message): ThumbData | null {
     const c = msg.content;
     if (c._ === 'messagePhoto') {
-        const mini = c.photo.minithumbnail;
-        if (mini?.data) {
-            return { src: `data:image/jpeg;base64,${mini.data}`, isVideo: false };
-        }
-        // 兜底：取已下载的最小尺寸
-        const sizes = (c.photo.sizes || []).slice().sort((a, b) => a.width * a.height - b.width * b.height);
-        const smallest = sizes[0];
-        if (smallest && isFileReady(smallest.photo)) {
+        const photo = c.photo;
+        // 优先用已下载的最小尺寸大图
+        const sizes = (photo.sizes || []).slice().sort((a, b) => a.width * a.height - b.width * b.height);
+        const smallest = sizes.find((s) => isFileReady(s.photo));
+        if (smallest) {
             return { src: convertFileSrc(smallest.photo.local.path), isVideo: false };
+        }
+        // 大图未下载完成时，用 minithumbnail 预览
+        if (photo.minithumbnail?.data) {
+            return { src: `data:image/jpeg;base64,${photo.minithumbnail.data}`, isVideo: false };
         }
         return null;
     }
     if (c._ === 'messageVideo') {
-        const mini = c.video.minithumbnail;
-        if (mini?.data) {
-            return { src: `data:image/jpeg;base64,${mini.data}`, isVideo: true };
-        }
-        const thumb = c.video.thumbnail;
+        const video = c.video;
+        // 优先用已下载的视频缩略图 / 封面大图
+        const thumb = video.thumbnail;
         if (thumb && isThumbnailImgRenderable(thumb.format) && isFileReady(thumb.file)) {
             return { src: convertFileSrc(thumb.file.local.path), isVideo: true };
+        }
+        const cover = c.cover;
+        if (cover) {
+            const coverSizes = (cover.sizes || []).slice().sort((a, b) => a.width * a.height - b.width * b.height);
+            const smallest = coverSizes.find((s) => isFileReady(s.photo));
+            if (smallest) {
+                return { src: convertFileSrc(smallest.photo.local.path), isVideo: true };
+            }
+        }
+        // 大图/缩略图未下载完成时，用 minithumbnail 预览（视频缩略图优先，其次封面）
+        if (video.minithumbnail?.data) {
+            return { src: `data:image/jpeg;base64,${video.minithumbnail.data}`, isVideo: true };
+        }
+        if (cover?.minithumbnail?.data) {
+            return { src: `data:image/jpeg;base64,${cover.minithumbnail.data}`, isVideo: true };
         }
         return null;
     }

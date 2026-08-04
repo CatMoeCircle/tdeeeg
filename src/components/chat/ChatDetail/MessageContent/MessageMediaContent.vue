@@ -189,7 +189,7 @@
 
             <!-- Time overlay on media -->
             <div v-if="!captionBelow && date"
-                class="absolute right-1.5 bottom-1.5 bg-black/60 text-white px-1.5 py-0.5 rounded-md leading-none select-none pointer-events-none">
+                class="absolute right-1.5 bottom-1.5 bg-black/60 text-white px-1.5 py-0.5 rounded-md leading-none select-none pointer-events-none flex items-center">
                 <MessageStatus :date="date" :isOutgoing="isSelf" :sendingState="sendingState" :isRead="isRead"
                     :viewCount="viewCount" :authorSignature="authorSignature" overMedia />
             </div>
@@ -220,6 +220,7 @@ import { CornerUpRightIcon, VideoIcon } from 'lucide-vue-next';
 import MessageTextContent from './MessageTextContent.vue';
 import MessageStatus from './MessageStatus.vue';
 import type { MediaViewerItem } from './MediaViewer.vue';
+import { buildVideoQualities } from '../../../../utils/videoQualities';
 import { useDownloadStore, type DownloadFileType } from '../../../../store/downloads';
 import { useChatStore } from '../../../../store/chat';
 import { registerMediaItem, unregisterMediaItem, openMediaViewer, isMediaViewerActive } from '../../../../store/mediaViewer';
@@ -251,6 +252,8 @@ const props = defineProps<{
     authorSignature?: string;
     chatId?: number;
     messageId?: number;
+    /** 发送人显示名称（用于查看器底部信息展示） */
+    senderName?: string;
 }>();
 
 const emit = defineEmits<{
@@ -382,13 +385,44 @@ watch(mediaSrc, (src) => {
     if (src && props.messageId) {
         const c = props.content;
         const capt = 'caption' in c && c.caption?.text ? c.caption.text : '';
+        const captFormatted = ('caption' in c && c.caption?.text) ? c.caption : undefined;
+        // 发送人显示名称与消息时间（用于查看器底部信息展示）
+        const senderName = props.senderName || '';
+        const date = typeof props.date === 'number' ? props.date : 0;
+        const meta = { messageId: props.messageId, chatId: props.chatId };
+        const basename = (p: string | undefined) => {
+            if (!p) return '';
+            return p.split(/[\\/]/).pop() || '';
+        };
         let item: MediaViewerItem | null = null;
         if (c._ === 'messagePhoto') {
-            item = { type: 'photo', src, thumb: thumbSrc.value, caption: capt };
+            let localPath: string | undefined;
+            const sizes = c.photo.sizes;
+            if (sizes.length > 0) {
+                const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
+                if (isFileReady(largest.photo)) localPath = largest.photo.local.path;
+            }
+            item = { type: 'photo', src, thumb: thumbSrc.value, caption: capt, captionFormatted: captFormatted, senderName, date, localPath, fileName: basename(localPath), ...meta };
         } else if (c._ === 'messageVideo') {
-            item = { type: 'video', src, caption: capt };
+            const qualities = buildVideoQualities(
+                c.alternative_videos,
+                src,
+                { width: c.video.width, height: c.video.height },
+            );
+            const localPath = isFileReady(c.video.video) ? c.video.video.local.path : undefined;
+            item = {
+                type: 'video', src, caption: capt, captionFormatted: captFormatted, senderName, date,
+                localPath,
+                fileName: c.video.file_name || basename(localPath),
+                qualities: qualities.length ? qualities : undefined, ...meta,
+            };
         } else if (c._ === 'messageAnimation') {
-            item = { type: 'animation', src, caption: capt };
+            const animLocalPath = isFileReady(c.animation.animation) ? c.animation.animation.local.path : undefined;
+            item = {
+                type: 'animation', src, caption: capt, captionFormatted: captFormatted, senderName, date,
+                localPath: animLocalPath,
+                fileName: c.animation.file_name || basename(animLocalPath), ...meta,
+            };
         }
         if (item) registerMediaItem(props.messageId, item);
     }

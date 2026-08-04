@@ -288,9 +288,14 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
 
                     // 尝试解析 JSON 以检查是否需要自动处理
                     if let Ok(mut event) = serde_json::from_str::<serde_json::Value>(&json_str) {
-                        // 打印收到的 update（调试）
+                        // 打印收到的 update（调试），仅在 debug 构建打印
+                        #[cfg(debug_assertions)]
                         if let Some(t) = event.get("@type").and_then(|v| v.as_str()) {
-                            println!("[tdlib-update] {}", t);
+                            if t == "error" {
+                                println!("[tdlib-update] error: {}", json_str);
+                            } else {
+                                println!("[tdlib-update] {}", t);
+                            }
                         } else {
                             println!("[tdlib-update] (no @type) {}", json_str);
                         }
@@ -430,9 +435,8 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
                                     // 发送下载进度更新事件（前端用于实时刷新）。
                                     // 即使未注册也创建轻量条目并 emit，
                                     // 让前端消息列表始终能跟踪文件下载进度。
-                                    let item = dl_store
-                                        .get_item(file_id as i32)
-                                        .unwrap_or_else(|| {
+                                    let item =
+                                        dl_store.get_item(file_id as i32).unwrap_or_else(|| {
                                             let name = file
                                                 .pointer("/local/path")
                                                 .and_then(|v| v.as_str())
@@ -453,8 +457,7 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
                                                 total_size: effective_total,
                                                 downloaded_size,
                                                 progress: if effective_total > 0 {
-                                                    downloaded_size as f64
-                                                        / effective_total as f64
+                                                    downloaded_size as f64 / effective_total as f64
                                                 } else {
                                                     0.0
                                                 },
@@ -467,8 +470,8 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
                                                 dismissed: false,
                                             }
                                         });
-                                    let _ = app_handle_clone
-                                        .emit("download-progress-update", &item);
+                                    let _ =
+                                        app_handle_clone.emit("download-progress-update", &item);
                                 }
                             }
                         }

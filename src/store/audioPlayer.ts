@@ -45,6 +45,13 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
     const showEntry = ref(false);      // 是否显示入口栏
     const showOverlay = ref(false);    // 是否显示弹出控制面板
 
+    // ======== 播放去重锁 ========
+    /**
+     * 正在添加进播放列表的曲目唯一键（`${chatId}:${messageId}`）。
+     * 防止多次点击同一首歌时，在异步下载的间隙被并发地重复 push 进播放列表。
+     */
+    const pendingAudioAdds = new Set<string>();
+
     // ======== Computed ========
     const currentTrack = computed(() =>
         currentIndex.value >= 0 && currentIndex.value < playlist.value.length
@@ -190,6 +197,10 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
             return;
         }
         isPlaying.value = !isPlaying.value;
+        // 兜底：只要恢复播放就确保入口栏显示（关闭后从系统控件/其他入口恢复播放时）
+        if (isPlaying.value) {
+            showEntry.value = true;
+        }
     }
 
     /** 下一首 */
@@ -268,6 +279,8 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         showEntry.value = false;
         showOverlay.value = false;
         currentTime.value = 0;
+        // 重置当前索引，确保关闭后再次播放同一首歌曲时能重新触发 playTrack → 重新显示入口栏
+        currentIndex.value = -1;
     }
 
     /** 切换弹出面板 */
@@ -431,8 +444,13 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         const audio = msg.content.audio;
         const file = audio.audio;
 
-        // 检查是否已在播放列表中
-        const existingIdx = playlist.value.findIndex(t => t.messageId === msg.id);
+        // 唯一键：同一对话 + 同一消息才算同一条歌曲
+        const trackKey = `${msg.chat_id}:${msg.id}`;
+
+        // ① 已在播放列表中：切换/播放，不重复添加
+        const existingIdx = playlist.value.findIndex(
+            t => t.chatId === msg.chat_id && t.messageId === msg.id
+        );
         if (existingIdx >= 0) {
             if (existingIdx === currentIndex.value) {
                 togglePlay();
@@ -442,9 +460,23 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
             return;
         }
 
+        // ② 并发去重锁：若该曲目正在异步添加（下载）中，直接忽略本次点击，
+        //    避免在 await 下载的间隙被并发触发而重复 push 进播放列表
+        if (pendingAudioAdds.has(trackKey)) return;
+        pendingAudioAdds.add(trackKey);
+
+        try {
+            await addTrackInternal(msg, audio, await ensureAudioFileReady(msg, file, audio));
+        } finally {
+            pendingAudioAdds.delete(trackKey);
+        }
+    }
+
+    /** 确保音频文件已下载就绪，返回可用于播放的本地 filePath */
+    async function ensureAudioFileReady(msg: message, file: any, audio: any): Promise<string> {
         const ready = isFileReady(file);
 
-        // 先确保文件下载完成，再添加到播放列表
+        // 先确保文件下载完成
         if (!ready) {
             try {
                 // 音乐播放触发下载：记录到正常下载列表，保留来源对话与消息
@@ -452,7 +484,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
                 await safeDownloadFile(file.id, true);
             } catch (e) {
                 console.error('Failed to download audio:', e);
-                return;
+                throw e;
             }
         }
 
@@ -468,6 +500,12 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
                 }
             } catch (_) { }
         }
+        return filePath;
+    }
+
+    /** 将一条已就绪的音频曲目加入播放列表（内部使用，调用方需持有去重锁） */
+    async function addTrackInternal(msg: message, audio: any, filePath: string) {
+        const file = audio.audio;
 
         const track: AudioTrack = {
             messageId: msg.id,
@@ -480,16 +518,27 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
             ready: true,
         };
 
-        // 下载完成后再添加到列表（此时 track 已就绪），
-        // 随后立即加载封面并写回，确保播放器一开始就有封面、
-        // 播放列表中也能显示封面。
+        // 幂等保护：加入前再次检查（以防极端竞态），存在则不重复添加
+        const existsAfter = playlist.value.findIndex(
+            t => t.chatId === msg.chat_id && t.messageId === msg.id
+        );
+        if (existsAfter >= 0) {
+            if (existsAfter === currentIndex.value) {
+                togglePlay();
+            } else {
+                await playTrack(existsAfter);
+            }
+            return;
+        }
+
+        // 加入列表后立即加载封面并写回，确保播放器一开始就有封面
         playlist.value.push(track);
         originalPlaylist.value.push(track);
 
         // 同步可得的封面（minithumbnail base64 或已下载缩略图）立即写入，避免闪烁
         const syncCover = resolveCover(msg);
         if (syncCover.url || syncCover.source) {
-            const idx = playlist.value.findIndex(t => t.messageId === msg.id);
+            const idx = playlist.value.findIndex(t => t.chatId === msg.chat_id && t.messageId === msg.id);
             if (idx >= 0) {
                 if (syncCover.url) playlist.value[idx].coverPath = syncCover.url;
                 if (syncCover.source) playlist.value[idx].coverSource = syncCover.source;
@@ -498,7 +547,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
 
         // 异步补齐高清单个缩略图封面
         (async () => {
-            const idx = playlist.value.findIndex(t => t.messageId === msg.id);
+            const idx = playlist.value.findIndex(t => t.chatId === msg.chat_id && t.messageId === msg.id);
             if (idx < 0) return;
             const [url, source] = await Promise.all([
                 loadCoverUrl(msg),

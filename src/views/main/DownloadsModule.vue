@@ -41,8 +41,7 @@
                             </svg>
                             {{ store.showHidden ? '隐藏通用资源' : '显示隐藏的通用资源' }}
                             <span v-if="store.hasHiddenActive && !store.showHidden"
-                                class="ml-auto text-xs text-gray-400">({{
-                                    store.pendingItems.filter(i => i.is_generic).length}})</span>
+                                class="ml-auto text-xs text-gray-400">({{ hiddenGenericsCount }})</span>
                         </button>
                         <hr class="my-1 border-gray-200 dark:border-gray-700" />
                         <button type="button" @click="store.clearCompleted(); menuOpen = false"
@@ -65,7 +64,7 @@
                 <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
                 <line x1="1" y1="1" x2="23" y2="23" />
             </svg>
-            <span>有 {{store.pendingItems.filter(i => i.is_generic).length}} 个通用资源下载已隐藏</span>
+            <span>有 {{ hiddenGenericsCount }} 个通用资源下载已隐藏</span>
             <button type="button" @click="store.showHidden = true"
                 class="ml-auto font-medium hover:underline shrink-0">查看</button>
         </div>
@@ -77,7 +76,8 @@
                     进行中
                 </div>
                 <div v-for="item in store.pendingItems" :key="item.file_id"
-                    class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
+                    class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
+                    @contextmenu.prevent="onItemContextMenu($event, item)">
                     <!-- 文件图标 / 缩略图 -->
                     <div class="w-11 h-11 rounded-lg overflow-hidden shrink-0 relative">
                         <!-- 图片/视频缩略图 -->
@@ -122,7 +122,7 @@
                     </div>
 
                     <span class="text-xs text-gray-400 shrink-0 w-10 text-right">{{ (item.progress * 100).toFixed(0)
-                        }}%</span>
+                    }}%</span>
 
                     <!-- 操作按钮 -->
                     <div class="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -158,7 +158,9 @@
                     已完成
                 </div>
                 <div v-for="item in store.completedItems" :key="item.file_id"
-                    class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
+                    class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
+                    :class="{ 'cursor-pointer': canOpenInPlayer(item) }" @click="onCompletedClick(item)"
+                    @contextmenu.prevent="onItemContextMenu($event, item)">
                     <!-- 完整展示 -->
                     <div class="w-11 h-11 rounded-lg overflow-hidden shrink-0">
                         <img v-if="item.local_path && (item.file_type === 'photo' || item.file_type === 'video')"
@@ -186,7 +188,7 @@
                             {{ formatSize(item.total_size) }}
                         </p>
                     </div>
-                    <button type="button" @click="store.dismissItem(item.file_id)"
+                    <button type="button" @click.stop="store.dismissItem(item.file_id)"
                         class="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
                         <svg class="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2">
@@ -209,7 +211,7 @@
                 <p class="text-sm">暂无下载任务</p>
                 <p v-if="store.hasHiddenActive" class="text-xs mt-2 text-blue-500">
                     <button type="button" @click="store.toggleShowHidden()" class="hover:underline">
-                        {{store.pendingItems.filter(i => i.is_generic).length}} 个通用资源被隐藏，点击查看
+                        {{ hiddenGenericsCount }} 个通用资源被隐藏，点击查看
                     </button>
                 </p>
             </div>
@@ -218,17 +220,169 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
-import { useDownloadStore, type DownloadFileType } from "../../store/downloads";
+import { ref, computed, onMounted, onUnmounted } from "vue";
+import { useRouter } from "vue-router";
+import { useDownloadStore, type DownloadFileType, type DownloadItem } from "../../store/downloads";
+import { openContextMenu } from "../../store/contextMenu";
+import type { ContextMenuItem } from "../../components/contextMenu/types";
+import { revealItemInDir, openPath } from "@tauri-apps/plugin-opener";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import {
     FileIcon, ImageIcon, VideoIcon, MusicIcon, MicIcon,
+    MessageCircleIcon, FolderOpenIcon, TrashIcon,
 } from 'lucide-vue-next';
 import type { Component } from "vue";
 
 const store = useDownloadStore();
+const router = useRouter();
 const menuOpen = ref(false);
 const menuEl = ref<HTMLElement | null>(null);
+
+/** 已隐藏（通用资源）的进行中下载数量 —— 模板中多处引用，缓存避免每次渲染重复 filter */
+const hiddenGenericsCount = computed(() =>
+    store.pendingItems.filter((i) => i.is_generic).length
+);
+
+/** 打开文件所在位置（文件管理器定位） */
+async function revealFile(item: DownloadItem) {
+    const localPath = item.local_path;
+    if (!localPath) return;
+    try {
+        await revealItemInDir([localPath]);
+    } catch (e) {
+        console.error("revealItemInDir failed:", e);
+    }
+}
+
+/** 用系统默认程序打开文件 */
+async function openFile(item: DownloadItem) {
+    const localPath = item.local_path;
+    if (!localPath) return;
+    try {
+        await openPath(localPath);
+    } catch (e) {
+        console.error("openPath failed:", e);
+    }
+}
+
+/** 跳转到该下载项对应的对话（并定位到对应消息） */
+function openChat(item: DownloadItem) {
+    if (!item.chat_id) return;
+    const query: Record<string, string> = {};
+    if (item.message_id) query.message = String(item.message_id);
+    router.push({
+        name: "chat-detail",
+        params: { id: String(item.chat_id) },
+        query,
+    });
+}
+
+/** 在播放器中直接打开媒体（图片/视频 → 媒体查看器，音乐 → 音频播放器） */
+function openInPlayer(item: DownloadItem) {
+    if (!item.chat_id || !item.message_id) return;
+    const action = item.file_type === "audio" ? "audio" : "photo";
+    router.push({
+        name: "chat-detail",
+        params: { id: String(item.chat_id) },
+        query: { message: String(item.message_id), open: action },
+    });
+}
+
+/** 已完成条目是否可在播放器中点击打开（音乐/图片/视频） */
+function canOpenInPlayer(item: DownloadItem): boolean {
+    if (!item.is_completed) return false;
+    return item.file_type === "audio" || item.file_type === "photo" || item.file_type === "video";
+}
+
+/** 点击已完成条目：音乐/图片/视频直接在播放器中打开 */
+function onCompletedClick(item: DownloadItem) {
+    if (canOpenInPlayer(item)) {
+        openInPlayer(item);
+    }
+}
+
+/** 构建下载项的右键菜单 */
+function buildItemMenu(item: DownloadItem): ContextMenuItem[] {
+    const items: ContextMenuItem[] = [];
+
+    if (item.chat_id) {
+        items.push({
+            key: "chat",
+            label: "跳转到对应对话",
+            icon: MessageCircleIcon,
+            onClick: () => openChat(item),
+        });
+    }
+    if (item.file_type === "audio" || item.file_type === "photo" || item.file_type === "video") {
+        items.push({
+            key: "play",
+            label: item.file_type === "audio" ? "用播放器播放" : "在播放器中打开",
+            icon: item.file_type === "audio" ? MusicIcon : ImageIcon,
+            onClick: () => openInPlayer(item),
+        });
+    }
+
+    if (item.local_path) {
+        items.push({
+            key: "reveal",
+            label: "打开文件位置",
+            icon: FolderOpenIcon,
+            divider: items.length > 0,
+            onClick: () => revealFile(item),
+        });
+        if (item.is_completed) {
+            items.push({
+                key: "open",
+                label: "打开文件",
+                icon: FileIcon,
+                onClick: () => openFile(item),
+            });
+        }
+    }
+
+    if (!item.is_completed) {
+        items.push({
+            key: "pause",
+            label: item.is_paused ? "继续下载" : "暂停下载",
+            icon: MusicIcon,
+            divider: items.length > 0,
+            onClick: () => store.togglePause(item.file_id),
+        });
+        items.push({
+            key: "cancel",
+            label: "取消下载",
+            icon: TrashIcon,
+            danger: true,
+            onClick: () => store.cancelDownload(item.file_id),
+        });
+    }
+
+    if (item.is_completed) {
+        items.push({
+            key: "dismiss",
+            label: "从列表移除",
+            icon: TrashIcon,
+            danger: true,
+            divider: items.length > 0,
+            onClick: () => store.dismissItem(item.file_id),
+        });
+    }
+
+    return items;
+}
+
+/** 下载项的右键点击 */
+function onItemContextMenu(event: MouseEvent, item: DownloadItem) {
+    event.preventDefault();
+    event.stopPropagation();
+    openContextMenu(
+        event.clientX,
+        event.clientY,
+        buildItemMenu(item),
+        event.currentTarget as HTMLElement | null,
+        { item },
+    );
+}
 
 function setMenuRef(el: any) {
     menuEl.value = el as HTMLElement;

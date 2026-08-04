@@ -32,16 +32,17 @@
             </div>
             <!-- 无描述时：时间状态以胶囊叠加在相册右下角，不占底部独立行 -->
             <div v-if="!captionText && lastDate"
-                class="absolute right-1.5 bottom-1.5 bg-black/60 text-white px-1.5 py-0.5 rounded-md leading-none select-none pointer-events-none">
+                class="absolute right-1.5 bottom-1.5 bg-black/60 text-white px-1.5 py-0.5 rounded-md leading-none select-none pointer-events-none flex items-center">
                 <MessageStatus :date="lastDate" :isOutgoing="isSelf" :sendingState="lastSendingState" :isRead="isRead"
                     :viewCount="lastViewCount" :authorSignature="authorSignature" overMedia />
             </div>
         </div>
         <div v-if="captionText" class="px-2 pt-1.5 pb-2"
-            :class="isSelf ? 'text-white/90' : 'text-gray-800 dark:text-gray-200'">
+            :class="isSelf ? 'text-gray-900 dark:text-white' : 'text-gray-800 dark:text-gray-200'">
             <MessageTextContent :formattedText="captionFormatted" />
         </div>
-        <span v-if="captionText" class="block text-right px-2 pb-1" :class="isSelf ? 'text-blue-100' : 'text-gray-400'">
+        <span v-if="captionText" class="block text-right px-2 pb-1"
+            :class="isSelf ? 'text-black/50 dark:text-white/50' : 'text-gray-400'">
             <MessageStatus :date="lastDate" :isOutgoing="isSelf" :sendingState="lastSendingState" :isRead="isRead"
                 :viewCount="lastViewCount" :authorSignature="authorSignature" />
         </span>
@@ -58,6 +59,8 @@ import MessageTextContent from './MessageTextContent.vue';
 import type { MediaViewerItem } from './MediaViewer.vue';
 import { layoutMediaGroup, type MediaGroupSize } from '../../../../utils/mediaGroupLayout';
 import { registerMediaItem, unregisterMediaItem, openMediaViewer } from '../../../../store/mediaViewer';
+import { getSenderName } from '../../../../utils/senderInfo';
+import { buildVideoQualities } from '../../../../utils/videoQualities';
 import { settings } from '../../../../store/settings';
 import { getChatCategory } from '../../../../utils/autoDownload';
 import { isThumbnailImgRenderable } from '../../../../utils/thumbnail';
@@ -80,6 +83,15 @@ watch([() => props.messages, mediaCache], () => {
     for (const msg of props.messages) {
         const c = msg.content;
         const capt = 'caption' in c && c.caption?.text ? c.caption.text : '';
+        const captFormatted = ('caption' in c && c.caption?.text) ? c.caption : undefined;
+        // 发送人显示名称与消息时间（用于查看器底部信息展示）
+        const senderName = getSenderName(msg.sender_id);
+        const date = typeof msg.date === 'number' ? msg.date : 0;
+        const meta = { messageId: msg.id, chatId: props.chatId };
+        const basename = (p: string | undefined) => {
+            if (!p) return '';
+            return p.split(/[\\/]/).pop() || '';
+        };
         let item: MediaViewerItem | null = null;
         if (c._ === 'messagePhoto') {
             const sizes = c.photo.sizes;
@@ -87,8 +99,11 @@ watch([() => props.messages, mediaCache], () => {
                 const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
                 const src = mediaCache[msg.id] || (isFileReady(largest.photo) ? convertFileSrc(largest.photo.local.path) : '');
                 const thumb = thumbCache[msg.id] || (c.photo.minithumbnail?.data ? `data:image/jpeg;base64,${c.photo.minithumbnail.data}` : '');
-                if (src) {
-                    item = { type: 'photo', src, thumb: thumb || undefined, caption: capt };
+                const localPath = isFileReady(largest.photo) ? largest.photo.local.path : undefined;
+                const canDl = largest.photo?.local?.can_be_downloaded;
+                // src 未就绪但可下载时也注册占位项，查看器内显示缩略图预览与进度
+                if (src || canDl) {
+                    item = { type: 'photo', src, thumb: thumb || undefined, caption: capt, captionFormatted: captFormatted, senderName, date, localPath, fileName: basename(localPath), ...meta };
                 }
             }
         } else if (c._ === 'messageVideo') {
@@ -98,13 +113,25 @@ watch([() => props.messages, mediaCache], () => {
                 src = `${convertFileSrc(String(file.id), 'tdstream')}?mime=${c.video.mime_type}`;
             }
             if (src) {
-                item = { type: 'video', src, caption: capt };
+                const qualities = buildVideoQualities(
+                    c.alternative_videos,
+                    src,
+                    { width: c.video.width, height: c.video.height },
+                );
+                const localPath = isFileReady(file) ? file.local.path : undefined;
+                item = {
+                    type: 'video', src, caption: capt, captionFormatted: captFormatted, senderName, date,
+                    localPath,
+                    fileName: c.video.file_name || basename(localPath),
+                    qualities: qualities.length ? qualities : undefined, ...meta,
+                };
             }
         } else if (c._ === 'messageAnimation') {
             const file = c.animation.animation;
             const src = mediaCache[msg.id] || (isFileReady(file) ? convertFileSrc(file.local.path) : '');
             if (src) {
-                item = { type: 'animation', src, caption: capt };
+                const localPath = isFileReady(file) ? file.local.path : undefined;
+                item = { type: 'animation', src, caption: capt, captionFormatted: captFormatted, senderName, date, localPath, fileName: c.animation.file_name || basename(localPath), ...meta };
             }
         }
         if (item) registerMediaItem(msg.id, item);

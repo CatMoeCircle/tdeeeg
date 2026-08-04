@@ -5,12 +5,28 @@
             <div v-if="visible && isVideo" class="fixed inset-0 z-999 flex items-center justify-center"
                 @click.self="close" @keydown="onKeydown" tabindex="0" ref="containerRef">
                 <!-- Video card -->
-                <div class="video-card relative flex flex-col overflow-hidden bg-black/70" :style="playerStyle"
-                    @click.stop @mousemove="onVideoMouseMove" @mouseleave="onVideoMouseLeave">
+                <div ref="videoContainerRef" class="video-card relative flex flex-col overflow-hidden bg-black/70"
+                    :style="playerStyle" @click.stop @mousemove="onVideoMouseMove" @mouseleave="onVideoMouseLeave">
                     <!-- Video element -->
                     <video ref="videoRef" :src="currentSrc" preload="auto" playsinline loop
                         class="w-full h-full object-contain" @timeupdate="onVideoTimeUpdate"
                         @loadedmetadata="onVideoLoaded" @ended="onVideoEnded" @click="toggleVideoPlay" />
+
+                    <!-- Prev/Next arrows (hidden with UI control, only in video mode) -->
+                    <button v-if="totalCount > 1" @click.stop="goTo(currentIndex - 1)"
+                        class="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center text-white/60 hover:text-white bg-black/20 hover:bg-black/40 rounded-full transition-opacity duration-300"
+                        :class="uiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-6 h-6">
+                            <path d="M15 18l-6-6 6-6" />
+                        </svg>
+                    </button>
+                    <button v-if="totalCount > 1" @click.stop="goTo(currentIndex + 1)"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center text-white/60 hover:text-white bg-black/20 hover:bg-black/40 rounded-full transition-opacity duration-300"
+                        :class="uiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-6 h-6">
+                            <path d="M9 18l6-6-6-6" />
+                        </svg>
+                    </button>
 
                     <!-- UI overlay (close button + controls + caption) -->
                     <Transition name="fade-ui">
@@ -26,29 +42,29 @@
 
                             <!-- Bottom controls + caption -->
                             <div
-                                class="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 w-[320px] max-w-[90%]">
+                                class="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 w-100 max-w-[92%]">
                                 <!-- Control card -->
-                                <div class="w-full bg-black/60 backdrop-blur-md rounded-2xl px-4 py-3" @click.stop>
-                                    <!-- Row 1: volume + play/pause + time -->
-                                    <div class="flex items-center justify-between gap-3 mb-2">
+                                <div class="w-full bg-black/60 backdrop-blur-md rounded-2xl px-4 py-2.5" @click.stop>
+                                    <!-- Row 1: volume / play-pause / speed + quality + fullscreen -->
+                                    <div class="flex items-center justify-between gap-2 mb-1">
                                         <!-- Left: volume -->
-                                        <div class="flex items-center gap-1.5 w-[90px] shrink-0">
+                                        <div class="flex items-center gap-2 w-37 shrink-0">
                                             <button @click="toggleVideoMute"
                                                 class="w-7 h-7 flex items-center justify-center text-white/70 hover:text-white shrink-0">
                                                 <svg v-if="!videoMuted" viewBox="0 0 24 24" fill="none"
-                                                    stroke="currentColor" stroke-width="2" class="w-4 h-4">
+                                                    stroke="currentColor" stroke-width="2" class="w-4.5 h-4.5">
                                                     <path d="M11 5L6 9H2v6h4l5 4V5z" />
                                                     <path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07" />
                                                 </svg>
                                                 <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                                    stroke-width="2" class="w-4 h-4">
+                                                    stroke-width="2" class="w-4.5 h-4.5">
                                                     <path d="M11 5L6 9H2v6h4l5 4V5z" />
                                                     <line x1="23" y1="9" x2="17" y2="15" />
                                                     <line x1="17" y1="9" x2="23" y2="15" />
                                                 </svg>
                                             </button>
                                             <input type="range" :min="0" :max="1" :step="0.05" :value="videoVolume"
-                                                @input="onVolumeChange" class="w-20 h-1 accent-white cursor-pointer" />
+                                                @input="onVolumeChange" class="w-24 h-1 accent-white cursor-pointer" />
                                         </div>
                                         <!-- Center: play/pause -->
                                         <button @click="toggleVideoPlay"
@@ -61,24 +77,89 @@
                                                 <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
                                             </svg>
                                         </button>
-                                        <!-- Right: time -->
-                                        <div class="flex items-center gap-2 w-[90px] shrink-0 justify-end">
-                                            <span class="text-white/60 text-xs font-mono">{{
-                                                formatTimestamp(videoCurrent) }} /
-                                                {{ formatTimestamp(videoDuration) }}</span>
+                                        <!-- Right: speed + quality + fullscreen -->
+                                        <div class="flex items-center gap-1 w-37 shrink-0 justify-end">
+                                            <!-- Speed -->
+                                            <div class="relative">
+                                                <button @click.stop="toggleSpeedMenu"
+                                                    class="h-7 px-2 flex items-center justify-center text-white/80 hover:text-white rounded-md hover:bg-white/10 transition-colors text-sm font-medium min-w-8">
+                                                    {{ playbackRate }}x
+                                                </button>
+                                                <Transition name="fade-ui">
+                                                    <div v-if="speedMenuVisible"
+                                                        class="absolute bottom-full mb-2 right-0 bg-black/85 backdrop-blur-md rounded-xl py-1.5 px-1 shadow-xl min-w-22">
+                                                        <button v-for="s in speedOptions" :key="s"
+                                                            @click="setPlaybackRate(s)"
+                                                            class="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors"
+                                                            :class="playbackRate === s ? 'text-white bg-white/15' : 'text-white/70 hover:text-white hover:bg-white/10'">
+                                                            <span>{{ s }}x</span>
+                                                            <svg v-if="playbackRate === s" viewBox="0 0 24 24"
+                                                                fill="none" stroke="currentColor" stroke-width="2.5"
+                                                                class="w-3.5 h-3.5">
+                                                                <polyline points="20 6 9 17 4 12" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                </Transition>
+                                            </div>
+                                            <!-- Quality -->
+                                            <div v-if="currentQualities.length > 1" class="relative">
+                                                <button @click.stop="toggleQualityMenu"
+                                                    class="h-7 px-2 flex items-center justify-center text-white/80 hover:text-white rounded-md hover:bg-white/10 transition-colors text-sm font-medium">
+                                                    {{ qualityLabel }}
+                                                </button>
+                                                <Transition name="fade-ui">
+                                                    <div v-if="qualityMenuVisible"
+                                                        class="absolute bottom-full mb-2 right-0 bg-black/85 backdrop-blur-md rounded-xl py-1.5 px-1 shadow-xl min-w-22">
+                                                        <button v-for="q in currentQualities" :key="q.id"
+                                                            @click="selectQuality(q)"
+                                                            class="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors"
+                                                            :class="q.src === activeQualitySrc ? 'text-white bg-white/15' : 'text-white/70 hover:text-white hover:bg-white/10'">
+                                                            <span>{{ q.label }}</span>
+                                                            <svg v-if="q.src === activeQualitySrc" viewBox="0 0 24 24"
+                                                                fill="none" stroke="currentColor" stroke-width="2.5"
+                                                                class="w-3.5 h-3.5">
+                                                                <polyline points="20 6 9 17 4 12" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                </Transition>
+                                            </div>
+                                            <!-- Fullscreen -->
+                                            <button @click.stop="toggleFullscreen"
+                                                class="w-7 h-7 flex items-center justify-center text-white/80 hover:text-white rounded-md hover:bg-white/10 transition-colors shrink-0">
+                                                <svg v-if="!isFullscreen" viewBox="0 0 24 24" fill="none"
+                                                    stroke="currentColor" stroke-width="2" class="w-4.5 h-4.5">
+                                                    <path
+                                                        d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3" />
+                                                </svg>
+                                                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                    stroke-width="2" class="w-4.5 h-4.5">
+                                                    <path
+                                                        d="M8 3v3a2 2 0 01-2 2H3m18 0h-3a2 2 0 01-2-2V3m0 18v-3a2 2 0 012-2h3M3 16h3a2 2 0 012 2v3" />
+                                                </svg>
+                                            </button>
                                         </div>
                                     </div>
-                                    <!-- Row 2: progress bar (draggable) -->
-                                    <div class="w-full flex items-center">
+                                    <!-- Row 2 (bottom): progress bar with time on both sides -->
+                                    <div class="flex items-center gap-3">
+                                        <span class="text-white/70 text-xs font-mono shrink-0 w-10 text-right">{{
+                                            formatTimestamp(videoCurrent) }}</span>
                                         <input type="range" :min="0" :max="videoDuration || 0" :step="0.1"
                                             :value="videoCurrent" @input="onSeekDrag"
-                                            class="w-full h-1 accent-white cursor-pointer appearance-none bg-white/20 rounded-full [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md" />
+                                            class="flex-1 h-1.5 accent-white cursor-pointer appearance-none bg-white/20 rounded-full [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md" />
+                                        <span class="text-white/70 text-xs font-mono shrink-0 w-10">{{
+                                            formatTimestamp(videoDuration) }}</span>
                                     </div>
                                 </div>
                                 <!-- Caption card (below controls) -->
-                                <div v-if="caption" class="w-full bg-black/60 backdrop-blur-md rounded-xl px-4 py-2"
+                                <div v-if="caption"
+                                    class="media-caption-scroll w-full max-h-[4.2rem] overflow-y-auto bg-black/60 backdrop-blur-md rounded-xl px-4 py-2"
                                     @click.stop>
-                                    <p class="line-clamp-3 text-white/80 text-sm text-center">{{ caption }}</p>
+                                    <MessageTextContent v-if="captionFormatted?.text"
+                                        :formattedText="captionFormatted"
+                                        class="text-center text-white/90 dark:text-white/90" />
+                                    <p v-else class="text-sm text-white/80 text-center">{{ caption }}</p>
                                 </div>
                             </div>
                         </div>
@@ -90,22 +171,16 @@
 
     <!-- ========== PHOTO MODE ========== -->
     <Teleport to="body">
-        <div v-if="visible && isImage" class="fixed inset-0 z-9999 bg-black/95 flex flex-col" @wheel.prevent="onWheel"
-            @keydown="onKeydown" @click.self="close" tabindex="0" ref="containerRef">
+        <div v-if="visible && isImage" class="fixed inset-0 z-9999 bg-black/70 flex flex-col" @wheel.prevent="onWheel"
+            @keydown="onKeydown" @click.self="close" tabindex="0" ref="imageContainerRef">
 
-            <!-- Top bar -->
-            <div
-                class="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 bg-linear-to-b from-black/60 to-transparent">
-                <div class="flex items-center gap-3">
-                    <button @click="close"
-                        class="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-6 h-6">
-                            <path d="M18 6L6 18M6 6l12 12" />
-                        </svg>
-                    </button>
-                    <span class="text-sm text-white/80">{{ currentIndex + 1 }} / {{ totalCount }}</span>
-                </div>
-                <div class="w-8"></div>
+            <!-- Top bar (close button only) -->
+            <div class="absolute top-0 left-0 right-0 z-10 flex items-center px-4 py-3">
+                <button @click="close" class="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-6 h-6">
+                        <path d="M18 6L6 18M6 6l12 12" />
+                    </svg>
+                </button>
             </div>
 
             <!-- Main content area -->
@@ -113,13 +188,33 @@
                 ref="contentRef" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp"
                 @pointercancel="onPointerUp">
 
-                <img v-if="!isAnimation" :src="currentSrc"
+                <img v-if="!isAnimation && currentSrc" :src="currentSrc"
                     class="max-w-full max-h-full transition-transform duration-200 ease-out select-none"
-                    :style="{ transform: `scale(${zoom}) translate(${panX}px, ${panY}px)` }" draggable="false"
+                    :style="{ transform: `scale(${zoom}) rotate(${rotation}deg) translate(${panX}px, ${panY}px)` }"
+                    draggable="false" @dblclick="toggleZoom" />
+                <video v-else-if="isAnimation && currentSrc" :src="currentSrc" autoplay loop muted playsinline
+                    class="max-w-full max-h-full transition-transform duration-200 ease-out select-none"
+                    :style="{ transform: `scale(${zoom}) rotate(${rotation}deg) translate(${panX}px, ${panY}px)` }"
                     @dblclick="toggleZoom" />
-                <video v-else :src="currentSrc" autoplay loop muted playsinline
-                    class="max-w-full max-h-full transition-transform duration-200 ease-out select-none"
-                    :style="{ transform: `scale(${zoom}) translate(${panX}px, ${panY}px)` }" @dblclick="toggleZoom" />
+
+                <!-- 加载中：预览缩略图 + 待加载提示 + 进度条（点击可关闭查看器） -->
+                <div v-if="isImageLoading" @click="close" title="点击关闭"
+                    class="absolute inset-0 flex flex-col items-center justify-center bg-black/40 cursor-pointer">
+                    <!-- 缩略图预览（若有） -->
+                    <img v-if="hasThumbPreview" :src="currentThumb"
+                        class="max-w-[80%] max-h-[70%] object-contain opacity-70 blur-[1px]" draggable="false" />
+                    <!-- 转圈 -->
+                    <div
+                        class="mt-6 w-10 h-10 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <!-- 待加载文字 -->
+                    <span class="mt-3 text-sm text-white/80">待加载…</span>
+                    <!-- 进度条（下载中显示实际进度） -->
+                    <div v-if="imageProgress > 0" class="mt-3 w-52 h-1.5 bg-white/20 rounded-full overflow-hidden">
+                        <div class="h-full bg-white transition-all duration-300" :style="{ width: imageProgress * 100 + '%' }"></div>
+                    </div>
+                    <span v-if="imageProgress > 0" class="mt-1.5 text-xs text-white/60 font-mono">{{
+                        Math.round(imageProgress * 100) }}%</span>
+                </div>
 
                 <!-- Prev/Next arrows -->
                 <button v-if="totalCount > 1"
@@ -137,21 +232,55 @@
                     </svg>
                 </button>
 
-                <!-- Zoom slider -->
-                <div
-                    class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 w-[220px] bg-black/40 rounded-full px-4 py-2">
-                    <button @click.stop="zoomOut"
-                        class="w-6 h-6 flex items-center justify-center text-white/70 hover:text-white shrink-0">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4">
-                            <path d="M5 12h14" />
+            </div>
+
+            <!-- Bottom: left (progress/sender/date) + center (caption card) + right (zoom/rotate) -->
+            <div
+                class="absolute bottom-0 left-0 right-0 z-10 flex items-end justify-between gap-4 px-4 pb-3 pt-3 pointer-events-none">
+                <!-- Left: progress + sender + date -->
+                <div class="flex flex-col gap-0.5 text-left min-w-0 shrink-0 pointer-events-auto">
+                    <span class="text-sm font-medium text-white/90">{{ currentIndex + 1 }} / {{ totalCount }}</span>
+                    <span v-if="currentSenderName || currentDate" class="text-xs text-white/60">
+                        <template v-if="currentSenderName">{{ currentSenderName }}</template>
+                        <template v-if="currentSenderName && currentDate">&nbsp;</template>
+                        <template v-if="currentDate">{{ formatDateTime(currentDate) }}</template>
+                    </span>
+                </div>
+
+                <!-- Center: caption card -->
+                <div class="flex-1 flex justify-center min-w-0 pointer-events-auto" @wheel.stop>
+                    <div v-if="caption"
+                        class="media-caption-scroll max-h-[4.2rem] overflow-y-auto bg-black/60 backdrop-blur-md rounded-2xl px-4 py-2 max-w-full">
+                        <MessageTextContent v-if="captionFormatted?.text" :formattedText="captionFormatted"
+                            class="text-center text-white/90 dark:text-white/90" />
+                        <p v-else class="text-sm text-white/85 text-center">{{ caption }}</p>
+                    </div>
+                </div>
+
+                <!-- Right: zoom / rotate controls (horizontal) -->
+                <div class="flex items-center gap-2 shrink-0 pointer-events-auto">
+                    <button @click.stop="zoomIn"
+                        class="w-9 h-9 flex items-center justify-center rounded-full bg-black/50 text-white/80 hover:text-white hover:bg-black/70 transition-colors">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5">
+                            <circle cx="11" cy="11" r="8" />
+                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                            <line x1="11" y1="8" x2="11" y2="14" />
+                            <line x1="8" y1="11" x2="14" y2="11" />
                         </svg>
                     </button>
-                    <input type="range" :min="0.25" :max="5" :step="0.01" :value="zoom" @input="onZoomSlider"
-                        class="flex-1 h-1 accent-white cursor-pointer" />
-                    <button @click.stop="zoomIn"
-                        class="w-6 h-6 flex items-center justify-center text-white/70 hover:text-white shrink-0">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4">
-                            <path d="M12 5v14m7-7H5" />
+                    <button @click.stop="zoomOut"
+                        class="w-9 h-9 flex items-center justify-center rounded-full bg-black/50 text-white/80 hover:text-white hover:bg-black/70 transition-colors">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5">
+                            <circle cx="11" cy="11" r="8" />
+                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                            <line x1="8" y1="11" x2="14" y2="11" />
+                        </svg>
+                    </button>
+                    <button @click.stop="rotate90"
+                        class="w-9 h-9 flex items-center justify-center rounded-full bg-black/50 text-white/80 hover:text-white hover:bg-black/70 transition-colors">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5">
+                            <path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8" />
+                            <path d="M3 3v5h5" />
                         </svg>
                     </button>
                 </div>
@@ -164,12 +293,49 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { isMediaViewerActive } from '../../../../store/mediaViewer';
 import { pauseAudioForVideo, onVideoStopped } from '../../../../store/videoPlayback';
+import { useDownloadStore } from '../../../../store/downloads';
+import { openContextMenu } from '../../../../store/contextMenu';
+import type { ContextMenuItem } from '../../../../components/contextMenu/types';
+import { EyeIcon, CornerUpRightIcon, DownloadIcon, FolderOpenIcon, CopyIcon } from 'lucide-vue-next';
+import { invoke } from '@tauri-apps/api/core';
+import { MessagePlugin } from 'tdesign-vue-next';
+import type { formattedText } from 'tdlib-types';
+import MessageTextContent from './MessageTextContent.vue';
+
+export interface MediaViewerVideoQuality {
+    /** 唯一标识 */
+    id: string;
+    /** 视频宽度 */
+    width: number;
+    /** 视频高度 */
+    height: number;
+    /** 画质视频源地址 */
+    src: string;
+    /** 显示标签，如 1080p */
+    label: string;
+}
 
 export interface MediaViewerItem {
     type: 'photo' | 'video' | 'animation';
     src: string;
     thumb?: string;
     caption?: string;
+    /** caption 富文本（含 entities），用于渲染消息实体与保留换行 */
+    captionFormatted?: formattedText;
+    /** 发送人显示名称（可选） */
+    senderName?: string;
+    /** 消息发送时间（Unix 秒，可选） */
+    date?: number;
+    /** 可选画质列表（仅视频，若存在多种画质） */
+    qualities?: MediaViewerVideoQuality[];
+    /** 所属消息 ID（用于查看/转发） */
+    messageId?: number;
+    /** 所属对话 ID（用于查看/转发） */
+    chatId?: number;
+    /** 本地文件路径（用于打开/另存为） */
+    localPath?: string;
+    /** 文件名称（tdlib 提供，用于另存为默认名） */
+    fileName?: string;
 }
 
 const props = defineProps<{
@@ -182,12 +348,17 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     close: [currentTime?: number];
+    /** 查看：跳转到该媒体所属消息 */
+    jumpToMessage: [messageId: number];
+    /** 转发该媒体所属消息 */
+    forwardMessage: [messageId: number];
 }>();
 
 const currentIndex = ref(props.initialIndex || 0);
 const zoom = ref(1);
 const panX = ref(0);
 const panY = ref(0);
+const rotation = ref(0);
 
 // Drag state
 const isDragging = ref(false);
@@ -205,6 +376,28 @@ const videoCurrent = ref(0);
 const videoDuration = ref(0);
 const videoLoaded = ref(false);
 // Progress bar computed (videoProgressPct) placeholder for future UI
+
+// 播放倍速
+const playbackRate = ref(1);
+const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+// 画质选择（video）
+/** 当前选中的画质 src */
+const activeQualitySrc = ref('');
+const qualityMenuVisible = ref(false);
+const speedMenuVisible = ref(false);
+const isFullscreen = ref(false);
+const videoContainerRef = ref<HTMLElement | null>(null);
+
+/** 当前视频项的可选画质列表 */
+const currentQualities = computed(() => currentItem.value?.qualities || []);
+/** 当前选中的画质项 */
+const activeQuality = computed(() =>
+    currentQualities.value.find((q) => q.src === activeQualitySrc.value)
+    || currentQualities.value[currentQualities.value.length - 1]
+);
+/** 画质标签，如 1080p */
+const qualityLabel = computed(() => activeQuality.value?.label || '');
 
 // UI auto-hide state (video mode only)
 const uiVisible = ref(true);
@@ -236,6 +429,9 @@ function onVideoMouseLeave() {
 }
 
 const containerRef = ref<HTMLElement | null>(null);
+const imageContainerRef = ref<HTMLElement | null>(null);
+/** 当前可见的查看器根（视频或图片容器） */
+const viewerRoot = computed(() => isVideo.value ? containerRef.value : imageContainerRef.value);
 const contentRef = ref<HTMLElement | null>(null);
 
 const totalCount = computed(() => props.items.length);
@@ -244,7 +440,31 @@ const isImage = computed(() => currentItem.value?.type === 'photo' || currentIte
 const isVideo = computed(() => currentItem.value?.type === 'video');
 const isAnimation = computed(() => currentItem.value?.type === 'animation');
 const currentSrc = computed(() => currentItem.value?.src || '');
+const currentThumb = computed(() => currentItem.value?.thumb || '');
 const caption = computed(() => currentItem.value?.caption || '');
+/** caption 富文本（含 entities），用于渲染消息实体与保留换行 */
+const captionFormatted = computed(() => currentItem.value?.captionFormatted);
+const currentSenderName = computed(() => currentItem.value?.senderName || '');
+const currentDate = computed(() => currentItem.value?.date || 0);
+
+// ---- 图片加载状态 ----
+const downloadStore = useDownloadStore();
+/** 当前媒体对应下载项（按 chatId+messageId 匹配，用于图片未就绪时显示进度） */
+const currentDownload = computed(() => {
+    const cid = currentItem.value?.chatId;
+    const mid = currentItem.value?.messageId;
+    if (cid === undefined || mid === undefined) return undefined;
+    return Object.values(downloadStore.items).find((d) => d.chat_id === cid && d.message_id === mid);
+});
+/** 图片下载/加载进度（0~1） */
+const imageProgress = computed(() => {
+    const p = currentDownload.value?.progress;
+    return typeof p === 'number' ? Math.min(1, Math.max(0, p)) : 0;
+});
+/** 图片是否仍在加载（无主图 src） */
+const isImageLoading = computed(() => isImage.value && !currentSrc.value);
+/** 是否有缩略图可用于预览 */
+const hasThumbPreview = computed(() => !!currentThumb.value);
 
 // Video card: fill the full screen
 const playerStyle = computed(() => {
@@ -266,6 +486,10 @@ watch(() => props.visible, (v) => {
         videoLoaded.value = false;
         videoCurrent.value = 0;
         videoDuration.value = 0;
+        playbackRate.value = 1;
+        activeQualitySrc.value = props.items[currentIndex.value]?.src || '';
+        speedMenuVisible.value = false;
+        qualityMenuVisible.value = false;
     } else {
         if (videoRef.value) {
             videoRef.value.pause();
@@ -277,11 +501,16 @@ watch(() => props.visible, (v) => {
 
 watch(currentIndex, () => {
     resetZoom();
+    rotation.value = 0;
     isVideoPlaying.value = false;
     videoMuted.value = false;
     videoLoaded.value = false;
     videoCurrent.value = 0;
     videoDuration.value = 0;
+    playbackRate.value = 1;
+    activeQualitySrc.value = props.items[currentIndex.value]?.src || '';
+    speedMenuVisible.value = false;
+    qualityMenuVisible.value = false;
 });
 
 function close() {
@@ -289,15 +518,162 @@ function close() {
     emit('close', isVideo.value ? videoCurrent.value : undefined);
 }
 
-function onZoomSlider(e: Event) {
-    const target = e.target as HTMLInputElement;
-    zoom.value = parseFloat(target.value);
-}
-
 function goTo(index: number) {
     if (index < 0) index = totalCount.value - 1;
     if (index >= totalCount.value) index = 0;
     currentIndex.value = index;
+}
+
+// ==================== 右键菜单 ====================
+/** 当前媒体项本地路径（用于打开 / 另存为） */
+const currentLocalPath = computed(() => currentItem.value?.localPath || '');
+const currentMessageId = computed(() => currentItem.value?.messageId);
+/** 当前媒体项文件名称（tdlib 提供，另存为默认名） */
+const currentFileName = computed(() => currentItem.value?.fileName || '');
+/** 是否有本地文件（决定 打开/另存为 是否可用） */
+const hasLocalFile = computed(() => currentLocalPath.value.length > 0);
+
+/** 查看：关闭查看器并跳转到该媒体所在消息 */
+function handleViewItem() {
+    const id = currentMessageId.value;
+    if (id === undefined) return;
+    emit('jumpToMessage', id);
+}
+
+/** 转发该媒体所在消息 */
+function handleForwardItem() {
+    const id = currentMessageId.value;
+    if (id === undefined) return;
+    emit('forwardMessage', id);
+}
+
+/** 激活系统「打开方式」对话框，选择应用打开本地文件 */
+async function handleOpenWith() {
+    const p = currentLocalPath.value;
+    if (!p) return;
+    try {
+        await invoke('open_with_dialog', { path: p });
+    } catch (e) {
+        console.error('open_with_dialog failed:', e);
+        MessagePlugin.error('打开文件失败');
+    }
+}
+
+/** 另存为：弹出保存对话框并把源文件复制到目标位置 */
+async function handleSaveAs() {
+    const p = currentLocalPath.value;
+    if (!p) return;
+    try {
+        const { save } = await import('@tauri-apps/plugin-dialog');
+        const { copyFile } = await import('@tauri-apps/plugin-fs');
+        // 优先使用 tdlib 提供的文件名称
+        const defaultName = currentFileName.value || 'media';
+        const dest = await save({
+            title: '另存为',
+            defaultPath: defaultName,
+        });
+        if (!dest) return; // 用户取消
+        await copyFile(p, dest);
+        MessagePlugin.success('已另存为');
+    } catch (e) {
+        console.error('saveAs failed:', e);
+        MessagePlugin.error('另存为失败');
+    }
+}
+
+/** 复制图片数据到剪贴板 */
+async function handleCopyImage() {
+    try {
+        const src = currentSrc.value;
+        if (!src) return;
+        // asset:// 或 http 资源：转为 Blob 后写入剪贴板
+        const resp = await fetch(src);
+        const blob = await resp.blob();
+        await navigator.clipboard.write([
+            new ClipboardItem({ [blob.type || 'image/png']: blob }),
+        ]);
+        MessagePlugin.success('已复制到剪贴板');
+    } catch (e) {
+        console.error('copy image failed:', e);
+        MessagePlugin.error('复制失败');
+    }
+}
+
+/** 打开查看器右键菜单 */
+function onContextMenu(e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const items: ContextMenuItem[] = [];
+    console.log('[MediaViewer][CM] onContextMenu fired', {
+        isVideo: isVideo.value,
+        isImage: isImage.value,
+        currentMessageId: currentMessageId.value,
+        currentSrc: currentSrc.value,
+        hasLocalFile: hasLocalFile.value,
+        thumb: currentThumb.value,
+    });
+
+    // 查看（跳转到消息）
+    if (currentMessageId.value !== undefined) {
+        items.push({
+            key: 'view',
+            label: '查看',
+            icon: EyeIcon,
+            onClick: handleViewItem,
+        });
+    }
+
+    // 图片额外：复制图片数据
+    if (isImage.value) {
+        items.push({
+            key: 'copy',
+            label: '复制',
+            icon: CopyIcon,
+            onClick: handleCopyImage,
+        });
+    }
+
+    // 转发
+    if (currentMessageId.value !== undefined) {
+        items.push({
+            key: 'forward',
+            label: '转发',
+            icon: CornerUpRightIcon,
+            onClick: handleForwardItem,
+        });
+    }
+
+    // 另存为
+    if (hasLocalFile.value) {
+        items.push({
+            key: 'save-as',
+            label: '另存为',
+            icon: DownloadIcon,
+            onClick: handleSaveAs,
+        });
+    }
+
+    // 使用其他应用打开
+    if (hasLocalFile.value) {
+        items.push({
+            key: 'open-with',
+            label: '使用其他应用打开',
+            icon: FolderOpenIcon,
+            onClick: handleOpenWith,
+        });
+    }
+
+    if (items.length === 0) {
+        console.warn('[MediaViewer][CM] no menu items', {
+            isVideo: isVideo.value,
+            isImage: isImage.value,
+            messageId: currentMessageId.value,
+            hasLocal: hasLocalFile.value,
+        });
+        return;
+    }
+    console.log('[MediaViewer][CM] opening', { x: e.clientX, y: e.clientY, count: items.length, labels: items.map(i => i.label) });
+    openContextMenu(e.clientX, e.clientY, items, e.target as HTMLElement);
 }
 
 // Zoom
@@ -321,6 +697,17 @@ function toggleZoom() {
     if (zoom.value > 1) resetZoom();
     else zoom.value = 3;
 }
+function rotate90() {
+    rotation.value = (rotation.value + 90) % 360;
+}
+
+/** 格式化日期：2026/01/03 12:45 */
+function formatDateTime(ts: number): string {
+    if (!ts) return '';
+    const d = new Date(ts * 1000);
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 function onWheel(e: WheelEvent) {
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
@@ -329,6 +716,9 @@ function onWheel(e: WheelEvent) {
 
 // Pan / Swipe
 function onPointerDown(e: PointerEvent) {
+    // 只处理鼠标左键/触控；右键用于弹出上下文菜单，不参与拖拽
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+
     const target = e.target as HTMLElement | null;
     // 不要去劫持控件的指针事件，否则无法点击方向键按钮。
     if (target?.closest('button, input, textarea, a')) return;
@@ -426,6 +816,12 @@ function onVideoLoaded() {
         videoLoaded.value = true;
         videoRef.value.volume = videoVolume.value;
         videoRef.value.muted = videoMuted.value;
+        // 应用当前倍速
+        videoRef.value.playbackRate = playbackRate.value;
+        // 同步画质源（当前项 src 未选定时作为默认）
+        if (!activeQualitySrc.value) {
+            activeQualitySrc.value = props.items[currentIndex.value]?.src || '';
+        }
         // 同步内联视频的播放进度
         if (props.initialTime && props.initialTime > 0) {
             videoRef.value.currentTime = props.initialTime;
@@ -462,21 +858,112 @@ function formatTimestamp(seconds: number): string {
     return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+// ---- 播放倍速 ----
+function setPlaybackRate(rate: number, showMenu = true) {
+    playbackRate.value = rate;
+    if (videoRef.value) videoRef.value.playbackRate = rate;
+    if (showMenu) speedMenuVisible.value = false;
+}
+
+// ---- 播放速度菜单 ----
+function selectQuality(q: MediaViewerVideoQuality) {
+    if (activeQualitySrc.value === q.src) {
+        qualityMenuVisible.value = false;
+        return;
+    }
+    activeQualitySrc.value = q.src;
+    qualityMenuVisible.value = false;
+    // 记录当前进度与播放状态，重载视频后恢复
+    const targetTime = videoRef.value ? videoRef.value.currentTime : 0;
+    const wasPlaying = isVideoPlaying.value;
+    if (videoRef.value) {
+        videoRef.value.src = q.src;
+        videoRef.value.load();
+        videoLoaded.value = false;
+        videoRef.value.onloadedmetadata = () => {
+            if (videoRef.value && targetTime > 0) {
+                videoRef.value.currentTime = targetTime;
+            }
+            videoLoaded.value = true;
+            if (wasPlaying) {
+                videoRef.value?.play().then(() => { isVideoPlaying.value = true; }).catch(() => { isVideoPlaying.value = false; });
+            }
+        };
+    }
+}
+function toggleQualityMenu() {
+    qualityMenuVisible.value = !qualityMenuVisible.value;
+    speedMenuVisible.value = false;
+}
+function toggleSpeedMenu() {
+    speedMenuVisible.value = !speedMenuVisible.value;
+    qualityMenuVisible.value = false;
+}
+
+// ---- 全屏 ----
+async function toggleFullscreen() {
+    if (!videoContainerRef.value) return;
+    try {
+        if (document.fullscreenElement) {
+            await document.exitFullscreen();
+            isFullscreen.value = false;
+        } else {
+            await videoContainerRef.value.requestFullscreen();
+            isFullscreen.value = true;
+        }
+    } catch (e) {
+        console.warn('Fullscreen toggle failed:', e);
+    }
+}
+
 // Auto focus for keyboard
 watch(() => props.visible, (v) => {
     if (v) {
-        setTimeout(() => containerRef.value?.focus(), 100);
+        setTimeout(() => viewerRoot.value?.focus(), 100);
     }
 });
+
+/** 文档级右键监听：仅当右键命中查看器内部时才打开菜单（不受元素挂载时序影响） */
+function onDocContextMenu(e: MouseEvent) {
+    const root = viewerRoot.value;
+    const isV = isVideo.value;
+    const targeting = (e.target as HTMLElement | null)?.className || (e.target as HTMLElement | null)?.tagName || 'null';
+    console.log('[MediaViewer][CM] doc contextmenu°', {
+        visible: props.visible,
+        isVideo: isV,
+        isImage: isImage.value,
+        hasRoot: !!root,
+        rootTag: root?.tagName,
+        targetClass: targeting,
+        contains: root ? (e.target as Node | null ? root.contains(e.target as Node) : false) : false,
+    });
+    if (!root || !props.visible) return;
+    const target = e.target as Node | null;
+    if (target && root.contains(target)) {
+        onContextMenu(e);
+    }
+}
 
 // 全屏打开视频时暂停音乐
 onMounted(() => {
     if (isVideo.value) pauseAudioForVideo();
+    document.addEventListener('contextmenu', onDocContextMenu);
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    console.log('[MediaViewer][CM] mounted, contextmenu listener bound to document');
 });
+
+function onFullscreenChange() {
+    isFullscreen.value = !!document.fullscreenElement;
+}
 
 // Cleanup idle timer on unmount
 onUnmounted(() => {
     clearIdleTimer();
+    if (isFullscreen.value && document.fullscreenElement) {
+        document.exitFullscreen().catch(() => { });
+    }
+    document.removeEventListener('contextmenu', onDocContextMenu);
+    document.removeEventListener('fullscreenchange', onFullscreenChange);
 });
 </script>
 
@@ -526,5 +1013,15 @@ onUnmounted(() => {
 .fade-ui-enter-from,
 .fade-ui-leave-to {
     opacity: 0;
+}
+
+/* 查看器 caption 滚动容器：隐藏滚动条但保留滚动能力 */
+.media-caption-scroll::-webkit-scrollbar {
+    display: none;
+}
+
+.media-caption-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
 </style>

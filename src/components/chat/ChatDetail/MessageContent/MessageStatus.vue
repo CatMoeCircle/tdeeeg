@@ -7,8 +7,8 @@
 
         <!-- View count -->
         <span v-if="viewCount !== undefined && viewCount > 0" class="flex items-center gap-0.5">
+            <span>{{ viewCount }}</span>
             <EyeIcon class="w-3 h-3" />
-            {{ viewCount }}
         </span>
 
         <!-- Time -->

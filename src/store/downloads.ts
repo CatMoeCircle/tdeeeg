@@ -81,6 +81,79 @@ export const useDownloadStore = defineStore("downloads", () => {
     /** 初始化：从 Rust 加载历史记录 + 监听实时更新 */
     let unlistenProgress: (() => void) | null = null;
 
+    /**
+     * 进度更新节流缓冲。
+     *
+     * Rust 端在下载期间会按 TDLib updateFile 事件高频推送进度，若每个事件都
+     * 直接写回响应式 items（replacing 整个对象），会触发所有依赖 items 的
+     * computed（activeItems/visibleItems/pendingItems/...）全量重算 + 全量重渲染，
+     * 多个文件并行下载时每 tick 都触发一轮，导致 UI 卡顿。
+     *
+     * 解决：将高频更新先合并到一个普通 Map（非响应式）缓冲，用 rAF / 定时
+     * 批量地把缓存的最新对象一次性写回 items。每个节拍内即使收到 N 个进度
+     * 事件，也只触发一轮响应式更新；且多个文件合并进同一轮。
+     */
+    let pendingUpdates = new Map<number, DownloadItem>();
+    let throttleTimer: ReturnType<typeof setTimeout> | null = null;
+
+    /**
+     * 就地合并一个进度更新到现有响应式条目（不替换对象引用）。
+     *
+     * 相比「整体替换 `items.value[fileId] = item`」，这样做的好处是 Vue 的依赖追踪
+     * 是属性级的：列表型 computed（activeItems/visibleItems/pendingItems）只读取
+     * `is_generic`/`is_completed`/`dismissed` 这些低频字段，并不读取高频变化的
+     * `progress`/`downloaded_size`。就地 patch 时，纯进度变化不会触发这些 key 的
+     * setter，也就不会牵连列表 computed 重算 —— 即使下载管理页面未打开，只要
+     * 不替换引用，活跃/列表 computed 也不会被高频进度牵扯。
+     */
+    function applyItem(fileId: number, item: DownloadItem) {
+        const existing = items.value[fileId];
+        if (!existing) {
+            items.value[fileId] = item;
+            return;
+        }
+        // 就地覆盖字段。同值赋值不会触发 setter 副作用（Vue 会跳过相同值）。
+        existing.downloaded_size = item.downloaded_size;
+        existing.total_size = item.total_size;
+        existing.progress = item.progress;
+        existing.is_paused = item.is_paused;
+        existing.is_completed = item.is_completed;
+        if (item.local_path !== undefined) existing.local_path = item.local_path;
+        if (item.file_name !== undefined && item.file_name !== existing.file_name) {
+            existing.file_name = item.file_name;
+        }
+        if (item.chat_title !== undefined && item.chat_title !== existing.chat_title) {
+            existing.chat_title = item.chat_title;
+        }
+        if (typeof item.file_type === "string") existing.file_type = item.file_type;
+        if (typeof item.chat_id === "number") existing.chat_id = item.chat_id;
+        if (typeof item.message_id === "number") existing.message_id = item.message_id;
+        if (item.thumbnail_data_url !== undefined) existing.thumbnail_data_url = item.thumbnail_data_url;
+        if (item.is_generic !== undefined) existing.is_generic = item.is_generic;
+        if (item.dismissed !== undefined) existing.dismissed = item.dismissed;
+    }
+
+    function flushPendingUpdates() {
+        throttleTimer = null;
+        if (pendingUpdates.size > 0) {
+            const batch = pendingUpdates;
+            pendingUpdates = new Map();
+            for (const [fileId, item] of batch) {
+                applyItem(fileId, item);
+            }
+        }
+    }
+
+    /** 将进度更新写入缓冲区，并在下一个刷新帧统一批量写回（节流） */
+    function scheduleUpdate(item: DownloadItem) {
+        pendingUpdates.set(item.file_id, item);
+        if (throttleTimer === null) {
+            // 用 setTimeout(0) 把同一宏任务/微任务批次内的多次更新合并为一次 flush，
+            // 即「每帧至多一次响应式写入」。进度条本身带 transition，视觉上平滑无感。
+            throttleTimer = setTimeout(flushPendingUpdates, 0);
+        }
+    }
+
     async function init() {
         // 1. 从 Rust 加载持久化的下载记录
         await refreshFromRust();
@@ -90,7 +163,7 @@ export const useDownloadStore = defineStore("downloads", () => {
             unlistenProgress = await listen<DownloadItem>("download-progress-update", (event) => {
                 const item = event.payload;
                 if (item && item.file_id) {
-                    items.value[item.file_id] = item;
+                    scheduleUpdate(item);
                 }
             });
         }
@@ -118,6 +191,11 @@ export const useDownloadStore = defineStore("downloads", () => {
     }
 
     function destroy() {
+        if (throttleTimer !== null) {
+            clearTimeout(throttleTimer);
+            throttleTimer = null;
+        }
+        pendingUpdates.clear();
         if (unlistenProgress) {
             unlistenProgress();
             unlistenProgress = null;

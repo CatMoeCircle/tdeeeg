@@ -1,7 +1,7 @@
 <template>
     <Teleport to="body">
         <Transition name="cm-drop">
-            <div v-if="visible" ref="menuRoot" class="fixed z-9999" :style="menuStyle"
+            <div v-if="visible" ref="menuRoot" class="fixed z-10000" :style="menuStyle"
                 @contextmenu.prevent.stop="onRootContextMenu">
                 <div class="cm-menu" @click.stop="onMenuClick">
                     <template v-for="(item, idx) in items" :key="item.key ?? idx">
@@ -245,7 +245,7 @@ onUnmounted(() => {
 
 .cm-submenu {
     position: fixed;
-    z-index: 9999;
+    z-index: 10000;
 }
 
 .cm-item-wrap {

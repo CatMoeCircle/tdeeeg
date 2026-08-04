@@ -67,14 +67,6 @@ function syncMediaSession() {
         artwork.push({ src: coverUrl, sizes: '512x512' });
     }
 
-    // [诊断 Step 1] 创建 MediaMetadata 前输出输入
-    console.log('[MediaSession] before create', {
-        coverPath: track.coverPath,
-        coverSource: track.coverSource,
-        artwork,
-        artwork0src: artwork[0] ? artwork[0].src.slice(0, 100) : null,
-    });
-
     try {
         mediaSession.metadata = new MediaMetadata({
             title: track.title,
@@ -83,19 +75,8 @@ function syncMediaSession() {
             artwork,
         });
     } catch (e) {
-        console.warn('Failed to set media session metadata:', e);
+        // 设置元数据失败时忽略
     }
-
-    // [诊断 Step 5] 创建后检查是否被过滤
-    console.log('[MediaSession] after create metadata', navigator.mediaSession?.metadata);
-    console.log('[MediaSession] after create artwork', navigator.mediaSession?.metadata?.artwork);
-    const metaArtwork: readonly MediaImage[] = navigator.mediaSession?.metadata?.artwork ?? [];
-    console.log('[MediaSession] artwork verified', {
-        artworkArrayLen: artwork.length,
-        metadataArtworkLen: metaArtwork.length,
-        firstSrc: metaArtwork[0]?.src?.slice(0, 100) ?? null,
-        isEmpty: metaArtwork.length === 0,
-    });
 }
 
 /** Uint8Array → base64 */
@@ -215,7 +196,6 @@ watch(
     },
     (val, oldVal) => {
         if (val && val !== oldVal) {
-            console.log('[MediaSession] cover changed, re-sync', val);
             pushSmtc(true);
         }
     },

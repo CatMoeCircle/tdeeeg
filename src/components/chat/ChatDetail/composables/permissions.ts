@@ -1,4 +1,4 @@
-import type { basicGroup, chat, ChatMemberStatus, supergroup } from 'tdlib-types';
+import type { basicGroup, chat, ChatMemberStatus, supergroup, user } from 'tdlib-types';
 
 /**
  * 聊天权限与会话类型判断（纯函数，无任何响应式依赖）。
@@ -197,4 +197,143 @@ export function showChannelActions(
     if (!currentChat || canSendNow || currentChat.type._ !== 'chatTypeSupergroup') return false;
     if (currentChat.type.is_channel) return true;
     return !!caches.supergroups[currentChat.type.supergroup_id]?.is_broadcast_group;
+}
+
+//
+// ==================== 附件菜单权限（曲别针） ====================
+//
+// 规则说明（用户需求）：
+// - 投票：超群/基本群直接允许；私聊仅当对方是 Bot 或"自己（Saved Messages）"。
+// - 清单比投票多两个限制：不能是密聊（Secret Chat）、不能是频道，且需要 Premium。
+// - 其余情况：看 chat.permissions / 受限成员 permissions 中对应能力。
+//
+
+/** 支持的聊天权限能力键（受限成员与聊天级权限共用） */
+export type ChatCapabilityKey =
+    | 'can_send_basic_messages'
+    | 'can_send_documents'
+    | 'can_send_audios'
+    | 'can_send_photos'
+    | 'can_send_videos'
+    | 'can_send_polls';
+
+/** 私聊 / 密聊默认放开（无权限对象时按允许处理） */
+function isPeerChat(currentChat: chat): boolean {
+    return currentChat.type._ === 'chatTypePrivate' || currentChat.type._ === 'chatTypeSecret';
+}
+
+/**
+ * 读取某项聊天能力是否允许发送。
+ * 优先用受限成员状态的 permissions，其次用聊天级 chat.permissions；
+ * 权限对象缺失时按"未知放开"处理（保持附件菜单可用）。
+ */
+export function canSendCapability(
+    currentChat: chat,
+    memberStatus: ChatMemberStatus | undefined,
+    caches: GroupCache,
+    cap: ChatCapabilityKey,
+): boolean {
+    if (isPeerChat(currentChat)) return true;
+    // 管理员 / 创建者始终允许
+    if (isAdminOrCreator(currentChat, caches)) return true;
+    const perms = memberStatus?._ === 'chatMemberStatusRestricted'
+        ? memberStatus.permissions
+        : currentChat.permissions;
+    if (!perms) return true; // 未知时放开
+    return perms[cap] !== false;
+}
+
+/** 照片/视频：需同时允许 photos 与 videos */
+export function canSendPhotoRights(
+    currentChat: chat,
+    memberStatus: ChatMemberStatus | undefined,
+    caches: GroupCache,
+): boolean {
+    return canSendCapability(currentChat, memberStatus, caches, 'can_send_photos')
+        && canSendCapability(currentChat, memberStatus, caches, 'can_send_videos');
+}
+
+/** 文件 */
+export function canSendDocumentRights(
+    currentChat: chat,
+    memberStatus: ChatMemberStatus | undefined,
+    caches: GroupCache,
+): boolean {
+    return canSendCapability(currentChat, memberStatus, caches, 'can_send_documents');
+}
+
+/** 音乐 */
+export function canSendAudioRights(
+    currentChat: chat,
+    memberStatus: ChatMemberStatus | undefined,
+    caches: GroupCache,
+): boolean {
+    return canSendCapability(currentChat, memberStatus, caches, 'can_send_audios');
+}
+
+/** 位置 / 联系人（基于 can_send_basic_messages） */
+export function canSendMessageRights(
+    currentChat: chat,
+    memberStatus: ChatMemberStatus | undefined,
+    caches: GroupCache,
+): boolean {
+    return canSendCapability(currentChat, memberStatus, caches, 'can_send_basic_messages');
+}
+
+/**
+ * 投票的聊天类型是否允许（pollsAllowed）：
+ * - 超群 / 基本群：直接允许；
+ * - 私聊：对方是 Bot 或是"自己（Saved Messages）"。
+ */
+export function pollsAllowedType(
+    currentChat: chat,
+    peerUser: user | undefined,
+    myId: number,
+): boolean {
+    const type = currentChat.type._;
+    if (type === 'chatTypeSupergroup' || type === 'chatTypeBasicGroup') return true;
+    if (type === 'chatTypePrivate') {
+        if (!peerUser) return false; // 未知用户不放行
+        return peerUser.type?._ === 'userTypeBot' || peerUser.id === myId;
+    }
+    return false;
+}
+
+/** 投票：权限（can_send_polls）且聊天类型允许 */
+export function canSendPollRights(
+    currentChat: chat,
+    memberStatus: ChatMemberStatus | undefined,
+    caches: GroupCache,
+    peerUser: user | undefined,
+    myId: number,
+): boolean {
+    return canSendCapability(currentChat, memberStatus, caches, 'can_send_polls')
+        && pollsAllowedType(currentChat, peerUser, myId);
+}
+
+/**
+ * 清单/待办的聊天类型是否允许（checklistsAllowed）：
+ * 比投票额外要求：不能是密聊（Secret Chat）、不能是频道。
+ */
+export function checklistsAllowedType(currentChat: chat): boolean {
+    if (currentChat.type._ === 'chatTypeSecret') return false;
+    if (currentChat.type._ === 'chatTypeSupergroup' && currentChat.type.is_channel) return false;
+    return true;
+}
+
+/**
+ * 清单/待办：权限（can_send_polls）+ 聊天类型 + Premium。
+ * @param isPremium - 当前用户是否 Premium
+ * @param isPremiumAvailable - 是否可购买 Premium（未知时视为 true）
+ */
+export function canSendChecklistRights(
+    currentChat: chat,
+    memberStatus: ChatMemberStatus | undefined,
+    caches: GroupCache,
+    isPremium: boolean,
+    isPremiumAvailable: boolean,
+): boolean {
+    if (!canSendCapability(currentChat, memberStatus, caches, 'can_send_polls')) return false;
+    if (!checklistsAllowedType(currentChat)) return false;
+    return isPremium || isPremiumAvailable;
 }

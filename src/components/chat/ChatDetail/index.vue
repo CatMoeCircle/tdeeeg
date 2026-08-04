@@ -75,7 +75,7 @@
                                         class="text-xs font-semibold px-2 pt-2 pb-0.5 flex items-center gap-1.5"
                                         :style="senderNameColor(item.messages[0])">
                                         <span class="min-w-0 flex-1 truncate">{{ getDisplaySenderName(item.messages[0])
-                                        }}</span>
+                                            }}</span>
                                         <span v-if="getMessageLabel(item.messages[0])"
                                             class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
                                             :class="getMessageLabelClass(item.messages[0])">{{
@@ -152,7 +152,7 @@
                                         class="text-xs font-semibold mx-1 m-0.5 flex items-center gap-1.5"
                                         :style="senderNameColor(item.msg)">
                                         <span class="min-w-0 flex-1 truncate">{{ getDisplaySenderName(item.msg)
-                                        }}</span>
+                                            }}</span>
                                         <span v-if="getMessageLabel(item.msg)"
                                             class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
                                             :class="getMessageLabelClass(item.msg)">{{
@@ -172,7 +172,7 @@
                                         @click.stop="openForwardSource(item.msg.forward_info)">
                                         <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
                                         <span class="min-w-0 flex-1 truncate">{{ getForwardName(item.msg.forward_info)
-                                            }}</span>
+                                        }}</span>
                                     </button>
                                     <MessageContent :content="item.msg.content" :isSelf="isSelf(item.msg)"
                                         :date="item.msg.date" :forwardInfo="getDisplayForwardInfo(item.msg)"
@@ -182,7 +182,7 @@
                                         :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
                                         :viewCount="item.msg.interaction_info?.view_count"
                                         :authorSignature="item.msg.author_signature || undefined" :chatId="chatId"
-                                        :messageId="item.msg.id"
+                                        :messageId="item.msg.id" :senderName="getDisplaySenderName(item.msg)"
                                         :replyTo="item.msg.reply_to?._ === 'messageReplyToMessage' ? item.msg.reply_to : undefined"
                                         :messageList="messages" :accentColorId="getSenderAccentId(item.msg)"
                                         @jumpToMessage="handleReplyJumpToMessage"
@@ -227,8 +227,8 @@
         <Transition name="multi-bar">
             <div v-if="selectionMode"
                 class="absolute top-0 left-0 right-0 z-20 flex items-center gap-2 px-3 h-13 bg-white/80 dark:bg-[#1c1c1c]/70 backdrop-blur-lg border-b border-gray-200/60 dark:border-gray-800/60">
-                <button type="button" aria-label="退出多选" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
-                    @click="exitSelectionMode">
+                <button type="button" aria-label="退出多选"
+                    class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" @click="exitSelectionMode">
                     <XIcon class="w-5 h-5 text-gray-600 dark:text-gray-300" />
                 </button>
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-200 flex-1 truncate">
@@ -298,8 +298,12 @@
             <div aria-hidden="true"
                 class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
             </div>
-            <MessageInput class="relative z-10" v-model="messageInput" :reply-target="replyTargetInfo"
-                @clear-reply="replyTargetMsg = null" @send="handleSend" @attach="handleAttach" />
+            <MessageInput class="relative z-10" v-model="messageInput" :reply-target="replyTargetInfo" :chat="chat"
+                :users="users" :supergroups="supergroups" :basic-groups="basicGroups" :my-id="myId"
+                :member-status="currentMemberStatus" :is-premium="isMePremium" @clear-reply="replyTargetMsg = null"
+                @send="handleSend" @attach="handleAttach" @attach-file="handleAttachFile"
+                @attach-music="handleAttachMusic" @attach-poll="handleAttachPoll"
+                @attach-checklist="handleAttachChecklist" @attach-contact="handleAttachContact" />
         </div>
 
         <!-- ===== 成员操作 ===== -->
@@ -356,7 +360,8 @@
 
         <!-- ===== 全局媒体查看器 ===== -->
         <MediaViewer :visible="viewerVisible" :items="viewerItems" :initial-index="viewerIndex"
-            :initial-time="viewerInitialTime" @close="onViewerClose" />
+            :initial-time="viewerInitialTime" @close="onViewerClose" @jump-to-message="handleViewerJump"
+            @forward-message="handleViewerForward" />
 
         <!-- ===== 删除消息确认弹窗 ===== -->
         <DeleteMessageConfirm />
@@ -375,6 +380,8 @@ import DeleteMessageConfirm from '../../contextMenu/DeleteMessageConfirm.vue';
 import PinnedMessageBar from './PinnedMessageBar.vue';
 
 import { tdlibSend } from '../../../utils/tdlib';
+import { sendAttachments, sending } from '../../../utils/attachmentSend';
+import { useAttachmentStore } from '../../../store/attachment';
 import { isOutgoingMessageForDisplay } from '../../../utils/savedMessages';
 import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
 
@@ -402,8 +409,9 @@ import type { DeleteMessageRequest } from '../../../store/deleteMessage';
 import { openContextMenu, x as ctxX, y as ctxY, target as ctxTarget } from '../../../store/contextMenu';
 
 import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, ChatMemberStatus, forumTopic, MessageSender } from 'tdlib-types';
-import { getViewerState, closeMediaViewer, registerMediaItem, unregisterMediaItem, isMediaViewerActive } from '../../../store/mediaViewer';
+import { getViewerState, closeMediaViewer, registerMediaItem, unregisterMediaItem, isMediaViewerActive, openMediaViewer } from '../../../store/mediaViewer';
 import { isFileReady } from '../../../utils/tdlib';
+import { buildVideoQualities } from '../../../utils/videoQualities';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { getSenderAccentColorId, getSenderProfileAccentColorId, getChatProfileAccentColorId, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
 import { useColors } from '../../../store/colors';
@@ -678,27 +686,57 @@ watch(messages, (msgs) => {
         if (previousMsgIds.value.has(msg.id)) continue;
         const c = msg.content;
         const capt = 'caption' in c && c.caption?.text ? c.caption.text : '';
+        const captFormatted = ('caption' in c && c.caption?.text) ? c.caption : undefined;
+        // 发送人显示名称与消息时间（用于查看器底部信息展示）
+        const senderName = computeDisplaySenderName(msg, senderDeps());
+        const date = typeof msg.date === 'number' ? msg.date : 0;
+        const msgId = msg.id;
+        const cid = chatId.value;
+        const meta = { messageId: msgId, chatId: cid };
+        const basename = (p: string | undefined) => {
+            if (!p) return '';
+            return p.split(/[\\/]/).pop() || '';
+        };
         let item: MediaViewerItem | null = null;
         if (c._ === 'messagePhoto') {
             const sizes = c.photo.sizes;
             if (sizes.length > 0) {
                 const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
                 const f = largest.photo;
+                const thumb = c.photo.minithumbnail?.data ? `data:image/jpeg;base64,${c.photo.minithumbnail.data}` : '';
                 if (f && isFileReady(f)) {
-                    item = { type: 'photo', src: convertFileSrc(f.local.path), caption: capt };
+                    item = { type: 'photo', src: convertFileSrc(f.local.path), thumb: thumb || undefined, caption: capt, captionFormatted: captFormatted, senderName, date, localPath: f.local.path, fileName: basename(f.local.path), ...meta };
+                } else if (f && f.local && f.local.can_be_downloaded) {
+                    // 尚未下载：注册占位项（空 src），查看器内展示缩略图预览与下载进度
+                    item = { type: 'photo', src: '', thumb: thumb || undefined, caption: capt, captionFormatted: captFormatted, senderName, date, ...meta };
                 }
             }
         } else if (c._ === 'messageVideo') {
             const file = c.video.video;
+            let src = '';
+            let localPath: string | undefined;
             if (isFileReady(file)) {
-                item = { type: 'video', src: convertFileSrc(file.local.path), caption: capt };
+                src = convertFileSrc(file.local.path);
+                localPath = file.local.path;
             } else if (c.video.supports_streaming && file.size > 0) {
-                item = { type: 'video', src: `${convertFileSrc(String(file.id), 'tdstream')}?mime=${c.video.mime_type}`, caption: capt };
+                src = `${convertFileSrc(String(file.id), 'tdstream')}?mime=${c.video.mime_type}`;
+            }
+            if (src) {
+                const qualities = buildVideoQualities(
+                    c.alternative_videos,
+                    src,
+                    { width: c.video.width, height: c.video.height },
+                );
+                item = {
+                    type: 'video', src, caption: capt, captionFormatted: captFormatted, senderName, date, localPath,
+                    fileName: c.video.file_name || basename(localPath),
+                    qualities: qualities.length ? qualities : undefined, ...meta,
+                };
             }
         } else if (c._ === 'messageAnimation') {
             const file = c.animation.animation;
             if (isFileReady(file)) {
-                item = { type: 'animation', src: convertFileSrc(file.local.path), caption: capt };
+                item = { type: 'animation', src: convertFileSrc(file.local.path), caption: capt, captionFormatted: captFormatted, senderName, date, localPath: file.local.path, fileName: c.animation.file_name || basename(file.local.path), ...meta };
             }
         }
         if (item) registerMediaItem(msg.id, item);
@@ -766,6 +804,19 @@ function onViewerClose(currentTime?: number) {
         }
     }
     closeMediaViewer();
+}
+
+/** 查看器右键「查看」：关闭查看器并跳转到对应消息 */
+function handleViewerJump(messageId: number) {
+    closeMediaViewer();
+    void jumpToMessage(messageId);
+}
+
+/** 查看器右键「转发」：关闭查看器并打开转发选择器 */
+function handleViewerForward(messageId: number) {
+    closeMediaViewer();
+    forwardMessageIds.value = [messageId];
+    forwardPickerVisible.value = true;
 }
 
 // 查看器打开时阻止滚动
@@ -1050,6 +1101,8 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
                 isReady.value = true;
                 chatLoadRetryCount = 0;
                 scheduleVisibleMessagesRead();
+                // 下载管理器跳转：按 query.open 自动在播放器中打开媒体（图片/音乐）
+                void autoOpenMediaFromQuery(gen);
                 return;
             }
         }
@@ -1676,6 +1729,33 @@ async function jumpToMessage(messageId: number) {
     await jumpToMessageInternal(messageId, loadGeneration);
 }
 
+/**
+ * 根据路由 query 中携带的 `open` 参数自动在播放器中打开目标消息的媒体：
+ * - `open=photo`：打开媒体查看器（图片/视频）
+ * - `open=audio`：用全局音频播放器播放音乐
+ * 需配合 `message` query（跳转目标）在跳转完成后调用。
+ */
+async function autoOpenMediaFromQuery(gen: number) {
+    const action = route.query.open as string | undefined;
+    if (!action) return;
+    const requestedMessageId = forwardedTargetMessageId.value;
+    if (!requestedMessageId) return;
+
+    await nextTick();
+    const msg = messages.value.find((m) => m.id === requestedMessageId);
+    if (!msg) return;
+    if (!isGenerationValid(gen)) return;
+
+    if (action === 'photo' && isMediaMessage(msg)) {
+        // 等子组件（MessageMediaContent / MessageAlbum）完成 media 注册后再打开查看器
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 300));
+        if (!isGenerationValid(gen)) return;
+        openMediaViewer(requestedMessageId, 0, 0);
+    } else if (action === 'audio' && msg.content._ === 'messageAudio') {
+        await player.playMessageAudio(msg);
+    }
+}
+
 /** 滚动到指定消息并触发高亮闪烁（用于回复跳转，目标不在列表时也会先加载） */
 const handleReplyJumpToMessage = (messageId: number) => {
     void jumpToMessage(messageId);
@@ -1750,7 +1830,32 @@ const onScroll = async (e: Event) => {
 
 // ==================== Send Message ====================
 const handleSend = async (text: string) => {
-    if (!chatId.value || !text.trim()) return;
+    if (!chatId.value) return;
+    const attachStore = useAttachmentStore();
+    // 有附件 → 发送附件（文本作为描述）
+    if (attachStore.items.length > 0) {
+        sending.value = true;
+        try {
+            await sendAttachments(
+                attachStore.items,
+                {
+                    chatId: chatId.value,
+                    topicId: topicId.value,
+                    replyTo: replyTargetMsg.value
+                        ? { _: 'inputMessageReplyToMessage', message_id: replyTargetMsg.value.id, quote: null, checklist_task_id: 0 }
+                        : null,
+                },
+                text || '',
+            );
+        } finally {
+            sending.value = false;
+        }
+        await attachStore.clearWithCleanup();
+        messageInput.value = '';
+        replyTargetMsg.value = null;
+        return;
+    }
+    if (!text.trim()) return;
     try {
         const params: any = {
             _: 'sendMessage',
@@ -1786,6 +1891,31 @@ const handleSend = async (text: string) => {
 
 const handleAttach = (files: FileList) => {
     console.log("Attach files:", files);
+};
+
+// ==================== 附件发送 ====================
+// 图片/视频选择与分类在 MessageInput 内完成（打开系统文件选择器 + 剪贴板粘贴），
+// 通过附件 store 累积；handleSend 统一处理发送。
+const isMePremium = computed(() => !!userProfile.value?.is_premium);
+
+const handleAttachFile = () => {
+    console.log("Attach: 文件");
+};
+
+const handleAttachMusic = () => {
+    console.log("Attach: 音乐");
+};
+
+const handleAttachPoll = () => {
+    console.log("Attach: 投票");
+};
+
+const handleAttachChecklist = () => {
+    console.log("Attach: 清单");
+};
+
+const handleAttachContact = () => {
+    console.log("Attach: 联系人");
 };
 
 // ==================== State Reset ====================

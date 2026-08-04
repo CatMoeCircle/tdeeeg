@@ -11,4 +11,9 @@ declare module "@tauri-apps/api/core" {
     cmd: "set_tdlib_parameters",
     args: { api_id: number; api_hash: string; use_test_dc: boolean }
   ): Promise<void>;
+
+  export function invoke(
+    cmd: "open_with_dialog",
+    args: { path: string }
+  ): Promise<void>;
 }

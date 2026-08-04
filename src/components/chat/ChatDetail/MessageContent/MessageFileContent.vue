@@ -383,7 +383,6 @@ const loadMedia = async () => {
 
 /** 只下载专辑封面，不为显示封面而下载整首音乐。 */
 async function loadAudioCover() {
-    console.log("加载封面");
 
     if (props.content._ !== 'messageAudio') return;
     const audio = props.content.audio;

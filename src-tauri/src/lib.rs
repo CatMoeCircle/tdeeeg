@@ -21,6 +21,27 @@ fn set_window_effect(window: tauri::WebviewWindow, effect: String) -> Result<(),
     window.set_effects(effects).map_err(|e| e.to_string())
 }
 
+/// 用系统「打开方式」对话框选择应用打开文件（Windows 触发 OpenAs_RunDLL）。
+/// 非 Windows 平台退回系统默认程序打开。
+#[tauri::command]
+fn open_with_dialog(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        // rundll32 shell32.dll,OpenAs_RunDLL <file> 会弹出「打开方式」对话框
+        Command::new("rundll32.exe")
+            .args(["shell32.dll", "OpenAs_RunDLL", &path])
+            .spawn()
+            .map_err(|e| format!("Failed to open 'Open with' dialog: {e}"))?;
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        tauri_plugin_opener::open_path(path, None::<String>).map_err(|e| e.to_string())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -28,6 +49,8 @@ pub fn run() {
             media_stream::respond(context.app_handle().clone(), request, responder);
         })
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
             let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
@@ -51,6 +74,7 @@ pub fn run() {
             tdlib::get_cached_options,
             tdlib::get_cached_option,
             set_window_effect,
+            open_with_dialog,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

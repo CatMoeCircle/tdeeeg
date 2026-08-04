@@ -20,7 +20,7 @@
             :forwardInfo="forwardInfo" :forwardName="forwardName" :forwardNavigable="forwardNavigable"
             :isFirstInGroup="isFirstInGroup" :isLastInGroup="isLastInGroup" :sendingState="sendingState"
             :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature" :chatId="chatId"
-            :messageId="messageId" @openForwardSource="onOpenForwardSource" />
+            :messageId="messageId" :senderName="senderName" @openForwardSource="onOpenForwardSource" />
 
         <!-- Stickers / animated emoji are rendered without a message bubble.
              回复预览显示在贴纸旁边（小宽度），而非贴纸上方 -->
@@ -172,6 +172,8 @@ const props = defineProps<{
     messageList?: message[];
     /** 发送者 accent_color_id（用于回复栏/引用标记配色） */
     accentColorId?: number;
+    /** 发送人显示名称（用于查看器底部信息展示） */
+    senderName?: string;
 }>();
 
 const emit = defineEmits<{
