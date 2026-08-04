@@ -75,7 +75,7 @@
                                         class="text-xs font-semibold px-2 pt-2 pb-0.5 flex items-center gap-1.5"
                                         :style="senderNameColor(item.messages[0])">
                                         <span class="min-w-0 flex-1 truncate">{{ getDisplaySenderName(item.messages[0])
-                                            }}</span>
+                                        }}</span>
                                         <span v-if="getMessageLabel(item.messages[0])"
                                             class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
                                             :class="getMessageLabelClass(item.messages[0])">{{
@@ -99,7 +99,8 @@
                                     </button>
                                     <MessageAlbum :messages="item.messages" :isSelf="isSelfAlbum(item)" :chatId="chatId"
                                         :isRead="isMessageRead(item.messages[item.messages.length - 1])"
-                                        :authorSignature="item.messages[0].author_signature || undefined" />
+                                        :authorSignature="item.messages[0].author_signature || undefined"
+                                        @message-context-menu="onAlbumMessageContextMenu" />
                                 </div>
                             </div>
                         </div>
@@ -152,7 +153,7 @@
                                         class="text-xs font-semibold mx-1 m-0.5 flex items-center gap-1.5"
                                         :style="senderNameColor(item.msg)">
                                         <span class="min-w-0 flex-1 truncate">{{ getDisplaySenderName(item.msg)
-                                            }}</span>
+                                        }}</span>
                                         <span v-if="getMessageLabel(item.msg)"
                                             class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
                                             :class="getMessageLabelClass(item.msg)">{{
@@ -172,7 +173,7 @@
                                         @click.stop="openForwardSource(item.msg.forward_info)">
                                         <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
                                         <span class="min-w-0 flex-1 truncate">{{ getForwardName(item.msg.forward_info)
-                                        }}</span>
+                                            }}</span>
                                     </button>
                                     <MessageContent :content="item.msg.content" :isSelf="isSelf(item.msg)"
                                         :date="item.msg.date" :forwardInfo="getDisplayForwardInfo(item.msg)"
@@ -1981,13 +1982,50 @@ let currentMenuMsg: message | null = null;
 /**
  * 返回消息右键菜单构建函数（指令函数形式受支持）。
  * 用闭包绑定消息，避免在模板内联箭头导致参数无类型/未使用告警。
+ *
+ * 此处会在消息气泡渲染时就触发 messageProperties 离线预取（getMessageProperties
+ * 是离线方法，直接从 TDLib 本地缓存返回，很快且无网络请求），确保用户真正右键
+ * 打开菜单前，删除/置顶等权限缓存已就绪，菜单能一次性显示正确状态，避免先显示
+ * 乐观值再异步重建造成的闪烁/短暂不可用。
  */
 function makeMsgMenu(msg: message): (e: MouseEvent, data?: any) => ContextMenuItem[] {
+    // 渲染时预取精确权限（离线方法，幂等：命中缓存/进行中去重后直接返回）
+    const cid = chatId.value;
+    if (cid !== undefined && !getCachedMessageProperties(cid, msg.id)) {
+        void getMessageProperties(cid, msg.id);
+    }
+
     return (e: MouseEvent, data?: any): ContextMenuItem[] => {
         void e;
         void data;
         return buildMessageContextMenu(msg);
     };
+}
+
+/**
+ * 针对指定消息在给定坐标处直接打开右键菜单。
+ * 相册中右键某一块具体媒体时使用：确保菜单针对「被点击的那一条」而非相册第一条。
+ */
+function openMessageContextMenu(msg: message, x: number, y: number) {
+    currentMenuMsg = msg;
+    // 预取精确权限；完成后若仍是这条消息则用最新权限重建菜单
+    const cid = chatId.value;
+    if (cid !== undefined && !getCachedMessageProperties(cid, msg.id)) {
+        void getMessageProperties(cid, msg.id).then(() => {
+            if (currentMenuMsg === msg) {
+                const menuItems = buildMessageContextMenu(msg);
+                openContextMenu(x, y, menuItems, null);
+            }
+        });
+    }
+    // 先按当前可用权限直接打开，避免等待
+    openContextMenu(x, y, buildMessageContextMenu(msg), null);
+}
+
+/** 相册中某块媒体被右键：以该条消息 + 坐标打开菜单 */
+function onAlbumMessageContextMenu(msg: message, x: number, y: number) {
+    if (selectionMode.value) return;
+    openMessageContextMenu(msg, x, y);
 }
 
 /**

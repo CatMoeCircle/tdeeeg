@@ -3,7 +3,8 @@
         <div v-if="layoutItems.length > 0" class="relative" :style="containerStyle">
             <div v-for="item in layoutItems" :key="item.msgId"
                 class="absolute overflow-hidden cursor-pointer bg-gray-200 dark:bg-gray-700"
-                :class="{ 'bg-black': item.isVideo }" :style="item.style" @click="openViewer(item.index)">
+                :class="{ 'bg-black': item.isVideo }" :style="item.style" @click="openViewer(item.index)"
+                @contextmenu.prevent.stop="onTileContextMenu($event, item.index)">
                 <img v-if="item.thumbSrc" :src="item.thumbSrc"
                     class="absolute inset-0 w-full h-full object-cover blur-sm scale-105" />
                 <img v-if="item.mediaSrc && !item.isVideo" :src="item.mediaSrc"
@@ -73,6 +74,21 @@ const props = defineProps<{
     authorSignature?: string;
     isRead?: boolean;
 }>();
+
+/**
+ * 右击相册中的某条具体媒体时向上冒泡该消息与坐标，便于外层针对「被点击的那一条」
+ * 而不是相册第一条构造右键菜单。
+ */
+const emit = defineEmits<{
+    (e: 'messageContextMenu', msg: message, x: number, y: number): void;
+}>();
+
+/** 相册某一块媒体被右键：取出对应的那一条消息并冒泡 */
+function onTileContextMenu(e: MouseEvent, idx: number) {
+    const msg = props.messages[idx];
+    if (!msg) return;
+    emit('messageContextMenu', msg, e.clientX, e.clientY);
+}
 
 // ---- Refs ----
 const thumbCache = reactive<Record<number, string>>({});

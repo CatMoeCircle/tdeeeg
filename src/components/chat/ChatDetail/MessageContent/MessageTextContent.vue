@@ -16,7 +16,8 @@
                         <a v-else-if="segment.href" :href="segment.href"
                             class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
                             :class="[segment.className, loadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
-                            @click.prevent.stop="handleSegmentClick($event, segment)">{{ segment.text }}</a>
+                            @click.prevent.stop="handleSegmentClick($event, segment)"
+                            @contextmenu="handleSegmentContextMenu($event, segment)">{{ segment.text }}</a>
                         <span v-else
                             :class="[segment.className, { 'cursor-pointer': segment.copyable || segment.isCommand }]"
                             @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined">{{
@@ -32,7 +33,8 @@
                         <a v-else-if="segment.href" :href="segment.href"
                             class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
                             :class="[segment.className, loadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
-                            @click.prevent.stop="handleSegmentClick($event, segment)">{{ segment.text }}</a>
+                            @click.prevent.stop="handleSegmentClick($event, segment)"
+                            @contextmenu="handleSegmentContextMenu($event, segment)">{{ segment.text }}</a>
                         <span v-else
                             :class="[segment.className, { 'cursor-pointer': segment.copyable || segment.isCommand }]"
                             @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined">{{
@@ -76,7 +78,8 @@
                     <a v-else-if="segment.href" :href="segment.href"
                         class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
                         :class="[segment.className, loadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
-                        @click.prevent.stop="handleSegmentClick($event, segment)">{{ segment.text }}</a>
+                        @click.prevent.stop="handleSegmentClick($event, segment)"
+                        @contextmenu="handleSegmentContextMenu($event, segment)">{{ segment.text }}</a>
                     <span v-else
                         :class="[segment.className, { 'cursor-pointer': segment.copyable || segment.isCommand }]"
                         @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined">{{
@@ -99,6 +102,7 @@ import CustomEmojiInline from './CustomEmojiInline.vue';
 import { useColors } from '../../../../store/colors';
 import { confirmAndOpenExternalLink } from '../../../../utils/openExternalLink';
 import { requestInsertCommand } from '../../../../store/commandInsert';
+import { openUsernameMenu } from '../../../../store/usernameMenu';
 import { settings } from '../../../../store/settings';
 const props = defineProps<{
     formattedText: formattedText;
@@ -129,6 +133,8 @@ type Segment = {
     copyable?: boolean;
     /** 是否为 bot 命令（如 /start），点击后插入输入框（可设置） */
     isCommand?: boolean;
+    /** 是否为 @用户名 提及（textEntityTypeMention），右键打开用户资料菜单 */
+    isMention?: boolean;
     /** 是否在引用块内 */
     isBlockquote?: boolean;
     /** 引用块类型：'expandable' 表示可折叠引用 */
@@ -210,7 +216,9 @@ const segments = computed<Segment[]>(() => {
         const copyable = activeEntities.some(e => isCopyableEntity(e));
         // 是否为 bot 命令（/command）：点击插入输入框（由设置控制）
         const isCommand = activeEntities.some(e => e.type._ === 'textEntityTypeBotCommand');
-        return { text: segmentText, href, className, copyable, isCommand, isBlockquote, blockquoteType, isCodeBlock };
+        // 是否为 @用户名 提及：右键打开用户资料菜单
+        const isMention = activeEntities.some(e => e.type._ === 'textEntityTypeMention');
+        return { text: segmentText, href, className, copyable, isCommand, isMention, isBlockquote, blockquoteType, isCodeBlock };
     });
 });
 
@@ -349,6 +357,14 @@ function handleSegmentClick(_event: MouseEvent, segment: Segment) {
         // 纯可复制实体：仅复制
         copyToClipboard(segment.text);
     }
+}
+
+/** 右击 @用户名 提及：打开用户资料菜单（非提及段直接忽略，不阻止默认） */
+function handleSegmentContextMenu(e: MouseEvent, segment: Segment) {
+    if (!segment.isMention || !segment.text) return;
+    e.preventDefault();
+    e.stopPropagation();
+    openUsernameMenu(segment.text, e.clientX, e.clientY);
 }
 
 async function openLink(href: string) {

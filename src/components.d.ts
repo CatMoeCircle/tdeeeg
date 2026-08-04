@@ -64,5 +64,6 @@ declare module 'vue' {
     TOption: typeof import('tdesign-vue-next')['Option']
     TSelect: typeof import('tdesign-vue-next')['Select']
     TTooltip: typeof import('tdesign-vue-next')['Tooltip']
+    UsernameMenu: typeof import('./components/contextMenu/UsernameMenu.vue')['default']
   }
 }

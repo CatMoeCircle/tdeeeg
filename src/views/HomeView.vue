@@ -16,12 +16,15 @@
 
                 <template #content>
                     <div class="relative w-full h-full">
-                        <ChatDetail v-if="showActiveChat" :chat-id="activeChatId" :topic-id="activeTopicId" @close="closeActiveChat" />
+                        <ChatDetail v-if="showActiveChat" :chat-id="activeChatId" :topic-id="activeTopicId"
+                            @close="closeActiveChat" />
                         <router-view v-else v-slot="{ Component }">
                             <KeepAlive>
-                                <component v-if="Component" :is="Component" :key="route.fullPath" class="relative z-10 h-full" />
+                                <component v-if="Component" :is="Component" :key="route.fullPath"
+                                    class="relative z-10 h-full" />
                             </KeepAlive>
-                            <div v-if="!Component" class="absolute inset-0 flex items-center justify-center text-gray-400">
+                            <div v-if="!Component"
+                                class="absolute inset-0 flex items-center justify-center text-gray-400">
                                 {{ emptyStateText }}
                             </div>
                         </router-view>
@@ -32,6 +35,8 @@
             <!-- 全局音乐播放器核心 + 弹出面板 -->
             <AudioPlayerCore />
             <MusicPlayerOverlay />
+            <!-- @用户名 右键菜单 -->
+            <UsernameMenu />
         </div>
     </div>
 </template>
@@ -48,6 +53,7 @@ import ContactList from '../components/chat/ContactList.vue';
 import SettingsList from '../components/chat/SettingsList.vue';
 import AudioPlayerCore from '../components/audio/AudioPlayerCore.vue';
 import MusicPlayerOverlay from '../components/audio/MusicPlayerOverlay.vue';
+import UsernameMenu from '../components/contextMenu/UsernameMenu.vue';
 
 const route = useRoute();
 const isDownloads = computed(() => route.name === 'downloads');

@@ -45,7 +45,7 @@ export const useAttachmentStore = defineStore('attachment', () => {
         const idx = items.value.findIndex((i) => i.id === id);
         if (idx === -1) return;
         const [removed] = items.value.splice(idx, 1);
-        if (removed?.tempFile) cleanupTempFile(removed.path).catch(() => {});
+        if (removed?.tempFile) cleanupTempFile(removed.path).catch(() => { });
     }
 
     function clear() {
