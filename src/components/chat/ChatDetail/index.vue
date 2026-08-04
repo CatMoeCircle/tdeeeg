@@ -99,8 +99,10 @@
                                     </button>
                                     <MessageAlbum :messages="item.messages" :isSelf="isSelfAlbum(item)" :chatId="chatId"
                                         :isRead="isMessageRead(item.messages[item.messages.length - 1])"
-                                        :authorSignature="item.messages[0].author_signature || undefined"
+                                        :authorSignature="getDisplayAuthorSignature(item.messages[0])"
                                         @message-context-menu="onAlbumMessageContextMenu" />
+                                    <InlineKeyboard v-if="getInlineKeyboard(item.messages[0])" :rows="getInlineKeyboard(item.messages[0])!.rows"
+                                        :chat-id="chatId" :message-id="item.messages[0].id" />
                                 </div>
                             </div>
                         </div>
@@ -182,19 +184,21 @@
                                         :isFirstInGroup="item.isFirstInGroup" :isLastInGroup="item.isLastInGroup"
                                         :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
                                         :viewCount="item.msg.interaction_info?.view_count"
-                                        :authorSignature="item.msg.author_signature || undefined" :chatId="chatId"
+                                        :authorSignature="getDisplayAuthorSignature(item.msg)" :chatId="chatId"
                                         :messageId="item.msg.id" :senderName="getDisplaySenderName(item.msg)"
                                         :replyTo="item.msg.reply_to?._ === 'messageReplyToMessage' ? item.msg.reply_to : undefined"
                                         :messageList="messages" :accentColorId="getSenderAccentId(item.msg)"
                                         @jumpToMessage="handleReplyJumpToMessage"
                                         @openForwardSource="item.msg.forward_info && openForwardSource(item.msg.forward_info)" />
+                                    <InlineKeyboard v-if="getInlineKeyboard(item.msg)" :rows="getInlineKeyboard(item.msg)!.rows"
+                                        :chat-id="chatId" :message-id="item.msg.id" />
                                     <span
                                         v-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isSelf(item.msg)"
                                         class="block text-right text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 leading-none">
                                         <MessageStatus :date="item.msg.date" :isOutgoing="false"
                                             :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
                                             :viewCount="item.msg.interaction_info?.view_count"
-                                            :authorSignature="item.msg.author_signature || undefined" />
+                                            :authorSignature="getDisplayAuthorSignature(item.msg)" />
                                     </span>
                                     <span
                                         v-else-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && isSelf(item.msg)"
@@ -202,7 +206,7 @@
                                         <MessageStatus :date="item.msg.date" :isOutgoing="true"
                                             :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
                                             :viewCount="item.msg.interaction_info?.view_count"
-                                            :authorSignature="item.msg.author_signature || undefined" />
+                                            :authorSignature="getDisplayAuthorSignature(item.msg)" />
                                     </span>
                                 </div>
                             </div>
@@ -374,6 +378,7 @@ import Avatar from '../avatar.vue';
 import MessageContent from './MessageContent/index.vue';
 import MessageStatus from './MessageContent/MessageStatus.vue';
 import MessageAlbum from './MessageContent/MessageAlbum.vue';
+import InlineKeyboard from './MessageContent/InlineKeyboard.vue';
 import ChatDetailHeader from './Header.vue';
 import MediaViewer from './MessageContent/MediaViewer.vue';
 import type { MediaViewerItem } from './MessageContent/MediaViewer.vue';
@@ -409,7 +414,7 @@ import { confirmDeleteMessage } from '../../../store/deleteMessage';
 import type { DeleteMessageRequest } from '../../../store/deleteMessage';
 import { openContextMenu, x as ctxX, y as ctxY, target as ctxTarget } from '../../../store/contextMenu';
 
-import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, ChatMemberStatus, forumTopic, MessageSender } from 'tdlib-types';
+import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, forumTopic, MessageSender } from 'tdlib-types';
 import { getViewerState, closeMediaViewer, registerMediaItem, unregisterMediaItem, isMediaViewerActive, openMediaViewer } from '../../../store/mediaViewer';
 import { isFileReady } from '../../../utils/tdlib';
 import { buildVideoQualities } from '../../../utils/videoQualities';
@@ -430,6 +435,7 @@ import {
     getDisplaySenderProfileAccentId as computeDisplaySenderProfileAccentId,
     getDisplaySenderDeleted as computeDisplaySenderDeleted,
     getForwardName as computeForwardName,
+    getForwardAuthorSignature as computeForwardAuthorSignature,
     isSavedForwardedMessage as computeIsSavedForwardedMessage,
     senderNameColor as computeSenderNameColor, forwardColor as computeForwardColor,
     showSenderDisplayName as computeShowSenderDisplayName,
@@ -2288,6 +2294,15 @@ const getDisplaySenderProfileAccentId = (msg: message): number | undefined =>
 
 const getForwardName = (forwardInfo: messageForwardInfo): string =>
     computeForwardName(forwardInfo, senderCaches());
+
+const getDisplayAuthorSignature = (msg: message): string | undefined => {
+    const signature = msg.author_signature?.trim();
+    if (signature) return signature;
+    return msg.forward_info ? computeForwardAuthorSignature(msg.forward_info) : undefined;
+};
+
+const getInlineKeyboard = (msg: message): replyMarkupInlineKeyboard | undefined =>
+    msg.reply_markup?._ === 'replyMarkupInlineKeyboard' ? msg.reply_markup : undefined;
 
 const isSavedForwardedMessage = (msg: message): boolean =>
     computeIsSavedForwardedMessage(msg, { chat: chat.value, myId: myId.value, users: users.value, chats: chats.value });

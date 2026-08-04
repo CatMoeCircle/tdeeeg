@@ -53,6 +53,19 @@ export function getForwardName(
 }
 
 /**
+ * 获取转发来源携带的原始作者签名（频道帖子/匿名群管消息）。
+ */
+export function getForwardAuthorSignature(
+    forwardInfo: messageForwardInfo,
+): string | undefined {
+    const origin = forwardInfo.origin;
+    if (origin._ === 'messageOriginChannel' || origin._ === 'messageOriginChat') {
+        return origin.author_signature?.trim() || undefined;
+    }
+    return undefined;
+}
+
+/**
  * 计算转发信息中的来源头像。
  *
  * @param forwardInfo - TDLib 转发信息
