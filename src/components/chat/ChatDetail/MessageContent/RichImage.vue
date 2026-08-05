@@ -23,10 +23,13 @@ const props = withDefaults(defineProps<{
     format?: ThumbnailFormat | null;
     /** 撑满容器宽度（square 模式） */
     square?: boolean;
+    /** Fill the parent media tile. */
+    fill?: boolean;
     clickable?: boolean;
 }>(), {
     alt: '',
     square: false,
+    fill: false,
     clickable: false,
 });
 
@@ -36,9 +39,19 @@ const downloading = ref(false);
 /** 是否为 MPEG4/WEBM 动态缩略图（用 <video> 渲染） */
 const isVideoThumb = computed(() => isThumbnailVideoRenderable(props.format) && !!src.value);
 
-const wrapperStyle = computed(() => (props.square ? { width: '100%' } : undefined));
-const imgStyle = computed(() => (props.square ? { width: '100%', objectFit: 'cover' as const } : undefined));
-const placeholderStyle = { width: '100%', aspectRatio: '16 / 9', height: 'auto' };
+const wrapperStyle = computed(() => {
+    if (props.fill) return { width: '100%', height: '100%' };
+    if (props.square) return { width: '100%' };
+    return undefined;
+});
+const imgStyle = computed(() => {
+    if (props.fill) return { width: '100%', height: '100%', objectFit: 'cover' as const };
+    if (props.square) return { width: '100%', objectFit: 'cover' as const };
+    return undefined;
+});
+const placeholderStyle = computed(() => props.fill
+    ? { width: '100%', height: '100%' }
+    : { width: '100%', aspectRatio: '16 / 9', height: 'auto' });
 
 async function load() {
     const f = props.file;

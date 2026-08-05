@@ -58,6 +58,7 @@ declare module 'vue' {
     ResizableLayout: typeof import('./components/layout/ResizableLayout.vue')['default']
     RichCaption: typeof import('./components/chat/ChatDetail/MessageContent/RichCaption.vue')['default']
     RichImage: typeof import('./components/chat/ChatDetail/MessageContent/RichImage.vue')['default']
+    RichMediaCollection: typeof import('./components/chat/ChatDetail/MessageContent/RichMediaCollection.vue')['default']
     RichText: typeof import('./components/chat/ChatDetail/MessageContent/RichText.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

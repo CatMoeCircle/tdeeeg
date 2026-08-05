@@ -215,13 +215,11 @@
 
             <!-- 拼贴 / 轮播 -->
             <div v-else-if="block._ === 'pageBlockCollage'" class="my-1.5 space-y-1">
-                <MessageRichMessage :blocks="block.blocks" :is-rtl="isRtl" />
+                <RichMediaCollection :blocks="block.blocks" mode="grid" />
                 <RichCaption v-if="block.caption" :caption="block.caption" />
             </div>
             <figure v-else-if="block._ === 'pageBlockSlideshow'" class="my-1.5">
-                <div class="space-y-1">
-                    <MessageRichMessage :blocks="block.blocks" :is-rtl="isRtl" />
-                </div>
+                <RichMediaCollection :blocks="block.blocks" mode="slideshow" />
                 <RichCaption v-if="block.caption" :caption="block.caption" />
             </figure>
 
@@ -282,6 +280,7 @@ import type { PageBlock, photoSize, audio, pageBlockTableCell, PageBlockHorizont
 import RichText from './RichText.vue';
 import RichImage from './RichImage.vue';
 import RichCaption from './RichCaption.vue';
+import RichMediaCollection from './RichMediaCollection.vue';
 import LatexFormula from './LatexFormula.vue';
 import Avatar from '../../avatar.vue';
 import { MusicIcon, MicIcon, PlayIcon } from 'lucide-vue-next';
