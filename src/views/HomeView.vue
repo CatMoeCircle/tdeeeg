@@ -145,6 +145,12 @@ onMounted(async () => {
     await appWindow.setSize(new LogicalSize(1000, 600));
     await appWindow.setMinSize(new LogicalSize(800, 450));
 
+    try {
+        await appWindow.setShadow(true);
+    } catch (e) {
+        console.warn("开启窗口阴影失败:", e);
+    }
+
     // 切换窗口效果为 Acrylic
     try {
         await invoke("set_window_effect", { effect: "acrylic" });
@@ -152,11 +158,6 @@ onMounted(async () => {
         console.warn("切换 Acrylic 失败:", e);
     }
 
-    // 注意：不在此处调用 loadChats！
-    // ChatList.vue 会在其 onMounted 中注册事件监听器后，
-    // 通过 triggerLoadMore 统一发送 loadChats 请求。
-    // 如果在监听器注册前就发送 loadChats，TDLib 返回的
-    // updateNewChat 事件会全部丢失（没有监听器接收）。
 });
 </script>
 <style scoped></style>

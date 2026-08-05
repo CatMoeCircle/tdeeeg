@@ -48,10 +48,6 @@ const iconSize = computed(() => {
 
 const imgError = ref(false);
 
-function onImgError() {
-    imgError.value = true;
-}
-
 const initials = computed(() => {
     const t = props.title || '';
     return t.substring(0, 2);
@@ -93,29 +89,62 @@ const containerClass = computed(() => {
 });
 
 
-const avatar = ref<string | undefined>(props.photo?.minithumbnail ? `data:image/jpeg;base64,${props.photo.minithumbnail.data}` : undefined);
+/** base64 缩略图预览（data URL），下载前/下载失败时兜底显示 */
+const previewDataUrl = ref<string | undefined>(undefined);
+/** 已下载的真实头像 URL（convertFileSrc 后的 asset URL） */
+const downloadedUrl = ref<string | undefined>(undefined);
+
+/**
+ * 当前展示的头像 URL：
+ * - 优先用已下载的真实头像；
+ * - 未下载完成或下载后的图片加载失败时，回退到 base64 缩略图预览；
+ * - 两者都没有（确无头像）才显示颜色 + 文本。
+ */
+const avatar = computed<string | undefined>(() => downloadedUrl.value ?? previewDataUrl.value);
+
+/** 记录下载后的真实头像是否加载失败，失败则回退到预览图 */
+function onDownloadedError() {
+    if (downloadedUrl.value) {
+        downloadedUrl.value = undefined;
+    }
+}
+
+function onImgError() {
+    if (downloadedUrl.value) {
+        onDownloadedError();
+    } else {
+        imgError.value = true;
+    }
+}
+
+function resetFromPhoto(photo: chatPhotoInfo | profilePhoto | undefined) {
+    imgError.value = false;
+    // 先重置已下载 URL，避免旧文件在新缩略图之上残留
+    downloadedUrl.value = undefined;
+    if (!photo) {
+        previewDataUrl.value = undefined;
+        return;
+    }
+    // 有 base64 缩略图就先展示预览（首次打开也能立即看到头像，而非颜色+文本）
+    previewDataUrl.value = photo.minithumbnail
+        ? `data:image/jpeg;base64,${photo.minithumbnail.data}`
+        : undefined;
+    // 已下载则直接用真实头像
+    if (isFileReady(photo.small)) {
+        downloadedUrl.value = convertFileSrc(photo.small.local.path);
+    }
+}
 
 watch(
     () => props.photo,
     async (photo) => {
-        imgError.value = false;
-        if (!photo) {
-            avatar.value = undefined;
-            return;
-        }
+        resetFromPhoto(photo);
+        if (!photo) return;
 
-        // 缩略图
-        if (photo.minithumbnail) {
-            avatar.value = `data:image/jpeg;base64,${photo.minithumbnail.data}`;
-        }
+        // 已下载：直接用本地文件，无需再触发下载
+        if (isFileReady(photo.small)) return;
 
-        // 已下载
-        if (isFileReady(photo.small)) {
-            avatar.value = convertFileSrc(photo.small.local.path);
-            return;
-        }
-
-        // 仅当文件可下载且未在下载中时触发
+        // 仅当文件可下载且未在下载中时触发；下载完成后再替换为真实头像
         if (photo.small?.id && !downloadingFiles.has(photo.small.id) && !isFileReady(photo.small)) {
             downloadingFiles.add(photo.small.id);
             // 头像：记录为隐藏资源，不需要来源（chat_id/message_id 留空）
@@ -131,7 +160,7 @@ watch(
                     synchronous: true,
                 });
                 if (file.local?.path) {
-                    avatar.value = convertFileSrc(file.local.path);
+                    downloadedUrl.value = convertFileSrc(file.local.path);
                 }
             } finally {
                 downloadingFiles.delete(photo.small.id);

@@ -7,7 +7,7 @@ import { useConnectionStore } from "./store/connectionState";
 import { useOptionsStore } from "./store/options";
 import { initSenderInfo } from "./utils/senderInfo";
 import { initColors, watchSystemColorScheme } from "./store/colors";
-import type { Update } from "tdlib-types";
+// import type { Update } from "tdlib-types";
 
 /**
  * 初始化 TDLib 及各模块的事件监听。
@@ -36,12 +36,12 @@ export async function initTdlib() {
     // 跟随系统明暗模式，供 accent 色选择对应明暗色板
     watchSystemColorScheme();
 
-    if (import.meta.env.DEV) {
-        await listen<Update>("tdlib-update", (event) => {
-            const update = event.payload;
-            console.log("Received update:", update);
-        });
-    }
+    // if (import.meta.env.DEV) {
+    //     await listen<Update>("tdlib-update", (event) => {
+    //         const update = event.payload;
+    //         console.log("Received update:", update);
+    //     });
+    // }
 
     // Listen for initialization errors (e.g. invalid API ID/Hash)
     await listen("tdlib-init-error", (event) => {

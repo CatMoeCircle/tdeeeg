@@ -23,6 +23,7 @@
     "core:window:allow-close",
     "core:window:allow-set-size",
     "core:window:allow-set-min-size",
+    "core:window:allow-set-shadow",
     "core:window:allow-set-focus",
     "core:window:allow-start-dragging",
     "core:window:allow-show",
