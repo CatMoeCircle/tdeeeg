@@ -25,12 +25,10 @@
         <mark v-else-if="node.type === 'marked'" class="bg-yellow-200/70 rounded px-0.5 dark:bg-yellow-500/30">
             <RichText :text="node.text" />
         </mark>
-        <CopyableText v-else-if="node.type === 'fixed'" :text="extractText(node.text)"
-            class="rounded bg-black/5 px-0.5 font-mono dark:bg-white/10">
+        <CopyableText v-else-if="node.type === 'fixed'" :text="extractText(node.text)" class="font-mono">
             <RichText :text="node.text" />
         </CopyableText>
-        <CopyableText v-else-if="node.type === 'bankCard'" :text="extractText(node.text)"
-            class="font-mono">
+        <CopyableText v-else-if="node.type === 'bankCard'" :text="extractText(node.text)" class="font-mono">
             <RichText :text="node.text" />
         </CopyableText>
         <a v-else-if="node.href" :href="node.href"
