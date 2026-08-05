@@ -487,6 +487,18 @@ const props = defineProps<{
     topicId?: number | null;
 }>();
 
+// ==================== 上次浏览位置缓存（模块级） ====================
+// 每个聊天的"上次浏览位置"（顶部可见消息 id），按 chatId(+topicId) 缓存。
+// 放在模块级，故跨聊天切换、甚至关闭/重开聊天面板（组件卸载重挂）后依然保留，
+// 用于重新打开聊天时恢复到上次浏览的位置，而不是每次都跳到底部。
+const lastBrowsePositionCache = new Map<string, number>();
+const lastBrowseCacheKey = (id: number, tid?: number | null) =>
+    tid ? `${id}:${tid}` : `${id}`;
+/** 删除某聊天的缓存位置（重置/跳转后位置失焦时使用） */
+const clearLastBrowsePosition = (id: number, tid?: number | null) => {
+    lastBrowsePositionCache.delete(lastBrowseCacheKey(id, tid));
+};
+
 const chatId = computed(() => {
     const id = props.chatId ?? route.params.id;
     return id !== undefined && id !== null && id !== '' ? Number(id) : undefined;
@@ -1212,8 +1224,15 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
         messagesVersion.value++;
         await nextTick();
 
-        // 4. 定位到新消息分界线后的第一条未读消息
-        const scrollTargetId = unreadBoundaryMessageId.value || lastReadId;
+        // 4. 定位滚动位置：
+        //    - 有未读消息 → 定位到新消息分界线（用户需先看到新内容）
+        //    - 否则若有"上次浏览位置"缓存 → 恢复到上次浏览的位置（不每次跳到底部）
+        //    - 否则 → 滚到底部
+        const cachedPos = lastBrowsePositionCache.get(lastBrowseCacheKey(currentId, topicId.value)) || 0;
+        const scrollTargetId =
+            (unreadBoundaryMessageId.value || 0) ||
+            (chatData.unread_count === 0 ? cachedPos : 0) ||
+            lastReadId;
         if (scrollTargetId > 0) {
             await scrollToTargetOrBottom(scrollTargetId, currentId, gen);
         } else {
@@ -1858,11 +1877,43 @@ async function scrollToTargetOrBottom(targetId: number, chatIdNum: number, gen: 
 }
 
 // ==================== Scroll Events ====================
+/** 计算当前视口顶部可见的第一条消息 id（用于记录上次浏览位置） */
+function captureBrowsePosition(el: HTMLElement, id: number, tid?: number | null): number {
+    if (!el) return 0;
+    // 容器自身的视口位置是常数参考点：消息 rect.top 越接近它，越靠近容器顶部（scrollTop=0 处）
+    const refTop = el.getBoundingClientRect().top;
+    let bestId = 0;
+    let bestDistance = Infinity;
+    for (const node of el.querySelectorAll<HTMLElement>('[data-msg-id]')) {
+        const msgId = Number(node.dataset.msgId || '0');
+        if (msgId <= 0) continue;
+        // 消息元素顶部所在行（元素首行可见场景很少，用整条消息顶边即可）
+        const top = node.getBoundingClientRect().top;
+        const distance = Math.abs(top - refTop);
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            bestId = msgId;
+        }
+    }
+    if (bestId > 0) lastBrowsePositionCache.set(lastBrowseCacheKey(id, tid), bestId);
+    return bestId;
+}
+
 const onScroll = async (e: Event) => {
     const el = e.currentTarget as HTMLElement;
     const H = el.scrollHeight;
     const C = el.clientHeight;
     const T = el.scrollTop;
+
+    // 记录当前浏览位置（用户手动滚动时持续更新顶部可见消息）
+    if (chatId.value !== undefined) {
+        // 已贴底时清空缓存位置（下次进入直接到底部，能自动看到新消息）
+        if (T + C >= H - 100) {
+            clearLastBrowsePosition(chatId.value, topicId.value);
+        } else {
+            captureBrowsePosition(el, chatId.value, topicId.value);
+        }
+    }
 
     // 底部检测
     const atBottom = T + C >= H - 100;
@@ -2612,9 +2663,53 @@ function onMessageAnimEnd(event: AnimationEvent, messageId: number) {
     }
 }
 
-const handleScrollToBottom = () => {
+/**
+ * “跳到底部”按钮：非跳转模式直接滚动到底部。
+ * 跳转模式下当前列表只是目标附近的一个窗口，与真正的聊天底部之间存在断层（gap），
+ * 若仅设置 scrollTop=scrollHeight，只会落在窗口底部，之后在断层处反复加载仍到不了真正的底部。
+ * 因此跳转模式下需先加载真正的底部（最新消息）、退出跳转模式，再滚动到底部。
+ */
+const handleScrollToBottom = async () => {
     showScrollButton.value = false;
     newMessageCount.value = 0;
+
+    if (historyMode.value === 'jump') {
+        const gen = loadGeneration;
+        const loadChat = chatId.value;
+        if (!loadChat) {
+            scrollToBottom();
+            return;
+        }
+        isLoadingMore.value = true;
+        try {
+            // 从最新消息（from_message_id=0）开始加载真正的底部
+            const newest = await fetchMessages(loadChat, 0, 60, 0, gen);
+            if (isGenerationValid(gen) && chatId.value === loadChat && newest.length > 0) {
+                const existingIds = new Set(messages.value.map(m => m.id));
+                const unique = newest.filter(m => !existingIds.has(m.id));
+                if (unique.length > 0) {
+                    // newest 已是 旧→新 且比现有列表更新，追加到末尾
+                    messages.value = [...messages.value, ...unique];
+                    messagesVersion.value++;
+                }
+                // 已具备真正底部，退出跳转模式，避免在断层处反复向下加载
+                historyMode.value = 'normal';
+                jumpOlderExhausted.value = false;
+                jumpNewerExhausted.value = false;
+                isHistoryExhausted.value = false;
+            } else if (!isGenerationValid(gen) || chatId.value !== loadChat) {
+                return;
+            }
+        } finally {
+            isLoadingMore.value = false;
+        }
+        await nextTick();
+        scrollToBottom();
+        // 媒体懒加载后二次校准
+        setTimeout(scrollToBottom, 200);
+        return;
+    }
+
     scrollToBottom();
 };
 </script>
