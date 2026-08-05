@@ -102,6 +102,8 @@ const serviceText = computed(() => {
             return `支付成功`;
         case 'messageGiftedPremium':
             return `赠送了 Telegram Premium`;
+        case 'messageGiveaway':
+            return `抽奖活动`;
         case 'messageGiveawayCompleted':
             return `抽奖活动已结束`;
         case 'messagePollOptionAdded':

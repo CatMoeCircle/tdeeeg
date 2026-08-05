@@ -1,6 +1,8 @@
 <template>
     <!-- Service messages -->
-    <MessageGiftContent v-if="content._ === 'messageGift'" :content="content" :date="date" />
+    <MessageGiveawayContent v-if="content._ === 'messageGiveaway'" :content="content" :date="date" />
+
+    <MessageGiftContent v-else-if="content._ === 'messageGift'" :content="content" :date="date" />
 
     <MessageServiceContent v-else-if="isServiceType" :content="content" :senderName="senderName"
         :messageList="messageList" @jump="onServiceJump" />
@@ -91,6 +93,7 @@ import MessageVoiceContent from './MessageVoiceContent.vue';
 import MessageFileContent from './MessageFileContent.vue';
 import MessageServiceContent from './MessageServiceContent.vue';
 import MessageGiftContent from './MessageGiftContent.vue';
+import MessageGiveawayContent from './MessageGiveawayContent.vue';
 import MessageOtherContent from './MessageOtherContent.vue';
 import MessageStatus from './MessageStatus.vue';
 import { settings } from '../../../../store/settings';
@@ -132,7 +135,6 @@ const SERVICE_TYPES = new Set([
     'messageGiftedPremium',
     'messagePremiumGiftCode',
     'messageGiveawayCreated',
-    'messageGiveaway',
     'messageGiveawayCompleted',
     'messageGiveawayWinners',
     'messageGiftedStars',
