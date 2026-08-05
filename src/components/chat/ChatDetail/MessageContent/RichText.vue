@@ -46,7 +46,8 @@
         </a>
         <CustomEmojiInline v-else-if="node.type === 'customEmoji' && node.emojiId" :emojiId="node.emojiId"
             :size="emojiSize" :fallback-text="node.textStr" />
-        <span v-else-if="node.type === 'mathematicalExpression'" class="italic font-serif">{{ node.textStr }}</span>
+        <LatexFormula v-else-if="node.type === 'mathematicalExpression'" :expression="node.textStr ?? ''"
+            class="mx-0.5" />
         <template v-else-if="node.type === 'texts'">
             <RichText v-for="(child, ci) in node.children" :key="ci" :text="child" />
         </template>
@@ -63,6 +64,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { RichText } from 'tdlib-types';
+import LatexFormula from './LatexFormula.vue';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { useRouter } from 'vue-router';
 import { tdlibSend } from '../../../../utils/tdlib';

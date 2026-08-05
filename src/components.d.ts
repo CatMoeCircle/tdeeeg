@@ -33,6 +33,7 @@ declare module 'vue' {
     Header: typeof import('./components/chat/ChatDetail/Header.vue')['default']
     HomeEmptyContent: typeof import('./components/layout/HomeEmptyContent.vue')['default']
     InlineKeyboard: typeof import('./components/chat/ChatDetail/MessageContent/InlineKeyboard.vue')['default']
+    LatexFormula: typeof import('./components/chat/ChatDetail/MessageContent/LatexFormula.vue')['default']
     MediaViewer: typeof import('./components/chat/ChatDetail/MessageContent/MediaViewer.vue')['default']
     MessageAlbum: typeof import('./components/chat/ChatDetail/MessageContent/MessageAlbum.vue')['default']
     MessageContent: typeof import('./components/chat/ChatDetail/MessageContent/index.vue')['default']

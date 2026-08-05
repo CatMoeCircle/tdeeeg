@@ -54,10 +54,8 @@
             <hr v-else-if="block._ === 'pageBlockDivider'" class="my-2 border-gray-200 dark:border-gray-700" />
 
             <!-- 数学表达式 -->
-            <div v-else-if="block._ === 'pageBlockMathematicalExpression'"
-                class="my-1 overscroll-x-auto overflow-x-auto rounded bg-black/5 dark:bg-white/10 px-2 py-1 font-serif">
-                {{ block.expression }}
-            </div>
+            <LatexFormula v-else-if="block._ === 'pageBlockMathematicalExpression'" :expression="block.expression"
+                display-mode class="my-1" />
 
             <!-- 列表 -->
             <ul v-else-if="block._ === 'pageBlockList'" class="my-1 space-y-0.5">
@@ -174,10 +172,10 @@
                             <tr v-for="(row, ri) in block.cells" :key="ri">
                                 <td v-for="(cell, ci) in row" :key="ci" :colspan="cell.colspan" :rowspan="cell.rowspan"
                                     :class="[
-                                        'px-2 py-1.5 align-top border-gray-200 dark:border-gray-700',
+                                        'px-2 py-1.5 align-top whitespace-pre-wrap border-gray-200 dark:border-gray-700',
                                         block.is_bordered ? 'border' : '',
                                         block.is_striped && ri % 2 === 1 ? 'bg-black/5 dark:bg-white/5' : '',
-                                        cell.is_header ? 'font-semibold' : '',
+                                        cell.is_header ? 'bg-gray-100 dark:bg-gray-700' : '',
                                     ]" :style="cellAlign(cell)">
                                     <template v-if="cell.text">
                                         <RichText :text="cell.text" />
@@ -284,6 +282,7 @@ import type { PageBlock, photoSize, audio, pageBlockTableCell, PageBlockHorizont
 import RichText from './RichText.vue';
 import RichImage from './RichImage.vue';
 import RichCaption from './RichCaption.vue';
+import LatexFormula from './LatexFormula.vue';
 import Avatar from '../../avatar.vue';
 import { MusicIcon, MicIcon, PlayIcon } from 'lucide-vue-next';
 import { tdlibSend } from '../../../../utils/tdlib';
