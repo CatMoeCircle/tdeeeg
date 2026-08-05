@@ -254,11 +254,11 @@ const AuthState = async (State: AuthorizationState) => {
 onMounted(async () => {
     await getCurrentWindow().setMinSize(new LogicalSize(700, 450));
 
-    // 登录页面使用默认 mica 效果
+    // 登录页面使用 acrylic 效果（与主页一致，避免登录→主页切换时效果跳变）
     try {
-        await invoke("set_window_effect", { effect: "mica" });
+        await invoke("set_window_effect", { effect: "acrylic" });
     } catch (e) {
-        console.warn("设置 Mica 失败:", e);
+        console.warn("设置 Acrylic 失败:", e);
     }
 
     qrlinkupdate = await listen<Update>("tdlib-update", async (event) => {

@@ -1,5 +1,6 @@
 import { createApp } from "vue";
 import { createPinia } from "pinia";
+import { invoke } from "@tauri-apps/api/core";
 import App from "./App.vue";
 import router from "./router";
 import "./assets/css/index.css";
@@ -10,6 +11,7 @@ import i18n from "./i18n";
 import vContextMenu from "./directives/contextMenu";
 import vSmoothWheel from "./directives/smoothWheel";
 import { closeContextMenu } from "./store/contextMenu";
+import { initTdlib, waitForAuthorization } from "./init";
 
 // 全局右键处理：
 // - 输入框/可编辑元素/链接等保留原生右键（便于复制粘贴等）
@@ -45,4 +47,32 @@ app.use(i18n);
 app.directive("context-menu", vContextMenu);
 // 注册 v-smooth-wheel（滚轮平滑滚动）指令
 app.directive("smooth-wheel", vSmoothWheel);
-app.mount("#app");
+
+// 应用启动流程：
+// 1. 先初始化 TDLib 及各模块事件监听（不渲染 App）
+// 2. 等待授权态稳定（Ready / WaitCode... 等），据此跳转 /home 或 /login
+// 3. 完成后再挂载并渲染 App.vue，从而避免启动时闪现登录页
+async function bootstrap() {
+  // 等待 router 就绪，确保后续 push 基于已解析的路由表执行
+  await router.isReady();
+
+  // 设置 TDLib 参数（连接正式数据中心），须在 init_tdlib 之前调用
+  await invoke("set_tdlib_parameters", { useTestDc: false });
+
+  let authState: "ready" | "login";
+  try {
+    await initTdlib();
+    authState = await waitForAuthorization();
+  } catch (e) {
+    console.error("Error initializing TDLib:", e);
+    authState = "login";
+  }
+
+  // mount 前先跳到对应路由
+  await router.push(authState === "ready" ? "/home" : "/login");
+
+  // 授权态稳定、路由已定位，再渲染 App.vue
+  app.mount("#app");
+}
+
+bootstrap();

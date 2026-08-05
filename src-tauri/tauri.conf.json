@@ -17,10 +17,8 @@
         "height": 700,
         "decorations": false,
         "transparent": true,
-        "dragDropEnabled": false,
-        "windowEffects": {
-          "effects": ["mica"]
-        }
+        "shadow": false,
+        "dragDropEnabled": false
       }
     ],
     "security": {

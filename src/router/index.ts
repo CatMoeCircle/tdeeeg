@@ -3,10 +3,13 @@ import { createRouter, createWebHashHistory } from "vue-router";
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
-    // 根路径占位：App 初始化完成后由 navigateAfterInit 跳转到 /home 或 /login
+    // 根路径占位：应用初始化（授权态稳定）之前的空白页。
+    // 真实跳转 /home 或 /login 由 main.ts 的 bootstrap 在 mount 前完成，
+    // 这里不重定向到 /login，避免启动时闪现登录页。
     {
       path: "/",
-      redirect: "/login",
+      name: "boot",
+      component: () => import("../views/Booting.vue"),
     },
     {
       path: "/login",
