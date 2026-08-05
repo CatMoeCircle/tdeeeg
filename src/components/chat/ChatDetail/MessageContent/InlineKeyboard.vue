@@ -1,9 +1,9 @@
 <template>
-    <div v-if="rows.length" class="mt-1.5 flex flex-col gap-1 px-0.5 pb-0.5">
+    <div v-if="rows.length" class="flex w-full flex-col gap-1 px-0.5 pb-0.5">
         <div v-for="(row, ri) in rows" :key="ri" class="flex gap-1">
             <button v-for="(button, bi) in row" :key="bi" type="button"
-                class="flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border px-2 py-1.5 text-sm font-medium transition-colors disabled:cursor-default disabled:opacity-50"
-                :class="buttonClass(button.style)" :disabled="pendingKey === buttonKey(ri, bi)"
+                class="flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-gray-300/60 bg-gray-100/80 px-2 py-1.5 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-200/80 disabled:cursor-default disabled:opacity-50 dark:border-white/10 dark:bg-white/10 dark:text-gray-100 dark:hover:bg-white/15"
+                :disabled="pendingKey === buttonKey(ri, bi)"
                 @click.stop="handleClick(button, ri, bi)">
                 <CustomEmojiInline v-if="String(button.icon_custom_emoji_id || 0) !== '0'"
                     :emojiId="String(button.icon_custom_emoji_id)" :size="18"
@@ -35,19 +35,6 @@ const pendingKey = ref<string | null>(null);
 
 function buttonKey(ri: number, bi: number): string {
     return `${ri}:${bi}`;
-}
-
-function buttonClass(style: inlineKeyboardButton['style']): string {
-    switch (style._) {
-        case 'buttonStylePrimary':
-            return 'border-blue-500 bg-blue-500 text-white hover:bg-blue-600 dark:border-blue-400 dark:bg-blue-500 dark:hover:bg-blue-400';
-        case 'buttonStyleDanger':
-            return 'border-red-500/70 bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:border-red-400/70 dark:bg-red-400/10 dark:text-red-300';
-        case 'buttonStyleSuccess':
-            return 'border-green-500/70 bg-green-500/10 text-green-600 hover:bg-green-500/20 dark:border-green-400/70 dark:bg-green-400/10 dark:text-green-300';
-        default:
-            return 'border-blue-500/70 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 dark:border-blue-400/60 dark:bg-blue-400/10 dark:text-blue-300';
-    }
 }
 
 async function handleClick(button: inlineKeyboardButton, ri: number, bi: number) {

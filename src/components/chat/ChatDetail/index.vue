@@ -72,9 +72,11 @@
                                             :deletedAccount="getDisplaySenderDeleted(item.messages[0])" />
                                     </button>
                                 </div>
-                                <div class="w-min max-w-[70%] overflow-hidden shadow-sm"
-                                    :class="isSelfAlbum(item) ? 'text-gray-900' : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'"
-                                    :style="albumStyle(item)">
+                                <div class="flex min-w-0 max-w-[70%] flex-col"
+                                    :class="isSelfAlbum(item) ? 'items-end' : 'items-start'">
+                                    <div class="w-min max-w-full overflow-hidden shadow-sm"
+                                        :class="isSelfAlbum(item) ? 'text-gray-900' : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'"
+                                        :style="getInlineKeyboard(item.messages[0]) ? { ...albumStyle(item), width: '100%' } : albumStyle(item)">
                                     <p v-if="showSenderDisplayName(item.messages[0])"
                                         class="text-xs font-semibold px-2 pt-2 pb-0.5 flex items-center gap-1.5"
                                         :style="senderNameColor(item.messages[0])">
@@ -108,7 +110,8 @@
                                         :isRead="isMessageRead(item.messages[item.messages.length - 1])"
                                         :authorSignature="getDisplayAuthorSignature(item.messages[0])"
                                         @message-context-menu="onAlbumMessageContextMenu" />
-                                    <InlineKeyboard v-if="getInlineKeyboard(item.messages[0])"
+                                    </div>
+                                    <InlineKeyboard v-if="getInlineKeyboard(item.messages[0])" class="mt-1 w-full"
                                         :rows="getInlineKeyboard(item.messages[0])!.rows" :chat-id="chatId"
                                         :message-id="item.messages[0].id" />
                                 </div>
@@ -149,18 +152,20 @@
                                             :deletedAccount="getDisplaySenderDeleted(item.msg)" />
                                     </button>
                                 </div>
-                                <div :data-bubble-msg-id="item.msg.id" :class="[
-                                    isMediaMessage(item.msg)
-                                        ? 'w-fit max-w-[70%] min-w-0 overflow-hidden shadow-sm'
-                                        : isStandaloneMessage(item.msg)
-                                            ? 'relative max-w-[70%]'
-                                            : 'px-2.5 py-1.5 shadow-sm max-w-[70%] min-w-30',
-                                    !isStandaloneMessage(item.msg) && isSelf(item.msg)
-                                        ? 'text-gray-900'
-                                        : !isStandaloneMessage(item.msg)
-                                            ? 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'
-                                            : ''
-                                ]" :style="bubbleStyle(item)">
+                                <div class="flex min-w-0 max-w-[70%] flex-col"
+                                    :class="isSelf(item.msg) ? 'items-end' : 'items-start'">
+                                    <div :data-bubble-msg-id="item.msg.id" :class="[
+                                        isMediaMessage(item.msg)
+                                            ? 'w-fit max-w-full min-w-0 overflow-hidden shadow-sm'
+                                            : isStandaloneMessage(item.msg)
+                                                ? 'relative max-w-full'
+                                                : 'px-2.5 py-1.5 shadow-sm max-w-full min-w-30',
+                                        !isStandaloneMessage(item.msg) && isSelf(item.msg)
+                                            ? 'text-gray-900'
+                                            : !isStandaloneMessage(item.msg)
+                                                ? 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'
+                                                : ''
+                                    ]" :style="getInlineKeyboard(item.msg) ? { ...bubbleStyle(item), width: '100%' } : bubbleStyle(item)">
                                     <p v-if="showSenderDisplayName(item.msg) && item.isFirstInGroup"
                                         class="text-xs font-semibold mx-2 m-1.5 flex items-center gap-1.5"
                                         :style="senderNameColor(item.msg)">
@@ -203,9 +208,6 @@
                                         :messageList="messages" :accentColorId="getSenderAccentId(item.msg)"
                                         @jumpToMessage="handleReplyJumpToMessage"
                                         @openForwardSource="item.msg.forward_info && openForwardSource(item.msg.forward_info)" />
-                                    <InlineKeyboard v-if="getInlineKeyboard(item.msg)"
-                                        :rows="getInlineKeyboard(item.msg)!.rows" :chat-id="chatId"
-                                        :message-id="item.msg.id" />
                                     <span
                                         v-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isSelf(item.msg)"
                                         class="block text-right text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 leading-none">
@@ -223,8 +225,12 @@
                                             :authorSignature="getDisplayAuthorSignature(item.msg)" />
                                     </span>
                                 </div>
+                                <InlineKeyboard v-if="getInlineKeyboard(item.msg)" class="mt-1 w-full"
+                                    :rows="getInlineKeyboard(item.msg)!.rows" :chat-id="chatId"
+                                    :message-id="item.msg.id" />
                             </div>
                         </div>
+                    </div>
                     </template>
                 </template>
 
@@ -2707,7 +2713,7 @@ const handleScrollToBottom = () => {
 }
 
 /* Telegram-like bubble style: text should wrap nicely */
-.messages-scroll>div>div>div>.max-w-\[70\%\] {
+.messages-scroll [data-bubble-msg-id] {
     word-break: break-word;
     line-height: 1.4;
 }
