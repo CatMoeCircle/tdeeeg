@@ -25,17 +25,8 @@
         </div>
 
         <!-- Poll -->
-        <div v-else-if="content._ === 'messagePoll'" class="min-w-[200px]">
-            <p class="text-sm font-medium mb-2">{{ content.poll.question.text }}</p>
-            <div v-for="option in content.poll.options" :key="option._" class="flex items-center gap-2 mb-1">
-                <div class="flex-1 h-6 bg-gray-200 dark:bg-gray-700 rounded-full relative overflow-hidden">
-                    <div class="h-full bg-blue-500 rounded-full transition-all duration-500"
-                        :style="{ width: percentage(option) + '%' }"></div>
-                </div>
-                <span class="text-xs shrink-0 w-8 text-right">{{ percentage(option) }}%</span>
-            </div>
-            <p class="text-xs text-gray-500 mt-1">总投票: {{ totalVotes }}</p>
-        </div>
+        <MessagePollContent v-else-if="content._ === 'messagePoll'" :content="content" :chat-id="chatId"
+            :message-id="messageId" />
 
         <!-- Dice -->
         <div v-else-if="content._ === 'messageDice'" class="text-4xl text-center py-2">
@@ -72,9 +63,12 @@
 import { computed } from 'vue';
 import type { MessageContent } from 'tdlib-types';
 import { MapPinIcon, PhoneIcon, VideoIcon } from 'lucide-vue-next';
+import MessagePollContent from './MessagePollContent.vue';
 
 const props = defineProps<{
     content: MessageContent;
+    chatId?: number;
+    messageId?: number;
 }>();
 
 const locationText = computed(() => {
@@ -82,16 +76,4 @@ const locationText = computed(() => {
     if (c._ !== 'messageLocation') return '';
     return `${c.location.latitude}, ${c.location.longitude}`;
 });
-
-const totalVotes = computed(() => {
-    const c = props.content;
-    if (c._ !== 'messagePoll') return 0;
-    return c.poll.options.reduce((sum, opt) => sum + opt.voter_count, 0);
-});
-
-const percentage = (option: { voter_count: number }) => {
-    const total = totalVotes.value;
-    if (total === 0) return 0;
-    return Math.round((option.voter_count / total) * 100);
-};
 </script>

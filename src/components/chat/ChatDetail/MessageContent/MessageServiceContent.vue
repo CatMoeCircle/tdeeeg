@@ -1,5 +1,5 @@
 <template>
-    <div class="text-center py-1">
+    <div class="text-center py-1" :class="clickable ? 'cursor-pointer' : ''" @click="onClick">
         <span class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full">
             {{ serviceText }}
         </span>
@@ -18,8 +18,25 @@ const props = defineProps<{
     messageList?: message[];
 }>();
 
+const emit = defineEmits<{
+    jump: [messageId: number];
+}>();
+
 /** 发送者名称（未解析到时兜底） */
 const sender = computed(() => props.senderName?.trim() || '有人');
+
+/** 是否为“投票选项被添加/删除”的服务消息；关联的投票消息 id >0 时可点击跳转 */
+const pollMessageId = computed(() => {
+    const c = props.content;
+    if (c._ === 'messagePollOptionAdded' || c._ === 'messagePollOptionDeleted') return c.poll_message_id;
+    return 0;
+});
+
+const clickable = computed(() => pollMessageId.value > 0);
+
+function onClick() {
+    if (clickable.value) emit('jump', pollMessageId.value);
+}
 
 /**
  * 从消息列表中按 checklist_message_id 找到 messageChecklist 消息，
@@ -52,9 +69,9 @@ const serviceText = computed(() => {
         case 'messageChatAddMembers':
             return `${c.member_user_ids.length} 位成员已加入群组`;
         case 'messageChatJoinByLink':
-            return `有成员通过邀请链接加入群组`;
+            return `${sender.value} 通过邀请链接加入了群组`;
         case 'messageChatJoinByRequest':
-            return `有成员通过申请加入群组`;
+            return `${sender.value} 通过申请加入了群组`;
         case 'messageChatDeleteMember':
             return `有成员离开了群组`;
         case 'messageChatUpgradeTo':
@@ -87,6 +104,10 @@ const serviceText = computed(() => {
             return `赠送了 Telegram Premium`;
         case 'messageGiveawayCompleted':
             return `抽奖活动已结束`;
+        case 'messagePollOptionAdded':
+            return `${sender.value} 添加了选项：${c.text.text || ''}`;
+        case 'messagePollOptionDeleted':
+            return `${sender.value} 删除了选项：${c.text.text || ''}`;
         case 'messageChecklistTasksDone': {
             const names = findTaskNames(c.checklist_message_id);
             const parts: string[] = [];

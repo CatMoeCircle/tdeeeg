@@ -39,6 +39,10 @@ export function getMessagePlainText(msg: message): string {
             return c.sticker.emoji ?? "";
         case "messagePoll":
             return c.poll.question.text ?? "";
+        case "messagePollOptionAdded":
+            return "添加了选项：" + (c.text.text ?? "");
+        case "messagePollOptionDeleted":
+            return "删除了选项：" + (c.text.text ?? "");
         case "messageLocation":
             return "位置";
         case "messageVenue":

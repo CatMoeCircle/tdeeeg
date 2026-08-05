@@ -846,6 +846,10 @@ const getMessagePreview = (message: message | undefined): formattedText => {
     if (content._ === 'messageVideoNote') {
         return plainText('[视频消息]');
     }
+    if (content._ === 'messagePollOptionAdded' || content._ === 'messagePollOptionDeleted') {
+        const action = content._ === 'messagePollOptionAdded' ? '添加了选项' : '删除了选项';
+        return plainText(`[投票] ${action}：${content.text.text || ''}`.trim());
+    }
     return plainText('[消息]');
 };
 
@@ -1264,6 +1268,10 @@ function getTopicPreview(topic: forumTopic): formattedText {
     }
     if (content._ === 'messageVideoNote') {
         return plainText('[视频消息]');
+    }
+    if (content._ === 'messagePollOptionAdded' || content._ === 'messagePollOptionDeleted') {
+        const action = content._ === 'messagePollOptionAdded' ? '添加了选项' : '删除了选项';
+        return plainText(`[投票] ${action}：${content.text.text || ''}`.trim());
     }
     return plainText('[消息]');
 }

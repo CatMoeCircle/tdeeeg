@@ -3,7 +3,7 @@
     <MessageGiftContent v-if="content._ === 'messageGift'" :content="content" :date="date" />
 
     <MessageServiceContent v-else-if="isServiceType" :content="content" :senderName="senderName"
-        :messageList="messageList" />
+        :messageList="messageList" @jump="onServiceJump" />
 
     <template v-else>
         <!-- Reply preview -->
@@ -73,7 +73,7 @@
             :content="content" :chatId="chatId" :messageId="messageId" />
 
         <!-- Other types -->
-        <MessageOtherContent v-else :content="content" />
+        <MessageOtherContent v-else :content="content" :chat-id="chatId" :message-id="messageId" />
     </template>
 </template>
 
@@ -153,6 +153,8 @@ const SERVICE_TYPES = new Set([
     'messagePaidMedia',
     'messageChecklistTasksDone',
     'messageChecklistTasksAdded',
+    'messagePollOptionAdded',
+    'messagePollOptionDeleted',
     'messageSuggestedPostApprovalFailed',
     'messageSuggestedPostApproved',
     'messageSuggestedPostDeclined',
@@ -190,6 +192,10 @@ const emit = defineEmits<{
 }>();
 
 function onJumpToMessage(messageId: number) {
+    emit('jumpToMessage', messageId);
+}
+
+function onServiceJump(messageId: number) {
     emit('jumpToMessage', messageId);
 }
 

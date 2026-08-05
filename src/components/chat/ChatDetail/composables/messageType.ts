@@ -75,6 +75,8 @@ export const SERVICE_TYPES: ReadonlySet<string> = new Set([
   "messagePaidMedia",
   "messageChecklistTasksDone",
   "messageChecklistTasksAdded",
+  "messagePollOptionAdded",
+  "messagePollOptionDeleted",
   "messageSuggestedPostApprovalFailed",
   "messageSuggestedPostApproved",
   "messageSuggestedPostDeclined",

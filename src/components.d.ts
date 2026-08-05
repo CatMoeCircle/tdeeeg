@@ -46,6 +46,7 @@ declare module 'vue' {
     MessageLinkPreview: typeof import('./components/chat/ChatDetail/MessageContent/MessageLinkPreview.vue')['default']
     MessageMediaContent: typeof import('./components/chat/ChatDetail/MessageContent/MessageMediaContent.vue')['default']
     MessageOtherContent: typeof import('./components/chat/ChatDetail/MessageContent/MessageOtherContent.vue')['default']
+    MessagePollContent: typeof import('./components/chat/ChatDetail/MessageContent/MessagePollContent.vue')['default']
     MessagePreviewMedia: typeof import('./components/chat/MessagePreviewMedia.vue')['default']
     MessageReply: typeof import('./components/chat/ChatDetail/MessageContent/MessageReply.vue')['default']
     MessageRichMessage: typeof import('./components/chat/ChatDetail/MessageContent/MessageRichMessage.vue')['default']

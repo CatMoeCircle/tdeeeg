@@ -138,7 +138,8 @@
                             </div>
                             <div v-if="isServiceMessage(item.msg)" class="flex justify-center my-0.5">
                                 <MessageContent :content="item.msg.content" :date="item.msg.date"
-                                    :senderName="getDisplaySenderName(item.msg)" :messageList="messages" />
+                                    :senderName="getDisplaySenderName(item.msg)" :messageList="messages"
+                                    @jumpToMessage="handleReplyJumpToMessage" />
                             </div>
                             <div v-else class="flex" :class="[
                                 isSelf(item.msg) ? 'justify-end' : 'justify-start',
