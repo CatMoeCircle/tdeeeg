@@ -28,6 +28,7 @@ import * as pako from 'pako';
 
 const props = defineProps<{
     content: messageSticker | messageAnimatedEmoji;
+    size?: number;
 }>();
 
 const lottieRef = ref<HTMLElement | null>(null);
@@ -43,8 +44,8 @@ const { register: registerAnim, get: getAnim, setup: setupPause } = useLottiePau
 
 /** 贴纸尺寸样式（跟随设置，仅对普通贴纸生效；动画表情保持固定） */
 const stickerSizeStyle = computed<Record<string, string>>(() => ({
-    width: `${settings.sticker.size}px`,
-    height: `${settings.sticker.size}px`,
+    width: `${props.size ?? settings.sticker.size}px`,
+    height: `${props.size ?? settings.sticker.size}px`,
 }));
 
 const sticker = computed(() => props.content._ === 'messageSticker'

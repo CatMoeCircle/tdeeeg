@@ -135,7 +135,7 @@
                                 <CheckIcon v-if="isMsgSelected(item.msg.id)" class="w-3.5 h-3.5 text-white" />
                             </div>
                             <div v-if="isServiceMessage(item.msg)" class="flex justify-center my-1">
-                                <MessageContent :content="item.msg.content" />
+                                <MessageContent :content="item.msg.content" :date="item.msg.date" />
                             </div>
                             <div v-else class="flex" :class="[
                                 isSelf(item.msg) ? 'justify-end' : 'justify-start',

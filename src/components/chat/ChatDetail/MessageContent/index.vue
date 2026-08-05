@@ -1,6 +1,8 @@
 <template>
     <!-- Service messages -->
-    <MessageServiceContent v-if="isServiceType" :content="content" />
+    <MessageGiftContent v-if="content._ === 'messageGift'" :content="content" :date="date" />
+
+    <MessageServiceContent v-else-if="isServiceType" :content="content" />
 
     <template v-else>
         <!-- Reply preview -->
@@ -83,6 +85,7 @@ import MessageStickerContent from './MessageStickerContent.vue';
 import MessageVoiceContent from './MessageVoiceContent.vue';
 import MessageFileContent from './MessageFileContent.vue';
 import MessageServiceContent from './MessageServiceContent.vue';
+import MessageGiftContent from './MessageGiftContent.vue';
 import MessageOtherContent from './MessageOtherContent.vue';
 import MessageStatus from './MessageStatus.vue';
 import { settings } from '../../../../store/settings';
