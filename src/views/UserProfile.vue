@@ -1,31 +1,28 @@
 <template>
-  <div class="h-full flex flex-col bg-[#f2f3f5] dark:bg-[#0f1114] text-gray-900 dark:text-gray-100 overflow-hidden">
+  <div class="h-full flex flex-col text-gray-900 dark:text-gray-100 overflow-hidden">
     <!-- 内容区 -->
     <div class="flex-1 overflow-y-auto custom-scrollbar" v-smooth-wheel>
       <div class="max-w-2xl mx-auto pb-8" v-if="user">
         <!-- ===== 第一部分：顶部青绿色头部区域 ===== -->
         <div class="relative profile-hero overflow-hidden">
-          <!-- 背景水波纹装饰 -->
-          <div class="profile-hero-decoration" aria-hidden="true"></div>
-
           <!-- 返回导航 -->
           <button type="button" aria-label="返回"
-            class="absolute top-2 left-2 z-10 w-9 h-9 flex items-center justify-center rounded-full text-white hover:bg-white/20 transition-colors"
+            class="absolute top-2 left-2 z-10 w-9 h-9 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             @click="goBack">
             <ArrowLeft class="w-6 h-6" />
           </button>
 
-          <div class="flex flex-col items-center pt-10 pb-5 px-4 text-white">
+          <div class="flex flex-col items-center pt-10 pb-5 px-4 text-gray-900 dark:text-gray-100">
             <!-- 头像 -->
             <button type="button" class="relative rounded-full focus:outline-none" title="点击查看照片"
               @click="openPhotoViewer(0)">
-              <span class="block rounded-full ring-4 ring-white/90 shadow-lg">
+              <span class="block rounded-full">
                 <div v-if="headerPhotoUrl" class="w-24 h-24 rounded-full overflow-hidden">
                   <img :src="headerPhotoUrl" class="w-full h-full object-cover" />
                 </div>
                 <div v-else class="w-24 h-24 rounded-full overflow-hidden">
                   <Avatar :photo="displayPhoto" :title="userName" :accentColorId="user.profile_accent_color_id"
-                    sizeClass="!w-24 !h-24" />
+                    sizeClass="!w-24 !h-24" no-background />
                 </div>
               </span>
             </button>
@@ -33,63 +30,87 @@
             <!-- 昵称 -->
             <h1 class="mt-3 text-2xl font-bold flex items-center gap-1.5 max-w-full">
               <span class="truncate">{{ userName }}</span>
-              <span v-if="user.emoji_status" class="text-base" title="Emoji 状态">😀</span>
-              <span v-if="user.is_premium" class="text-base" title="Telegram Premium">⭐</span>
-              <span v-if="verificationType === 'verified'" class="text-blue-200 text-lg" title="已验证">✓</span>
+              <CustomEmojiInline v-if="customEmojiId" :emojiId="customEmojiId" :size="22" fallback-text="😀" />
+              <!-- 有自定义 emoji 状态时不显示星星，仅无自定义 emoji 状态时显示 Premium 星星 -->
+              <span v-if="user.is_premium && !user.emoji_status" class="text-base" title="Telegram Premium">⭐</span>
+              <span v-if="verificationType === 'verified'" class="text-blue-500 text-lg" title="已验证">✓</span>
             </h1>
 
-            <!-- 在线状态（盾牌 + 文字） -->
-            <p class="mt-1 text-sm text-white/90 flex items-center gap-1.5">
-              <ShieldCheck class="w-4 h-4" />
+            <!-- 在线状态 -->
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {{ statusText }}
             </p>
-
-            <!-- 个性签名 / 音乐状态 -->
-            <button type="button" v-if="profileAudio"
-              class="mt-3 max-w-full flex items-center gap-1.5 text-sm text-white/90 hover:opacity-90 transition-opacity"
-              @click="playProfileAudio">
-              <Music class="w-4 h-4 shrink-0" />
-              <span class="truncate">{{ profileAudioTitle }} - {{ profileAudioPerformer }}</span>
-              <ChevronRight class="w-4 h-4 shrink-0" />
-            </button>
           </div>
         </div>
 
-        <!-- ===== 第二部分：频道订阅及推送卡片区域 ===== -->
+        <!-- ===== 第二部分：音乐卡片 + 频道订阅卡片（同一父级） ===== -->
         <div class="px-4">
-          <!-- 频道订阅状态栏 -->
-          <div class="flex items-center gap-2 py-2">
-            <span class="text-sm text-gray-500 dark:text-gray-400">频道</span>
-            <button v-if="personalChatId" type="button"
-              class="flex items-center gap-1 px-2.5 py-1 rounded-full bg-teal-500 text-white text-xs font-medium hover:bg-teal-600 transition-colors"
-              @click="openPersonalChat">
-              {{ channelMemberText }}
-              <ChevronDown class="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <!-- 音乐卡片：标题在卡片外，方形封面/名称/作者在卡片内 -->
+          <template v-if="profileAudio">
+            <!-- 区域标题（卡片外部） -->
+            <p class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">个人资料音乐</p>
+            <!-- 卡片：音乐入口行 -->
+            <div
+              class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] overflow-hidden mb-4">
+              <button type="button" @click="openUserMusicPlayer"
+                class="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                <!-- 方形封面（播放/暂停按钮叠加在封面上） -->
+                <div
+                  class="relative w-14 h-14 rounded-lg shrink-0 overflow-hidden flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+                  <template v-if="profileMusicCover">
+                    <!-- 高清封面就绪后替换；低清 minithumbnail 仅作为过渡（模糊 + 放大） -->
+                    <img :src="profileMusicCover" class="w-full h-full object-cover"
+                      :class="profileMusicCoverIsLowRes ? 'scale-125 blur-[2px]' : ''" />
+                  </template>
+                  <Music v-else class="w-6 h-6 text-gray-400" />
+                  <span class="absolute inset-0 flex items-center justify-center bg-black/30 text-white">
+                    <Pause v-if="isUserMusicPlaying" class="w-5 h-5" fill="currentColor" />
+                    <Play v-else class="w-5 h-5" fill="currentColor" />
+                  </span>
+                </div>
+                <!-- 名称 + 作者 -->
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{{ profileAudioTitle }}</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{{ profileAudioPerformer }}</p>
+                </div>
+              </button>
+            </div>
+          </template>
 
-          <!-- 最新推送卡片 -->
-          <button v-if="channelLastMessage" type="button" @click="openPersonalChat"
-            class="w-full text-left rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3 shadow-sm hover:shadow-md transition-shadow">
-            <div class="flex items-start gap-3">
+          <!-- 频道订阅卡片 -->
+          <div v-if="personalChatId"
+            class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] overflow-hidden">
+            <!-- 头部：频道 + 订阅数（使用该用户主题色） -->
+            <div class="flex items-baseline justify-between px-3.5 pt-3 pb-1.5">
+              <span class="text-sm font-semibold text-gray-900 dark:text-gray-100">频道</span>
+              <span v-if="channelMemberText" class="px-2 py-0.5 rounded-full text-xs font-medium"
+                :style="{ color: profileAccent.color, backgroundColor: profileAccent.softBg }">
+                {{ channelMemberText }}
+              </span>
+            </div>
+            <!-- 频道入口行：头像 + 标题/时间 + 最新推送预览 -->
+            <button type="button" @click="openPersonalChat"
+              class="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
               <div class="w-10 h-10 shrink-0">
                 <Avatar :photo="personalChatPhoto" :title="personalChatTitle" :accentColorId="personalChatAccent"
                   sizeClass="!w-10 !h-10" />
               </div>
               <div class="min-w-0 flex-1">
-                <div class="flex items-center justify-between gap-2">
-                  <p class="text-sm font-bold text-gray-900 dark:text-gray-100 truncate flex items-center gap-1">
-                    {{ personalChatTitle }}
+                <div class="flex items-center gap-2">
+                  <p class="min-w-0 flex items-center gap-1">
+                    <span class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{{ personalChatTitle
+                    }}</span>
                     <Megaphone class="w-3.5 h-3.5 text-gray-400 shrink-0" />
                   </p>
-                  <span class="text-[11px] text-gray-400 shrink-0">{{ channelPostTime }}</span>
+                  <span v-if="channelPostTime" class="ml-auto text-[11px] text-gray-400 shrink-0">{{ channelPostTime
+                  }}</span>
                 </div>
-                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400 line-clamp-2 whitespace-pre-wrap">
+                <p v-if="channelPreviewText" class="mt-0.5 text-xs text-gray-500 dark:text-gray-400 truncate">
                   {{ channelPreviewText }}
                 </p>
               </div>
-            </div>
-          </button>
+            </button>
+          </div>
         </div>
 
         <!-- ===== 第三部分：个人信息列表卡片 ===== -->
@@ -124,7 +145,7 @@
               <!-- 主用户名：黑色，不省略 -->
               <p v-if="primaryUsername"
                 class="text-sm font-bold text-gray-900 dark:text-gray-100 select-all wrap-break-word leading-snug">
-                @{{ primaryUsername }}
+                {{ primaryUsername }}
               </p>
               <!-- 附加用户名：蓝色高亮，逐个可点击复制 -->
               <p v-if="additionalUsernames.length" class="mt-0.5 text-xs wrap-break-word leading-relaxed">
@@ -239,8 +260,7 @@
               :class="activeTab === 'stories' ? 'bg-teal-500 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'"
               @click="activeTab = 'stories'">动态</button>
             <!-- 归档标签只在“自己”的资料页出现（getChatArchivedStories 需 can_edit_stories 权限，仅自己/管理员可拉） -->
-            <button v-if="isSelf" type="button"
-              class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+            <button v-if="isSelf" type="button" class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
               :class="activeTab === 'archived' ? 'bg-teal-500 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'"
               @click="activeTab = 'archived'">归档动态</button>
             <button type="button" class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
@@ -272,8 +292,7 @@
           </div>
 
           <!-- 归档动态区（仅自己） -->
-          <div v-else-if="activeTab === 'archived' && isSelf"
-            class="py-6 text-center text-sm text-gray-400">
+          <div v-else-if="activeTab === 'archived' && isSelf" class="py-6 text-center text-sm text-gray-400">
             <p v-if="isLoading">正在加载动态…</p>
             <p v-else-if="archivedStoriesList.length === 0">暂无归档动态</p>
             <div v-else class="grid grid-cols-3 gap-1.5">
@@ -339,16 +358,19 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, receivedGift, story, chat, audio as TdAudio, birthdate, file, message } from "tdlib-types";
+import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, receivedGift, story, chat, audio as TdAudio, birthdate, file, message, thumbnail } from "tdlib-types";
 import Avatar from "../components/chat/avatar.vue";
+import CustomEmojiInline from "../components/chat/ChatDetail/MessageContent/CustomEmojiInline.vue";
 import MediaViewer from "../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
 import type { MediaViewerItem } from "../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
 import { useUserProfileStore } from "../store/userProfile";
 import { useUserStore } from "../store/user";
+import { accentColorStyle, rgbToCss } from "../store/colors";
 import { confirmAndOpenExternalLink } from "../utils/openExternalLink";
 import formatStatus from "../utils/status";
 import { downloadFileUrl } from "../utils/profileMedia";
 import { formatBusinessHours } from "../utils/businessHours";
+import { isThumbnailImgRenderable } from "../utils/thumbnail";
 import { tdlibSend } from "../utils/tdlib";
 import { ensureChat, getReactiveUser, getReactiveChat } from "../utils/senderInfo";
 import { useAudioPlayerStore } from "../store/audioPlayer";
@@ -356,8 +378,8 @@ import formatTime from "../utils/formatTime";
 
 // ===== 图标组件（lucide-vue-next，与项目其余部分一致） =====
 import {
-  ArrowLeft, Copy, Clock, MapPin, Gift, Bot, ChevronRight,
-  ShieldCheck, Music, ChevronDown, Megaphone, ExternalLink,
+  ArrowLeft, Copy, Clock, MapPin, Gift, Bot, Play, Pause,
+  Music, ChevronDown, Megaphone, ExternalLink,
   Info as InfoIcon, Phone as PhoneIcon, AtSign as AtSignIcon,
   Calendar as CalendarIcon, IdCard as IdCardIcon,
 } from "lucide-vue-next";
@@ -399,6 +421,32 @@ const additionalUsernames = computed<string[]>(() => {
 });
 const isSelf = computed(() => !!user.value && user.value.id === userStore.userProfile?.id);
 const statusText = computed(() => formatStatus(user.value?.status));
+
+/** 用户主题色样式：主题色文本 + 主题色 10% 透明度背景（用于频道订阅数徽标） */
+const profileAccent = computed(() => {
+  const id = typeof user.value?.profile_accent_color_id === 'number'
+    ? user.value.profile_accent_color_id
+    : 5;
+  const style = accentColorStyle(id);
+  return {
+    color: style.color,
+    softBg: rgbToCss(style.main, 0.10),
+  };
+});
+
+/** 当前用户的资料音乐是否正在播放（用于封面上显示播放/暂停按钮） */
+const isUserMusicPlaying = computed(() =>
+  audioPlayer.profileAudioUserId === userId.value
+  && audioPlayer.isPlaying
+  && audioPlayer.currentTrack?.source === 'profile'
+);
+
+/** 自定义 emoji 状态的 custom_emoji_id（emojiStatusTypeCustomEmoji 类型时才有） */
+const customEmojiId = computed<string | undefined>(() => {
+  const t = user.value?.emoji_status?.type;
+  if (t && t._ === 'emojiStatusTypeCustomEmoji') return t.custom_emoji_id;
+  return undefined;
+});
 
 /** 认证/安全状态：verified（蓝 V）｜fake（假冒）｜scam（诈骗）｜none */
 const verificationType = computed<'verified' | 'fake' | 'scam' | 'none'>(() => {
@@ -537,6 +585,48 @@ const botDescription = computed(() => botInfo.value?.short_description || botInf
 const profileAudio = computed<TdAudio | undefined>(() => fullInfo.value?.first_profile_audio);
 const profileAudioTitle = computed(() => profileAudio.value?.title || profileAudio.value?.file_name || '音乐');
 const profileAudioPerformer = computed(() => profileAudio.value?.performer || '未知艺术家');
+/** 高清封面 URL（下载完成后替换低清过渡图） */
+const profileMusicCoverHd = ref<string | undefined>(undefined);
+/** 当前封面：高清已就绪用高清，否则用低清 minithumbnail 作过渡 */
+const profileMusicCover = computed<string | undefined>(() => {
+  if (profileMusicCoverHd.value) return profileMusicCoverHd.value;
+  const mini = profileAudio.value?.album_cover_minithumbnail?.data;
+  return mini ? `data:image/jpeg;base64,${mini}` : undefined;
+});
+/** 是否只有低清封面（用于给过渡图加模糊/放大效果） */
+const profileMusicCoverIsLowRes = computed(() => !profileMusicCoverHd.value);
+
+/** 挑出最大的可渲染（<img>）专辑封面缩略图文件 */
+function pickBestAlbumCoverFile(a: TdAudio | undefined): file | undefined {
+  if (!a) return undefined;
+  const candidates: thumbnail[] = [];
+  if (a.album_cover_thumbnail) candidates.push(a.album_cover_thumbnail);
+  if (Array.isArray(a.external_album_covers)) candidates.push(...a.external_album_covers);
+  let best: file | undefined;
+  let bestArea = 0;
+  for (const t of candidates) {
+    if (!isThumbnailImgRenderable(t.format)) continue;
+    const area = t.width * t.height;
+    if (area > bestArea) {
+      bestArea = area;
+      best = t.file;
+    }
+  }
+  return best;
+}
+
+/** 加载资料音乐的高清专辑封面（失败则保留低清过渡图） */
+async function loadProfileMusicCover() {
+  profileMusicCoverHd.value = undefined;
+  const coverFile = pickBestAlbumCoverFile(profileAudio.value);
+  if (!coverFile) return;
+  try {
+    const url = await downloadFileUrl(coverFile, `profile_music_cover_${coverFile.id}.jpg`);
+    if (url) profileMusicCoverHd.value = url;
+  } catch (e) {
+    console.error('Failed to load profile music cover', e);
+  }
+}
 
 // ===== 展示用头像（优先用户资料头像，Avatar 组件负责无头像时的首字母渐变） =====
 const displayPhoto = computed<profilePhoto | undefined>(() => user.value?.profile_photo);
@@ -710,7 +800,7 @@ function formatStoryDuration(s: story): string {
 function openStory(s: story) {
   if (!storyUrls.value[s.id]) return;
   photoViewerIndex.value = 0;
-  photoViewerItemsOverride.value = [{ type: 'photo' as const, src: storyUrls.value[s.id] }];
+  photoViewerItemsOverride.value = [{ type: 'photo', src: storyUrls.value[s.id] }];
   photoViewerVisible.value = true;
 }
 
@@ -721,6 +811,7 @@ async function loadData() {
   await profileStore.loadProfile(userId.value);
   await Promise.all([
     loadHeaderPhoto(),
+    loadProfileMusicCover(),
     loadPhotoUrls(),
     loadGiftUrls(),
     loadStoryUrls(),
@@ -765,29 +856,11 @@ async function openPersonalChat() {
   router.push({ name: "chat-detail", params: { id: String(personalChatId.value) } });
 }
 
-async function playProfileAudio() {
-  const audio = profileAudio.value;
-  if (!audio) return;
+async function openUserMusicPlayer() {
+  if (!profileAudio.value) return;
   try {
-    const audioFile = (audio as any).audio as file | undefined;
-    if (!audioFile?.id) return;
-    const url = await downloadFileUrl(audioFile, `${audio.title || 'profile_audio'}.mp3`);
-    if (!url) return;
-    // 构造最小 message 供播放器使用
-    const fakeMsg = {
-      id: 0,
-      chat_id: 0,
-      date: Math.floor(Date.now() / 1000),
-      sender_id: { _: "messageSenderUser", user_id: userId.value },
-      content: {
-        _: "messageAudio",
-        audio: {
-          ...audio,
-          audio: { ...audioFile, local: { is_downloading_completed: true, path: audioFile.id } },
-        } as any,
-      },
-    } as any;
-    await audioPlayer.playMessageAudio(fakeMsg);
+    // 打开音乐播放器并载入该用户的完整资料音乐列表
+    await audioPlayer.playUserProfileAudios(userId.value);
   } catch (e) {
     console.error("Failed to play profile audio", e);
   }
@@ -811,23 +884,8 @@ watch(userId, () => {
 </script>
 
 <style scoped>
-/* ===== 顶部青绿色头部区域 ===== */
+/* ===== 顶部头像/昵称区域（无背景色，随页面背景） ===== */
 .profile-hero {
-  background: linear-gradient(160deg, #6fd3c9 0%, #4db6ac 55%, #3aa49a 100%);
-  min-height: 300px;
-}
-
-/* 背景水波纹 / 云朵装饰 */
-.profile-hero-decoration {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.55;
-  background-image:
-    radial-gradient(circle at 18% 78%, rgba(255, 255, 255, 0.5) 0, rgba(255, 255, 255, 0.5) 46px, transparent 46px),
-    radial-gradient(circle at 78% 82%, rgba(255, 255, 255, 0.4) 0, rgba(255, 255, 255, 0.4) 60px, transparent 60px),
-    radial-gradient(circle at 88% 60%, rgba(255, 255, 255, 0.35) 0, rgba(255, 255, 255, 0.35) 34px, transparent 34px),
-    radial-gradient(circle at 12% 62%, rgba(255, 255, 255, 0.25) 0, rgba(255, 255, 255, 0.25) 28px, transparent 28px),
-    radial-gradient(circle at 96% 90%, rgba(255, 255, 255, 0.45) 0, rgba(255, 255, 255, 0.45) 42px, transparent 42px);
+  min-height: 220px;
 }
 </style>

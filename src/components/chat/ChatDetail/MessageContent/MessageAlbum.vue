@@ -42,8 +42,7 @@
             :class="isSelf ? 'text-gray-900' : 'text-gray-800 dark:text-gray-200'">
             <MessageTextContent :formattedText="captionFormatted" />
         </div>
-        <span v-if="captionText" class="block text-right px-2 pb-1"
-            :class="isSelf ? 'text-black/50' : 'text-gray-400'">
+        <span v-if="captionText" class="block text-right px-2 pb-1" :class="isSelf ? 'text-black/50' : 'text-gray-400'">
             <MessageStatus :date="lastDate" :isOutgoing="isSelf" :sendingState="lastSendingState" :isRead="isRead"
                 :viewCount="lastViewCount" :authorSignature="authorSignature" />
         </span>
@@ -214,6 +213,12 @@ function rebuildLayout() {
     for (let mi = 0; mi < layout.items.length; mi++) {
         const msg = msgs[mi];
         const item = layout.items[mi];
+        // 同步注入 base64 minithumbnail 作为占位：相册图片尚未加载出来前，
+        // 立即用 base64 缩略图做模糊占位，避免出现空白的脉冲占位框。
+        if (msg.content._ === 'messagePhoto' && !thumbCache[msg.id]) {
+            const mini = msg.content.photo.minithumbnail?.data;
+            if (mini) thumbCache[msg.id] = `data:image/jpeg;base64,${mini}`;
+        }
         result.push({
             msgId: msg.id, index: mi, isVideo: isVideos[mi], duration: durations[mi], aspect: aspects[mi],
             style: `top:${item.y / layout.height * 100}%;left:${item.x / layout.width * 100}%;width:${item.width / layout.width * 100}%;height:${item.height / layout.height * 100}%;`,
@@ -359,6 +364,11 @@ async function loadVideo(msg: message): Promise<boolean> {
     const thumbFile = thumb.file;
     if (isFileReady(thumbFile) && !thumbCache[msg.id]) { thumbCache[msg.id] = convertFileSrc(thumbFile.local.path); c = true; }
     else if (thumbFile.local.can_be_downloaded) {
+        // 视频封面（缩略图）属于辅助资源：注册为隐藏的通用下载项，不占用下载管理器的可见列表。
+        if (thumbFile.id && !downloadingFiles.has(thumbFile.id)) {
+            const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
+            await downloadStore.registerDownload(thumbFile.id, `video_cover_${thumbFile.id}.jpg`, chatTitle, 0, 'photo', undefined, undefined, undefined, true, false);
+        }
         try {
             const r = await tdlibSend({ _: 'downloadFile', file_id: thumbFile.id, priority: 1, offset: 0, limit: 0, synchronous: true });
             if (isFileReady(r)) { thumbCache[msg.id] = convertFileSrc(r.local.path); c = true; }

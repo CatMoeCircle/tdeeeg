@@ -34,9 +34,9 @@
                 :title="downloadStore.isPanelOpen ? '关闭下载管理器' : '打开下载管理器'">
                 <span class="relative inline-flex">
                     <DownloadIcon :class="iconStyle" />
-                    <span v-if="downloadStore.activeCount > 0"
+                    <span v-if="downloadStore.activeDownloadingCount > 0"
                         class="absolute -top-2 -right-2 min-w-4.5 h-4.5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1 leading-none">
-                        {{ downloadStore.activeCount > 99 ? '99+' : downloadStore.activeCount }}
+                        {{ downloadStore.activeDownloadingCount > 99 ? '99+' : downloadStore.activeDownloadingCount }}
                     </span>
                 </span>
             </button>

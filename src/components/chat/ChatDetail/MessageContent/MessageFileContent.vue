@@ -54,7 +54,7 @@
                     @click.stop="handleDownload(content.audio.audio.id)">
                     <LoaderIndicator v-if="isDownloadingOrGlobally"
                         :progress="downloadProgress > 0 && downloadProgress < 1 ? downloadProgress : undefined"
-                        size="12" color="#ffffff" />
+                        size="12" stroke="1.5" color="#ffffff" />
                     <DownloadIcon v-else class="h-2.5 w-2.5" stroke-width="2.5" />
                 </button>
             </div>
@@ -75,12 +75,7 @@
                     <span>{{ formatDuration(displayDuration) }}</span>
                 </div>
             </div>
-            <!-- 底部细下载进度条（与图片/视频一致） -->
-            <div v-if="downloadProgress > 0 && downloadProgress < 1"
-                class="absolute bottom-0 left-0 right-0 h-0.5 bg-white/30 overflow-hidden">
-                <div class="h-full bg-blue-500 transition-all duration-300"
-                    :style="{ width: (downloadProgress * 100) + '%' }"></div>
-            </div>
+            <!-- 音乐已自带进度条（audio-progress 滑块展示下载/播放进度），不再额外绘制底部细进度条 -->
         </div>
 
         <p v-if="captionSegments.length" class="mt-2 whitespace-pre-wrap"
@@ -118,7 +113,6 @@ import { useChatStore } from '../../../../store/chat';
 import { settings } from '../../../../store/settings';
 import { requestInsertCommand } from '../../../../store/commandInsert';
 import { getChatCategory } from '../../../../utils/autoDownload';
-import { shouldAutoDownloadAudio } from '../../../../utils/autoDownload';
 import { useAudioPlayerStore } from '../../../../store/audioPlayer';
 import { confirmAndOpenExternalLink } from '../../../../utils/openExternalLink';
 import { isThumbnailImgRenderable } from '../../../../utils/thumbnail';
@@ -185,8 +179,18 @@ const audioProgressStyle = computed<Record<string, string>>(() => {
 /** 音频文件是否已下载就绪 */
 const fileReady = computed(() => {
     if (props.content._ !== 'messageAudio') return false;
-    return isFileReady(props.content.audio.audio);
+    // 静态文件对象 + 运行时记录的本地下载完成状态
+    return downloadReadyLocal.value || isFileReady(props.content.audio.audio);
 });
+
+/**
+ * 运行时记录「本音频已完成下载」的响应式状态。
+ * 说明：消息中的 audio 文件对象是一份静态快照，下载完成后它的
+ * `local.is_downloading_completed` 并不会被 updateFile 事件写回，
+ * 因此 fileReady 直接读快照会永远为 false（下载按钮不会消失）。
+ * 这里在下拉完成时（或初次加载已就绪时）置为 true，驱动按钮/加载态消失。
+ */
+const downloadReadyLocal = ref(false);
 
 type CaptionSegment = {
     text: string;
@@ -376,6 +380,8 @@ const loadMedia = async () => {
     if (!f) return;
     if (isFileReady(f)) {
         mediaSrc.value = convertFileSrc(f.local.path);
+        // 文件已就绪：标记运行时下载完成（audio 场景），驱动下载按钮消失
+        downloadReadyLocal.value = true;
         return;
     }
     // 文档（文件）：仅在自动下载设置允许时自动下载
@@ -530,7 +536,20 @@ watch(currentFileId, (fileId) => {
     if (unsubFileWatch) { unsubFileWatch(); unsubFileWatch = null; }
     if (!fileId) return;
     unsubFileWatch = watch(
-        () => downloadStore.getDownloadInfo(fileId),
+        () => {
+            const info = downloadStore.getDownloadInfo(fileId);
+            if (!info) return undefined;
+            // 逐个读取字段以建立嵌套依赖：下载 store 对条目做「就地更新」
+            // （不替换对象引用），因此必须显式读取字段才能触发本 watch，
+            // 否则下载完成（is_completed + local_path 更新）后仍不会刷新。
+            return {
+                progress: info.progress,
+                downloaded_size: info.downloaded_size,
+                total_size: info.total_size,
+                is_completed: info.is_completed,
+                local_path: info.local_path,
+            };
+        },
         (info) => {
             if (!info) return;
             downloadProgress.value = info.progress;
@@ -540,6 +559,7 @@ watch(currentFileId, (fileId) => {
             if (info.is_completed && info.local_path) {
                 downloadingFiles.delete(fileId);
                 isDownloading.value = false;
+                downloadReadyLocal.value = true;
                 mediaSrc.value = convertFileSrc(info.local_path);
             }
         },
@@ -572,17 +592,8 @@ async function togglePlayback() {
         return;
     }
 
-    // 音频未下载时，遵守自动下载大小限制：超过上限不自动下载，
-    // 提示用户点击右下角下载按钮手动下载后再播放。
-    if (!isFileReady(props.content.audio.audio)) {
-        const chatData = props.chatId ? (useChatStore().chats[props.chatId] as any) : undefined;
-        const size = props.content.audio.audio.size || 0;
-        if (!shouldAutoDownloadAudio(chatData, size)) {
-            MessagePlugin.info('该音乐超过自动下载大小上限，请点击右下角下载按钮后再播放');
-            return;
-        }
-    }
-
+    // 点击播放即等同点击下载：未就绪时会先下载（下载按钮同步进入下载状态），
+    // 不限自动下载大小、不做拦截提示，下载完成后自动播放。
     // 否则通知全局播放器播放此消息
     // 构造一个 message 对象传入
     const msg: any = {
@@ -621,6 +632,7 @@ watch(() => props.content, () => {
     coverSrc.value = undefined;
     downloadProgress.value = 0;
     isDownloading.value = false;
+    downloadReadyLocal.value = false;
     currentFileId.value = 0;
     loadMedia();
     loadAudioCover();

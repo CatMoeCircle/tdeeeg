@@ -32,6 +32,8 @@ const props = defineProps<{
     accentColorId?: number;
     /** 是否已删除账户：显示 tgico 删除图标 + 归档灰色渐变背景 */
     deletedAccount?: boolean;
+    /** 去除容器占位背景色（bg-gray-300），用于需要透明背景的场景（如个人资料页大头像） */
+    noBackground?: boolean;
 }>();
 
 const { accentAvatarBackground } = useColors();
@@ -83,7 +85,8 @@ const radiusPct = computed(() => {
 const containerStyle = computed(() => ({ borderRadius: `${radiusPct.value}%` }));
 
 const containerClass = computed(() => {
-    const base = `w-full h-full bg-gray-300 shrink-0 overflow-hidden`;
+    const bg = props.noBackground ? '' : ' bg-gray-300';
+    const base = `w-full h-full ${bg} shrink-0 overflow-hidden`;
     if (props.sizeClass) return ` ${props.sizeClass} ${base}`;
     return base;
 });

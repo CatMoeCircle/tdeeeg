@@ -61,6 +61,8 @@ export const LoaderIndicator = defineComponent({
         color: { type: String, default: '#ffffff' },
         /** 覆盖默认尺寸（px），如 "24" */
         size: { type: String, default: undefined },
+        /** 覆盖默认描边宽度（如缩小尺寸时需要更细的 stroke，避免过粗） */
+        stroke: { type: String, default: undefined },
         /** 指定使用某一种加载样式（默认取 settings.loadingStyle） */
         force: { type: String as PropType<LoaderStyle | undefined>, default: undefined },
     },
@@ -109,7 +111,8 @@ export const LoaderIndicator = defineComponent({
 
             return h(tag, {
                 size: props.size || cfg.size,
-                stroke: cfg.stroke,
+                // 指定 stroke 时优先，否则用该样式默认值
+                stroke: props.stroke || cfg.stroke,
                 'bg-opacity': cfg.bgOpacity,
                 speed: cfg.speed,
                 color: props.color,

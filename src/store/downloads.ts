@@ -58,6 +58,11 @@ export const useDownloadStore = defineStore("downloads", () => {
     /** 活跃下载数量（排除通用资源与自动下载图片） */
     const activeCount = computed(() => activeItems.value.length);
 
+    /** 正在下载（未暂停）的活跃下载数量（排除通用资源、自动下载图片与暂停项） */
+    const activeDownloadingCount = computed(() =>
+        activeItems.value.filter((item) => !item.is_paused).length
+    );
+
     /** 可见的下载项（根据 showHidden / showAutoPhotos 开关过滤） */
     const visibleItems = computed(() =>
         Object.values(items.value)
@@ -398,6 +403,7 @@ export const useDownloadStore = defineStore("downloads", () => {
         items,
         activeItems,
         activeCount,
+        activeDownloadingCount,
         visibleItems,
         completedItems,
         pendingItems,

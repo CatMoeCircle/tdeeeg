@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { tdlibSend, safeDownloadFile, isFileReady } from '../utils/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import type { message, thumbnail } from 'tdlib-types';
+import type { message, thumbnail, audio, file, chat } from 'tdlib-types';
 import { useDownloadStore } from './downloads';
 import { useChatStore } from './chat';
 import { isThumbnailImgRenderable } from '../utils/thumbnail';
@@ -27,6 +27,8 @@ export interface AudioTrack {
     coverSource?: { file?: string; buffer?: number[] };
     /** 是否已下载完成可供播放 */
     ready: boolean;
+    /** 曲目来源：'profile' = 某用户的资料音乐列表；缺省/undefined = 普通对话消息 */
+    source?: 'profile' | 'message';
 }
 
 export type RepeatMode = 'none' | 'one' | 'all' | 'shuffle';
@@ -47,6 +49,10 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
     // ======== UI 状态 ========
     const showEntry = ref(false);      // 是否显示入口栏
     const showOverlay = ref(false);    // 是否显示弹出控制面板
+
+    // ======== 资料音乐状态 ========
+    /** 当前已加载的资料音乐所属用户 id（资料页重复点击同一用户时直接展开列表，不刷新） */
+    const profileAudioUserId = ref<number | null>(null);
 
     // ======== 播放去重锁 ========
     /**
@@ -168,7 +174,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         if (!track.ready) {
             // 遵守自动下载大小限制：超过上限的音频不自动下载，
             // 保持未就绪状态（由消息上的下载按钮手动下载后播放）。
-            const chatData = useChatStore().chats[track.chatId] as any;
+            const chatData = useChatStore().chats[track.chatId] as chat | undefined;
             const audioSize = track.sizeBytes || 0;
             if (!shouldAutoDownloadAudio(chatData, audioSize)) {
                 return;
@@ -182,7 +188,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
                 const fileInfo = await tdlibSend({
                     _: 'getFile',
                     file_id: track.fileId,
-                }) as any;
+                }) as file;
                 if (fileInfo?.local?.path) {
                     track.filePath = convertFileSrc(fileInfo.local.path);
                 }
@@ -307,6 +313,9 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         source?: { file?: string; buffer?: number[] };
     }
 
+    /** 封面解析用参数：兼容完整 message（对话场景）与仅含音频内容的极简消息（资料音乐场景） */
+    type AudioContentMessage = message | { content: { _: 'messageAudio'; audio: audio } };
+
     /** Base64 → Uint8Array */
     function base64ToBytes(b64: string): number[] {
         try {
@@ -320,7 +329,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
     }
 
     /** 从 messageAudio 中获取封面（URL 与原生来源）。不阻塞内部解析。 */
-    function resolveCover(audioMsg: message): CoverResult {
+    function resolveCover(audioMsg: AudioContentMessage): CoverResult {
         if (audioMsg.content._ !== 'messageAudio') return {};
         const audio = audioMsg.content.audio;
 
@@ -368,7 +377,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
     }
 
     /** 从 messageAudio 中异步下载封面缩略图并返回其 URL（供 UI 使用） */
-    async function loadCoverUrl(audioMsg: message): Promise<string | undefined> {
+    async function loadCoverUrl(audioMsg: AudioContentMessage): Promise<string | undefined> {
         const sync = resolveCover(audioMsg);
         if (sync.url) return sync.url;
         if (audioMsg.content._ !== 'messageAudio') return undefined;
@@ -408,7 +417,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
     }
 
     /** 异步获取封面原始来源（优先下载文件缩略图路径，失败退回 minithumbnail buffer） */
-    async function loadCoverSource(audioMsg: message): Promise<{ file?: string; buffer?: number[] } | undefined> {
+    async function loadCoverSource(audioMsg: AudioContentMessage): Promise<{ file?: string; buffer?: number[] } | undefined> {
         const sync = resolveCover(audioMsg);
         if (sync.source?.file || sync.source?.buffer) return sync.source;
         if (audioMsg.content._ !== 'messageAudio') return undefined;
@@ -489,12 +498,8 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
 
         // 先确保文件下载完成
         if (!ready) {
-            // 遵守自动下载大小限制：超过上限的音频不自动下载，
-            // 返回空路径，由消息上的下载按钮手动下载后播放。
-            const chatData = useChatStore().chats[msg.chat_id] as any;
-            if (!shouldAutoDownloadAudio(chatData, file.size || 0)) {
-                return '';
-            }
+            // 用户显式点击播放等同于点击下载：不受自动下载大小上限限制，
+            // 一律下载该音频（下载按钮会同步进入下载状态），完成后即可播放。
             try {
                 // 音乐播放触发下载：记录到正常下载列表，保留来源对话与消息
                 await useDownloadStore().registerDownload(file.id, audio.title || audio.file_name || `audio_${file.id}.mp3`, getChatTitle(msg.chat_id), 0, 'audio', undefined, msg.chat_id, msg.id, false);
@@ -511,7 +516,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
             filePath = convertFileSrc(file.local.path);
         } else {
             try {
-                const fileInfo = await tdlibSend({ _: 'getFile', file_id: file.id }) as any;
+                const fileInfo = await tdlibSend({ _: 'getFile', file_id: file.id }) as file;
                 if (fileInfo?.local?.path) {
                     filePath = convertFileSrc(fileInfo.local.path);
                 }
@@ -589,6 +594,96 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         }
     }
 
+    /**
+     * 加载并播放某个用户的资料音乐列表（替换当前播放列表）。
+     * 资料音乐无来源对话，逐首显式下载（不受自动下载体积上限限制）。
+     * - 首次点击：加载列表并直接播放第一首。
+     * - 首次点击：加载列表并直接播放第一首。
+     * - 再次点击同一用户：不刷新，从头开始播放并展开列表。
+     */
+    async function playUserProfileAudios(userId: number) {
+        // 同一用户且列表已加载：不刷新；若当前未在播放该用户资料音乐，则从头开始播放
+        if (profileAudioUserId.value === userId && playlist.value.length > 0) {
+            if (!isPlaying.value || currentTrack.value?.source !== 'profile') {
+                setPlaylist(playlist.value, 0);
+            }
+            showEntry.value = true;
+            showOverlay.value = true;   // 展开列表
+            return;
+        }
+
+        try {
+            const res = (await tdlibSend({
+                _: 'getUserProfileAudios',
+                user_id: userId,
+                offset: 0,
+                limit: 100,
+            })) as { audios?: audio[] };
+            const audios = (res?.audios ?? []).filter((a) => a && a.audio);
+            if (audios.length === 0) return;
+
+            const tracks: AudioTrack[] = [];
+            await Promise.all(audios.map(async (a) => {
+                // 资料音乐无对话：显式下载，不受自动下载体积上限限制
+                const file = a.audio;
+                if (!isFileReady(file)) {
+                    try {
+                        await safeDownloadFile(file.id, true);
+                    } catch (e) {
+                        console.error('Failed to download profile audio:', e);
+                    }
+                }
+                // 下载完成后需重新获取文件路径（原 file 对象不会自动更新 local.path）
+                let filePath = '';
+                if (isFileReady(file) && file.local?.path) {
+                    filePath = convertFileSrc(file.local.path);
+                } else {
+                    try {
+                        const fileInfo = await tdlibSend({ _: 'getFile', file_id: file.id }) as file;
+                        if (fileInfo.local?.path) {
+                            filePath = convertFileSrc(fileInfo.local.path);
+                        }
+                    } catch (_) { }
+                }
+
+                const track: AudioTrack = {
+                    messageId: 0,
+                    chatId: 0,
+                    title: a.title || a.file_name || '未知音乐',
+                    performer: a.performer || '未知艺术家',
+                    duration: a.duration,
+                    fileId: file.id,
+                    filePath,
+                    ready: !!filePath,
+                    sizeBytes: file.size || 0,
+                    source: 'profile',
+                };
+
+                // 封面：复用现有解析逻辑（mock 成 messageAudio 消息）
+                const fakeMsg: AudioContentMessage = { content: { _: 'messageAudio', audio: a } };
+                const sync = resolveCover(fakeMsg);
+                if (sync.url) track.coverPath = sync.url;
+                if (sync.source) track.coverSource = sync.source;
+                tracks.push(track);
+            }));
+
+            // 异步补齐高清封面
+            (async () => {
+                await Promise.all(audios.map(async (a, i) => {
+                    const fakeMsg: AudioContentMessage = { content: { _: 'messageAudio', audio: a } };
+                    const url = await loadCoverUrl(fakeMsg);
+                    if (url && tracks[i]) tracks[i].coverPath = url;
+                }));
+            })();
+
+            // 替换播放列表并直接播放第一首
+            profileAudioUserId.value = userId;
+            setPlaylist(tracks, 0);
+        } catch (e) {
+            console.error('Failed to load user profile audios:', e);
+        }
+    }
+
     return {
         playlist,
         originalPlaylist,
@@ -615,5 +710,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         toggleOverlay,
         playMessageAudio,
         setPlaylist,
+        playUserProfileAudios,
+        profileAudioUserId,
     };
 });

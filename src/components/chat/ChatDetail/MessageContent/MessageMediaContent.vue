@@ -861,6 +861,16 @@ async function loadVideoThumb() {
         videoThumbIsVideo.value = isVideoThumb;
         return;
     }
+    // 视频封面（缩略图）属于辅助资源：注册为隐藏的通用下载项，不占用下载管理器的
+    // 可见列表（“显示隐藏的通用资源”下可见），也不计入下载红点。
+    if (file.id && file.local?.can_be_downloaded && !downloadingFiles.has(file.id)) {
+        const coverName = `video_cover_${file.id}.${isVideoThumb ? 'mp4' : 'jpg'}`;
+        await downloadStore.registerDownload(
+            file.id, coverName, props.chatId ? getChatTitle(props.chatId) : '', 0,
+            isVideoThumb ? 'video' : 'photo', undefined,
+            undefined, undefined, true, false,
+        );
+    }
     await safeDownloadFile(file.id, true);
     const updated = await tdlibSend({ _: 'getFile', file_id: file.id });
     if (isFileReady(updated)) {
