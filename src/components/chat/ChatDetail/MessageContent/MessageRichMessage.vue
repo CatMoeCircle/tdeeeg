@@ -75,7 +75,8 @@
                         <span v-else>{{ listMarker(item) }}</span>
                     </span>
                     <span class="min-w-0">
-                        <MessageRichMessage :blocks="item.blocks" :is-rtl="isRtl" />
+                        <MessageRichMessage :blocks="item.blocks" :is-rtl="isRtl" :chat-id="chatId"
+                            :message-id="messageId" />
                     </span>
                 </li>
             </ul>
@@ -83,7 +84,7 @@
             <!-- 引用 -->
             <blockquote v-else-if="block._ === 'pageBlockBlockQuote'"
                 class="my-1.5 border-l-2 border-gray-300 dark:border-gray-600 pl-2 text-gray-700 dark:text-gray-300">
-                <MessageRichMessage :blocks="block.blocks" :is-rtl="isRtl" />
+                <MessageRichMessage :blocks="block.blocks" :is-rtl="isRtl" :chat-id="chatId" :message-id="messageId" />
                 <footer v-if="block.credit" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     <RichText :text="block.credit" />
                 </footer>
@@ -117,32 +118,29 @@
                     <span class="absolute inset-0 flex items-center justify-center pointer-events-none">
                         <PlayIcon class="w-8 h-8 text-white drop-shadow" />
                     </span>
+                    <RichMediaDownload v-if="block.video?.video" :file="block.video.video"
+                        :file-name="block.video.file_name" file-type="video" :chat-id="chatId" :message-id="messageId"
+                        overlay />
                 </div>
                 <RichCaption v-if="block.caption" :caption="block.caption" />
             </figure>
 
             <!-- 动画 -->
             <figure v-else-if="block._ === 'pageBlockAnimation'" class="my-1.5">
-                <div class="overflow-hidden rounded-lg bg-black/5 dark:bg-white/10">
+                <div class="overflow-hidden rounded-lg bg-black/5 dark:bg-white/10 relative">
                     <RichImage v-if="block.animation?.thumbnail?.file" :file="block.animation?.thumbnail?.file"
                         :format="block.animation?.thumbnail?.format" :alt="''" square />
                     <div v-else class="h-32 flex items-center justify-center text-gray-400">动画不可用</div>
+                    <RichMediaDownload v-if="block.animation?.animation" :file="block.animation.animation"
+                        :file-name="block.animation.file_name" file-type="animation" :chat-id="chatId"
+                        :message-id="messageId" overlay />
                 </div>
                 <RichCaption v-if="block.caption" :caption="block.caption" />
             </figure>
 
-            <!-- 音频 -->
-            <figure v-else-if="block._ === 'pageBlockAudio'" class="my-1.5">
-                <div class="rounded-lg bg-black/5 dark:bg-white/10 p-2.5 flex items-center gap-2">
-                    <MusicIcon class="w-4 h-4 text-gray-500 shrink-0" />
-                    <div class="min-w-0">
-                        <p class="truncate font-medium">{{ audioTitle(block.audio) }}</p>
-                        <p v-if="block.audio" class="truncate text-xs text-gray-500">{{
-                            formatDuration(block.audio.duration) }}</p>
-                    </div>
-                </div>
-                <RichCaption v-if="block.caption" :caption="block.caption" />
-            </figure>
+            <!-- 音频（识别为音乐，可播放，效果与普通音乐消息一致） -->
+            <RichAudio v-else-if="block._ === 'pageBlockAudio'" :audio="block.audio" :caption="block.caption"
+                :chat-id="chatId" :message-id="messageId" />
 
             <!-- 语音 -->
             <figure v-else-if="block._ === 'pageBlockVoiceNote'" class="my-1.5">
@@ -150,15 +148,17 @@
                     <MicIcon class="w-4 h-4 text-gray-500 shrink-0" />
                     <span v-if="block.voice_note" class="text-xs text-gray-500">{{
                         formatDuration(block.voice_note.duration)
-                        }}</span>
+                    }}</span>
                     <span v-else class="text-xs text-gray-400">语音不可用</span>
+                    <RichMediaDownload v-if="block.voice_note?.voice" :file="block.voice_note.voice" file-name="语音"
+                        file-type="voice" :chat-id="chatId" :message-id="messageId" />
                 </div>
                 <RichCaption v-if="block.caption" :caption="block.caption" />
             </figure>
 
             <!-- 封面 -->
             <div v-else-if="block._ === 'pageBlockCover'" class="my-1.5">
-                <MessageRichMessage :blocks="[block.cover]" :is-rtl="isRtl" />
+                <MessageRichMessage :blocks="[block.cover]" :is-rtl="isRtl" :chat-id="chatId" :message-id="messageId" />
             </div>
 
             <!-- 表格 -->
@@ -193,7 +193,8 @@
                     <RichText :text="block.header" />
                 </summary>
                 <div class="mt-1 pl-1">
-                    <MessageRichMessage :blocks="block.blocks" :is-rtl="isRtl" />
+                    <MessageRichMessage :blocks="block.blocks" :is-rtl="isRtl" :chat-id="chatId"
+                        :message-id="messageId" />
                 </div>
             </details>
 
@@ -208,7 +209,8 @@
                 <p class="font-medium">{{ block.author }}</p>
                 <p v-if="block.date" class="text-xs text-gray-500">{{ formatDate(block.date) }}</p>
                 <div class="mt-1 pl-1">
-                    <MessageRichMessage :blocks="block.blocks" :is-rtl="isRtl" />
+                    <MessageRichMessage :blocks="block.blocks" :is-rtl="isRtl" :chat-id="chatId"
+                        :message-id="messageId" />
                 </div>
                 <RichCaption v-if="block.caption" :caption="block.caption" />
             </div>
@@ -249,7 +251,7 @@
                         @click.prevent.stop="openExternal(article.url)">
                         <p class="font-medium">{{ article.title }}</p>
                         <p v-if="article.description" class="text-xs text-gray-500 line-clamp-2">{{ article.description
-                            }}</p>
+                        }}</p>
                     </a>
                 </div>
             </div>
@@ -268,7 +270,8 @@
 
             <!-- 未知 block：尝试递归其内部 blocks（若存在） -->
             <div v-else-if="(block as any).blocks?.length" class="my-1">
-                <MessageRichMessage :blocks="(block as any).blocks" :is-rtl="isRtl" />
+                <MessageRichMessage :blocks="(block as any).blocks" :is-rtl="isRtl" :chat-id="chatId"
+                    :message-id="messageId" />
             </div>
             <div v-else class="my-0.5 opacity-60">[不支持的内容]</div>
         </template>
@@ -276,22 +279,26 @@
 </template>
 
 <script setup lang="ts">
-import type { PageBlock, photoSize, audio, pageBlockTableCell, PageBlockHorizontalAlignment, PageBlockVerticalAlignment } from 'tdlib-types';
+import type { PageBlock, photoSize, pageBlockTableCell, PageBlockHorizontalAlignment, PageBlockVerticalAlignment } from 'tdlib-types';
 import RichText from './RichText.vue';
 import RichImage from './RichImage.vue';
 import RichCaption from './RichCaption.vue';
 import RichMediaCollection from './RichMediaCollection.vue';
+import RichMediaDownload from './RichMediaDownload.vue';
+import RichAudio from './RichAudio.vue';
 import LatexFormula from './LatexFormula.vue';
 import Avatar from '../../avatar.vue';
-import { MusicIcon, MicIcon, PlayIcon } from 'lucide-vue-next';
+import { MicIcon, PlayIcon } from 'lucide-vue-next';
 import { tdlibSend } from '../../../../utils/tdlib';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { useRouter } from 'vue-router';
 import { confirmAndOpenExternalLink } from '../../../../utils/openExternalLink';
 
-defineProps<{
+const props = defineProps<{
     blocks: PageBlock[];
     isRtl?: boolean;
+    chatId?: number;
+    messageId?: number;
 }>();
 
 const router = useRouter();
@@ -345,13 +352,6 @@ function formatDuration(sec: number): string {
     const m = Math.floor(sec / 60);
     const s = sec % 60;
     return `${m}:${String(s).padStart(2, '0')}`;
-}
-
-function audioTitle(a?: audio | null): string {
-    if (!a) return '音频';
-    const parts = [a.performer, a.title].filter(Boolean);
-    if (parts.length) return parts.join(' - ');
-    return a.file_name || '音频';
 }
 
 function accentColor(id: number): string {

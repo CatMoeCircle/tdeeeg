@@ -10,20 +10,19 @@
             :chatId="chatId" :messageList="messageList" :accentColorId="accentColorId" @jump="onJumpToMessage" />
 
         <!-- Text messages -->
-        <MessageTextContent v-if="content._ === 'messageText'" :formattedText="content.text" :linkPreview="content.link_preview"
-            :accentColorId="accentColorId" />
+        <MessageTextContent v-if="content._ === 'messageText'" :formattedText="content.text"
+            :linkPreview="content.link_preview" :accentColorId="accentColorId" />
 
         <!-- Rich messages -->
         <MessageRichMessage v-else-if="content._ === 'messageRichMessage'" :blocks="content.message.blocks"
-            :is-rtl="content.message.is_rtl" />
+            :is-rtl="content.message.is_rtl" :chat-id="chatId" :message-id="messageId" />
 
         <!-- Media messages -->
         <MessageMediaContent v-else-if="isMediaType" :content="content as any" :isSelf="isSelf ?? false" :date="date"
             :forwardInfo="forwardInfo" :forwardName="forwardName" :forwardNavigable="forwardNavigable"
             :isFirstInGroup="isFirstInGroup" :isLastInGroup="isLastInGroup" :sendingState="sendingState"
             :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature" :chatId="chatId"
-            :messageId="messageId" :senderName="senderName"
-            @openForwardSource="onOpenForwardSource" />
+            :messageId="messageId" :senderName="senderName" @openForwardSource="onOpenForwardSource" />
 
         <!-- Stickers / animated emoji are rendered without a message bubble.
              回复预览显示在贴纸旁边（小宽度），而非贴纸上方 -->
