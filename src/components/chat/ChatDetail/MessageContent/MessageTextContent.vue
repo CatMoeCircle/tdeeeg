@@ -22,9 +22,9 @@
                             @contextmenu="handleSegmentContextMenu($event, segment)">{{ segment.text }}</a>
                         <span v-else
                             :class="[segment.className, { 'cursor-pointer': segment.copyable || segment.isCommand }]"
-                            @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined">{{
-                                segment.text
-                            }}</span>
+                            @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined"><SpoilerSpan
+                                v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template
+                                v-else>{{ segment.text }}</template></span>
                     </template>
                 </span>
                 <!-- 普通引用：全部显示 -->
@@ -39,9 +39,9 @@
                             @contextmenu="handleSegmentContextMenu($event, segment)">{{ segment.text }}</a>
                         <span v-else
                             :class="[segment.className, { 'cursor-pointer': segment.copyable || segment.isCommand }]"
-                            @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined">{{
-                                segment.text
-                            }}</span>
+                            @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined"><SpoilerSpan
+                                v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template
+                                v-else>{{ segment.text }}</template></span>
                     </template>
                 </template>
                 <!-- 右下角折叠/展开三角图标 -->
@@ -84,9 +84,9 @@
                         @contextmenu="handleSegmentContextMenu($event, segment)">{{ segment.text }}</a>
                     <span v-else
                         :class="[segment.className, { 'cursor-pointer': segment.copyable || segment.isCommand }]"
-                        @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined">{{
-                            segment.text
-                        }}</span>
+                        @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined"><SpoilerSpan
+                            v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template
+                            v-else>{{ segment.text }}</template></span>
                 </template>
             </template>
         </template>
@@ -103,6 +103,7 @@ import { tdlibSend } from '../../../../utils/tdlib';
 import { useRouter } from 'vue-router';
 import { MessagePlugin } from 'tdesign-vue-next';
 import CustomEmojiInline from './CustomEmojiInline.vue';
+import SpoilerSpan from './SpoilerSpan.vue';
 import { useColors } from '../../../../store/colors';
 import { confirmAndOpenExternalLink } from '../../../../utils/openExternalLink';
 import { requestInsertCommand } from '../../../../store/commandInsert';
@@ -147,6 +148,8 @@ type Segment = {
     blockquoteType?: 'normal' | 'expandable';
     /** 是否为块级代码（pre / preCode） */
     isCodeBlock?: boolean;
+    /** 是否为剧透（点击后揭示显示） */
+    isSpoiler?: boolean;
 };
 
 type RenderGroup = {
@@ -224,7 +227,9 @@ const segments = computed<Segment[]>(() => {
         const isCommand = activeEntities.some(e => e.type._ === 'textEntityTypeBotCommand');
         // 是否为 @用户名 提及：右键打开用户资料菜单
         const isMention = activeEntities.some(e => e.type._ === 'textEntityTypeMention');
-        return { text: segmentText, href, className, copyable, isCommand, isMention, isBlockquote, blockquoteType, isCodeBlock };
+        // 是否为剧透：点击后揭示显示（仿 Web Telegram）
+        const isSpoiler = activeEntities.some(e => e.type._ === 'textEntityTypeSpoiler');
+        return { text: segmentText, href, className, copyable, isCommand, isMention, isBlockquote, blockquoteType, isCodeBlock, isSpoiler };
     });
 });
 
@@ -319,7 +324,8 @@ function getEntityClass(entity: textEntity): string {
         case 'textEntityTypeBotCommand':
         case 'textEntityTypeMention':
             return 'text-blue-500 dark:text-blue-400';
-        case 'textEntityTypeSpoiler': return 'cursor-pointer rounded bg-black/20 dark:bg-white/20 hover:bg-black/30 dark:hover:bg-white/30';
+        // 剧透由独立组件（SpoilerSpan）处理，此处不附加样式
+        case 'textEntityTypeSpoiler': return '';
         default: return '';
     }
 }

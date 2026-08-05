@@ -13,10 +13,9 @@
         <s v-else-if="node.type === 'strikethrough'" class="line-through">
             <RichText :text="node.text" />
         </s>
-        <span v-else-if="node.type === 'spoiler'"
-            class="cursor-pointer rounded bg-black/20 px-0.5 dark:bg-white/20 hover:bg-black/30 dark:hover:bg-white/30">
+        <SpoilerSpan v-else-if="node.type === 'spoiler'">
             <RichText :text="node.text" />
-        </span>
+        </SpoilerSpan>
         <sub v-else-if="node.type === 'subscript'" class="text-xs">
             <RichText :text="node.text" />
         </sub>
@@ -74,6 +73,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { useRouter } from 'vue-router';
 import { tdlibSend } from '../../../../utils/tdlib';
 import CustomEmojiInline from './CustomEmojiInline.vue';
+import SpoilerSpan from './SpoilerSpan.vue';
 import { confirmAndOpenExternalLink } from '../../../../utils/openExternalLink';
 
 const props = defineProps<{

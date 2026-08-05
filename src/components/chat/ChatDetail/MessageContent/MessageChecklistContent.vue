@@ -7,6 +7,7 @@
                 <template v-for="(seg, si) in splitFormattedText(list.title)" :key="si">
                     <CustomEmojiInline v-if="seg.customEmojiId" :emoji-id="seg.customEmojiId" :size="18"
                         :fallback-text="seg.text" />
+                    <SpoilerSpan v-else-if="seg.isSpoiler">{{ seg.text }}</SpoilerSpan>
                     <span v-else :class="seg.className">{{ seg.text }}</span>
                 </template>
             </h3>
@@ -35,6 +36,7 @@
                     <template v-for="(seg, si) in splitFormattedText(task.text)" :key="si">
                         <CustomEmojiInline v-if="seg.customEmojiId" :emoji-id="seg.customEmojiId" :size="18"
                             :fallback-text="seg.text" />
+                        <SpoilerSpan v-else-if="seg.isSpoiler">{{ seg.text }}</SpoilerSpan>
                         <span v-else :class="seg.className">{{ seg.text }}</span>
                     </template>
                 </span>
@@ -60,6 +62,7 @@ import type { checklistTask, formattedText, messageChecklist, textEntity } from 
 import { MessagePlugin } from 'tdesign-vue-next';
 import { CheckIcon, ListIcon } from 'lucide-vue-next';
 import CustomEmojiInline from './CustomEmojiInline.vue';
+import SpoilerSpan from './SpoilerSpan.vue';
 import { tdlibSend } from '../../../../utils/tdlib';
 
 const props = defineProps<{
@@ -89,6 +92,8 @@ type Seg = {
     text: string;
     className: string;
     customEmojiId?: string;
+    /** 是否为剧透（点击后揭示显示） */
+    isSpoiler?: boolean;
 };
 
 /** 将 formattedText 按实体边界切分（支持加粗/斜体/下划线/删除线/剧透/自定义 emoji） */
@@ -122,7 +127,8 @@ function splitFormattedText(ft?: formattedText | null): Seg[] {
                 customEmojiId: String((emoji.type as any).custom_emoji_id),
             };
         }
-        return { text: segText, className: active.map(entityClass).filter(Boolean).join(' '), customEmojiId: undefined };
+        const isSpoiler = active.some(e => e.type._ === 'textEntityTypeSpoiler');
+        return { text: segText, className: active.map(entityClass).filter(Boolean).join(' '), customEmojiId: undefined, isSpoiler };
     });
 }
 
@@ -132,7 +138,8 @@ function entityClass(e: textEntity): string {
         case 'textEntityTypeItalic': return 'italic';
         case 'textEntityTypeUnderline': return 'underline';
         case 'textEntityTypeStrikethrough': return 'line-through';
-        case 'textEntityTypeSpoiler': return 'rounded bg-black/20 px-0.5 dark:bg-white/20';
+        // 剧透由独立组件（SpoilerSpan）处理，此处不附加样式
+        case 'textEntityTypeSpoiler': return '';
         default: return '';
     }
 }

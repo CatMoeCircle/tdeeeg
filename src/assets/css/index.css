@@ -116,3 +116,72 @@ body.is-resizing * {
 .custom-scrollbar::-webkit-scrollbar-track:hover {
   background: rgba(0, 0, 0, 0.04);
 }
+
+/* ===== Telegram 剧透粒子特效（Spoiler）=====
+   移植自 Telegram 官方 web 端动画示例：
+   - .sp：外层容器（overflow hidden + 圆角）
+   - .sp-base：真实文字，默认 color:transparent 隐藏
+   - .sp-view：reveal 时显示的文字副本（clip-path: circle 波纹揭示）
+   - .sp-cv：canvas，绘制不断流动的颗粒遮罩 */
+.sp {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  padding: 0 2px;
+  margin: 0 -2px;
+  vertical-align: bottom;
+  cursor: pointer;
+  overflow: hidden;
+  border-radius: 3px;
+  -webkit-user-select: none;
+  user-select: none;
+  white-space: normal;
+}
+
+.sp-base {
+  display: inline-block;
+}
+
+.sp-view {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  pointer-events: none;
+}
+
+.sp-cv {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ===== 媒体剧透粒子（SpoilerMedia）=====
+   容器覆盖媒体，canvas 粒子层叠在上，点击后 ripple 波纹裁剪粒子露出媒体 */
+.media-sp {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.media-sp > .sp-cv {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+}
+
+/* 覆盖式（overlay）：绝对定位于已渲染媒体之上 */
+.media-sp.is-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.media-sp.is-overlay > .sp-cv {
+  z-index: auto;
+}

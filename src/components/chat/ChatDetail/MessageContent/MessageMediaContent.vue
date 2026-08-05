@@ -23,7 +23,7 @@
             <!-- ===== PHOTO ===== -->
             <div v-if="content._ === 'messagePhoto'"
                 class="relative overflow-hidden bg-gray-200 dark:bg-gray-700 cursor-pointer group"
-                :class="[borderRadiusClass, hasSpoiler ? 'blur-md' : '']" :style="photoSizeStyle"
+                :class="[borderRadiusClass, { 'msg-spoiler-media': hasSpoiler }]" :style="photoSizeStyle"
                 @click="mediaSrc ? openViewer() : undefined">
                 <!-- Minithumbnail preview -->
                 <img v-if="thumbSrc && !mediaSrc" :src="thumbSrc"
@@ -59,21 +59,26 @@
                     <LoaderIndicator :progress="photoProgress > 0 ? photoProgress : undefined" size="40"
                         color="#ffffff" />
                 </div>
+                <!-- 剧透覆盖层（粒子特效：点击 ripple 波纹揭示媒体） -->
+                <SpoilerMedia v-if="hasSpoiler" :has-spoiler="true" overlay />
             </div>
 
             <!-- ===== VIDEO ===== -->
             <div v-else-if="content._ === 'messageVideo'"
-                class="relative overflow-hidden bg-black cursor-pointer group select-none" :class="borderRadiusClass"
-                :style="videoSizeStyle" @click="openViewer">
+                class="relative overflow-hidden bg-black cursor-pointer group select-none"
+                :class="[borderRadiusClass, { 'msg-spoiler-media': hasSpoiler }]" :style="videoSizeStyle"
+                @click="openViewer">
                 <!-- Thumbnail: 静态位图用 <img>，MPEG4/WEBM 动态图用 <video>，Lottie/无可显示时回退图标 -->
                 <img v-if="videoThumbSrc && !videoThumbIsVideo && !videoDownloaded" :src="videoThumbSrc"
-                    class="absolute inset-0 w-full h-full object-cover" :class="hasSpoiler ? 'blur-md' : ''" />
+                    class="absolute inset-0 w-full h-full object-cover" />
                 <video v-else-if="videoThumbSrc && videoThumbIsVideo && !videoDownloaded" :src="videoThumbSrc" autoplay
-                    loop muted playsinline class="absolute inset-0 w-full h-full object-cover"
-                    :class="hasSpoiler ? 'blur-md' : ''" />
+                    loop muted playsinline class="absolute inset-0 w-full h-full object-cover" />
                 <div v-else-if="!videoDownloaded" class="absolute inset-0 flex items-center justify-center">
                     <VideoIcon class="w-8 h-8 text-gray-400" />
                 </div>
+
+                <!-- 剧透覆盖层（粒子特效：点击 ripple 波纹揭示媒体） -->
+                <SpoilerMedia v-if="hasSpoiler" :has-spoiler="true" overlay />
 
                 <!-- Video element (循环播放, 由 IntersectionObserver 控制播放/暂停) -->
                 <video v-if="videoDownloaded" ref="videoElRef" :src="mediaSrc" class="w-full h-full object-cover"
@@ -207,6 +212,7 @@ import { tdlibSend, isFileReady, downloadingFiles, safeDownloadFile } from '../.
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { CornerUpRightIcon, VideoIcon } from 'lucide-vue-next';
 import MessageTextContent from './MessageTextContent.vue';
+import SpoilerMedia from './SpoilerMedia.vue';
 import MessageStatus from './MessageStatus.vue';
 import LoaderIndicator from '../../../common/LoaderIndicator';
 import type { MediaViewerItem } from './MediaViewer.vue';
@@ -1035,3 +1041,20 @@ onUnmounted(() => {
     stopTrackingDownload();
 });
 </script>
+
+<style>
+/* ===== 媒体剧透：遮罩后方模糊 =====
+   当媒体带剧透（.msg-spoiler-media）且未揭示（容器内不存在 .media-sp.is-revealed）时，
+   将媒体本体模糊 + 压暗，配合粒子遮罩增强“被遮住”的观感；
+   揭示（.is-revealed 出现）后恢复清晰。 */
+.msg-spoiler-media > img,
+.msg-spoiler-media > video {
+  filter: blur(14px) brightness(0.8);
+  transition: filter 0.3s ease;
+}
+
+.msg-spoiler-media:has(.media-sp.is-revealed) > img,
+.msg-spoiler-media:has(.media-sp.is-revealed) > video {
+  filter: none;
+}
+</style>

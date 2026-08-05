@@ -2,11 +2,16 @@
     <div v-if="thumbs.length > 0" class="flex items-center gap-0.5 shrink-0 mr-0.5">
         <div v-for="(t, i) in thumbs" :key="i"
             class="relative w-3 h-3 rounded overflow-hidden shrink-0 bg-gray-200 dark:bg-gray-700">
-            <img v-if="t.src" :src="t.src" alt="" class="w-full h-full object-cover" />
+            <img v-if="t.src" :src="t.src" alt=""
+                class="w-full h-full object-cover"
+                :class="{ 'blur-[2px] scale-110': t.spoiler }" />
             <!-- 播放按钮仅为装饰：仅展示，无实际播放效果 -->
             <span v-if="t.isVideo" class="absolute inset-0 flex items-center justify-center bg-black/20">
                 <PlayIcon class="w-2.5 h-2.5 text-white drop-shadow" fill="currentColor" />
             </span>
+            <!-- 剧透：缩略图叠加粒子遮罩（预览中不显示原始内容） -->
+            <SpoilerMedia v-if="t.spoiler" :has-spoiler="true" overlay
+                :fx="{ count: 60, sizeMin: 1.2, sizeMax: 2, layerBg: 'rgba(0,0,0,0.4)' }" />
         </div>
     </div>
 </template>
@@ -18,6 +23,7 @@ import type { message } from 'tdlib-types';
 import { tdlibSend, isFileReady } from '../../utils/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { isThumbnailImgRenderable } from '../../utils/thumbnail';
+import SpoilerMedia from './ChatDetail/MessageContent/SpoilerMedia.vue';
 
 const props = defineProps<{
     /** 最后一条消息（图片/视频/相册） */
@@ -29,6 +35,20 @@ const props = defineProps<{
 interface ThumbData {
     src: string;
     isVideo: boolean;
+    /** 是否剧透（剧透时预览缩略图叠加粒子遮罩 + 模糊，不显示原始内容） */
+    spoiler: boolean;
+}
+
+/** 消息内容是否带有剧透标记（图片/视频） */
+function hasSpoiler(msg: message): boolean {
+    const c = msg.content;
+    if ('has_spoiler' in c) return !!c.has_spoiler;
+    return false;
+}
+
+/** 构造缩略图数据，附加剧透标记 */
+function thumb(src: string, isVideo: boolean, msg: message): ThumbData {
+    return { src, isVideo, spoiler: hasSpoiler(msg) };
 }
 
 const thumbs = ref<ThumbData[]>([]);
@@ -47,35 +67,35 @@ function messageThumb(msg: message): ThumbData | null {
         const sizes = (photo.sizes || []).slice().sort((a, b) => a.width * a.height - b.width * b.height);
         const smallest = sizes.find((s) => isFileReady(s.photo));
         if (smallest) {
-            return { src: convertFileSrc(smallest.photo.local.path), isVideo: false };
+            return thumb(convertFileSrc(smallest.photo.local.path), false, msg);
         }
         // 大图未下载完成时，用 minithumbnail 预览
         if (photo.minithumbnail?.data) {
-            return { src: `data:image/jpeg;base64,${photo.minithumbnail.data}`, isVideo: false };
+            return thumb(`data:image/jpeg;base64,${photo.minithumbnail.data}`, false, msg);
         }
         return null;
     }
     if (c._ === 'messageVideo') {
         const video = c.video;
         // 优先用已下载的视频缩略图 / 封面大图
-        const thumb = video.thumbnail;
-        if (thumb && isThumbnailImgRenderable(thumb.format) && isFileReady(thumb.file)) {
-            return { src: convertFileSrc(thumb.file.local.path), isVideo: true };
+        const vthumb = video.thumbnail;
+        if (vthumb && isThumbnailImgRenderable(vthumb.format) && isFileReady(vthumb.file)) {
+            return thumb(convertFileSrc(vthumb.file.local.path), true, msg);
         }
         const cover = c.cover;
         if (cover) {
             const coverSizes = (cover.sizes || []).slice().sort((a, b) => a.width * a.height - b.width * b.height);
             const smallest = coverSizes.find((s) => isFileReady(s.photo));
             if (smallest) {
-                return { src: convertFileSrc(smallest.photo.local.path), isVideo: true };
+                return thumb(convertFileSrc(smallest.photo.local.path), true, msg);
             }
         }
         // 大图/缩略图未下载完成时，用 minithumbnail 预览（视频缩略图优先，其次封面）
         if (video.minithumbnail?.data) {
-            return { src: `data:image/jpeg;base64,${video.minithumbnail.data}`, isVideo: true };
+            return thumb(`data:image/jpeg;base64,${video.minithumbnail.data}`, true, msg);
         }
         if (cover?.minithumbnail?.data) {
-            return { src: `data:image/jpeg;base64,${cover.minithumbnail.data}`, isVideo: true };
+            return thumb(`data:image/jpeg;base64,${cover.minithumbnail.data}`, true, msg);
         }
         return null;
     }

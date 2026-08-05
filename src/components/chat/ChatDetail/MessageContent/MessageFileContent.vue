@@ -89,9 +89,9 @@
                     @click.prevent.stop="handleCaptionSegmentClick($event, segment)">{{ segment.text
                     }}</a>
                 <span v-else :class="[segment.className, { 'cursor-pointer': segment.copyable || segment.isCommand }]"
-                    @click="(segment.copyable || segment.isCommand) ? handleCaptionSegmentClick($event, segment) : undefined">{{
-                        segment.text
-                    }}</span>
+                    @click="(segment.copyable || segment.isCommand) ? handleCaptionSegmentClick($event, segment) : undefined"><SpoilerSpan
+                        v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template
+                        v-else>{{ segment.text }}</template></span>
             </template>
         </p>
     </div>
@@ -107,6 +107,7 @@ import { FileIcon, DownloadIcon, MusicIcon, PauseIcon, PlayIcon } from 'lucide-v
 import { useRouter } from 'vue-router';
 import { MessagePlugin } from 'tdesign-vue-next';
 import CustomEmojiInline from './CustomEmojiInline.vue';
+import SpoilerSpan from './SpoilerSpan.vue';
 import LoaderIndicator from '../../../common/LoaderIndicator';
 import { useDownloadStore, type DownloadFileType } from '../../../../store/downloads';
 import { useChatStore } from '../../../../store/chat';
@@ -202,6 +203,8 @@ type CaptionSegment = {
     copyable?: boolean;
     /** 是否为 bot 命令（/command），点击后插入输入框（可设置） */
     isCommand?: boolean;
+    /** 是否为剧透（点击后揭示显示） */
+    isSpoiler?: boolean;
 };
 
 const captionSegments = computed<CaptionSegment[]>(() => {
@@ -245,7 +248,8 @@ const captionSegments = computed<CaptionSegment[]>(() => {
         const className = activeEntities.map(getEntityClass).filter(Boolean).join(' ');
         const copyable = activeEntities.some(e => isCopyableEntity(e));
         const isCommand = activeEntities.some(e => e.type._ === 'textEntityTypeBotCommand');
-        return { text: segmentText, href, className, copyable, isCommand };
+        const isSpoiler = activeEntities.some(e => e.type._ === 'textEntityTypeSpoiler');
+        return { text: segmentText, href, className, copyable, isCommand, isSpoiler };
     });
 });
 
@@ -271,7 +275,8 @@ function getEntityClass(entity: textEntity): string {
         case 'textEntityTypePre':
         case 'textEntityTypePreCode':
             return 'rounded bg-black/5 px-0.5 font-mono dark:bg-white/10';
-        case 'textEntityTypeSpoiler': return 'caption-spoiler';
+        // 剧透由独立组件（SpoilerSpan）处理，此处不附加样式
+        case 'textEntityTypeSpoiler': return '';
         default: return '';
     }
 }
@@ -648,19 +653,6 @@ onUnmounted(() => {
     transform: scale(0.96);
 }
 
-.caption-spoiler {
-    border-radius: 0.2rem;
-    background: currentColor;
-    color: transparent;
-    transition: color 120ms ease-out;
-}
-
-.caption-spoiler:hover,
-.caption-spoiler:focus {
-    color: inherit;
-    background: transparent;
-}
-
 .audio-progress {
     --audio-progress: 0%;
     appearance: none;
@@ -726,8 +718,7 @@ onUnmounted(() => {
 @media (prefers-reduced-motion: reduce) {
 
     .audio-cover-button,
-    .audio-progress,
-    .caption-spoiler {
+    .audio-progress {
         transition: none;
     }
 }

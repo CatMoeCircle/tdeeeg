@@ -99,13 +99,13 @@
 
             <!-- 图片 -->
             <figure v-else-if="block._ === 'pageBlockPhoto'" class="my-1.5">
-                <div class="overflow-hidden rounded-lg" :style="spoilerStyle(block.has_spoiler)">
+                <SpoilerPhoto :has-spoiler="block.has_spoiler">
                     <RichImage v-if="photoFile(block.photo)?.photo" :file="photoFile(block.photo)!.photo" :alt="''"
                         square />
                     <div v-else
                         class="h-32 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center text-gray-400">
                         图片不可用</div>
-                </div>
+                </SpoilerPhoto>
                 <RichCaption v-if="block.caption" :caption="block.caption" />
             </figure>
 
@@ -282,6 +282,7 @@
 import type { PageBlock, photoSize, pageBlockTableCell, PageBlockHorizontalAlignment, PageBlockVerticalAlignment } from 'tdlib-types';
 import RichText from './RichText.vue';
 import RichImage from './RichImage.vue';
+import SpoilerPhoto from './SpoilerPhoto.vue';
 import RichCaption from './RichCaption.vue';
 import RichMediaCollection from './RichMediaCollection.vue';
 import RichMediaDownload from './RichMediaDownload.vue';
@@ -360,10 +361,6 @@ function formatDuration(sec: number): string {
 function accentColor(id: number): string {
     const palette = ['#168acd', '#e17076', '#faa774', '#a695e7', '#7bc862', '#e7a9a7', '#6d63f4', '#3eb1c9'];
     return palette[id % palette.length] ?? '#168acd';
-}
-
-function spoilerStyle(hasSpoiler: boolean) {
-    return hasSpoiler ? { filter: 'blur(8px)' } : undefined;
 }
 
 function cellAlign(cell: pageBlockTableCell): Record<string, string> {
