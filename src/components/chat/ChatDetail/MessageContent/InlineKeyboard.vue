@@ -2,7 +2,7 @@
     <div v-if="rows.length" class="flex w-full flex-col gap-1 px-0.5 pb-0.5">
         <div v-for="(row, ri) in rows" :key="ri" class="flex gap-1">
             <button v-for="(button, bi) in row" :key="bi" type="button"
-                class="flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-gray-300/60 bg-gray-100/80 px-2 py-1.5 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-200/80 disabled:cursor-default disabled:opacity-50 dark:border-white/10 dark:bg-white/10 dark:text-gray-100 dark:hover:bg-white/15"
+                :class="[baseButtonClass, buttonColorClass(button.style)]"
                 :disabled="pendingKey === buttonKey(ri, bi)"
                 @click.stop="handleClick(button, ri, bi)">
                 <CustomEmojiInline v-if="String(button.icon_custom_emoji_id || 0) !== '0'"
@@ -19,7 +19,7 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { MessagePlugin } from 'tdesign-vue-next';
-import type { inlineKeyboardButton, LoginUrlInfo } from 'tdlib-types';
+import type { inlineKeyboardButton, LoginUrlInfo, ButtonStyle } from 'tdlib-types';
 import { tdlibSend } from '../../../../utils/tdlib';
 import { confirmExternalLink } from '../../../../store/externalLink';
 import CustomEmojiInline from './CustomEmojiInline.vue';
@@ -35,6 +35,24 @@ const pendingKey = ref<string | null>(null);
 
 function buttonKey(ri: number, bi: number): string {
     return `${ri}:${bi}`;
+}
+
+// 共享的按钮布局样式
+const baseButtonClass =
+    'flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border px-2 py-1.5 text-sm font-medium transition-colors disabled:cursor-default disabled:opacity-50';
+
+// TDLib ButtonStyle：Default 使用普通灰底；Primary/Danger/Success 使用官方 Telegram 配色（白字）
+function buttonColorClass(style?: ButtonStyle): string {
+    switch (style?._) {
+        case 'buttonStylePrimary':
+            return 'border-transparent bg-[#298ACF] text-white hover:bg-[#3691D2]';
+        case 'buttonStyleDanger':
+            return 'border-transparent bg-[#E05356] text-white hover:bg-[#E25D60]';
+        case 'buttonStyleSuccess':
+            return 'border-transparent bg-[#61C752] text-white hover:bg-[#6ACA5C]';
+        default:
+            return 'border-gray-300/60 bg-gray-100/80 text-gray-800 hover:bg-gray-200/80 dark:border-white/10 dark:bg-white/10 dark:text-gray-100 dark:hover:bg-white/15';
+    }
 }
 
 async function handleClick(button: inlineKeyboardButton, ri: number, bi: number) {
