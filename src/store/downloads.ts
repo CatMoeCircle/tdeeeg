@@ -304,11 +304,24 @@ export const useDownloadStore = defineStore("downloads", () => {
         const item = items.value[fileId];
         if (!item) return;
         try {
-            await invoke("tdlib_send", {
-                request: { _: "toggleDownloadIsPaused", file_id: fileId, is_paused: !item.is_paused },
-            });
-            // 乐观更新本地状态
-            items.value[fileId] = { ...items.value[fileId], is_paused: !item.is_paused };
+            if (!item.is_paused) {
+                // 暂停
+                await invoke("tdlib_send", {
+                    request: { _: "toggleDownloadIsPaused", file_id: fileId, is_paused: true },
+                });
+                items.value[fileId] = { ...items.value[fileId], is_paused: true };
+            } else {
+                // 恢复：清除暂停态 + 主动重新发起 downloadFile，
+                // 让 TDLib 真正恢复下载并持续发出 updateFile 进度事件，
+                // 否则列表会一直停留在「暂停/原封不动」的状态。
+                await invoke("tdlib_send", {
+                    request: { _: "toggleDownloadIsPaused", file_id: fileId, is_paused: false },
+                });
+                await invoke("tdlib_send", {
+                    request: { _: "downloadFile", file_id: fileId, priority: 1, offset: 0, limit: 0, synchronous: false },
+                });
+                items.value[fileId] = { ...items.value[fileId], is_paused: false };
+            }
         } catch (e) {
             console.error("toggleDownloadIsPaused failed:", e);
         }
@@ -375,6 +388,12 @@ export const useDownloadStore = defineStore("downloads", () => {
         }
     }
 
+    // ─── 下载面板（左下角悬浮窗）开关 ─────────────────────────────
+    const isPanelOpen = ref(false);
+    function openPanel() { isPanelOpen.value = true; }
+    function closePanel() { isPanelOpen.value = false; }
+    function togglePanel() { isPanelOpen.value = !isPanelOpen.value; }
+
     return {
         items,
         activeItems,
@@ -386,6 +405,10 @@ export const useDownloadStore = defineStore("downloads", () => {
         showAutoPhotos,
         hasHiddenActive,
         hasHiddenAutoPhotos,
+        isPanelOpen,
+        openPanel,
+        closePanel,
+        togglePanel,
         init,
         destroy,
         refreshFromRust,

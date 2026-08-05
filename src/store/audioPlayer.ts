@@ -6,6 +6,7 @@ import type { message, thumbnail } from 'tdlib-types';
 import { useDownloadStore } from './downloads';
 import { useChatStore } from './chat';
 import { isThumbnailImgRenderable } from '../utils/thumbnail';
+import { shouldAutoDownloadAudio } from '../utils/autoDownload';
 
 export interface AudioTrack {
     messageId: number;
@@ -15,6 +16,8 @@ export interface AudioTrack {
     duration: number;
     fileId: number;
     filePath: string;
+    /** 音频文件大小（字节），用于判断是否超出自動下载体积上限 */
+    sizeBytes?: number;
     coverPath?: string;
     /**
      * 封面原始来源，供原生 SMTC 使用：
@@ -110,6 +113,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
                     fileId: file.id,
                     filePath: ready ? convertFileSrc(file.local.path) : '',
                     ready,
+                    sizeBytes: file.size || 0,
                 });
                 // 异步加载封面（UI URL + 原生 SMTC 来源）
                 coverPromises.push(
@@ -162,6 +166,13 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
 
         // 先确保文件已下载就绪，再切换曲目
         if (!track.ready) {
+            // 遵守自动下载大小限制：超过上限的音频不自动下载，
+            // 保持未就绪状态（由消息上的下载按钮手动下载后播放）。
+            const chatData = useChatStore().chats[track.chatId] as any;
+            const audioSize = track.sizeBytes || 0;
+            if (!shouldAutoDownloadAudio(chatData, audioSize)) {
+                return;
+            }
             try {
                 // 音乐播放触发下载：记录到正常下载列表，保留来源对话与消息
                 await useDownloadStore().registerDownload(track.fileId, track.title || `audio_${track.fileId}.mp3`, getChatTitle(track.chatId), 0, 'audio', undefined, track.chatId, track.messageId, false);
@@ -478,6 +489,12 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
 
         // 先确保文件下载完成
         if (!ready) {
+            // 遵守自动下载大小限制：超过上限的音频不自动下载，
+            // 返回空路径，由消息上的下载按钮手动下载后播放。
+            const chatData = useChatStore().chats[msg.chat_id] as any;
+            if (!shouldAutoDownloadAudio(chatData, file.size || 0)) {
+                return '';
+            }
             try {
                 // 音乐播放触发下载：记录到正常下载列表，保留来源对话与消息
                 await useDownloadStore().registerDownload(file.id, audio.title || audio.file_name || `audio_${file.id}.mp3`, getChatTitle(msg.chat_id), 0, 'audio', undefined, msg.chat_id, msg.id, false);
@@ -515,7 +532,8 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
             duration: audio.duration,
             fileId: file.id,
             filePath,
-            ready: true,
+            ready: !!filePath, // 未就绪（如超出自動下载上限）时不视为可播放
+            sizeBytes: file.size || 0,
         };
 
         // 幂等保护：加入前再次检查（以防极端竞态），存在则不重复添加

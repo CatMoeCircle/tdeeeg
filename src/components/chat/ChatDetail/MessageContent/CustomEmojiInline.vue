@@ -25,8 +25,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onUnmounted, nextTick } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useCustomEmoji } from '../../../../store/customEmoji';
+import { useLottiePause } from '../../../../composables/useLottiePause';
 import lottie, { type AnimationItem } from 'lottie-web';
 import * as pako from 'pako';
 
@@ -41,8 +42,9 @@ const size = computed(() => props.size || 22);
 const state = useCustomEmoji(props.emojiId);
 const lottieRef = ref<HTMLElement | null>(null);
 let lottieAnim: AnimationItem | null = null;
-/** 当前是否处于全局平滑滚动中（滚动期间暂停 Lottie canvas 重绘以避免卡顿） */
-let scrolling = false;
+
+/** 统一的 Lottie 暂停/恢复控制器：视口离开、窗口失焦、平滑滚动时暂停 */
+const { register: registerAnim, setup: setupPause } = useLottiePause(lottieRef);
 
 /** 检测贴纸格式 */
 const emojiFormat = computed(() => {
@@ -74,12 +76,11 @@ async function loadTgs(path: string) {
     lottieAnim = lottie.loadAnimation({
       container: lottieRef.value,
       animationData: animData,
-      renderer: 'canvas',
+      renderer: 'svg',
       loop: true,
       autoplay: true,
     });
-    // 若创建时正处于全局滚动中，立即暂停（避免异步加载完成后仍每帧重绘）
-    if (scrolling) lottieAnim.pause();
+    registerAnim(lottieAnim);
   } catch (e) {
     console.error('Failed to load TGS custom emoji:', e);
   }
@@ -99,24 +100,12 @@ watch([() => state.ready, () => state.filePath, emojiFormat], async ([ready, fil
   }
 }, { immediate: true });
 
-/**
- * 滚动性能优化：滚轮平滑滚动期间暂停 Lottie（canvas 每帧重绘代价高），
- * 滚动结束后恢复。WebP 为静态图、WebM 走 <video>，均不受影响。
- */
-function onScrollActive(e: Event) {
-  const active = (e as CustomEvent<boolean>).detail;
-  if (active === scrolling || emojiFormat.value !== 'tgs') return;
-  scrolling = active;
-  if (lottieAnim) {
-    if (active) lottieAnim.pause();
-    else lottieAnim.play();
-  }
-}
-
-document.addEventListener('tdgram:scroll-active', onScrollActive);
+// 挂载后初始化暂停控制器（视口观察 + 窗口聚焦 + 平滑滚动监听）
+onMounted(() => {
+  setupPause();
+});
 
 onUnmounted(() => {
-  document.removeEventListener('tdgram:scroll-active', onScrollActive);
   destroyLottie();
 });
 </script>

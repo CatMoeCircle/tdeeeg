@@ -31,6 +31,8 @@ export interface AutoDownloadFilesConfig extends AutoDownloadByType {
 
 interface Settings {
   folderStyle: "tabs" | "pills" | "text";
+  /** 加载指示器样式（ldrs loader 名，ring2 为默认） */
+  loadingStyle: "ring2" | "squircle" | "square" | "reuleaux" | "infinity" | "trefoil";
   /** 是否在分组栏选项卡中显示未读消息计数器 */
   showFolderUnread: boolean;
   /** 是否在分组栏选项卡中显示分组图标 */
@@ -84,6 +86,7 @@ interface Settings {
 
 const defaultSettings: Settings = {
   folderStyle: "tabs",
+  loadingStyle: "ring2",
   showFolderUnread: true,
   showFolderIcons: true,
   chatList: {

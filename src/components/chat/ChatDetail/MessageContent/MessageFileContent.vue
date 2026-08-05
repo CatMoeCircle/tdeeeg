@@ -2,7 +2,7 @@
     <div class="min-w-0 w-full max-w-full">
         <!-- Document -->
         <div v-if="content._ === 'messageDocument'"
-            class="flex w-full max-w-full min-w-0 items-center gap-3 bg-gray-100 dark:bg-gray-700 text-black dark:text-white p-2 rounded-lg relative">
+            class="flex w-full max-w-full min-w-0 items-center gap-3 bg-gray-100 dark:bg-gray-700 text-black dark:text-white p-2 rounded-lg relative overflow-hidden">
             <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded flex items-center justify-center shrink-0">
                 <FileIcon class="w-5 h-5 text-blue-500" />
             </div>
@@ -13,29 +13,26 @@
                         formatSize(downloadTotalSize) : formatSize(content.document.document.size) }} <span
                         v-if="isDownloading" class="text-blue-500 ml-1">下载中...</span>
                 </span>
-                <!-- Progress bar -->
-                <div v-if="downloadProgress > 0 && downloadProgress < 1"
-                    class="mt-1 w-full h-1 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
-                    <div class="h-full bg-blue-500 rounded-full transition-all duration-300"
-                        :style="{ width: (downloadProgress * 100) + '%' }">
-                    </div>
-                </div>
             </div>
             <button v-if="!mediaSrc && !isDownloadingOrGlobally" @click="handleDownload(content.document.document.id)"
                 class="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded shrink-0">
                 <DownloadIcon class="w-4 h-4" />
             </button>
             <button v-if="isDownloadingOrGlobally" class="p-1 shrink-0">
-                <svg class="w-4 h-4 text-blue-500 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25" />
-                    <path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round"
-                        class="opacity-75" />
-                </svg>
+                <LoaderIndicator :progress="downloadProgress > 0 && downloadProgress < 1 ? downloadProgress : undefined"
+                    size="20" color="#3b82f6" />
             </button>
+            <!-- 底部细下载进度条（与图片/视频一致） -->
+            <div v-if="downloadProgress > 0 && downloadProgress < 1"
+                class="absolute bottom-0 left-0 right-0 h-0.5 bg-white/30 overflow-hidden">
+                <div class="h-full bg-blue-500 transition-all duration-300"
+                    :style="{ width: (downloadProgress * 100) + '%' }"></div>
+            </div>
         </div>
 
         <!-- Audio -->
-        <div v-else-if="content._ === 'messageAudio'" class="flex w-full max-w-full min-w-0 items-center gap-3">
+        <div v-else-if="content._ === 'messageAudio'"
+            class="relative flex w-full max-w-full min-w-0 items-center gap-3 overflow-hidden rounded-lg">
             <div class="relative h-14 w-14 shrink-0">
                 <div class="group relative h-full w-full overflow-hidden rounded-xl bg-blue-100 dark:bg-blue-950">
                     <img v-if="coverSrc" :src="coverSrc" :alt="content.audio.title || content.audio.file_name"
@@ -52,15 +49,13 @@
                 </div>
 
                 <button v-if="!fileReady" type="button"
-                    class="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-blue-500 text-white shadow-sm transition-transform active:scale-90 dark:border-gray-800"
+                    class="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white bg-blue-500 text-white shadow-sm transition-transform active:scale-90 dark:border-gray-800"
                     :aria-label="dlLabel" :disabled="isDownloadingOrGlobally"
                     @click.stop="handleDownload(content.audio.audio.id)">
-                    <svg v-if="isDownloadingOrGlobally" class="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" class="opacity-25" />
-                        <path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round"
-                            class="opacity-80" />
-                    </svg>
-                    <DownloadIcon v-else class="h-3 w-3" stroke-width="2.5" />
+                    <LoaderIndicator v-if="isDownloadingOrGlobally"
+                        :progress="downloadProgress > 0 && downloadProgress < 1 ? downloadProgress : undefined"
+                        size="12" color="#ffffff" />
+                    <DownloadIcon v-else class="h-2.5 w-2.5" stroke-width="2.5" />
                 </button>
             </div>
 
@@ -79,6 +74,12 @@
                     <span>{{ formatDuration(displayTime) }}</span>
                     <span>{{ formatDuration(displayDuration) }}</span>
                 </div>
+            </div>
+            <!-- 底部细下载进度条（与图片/视频一致） -->
+            <div v-if="downloadProgress > 0 && downloadProgress < 1"
+                class="absolute bottom-0 left-0 right-0 h-0.5 bg-white/30 overflow-hidden">
+                <div class="h-full bg-blue-500 transition-all duration-300"
+                    :style="{ width: (downloadProgress * 100) + '%' }"></div>
             </div>
         </div>
 
@@ -111,11 +112,13 @@ import { FileIcon, DownloadIcon, MusicIcon, PauseIcon, PlayIcon } from 'lucide-v
 import { useRouter } from 'vue-router';
 import { MessagePlugin } from 'tdesign-vue-next';
 import CustomEmojiInline from './CustomEmojiInline.vue';
+import LoaderIndicator from '../../../common/LoaderIndicator';
 import { useDownloadStore, type DownloadFileType } from '../../../../store/downloads';
 import { useChatStore } from '../../../../store/chat';
 import { settings } from '../../../../store/settings';
 import { requestInsertCommand } from '../../../../store/commandInsert';
 import { getChatCategory } from '../../../../utils/autoDownload';
+import { shouldAutoDownloadAudio } from '../../../../utils/autoDownload';
 import { useAudioPlayerStore } from '../../../../store/audioPlayer';
 import { confirmAndOpenExternalLink } from '../../../../utils/openExternalLink';
 import { isThumbnailImgRenderable } from '../../../../utils/thumbnail';
@@ -567,6 +570,17 @@ async function togglePlayback() {
     if (isCurrentTrack.value) {
         audioPlayer.togglePlay();
         return;
+    }
+
+    // 音频未下载时，遵守自动下载大小限制：超过上限不自动下载，
+    // 提示用户点击右下角下载按钮手动下载后再播放。
+    if (!isFileReady(props.content.audio.audio)) {
+        const chatData = props.chatId ? (useChatStore().chats[props.chatId] as any) : undefined;
+        const size = props.content.audio.audio.size || 0;
+        if (!shouldAutoDownloadAudio(chatData, size)) {
+            MessagePlugin.info('该音乐超过自动下载大小上限，请点击右下角下载按钮后再播放');
+            return;
+        }
     }
 
     // 否则通知全局播放器播放此消息

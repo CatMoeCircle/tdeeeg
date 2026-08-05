@@ -53,26 +53,26 @@ app.directive("smooth-wheel", vSmoothWheel);
 // 2. 等待授权态稳定（Ready / WaitCode... 等），据此跳转 /home 或 /login
 // 3. 完成后再挂载并渲染 App.vue，从而避免启动时闪现登录页
 async function bootstrap() {
-  // 等待 router 就绪，确保后续 push 基于已解析的路由表执行
-  await router.isReady();
+    // 等待 router 就绪，确保后续 push 基于已解析的路由表执行
+    await router.isReady();
 
-  // 设置 TDLib 参数（连接正式数据中心），须在 init_tdlib 之前调用
-  await invoke("set_tdlib_parameters", { useTestDc: false });
+    // 设置 TDLib 参数（连接正式数据中心），须在 init_tdlib 之前调用
+    await invoke("set_tdlib_parameters", { useTestDc: false });
 
-  let authState: "ready" | "login";
-  try {
-    await initTdlib();
-    authState = await waitForAuthorization();
-  } catch (e) {
-    console.error("Error initializing TDLib:", e);
-    authState = "login";
-  }
+    let authState: "ready" | "login";
+    try {
+        await initTdlib();
+        authState = await waitForAuthorization();
+    } catch (e) {
+        console.error("Error initializing TDLib:", e);
+        authState = "login";
+    }
 
-  // mount 前先跳到对应路由
-  await router.push(authState === "ready" ? "/home" : "/login");
+    // mount 前先跳到对应路由
+    await router.push(authState === "ready" ? "/home" : "/login");
 
-  // 授权态稳定、路由已定位，再渲染 App.vue
-  app.mount("#app");
+    // 授权态稳定、路由已定位，再渲染 App.vue
+    app.mount("#app");
 }
 
 bootstrap();

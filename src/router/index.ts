@@ -59,11 +59,6 @@ const router = createRouter({
           component: () => import("../components/layout/HomeEmptyContent.vue"),
         },
         {
-          path: "downloads",
-          name: "downloads",
-          component: () => import("../views/main/DownloadsModule.vue"),
-        },
-        {
           path: "settings",
           name: "settings",
           component: () => import("../components/layout/HomeEmptyContent.vue"),

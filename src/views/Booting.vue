@@ -5,7 +5,7 @@
 </script>
 
 <template>
-  <div class="h-screen w-screen flex items-center justify-center overflow-hidden">
-    <div class="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin opacity-40"></div>
-  </div>
+    <div class="h-screen w-screen flex items-center justify-center overflow-hidden">
+        <div class="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin opacity-40"></div>
+    </div>
 </template>

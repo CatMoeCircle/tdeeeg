@@ -315,6 +315,35 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- 加载指示器样式（排在外观设置最后） -->
+                <div class="mb-8">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
+                        加载指示器样式</h3>
+                    <p class="mb-4 text-sm text-gray-500">为聊天列表、图片/视频加载等选择你喜欢的加载进度条样式。</p>
+
+                    <!-- 实时预览：网格展示各 loader + 点击选择 -->
+                    <div class="mb-4 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+                        <div
+                            class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">预览</span>
+                            <span class="text-xs text-gray-400 dark:text-gray-500">{{ loaderLabel }}</span>
+                        </div>
+                        <div class="bg-white dark:bg-gray-900 p-4">
+                            <div class="grid grid-cols-3 gap-3">
+                                <button v-for="opt in loaderOptions" :key="opt.value" type="button"
+                                    @click="settings.loadingStyle = opt.value"
+                                    class="flex flex-col items-center gap-2 py-4 rounded-xl border transition-colors"
+                                    :class="settings.loadingStyle === opt.value ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'">
+                                    <LoaderIndicator :force="opt.value" :progress="0.55" size="34" color="#3b82f6" />
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ opt.label }}</span>
+                                </button>
+                            </div>
+                            <p class="mt-3 text-xs text-gray-400">选中项会以 55% 进度显示；下载时进度会随 <code>updateFile</code> 实时更新。
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -331,9 +360,28 @@ import { useUserStore } from '../../store/user';
 import ChatTypeToggle from './ChatTypeToggle.vue';
 import Avatar from '../chat/avatar.vue';
 import EditableNumber from './EditableNumber.vue';
+import LoaderIndicator from '../common/LoaderIndicator';
 
 /** 消息显示/贴纸设置默认值（用于显示“(默认)”标记，与 settings.ts 默认值一致） */
 const DEFAULT_MESSAGE = { cornerRadius: 18, fontSize: 14, stickerSize: 160 };
+
+/** 加载指示器可选样式（与 loader tag 对应） */
+const loaderOptions = [
+    { value: 'ring2', label: '圆环' },
+    { value: 'squircle', label: '方圆' },
+    { value: 'square', label: '方框' },
+    { value: 'reuleaux', label: '三角圆' },
+    { value: 'infinity', label: '无限' },
+    { value: 'trefoil', label: '三叶' },
+] as const;
+
+const loaderLabel = computed(() => {
+    const labels: Record<string, string> = {
+        ring2: '圆环 (默认)', squircle: '方圆', square: '方框',
+        reuleaux: '三角圆', infinity: '无限', trefoil: '三叶',
+    };
+    return labels[settings.loadingStyle] || '圆环 (默认)';
+});
 
 /** 预览分组数据（全部对话默认使用对话图标） */
 const folders: { id: string; name: string; unread: number; icon: Component }[] = [

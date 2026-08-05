@@ -71,3 +71,22 @@ export function shouldAutoDownloadMedia(
 
     return { photo, video, file };
 }
+
+/**
+ * 判断音频（音乐）是否应自动下载（供媒体播放器使用）。
+ *
+ * 音乐在自动下载设置中没有独立分类，但应遵守自动下载的体积上限：
+ * 这里复用「文件（文档）」的 maxSize 作为音频自动下载的最大体积。
+ * 超过上限的音频不自动下载——由用户在消息上点击下载后播放。
+ */
+export function shouldAutoDownloadAudio(
+    chatData: chat | undefined,
+    sizeBytes: number
+): boolean {
+    if (!chatData || !settings.autoDownload.enabled) return false;
+    const category = getChatCategory(chatData);
+    const cfg = settings.autoDownload.files;
+    if (!cfg.enabled || !cfg[category]) return false;
+    const sizeMB = (sizeBytes || 0) / (1024 * 1024);
+    return sizeMB <= cfg.maxSize;
+}

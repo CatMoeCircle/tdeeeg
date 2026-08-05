@@ -1,6 +1,6 @@
 <template>
-    <div :class="content._ === 'messageAnimatedEmoji' ? 'w-24 h-24' : ''"
-        :style="content._ !== 'messageAnimatedEmoji' ? stickerSizeStyle : undefined">
+    <div :class="content._ === 'messageAnimatedEmoji' ? 'w-24 h-24 cursor-pointer' : ''"
+        :style="content._ !== 'messageAnimatedEmoji' ? stickerSizeStyle : undefined" @click="onContentClick">
         <!-- WEBP static sticker -->
         <img v-if="format === 'webp' && mediaSrc" :src="mediaSrc" class="w-full h-full object-contain" />
         <!-- TGS animated sticker (Lottie) -->
@@ -16,12 +16,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onUnmounted, nextTick } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import type { messageAnimatedEmoji, messageSticker } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useDownloadStore } from '../../../../store/downloads';
 import { settings } from '../../../../store/settings';
+import { useLottiePause } from '../../../../composables/useLottiePause';
 import lottie, { type AnimationItem } from 'lottie-web';
 import * as pako from 'pako';
 
@@ -33,6 +34,12 @@ const lottieRef = ref<HTMLElement | null>(null);
 const mediaSrc = ref<string | undefined>(undefined);
 const isDownloading = ref(false);
 let lottieAnim: AnimationItem | null = null;
+
+/** 是否为"大号动画表情"（messageAnimatedEmoji：只播一次、点击重播） */
+const isAnimatedEmoji = computed(() => props.content._ === 'messageAnimatedEmoji');
+
+/** 统一的 Lottie 暂停/恢复控制器：视口离开、窗口失焦、平滑滚动时暂停 */
+const { register: registerAnim, get: getAnim, setup: setupPause } = useLottiePause(lottieRef);
 
 /** 贴纸尺寸样式（跟随设置，仅对普通贴纸生效；动画表情保持固定） */
 const stickerSizeStyle = computed<Record<string, string>>(() => ({
@@ -133,13 +140,25 @@ async function loadTgs(filePath: string) {
         lottieAnim = lottie.loadAnimation({
             container: lottieRef.value,
             renderer: 'svg',
-            loop: true,
+            // 普通贴纸循环播放；大号动画表情（messageAnimatedEmoji）只播一次，点击可重播
+            loop: !isAnimatedEmoji.value,
             autoplay: true,
             animationData: animData,
         });
+        registerAnim(lottieAnim);
     } catch (e) {
         console.error("Failed to load TGS sticker:", e);
     }
+}
+
+/** 点击大号动画表情时从头重播（普通贴纸不受影响） */
+function onContentClick() {
+    if (!isAnimatedEmoji.value) return;
+    const anim = getAnim();
+    if (!anim) return;
+    // 若因窗口失焦/离开视口被暂停，重播不受影响
+    anim.stop();
+    anim.play();
 }
 
 function destroyLottie() {
@@ -148,6 +167,11 @@ function destroyLottie() {
         lottieAnim = null;
     }
 }
+
+// 挂载后初始化暂停控制器（视口观察 + 窗口聚焦 + 平滑滚动监听）
+onMounted(() => {
+    setupPause();
+});
 
 onUnmounted(() => {
     destroyLottie();

@@ -2,12 +2,7 @@
     <div class="flex h-full w-full bg-white/40 overflow-hidden dark:bg-black text-gray-900 dark:text-gray-100">
         <SideNavBar />
         <div class="flex-1 min-w-0 bg-white rounded-tl-xl relative">
-            <div v-if="isDownloads" class="h-full">
-                <router-view v-slot="{ Component }">
-                    <component :is="Component" class="h-full" />
-                </router-view>
-            </div>
-            <ResizableLayout v-else>
+            <ResizableLayout>
                 <template #sidebar>
                     <ChatList v-if="sidebarShowsChats" :is-archive="isArchiveSection" />
                     <ContactList v-else-if="sidebarShowsContacts" />
@@ -37,6 +32,8 @@
             <MusicPlayerOverlay />
             <!-- @用户名 右键菜单 -->
             <UsernameMenu />
+            <!-- 左下角下载管理器悬浮窗 -->
+            <DownloadsModule />
         </div>
     </div>
 </template>
@@ -54,9 +51,9 @@ import SettingsList from '../components/chat/SettingsList.vue';
 import AudioPlayerCore from '../components/audio/AudioPlayerCore.vue';
 import MusicPlayerOverlay from '../components/audio/MusicPlayerOverlay.vue';
 import UsernameMenu from '../components/contextMenu/UsernameMenu.vue';
+import DownloadsModule from '../views/main/DownloadsModule.vue';
 
 const route = useRoute();
-const isDownloads = computed(() => route.name === 'downloads');
 const isContacts = computed(() => route.name === 'contacts');
 const isSettings = computed(() => route.name === 'settings' || route.name === 'settings-appearance' || route.name === 'settings-download');
 const isSettingsDetail = computed(() => route.name === 'settings-appearance' || route.name === 'settings-download');
@@ -91,7 +88,6 @@ const showActiveChat = computed(
     () =>
         activeChatId.value !== null &&
         !isSettingsDetail.value &&
-        !isDownloads.value &&
         route.name !== 'user-profile',
 );
 

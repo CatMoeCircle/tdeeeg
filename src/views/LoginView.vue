@@ -254,11 +254,11 @@ const AuthState = async (State: AuthorizationState) => {
 onMounted(async () => {
     await getCurrentWindow().setMinSize(new LogicalSize(700, 450));
 
-    // 登录页面使用 acrylic 效果（与主页一致，避免登录→主页切换时效果跳变）
+    // 登录页面使用默认 mica 效果
     try {
-        await invoke("set_window_effect", { effect: "acrylic" });
+        await invoke("set_window_effect", { effect: "mica" });
     } catch (e) {
-        console.warn("设置 Acrylic 失败:", e);
+        console.warn("设置 Mica 失败:", e);
     }
 
     qrlinkupdate = await listen<Update>("tdlib-update", async (event) => {
@@ -305,7 +305,7 @@ onUnmounted(() => {
 
 <template>
     <div class="flex justify-center items-center h-full select-none">
-        <div class="flex w-[800px] items-center justify-between">
+        <div class="flex w-200 items-center justify-between">
             <!-- Left Side: Phone Login -->
             <div class="flex-1 flex flex-col items-center text-center px-8">
                 <h1 class="text-xl font-bold mb-4 text-gray-900">{{ t('login.title') }}</h1>
@@ -341,7 +341,7 @@ onUnmounted(() => {
             <!-- Right Side: QR Code -->
             <div class="flex-1 flex flex-col items-center text-center px-8">
                 <div ref="qrCodeContainer" @click="startQrLogin"
-                    class="mb-6 p-2 border border-gray-100 rounded-2xl shadow-sm relative w-[220px] h-[220px] flex items-center justify-center cursor-pointer hover:border-blue-300 transition-colors">
+                    class="mb-6 p-2 border border-gray-100 rounded-2xl shadow-sm relative w-55 h-55 flex items-center justify-center cursor-pointer hover:border-blue-300 transition-colors">
                     <div v-if="!qrlink"
                         class="absolute inset-0 flex flex-col items-center justify-center text-center text-gray-400 px-4">
                         <div class="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center mb-3">

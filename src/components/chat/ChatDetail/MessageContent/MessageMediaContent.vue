@@ -54,13 +54,10 @@
                         </svg>
                     </div>
                 </div>
-                <!-- Loading spinner -->
-                <div v-if="isDownloading" class="absolute inset-0 flex items-center justify-center bg-black/20">
-                    <svg class="w-6 h-6 text-white animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25" />
-                        <path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round"
-                            class="opacity-75" />
-                    </svg>
+                <!-- Loading spinner（下载中有进度，否则转圈） -->
+                <div v-if="isDownloading" class="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <LoaderIndicator :progress="photoProgress > 0 ? photoProgress : undefined" size="40"
+                        color="#ffffff" />
                 </div>
             </div>
 
@@ -87,11 +84,7 @@
                 <!-- 边下边播（流式 tdstream://）缓冲加载指示：video 元素 waiting/playing 驱动 -->
                 <div v-if="videoDownloaded && videoBuffering"
                     class="absolute inset-0 flex items-center justify-center bg-black/40">
-                    <svg class="w-8 h-8 text-white animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25" />
-                        <path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round"
-                            class="opacity-75" />
-                    </svg>
+                    <LoaderIndicator size="36" color="#ffffff" />
                 </div>
 
                 <!-- Download progress bar -->
@@ -112,11 +105,10 @@
                             <line x1="12" y1="15" x2="12" y2="3" />
                         </svg>
                     </div>
-                    <svg v-else class="w-6 h-6 text-white animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25" />
-                        <path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round"
-                            class="opacity-75" />
-                    </svg>
+                    <div v-if="videoDownloading" class="relative">
+                        <LoaderIndicator :progress="videoProgress > 0 && videoProgress < 1 ? videoProgress : undefined"
+                            size="40" color="#ffffff" />
+                    </div>
                 </div>
 
                 <!-- Remaining time (top-right) -->
@@ -178,12 +170,9 @@
                         </svg>
                     </div>
                 </div>
-                <div v-if="animDownloading" class="absolute inset-0 flex items-center justify-center bg-black/20">
-                    <svg class="w-6 h-6 text-white animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25" />
-                        <path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round"
-                            class="opacity-75" />
-                    </svg>
+                <div v-if="animDownloading" class="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <LoaderIndicator :progress="animProgress > 0 ? animProgress : undefined" size="40"
+                        color="#ffffff" />
                 </div>
             </div>
 
@@ -219,6 +208,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { CornerUpRightIcon, VideoIcon } from 'lucide-vue-next';
 import MessageTextContent from './MessageTextContent.vue';
 import MessageStatus from './MessageStatus.vue';
+import LoaderIndicator from '../../../common/LoaderIndicator';
 import type { MediaViewerItem } from './MediaViewer.vue';
 import { buildVideoQualities } from '../../../../utils/videoQualities';
 import { useDownloadStore, type DownloadFileType } from '../../../../store/downloads';
@@ -332,6 +322,7 @@ onMounted(() => {
 onUnmounted(() => {
     if (videoObserver) videoObserver.disconnect();
     stopAnimDownloadPolling();
+    stopPhotoDownloadPolling();
     if (props.messageId) unregisterPlaying(props.messageId);
 });
 
@@ -610,6 +601,27 @@ async function registerWithStore(fileId: number, fileName: string, fileType: Dow
     await downloadStore.registerDownload(fileId, fileName, chatTitle, totalSize, fileType, thumbUrl, props.chatId, props.messageId, undefined, isAutoPhoto);
 }
 
+/** 从下载 store 获取指定 file 的下载进度 0~1（无记录或未下载返回 0） */
+function getFileProgress(fileId: number): number {
+    const item = downloadStore.items[fileId];
+    if (!item) return 0;
+    return typeof item.progress === 'number' ? Math.min(1, Math.max(0, item.progress)) : 0;
+}
+
+/** 当前图片主文件的下载进度（用于加载时按进度显示） */
+const photoProgress = computed(() => {
+    if (props.content._ !== 'messagePhoto') return 0;
+    const f = props.content.photo.sizes[props.content.photo.sizes.length - 1]?.photo;
+    return f ? getFileProgress(f.id) : 0;
+});
+
+/** 当前 GIF 主文件的下载进度 */
+const animProgress = computed(() => {
+    if (props.content._ !== 'messageAnimation') return 0;
+    const f = props.content.animation.animation;
+    return f ? getFileProgress(f.id) : 0;
+});
+
 const loadMedia = async () => {
     const c = props.content;
     if (c._ === 'messageVideo') { await loadVideoThumb(); return; }
@@ -656,12 +668,17 @@ async function loadPhotoThumb() {
                     // 无需再额外 getFile（避免每次图片多一次 RPC 往返）。
                     const updated = await tdlibSend({ _: 'downloadFile', file_id: f.id, priority: 1, offset: 0, limit: 0, synchronous: true });
                     if (isFileReady(updated)) {
-                        mediaSrc.value = convertFileSrc(updated.local.path);
-                        mediaLoaded.value = true;
+                        finishPhotoDownload(f.id, updated.local.path);
+                    } else {
+                        // 兜底：下载可能在后台进行中（未随本次请求完成），
+                        // 轮询 getFile 直到就绪后展示，避免"进度 100% 却不显示图片"。
+                        pollPhotoDownload(f.id);
                     }
-                } catch (_) { } finally {
-                    downloadingFiles.delete(f.id);
-                    isDownloading.value = false;
+                } catch (_) {
+                    if (!photosUpdating.get(f.id)) {
+                        downloadingFiles.delete(f.id);
+                        isDownloading.value = false;
+                    }
                 }
             }
         }
@@ -685,10 +702,51 @@ async function handlePhotoDownload() {
     await registerWithStore(f.id, fileName, 'photo', thumbSrc.value);
     try {
         await tdlibSend({ _: 'downloadFile', file_id: f.id, priority: 1, offset: 0, limit: 0, synchronous: false });
+        // synchronous:false 立即返回，下载在后台进行；
+        // 轮询直到就绪后展示图片，避免"进度 100% 却不显示图片"。
+        pollPhotoDownload(f.id);
     } catch (_) {
-        downloadingFiles.delete(f.id);
-        isDownloading.value = false;
+        if (!photosUpdating.get(f.id)) {
+            downloadingFiles.delete(f.id);
+            isDownloading.value = false;
+        }
     }
+}
+
+/** 轮询图片下载是否完成 */
+const photosUpdating = new Map<number, boolean>();
+let photoDownloadPollTimer: ReturnType<typeof setInterval> | null = null;
+
+function stopPhotoDownloadPolling() {
+    if (photoDownloadPollTimer) {
+        clearInterval(photoDownloadPollTimer);
+        photoDownloadPollTimer = null;
+    }
+    photosUpdating.clear();
+}
+
+function finishPhotoDownload(fileId: number, path: string) {
+    stopPhotoDownloadPolling();
+    downloadingFiles.delete(fileId);
+    isDownloading.value = false;
+    mediaSrc.value = convertFileSrc(path);
+    mediaLoaded.value = true;
+    void downloadStore.markCompleted(fileId, path);
+}
+
+function pollPhotoDownload(fileId: number) {
+    stopPhotoDownloadPolling();
+    photosUpdating.set(fileId, true);
+    photoDownloadPollTimer = setInterval(async () => {
+        try {
+            const info = await tdlibSend({ _: 'getFile', file_id: fileId });
+            if (isFileReady(info)) {
+                finishPhotoDownload(fileId, info.local.path);
+            }
+        } catch (_) {
+            stopPhotoDownloadPolling();
+        }
+    }, 400);
 }
 
 // ---- Animation (GIF) ----
@@ -823,6 +881,14 @@ async function handleVideoDownload() {
         return;
     }
     if (video.supports_streaming && videoFile.size > 0) {
+        // 流式播放（边下边播）本质也是一次下载：注册到下载管理器，
+        // 让它在下载列表中可见（进度由 TDLib updateFile → updateFile 事件驱动）。
+        // 用 downloadingFiles 去重，避免自动下载路径被重复触发时重复注册。
+        if (!downloadingFiles.has(fileId)) {
+            downloadingFiles.add(fileId);
+            const sFileName = video.file_name || `video_${props.messageId || fileId}.mp4`;
+            await registerWithStore(fileId, sFileName, 'video', videoThumbIsVideo.value ? undefined : videoThumbSrc.value);
+        }
         const streamUrl = convertFileSrc(String(fileId), 'tdstream');
         mediaSrc.value = `${streamUrl}?mime=${video.mime_type}`;
         videoDownloaded.value = true;
@@ -901,4 +967,61 @@ function formatDuration(seconds: number): string {
     const s = Math.floor(Math.abs(seconds) % 60);
     return `${m}:${s.toString().padStart(2, '0')}`;
 }
+
+// ─── 统一跟随下载 store 的 updateFile 进度与完成态 ─────────────────────────
+// 说明：photoProgress / animProgress 已是响应式 computed，进度会随
+// updateFile → download-progress-update → store 就地更新而实时刷新到 LoaderIndicator；
+// 这里额外监听 store 条目的「完成」，以清理各 loading 态并落位 mediaSrc，
+// 解决「手动下载图片完成后仍一直转圈」「下载完成但 loading 不清除」的问题。
+
+/** 当前内容待下载的主文件 id（photo/anim/video） */
+const trackingFileId = computed<number>(() => {
+    const c = props.content;
+    if (c._ === 'messagePhoto') return c.photo.sizes[c.photo.sizes.length - 1]?.photo?.id ?? 0;
+    if (c._ === 'messageAnimation') return c.animation.animation?.id ?? 0;
+    if (c._ === 'messageVideo') return c.video.video?.id ?? 0;
+    return 0;
+});
+
+let stopTrackDownload: (() => void) | null = null;
+function stopTrackingDownload() {
+    if (stopTrackDownload) { stopTrackDownload(); stopTrackDownload = null; }
+}
+
+watch(trackingFileId, (fileId) => {
+    stopTrackingDownload();
+    if (!fileId) return;
+    stopTrackDownload = watch(
+        () => downloadStore.getDownloadInfo(fileId),
+        (info) => {
+            if (!info) return;
+            if (info.is_completed && info.local_path) {
+                // 下载完成：清理所有 loading 态并设置本地源
+                isDownloading.value = false;
+                animDownloading.value = false;
+                videoDownloading.value = false;
+                videoBuffering.value = false;
+                stopAnimDownloadPolling();
+                if (downloadPollTimer) { clearInterval(downloadPollTimer); downloadPollTimer = null; }
+                downloadingFiles.delete(fileId);
+                const path = info.local_path;
+                const c = props.content;
+                if (c._ === 'messagePhoto') {
+                    if (!mediaSrc.value) mediaSrc.value = convertFileSrc(path);
+                    mediaLoaded.value = true;
+                } else if (c._ === 'messageAnimation') {
+                    if (!mediaSrc.value) mediaSrc.value = convertFileSrc(path);
+                } else if (c._ === 'messageVideo') {
+                    mediaSrc.value = convertFileSrc(path);
+                    videoDownloaded.value = true;
+                }
+            }
+        },
+        { immediate: true }
+    );
+}, { immediate: true });
+
+onUnmounted(() => {
+    stopTrackingDownload();
+});
 </script>

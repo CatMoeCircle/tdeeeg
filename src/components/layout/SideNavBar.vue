@@ -12,7 +12,8 @@
 
         <!-- 侧边栏-上部分-->
         <div class="flex-1 flex flex-col gap-2 w-full items-center">
-            <router-link to="/home/chats" :class="[buttonStyle, { 'bg-white/60 dark:bg-gray-600 shadow-sm': isChatNavActive }]">
+            <router-link to="/home/chats"
+                :class="[buttonStyle, { 'bg-white/60 dark:bg-gray-600 shadow-sm': isChatNavActive }]">
                 <MessageCircleIcon :class="iconStyle" />
             </router-link>
 
@@ -28,8 +29,9 @@
 
         <!-- 侧边栏-下部分 -->
         <div class="mt-auto flex flex-col gap-4 w-full items-center">
-            <router-link to="/home/downloads" :class="buttonStyle"
-                active-class="bg-white/60 dark:bg-gray-600 shadow-sm">
+            <button type="button" @click="downloadStore.togglePanel()"
+                :class="[buttonStyle, downloadStore.isPanelOpen ? 'bg-white/60 dark:bg-gray-600 shadow-sm' : '']"
+                :title="downloadStore.isPanelOpen ? '关闭下载管理器' : '打开下载管理器'">
                 <span class="relative inline-flex">
                     <DownloadIcon :class="iconStyle" />
                     <span v-if="downloadStore.activeCount > 0"
@@ -37,8 +39,9 @@
                         {{ downloadStore.activeCount > 99 ? '99+' : downloadStore.activeCount }}
                     </span>
                 </span>
-            </router-link>
-            <router-link to="/home/settings" :class="[buttonStyle, { 'bg-white/60 dark:bg-gray-600 shadow-sm': isSettingsNavActive }]">
+            </button>
+            <router-link to="/home/settings"
+                :class="[buttonStyle, { 'bg-white/60 dark:bg-gray-600 shadow-sm': isSettingsNavActive }]">
                 <SettingsIcon :class="iconStyle" />
             </router-link>
         </div>

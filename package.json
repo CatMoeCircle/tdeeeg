@@ -28,6 +28,7 @@
     "@tauri-apps/cli": "^2",
     "@types/pako": "^2.0.4",
     "@vitejs/plugin-vue": "^5.2.1",
+    "ldrs": "^1.1.9",
     "lucide-vue-next": "^0.556.0",
     "pinia": "^3.0.4",
     "qr-code-styling": "^1.9.2",

@@ -12,6 +12,27 @@
                         class="w-full h-full object-contain" @timeupdate="onVideoTimeUpdate"
                         @loadedmetadata="onVideoLoaded" @ended="onVideoEnded" @click="toggleVideoPlay" />
 
+                    <!-- 视频加载中：关闭按钮 + 加载指示器 + 下载进度（此时无控制条） -->
+                    <div v-if="isVideo && !videoLoaded"
+                        class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 cursor-pointer"
+                        @click="close" title="点击关闭">
+                        <button @click.stop="close"
+                            class="absolute top-3 left-3 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/70 transition-colors">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5">
+                                <path d="M18 6L6 18M6 6l12 12" />
+                            </svg>
+                        </button>
+                        <LoaderIndicator :progress="imageProgress > 0 ? imageProgress : undefined" size="52"
+                            color="#ffffff" />
+                        <span class="mt-3 text-sm text-white/80">
+                            {{ imageProgress > 0 ? `下载中 ${Math.round(imageProgress * 100)}%` : '加载中…' }}
+                        </span>
+                        <div v-if="imageProgress > 0" class="mt-3 w-52 h-1.5 bg-white/20 rounded-full overflow-hidden">
+                            <div class="h-full bg-white transition-all duration-300"
+                                :style="{ width: imageProgress * 100 + '%' }"></div>
+                        </div>
+                    </div>
+
                     <!-- Prev/Next arrows (hidden with UI control, only in video mode) -->
                     <button v-if="totalCount > 1" @click.stop="goTo(currentIndex - 1)"
                         class="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center text-white/60 hover:text-white bg-black/20 hover:bg-black/40 rounded-full transition-opacity duration-300"
@@ -156,8 +177,7 @@
                                 <div v-if="caption"
                                     class="media-caption-scroll text-white w-full max-h-[4.2rem] overflow-y-auto bg-black/60 backdrop-blur-md rounded-xl px-4 py-2"
                                     @click.stop>
-                                    <MessageTextContent v-if="captionFormatted?.text"
-                                        :formattedText="captionFormatted"
+                                    <MessageTextContent v-if="captionFormatted?.text" :formattedText="captionFormatted"
                                         class="text-center text-white/90 dark:text-white/90" />
                                     <p v-else class="text-sm text-white/80 text-center">{{ caption }}</p>
                                 </div>
@@ -197,23 +217,33 @@
                     :style="{ transform: `scale(${zoom}) rotate(${rotation}deg) translate(${panX}px, ${panY}px)` }"
                     @dblclick="toggleZoom" />
 
-                <!-- 加载中：预览缩略图 + 待加载提示 + 进度条（点击可关闭查看器） -->
+                <!-- 加载中：预览缩略图 + 待加载提示 + 进度（点击可关闭查看器） -->
                 <div v-if="isImageLoading" @click="close" title="点击关闭"
                     class="absolute inset-0 flex flex-col items-center justify-center bg-black/40 cursor-pointer">
                     <!-- 缩略图预览（若有） -->
                     <img v-if="hasThumbPreview" :src="currentThumb"
                         class="max-w-[80%] max-h-[70%] object-contain opacity-70 blur-[1px]" draggable="false" />
-                    <!-- 转圈 -->
-                    <div
-                        class="mt-6 w-10 h-10 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    <!-- 待加载文字 -->
-                    <span class="mt-3 text-sm text-white/80">待加载…</span>
-                    <!-- 进度条（下载中显示实际进度） -->
-                    <div v-if="imageProgress > 0" class="mt-3 w-52 h-1.5 bg-white/20 rounded-full overflow-hidden">
-                        <div class="h-full bg-white transition-all duration-300" :style="{ width: imageProgress * 100 + '%' }"></div>
+                    <!-- 加载指示器：有进度则按进度显示，否则转圈 -->
+                    <div class="mt-6 flex flex-col items-center justify-center gap-3">
+                        <LoaderIndicator :progress="imageProgress > 0 ? imageProgress : undefined" size="42"
+                            color="#ffffff" />
+                        <!-- 待加载文字 / 下载百分比 -->
+                        <span class="text-sm text-white/80">
+                            {{ imageProgress > 0 ? `下载中 ${Math.round(imageProgress * 100)}%` : '待加载…' }}
+                        </span>
+                        <!-- 进度条（下载中显示实际进度） -->
+                        <div v-if="imageProgress > 0" class="w-52 h-1.5 bg-white/20 rounded-full overflow-hidden">
+                            <div class="h-full bg-white transition-all duration-300"
+                                :style="{ width: imageProgress * 100 + '%' }"></div>
+                        </div>
                     </div>
-                    <span v-if="imageProgress > 0" class="mt-1.5 text-xs text-white/60 font-mono">{{
-                        Math.round(imageProgress * 100) }}%</span>
+                    <!-- 右上角关闭按钮（加载时也可见） -->
+                    <button @click.stop="close"
+                        class="absolute top-3 right-3 z-20 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/70 transition-colors">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5">
+                            <path d="M18 6L6 18M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
 
                 <!-- Prev/Next arrows -->
@@ -301,6 +331,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { MessagePlugin } from 'tdesign-vue-next';
 import type { formattedText } from 'tdlib-types';
 import MessageTextContent from './MessageTextContent.vue';
+import LoaderIndicator from '../../../common/LoaderIndicator';
 
 export interface MediaViewerVideoQuality {
     /** 唯一标识 */
