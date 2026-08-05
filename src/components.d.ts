@@ -36,6 +36,7 @@ declare module 'vue' {
     LatexFormula: typeof import('./components/chat/ChatDetail/MessageContent/LatexFormula.vue')['default']
     MediaViewer: typeof import('./components/chat/ChatDetail/MessageContent/MediaViewer.vue')['default']
     MessageAlbum: typeof import('./components/chat/ChatDetail/MessageContent/MessageAlbum.vue')['default']
+    MessageChecklistContent: typeof import('./components/chat/ChatDetail/MessageContent/MessageChecklistContent.vue')['default']
     MessageContent: typeof import('./components/chat/ChatDetail/MessageContent/index.vue')['default']
     MessageFileContent: typeof import('./components/chat/ChatDetail/MessageContent/MessageFileContent.vue')['default']
     MessageGiftContent: typeof import('./components/chat/ChatDetail/MessageContent/MessageGiftContent.vue')['default']

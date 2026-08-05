@@ -1,5 +1,5 @@
 <template>
-    <div class="text-center py-2">
+    <div class="text-center py-1">
         <span class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full">
             {{ serviceText }}
         </span>
@@ -8,11 +8,33 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { MessageContent } from 'tdlib-types';
+import type { MessageContent, message } from 'tdlib-types';
 
 const props = defineProps<{
     content: MessageContent;
+    /** 服务消息发送者的显示名称（清单完成/添加等提示会用到） */
+    senderName?: string;
+    /** 当前消息列表（用于按 checklist_message_id 查找清单消息，展示任务文本） */
+    messageList?: message[];
 }>();
+
+/** 发送者名称（未解析到时兜底） */
+const sender = computed(() => props.senderName?.trim() || '有人');
+
+/**
+ * 从消息列表中按 checklist_message_id 找到 messageChecklist 消息，
+ * 返回 任务 id -> 任务纯文本 的映射（找不到对应消息时返回空 Map）。
+ */
+function findTaskNames(checklistMessageId: number): Map<number, string> {
+    const map = new Map<number, string>();
+    const listMsg = props.messageList?.find(m => m.id === checklistMessageId);
+    if (listMsg?.content._ === 'messageChecklist') {
+        for (const task of listMsg.content.list.tasks) {
+            map.set(task.id, task.text.text || `#${task.id}`);
+        }
+    }
+    return map;
+}
 
 const serviceText = computed(() => {
     const c = props.content;
@@ -65,6 +87,29 @@ const serviceText = computed(() => {
             return `赠送了 Telegram Premium`;
         case 'messageGiveawayCompleted':
             return `抽奖活动已结束`;
+        case 'messageChecklistTasksDone': {
+            const names = findTaskNames(c.checklist_message_id);
+            const parts: string[] = [];
+            const appendGroup = (ids: number[], done: boolean) => {
+                if (ids.length === 0) return;
+                const action = done ? '标记为已完成' : '标记为未完成';
+                const labels = ids.map(id => names.get(id)).filter((n): n is string => !!n);
+                if (labels.length === ids.length) {
+                    parts.push(`${sender.value} 将「${labels.join('、')}」${action}`);
+                } else {
+                    parts.push(`${sender.value} 将 ${ids.length} 个任务${action}`);
+                }
+            };
+            appendGroup(c.marked_as_done_task_ids, true);
+            appendGroup(c.marked_as_not_done_task_ids, false);
+            return parts.length ? parts.join('，') : `${sender.value} 更新了任务清单`;
+        }
+        case 'messageChecklistTasksAdded': {
+            const labels = c.tasks.map(t => t.text.text || `#${t.id}`).filter(Boolean);
+            if (labels.length === 0) return `${sender.value} 向任务清单添加了新任务`;
+            if (labels.length <= 3) return `${sender.value} 添加了任务「${labels.join('、')}」`;
+            return `${sender.value} 添加了 ${labels.length} 个任务`;
+        }
         case 'messageProximityAlertTriggered':
             return `距离提醒已触发`;
         default:

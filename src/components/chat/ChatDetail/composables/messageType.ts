@@ -1,13 +1,13 @@
-import type { message } from 'tdlib-types';
+import type { message } from "tdlib-types";
 
 /**
  * 媒体消息内容类型集合（单张图片/视频/GIF/动画）。用于判断消息是否为
  * 直接展示媒体内容的"媒体消息"（例如不套气泡、全宽展示等）。
  */
 export const MEDIA_TYPES: ReadonlySet<string> = new Set([
-    'messagePhoto',
-    'messageVideo',
-    'messageAnimation',
+  "messagePhoto",
+  "messageVideo",
+  "messageAnimation",
 ]);
 
 /**
@@ -15,8 +15,8 @@ export const MEDIA_TYPES: ReadonlySet<string> = new Set([
  * 动画/贴纸等不能进入相册分组。
  */
 export const ALBUM_MEDIA_TYPES: ReadonlySet<string> = new Set([
-    'messagePhoto',
-    'messageVideo',
+  "messagePhoto",
+  "messageVideo",
 ]);
 
 /**
@@ -24,27 +24,63 @@ export const ALBUM_MEDIA_TYPES: ReadonlySet<string> = new Set([
  * 不占用头像列，也不参与发送者分组。
  */
 export const SERVICE_TYPES: ReadonlySet<string> = new Set([
-    'messageBasicGroupChatCreate', 'messageSupergroupChatCreate',
-    'messageChatChangeTitle', 'messageChatChangePhoto', 'messageChatDeletePhoto',
-    'messageChatAddMembers', 'messageChatJoinByLink', 'messageChatJoinByRequest',
-    'messageChatDeleteMember', 'messageChatUpgradeTo', 'messageChatUpgradeFrom',
-    'messagePinMessage', 'messageScreenshotTaken', 'messageChatSetBackground',
-    'messageChatSetTheme', 'messageChatSetMessageAutoDeleteTime', 'messageChatBoost',
-    'messageForumTopicCreated', 'messageForumTopicEdited',
-    'messageForumTopicIsClosedToggled', 'messageForumTopicIsHiddenToggled',
-    'messageSuggestProfilePhoto', 'messageCustomServiceAction', 'messageGameScore',
-    'messagePaymentSuccessful', 'messagePaymentSuccessfulBot', 'messagePaymentRefunded',
-    'messageGiftedPremium', 'messagePremiumGiftCode', 'messageGiveawayCreated',
-    'messageGiveaway', 'messageGiveawayCompleted', 'messageGiveawayWinners',
-    'messageGiftedStars', 'messageGiftedTon', 'messageGiveawayPrizeStars',
-    'messageGift', 'messageUpgradedGift', 'messageRefundedUpgradedGift',
-    'messageContactRegistered', 'messageUsersShared', 'messageChatShared',
-    'messageBotWriteAccessAllowed', 'messageWebAppDataSent', 'messageWebAppDataReceived',
-    'messagePassportDataSent', 'messagePassportDataReceived', 'messageProximityAlertTriggered',
-    'messagePaidMedia', 'messageChecklist', 'messageChecklistTasksDone',
-    'messageChecklistTasksAdded', 'messageSuggestedPostApprovalFailed',
-    'messageSuggestedPostApproved', 'messageSuggestedPostDeclined',
-    'messageSuggestedPostPaid', 'messageSuggestedPostRefunded', 'messageCall',
+  "messageBasicGroupChatCreate",
+  "messageSupergroupChatCreate",
+  "messageChatChangeTitle",
+  "messageChatChangePhoto",
+  "messageChatDeletePhoto",
+  "messageChatAddMembers",
+  "messageChatJoinByLink",
+  "messageChatJoinByRequest",
+  "messageChatDeleteMember",
+  "messageChatUpgradeTo",
+  "messageChatUpgradeFrom",
+  "messagePinMessage",
+  "messageScreenshotTaken",
+  "messageChatSetBackground",
+  "messageChatSetTheme",
+  "messageChatSetMessageAutoDeleteTime",
+  "messageChatBoost",
+  "messageForumTopicCreated",
+  "messageForumTopicEdited",
+  "messageForumTopicIsClosedToggled",
+  "messageForumTopicIsHiddenToggled",
+  "messageSuggestProfilePhoto",
+  "messageCustomServiceAction",
+  "messageGameScore",
+  "messagePaymentSuccessful",
+  "messagePaymentSuccessfulBot",
+  "messagePaymentRefunded",
+  "messageGiftedPremium",
+  "messagePremiumGiftCode",
+  "messageGiveawayCreated",
+  "messageGiveaway",
+  "messageGiveawayCompleted",
+  "messageGiveawayWinners",
+  "messageGiftedStars",
+  "messageGiftedTon",
+  "messageGiveawayPrizeStars",
+  "messageGift",
+  "messageUpgradedGift",
+  "messageRefundedUpgradedGift",
+  "messageContactRegistered",
+  "messageUsersShared",
+  "messageChatShared",
+  "messageBotWriteAccessAllowed",
+  "messageWebAppDataSent",
+  "messageWebAppDataReceived",
+  "messagePassportDataSent",
+  "messagePassportDataReceived",
+  "messageProximityAlertTriggered",
+  "messagePaidMedia",
+  "messageChecklistTasksDone",
+  "messageChecklistTasksAdded",
+  "messageSuggestedPostApprovalFailed",
+  "messageSuggestedPostApproved",
+  "messageSuggestedPostDeclined",
+  "messageSuggestedPostPaid",
+  "messageSuggestedPostRefunded",
+  "messageCall",
 ]);
 
 /**
@@ -54,7 +90,7 @@ export const SERVICE_TYPES: ReadonlySet<string> = new Set([
  * @returns 是媒体消息返回 `true`，否则返回 `false`
  */
 export function isMediaMessage(msg: message): boolean {
-    return MEDIA_TYPES.has(msg.content._);
+  return MEDIA_TYPES.has(msg.content._);
 }
 
 /**
@@ -64,7 +100,7 @@ export function isMediaMessage(msg: message): boolean {
  * @returns 可分组为相册返回 `true`，否则返回 `false`
  */
 export function isAlbumMedia(msg: message): boolean {
-    return ALBUM_MEDIA_TYPES.has(msg.content._);
+  return ALBUM_MEDIA_TYPES.has(msg.content._);
 }
 
 /**
@@ -75,7 +111,10 @@ export function isAlbumMedia(msg: message): boolean {
  * @returns 是独立消息返回 `true`，否则返回 `false`
  */
 export function isStandaloneMessage(msg: message): boolean {
-    return msg.content._ === 'messageSticker' || msg.content._ === 'messageAnimatedEmoji';
+  return (
+    msg.content._ === "messageSticker" ||
+    msg.content._ === "messageAnimatedEmoji"
+  );
 }
 
 /**
@@ -85,5 +124,5 @@ export function isStandaloneMessage(msg: message): boolean {
  * @returns 是服务消息返回 `true`，否则返回 `false`
  */
 export function isServiceMessage(msg: message): boolean {
-    return SERVICE_TYPES.has(msg.content._);
+  return SERVICE_TYPES.has(msg.content._);
 }

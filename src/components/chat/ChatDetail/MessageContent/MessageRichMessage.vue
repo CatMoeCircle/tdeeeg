@@ -148,7 +148,7 @@
                     <MicIcon class="w-4 h-4 text-gray-500 shrink-0" />
                     <span v-if="block.voice_note" class="text-xs text-gray-500">{{
                         formatDuration(block.voice_note.duration)
-                    }}</span>
+                        }}</span>
                     <span v-else class="text-xs text-gray-400">语音不可用</span>
                     <RichMediaDownload v-if="block.voice_note?.voice" :file="block.voice_note.voice" file-name="语音"
                         file-type="voice" :chat-id="chatId" :message-id="messageId" />
@@ -251,7 +251,7 @@
                         @click.prevent.stop="openExternal(article.url)">
                         <p class="font-medium">{{ article.title }}</p>
                         <p v-if="article.description" class="text-xs text-gray-500 line-clamp-2">{{ article.description
-                        }}</p>
+                            }}</p>
                     </a>
                 </div>
             </div>
@@ -294,7 +294,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { useRouter } from 'vue-router';
 import { confirmAndOpenExternalLink } from '../../../../utils/openExternalLink';
 
-const props = defineProps<{
+defineProps<{
     blocks: PageBlock[];
     isRtl?: boolean;
     chatId?: number;

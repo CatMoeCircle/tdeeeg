@@ -77,39 +77,41 @@
                                     <div class="w-min max-w-full overflow-hidden shadow-sm"
                                         :class="isSelfAlbum(item) ? 'text-gray-900' : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'"
                                         :style="getInlineKeyboard(item.messages[0]) ? { ...albumStyle(item), width: '100%' } : albumStyle(item)">
-                                    <p v-if="showSenderDisplayName(item.messages[0])"
-                                        class="text-xs font-semibold px-2 pt-2 pb-0.5 flex items-center gap-1.5"
-                                        :style="senderNameColor(item.messages[0])">
-                                        <span class="min-w-0 flex-1 truncate">{{ getDisplaySenderName(item.messages[0])
+                                        <p v-if="showSenderDisplayName(item.messages[0])"
+                                            class="text-xs font-semibold px-2 pt-2 pb-0.5 flex items-center gap-1.5"
+                                            :style="senderNameColor(item.messages[0])">
+                                            <span class="min-w-0 flex-1 truncate">{{
+                                                getDisplaySenderName(item.messages[0])
                                             }}</span>
-                                        <span v-if="getMessageLabel(item.messages[0])"
-                                            class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
-                                            :class="getMessageLabelClass(item.messages[0])">{{
-                                                getMessageLabel(item.messages[0]) }}</span>
-                                        <span v-if="getViaBotText(item.messages[0])"
-                                            class="shrink-0 font-normal text-[10px] leading-none text-gray-400 dark:text-gray-500 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{{
-                                                getViaBotText(item.messages[0]) }}</span>
-                                    </p>
-                                    <button
-                                        v-if="item.messages[0].forward_info && !isLinkedChannelMessage(item.messages[0])"
-                                        type="button" :disabled="!canNavigateForward(item.messages[0].forward_info)"
-                                        class="flex min-w-0 w-full max-w-full items-center gap-1 overflow-hidden px-2 pt-2 pb-1 text-left text-xs font-semibold disabled:cursor-default"
-                                        :class="[
-                                            isSelfAlbum(item) ? 'text-gray-700/70' : '',
-                                            canNavigateForward(item.messages[0].forward_info)
-                                                ? 'cursor-pointer hover:underline active:opacity-70'
-                                                : ''
-                                        ]" :style="forwardColor(item, true)"
-                                        :title="canNavigateForward(item.messages[0].forward_info) ? '跳转到来源' : undefined"
-                                        @click.stop="openForwardSource(item.messages[0].forward_info)">
-                                        <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
-                                        <span class="min-w-0 flex-1 truncate">{{
-                                            getForwardName(item.messages[0].forward_info) }}</span>
-                                    </button>
-                                    <MessageAlbum :messages="item.messages" :isSelf="isSelfAlbum(item)" :chatId="chatId"
-                                        :isRead="isMessageRead(item.messages[item.messages.length - 1])"
-                                        :authorSignature="getDisplayAuthorSignature(item.messages[0])"
-                                        @message-context-menu="onAlbumMessageContextMenu" />
+                                            <span v-if="getMessageLabel(item.messages[0])"
+                                                class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
+                                                :class="getMessageLabelClass(item.messages[0])">{{
+                                                    getMessageLabel(item.messages[0]) }}</span>
+                                            <span v-if="getViaBotText(item.messages[0])"
+                                                class="shrink-0 font-normal text-[10px] leading-none text-gray-400 dark:text-gray-500 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{{
+                                                    getViaBotText(item.messages[0]) }}</span>
+                                        </p>
+                                        <button
+                                            v-if="item.messages[0].forward_info && !isLinkedChannelMessage(item.messages[0])"
+                                            type="button" :disabled="!canNavigateForward(item.messages[0].forward_info)"
+                                            class="flex min-w-0 w-full max-w-full items-center gap-1 overflow-hidden px-2 pt-2 pb-1 text-left text-xs font-semibold disabled:cursor-default"
+                                            :class="[
+                                                isSelfAlbum(item) ? 'text-gray-700/70' : '',
+                                                canNavigateForward(item.messages[0].forward_info)
+                                                    ? 'cursor-pointer hover:underline active:opacity-70'
+                                                    : ''
+                                            ]" :style="forwardColor(item, true)"
+                                            :title="canNavigateForward(item.messages[0].forward_info) ? '跳转到来源' : undefined"
+                                            @click.stop="openForwardSource(item.messages[0].forward_info)">
+                                            <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
+                                            <span class="min-w-0 flex-1 truncate">{{
+                                                getForwardName(item.messages[0].forward_info) }}</span>
+                                        </button>
+                                        <MessageAlbum :messages="item.messages" :isSelf="isSelfAlbum(item)"
+                                            :chatId="chatId"
+                                            :isRead="isMessageRead(item.messages[item.messages.length - 1])"
+                                            :authorSignature="getDisplayAuthorSignature(item.messages[0])"
+                                            @message-context-menu="onAlbumMessageContextMenu" />
                                     </div>
                                     <InlineKeyboard v-if="getInlineKeyboard(item.messages[0])" class="mt-1 w-full"
                                         :rows="getInlineKeyboard(item.messages[0])!.rows" :chat-id="chatId"
@@ -134,8 +136,9 @@
                                 :class="isMsgSelected(item.msg.id) ? 'bg-blue-500 border-blue-500' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600'">
                                 <CheckIcon v-if="isMsgSelected(item.msg.id)" class="w-3.5 h-3.5 text-white" />
                             </div>
-                            <div v-if="isServiceMessage(item.msg)" class="flex justify-center my-1">
-                                <MessageContent :content="item.msg.content" :date="item.msg.date" />
+                            <div v-if="isServiceMessage(item.msg)" class="flex justify-center my-0.5">
+                                <MessageContent :content="item.msg.content" :date="item.msg.date"
+                                    :senderName="getDisplaySenderName(item.msg)" :messageList="messages" />
                             </div>
                             <div v-else class="flex" :class="[
                                 isSelf(item.msg) ? 'justify-end' : 'justify-start',
@@ -165,72 +168,74 @@
                                             : !isStandaloneMessage(item.msg)
                                                 ? 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'
                                                 : ''
-                                    ]" :style="getInlineKeyboard(item.msg) ? { ...bubbleStyle(item), width: '100%' } : bubbleStyle(item)">
-                                    <p v-if="showSenderDisplayName(item.msg) && item.isFirstInGroup"
-                                        class="text-xs font-semibold mx-2 m-1.5 flex items-center gap-1.5"
-                                        :style="senderNameColor(item.msg)">
-                                        <span class="min-w-0 flex-1 truncate">{{ getDisplaySenderName(item.msg)
+                                    ]"
+                                        :style="getInlineKeyboard(item.msg) ? { ...bubbleStyle(item), width: '100%' } : bubbleStyle(item)">
+                                        <p v-if="showSenderDisplayName(item.msg) && item.isFirstInGroup"
+                                            class="text-xs font-semibold mx-2 m-1.5 flex items-center gap-1.5"
+                                            :style="senderNameColor(item.msg)">
+                                            <span class="min-w-0 flex-1 truncate">{{ getDisplaySenderName(item.msg)
                                             }}</span>
-                                        <span v-if="getMessageLabel(item.msg)"
-                                            class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
-                                            :class="getMessageLabelClass(item.msg)">{{
-                                                getMessageLabel(item.msg) }}</span>
-                                        <span v-if="getViaBotText(item.msg)"
-                                            class="shrink-0 font-normal text-[10px] leading-none text-gray-400 dark:text-gray-500 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{{
-                                                getViaBotText(item.msg) }}</span>
-                                    </p>
-                                    <button
-                                        v-if="item.msg.forward_info && !isMediaMessage(item.msg) && !isLinkedChannelMessage(item.msg)"
-                                        type="button" :disabled="!canNavigateForward(item.msg.forward_info)"
-                                        class="flex min-w-0 max-w-full items-center gap-1 overflow-hidden mb-0.5 -mt-0.5 text-left text-xs font-semibold disabled:cursor-default"
-                                        :class="[
-                                            isSelf(item.msg) ? 'text-gray-700/70' : '',
-                                            canNavigateForward(item.msg.forward_info)
-                                                ? 'cursor-pointer hover:underline active:opacity-70'
-                                                : ''
-                                        ]" :style="forwardColor(item, false)"
-                                        :title="canNavigateForward(item.msg.forward_info) ? '跳转到来源' : undefined"
-                                        @click.stop="openForwardSource(item.msg.forward_info)">
-                                        <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
-                                        <span class="min-w-0 flex-1 truncate">{{ getForwardName(item.msg.forward_info)
-                                        }}</span>
-                                    </button>
-                                    <MessageContent :content="item.msg.content" :isSelf="isSelf(item.msg)"
-                                        :date="item.msg.date" :forwardInfo="getDisplayForwardInfo(item.msg)"
-                                        :forwardName="getDisplayForwardInfo(item.msg) ? getForwardName(getDisplayForwardInfo(item.msg)!) : undefined"
-                                        :forwardNavigable="getDisplayForwardInfo(item.msg) ? canNavigateForward(getDisplayForwardInfo(item.msg)!) : false"
-                                        :isFirstInGroup="item.isFirstInGroup" :isLastInGroup="item.isLastInGroup"
-                                        :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
-                                        :viewCount="item.msg.interaction_info?.view_count"
-                                        :authorSignature="getDisplayAuthorSignature(item.msg)" :chatId="chatId"
-                                        :messageId="item.msg.id" :senderName="getDisplaySenderName(item.msg)"
-                                        :replyTo="item.msg.reply_to?._ === 'messageReplyToMessage' ? item.msg.reply_to : undefined"
-                                        :messageList="messages" :accentColorId="getSenderAccentId(item.msg)"
-                                        @jumpToMessage="handleReplyJumpToMessage"
-                                        @openForwardSource="item.msg.forward_info && openForwardSource(item.msg.forward_info)" />
-                                    <span
-                                        v-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isSelf(item.msg)"
-                                        class="block text-right text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 leading-none">
-                                        <MessageStatus :date="item.msg.date" :isOutgoing="false"
+                                            <span v-if="getMessageLabel(item.msg)"
+                                                class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
+                                                :class="getMessageLabelClass(item.msg)">{{
+                                                    getMessageLabel(item.msg) }}</span>
+                                            <span v-if="getViaBotText(item.msg)"
+                                                class="shrink-0 font-normal text-[10px] leading-none text-gray-400 dark:text-gray-500 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{{
+                                                    getViaBotText(item.msg) }}</span>
+                                        </p>
+                                        <button
+                                            v-if="item.msg.forward_info && !isMediaMessage(item.msg) && !isLinkedChannelMessage(item.msg)"
+                                            type="button" :disabled="!canNavigateForward(item.msg.forward_info)"
+                                            class="flex min-w-0 max-w-full items-center gap-1 overflow-hidden mb-0.5 -mt-0.5 text-left text-xs font-semibold disabled:cursor-default"
+                                            :class="[
+                                                isSelf(item.msg) ? 'text-gray-700/70' : '',
+                                                canNavigateForward(item.msg.forward_info)
+                                                    ? 'cursor-pointer hover:underline active:opacity-70'
+                                                    : ''
+                                            ]" :style="forwardColor(item, false)"
+                                            :title="canNavigateForward(item.msg.forward_info) ? '跳转到来源' : undefined"
+                                            @click.stop="openForwardSource(item.msg.forward_info)">
+                                            <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
+                                            <span class="min-w-0 flex-1 truncate">{{
+                                                getForwardName(item.msg.forward_info)
+                                            }}</span>
+                                        </button>
+                                        <MessageContent :content="item.msg.content" :isSelf="isSelf(item.msg)"
+                                            :date="item.msg.date" :forwardInfo="getDisplayForwardInfo(item.msg)"
+                                            :forwardName="getDisplayForwardInfo(item.msg) ? getForwardName(getDisplayForwardInfo(item.msg)!) : undefined"
+                                            :forwardNavigable="getDisplayForwardInfo(item.msg) ? canNavigateForward(getDisplayForwardInfo(item.msg)!) : false"
+                                            :isFirstInGroup="item.isFirstInGroup" :isLastInGroup="item.isLastInGroup"
                                             :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
                                             :viewCount="item.msg.interaction_info?.view_count"
-                                            :authorSignature="getDisplayAuthorSignature(item.msg)" />
-                                    </span>
-                                    <span
-                                        v-else-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && isSelf(item.msg)"
-                                        class="block text-right text-[11px] text-gray-700/70 mt-0.5 leading-none">
-                                        <MessageStatus :date="item.msg.date" :isOutgoing="true"
-                                            :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
-                                            :viewCount="item.msg.interaction_info?.view_count"
-                                            :authorSignature="getDisplayAuthorSignature(item.msg)" />
-                                    </span>
+                                            :authorSignature="getDisplayAuthorSignature(item.msg)" :chatId="chatId"
+                                            :messageId="item.msg.id" :senderName="getDisplaySenderName(item.msg)"
+                                            :replyTo="item.msg.reply_to?._ === 'messageReplyToMessage' ? item.msg.reply_to : undefined"
+                                            :messageList="messages" :accentColorId="getSenderAccentId(item.msg)"
+                                            @jumpToMessage="handleReplyJumpToMessage"
+                                            @openForwardSource="item.msg.forward_info && openForwardSource(item.msg.forward_info)" />
+                                        <span
+                                            v-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isSelf(item.msg)"
+                                            class="block text-right text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 leading-none">
+                                            <MessageStatus :date="item.msg.date" :isOutgoing="false"
+                                                :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
+                                                :viewCount="item.msg.interaction_info?.view_count"
+                                                :authorSignature="getDisplayAuthorSignature(item.msg)" />
+                                        </span>
+                                        <span
+                                            v-else-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && isSelf(item.msg)"
+                                            class="block text-right text-[11px] text-gray-700/70 mt-0.5 leading-none">
+                                            <MessageStatus :date="item.msg.date" :isOutgoing="true"
+                                                :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
+                                                :viewCount="item.msg.interaction_info?.view_count"
+                                                :authorSignature="getDisplayAuthorSignature(item.msg)" />
+                                        </span>
+                                    </div>
+                                    <InlineKeyboard v-if="getInlineKeyboard(item.msg)" class="mt-1 w-full"
+                                        :rows="getInlineKeyboard(item.msg)!.rows" :chat-id="chatId"
+                                        :message-id="item.msg.id" />
                                 </div>
-                                <InlineKeyboard v-if="getInlineKeyboard(item.msg)" class="mt-1 w-full"
-                                    :rows="getInlineKeyboard(item.msg)!.rows" :chat-id="chatId"
-                                    :message-id="item.msg.id" />
                             </div>
                         </div>
-                    </div>
                     </template>
                 </template>
 

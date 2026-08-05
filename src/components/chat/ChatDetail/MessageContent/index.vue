@@ -2,7 +2,8 @@
     <!-- Service messages -->
     <MessageGiftContent v-if="content._ === 'messageGift'" :content="content" :date="date" />
 
-    <MessageServiceContent v-else-if="isServiceType" :content="content" />
+    <MessageServiceContent v-else-if="isServiceType" :content="content" :senderName="senderName"
+        :messageList="messageList" />
 
     <template v-else>
         <!-- Reply preview -->
@@ -16,6 +17,10 @@
         <!-- Rich messages -->
         <MessageRichMessage v-else-if="content._ === 'messageRichMessage'" :blocks="content.message.blocks"
             :is-rtl="content.message.is_rtl" :chat-id="chatId" :message-id="messageId" />
+
+        <!-- Checklist messages -->
+        <MessageChecklistContent v-else-if="content._ === 'messageChecklist'" :content="content" :chat-id="chatId"
+            :message-id="messageId" :is-self="isSelf ?? false" />
 
         <!-- Media messages -->
         <MessageMediaContent v-else-if="isMediaType" :content="content as any" :isSelf="isSelf ?? false" :date="date"
@@ -79,6 +84,7 @@ import MessageReply from './MessageReply.vue';
 
 import MessageTextContent from './MessageTextContent.vue';
 import MessageRichMessage from './MessageRichMessage.vue';
+import MessageChecklistContent from './MessageChecklistContent.vue';
 import MessageMediaContent from './MessageMediaContent.vue';
 import MessageStickerContent from './MessageStickerContent.vue';
 import MessageVoiceContent from './MessageVoiceContent.vue';
@@ -145,7 +151,6 @@ const SERVICE_TYPES = new Set([
     'messagePassportDataReceived',
     'messageProximityAlertTriggered',
     'messagePaidMedia',
-    'messageChecklist',
     'messageChecklistTasksDone',
     'messageChecklistTasksAdded',
     'messageSuggestedPostApprovalFailed',
