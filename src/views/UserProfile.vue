@@ -130,30 +130,30 @@
             class="flex items-center gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
             <PhoneIcon class="w-5 h-5 text-gray-400 shrink-0" />
             <div class="min-w-0 flex-1">
-              <p class="text-sm text-gray-800 dark:text-gray-100 select-all">{{ phoneDisplay || user.phone_number }}</p>
+              <p class="text-sm text-gray-800 dark:text-gray-100 select-all">
+                <CopyableText :text="phoneDisplay || user.phone_number" @click.stop />
+              </p>
               <p class="text-xs text-gray-400">手机号码</p>
             </div>
           </div>
 
-          <!-- 3.3 用户名（主用户名黑色，点击整卡复制主用户名；附加用户名蓝色高亮可点击复制） -->
+          <!-- 3.3 用户名（可复制文本：默认黑色，悬停变蓝，点击复制） -->
           <div
             class="flex items-start gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-            :title="primaryUsername ? `点击复制 @${primaryUsername}` : undefined"
             @click="primaryUsername && copyText('@' + primaryUsername)">
             <AtSignIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
             <div class="min-w-0 flex-1">
               <!-- 主用户名：黑色，不省略 -->
               <p v-if="primaryUsername"
                 class="text-sm font-bold text-gray-900 dark:text-gray-100 select-all wrap-break-word leading-snug">
-                {{ primaryUsername }}
+                <CopyableText :text="'@' + primaryUsername" @click.stop />
               </p>
               <!-- 附加用户名：蓝色高亮，逐个可点击复制 -->
               <p v-if="additionalUsernames.length" class="mt-0.5 text-xs wrap-break-word leading-relaxed">
-                <button v-for="(u, i) in additionalUsernames" :key="u" type="button"
-                  class="text-blue-500 dark:text-blue-400 hover:underline" :title="`点击复制 @${u}`"
-                  @click.stop="copyText('@' + u)">
-                  {{ i > 0 ? ', ' : '' }}@{{ u }}
-                </button>
+                <template v-for="(u, i) in additionalUsernames" :key="u">
+                  <span v-if="i > 0" class="text-gray-500 dark:text-gray-400">, </span>
+                  <CopyableText :text="'@' + u" />
+                </template>
               </p>
               <!-- 副标题 -->
               <p class="mt-0.5 text-xs text-gray-400">用户名</p>
@@ -221,7 +221,9 @@
             class="flex items-center gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
             <IdCardIcon class="w-5 h-5 text-gray-400 shrink-0" />
             <div class="min-w-0 flex-1">
-              <p class="text-sm text-gray-800 dark:text-gray-100 select-all">{{ user.id }}</p>
+              <p class="text-sm text-gray-800 dark:text-gray-100 select-all">
+                <CopyableText :text="String(user.id)" @click.stop />
+              </p>
               <p class="text-xs text-gray-400">ID</p>
             </div>
             <button v-if="!isSelf" type="button"

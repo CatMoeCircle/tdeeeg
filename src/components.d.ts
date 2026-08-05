@@ -22,6 +22,7 @@ declare module 'vue' {
     CollapsibleSection: typeof import('./components/settings/CollapsibleSection.vue')['default']
     ContactList: typeof import('./components/chat/ContactList.vue')['default']
     ContextMenu: typeof import('./components/contextMenu/ContextMenu.vue')['default']
+    CopyableText: typeof import('./components/common/CopyableText.vue')['default']
     CustomEmojiInline: typeof import('./components/chat/ChatDetail/MessageContent/CustomEmojiInline.vue')['default']
     DeleteMessageConfirm: typeof import('./components/contextMenu/DeleteMessageConfirm.vue')['default']
     DownloadSettings: typeof import('./components/settings/DownloadSettings.vue')['default']

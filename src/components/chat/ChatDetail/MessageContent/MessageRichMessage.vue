@@ -309,8 +309,11 @@ function photoFile(photo?: { sizes?: photoSize[] } | null): photoSize | undefine
     return photo.sizes[photo.sizes.length - 1];
 }
 
-function listMarker(item: { type: string; value: number; has_checkbox: boolean }): string {
+function listMarker(item: { label: string; type: string; value: number; has_checkbox: boolean }): string {
     if (item.has_checkbox) return '';
+    // TDLib 直接提供 label（项目符号 "•" / 序号 "1."），优先使用
+    if (item.label) return item.label;
+    // 兜底：label 为空时按 type/value 推导
     const type = item.type || '';
     const v = item.value;
     if (type === 'a') return `${String.fromCharCode(96 + ((v - 1) % 26) + 1)}.`;
