@@ -2,7 +2,6 @@
     <div class="min-w-[200px] max-w-[340px] select-text">
         <!-- 标题 -->
         <div class="mb-2 flex items-start gap-1.5">
-            <BarChart3Icon class="mt-0.5 h-4 w-4 shrink-0 text-gray-400 dark:text-gray-500" />
             <h3 class="min-w-0 break-words text-sm font-semibold leading-5">
                 <template v-for="(seg, si) in splitFormattedText(poll.question)" :key="si">
                     <CustomEmojiInline v-if="seg.customEmojiId" :emoji-id="seg.customEmojiId" :size="18"
@@ -73,7 +72,7 @@
                         <span class="text-xs leading-5 text-gray-400 dark:text-gray-500">
                             {{ option.vote_percentage }}%
                         </span>
-                        <CheckCircleIcon v-if="option.is_chosen" class="mt-1 h-3.5 w-3.5 text-blue-500" />
+                        <CheckCircleIcon v-if="option.is_chosen" class="-mt-0.5 h-3.5 w-3.5 text-blue-500" />
                     </div>
                     <div class="min-w-0 flex-1">
                         <!-- 选项文字 + 投该选项的最近投票者头像 -->
@@ -96,8 +95,7 @@
                         </div>
                         <!-- 进度条：与上方选项文字左对齐（✓ 在左侧列、进度条正前方） -->
                         <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                            <div class="h-full rounded-full transition-all duration-500"
-                                :class="option.is_chosen ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'"
+                            <div class="h-full rounded-full bg-blue-500 transition-all duration-500"
                                 :style="{ width: option.vote_percentage + '%' }" />
                         </div>
                     </div>
@@ -107,7 +105,7 @@
         <!-- 底部：总票数 + 重新投票 -->
         <div class="mt-2.5 flex items-center justify-between gap-2 text-[11px] leading-none text-gray-400 dark:text-gray-500">
             <span class="truncate">{{ totalVotesText }}</span>
-            <button v-if="hasVoted && poll.allows_revoting && showResults" type="button"
+            <button v-if="hasVoted && poll.allows_revoting && canVote && showResults" type="button"
                 class="shrink-0 font-medium text-blue-500 hover:underline" @click="startRevote">
                 重新投票
             </button>
@@ -118,7 +116,7 @@
 import { computed, ref, watch } from 'vue';
 import type { formattedText, messagePoll, MessageSender, pollOption, textEntity } from 'tdlib-types';
 import { MessagePlugin } from 'tdesign-vue-next';
-import { BarChart3Icon, CheckCircleIcon, CheckIcon } from 'lucide-vue-next';
+import { CheckCircleIcon, CheckIcon } from 'lucide-vue-next';
 import CustomEmojiInline from './CustomEmojiInline.vue';
 import { tdlibSend } from '../../../../utils/tdlib';
 import {
