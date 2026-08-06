@@ -2,6 +2,9 @@
     <!-- Service messages -->
     <MessageGiveawayContent v-if="content._ === 'messageGiveaway'" :content="content" :date="date" />
 
+    <MessageGiveawayWinnersContent v-else-if="content._ === 'messageGiveawayWinners'" :content="content"
+        :messageList="messageList" />
+
     <MessageGiftContent v-else-if="content._ === 'messageGift'" :content="content" :date="date" />
 
     <MessageServiceContent v-else-if="isServiceType" :content="content" :senderName="senderName"
@@ -94,6 +97,7 @@ import MessageFileContent from './MessageFileContent.vue';
 import MessageServiceContent from './MessageServiceContent.vue';
 import MessageGiftContent from './MessageGiftContent.vue';
 import MessageGiveawayContent from './MessageGiveawayContent.vue';
+import MessageGiveawayWinnersContent from './MessageGiveawayWinnersContent.vue';
 import MessageOtherContent from './MessageOtherContent.vue';
 import MessageStatus from './MessageStatus.vue';
 import { settings } from '../../../../store/settings';
@@ -136,7 +140,6 @@ const SERVICE_TYPES = new Set([
     'messagePremiumGiftCode',
     'messageGiveawayCreated',
     'messageGiveawayCompleted',
-    'messageGiveawayWinners',
     'messageGiftedStars',
     'messageGiftedTon',
     'messageGiveawayPrizeStars',

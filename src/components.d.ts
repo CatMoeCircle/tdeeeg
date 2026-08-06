@@ -43,6 +43,7 @@ declare module 'vue' {
     MessageFileContent: typeof import('./components/chat/ChatDetail/MessageContent/MessageFileContent.vue')['default']
     MessageGiftContent: typeof import('./components/chat/ChatDetail/MessageContent/MessageGiftContent.vue')['default']
     MessageGiveawayContent: typeof import('./components/chat/ChatDetail/MessageContent/MessageGiveawayContent.vue')['default']
+    MessageGiveawayWinnersContent: typeof import('./components/chat/ChatDetail/MessageContent/MessageGiveawayWinnersContent.vue')['default']
     MessageInput: typeof import('./components/chat/ChatDetail/MessageInput.vue')['default']
     MessageLinkPreview: typeof import('./components/chat/ChatDetail/MessageContent/MessageLinkPreview.vue')['default']
     MessageMediaContent: typeof import('./components/chat/ChatDetail/MessageContent/MessageMediaContent.vue')['default']

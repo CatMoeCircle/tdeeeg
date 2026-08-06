@@ -17,18 +17,16 @@
         <div class="mt-3">
             <div class="px-3 py-2.5 text-center">
                 <div class="text-base font-medium text-gray-500 dark:text-gray-400">参与者</div>
-                <div class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ participantsText }}</div>
+                <div class="text-sm text-gray-500 dark:text-gray-400">{{ participantsText }}</div>
                 <div v-if="channels.length" class="mt-2 space-y-1.5">
                     <div v-for="ch in channels" :key="ch.id"
-                        class="mx-auto flex w-fit items-center gap-1.5 rounded-full px-3 py-1.5"
-                        :style="channelRowStyle(ch)">
+                        class="mx-auto flex w-fit items-center gap-1.5 rounded-full pr-3" :style="channelRowStyle(ch)">
                         <div class="h-7 w-7 shrink-0 overflow-hidden rounded-full">
                             <Avatar :photo="ch.photo" :title="ch.title" :accent-color-id="ch.accentColorId" />
                         </div>
                         <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ ch.title }}</span>
                     </div>
                 </div>
-
             </div>
         </div>
 
@@ -135,12 +133,6 @@ const stickerContent = computed<messageSticker | null>(() => {
     return { _: 'messageSticker', sticker: props.content.sticker, is_premium: false };
 });
 
-/** 奖品信息 */
-const prizeText = computed(() => {
-    const prize = props.content.prize;
-    if (prize._ === 'giveawayPrizeStars') return `${formatCount(prize.star_count)} Stars`;
-    return `Telegram Premium ${prize.month_count} 个月`;
-});
 
 /** 附加奖品描述（prize_description） */
 const prizeDescription = computed(() => props.content.parameters.prize_description?.trim() || '');
