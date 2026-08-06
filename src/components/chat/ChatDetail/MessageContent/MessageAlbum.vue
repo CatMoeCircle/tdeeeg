@@ -27,7 +27,7 @@
                     </div>
                 </div>
                 <span v-if="item.isVideo && item.duration > 0"
-                    class="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1 rounded leading-none">
+                    class="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1 rounded leading-none select-none">
                     {{ formatDuration(item.duration) }}
                 </span>
             </div>
@@ -125,10 +125,18 @@ watch([() => props.messages, mediaCache], () => {
         } else if (c._ === 'messageVideo') {
             const file = c.video.video;
             let src = mediaCache[msg.id] || (isFileReady(file) ? convertFileSrc(file.local.path) : '');
-            if (!src && c.video.supports_streaming && file.size > 0) {
-                src = `${convertFileSrc(String(file.id), 'tdstream')}?mime=${c.video.mime_type}`;
-            }
-            if (src) {
+            const thumb = thumbCache[msg.id] || (c.video.minithumbnail?.data ? `data:image/jpeg;base64,${c.video.minithumbnail.data}` : '');
+            // 未下载：仅当满足自动下载设置（视频分类开关 + 不超过文件大小上限）时才用流式边下边播，
+            // 否则不自动下载，注册占位项供查看器显示缩略图 + 手动下载按钮。
+            if (!src && !canAutoDownloadVideo(c)) {
+                item = {
+                    type: 'video', src: '', thumb: thumb || undefined, caption: capt,
+                    captionFormatted: captFormatted, senderName, date,
+                    fileName: c.video.file_name || '',
+                    canDownload: !!file?.local?.can_be_downloaded,
+                    fileId: file?.id, ...meta,
+                };
+            } else if (src) {
                 const qualities = buildVideoQualities(
                     c.alternative_videos,
                     src,
@@ -325,6 +333,24 @@ async function loadPhoto(msg: message): Promise<boolean> {
     return c;
 }
 
+/**
+ * 判断视频是否满足自动下载条件（用于决定是否给查看器 media 项一个流式 src）：
+ * 仅当自动下载总开关开启、该对话类型对应的视频开关开启，且视频体积不超过 maxSize 时，
+ * 才允许自动流式加载；否则一律不自动下载，交由用户手动点击下载按钮。
+ */
+function canAutoDownloadVideo(c: Extract<message['content'], { _: 'messageVideo' }>): boolean {
+    if (!settings.autoDownload.enabled) return false;
+    if (!props.chatId) return false;
+    const cs = useChatStore();
+    const chatData = cs.chats[props.chatId] as any;
+    if (!chatData) return false;
+    const category = getChatCategory(chatData);
+    const cfg = settings.autoDownload.videos;
+    if (!cfg.enabled || !cfg[category]) return false;
+    const sizeMB = (c.video.video.size || 0) / (1024 * 1024);
+    return sizeMB <= cfg.maxSize;
+}
+
 async function loadVideo(msg: message): Promise<boolean> {
     if (msg.content._ !== 'messageVideo') return false;
     const downloadStore = useDownloadStore();
@@ -357,17 +383,25 @@ async function loadVideo(msg: message): Promise<boolean> {
             }
         }
     }
-    // 不满足自动下载条件，仅加载缩略图（相册用 <img> 渲染，仅取静态位图格式；
-    // MPEG4/WEBM 动态缩略图无法在 <img> 中显示，跳过以免出现破碎图）
+    // 不满足自动下载条件，仅加载封面缩略图（相册用 <img> 渲染，仅取静态位图格式；
+    // MPEG4/WEBM 动态缩略图无法在 <img> 中显示，跳过以免出现破碎图）。
+    // 封面跟随「图片自动下载」设置：图片自动下载关闭时不下封面，改用 minithumbnail base64。
+    if (!shouldAutoDownloadPhoto()) {
+        if (v.minithumbnail?.data && !thumbCache[msg.id]) {
+            thumbCache[msg.id] = `data:image/jpeg;base64,${v.minithumbnail.data}`;
+            c = true;
+        }
+        return c;
+    }
     const thumb = v.thumbnail;
     if (!thumb || !isThumbnailImgRenderable(thumb.format)) return false;
     const thumbFile = thumb.file;
     if (isFileReady(thumbFile) && !thumbCache[msg.id]) { thumbCache[msg.id] = convertFileSrc(thumbFile.local.path); c = true; }
     else if (thumbFile.local.can_be_downloaded) {
-        // 视频封面（缩略图）属于辅助资源：注册为隐藏的通用下载项，不占用下载管理器的可见列表。
+        // 视频封面（缩略图）属于辅助资源：注册为隐藏的通用下载项（分类 video_cover），不占用下载管理器的可见列表。
         if (thumbFile.id && !downloadingFiles.has(thumbFile.id)) {
             const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
-            await downloadStore.registerDownload(thumbFile.id, `video_cover_${thumbFile.id}.jpg`, chatTitle, 0, 'photo', undefined, undefined, undefined, true, false);
+            await downloadStore.registerDownload(thumbFile.id, `video_cover_${thumbFile.id}.jpg`, chatTitle, 0, 'photo', undefined, undefined, undefined, true, false, 'video_cover');
         }
         try {
             const r = await tdlibSend({ _: 'downloadFile', file_id: thumbFile.id, priority: 1, offset: 0, limit: 0, synchronous: true });
@@ -375,6 +409,20 @@ async function loadVideo(msg: message): Promise<boolean> {
         } catch (_) { }
     }
     return c;
+}
+
+/**
+ * 当前对话是否应自动下载图片（用于视频封面等辅助资源的下载遵循图片设置）。
+ */
+function shouldAutoDownloadPhoto(): boolean {
+    if (!settings.autoDownload.enabled) return false;
+    if (!props.chatId) return true;
+    const cs = useChatStore();
+    const chatData = cs.chats[props.chatId] as any;
+    if (!chatData) return true;
+    const category = getChatCategory(chatData);
+    const cfg = settings.autoDownload.photos;
+    return cfg.enabled && cfg[category];
 }
 
 // ---- Computed display helpers ----

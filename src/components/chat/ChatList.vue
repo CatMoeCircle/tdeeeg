@@ -13,21 +13,11 @@
         </Transition>
         <!-- Folder Tabs (forum mode 时向上滑动隐藏) -->
         <Transition name="slide-up">
-            <div v-if="!forumMode && tabs.length > 1" ref="tabsContainer" v-smooth-wheel="'horizontal'"
-                class="flex px-2 border-b border-gray-200 overflow-x-auto no-scrollbar gap-1.5 shrink-0 max-h-12">
-                <button v-for="tab in tabs" :key="tab.id" :data-tab-id="tab.id" @click="switchToTab(tab.id)"
-                    class="px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors shrink-0 inline-flex items-center gap-1"
-                    :class="[
-                        settings.folderStyle === 'tabs'
-                            ? (activeTab === tab.id ? 'border-b-2 border-blue-500 text-blue-600' : 'border-b-2 border-transparent text-gray-500 hover:text-gray-700')
-                            : '',
-                        settings.folderStyle === 'pills'
-                            ? (activeTab === tab.id ? 'bg-blue-500 shadow-sm shadow-blue-500/50 text-white rounded-full my-1' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 rounded-full my-1')
-                            : '',
-                        settings.folderStyle === 'text'
-                            ? (activeTab === tab.id ? 'text-blue-600 font-bold' : 'text-gray-500 hover:text-gray-700')
-                            : ''
-                    ]">
+            <SlidingTabBar v-if="!forumMode && tabs.length > 1" :tabs="tabs" :active-id="activeTab"
+                :variant="settings.folderStyle" :tab-class="folderTabClass"
+                :container-class="settings.folderStyle === 'tabs' ? 'border-b border-gray-200' : ''"
+                @select="switchToTab" class="px-2 max-h-12">
+                <template #default="{ tab, active }">
                     <!-- 分组图标（全部对话默认对话图标） -->
                     <component :is="folderIcon(tab)" v-if="settings.showFolderIcons" class="w-3 h-3 shrink-0" />
                     <FormattedTextInline v-if="tab.formattedName" :formattedText="tab.formattedName" :size="12" />
@@ -35,11 +25,11 @@
                     <!-- 未读消息计数：未选中的分组显示为灰色 -->
                     <span v-if="settings.showFolderUnread && tabUnread(tab.id) > 0"
                         class="min-w-3.5 h-3.5 px-1 rounded-full text-white text-[9px] font-bold leading-3.5 text-center shrink-0"
-                        :class="activeTab === tab.id ? 'bg-blue-500' : 'bg-gray-400'">
+                        :class="active ? 'bg-blue-500' : 'bg-gray-400'">
                         {{ formatUnreadCount(tabUnread(tab.id)) }}
                     </span>
-                </button>
-            </div>
+                </template>
+            </SlidingTabBar>
         </Transition>
 
         <!-- 音乐播放器入口（聊天打开时由 ChatDetail 接管，此处隐藏） -->
@@ -383,6 +373,7 @@ import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
 import FormattedTextInline from './FormattedTextInline.vue';
 import MessagePreviewMedia from './MessagePreviewMedia.vue';
 import CustomEmojiInline from './ChatDetail/MessageContent/CustomEmojiInline.vue';
+import SlidingTabBar from '../common/SlidingTabBar.vue';
 
 const props = defineProps<{
     isArchive?: boolean;
@@ -399,7 +390,6 @@ const chatStore = useChatStore();
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
 
-const tabsContainer = ref<HTMLElement | null>(null);
 const swipeContainer = ref<HTMLElement | null>(null);
 const pageWidth = ref(0);
 
@@ -423,7 +413,9 @@ onMounted(async () => {
     updatePageWidth();
 
     if (typeof ResizeObserver !== 'undefined') {
-        resizeObserver = new ResizeObserver(() => updatePageWidth());
+        resizeObserver = new ResizeObserver(() => {
+            updatePageWidth();
+        });
         const parent = swipeContainer.value?.parentElement;
         if (parent) resizeObserver.observe(parent);
     }
@@ -504,6 +496,25 @@ const folderIcon = (tab: { id: string; iconName?: string }): Component => {
     if (tab.id === 'chatListMain') return MessageCircleIcon;
     return FOLDER_ICON_MAP[tab.iconName || ''] || FolderIcon;
 };
+
+/** 分组选项卡按钮类（按样式变体 + 激活态，与 SlidingTabBar 配合） */
+function folderTabClass(_id: string, active: boolean): string {
+    const base = 'px-2.5 py-1 text-xs font-medium gap-1';
+    switch (settings.folderStyle) {
+        case 'tabs':
+            return active
+                ? `${base} text-blue-600`
+                : `${base} text-gray-500 hover:text-gray-700`;
+        case 'pills':
+            return active
+                ? `${base} bg-blue-500 shadow-sm shadow-blue-500/50 text-white rounded-full my-1`
+                : `${base} bg-gray-100 text-gray-600 hover:bg-gray-200 rounded-full my-1`;
+        default:
+            return active
+                ? `${base} text-blue-600 font-bold`
+                : `${base} text-gray-500 hover:text-gray-700`;
+    }
+}
 
 /**
  * 分组未读计数：
@@ -1072,18 +1083,7 @@ watch(activeTab, (newTab) => {
     }
     chatStore.resetListState(newTab);
     triggerLoadMore(newTab);
-    // 将选中的分组选项卡聚焦到标签栏可视范围内（横向滚动）
-    scrollTabIntoView(newTab);
 });
-
-/** 将指定分组选项卡滚动到标签栏可视范围内 */
-function scrollTabIntoView(tabId: string) {
-    const container = tabsContainer.value;
-    const el = container?.querySelector(`[data-tab-id="${tabId}"]`);
-    if (el instanceof HTMLElement) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-    }
-}
 
 const onScroll = (e: Event, tabId: string) => {
     const target = e.target as HTMLElement;

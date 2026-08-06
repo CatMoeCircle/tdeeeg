@@ -34,6 +34,18 @@ pub struct DownloadItem {
     /// 通用资源标记（贴纸/emoji/头像等），默认隐藏且不计入红点
     #[serde(default)]
     pub is_generic: bool,
+    /// 通用资源的细分类别（仅当 is_generic 为 true 时有意义），
+    /// 用于在下载管理器中区分展示具体是哪类隐藏资源：
+    /// - "emoji"        自定义表情（缩略图/完整贴纸）
+    /// - "video_cover"  视频封面（缩略图）
+    /// - "avatar"       用户/群组头像、个人资料大图、贴纸等
+    /// - "story_cover"  动态封面
+    /// - "sticker"      贴纸
+    /// - "gift"         礼物贴纸
+    /// - "music_cover"  音乐封面
+    /// - "other"        其他
+    #[serde(default)]
+    pub hidden_category: Option<String>,
     /// 自动下载图片标记（频道/群组中自动下载的图片），默认隐藏且不计入红点，
     /// 由独立的「显示自动下载图片」开关控制（与通用资源分开）。
     #[serde(default)]
@@ -122,10 +134,7 @@ impl DownloadStore {
         self.items
             .values()
             .filter(|item| {
-                !item.is_generic
-                    && !item.is_auto_photo
-                    && !item.is_completed
-                    && !item.dismissed
+                !item.is_generic && !item.is_auto_photo && !item.is_completed && !item.dismissed
             })
             .cloned()
             .collect()
@@ -171,9 +180,7 @@ impl DownloadStore {
     /// 是否有隐藏（通用资源或自动下载图片）的未完成下载
     pub fn has_hidden_active(&self) -> bool {
         self.items.values().any(|item| {
-            (item.is_generic || item.is_auto_photo)
-                && !item.is_completed
-                && !item.dismissed
+            (item.is_generic || item.is_auto_photo) && !item.is_completed && !item.dismissed
         })
     }
 
@@ -182,6 +189,8 @@ impl DownloadStore {
     /// 注册一个下载项
     /// - `is_generic` 标记是否为隐藏/通用资源（头像、贴纸、表情等），默认不计入红点，
     ///   需在下载管理器中开启"显示隐藏资源"才会展示。
+    /// - `hidden_category` 仅当 `is_generic` 为 true 时有意义，用于区分具体隐藏资源类别
+    ///   （"emoji" / "video_cover" / "avatar" / "story_cover" / "sticker" / "other"）。
     /// - `is_auto_photo` 标记是否为自动下载图片（频道/群组中自动下载的图片），
     ///   默认隐藏且不计入红点，由独立的"显示自动下载图片"开关控制。
     ///
@@ -199,6 +208,7 @@ impl DownloadStore {
         chat_id: Option<i64>,
         message_id: Option<i64>,
         is_generic: bool,
+        hidden_category: Option<String>,
         is_auto_photo: bool,
     ) {
         if let Some(existing) = self.items.get(&file_id) {
@@ -214,6 +224,11 @@ impl DownloadStore {
                     is_generic
                 } else {
                     existing.is_generic
+                };
+                let hidden_category = if is_fallback {
+                    hidden_category
+                } else {
+                    existing.hidden_category.clone()
                 };
                 let is_auto_photo = if is_fallback {
                     is_auto_photo
@@ -235,6 +250,7 @@ impl DownloadStore {
                     thumbnail_data_url: existing.thumbnail_data_url.clone().or(thumbnail_data_url),
                     file_type,
                     is_generic,
+                    hidden_category,
                     is_auto_photo,
                     ..existing.clone()
                 };
@@ -259,6 +275,7 @@ impl DownloadStore {
             thumbnail_data_url,
             file_type,
             is_generic,
+            hidden_category,
             is_auto_photo,
             dismissed: false,
         };

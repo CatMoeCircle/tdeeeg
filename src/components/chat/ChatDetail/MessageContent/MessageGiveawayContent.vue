@@ -1,5 +1,5 @@
 <template>
-    <div class="min-w-[230px] max-w-[320px] select-text">
+    <div class="min-w-57.5 max-w-[320px] select-text">
         <!-- 1. 居中 图标 + 标题 + 奖品 + 获奖说明 -->
         <div class="flex flex-col items-center">
             <MessageStickerContent v-if="stickerContent" :content="stickerContent" :size="112" class="shrink-0" />

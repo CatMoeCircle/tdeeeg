@@ -150,9 +150,9 @@ watch(
         // 仅当文件可下载且未在下载中时触发；下载完成后再替换为真实头像
         if (photo.small?.id && !downloadingFiles.has(photo.small.id) && !isFileReady(photo.small)) {
             downloadingFiles.add(photo.small.id);
-            // 头像：记录为隐藏资源，不需要来源（chat_id/message_id 留空）
+            // 头像：记录为隐藏资源，不需要来源（chat_id/message_id 留空），分类为 avatar
             const fileName = `${props.title || '头像'}_${photo.small.id}.jpg`;
-            await useDownloadStore().registerDownload(photo.small.id, fileName, '', 0, 'avatar', undefined, undefined, undefined, true);
+            await useDownloadStore().registerDownload(photo.small.id, fileName, '', 0, 'avatar', undefined, undefined, undefined, true, false, 'avatar');
             try {
                 const file = await tdlibSend({
                     _: "downloadFile",

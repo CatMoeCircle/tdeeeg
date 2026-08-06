@@ -78,9 +78,9 @@ const downloadFile = async (fileId: number) => {
     if (downloadingFiles.has(fileId)) return;
     isDownloading.value = true;
     downloadingFiles.add(fileId);
-    // 贴纸：记录为隐藏资源，不需要来源
+    // 贴纸：记录为隐藏资源，不需要来源，分类为 sticker
     const ext = format.value === 'tgs' ? 'tgs' : format.value === 'webm' ? 'webm' : 'webp';
-    await useDownloadStore().registerDownload(fileId, `sticker_${fileId}.${ext}`, '', 0, 'sticker', undefined, undefined, undefined, true);
+    await useDownloadStore().registerDownload(fileId, `sticker_${fileId}.${ext}`, '', 0, 'sticker', undefined, undefined, undefined, true, false, 'sticker');
     try {
         const res = await tdlibSend({
             _: "downloadFile",

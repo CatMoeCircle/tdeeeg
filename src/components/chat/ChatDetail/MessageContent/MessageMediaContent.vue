@@ -118,7 +118,7 @@
 
                 <!-- Remaining time (top-right) -->
                 <span v-if="videoDownloaded && inlineVideoDuration > 0"
-                    class="absolute top-1.5 right-1.5 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded leading-none">
+                    class="absolute top-1.5 right-1.5 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded leading-none select-none">
                     -{{ formatDuration(Math.max(0, inlineVideoDuration - inlineVideoCurrent)) }}
                 </span>
 
@@ -140,7 +140,7 @@
 
                 <!-- Duration badge (bottom-left, pre-download) -->
                 <span v-if="!videoDownloaded"
-                    class="absolute bottom-1.5 left-1.5 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded leading-none">
+                    class="absolute bottom-1.5 left-1.5 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded leading-none select-none">
                     {{ formatDuration(videoDuration) }}
                 </span>
 
@@ -855,8 +855,18 @@ async function loadVideoThumb() {
             }
         }
     }
-    // 否则只下载缩略图（按格式分类：静态位图→<img>，MPEG4/WEBM→<video>）
+    // 否则只下载封面缩略图（按格式分类：静态位图→<img>，MPEG4/WEBM→<video>）。
+    // 封面跟随「图片自动下载」设置：图片自动下载关闭时不下封面，改用 minithumbnail base64。
     const thumb = c.video.thumbnail;
+    const canAutoPhoto = shouldAutoDownloadPhoto();
+    if (!canAutoPhoto) {
+        // 图片自动下载关闭：使用 64px minithumbnail base64 作为低清兜底（若存在）
+        if (c.video.minithumbnail?.data) {
+            videoThumbSrc.value = `data:image/jpeg;base64,${c.video.minithumbnail.data}`;
+            videoThumbIsVideo.value = false;
+        }
+        return;
+    }
     if (!thumb) return;
     const isVideoThumb = isThumbnailVideoRenderable(thumb.format);
     const isImgThumb = isThumbnailImgRenderable(thumb.format);
@@ -867,14 +877,14 @@ async function loadVideoThumb() {
         videoThumbIsVideo.value = isVideoThumb;
         return;
     }
-    // 视频封面（缩略图）属于辅助资源：注册为隐藏的通用下载项，不占用下载管理器的
+    // 视频封面（缩略图）属于辅助资源：注册为隐藏的通用下载项（分类 video_cover），不占用下载管理器的
     // 可见列表（“显示隐藏的通用资源”下可见），也不计入下载红点。
     if (file.id && file.local?.can_be_downloaded && !downloadingFiles.has(file.id)) {
         const coverName = `video_cover_${file.id}.${isVideoThumb ? 'mp4' : 'jpg'}`;
         await downloadStore.registerDownload(
             file.id, coverName, props.chatId ? getChatTitle(props.chatId) : '', 0,
             isVideoThumb ? 'video' : 'photo', undefined,
-            undefined, undefined, true, false,
+            undefined, undefined, true, false, 'video_cover',
         );
     }
     await safeDownloadFile(file.id, true);
@@ -883,6 +893,20 @@ async function loadVideoThumb() {
         videoThumbSrc.value = convertFileSrc(updated.local.path);
         videoThumbIsVideo.value = isVideoThumb;
     }
+}
+
+/**
+ * 当前对话是否应自动下载图片（用于视频封面等辅助资源的下载遵循图片设置）。
+ */
+function shouldAutoDownloadPhoto(): boolean {
+    if (!settings.autoDownload.enabled) return false;
+    if (!props.chatId) return true;
+    const cs = useChatStore();
+    const chatData = cs.chats[props.chatId] as any;
+    if (!chatData) return true;
+    const category = getChatCategory(chatData);
+    const cfg = settings.autoDownload.photos;
+    return cfg.enabled && cfg[category];
 }
 
 async function handleVideoDownload() {
@@ -1047,14 +1071,14 @@ onUnmounted(() => {
    当媒体带剧透（.msg-spoiler-media）且未揭示（容器内不存在 .media-sp.is-revealed）时，
    将媒体本体模糊 + 压暗，配合粒子遮罩增强“被遮住”的观感；
    揭示（.is-revealed 出现）后恢复清晰。 */
-.msg-spoiler-media > img,
-.msg-spoiler-media > video {
-  filter: blur(14px) brightness(0.8);
-  transition: filter 0.3s ease;
+.msg-spoiler-media>img,
+.msg-spoiler-media>video {
+    filter: blur(14px) brightness(0.8);
+    transition: filter 0.3s ease;
 }
 
-.msg-spoiler-media:has(.media-sp.is-revealed) > img,
-.msg-spoiler-media:has(.media-sp.is-revealed) > video {
-  filter: none;
+.msg-spoiler-media:has(.media-sp.is-revealed)>img,
+.msg-spoiler-media:has(.media-sp.is-revealed)>video {
+    filter: none;
 }
 </style>

@@ -623,7 +623,7 @@ async function loadProfileMusicCover() {
   const coverFile = pickBestAlbumCoverFile(profileAudio.value);
   if (!coverFile) return;
   try {
-    const url = await downloadFileUrl(coverFile, `profile_music_cover_${coverFile.id}.jpg`);
+    const url = await downloadFileUrl(coverFile, `profile_music_cover_${coverFile.id}.jpg`, 'music_cover');
     if (url) profileMusicCoverHd.value = url;
   } catch (e) {
     console.error('Failed to load profile music cover', e);
@@ -640,7 +640,7 @@ async function loadHeaderPhoto() {
   const info = fullInfo.value;
   const biggest = pickLargestPhotoFile(info?.photo);
   if (biggest) {
-    headerPhotoUrl.value = await downloadFileUrl(biggest, `profile_header_${biggest.id}.jpg`);
+    headerPhotoUrl.value = await downloadFileUrl(biggest, `profile_header_${biggest.id}.jpg`, 'avatar');
   }
 }
 
@@ -669,7 +669,7 @@ async function loadPhotoUrls() {
     const p = photosList.value[i];
     const biggest = pickLargestPhotoFile(p);
     if (!biggest) continue;
-    const url = await downloadFileUrl(biggest, `profile_photo_${i}.jpg`);
+    const url = await downloadFileUrl(biggest, `profile_photo_${i}.jpg`, 'avatar');
     if (url) urls[i] = url;
   }
   photoUrls.value = urls;
@@ -720,7 +720,7 @@ async function loadGiftUrls() {
     const sticker = (g.gift as any).sticker as { thumbnail?: { file?: { id?: number } } } | undefined;
     const thumbFile = sticker?.thumbnail?.file as any;
     if (thumbFile?.id) {
-      const url = await downloadFileUrl(thumbFile, `gift_${i}.webp`);
+      const url = await downloadFileUrl(thumbFile, `gift_${i}.webp`, 'gift');
       if (url) urls[i] = url;
     }
   }
@@ -741,7 +741,7 @@ async function loadStoryUrls() {
     const file = pickStoryCoverFile(s);
     if (!file) continue;
     try {
-      const url = await downloadFileUrl(file, `story_${s.id}.jpg`);
+      const url = await downloadFileUrl(file, `story_${s.id}.jpg`, 'story_cover');
       if (url) urls[s.id] = url;
     } catch (e) {
       // 单条封面拉取失败不影响其他动态

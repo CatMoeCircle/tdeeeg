@@ -152,31 +152,29 @@
 
                             <!-- 分组栏（点击分组切换选中，切换样式时带动画过渡） -->
                             <Transition mode="out-in" name="fade-slide">
-                                <div :key="settings.folderStyle" class="overflow-x-auto no-scrollbar"
-                                    :class="tabContainerClass">
-                                    <button v-for="folder in folders" :key="folder.id" type="button"
-                                        @click="activeFolder = folder.id"
-                                        class="px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors inline-flex items-center"
-                                        :class="folderClass(folder.id)">
-                                        <!-- 全部对话默认显示对话图标；其余分组在激活时显示图标（宽度+透明度平滑过渡） -->
+                                <SlidingTabBar :key="settings.folderStyle" :tabs="folders" :active-id="activeFolder"
+                                    :variant="settings.folderStyle" :tab-class="folderClass"
+                                    :container-class="tabContainerClass" @select="(id: string) => activeFolder = id">
+                                    <!-- 全部对话默认显示对话图标；其余分组在激活时显示图标（宽度+透明度平滑过渡） -->
+                                    <template #default="{ tab, active }">
                                         <span class="folder-col folder-col-right"
-                                            :class="{ open: settings.showFolderIcons && (folder.id === 'all' || folder.id === activeFolder) }">
+                                            :class="{ open: settings.showFolderIcons && (tab.id === 'all' || active) }">
                                             <span class="inline-flex items-center">
-                                                <component :is="folder.icon" class="w-3.5 h-3.5 shrink-0" />
+                                                <component :is="tab.icon" class="w-3.5 h-3.5 shrink-0" />
                                             </span>
                                         </span>
-                                        <span>{{ folder.name }}</span>
+                                        <span>{{ tab.name }}</span>
                                         <!-- 未读计数器：激活分组旁显示（宽度+透明度平滑过渡） -->
                                         <span class="folder-col folder-col-left"
-                                            :class="{ open: settings.showFolderUnread && folder.id === activeFolder }">
+                                            :class="{ open: settings.showFolderUnread && active }">
                                             <span
                                                 class="min-w-4 h-4 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold leading-4 text-center inline-flex items-center justify-center">
                                                 {{ settings.chatList.unreadCountMode === 'messages' ? '99+' :
-                                                    folder.unread }}
+                                                    tab.unread }}
                                             </span>
                                         </span>
-                                    </button>
-                                </div>
+                                    </template>
+                                </SlidingTabBar>
                             </Transition>
                         </div>
                     </div>
@@ -361,6 +359,7 @@ import ChatTypeToggle from './ChatTypeToggle.vue';
 import Avatar from '../chat/avatar.vue';
 import EditableNumber from './EditableNumber.vue';
 import LoaderIndicator from '../common/LoaderIndicator';
+import SlidingTabBar from '../common/SlidingTabBar.vue';
 
 /** 消息显示/贴纸设置默认值（用于显示“(默认)”标记，与 settings.ts 默认值一致） */
 const DEFAULT_MESSAGE = { cornerRadius: 18, fontSize: 14, stickerSize: 160 };
@@ -435,30 +434,30 @@ const styleLabel = computed(() => {
 const tabContainerClass = computed(() => {
     switch (settings.folderStyle) {
         case 'tabs':
-            return 'flex gap-2 border-b border-gray-200 dark:border-gray-700';
+            return 'border-b border-gray-200 dark:border-gray-700';
         case 'pills':
-            return 'flex gap-2';
+            return '';
         default:
-            return 'flex gap-3';
+            return '';
     }
 });
 
-/** 根据样式与选中态返回分组按钮类名（与 ChatList 实际渲染一致） */
-function folderClass(id: string) {
-    const active = id === activeFolder.value;
+/** 根据样式与选中态返回分组按钮类名（与 ChatList 实际渲染一致，供 SlidingTabBar 使用） */
+function folderClass(_id: string, active: boolean) {
+    const base = 'px-3 py-1.5 text-sm font-medium';
     switch (settings.folderStyle) {
         case 'tabs':
             return active
-                ? 'border-b-2 border-blue-500 text-blue-600'
-                : 'border-b-2 border-transparent text-gray-500 dark:text-gray-400';
+                ? `${base} text-blue-600`
+                : `${base} text-gray-500 dark:text-gray-400`;
         case 'pills':
             return active
-                ? 'bg-blue-500 text-white rounded-full shadow-sm shadow-blue-500/50'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-full';
+                ? `${base} bg-blue-500 text-white rounded-full shadow-sm shadow-blue-500/50`
+                : `${base} bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-full`;
         default:
             return active
-                ? 'text-blue-600 font-bold'
-                : 'text-gray-500 dark:text-gray-400';
+                ? `${base} text-blue-600 font-bold`
+                : `${base} text-gray-500 dark:text-gray-400`;
     }
 }
 

@@ -1,7 +1,8 @@
 <template>
     <MessageLinkPreview v-if="linkPreview?.show_above_text" :preview="linkPreview"
         :accentColorId="accentColorId" @open="openLink" />
-    <p class="whitespace-pre-wrap" :style="{ fontSize: 'var(--msg-font-size, 14px)', lineHeight: '1.4' }">
+    <p class="whitespace-pre-wrap msg-selectable-text"
+        :style="{ fontSize: 'var(--msg-font-size, 14px)', lineHeight: '1.4' }">
         <template v-for="(group, gi) in renderGroups" :key="gi">
             <!-- Blockquote group: 用容器包裹，加引用竖线 -->
             <span v-if="group.type === 'blockquote'"

@@ -93,8 +93,8 @@ async function downloadThumbnail(emojiId: string, fileId: number) {
   if (!state) return;
 
   downloadingFiles.add(fileId);
-  // 自定义表情缩略图：记录为隐藏资源，不需要来源
-  await useDownloadStore().registerDownload(fileId, `emoji_${emojiId}_thumb.webp`, '', 0, 'other', undefined, undefined, undefined, true);
+  // 自定义表情缩略图：记录为隐藏资源，不需要来源，分类为 emoji
+  await useDownloadStore().registerDownload(fileId, `emoji_${emojiId}_thumb.webp`, '', 0, 'other', undefined, undefined, undefined, true, false, 'emoji');
   try {
     const result = await tdlibSend({
       _: 'downloadFile',
@@ -121,8 +121,8 @@ async function downloadStickerFile(emojiId: string, fileId: number) {
   if (!state) return;
   state.loadingFile = true;
   downloadingFiles.add(fileId);
-  // 自定义表情完整贴纸：记录为隐藏资源，不需要来源
-  await useDownloadStore().registerDownload(fileId, `emoji_${emojiId}.webp`, '', 0, 'sticker', undefined, undefined, undefined, true);
+  // 自定义表情完整贴纸：记录为隐藏资源，不需要来源，分类为 emoji
+  await useDownloadStore().registerDownload(fileId, `emoji_${emojiId}.webp`, '', 0, 'sticker', undefined, undefined, undefined, true, false, 'emoji');
 
   try {
     const result = await tdlibSend({

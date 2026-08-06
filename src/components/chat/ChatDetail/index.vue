@@ -82,7 +82,7 @@
                                             :style="senderNameColor(item.messages[0])">
                                             <span class="min-w-0 flex-1 truncate">{{
                                                 getDisplaySenderName(item.messages[0])
-                                            }}</span>
+                                                }}</span>
                                             <span v-if="getMessageLabel(item.messages[0])"
                                                 class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
                                                 :class="getMessageLabelClass(item.messages[0])">{{
@@ -175,7 +175,7 @@
                                             class="text-xs font-semibold mx-2 m-1.5 flex items-center gap-1.5"
                                             :style="senderNameColor(item.msg)">
                                             <span class="min-w-0 flex-1 truncate">{{ getDisplaySenderName(item.msg)
-                                            }}</span>
+                                                }}</span>
                                             <span v-if="getMessageLabel(item.msg)"
                                                 class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
                                                 :class="getMessageLabelClass(item.msg)">{{
@@ -199,7 +199,7 @@
                                             <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
                                             <span class="min-w-0 flex-1 truncate">{{
                                                 getForwardName(item.msg.forward_info)
-                                            }}</span>
+                                                }}</span>
                                         </button>
                                         <MessageContent :content="item.msg.content" :isSelf="isSelf(item.msg)"
                                             :date="item.msg.date" :forwardInfo="getDisplayForwardInfo(item.msg)"
@@ -338,7 +338,7 @@
             </div>
             <MessageInput class="relative z-10" v-model="messageInput" :reply-target="replyTargetInfo" :chat="chat"
                 :users="users" :supergroups="supergroups" :basic-groups="basicGroups" :my-id="myId"
-                :member-status="currentMemberStatus" :is-premium="isMePremium" @clear-reply="replyTargetMsg = null"
+                :member-status="currentMemberStatus" :is-premium="isMePremium" @clear-reply="clearReply"
                 @send="handleSend" @attach="handleAttach" @attach-file="handleAttachFile"
                 @attach-music="handleAttachMusic" @attach-poll="handleAttachPoll"
                 @attach-checklist="handleAttachChecklist" @attach-contact="handleAttachContact" />
@@ -421,10 +421,9 @@ import PinnedMessageBar from './PinnedMessageBar.vue';
 import { tdlibSend } from '../../../utils/tdlib';
 import { sendAttachments, sending } from '../../../utils/attachmentSend';
 import { useAttachmentStore } from '../../../store/attachment';
-import { isOutgoingMessageForDisplay } from '../../../utils/savedMessages';
 import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
 
-import { CornerUpRightIcon, MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, CornerUpLeftIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, User as UserIcon } from 'lucide-vue-next';
+import { CornerUpRightIcon, MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, CornerUpLeftIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, Quote as QuoteIcon, User as UserIcon } from 'lucide-vue-next';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { useRoute, useRouter } from 'vue-router';
 import { computed, watch, ref, onMounted, onUnmounted, nextTick } from 'vue';
@@ -447,7 +446,7 @@ import { confirmDeleteMessage } from '../../../store/deleteMessage';
 import type { DeleteMessageRequest } from '../../../store/deleteMessage';
 import { openContextMenu, x as ctxX, y as ctxY, target as ctxTarget } from '../../../store/contextMenu';
 
-import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, forumTopic, MessageSender } from 'tdlib-types';
+import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, forumTopic, inputTextQuote } from 'tdlib-types';
 import { getViewerState, closeMediaViewer, registerMediaItem, unregisterMediaItem, isMediaViewerActive, openMediaViewer } from '../../../store/mediaViewer';
 import { isFileReady } from '../../../utils/tdlib';
 import { buildVideoQualities } from '../../../utils/videoQualities';
@@ -468,7 +467,6 @@ import {
     getDisplaySenderProfileAccentId as computeDisplaySenderProfileAccentId,
     getDisplaySenderDeleted as computeDisplaySenderDeleted,
     getForwardName as computeForwardName,
-    getForwardAuthorSignature as computeForwardAuthorSignature,
     isSavedForwardedMessage as computeIsSavedForwardedMessage,
     senderNameColor as computeSenderNameColor, forwardColor as computeForwardColor,
     showSenderDisplayName as computeShowSenderDisplayName,
@@ -481,6 +479,16 @@ import {
     isChannelWithSenderDisplay as isChannelWithSenderDisplayOf, showSenderName as showSenderNameOf,
     showAvatarColumn as showAvatarColumnOf, showChannelActions as showChannelActionsOf,
 } from './composables/permissions';
+import {
+    isSelfMessage, isMessageRead as isMessageReadOf,
+    isSelfAlbum as isSelfAlbumOf,
+    isLinkedChannelMessage as isLinkedChannelMessageOf,
+    getMessageLabel as getMessageLabelOf, getMessageLabelClass as getMessageLabelClassOf,
+    getDisplayForwardInfo as getDisplayForwardInfoOf,
+    senderUserId as senderUserIdOf, getInlineKeyboard as getInlineKeyboardOf,
+    getDisplayAuthorSignature as getDisplayAuthorSignatureOf,
+} from './composables/messageMeta';
+import type { RoleContext, SelfDeps } from './composables/messageMeta';
 
 // ==================== Route ====================
 const route = useRoute();
@@ -606,19 +614,78 @@ const messagesContainer = ref<HTMLElement | null>(null);
 // ===== 回复模式 =====
 /** 当前回复目标消息（null 表示无回复） */
 const replyTargetMsg = ref<message | null>(null);
+/** 引用回复时选中的原文片段（null 表示普通回复，不带 quote） */
+const replyQuoteText = ref<string | null>(null);
 
-/** 回复目标摘要（发送者名 + 文本），供 MessageInput 显示 */
-const replyTargetInfo = computed<{ title: string; text: string } | null>(() => {
+/** 回复目标摘要（发送者名 + 文本 + 引用片段），供 MessageInput 显示 */
+const replyTargetInfo = computed<{ title: string; text: string; quote?: string } | null>(() => {
     const m = replyTargetMsg.value;
     if (!m) return null;
     const title = isSelf(m) ? '你' : getDisplaySenderName(m) || '成员';
     const text = getMessagePlainText(m);
-    return { title, text };
+    return { title, text, quote: replyQuoteText.value ?? undefined };
 });
 
-/** 设置回复目标；传入消息 id 对应消息或 null 以清除 */
+/** 设置普通回复目标；传入消息 id 对应消息或 null 以清除 */
 function startReply(msg: message | null) {
     replyTargetMsg.value = msg;
+    replyQuoteText.value = null;
+}
+
+/**
+ * 引用回复：以选中的文本片段回复该消息。
+ * @param msg 被回复的目标消息
+ * @param quoteText 选中的原文片段（作为引用）
+ */
+function startQuoteReply(msg: message, quoteText: string) {
+    replyTargetMsg.value = msg;
+    replyQuoteText.value = quoteText;
+}
+
+/**
+ * 获取当前文档选中文本中属于「该消息气泡」的片段。
+ * 仅当用户已用鼠标拖动选中了该消息内容里的一段文本时返回该片段（去除首尾空白），
+ * 否则返回 null（用于在消息右键菜单中动态显示「引用回复」）。
+ */
+function getSelectedQuoteForMessage(msg: message): string | null {
+    const sel = window.getSelection?.();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
+    const range = sel.getRangeAt(0);
+    if (range.collapsed) return null;
+    // 找到选区所在的最近元素节点
+    let container = range.commonAncestorContainer as Node;
+    if (container.nodeType !== Node.ELEMENT_NODE) {
+        container = container.parentElement as Node;
+    }
+    const el = container as HTMLElement | null;
+    const bubble = el?.closest(`[data-bubble-msg-id="${msg.id}"]`);
+    if (!bubble) return null;
+    const text = sel.toString();
+    return text.trim() ? text.trim() : null;
+}
+
+/** 清除回复/引用状态 */
+function clearReply() {
+    replyTargetMsg.value = null;
+    replyQuoteText.value = null;
+}
+
+/**
+ * 构建发送用的 quote 对象（inputTextQuote），并计算其在原消息文本中的位置（UTF-16）。
+ * 无选中片段时返回 null。
+ */
+function buildReplyQuote(): inputTextQuote | null {
+    const m = replyTargetMsg.value;
+    const quoteText = replyQuoteText.value;
+    if (!m || !quoteText) return null;
+    const plain = getMessagePlainText(m);
+    // 计算选中片段在原消息纯文本中的起始偏移（UTF-16 code units）
+    const pos = plain.indexOf(quoteText);
+    return {
+        _: 'inputTextQuote',
+        text: { _: 'formattedText', text: quoteText, entities: [] },
+        position: pos >= 0 ? pos : 0,
+    };
 }
 
 // ===== 多选模式 =====
@@ -1546,111 +1613,38 @@ const fetchMemberStatuses = async (msgs: message[]) => {
     );
 };
 
-/**
- * 根据发送者 id 计算其在当前群聊中的角色标签。
- * 返回 'creator' | 'admin' | 'member'；私聊/频道/未知时返回 undefined（不显示标签）。
- */
-const getSenderRole = (sender: MessageSender | undefined): 'creator' | 'admin' | 'member' | undefined => {
-    if (!chat.value) return undefined;
-    const ct = chat.value.type;
-    if (ct._ === 'chatTypeBasicGroup') {
-        // 基础群组：正常显示
-    } else if (ct._ === 'chatTypeSupergroup') {
-        // 超级群组：仅普通群组显示成员角色标签，频道不显示
-        if (ct.is_channel) return undefined;
-    } else {
-        return undefined;
-    }
-    if (!sender || sender._ !== 'messageSenderUser') return undefined;
-    const member = memberStatus.value[sender.user_id];
-    if (!member?.status) return undefined;
-    switch (member.status._) {
-        case 'chatMemberStatusCreator':
-            // 匿名创建者不显示个人标签
-            return member.status.is_anonymous ? undefined : 'creator';
-        case 'chatMemberStatusAdministrator':
-            return 'admin';
-        default:
-            return 'member';
-    }
-};
-
-/**
- * 消息右上角标签文本：
- * - 若有自定义标签（管理员 custom title 或个人信息标签），优先显示之（含群主/管理员）
- * - 无自定义标签时：
- *   创建者 → 「群主」
- *   管理员 → 「管理员」
- *   普通成员 → 空串（不显示）
- * 颜色（getSenderRoleClass）始终按角色保持不变：群主=紫、管理员=绿、成员=灰。
- */
-const getSenderRoleText = (sender: MessageSender | undefined): string => {
-    if (!sender || sender._ !== 'messageSenderUser') return '';
-    const member = memberStatus.value[sender.user_id];
-    // 自定义标签优先（群主和管理员也可能有 custom title）
-    if (member?.tag) return member.tag;
-    const role = getSenderRole(sender);
-    if (role === 'creator') return '群主';
-    if (role === 'admin') return '管理员';
-    return '';
-};
-
-/**
- * 消息右上角标签样式 class（胶囊 + 文字色）：
- * - 创建者 → 浅紫色胶囊 + 浅色文字
- * - 管理员 → 浅绿色胶囊 + 绿色文字
- * - 普通成员 → 无胶囊，纯灰色文字
- */
-const getSenderRoleClass = (sender: MessageSender | undefined): string => {
-    const role = getSenderRole(sender);
-    if (role === 'creator') {
-        return 'bg-purple-200/70 text-purple-500 dark:bg-purple-500/20 dark:text-purple-300';
-    }
-    if (role === 'admin') {
-        return 'bg-green-200/70 text-green-600 dark:bg-green-500/20 dark:text-green-300';
-    }
-    if (role === 'member') {
-        return 'text-gray-500 dark:text-gray-400';
-    }
-    return '';
-};
+/** 发送者角色/标签计算所需依赖（调用时求值以保持响应式） */
+const roleContext = (): RoleContext => ({
+    chat: chat.value,
+    memberStatus: memberStatus.value,
+});
 
 /**
  * 判断消息是否为「群组关联频道」自动转到群组的消息。
  * 这类消息的 sender 是频道（messageSenderChat），且 forward_info 指向同一个频道
  * （即频道把帖子同步推送到其讨论群组），不作为普通转发显示，也不显示转发标记。
  */
-const isLinkedChannelMessage = (msg: message): boolean => {
-    if (msg.sender_id?._ !== 'messageSenderChat') return false;
-    if (!msg.forward_info) return false;
-    const origin = msg.forward_info.origin;
-    return origin._ === 'messageOriginChannel' && origin.chat_id === msg.sender_id.chat_id;
-};
+const isLinkedChannelMessage = (msg: message): boolean =>
+    isLinkedChannelMessageOf(msg);
 
 /**
  * 消息右上角标签文本（整条消息维度）：
  * - 群组关联频道的消息 → 「频道」
  * - 否则回退到按发送者角色判断（创建者/管理员/成员 tag）
  */
-const getMessageLabel = (msg: message): string => {
-    if (isLinkedChannelMessage(msg)) return '频道';
-    return getSenderRoleText(msg.sender_id);
-};
+const getMessageLabel = (msg: message): string =>
+    getMessageLabelOf(msg, roleContext());
 
 /** 消息右上角标签样式 class（整条消息维度） */
-const getMessageLabelClass = (msg: message): string => {
-    if (isLinkedChannelMessage(msg)) {
-        return 'bg-gray-200/70 text-gray-600 dark:bg-gray-500/20 dark:text-gray-300';
-    }
-    return getSenderRoleClass(msg.sender_id);
-};
+const getMessageLabelClass = (msg: message): string =>
+    getMessageLabelClassOf(msg, roleContext());
 
 /**
  * 取应传给内容/转发组件的 forwardInfo：
  * 群组关联频道的消息不显示转发标记，返回 undefined；否则返回原始 forward_info。
  */
 const getDisplayForwardInfo = (msg: message): messageForwardInfo | undefined =>
-    isLinkedChannelMessage(msg) ? undefined : msg.forward_info;
+    getDisplayForwardInfoOf(msg);
 
 /** 获取 supergroup / basicGroup 信息 */
 async function fetchGroupInfo(chatData: chat, gen: number) {
@@ -1969,7 +1963,7 @@ const handleSend = async (text: string) => {
                     chatId: chatId.value,
                     topicId: topicId.value,
                     replyTo: replyTargetMsg.value
-                        ? { _: 'inputMessageReplyToMessage', message_id: replyTargetMsg.value.id, quote: null, checklist_task_id: 0 }
+                        ? { _: 'inputMessageReplyToMessage', message_id: replyTargetMsg.value.id, quote: buildReplyQuote(), checklist_task_id: 0, poll_option_id: '' }
                         : null,
                 },
                 text || '',
@@ -1979,7 +1973,7 @@ const handleSend = async (text: string) => {
         }
         await attachStore.clearWithCleanup();
         messageInput.value = '';
-        replyTargetMsg.value = null;
+        clearReply();
         return;
     }
     if (!text.trim()) return;
@@ -1999,8 +1993,9 @@ const handleSend = async (text: string) => {
             params.reply_to = {
                 _: 'inputMessageReplyToMessage',
                 message_id: replyTargetMsg.value.id,
-                quote: null,
+                quote: buildReplyQuote(),
                 checklist_task_id: 0,
+                poll_option_id: '',
             };
         }
         // 话题模式时指定 topic_id
@@ -2010,7 +2005,7 @@ const handleSend = async (text: string) => {
         await tdlibSend(params);
         messageInput.value = '';
         // 发送成功后清除回复状态
-        replyTargetMsg.value = null;
+        clearReply();
     } catch (e) {
         console.error("Failed to send message:", e);
     }
@@ -2072,7 +2067,7 @@ function resetState() {
     jumpOlderExhausted.value = false;
     jumpNewerExhausted.value = false;
     // 清空回复与多选状态
-    replyTargetMsg.value = null;
+    clearReply();
     selectionMode.value = false;
     selectedMsgIds.value = [];
     if (highlightTimer !== null) {
@@ -2092,15 +2087,18 @@ const isChannelWithSenderDisplay = computed(() =>
 
 const isSelf = (msg: message) => {
     // 在开启了发送者显示的频道中，所有消息统一靠左，不区分颜色
-    if (isChannelWithSenderDisplay.value) return false;
-    return isOutgoingMessageForDisplay(msg, chat.value, myId.value);
+    return isSelfMessage(msg, selfDeps());
 };
 
+/** `isSelf` 所需依赖（调用时求值以保持响应式） */
+const selfDeps = (): SelfDeps => ({
+    chat: chat.value,
+    myId: myId.value,
+    isChannelWithSenderDisplay: isChannelWithSenderDisplay.value,
+});
+
 const isMessageRead = (msg: message) =>
-    msg.is_outgoing
-    && !msg.sending_state
-    && !!chat.value
-    && msg.id <= chat.value.last_read_outbox_message_id;
+    isMessageReadOf(msg, chat.value);
 
 /** 当前右键菜单对应的消息（供权限预取完成后刷新菜单） */
 let currentMenuMsg: message | null = null;
@@ -2182,6 +2180,17 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
             label: '回复',
             icon: ReplyIcon,
             onClick: () => startReply(msg),
+        });
+    }
+
+    // —— 引用回复（仅当用户已拖动选中了该消息内容的一段文本时出现）——
+    const quotedText = getSelectedQuoteForMessage(msg);
+    if (!isService && quotedText && canReplyMessage(msg, cid)) {
+        items.push({
+            key: 'quote-reply',
+            label: '引用回复',
+            icon: QuoteIcon,
+            onClick: () => startQuoteReply(msg, quotedText),
         });
     }
 
@@ -2415,14 +2424,11 @@ const getDisplaySenderProfileAccentId = (msg: message): number | undefined =>
 const getForwardName = (forwardInfo: messageForwardInfo): string =>
     computeForwardName(forwardInfo, senderCaches());
 
-const getDisplayAuthorSignature = (msg: message): string | undefined => {
-    const signature = msg.author_signature?.trim();
-    if (signature) return signature;
-    return msg.forward_info ? computeForwardAuthorSignature(msg.forward_info) : undefined;
-};
+const getDisplayAuthorSignature = (msg: message): string | undefined =>
+    getDisplayAuthorSignatureOf(msg);
 
 const getInlineKeyboard = (msg: message): replyMarkupInlineKeyboard | undefined =>
-    msg.reply_markup?._ === 'replyMarkupInlineKeyboard' ? msg.reply_markup : undefined;
+    getInlineKeyboardOf(msg);
 
 const isSavedForwardedMessage = (msg: message): boolean =>
     computeIsSavedForwardedMessage(msg, { chat: chat.value, myId: myId.value, users: users.value, chats: chats.value });
@@ -2446,7 +2452,7 @@ const getDisplaySenderDeleted = (msg: message): boolean =>
 
 /** 消息发送者的 user_id（仅当发送者为用户时返回，频道/群组等返回 undefined） */
 const senderUserId = (msg: message): number | undefined =>
-    msg.sender_id?._ === 'messageSenderUser' ? msg.sender_id.user_id : undefined;
+    senderUserIdOf(msg);
 
 /** 点击消息头像 → 打开发送者个人资料页（仅限用户发送者或自己） */
 async function openSenderProfile(msg: message) {
@@ -2535,7 +2541,7 @@ const messageItems = computed<DisplayItem[]>(() =>
 );
 
 // ==================== Album Helpers ====================
-const isSelfAlbum = (item: AlbumDisplayItem) => isSelf(item.messages[0]);
+const isSelfAlbum = (item: AlbumDisplayItem) => isSelfAlbumOf(item, isSelf);
 
 // ==================== 权限 ====================
 const currentMemberStatus = computed<ChatMemberStatus | undefined>(() =>
@@ -2805,12 +2811,25 @@ const handleScrollToBottom = async () => {
     min-height: 0;
 }
 
-/* 允许选择/复制消息中的文本（全局 user-select:none 会拦截文本选择，这里恢复） */
-.messages-scroll {
-    -webkit-user-select: text;
-    -moz-user-select: text;
-    -ms-user-select: text;
-    user-select: text;
+/* 消息区默认不可选中（继承全局 user-select:none）；只有「消息正文 text」和
+   「媒体描述 caption」通过 .msg-selectable-text 显式开放为可选中复制。
+   发送者名称、时间、观看数、时长等装饰信息保持不可选中。 */
+.messages-scroll,
+.messages-scroll [data-bubble-msg-id] {
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+}
+
+/* 正文 / 媒体描述（MessageTextContent 根 <p> 上的专用类）及其内部链接、代码等
+   显式可选中复制。 */
+.messages-scroll [data-bubble-msg-id] .msg-selectable-text,
+.messages-scroll [data-bubble-msg-id] .msg-selectable-text * {
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+    user-select: text !important;
 }
 
 /* Telegram-like bubble style: text should wrap nicely */

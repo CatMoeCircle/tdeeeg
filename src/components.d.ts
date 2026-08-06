@@ -71,6 +71,7 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     SettingsList: typeof import('./components/chat/SettingsList.vue')['default']
     SideNavBar: typeof import('./components/layout/SideNavBar.vue')['default']
+    SlidingTabBar: typeof import('./components/common/SlidingTabBar.vue')['default']
     SpoilerMedia: typeof import('./components/chat/ChatDetail/MessageContent/SpoilerMedia.vue')['default']
     SpoilerPhoto: typeof import('./components/chat/ChatDetail/MessageContent/SpoilerPhoto.vue')['default']
     SpoilerSpan: typeof import('./components/chat/ChatDetail/MessageContent/SpoilerSpan.vue')['default']

@@ -30,7 +30,7 @@ function darkenColor(rgb: number[], factor = 0.78): number[] {
 }
 
 /**
- * 内置 accent 色板（accent_color_id 0-6）—— 从官方客户端提取的精确色值。
+ * 内置 accent 色板（accent_color_id 0-6）—— 从官方客户端提取的色值。
  * 用于名称文字、回复栏、引用标记等 accent 主色。
  */
 const BUILT_IN_ACCENTS: number[][] = [

@@ -467,6 +467,7 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
                                                 thumbnail_data_url: None,
                                                 file_type: "other".to_string(),
                                                 is_generic: true,
+                                                hidden_category: None,
                                                 is_auto_photo: false,
                                                 dismissed: false,
                                             }
@@ -626,6 +627,7 @@ pub fn register_download(
     chat_id: Option<i64>,
     message_id: Option<i64>,
     is_generic: bool,
+    hidden_category: Option<String>,
     is_auto_photo: bool,
 ) -> Result<(), String> {
     let mut store = state.download_store.lock().map_err(|e| e.to_string())?;
@@ -639,6 +641,7 @@ pub fn register_download(
         chat_id,
         message_id,
         is_generic,
+        hidden_category,
         is_auto_photo,
     );
     Ok(())

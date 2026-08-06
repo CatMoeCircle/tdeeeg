@@ -5,8 +5,12 @@
                 class="flex items-start gap-2 mb-2 mx-1 px-3 py-2 rounded-2xl bg-white/70 dark:bg-gray-800/90 shadow-sm border border-gray-200/60 dark:border-gray-700/60">
                 <CornerUpLeftIcon class="w-4 h-4 shrink-0 mt-0.5 text-blue-500" />
                 <div class="min-w-0 flex-1">
-                    <p class="text-xs font-semibold text-blue-500 truncate">{{ replyTarget.title }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ replyTarget.text || '（无文本内容）' }}</p>
+                    <p class="text-xs font-semibold text-blue-500 truncate">
+                        {{ replyTarget.quote ? `引用 ${replyTarget.title}` : replyTarget.title }}
+                    </p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        {{ replyTarget.quote || replyTarget.text || '（无文本内容）' }}
+                    </p>
                 </div>
                 <button type="button" aria-label="取消回复"
                     class="w-6 h-6 shrink-0 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400"
@@ -60,6 +64,8 @@ import AttachmentTray from './AttachmentTray.vue';
 export interface ReplyTarget {
     title: string;
     text: string;
+    /** 引用回复时选中的原文片段（可选） */
+    quote?: string;
 }
 
 const props = defineProps<{

@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import { tdlibSend } from './tdlib';
 import { probeImage, probeVideo } from './mediaProbe';
 import type { $Function } from 'tdlib-types';
+import type { inputTextQuote } from 'tdlib-types';
 import type { AttachmentItem, AttachmentKind } from '../store/attachment';
 
 /** 文件大小上限 */
@@ -175,7 +176,13 @@ function documentContent(it: AttachmentItem, caption: string) {
 interface SendCtx {
     chatId: number;
     topicId?: number | null;
-    replyTo?: { _: 'inputMessageReplyToMessage'; message_id: number; quote: null; checklist_task_id: number } | null;
+    replyTo?: {
+        _: 'inputMessageReplyToMessage';
+        message_id: number;
+        quote: inputTextQuote | null;
+        checklist_task_id: number;
+        poll_option_id?: string;
+    } | null;
 }
 
 function baseParams(ctx: SendCtx) {

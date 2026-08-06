@@ -8,12 +8,44 @@
                 <div ref="videoContainerRef" class="video-card relative flex flex-col overflow-hidden bg-black/70"
                     :style="playerStyle" @click.stop @mousemove="onVideoMouseMove" @mouseleave="onVideoMouseLeave">
                     <!-- Video element -->
-                    <video ref="videoRef" :src="currentSrc" preload="auto" playsinline loop
+                    <video ref="videoRef" :src="effectiveVideoSrc" preload="auto" playsinline loop
                         class="w-full h-full object-contain" @timeupdate="onVideoTimeUpdate"
                         @loadedmetadata="onVideoLoaded" @ended="onVideoEnded" @click="toggleVideoPlay" />
 
+                    <!-- 视频未下载（未自动下载）：显示缩略图 + 手动下载按钮 -->
+                    <div v-if="isVideo && currentCanDownload"
+                        class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60"
+                        @click.stop>
+                        <!-- 缩略图预览 -->
+                        <img v-if="currentThumb" :src="currentThumb"
+                            class="absolute inset-0 w-full h-full object-contain opacity-40 pointer-events-none" />
+                        <button @click="close"
+                            class="absolute top-3 left-3 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/70 transition-colors">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5">
+                                <path d="M18 6L6 18M6 6l12 12" />
+                            </svg>
+                        </button>
+                        <!-- 下载按钮 -->
+                        <button v-if="!videoDownloading" @click.stop="handleViewerVideoDownload"
+                            class="relative z-10 w-16 h-16 rounded-full bg-white/15 hover:bg-white/25 border border-white/30 flex items-center justify-center transition-colors"
+                            title="下载视频">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                class="w-8 h-8 text-white">
+                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                        </button>
+                        <LoaderIndicator v-else :progress="videoDownloadProgress > 0 ? videoDownloadProgress : undefined"
+                            size="52" color="#ffffff" />
+                        <span v-if="!videoDownloading" class="relative z-10 mt-3 text-sm text-white/90">尚未下载，点击下载</span>
+                        <span v-else class="relative z-10 mt-3 text-sm text-white/90">
+                            {{ videoDownloadProgress > 0 ? `下载中 ${Math.round(videoDownloadProgress * 100)}%` : '下载中…' }}
+                        </span>
+                    </div>
+
                     <!-- 视频加载中：关闭按钮 + 加载指示器 + 下载进度（此时无控制条） -->
-                    <div v-if="isVideo && !videoLoaded"
+                    <div v-if="isVideo && !videoLoaded && !currentCanDownload"
                         class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 cursor-pointer"
                         @click="close" title="点击关闭">
                         <button @click.stop="close"
@@ -324,12 +356,15 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { isMediaViewerActive } from '../../../../store/mediaViewer';
 import { pauseAudioForVideo, onVideoStopped } from '../../../../store/videoPlayback';
 import { useDownloadStore } from '../../../../store/downloads';
+import { useChatStore } from '../../../../store/chat';
 import { openContextMenu } from '../../../../store/contextMenu';
 import type { ContextMenuItem } from '../../../../components/contextMenu/types';
 import { EyeIcon, CornerUpRightIcon, DownloadIcon, FolderOpenIcon, CopyIcon } from 'lucide-vue-next';
 import { invoke } from '@tauri-apps/api/core';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { MessagePlugin } from 'tdesign-vue-next';
 import type { formattedText } from 'tdlib-types';
+import { tdlibSend, downloadingFiles } from '../../../../utils/tdlib';
 import MessageTextContent from './MessageTextContent.vue';
 import LoaderIndicator from '../../../common/LoaderIndicator';
 
@@ -367,6 +402,10 @@ export interface MediaViewerItem {
     localPath?: string;
     /** 文件名称（tdlib 提供，用于另存为默认名） */
     fileName?: string;
+    /** 主文件未就绪但可手动下载（用于未自动下载的视频，播放器内显示下载按钮） */
+    canDownload?: boolean;
+    /** 主文件 ID（配合 canDownload 用于手动触发下载） */
+    fileId?: number;
 }
 
 const props = defineProps<{
@@ -429,6 +468,68 @@ const activeQuality = computed(() =>
 );
 /** 画质标签，如 1080p */
 const qualityLabel = computed(() => activeQuality.value?.label || '');
+
+// ---- 视频未下载时的手动下载（未自动下载的视频显示下载按钮） ----
+/** 查看器内手动下载完成后的本地 src（覆盖 media 项的 src，用于播放未自动下载的视频） */
+const videoSrcOverride = ref('');
+/** 是否正在手动下载视频 */
+const videoDownloading = ref(false);
+/** 手动下载进度（0~1） */
+const videoDownloadProgress = ref(0);
+/** 当前视频项是否可手动下载（未就绪但能下载） */
+const currentCanDownload = computed(
+    () => isVideo.value && !effectiveVideoSrc.value && !!currentItem.value?.canDownload
+);
+/** 当前视频有效 src：优先手动下载完成后的本地文件，其次 media 项 src */
+const effectiveVideoSrc = computed(() => videoSrcOverride.value || currentSrc.value);
+
+/** 手动下载当前视频（未自动下载的视频，用户点击下载按钮触发） */
+async function handleViewerVideoDownload() {
+    const item = currentItem.value;
+    if (!item || !item.fileId || videoDownloading.value) return;
+    const fileId = item.fileId;
+    if (downloadingFiles.has(fileId)) return;
+    videoDownloading.value = true;
+    videoDownloadProgress.value = 0;
+    downloadingFiles.add(fileId);
+    try {
+        const fileName = item.fileName || `video_${item.messageId || fileId}.mp4`;
+        // 注册到下载管理器（正常显示，不隐藏），让用户能看到下载进度
+        const chatTitle = item.chatId
+            ? useChatStore().chats[item.chatId]?.title || `对话 #${item.chatId}`
+            : '';
+        useDownloadStore().registerDownload(fileId, fileName, chatTitle, 0, 'video', undefined, item.chatId, item.messageId, false, false);
+        await tdlibSend({ _: 'downloadFile', file_id: fileId, priority: 1, offset: 0, limit: 0, synchronous: false });
+        // 轮询下载进度
+        const timer = setInterval(async () => {
+            try {
+                const info = await tdlibSend({ _: 'getFile', file_id: fileId }) as any;
+                const total = info?.size || 1;
+                const downloaded = info?.local?.downloaded_size || 0;
+                videoDownloadProgress.value = Math.min(1, downloaded / total);
+                if (info?.local?.is_downloading_completed && info?.local?.path) {
+                    clearInterval(timer);
+                    downloadingFiles.delete(fileId);
+                    videoDownloading.value = false;
+                    videoSrcOverride.value = convertFileSrc(info.local.path);
+                    videoLoaded.value = false;
+                    // 立即开始播放
+                    isVideoPlaying.value = false;
+                    videoCurrent.value = 0;
+                }
+            } catch (_) {
+                clearInterval(timer);
+                downloadingFiles.delete(fileId);
+                videoDownloading.value = false;
+            }
+        }, 500);
+    } catch (e) {
+        downloadingFiles.delete(fileId);
+        videoDownloading.value = false;
+        console.error('MediaViewer video download failed:', e);
+        MessagePlugin.error('视频下载失败');
+    }
+}
 
 // UI auto-hide state (video mode only)
 const uiVisible = ref(true);
@@ -518,6 +619,9 @@ watch(() => props.visible, (v) => {
         videoCurrent.value = 0;
         videoDuration.value = 0;
         playbackRate.value = 1;
+        videoSrcOverride.value = '';
+        videoDownloading.value = false;
+        videoDownloadProgress.value = 0;
         activeQualitySrc.value = props.items[currentIndex.value]?.src || '';
         speedMenuVisible.value = false;
         qualityMenuVisible.value = false;
@@ -539,6 +643,9 @@ watch(currentIndex, () => {
     videoCurrent.value = 0;
     videoDuration.value = 0;
     playbackRate.value = 1;
+    videoSrcOverride.value = '';
+    videoDownloading.value = false;
+    videoDownloadProgress.value = 0;
     activeQualitySrc.value = props.items[currentIndex.value]?.src || '';
     speedMenuVisible.value = false;
     qualityMenuVisible.value = false;

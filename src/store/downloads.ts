@@ -36,10 +36,64 @@ export interface DownloadItem {
     file_type: DownloadFileType;
     /** 通用资源标记（贴纸/emoji/头像等），默认隐藏且不计入红点 */
     is_generic: boolean;
+    /** 通用资源的细分类别（仅当 is_generic 为 true 时有意义）：
+     * - "emoji"        自定义表情（缩略图/完整贴纸）
+     * - "video_cover"  视频封面（缩略图）
+     * - "avatar"       用户/群组头像、个人资料大图等
+     * - "story_cover"  动态封面
+     * - "sticker"      贴纸
+     * - "gift"         礼物贴纸
+     * - "music_cover"  音乐封面
+     * - "other"        其他 */
+    hidden_category?: string;
     /** 自动下载图片标记（频道/群组中自动下载的图片），默认隐藏，由独立开关控制 */
     is_auto_photo: boolean;
     /** 在下载管理器中已手动关闭/移除 */
     dismissed: boolean;
+}
+
+/** 通用资源分类标识类型 */
+export type HiddenCategory =
+    | "emoji"
+    | "video_cover"
+    | "avatar"
+    | "story_cover"
+    | "sticker"
+    | "gift"
+    | "music_cover"
+    | "other";
+
+/**
+ * 根据 fileType 推断隐藏资源的默认分类（供 registerDownload 未显式指定分类时使用）。
+ */
+function inferHiddenCategory(fileType: DownloadFileType): HiddenCategory {
+    switch (fileType) {
+        case "avatar": return "avatar";
+        case "sticker": return "sticker";
+        default: return "other";
+    }
+}
+
+/** 各隐藏分类对应的中文显示标签 */
+const HIDDEN_CATEGORY_LABELS: Record<HiddenCategory, string> = {
+    emoji: "表情",
+    video_cover: "视频封面",
+    avatar: "头像",
+    story_cover: "动态封面",
+    sticker: "贴纸",
+    gift: "礼物",
+    music_cover: "音乐封面",
+    other: "通用",
+};
+
+/**
+ * 获取下载项的隐藏分类标签文本。仅对 is_generic 的项有意义，
+ * 未匹配到已知分类时回退为"通用"。
+ */
+export function hiddenCategoryLabel(item: Pick<DownloadItem, "is_generic" | "hidden_category">): string {
+    const cat = item.hidden_category as HiddenCategory | undefined;
+    if (cat && HIDDEN_CATEGORY_LABELS[cat]) return HIDDEN_CATEGORY_LABELS[cat];
+    return HIDDEN_CATEGORY_LABELS.other;
 }
 
 export const useDownloadStore = defineStore("downloads", () => {
@@ -148,6 +202,9 @@ export const useDownloadStore = defineStore("downloads", () => {
         if (typeof item.message_id === "number") existing.message_id = item.message_id;
         if (item.thumbnail_data_url !== undefined) existing.thumbnail_data_url = item.thumbnail_data_url;
         if (item.is_generic !== undefined) existing.is_generic = item.is_generic;
+        if (typeof item.hidden_category === "string" && item.hidden_category !== existing.hidden_category) {
+            existing.hidden_category = item.hidden_category;
+        }
         if (item.is_auto_photo !== undefined) existing.is_auto_photo = item.is_auto_photo;
         if (item.dismissed !== undefined) existing.dismissed = item.dismissed;
     }
@@ -228,6 +285,9 @@ export const useDownloadStore = defineStore("downloads", () => {
 
     /**
      * 注册一个下载项（由组件在发起下载前调用）
+     * @param hiddenCategory 通用资源的细分类别（仅当 isGeneric 为 true 时有意义）：
+     *   "emoji" / "video_cover" / "avatar" / "story_cover" / "sticker" / "other"，
+     *   用于在下载管理器中区分展示具体隐藏资源类型。缺省时按 fileType 推断。
      */
     async function registerDownload(
         fileId: number,
@@ -242,8 +302,12 @@ export const useDownloadStore = defineStore("downloads", () => {
         isGeneric?: boolean,
         /** 是否为自动下载图片（频道/群组中自动下载的图片，默认隐藏、独立开关控制） */
         isAutoPhoto?: boolean,
+        /** 通用资源的细分类别（见函数注释） */
+        hiddenCategory?: string,
     ) {
         const generic = isGeneric ?? (fileType === "sticker" || fileType === "avatar" || fileType === "other");
+        // 若未显式指定分类，则按 fileType 推断一个合理的默认值
+        const category = hiddenCategory ?? (generic ? inferHiddenCategory(fileType) : undefined);
         try {
             await invoke("register_download", {
                 fileId,
@@ -255,6 +319,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                 chatId: chatId || null,
                 messageId: messageId || null,
                 isGeneric: generic,
+                hiddenCategory: category ?? null,
                 isAutoPhoto: isAutoPhoto ?? false,
             });
             // 注册成功后，立即将本地状态置为进行中
@@ -270,6 +335,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                 file_type: fileType,
                 thumbnail_data_url: thumbnailDataUrl,
                 is_generic: generic,
+                hidden_category: category,
                 is_auto_photo: isAutoPhoto ?? false,
                 dismissed: false,
                 chat_id: chatId,
@@ -341,6 +407,24 @@ export const useDownloadStore = defineStore("downloads", () => {
             await dismissItem(fileId);
         } catch (e) {
             console.error("cancelDownloadFile failed:", e);
+        }
+    }
+
+    /** 取消所有进行中/暂停的下载（含隐藏的通用资源与自动下载图片） */
+    async function cancelAllDownloads() {
+        const pending = Object.values(items.value).filter(
+            (item) => !item.is_completed && !item.dismissed
+        );
+        // 逐个取消并非发 dismiss，避免并发写入 items 时出现竞态与顺序问题
+        for (const item of pending) {
+            try {
+                await invoke("tdlib_send", {
+                    request: { _: "cancelDownloadFile", file_id: item.file_id },
+                });
+                await dismissItem(item.file_id);
+            } catch (e) {
+                console.error("cancelDownloadFile failed for", item.file_id, e);
+            }
         }
     }
 
@@ -424,6 +508,7 @@ export const useDownloadStore = defineStore("downloads", () => {
         getDownloadInfo,
         togglePause,
         cancelDownload,
+        cancelAllDownloads,
         dismissItem,
         clearCompleted,
         toggleShowHidden,

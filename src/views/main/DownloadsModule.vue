@@ -2,8 +2,9 @@
     <!-- 下载管理器：左下角悬浮窗 -->
     <Teleport to="body">
         <Transition name="dl-panel">
-            <div v-if="store.isPanelOpen"
-                class="fixed bottom-4 left-20 z-50 w-96 max-h-[70vh] flex flex-col bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div v-if="store.isPanelOpen" ref="panelEl"
+                class="fixed bottom-4 left-20 z-50 flex flex-col bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden"
+                :style="panelStyle" :class="{ 'resizing': isResizing }">
                 <!-- 标题栏 -->
                 <div
                     class="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between shrink-0">
@@ -22,7 +23,7 @@
                         </p>
                     </div>
                     <!-- 三点菜单 + 关闭 -->
-                    <div class="relative flex items-center gap-1" :ref="setMenuRef">
+                    <div class="relative flex items-center gap-1 pr-1" :ref="setMenuRef">
                         <button type="button" @click="menuOpen = !menuOpen"
                             class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
                             <svg class="w-5 h-5 text-gray-500" viewBox="0 0 24 24" fill="currentColor">
@@ -49,7 +50,7 @@
                                     {{ store.showHidden ? '隐藏通用资源' : '显示隐藏的通用资源' }}
                                     <span v-if="store.hasHiddenActive && !store.showHidden"
                                         class="ml-auto text-xs text-gray-400">({{
-                                        hiddenGenericsCount }})</span>
+                                            hiddenGenericsCount }})</span>
                                 </button>
                                 <!-- 显示自动下载图片（独立的隐藏开关） -->
                                 <button type="button" @click="store.toggleShowAutoPhotos(); menuOpen = false"
@@ -74,6 +75,17 @@
                                             d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
                                     </svg>
                                     清除已完成
+                                </button>
+                                <!-- 取消全部下载（仅当存在进行中/暂停任务时显示） -->
+                                <button v-if="store.pendingItems.length > 0" type="button"
+                                    @click="menuOpen = false; confirmCancelAll()"
+                                    class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <circle cx="12" cy="12" r="10" />
+                                        <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+                                    </svg>
+                                    取消全部下载
                                 </button>
                             </div>
                         </Transition>
@@ -122,84 +134,9 @@
                         <div class="px-4 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wider">
                             进行中
                         </div>
-                        <div v-for="item in store.pendingItems" :key="item.file_id"
-                            class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
-                            @contextmenu.prevent="onItemContextMenu($event, item)">
-                            <!-- 文件图标 / 缩略图 -->
-                            <div class="w-11 h-11 rounded-lg overflow-hidden shrink-0 relative">
-                                <!-- 图片/视频缩略图 -->
-                                <img v-if="item.thumbnail_data_url && (item.file_type === 'photo' || item.file_type === 'video')"
-                                    :src="item.thumbnail_data_url"
-                                    class="w-full h-full object-cover bg-gray-100 dark:bg-gray-700" />
-                                <!-- 下载完成后的完整文件 -->
-                                <img v-else-if="item.local_path && item.file_type === 'photo'"
-                                    :src="toAssetUrl(item.local_path)"
-                                    class="w-full h-full object-cover bg-gray-100 dark:bg-gray-700" />
-                                <!-- 通用图标 -->
-                                <div v-else class="w-full h-full flex items-center justify-center"
-                                    :class="iconBgClass(item)">
-                                    <component :is="fileIcon(item)" class="w-5 h-5" :class="iconColorClass(item)" />
-                                </div>
-                                <!-- 暂停覆盖层 -->
-                                <div v-if="item.is_paused"
-                                    class="absolute inset-0 bg-black/30 flex items-center justify-center">
-                                    <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
-                                        <rect x="6" y="4" width="4" height="16" rx="1" />
-                                        <rect x="14" y="4" width="4" height="16" rx="1" />
-                                    </svg>
-                                </div>
-                            </div>
-
-                            <div class="flex-1 min-w-0">
-                                <p class="text-sm font-medium truncate text-gray-900 dark:text-gray-100">
-                                    {{ item.file_name }}
-                                    <span v-if="item.is_generic"
-                                        class="ml-1.5 text-[10px] text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-1 rounded">通用</span>
-                                </p>
-                                <p class="text-xs text-gray-400 truncate">
-                                    {{ item.chat_title || '未知来源' }}
-                                    <span class="mx-1">·</span>
-                                    {{ formatSize(item.downloaded_size) }} / {{ formatSize(item.total_size) }}
-                                </p>
-                                <div
-                                    class="mt-1.5 w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                    <div class="h-full rounded-full transition-all duration-300"
-                                        :class="item.is_paused ? 'bg-yellow-400' : 'bg-blue-500'"
-                                        :style="{ width: Math.min(100, item.progress * 100) + '%' }">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <span class="text-xs text-gray-400 shrink-0 w-10 text-right">{{ (item.progress *
-                                100).toFixed(0)
-                                }}%</span>
-
-                            <!-- 操作按钮 -->
-                            <div class="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <!-- 暂停/继续 -->
-                                <button type="button" @click="store.togglePause(item.file_id)"
-                                    class="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg"
-                                    :title="item.is_paused ? '继续' : '暂停'">
-                                    <svg v-if="item.is_paused" class="w-4 h-4 text-gray-500" viewBox="0 0 24 24"
-                                        fill="currentColor">
-                                        <polygon points="5 3 19 12 5 21 5 3" />
-                                    </svg>
-                                    <svg v-else class="w-4 h-4 text-gray-500" viewBox="0 0 24 24" fill="currentColor">
-                                        <rect x="6" y="4" width="4" height="16" rx="1" />
-                                        <rect x="14" y="4" width="4" height="16" rx="1" />
-                                    </svg>
-                                </button>
-                                <!-- 取消 -->
-                                <button type="button" @click="store.cancelDownload(item.file_id)"
-                                    class="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg" title="取消">
-                                    <svg class="w-4 h-4 text-gray-400 hover:text-red-500" viewBox="0 0 24 24"
-                                        fill="none" stroke="currentColor" stroke-width="2">
-                                        <line x1="18" y1="6" x2="6" y2="18" />
-                                        <line x1="6" y1="6" x2="18" y2="18" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
+                        <DownloadRow v-for="item in store.pendingItems" :key="item.file_id" :item="item"
+                            :can-open-in-player="false" @toggle-pause="store.togglePause" @cancel="store.cancelDownload"
+                            @item-context-menu="onItemContextMenu" />
                     </div>
 
                     <!-- 已完成 -->
@@ -207,46 +144,9 @@
                         <div class="px-4 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wider">
                             已完成
                         </div>
-                        <div v-for="item in store.completedItems" :key="item.file_id"
-                            class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
-                            :class="{ 'cursor-pointer': canOpenInPlayer(item) }" @click="onCompletedClick(item)"
-                            @contextmenu.prevent="onItemContextMenu($event, item)">
-                            <!-- 完整展示 -->
-                            <div class="w-11 h-11 rounded-lg overflow-hidden shrink-0">
-                                <img v-if="item.local_path && (item.file_type === 'photo' || item.file_type === 'video')"
-                                    :src="toAssetUrl(item.local_path)"
-                                    class="w-full h-full object-cover bg-gray-100 dark:bg-gray-700" />
-                                <img v-else-if="item.thumbnail_data_url" :src="item.thumbnail_data_url"
-                                    class="w-full h-full object-cover bg-gray-100 dark:bg-gray-700" />
-                                <div v-else
-                                    class="w-full h-full flex items-center justify-center bg-green-100 dark:bg-green-900">
-                                    <svg class="w-5 h-5 text-green-500" viewBox="0 0 24 24" fill="none"
-                                        stroke="currentColor" stroke-width="2">
-                                        <polyline points="20 6 9 17 4 12" />
-                                    </svg>
-                                </div>
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <p class="text-sm font-medium truncate text-gray-900 dark:text-gray-100">
-                                    {{ item.file_name }}
-                                    <span v-if="item.is_generic"
-                                        class="ml-1.5 text-[10px] text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-1 rounded">通用</span>
-                                </p>
-                                <p class="text-xs text-gray-400 truncate">
-                                    {{ item.chat_title || '未知来源' }}
-                                    <span class="mx-1">·</span>
-                                    {{ formatSize(item.total_size) }}
-                                </p>
-                            </div>
-                            <button type="button" @click.stop="store.dismissItem(item.file_id)"
-                                class="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                                <svg class="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2">
-                                    <line x1="18" y1="6" x2="6" y2="18" />
-                                    <line x1="6" y1="6" x2="18" y2="18" />
-                                </svg>
-                            </button>
-                        </div>
+                        <DownloadRow v-for="item in store.completedItems" :key="item.file_id" :item="item"
+                            :can-open-in-player="canOpenInPlayer(item)" @dismiss="store.dismissItem"
+                            @open-in-player="onCompletedClick" @item-context-menu="onItemContextMenu" />
                     </div>
 
                     <!-- 空状态 -->
@@ -266,6 +166,15 @@
                         </p>
                     </div>
                 </div>
+
+                <!-- 右上角对角拖拽调整大小手柄（面板锚定左下角，右上角自由 → nesw 方向） -->
+                <div class="absolute top-1 right-1 w-5 h-5 cursor-nesw-resize group z-50 select-none"
+                    @mousedown.prevent="startCornerResize">
+                    <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 group-hover:text-blue-500 transition-colors"
+                        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 3v6M21 3h-6M21 3l-6 6" />
+                    </svg>
+                </div>
             </div>
         </Transition>
     </Teleport>
@@ -274,21 +183,153 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
-import { useDownloadStore, type DownloadFileType, type DownloadItem } from "../../store/downloads";
+import { useDownloadStore, type DownloadItem } from "../../store/downloads";
+import DownloadRow from "./DownloadRow.vue";
 import { openContextMenu } from "../../store/contextMenu";
 import type { ContextMenuItem } from "../../components/contextMenu/types";
 import { revealItemInDir, openPath } from "@tauri-apps/plugin-opener";
-import { convertFileSrc } from "@tauri-apps/api/core";
 import {
-    FileIcon, ImageIcon, VideoIcon, MusicIcon, MicIcon,
-    MessageCircleIcon, FolderOpenIcon, TrashIcon, PauseIcon, PlayIcon,
+    MessageCircleIcon, FolderOpenIcon, TrashIcon, PauseIcon, PlayIcon, FileIcon, ImageIcon, MusicIcon,
 } from 'lucide-vue-next';
-import type { Component } from "vue";
 
 const store = useDownloadStore();
 const router = useRouter();
 const menuOpen = ref(false);
 const menuEl = ref<HTMLElement | null>(null);
+
+// ─── 面板可拖拽调整大小（右上角对角拖拽） ─────────────────────
+/** 面板与主窗口边框之间的最小边距（px） */
+const EDGE_MARGIN = 16;
+/** 面板左侧固定定位偏移（left-20 = 80px） */
+const PANEL_LEFT_OFFSET = 80;
+/** 面板底部固定定位偏移（bottom-4 = 16px） */
+const PANEL_BOTTOM_OFFSET = 16;
+/** 面板的最小高度，保证标题栏和右键菜单能完整显示 */
+const PANEL_MIN_HEIGHT = 320;
+/** 面板的最小宽度 */
+const PANEL_MIN_WIDTH = 280;
+
+/** 主内容区（HomeView）的顶部 y 坐标 = 标题栏底部（若已渲染），否则按顶部边距兜底 */
+function getContentTopY(): number {
+    const titleBar = document.querySelector<HTMLElement>("[data-tauri-drag-region]");
+    if (titleBar) {
+        const r = titleBar.getBoundingClientRect();
+        if (r.height > 0 && r.bottom > 0) return r.bottom + EDGE_MARGIN;
+    }
+    return EDGE_MARGIN;
+}
+
+/**
+ * 面板的最大高度：顶部不超出 HomeView 区域（标题栏之下），底部保留边距。
+ * 面板锚定在底部（bottom-4），故 maxY = 视口高 - 底部偏移，
+ * 高度上限 = maxY - HomeView顶部y。
+ */
+const PANEL_MAX_HEIGHT = () =>
+    window.innerHeight - PANEL_BOTTOM_OFFSET - getContentTopY();
+/** 面板的最大宽度：不超出视口右侧边距 */
+const PANEL_MAX_WIDTH = () => window.innerWidth - PANEL_LEFT_OFFSET - EDGE_MARGIN;
+
+/** 将宽高同时约束到面板允许的最小/最大范围内 */
+function clampPanelSize(w: number, h: number): { width: number; height: number } {
+    return {
+        width: Math.min(Math.max(w, PANEL_MIN_WIDTH), PANEL_MAX_WIDTH()),
+        height: Math.min(Math.max(h, PANEL_MIN_HEIGHT), PANEL_MAX_HEIGHT()),
+    };
+}
+
+/** 面板高度（px），持久化到 localStorage，默认 420 */
+function getInitialPanelHeight(): number {
+    const saved = Number(localStorage.getItem("tdgram_download_panel_height"));
+    if (Number.isFinite(saved) && saved >= PANEL_MIN_HEIGHT) return saved;
+    return 420;
+}
+const panelHeightPx = ref<number>(getInitialPanelHeight());
+
+/** 面板宽度（px），持久化到 localStorage，默认 384（24rem） */
+function getInitialPanelWidth(): number {
+    const saved = Number(localStorage.getItem("tdgram_download_panel_width"));
+    if (Number.isFinite(saved) && saved >= PANEL_MIN_WIDTH) return saved;
+    return 384;
+}
+const panelWidthPx = ref<number>(getInitialPanelWidth());
+
+/** 正在拖拽调整大小 */
+const isResizing = ref(false);
+const panelEl = ref<HTMLElement | null>(null);
+/** 拖拽起始时的鼠标坐标与面板宽高（用于计算增量） */
+let resizeStartX = 0;
+let resizeStartY = 0;
+let resizeStartWidth = 0;
+let resizeStartHeight = 0;
+
+/**
+ * 开始从右上角对角拖拽调整大小。
+ * 面板固定在左下角（bottom-4 left-20），因此：
+ *  - 高度由顶部边缘决定：鼠标上移增高（deltaY = 起始Y - 当前Y）
+ *  - 宽度由右侧边缘决定：鼠标右移增宽（deltaX = 当前X - 起始X）
+ */
+function startCornerResize(e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    resizeStartX = e.clientX;
+    resizeStartY = e.clientY;
+    resizeStartWidth = panelWidthPx.value;
+    resizeStartHeight = panelHeightPx.value;
+    isResizing.value = true;
+    // 拖拽中禁用文本选择
+    document.body.style.userSelect = "none";
+    document.addEventListener("mousemove", onCornerResizeMove);
+    document.addEventListener("mouseup", stopResize);
+}
+
+function onCornerResizeMove(e: MouseEvent) {
+    const widthDelta = e.clientX - resizeStartX;
+    const heightDelta = resizeStartY - e.clientY;
+    const nextWidth = resizeStartWidth + widthDelta;
+    const nextHeight = resizeStartHeight + heightDelta;
+    const size = clampPanelSize(nextWidth, nextHeight);
+    panelWidthPx.value = size.width;
+    panelHeightPx.value = size.height;
+}
+
+function stopResize() {
+    if (!isResizing.value) return;
+    isResizing.value = false;
+    document.body.style.userSelect = "";
+    document.removeEventListener("mousemove", onCornerResizeMove);
+    document.removeEventListener("mouseup", stopResize);
+    // 持久化宽高，下次打开保持（已经 clamp 过，保证不超边界）
+    try {
+        localStorage.setItem("tdgram_download_panel_height", String(panelHeightPx.value));
+        localStorage.setItem("tdgram_download_panel_width", String(panelWidthPx.value));
+    } catch (e) {
+        // localStorage 不可用时忽略
+        console.warn("Failed to persist panel size:", e);
+    }
+}
+
+/** 若当前尺寸超过屏幕边界（例如窗口被缩小或历史值偏大），压缩回允许范围内 */
+function applyClampedSize() {
+    const size = clampPanelSize(panelWidthPx.value, panelHeightPx.value);
+    if (size.width !== panelWidthPx.value) panelWidthPx.value = size.width;
+    if (size.height !== panelHeightPx.value) panelHeightPx.value = size.height;
+}
+
+/** 渲染时按当前视口 clamp 的样式（兜底保证，打开面板时不超边界） */
+const panelStyle = computed(() => {
+    const size = clampPanelSize(panelWidthPx.value, panelHeightPx.value);
+    return { width: size.width + "px", height: size.height + "px" };
+});
+
+/** 挂载时按当前视口压缩一次，并监听窗口尺寸变化时实时压缩 */
+onMounted(() => {
+    applyClampedSize();
+    window.addEventListener("resize", applyClampedSize);
+});
+onUnmounted(() => {
+    stopResize();
+    window.removeEventListener("resize", applyClampedSize);
+});
 
 /** 一键显示所有隐藏项（通用资源 + 自动下载图片） */
 async function revealAllHidden() {
@@ -297,24 +338,39 @@ async function revealAllHidden() {
     menuOpen.value = false;
 }
 
-/** 已隐藏（通用资源）的进行中下载数量 —— 模板中多处引用，缓存避免每次渲染重复 filter */
-const hiddenGenericsCount = computed(() =>
-    store.pendingItems.filter((i) => i.is_generic).length
-);
+/** 点击「取消全部下载」：二次确认后取消所有进行中/暂停任务 */
+async function confirmCancelAll() {
+    const count = store.pendingItems.length;
+    const ok = window.confirm(`确定要取消全部 ${count} 个下载任务吗？`);
+    if (!ok) return;
+    await store.cancelAllDownloads();
+}
 
-/** 已隐藏（自动下载图片）的进行中下载数量 */
-const hiddenAutoPhotosCount = computed(() => {
-    return Object.values(store.items).filter(
-        (i) => i.is_auto_photo && !i.is_completed && !i.dismissed
-    ).length;
+/**
+ * 已隐藏资源的统计数据 —— 一次遍历算出三个数量，避免多个 computed 各自
+ * Object.values(store.items) 重复遍历（条目很多时是性能热点）。
+ */
+const hiddenStats = computed(() => {
+    let generics = 0;      // 通用资源进行中的数量
+    let autoPhotos = 0;    // 自动下载图片进行中的数量
+    let active = 0;        // 隐藏（通用 + 自动图片）进行中的总数量
+    for (const i of Object.values(store.items)) {
+        if (i.dismissed || i.is_completed) continue;
+        if (i.is_generic) generics++;
+        if (i.is_auto_photo) autoPhotos++;
+        if (i.is_generic || i.is_auto_photo) active++;
+    }
+    return { generics, autoPhotos, active };
 });
 
+/** 已隐藏（通用资源）的进行中下载数量 */
+const hiddenGenericsCount = computed(() => hiddenStats.value.generics);
+
+/** 已隐藏（自动下载图片）的进行中下载数量 */
+const hiddenAutoPhotosCount = computed(() => hiddenStats.value.autoPhotos);
+
 /** 隐藏（通用资源 + 自动下载图片）的进行中下载总数量 */
-const hiddenActiveCount = computed(() =>
-    Object.values(store.items).filter(
-        (i) => (i.is_generic || i.is_auto_photo) && !i.is_completed && !i.dismissed
-    ).length
-);
+const hiddenActiveCount = computed(() => hiddenStats.value.active);
 
 /** 打开文件所在位置（文件管理器定位） */
 async function revealFile(item: DownloadItem) {
@@ -471,55 +527,6 @@ function onClickOutside(e: MouseEvent) {
 
 onMounted(() => document.addEventListener('click', onClickOutside));
 onUnmounted(() => document.removeEventListener('click', onClickOutside));
-
-function formatSize(bytes: number): string {
-    if (bytes === 0) return "0 B";
-    const units = ["B", "KB", "MB", "GB"];
-    const k = 1024;
-    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), units.length - 1);
-    const value = bytes / Math.pow(k, i);
-    return value.toFixed(i === 0 ? 0 : 1) + " " + units[i];
-}
-
-function iconBgClass(item: { file_type: DownloadFileType }): string {
-    switch (item.file_type) {
-        case "photo": return "bg-purple-100 dark:bg-purple-900";
-        case "video": return "bg-pink-100 dark:bg-pink-900";
-        case "audio": return "bg-orange-100 dark:bg-orange-900";
-        case "voice": return "bg-teal-100 dark:bg-teal-900";
-        case "animation": return "bg-indigo-100 dark:bg-indigo-900";
-        case "sticker": return "bg-yellow-100 dark:bg-yellow-900";
-        case "avatar": return "bg-cyan-100 dark:bg-cyan-900";
-        default: return "bg-blue-100 dark:bg-blue-900";
-    }
-}
-
-function iconColorClass(item: { file_type: DownloadFileType }): string {
-    switch (item.file_type) {
-        case "photo": return "text-purple-500";
-        case "video": return "text-pink-500";
-        case "audio": return "text-orange-500";
-        case "voice": return "text-teal-500";
-        case "animation": return "text-indigo-500";
-        case "sticker": return "text-yellow-500";
-        case "avatar": return "text-cyan-500";
-        default: return "text-blue-500";
-    }
-}
-
-function toAssetUrl(localPath: string): string {
-    try { return convertFileSrc(localPath); } catch { return localPath; }
-}
-
-function fileIcon(item: { file_type: DownloadFileType }): Component {
-    switch (item.file_type) {
-        case "photo": return ImageIcon;
-        case "video": return VideoIcon;
-        case "audio": return MusicIcon;
-        case "voice": return MicIcon;
-        default: return FileIcon;
-    }
-}
 </script>
 
 <style scoped>
@@ -533,5 +540,12 @@ function fileIcon(item: { file_type: DownloadFileType }): Component {
 .dl-panel-leave-to {
     opacity: 0;
     transform: translateY(16px) scale(0.98);
+}
+
+/* 拖拽调整大小时强化边框反馈，弱化圆角（贴近视口顶部时更自然） */
+.resizing {
+    border: 1px solid rgba(59, 130, 246, 0.6);
+    box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.2);
+    border-radius: 12px;
 }
 </style>

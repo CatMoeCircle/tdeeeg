@@ -65,6 +65,7 @@ const containerClass = computed(() => {
     if (props.overMedia) {
         return 'text-[10px] leading-none select-none pointer-events-none text-white';
     }
-    return 'text-[10px] leading-none';
+    // 时间 / 观看数 / 已读状态等属于装饰信息，始终不可选中复制（避免与消息正文选择混淆）
+    return 'text-[10px] leading-none select-none';
 });
 </script>
