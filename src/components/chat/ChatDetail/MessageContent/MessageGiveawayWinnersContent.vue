@@ -41,7 +41,8 @@
         <!-- 了解更多的按键 -->
         <div class="mt-3">
             <button type="button"
-                class="mx-auto block w-[calc(100%-10px)] rounded-[5px] bg-sky-100 px-6 py-1.5 text-center text-sm font-medium text-sky-800 shadow-sm hover:bg-sky-200 focus:outline-none focus:ring-2 focus:ring-sky-300/60 dark:bg-sky-900/40 dark:text-sky-300 dark:hover:bg-sky-900/60">
+                class="mx-auto block w-[calc(100%-10px)] rounded-[5px] px-6 py-1.5 text-center text-sm font-medium shadow-sm transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-current/30"
+                :style="learnMoreStyle">
                 了解更多
             </button>
         </div>
@@ -95,6 +96,12 @@ function winnerRowStyle(w: WinnerUser): Record<string, string> {
     const s = accentColorStyle(w.accentColorId ?? 5);
     return { background: s.soft, color: s.color };
 }
+
+/** 了解更多按键：配色跟随 TDLib 主题 accent 色（默认蓝 5），明暗主题自适应 */
+const learnMoreStyle = computed(() => {
+    const s = accentColorStyle(5);
+    return { backgroundColor: s.soft, color: s.color };
+});
 
 /** 附加奖品描述（prize_description） */
 const prizeDescription = computed(() => props.content.prize_description?.trim() || '');
