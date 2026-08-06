@@ -12,6 +12,8 @@ import vContextMenu from "./directives/contextMenu";
 import vSmoothWheel from "./directives/smoothWheel";
 import { closeContextMenu } from "./store/contextMenu";
 import { initTdlib, waitForAuthorization } from "./init";
+import { registerLoaderStyle, type LoaderStyle } from "./components/common/LoaderIndicator";
+import { settings } from "./store/settings";
 
 // 全局右键处理：
 // - 输入框/可编辑元素/链接等保留原生右键（便于复制粘贴等）
@@ -70,6 +72,12 @@ async function bootstrap() {
 
     // mount 前先跳到对应路由
     await router.push(authState === "ready" ? "/home" : "/login");
+
+    // 预注册加载指示器样式（ldrs 自定义元素）。
+    // ldrs 在打包后会被拆到独立 chunk（LoaderIndicator-*），其 register() 代码
+    // 随 chunk 按需加载。这里在挂载前提前注册当前生效样式，确保首个 LoaderIndicator
+    // 渲染为已定义的自定义元素（避免出现未知元素的空白闪烁）。
+    registerLoaderStyle(settings.loadingStyle as LoaderStyle);
 
     // 授权态稳定、路由已定位，再渲染 App.vue
     app.mount("#app");
