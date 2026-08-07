@@ -92,10 +92,12 @@
                     :class="[segment.className, captionLoadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
                     @click.prevent.stop="handleCaptionSegmentClick($event, segment)">{{ segment.text
                     }}</a>
-                <span v-else :class="[segment.className, { 'cursor-pointer': segment.copyable || segment.isCommand }]"
-                    @click="(segment.copyable || segment.isCommand) ? handleCaptionSegmentClick($event, segment) : undefined"><SpoilerSpan
-                        v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template
-                        v-else>{{ segment.text }}</template></span>
+                <span v-else
+                    :class="[segment.className, segment.copyable ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
+                    @click="(segment.copyable || segment.isCommand) ? handleCaptionSegmentClick($event, segment) : undefined">
+                    <SpoilerSpan v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template v-else>{{
+                        segment.text }}</template>
+                </span>
             </template>
         </p>
     </div>
@@ -276,10 +278,11 @@ function getEntityClass(entity: textEntity): string {
         case 'textEntityTypeItalic': return 'italic';
         case 'textEntityTypeUnderline': return 'underline';
         case 'textEntityTypeStrikethrough': return 'line-through';
+        // 代码（行内 / 块级）：点击复制，不添加灰色背景（与富文本可复制文本一致）
         case 'textEntityTypeCode':
         case 'textEntityTypePre':
         case 'textEntityTypePreCode':
-            return 'rounded bg-black/5 px-0.5 font-mono dark:bg-white/10';
+            return 'font-mono';
         // 剧透由独立组件（SpoilerSpan）处理，此处不附加样式
         case 'textEntityTypeSpoiler': return '';
         default: return '';
@@ -288,9 +291,12 @@ function getEntityClass(entity: textEntity): string {
 
 function isCopyableEntity(entity: textEntity): boolean {
     switch (entity.type._) {
-        // 目前仅 #话题标签 点击复制（临时方案，后续搜索功能优化时改为搜索该标签）。
-        // URL / @提及 / 邮箱 / 电话 / 代码 等不再复制（点击各有其导航/默认行为）。
+        // #话题标签 点击复制（临时方案，后续搜索功能优化时改为搜索该标签）。
+        // 行内代码 / 块级代码：点击复制代码文本（与富文本 richTextFixed 的可复制适配一致）。
         case 'textEntityTypeHashtag':
+        case 'textEntityTypeCode':
+        case 'textEntityTypePre':
+        case 'textEntityTypePreCode':
             return true;
         default:
             return false;

@@ -1,6 +1,6 @@
 <template>
-    <MessageLinkPreview v-if="linkPreview?.show_above_text" :preview="linkPreview"
-        :accentColorId="accentColorId" @open="openLink" />
+    <MessageLinkPreview v-if="linkPreview?.show_above_text" :preview="linkPreview" :accentColorId="accentColorId"
+        @open="openLink" />
     <p class="whitespace-pre-wrap msg-selectable-text"
         :style="{ fontSize: 'var(--msg-font-size, 14px)', lineHeight: '1.4' }">
         <template v-for="(group, gi) in renderGroups" :key="gi">
@@ -22,10 +22,11 @@
                             @click.prevent.stop="handleSegmentClick($event, segment)"
                             @contextmenu="handleSegmentContextMenu($event, segment)">{{ segment.text }}</a>
                         <span v-else
-                            :class="[segment.className, { 'cursor-pointer': segment.copyable || segment.isCommand }]"
-                            @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined"><SpoilerSpan
-                                v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template
-                                v-else>{{ segment.text }}</template></span>
+                            :class="[segment.className, segment.copyable ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
+                            @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined">
+                            <SpoilerSpan v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template v-else>{{
+                                segment.text }}</template>
+                        </span>
                     </template>
                 </span>
                 <!-- 普通引用：全部显示 -->
@@ -39,10 +40,11 @@
                             @click.prevent.stop="handleSegmentClick($event, segment)"
                             @contextmenu="handleSegmentContextMenu($event, segment)">{{ segment.text }}</a>
                         <span v-else
-                            :class="[segment.className, { 'cursor-pointer': segment.copyable || segment.isCommand }]"
-                            @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined"><SpoilerSpan
-                                v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template
-                                v-else>{{ segment.text }}</template></span>
+                            :class="[segment.className, segment.copyable ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
+                            @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined">
+                            <SpoilerSpan v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template v-else>{{
+                                segment.text }}</template>
+                        </span>
                     </template>
                 </template>
                 <!-- 右下角折叠/展开三角图标 -->
@@ -58,16 +60,16 @@
             </span>
             <!-- Code block group：用 span + block 展示，避免 <pre> 在 <p> 内闭合破坏布局 -->
             <span v-else-if="group.type === 'code'"
-                class="relative my-1 block overflow-x-auto rounded-lg bg-black/5 border border-black/10 dark:bg-white/10 dark:border-white/10 p-2.5 text-[13px] leading-5 whitespace-pre-wrap">
+                class="relative my-1 block overflow-x-auto rounded-lg border border-black/10 dark:border-white/10 p-2.5 text-[13px] leading-5 whitespace-pre-wrap">
                 <template v-for="(segment, si) in group.segments" :key="si">
-                    <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId"
-                        :size="emojiSize" :fallback-text="segment.text" />
+                    <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId" :size="emojiSize"
+                        :fallback-text="segment.text" />
                     <a v-else-if="segment.href" :href="segment.href"
                         class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
                         :class="[segment.className]" @click.prevent.stop="handleSegmentClick($event, segment)">{{
                             segment.text }}</a>
                     <span v-else class="font-mono"
-                        :class="[segment.className, { 'cursor-pointer': segment.copyable || segment.isCommand }]"
+                        :class="[segment.className, segment.copyable ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
                         @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined">{{
                             segment.text
                         }}</span>
@@ -76,18 +78,19 @@
             <!-- Normal group -->
             <template v-else>
                 <template v-for="(segment, si) in group.segments" :key="si">
-                    <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId"
-                        :size="emojiSize" :fallback-text="segment.text" />
+                    <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId" :size="emojiSize"
+                        :fallback-text="segment.text" />
                     <a v-else-if="segment.href" :href="segment.href"
                         class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
                         :class="[segment.className, loadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
                         @click.prevent.stop="handleSegmentClick($event, segment)"
                         @contextmenu="handleSegmentContextMenu($event, segment)">{{ segment.text }}</a>
                     <span v-else
-                        :class="[segment.className, { 'cursor-pointer': segment.copyable || segment.isCommand }]"
-                        @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined"><SpoilerSpan
-                            v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template
-                            v-else>{{ segment.text }}</template></span>
+                        :class="[segment.className, segment.copyable ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
+                        @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined">
+                        <SpoilerSpan v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template v-else>{{
+                            segment.text }}</template>
+                    </span>
                 </template>
             </template>
         </template>
@@ -312,9 +315,9 @@ function getEntityClass(entity: textEntity): string {
         case 'textEntityTypeItalic': return 'italic';
         case 'textEntityTypeUnderline': return 'underline';
         case 'textEntityTypeStrikethrough': return 'line-through';
-        // 行内代码
+        // 行内代码：点击复制，不添加灰色背景（与富文本可复制文本一致）
         case 'textEntityTypeCode':
-            return 'rounded bg-black/5 px-0.5 font-mono dark:bg-white/10';
+            return 'font-mono';
         // 块级代码（pre / preCode）：样式由外层 <pre> 容器控制，这里仅保留等宽字体
         case 'textEntityTypePre':
         case 'textEntityTypePreCode':
@@ -333,9 +336,12 @@ function getEntityClass(entity: textEntity): string {
 
 function isCopyableEntity(entity: textEntity): boolean {
     switch (entity.type._) {
-        // 目前仅 #话题标签 点击复制（临时方案，后续搜索功能优化时改为搜索该标签）。
-        // URL / @提及 / 邮箱 / 电话 / 代码 等不再复制（点击各有其导航/默认行为）。
+        // #话题标签 点击复制（临时方案，后续搜索功能优化时改为搜索该标签）。
+        // 行内代码 / 块级代码：点击复制代码文本（与富文本 richTextFixed 的可复制适配一致）。
         case 'textEntityTypeHashtag':
+        case 'textEntityTypeCode':
+        case 'textEntityTypePre':
+        case 'textEntityTypePreCode':
             return true;
         default:
             return false;

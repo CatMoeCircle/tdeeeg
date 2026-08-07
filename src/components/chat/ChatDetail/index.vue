@@ -82,7 +82,7 @@
                                             :style="senderNameColor(item.messages[0])">
                                             <span class="min-w-0 flex-1 truncate">{{
                                                 getDisplaySenderName(item.messages[0])
-                                                }}</span>
+                                            }}</span>
                                             <span v-if="getMessageLabel(item.messages[0])"
                                                 class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
                                                 :class="getMessageLabelClass(item.messages[0])">{{
@@ -169,7 +169,7 @@
                                             class="text-xs font-semibold mx-2 m-1.5 flex items-center gap-1.5"
                                             :style="senderNameColor(item.msg)">
                                             <span class="min-w-0 flex-1 truncate">{{ getDisplaySenderName(item.msg)
-                                                }}</span>
+                                            }}</span>
                                             <span v-if="getMessageLabel(item.msg)"
                                                 class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
                                                 :class="getMessageLabelClass(item.msg)">{{
@@ -775,6 +775,8 @@ watch(pendingCommand, (cmd) => {
 
 const isLoadingMore = ref(false);
 const isHistoryExhausted = ref(false);
+/** 普通模式下向下滚动加载“更新”消息是否已到边界（已加载到最新消息） */
+const isNewerExhausted = ref(false);
 const isReady = ref(false);           // 标记初始加载和定位已完成
 const unreadBoundaryMessageId = ref<number | null>(null);
 
@@ -1163,6 +1165,15 @@ const historyMode = ref<HistoryMode>('normal');
 const jumpOlderExhausted = ref(false);
 const jumpNewerExhausted = ref(false);
 
+/** 标记“更新方向”已到边界：跳转模式用 jumpNewerExhausted，普通模式用 isNewerExhausted */
+function markNewerExhausted() {
+    if (historyMode.value === 'jump') {
+        jumpNewerExhausted.value = true;
+    } else {
+        isNewerExhausted.value = true;
+    }
+}
+
 /** 高亮闪烁的消息 ID，用于顶置消息跳转动画 */
 const highlightedMessageId = ref<number | null>(null);
 let highlightTimer: number | null = null;
@@ -1473,15 +1484,16 @@ async function loadHistoryOlder(loadChatId: number, gen: number): Promise<boolea
 }
 
 /**
- * 跳转模式下向更“新”的方向扩展当前列表底部。
- * 普通模式不主动拉取更新消息，新增消息依赖 TDLib 更新事件。
+ * 向更“新”的方向扩展当前列表底部。
+ * 跳转模式与普通模式共用：普通模式在向下滚到底部且有更多未加载消息时也会调用；
+ * 真正贴底后的新增消息仍依赖 TDLib updateNewMessage 事件追加。
  */
 async function loadHistoryNewer(loadChatId: number, gen: number): Promise<boolean> {
     if (isLoadingMore.value) return false;
 
     const newestId = messages.value[messages.value.length - 1]?.id;
     if (!newestId) {
-        jumpNewerExhausted.value = true;
+        markNewerExhausted();
         return false;
     }
 
@@ -1492,14 +1504,14 @@ async function loadHistoryNewer(loadChatId: number, gen: number): Promise<boolea
 
         const filtered = newer.filter(m => m.id !== newestId);
         if (filtered.length === 0) {
-            jumpNewerExhausted.value = true;
+            markNewerExhausted();
             return false;
         }
 
         const existingIds = new Set(messages.value.map(m => m.id));
         const unique = filtered.filter(m => !existingIds.has(m.id));
         if (unique.length === 0) {
-            jumpNewerExhausted.value = true;
+            markNewerExhausted();
             return false;
         }
 
@@ -1794,6 +1806,7 @@ async function jumpToMessageInternal(messageId: number, gen: number): Promise<bo
     jumpOlderExhausted.value = false;
     jumpNewerExhausted.value = false;
     isHistoryExhausted.value = false;
+    isNewerExhausted.value = false;
 
     await nextTick();
     scrollToMessage(messageId);
@@ -1939,8 +1952,17 @@ const onScroll = async (e: Event) => {
         return;
     }
 
-    if (!atTop || isHistoryExhausted.value || messages.value.length === 0) return;
-    await loadHistoryOlder(loadChat, scrollGen);
+    if (messages.value.length === 0) return;
+
+    // 向上滚到顶部 → 加载更旧消息
+    if (atTop && !isHistoryExhausted.value) {
+        await loadHistoryOlder(loadChat, scrollGen);
+        return;
+    }
+    // 向下滚到底部 → 加载更新消息（普通模式同样需要，否则未读较多的频道/聊天滚几十条就到头）
+    if (nearBottom && !isNewerExhausted.value) {
+        await loadHistoryNewer(loadChat, scrollGen);
+    }
 };
 
 // ==================== Send Message ====================
@@ -2046,6 +2068,7 @@ function resetState() {
     topic.value = undefined;
     memberStatus.value = {};
     isHistoryExhausted.value = false;
+    isNewerExhausted.value = false;
     isReady.value = false;
     unreadBoundaryMessageId.value = null;
     showScrollButton.value = false;
@@ -2685,53 +2708,56 @@ function onMessageAnimEnd(event: AnimationEvent, messageId: number) {
 }
 
 /**
- * “跳到底部”按钮：非跳转模式直接滚动到底部。
- * 跳转模式下当前列表只是目标附近的一个窗口，与真正的聊天底部之间存在断层（gap），
- * 若仅设置 scrollTop=scrollHeight，只会落在窗口底部，之后在断层处反复加载仍到不了真正的底部。
- * 因此跳转模式下需先加载真正的底部（最新消息）、退出跳转模式，再滚动到底部。
+ * “跳到底部”按钮：先加载真正的底部（最新消息）再滚动过去。
+ * 列表与真正的聊天底部之间可能存在断层（gap）——普通模式打开有未读的频道时，
+ * 初始窗口只覆盖锚点后约 30 条更新消息；跳转模式则只有目标附近一个窗口。
+ * 若仅设置 scrollTop=scrollHeight，只会落在已加载窗口的底部，到不了真正的最新消息，
+ * 且下方未加载的消息不会被标记已读（未读数残留）。
+ * 因此统一先以 from_message_id=0 拉取最新消息补上缺口，跳转模式再退出跳转，然后滚到底部。
  */
 const handleScrollToBottom = async () => {
     showScrollButton.value = false;
     newMessageCount.value = 0;
 
-    if (historyMode.value === 'jump') {
-        const gen = loadGeneration;
-        const loadChat = chatId.value;
-        if (!loadChat) {
-            scrollToBottom();
-            return;
-        }
-        isLoadingMore.value = true;
-        try {
-            // 从最新消息（from_message_id=0）开始加载真正的底部
-            const newest = await fetchMessages(loadChat, 0, 60, 0, gen);
-            if (isGenerationValid(gen) && chatId.value === loadChat && newest.length > 0) {
-                const existingIds = new Set(messages.value.map(m => m.id));
-                const unique = newest.filter(m => !existingIds.has(m.id));
-                if (unique.length > 0) {
-                    // newest 已是 旧→新 且比现有列表更新，追加到末尾
-                    messages.value = [...messages.value, ...unique];
-                    messagesVersion.value++;
-                }
-                // 已具备真正底部，退出跳转模式，避免在断层处反复向下加载
-                historyMode.value = 'normal';
-                jumpOlderExhausted.value = false;
-                jumpNewerExhausted.value = false;
-                isHistoryExhausted.value = false;
-            } else if (!isGenerationValid(gen) || chatId.value !== loadChat) {
-                return;
-            }
-        } finally {
-            isLoadingMore.value = false;
-        }
-        await nextTick();
+    const gen = loadGeneration;
+    const loadChat = chatId.value;
+    if (!loadChat) {
         scrollToBottom();
-        // 媒体懒加载后二次校准
-        setTimeout(scrollToBottom, 200);
         return;
     }
-
+    isLoadingMore.value = true;
+    let foundGap = false;
+    try {
+        // 从最新消息（from_message_id=0）开始加载真正的底部
+        const newest = await fetchMessages(loadChat, 0, 60, 0, gen);
+        if (!isGenerationValid(gen) || chatId.value !== loadChat) return;
+        if (newest.length > 0) {
+            const existingIds = new Set(messages.value.map(m => m.id));
+            const unique = newest.filter(m => !existingIds.has(m.id));
+            if (unique.length > 0) {
+                // newest 已是 旧→新 且比现有列表更新，追加到末尾
+                messages.value = [...messages.value, ...unique];
+                messagesVersion.value++;
+                foundGap = true;
+            }
+        }
+        // 已具备真正底部
+        if (historyMode.value === 'jump') {
+            // 退出跳转模式，避免在断层处反复向下加载
+            historyMode.value = 'normal';
+            jumpOlderExhausted.value = false;
+            jumpNewerExhausted.value = false;
+        }
+        // 若本次补上了缺口，则允许后续向下滚动继续加载其余未加载消息
+        isHistoryExhausted.value = false;
+        if (foundGap) isNewerExhausted.value = false;
+    } finally {
+        isLoadingMore.value = false;
+    }
+    await nextTick();
     scrollToBottom();
+    // 媒体懒加载后二次校准
+    setTimeout(scrollToBottom, 200);
 };
 </script>
 <style scoped>
