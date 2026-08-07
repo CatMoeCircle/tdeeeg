@@ -30,9 +30,10 @@
         <!-- Media messages -->
         <MessageMediaContent v-else-if="isMediaType" :content="content as any" :isSelf="isSelf ?? false" :date="date"
             :forwardInfo="forwardInfo" :forwardName="forwardName" :forwardNavigable="forwardNavigable"
-            :isFirstInGroup="isFirstInGroup" :isLastInGroup="isLastInGroup" :sendingState="sendingState"
-            :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature" :chatId="chatId"
-            :messageId="messageId" :senderName="senderName" @openForwardSource="onOpenForwardSource" />
+            :forwardPhoto="forwardPhoto" :forwardAccentId="forwardAccentId" :forwardOriginalName="forwardOriginalName"
+            :forwardTextColor="forwardTextColor" :isFirstInGroup="isFirstInGroup" :isLastInGroup="isLastInGroup"
+            :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature"
+            :chatId="chatId" :messageId="messageId" :senderName="senderName" @openForwardSource="onOpenForwardSource" />
 
         <!-- Stickers / animated emoji are rendered without a message bubble.
              回复预览显示在贴纸旁边（小宽度），而非贴纸上方 -->
@@ -84,7 +85,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { MessageContent, messageForwardInfo, messageReplyToMessage, MessageSendingState, message, messageSticker, messageAnimatedEmoji } from 'tdlib-types';
+import type { MessageContent, messageForwardInfo, messageReplyToMessage, MessageSendingState, message, messageSticker, messageAnimatedEmoji, chatPhotoInfo, profilePhoto } from 'tdlib-types';
 import MessageReply from './MessageReply.vue';
 
 import MessageTextContent from './MessageTextContent.vue';
@@ -175,6 +176,14 @@ const props = defineProps<{
     forwardInfo?: messageForwardInfo;
     forwardName?: string;
     forwardNavigable?: boolean;
+    /** 转发来源头像 */
+    forwardPhoto?: chatPhotoInfo | profilePhoto;
+    /** 转发来源头像底色 accent id */
+    forwardAccentId?: number;
+    /** 转发原始作者签名（括号内） */
+    forwardOriginalName?: string;
+    /** 转发横幅文字色 */
+    forwardTextColor?: string;
     isFirstInGroup?: boolean;
     isLastInGroup?: boolean;
     sendingState?: MessageSendingState;

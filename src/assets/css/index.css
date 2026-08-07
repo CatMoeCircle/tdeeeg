@@ -24,6 +24,10 @@
 .tgico-avatar-deletedaccount::before {
   content: "\e979";
 }
+/* 置顶/图钉图标（Web K: dialog-subtitle-badge-pinned，字符 U+E952） */
+.tgico-pin::before {
+  content: "\e952";
+}
 
 /* ===== Telegram 官方图标字体 tgico ===== */
 

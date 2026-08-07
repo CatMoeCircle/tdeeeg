@@ -1,15 +1,9 @@
 <template>
     <!-- 外层 div 使用媒体宽度，使图片+文字+时间共享统一宽度（仿 Telegram Web） -->
     <div class="message-media relative" :style="mediaContainerStyle">
-        <button v-if="forwardInfo" type="button" :disabled="!forwardNavigable"
-            class="flex min-w-0 w-full items-center gap-1 overflow-hidden px-2 pt-2 pb-1 text-left text-xs font-semibold disabled:cursor-default"
-            :class="[
-                isSelf ? 'text-gray-700/80' : 'text-blue-500 dark:text-blue-400',
-                forwardNavigable ? 'cursor-pointer hover:underline active:opacity-70' : ''
-            ]" :title="forwardNavigable ? '跳转到来源' : undefined" @click.stop="emit('openForwardSource')">
-            <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
-            <span class="min-w-0 flex-1 truncate">{{ forwardName }}</span>
-        </button>
+        <ForwardBanner v-if="forwardInfo" :name="forwardName ?? ''" :original-name="forwardOriginalName"
+            :photo="forwardPhoto" :accent-id="forwardAccentId" :navigable="forwardNavigable" :self="isSelf"
+            :text-color="forwardTextColor" media-inline @open-source="emit('openForwardSource')" />
 
         <!-- Caption above media -->
         <div v-if="showCaptionAbove && captionText" class="caption-text px-2 pt-2 pb-1"
@@ -207,10 +201,11 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import type { MessageContent, messageForwardInfo, MessageSendingState } from 'tdlib-types';
+import type { MessageContent, messageForwardInfo, MessageSendingState, chatPhotoInfo, profilePhoto } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles, safeDownloadFile } from '../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { CornerUpRightIcon, VideoIcon } from 'lucide-vue-next';
+import { VideoIcon } from 'lucide-vue-next';
+import ForwardBanner from './ForwardBanner.vue';
 import MessageTextContent from './MessageTextContent.vue';
 import SpoilerMedia from './SpoilerMedia.vue';
 import MessageStatus from './MessageStatus.vue';
@@ -240,6 +235,14 @@ const props = defineProps<{
     forwardInfo?: messageForwardInfo;
     forwardName?: string;
     forwardNavigable?: boolean;
+    /** 转发来源头像 */
+    forwardPhoto?: chatPhotoInfo | profilePhoto;
+    /** 转发来源头像底色 accent id */
+    forwardAccentId?: number;
+    /** 转发原始作者签名（括号内） */
+    forwardOriginalName?: string;
+    /** 转发横幅文字色 */
+    forwardTextColor?: string;
     isFirstInGroup?: boolean;
     isLastInGroup?: boolean;
     sendingState?: MessageSendingState;
@@ -601,10 +604,10 @@ function canDownloadFile(f: any): boolean {
 }
 
 /** 注册到下载管理器 */
-async function registerWithStore(fileId: number, fileName: string, fileType: DownloadFileType, thumbUrl?: string, isAutoPhoto?: boolean) {
+async function registerWithStore(fileId: number, fileName: string, fileType: DownloadFileType, thumbUrl?: string, isAutoPhoto?: boolean, isStreaming?: boolean) {
     const totalSize = 0; // 由 updateFile 事件更新
     const chatTitle = props.chatId ? getChatTitle(props.chatId) : '';
-    await downloadStore.registerDownload(fileId, fileName, chatTitle, totalSize, fileType, thumbUrl, props.chatId, props.messageId, undefined, isAutoPhoto);
+    await downloadStore.registerDownload(fileId, fileName, chatTitle, totalSize, fileType, thumbUrl, props.chatId, props.messageId, undefined, isAutoPhoto, undefined, isStreaming);
 }
 
 /** 从下载 store 获取指定 file 的下载进度 0~1（无记录或未下载返回 0） */
@@ -927,7 +930,7 @@ async function handleVideoDownload() {
         if (!downloadingFiles.has(fileId)) {
             downloadingFiles.add(fileId);
             const sFileName = video.file_name || `video_${props.messageId || fileId}.mp4`;
-            await registerWithStore(fileId, sFileName, 'video', videoThumbIsVideo.value ? undefined : videoThumbSrc.value);
+            await registerWithStore(fileId, sFileName, 'video', videoThumbIsVideo.value ? undefined : videoThumbSrc.value, false, true);
         }
         const streamUrl = convertFileSrc(String(fileId), 'tdstream');
         mediaSrc.value = `${streamUrl}?mime=${video.mime_type}`;

@@ -21,8 +21,9 @@
                   <img :src="headerPhotoUrl" class="w-full h-full object-cover" />
                 </div>
                 <div v-else class="w-24 h-24 rounded-full overflow-hidden">
-                  <Avatar :photo="displayPhoto" :title="userName" :accentColorId="user.profile_accent_color_id"
-                    sizeClass="!w-24 !h-24" no-background />
+                  <Avatar :photo="isDeletedProfile ? undefined : displayPhoto" :title="userName"
+                    :accentColorId="isDeletedProfile ? undefined : user.profile_accent_color_id"
+                    :deletedAccount="isDeletedProfile" sizeClass="!w-24 !h-24" no-background />
                 </div>
               </span>
             </button>
@@ -30,10 +31,14 @@
             <!-- 昵称 -->
             <h1 class="mt-3 text-2xl font-bold flex items-center gap-1.5 max-w-full">
               <span class="truncate">{{ userName }}</span>
-              <CustomEmojiInline v-if="customEmojiId" :emojiId="customEmojiId" :size="22" fallback-text="😀" />
+              <CustomEmojiInline v-if="!isDeletedProfile && customEmojiId" :emojiId="customEmojiId" :size="22"
+                fallback-text="😀" />
               <!-- 有自定义 emoji 状态时不显示星星，仅无自定义 emoji 状态时显示 Premium 星星 -->
-              <span v-if="user.is_premium && !user.emoji_status" class="text-base" title="Telegram Premium">⭐</span>
-              <span v-if="verificationType === 'verified'" class="text-blue-500 text-lg" title="已验证">✓</span>
+              <span v-if="!isDeletedProfile && user.is_premium && !user.emoji_status" class="text-base"
+                title="Telegram Premium">⭐</span>
+              <VerifiedFilledIcon v-if="!isDeletedProfile && verificationType === 'verified'"
+                class="text-blue-500 text-lg" title="已验证" :fill-color='["currentColor", "transparent"]'
+                :stroke-color='["currentColor", "#0052d9"]' :stroke-width="1.5" />
             </h1>
 
             <!-- 在线状态 -->
@@ -138,7 +143,7 @@
           </div>
 
           <!-- 3.3 用户名（可复制文本：默认黑色，悬停变蓝，点击复制） -->
-          <div
+          <div v-if="primaryUsername || additionalUsernames.length"
             class="flex items-start gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             @click="primaryUsername && copyText('@' + primaryUsername)">
             <AtSignIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
@@ -255,7 +260,7 @@
 
 
         <!-- ===== 第四部分：底部功能导航栏（动态 / 归档动态 / 礼物） ===== -->
-        <div class="px-4 mt-5">
+        <div v-if="hasBottomContent" class="px-4 mt-5">
           <div
             class="flex items-center gap-1.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-1 w-max">
             <button type="button" class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
@@ -272,7 +277,7 @@
         </div>
 
         <!-- ===== 第五部分：媒体内容区（宫格） ===== -->
-        <div class="px-4 mt-3">
+        <div v-if="hasBottomContent" class="px-4 mt-3">
           <!-- 动态区 -->
           <div v-if="activeTab === 'stories'" class="py-6 text-center text-sm text-gray-400">
             <p v-if="isLoading">正在加载动态…</p>
@@ -374,7 +379,7 @@ import { downloadFileUrl } from "../utils/profileMedia";
 import { formatBusinessHours } from "../utils/businessHours";
 import { isThumbnailImgRenderable } from "../utils/thumbnail";
 import { tdlibSend } from "../utils/tdlib";
-import { ensureChat, getReactiveUser, getReactiveChat } from "../utils/senderInfo";
+import { ensureChat, getReactiveUser, getReactiveChat, DELETED_ACCOUNT_LABEL } from "../utils/senderInfo";
 import { useAudioPlayerStore } from "../store/audioPlayer";
 import formatTime from "../utils/formatTime";
 
@@ -384,8 +389,7 @@ import {
   Music, ChevronDown, Megaphone, ExternalLink,
   Info as InfoIcon, Phone as PhoneIcon, AtSign as AtSignIcon,
   Calendar as CalendarIcon, IdCard as IdCardIcon,
-} from "lucide-vue-next";
-
+} from "lucide-vue-next"; import { VerifiedFilledIcon } from "tdesign-icons-vue-next";
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
@@ -410,8 +414,32 @@ const archivedStoriesList = computed<story[]>(() => profileStore.archivedStories
 const isLoading = computed(() => profileStore.loading.get(userId.value) ?? false);
 const hasError = computed(() => profileStore.error.get(userId.value) ?? false);
 
+/**
+ * 是否显示底部功能导航栏与媒体内容区。
+ * 动态或礼物任一存在内容时显示；加载过程中也保持显示，
+ * 避免加载完成前因列表仍为空而误隐藏、加载完成后才突兀出现。
+ */
+const hasBottomContent = computed(() =>
+  isLoading.value || activeStoriesList.value.length > 0 || giftsList.value.length > 0
+);
+
 // ===== 派生属性 =====
-const userName = computed(() => `${user.value?.first_name ?? ''} ${user.value?.last_name ?? ''}`.trim() || '未知用户');
+
+/**
+ * 是否为「已注销/未知用户」。
+ * 已注销账户（userTypeDeleted）或无名（first/last 都为空，即"未知用户"）都按已注销账户处理：
+ * 名称显示「已注销账户」、头像显示幽灵图标。
+ */
+const isDeletedProfile = computed(() => {
+  const u = user.value;
+  if (!u) return false;
+  if (u.type?._ === 'userTypeDeleted') return true;
+  return `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() === '';
+});
+
+const userName = computed(() =>
+  isDeletedProfile.value ? DELETED_ACCOUNT_LABEL
+    : `${user.value?.first_name ?? ''} ${user.value?.last_name ?? ''}`.trim() || '未知用户');
 // 主用户名（active_usernames[0]）
 const primaryUsername = computed(() => user.value?.usernames?.active_usernames?.[0] || '');
 // 附加用户名（其余 active + collectible），与主用户名区分
@@ -422,7 +450,8 @@ const additionalUsernames = computed<string[]>(() => {
   return [...addl, ...collectible].filter((u) => u && u !== primaryUsername.value);
 });
 const isSelf = computed(() => !!user.value && user.value.id === userStore.userProfile?.id);
-const statusText = computed(() => formatStatus(user.value?.status));
+const statusText = computed(() =>
+  isDeletedProfile.value ? DELETED_ACCOUNT_LABEL : formatStatus(user.value?.status));
 
 /** 用户主题色样式：主题色文本 + 主题色 10% 透明度背景（用于频道订阅数徽标） */
 const profileAccent = computed(() => {

@@ -136,14 +136,68 @@ export const useChatStore = defineStore("chat", () => {
 
     await listen<Chat>("chat-update", (event) => {
       const chat = event.payload;
-      // 只写入缓冲，由 flush 统一应用（同一 tick 内多个 chat-update 只触发一次更新）
-      setChatBuffered(chat.id, chat);
+      // 以「最终 chat」为准做合并更新：事件通常携带完整对象，但为防御性避免
+      // 丢失本地已有的字段（如缓存里更丰富的 accent/photo 等），用浅合并保留
+      // 已有字段，事件数据优先。只写入缓冲，由 flush 统一应用。
+      const merged = chats.value[chat.id] ? { ...chats.value[chat.id], ...chat } : chat;
+      setChatBuffered(chat.id, merged);
     });
 
     await listen<any>("chat-folders-update", (event) => {
       chatLists.value = event.payload;
     });
+
+    // 直接监听原始 TDLib 的 updateChatPosition：当对话在某分组被置顶/取消置顶时，
+    // 及时把该分组 position 的 order/is_pinned 合并进本地 chat.positions。
+    // 该事件 Rust 也会处理并 emit chat-update，但这里兜底一次，避免事件链路上
+    // 位置信息丢失导致部分分组置顶不显示（多来源保真，维持「最终 chat」一致）。
+    await listen<any>("tdlib-update", (event) => {
+      const u = event.payload;
+      if (!u || u._ !== "updateChatPosition") return;
+      const chatId = u.chat_id as number | undefined;
+      const position = u.position as chatPosition | undefined;
+      if (typeof chatId !== "number" || !position || !position.list) return;
+      mergePositionIntoChat(chatId, position);
+    });
   };
+
+  /**
+   * 把一条 chatPosition（针对单个列表）合并进 chat.positions：
+   * - 若该列表已存在 position，则更新 order/is_pinned；
+   * - 否则新增。
+   * 若 order 为 "0"（对话被移出该列表），则移除对应 position。
+   */
+  function mergePositionIntoChat(chatId: number, position: chatPosition) {
+    // 优先取缓冲中的最新值，避免同一 tick 内多个列表 position 互相覆盖
+    const existing = chatBuffer[chatId] ?? chats.value[chatId];
+    if (!existing) return;
+    const posList = position.list as any;
+    const listKey = getListKeyOf(posList);
+    let positions = existing.positions ? [...existing.positions] : [];
+    const isRemove = position.order === "0";
+
+    if (isRemove) {
+      positions = positions.filter((p) => getListKeyOf((p as any).list) !== listKey);
+    } else {
+      const idx = positions.findIndex((p) => getListKeyOf((p as any).list) === listKey);
+      if (idx >= 0) {
+        positions[idx] = { ...positions[idx], ...position, list: posList };
+      } else {
+        positions.push(position as any);
+      }
+    }
+    setChatBuffered(chatId, { ...existing, positions });
+  }
+
+  /** 从 ChatList 对象推导缓存/列表 key（与 Rust 的 get_list_key 对齐） */
+  function getListKeyOf(list: any): string {
+    if (!list) return "";
+    if (list._ === "chatListMain") return "chatListMain";
+    if (list._ === "chatListArchive") return "chatListArchive";
+    if (list._ === "chatListFolder") return `chat_folder_id${list.chat_folder_id}`;
+    return "";
+  }
+
 
   const loadChatLists = async () => {
     try {

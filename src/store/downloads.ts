@@ -48,6 +48,8 @@ export interface DownloadItem {
     hidden_category?: string;
     /** 自动下载图片标记（频道/群组中自动下载的图片），默认隐藏，由独立开关控制 */
     is_auto_photo: boolean;
+    /** 视频是否为流式传输（边下边播，tdstream://）来源，用于展示「流式传输」标签 */
+    is_streaming: boolean;
     /** 在下载管理器中已手动关闭/移除 */
     dismissed: boolean;
 }
@@ -206,6 +208,7 @@ export const useDownloadStore = defineStore("downloads", () => {
             existing.hidden_category = item.hidden_category;
         }
         if (item.is_auto_photo !== undefined) existing.is_auto_photo = item.is_auto_photo;
+        if (item.is_streaming !== undefined) existing.is_streaming = item.is_streaming;
         if (item.dismissed !== undefined) existing.dismissed = item.dismissed;
     }
 
@@ -304,6 +307,8 @@ export const useDownloadStore = defineStore("downloads", () => {
         isAutoPhoto?: boolean,
         /** 通用资源的细分类别（见函数注释） */
         hiddenCategory?: string,
+        /** 是否为流式传输（边下边播，tdstream://）的视频 */
+        isStreaming?: boolean,
     ) {
         const generic = isGeneric ?? (fileType === "sticker" || fileType === "avatar" || fileType === "other");
         // 若未显式指定分类，则按 fileType 推断一个合理的默认值
@@ -321,6 +326,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                 isGeneric: generic,
                 hiddenCategory: category ?? null,
                 isAutoPhoto: isAutoPhoto ?? false,
+                isStreaming: isStreaming ?? false,
             });
             // 注册成功后，立即将本地状态置为进行中
             items.value[fileId] = {
@@ -337,6 +343,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                 is_generic: generic,
                 hidden_category: category,
                 is_auto_photo: isAutoPhoto ?? false,
+                is_streaming: isStreaming ?? false,
                 dismissed: false,
                 chat_id: chatId,
                 message_id: messageId,

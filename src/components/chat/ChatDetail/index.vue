@@ -91,22 +91,16 @@
                                                 class="shrink-0 font-normal text-[10px] leading-none text-gray-400 dark:text-gray-500 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{{
                                                     getViaBotText(item.messages[0]) }}</span>
                                         </p>
-                                        <button
+                                        <ForwardBanner
                                             v-if="item.messages[0].forward_info && !isLinkedChannelMessage(item.messages[0])"
-                                            type="button" :disabled="!canNavigateForward(item.messages[0].forward_info)"
-                                            class="flex min-w-0 w-full max-w-full items-center gap-1 overflow-hidden px-2 pt-2 pb-1 text-left text-xs font-semibold disabled:cursor-default"
-                                            :class="[
-                                                isSelfAlbum(item) ? 'text-gray-700/70' : '',
-                                                canNavigateForward(item.messages[0].forward_info)
-                                                    ? 'cursor-pointer hover:underline active:opacity-70'
-                                                    : ''
-                                            ]" :style="forwardColor(item, true)"
-                                            :title="canNavigateForward(item.messages[0].forward_info) ? '跳转到来源' : undefined"
-                                            @click.stop="openForwardSource(item.messages[0].forward_info)">
-                                            <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
-                                            <span class="min-w-0 flex-1 truncate">{{
-                                                getForwardName(item.messages[0].forward_info) }}</span>
-                                        </button>
+                                            :name="getForwardName(item.messages[0].forward_info)"
+                                            :original-name="getForwardOriginalName(item.messages[0].forward_info)"
+                                            :photo="getForwardPhoto(item.messages[0].forward_info)"
+                                            :accent-id="getForwardAccentId(item.messages[0].forward_info)"
+                                            :navigable="canNavigateForward(item.messages[0].forward_info)"
+                                            :self="isSelfAlbum(item)" :text-color="forwardTextColor(item.messages[0])"
+                                            media-inline
+                                            @open-source="openForwardSource(item.messages[0].forward_info)" />
                                         <MessageAlbum :messages="item.messages" :isSelf="isSelfAlbum(item)"
                                             :chatId="chatId"
                                             :isRead="isMessageRead(item.messages[item.messages.length - 1])"
@@ -163,7 +157,7 @@
                                             ? 'w-fit max-w-full min-w-0 overflow-hidden shadow-sm'
                                             : isStandaloneMessage(item.msg)
                                                 ? 'relative max-w-full'
-                                                : 'px-2.5 py-1.5 shadow-sm max-w-full min-w-30',
+                                                : 'px-1.5 py-1.5 shadow-sm max-w-full min-w-30',
                                         !isStandaloneMessage(item.msg) && isSelf(item.msg)
                                             ? 'text-gray-900'
                                             : !isStandaloneMessage(item.msg)
@@ -184,27 +178,23 @@
                                                 class="shrink-0 font-normal text-[10px] leading-none text-gray-400 dark:text-gray-500 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{{
                                                     getViaBotText(item.msg) }}</span>
                                         </p>
-                                        <button
+                                        <ForwardBanner
                                             v-if="item.msg.forward_info && !isMediaMessage(item.msg) && !isLinkedChannelMessage(item.msg)"
-                                            type="button" :disabled="!canNavigateForward(item.msg.forward_info)"
-                                            class="flex min-w-0 max-w-full items-center gap-1 overflow-hidden mb-0.5 -mt-0.5 text-left text-xs font-semibold disabled:cursor-default"
-                                            :class="[
-                                                isSelf(item.msg) ? 'text-gray-700/70' : '',
-                                                canNavigateForward(item.msg.forward_info)
-                                                    ? 'cursor-pointer hover:underline active:opacity-70'
-                                                    : ''
-                                            ]" :style="forwardColor(item, false)"
-                                            :title="canNavigateForward(item.msg.forward_info) ? '跳转到来源' : undefined"
-                                            @click.stop="openForwardSource(item.msg.forward_info)">
-                                            <CornerUpRightIcon class="w-3.5 h-3.5 shrink-0" />
-                                            <span class="min-w-0 flex-1 truncate">{{
-                                                getForwardName(item.msg.forward_info)
-                                                }}</span>
-                                        </button>
+                                            :name="getForwardName(item.msg.forward_info)"
+                                            :original-name="getForwardOriginalName(item.msg.forward_info)"
+                                            :photo="getForwardPhoto(item.msg.forward_info)"
+                                            :accent-id="getForwardAccentId(item.msg.forward_info)"
+                                            :navigable="canNavigateForward(item.msg.forward_info)"
+                                            :self="isSelf(item.msg)" :text-color="forwardTextColor(item.msg)"
+                                            @open-source="openForwardSource(item.msg.forward_info)" />
                                         <MessageContent :content="item.msg.content" :isSelf="isSelf(item.msg)"
                                             :date="item.msg.date" :forwardInfo="getDisplayForwardInfo(item.msg)"
                                             :forwardName="getDisplayForwardInfo(item.msg) ? getForwardName(getDisplayForwardInfo(item.msg)!) : undefined"
                                             :forwardNavigable="getDisplayForwardInfo(item.msg) ? canNavigateForward(getDisplayForwardInfo(item.msg)!) : false"
+                                            :forwardPhoto="getDisplayForwardInfo(item.msg) ? getForwardPhoto(getDisplayForwardInfo(item.msg)!) : undefined"
+                                            :forwardAccentId="getDisplayForwardInfo(item.msg) ? getForwardAccentId(getDisplayForwardInfo(item.msg)!) : undefined"
+                                            :forwardOriginalName="getDisplayForwardInfo(item.msg) ? getForwardOriginalName(getDisplayForwardInfo(item.msg)!) : undefined"
+                                            :forwardTextColor="forwardTextColor(item.msg)"
                                             :isFirstInGroup="item.isFirstInGroup" :isLastInGroup="item.isLastInGroup"
                                             :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
                                             :viewCount="item.msg.interaction_info?.view_count"
@@ -411,6 +401,7 @@ import Avatar from '../avatar.vue';
 import MessageContent from './MessageContent/index.vue';
 import MessageStatus from './MessageContent/MessageStatus.vue';
 import MessageAlbum from './MessageContent/MessageAlbum.vue';
+import ForwardBanner from './MessageContent/ForwardBanner.vue';
 import InlineKeyboard from './MessageContent/InlineKeyboard.vue';
 import ChatDetailHeader from './Header.vue';
 import MediaViewer from './MessageContent/MediaViewer.vue';
@@ -423,7 +414,7 @@ import { sendAttachments, sending } from '../../../utils/attachmentSend';
 import { useAttachmentStore } from '../../../store/attachment';
 import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
 
-import { CornerUpRightIcon, MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, CornerUpLeftIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, Quote as QuoteIcon, User as UserIcon } from 'lucide-vue-next';
+import { MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, CornerUpLeftIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, Quote as QuoteIcon, User as UserIcon } from 'lucide-vue-next';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { useRoute, useRouter } from 'vue-router';
 import { computed, watch, ref, onMounted, onUnmounted, nextTick } from 'vue';
@@ -467,8 +458,11 @@ import {
     getDisplaySenderProfileAccentId as computeDisplaySenderProfileAccentId,
     getDisplaySenderDeleted as computeDisplaySenderDeleted,
     getForwardName as computeForwardName,
+    getForwardPhoto as computeForwardPhoto,
+    getForwardProfileAccentId as computeForwardProfileAccentId,
+    getForwardAuthorSignature as computeForwardAuthorSignature,
     isSavedForwardedMessage as computeIsSavedForwardedMessage,
-    senderNameColor as computeSenderNameColor, forwardColor as computeForwardColor,
+    senderNameColor as computeSenderNameColor,
     showSenderDisplayName as computeShowSenderDisplayName,
     getViaBotText as computeViaBotText,
 } from './composables/senderDisplay';
@@ -2394,13 +2388,6 @@ const bubbleDeps = (): BubbleStyleDeps => ({
     settings: settings.message,
 });
 
-/** 转发来源名颜色：自己消息保持浅色类（不设内联色），他人用发送者 accent 色 */
-const forwardColor = (
-    item: { msg: message } | { messages: message[] },
-    isAlbum: boolean,
-): Record<string, string> | undefined =>
-    computeForwardColor(item, isAlbum, isSelf, senderDeps());
-
 /** 发送者名称内联样式；无 accent 时回退蓝色 */
 const senderNameColor = (msg: message): Record<string, string> =>
     computeSenderNameColor(msg, senderDeps());
@@ -2423,6 +2410,28 @@ const getDisplaySenderProfileAccentId = (msg: message): number | undefined =>
 
 const getForwardName = (forwardInfo: messageForwardInfo): string =>
     computeForwardName(forwardInfo, senderCaches());
+
+/** 转发来源头像（频道/群组/用户；隐藏来源为 undefined） */
+const getForwardPhoto = (forwardInfo: messageForwardInfo): chatPhotoInfo | profilePhoto | undefined =>
+    computeForwardPhoto(forwardInfo, senderCaches());
+
+/** 转发来源头像底色 accent id（无照片时用于头像渐变背景） */
+const getForwardAccentId = (forwardInfo: messageForwardInfo): number | undefined =>
+    computeForwardProfileAccentId(forwardInfo, senderCaches());
+
+/** 转发原始作者签名（频道帖子 / 匿名群管），用于「来源名 (原始作者)」括号内 */
+const getForwardOriginalName = (forwardInfo: messageForwardInfo): string | undefined => {
+    const sig = computeForwardAuthorSignature(forwardInfo)?.trim();
+    if (!sig) return undefined;
+    // 与来源名相同时不再重复展示
+    return sig === computeForwardName(forwardInfo, senderCaches()) ? undefined : sig;
+};
+
+/** 转发横幅文字色：取发送者 accent 色字符串（自绘消息由 ForwardBanner 自处理浅色） */
+const forwardTextColor = (msg: message): string | undefined => {
+    if (isSelf(msg)) return undefined;
+    return senderNameColor(msg).color;
+};
 
 const getDisplayAuthorSignature = (msg: message): string | undefined =>
     getDisplayAuthorSignatureOf(msg);

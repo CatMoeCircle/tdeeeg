@@ -88,11 +88,11 @@ function baseName(path: string): string {
     return idx >= 0 ? norm.slice(idx + 1) : norm;
 }
 
-async function addFile(path: string, name: string, tempFile = false) {
+async function addFile(path: string, name: string, tempFile = false, forceDocument = false) {
     const size = await getFileSize(path);
     const album = isInAlbum(attachmentStore.items);
     const result = await classifyAttachment({
-        path, name, size, album, isPremium: props.isPremium ?? false,
+        path, name, size, album, isPremium: props.isPremium ?? false, forceDocument,
     });
     if (result.status === 'rejected') {
         MessagePlugin.warning(result.reason);
@@ -134,6 +134,36 @@ async function pickMediaFiles(): Promise<string[]> {
 
 async function handleAttachPhoto() {
     const paths = await pickMediaFiles();
+    for (const p of paths) {
+        await addFile(p, baseName(p));
+    }
+}
+
+/** 选择任意文件（一律作为普通文档发送，不自动识别为图片/视频/音频） */
+async function handleAttachFile() {
+    const selected = await open({
+        multiple: true,
+        title: '选择文件',
+    });
+    if (!selected) return;
+    const paths = Array.isArray(selected) ? selected : [selected];
+    for (const p of paths) {
+        await addFile(p, baseName(p), false, true);
+    }
+}
+
+/** 选择音乐文件（音频过滤器，按扩展名分类为音乐） */
+async function handleAttachMusic() {
+    const selected = await open({
+        multiple: true,
+        title: '选择音乐',
+        filters: [{
+            name: '音乐',
+            extensions: ['mp3', 'm4a', 'aac', 'ogg', 'opus', 'flac', 'wav', 'wma', 'amr'],
+        }],
+    });
+    if (!selected) return;
+    const paths = Array.isArray(selected) ? selected : [selected];
     for (const p of paths) {
         await addFile(p, baseName(p));
     }
@@ -272,6 +302,16 @@ const onAttachItemClick = (item: AttachItem) => {
     if (item.key === 'photo') {
         closeAttach();
         handleAttachPhoto();
+        return;
+    }
+    if (item.key === 'file') {
+        closeAttach();
+        handleAttachFile();
+        return;
+    }
+    if (item.key === 'music') {
+        closeAttach();
+        handleAttachMusic();
         return;
     }
     emit(attachEmitMap[item.key]);

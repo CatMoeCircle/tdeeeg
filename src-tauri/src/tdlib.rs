@@ -469,6 +469,7 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
                                                 is_generic: true,
                                                 hidden_category: None,
                                                 is_auto_photo: false,
+                                                is_streaming: false,
                                                 dismissed: false,
                                             }
                                         });
@@ -629,6 +630,7 @@ pub fn register_download(
     is_generic: bool,
     hidden_category: Option<String>,
     is_auto_photo: bool,
+    is_streaming: bool,
 ) -> Result<(), String> {
     let mut store = state.download_store.lock().map_err(|e| e.to_string())?;
     store.register_download(
@@ -643,6 +645,7 @@ pub fn register_download(
         is_generic,
         hidden_category,
         is_auto_photo,
+        is_streaming,
     );
     Ok(())
 }

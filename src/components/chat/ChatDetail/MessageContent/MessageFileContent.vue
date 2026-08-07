@@ -2,9 +2,13 @@
     <div class="min-w-0 w-full max-w-full">
         <!-- Document -->
         <div v-if="content._ === 'messageDocument'"
-            class="flex w-full max-w-full min-w-0 items-center gap-3 bg-gray-100 dark:bg-gray-700 text-black dark:text-white p-2 rounded-lg relative overflow-hidden">
-            <div class="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded flex items-center justify-center shrink-0">
-                <FileIcon class="w-5 h-5 text-blue-500" />
+            class="relative flex w-full max-w-full min-w-0 items-center gap-3 overflow-hidden rounded-lg text-black dark:text-white p-0.5 py-1">
+            <div class="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-blue-100 dark:bg-blue-900">
+                <img v-if="docThumbSrc" :src="docThumbSrc" alt="" draggable="false"
+                    class="h-full w-full select-none object-cover" @error="docThumbSrc = undefined" />
+                <div v-else class="flex h-full w-full items-center justify-center">
+                    <FileIcon class="w-5 h-5 text-blue-500" />
+                </div>
             </div>
             <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
                 <span class="max-w-full truncate text-sm font-medium">{{ content.document.file_name }}</span>
@@ -116,7 +120,7 @@ import { requestInsertCommand } from '../../../../store/commandInsert';
 import { getChatCategory } from '../../../../utils/autoDownload';
 import { useAudioPlayerStore } from '../../../../store/audioPlayer';
 import { confirmAndOpenExternalLink } from '../../../../utils/openExternalLink';
-import { isThumbnailImgRenderable } from '../../../../utils/thumbnail';
+import { isThumbnailImgRenderable, thumbnailToImgSrc } from '../../../../utils/thumbnail';
 
 const props = defineProps<{
     content: messageDocument | messageAudio;
@@ -126,6 +130,7 @@ const props = defineProps<{
 
 const mediaSrc = ref<string | undefined>(undefined);
 const coverSrc = ref<string | undefined>(undefined);
+const docThumbSrc = ref<string | undefined>(undefined);
 const isDownloading = ref(false);
 
 /** 合并本地下载状态 + 全局下载状态（响应式） */
@@ -411,6 +416,42 @@ const loadMedia = async () => {
     }
 };
 
+/**
+ * 加载文档消息缩略图（用于图标块预览）。
+ * 仅展示缩略图本身，不会因此下载整份文档。
+ */
+async function loadDocumentThumb() {
+    if (props.content._ !== 'messageDocument') return;
+    const thumb = props.content.document.thumbnail;
+    // 内嵌 minithumbnail 优先作为占位
+    if (props.content.document.minithumbnail?.data) {
+        docThumbSrc.value = `data:image/jpeg;base64,${props.content.document.minithumbnail.data}`;
+    }
+    // thumbnail 需为可在 <img> 渲染的静态位图，否则跳过
+    if (!thumb || !isThumbnailImgRenderable(thumb.format)) return;
+    const file = thumb.file;
+    // 已就绪直接显示
+    if (file.local?.path && isFileReady(file)) {
+        docThumbSrc.value = thumbnailToImgSrc(thumb) ?? docThumbSrc.value;
+        return;
+    }
+    // 否则尝试下载缩略图文件（同步），成功后覆盖为真实缩略图
+    if (!file.local?.can_be_downloaded) return;
+    try {
+        const downloaded = await tdlibSend({
+            _: 'downloadFile',
+            file_id: file.id,
+            priority: 1,
+            offset: 0,
+            limit: 0,
+            synchronous: true,
+        });
+        if (isFileReady(downloaded) && downloaded.local?.path) {
+            docThumbSrc.value = thumbnailToImgSrc(thumb) ?? docThumbSrc.value;
+        }
+    } catch (_) { /* 静默 */ }
+}
+
 /** 只下载专辑封面，不为显示封面而下载整首音乐。 */
 async function loadAudioCover() {
 
@@ -635,12 +676,14 @@ const formatSize = (size: number) => {
 watch(() => props.content, () => {
     mediaSrc.value = undefined;
     coverSrc.value = undefined;
+    docThumbSrc.value = undefined;
     downloadProgress.value = 0;
     isDownloading.value = false;
     downloadReadyLocal.value = false;
     currentFileId.value = 0;
     loadMedia();
     loadAudioCover();
+    loadDocumentThumb();
 }, { immediate: true });
 
 onUnmounted(() => {

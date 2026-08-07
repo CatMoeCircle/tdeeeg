@@ -1,5 +1,5 @@
 import type { chat, chatPhotoInfo, message, messageForwardInfo, profilePhoto, user } from 'tdlib-types';
-import { isSavedMessagesChat } from '../../../../utils/savedMessages';
+import { isSavedMessagesChat, isOutgoingAliasMessage } from '../../../../utils/savedMessages';
 import { isDeletedSender } from '../../../../utils/senderInfo';
 
 /**
@@ -209,7 +209,10 @@ export function getDisplaySenderName(
         return getForwardName(msg.forward_info, deps);
     }
     // 自己发送的消息显示为「你」（内联 bot 消息的名称行也用「你」）
-    if (deps.isSelf(msg)) return '你';
+    // 但马甲身份发送的消息虽按"自己发送"处理，顶部仍保留马甲的真实名称
+    if (deps.isSelf(msg)) {
+        return isOutgoingAliasMessage(msg, deps.myId) ? getSenderName(msg, deps) : '你';
+    }
     return getSenderName(msg, deps);
 }
 
@@ -227,7 +230,11 @@ export function showSenderDisplayName(
 ): boolean {
     if (!deps.showSenderName) return false;
     if (msg.author_signature?.trim()) return true;
-    if (deps.isSelf(msg)) return !!msg.via_bot_user_id;
+    if (deps.isSelf(msg)) {
+        // 马甲身份发送的消息虽按"自己发送"处理，但顶部名称仍需保留
+        if (isOutgoingAliasMessage(msg, deps.myId)) return true;
+        return !!msg.via_bot_user_id;
+    }
     return true;
 }
 

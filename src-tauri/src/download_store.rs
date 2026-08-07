@@ -50,6 +50,10 @@ pub struct DownloadItem {
     /// 由独立的「显示自动下载图片」开关控制（与通用资源分开）。
     #[serde(default)]
     pub is_auto_photo: bool,
+    /// 视频是否为流式传输（边下边播，tdstream://）来源，用于在下载管理器中
+    /// 展示「流式传输」标签。
+    #[serde(default)]
+    pub is_streaming: bool,
     /// 在下载管理器中已手动关闭/移除
     #[serde(default)]
     pub dismissed: bool,
@@ -210,6 +214,7 @@ impl DownloadStore {
         is_generic: bool,
         hidden_category: Option<String>,
         is_auto_photo: bool,
+        is_streaming: bool,
     ) {
         if let Some(existing) = self.items.get(&file_id) {
             if !existing.dismissed {
@@ -252,6 +257,7 @@ impl DownloadStore {
                     is_generic,
                     hidden_category,
                     is_auto_photo,
+                    is_streaming,
                     ..existing.clone()
                 };
                 self.items.insert(file_id, updated);
@@ -277,6 +283,7 @@ impl DownloadStore {
             is_generic,
             hidden_category,
             is_auto_photo,
+            is_streaming,
             dismissed: false,
         };
         self.items.insert(file_id, item);

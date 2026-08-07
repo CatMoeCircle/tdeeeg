@@ -34,7 +34,7 @@
                 <div class="flex flex-col min-w-0">
                     <h2 class="flex font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight truncate">{{
                         headerTitle
-                        }}<span v-if="verificationState" class="text-blue-500 ml-1 shrink-0">
+                    }}<span v-if="verificationState" class="text-blue-500 ml-1 shrink-0">
                             <component :is="verificationState" />
                         </span>
                     </h2>
@@ -68,7 +68,8 @@
 </template>
 
 <script setup lang="ts">
-import { SearchIcon, MoreHorizontalIcon, ArrowLeftIcon, BadgeCheckIcon, ShieldAlert, BookmarkIcon } from 'lucide-vue-next';
+import { SearchIcon, MoreHorizontalIcon, ArrowLeftIcon, ShieldAlert, BookmarkIcon } from 'lucide-vue-next';
+import { VerifiedFilledIcon } from 'tdesign-icons-vue-next';
 import { computed, h, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useI18n } from 'vue-i18n';
@@ -252,7 +253,12 @@ const updateVerificationState = (status?: verificationStatus) => {
     if (status.is_scam || status.is_fake) {
         verificationState.value = h(ShieldAlert, { class: 'text-red-500' });
     } else if (status.is_verified) {
-        verificationState.value = h(BadgeCheckIcon, { class: 'text-blue-500' });
+        verificationState.value = h(VerifiedFilledIcon, {
+            class: 'text-blue-500',
+            fillColor: ['currentColor', 'transparent'],
+            strokeColor: ['currentColor', '#0052d9'],
+            strokeWidth: 1.5,
+        });
     } else {
         verificationState.value = null;
     }

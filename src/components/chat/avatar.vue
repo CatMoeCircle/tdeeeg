@@ -1,5 +1,5 @@
 <template>
-    <div :class="containerClass" :style="containerStyle">
+    <div ref="rootEl" :class="containerClass" :style="containerStyle">
         <!-- 已删除账户：不显示照片/首字母，改用 tgico 图标 + 归档灰色渐变 -->
         <div v-if="deletedAccount" class="w-full h-full flex items-center justify-center text-white select-none"
             :style="{ background: deletedBackground }">
@@ -13,7 +13,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import type { chatPhotoInfo, profilePhoto } from "tdlib-types";
 import { tdlibSend, isFileReady, downloadingFiles } from '../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -41,11 +41,41 @@ const { accentAvatarBackground } = useColors();
 /** 已删除账户的归档灰色渐变（Web K: --peer-avatar-archive-top/bottom） */
 const deletedBackground = 'linear-gradient(#B8C2CC, #9EAAB5)';
 
-/** 图标尺寸约为头像尺寸的 55% */
+/** 已删除账户图标尺寸约为头像尺寸的 60% */
+const GHOST_ICON_RATIO = 0.6;
+
+/** 组件根元素：用于测量实际渲染尺寸（消息列表头像未传 sizeClass 时仍能正确缩放图标） */
+const rootEl = ref<HTMLElement | null>(null);
+/** 实测到的头像容器像素尺寸（宽高取较小者，按正方形处理） */
+const measuredPx = ref<number | null>(null);
+let avatarResizeObserver: ResizeObserver | null = null;
+
+onMounted(() => {
+    const el = rootEl.value;
+    if (!el) return;
+    avatarResizeObserver = new ResizeObserver(() => {
+        const w = el.clientWidth;
+        const h = el.clientHeight;
+        measuredPx.value = Math.min(w, h);
+    });
+    avatarResizeObserver.observe(el);
+});
+
+onUnmounted(() => {
+    if (avatarResizeObserver) {
+        avatarResizeObserver.disconnect();
+        avatarResizeObserver = null;
+    }
+});
+
+/** 图标尺寸：优先用实测容器尺寸；否则回退到 sizeClass 解析；再回退到 54px */
 const iconSize = computed(() => {
+    if (measuredPx.value && measuredPx.value > 0) {
+        return `${Math.round(measuredPx.value * GHOST_ICON_RATIO)}px`;
+    }
     const px = /(\d+)x?/.exec(props.sizeClass || '');
     const size = px ? parseInt(px[1], 10) : 54;
-    return `${Math.round(size * 0.52)}px`;
+    return `${Math.round(size * GHOST_ICON_RATIO)}px`;
 });
 
 const imgError = ref(false);

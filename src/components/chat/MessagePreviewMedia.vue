@@ -2,12 +2,11 @@
     <div v-if="thumbs.length > 0" class="flex items-center gap-0.5 shrink-0 mr-0.5">
         <div v-for="(t, i) in thumbs" :key="i"
             class="relative w-3 h-3 rounded overflow-hidden shrink-0 bg-gray-200 dark:bg-gray-700">
-            <img v-if="t.src" :src="t.src" alt=""
-                class="w-full h-full object-cover"
+            <img v-if="t.src" :src="t.src" alt="" class="w-full h-full object-cover"
                 :class="{ 'blur-[2px] scale-110': t.spoiler }" />
             <!-- 播放按钮仅为装饰：仅展示，无实际播放效果 -->
             <span v-if="t.isVideo" class="absolute inset-0 flex items-center justify-center bg-black/20">
-                <PlayIcon class="w-2.5 h-2.5 text-white drop-shadow" fill="currentColor" />
+                <PlayIcon class=" text-white drop-shadow" />
             </span>
             <!-- 剧透：缩略图叠加粒子遮罩（预览中不显示原始内容） -->
             <SpoilerMedia v-if="t.spoiler" :has-spoiler="true" overlay

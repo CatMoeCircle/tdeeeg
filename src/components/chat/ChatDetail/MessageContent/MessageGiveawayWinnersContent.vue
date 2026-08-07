@@ -3,10 +3,9 @@
         <!-- 1. 居中 图标 + 标题 + 奖品 + 获奖说明 -->
         <div class="flex flex-col items-center">
             <MessageStickerContent v-if="stickerContent" :content="stickerContent" :size="112" class="shrink-0" />
-            <div v-else class="flex h-28 w-28 shrink-0 items-center justify-center rounded-full" :style="iconStyle">
-                <GiftIcon v-if="isPremium" class="h-14 w-14 text-white" />
-                <StarIcon v-else class="h-14 w-14 fill-current text-white" />
-            </div>
+            <!-- 无纪念贴纸时，播放本地 party.tgs 抽奖动画（只播一次，点击可重播） -->
+            <div v-else ref="partyLottieRef" class="h-28 w-28 shrink-0 cursor-pointer overflow-hidden"
+                @click="onPartyClick"></div>
             <h3 class="mt-3 text-base font-bold text-gray-900 dark:text-white">获奖者已选出</h3>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ winnersText }}</p>
             <p v-if="prizeDescription" class="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{{
@@ -50,11 +49,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import { GiftIcon, StarIcon } from 'lucide-vue-next';
+import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import type { message, messageGiveaway, messageGiveawayWinners, messageSticker, profilePhoto, sticker, user } from 'tdlib-types';
 import { tdlibSend } from '../../../../utils/tdlib';
 import { accentColorStyle } from '../../../../store/colors';
+import { useLottiePause } from '../../../../composables/useLottiePause';
+import lottie, { type AnimationItem } from 'lottie-web';
+import * as pako from 'pako';
 import Avatar from '../../avatar.vue';
 import MessageStickerContent from './MessageStickerContent.vue';
 
@@ -81,15 +82,79 @@ const userCache = new Map<number, user>();
 const numberFormatter = new Intl.NumberFormat('zh-CN');
 const formatCount = (count: number) => numberFormatter.format(count);
 
-/** 是否为 Telegram Premium 抽奖（否则为 Stars 抽奖） */
-const isPremium = computed(() => props.content.prize._ === 'giveawayPrizePremium');
+/** 本地 party.tgs（抽奖庆祝动画）资源 URL */
+const PARTY_TGS_URL = new URL('../../../../assets/party.tgs', import.meta.url).href;
 
-/** 图标渐变：Premium 用紫罗兰礼物，Stars 用琥珀星星 */
-const iconStyle = computed(() => ({
-    background: isPremium.value
-        ? 'linear-gradient(135deg, #9a7bff, #6560f6)'
-        : 'linear-gradient(135deg, #ffc24d, #ff8f00)',
-}));
+const partyLottieRef = ref<HTMLElement | null>(null);
+let partyAnim: AnimationItem | null = null;
+
+/** 统一的 Lottie 暂停/恢复控制器：视口离开、窗口失焦、平滑滚动时暂停 */
+const { register: registerPartyAnim, get: getPartyAnim, setup: setupPartyPause } = useLottiePause(partyLottieRef);
+
+function destroyPartyAnim() {
+    if (partyAnim) {
+        partyAnim.destroy();
+        partyAnim = null;
+    }
+}
+
+/** 加载本地 party.tgs（gzipped Lottie JSON），只播一次 */
+async function loadPartyAnimation() {
+    destroyPartyAnim();
+    if (!partyLottieRef.value) return;
+    try {
+        const resp = await fetch(PARTY_TGS_URL);
+        const compressed = new Uint8Array(await resp.arrayBuffer());
+
+        // 解压 gzip
+        let jsonStr: string;
+        try {
+            jsonStr = new TextDecoder('utf-8').decode(pako.inflate(compressed));
+        } catch {
+            jsonStr = new TextDecoder('utf-8').decode(compressed);
+        }
+
+        const animData = JSON.parse(jsonStr);
+
+        await nextTick();
+        if (!partyLottieRef.value) return;
+
+        partyAnim = lottie.loadAnimation({
+            container: partyLottieRef.value,
+            renderer: 'svg',
+            loop: false,
+            autoplay: true,
+            animationData: animData,
+        });
+        registerPartyAnim(partyAnim);
+    } catch (e) {
+        console.error('Failed to load party.tgs:', e);
+    }
+}
+
+/** 点击时从头重播（只播一次，播放完停在最后一帧） */
+function onPartyClick() {
+    const anim = getPartyAnim();
+    if (!anim) return;
+    // 若因窗口失焦/离开视口被暂停，重播不受影响
+    anim.stop();
+    anim.play();
+}
+
+onMounted(() => {
+    setupPartyPause();
+    // 挂载后 DOM 已就绪，尝试播放 party.tgs（无贴纸时 v-else 分支已渲染）
+    loadPartyAnimation();
+});
+
+onUnmounted(() => {
+    destroyPartyAnim();
+});
+
+// 贴纸来源变化时（如有/无纪念贴纸）同步刷新 party 动画
+watch(stickerContent, () => {
+    nextTick(() => loadPartyAnimation());
+});
 
 /** 获奖者行样式：按用户主题色生成浅色背景与文字色，不同用户颜色不同 */
 function winnerRowStyle(w: WinnerUser): Record<string, string> {

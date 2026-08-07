@@ -169,6 +169,11 @@ impl ChatStore {
                     .and_then(|v| v.as_str())
                     .unwrap_or("0");
                 let order = order_str.parse::<u64>().unwrap_or(0);
+                // 顶置状态从 position.is_pinned 读取（排序也会随置顶变化）
+                let is_pinned = position
+                    .get("is_pinned")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
 
                 if let Some(key) = Self::get_list_key(list) {
                     let list_state = self
@@ -179,6 +184,35 @@ impl ChatStore {
                     events.push((
                         "chat-list-update".to_string(),
                         serde_json::to_value(list_state).unwrap(),
+                    ));
+                }
+
+                // 同步更新 chat.positions（按 list 匹配合并），保证前端 chat 的
+                // positions 始终反映最新的置顶/排序状态，进而驱动置顶图标的显示。
+                if let Some(chat) = self.chats.get_mut(&chat_id) {
+                    let mut positions = chat.positions.clone().unwrap_or_default();
+                    let has_list = positions.iter().any(|p| {
+                        p.get("list").and_then(|l| Self::get_list_key(l))
+                            == Self::get_list_key(list)
+                    });
+                    if has_list {
+                        for p in positions.iter_mut() {
+                            if p.get("list").and_then(|l| Self::get_list_key(l))
+                                == Self::get_list_key(list)
+                            {
+                                let pos = position.clone();
+                                p["order"] = pos["order"].clone();
+                                p["is_pinned"] = serde_json::json!(is_pinned);
+                                break;
+                            }
+                        }
+                    } else {
+                        positions.push(position.clone());
+                    }
+                    chat.positions = Some(positions);
+                    events.push((
+                        "chat-update".to_string(),
+                        serde_json::to_value(chat.clone()).unwrap(),
                     ));
                 }
             }

@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import { stat } from '@tauri-apps/plugin-fs';
 
 /** 附件最终发送类型 */
-export type AttachmentKind = 'photo' | 'video' | 'animation' | 'document';
+export type AttachmentKind = 'photo' | 'video' | 'animation' | 'document' | 'audio';
 
 /** 待发送附件项 */
 export interface AttachmentItem {
@@ -24,6 +24,8 @@ export interface AttachmentItem {
     probeFailed?: boolean;
     /** 该文件单独的描述（相册中各文件可单独添加） */
     caption?: string;
+    /** 该文件的自定义封面（本地绝对路径，音乐/视频/文档可设置） */
+    cover?: string;
 }
 
 let uid = 0;
@@ -78,6 +80,13 @@ export const useAttachmentStore = defineStore('attachment', () => {
         if (it) it.caption = caption;
     }
 
+    /** 设置/清除某附件的封面（cover 传 null 或空字符串则清除） */
+    function setCover(id: string, cover: string | null) {
+        const it = items.value.find((i) => i.id === id);
+        if (!it) return;
+        it.cover = cover ? cover : undefined;
+    }
+
     /** 拖拽重排：把 fromId 移动到 toId 的位置 */
     function reorder(fromId: string, toId: string) {
         const list = items.value;
@@ -88,7 +97,7 @@ export const useAttachmentStore = defineStore('attachment', () => {
         list.splice(toIdx, 0, moved);
     }
 
-    return { items, add, remove, clear, clearWithCleanup, setKind, setMetadata, setCaption, reorder };
+    return { items, add, remove, clear, clearWithCleanup, setKind, setMetadata, setCaption, setCover, reorder };
 });
 
 /** 删除临时文件（幂等，失败静默） */

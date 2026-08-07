@@ -30,6 +30,7 @@ declare module 'vue' {
     ExternalLinkConfirm: typeof import('./components/contextMenu/ExternalLinkConfirm.vue')['default']
     FormattedTextInline: typeof import('./components/chat/FormattedTextInline.vue')['default']
     ForumTopicList: typeof import('./components/chat/ForumTopicList.vue')['default']
+    ForwardBanner: typeof import('./components/chat/ChatDetail/MessageContent/ForwardBanner.vue')['default']
     ForwardPicker: typeof import('./components/contextMenu/ForwardPicker.vue')['default']
     Header: typeof import('./components/chat/ChatDetail/Header.vue')['default']
     HomeEmptyContent: typeof import('./components/layout/HomeEmptyContent.vue')['default']

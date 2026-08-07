@@ -25,16 +25,20 @@
         </div>
 
         <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium truncate text-gray-900 dark:text-gray-100">
-                {{ item.file_name }}
-                <!-- 通用资源标签（表情/头像/视频封面/贴纸等隐藏资源） -->
+            <div class="flex items-center min-w-0 text-sm font-medium text-gray-900 dark:text-gray-100">
+                <!-- 文件名本身可截断显示省略号 -->
+                <span class="truncate">{{ item.file_name }}</span>
+                <!-- 通用资源标签（表情/头像/视频封面/贴纸等隐藏资源），始终完整显示 -->
                 <span v-if="item.is_generic"
-                    class="ml-1.5 align-middle inline-block text-[10px] leading-4 text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 px-1.5 rounded whitespace-nowrap">{{
+                    class="ml-1.5 shrink-0 align-middle inline-block text-[10px] leading-4 text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 px-1.5 rounded whitespace-nowrap">{{
                         categoryLabel }}</span>
                 <!-- 自动下载图片标签 -->
                 <span v-else-if="item.is_auto_photo"
-                    class="ml-1.5 align-middle inline-block text-[10px] leading-4 text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40 px-1.5 rounded whitespace-nowrap">自动下载</span>
-            </p>
+                    class="ml-1.5 shrink-0 align-middle inline-block text-[10px] leading-4 text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40 px-1.5 rounded whitespace-nowrap">自动下载</span>
+                <!-- 流式传输视频标签（边下边播 tdstream://） -->
+                <span v-if="item.is_streaming"
+                    class="ml-1.5 shrink-0 align-middle inline-block text-[10px] leading-4 text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/40 px-1.5 rounded whitespace-nowrap">流式传输</span>
+            </div>
             <div class="flex items-center text-xs text-gray-400 min-w-0">
                 <span class="truncate">{{ item.chat_title || '未知来源' }}</span>
                 <span class="mx-1 shrink-0">·</span>
@@ -43,7 +47,7 @@
                 </template>
                 <template v-else>
                     <span class="shrink-0">{{ formatSize(item.downloaded_size) }} / {{ formatSize(item.total_size)
-                        }}</span>
+                    }}</span>
                 </template>
             </div>
             <!-- 进行中进度条 -->
