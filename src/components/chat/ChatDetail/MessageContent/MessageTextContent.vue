@@ -58,22 +58,39 @@
                     </svg>
                 </button>
             </span>
-            <!-- Code block group：用 span + block 展示，避免 <pre> 在 <p> 内闭合破坏布局 -->
+            <!-- Code block group：头部（accent 竖条 + 语言名 + 复制按钮）+ 代码区；用 span + block 展示，避免 <pre> 在 <p> 内闭合破坏布局 -->
             <span v-else-if="group.type === 'code'"
-                class="relative my-1 block overflow-x-auto rounded-lg border border-black/10 dark:border-white/10 p-2.5 text-[13px] leading-5 whitespace-pre-wrap">
-                <template v-for="(segment, si) in group.segments" :key="si">
-                    <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId" :size="emojiSize"
-                        :fallback-text="segment.text" />
-                    <a v-else-if="segment.href" :href="segment.href"
-                        class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
-                        :class="[segment.className]" @click.prevent.stop="handleSegmentClick($event, segment)">{{
-                            segment.text }}</a>
-                    <span v-else class="font-mono"
-                        :class="[segment.className, segment.copyable ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
-                        @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined">{{
-                            segment.text
-                        }}</span>
-                </template>
+                class="relative my-1 block overflow-hidden rounded-lg border border-black/10 dark:border-white/10">
+                <!-- 头部：accent 竖条后显示语言名，右侧复制按钮（还原 TG 效果） -->
+                <span
+                    class="flex items-center gap-1.5 border-b border-black/10 bg-black/[0.03] pr-1 dark:border-white/10 dark:bg-white/[0.05]">
+                    <span class="w-0.5 shrink-0 self-stretch rounded-full" :style="accentBarStyle"></span>
+                    <span class="min-w-0 flex-1 truncate py-1 text-xs font-semibold" :style="accentTextStyle">{{
+                        group.codeLanguage || 'code'
+                    }}</span>
+                    <button type="button"
+                        class="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                        @click.stop="copyCodeBlock(group)">
+                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                        复制
+                    </button>
+                </span>
+                <!-- 代码区：仅内容横向滚动，头部保持固定；代码文本不可点击（复制由头部按钮统一处理） -->
+                <span class="block overflow-x-auto p-2.5 text-[13px] leading-5 whitespace-pre-wrap">
+                    <template v-for="(segment, si) in group.segments" :key="si">
+                        <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId"
+                            :size="emojiSize" :fallback-text="segment.text" />
+                        <a v-else-if="segment.href" :href="segment.href"
+                            class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
+                            :class="[segment.className]" @click.prevent.stop="handleSegmentClick($event, segment)">{{
+                                segment.text }}</a>
+                        <span v-else class="font-mono" :class="[segment.className]">{{ segment.text }}</span>
+                    </template>
+                </span>
             </span>
             <!-- Normal group -->
             <template v-else>
@@ -108,7 +125,7 @@ import { useRouter } from 'vue-router';
 import { MessagePlugin } from 'tdesign-vue-next';
 import CustomEmojiInline from './CustomEmojiInline.vue';
 import SpoilerSpan from './SpoilerSpan.vue';
-import { useColors } from '../../../../store/colors';
+import { useColors, rgbToCss } from '../../../../store/colors';
 import { confirmAndOpenExternalLink } from '../../../../utils/openExternalLink';
 import { requestInsertCommand } from '../../../../store/commandInsert';
 import { openUsernameMenu } from '../../../../store/usernameMenu';
@@ -134,6 +151,26 @@ const quoteBorderStyle = computed(() => {
     return undefined;
 });
 
+/** 代码块头部 accent 配色（同链接预览左色条：单色=纯色，多色=斜条纹） */
+const accent = computed(() => accentColorStyle(typeof props.accentColorId === 'number' ? props.accentColorId : 5));
+const accentBarStyle = computed(() => {
+    const colors = accent.value.allColors;
+    if (colors.length <= 1) return { backgroundColor: accent.value.color };
+    const SEG = 5;
+    const cycle = (colors.length + 1) * SEG;
+    let stops = '';
+    let pos = 0;
+    for (let ci = colors.length - 1; ci >= 0; ci--) {
+        const c = colors[ci];
+        stops += `, ${rgbToCss(c)} ${pos}px, ${rgbToCss(c)} ${pos + SEG}px`;
+        pos += SEG;
+    }
+    stops += `, transparent ${pos}px, transparent ${cycle}px`;
+    return { background: `repeating-linear-gradient(-45deg${stops})` };
+});
+/** 代码块头部语言名文字色（accent 强调色） */
+const accentTextStyle = computed(() => ({ color: accent.value.text }));
+
 type Segment = {
     text: string;
     href?: string;
@@ -152,6 +189,8 @@ type Segment = {
     blockquoteType?: 'normal' | 'expandable';
     /** 是否为块级代码（pre / preCode） */
     isCodeBlock?: boolean;
+    /** 代码语言（仅 textEntityTypePreCode 携带），用于代码块头部语言名 */
+    codeLanguage?: string;
     /** 是否为剧透（点击后揭示显示） */
     isSpoiler?: boolean;
 };
@@ -161,6 +200,8 @@ type RenderGroup = {
     segments: Segment[];
     /** 是否可折叠展开 */
     isExpandable?: boolean;
+    /** 代码块语言名（代码组头部显示） */
+    codeLanguage?: string;
 };
 
 const segments = computed<Segment[]>(() => {
@@ -220,6 +261,10 @@ const segments = computed<Segment[]>(() => {
         const isCodeBlock = activeEntities.some(
             e => e.type._ === 'textEntityTypePre' || e.type._ === 'textEntityTypePreCode'
         );
+        // 代码语言（仅 textEntityTypePreCode 携带），用于代码块头部语言名
+        const codeLanguage = activeEntities
+            .map(e => (e.type._ === 'textEntityTypePreCode' ? e.type.language : undefined))
+            .find((l): l is string => !!l && l.trim().length > 0);
         // 排除引用块样式（由外层容器控制），保留其他实体样式
         const className = activeEntities
             .filter(e => e.type._ !== 'textEntityTypeBlockQuote' && e.type._ !== 'textEntityTypeExpandableBlockQuote')
@@ -233,7 +278,7 @@ const segments = computed<Segment[]>(() => {
         const isMention = activeEntities.some(e => e.type._ === 'textEntityTypeMention');
         // 是否为剧透：点击后揭示显示（仿 Web Telegram）
         const isSpoiler = activeEntities.some(e => e.type._ === 'textEntityTypeSpoiler');
-        return { text: segmentText, href, className, copyable, isCommand, isMention, isBlockquote, blockquoteType, isCodeBlock, isSpoiler };
+        return { text: segmentText, href, className, copyable, isCommand, isMention, isBlockquote, blockquoteType, isCodeBlock, codeLanguage, isSpoiler };
     });
 });
 
@@ -245,6 +290,7 @@ const renderGroups = computed<RenderGroup[]>(() => {
     let currentIsBlockquote = false;
     let currentIsExpandable = false;
     let currentIsCode = false;
+    let currentCodeLanguage: string | undefined;
     for (const seg of segs) {
         const segIsCode = !!seg.isCodeBlock;
         if (segIsCode !== currentIsCode || seg.isBlockquote !== currentIsBlockquote) {
@@ -253,14 +299,18 @@ const renderGroups = computed<RenderGroup[]>(() => {
                     type: currentIsCode ? 'code' : currentIsBlockquote ? 'blockquote' : 'normal',
                     segments: current,
                     isExpandable: currentIsExpandable,
+                    codeLanguage: currentCodeLanguage,
                 });
             }
             current = [seg];
             currentIsCode = segIsCode;
             currentIsBlockquote = !!seg.isBlockquote;
             currentIsExpandable = seg.blockquoteType === 'expandable';
+            currentCodeLanguage = seg.codeLanguage;
         } else {
             current.push(seg);
+            // 组内后续段可能带语言（如多段 preCode），取第一个非空语言
+            if (seg.codeLanguage && !currentCodeLanguage) currentCodeLanguage = seg.codeLanguage;
         }
     }
     if (current.length) {
@@ -268,6 +318,7 @@ const renderGroups = computed<RenderGroup[]>(() => {
             type: currentIsCode ? 'code' : currentIsBlockquote ? 'blockquote' : 'normal',
             segments: current,
             isExpandable: currentIsExpandable,
+            codeLanguage: currentCodeLanguage,
         });
     }
     return groups;
@@ -337,11 +388,9 @@ function getEntityClass(entity: textEntity): string {
 function isCopyableEntity(entity: textEntity): boolean {
     switch (entity.type._) {
         // #话题标签 点击复制（临时方案，后续搜索功能优化时改为搜索该标签）。
-        // 行内代码 / 块级代码：点击复制代码文本（与富文本 richTextFixed 的可复制适配一致）。
+        // 行内代码：点击复制（块级代码 pre/preCode 已有头部「复制」按钮，不再支持点击复制，避免与按钮冲突）
         case 'textEntityTypeHashtag':
         case 'textEntityTypeCode':
-        case 'textEntityTypePre':
-        case 'textEntityTypePreCode':
             return true;
         default:
             return false;
@@ -355,6 +404,12 @@ async function copyToClipboard(text: string) {
     } catch (e) {
         console.error('Copy failed:', e);
     }
+}
+
+/** 复制整个代码块文本（代码块头部复制按钮） */
+async function copyCodeBlock(group: RenderGroup) {
+    const text = group.segments.map(s => s.text).join('');
+    await copyToClipboard(text);
 }
 
 function handleSegmentClick(_event: MouseEvent, segment: Segment) {
