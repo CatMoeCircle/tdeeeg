@@ -34,7 +34,7 @@
                 <div class="flex flex-col min-w-0">
                     <h2 class="flex font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight truncate">{{
                         headerTitle
-                    }}<span v-if="verificationState" class="text-blue-500 ml-1 shrink-0">
+                        }}<span v-if="verificationState" class="text-blue-500 ml-1 shrink-0">
                             <component :is="verificationState" />
                         </span>
                     </h2>
@@ -79,7 +79,7 @@ import formatStatus from '../../../utils/status';
 import { useUserStore } from '../../../store/user';
 import { useConnectionStore } from '../../../store/connectionState';
 import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../../utils/savedMessages';
-import CustomEmojiInline from './MessageContent/CustomEmojiInline.vue';
+import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
 import { getChatProfileAccentColorId, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
 
 const props = defineProps<{

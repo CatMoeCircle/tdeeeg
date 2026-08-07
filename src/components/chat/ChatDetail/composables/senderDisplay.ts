@@ -1,6 +1,7 @@
 import type { chat, chatPhotoInfo, message, messageForwardInfo, profilePhoto, user } from 'tdlib-types';
 import { isSavedMessagesChat, isOutgoingAliasMessage } from '../../../../utils/savedMessages';
 import { isDeletedSender } from '../../../../utils/senderInfo';
+import { isMediaMessage, isStandaloneMessage } from './messageType';
 
 /**
  * 发送者 / 转发来源的显示信息计算（纯函数，无任何响应式依赖）。
@@ -219,6 +220,7 @@ export function getDisplaySenderName(
 /**
  * 判断是否显示发送者名称：有 author_signature 时显示；否则非自己消息且开启了发送者名称才显示。
  * 自己通过内联机器人发送的消息也显示名称行（用于在名称旁展示 `via @bot`）。
+ * 媒体（图片/视频/动画）与独立消息（贴纸/动画 emoji）不显示名称行。
  *
  * @param msg - 消息对象
  * @param deps - 外部依赖
@@ -229,6 +231,8 @@ export function showSenderDisplayName(
     deps: SenderDisplayDeps,
 ): boolean {
     if (!deps.showSenderName) return false;
+    // 图片/视频/gif（动画）与贴纸/动画 emoji 不显示发送者名称
+    if (isMediaMessage(msg) || isStandaloneMessage(msg)) return false;
     if (msg.author_signature?.trim()) return true;
     if (deps.isSelf(msg)) {
         // 马甲身份发送的消息虽按"自己发送"处理，但顶部名称仍需保留

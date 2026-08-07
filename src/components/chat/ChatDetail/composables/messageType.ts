@@ -118,6 +118,22 @@ export function isStandaloneMessage(msg: message): boolean {
 }
 
 /**
+ * 判断消息是否应使用"内嵌时间"（时间 float 右对齐、跟随文本末行，参考网页版 time-seal）。
+ * 仅普通文本消息（无置底链接预览）启用；其他消息类型仍在气泡底部独占一行显示时间。
+ * 与 MessageContent 内部判定保持一致，用于 ChatDetail 决定是否渲染独立的底部时间行。
+ *
+ * @param msg - 待判断的 TDLib 消息对象
+ * @returns 应内嵌时间返回 `true`，否则返回 `false`
+ */
+export function isInlineTimeMessage(msg: message): boolean {
+  const c = msg.content;
+  if (c._ !== "messageText") return false;
+  // 置底链接预览存在时，时间无法内嵌到文本末行，退回独立底部行
+  if (c.link_preview && !c.link_preview.show_above_text) return false;
+  return true;
+}
+
+/**
  * 判断消息是否为服务消息（居中显示、自成一组、不占头像列）。
  *
  * @param msg - 待判断的 TDLib 消息对象

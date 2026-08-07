@@ -21,7 +21,7 @@
                 <UsersIcon :class="iconStyle" />
             </router-link>
 
-            <router-link v-if="settings.chatList.archivePosition !== 'hidden'" to="/home/archived" :class="buttonStyle"
+            <router-link v-if="settings.chatList.archivePosition === 'sidebar'" to="/home/archived" :class="buttonStyle"
                 active-class="bg-white/60 dark:bg-gray-600 shadow-sm">
                 <ArchiveIcon :class="iconStyle" />
             </router-link>

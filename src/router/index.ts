@@ -9,33 +9,33 @@ const router = createRouter({
     {
       path: "/",
       name: "boot",
-      component: () => import("../views/Booting.vue"),
+      component: () => import("../views/auth/Booting.vue"),
     },
     {
       path: "/login",
       name: "login",
-      component: () => import("../views/LoginView.vue"),
+      component: () => import("../views/auth/LoginView.vue"),
     },
     {
       path: "/loginCode",
       name: "loginCode",
-      component: () => import("../views/login/Code.vue"),
+      component: () => import("../views/auth/login/Code.vue"),
     },
     {
       path: "/loginPaws",
       name: "loginPaws",
-      component: () => import("../views/login/Password.vue"),
+      component: () => import("../views/auth/login/Password.vue"),
     },
     {
       path: "/home",
       name: "home",
-      component: () => import("../views/HomeView.vue"),
+      component: () => import("../views/home/HomeView.vue"),
       redirect: "/home/chats",
       children: [
         {
           path: "chats",
           name: "chats",
-          component: () => import("../components/layout/HomeEmptyContent.vue"),
+          component: () => import("../views/home/HomeEmpty.vue"),
         },
         {
           // Chat detail is a top-level home page, not a nested chat-list page.
@@ -51,32 +51,32 @@ const router = createRouter({
         {
           path: "contacts",
           name: "contacts",
-          component: () => import("../components/layout/HomeEmptyContent.vue"),
+          component: () => import("../views/home/HomeEmpty.vue"),
         },
         {
           path: "archived",
           name: "archived",
-          component: () => import("../components/layout/HomeEmptyContent.vue"),
+          component: () => import("../views/home/HomeEmpty.vue"),
         },
         {
           path: "settings",
           name: "settings",
-          component: () => import("../components/layout/HomeEmptyContent.vue"),
+          component: () => import("../views/home/HomeEmpty.vue"),
         },
         {
           path: "settings/appearance",
           name: "settings-appearance",
-          component: () => import("../components/settings/AppearanceSettings.vue"),
+          component: () => import("../views/settings/AppearanceSettings.vue"),
         },
         {
           path: "settings/download",
           name: "settings-download",
-          component: () => import("../components/settings/DownloadSettings.vue"),
+          component: () => import("../views/settings/DownloadSettings.vue"),
         },
         {
           path: "user/:id",
           name: "user-profile",
-          component: () => import("../views/UserProfile.vue"),
+          component: () => import("../views/user/UserProfile.vue"),
         },
       ],
     },

@@ -157,7 +157,7 @@
                                             ? 'w-fit max-w-full min-w-0 overflow-hidden shadow-sm'
                                             : isStandaloneMessage(item.msg)
                                                 ? 'relative max-w-full'
-                                                : 'px-1.5 py-1.5 shadow-sm max-w-full min-w-30',
+                                                : 'px-2 py-1.5 shadow-sm max-w-full min-w-30',
                                         !isStandaloneMessage(item.msg) && isSelf(item.msg)
                                             ? 'text-gray-900'
                                             : !isStandaloneMessage(item.msg)
@@ -166,10 +166,11 @@
                                     ]"
                                         :style="getInlineKeyboard(item.msg) ? { ...bubbleStyle(item), width: '100%' } : bubbleStyle(item)">
                                         <p v-if="showSenderDisplayName(item.msg) && item.isFirstInGroup"
-                                            class="text-xs font-semibold mx-2 m-1.5 flex items-center gap-1.5"
+                                            class="text-xs font-semibold m-0.5 flex items-center gap-1.5"
                                             :style="senderNameColor(item.msg)">
-                                            <span class="min-w-0 flex-1 truncate">{{ getDisplaySenderName(item.msg)
-                                            }}</span>
+                                            <span class="m-0.5 min-w-0 flex-1 truncate">{{
+                                                getDisplaySenderName(item.msg)
+                                                }}</span>
                                             <span v-if="getMessageLabel(item.msg)"
                                                 class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
                                                 :class="getMessageLabelClass(item.msg)">{{
@@ -202,10 +203,11 @@
                                             :messageId="item.msg.id" :senderName="getDisplaySenderName(item.msg)"
                                             :replyTo="item.msg.reply_to?._ === 'messageReplyToMessage' ? item.msg.reply_to : undefined"
                                             :messageList="messages" :accentColorId="getSenderAccentId(item.msg)"
+                                            :inlineTime="isInlineTimeMessage(item.msg)"
                                             @jumpToMessage="handleReplyJumpToMessage"
                                             @openForwardSource="item.msg.forward_info && openForwardSource(item.msg.forward_info)" />
                                         <span
-                                            v-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isSelf(item.msg)"
+                                            v-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isInlineTimeMessage(item.msg) && !isSelf(item.msg)"
                                             class="block text-right text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 leading-none">
                                             <MessageStatus :date="item.msg.date" :isOutgoing="false"
                                                 :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
@@ -213,7 +215,7 @@
                                                 :authorSignature="getDisplayAuthorSignature(item.msg)" />
                                         </span>
                                         <span
-                                            v-else-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && isSelf(item.msg)"
+                                            v-else-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isInlineTimeMessage(item.msg) && isSelf(item.msg)"
                                             class="block text-right text-[11px] text-gray-700/70 mt-0.5 leading-none">
                                             <MessageStatus :date="item.msg.date" :isOutgoing="true"
                                                 :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
@@ -399,10 +401,10 @@
 import MessageInput from './MessageInput.vue';
 import Avatar from '../avatar.vue';
 import MessageContent from './MessageContent/index.vue';
-import MessageStatus from './MessageContent/MessageStatus.vue';
-import MessageAlbum from './MessageContent/MessageAlbum.vue';
-import ForwardBanner from './MessageContent/ForwardBanner.vue';
-import InlineKeyboard from './MessageContent/InlineKeyboard.vue';
+import MessageStatus from './MessageContent/content/MessageStatus.vue';
+import MessageAlbum from './MessageContent/content/MessageAlbum.vue';
+import ForwardBanner from './MessageContent/content/ForwardBanner.vue';
+import InlineKeyboard from './MessageContent/content/InlineKeyboard.vue';
 import ChatDetailHeader from './Header.vue';
 import MediaViewer from './MessageContent/MediaViewer.vue';
 import type { MediaViewerItem } from './MessageContent/MediaViewer.vue';
@@ -444,7 +446,7 @@ import { buildVideoQualities } from '../../../utils/videoQualities';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { getSenderAccentColorId, getSenderProfileAccentColorId, getChatProfileAccentColorId, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
 import { useColors } from '../../../store/colors';
-import { isMediaMessage, isStandaloneMessage, isServiceMessage } from './composables/messageType';
+import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage } from './composables/messageType';
 import { buildDisplayItems } from './composables/messageItems';
 import type { DisplayItem, AlbumDisplayItem } from './composables/messageItems';
 import {

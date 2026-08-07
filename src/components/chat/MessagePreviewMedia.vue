@@ -6,7 +6,7 @@
                 :class="{ 'blur-[2px] scale-110': t.spoiler }" />
             <!-- 播放按钮仅为装饰：仅展示，无实际播放效果 -->
             <span v-if="t.isVideo" class="absolute inset-0 flex items-center justify-center bg-black/20">
-                <PlayIcon class=" text-white drop-shadow" />
+                <PlayIcon class="w-1.5 h-1.5 text-white drop-shadow" fill="currentColor" />
             </span>
             <!-- 剧透：缩略图叠加粒子遮罩（预览中不显示原始内容） -->
             <SpoilerMedia v-if="t.spoiler" :has-spoiler="true" overlay
@@ -22,7 +22,7 @@ import type { message } from 'tdlib-types';
 import { tdlibSend, isFileReady } from '../../utils/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { isThumbnailImgRenderable } from '../../utils/thumbnail';
-import SpoilerMedia from './ChatDetail/MessageContent/SpoilerMedia.vue';
+import SpoilerMedia from './ChatDetail/MessageContent/spoiler/SpoilerMedia.vue';
 
 const props = defineProps<{
     /** 最后一条消息（图片/视频/相册） */

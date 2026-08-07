@@ -58,6 +58,8 @@ interface Settings {
   message: {
     /** 消息气泡圆角半径（px） */
     cornerRadius: number;
+    /** 消息气泡四角对称：true=四个角都用 cornerRadius，false=头像侧角用 6px 小圆角 */
+    cornerRadiusSymmetrical: boolean;
     /** 消息文本字体大小（px） */
     fontSize: number;
     /** 消息整体比例缩放（0.8 ~ 1.2） */
@@ -100,6 +102,7 @@ const defaultSettings: Settings = {
   },
   message: {
     cornerRadius: 18,
+    cornerRadiusSymmetrical: false,
     fontSize: 14,
     scale: 1,
     botCommandInsert: false,

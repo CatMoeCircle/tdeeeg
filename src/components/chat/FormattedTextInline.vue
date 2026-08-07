@@ -10,7 +10,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { formattedText } from 'tdlib-types';
-import CustomEmojiInline from './ChatDetail/MessageContent/CustomEmojiInline.vue';
+import CustomEmojiInline from '../common/CustomEmojiInline.vue';
 
 const props = defineProps<{
     /** 需要渲染的富文本；为空时不渲染任何内容 */
@@ -80,11 +80,11 @@ const segments = computed<Segment[]>(() => {
 <style>
 /* 剧透文本预览：遮盖原文，不显示内容（聊天列表/预览小尺寸场景） */
 .fts-spoiler {
-  display: inline-block;
-  vertical-align: -0.1em;
-  height: 1.1em;
-  background: rgba(127, 129, 133, 0.3);
-  border-radius: 3px;
-  user-select: none;
+    display: inline-block;
+    vertical-align: -0.1em;
+    height: 1.1em;
+    background: rgba(127, 129, 133, 0.3);
+    border-radius: 3px;
+    user-select: none;
 }
 </style>

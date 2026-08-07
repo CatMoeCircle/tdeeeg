@@ -17,7 +17,10 @@
 
         <!-- Text messages -->
         <MessageTextContent v-if="content._ === 'messageText'" :formattedText="content.text"
-            :linkPreview="content.link_preview" :accentColorId="accentColorId" />
+            :linkPreview="content.link_preview" :accentColorId="accentColorId" :showInlineTime="inlineTime"
+            :timeDate="date" :timeIsOutgoing="isSelf" :timeSendingState="sendingState" :timeIsRead="isRead"
+            :timeViewCount="viewCount" :timeAuthorSignature="authorSignature"
+            :timeColorClass="isSelf ? 'text-gray-600/70 dark:text-gray-400/70' : 'text-gray-400 dark:text-gray-500'" />
 
         <!-- Rich messages -->
         <MessageRichMessage v-else-if="content._ === 'messageRichMessage'" :blocks="content.message.blocks"
@@ -86,21 +89,21 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { MessageContent, messageForwardInfo, messageReplyToMessage, MessageSendingState, message, messageSticker, messageAnimatedEmoji, chatPhotoInfo, profilePhoto } from 'tdlib-types';
-import MessageReply from './MessageReply.vue';
+import MessageReply from './content/MessageReply.vue';
 
-import MessageTextContent from './MessageTextContent.vue';
-import MessageRichMessage from './MessageRichMessage.vue';
-import MessageChecklistContent from './MessageChecklistContent.vue';
-import MessageMediaContent from './MessageMediaContent.vue';
-import MessageStickerContent from './MessageStickerContent.vue';
-import MessageVoiceContent from './MessageVoiceContent.vue';
-import MessageFileContent from './MessageFileContent.vue';
-import MessageServiceContent from './MessageServiceContent.vue';
-import MessageGiftContent from './MessageGiftContent.vue';
-import MessageGiveawayContent from './MessageGiveawayContent.vue';
-import MessageGiveawayWinnersContent from './MessageGiveawayWinnersContent.vue';
-import MessageOtherContent from './MessageOtherContent.vue';
-import MessageStatus from './MessageStatus.vue';
+import MessageTextContent from './content/MessageTextContent.vue';
+import MessageRichMessage from './rich/MessageRichMessage.vue';
+import MessageChecklistContent from './content/MessageChecklistContent.vue';
+import MessageMediaContent from './content/MessageMediaContent.vue';
+import MessageStickerContent from './content/MessageStickerContent.vue';
+import MessageVoiceContent from './content/MessageVoiceContent.vue';
+import MessageFileContent from './content/MessageFileContent.vue';
+import MessageServiceContent from './content/MessageServiceContent.vue';
+import MessageGiftContent from './content/MessageGiftContent.vue';
+import MessageGiveawayContent from './content/MessageGiveawayContent.vue';
+import MessageGiveawayWinnersContent from './content/MessageGiveawayWinnersContent.vue';
+import MessageOtherContent from './content/MessageOtherContent.vue';
+import MessageStatus from './content/MessageStatus.vue';
 import { settings } from '../../../../store/settings';
 
 const MEDIA_TYPES = new Set([
@@ -198,6 +201,8 @@ const props = defineProps<{
     accentColorId?: number;
     /** 发送人显示名称（用于查看器底部信息展示） */
     senderName?: string;
+    /** 是否将时间内嵌到普通文本消息末尾（float 同行，参考网页版），由 ChatDetail 决策 */
+    inlineTime?: boolean;
 }>();
 
 const emit = defineEmits<{

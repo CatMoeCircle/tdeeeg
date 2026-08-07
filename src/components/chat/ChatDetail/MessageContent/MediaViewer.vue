@@ -14,8 +14,7 @@
 
                     <!-- 视频未下载（未自动下载）：显示缩略图 + 手动下载按钮 -->
                     <div v-if="isVideo && currentCanDownload"
-                        class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60"
-                        @click.stop>
+                        class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60" @click.stop>
                         <!-- 缩略图预览 -->
                         <img v-if="currentThumb" :src="currentThumb"
                             class="absolute inset-0 w-full h-full object-contain opacity-40 pointer-events-none" />
@@ -36,8 +35,9 @@
                                 <line x1="12" y1="15" x2="12" y2="3" />
                             </svg>
                         </button>
-                        <LoaderIndicator v-else :progress="videoDownloadProgress > 0 ? videoDownloadProgress : undefined"
-                            size="52" color="#ffffff" />
+                        <LoaderIndicator v-else
+                            :progress="videoDownloadProgress > 0 ? videoDownloadProgress : undefined" size="52"
+                            color="#ffffff" />
                         <span v-if="!videoDownloading" class="relative z-10 mt-3 text-sm text-white/90">尚未下载，点击下载</span>
                         <span v-else class="relative z-10 mt-3 text-sm text-white/90">
                             {{ videoDownloadProgress > 0 ? `下载中 ${Math.round(videoDownloadProgress * 100)}%` : '下载中…' }}
@@ -365,7 +365,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { MessagePlugin } from 'tdesign-vue-next';
 import type { formattedText } from 'tdlib-types';
 import { tdlibSend, downloadingFiles } from '../../../../utils/tdlib';
-import MessageTextContent from './MessageTextContent.vue';
+import MessageTextContent from './content/MessageTextContent.vue';
 import LoaderIndicator from '../../../common/LoaderIndicator';
 
 export interface MediaViewerVideoQuality {

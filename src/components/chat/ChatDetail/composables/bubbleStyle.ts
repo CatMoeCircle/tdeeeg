@@ -26,6 +26,8 @@ export interface BubbleStyleItem {
 /** 消息显示设置（取自 `settings.message`） */
 export interface MessageDisplaySettings {
     cornerRadius: number;
+    /** 四角对称：true=四个角都用 cornerRadius，false=头像侧角用 6px 小圆角 */
+    cornerRadiusSymmetrical: boolean;
     fontSize: number;
     scale: number;
 }
@@ -100,11 +102,16 @@ export function selfAlbumStyle(
 export function messageRadiusCss(
     msg: message,
     item: { isFirstInGroup: boolean; isLastInGroup: boolean; index: number },
-    deps: BubbleRadiusDeps & { cornerRadius: number },
+    deps: BubbleRadiusDeps & { cornerRadius: number; cornerRadiusSymmetrical: boolean },
 ): string {
     const r = deps.cornerRadius;
     const isMe = deps.isSelf(msg);
     const first = item.isFirstInGroup;
+
+    // 四角对称：四个角统一用 cornerRadius，不再区分头像侧小圆角/连接角
+    if (deps.cornerRadiusSymmetrical) {
+        return `${r}px ${r}px ${r}px ${r}px`;
+    }
 
     if (isMe) {
         // 自己消息：右上角为尾巴/连接角（6px），其余为用户半径
@@ -162,6 +169,7 @@ export function bubbleStyle(
         borderRadius: messageRadiusCss(item.msg, item, {
             ...deps,
             cornerRadius: deps.settings.cornerRadius,
+            cornerRadiusSymmetrical: deps.settings.cornerRadiusSymmetrical,
         }),
     };
     // 独立消息（贴纸 / 动画表情）不渲染消息气泡，不叠加背景
