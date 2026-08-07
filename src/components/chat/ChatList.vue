@@ -89,33 +89,40 @@
                             </template>
                             <!-- Normal Mode: full chat item -->
                             <template v-else>
-                                <!-- 归档入口：归档位置为“全部对话顶部”时显示 -->
-                                <div v-if="settings.chatList.archivePosition === 'top' && tab.id === 'chatListMain' && !props.isArchive"
-                                    @click="goToArchive"
-                                    class="flex items-center p-2.5 mb-1 cursor-pointer rounded-xl hover:bg-white/70 hover:shadow-(--box-shadow) transition-colors"
-                                    style="content-visibility: auto; contain-intrinsic-size: 72px">
-                                    <div class="w-12 h-12 mr-2.5">
-                                        <div class="w-full h-full bg-gray-200 text-gray-500 flex items-center justify-center"
-                                            :style="{ borderRadius: avatarRadius + '%' }">
-                                            <ArchiveIcon class="w-6 h-6" />
+                                <!--
+                                    排序变化动画：用 TransitionGroup 包裹列表项，顺序改变时通过
+                                    FLIP 为发生位移的项应用 transform 过渡。归档入口也作为列表项
+                                    参与（有固定 key），保证置顶/取消置顶时整体平滑移动。
+                                    注意：每个列表项依赖 :key=chat.id 保持身份稳定，移动动画才有意义。
+                                -->
+                                <TransitionGroup name="chat-list" tag="div">
+                                    <!-- 归档入口：归档位置为“全部对话顶部”时显示 -->
+                                    <div v-if="settings.chatList.archivePosition === 'top' && tab.id === 'chatListMain' && !props.isArchive"
+                                        key="__archive__" @click="goToArchive"
+                                        class="flex items-center p-2.5 mb-1 cursor-pointer rounded-xl hover:bg-white/70 hover:shadow-(--box-shadow) transition-colors"
+                                        style="content-visibility: auto; contain-intrinsic-size: 72px">
+                                        <div class="w-12 h-12 mr-2.5">
+                                            <div class="w-full h-full bg-gray-200 text-gray-500 flex items-center justify-center"
+                                                :style="{ borderRadius: avatarRadius + '%' }">
+                                                <ArchiveIcon class="w-6 h-6" />
+                                            </div>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex justify-between items-baseline mb-1">
+                                                <h3 class="text-sm font-semibold truncate text-gray-900">
+                                                    归档
+                                                </h3>
+                                                <ChevronRightIcon class="w-4 h-4 text-gray-400 shrink-0" />
+                                            </div>
+                                            <p class="text-xs text-gray-500 truncate">已归档的对话</p>
                                         </div>
                                     </div>
-                                    <div class="flex-1 min-w-0">
-                                        <div class="flex justify-between items-baseline mb-1">
-                                            <h3 class="text-sm font-semibold truncate text-gray-900">
-                                                归档
-                                            </h3>
-                                            <ChevronRightIcon class="w-4 h-4 text-gray-400 shrink-0" />
-                                        </div>
-                                        <p class="text-xs text-gray-500 truncate">已归档的对话</p>
-                                    </div>
-                                </div>
 
-                                <div v-for="chat in tab.chats" :key="chat.id" @click="selectChat(chat)"
-                                    v-context-menu="buildChatContextMenu(chat)"
-                                    class="flex items-center p-2.5 mb-0.5 hover:bg-white/70 rounded-xl hover:shadow-(--box-shadow) cursor-pointer transition-colors"
-                                    :class="{ 'rounded-xl bg-gray-100 border border-gray-300': selectedChatId === chat.id, 'ring-2 ring-blue-500': chatSelectionMode && selectedChatIds.has(chat.id) }"
-                                    style="content-visibility: auto; contain-intrinsic-size: 72px">
+                                    <div v-for="chat in tab.chats" :key="chat.id" @click="selectChat(chat)"
+                                        v-context-menu="buildChatContextMenu(chat)"
+                                        class="chat-list-item flex items-center p-2.5 mb-0.5 hover:bg-white/70 rounded-xl hover:shadow-(--box-shadow) cursor-pointer transition-colors"
+                                        :class="{ 'rounded-xl bg-gray-100 border border-gray-300': selectedChatId === chat.id, 'ring-2 ring-blue-500': chatSelectionMode && selectedChatIds.has(chat.id) }"
+                                        style="content-visibility: auto; contain-intrinsic-size: 72px">
                                     <!-- 占位对话（chat 数据尚未到达）渲染骨架屏 -->
                                     <template v-if="isPlaceholderChat(chat)">
                                         <div class="w-12 h-12 mr-2.5 rounded-full bg-gray-200 animate-pulse shrink-0">
@@ -196,7 +203,8 @@
                                             </div>
                                         </div>
                                     </template>
-                                </div>
+                                    </div>
+                                </TransitionGroup>
                             </template>
                         </div>
                     </div>
@@ -345,7 +353,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, type Component } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, TransitionGroup, type Component } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon, UserIcon, UsersIcon, MegaphoneIcon, BotIcon, FolderIcon, BellOffIcon, PinIcon, ArchiveIcon, ChevronRightIcon, ArchiveRestore as ArchiveRestoreIcon, PinOff as PinOffIcon, FolderPlus as FolderPlusIcon, FolderMinus as FolderMinusIcon, BellRing as BellRingIcon, LogOut as LogOutIcon, CheckCheck as CheckCheckIcon, Trash2 as Trash2Icon, X as XIcon, Copy as CopyIcon } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
@@ -1379,6 +1387,36 @@ function getTopicPreview(topic: forumTopic): formattedText {
 .forum-avatar-column,
 .chat-list-fade-in {
     animation: chat-list-fade-in 0.3s ease both;
+}
+
+/*
+ * 聊天列表排序变化移动动画（TransitionGroup）
+ * 列表顺序变化（新消息置顶 / 顶置 / 取消顶置等）时，发生位移的项由
+ * Vue 的 FLIP 机制自动加上 -move class，这里为 transform 加上过渡，
+ * 让元素平滑滑到新位置；而非位移的项不参与，不影响性能。
+ */
+.chat-list-move {
+    transition: transform 0.75s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chat-list-enter-active {
+    transition: opacity 0.5s ease, transform 0.75s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chat-list-enter-from {
+    opacity: 0;
+    transform: translateY(-12px);
+}
+
+/* leave 的项淡出期间脱离文档流（绝对定位），不挤压相邻项，
+   保证 -move 位移动画平滑不抖动 */
+.chat-list-leave-active {
+    position: absolute;
+    transition: opacity 0.4s ease;
+}
+
+.chat-list-leave-to {
+    opacity: 0;
 }
 
 .swipe-page {
