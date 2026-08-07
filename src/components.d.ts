@@ -19,6 +19,7 @@ declare module 'vue' {
     ChatDetail: typeof import('./components/chat/ChatDetail/index.vue')['default']
     ChatList: typeof import('./components/chat/ChatList.vue')['default']
     ChatTypeToggle: typeof import('./components/settings/ChatTypeToggle.vue')['default']
+    CodeHighlight: typeof import('./components/chat/ChatDetail/MessageContent/CodeHighlight.vue')['default']
     CollapsibleSection: typeof import('./components/settings/CollapsibleSection.vue')['default']
     ContactList: typeof import('./components/chat/ContactList.vue')['default']
     ContextMenu: typeof import('./components/contextMenu/ContextMenu.vue')['default']
