@@ -58,7 +58,7 @@
                             <!-- Forum Mode: compact avatar only -->
                             <template v-if="forumMode">
                                 <div v-for="chat in tab.chats" :key="chat.id" @click="selectForumChat(chat)"
-                                    v-context-menu="buildChatContextMenu(chat, tab.id)"
+                                    v-context-menu="buildChatContextMenu(chat)"
                                     class="relative flex items-center justify-center py-2.5 cursor-pointer transition-colors hover:bg-gray-100"
                                     :class="forumChatId === chat.id ? 'bg-gray-100 rounded-lg' : ''"
                                     style="content-visibility: auto; contain-intrinsic-size: 68px">
@@ -119,98 +119,98 @@
                                     </div>
 
                                     <div v-for="chat in tab.chats" :key="chat.id" @click="selectChat(chat)"
-                                        v-context-menu="buildChatContextMenu(chat, tab.id)"
+                                        v-context-menu="buildChatContextMenu(chat)"
                                         class="chat-list-item flex items-center p-2.5 mb-0.5 hover:bg-white/70 rounded-xl hover:shadow-(--box-shadow) cursor-pointer transition-colors"
                                         :class="{ 'rounded-xl bg-gray-100 border border-gray-300': selectedChatId === chat.id, 'ring-2 ring-blue-500': chatSelectionMode && selectedChatIds.has(chat.id) }"
                                         style="content-visibility: auto; contain-intrinsic-size: 72px">
-                                        <!-- 占位对话（chat 数据尚未到达）渲染骨架屏 -->
-                                        <template v-if="isPlaceholderChat(chat)">
-                                            <div
-                                                class="w-12 h-12 mr-2.5 rounded-full bg-gray-200 animate-pulse shrink-0">
+                                    <!-- 占位对话（chat 数据尚未到达）渲染骨架屏 -->
+                                    <template v-if="isPlaceholderChat(chat)">
+                                        <div class="w-12 h-12 mr-2.5 rounded-full bg-gray-200 animate-pulse shrink-0">
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="h-3.5 w-3/4 bg-gray-200 rounded animate-pulse mb-2">
                                             </div>
-                                            <div class="flex-1 min-w-0">
-                                                <div class="h-3.5 w-3/4 bg-gray-200 rounded animate-pulse mb-2">
-                                                </div>
-                                                <div class="h-3 w-1/2 bg-gray-200 rounded animate-pulse"></div>
+                                            <div class="h-3 w-1/2 bg-gray-200 rounded animate-pulse"></div>
+                                        </div>
+                                    </template>
+                                    <template v-else>
+                                        <div class="w-12 h-12 mr-2.5">
+                                            <div v-if="isSavedMessages(chat)"
+                                                class="w-full h-full bg-blue-500 text-white flex items-center justify-center"
+                                                :style="{ borderRadius: avatarRadius + '%' }">
+                                                <BookmarkIcon class="w-7 h-7 fill-current" />
                                             </div>
-                                        </template>
-                                        <template v-else>
-                                            <div class="w-12 h-12 mr-2.5">
-                                                <div v-if="isSavedMessages(chat)"
-                                                    class="w-full h-full bg-blue-500 text-white flex items-center justify-center"
-                                                    :style="{ borderRadius: avatarRadius + '%' }">
-                                                    <BookmarkIcon class="w-7 h-7 fill-current" />
-                                                </div>
-                                                <Avatar v-else :photo="chat.photo" :title="chat.title"
-                                                    :radius="chatAvatarRadius(chat)"
-                                                    :accentColorId="getChatProfileAccentColorId(chat)"
-                                                    :deletedAccount="isDeletedChat(chat)" />
-                                            </div>
-                                            <div class="flex-1 min-w-0">
-                                                <div class="flex justify-between items-baseline mb-1">
-                                                    <h3
-                                                        class="text-sm font-semibold text-gray-900 flex items-center gap-1 min-w-0">
-                                                        <span class="truncate">{{ getChatTitle(chat) }}</span>
-                                                        <!-- 静音图标 -->
-                                                        <BellOffIcon v-if="isChatMuted(chat)"
-                                                            class="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                                                    </h3>
-                                                    <!-- 时间右侧区域：置顶对话显示为胶囊（图钉图标 + 灰色文本 + 浅灰背景），其他保持原样 -->
-                                                    <span class="shrink-0 ml-1 flex items-center gap-1" :class="pinnedInTab(chat, tab.id)
-                                                        ? 'px-2 py-0.5 rounded-full text-gray-600 bg-gray-200'
+                                            <Avatar v-else :photo="chat.photo" :title="chat.title"
+                                                :radius="chatAvatarRadius(chat)"
+                                                :accentColorId="getChatProfileAccentColorId(chat)"
+                                                :deletedAccount="isDeletedChat(chat)" />
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex justify-between items-baseline mb-1">
+                                                <h3
+                                                    class="text-sm font-semibold text-gray-900 flex items-center gap-1 min-w-0">
+                                                    <span class="truncate">{{ getChatTitle(chat) }}</span>
+                                                    <!-- 静音图标 -->
+                                                    <BellOffIcon v-if="isChatMuted(chat)"
+                                                        class="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                                </h3>
+                                                <!-- 时间右侧区域：置顶对话显示为胶囊（图钉图标 + 灰色文本 + 10%灰背景），其他保持原样 -->
+                                                <span class="shrink-0 ml-1 flex items-center gap-1"
+                                                    :class="isChatPinned(chat)
+                                                        ? 'px-2 py-0.5 rounded-full text-gray-500 bg-gray-400/10'
                                                         : ''">
-                                                        <!-- 顶置图标：显示在时间左边，仅置顶对话显示（tgico 字体图钉 U+E952） -->
-                                                        <span v-if="pinnedInTab(chat, tab.id)"
-                                                            class="tgico tgico-pin shrink-0 text-[13px] leading-none"
-                                                            :class="isChatMuted(chat) ? 'text-gray-500' : 'text-gray-500'"></span>
-                                                        <span class="text-xs"
-                                                            :class="pinnedInTab(chat, tab.id) ? 'text-gray-600' : 'text-gray-400'">{{
-                                                                formatTime(chat.last_message?.date)
-                                                            }}</span>
-                                                    </span>
-                                                </div>
-                                                <div class="flex items-center gap-2">
-                                                    <div class="flex-1 min-w-0 flex items-center gap-1.5">
-                                                        <!-- 左侧未读角标：[12] user: hel -->
-                                                        <span v-if="showLeftBadge(chat) && chat.unread_count > 0"
-                                                            class="shrink-0 text-xs font-semibold leading-4.5 text-blue-500">
-                                                            [{{ formatUnreadCount(chat.unread_count) }}]
-                                                        </span>
-                                                        <!-- 发送者迷你头像 + 名称（群组，私聊/频道不显示） -->
-                                                        <template v-if="isChatGroup(chat) && senderName(chat)">
-                                                            <Avatar
-                                                                v-if="settings.chatList.showSenderMiniAvatar && senderMiniAvatar(chat)"
-                                                                :photo="senderMiniAvatar(chat)"
-                                                                :title="senderName(chat)" sizeClass="!w-4 !h-4"
-                                                                :radius="avatarRadius" class="shrink-0" />
-                                                            <span class="shrink-0 text-xs text-gray-400">{{
-                                                                senderName(chat) }}：</span>
-                                                        </template>
-                                                        <!-- 图片/视频/相册：正方形缩略图预览（相册最多 3 个），有 caption 时追加文字 -->
-                                                        <MessagePreviewMedia v-if="isMediaPreviewMsg(chat.last_message)"
-                                                            :message="chat.last_message" :chat-id="chat.id" />
-                                                        <p v-if="mediaCaption(chat.last_message)"
-                                                            class="min-w-0 truncate text-xs text-gray-500">
-                                                            <FormattedTextInline
-                                                                :formattedText="mediaCaption(chat.last_message)"
-                                                                :size="14" />
-                                                        </p>
-                                                        <p v-else-if="!isMediaPreviewMsg(chat.last_message)"
-                                                            class="min-w-0 truncate text-xs text-gray-500">
-                                                            <FormattedTextInline
-                                                                :formattedText="getMessagePreview(chat.last_message)"
-                                                                :size="14" />
-                                                        </p>
-                                                    </div>
-                                                    <!-- 未读计数：静音对话灰显（启用左侧角标时不显示） -->
-                                                    <span v-if="chat.unread_count > 0 && !showLeftBadge(chat)"
-                                                        class="shrink-0 min-w-4.5 h-4.5 px-1.5 rounded-full text-white text-[10px] font-semibold leading-4.5 text-center"
-                                                        :class="isChatMuted(chat) ? 'bg-gray-400' : 'bg-blue-500'">
-                                                        {{ formatUnreadCount(chat.unread_count) }}
-                                                    </span>
-                                                </div>
+                                                    <!-- 顶置图标：显示在时间左边，仅置顶对话显示（tgico 字体图钉 U+E952） -->
+                                                    <span v-if="isChatPinned(chat)"
+                                                        class="tgico tgico-pin shrink-0 text-[13px] leading-none"
+                                                        :class="isChatMuted(chat) ? 'text-gray-300' : 'text-gray-400'"></span>
+                                                    <span class="text-xs"
+                                                        :class="isChatPinned(chat) ? 'text-gray-500' : 'text-gray-400'">{{
+                                                            formatTime(chat.last_message?.date)
+                                                        }}</span>
+                                                </span>
                                             </div>
-                                        </template>
+                                            <div class="flex items-center gap-2">
+                                                <div class="flex-1 min-w-0 flex items-center gap-1.5">
+                                                    <!-- 左侧未读角标：[12] user: hel -->
+                                                    <span v-if="showLeftBadge(chat) && chat.unread_count > 0"
+                                                        class="shrink-0 text-xs font-semibold leading-4.5 text-blue-500">
+                                                        [{{ formatUnreadCount(chat.unread_count) }}]
+                                                    </span>
+                                                    <!-- 发送者迷你头像 + 名称（群组，私聊/频道不显示） -->
+                                                    <template v-if="isChatGroup(chat) && senderName(chat)">
+                                                        <Avatar
+                                                            v-if="settings.chatList.showSenderMiniAvatar && senderMiniAvatar(chat)"
+                                                            :photo="senderMiniAvatar(chat)" :title="senderName(chat)"
+                                                            sizeClass="!w-4 !h-4" :radius="avatarRadius"
+                                                            class="shrink-0" />
+                                                        <span class="shrink-0 text-xs text-gray-400">{{
+                                                            senderName(chat) }}：</span>
+                                                    </template>
+                                                    <!-- 图片/视频/相册：正方形缩略图预览（相册最多 3 个），有 caption 时追加文字 -->
+                                                    <MessagePreviewMedia v-if="isMediaPreviewMsg(chat.last_message)"
+                                                        :message="chat.last_message" :chat-id="chat.id" />
+                                                    <p v-if="mediaCaption(chat.last_message)"
+                                                        class="min-w-0 truncate text-xs text-gray-500">
+                                                        <FormattedTextInline
+                                                            :formattedText="mediaCaption(chat.last_message)"
+                                                            :size="14" />
+                                                    </p>
+                                                    <p v-else-if="!isMediaPreviewMsg(chat.last_message)"
+                                                        class="min-w-0 truncate text-xs text-gray-500">
+                                                        <FormattedTextInline
+                                                            :formattedText="getMessagePreview(chat.last_message)"
+                                                            :size="14" />
+                                                    </p>
+                                                </div>
+                                                <!-- 未读计数：静音对话灰显（启用左侧角标时不显示） -->
+                                                <span v-if="chat.unread_count > 0 && !showLeftBadge(chat)"
+                                                    class="shrink-0 min-w-4.5 h-4.5 px-1.5 rounded-full text-white text-[10px] font-semibold leading-4.5 text-center"
+                                                    :class="isChatMuted(chat) ? 'bg-gray-400' : 'bg-blue-500'">
+                                                    {{ formatUnreadCount(chat.unread_count) }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </template>
                                     </div>
                                 </TransitionGroup>
                             </template>
@@ -361,7 +361,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, TransitionGroup, type Component } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, type Component } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon, UserIcon, UsersIcon, MegaphoneIcon, BotIcon, FolderIcon, BellOffIcon, PinIcon, ArchiveIcon, ChevronRightIcon, ArchiveRestore as ArchiveRestoreIcon, PinOff as PinOffIcon, FolderPlus as FolderPlusIcon, FolderMinus as FolderMinusIcon, BellRing as BellRingIcon, LogOut as LogOutIcon, CheckCheck as CheckCheckIcon, Trash2 as Trash2Icon, X as XIcon, Copy as CopyIcon } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
@@ -369,7 +369,7 @@ import { settings } from '../../store/settings';
 import {
     getSenderName, getSenderPhoto, ensureSenderLoaded,
     getChatProfileAccentColorId, ensureChatAccentLoaded, isDeletedChat,
-    isChatGroup, isChatMuted, DELETED_ACCOUNT_LABEL,
+    isChatGroup, isChatMuted, isChatPinned, DELETED_ACCOUNT_LABEL,
 } from '../../utils/senderInfo';
 import { useChatStore } from '../../store/chat';
 import type { Chat } from '../../store/chat';
@@ -381,7 +381,7 @@ import { tdlibSend } from '../../utils/tdlib';
 import type { ContextMenuItem } from '../contextMenu/types';
 import { MessagePlugin } from 'tdesign-vue-next';
 import {
-    isChatArchived, isChatMuted as chatIsMuted,
+    isChatArchived, isChatPinned as chatIsPinned, isChatMuted as chatIsMuted,
     canLeaveChat, archiveChat, unarchiveChat, toggleChatPinned, muteChat, unmuteChat,
     leaveChat, isChatInFolder, toggleChatInFolder,
 } from '../contextMenu/chatActions';
@@ -926,44 +926,11 @@ const senderName = (chat: Chat) => getSenderName(chat.last_message?.sender_id);
 /** 最后消息发送者迷你头像 */
 const senderMiniAvatar = (chat: Chat) => getSenderPhoto(chat.last_message?.sender_id);
 
-// ==================== 按当前分组判断置顶 ====================
-/**
- * 把 tab.id（列表 key）转换为 toggleChatIsPinned 需要的 chat_list 对象。
- * 返回值 undefined 表示默认列表（chatListMain）。
- */
-const tabIdToChatList = (tabId: string): { _: string; chat_folder_id?: number } | undefined => {
-    if (tabId === 'chatListArchive') return { _: 'chatListArchive' };
-    if (tabId === 'chatListMain' || !tabId) return undefined;
-    const m = /^chat_folder_id(\d+)$/.exec(tabId);
-    if (m) return { _: 'chatListFolder', chat_folder_id: Number(m[1]) };
-    return undefined;
-};
-
-/** 判断对话是否在「指定分组」中置顶（而非任意分组） */
-const pinnedInTab = (chat: Chat, tabId: string): boolean => {
-    return !!chat.positions?.some((p: any) => {
-        const l = p?.list;
-        if (!l) return false;
-        if (tabId === 'chatListMain') {
-            return l._ === 'chatListMain' && p.is_pinned === true;
-        }
-        if (tabId === 'chatListArchive') {
-            return l._ === 'chatListArchive' && p.is_pinned === true;
-        }
-        const m = /^chat_folder_id(\d+)$/.exec(tabId);
-        if (m) {
-            return l._ === 'chatListFolder' && l.chat_folder_id === Number(m[1]) && p.is_pinned === true;
-        }
-        return false;
-    });
-};
-
 // ==================== 对话右键菜单 ====================
-const buildChatContextMenu = (chat: Chat, tabId: string): ContextMenuItem[] => {
+const buildChatContextMenu = (chat: Chat): ContextMenuItem[] => {
     const items: ContextMenuItem[] = [];
     const chatId = chat.id;
-    const pinned = pinnedInTab(chat, tabId);
-    const tabList = tabIdToChatList(tabId);
+    const pinned = chatIsPinned(chat);
     const muted = chatIsMuted(chat);
     const archived = isChatArchived(chat);
     const saved = isSavedMessagesChat(chat, userProfile.value?.id);
@@ -987,13 +954,14 @@ const buildChatContextMenu = (chat: Chat, tabId: string): ContextMenuItem[] => {
         onClick: () => (archived ? unarchiveChat(chatId) : archiveChat(chatId)),
     });
 
-    // 取消置顶 / 置顶（针对当前分组 tabList 操作）
+    // 取消置顶 / 置顶
     items.push({
         key: 'pin',
         label: pinned ? '取消置顶' : '置顶',
         icon: pinned ? PinOffIcon : PinIcon,
         onClick: () => {
-            toggleChatPinned(chatId, !pinned, tabList);
+            const list = archived ? { _: 'chatListArchive' } : undefined;
+            toggleChatPinned(chatId, !pinned, list);
         },
     });
 
