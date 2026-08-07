@@ -1,5 +1,29 @@
 <template>
-    <div class="my-1.5 overflow-hidden rounded-lg bg-black/[0.04] dark:bg-white/[0.08]" role="link" tabindex="0"
+    <!-- Sticker 链接预览：左侧主题条纹 + 图像占满剩余区域（无"查看"按钮），点击打开原链接 -->
+    <div v-if="isSticker" role="link" tabindex="0"
+        class="my-1.5 flex items-stretch overflow-hidden rounded-lg bg-black/[0.04] dark:bg-white/[0.08]"
+        @click="emit('open', preview.url)" @keydown.enter.prevent="emit('open', preview.url)"
+        @keydown.space.prevent="emit('open', preview.url)">
+        <div class="w-0.5 shrink-0 rounded-full" :style="accentBarStyle"></div>
+        <div class="min-w-0 flex-1">
+            <LinkPreviewMedia :preview="preview" large contain />
+            <div v-if="preview.site_name || preview.title || preview.author || preview.description?.text"
+                class="space-y-0.5 px-2.5 py-2">
+                <div v-if="preview.site_name" class="truncate text-xs font-semibold" :style="accentTextStyle">
+                    {{ preview.site_name }}
+                </div>
+                <div v-if="preview.title" class="text-sm font-semibold leading-5">{{ preview.title }}</div>
+                <div v-if="preview.author" class="truncate text-xs opacity-65">{{ preview.author }}</div>
+                <div v-if="preview.description?.text"
+                    class="preview-description mt-0.5 whitespace-pre-wrap text-sm leading-5">
+                    <FormattedTextInline :formattedText="preview.description" :size="18" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 普通链接预览 -->
+    <div v-else class="my-1.5 overflow-hidden rounded-lg bg-black/[0.04] dark:bg-white/[0.08]" role="link" tabindex="0"
         @click="emit('open', preview.url)" @keydown.enter.prevent="emit('open', preview.url)"
         @keydown.space.prevent="emit('open', preview.url)">
         <!-- 大图媒体：位于描述上方 -->
@@ -57,6 +81,9 @@ const emit = defineEmits<{
 
 const showLarge = computed(() => props.preview.show_large_media);
 const mediaAbove = computed(() => props.preview.show_media_above_description);
+
+/** 是否为 Sticker 链接预览：用「左侧主题条纹 + 图像」卡片替代"查看"按钮 */
+const isSticker = computed(() => props.preview.type._ === 'linkPreviewTypeSticker');
 
 const { accentColorStyle } = useColors();
 

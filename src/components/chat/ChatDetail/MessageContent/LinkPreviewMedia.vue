@@ -1,11 +1,10 @@
 ﻿<template>
     <!-- 大图媒体（链接预览主图） -->
-    <div v-if="large && plan" class="relative overflow-hidden bg-gray-200 dark:bg-gray-700" :style="largeStyle">
-        <img v-if="src && !plan.fileIsVideo" :src="src" alt="" class="h-full w-full object-cover" />
-        <video v-else-if="src && plan.fileIsVideo" :src="src" autoplay loop muted playsinline
-            class="h-full w-full object-cover" />
-        <img v-else-if="placeholder" :src="placeholder" alt="" class="h-full w-full scale-105 object-cover blur-sm" />
-        <div v-else class="flex h-full w-full items-center justify-center">
+    <div v-if="large && plan" :class="largeWrapCls" :style="largeWrapStyle">
+        <img v-if="src && !plan.fileIsVideo" :src="src" alt="" :class="largeImgCls" />
+        <video v-else-if="src && plan.fileIsVideo" :src="src" autoplay loop muted playsinline :class="largeImgCls" />
+        <img v-else-if="placeholder" :src="placeholder" alt="" :class="largePlaceholderCls" />
+        <div v-else :class="largeFallbackCls">
             <ImageIcon class="h-6 w-6 text-gray-400" />
         </div>
         <!-- 视频：播放标识（动态缩略图已在播放时不显示） -->
@@ -35,7 +34,7 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { Image as ImageIcon, Play as PlayIcon } from 'lucide-vue-next';
-import type { animation, chatPhoto, file, linkPreview, linkPreviewTypeAlbum, photo, video, LinkPreviewType } from 'tdlib-types';
+import type { animation, chatPhoto, file, linkPreview, linkPreviewTypeAlbum, photo, sticker, video, LinkPreviewType } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../utils/tdlib';
 import { isThumbnailImgRenderable, isThumbnailVideoRenderable } from '../../../../utils/thumbnail';
 
@@ -43,6 +42,8 @@ const props = defineProps<{
     preview: linkPreview;
     /** true = 大图；false/省略 = 右侧小缩略图 */
     large?: boolean;
+    /** true = 完整展示图片（object-contain 居中，不裁剪），适合贴纸等需整体可见的预览 */
+    contain?: boolean;
 }>();
 
 /** 从 linkPreview.type 提取出的可展示媒体（照片 / 视频封面 / 动画缩略图） */
@@ -138,6 +139,30 @@ function albumPlan(media: linkPreviewTypeAlbum['media']): MediaPlan | undefined 
     return undefined;
 }
 
+/**
+ * Sticker 链接预览：WEBP 静态图直接用主文件；WEBM 动态贴纸用 <video> 播放；
+ * TGS（Lottie JSON）无法直接渲染，退回其静态缩略图。
+ */
+function stickerPlan(s: sticker | undefined): MediaPlan | undefined {
+    if (!s) return undefined;
+    const width = s.width || s.thumbnail?.width || 0;
+    const height = s.height || s.thumbnail?.height || 0;
+    // 缩略图已就绪时作为占位图，避免主文件下载完成前一片空白
+    let placeholder: string | undefined;
+    if (s.thumbnail?.file && isFileReady(s.thumbnail.file)) {
+        placeholder = convertFileSrc(s.thumbnail.file.local.path);
+    }
+    switch (s.format?._) {
+        case 'stickerFormatWebm':
+            return { kind: 'animation', file: s.sticker, fileIsVideo: true, placeholder, width, height };
+        case 'stickerFormatTgs':
+            return s.thumbnail ? { kind: 'photo', file: s.thumbnail.file, placeholder, width, height } : undefined;
+        case 'stickerFormatWebp':
+        default:
+            return { kind: 'photo', file: s.sticker, placeholder, width, height };
+    }
+}
+
 /** 按 TDLib 返回的 linkPreview.type 提取媒体；无媒体时返回 undefined（不渲染） */
 function extractPlan(t: LinkPreviewType): MediaPlan | undefined {
     switch (t._) {
@@ -159,6 +184,8 @@ function extractPlan(t: LinkPreviewType): MediaPlan | undefined {
             return photoPlan(t.thumbnail);
         case 'linkPreviewTypeAlbum':
             return albumPlan(t.media);
+        case 'linkPreviewTypeSticker':
+            return stickerPlan(t.sticker);
         case 'linkPreviewTypeChat':
         case 'linkPreviewTypeDirectMessagesChat':
         case 'linkPreviewTypeUser':
@@ -241,4 +268,19 @@ const largeStyle = computed(() => {
     if (!p || !p.width || !p.height) return undefined;
     return { width: '100%', aspectRatio: `${p.width} / ${p.height}`, maxHeight: '300px' };
 });
+
+/** contain 模式：完整展示图片（不裁剪），居中；默认 cover 裁剪填充 */
+const largeWrapCls = computed(() => props.contain
+    ? 'relative flex min-h-40 items-center justify-center overflow-hidden bg-gray-200 dark:bg-gray-700'
+    : 'relative overflow-hidden bg-gray-200 dark:bg-gray-700');
+const largeWrapStyle = computed(() => (props.contain ? undefined : largeStyle.value));
+const largeImgCls = computed(() => props.contain
+    ? 'max-h-[280px] max-w-full object-contain'
+    : 'h-full w-full object-cover');
+const largePlaceholderCls = computed(() => props.contain
+    ? 'max-h-[280px] max-w-full object-contain opacity-60'
+    : 'h-full w-full scale-105 object-cover blur-sm');
+const largeFallbackCls = computed(() => props.contain
+    ? 'flex h-40 w-full items-center justify-center'
+    : 'flex h-full w-full items-center justify-center');
 </script>
