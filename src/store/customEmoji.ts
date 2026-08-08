@@ -148,8 +148,12 @@ async function downloadStickerFile(emojiId: string, fileId: number) {
 /**
  * 获取或请求加载自定义 emoji
  * 返回响应式的状态对象（通过 emojiCache ref 驱动），组件中直接读取属性即可。
+ *
+ * @param emojiId 自定义 emoji id
+ * @param fetch 是否立即触发拉取/下载。设为 false 时仅创建状态对象，
+ *              需视口进入后调用 requestCustomEmoji(id) 再触发（懒加载）。
  */
-export function useCustomEmoji(emojiId: string | number): CustomEmojiState {
+export function useCustomEmoji(emojiId: string | number, fetch = true): CustomEmojiState {
   const id = String(emojiId);
 
   // 初始化缓存条目
@@ -160,10 +164,33 @@ export function useCustomEmoji(emojiId: string | number): CustomEmojiState {
       loadingFile: true,
       ready: false,
     };
+    if (fetch) queueFetch(id);
+  } else if (fetch && !emojiCache.value[id].sticker && !emojiCache.value[id].filePath) {
+    // 之前仅创建了占位（未拉取），现在真正进入视口 → 补触发
     queueFetch(id);
   }
 
   return emojiCache.value[id];
+}
+
+/**
+ * 显式触发某个自定义 emoji 的拉取/下载（视口懒加载用）。
+ * 幂等：已在加载中/已就绪的 emoji 不会重复请求。
+ */
+export function requestCustomEmoji(emojiId: string | number): void {
+  const id = String(emojiId);
+  const state = emojiCache.value[id];
+  if (!state) {
+    useCustomEmoji(id, false);
+    queueFetch(id);
+    return;
+  }
+  // 完整贴纸已就绪 → 无需再次拉取/下载（直接用已下载文件，不重复触发 downloadFile）
+  if (state.ready && state.filePath) return;
+  // 正在拉取贴纸元数据或正在下载缩略图/主文件 → 幂等，不重复请求
+  if (state.loadingFile || state.loadingThumbnail) return;
+  // 已能显示缩略图但尚未拉取过主文件（或主文件下载失败）：仍补拉取一次以尝试下载完整贴纸
+  queueFetch(id);
 }
 
 /** 将 ID 加入批量队列 */

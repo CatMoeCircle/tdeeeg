@@ -15,27 +15,27 @@ import type { ContextMenuItem } from "../components/contextMenu/types";
  */
 export type ContextMenuValue =
     | ContextMenuItem[]
-    | ((e: MouseEvent, data?: any) => ContextMenuItem[])
+    | ((e: MouseEvent, data?: any) => ContextMenuItem[] | Promise<ContextMenuItem[]>)
     | {
-        items?: ContextMenuItem[] | ((e: MouseEvent, data?: any) => ContextMenuItem[]);
+        items?: ContextMenuItem[] | ((e: MouseEvent, data?: any) => ContextMenuItem[] | Promise<ContextMenuItem[]>);
         onOpen?: (e: MouseEvent, data?: any) => void;
         closeOnClick?: boolean;
     };
 
-function resolveItems(value: ContextMenuValue, e: MouseEvent, data: any): ContextMenuItem[] {
+async function resolveItems(value: ContextMenuValue, e: MouseEvent, data: any): Promise<ContextMenuItem[]> {
     if (Array.isArray(value)) return value;
     if (typeof value === "function") {
-        return value(e, data) || [];
+        return (await value(e, data)) || [];
     }
     // 对象形式
     const items = value.items;
     if (typeof items === "function") {
-        return (items as (e: MouseEvent, data?: any) => ContextMenuItem[])(e, data) || [];
+        return (await (items as (e: MouseEvent, data?: any) => ContextMenuItem[] | Promise<ContextMenuItem[]>)(e, data)) || [];
     }
     return (items as ContextMenuItem[]) || [];
 }
 
-function openMenu(el: HTMLElement, binding: DirectiveBinding<ContextMenuValue>, e: MouseEvent) {
+async function openMenu(el: HTMLElement, binding: DirectiveBinding<ContextMenuValue>, e: MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
 
@@ -46,7 +46,7 @@ function openMenu(el: HTMLElement, binding: DirectiveBinding<ContextMenuValue>, 
         value.onOpen?.(e, data);
     }
 
-    const menuItems = resolveItems(value, e, data);
+    const menuItems = await resolveItems(value, e, data);
     if (!menuItems || menuItems.length === 0) {
         return;
     }

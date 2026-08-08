@@ -28,6 +28,9 @@
             <div class="flex items-center min-w-0 text-sm font-medium text-gray-900 dark:text-gray-100">
                 <!-- 文件名本身可截断显示省略号 -->
                 <span class="truncate">{{ item.file_name }}</span>
+                <!-- 已暂停状态标签 -->
+                <span v-if="item.is_paused"
+                    class="ml-1.5 shrink-0 align-middle inline-block text-[10px] leading-4 text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/40 px-1.5 rounded whitespace-nowrap">已暂停</span>
                 <!-- 通用资源标签（表情/头像/视频封面/贴纸等隐藏资源），始终完整显示 -->
                 <span v-if="item.is_generic"
                     class="ml-1.5 shrink-0 align-middle inline-block text-[10px] leading-4 text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 px-1.5 rounded whitespace-nowrap">{{
@@ -35,7 +38,7 @@
                 <!-- 自动下载图片标签 -->
                 <span v-else-if="item.is_auto_photo"
                     class="ml-1.5 shrink-0 align-middle inline-block text-[10px] leading-4 text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40 px-1.5 rounded whitespace-nowrap">自动下载</span>
-                <!-- 流式传输视频标签（边下边播 tdstream://） -->
+                <!-- 流式传输标签（边下边播 tdstream://）：视频与音乐均适用 -->
                 <span v-if="item.is_streaming"
                     class="ml-1.5 shrink-0 align-middle inline-block text-[10px] leading-4 text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/40 px-1.5 rounded whitespace-nowrap">流式传输</span>
             </div>

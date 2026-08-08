@@ -1,5 +1,5 @@
 <template>
-    <div :class="content._ === 'messageAnimatedEmoji' ? 'w-24 h-24 cursor-pointer' : ''"
+    <div ref="rootEl" :class="content._ === 'messageAnimatedEmoji' ? 'w-24 h-24 cursor-pointer' : ''"
         :style="content._ !== 'messageAnimatedEmoji' ? stickerSizeStyle : undefined" @click="onContentClick">
         <!-- WEBP static sticker -->
         <img v-if="format === 'webp' && mediaSrc" :src="mediaSrc" class="w-full h-full object-contain" />
@@ -23,6 +23,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { useDownloadStore } from '../../../../../store/downloads';
 import { settings } from '../../../../../store/settings';
 import { useLottiePause } from '../../../../../composables/useLottiePause';
+import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import lottie, { type AnimationItem } from 'lottie-web';
 import * as pako from 'pako';
 
@@ -31,6 +32,7 @@ const props = defineProps<{
     size?: number;
 }>();
 
+const rootEl = ref<HTMLElement | null>(null);
 const lottieRef = ref<HTMLElement | null>(null);
 const mediaSrc = ref<string | undefined>(undefined);
 const isDownloading = ref(false);
@@ -178,9 +180,17 @@ onUnmounted(() => {
     destroyLottie();
 });
 
+// 视口门控：进入视口才下载真实贴纸文件；未进入显示 emoji 占位。
+const { start: startViewportLoad, entered: stickerEntered } = useViewportLoad(rootEl, () => {
+    loadMedia();
+});
 watch(() => props.content, () => {
     mediaSrc.value = undefined;
     destroyLottie();
-    loadMedia();
+    // 已进入视口（此前无内容/已触发过）时新内容到达需补下载
+    if (stickerEntered.value) loadMedia();
 }, { immediate: true });
+onMounted(() => {
+    startViewportLoad();
+});
 </script>

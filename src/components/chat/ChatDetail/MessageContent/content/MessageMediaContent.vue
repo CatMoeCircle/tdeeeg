@@ -1,6 +1,6 @@
 <template>
     <!-- 外层 div 使用媒体宽度，使图片+文字+时间共享统一宽度（仿 Telegram Web） -->
-    <div class="message-media relative" :style="mediaContainerStyle">
+    <div ref="rootEl" class="message-media relative" :style="mediaContainerStyle">
         <ForwardBanner v-if="forwardInfo" :name="forwardName ?? ''" :original-name="forwardOriginalName"
             :photo="forwardPhoto" :accent-id="forwardAccentId" :navigable="forwardNavigable" :self="isSelf"
             :text-color="forwardTextColor" media-inline @open-source="emit('openForwardSource')" />
@@ -214,6 +214,7 @@ import type { MediaViewerItem } from '../MediaViewer.vue';
 import { buildVideoQualities } from '../../../../../utils/videoQualities';
 import { useDownloadStore, type DownloadFileType } from '../../../../../store/downloads';
 import { useChatStore } from '../../../../../store/chat';
+import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import { registerMediaItem, unregisterMediaItem, openMediaViewer, isMediaViewerActive } from '../../../../../store/mediaViewer';
 import { settings } from '../../../../../store/settings';
 import { getChatCategory } from '../../../../../utils/autoDownload';
@@ -263,6 +264,9 @@ const mediaSrc = ref<string | undefined>(undefined);
 const isDownloading = ref(false);
 const mediaLoaded = ref(false);
 const thumbSrc = ref<string | undefined>(undefined);
+
+/** 组件根元素（用于视口门控：进入视口才懒加载下载） */
+const rootEl = ref<HTMLElement | null>(null);
 
 // Video state
 const videoDownloaded = ref(false);
@@ -586,7 +590,18 @@ function openViewer() {
 
 // ---- Media Loading ----
 
-onMounted(() => { loadMedia(); });
+/**
+ * 视口门控：组件挂载时立即设置 base64 缩略图预览，但真正的下载（loadMedia）
+ * 延迟到组件进入用户视口后才触发。未进入视口的离屏消息只显示 base64。
+ */
+const { start: startViewportLoad } = useViewportLoad(rootEl, () => {
+    void loadMedia();
+});
+
+onMounted(() => {
+    setMediaPreview();
+    startViewportLoad();
+});
 
 // ---- Download store integration ---
 const downloadStore = useDownloadStore();
@@ -637,6 +652,30 @@ const loadMedia = async () => {
     if (c._ === 'messagePhoto') { await loadPhotoThumb(); return; }
     if (c._ === 'messageAnimation') { await loadAnimThumb(); return; }
 };
+
+/**
+ * 设置 base64 缩略图预览（不触发下载）。用于离屏消息的占位展示：
+ * - 图片：photo.minithumbnail.data
+ * - 视频：video.minithumbnail.data（无下载 cover 时）
+ * - GIF：无内嵌 base64，暂不占位
+ * 进入视口后会走 loadMedia 再尝试下载真实文件。
+ */
+function setMediaPreview() {
+    const c = props.content;
+    if (c._ === 'messagePhoto') {
+        const min = c.photo.minithumbnail;
+        if (min?.data) {
+            thumbSrc.value = `data:image/jpeg;base64,${min.data}`;
+        }
+    } else if (c._ === 'messageVideo') {
+        const min = c.video.minithumbnail;
+        if (min?.data) {
+            videoThumbSrc.value = `data:image/jpeg;base64,${min.data}`;
+            videoThumbIsVideo.value = false;
+        }
+    }
+    // messageAnimation（GIF）无 minithumbnail base64 可作占位，保持空白直到下载
+}
 
 // ---- Photo ----
 const canDownload = computed(() => {

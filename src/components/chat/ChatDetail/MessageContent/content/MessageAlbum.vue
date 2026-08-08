@@ -1,5 +1,5 @@
 <template>
-    <div class="overflow-hidden" :class="borderRadiusClass">
+    <div ref="rootEl" class="overflow-hidden" :class="borderRadiusClass">
         <div v-if="layoutItems.length > 0" class="relative" :style="containerStyle">
             <div v-for="item in layoutItems" :key="item.msgId"
                 class="absolute overflow-hidden cursor-pointer bg-gray-200 dark:bg-gray-700"
@@ -50,7 +50,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, watch, onUnmounted } from 'vue';
+import { ref, computed, reactive, watch, onMounted, onUnmounted } from 'vue';
 import type { message } from 'tdlib-types';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { tdlibSend, isFileReady, downloadingFiles, safeDownloadFile } from '../../../../../utils/tdlib';
@@ -66,6 +66,7 @@ import { getChatCategory } from '../../../../../utils/autoDownload';
 import { isThumbnailImgRenderable } from '../../../../../utils/thumbnail';
 import { useChatStore } from '../../../../../store/chat';
 import { useDownloadStore } from '../../../../../store/downloads';
+import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 
 const props = defineProps<{
     messages: message[];
@@ -93,6 +94,25 @@ function onTileContextMenu(e: MouseEvent, idx: number) {
 // ---- Refs ----
 const thumbCache = reactive<Record<number, string>>({});
 const mediaCache = reactive<Record<number, string>>({});
+
+/** 相册根元素（用于视口门控：进入视口才下载） */
+const rootEl = ref<HTMLElement | null>(null);
+
+/**
+ * 立即设置 base64 缩略图预览（不下载），供离屏相册显示占位。
+ * 仅填充 minithumbnail base64，避免任何 TDLib 下载。
+ */
+function setAlbumPreview() {
+    for (const msg of props.messages) {
+        const c = msg.content;
+        const min = c._ === 'messagePhoto'
+            ? c.photo.minithumbnail
+            : c._ === 'messageVideo' ? c.video.minithumbnail : undefined;
+        if (min?.data && !thumbCache[msg.id]) {
+            thumbCache[msg.id] = `data:image/jpeg;base64,${min.data}`;
+        }
+    }
+}
 
 // 将相册中每条消息的媒体项注册到全局查看器
 watch([() => props.messages, mediaCache], () => {
@@ -273,7 +293,14 @@ async function limitConcurrency<T>(items: T[], limit: number, worker: (item: T) 
 
 // ---- Thumbnail loading ----
 // 相册内图片/视频改为受限并发加载（原 for...of await 是串行瀑布，放大了生产环境的 RPC 延迟）
-watch(() => props.messages, async (msgs) => {
+// 视口门控：挂载时只设置 base64 预览，真正下载延迟到相册进入用户视口后。
+let loadAlbumFn: ((msgs: message[]) => Promise<void>) | null = null;
+function runAlbumLoad() {
+    if (!loadAlbumFn) return;
+    void loadAlbumFn(props.messages);
+}
+
+loadAlbumFn = async (msgs) => {
     const changed = await limitConcurrency(msgs, 4, async (msg) => {
         const c = msg.content;
         if (c._ === 'messagePhoto') return await loadPhoto(msg);
@@ -281,7 +308,22 @@ watch(() => props.messages, async (msgs) => {
         return false;
     });
     if (changed) rebuildLayout();
+};
+
+// 视口门控：进入视口触发下载；未进入只显示 setAlbumPreview 的 base64。
+// entered 同时供 watch 判断是否应触发下载。
+const { start: startViewportLoad, entered: albumEntered } = useViewportLoad(rootEl, () => {
+    runAlbumLoad();
+});
+watch(() => props.messages, () => {
+    setAlbumPreview();
+    rebuildLayout();
+    // 仅当相册已进入视口时才下载（否则保持 base64 占位）
+    if (albumEntered.value) runAlbumLoad();
 }, { immediate: true, deep: true });
+onMounted(() => {
+    startViewportLoad();
+});
 
 async function loadPhoto(msg: message): Promise<boolean> {
     if (msg.content._ !== 'messagePhoto') return false;

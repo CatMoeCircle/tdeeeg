@@ -1,5 +1,5 @@
 <template>
-    <div class="rich-image" :style="wrapperStyle">
+    <div ref="rootEl" class="rich-image" :style="wrapperStyle">
         <div v-if="!src" class="animate-pulse bg-gray-200 dark:bg-gray-700" :style="placeholderStyle"></div>
         <video v-else-if="isVideoThumb" :src="src" :alt="alt" autoplay loop muted playsinline
             class="block max-w-full h-auto" :style="imgStyle" :class="{ 'cursor-pointer': clickable }"
@@ -15,6 +15,7 @@ import type { file, ThumbnailFormat } from 'tdlib-types';
 import { tdlibSend, isFileReady } from '../../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { isThumbnailVideoRenderable } from '../../../../../utils/thumbnail';
+import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 
 const props = withDefaults(defineProps<{
     file: file;
@@ -33,6 +34,7 @@ const props = withDefaults(defineProps<{
     clickable: false,
 });
 
+const rootEl = ref<HTMLElement | null>(null);
 const src = ref('');
 const downloading = ref(false);
 
@@ -65,8 +67,9 @@ async function load() {
     try {
         await tdlibSend({ _: 'downloadFile', file_id: f.id, priority: 1, offset: 0, limit: 0, synchronous: true });
         const updated = await tdlibSend({ _: 'getFile', file_id: f.id });
-        const path = updated?.local?.path;
-        if (path) src.value = convertFileSrc(path);
+        // 仅在完全下载完成（本地路径非空且 is_downloading_completed）时才展示真实图片；
+        // 否则保持占位，避免显示残缺/半下载的文件。
+        if (isFileReady(updated)) src.value = convertFileSrc(updated.local.path);
     } catch (e) {
         console.warn('RichImage download failed:', e);
     } finally {
@@ -81,10 +84,16 @@ function onOpen() {
     }
 }
 
-watch(() => props.file?.id, () => {
-    src.value = '';
+// 视口门控：进入视口才下载富文本图片；未进入显示骨架占位。
+const { start: startViewportLoad, entered: imgEntered } = useViewportLoad(rootEl, () => {
     load();
 });
+watch(() => props.file?.id, () => {
+    src.value = '';
+    if (imgEntered.value) load();
+});
 
-onMounted(load);
+onMounted(() => {
+    startViewportLoad();
+});
 </script>

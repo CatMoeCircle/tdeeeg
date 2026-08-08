@@ -1,5 +1,5 @@
 <template>
-  <span class="inline-flex items-center align-middle mx-0.5 overflow-hidden"
+  <span ref="rootEl" class="inline-flex items-center align-middle mx-0.5 overflow-hidden"
     :style="{ width: size + 'px', height: size + 'px' }">
     <!-- 已下载完成：根据格式渲染 -->
     <template v-if="state.ready && state.filePath && state.sticker">
@@ -26,8 +26,9 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
-import { useCustomEmoji } from '../../store/customEmoji';
+import { useCustomEmoji, requestCustomEmoji } from '../../store/customEmoji';
 import { useLottiePause } from '../../composables/useLottiePause';
+import { useViewportLoad } from '../../composables/useViewportLoad';
 import lottie, { type AnimationItem } from 'lottie-web';
 import * as pako from 'pako';
 
@@ -39,7 +40,9 @@ const props = defineProps<{
 }>();
 
 const size = computed(() => props.size || 22);
-const state = useCustomEmoji(props.emojiId);
+const rootEl = ref<HTMLElement | null>(null);
+// 创建状态但不立即拉取下载；进入视口后由 requestCustomEmoji 触发（视口懒加载）
+const state = useCustomEmoji(props.emojiId, false);
 const lottieRef = ref<HTMLElement | null>(null);
 let lottieAnim: AnimationItem | null = null;
 
@@ -100,9 +103,15 @@ watch([() => state.ready, () => state.filePath, emojiFormat], async ([ready, fil
   }
 }, { immediate: true });
 
+// 视口门控：进入视口才拉取/下载自定义 emoji；未进入显示 fallback 文本或骨架。
+const { start: startViewportLoad } = useViewportLoad(rootEl, () => {
+  requestCustomEmoji(props.emojiId);
+});
+
 // 挂载后初始化暂停控制器（视口观察 + 窗口聚焦 + 平滑滚动监听）
 onMounted(() => {
   setupPause();
+  startViewportLoad();
 });
 
 onUnmounted(() => {

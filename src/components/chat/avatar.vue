@@ -19,6 +19,7 @@ import { tdlibSend, isFileReady, downloadingFiles } from '../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useDownloadStore } from '../../store/downloads';
 import { useColors } from '../../store/colors';
+import { useViewportLoad } from '../../composables/useViewportLoad';
 
 const props = defineProps<{
     photo?: chatPhotoInfo | profilePhoto;
@@ -162,45 +163,68 @@ function resetFromPhoto(photo: chatPhotoInfo | profilePhoto | undefined) {
     previewDataUrl.value = photo.minithumbnail
         ? `data:image/jpeg;base64,${photo.minithumbnail.data}`
         : undefined;
-    // 已下载则直接用真实头像
     if (isFileReady(photo.small)) {
         downloadedUrl.value = convertFileSrc(photo.small.local.path);
     }
 }
 
+/** 当前要下载的头像照片（供视口进入时懒下载） */
+let pendingPhoto: chatPhotoInfo | profilePhoto | undefined = undefined;
+
+/**
+ * 真正触发头像文件下载（进入视口后由 useViewportLoad 调用一次）。
+ * 未进入视口前只展示 base64 预览，不下载真实头像。
+ */
+async function downloadCurrentPhoto(photo: chatPhotoInfo | profilePhoto) {
+    const f = photo.small;
+    if (!f?.id) return;
+    if (isFileReady(f) || downloadingFiles.has(f.id)) return;
+    downloadingFiles.add(f.id);
+    // 头像：记录为隐藏资源，不需要来源（chat_id/message_id 留空），分类为 avatar
+    const fileName = `${props.title || '头像'}_${f.id}.jpg`;
+    try {
+        await useDownloadStore().registerDownload(f.id, fileName, '', 0, 'avatar', undefined, undefined, undefined, true, false, 'avatar');
+        const file = await tdlibSend({
+            _: "downloadFile",
+            file_id: f.id,
+            priority: 1,
+            offset: 0,
+            limit: 0,
+            synchronous: true,
+        });
+        // 下载期间 photo 可能已切换，仅当仍指向同一文件时才替换
+        if (file.local?.path && pendingPhoto?.small?.id === f.id) {
+            downloadedUrl.value = convertFileSrc(file.local.path);
+        }
+    } finally {
+        downloadingFiles.delete(f.id);
+    }
+}
+
+// 视口门控：头像进入视口才下载真实文件；未进入只显示 base64 预览。
+// 注意：必须在 watch 之前声明（immediate watch 会同步执行并读取 entered）。
+const { start: startViewportLoad, entered } = useViewportLoad(
+    rootEl,
+    () => {
+        const photo = pendingPhoto;
+        if (photo && !isFileReady(photo.small)) void downloadCurrentPhoto(photo);
+    }
+);
+
 watch(
     () => props.photo,
-    async (photo) => {
+    (photo) => {
+        pendingPhoto = photo;
         resetFromPhoto(photo);
-        if (!photo) return;
-
-        // 已下载：直接用本地文件，无需再触发下载
-        if (isFileReady(photo.small)) return;
-
-        // 仅当文件可下载且未在下载中时触发；下载完成后再替换为真实头像
-        if (photo.small?.id && !downloadingFiles.has(photo.small.id) && !isFileReady(photo.small)) {
-            downloadingFiles.add(photo.small.id);
-            // 头像：记录为隐藏资源，不需要来源（chat_id/message_id 留空），分类为 avatar
-            const fileName = `${props.title || '头像'}_${photo.small.id}.jpg`;
-            await useDownloadStore().registerDownload(photo.small.id, fileName, '', 0, 'avatar', undefined, undefined, undefined, true, false, 'avatar');
-            try {
-                const file = await tdlibSend({
-                    _: "downloadFile",
-                    file_id: photo.small.id,
-                    priority: 1,
-                    offset: 0,
-                    limit: 0,
-                    synchronous: true,
-                });
-                if (file.local?.path) {
-                    downloadedUrl.value = convertFileSrc(file.local.path);
-                }
-            } finally {
-                downloadingFiles.delete(photo.small.id);
-            }
+        // 若头像已进入视口（此前无头像/已就绪未触发），新头像到达后应懒加载真实文件
+        if (entered.value && photo && !isFileReady(photo.small)) {
+            void downloadCurrentPhoto(photo);
         }
     },
-    { immediate: true } // 非常重要
+    { immediate: true }
 );
+onMounted(() => {
+    startViewportLoad();
+});
 
 </script>

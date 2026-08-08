@@ -36,7 +36,7 @@ fn stream_response<R: Runtime>(
         .uri()
         .query()
         .and_then(|query| query.split('&').find_map(|part| part.strip_prefix("mime=")))
-        .filter(|value| value.starts_with("video/"))
+        .filter(|value| value.starts_with("video/") || value.starts_with("audio/"))
         .unwrap_or("video/mp4")
         .to_string();
 

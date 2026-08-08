@@ -82,7 +82,7 @@
                                             :style="senderNameColor(item.messages[0])">
                                             <span class="min-w-0 flex-1 truncate">{{
                                                 getDisplaySenderName(item.messages[0])
-                                                }}</span>
+                                            }}</span>
                                             <span v-if="getMessageLabel(item.messages[0])"
                                                 class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
                                                 :class="getMessageLabelClass(item.messages[0])">{{
@@ -170,7 +170,7 @@
                                             :style="senderNameColor(item.msg)">
                                             <span class="m-0.5 min-w-0 flex-1 truncate">{{
                                                 getDisplaySenderName(item.msg)
-                                            }}</span>
+                                                }}</span>
                                             <span v-if="getMessageLabel(item.msg)"
                                                 class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
                                                 :class="getMessageLabelClass(item.msg)">{{
@@ -431,13 +431,13 @@ import { getMessagePlainText } from '../../../utils/messageText';
 import {
     copyMessageText, copyMessageJson, copyMessageLink,
     toggleMessagePinned, getMessageProperties,
-    getCachedMessageProperties, executeDeleteActions,
+    executeDeleteActions,
     canCopyMessage, canGetMessageLink, canPinMessage, canDeleteMessage,
     canReplyMessage,
 } from '../../contextMenu/messageActions';
 import { confirmDeleteMessage } from '../../../store/deleteMessage';
 import type { DeleteMessageRequest } from '../../../store/deleteMessage';
-import { openContextMenu, x as ctxX, y as ctxY, target as ctxTarget } from '../../../store/contextMenu';
+import { openContextMenu } from '../../../store/contextMenu';
 
 import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, forumTopic, inputTextQuote } from 'tdlib-types';
 import { getViewerState, closeMediaViewer, registerMediaItem, unregisterMediaItem, isMediaViewerActive, openMediaViewer } from '../../../store/mediaViewer';
@@ -508,6 +508,46 @@ const lastBrowseCacheKey = (id: number, tid?: number | null) =>
 const clearLastBrowsePosition = (id: number, tid?: number | null) => {
     lastBrowsePositionCache.delete(lastBrowseCacheKey(id, tid));
 };
+
+// ==================== 聊天消息缓存（模块级） ====================
+// 缓存每个聊天(id[:topicId])已加载的消息与相关状态。放在模块级，
+// 故跨聊天切换、甚至关闭/重开聊天面板（组件卸载重挂）后依然保留。
+// 这样通过消息中的用户名、频道链接等跳转到其他对话后再返回原对话时，
+// 能直接复用缓存的消息列表，无需重新从 TDLib 拉取历史，避免每次返回都重新加载。
+type HistoryModeCache = 'normal' | 'jump';
+
+interface ChatDetailCacheEntry {
+    /** 已加载的消息数组（oldest-first，与 messages.value 共享同一引用，原地更新自动同步） */
+    messages: message[];
+    chat?: chat;
+    topic?: forumTopic;
+    isHistoryExhausted: boolean;
+    isNewerExhausted: boolean;
+    unreadBoundaryMessageId: number | null;
+    historyMode: HistoryModeCache;
+    jumpOlderExhausted: boolean;
+    jumpNewerExhausted: boolean;
+}
+
+/** 聊天消息缓存：key = chatId[:topicId] */
+const chatDetailCache = new Map<string, ChatDetailCacheEntry>();
+
+/** 缓存最大条目数，超出后按插入顺序淘汰最久未访问的条目，避免内存无限增长 */
+const CHAT_DETAIL_CACHE_MAX = 30;
+
+function trimChatDetailCache() {
+    while (chatDetailCache.size > CHAT_DETAIL_CACHE_MAX) {
+        const oldestKey = chatDetailCache.keys().next().value;
+        if (oldestKey === undefined) break;
+        chatDetailCache.delete(oldestKey);
+    }
+}
+
+const chatDetailCacheKey = (id: number, tid?: number | null) =>
+    tid ? `${id}:${tid}` : `${id}`;
+
+/** 当前正在渲染聊天的缓存条目（null 表示尚未建立） */
+let currentCacheEntry: ChatDetailCacheEntry | null = null;
 
 const chatId = computed(() => {
     const id = props.chatId ?? route.params.id;
@@ -999,6 +1039,9 @@ onUnmounted(() => {
     if (bubbleWidthObserver) bubbleWidthObserver.disconnect();
     if (readVisibilityTimer !== null) window.clearTimeout(readVisibilityTimer);
     if (chatLoadRetryTimer !== null) window.clearTimeout(chatLoadRetryTimer);
+    // 组件卸载（如关聊天面板）后置空“当前缓存条目”，
+    // 避免重挂另一聊天时 saveCurrentChatToCache 把重置态错写进旧聊天缓存
+    currentCacheEntry = null;
 });
 
 const forwardedTargetMessageId = computed(() => {
@@ -1097,9 +1140,9 @@ const handleUpdate = async (update: Update) => {
             // from_cache=true 的删除是本地缓存的过时标记，不是真实的删除，忽略
             if (update.from_cache) break;
             const beforeCount = messages.value.length;
-            messages.value = messages.value.filter(m => !update.message_ids.includes(m.id));
-            if (messages.value.length !== beforeCount) {
-                messagesVersion.value++;
+            const filtered = messages.value.filter(m => !update.message_ids.includes(m.id));
+            if (filtered.length !== beforeCount) {
+                applyMessages(filtered);
             }
             break;
         }
@@ -1218,9 +1261,77 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
     }
     const currentId = newChatId;
     const gen = ++loadGeneration;
+    const cacheKey = chatDetailCacheKey(currentId, topicId.value);
+
+    // 切换前先把当前聊天的非消息状态快照写回缓存（消息数组通过 applyMessages 已同步）
+    saveCurrentChatToCache();
 
     // 重置全部状态
     resetState();
+
+    // 命中缓存：直接恢复上次已加载的消息列表，不重复从 TDLib 拉取历史。
+    // 仅当没有显式定位请求（如跳转到某条消息/下载管理器）时才走缓存；
+    // 有 requestedMessageId 时仍需按目标重新加载窗口。
+    const cached = chatDetailCache.get(cacheKey);
+    if (cached && cached.messages.length > 0 && !requestedMessageId) {
+        // 命中缓存：刷新 LRU 新鲜度（删除后重插，让它在淘汰顺序里靠后）
+        chatDetailCache.delete(cacheKey);
+        chatDetailCache.set(cacheKey, cached);
+        currentCacheEntry = cached;
+        chat.value = cached.chat;
+        topic.value = cached.topic;
+        isHistoryExhausted.value = cached.isHistoryExhausted;
+        isNewerExhausted.value = cached.isNewerExhausted;
+        unreadBoundaryMessageId.value = cached.unreadBoundaryMessageId;
+        historyMode.value = cached.historyMode;
+        jumpOlderExhausted.value = cached.jumpOlderExhausted;
+        jumpNewerExhausted.value = cached.jumpNewerExhausted;
+        messages.value = cached.messages;
+        messagesVersion.value++;
+        lastReportedReadMessageId = chat.value?.last_read_inbox_message_id ?? 0;
+
+        // 组件重挂后 supergroups/basicGroups/mute/linkedChat 等组件级缓存已清空，
+        // 补拉群组信息与通知状态（轻量，不重新拉取历史消息），保证头部/权限正确
+        if (chat.value) {
+            void fetchGroupInfo(chat.value, gen);
+            void syncNotificationMuteState(chat.value, currentId);
+        }
+        await nextTick();
+
+        // 恢复滚动位置：上次浏览位置缓存优先；无则贴底
+        const cachedPos = lastBrowsePositionCache.get(lastBrowseCacheKey(currentId, topicId.value)) || 0;
+        if (cachedPos > 0) {
+            await scrollToTargetOrBottom(cachedPos, currentId, gen);
+        } else {
+            await scrollToBottomAsync();
+        }
+
+        // 恢复后补一次 60ms 二次定位（与完整加载一致，确保滚动稳定）
+        if (cachedPos > 0 && isGenerationValid(gen)) {
+            window.setTimeout(() => {
+                if (isGenerationValid(gen)) scrollToMessage(cachedPos);
+            }, 200);
+        }
+
+        isReady.value = true;
+        scheduleVisibleMessagesRead();
+        return;
+    }
+    // 未命中缓存：标记当前缓存条目为“进行中”，最终加载完成后写回
+    const freshEntry: ChatDetailCacheEntry = {
+        messages: [],
+        chat: undefined,
+        topic: undefined,
+        isHistoryExhausted: false,
+        isNewerExhausted: false,
+        unreadBoundaryMessageId: null,
+        historyMode: 'normal',
+        jumpOlderExhausted: false,
+        jumpNewerExhausted: false,
+    };
+    chatDetailCache.set(cacheKey, freshEntry);
+    trimChatDetailCache();
+    currentCacheEntry = freshEntry;
 
     try {
         // 1. 获取 chat 基础信息
@@ -1266,6 +1377,7 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
                 unreadBoundaryMessageId.value = null;
                 isReady.value = true;
                 chatLoadRetryCount = 0;
+                saveCurrentChatToCache();
                 scheduleVisibleMessagesRead();
                 // 下载管理器跳转：按 query.open 自动在播放器中打开媒体（图片/音乐）
                 void autoOpenMediaFromQuery(gen);
@@ -1309,8 +1421,7 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
             ? allMsgs.find(message => message.media_album_id === unreadAlbumId)?.id || firstUnreadMessage.id
             : firstUnreadMessage?.id || null;
 
-        messages.value = allMsgs;
-        messagesVersion.value++;
+        applyMessages(allMsgs);
         await nextTick();
 
         // 4. 定位滚动位置：
@@ -1340,11 +1451,13 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
                 const oldest = messages.value[0];
                 const more = await fetchMessages(currentId, oldest.id, 50, 0, gen);
                 if (more.length > 0) {
-                    messages.value = mergeMessages(messages.value, more);
-                    messagesVersion.value++;
+                    applyMessages(mergeMessages(messages.value, more));
                 }
             }
         }
+
+        // 首次加载完成：把 chat/话题/边界等状态一并写回缓存
+        saveCurrentChatToCache();
         scheduleVisibleMessagesRead();
     } catch (e) {
         console.error("Error loading chat:", e);
@@ -1481,8 +1594,7 @@ async function loadHistoryOlder(loadChatId: number, gen: number): Promise<boolea
         const prevHeight = el?.scrollHeight ?? 0;
         const prevTop = el?.scrollTop ?? 0;
 
-        messages.value = [...unique, ...messages.value];
-        messagesVersion.value++;
+        applyMessages([...unique, ...messages.value]);
         await nextTick();
 
         if (el) {
@@ -1526,8 +1638,7 @@ async function loadHistoryNewer(loadChatId: number, gen: number): Promise<boolea
             return false;
         }
 
-        messages.value = [...messages.value, ...unique];
-        messagesVersion.value++;
+        applyMessages([...messages.value, ...unique]);
         await nextTick();
         return true;
     } finally {
@@ -1811,8 +1922,7 @@ async function jumpToMessageInternal(messageId: number, gen: number): Promise<bo
         return false;
     }
 
-    messages.value = windowMessages;
-    messagesVersion.value++;
+    applyMessages(windowMessages);
     historyMode.value = 'jump';
     jumpOlderExhausted.value = false;
     jumpNewerExhausted.value = false;
@@ -1885,7 +1995,7 @@ async function scrollToTargetOrBottom(targetId: number, chatIdNum: number, gen: 
         const more = await fetchMessages(chatIdNum, oldest.id, 30, 0, gen);
         if (more.length === 0) break;
         const previousCount = messages.value.length;
-        messages.value = mergeMessages(messages.value, more);
+        applyMessages(mergeMessages(messages.value, more));
         await nextTick();
         if (messages.value.length === previousCount) {
             break;
@@ -2105,6 +2215,32 @@ function resetState() {
     highlightedMessageId.value = null;
 }
 
+/**
+ * 中央写入 messages 的入口：设置 messages.value 并累加版本号，
+ * 同时把新数组同步回当前聊天的缓存条目（同一引用），
+ * 保证实时更新（push/splice 原地改）与整体替换都回写缓存。
+ */
+function applyMessages(next: message[]) {
+    messages.value = next;
+    messagesVersion.value++;
+    if (currentCacheEntry) {
+        currentCacheEntry.messages = next;
+    }
+}
+
+/** 缓存当前正在渲染聊天的非消息状态快照（供切换后恢复） */
+function saveCurrentChatToCache() {
+    if (!currentCacheEntry) return;
+    currentCacheEntry.chat = chat.value;
+    currentCacheEntry.topic = topic.value;
+    currentCacheEntry.isHistoryExhausted = isHistoryExhausted.value;
+    currentCacheEntry.isNewerExhausted = isNewerExhausted.value;
+    currentCacheEntry.unreadBoundaryMessageId = unreadBoundaryMessageId.value;
+    currentCacheEntry.historyMode = historyMode.value;
+    currentCacheEntry.jumpOlderExhausted = jumpOlderExhausted.value;
+    currentCacheEntry.jumpNewerExhausted = jumpNewerExhausted.value;
+}
+
 // ==================== Helpers ====================
 
 /** 判断当前频道是否开启了显示发送者信息（个人资料显示），
@@ -2128,28 +2264,26 @@ const selfDeps = (): SelfDeps => ({
 const isMessageRead = (msg: message) =>
     isMessageReadOf(msg, chat.value);
 
-/** 当前右键菜单对应的消息（供权限预取完成后刷新菜单） */
+/** 当前右键菜单对应的消息（供获取完成后判断是否需要打开菜单） */
 let currentMenuMsg: message | null = null;
 
 /**
  * 返回消息右键菜单构建函数（指令函数形式受支持）。
  * 用闭包绑定消息，避免在模板内联箭头导致参数无类型/未使用告警。
  *
- * 此处会在消息气泡渲染时就触发 messageProperties 离线预取（getMessageProperties
- * 是离线方法，直接从 TDLib 本地缓存返回，很快且无网络请求），确保用户真正右键
- * 打开菜单前，删除/置顶等权限缓存已就绪，菜单能一次性显示正确状态，避免先显示
- * 乐观值再异步重建造成的闪烁/短暂不可用。
+ * 用户实际右键（调用返回的函数）时先触发 getMessageProperties 离线预取，等待
+ * 获取到精确权限后再渲染菜单，避免每个消息气泡渲染时都触发、以及先显示乐观值
+ * 再异步重建造成的闪烁/短暂不可用。
  */
-function makeMsgMenu(msg: message): (e: MouseEvent, data?: any) => ContextMenuItem[] {
-    // 渲染时预取精确权限（离线方法，幂等：命中缓存/进行中去重后直接返回）
-    const cid = chatId.value;
-    if (cid !== undefined && !getCachedMessageProperties(cid, msg.id)) {
-        void getMessageProperties(cid, msg.id);
-    }
-
-    return (e: MouseEvent, data?: any): ContextMenuItem[] => {
+function makeMsgMenu(msg: message): (e: MouseEvent, data?: any) => Promise<ContextMenuItem[]> {
+    return async (e: MouseEvent, data?: any): Promise<ContextMenuItem[]> => {
         void e;
         void data;
+        const cid = chatId.value;
+        if (cid !== undefined) {
+            // 先获取精确权限（离线方法，很快，命中缓存立即返回）
+            await getMessageProperties(cid, msg.id);
+        }
         return buildMessageContextMenu(msg);
     };
 }
@@ -2157,49 +2291,34 @@ function makeMsgMenu(msg: message): (e: MouseEvent, data?: any) => ContextMenuIt
 /**
  * 针对指定消息在给定坐标处直接打开右键菜单。
  * 相册中右键某一块具体媒体时使用：确保菜单针对「被点击的那一条」而非相册第一条。
+ * 先等待 getMessageProperties 获取精确权限，再渲染并打开菜单。
  */
-function openMessageContextMenu(msg: message, x: number, y: number) {
+async function openMessageContextMenu(msg: message, x: number, y: number) {
+    if (selectionMode.value) return;
     currentMenuMsg = msg;
-    // 预取精确权限；完成后若仍是这条消息则用最新权限重建菜单
     const cid = chatId.value;
-    if (cid !== undefined && !getCachedMessageProperties(cid, msg.id)) {
-        void getMessageProperties(cid, msg.id).then(() => {
-            if (currentMenuMsg === msg) {
-                const menuItems = buildMessageContextMenu(msg);
-                openContextMenu(x, y, menuItems, null);
-            }
-        });
+    if (cid !== undefined) {
+        await getMessageProperties(cid, msg.id);
     }
-    // 先按当前可用权限直接打开，避免等待
+    // 获取完成后若仍对应这条消息则打开菜单，否则忽略（已被其它操作替换）
+    if (currentMenuMsg !== msg) return;
     openContextMenu(x, y, buildMessageContextMenu(msg), null);
 }
 
 /** 相册中某块媒体被右键：以该条消息 + 坐标打开菜单 */
 function onAlbumMessageContextMenu(msg: message, x: number, y: number) {
     if (selectionMode.value) return;
-    openMessageContextMenu(msg, x, y);
+    void openMessageContextMenu(msg, x, y);
 }
 
 /**
  * 构建消息右键菜单项（开发环境附带“复制消息原始 JSON”）。
- * 打开时触发 getMessageProperties 离线预取精确权限；预取完成后若菜单仍对应
- * 这条消息则用新权限重建菜单项。
+ * 权限已在打开前通过 getMessageProperties 获取完毕，此处仅作纯同步渲染。
  */
 function buildMessageContextMenu(msg: message): ContextMenuItem[] {
     const items: ContextMenuItem[] = [];
     const isService = isServiceMessage(msg);
     const cid = chatId.value;
-
-    // 记录当前菜单对应消息，并触发属性预取（离线方法，很快）。
-    // 仅当缓存未命中才预取 + 刷新，避免 rebuild 后缓存命中造成无限递归。
-    currentMenuMsg = msg;
-    if (cid !== undefined && !getCachedMessageProperties(cid, msg.id)) {
-        void getMessageProperties(cid, msg.id).then(() => {
-            if (currentMenuMsg === msg) {
-                rebuildOpenMessageMenu(msg);
-            }
-        });
-    }
 
     // —— 回复 ——
     if (!isService && canReplyMessage(msg, cid)) {
@@ -2296,14 +2415,6 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
     }
 
     return items;
-}
-
-/** 权限预取完成后，若同一消息的右键菜单仍打开，则用最新权限重建菜单项 */
-function rebuildOpenMessageMenu(msg: message) {
-    // 仅当菜单仍可见且仍对应这条消息（通常 currentMenuMsg 未变）才刷新
-    if (currentMenuMsg !== msg) return;
-    const menuItems = buildMessageContextMenu(msg);
-    openContextMenu(ctxX.value, ctxY.value, menuItems, ctxTarget.value);
 }
 
 // ==================== 删除确认弹窗 ====================
@@ -2747,8 +2858,7 @@ const handleScrollToBottom = async () => {
             const unique = newest.filter(m => !existingIds.has(m.id));
             if (unique.length > 0) {
                 // newest 已是 旧→新 且比现有列表更新，追加到末尾
-                messages.value = [...messages.value, ...unique];
-                messagesVersion.value++;
+                applyMessages([...messages.value, ...unique]);
                 foundGap = true;
             }
         }

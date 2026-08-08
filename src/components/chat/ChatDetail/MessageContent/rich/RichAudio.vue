@@ -1,5 +1,5 @@
 <template>
-    <figure class="my-1.5">
+    <figure ref="rootEl" class="my-1.5">
         <div
             class="relative flex w-full min-w-0 items-center gap-2.5 overflow-hidden rounded-lg bg-black/5 dark:bg-white/10 p-2">
             <!-- 封面 + 播放按钮 -->
@@ -51,6 +51,7 @@ import { tdlibSend, isFileReady } from '../../../../../utils/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { isThumbnailImgRenderable } from '../../../../../utils/thumbnail';
 import { useAudioPlayerStore } from '../../../../../store/audioPlayer';
+import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import RichMediaDownload from './RichMediaDownload.vue';
 import RichCaption from './RichCaption.vue';
 
@@ -63,6 +64,7 @@ const props = defineProps<{
 
 const audioPlayer = useAudioPlayerStore();
 
+const rootEl = ref<HTMLElement | null>(null);
 const coverSrc = ref<string | undefined>(undefined);
 
 const audioTitle = computed(() => {
@@ -185,12 +187,25 @@ async function loadCover() {
     }
 }
 
-watch(() => props.audio?.audio?.id, () => {
-    coverSrc.value = undefined;
+/** 立即设置 base64 封面预览（不下载），供离屏富文本音频显示占位。 */
+function setCoverPreview() {
+    coverSrc.value = props.audio?.album_cover_minithumbnail?.data
+        ? `data:image/jpeg;base64,${props.audio.album_cover_minithumbnail.data}`
+        : undefined;
+}
+
+// 视口门控：进入视口才下载专辑封面；未进入只显示 base64 预览。
+const { start: startViewportLoad, entered: audioEntered } = useViewportLoad(rootEl, () => {
     loadCover();
 });
+watch(() => props.audio?.audio?.id, () => {
+    setCoverPreview();
+    if (audioEntered.value) loadCover();
+}, { immediate: true });
 
-onMounted(loadCover);
+onMounted(() => {
+    startViewportLoad();
+});
 </script>
 
 <style scoped>

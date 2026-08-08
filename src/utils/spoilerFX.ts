@@ -83,19 +83,40 @@ const VIEW_IO = ('IntersectionObserver' in window)
   ? new IntersectionObserver((entries) => {
       for (const e of entries) {
         const fx = (e.target as HTMLElement).__spoilerFX;
-        if (fx) fx.visible = e.isIntersecting;
+        if (fx) {
+          fx.visible = e.isIntersecting;
+          // 元素进入视野时若有绘制需求（隐藏态需流动粒子 / 有动画），唤醒循环
+          if (e.isIntersecting && fx.needsFrame) startLoop();
+        }
       }
     })
   : null;
 
 let rafOn = false;
 
+/**
+ * 惰性全局动画循环：
+ * - 仅当存在"需要绘制"的实例（可见的隐藏态剧透需要流动粒子，或正在 reveal 动画）才持续运行；
+ * - 当没有任何实例需要绘制（全部揭示完毕或不可见）时自动停止，避免空转消耗 CPU。
+ * 需要唤醒循环的时机都通过本函数（幂等）。
+ */
 function startLoop() {
   if (rafOn) return;
   rafOn = true;
   const loop = (now: number) => {
-    requestAnimationFrame(loop);
-    for (const fx of ACTIVE) fx.frame(now);
+    let busy = false;
+    for (const fx of ACTIVE) {
+      if (fx.needsFrame) {
+        busy = true;
+        fx.frame(now);
+      }
+    }
+    if (busy) {
+      requestAnimationFrame(loop);
+    } else {
+      // 没有实例需要绘制，停止全局循环
+      rafOn = false;
+    }
   };
   requestAnimationFrame(loop);
 }
@@ -133,6 +154,19 @@ export class SpoilerFX {
   private last = 0;
   visible = true;
 
+  /**
+   * 是否需要在下一帧绘制：
+   * - 不在视野内 → 不需要；
+   * - 有进行中的 reveal/closing 动画 → 需要；
+   * - 已揭示且无动画（open 静止）→ 不需要（遮罩已消失，粒子可停）；
+   * - 其余（隐藏态静止）→ 需要（保持流动粒子遮罩效果）。
+   * 全局循环据此判断是否继续运行，以及是否调用本实例的 frame()。
+   */
+  get needsFrame(): boolean {
+    if (!this.visible) return false;
+    if (this.anim) return true;
+    return this.state !== 'open';
+  }
   constructor(root: HTMLElement, userCfg: SpoilerFXOptions, textCfg?: {
     base: HTMLElement; view?: HTMLElement | null; cv: HTMLCanvasElement;
   }) {
@@ -390,6 +424,8 @@ export class SpoilerFX {
       const re = this.revealEl;
       if (re !== this.cv) re.style.opacity = open ? '0' : '1';
       this.cv.style.opacity = open ? '1' : '0';
+      // 切回隐藏态后需要流动粒子 → 唤醒循环
+      if (!open) startLoop();
       return;
     }
 
@@ -403,6 +439,8 @@ export class SpoilerFX {
     const to = (this.state === 'open' || this.state === 'closing') ? 0 : 1;
     this.anim = { from: this.lastF, to, t0: performance.now(), dur, x, y, maxR };
     this.state = to === 1 ? 'opening' : 'closing';
+    // 有进行中的波纹动画 → 唤醒全局循环
+    startLoop();
   }
 
   frame(now: number) {

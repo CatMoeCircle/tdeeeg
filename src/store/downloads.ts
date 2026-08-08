@@ -138,6 +138,16 @@ export const useDownloadStore = defineStore("downloads", () => {
         visibleItems.value.filter((item) => !item.is_completed)
     );
 
+    /** 正在下载（未暂停、未完成）的可见项 */
+    const downloadingItems = computed(() =>
+        visibleItems.value.filter((item) => !item.is_completed && !item.is_paused)
+    );
+
+    /** 已暂停（未完成）的可见项 */
+    const pausedItems = computed(() =>
+        visibleItems.value.filter((item) => !item.is_completed && item.is_paused)
+    );
+
     /** 是否有隐藏（通用资源或自动下载图片）的未完成下载 */
     const hasHiddenActive = computed(() =>
         Object.values(items.value).some(
@@ -498,6 +508,8 @@ export const useDownloadStore = defineStore("downloads", () => {
         visibleItems,
         completedItems,
         pendingItems,
+        downloadingItems,
+        pausedItems,
         showHidden,
         showAutoPhotos,
         hasHiddenActive,

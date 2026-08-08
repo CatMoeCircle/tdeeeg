@@ -11,8 +11,14 @@
                     <div class="min-w-0">
                         <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">下载管理器</h2>
                         <p class="text-xs text-gray-500 mt-0.5">
-                            <template v-if="store.activeCount > 0">
-                                {{ store.activeCount }} 个文件正在下载
+                            <template v-if="store.downloadingItems.length > 0 && store.pausedItems.length === 0">
+                                {{ store.downloadingItems.length }} 个文件正在下载
+                            </template>
+                            <template v-else-if="store.downloadingItems.length > 0">
+                                {{ store.downloadingItems.length }} 个文件正在下载，{{ store.pausedItems.length }} 个已暂停
+                            </template>
+                            <template v-else-if="store.pausedItems.length > 0">
+                                {{ store.pausedItems.length }} 个文件已暂停
                             </template>
                             <template v-else-if="store.hasHiddenActive">
                                 {{ hiddenActiveCount }} 个隐藏下载进行中
@@ -129,12 +135,25 @@
                 </div>
 
                 <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar" v-smooth-wheel>
-                    <!-- 进行中/暂停 -->
-                    <div v-if="store.pendingItems.length > 0" class="py-2">
+                    <!-- 正在下载 -->
+                    <div v-if="store.downloadingItems.length > 0" class="py-2">
                         <div class="px-4 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wider">
-                            进行中
+                            正在下载
                         </div>
-                        <DownloadRow v-for="item in store.pendingItems" :key="item.file_id" :item="item"
+                        <DownloadRow v-for="item in store.downloadingItems" :key="item.file_id" :item="item"
+                            :can-open-in-player="false" @toggle-pause="store.togglePause" @cancel="store.cancelDownload"
+                            @item-context-menu="onItemContextMenu" />
+                    </div>
+
+                    <!-- 已暂停 -->
+                    <div v-if="store.pausedItems.length > 0" class="py-2">
+                        <div class="px-4 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                            已暂停
+                            <span class="normal-case text-[10px] text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/40 px-1.5 rounded">
+                                {{ store.pausedItems.length }}
+                            </span>
+                        </div>
+                        <DownloadRow v-for="item in store.pausedItems" :key="item.file_id" :item="item"
                             :can-open-in-player="false" @toggle-pause="store.togglePause" @cancel="store.cancelDownload"
                             @item-context-menu="onItemContextMenu" />
                     </div>

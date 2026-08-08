@@ -1,5 +1,5 @@
 <template>
-    <div class="min-w-0 w-full max-w-full">
+    <div ref="rootEl" class="min-w-0 w-full max-w-full">
         <!-- Document -->
         <div v-if="content._ === 'messageDocument'"
             class="relative flex w-full max-w-full min-w-0 items-center gap-3 overflow-hidden rounded-lg text-black dark:text-white p-0.5 py-1">
@@ -104,7 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { messageDocument, messageAudio, textEntity, InternalLinkType, thumbnail } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles, reactiveDownloadingFiles } from '../../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -123,6 +123,7 @@ import { getChatCategory } from '../../../../../utils/autoDownload';
 import { useAudioPlayerStore } from '../../../../../store/audioPlayer';
 import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
 import { isThumbnailImgRenderable, thumbnailToImgSrc } from '../../../../../utils/thumbnail';
+import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 
 const props = defineProps<{
     content: messageDocument | messageAudio;
@@ -130,6 +131,7 @@ const props = defineProps<{
     messageId?: number;
 }>();
 
+const rootEl = ref<HTMLElement | null>(null);
 const mediaSrc = ref<string | undefined>(undefined);
 const coverSrc = ref<string | undefined>(undefined);
 const docThumbSrc = ref<string | undefined>(undefined);
@@ -679,6 +681,22 @@ const formatSize = (size: number) => {
     return (size / (1024 * 1024)).toFixed(1) + ' MB';
 };
 
+/** 立即设置 base64 缩略图/封面预览（不下载），供离屏消息显示占位。 */
+function setFilePreview() {
+    const c = props.content;
+    if (c._ === 'messageDocument' && c.document.minithumbnail?.data && !docThumbSrc.value) {
+        docThumbSrc.value = `data:image/jpeg;base64,${c.document.minithumbnail.data}`;
+    } else if (c._ === 'messageAudio' && c.audio.album_cover_minithumbnail?.data && !coverSrc.value) {
+        coverSrc.value = `data:image/jpeg;base64,${c.audio.album_cover_minithumbnail.data}`;
+    }
+}
+
+// 视口门控：进入视口才触发下载/加载；未进入只显示 base64 预览与下载按钮。
+const { start: startViewportLoad, entered: fileEntered } = useViewportLoad(rootEl, () => {
+    loadMedia();
+    loadAudioCover();
+    loadDocumentThumb();
+});
 watch(() => props.content, () => {
     mediaSrc.value = undefined;
     coverSrc.value = undefined;
@@ -687,10 +705,17 @@ watch(() => props.content, () => {
     isDownloading.value = false;
     downloadReadyLocal.value = false;
     currentFileId.value = 0;
-    loadMedia();
-    loadAudioCover();
-    loadDocumentThumb();
+    setFilePreview();
+    if (fileEntered.value) {
+        loadMedia();
+        loadAudioCover();
+        loadDocumentThumb();
+    }
 }, { immediate: true });
+
+onMounted(() => {
+    startViewportLoad();
+});
 
 onUnmounted(() => {
     if (unsubFileWatch) unsubFileWatch();
