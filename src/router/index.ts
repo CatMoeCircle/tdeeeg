@@ -74,8 +74,19 @@ const router = createRouter({
           component: () => import("../views/settings/DownloadSettings.vue"),
         },
         {
+          path: "settings/proxy",
+          name: "settings-proxy",
+          component: () => import("../views/settings/ProxySettings.vue"),
+        },
+        {
           path: "user/:id",
           name: "user-profile",
+          component: () => import("../views/user/UserProfile.vue"),
+        },
+        {
+          // 频道/群组资料页：复用 UserProfile.vue，通过路由名区分「聊天模式」
+          path: "chat-profile/:id",
+          name: "chat-profile",
           component: () => import("../views/user/UserProfile.vue"),
         },
       ],

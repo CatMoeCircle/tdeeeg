@@ -16,4 +16,27 @@ declare module "@tauri-apps/api/core" {
     cmd: "open_with_dialog",
     args: { path: string }
   ): Promise<void>;
+
+  export function invoke(
+    cmd: "get_system_proxy"
+  ): Promise<{
+    server: string;
+    port: number;
+    username: string;
+    password: string;
+  } | null>;
+
+  export function invoke(
+    cmd: "set_proxy_config",
+    args: {
+      mode: string;
+      proxy_type?: string;
+      server?: string;
+      port?: string;
+      username?: string;
+      password?: string;
+      secret?: string;
+      comment?: string;
+    }
+  ): Promise<void>;
 }

@@ -61,6 +61,7 @@ pub fn run() {
             tdlib::init_tdlib,
             tdlib::tdlib_send,
             tdlib::set_tdlib_parameters,
+            tdlib::set_proxy_config,
             tdlib::get_chat_list,
             tdlib::get_chat_lists,
             tdlib::get_downloads,
@@ -75,6 +76,7 @@ pub fn run() {
             tdlib::get_cached_connection_state,
             tdlib::get_cached_options,
             tdlib::get_cached_option,
+            tdlib::get_system_proxy,
             set_window_effect,
             open_with_dialog,
         ])

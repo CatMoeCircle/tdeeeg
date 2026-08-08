@@ -2,6 +2,7 @@
 import TitleBar from "./components/TitleBar.vue";
 import ContextMenu from "./components/contextMenu/ContextMenu.vue";
 import ExternalLinkConfirm from "./components/contextMenu/ExternalLinkConfirm.vue";
+import ProxyLinkConfirm from "./components/contextMenu/ProxyLinkConfirm.vue";
 
 // 注意：TDLib 初始化、授权态判定与首屏路由跳转已在 src/main.ts 的
 // bootstrap() 中于 app.mount 之前完成。此处 App.vue 只负责渲染 UI，
@@ -29,6 +30,8 @@ import ExternalLinkConfirm from "./components/contextMenu/ExternalLinkConfirm.vu
     <ContextMenu />
     <!-- 打开外部链接确认弹窗（Teleport 到 body） -->
     <ExternalLinkConfirm />
+    <!-- 从 proxy.t.me 链接添加代理弹窗（Teleport 到 body） -->
+    <ProxyLinkConfirm />
   </div>
 </template>
 

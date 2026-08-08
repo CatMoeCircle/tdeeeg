@@ -61,6 +61,7 @@ declare module 'vue' {
     MusicPlayerOverlay: typeof import('./components/audio/MusicPlayerOverlay.vue')['default']
     OldChatDetail: typeof import('./components/chat/oldChatDetail.vue')['default']
     PinnedMessageBar: typeof import('./components/chat/ChatDetail/PinnedMessageBar.vue')['default']
+    ProxyLinkConfirm: typeof import('./components/contextMenu/ProxyLinkConfirm.vue')['default']
     ResizableLayout: typeof import('./components/layout/ResizableLayout.vue')['default']
     RichAudio: typeof import('./components/chat/ChatDetail/MessageContent/rich/RichAudio.vue')['default']
     RichCaption: typeof import('./components/chat/ChatDetail/MessageContent/rich/RichCaption.vue')['default']

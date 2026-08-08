@@ -55,10 +55,15 @@ import DownloadsModule from '../../components/downloads/DownloadsModule.vue';
 
 const route = useRoute();
 const isContacts = computed(() => route.name === 'contacts');
-const isSettings = computed(() => route.name === 'settings' || route.name === 'settings-appearance' || route.name === 'settings-download');
-const isSettingsDetail = computed(() => route.name === 'settings-appearance' || route.name === 'settings-download');
+const isSettings = computed(() => route.name === 'settings'
+    || route.name === 'settings-appearance'
+    || route.name === 'settings-download'
+    || route.name === 'settings-proxy');
+const isSettingsDetail = computed(() => route.name === 'settings-appearance'
+    || route.name === 'settings-download'
+    || route.name === 'settings-proxy');
 const isArchiveSection = computed(() => route.name === 'archived');
-const isProfile = computed(() => route.name === 'user-profile');
+const isProfile = computed(() => route.name === 'user-profile' || route.name === 'chat-profile');
 
 // 进入个人资料页时，记住来源栏目，让左侧列表保持不变（从设置进→仍是设置，
 // 从聊天进→仍是聊天），避免进入资料页后左侧被误切到聊天列表。
@@ -88,7 +93,8 @@ const showActiveChat = computed(
     () =>
         activeChatId.value !== null &&
         !isSettingsDetail.value &&
-        route.name !== 'user-profile',
+        route.name !== 'user-profile' &&
+        route.name !== 'chat-profile',
 );
 
 // 聊天详情独立于二级导航路由。切换联系人、设置等栏目时，只更新中间栏，
@@ -103,18 +109,18 @@ watch(
         }
 
         // 点击设置二级内容时，关闭当前聊天并显示对应设置页面。
-        if (name === 'settings-appearance' || name === 'settings-download') {
+        if (name === 'settings-appearance' || name === 'settings-download' || name === 'settings-proxy') {
             closeActiveChat();
             return;
         }
 
-        // 进入个人资料页时关闭当前聊天，在内容区渲染资料页。
+        // 进入资料页（用户 / 频道/群组）时关闭当前聊天，在内容区渲染资料页。
         // 同时记忆来源栏目，令左侧列表保持不变。
-        if (name === 'user-profile') {
+        if (name === 'user-profile' || name === 'chat-profile') {
             closeActiveChat();
             const prev = previous?.[0];
             if (prev === 'contacts') profileFromSection.value = 'contacts';
-            else if (prev === 'settings' || prev === 'settings-appearance' || prev === 'settings-download') profileFromSection.value = 'settings';
+            else if (prev === 'settings' || prev === 'settings-appearance' || prev === 'settings-download' || prev === 'settings-proxy') profileFromSection.value = 'settings';
             else profileFromSection.value = 'chats';
             return;
         }

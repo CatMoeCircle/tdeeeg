@@ -68,7 +68,7 @@
                     <span class="w-0.5 shrink-0 self-stretch rounded-full" :style="accentBarStyle"></span>
                     <span class="min-w-0 flex-1 truncate py-1 text-xs font-semibold" :style="accentTextStyle">{{
                         group.codeLanguage || 'code'
-                    }}</span>
+                        }}</span>
                     <button type="button"
                         class="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                         @click.stop="copyCodeBlock(group)">
@@ -126,9 +126,8 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
-import type { formattedText, textEntity, InternalLinkType, linkPreview as LinkPreview } from 'tdlib-types';
-import { openUrl } from '@tauri-apps/plugin-opener';
-import { tdlibSend } from '../../../../../utils/tdlib';
+import type { formattedText, textEntity, linkPreview as LinkPreview } from 'tdlib-types';
+import { resolveInternalLink as resolveInternalLinkUtil } from '../../../../../utils/openInternalLink';
 import { useRouter } from 'vue-router';
 import { MessagePlugin } from 'tdesign-vue-next';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
@@ -462,7 +461,7 @@ function handleSegmentContextMenu(e: MouseEvent, segment: Segment) {
 }
 
 async function openLink(href: string) {
-    if (href.startsWith('https://t.me/') || href.startsWith('tg://')) {
+    if (href.startsWith('https://t.me/') || href.startsWith('https://proxy.t.me/') || href.startsWith('tg://')) {
         await resolveInternalLink(href);
     } else if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:')) {
         // 外部链接：先询问用户是否跳转外部
@@ -477,37 +476,7 @@ async function openLink(href: string) {
 async function resolveInternalLink(href: string) {
     loadingLinks.value = new Set(loadingLinks.value).add(href);
     try {
-        const linkType = await tdlibSend({ _: 'getInternalLinkType', link: href }) as InternalLinkType;
-
-        switch (linkType._) {
-            case 'internalLinkTypeMessage': {
-                const info = await tdlibSend({ _: 'getMessageLinkInfo', url: linkType.url });
-                if (info.chat_id) {
-                    const query: Record<string, string> = {};
-                    if (info.message) {
-                        query.message = String(info.message.id);
-                    }
-                    await router.push({
-                        name: 'chat-detail',
-                        params: { id: String(info.chat_id) },
-                        query: Object.keys(query).length > 0 ? query : undefined,
-                    });
-                }
-                break;
-            }
-            case 'internalLinkTypePublicChat': {
-                const chat = await tdlibSend({ _: 'searchPublicChat', username: linkType.chat_username });
-                await router.push(`/home/chat/${chat.id}`);
-                break;
-            }
-            default: {
-                openUrl(href);
-                break;
-            }
-        }
-    } catch (e) {
-        console.warn('Failed to resolve internal link, opening externally:', e);
-        openUrl(href);
+        await resolveInternalLinkUtil(href, router);
     } finally {
         const next = new Set(loadingLinks.value);
         next.delete(href);

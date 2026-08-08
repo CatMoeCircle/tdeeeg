@@ -82,7 +82,7 @@
                                             :style="senderNameColor(item.messages[0])">
                                             <span class="min-w-0 flex-1 truncate">{{
                                                 getDisplaySenderName(item.messages[0])
-                                            }}</span>
+                                                }}</span>
                                             <span v-if="getMessageLabel(item.messages[0])"
                                                 class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
                                                 :class="getMessageLabelClass(item.messages[0])">{{
@@ -170,7 +170,7 @@
                                             :style="senderNameColor(item.msg)">
                                             <span class="m-0.5 min-w-0 flex-1 truncate">{{
                                                 getDisplaySenderName(item.msg)
-                                                }}</span>
+                                            }}</span>
                                             <span v-if="getMessageLabel(item.msg)"
                                                 class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
                                                 :class="getMessageLabelClass(item.msg)">{{
@@ -529,14 +529,23 @@ function openOverlay() {
 
 /**
  * 点击聊天顶部头像/标题：
- * - 私聊 / 密聊 → 直接跳转到对应用户的个人资料页（不再弹「打开对话/发消息」叠层）
- * - 群组 / 频道 / 话题 → 打开叠层显示对话信息
+ * - 私聊 / 密聊 → 直接跳转到对应用户的个人资料页
+ * - 群组 / 频道 → 直接跳转到资料页（复用 UserProfile，以「频道/群组」模式展示，原叠层跳转页已移除）
  */
 function handleTopClick() {
     if (overlayUserId.value !== undefined) {
         openOverlayUserProfile();
-    } else {
-        openOverlay();
+    } else if (chat.value) {
+        const t = chat.value.type;
+        // 话题/普通群组/频道（超级群组或基本群组）均复用资料页（chat-profile）展示
+        if (t?._ === 'chatTypeSupergroup' || t?._ === 'chatTypeBasicGroup') {
+            router.push({
+                name: 'chat-profile',
+                params: { id: String(chat.value.id) },
+            });
+        } else {
+            openOverlay();
+        }
     }
 }
 

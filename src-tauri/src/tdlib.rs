@@ -40,6 +40,38 @@ pub struct TdLibConfig {
     pub use_test_dc: bool,
 }
 
+/// 前端保存的代理配置，供 TDLib 客户端创建后立即应用。
+#[derive(Clone)]
+pub struct ProxyConfig {
+    /// disabled / system / custom
+    pub mode: String,
+    /// custom 模式下要启用的代理 ID（来自 getProxies）
+    pub proxy_id: Option<i64>,
+    pub proxy_type: String,
+    pub server: String,
+    pub port: String,
+    pub username: String,
+    pub password: String,
+    pub secret: String,
+    pub comment: String,
+}
+
+impl Default for ProxyConfig {
+    fn default() -> Self {
+        Self {
+            mode: "disabled".into(),
+            proxy_id: None,
+            proxy_type: "http".into(),
+            server: String::new(),
+            port: String::new(),
+            username: String::new(),
+            password: String::new(),
+            secret: String::new(),
+            comment: String::new(),
+        }
+    }
+}
+
 // --- 定义 TDLib 函数签名 ---
 type TdJsonClientCreate = unsafe extern "C" fn() -> *mut c_void;
 type TdJsonClientSend = unsafe extern "C" fn(client: *mut c_void, request: *const c_char);
@@ -66,6 +98,7 @@ pub struct AppState {
     pub pending_requests: Arc<Mutex<HashMap<i64, oneshot::Sender<serde_json::Value>>>>,
     pub request_id_counter: AtomicI64,
     pub config: Arc<Mutex<TdLibConfig>>,
+    pub proxy_config: Arc<Mutex<ProxyConfig>>,
     pub chat_store: Arc<Mutex<ChatStore>>,
     pub download_store: Arc<Mutex<DownloadStore>>,
     /// 每个 TDLib file_id 的流式互斥锁（用于串行化同一文件的并发 range 下载，
@@ -88,6 +121,7 @@ impl AppState {
                 api_hash: env!("TG_API_HASH").to_string(),
                 use_test_dc: false,
             })),
+            proxy_config: Arc::new(Mutex::new(ProxyConfig::default())),
             chat_store: Arc::new(Mutex::new(ChatStore::new())),
             download_store: Arc::new(Mutex::new(DownloadStore::new(data_dir))),
             stream_locks: Mutex::new(HashMap::new()),
@@ -134,6 +168,141 @@ pub fn set_tdlib_parameters(
         }
         config.api_id = id;
         config.api_hash = hash;
+    }
+    Ok(())
+}
+
+/// 构建 TDLib 的 addProxy 请求 JSON（根据代理类型）。
+fn build_add_proxy_req(cfg: &ProxyConfig) -> serde_json::Value {
+    let server = cfg.server.trim();
+    let port: u16 = cfg.port.trim().parse().unwrap_or(0);
+
+    let proxy_type = match cfg.proxy_type.as_str() {
+        "socks5" => json!({
+            "@type": "proxyTypeSocks5",
+            "username": cfg.username,
+            "password": cfg.password,
+        }),
+        "mtproto" => json!({
+            "@type": "proxyTypeMtproto",
+            "secret": cfg.secret,
+        }),
+        _ => json!({
+            "@type": "proxyTypeHttp",
+            "username": cfg.username,
+            "password": cfg.password,
+            "http_only": false,
+        }),
+    };
+
+    json!({
+        "@type": "addProxy",
+        "proxy": {
+            "@type": "proxy",
+            "server": server,
+            "port": port,
+            "type": proxy_type,
+        },
+        "enable": true,
+        "comment": cfg.comment,
+    })
+}
+
+/// 将当前代理配置应用到已存在的 TDLib 客户端。
+/// - mode=disabled → disableProxy
+/// - mode=custom → enableProxy(proxy_id)（从代理列表选用已有代理）
+/// - mode=system → 读取系统代理并 addProxy(enable=true)
+fn apply_proxy_to_client(send_fn: TdJsonClientSend, client: *mut c_void, cfg: &ProxyConfig) {
+    let request = if cfg.mode == "disabled" {
+        json!({ "@type": "disableProxy" })
+    } else if cfg.mode == "custom" {
+        match cfg.proxy_id {
+            Some(id) => json!({ "@type": "enableProxy", "proxy_id": id }),
+            None => json!({ "@type": "disableProxy" }),
+        }
+    } else {
+        let mut effective = cfg.clone();
+        // 系统代理：尝试读取系统代理地址；若未启用则退化为禁用代理
+        if cfg.mode == "system" {
+            match read_windows_system_proxy() {
+                Some((host, port)) => {
+                    effective.proxy_type = "http".to_string();
+                    effective.server = host;
+                    effective.port = port.to_string();
+                }
+                None => {
+                    let req = json!({ "@type": "disableProxy" });
+                    let req_str = CString::new(req.to_string()).unwrap();
+                    unsafe { send_fn(client, req_str.as_ptr()) };
+                    return;
+                }
+            }
+        }
+        build_add_proxy_req(&effective)
+    };
+    let req_str = CString::new(request.to_string()).unwrap();
+    unsafe { send_fn(client, req_str.as_ptr()) };
+}
+
+/// 保存代理配置并立即应用到已运行的 TDLib 客户端。
+/// 前端在应用启动（init_tdlib 之前）及修改代理设置时调用此命令。
+#[tauri::command]
+pub fn set_proxy_config(
+    state: State<AppState>,
+    mode: String,
+    proxy_id: Option<i64>,
+    proxy_type: Option<String>,
+    server: Option<String>,
+    port: Option<String>,
+    username: Option<String>,
+    password: Option<String>,
+    secret: Option<String>,
+    comment: Option<String>,
+) -> Result<(), String> {
+    {
+        let mut cfg = state
+            .proxy_config
+            .lock()
+            .map_err(|e| format!("Failed to lock proxy config: {e}"))?;
+        cfg.mode = mode;
+        if proxy_id.is_some() {
+            cfg.proxy_id = proxy_id;
+        }
+        if let Some(v) = proxy_type {
+            cfg.proxy_type = v;
+        }
+        if let Some(v) = server {
+            cfg.server = v;
+        }
+        if let Some(v) = port {
+            cfg.port = v;
+        }
+        if let Some(v) = username {
+            cfg.username = v;
+        }
+        if let Some(v) = password {
+            cfg.password = v;
+        }
+        if let Some(v) = secret {
+            cfg.secret = v;
+        }
+        if let Some(v) = comment {
+            cfg.comment = v;
+        }
+    }
+
+    // 若客户端已创建，立即应用代理设置
+    let tdlib_guard = state.tdlib.lock().map_err(|e| e.to_string())?;
+    if let Some(wrapper) = tdlib_guard.as_ref() {
+        let send_fn_copy = wrapper.send_fn;
+        let client_copy = wrapper.client;
+        let cfg = state
+            .proxy_config
+            .lock()
+            .map_err(|e| e.to_string())?
+            .clone();
+        // TDLib 的 send 仅入队，非阻塞，可直接同步调用
+        apply_proxy_to_client(send_fn_copy, client_copy, &cfg);
     }
     Ok(())
 }
@@ -265,6 +434,18 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
         return Err(err_msg);
     }
     println!("TDLib Client created.");
+
+    // 4. 应用前端保存的代理配置（在授权开始前生效，TDLib 允许 addProxy/disableProxy 在授权前调用）
+    {
+        let cfg = state
+            .proxy_config
+            .lock()
+            .map_err(|e| e.to_string())?
+            .clone();
+        if cfg.mode != "disabled" {
+            apply_proxy_to_client(send_fn, client, &cfg);
+        }
+    }
 
     // 启动后台接收线程
     let client_ptr = client as usize; // 传递 raw pointer 到线程
@@ -737,6 +918,84 @@ pub fn get_cached_option(
                 serde_json::from_str(value_json).map_err(|e| e.to_string())?;
             Ok(Some(v))
         }
+        None => Ok(None),
+    }
+}
+
+// ==================== 系统代理命令 ====================
+
+/// 从 Windows 注册表读取系统代理，返回 (host, port)。系统代理未启用时返回 None。
+/// 仅在 Windows 上实现；其他平台返回 None。
+fn read_windows_system_proxy() -> Option<(String, u16)> {
+    #[cfg(target_os = "windows")]
+    {
+        use winreg::enums::HKEY_CURRENT_USER;
+        use winreg::RegKey;
+
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let settings_path = r"Software\Microsoft\Windows\CurrentVersion\Internet Settings";
+        let settings = hkcu.open_subkey(settings_path).ok()?;
+
+        // ProxyEnable == 1 表示启用了系统代理
+        let proxy_enable: u32 = settings.get_value("ProxyEnable").unwrap_or(0);
+        if proxy_enable != 1 {
+            return None;
+        }
+
+        // ProxyServer 形如 "host:port" 或 "http=host:port;https=host:port"
+        let proxy_server: String = settings.get_value("ProxyServer").ok()?;
+        if proxy_server.trim().is_empty() {
+            return None;
+        }
+
+        // 处理分协议配置：优先取 http=... 段，其次 https=... 段
+        let candidate = proxy_server
+            .split(';')
+            .map(|s| s.trim())
+            .find(|s| s.starts_with("http="))
+            .or_else(|| {
+                proxy_server
+                    .split(';')
+                    .map(|s| s.trim())
+                    .find(|s| s.starts_with("https="))
+            })
+            .unwrap_or(proxy_server.trim());
+
+        // 去掉可能的协议前缀
+        let host_port = candidate
+            .split_once("://")
+            .map(|(_, rest)| rest)
+            .unwrap_or(candidate);
+
+        let (host, port) = host_port.rsplit_once(':')?;
+        let port_num: u16 = port.trim().parse().ok()?;
+        let host = host.trim().trim_matches('"');
+        if host.is_empty() {
+            return None;
+        }
+        Some((host.to_string(), port_num))
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        None
+    }
+}
+
+/// 读取 Windows 系统代理设置（注册表 Internet Settings）。
+/// 返回 `{ "server": String, "port": u16, "username": String, "password": String }`，
+/// 其中 username/password 可能为空字符串。若系统代理未启用则返回 null。
+///
+/// 仅在 Windows 上有效；其他平台返回 null（由前端自行处理）。
+#[tauri::command]
+pub fn get_system_proxy() -> Result<Option<serde_json::Value>, String> {
+    match read_windows_system_proxy() {
+        Some((host, port)) => Ok(Some(json!({
+            "server": host,
+            "port": port,
+            "username": "",
+            "password": "",
+        }))),
         None => Ok(None),
     }
 }

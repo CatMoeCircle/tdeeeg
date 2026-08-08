@@ -84,6 +84,18 @@ interface Settings {
     /** 文件（文档） */
     files: AutoDownloadFilesConfig;
   };
+  /** 代理设置 */
+  proxy: {
+    /**
+     * 代理模式：
+     * - disabled：禁用代理
+     * - system：使用系统代理
+     * - custom：使用代理列表中的某个代理
+     */
+    mode: "disabled" | "system" | "custom";
+    /** 自定义模式下选中的代理 ID（来自代理列表 getProxies） */
+    selectedProxyId: number | null;
+  };
 }
 
 const defaultSettings: Settings = {
@@ -136,6 +148,10 @@ const defaultSettings: Settings = {
       channels: true,
       maxSize: 3,
     },
+  },
+  proxy: {
+    mode: "disabled",
+    selectedProxyId: null,
   },
 };
 

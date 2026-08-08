@@ -7,6 +7,7 @@ import { useConnectionStore } from "./store/connectionState";
 import { useOptionsStore } from "./store/options";
 import { initSenderInfo } from "./utils/senderInfo";
 import { initColors, watchSystemColorScheme } from "./store/colors";
+import { settings } from "./store/settings";
 // import type { Update } from "tdlib-types";
 
 /**
@@ -42,6 +43,16 @@ export async function initTdlib() {
     //         console.log("Received update:", update);
     //     });
     // }
+
+    // 将前端保存的代理设置同步到 Rust，使 TDLib 客户端创建后能立即应用
+    try {
+        await invoke("set_proxy_config", {
+            mode: settings.proxy.mode,
+            proxy_id: settings.proxy.selectedProxyId ?? undefined,
+        });
+    } catch (e) {
+        console.error("Error syncing proxy config:", e);
+    }
 
     // Listen for initialization errors (e.g. invalid API ID/Hash)
     await listen("tdlib-init-error", (event) => {

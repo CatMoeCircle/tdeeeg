@@ -66,7 +66,7 @@ const { userProfile } = storeToRefs(userStore);
 const downloadStore = useDownloadStore();
 const route = useRoute();
 const isChatNavActive = computed(() => route.name === 'chats' || route.name === 'chat-detail' || route.name === 'chat-topic-detail');
-const isSettingsNavActive = computed(() => route.name === 'settings' || route.name === 'settings-appearance' || route.name === 'settings-download');
+const isSettingsNavActive = computed(() => route.name === 'settings' || route.name === 'settings-appearance' || route.name === 'settings-download' || route.name === 'settings-proxy');
 
 onMounted(() => {
     if (!userProfile.value) {
