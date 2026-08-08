@@ -29,7 +29,7 @@
                     {{ audioTitle }}
                 </span>
                 <span class="truncate text-xs text-gray-500 dark:text-gray-400">{{ audio?.performer || '未知艺术家'
-                }}</span>
+                    }}</span>
                 <input class="audio-progress mt-1.5 w-full" type="range" min="0" :max="displayDuration || 1" step="0.1"
                     :value="displayTime" :style="audioProgressStyle" :disabled="!isCurrentTrack || displayDuration <= 0"
                     aria-label="音乐播放进度" @input="seekAudio" />

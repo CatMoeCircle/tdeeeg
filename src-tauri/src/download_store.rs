@@ -57,6 +57,10 @@ pub struct DownloadItem {
     /// 在下载管理器中已手动关闭/移除
     #[serde(default)]
     pub dismissed: bool,
+    /// 是否为上传任务（发送中的文件/图片/音乐/视频）。上传记录仅保存在内存，
+    /// 不持久化到磁盘；用于下载管理器中独立「上传」区域的进度展示。
+    #[serde(default)]
+    pub is_upload: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -73,6 +77,8 @@ pub struct DownloadStore {
     storage_path: PathBuf,
     show_hidden: bool,
     show_auto_photos: bool,
+    /// 上传任务集合（仅内存，不持久化）。key 为文件 id。
+    uploads: HashMap<i32, DownloadItem>,
 }
 
 #[allow(dead_code)]
@@ -87,6 +93,7 @@ impl DownloadStore {
             storage_path,
             show_hidden: false,
             show_auto_photos: false,
+            uploads: HashMap::new(),
         };
         store.load_from_disk();
         store
@@ -285,6 +292,7 @@ impl DownloadStore {
             is_auto_photo,
             is_streaming,
             dismissed: false,
+            is_upload: false,
         };
         self.items.insert(file_id, item);
         self.save_to_disk();
@@ -372,5 +380,147 @@ impl DownloadStore {
     pub fn set_show_auto_photos(&mut self, value: bool) {
         self.show_auto_photos = value;
         self.save_to_disk();
+    }
+
+    // ==================== 上传任务（仅内存，不持久化） ====================
+
+    /// 按来源本地路径查找是否已有一条上传记录（用于去重）。
+    /// 同一源文件可能被 TDLib 以多个 file_id 上传（如原始文件 + 缩略图/封面），
+    /// 通过 local_path 去重，避免同一文件在「上传」区出现多次。
+    fn find_upload_by_path(&self, local_path: &str) -> Option<i32> {
+        for (fid, item) in &self.uploads {
+            if item.local_path.as_deref() == Some(local_path) {
+                return Some(*fid);
+            }
+        }
+        None
+    }
+
+    /// 注册一个上传任务（由 updateFile 事件处理调用），提供文件名与类型，
+    /// 供下载管理器「上传」区域展示。
+    ///
+    /// 以 file_id 为键；若该 file_id 已存在则补充缺失信息。
+    /// `local_path` 用于去重：当同一源文件以不同 file_id 触发上传时，
+    /// 把已有记录的 file_id 迁移到当前 file_id，避免重复展示。
+    pub fn register_upload(
+        &mut self,
+        file_id: i32,
+        file_name: String,
+        file_type: String,
+        chat_title: String,
+        total_size: i64,
+        thumbnail_data_url: Option<String>,
+        local_path: Option<String>,
+    ) {
+        // 先按 local_path 去重：同一源文件已存在未完成记录时，迁移 file_id
+        if let Some(local) = local_path.as_deref() {
+            if !local.is_empty() {
+                if let Some(existing_fid) = self.find_upload_by_path(local) {
+                    if existing_fid != file_id {
+                        if let Some(mut existing) = self.uploads.remove(&existing_fid) {
+                            existing.file_id = file_id;
+                            self.uploads.insert(file_id, existing);
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Some(existing) = self.uploads.get_mut(&file_id) {
+            let is_fallback = existing.file_type == "other";
+            let name = if existing.file_name.is_empty() {
+                file_name
+            } else {
+                existing.file_name.clone()
+            };
+            existing.file_name = name;
+            if is_fallback {
+                existing.file_type = file_type;
+            }
+            if existing.chat_title.is_empty() {
+                existing.chat_title = chat_title;
+            }
+            if existing.total_size == 0 {
+                existing.total_size = total_size;
+            }
+            if existing.thumbnail_data_url.is_none() {
+                existing.thumbnail_data_url = thumbnail_data_url;
+            }
+            if existing.local_path.is_none() {
+                existing.local_path = local_path;
+            }
+            return;
+        }
+
+        self.uploads.insert(
+            file_id,
+            DownloadItem {
+                file_id,
+                file_name,
+                chat_title,
+                chat_id: None,
+                message_id: None,
+                total_size,
+                downloaded_size: 0,
+                progress: 0.0,
+                is_paused: false,
+                is_completed: false,
+                local_path,
+                thumbnail_data_url,
+                file_type,
+                is_generic: false,
+                hidden_category: None,
+                is_auto_photo: false,
+                is_streaming: false,
+                dismissed: false,
+                is_upload: true,
+            },
+        );
+    }
+
+    /// 更新上传进度（由 updateFile 事件处理调用）。
+    /// 返回更新后的条目供调用方 emit 给前端；若该任务未注册则返回 None。
+    pub fn update_upload_progress(
+        &mut self,
+        file_id: i32,
+        uploaded_size: i64,
+        total_size: i64,
+        is_uploading_active: bool,
+        is_uploading_completed: bool,
+    ) -> Option<DownloadItem> {
+        let item = self.uploads.get_mut(&file_id)?;
+        let total = if total_size > 0 {
+            total_size
+        } else {
+            item.total_size
+        };
+        item.total_size = total;
+        item.downloaded_size = uploaded_size;
+        item.progress = if total > 0 {
+            uploaded_size as f64 / total as f64
+        } else {
+            0.0
+        };
+        item.is_completed = is_uploading_completed;
+        item.is_paused = !is_uploading_active && !is_uploading_completed;
+        Some(item.clone())
+    }
+
+    /// 全部上传任务（进行中 + 已完成），按文件 id 倒序
+    pub fn get_uploads(&self) -> Vec<DownloadItem> {
+        let mut items: Vec<DownloadItem> = self.uploads.values().cloned().collect();
+        items.sort_by(|a, b| b.file_id.cmp(&a.file_id));
+        items
+    }
+
+    /// 获取某个上传任务的展示信息
+    pub fn get_upload(&self, file_id: i32) -> Option<DownloadItem> {
+        self.uploads.get(&file_id).cloned()
+    }
+
+    /// 手动关闭/移除一个上传任务（保留直到用户手动关闭）
+    pub fn dismiss_upload(&mut self, file_id: i32) -> bool {
+        self.uploads.remove(&file_id).is_some()
     }
 }

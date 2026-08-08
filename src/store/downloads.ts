@@ -52,6 +52,8 @@ export interface DownloadItem {
     is_streaming: boolean;
     /** 在下载管理器中已手动关闭/移除 */
     dismissed: boolean;
+    /** 是否为上传任务（发送中的文件/图片/音乐/视频），在下载管理器「上传」区展示 */
+    is_upload?: boolean;
 }
 
 /** 通用资源分类标识类型 */

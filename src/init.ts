@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { MessagePlugin } from 'tdesign-vue-next';
 import { tdlibSend } from "./utils/tdlib";
 import { useDownloadStore } from "./store/downloads";
+import { useUploadStore } from "./store/upload";
 import { useConnectionStore } from "./store/connectionState";
 import { useOptionsStore } from "./store/options";
 import { initSenderInfo } from "./utils/senderInfo";
@@ -21,11 +22,14 @@ import { settings } from "./store/settings";
  */
 export async function initTdlib() {
     const downloadStore = useDownloadStore();
+    const uploadStore = useUploadStore();
     const connectionStore = useConnectionStore();
     const optionsStore = useOptionsStore();
 
     // 初始化下载管理器的 updateFile 监听
     await downloadStore.init();
+    // 初始化上传任务（发送文件）进度监听
+    await uploadStore.init();
     // 初始化连接状态监听（updateConnectionState）
     connectionStore.init();
     // 初始化 TDLib options 缓存监听

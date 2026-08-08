@@ -81,15 +81,15 @@ function parseColor(s: string | null): [number, number, number] | null {
 
 const VIEW_IO = ('IntersectionObserver' in window)
   ? new IntersectionObserver((entries) => {
-      for (const e of entries) {
-        const fx = (e.target as HTMLElement).__spoilerFX;
-        if (fx) {
-          fx.visible = e.isIntersecting;
-          // 元素进入视野时若有绘制需求（隐藏态需流动粒子 / 有动画），唤醒循环
-          if (e.isIntersecting && fx.needsFrame) startLoop();
-        }
+    for (const e of entries) {
+      const fx = (e.target as HTMLElement).__spoilerFX;
+      if (fx) {
+        fx.visible = e.isIntersecting;
+        // 元素进入视野时若有绘制需求（隐藏态需流动粒子 / 有动画），唤醒循环
+        if (e.isIntersecting && fx.needsFrame) startLoop();
       }
-    })
+    }
+  })
   : null;
 
 let rafOn = false;

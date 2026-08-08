@@ -34,9 +34,15 @@
                 :title="downloadStore.isPanelOpen ? '关闭下载管理器' : '打开下载管理器'">
                 <span class="relative inline-flex">
                     <DownloadIcon :class="iconStyle" />
+                    <!-- 下载角标（红色，右下角） -->
                     <span v-if="downloadStore.activeDownloadingCount > 0"
-                        class="absolute -top-2 -right-2 min-w-4.5 h-4.5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1 leading-none">
+                        class="absolute -bottom-1.5 -right-2 min-w-4.5 h-4.5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1 leading-none">
                         {{ downloadStore.activeDownloadingCount > 99 ? '99+' : downloadStore.activeDownloadingCount }}
+                    </span>
+                    <!-- 上传角标（绿色，右上角） -->
+                    <span v-if="uploadStore.activeCount > 0"
+                        class="absolute -top-2 -right-2 min-w-4.5 h-4.5 flex items-center justify-center bg-emerald-500 text-white text-[10px] font-bold rounded-full px-1 leading-none">
+                        {{ uploadStore.activeCount > 99 ? '99+' : uploadStore.activeCount }}
                     </span>
                 </span>
             </button>
@@ -55,6 +61,7 @@ import { computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useUserStore } from '../../store/user';
 import { useDownloadStore } from '../../store/downloads';
+import { useUploadStore } from '../../store/upload';
 import { storeToRefs } from 'pinia';
 import { settings } from '../../store/settings';
 
@@ -64,6 +71,7 @@ const iconStyle = 'w-5 h-5';
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
 const downloadStore = useDownloadStore();
+const uploadStore = useUploadStore();
 const route = useRoute();
 const isChatNavActive = computed(() => route.name === 'chats' || route.name === 'chat-detail' || route.name === 'chat-topic-detail');
 const isSettingsNavActive = computed(() => route.name === 'settings' || route.name === 'settings-appearance' || route.name === 'settings-download' || route.name === 'settings-proxy');

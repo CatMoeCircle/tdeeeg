@@ -82,7 +82,7 @@
                                             :style="senderNameColor(item.messages[0])">
                                             <span class="min-w-0 flex-1 truncate">{{
                                                 getDisplaySenderName(item.messages[0])
-                                            }}</span>
+                                                }}</span>
                                             <span v-if="getMessageLabel(item.messages[0])"
                                                 class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
                                                 :class="getMessageLabelClass(item.messages[0])">{{
@@ -101,7 +101,7 @@
                                             :self="isSelfAlbum(item)" :text-color="forwardTextColor(item.messages[0])"
                                             media-inline
                                             @open-source="openForwardSource(item.messages[0].forward_info)" />
-                                        <MessageAlbum :messages="item.messages" :isSelf="isSelfAlbum(item)"
+                                        <MessageAlbum :messages="item.messages" :isSelf="isOutgoingAlbum(item)"
                                             :chatId="chatId"
                                             :isRead="isMessageRead(item.messages[item.messages.length - 1])"
                                             :authorSignature="getDisplayAuthorSignature(item.messages[0])"
@@ -170,7 +170,7 @@
                                             :style="senderNameColor(item.msg)">
                                             <span class="m-0.5 min-w-0 flex-1 truncate">{{
                                                 getDisplaySenderName(item.msg)
-                                                }}</span>
+                                            }}</span>
                                             <span v-if="getMessageLabel(item.msg)"
                                                 class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
                                                 :class="getMessageLabelClass(item.msg)">{{
@@ -188,7 +188,7 @@
                                             :navigable="canNavigateForward(item.msg.forward_info)"
                                             :self="isSelf(item.msg)" :text-color="forwardTextColor(item.msg)"
                                             @open-source="openForwardSource(item.msg.forward_info)" />
-                                        <MessageContent :content="item.msg.content" :isSelf="isSelf(item.msg)"
+                                        <MessageContent :content="item.msg.content" :isSelf="isOutgoingMsg(item.msg)"
                                             :date="item.msg.date" :forwardInfo="getDisplayForwardInfo(item.msg)"
                                             :forwardName="getDisplayForwardInfo(item.msg) ? getForwardName(getDisplayForwardInfo(item.msg)!) : undefined"
                                             :forwardNavigable="getDisplayForwardInfo(item.msg) ? canNavigateForward(getDisplayForwardInfo(item.msg)!) : false"
@@ -207,7 +207,7 @@
                                             @jumpToMessage="handleReplyJumpToMessage"
                                             @openForwardSource="item.msg.forward_info && openForwardSource(item.msg.forward_info)" />
                                         <span
-                                            v-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isInlineTimeMessage(item.msg) && !isSelf(item.msg)"
+                                            v-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isInlineTimeMessage(item.msg) && !isOutgoingMsg(item.msg)"
                                             class="block text-right text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 leading-none">
                                             <MessageStatus :date="item.msg.date" :isOutgoing="false"
                                                 :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
@@ -215,7 +215,7 @@
                                                 :authorSignature="getDisplayAuthorSignature(item.msg)" />
                                         </span>
                                         <span
-                                            v-else-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isInlineTimeMessage(item.msg) && isSelf(item.msg)"
+                                            v-else-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isInlineTimeMessage(item.msg) && isOutgoingMsg(item.msg)"
                                             class="block text-right text-[11px] text-gray-700/70 mt-0.5 leading-none">
                                             <MessageStatus :date="item.msg.date" :isOutgoing="true"
                                                 :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
@@ -476,7 +476,8 @@ import {
     showAvatarColumn as showAvatarColumnOf, showChannelActions as showChannelActionsOf,
 } from './composables/permissions';
 import {
-    isSelfMessage, isMessageRead as isMessageReadOf,
+    isSelfMessage, isOutgoingMessage as isOutgoingMessageOf,
+    isMessageRead as isMessageReadOf,
     isSelfAlbum as isSelfAlbumOf,
     isLinkedChannelMessage as isLinkedChannelMessageOf,
     getMessageLabel as getMessageLabelOf, getMessageLabelClass as getMessageLabelClassOf,
@@ -2254,6 +2255,10 @@ const isSelf = (msg: message) => {
     return isSelfMessage(msg, selfDeps());
 };
 
+/** 是否为「当前账号发送」的消息（用于发送状态/失败/进度展示，与对齐无关）。
+ *  频道中 own 消息靠左显示，但仍应有发送状态。 */
+const isOutgoingMsg = (msg: message) => isOutgoingMessageOf(msg, selfDeps());
+
 /** `isSelf` 所需依赖（调用时求值以保持响应式） */
 const selfDeps = (): SelfDeps => ({
     chat: chat.value,
@@ -2431,8 +2436,14 @@ function getSenderModeration(msg: message): { canDeleteAll: boolean; canBan: boo
     const sender = msg.sender_id;
     if (!sender) return { canDeleteAll: false, canBan: false };
 
-    // 自己发的消息不可封禁/删除自己全部
-    if (sender._ === 'messageSenderUser' && sender.user_id === myId.value) {
+    // 自己发的消息不可封禁/删除自己全部。
+    // 私聊/群组里自己发送的 sender 是本人 user；频道里自己发送的消息
+    // sender 是 messageSenderChat（发送者为频道本身），需用 is_outgoing 判断：
+    // 当前账号发送的消息 is_outgoing 为 true。
+    const sentByMe =
+        (sender._ === 'messageSenderUser' && sender.user_id === myId.value) ||
+        msg.is_outgoing === true;
+    if (sentByMe) {
         return { canDeleteAll: false, canBan: false };
     }
 
@@ -2696,6 +2707,9 @@ const messageItems = computed<DisplayItem[]>(() =>
 
 // ==================== Album Helpers ====================
 const isSelfAlbum = (item: AlbumDisplayItem) => isSelfAlbumOf(item, isSelf);
+
+/** 相册是否为「当前账号发送」（用于发送状态展示，与对齐无关） */
+const isOutgoingAlbum = (item: AlbumDisplayItem) => isOutgoingMsg(item.messages[0]);
 
 // ==================== 权限 ====================
 const currentMemberStatus = computed<ChatMemberStatus | undefined>(() =>

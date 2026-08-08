@@ -73,6 +73,8 @@ pub fn run() {
             tdlib::set_show_hidden_downloads,
             tdlib::get_show_auto_photos_downloads,
             tdlib::set_show_auto_photos_downloads,
+            tdlib::get_uploads,
+            tdlib::dismiss_upload,
             tdlib::get_cached_connection_state,
             tdlib::get_cached_options,
             tdlib::get_cached_option,

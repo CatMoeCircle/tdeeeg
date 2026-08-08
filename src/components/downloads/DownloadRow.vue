@@ -28,6 +28,12 @@
             <div class="flex items-center min-w-0 text-sm font-medium text-gray-900 dark:text-gray-100">
                 <!-- 文件名本身可截断显示省略号 -->
                 <span class="truncate">{{ item.file_name }}</span>
+                <!-- 上传中状态标签 -->
+                <span v-if="isUpload && !item.is_completed"
+                    class="ml-1.5 shrink-0 align-middle inline-block text-[10px] leading-4 text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 px-1.5 rounded whitespace-nowrap">上传中</span>
+                <!-- 已上传标签 -->
+                <span v-else-if="isUpload && item.is_completed"
+                    class="ml-1.5 shrink-0 align-middle inline-block text-[10px] leading-4 text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 px-1.5 rounded whitespace-nowrap">已上传</span>
                 <!-- 已暂停状态标签 -->
                 <span v-if="item.is_paused"
                     class="ml-1.5 shrink-0 align-middle inline-block text-[10px] leading-4 text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/40 px-1.5 rounded whitespace-nowrap">已暂停</span>
@@ -45,19 +51,22 @@
             <div class="flex items-center text-xs text-gray-400 min-w-0">
                 <span class="truncate">{{ item.chat_title || '未知来源' }}</span>
                 <span class="mx-1 shrink-0">·</span>
-                <template v-if="item.is_completed">
+                <template v-if="isUpload && item.file_type === 'photo'">图片</template>
+                <template v-else-if="isUpload && item.file_type === 'video'">视频</template>
+                <template v-else-if="isUpload && item.file_type === 'audio'">音乐</template>
+                <template v-else-if="item.is_completed">
                     <span class="shrink-0">{{ formatSize(item.total_size) }}</span>
                 </template>
                 <template v-else>
                     <span class="shrink-0">{{ formatSize(item.downloaded_size) }} / {{ formatSize(item.total_size)
-                    }}</span>
+                        }}</span>
                 </template>
             </div>
-            <!-- 进行中进度条 -->
+            <!-- 进行中进度条（上传用绿色） -->
             <div v-if="!item.is_completed"
                 class="mt-1.5 w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                 <div class="h-full rounded-full transition-all duration-300"
-                    :class="item.is_paused ? 'bg-yellow-400' : 'bg-blue-500'"
+                    :class="item.is_paused ? 'bg-yellow-400' : isUpload ? 'bg-emerald-500' : 'bg-blue-500'"
                     :style="{ width: Math.min(100, item.progress * 100) + '%' }">
                 </div>
             </div>
@@ -69,8 +78,19 @@
 
         <!-- 操作按钮 -->
         <div class="flex gap-1 shrink-0">
+            <!-- 上传任务：完成前只提供「从列表移除」按钮 -->
+            <template v-if="isUpload">
+                <button type="button" @click.stop="emit('dismiss', item.file_id)"
+                    class="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                    <svg class="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </template>
             <!-- 进行中：暂停/继续 + 取消 -->
-            <template v-if="!item.is_completed">
+            <template v-else-if="!item.is_completed">
                 <button type="button" @click.stop="emit('togglePause', item.file_id)"
                     class="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                     :title="item.is_paused ? '继续' : '暂停'">
@@ -119,6 +139,8 @@ import { hiddenCategoryLabel, type DownloadFileType, type DownloadItem } from ".
 const props = defineProps<{
     item: DownloadItem;
     canOpenInPlayer: boolean;
+    /** 是否为上传任务（发送中的文件），用于调整进度条/按钮展示 */
+    isUpload?: boolean;
 }>();
 
 const emit = defineEmits<{

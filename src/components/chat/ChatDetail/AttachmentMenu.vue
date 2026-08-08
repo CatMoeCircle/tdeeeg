@@ -43,6 +43,7 @@ import {
     BarChart2Icon, FileIcon, ImageIcon, ListIcon, MusicIcon, PaperclipIcon, UserIcon,
 } from 'lucide-vue-next';
 import { open } from '@tauri-apps/plugin-dialog';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
 import {
     canSendAudioRights,
     canSendChecklistRights,
@@ -416,6 +417,17 @@ async function writeFileItemToTemp(file: File) {
     }
 }
 
+/**
+ * 处理拖拽到输入框的文件。
+ *
+ * 说明：WebView 的 HTML5 dataTransfer.files 只能拿到内存中的 File 对象，
+ * 拿不到磁盘真实路径；若直接复制到系统 Temp 目录再发送，对大文件既低效
+ * 又丢失原始路径（用户会看到路径变成 C:\...\Temp\...）。
+ *
+ * 因此优先使用 Tauri 原生拖拽事件（onDragDropEvent）获取真实磁盘路径后
+ * 直接引用原文件发送（见 setupNativeDragDrop）。此函数仅作为
+ * dragDropEnabled 未开启时的 HTML5 兜底（复制到 Temp）。
+ */
 function onDrop(e: DragEvent) {
     const files = e.dataTransfer?.files;
     if (!files || files.length === 0) return;
@@ -425,9 +437,40 @@ function onDrop(e: DragEvent) {
     }
 }
 
-onMounted(() => document.addEventListener('click', onClickOutside, true));
+/** Tauri 原生拖拽监听退订函数 */
+let unlistenDragDrop: (() => void) | null = null;
+
+/**
+ * 注册 Tauri 原生拖拽事件，drop 时将真实磁盘路径直接加入附件
+ * （不复制到 Temp，引用原文件发送；保持用户看到的路径与所选文件一致）。
+ * 需在 tauri.conf.json 将窗口 dragDropEnabled 设为 true。
+ */
+async function setupNativeDragDrop() {
+    try {
+        const unlisten = await getCurrentWebview().onDragDropEvent((event) => {
+            if (event.payload.type === 'drop') {
+                const paths = event.payload.paths || [];
+                for (const p of paths) {
+                    void addFile(p, baseName(p));
+                }
+            }
+        });
+        unlistenDragDrop = unlisten;
+    } catch (e) {
+        console.warn('Native drag & drop unavailable, fallback to HTML5 copy-to-temp:', e);
+    }
+}
+
+onMounted(() => {
+    document.addEventListener('click', onClickOutside, true);
+    void setupNativeDragDrop();
+});
 onBeforeUnmount(() => {
     document.removeEventListener('click', onClickOutside, true);
+    if (unlistenDragDrop) {
+        unlistenDragDrop();
+        unlistenDragDrop = null;
+    }
 });
 
 defineExpose({ handleAttachPhoto, onPaste, onDrop });

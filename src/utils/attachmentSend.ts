@@ -222,7 +222,7 @@ interface SendCtx {
 function baseParams(ctx: SendCtx) {
     const p: Record<string, unknown> = {
         chat_id: ctx.chatId,
-        options: { _: 'messageSendOptions', disable_notification: false, from_background: false },
+        // options 字段可省略：TDLib 会使用默认发送选项（不传即用默认值）
     };
     if (ctx.topicId) p.topic_id = { _: 'messageTopicForum', forum_topic_id: ctx.topicId };
     if (ctx.replyTo) p.reply_to = ctx.replyTo;

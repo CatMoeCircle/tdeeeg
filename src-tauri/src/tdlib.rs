@@ -172,6 +172,32 @@ pub fn set_tdlib_parameters(
     Ok(())
 }
 
+/// 根据本地文件扩展名推断上传任务的展示类型（与前端 DownloadFileType 对应）。
+/// 图片 → photo，视频 → video，音频 → audio，其余 → document。
+fn infer_upload_type(path: &str) -> String {
+    let ext = std::path::Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|s| s.to_lowercase())
+        .unwrap_or_default();
+    const IMAGE_EXTS: &[&str] = &[
+        "png", "jpg", "jpeg", "gif", "webp", "bmp", "heic", "heif", "tif", "tiff", "ico",
+    ];
+    const VIDEO_EXTS: &[&str] = &[
+        "mp4", "mov", "mkv", "avi", "webm", "m4v", "mpeg", "mpg", "wmv", "flv", "3gp", "ogv",
+    ];
+    const AUDIO_EXTS: &[&str] = &["mp3", "m4a", "aac", "ogg", "opus", "flac", "wav", "wma", "amr"];
+    if IMAGE_EXTS.contains(&ext.as_str()) {
+        "photo".to_string()
+    } else if VIDEO_EXTS.contains(&ext.as_str()) {
+        "video".to_string()
+    } else if AUDIO_EXTS.contains(&ext.as_str()) {
+        "audio".to_string()
+    } else {
+        "document".to_string()
+    }
+}
+
 /// 构建 TDLib 的 addProxy 请求 JSON（根据代理类型）。
 fn build_add_proxy_req(cfg: &ProxyConfig) -> serde_json::Value {
     let server = cfg.server.trim();
@@ -652,10 +678,96 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
                                                 is_auto_photo: false,
                                                 is_streaming: false,
                                                 dismissed: false,
+                                                is_upload: false,
                                             }
                                         });
                                     let _ =
                                         app_handle_clone.emit("download-progress-update", &item);
+                                }
+                            }
+                        }
+
+                        // 处理上传（发送文件）进度。TDLib 在上传文件时同样会推送
+                        // updateFile，其中 file.remote 的 is_uploading_active /
+                        // is_uploading_completed / uploaded_size 表示上传状态/进度。
+                        // 仅当 detected 上传标记为 active 或完全上传完成时才处理，
+                        // 避免与下载流程（本地文件）混淆。
+                        if event.get("_").and_then(|v| v.as_str()) == Some("updateFile") {
+                            if let Some(file) = event.get("file") {
+                                if let Some(file_id) = file.get("id").and_then(|v| v.as_i64()) {
+                                    let is_up_active = file
+                                        .pointer("/remote/is_uploading_active")
+                                        .and_then(|v| v.as_bool())
+                                        .unwrap_or(false);
+                                    let is_up_completed = file
+                                        .pointer("/remote/is_uploading_completed")
+                                        .and_then(|v| v.as_bool())
+                                        .unwrap_or(false);
+                                    // 非上传相关的 updateFile（下载、仅本地文件等）直接跳过
+                                    if is_up_active || is_up_completed {
+                                        let uploaded_size = file
+                                            .pointer("/remote/uploaded_size")
+                                            .and_then(|v| v.as_i64())
+                                            .unwrap_or(0);
+                                        let total_size = file
+                                            .get("size")
+                                            .and_then(|v| v.as_i64())
+                                            .unwrap_or(0);
+                                        let expected = file
+                                            .get("expected_size")
+                                            .and_then(|v| v.as_i64())
+                                            .unwrap_or(0);
+                                        let effective_total =
+                                            if total_size > 0 { total_size } else { expected };
+
+                                        // 该文件的来源本地路径（用于去重）
+                                        let local_path = file
+                                            .pointer("/local/path")
+                                            .and_then(|v| v.as_str())
+                                            .map(|s| s.to_string());
+
+                                        let mut ul_store = download_store.lock().unwrap();
+                                        // 注册/确保上传记录。updateFile 会为同一源文件可能
+                                        // 推送多次/多个 file_id（如原始文件 + 缩略图/封面），
+                                        // register_upload 内部会按 local_path 去重并迁移 file_id，
+                                        // 确保「上传」区每个源文件只出现一条。
+                                        let (name, file_type) = local_path
+                                            .as_deref()
+                                            .map(|s| {
+                                                let p = std::path::Path::new(s);
+                                                let display = p
+                                                    .file_name()
+                                                    .and_then(|n| n.to_str())
+                                                    .unwrap_or("")
+                                                    .to_string();
+                                                let t = infer_upload_type(s);
+                                                (display, t)
+                                            })
+                                            .unwrap_or_else(|| {
+                                                (format!("文件 #{}", file_id), "other".to_string())
+                                            });
+                                        ul_store.register_upload(
+                                            file_id as i32,
+                                            name,
+                                            file_type,
+                                            String::new(),
+                                            effective_total,
+                                            None,
+                                            local_path,
+                                        );
+                                        if let Some(item) = ul_store.update_upload_progress(
+                                            file_id as i32,
+                                            uploaded_size,
+                                            effective_total,
+                                            is_up_active,
+                                            is_up_completed,
+                                        ) {
+                                            let _ = app_handle_clone.emit(
+                                                "upload-progress-update",
+                                                &item,
+                                            );
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -868,6 +980,25 @@ pub fn get_show_auto_photos_downloads(state: State<AppState>) -> Result<bool, St
 pub fn set_show_auto_photos_downloads(state: State<AppState>, value: bool) -> Result<(), String> {
     let mut store = state.download_store.lock().map_err(|e| e.to_string())?;
     store.set_show_auto_photos(value);
+    Ok(())
+}
+
+// ==================== 上传任务（发送文件）命令 ====================
+
+/// 获取全部上传任务（进行中 + 已完成）
+#[tauri::command]
+pub fn get_uploads(
+    state: State<AppState>,
+) -> Result<Vec<crate::download_store::DownloadItem>, String> {
+    let store = state.download_store.lock().map_err(|e| e.to_string())?;
+    Ok(store.get_uploads())
+}
+
+/// 手动关闭/移除一个上传任务
+#[tauri::command]
+pub fn dismiss_upload(state: State<AppState>, file_id: i32) -> Result<(), String> {
+    let mut store = state.download_store.lock().map_err(|e| e.to_string())?;
+    store.dismiss_upload(file_id);
     Ok(())
 }
 

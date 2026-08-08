@@ -11,7 +11,10 @@
                     <div class="min-w-0">
                         <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">下载管理器</h2>
                         <p class="text-xs text-gray-500 mt-0.5">
-                            <template v-if="store.downloadingItems.length > 0 && store.pausedItems.length === 0">
+                            <template v-if="uploadStore.hasActiveUploads">
+                                {{ uploadStore.activeCount }} 个文件正在上传
+                            </template>
+                            <template v-else-if="store.downloadingItems.length > 0 && store.pausedItems.length === 0">
                                 {{ store.downloadingItems.length }} 个文件正在下载
                             </template>
                             <template v-else-if="store.downloadingItems.length > 0">
@@ -135,6 +138,29 @@
                 </div>
 
                 <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar" v-smooth-wheel>
+                    <!-- 正在上传（发送文件） -->
+                    <div v-if="uploadStore.activeItems.length > 0" class="py-2">
+                        <div class="px-4 py-1.5 text-xs font-medium text-emerald-500 dark:text-emerald-400 flex items-center gap-1.5">
+                            <UploadCloudIcon class="w-3.5 h-3.5" />
+                            正在上传
+                        </div>
+                        <DownloadRow v-for="item in uploadStore.activeItems" :key="item.file_id" :item="item"
+                            :can-open-in-player="false" is-upload
+                            @dismiss="uploadStore.dismiss(item.file_id)"
+                            @item-context-menu="onUploadContextMenu" />
+                    </div>
+                    <!-- 已上传（保留展示，可手动关闭） -->
+                    <div v-if="uploadStore.completedItems.length > 0" class="py-2">
+                        <div class="px-4 py-1.5 text-xs font-medium text-emerald-500 dark:text-emerald-400 flex items-center gap-1.5">
+                            <UploadCloudIcon class="w-3.5 h-3.5" />
+                            已上传
+                        </div>
+                        <DownloadRow v-for="item in uploadStore.completedItems" :key="item.file_id" :item="item"
+                            :can-open-in-player="false" is-upload
+                            @dismiss="uploadStore.dismiss(item.file_id)"
+                            @item-context-menu="onUploadContextMenu" />
+                    </div>
+
                     <!-- 正在下载 -->
                     <div v-if="store.downloadingItems.length > 0" class="py-2">
                         <div class="px-4 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wider">
@@ -169,7 +195,7 @@
                     </div>
 
                     <!-- 空状态 -->
-                    <div v-if="store.visibleItems.length === 0"
+                    <div v-if="store.visibleItems.length === 0 && uploadStore.items && Object.keys(uploadStore.items).length === 0"
                         class="flex flex-col items-center justify-center h-full text-gray-400">
                         <svg class="w-16 h-16 mb-4 text-gray-300 dark:text-gray-600" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="1.5">
@@ -203,15 +229,18 @@
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { useDownloadStore, type DownloadItem } from "../../store/downloads";
+import { useUploadStore } from "../../store/upload";
 import DownloadRow from "./DownloadRow.vue";
 import { openContextMenu } from "../../store/contextMenu";
 import type { ContextMenuItem } from "../../components/contextMenu/types";
 import { revealItemInDir, openPath } from "@tauri-apps/plugin-opener";
 import {
     MessageCircleIcon, FolderOpenIcon, TrashIcon, PauseIcon, PlayIcon, FileIcon, ImageIcon, MusicIcon,
+    UploadCloudIcon,
 } from 'lucide-vue-next';
 
 const store = useDownloadStore();
+const uploadStore = useUploadStore();
 const router = useRouter();
 const menuOpen = ref(false);
 const menuEl = ref<HTMLElement | null>(null);
@@ -527,6 +556,32 @@ function onItemContextMenu(event: MouseEvent, item: DownloadItem) {
         event.clientX,
         event.clientY,
         buildItemMenu(item),
+        event.currentTarget as HTMLElement | null,
+        { item },
+    );
+}
+
+/** 构建上传任务的右键菜单（上传无需暂停/取消，仅提供关闭） */
+function buildUploadMenu(item: DownloadItem): ContextMenuItem[] {
+    return [
+        {
+            key: "dismiss",
+            label: "从列表移除",
+            icon: TrashIcon,
+            danger: true,
+            onClick: () => uploadStore.dismiss(item.file_id),
+        },
+    ];
+}
+
+/** 上传任务的右键点击 */
+function onUploadContextMenu(event: MouseEvent, item: DownloadItem) {
+    event.preventDefault();
+    event.stopPropagation();
+    openContextMenu(
+        event.clientX,
+        event.clientY,
+        buildUploadMenu(item),
         event.currentTarget as HTMLElement | null,
         { item },
     );

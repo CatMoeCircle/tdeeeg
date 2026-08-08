@@ -181,6 +181,25 @@
                 <MessageStatus :date="date" :isOutgoing="isSelf" :sendingState="sendingState" :isRead="isRead"
                     :viewCount="viewCount" :authorSignature="authorSignature" overMedia />
             </div>
+
+            <!-- 上传进度覆盖层（发送中的图片/视频/动画） -->
+            <div v-if="uploading && !contentUploadInfo?.is_completed"
+                class="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/40 pointer-events-none">
+                <LoaderIndicator :progress="mediaUploadProgress > 0 && mediaUploadProgress < 1 ? mediaUploadProgress : undefined"
+                    size="40" color="#ffffff" />
+                <span class="mt-2 text-xs text-white leading-none">
+                    上传中 {{ Math.min(100, Math.round(mediaUploadProgress * 100)) }}%
+                </span>
+                <span class="mt-1 text-[10px] text-white/80 leading-none">
+                    {{ formatSize(uploadCurrentSize) }} / {{ formatSize(uploadTotalSize) }}
+                </span>
+            </div>
+            <!-- 底部细上传进度条 -->
+            <div v-if="uploading && !contentUploadInfo?.is_completed"
+                class="absolute bottom-0 left-0 right-0 z-10 h-0.5 bg-white/30 overflow-hidden pointer-events-none">
+                <div class="h-full bg-emerald-400 transition-all duration-300"
+                    :style="{ width: Math.min(100, mediaUploadProgress * 100) + '%' }"></div>
+            </div>
         </div>
 
         <!-- Caption below -->
@@ -213,6 +232,7 @@ import LoaderIndicator from '../../../../common/LoaderIndicator';
 import type { MediaViewerItem } from '../MediaViewer.vue';
 import { buildVideoQualities } from '../../../../../utils/videoQualities';
 import { useDownloadStore, type DownloadFileType } from '../../../../../store/downloads';
+import { useUploadStore } from '../../../../../store/upload';
 import { useChatStore } from '../../../../../store/chat';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import { registerMediaItem, unregisterMediaItem, openMediaViewer, isMediaViewerActive } from '../../../../../store/mediaViewer';
@@ -283,6 +303,48 @@ const videoElRef = ref<HTMLVideoElement | null>(null);
 const inlineVideoCurrent = ref(0);
 const inlineVideoDuration = ref(0);
 const isVideo = computed(() => props.content._ === 'messageVideo');
+
+// ---- 上传进度（发送中的图片/视频）----
+/** 是否正在上传（发送中） */
+const uploading = computed(() => {
+    const info = contentUploadInfo.value;
+    return !!info && !info.is_completed;
+});
+/** 上传总大小 / 已上传大小（字节） */
+const uploadTotalSize = computed(() => contentUploadInfo.value?.total_size ?? 0);
+const uploadCurrentSize = computed(() => contentUploadInfo.value?.downloaded_size ?? 0);
+
+/**
+ * 提取当前媒体内容最可能被上传的文件 id。
+ * - 视频/动画：video.animation 文件本身
+ * - 图片：取最大的 photo size 文件（本地发送时该文件即上传目标）
+ */
+const contentUploadFileId = computed(() => {
+    const c = props.content;
+    if (c._ === 'messageVideo') return c.video.video.id;
+    if (c._ === 'messageAnimation') return c.animation.animation.id;
+    if (c._ === 'messagePhoto') {
+        const sizes = c.photo.sizes;
+        if (sizes.length === 0) return 0;
+        const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
+        return largest.photo.id;
+    }
+    return 0;
+});
+
+/** 关联的上传信息（若该文件正在上传/已上传） */
+const contentUploadInfo = computed(() => {
+    const fid = contentUploadFileId.value;
+    if (!fid) return undefined;
+    return uploadStore.getUploadInfo(fid);
+});
+
+/** 计算上传进度 */
+const mediaUploadProgress = computed(() => {
+    const info = contentUploadInfo.value;
+    if (!info) return 0;
+    return info.progress;
+});
 
 /** 使用全局静音状态，同一时间所有视频共享 mute 开关 */
 const videoMuted = computed(() => globalVideoMuted.value);
@@ -488,6 +550,15 @@ const borderRadiusClass = computed(() => {
 
 // ---- Size helpers ----
 
+function formatSize(bytes: number): string {
+    if (!bytes || bytes <= 0) return "0 B";
+    const units = ["B", "KB", "MB", "GB"];
+    const k = 1024;
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), units.length - 1);
+    const value = bytes / Math.pow(k, i);
+    return value.toFixed(i === 0 ? 0 : 1) + " " + units[i];
+}
+
 function getOriginalRatio(): string | undefined {
     const c = props.content;
     if (c._ === 'messagePhoto') {
@@ -605,6 +676,7 @@ onMounted(() => {
 
 // ---- Download store integration ---
 const downloadStore = useDownloadStore();
+const uploadStore = useUploadStore();
 
 function getChatTitle(id: number): string {
     try {

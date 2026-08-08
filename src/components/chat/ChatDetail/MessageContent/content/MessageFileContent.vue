@@ -13,9 +13,15 @@
             <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
                 <span class="max-w-full truncate text-sm font-medium">{{ content.document.file_name }}</span>
                 <span class="truncate text-xs text-gray-500">
-                    {{ downloadProgress > 0 && downloadProgress < 1 ? formatSize(downloadCurrentSize) + ' / ' +
-                        formatSize(downloadTotalSize) : formatSize(content.document.document.size) }} <span
-                        v-if="isDownloading" class="text-blue-500 ml-1">下载中...</span>
+                    <template v-if="uploading">
+                        {{ formatSize(uploadCurrentSize) + ' / ' + formatSize(uploadTotalSize) }}
+                        <span class="text-emerald-500 ml-1">上传中...</span>
+                    </template>
+                    <template v-else>
+                        {{ downloadProgress > 0 && downloadProgress < 1 ? formatSize(downloadCurrentSize) + ' / ' +
+                            formatSize(downloadTotalSize) : formatSize(content.document.document.size) }} <span
+                            v-if="isDownloading" class="text-blue-500 ml-1">下载中...</span>
+                    </template>
                 </span>
             </div>
             <button v-if="!mediaSrc && !isDownloadingOrGlobally" @click="handleDownload(content.document.document.id)"
@@ -31,6 +37,12 @@
                 class="absolute bottom-0 left-0 right-0 h-0.5 bg-white/30 overflow-hidden">
                 <div class="h-full bg-blue-500 transition-all duration-300"
                     :style="{ width: (downloadProgress * 100) + '%' }"></div>
+            </div>
+            <!-- 底部细上传进度条（发送中） -->
+            <div v-if="uploading"
+                class="absolute bottom-0 left-0 right-0 h-0.5 bg-black/20 overflow-hidden">
+                <div class="h-full bg-emerald-500 transition-all duration-300"
+                    :style="{ width: Math.min(100, (uploadProgress * 100)) + '%' }"></div>
             </div>
         </div>
 
@@ -50,6 +62,13 @@
                         <PauseIcon v-if="isGloballyPlaying" class="h-6 w-6 fill-current" />
                         <PlayIcon v-else class="ml-0.5 h-6 w-6 fill-current" />
                     </button>
+                    <!-- 上传（发送中）覆盖提示 -->
+                    <div v-if="uploading"
+                        class="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none">
+                        <LoaderIndicator
+                            :progress="uploadProgress > 0 && uploadProgress < 1 ? uploadProgress : undefined"
+                            size="22" color="#ffffff" />
+                    </div>
                 </div>
 
                 <button v-if="!fileReady" type="button"
@@ -69,7 +88,12 @@
                     {{ content.audio.title || content.audio.file_name }}
                 </span>
                 <span class="truncate text-xs text-gray-500 dark:text-gray-400">
-                    {{ content.audio.performer || '未知艺术家' }}
+                    <template v-if="uploading">
+                        上传中 {{ formatSize(uploadCurrentSize) }} / {{ formatSize(uploadTotalSize) }}
+                    </template>
+                    <template v-else>
+                        {{ content.audio.performer || '未知艺术家' }}
+                    </template>
                 </span>
                 <input class="audio-progress mt-1.5 w-full" type="range" min="0" :max="displayDuration || 1" step="0.1"
                     :value="displayTime" :style="audioProgressStyle" :disabled="!isCurrentTrack || displayDuration <= 0"
@@ -116,6 +140,7 @@ import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
 import SpoilerSpan from '../spoiler/SpoilerSpan.vue';
 import LoaderIndicator from '../../../../common/LoaderIndicator';
 import { useDownloadStore, type DownloadFileType } from '../../../../../store/downloads';
+import { useUploadStore } from '../../../../../store/upload';
 import { useChatStore } from '../../../../../store/chat';
 import { settings } from '../../../../../store/settings';
 import { requestInsertCommand } from '../../../../../store/commandInsert';
@@ -158,7 +183,15 @@ const downloadProgress = ref(0);
 const downloadCurrentSize = ref(0);
 const downloadTotalSize = ref(0);
 
+/** 上传进度（本地文件发送上传时展示，0~1；0 表示未上传/无上传） */
+const uploadProgress = ref(0);
+const uploadCurrentSize = ref(0);
+const uploadTotalSize = ref(0);
+/** 是否正在上传（发送中的文件） */
+const uploading = ref(false);
+
 const downloadStore = useDownloadStore();
+const uploadStore = useUploadStore();
 const audioPlayer = useAudioPlayerStore();
 
 /** 当前消息是否为全局播放器中正在播放的曲目 */
@@ -637,6 +670,43 @@ watch(isDownloadingOrGlobally, (downloading) => {
     }
 }, { immediate: true });
 
+/**
+ * 上传进度跟踪：发送中的文件（pending 消息）会随 TDLib updateFile 更新
+ * uploaded_size，Rust 端经 upload store 推送。这里按 content 中的文件 id
+ * 查询上传信息，在文件气泡内显示「上传中」进度条。
+ */
+let unsubUploadWatch: (() => void) | null = null;
+const uploadFileId = computed(() => {
+    const c = props.content;
+    if (c._ === 'messageAudio') return c.audio.audio.id;
+    if (c._ === 'messageDocument') return c.document.document.id;
+    return 0;
+});
+watch(uploadFileId, (fileId) => {
+    if (unsubUploadWatch) { unsubUploadWatch(); unsubUploadWatch = null; }
+    if (!fileId) return;
+    unsubUploadWatch = watch(
+        () => {
+            const info = uploadStore.getUploadInfo(fileId);
+            if (!info) return undefined;
+            return {
+                progress: info.progress,
+                downloaded_size: info.downloaded_size,
+                total_size: info.total_size,
+                is_completed: info.is_completed,
+            };
+        },
+        (info) => {
+            if (!info) return;
+            uploadProgress.value = info.progress;
+            uploadCurrentSize.value = info.downloaded_size;
+            uploadTotalSize.value = info.total_size;
+            uploading.value = !info.is_completed;
+        },
+        { immediate: true }
+    );
+}, { immediate: true });
+
 async function togglePlayback() {
     if (props.content._ !== 'messageAudio') return;
 
@@ -705,6 +775,10 @@ watch(() => props.content, () => {
     isDownloading.value = false;
     downloadReadyLocal.value = false;
     currentFileId.value = 0;
+    uploadProgress.value = 0;
+    uploadCurrentSize.value = 0;
+    uploadTotalSize.value = 0;
+    uploading.value = false;
     setFilePreview();
     if (fileEntered.value) {
         loadMedia();
@@ -719,6 +793,7 @@ onMounted(() => {
 
 onUnmounted(() => {
     if (unsubFileWatch) unsubFileWatch();
+    if (unsubUploadWatch) unsubUploadWatch();
 });
 </script>
 

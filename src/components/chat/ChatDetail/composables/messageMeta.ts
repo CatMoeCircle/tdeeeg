@@ -25,14 +25,34 @@ export interface SelfDeps {
 
 /**
  * 判断消息是否为「自己发送」（用于气泡靠右 / 颜色区分）。
- * 在开启了发送者显示的频道中，所有消息统一靠左，不区分颜色。
+ * 在频道中，无论是否开启发送者显示，消息统一靠左显示（频道消息的发送者
+ * 是频道本身，Telegram 惯例所有频道消息同一侧）。故频道中一律返回 false。
  *
  * @param msg - 消息对象
  * @param deps - 外部依赖
  * @returns 视为自己发送返回 `true`，否则返回 `false`
  */
 export function isSelfMessage(msg: message, deps: SelfDeps): boolean {
+    const isChannel = deps.chat?.type?._ === 'chatTypeSupergroup'
+        && (deps.chat.type as { is_channel?: boolean }).is_channel === true;
+    if (isChannel) return false;
     if (deps.isChannelWithSenderDisplay) return false;
+    return isOutgoingMessageForDisplay(msg, deps.chat, deps.myId);
+}
+
+/**
+ * 判断消息是否由「当前账号」发送（用于发送状态/失败/进度等展示，与对齐无关）。
+ * 私聊/群组：sender 是本人 user；频道：sender 是 messageSenderChat，但当前账号
+ * 发送的消息 is_outgoing 为 true，据此识别。此判断忽略对齐（频道中 own 消息
+ * 靠左但仍有发送状态）。
+ */
+export function isOutgoingMessage(msg: message, deps: SelfDeps): boolean {
+    if (deps.chat?.type?._ === 'chatTypeSupergroup'
+        && (deps.chat.type as { is_channel?: boolean }).is_channel === true) {
+        // 频道：own 消息 = is_outgoing 为 true（发送者是频道本身/当前账号）
+        return msg.is_outgoing === true;
+    }
+    // 其它聊天沿用既有的「自身发送」判断（含马甲）
     return isOutgoingMessageForDisplay(msg, deps.chat, deps.myId);
 }
 
