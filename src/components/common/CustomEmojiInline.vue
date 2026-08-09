@@ -6,9 +6,9 @@
       <!-- WEBP static -->
       <img v-if="emojiFormat === 'webp'" :src="state.filePath" class="w-full h-full object-contain" />
       <!-- TGS animated (Lottie) -->
-      <RlottiePlayer v-else-if="emojiFormat === 'tgs' && tgsData" ref="playerRef" :src="tgsData"
-        :loop="true" :autoplay="true" :width="emojiRenderSize" :height="emojiRenderSize"
-        :class="emojiHiResClass" :style="emojiHiResStyle" @load="onAnimLoad" />
+      <RlottiePlayer v-else-if="emojiFormat === 'tgs' && tgsData" ref="playerRef" :src="tgsData" :loop="true"
+        :autoplay="true" :width="emojiRenderSize" :height="emojiRenderSize" :class="emojiHiResClass"
+        :style="emojiHiResStyle" @load="onAnimLoad" />
       <!-- WEBM video -->
       <video v-else-if="emojiFormat === 'webm'" :src="state.filePath" autoplay loop muted playsinline
         class="w-full h-full object-contain" />

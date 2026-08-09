@@ -4,9 +4,9 @@
         <!-- WEBP static sticker -->
         <img v-if="format === 'webp' && mediaSrc" :src="mediaSrc" class="w-full h-full object-contain" />
         <!-- TGS animated sticker (Lottie) -->
-        <RlottiePlayer v-else-if="format === 'tgs' && tgsData" ref="playerRef" :src="tgsData"
-            :loop="!isAnimatedEmoji" :autoplay="true" :width="tgsRenderSize" :height="tgsRenderSize"
-            :class="tgsHiResClass" :style="tgsHiResStyle" @load="onAnimLoad" />
+        <RlottiePlayer v-else-if="format === 'tgs' && tgsData" ref="playerRef" :src="tgsData" :loop="!isAnimatedEmoji"
+            :autoplay="true" :width="tgsRenderSize" :height="tgsRenderSize" :class="tgsHiResClass"
+            :style="tgsHiResStyle" @load="onAnimLoad" />
         <!-- WEBM video sticker -->
         <video v-else-if="format === 'webm' && mediaSrc" :src="mediaSrc" autoplay loop muted playsinline
             class="w-full h-full object-contain" />

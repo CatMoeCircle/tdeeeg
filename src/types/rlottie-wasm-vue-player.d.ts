@@ -46,7 +46,7 @@ declare module 'rlottie-wasm-vue-player' {
 
     /** RlottiePlayer Vue 组件（Options API，模板 ref 为 RlottiePlayerInstance） */
     export const RlottiePlayer: {
-        new (): RlottiePlayerInstance;
+        new(): RlottiePlayerInstance;
         props: Record<string, unknown>;
     } & import('vue').DefineComponent<RlottiePlayerProps>;
 
