@@ -74,6 +74,21 @@ interface Settings {
     /** 是否隐藏贴纸右下角发送时间小胶囊 */
     hideTimestamp: boolean;
   };
+  /** 表情包面板（StickerPanel emoji/GIF/贴纸）本地偏好 */
+  stickerPanel: {
+    /** 上次选中的 Tab：'emoji' | 'gif' | 'sticker' */
+    lastTab: "emoji" | "gif" | "sticker";
+    /** 是否允许鼠标悬停打开面板 */
+    openOnHover: boolean;
+    /** 全局 Fitzpatrick 肤色（0-6，0=无，1/2 共用 f12） */
+    skinTone: number;
+    /** 最近使用的普通 emoji（最多 32 个，前面为最新） */
+    recentEmoji: string[];
+    /** 收藏的普通 emoji */
+    favoriteEmoji: string[];
+    /** 缓存的当前会话群组贴纸包 id（避免重复拉取） */
+    groupStickerSetId: number | null;
+  };
   autoDownload: {
     /** 自动下载总开关 */
     enabled: boolean;
@@ -131,6 +146,14 @@ const defaultSettings: Settings = {
   sticker: {
     size: 160,
     hideTimestamp: false,
+  },
+  stickerPanel: {
+    lastTab: "emoji",
+    openOnHover: true,
+    skinTone: 0,
+    recentEmoji: [],
+    favoriteEmoji: [],
+    groupStickerSetId: null,
   },
   autoDownload: {
     enabled: true,

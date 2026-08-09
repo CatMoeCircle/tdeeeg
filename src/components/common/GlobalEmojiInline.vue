@@ -3,7 +3,7 @@
   <span v-if="src" class="gemoji" :style="sizeStyle">
     <img :src="src" :alt="emoji" draggable="false" loading="lazy" decoding="async" />
   </span>
-  <template v-else>{{ emoji }}</template>
+  <span v-else class="gemoji-text" :style="textStyle">{{ emoji }}</span>
 </template>
 
 <script setup lang="ts">
@@ -19,8 +19,25 @@ const props = defineProps<{
 
 const src = computed(() => emojiImageSrc(props.emoji));
 
+/**
+ * 内部 <img> 用 width:1em，因此想让 size 真正生效必须同时给容器设 font-size=size，
+ * 否则 img 永远约等于继承字号（~14px），显示不跟随 size。
+ */
 const sizeStyle = computed(() =>
-  props.size ? { width: `${props.size}px`, height: `${props.size}px` } : undefined
+  props.size
+    ? {
+      width: `${props.size}px`,
+      height: `${props.size}px`,
+      fontSize: `${props.size}px`,
+    }
+    : undefined
+);
+
+/** 回退纯文本：同样用 font-size 控制 emoji 字符大小 */
+const textStyle = computed(() =>
+  props.size
+    ? { fontSize: `${props.size}px`, lineHeight: '1', display: 'inline-block' }
+    : undefined
 );
 </script>
 
@@ -31,6 +48,7 @@ const sizeStyle = computed(() =>
   vertical-align: -0.1em;
   line-height: 0;
 }
+
 .gemoji img {
   display: inline-block;
   width: 1em;
@@ -38,5 +56,10 @@ const sizeStyle = computed(() =>
   margin: 0 0.05em;
   vertical-align: -0.1em;
   object-fit: contain;
+}
+
+/* 回退纯文本：字符基线对齐，行高与图片版一致 */
+.gemoji-text {
+  vertical-align: middle;
 }
 </style>

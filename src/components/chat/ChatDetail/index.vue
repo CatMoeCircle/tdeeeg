@@ -145,7 +145,8 @@
                                     :class="{ 'invisible': !item.showAvatar }">
                                     <button type="button"
                                         class="block w-9 h-9 rounded-full overflow-hidden focus:outline-none"
-                                        @click.stop="openSenderProfile(item.msg)" :disabled="!canOpenSenderProfile(item.msg)">
+                                        @click.stop="openSenderProfile(item.msg)"
+                                        :disabled="!canOpenSenderProfile(item.msg)">
                                         <Avatar :photo="getDisplaySenderPhoto(item.msg)"
                                             :title="getDisplaySenderName(item.msg)"
                                             :accentColorId="getDisplaySenderProfileAccentId(item.msg)"
@@ -305,7 +306,9 @@
                             <Avatar :photo="chat.photo" :title="chat.title" sizeClass="!w-20 !h-20"
                                 :accentColorId="getChatProfileAccentColorId(chat as any)" />
                         </button>
-                        <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100"><GlobalEmojiText :text="overlayChatTitle" /></h2>
+                        <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">
+                            <GlobalEmojiText :text="overlayChatTitle" />
+                        </h2>
                         <p class="text-sm text-gray-500 mt-1">{{ getChatSubtitle() }}</p>
                     </div>
 
@@ -327,7 +330,7 @@
         </Transition>
 
         <!-- ===== Input Area（顶层，磨砂玻璃） ===== -->
-        <div v-if="canSend"
+        <div v-if="canSend" ref="inputAnchorEl"
             class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-white/80 dark:from-gray-900/80 via-white/60 dark:via-gray-900/60 to-transparent">
             <div aria-hidden="true"
                 class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
@@ -337,7 +340,13 @@
                 :member-status="currentMemberStatus" :is-premium="isMePremium" @clear-reply="clearReply"
                 @send="handleSend" @attach="handleAttach" @attach-file="handleAttachFile"
                 @attach-music="handleAttachMusic" @attach-poll="handleAttachPoll"
-                @attach-checklist="handleAttachChecklist" @attach-contact="handleAttachContact" />
+                @attach-checklist="handleAttachChecklist" @attach-contact="handleAttachContact"
+                @sticker="openStickerPanel" />
+
+            <!-- 表情包面板（emoji/GIF/贴纸 三合一） -->
+            <StickerPanel ref="stickerPanelRef" :anchor="inputAnchorEl" @pick-emoji="insertEmojiIntoInput"
+                @pick-custom-emoji="insertCustomEmojiIntoInput" @pick-sticker="sendSticker"
+                @pick-animation="sendAnimation" />
         </div>
 
         <!-- ===== 成员操作 ===== -->
@@ -403,6 +412,8 @@
 </template>
 <script setup lang="ts">
 import MessageInput from './MessageInput.vue';
+import StickerPanel from './stickerPanel/StickerPanel.vue';
+import { stickerPanelState, openStickerPanel as openStickerPanelOf, closeStickerPanel as closeStickerPanelOf } from './stickerPanel/types';
 import Avatar from '../avatar.vue';
 import MessageContent from './MessageContent/index.vue';
 import MessageStatus from './MessageContent/content/MessageStatus.vue';
@@ -431,6 +442,7 @@ import { storeToRefs } from 'pinia';
 import { listen } from "@tauri-apps/api/event";
 import { settings } from '../../../store/settings';
 import { useCommandInsert, clearPendingCommand } from '../../../store/commandInsert';
+import { useCustomEmoji } from '../../../store/customEmoji';
 import type { ContextMenuItem } from '../../contextMenu/types';
 import { getMessagePlainText } from '../../../utils/messageText';
 import {
@@ -444,7 +456,7 @@ import { confirmDeleteMessage } from '../../../store/deleteMessage';
 import type { DeleteMessageRequest } from '../../../store/deleteMessage';
 import { openContextMenu } from '../../../store/contextMenu';
 
-import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, forumTopic, inputTextQuote } from 'tdlib-types';
+import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, forumTopic, inputTextQuote, sendMessage, $Function, textEntity$Input } from 'tdlib-types';
 import { getViewerState, closeMediaViewer, registerMediaItem, unregisterMediaItem, isMediaViewerActive, openMediaViewer } from '../../../store/mediaViewer';
 import { isFileReady } from '../../../utils/tdlib';
 import { buildVideoQualities } from '../../../utils/videoQualities';
@@ -659,8 +671,58 @@ const overlayChatTitle = computed(() => {
 /** 当前话题信息（话题模式时存在） */
 const topic = ref<forumTopic | undefined>(undefined);
 const messageInput = ref('');
+/** 面板插入的自定义 emoji 队列（按插入顺序；发送时据此生成实体） */
+const pendingCustomEmoji = ref<{ id: string; alt: string }[]>([]);
 const messages = ref<message[]>([]);
 const messagesContainer = ref<HTMLElement | null>(null);
+
+// ===== 表情包面板（StickerPanel emoji/GIF/贴纸） =====
+/** 面板锚点（输入区容器元素），用于定位悬浮面板 */
+const inputAnchorEl = ref<HTMLElement | null>(null);
+const stickerPanelRef = ref<InstanceType<typeof StickerPanel> | null>(null);
+
+/** 打开/切换面板（MessageInput @sticker 触发，默认切到贴纸 Tab）：
+ *  已打开时再次点击则关闭（toggle）。 */
+function openStickerPanel() {
+    if (stickerPanelState.value.open) {
+        closeStickerPanelOf();
+    } else {
+        openStickerPanelOf('sticker');
+    }
+}
+
+/** 插入普通 emoji 到输入框文本 */
+function insertEmojiIntoInput(emoji: string) {
+    messageInput.value += emoji;
+}
+
+/**
+ * 面板点击自定义 emoji：在输入框插入其【代表 emoji 文本】作占位，
+ * 并记录 id → 发送时据此生成 textEntityTypeCustomEmoji 实体（实体适配）。
+ */
+function insertCustomEmojiIntoInput(id: string) {
+    const alt = useCustomEmoji(id).sticker?.emoji || '😀';
+    messageInput.value += alt;
+    pendingCustomEmoji.value.push({ id, alt });
+}
+
+/** 构建自定义 emoji 实体：按插入顺序在文本中定位占位 emoji 并生成实体 */
+function buildCustomEmojiEntities(text: string): textEntity$Input[] {
+    const entities: textEntity$Input[] = [];
+    let searchFrom = 0;
+    for (const ce of pendingCustomEmoji.value) {
+        const idx = text.indexOf(ce.alt, searchFrom);
+        if (idx === -1) continue;
+        entities.push({
+            _: 'textEntity',
+            offset: idx,
+            length: ce.alt.length,
+            type: { _: 'textEntityTypeCustomEmoji', custom_emoji_id: ce.id },
+        });
+        searchFrom = idx + ce.alt.length;
+    }
+    return entities;
+}
 
 // ===== 回复模式 =====
 /** 当前回复目标消息（null 表示无回复） */
@@ -2172,38 +2234,100 @@ const handleSend = async (text: string) => {
     }
     if (!text.trim()) return;
     try {
-        const params: any = {
+        const entities = buildCustomEmojiEntities(text);
+        const params: sendMessage = {
             _: 'sendMessage',
-            chat_id: chatId.value,
+            chat_id: chatId.value!,
             input_message_content: {
                 _: 'inputMessageText',
-                text: { _: 'formattedText', text, entities: [] },
-                disable_web_page_preview: false,
-                clear_draft: true
-            }
+                text: { _: 'formattedText', text, entities },
+                clear_draft: true,
+            },
+            reply_to: replyTargetMsg.value
+                ? {
+                    _: 'inputMessageReplyToMessage',
+                    message_id: replyTargetMsg.value.id,
+                    quote: buildReplyQuote() ?? undefined,
+                    checklist_task_id: 0,
+                    poll_option_id: '',
+                }
+                : undefined,
+            topic_id: topicId.value ? { _: 'messageTopicForum', forum_topic_id: topicId.value } : undefined,
         };
-        // 回复模式：附加回复目标
-        if (replyTargetMsg.value) {
-            params.reply_to = {
-                _: 'inputMessageReplyToMessage',
-                message_id: replyTargetMsg.value.id,
-                quote: buildReplyQuote(),
-                checklist_task_id: 0,
-                poll_option_id: '',
-            };
-        }
-        // 话题模式时指定 topic_id
-        if (topicId.value) {
-            params.topic_id = { _: 'messageTopicForum', forum_topic_id: topicId.value };
-        }
-        await tdlibSend(params);
+        await tdlibSend(params as $Function);
         messageInput.value = '';
+        pendingCustomEmoji.value = [];
         // 发送成功后清除回复状态
         clearReply();
     } catch (e) {
         console.error("Failed to send message:", e);
     }
 };
+
+// ==================== 表情包面板发送（贴纸 / GIF） ====================
+/** 发送贴纸：InputMessageSticker(InputFileId(stickerId)) */
+/** 发送贴纸：inputMessageSticker(inputSticker(inputFileId(文件id))) */
+async function sendSticker(fileId: number | string) {
+    const fid = Number(fileId);
+    if (!chatId.value || !fid) return;
+    try {
+        const params: sendMessage = {
+            _: 'sendMessage',
+            chat_id: chatId.value!,
+            input_message_content: {
+                _: 'inputMessageSticker',
+                sticker: { _: 'inputSticker', sticker: { _: 'inputFileId', id: fid } },
+                emoji: '',
+            },
+            reply_to: replyTargetMsg.value
+                ? {
+                    _: 'inputMessageReplyToMessage',
+                    message_id: replyTargetMsg.value.id,
+                    quote: buildReplyQuote() ?? undefined,
+                    checklist_task_id: 0,
+                    poll_option_id: '',
+                }
+                : undefined,
+            topic_id: topicId.value ? { _: 'messageTopicForum', forum_topic_id: topicId.value } : undefined,
+        };
+        await tdlibSend(params as $Function);
+        clearReply();
+    } catch (e) {
+        console.error("Failed to send sticker:", e);
+    }
+}
+
+/** 发送动画/GIF：inputMessageAnimation(inputAnimation(inputFileId(文件id))) */
+function sendAnimation(fileId: number, _stickerId: string) {
+    if (!chatId.value || !fileId) return;
+    void (async () => {
+        try {
+            const params: sendMessage = {
+                _: 'sendMessage',
+                chat_id: chatId.value!,
+                input_message_content: {
+                    _: 'inputMessageAnimation',
+                    animation: { _: 'inputAnimation', animation: { _: 'inputFileId', id: fileId } },
+                    caption: { _: 'formattedText', text: '', entities: [] },
+                },
+                reply_to: replyTargetMsg.value
+                    ? {
+                        _: 'inputMessageReplyToMessage',
+                        message_id: replyTargetMsg.value.id,
+                        quote: buildReplyQuote() ?? undefined,
+                        checklist_task_id: 0,
+                        poll_option_id: '',
+                    }
+                    : undefined,
+                topic_id: topicId.value ? { _: 'messageTopicForum', forum_topic_id: topicId.value } : undefined,
+            };
+            await tdlibSend(params as $Function);
+            clearReply();
+        } catch (e) {
+            console.error("Failed to send animation:", e);
+        }
+    })();
+}
 
 const handleAttach = (files: FileList) => {
     console.log("Attach files:", files);
@@ -2796,6 +2920,24 @@ const isOutgoingAlbum = (item: AlbumDisplayItem) => isOutgoingMsg(item.messages[
 // ==================== 权限 ====================
 const currentMemberStatus = computed<ChatMemberStatus | undefined>(() =>
     getCurrentMemberStatus(chat.value, groupCaches())
+);
+
+// ===== 表情包面板状态同步（依赖 currentMemberStatus / isMePremium，故放在权限定义之后） =====
+watch(
+    () => [chat.value?.id, currentMemberStatus.value, isMePremium.value],
+    () => {
+        const st = stickerPanelState.value;
+        st.chat = chat.value;
+        st.isPremium = isMePremium.value;
+        const perms = chat.value?.permissions;
+        st.canSendBasic = perms?.can_send_basic_messages ?? true;
+        st.canSendOther = perms?.can_send_other_messages ?? true;
+        st.onPickEmoji = insertEmojiIntoInput;
+        st.onPickCustomEmoji = insertCustomEmojiIntoInput;
+        st.onPickSticker = sendSticker;
+        st.onPickAnimation = sendAnimation;
+    },
+    { immediate: true },
 );
 
 const canSend = computed(() =>

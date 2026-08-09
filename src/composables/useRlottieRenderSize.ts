@@ -21,13 +21,16 @@ export const RLOTTIE_HI_RES_CLASS = 'rlottie-hi-res';
 /**
  * 根据目标显示尺寸（reactive）计算 RlottiePlayer 的渲染尺寸与显示样式。
  * @param displaySize 期望的 CSS 显示边长（px），可为任意（响应式）数值 ref
+ * @param scaleOverride 可选的超采样倍数覆盖。默认用 RLOTTIE_RENDER_SCALE；
+ *       传给低质量场景（如贴纸网格）可传 1 以省渲染像素，换取更高数量/性能。
  * @returns { renderSize, hiResStyle, hiResClass }
  *  - renderSize:   传给 RlottiePlayer 的 :width / :height（高分辨率渲染）
  *  - hiResStyle:   传给 RlottiePlayer 的 :style，通过 CSS 变量指定目标显示尺寸
  *  - hiResClass:   传给 RlottiePlayer 的 class（配合 hiResStyle 的变量做 !important 覆盖）
  */
-export function useRlottieRenderSize(displaySize: Ref<number>) {
-    const renderSize = computed(() => Math.round(displaySize.value * RLOTTIE_RENDER_SCALE));
+export function useRlottieRenderSize(displaySize: Ref<number>, scaleOverride?: number) {
+    const scale = scaleOverride ?? RLOTTIE_RENDER_SCALE;
+    const renderSize = computed(() => Math.round(displaySize.value * scale));
 
     /** 通过 CSS 变量设置目标显示尺寸；.rlottie-hi-res 用它覆盖组件容器内联尺寸 */
     const hiResStyle = computed<Record<string, string>>(() => ({
