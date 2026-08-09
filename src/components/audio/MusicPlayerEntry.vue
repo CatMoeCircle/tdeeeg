@@ -21,10 +21,10 @@
                 <div class="min-w-0 leading-tight">
                     <p class="truncate font-medium text-gray-800 dark:text-gray-200"
                         :class="compact ? 'text-[11px]' : 'text-xs'">
-                        {{ player.currentTrack.title }}
+                        <GlobalEmojiText :text="player.currentTrack.title" />
                     </p>
                     <p class="truncate text-gray-500" :class="compact ? 'text-[10px]' : 'text-[11px]'">
-                        {{ player.currentTrack.performer }}
+                        <GlobalEmojiText :text="player.currentTrack.performer" />
                     </p>
                 </div>
             </div>
@@ -85,6 +85,7 @@
 import { computed, ref } from 'vue';
 import { SkipBackIcon, SkipForwardIcon, PlayIcon, PauseIcon, MusicIcon, XIcon } from 'lucide-vue-next';
 import { useAudioPlayerStore } from '../../store/audioPlayer';
+import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 
 defineProps<{
     compact?: boolean;

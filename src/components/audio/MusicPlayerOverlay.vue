@@ -34,10 +34,10 @@
                         </div>
                         <div class="min-w-0 flex-1">
                             <p class="text-base font-semibold text-gray-900 dark:text-gray-100 truncate">
-                                {{ player.currentTrack?.title || '未播放' }}
+                                <GlobalEmojiText :text="player.currentTrack?.title || '未播放'" />
                             </p>
                             <p class="text-sm text-gray-500 truncate mt-0.5">
-                                {{ player.currentTrack?.performer || '' }}
+                                <GlobalEmojiText :text="player.currentTrack?.performer || ''" />
                             </p>
                         </div>
                     </div>
@@ -126,9 +126,9 @@
                                 <div class="min-w-0 flex-1">
                                     <p class="text-sm font-medium text-gray-800 dark:text-gray-200 truncate"
                                         :class="{ 'text-blue-600 dark:text-blue-400': idx === player.currentIndex }">
-                                        {{ track.title }}
+                                        <GlobalEmojiText :text="track.title" />
                                     </p>
-                                    <p class="text-xs text-gray-500 truncate">{{ track.performer }}</p>
+                                    <p class="text-xs text-gray-500 truncate"><GlobalEmojiText :text="track.performer" /></p>
                                 </div>
                                 <span class="text-xs text-gray-400 shrink-0">{{ formatTime(track.duration) }}</span>
                                 <div v-if="idx === player.currentIndex && player.isPlaying"
@@ -157,6 +157,7 @@ import {
     RepeatIcon, Repeat1Icon, ShuffleIcon, ListOrderedIcon,
 } from 'lucide-vue-next';
 import { useAudioPlayerStore } from '../../store/audioPlayer';
+import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 
 const player = useAudioPlayerStore();
 const previousVolume = ref(1);

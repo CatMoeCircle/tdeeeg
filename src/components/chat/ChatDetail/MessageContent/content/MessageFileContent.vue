@@ -11,7 +11,7 @@
                 </div>
             </div>
             <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
-                <span class="max-w-full truncate text-sm font-medium">{{ content.document.file_name }}</span>
+                <span class="max-w-full truncate text-sm font-medium"><GlobalEmojiText :text="content.document.file_name" /></span>
                 <span class="truncate text-xs text-gray-500">
                     <template v-if="uploading">
                         {{ formatSize(uploadCurrentSize) + ' / ' + formatSize(uploadTotalSize) }}
@@ -21,110 +21,107 @@
                         {{ downloadProgress > 0 && downloadProgress < 1 ? formatSize(downloadCurrentSize) + ' / ' +
                             formatSize(downloadTotalSize) : formatSize(content.document.document.size) }} <span
                             v-if="isDownloading" class="text-blue-500 ml-1">下载中...</span>
-                    </template>
-                </span>
-            </div>
-            <button v-if="!mediaSrc && !isDownloadingOrGlobally" @click="handleDownload(content.document.document.id)"
-                class="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded shrink-0">
-                <DownloadIcon class="w-4 h-4" />
-            </button>
-            <button v-if="isDownloadingOrGlobally" class="p-1 shrink-0">
-                <LoaderIndicator :progress="downloadProgress > 0 && downloadProgress < 1 ? downloadProgress : undefined"
-                    size="20" color="#3b82f6" />
-            </button>
-            <!-- 底部细下载进度条（与图片/视频一致） -->
-            <div v-if="downloadProgress > 0 && downloadProgress < 1"
-                class="absolute bottom-0 left-0 right-0 h-0.5 bg-white/30 overflow-hidden">
-                <div class="h-full bg-blue-500 transition-all duration-300"
-                    :style="{ width: (downloadProgress * 100) + '%' }"></div>
-            </div>
-            <!-- 底部细上传进度条（发送中） -->
-            <div v-if="uploading"
-                class="absolute bottom-0 left-0 right-0 h-0.5 bg-black/20 overflow-hidden">
-                <div class="h-full bg-emerald-500 transition-all duration-300"
-                    :style="{ width: Math.min(100, (uploadProgress * 100)) + '%' }"></div>
-            </div>
-        </div>
-
-        <!-- Audio -->
-        <div v-else-if="content._ === 'messageAudio'"
-            class="relative flex w-full max-w-full min-w-0 items-center gap-3 overflow-hidden rounded-lg">
-            <div class="relative h-14 w-14 shrink-0">
-                <div class="group relative h-full w-full overflow-hidden rounded-xl bg-blue-100 dark:bg-blue-950">
-                    <img v-if="coverSrc" :src="coverSrc" :alt="content.audio.title || content.audio.file_name"
-                        class="h-full w-full select-none object-cover" @error="coverSrc = undefined" />
-                    <div v-else class="flex h-full w-full items-center justify-center">
-                        <MusicIcon class="h-6 w-6 text-blue-500 dark:text-blue-300" />
-                    </div>
-                    <button type="button"
-                        class="audio-cover-button absolute inset-0 flex items-center justify-center bg-black/20 text-white transition-colors hover:bg-black/30"
-                        :aria-label="isGloballyPlaying ? '暂停' : '播放'" @click="togglePlayback">
-                        <PauseIcon v-if="isGloballyPlaying" class="h-6 w-6 fill-current" />
-                        <PlayIcon v-else class="ml-0.5 h-6 w-6 fill-current" />
-                    </button>
-                    <!-- 上传（发送中）覆盖提示 -->
-                    <div v-if="uploading"
-                        class="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none">
-                        <LoaderIndicator
-                            :progress="uploadProgress > 0 && uploadProgress < 1 ? uploadProgress : undefined"
-                            size="22" color="#ffffff" />
-                    </div>
-                </div>
-
-                <button v-if="!fileReady" type="button"
-                    class="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white bg-blue-500 text-white shadow-sm transition-transform active:scale-90 dark:border-gray-800"
-                    :aria-label="dlLabel" :disabled="isDownloadingOrGlobally"
-                    @click.stop="handleDownload(content.audio.audio.id)">
-                    <LoaderIndicator v-if="isDownloadingOrGlobally"
-                        :progress="downloadProgress > 0 && downloadProgress < 1 ? downloadProgress : undefined"
-                        size="12" stroke="1.5" color="#ffffff" />
-                    <DownloadIcon v-else class="h-2.5 w-2.5" stroke-width="2.5" />
-                </button>
-            </div>
-
-            <div class="flex min-w-0 flex-1 flex-col">
-                <span class="truncate text-sm font-medium"
-                    :class="isCurrentTrack ? 'text-blue-600 dark:text-blue-400' : ''">
-                    {{ content.audio.title || content.audio.file_name }}
-                </span>
-                <span class="truncate text-xs text-gray-500 dark:text-gray-400">
-                    <template v-if="uploading">
-                        上传中 {{ formatSize(uploadCurrentSize) }} / {{ formatSize(uploadTotalSize) }}
-                    </template>
-                    <template v-else>
-                        {{ content.audio.performer || '未知艺术家' }}
-                    </template>
-                </span>
-                <input class="audio-progress mt-1.5 w-full" type="range" min="0" :max="displayDuration || 1" step="0.1"
-                    :value="displayTime" :style="audioProgressStyle" :disabled="!isCurrentTrack || displayDuration <= 0"
-                    aria-label="音乐播放进度" @input="seekAudio" />
-                <div class="mt-0.5 flex justify-between text-[10px] leading-none text-gray-400 dark:text-gray-500">
-                    <span>{{ formatDuration(displayTime) }}</span>
-                    <span>{{ formatDuration(displayDuration) }}</span>
-                </div>
-            </div>
-            <!-- 音乐已自带进度条（audio-progress 滑块展示下载/播放进度），不再额外绘制底部细进度条 -->
-        </div>
-
-        <p v-if="captionSegments.length" class="mt-2 whitespace-pre-wrap"
-            :style="{ fontSize: 'var(--msg-font-size, 14px)', lineHeight: '1.4' }">
-            <template v-for="(segment, index) in captionSegments" :key="index">
-                <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId" :size="22"
-                    :fallback-text="segment.text" />
-                <a v-else-if="segment.href" :href="segment.href"
-                    class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
-                    :class="[segment.className, captionLoadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
-                    @click.prevent.stop="handleCaptionSegmentClick($event, segment)">{{ segment.text
-                    }}</a>
-                <span v-else
-                    :class="[segment.className, segment.copyable ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
-                    @click="(segment.copyable || segment.isCommand) ? handleCaptionSegmentClick($event, segment) : undefined">
-                    <SpoilerSpan v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template v-else>{{
-                        segment.text }}</template>
-                </span>
-            </template>
-        </p>
+</template>
+</span>
+</div>
+<button v-if="!mediaSrc && !isDownloadingOrGlobally" @click="handleDownload(content.document.document.id)"
+    class="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded shrink-0">
+    <DownloadIcon class="w-4 h-4" />
+</button>
+<button v-if="isDownloadingOrGlobally" class="p-1 shrink-0">
+    <LoaderIndicator :progress="downloadProgress > 0 && downloadProgress < 1 ? downloadProgress : undefined" size="20"
+        color="#3b82f6" />
+</button>
+<!-- 底部细下载进度条（与图片/视频一致） -->
+<div v-if="downloadProgress > 0 && downloadProgress < 1"
+    class="absolute bottom-0 left-0 right-0 h-0.5 bg-white/30 overflow-hidden">
+    <div class="h-full bg-blue-500 transition-all duration-300" :style="{ width: (downloadProgress * 100) + '%' }">
     </div>
+</div>
+<!-- 底部细上传进度条（发送中） -->
+<div v-if="uploading" class="absolute bottom-0 left-0 right-0 h-0.5 bg-black/20 overflow-hidden">
+    <div class="h-full bg-emerald-500 transition-all duration-300"
+        :style="{ width: Math.min(100, (uploadProgress * 100)) + '%' }"></div>
+</div>
+</div>
+
+<!-- Audio -->
+<div v-else-if="content._ === 'messageAudio'"
+    class="relative flex w-full max-w-full min-w-0 items-center gap-3 overflow-hidden rounded-lg">
+    <div class="relative h-14 w-14 shrink-0">
+        <div class="group relative h-full w-full overflow-hidden rounded-xl bg-blue-100 dark:bg-blue-950">
+            <img v-if="coverSrc" :src="coverSrc" :alt="content.audio.title || content.audio.file_name"
+                class="h-full w-full select-none object-cover" @error="coverSrc = undefined" />
+            <div v-else class="flex h-full w-full items-center justify-center">
+                <MusicIcon class="h-6 w-6 text-blue-500 dark:text-blue-300" />
+            </div>
+            <button type="button"
+                class="audio-cover-button absolute inset-0 flex items-center justify-center bg-black/20 text-white transition-colors hover:bg-black/30"
+                :aria-label="isGloballyPlaying ? '暂停' : '播放'" @click="togglePlayback">
+                <PauseIcon v-if="isGloballyPlaying" class="h-6 w-6 fill-current" />
+                <PlayIcon v-else class="ml-0.5 h-6 w-6 fill-current" />
+            </button>
+            <!-- 上传（发送中）覆盖提示 -->
+            <div v-if="uploading"
+                class="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none">
+                <LoaderIndicator :progress="uploadProgress > 0 && uploadProgress < 1 ? uploadProgress : undefined"
+                    size="22" color="#ffffff" />
+            </div>
+        </div>
+
+        <button v-if="!fileReady" type="button"
+            class="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white bg-blue-500 text-white shadow-sm transition-transform active:scale-90 dark:border-gray-800"
+            :aria-label="dlLabel" :disabled="isDownloadingOrGlobally"
+            @click.stop="handleDownload(content.audio.audio.id)">
+            <LoaderIndicator v-if="isDownloadingOrGlobally"
+                :progress="downloadProgress > 0 && downloadProgress < 1 ? downloadProgress : undefined" size="12"
+                stroke="1.5" color="#ffffff" />
+            <DownloadIcon v-else class="h-2.5 w-2.5" stroke-width="2.5" />
+        </button>
+    </div>
+
+    <div class="flex min-w-0 flex-1 flex-col">
+        <span class="truncate text-sm font-medium" :class="isCurrentTrack ? 'text-blue-600 dark:text-blue-400' : ''">
+            {{ content.audio.title || content.audio.file_name }}
+        </span>
+        <span class="truncate text-xs text-gray-500 dark:text-gray-400">
+            <template v-if="uploading">
+                上传中 {{ formatSize(uploadCurrentSize) }} / {{ formatSize(uploadTotalSize) }}
+            </template>
+            <template v-else>
+                {{ content.audio.performer || '未知艺术家' }}
+            </template>
+        </span>
+        <input class="audio-progress mt-1.5 w-full" type="range" min="0" :max="displayDuration || 1" step="0.1"
+            :value="displayTime" :style="audioProgressStyle" :disabled="!isCurrentTrack || displayDuration <= 0"
+            aria-label="音乐播放进度" @input="seekAudio" />
+        <div class="mt-0.5 flex justify-between text-[10px] leading-none text-gray-400 dark:text-gray-500">
+            <span>{{ formatDuration(displayTime) }}</span>
+            <span>{{ formatDuration(displayDuration) }}</span>
+        </div>
+    </div>
+    <!-- 音乐已自带进度条（audio-progress 滑块展示下载/播放进度），不再额外绘制底部细进度条 -->
+</div>
+
+<p v-if="captionSegments.length" class="mt-2 whitespace-pre-wrap"
+    :style="{ fontSize: 'var(--msg-font-size, 14px)', lineHeight: '1.4' }">
+    <template v-for="(segment, index) in captionSegments" :key="index">
+        <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId" :size="22"
+            :fallback-text="segment.text" />
+        <a v-else-if="segment.href" :href="segment.href"
+            class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
+            :class="[segment.className, captionLoadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
+            @click.prevent.stop="handleCaptionSegmentClick($event, segment)">{{ segment.text
+            }}</a>
+        <span v-else
+            :class="[segment.className, segment.copyable ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
+            @click="(segment.copyable || segment.isCommand) ? handleCaptionSegmentClick($event, segment) : undefined">
+            <SpoilerSpan v-if="segment.isSpoiler"><GlobalEmojiText :text="segment.text" :size="22" /></SpoilerSpan><template
+                v-else><GlobalEmojiText :text="segment.text" :size="22" /></template>
+        </span>
+    </template>
+</p>
+</div>
 </template>
 
 <script setup lang="ts">
@@ -137,6 +134,7 @@ import { FileIcon, DownloadIcon, MusicIcon, PauseIcon, PlayIcon } from 'lucide-v
 import { useRouter } from 'vue-router';
 import { MessagePlugin } from 'tdesign-vue-next';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
+import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 import SpoilerSpan from '../spoiler/SpoilerSpan.vue';
 import LoaderIndicator from '../../../../common/LoaderIndicator';
 import { useDownloadStore, type DownloadFileType } from '../../../../../store/downloads';
@@ -149,6 +147,7 @@ import { useAudioPlayerStore } from '../../../../../store/audioPlayer';
 import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
 import { isThumbnailImgRenderable, thumbnailToImgSrc } from '../../../../../utils/thumbnail';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
+import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 
 const props = defineProps<{
     content: messageDocument | messageAudio;
@@ -482,7 +481,7 @@ async function loadDocumentThumb() {
         const downloaded = await tdlibSend({
             _: 'downloadFile',
             file_id: file.id,
-            priority: 1,
+            priority: DL_PRIORITY.THUMBNAIL,
             offset: 0,
             limit: 0,
             synchronous: true,
@@ -537,7 +536,7 @@ async function loadAudioCover() {
             const downloaded = await tdlibSend({
                 _: 'downloadFile',
                 file_id: file.id,
-                priority: 1,
+                priority: DL_PRIORITY.THUMBNAIL,
                 offset: 0,
                 limit: 0,
                 synchronous: true,
@@ -609,7 +608,14 @@ async function handleDownload(fileId: number) {
     } catch (_) { /* ignore */ }
 
     try {
-        await tdlibSend({ _: 'downloadFile', file_id: fileId, priority: 1, offset: 0, limit: 0, synchronous: false });
+        // 用户手动点击下载：走 addFileToDownloads（持久化下载列表）
+        await tdlibSend({
+            _: 'addFileToDownloads',
+            file_id: fileId,
+            chat_id: props.chatId,
+            message_id: props.messageId,
+            priority: DL_PRIORITY.USER_ACTIVE,
+        });
     } catch (e) {
         console.error("Download failed", e);
         isDownloading.value = false;

@@ -189,3 +189,18 @@ body.is-resizing * {
 .media-sp.is-overlay > .sp-cv {
   z-index: auto;
 }
+
+/* ===== rlottie TGS 高分辨率渲染（超采样）=====
+   RlottiePlayer 容器的 canvas 物理分辨率由 width/height props 决定，
+   此处用 CSS 变量 + !important 把最终显示尺寸压回目标尺寸，
+   使其以「目标尺寸 × 超采样倍数」的分辨率渲染再缩放显示，提升清晰度。
+   用法：
+     <RlottiePlayer :width="renderSize" :height="renderSize"
+                    class="rlottie-hi-res"
+                    :style="{ '--rlottie-w': size+'px', '--rlottie-h': size+'px' }" />
+   其中 renderSize = size * RLOTTIE_RENDER_SCALE。
+   需放在非 scoped 的全局样式里（.rlottie-player-container 位于组件库内部）。 */
+.rlottie-hi-res.rlottie-player-container {
+  width: var(--rlottie-w, 0px) !important;
+  height: var(--rlottie-h, 0px) !important;
+}

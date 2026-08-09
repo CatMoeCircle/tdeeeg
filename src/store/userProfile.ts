@@ -12,6 +12,7 @@ import type {
 } from "tdlib-types";
 import { tdlibSend } from "../utils/tdlib";
 import { ensureUser, ensureChat } from "../utils/senderInfo";
+import { useUserStore } from "./user";
 
 /**
  * 个人资料页状态管理（Pinia setup store）。
@@ -191,14 +192,20 @@ export const useUserProfileStore = defineStore("userProfile", () => {
     error.set(userId, false);
     const p = (async () => {
       try {
-        await Promise.all([
+        // 查看自己的资料页时不请求共同群组（对自己没有意义）
+        const userStore = useUserStore();
+        const isSelf = userStore.userProfile?.id === userId;
+        const tasks: Promise<unknown>[] = [
           fetchUser(userId),
           fetchFullInfo(userId),
           fetchPhotos(userId),
           fetchGifts(userId),
-          fetchCommonGroups(userId),
           fetchStories(userId),
-        ]);
+        ];
+        if (!isSelf) {
+          tasks.push(fetchCommonGroups(userId));
+        }
+        await Promise.all(tasks);
         loaded.set(userId, true);
       } catch (e) {
         error.set(userId, true);

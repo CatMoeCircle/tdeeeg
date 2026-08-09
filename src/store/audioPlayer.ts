@@ -1,12 +1,14 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { tdlibSend, safeDownloadFile, isFileReady } from '../utils/tdlib';
+import { DL_PRIORITY } from '../utils/downloadPriority';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { message, thumbnail, audio, file, chat } from 'tdlib-types';
 import { useDownloadStore } from './downloads';
 import { useChatStore } from './chat';
 import { isThumbnailImgRenderable } from '../utils/thumbnail';
 import { shouldAutoDownloadAudio } from '../utils/autoDownload';
+import { settings } from './settings';
 
 export interface AudioTrack {
     messageId: number;
@@ -78,8 +80,8 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
     const isPlaying = ref(false);
     const currentTime = ref(0);
     const duration = ref(0);
-    const volume = ref(0.8);
-    const repeatMode = ref<RepeatMode>('none');
+    const volume = ref(settings.player.musicVolume);
+    const repeatMode = ref<RepeatMode>(settings.player.musicRepeatMode);
 
     // ======== UI 状态 ========
     const showEntry = ref(false);      // 是否显示入口栏
@@ -248,9 +250,10 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
                     return;
                 }
                 try {
-                    // 音乐播放触发下载：记录到正常下载列表，保留来源对话与消息
+                    // 音乐播放触发下载：记录到正常下载列表，保留来源对话与消息。
+                    // 用户主动播放 → 高优先级下载。
                     await useDownloadStore().registerDownload(track.fileId, track.title || `audio_${track.fileId}.mp3`, getChatTitle(track.chatId), 0, 'audio', undefined, track.chatId, track.messageId, false);
-                    await safeDownloadFile(track.fileId, true);
+                    await safeDownloadFile(track.fileId, true, DL_PRIORITY.USER_PLAYING);
                     track.ready = true;
                     // 重新获取文件路径（仅在完全下载完成时才使用，避免指向残缺/未完成文件）
                     const fileInfo = await tdlibSend({
@@ -351,6 +354,8 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         const modes: RepeatMode[] = ['none', 'one', 'all', 'shuffle'];
         const idx = modes.indexOf(repeatMode.value);
         repeatMode.value = modes[(idx + 1) % modes.length];
+        // 记忆循环模式，跨会话保留
+        settings.player.musicRepeatMode = repeatMode.value;
     }
 
     /** 设置进度 */
@@ -361,6 +366,8 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
     /** 设置音量 */
     function setVolume(v: number) {
         volume.value = Math.max(0, Math.min(1, v));
+        // 记忆音量，跨会话保留
+        settings.player.musicVolume = volume.value;
     }
 
     /** 关闭入口栏（停止播放） */
@@ -491,7 +498,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
                 const downloaded = await tdlibSend({
                     _: 'downloadFile',
                     file_id: file.id,
-                    priority: 1,
+                    priority: DL_PRIORITY.THUMBNAIL,
                     offset: 0,
                     limit: 0,
                     synchronous: true,
@@ -586,7 +593,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         // 无法流式：完整下载（用户显式点击播放不受自动下载大小上限限制）
         try {
             await useDownloadStore().registerDownload(file.id, audio.title || audio.file_name || `audio_${file.id}.mp3`, getChatTitle(msg.chat_id), 0, 'audio', undefined, msg.chat_id, msg.id, false);
-            await safeDownloadFile(file.id, true);
+            await safeDownloadFile(file.id, true, DL_PRIORITY.USER_PLAYING);
         } catch (e) {
             console.error('Failed to download audio:', e);
             throw e;
@@ -707,7 +714,8 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
                 const file = a.audio;
                 if (!isFileReady(file)) {
                     try {
-                        await safeDownloadFile(file.id, true);
+                        // 用户主动播放资料音乐：高优先级下载（无来源对话，走 downloadFile）
+                        await safeDownloadFile(file.id, true, DL_PRIORITY.USER_ACTIVE);
                     } catch (e) {
                         console.error('Failed to download profile audio:', e);
                     }

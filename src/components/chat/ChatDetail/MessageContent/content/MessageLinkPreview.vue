@@ -10,10 +10,10 @@
             <div v-if="preview.site_name || preview.title || preview.author || preview.description?.text"
                 class="space-y-0.5 px-2.5 py-2">
                 <div v-if="preview.site_name" class="truncate text-xs font-semibold" :style="accentTextStyle">
-                    {{ preview.site_name }}
+                    <GlobalEmojiText :text="preview.site_name" />
                 </div>
-                <div v-if="preview.title" class="text-sm font-semibold leading-5">{{ preview.title }}</div>
-                <div v-if="preview.author" class="truncate text-xs opacity-65">{{ preview.author }}</div>
+                <div v-if="preview.title" class="text-sm font-semibold leading-5"><GlobalEmojiText :text="preview.title" /></div>
+                <div v-if="preview.author" class="truncate text-xs opacity-65"><GlobalEmojiText :text="preview.author" /></div>
                 <div v-if="preview.description?.text"
                     class="preview-description mt-0.5 whitespace-pre-wrap text-sm leading-5">
                     <FormattedTextInline :formattedText="preview.description" :size="18" />
@@ -34,13 +34,13 @@
 
             <div class="min-w-0 flex-1">
                 <div v-if="preview.site_name" class="truncate text-xs font-semibold" :style="accentTextStyle">
-                    {{ preview.site_name }}
+                    <GlobalEmojiText :text="preview.site_name" />
                 </div>
                 <div v-if="preview.title" class="mt-0.5 text-sm font-semibold leading-5">
-                    {{ preview.title }}
+                    <GlobalEmojiText :text="preview.title" />
                 </div>
                 <div v-if="preview.author" class="mt-0.5 truncate text-xs opacity-65">
-                    {{ preview.author }}
+                    <GlobalEmojiText :text="preview.author" />
                 </div>
                 <div v-if="preview.description?.text"
                     class="preview-description mt-1.5 whitespace-pre-wrap text-sm leading-5">
@@ -67,6 +67,7 @@
 import { computed } from 'vue';
 import type { linkPreview } from 'tdlib-types';
 import FormattedTextInline from '../../../FormattedTextInline.vue';
+import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 import LinkPreviewMedia from './LinkPreviewMedia.vue';
 import { useColors, rgbToCss } from '../../../../../store/colors';
 

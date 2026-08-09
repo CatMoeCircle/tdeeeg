@@ -1,6 +1,7 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { file } from "tdlib-types";
 import { tdlibSend, isFileReady, downloadingFiles } from "./tdlib";
+import { DL_PRIORITY } from "./downloadPriority";
 import { useDownloadStore } from "../store/downloads";
 
 /**
@@ -27,7 +28,7 @@ export async function downloadFileUrl(
       const res = await tdlibSend({
         _: "downloadFile",
         file_id: f.id,
-        priority: 1,
+        priority: DL_PRIORITY.THUMBNAIL,
         offset: 0,
         limit: 0,
         synchronous: true,

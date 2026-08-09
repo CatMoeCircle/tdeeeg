@@ -62,12 +62,14 @@
                         }}</span>
                 </template>
             </div>
-            <!-- 进行中进度条（上传用绿色） -->
+            <!-- 进行中进度条（上传用绿色）。
+                用 transform: scaleX 驱动宽度：只触发合成层变换，不走布局/样式重算，
+                相比每次更新 :style.width + transition-all 大幅降低 setAttribute 与重绘开销。 -->
             <div v-if="!item.is_completed"
                 class="mt-1.5 w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div class="h-full rounded-full transition-all duration-300"
+                <div class="h-full rounded-full transition-transform duration-200 ease-linear origin-left"
                     :class="item.is_paused ? 'bg-yellow-400' : isUpload ? 'bg-emerald-500' : 'bg-blue-500'"
-                    :style="{ width: Math.min(100, item.progress * 100) + '%' }">
+                    :style="{ transform: `scaleX(${Math.min(1, item.progress)})` }">
                 </div>
             </div>
         </div>

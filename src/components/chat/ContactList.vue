@@ -16,8 +16,7 @@
                             :accentColorId="user.profile_accent_color_id" />
                     </div>
                     <div class="flex-1 min-w-0">
-                        <h3 class="text-sm font-semibold text-gray-900">{{ user.first_name + ` ` +
-                            user.last_name }}</h3>
+                        <h3 class="text-sm font-semibold text-gray-900"><GlobalEmojiText :text="user.first_name + ' ' + user.last_name" /></h3>
                         <p v-if="user.status._ === 'userStatusOnline'" class="text-xs text-blue-500">
                             在线</p>
                         <p v-else class="text-xs text-gray-400">{{ formatStatus(user.status)
@@ -42,6 +41,7 @@ import { onMounted, ref } from "vue"
 import { useRoute, useRouter } from 'vue-router';
 import { computed } from 'vue';
 import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
+import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 
 import type { user } from 'tdlib-types';
 

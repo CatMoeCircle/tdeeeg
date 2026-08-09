@@ -31,7 +31,7 @@
 
             <!-- 昵称 -->
             <h1 class="mt-3 text-2xl font-bold flex items-center gap-1.5 max-w-full">
-              <span class="truncate">{{ userName }}</span>
+              <span class="truncate"><GlobalEmojiText :text="userName" /></span>
               <CustomEmojiInline v-if="!isDeletedProfile && customEmojiId" :emojiId="customEmojiId" :size="22"
                 fallback-text="😀" />
               <!-- 有自定义 emoji 状态时不显示星星，仅无自定义 emoji 状态时显示 Premium 星星 -->
@@ -91,7 +91,7 @@
 
             <!-- 名称 -->
             <h1 class="mt-3 text-2xl font-bold flex items-center gap-1.5 max-w-full">
-              <span class="truncate">{{ chatTitle }}</span>
+              <span class="truncate"><GlobalEmojiText :text="chatTitle" /></span>
               <VerifiedFilledIcon v-if="isChatVerified" class="text-blue-500 text-lg" title="已验证"
                 :fill-color='["currentColor", "transparent"]' :stroke-color='["currentColor", "#0052d9"]'
                 :stroke-width="1.5" />
@@ -192,8 +192,7 @@
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2">
                   <p class="min-w-0 flex items-center gap-1">
-                    <span class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{{ personalChatTitle
-                    }}</span>
+                    <span class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate"><GlobalEmojiText :text="personalChatTitle" /></span>
                     <Megaphone class="w-3.5 h-3.5 text-gray-400 shrink-0" />
                   </p>
                   <span v-if="channelPostTime" class="ml-auto text-[11px] text-gray-400 shrink-0">{{ channelPostTime
@@ -214,8 +213,7 @@
             class="flex items-start gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
             <InfoIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
             <div class="min-w-0 flex-1">
-              <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">{{ chatDescription
-              }}</p>
+              <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed"><GlobalEmojiText :text="chatDescription" /></p>
               <p class="text-xs text-gray-400 mt-0.5">简介</p>
             </div>
           </div>
@@ -259,7 +257,7 @@
             class="flex items-start gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
             <InfoIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
             <div class="min-w-0 flex-1">
-              <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">{{ bioText }}</p>
+              <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed"><GlobalEmojiText :text="bioText" /></p>
               <p class="text-xs text-gray-400 mt-0.5">个人简介</p>
             </div>
           </div>
@@ -285,7 +283,7 @@
               <!-- 主用户名：黑色，不省略 -->
               <p v-if="primaryUsername"
                 class="text-sm font-bold text-gray-900 dark:text-gray-100 select-all wrap-break-word leading-snug">
-                <CopyableText :text="'@' + primaryUsername" @click.stop />
+                <CopyableText :text="primaryUsername" @click.stop />
               </p>
               <!-- 附加用户名：蓝色高亮，逐个可点击复制 -->
               <p v-if="additionalUsernames.length" class="mt-0.5 text-xs wrap-break-word leading-relaxed">
@@ -393,7 +391,7 @@
         </div>
 
 
-        <!-- ===== 第四部分：底部功能导航栏（动态 / 归档动态 / 礼物） ===== -->
+        <!-- ===== 第四部分：底部功能导航栏（动态 / 归档动态 / 礼物 / 共同群组） ===== -->
         <div v-if="hasBottomContent" class="px-4 mt-5">
           <div
             class="flex items-center gap-1.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-1 w-max">
@@ -409,6 +407,11 @@
             <button v-if="!chatMode" type="button" class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
               :class="activeTab === 'gifts' ? 'bg-teal-500 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'"
               @click="activeTab = 'gifts'">礼物</button>
+            <!-- 共同群组标签仅在查看他人资料页时显示 -->
+            <button v-if="!chatMode && !isSelf" type="button"
+              class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+              :class="activeTab === 'groups' ? 'bg-teal-500 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'"
+              @click="activeTab = 'groups'">共同群组</button>
           </div>
         </div>
 
@@ -470,6 +473,26 @@
                   <Gift v-else class="text-3xl text-gray-400" />
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- 共同群组区（仅查看他人资料页时显示） -->
+          <div v-else-if="activeTab === 'groups' && !chatMode && !isSelf" class="py-4">
+            <p v-if="commonGroupsList.length === 0" class="text-center text-sm text-gray-400 py-6">暂无共同群组</p>
+            <div v-else>
+              <button v-for="gid in commonGroupsList" :key="gid" type="button"
+                class="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                @click="openCommonGroup(gid)">
+                <div class="w-10 h-10 shrink-0">
+                  <Avatar :photo="(getReactiveChat(gid) as any)?.photo" :title="getChatTitle(getReactiveChat(gid))"
+                    :accentColorId="(getReactiveChat(gid) as any)?.profile_accent_color_id ?? (getReactiveChat(gid) as any)?.accent_color_id"
+                    sizeClass="!w-10 !h-10" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+                    {{ getChatTitle(getReactiveChat(gid)) || gid }}</p>
+                </div>
+              </button>
             </div>
           </div>
         </div>
@@ -635,6 +658,7 @@ import { useRoute, useRouter } from "vue-router";
 import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, receivedGift, story, chat, audio as TdAudio, birthdate, file, message, thumbnail, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo } from "tdlib-types";
 import Avatar from "../../components/chat/avatar.vue";
 import CustomEmojiInline from "../../components/common/CustomEmojiInline.vue";
+import GlobalEmojiText from "../../components/common/GlobalEmojiText.vue";
 import MediaViewer from "../../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
 import type { MediaViewerItem } from "../../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
 import { useUserProfileStore } from "../../store/userProfile";
@@ -646,7 +670,7 @@ import { downloadFileUrl } from "../../utils/profileMedia";
 import { formatBusinessHours } from "../../utils/businessHours";
 import { isThumbnailImgRenderable } from "../../utils/thumbnail";
 import { tdlibSend } from "../../utils/tdlib";
-import { ensureChat, getReactiveUser, getReactiveChat, DELETED_ACCOUNT_LABEL } from "../../utils/senderInfo";
+import { ensureChat, getReactiveUser, getReactiveChat, getChatTitle, DELETED_ACCOUNT_LABEL } from "../../utils/senderInfo";
 import { useAudioPlayerStore } from "../../store/audioPlayer";
 import formatTime from "../../utils/formatTime";
 import { openContextMenu, closeContextMenu } from "../../store/contextMenu";
@@ -765,7 +789,8 @@ const hasBottomContent = computed(() => {
   if (chatMode.value) {
     return chatLoading.value || chatActiveStories.value.length > 0;
   }
-  return isLoading.value || activeStoriesList.value.length > 0 || giftsList.value.length > 0;
+  return isLoading.value || activeStoriesList.value.length > 0 || giftsList.value.length > 0
+    || (!isSelf.value && commonGroupsList.value.length > 0);
 });
 
 // ===== 派生属性 =====
@@ -908,7 +933,7 @@ const channelPostTime = computed(() => {
 });
 
 /** 底部导航栏当前选中的标签 */
-const activeTab = ref<'stories' | 'archived' | 'gifts'>('stories');
+const activeTab = ref<'stories' | 'archived' | 'gifts' | 'groups'>('stories');
 
 const businessInfo = computed(() => fullInfo.value?.business_info);
 const businessLocation = computed(() => businessInfo.value?.location);
@@ -1377,6 +1402,11 @@ async function openPersonalChat() {
   router.push({ name: "chat-detail", params: { id: String(personalChatId.value) } });
 }
 
+/** 打开共同群组（跳转到对应聊天） */
+function openCommonGroup(chatId: number) {
+  router.push({ name: "chat-detail", params: { id: String(chatId) } });
+}
+
 async function openUserMusicPlayer() {
   if (!profileAudio.value) return;
   try {
@@ -1793,7 +1823,10 @@ function retry() {
 profileStore.initUserProfileUpdates();
 watch([userId, chatMode], () => {
   if (userId.value > 0 || chatMode.value) {
-    if (!chatMode.value && !isSelf.value && activeTab.value === 'archived') {
+    // 「归档动态」仅自己可见、「共同群组」仅他人可见；切到不适用的人时回到默认标签
+    if (activeTab.value === 'archived' && (chatMode.value || isSelf.value)) {
+      activeTab.value = 'stories';
+    } else if (activeTab.value === 'groups' && (chatMode.value || isSelf.value)) {
       activeTab.value = 'stories';
     }
     loadData();

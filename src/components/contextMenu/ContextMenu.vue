@@ -4,10 +4,11 @@
             <div v-if="visible" ref="menuRoot" class="fixed z-10000" :style="menuStyle"
                 @contextmenu.prevent.stop="onRootContextMenu">
                 <div class="cm-menu" @click.stop="onMenuClick">
-                    <template v-for="(item, idx) in items" :key="item.key ?? idx">
+                    <template v-for="(item, idx) in visibleItems" :key="item.key ?? idx">
+                        <!-- 分隔线：用 v-if / v-else-if / v-else 互斥，避免分隔线项额外渲染一个空的 .cm-item -->
                         <div v-if="item.divider" class="cm-divider"></div>
                         <!-- 子菜单 -->
-                        <div v-if="item.children && item.children.length" class="cm-item-wrap"
+                        <div v-else-if="item.children && visibleChildren(item.children).length" class="cm-item-wrap"
                             :class="{ 'cm-disabled': item.disabled }" @mouseenter="onSubmenuEnter(idx)">
                             <div class="cm-item"
                                 :class="{ 'cm-open': openSubIdx === idx, 'cm-disabled': item.disabled }">
@@ -23,11 +24,14 @@
                                 </span>
                             </div>
                             <Teleport to="body">
-                                <div v-if="openSubIdx === idx" data-cm-submenu class="cm-menu cm-submenu"
-                                    :class="{ 'cm-sub-left': subOpensLeft }" :style="subStyle">
-                                    <template v-for="(child, cIdx) in item.children" :key="child.key ?? cIdx">
+                                <div v-if="openSubIdx === idx && visibleChildren(item.children).length" data-cm-submenu
+                                    class="cm-menu cm-submenu" :class="{ 'cm-sub-left': subOpensLeft }"
+                                    :style="subStyle">
+                                    <template v-for="(child, cIdx) in visibleChildren(item.children)"
+                                        :key="child.key ?? cIdx">
+                                        <!-- 分隔线：只渲染分隔线，不再额外渲染一个空的可 hover .cm-item -->
                                         <div v-if="child.divider" class="cm-divider"></div>
-                                        <div class="cm-item-wrap" :class="{ 'cm-disabled': child.disabled }">
+                                        <div v-else class="cm-item-wrap" :class="{ 'cm-disabled': child.disabled }">
                                             <div class="cm-item"
                                                 :class="{ 'cm-danger': child.danger, 'cm-disabled': child.disabled, 'cm-checked': child.checked }"
                                                 @click="onChildClick(child)">
@@ -39,7 +43,7 @@
                                                     <CheckIcon class="w-4 h-4" />
                                                 </span>
                                                 <span class="cm-shortcut" v-if="child.shortcut">{{ child.shortcut
-                                                    }}</span>
+                                                }}</span>
                                             </div>
                                         </div>
                                     </template>
@@ -69,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { CheckIcon, ChevronRightIcon } from "lucide-vue-next";
 import { visible, x, y, items, closeContextMenu, closeContextMenuDelayed } from "../../store/contextMenu";
 import type { ContextMenuItem } from "./types";
@@ -85,6 +89,28 @@ const subStyle = ref<Record<string, string>>({});
  * 避免直接修改 DOM 内联样式与模板 :style 绑定（原始 x/y）冲突导致菜单被复位出界。
  */
 const menuStyle = ref<Record<string, string>>({ left: '0px', top: '0px' });
+
+/**
+ * 判断一个菜单项是否有可视内容。
+ * 若某菜单保留（预留）了条目槽位但最终没有任何内容（空 label、无图标、
+ * 非分隔线、无子菜单、无勾选态），则跳过渲染，避免留下一个空的、可响应
+ * css hover 高亮的 div。
+ */
+function isItemVisible(item: ContextMenuItem): boolean {
+    if (item.divider) return true;
+    if (item.children && item.children.length) return true;
+    if (item.icon) return true;
+    if (item.checked) return true;
+    return (item.label ?? '').trim().length > 0;
+}
+
+/** 过滤掉空槽位后的可见菜单项（避免渲染空的可 hover div） */
+const visibleItems = computed(() => items.value.filter(isItemVisible));
+
+/** 过滤后的子菜单可见子项 */
+function visibleChildren(children: ContextMenuItem[]): ContextMenuItem[] {
+    return children.filter(isItemVisible);
+}
 
 /** 当前打开的子菜单元素（Teleport 到 body，通过 data 属性查询） */
 function getSubmenuEl(): HTMLElement | null {

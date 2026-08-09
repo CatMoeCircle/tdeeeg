@@ -14,6 +14,7 @@ import { computed, onMounted, watch, ref } from 'vue';
 import type { file, ThumbnailFormat } from 'tdlib-types';
 import { tdlibSend, isFileReady } from '../../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { isThumbnailVideoRenderable } from '../../../../../utils/thumbnail';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 
@@ -65,7 +66,7 @@ async function load() {
     if (downloading.value) return;
     downloading.value = true;
     try {
-        await tdlibSend({ _: 'downloadFile', file_id: f.id, priority: 1, offset: 0, limit: 0, synchronous: true });
+        await tdlibSend({ _: 'downloadFile', file_id: f.id, priority: DL_PRIORITY.THUMBNAIL, offset: 0, limit: 0, synchronous: true });
         const updated = await tdlibSend({ _: 'getFile', file_id: f.id });
         // 仅在完全下载完成（本地路径非空且 is_downloading_completed）时才展示真实图片；
         // 否则保持占位，避免显示残缺/半下载的文件。

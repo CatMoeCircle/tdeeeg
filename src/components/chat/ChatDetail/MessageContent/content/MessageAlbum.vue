@@ -7,7 +7,9 @@
                 @contextmenu.prevent.stop="onTileContextMenu($event, item.index)">
                 <img v-if="item.thumbSrc" :src="item.thumbSrc"
                     class="absolute inset-0 w-full h-full object-cover blur-sm scale-105" />
-                <img v-if="item.mediaSrc && !item.isVideo" :src="item.mediaSrc"
+                <img v-if="item.mediaSrc && !item.isVideo && !item.isGif" :src="item.mediaSrc"
+                    class="absolute inset-0 w-full h-full object-cover" />
+                <video v-if="item.mediaSrc && item.isGif" :src="item.mediaSrc" autoplay loop muted playsinline
                     class="absolute inset-0 w-full h-full object-cover" />
                 <div v-if="!item.thumbSrc && !item.mediaSrc" class="absolute inset-0 flex items-center justify-center">
                     <svg v-if="item.isVideo" class="w-6 h-6 text-gray-400" viewBox="0 0 24 24" fill="none"
@@ -26,6 +28,10 @@
                         </svg>
                     </div>
                 </div>
+                <span v-if="item.isGif"
+                    class="absolute top-1 left-1 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded leading-none select-none pointer-events-none uppercase tracking-wide">
+                    GIF
+                </span>
                 <span v-if="item.isVideo && item.duration > 0"
                     class="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1 rounded leading-none select-none">
                     {{ formatDuration(item.duration) }}
@@ -54,6 +60,7 @@ import { ref, computed, reactive, watch, onMounted, onUnmounted } from 'vue';
 import type { message } from 'tdlib-types';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { tdlibSend, isFileReady, downloadingFiles, safeDownloadFile } from '../../../../../utils/tdlib';
+import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import MessageStatus from './MessageStatus.vue';
 import MessageTextContent from './MessageTextContent.vue';
 import type { MediaViewerItem } from '../MediaViewer.vue';
@@ -197,7 +204,7 @@ function openViewer(idx: number) {
 
 // ---- Layout types ----
 interface LayoutItem {
-    msgId: number; index: number; isVideo: boolean; duration: number;
+    msgId: number; index: number; isVideo: boolean; isGif: boolean; duration: number;
     aspect: number; style: string; thumbSrc: string | null; mediaSrc: string | null;
 }
 
@@ -213,6 +220,10 @@ function getMediaSize(msg: message): MediaGroupSize {
     }
     if (c._ === 'messageVideo') {
         const { width, height } = c.video;
+        return { width, height };
+    }
+    if (c._ === 'messageAnimation') {
+        const { width, height } = c.animation;
         return { width, height };
     }
     return { width: 1, height: 1 };
@@ -241,14 +252,17 @@ function rebuildLayout() {
     for (let mi = 0; mi < layout.items.length; mi++) {
         const msg = msgs[mi];
         const item = layout.items[mi];
-        // 同步注入 base64 minithumbnail 作为占位：相册图片尚未加载出来前，
+        // 同步注入 base64 minithumbnail 作为占位：相册图片/GIF 尚未加载出来前，
         // 立即用 base64 缩略图做模糊占位，避免出现空白的脉冲占位框。
-        if (msg.content._ === 'messagePhoto' && !thumbCache[msg.id]) {
-            const mini = msg.content.photo.minithumbnail?.data;
+        if (!thumbCache[msg.id]) {
+            let mini: string | undefined;
+            if (msg.content._ === 'messagePhoto') mini = msg.content.photo.minithumbnail?.data;
+            else if (msg.content._ === 'messageAnimation') mini = msg.content.animation.minithumbnail?.data;
             if (mini) thumbCache[msg.id] = `data:image/jpeg;base64,${mini}`;
         }
+        const isGif = msg.content._ === 'messageAnimation';
         result.push({
-            msgId: msg.id, index: mi, isVideo: isVideos[mi], duration: durations[mi], aspect: aspects[mi],
+            msgId: msg.id, index: mi, isVideo: isVideos[mi], isGif, duration: durations[mi], aspect: aspects[mi],
             style: `top:${item.y / layout.height * 100}%;left:${item.x / layout.width * 100}%;width:${item.width / layout.width * 100}%;height:${item.height / layout.height * 100}%;`,
             thumbSrc: thumbCache[msg.id] || null, mediaSrc: mediaCache[msg.id] || null,
         });
@@ -305,6 +319,7 @@ loadAlbumFn = async (msgs) => {
         const c = msg.content;
         if (c._ === 'messagePhoto') return await loadPhoto(msg);
         if (c._ === 'messageVideo') return await loadVideo(msg);
+        if (c._ === 'messageAnimation') return await loadAnimation(msg);
         return false;
     });
     if (changed) rebuildLayout();
@@ -337,7 +352,8 @@ async function loadPhoto(msg: message): Promise<boolean> {
         if (isFileReady(f) && !thumbCache[msg.id]) { thumbCache[msg.id] = convertFileSrc(f.local.path); c = true; }
         else if (f.local.can_be_downloaded && !downloadingFiles.has(f.id)) {
             try {
-                await safeDownloadFile(f.id, true);
+                // 相册缩略图：最低档优先级
+                await safeDownloadFile(f.id, true, DL_PRIORITY.THUMBNAIL);
                 const r = await tdlibSend({ _: 'getFile', file_id: f.id });
                 if (isFileReady(r)) { thumbCache[msg.id] = convertFileSrc(r.local.path); c = true; }
             } catch (_) { }
@@ -365,7 +381,8 @@ async function loadPhoto(msg: message): Promise<boolean> {
                 const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
                 await downloadStore.registerDownload(ff.id, fileName, chatTitle, 0, 'photo', thumbCache[msg.id], props.chatId, msg.id, undefined, true);
                 try {
-                    await safeDownloadFile(ff.id, true);
+                    // 自动下载（非用户点击）：默认档优先级
+                    await safeDownloadFile(ff.id, true, DL_PRIORITY.DEFAULT);
                     const r = await tdlibSend({ _: 'getFile', file_id: ff.id });
                     if (isFileReady(r)) { mediaCache[msg.id] = convertFileSrc(r.local.path); c = true; }
                 } catch (_) { }
@@ -416,7 +433,7 @@ async function loadVideo(msg: message): Promise<boolean> {
                     await downloadStore.registerDownload(v.video.id, fileName, chatTitle, v.video.size, 'video', undefined, props.chatId, msg.id, false, false);
                     try {
                         downloadingFiles.add(v.video.id);
-                        const r = await tdlibSend({ _: 'downloadFile', file_id: v.video.id, priority: 1, offset: 0, limit: 0, synchronous: true });
+                        const r = await tdlibSend({ _: 'downloadFile', file_id: v.video.id, priority: DL_PRIORITY.DEFAULT, offset: 0, limit: 0, synchronous: true });
                         if (isFileReady(r)) { mediaCache[msg.id] = convertFileSrc(r.local.path); return true; }
                     } catch (_) { } finally {
                         downloadingFiles.delete(v.video.id);
@@ -446,7 +463,70 @@ async function loadVideo(msg: message): Promise<boolean> {
             await downloadStore.registerDownload(thumbFile.id, `video_cover_${thumbFile.id}.jpg`, chatTitle, 0, 'photo', undefined, undefined, undefined, true, false, 'video_cover');
         }
         try {
-            const r = await tdlibSend({ _: 'downloadFile', file_id: thumbFile.id, priority: 1, offset: 0, limit: 0, synchronous: true });
+            const r = await tdlibSend({ _: 'downloadFile', file_id: thumbFile.id, priority: DL_PRIORITY.THUMBNAIL, offset: 0, limit: 0, synchronous: true });
+            if (isFileReady(r)) { thumbCache[msg.id] = convertFileSrc(r.local.path); c = true; }
+        } catch (_) { }
+    }
+    return c;
+}
+
+/**
+ * 相册内 GIF（messageAnimation）：自动下载遵循「视频」自动下载设置（分类 + maxSize）。
+ * 下载成功后 mediaCache 存本地路径（用 <video> 渲染）。不满足自动下载条件时仅加载缩略图。
+ */
+async function loadAnimation(msg: message): Promise<boolean> {
+    if (msg.content._ !== 'messageAnimation') return false;
+    const downloadStore = useDownloadStore();
+    let c = false;
+    const anim = msg.content.animation;
+    // minithumbnail base64 已由 setAlbumPreview/rebuildLayout 注入占位
+    if (isFileReady(anim.animation) && !mediaCache[msg.id]) {
+        mediaCache[msg.id] = convertFileSrc(anim.animation.local.path);
+        return true;
+    }
+    // 自动下载判断：跟随视频设置
+    if (props.chatId && settings.autoDownload.enabled) {
+        const cs = useChatStore();
+        const chatData = cs.chats[props.chatId] as any;
+        if (chatData) {
+            const category = getChatCategory(chatData);
+            const cfg = settings.autoDownload.videos;
+            if (cfg.enabled && cfg[category]) {
+                const sizeMB = (anim.animation.size || 0) / (1024 * 1024);
+                if (sizeMB <= cfg.maxSize && anim.animation.local.can_be_downloaded && !downloadingFiles.has(anim.animation.id)) {
+                    try {
+                        downloadingFiles.add(anim.animation.id);
+                        const r = await tdlibSend({ _: 'downloadFile', file_id: anim.animation.id, priority: DL_PRIORITY.DEFAULT, offset: 0, limit: 0, synchronous: true });
+                        if (isFileReady(r)) { mediaCache[msg.id] = convertFileSrc(r.local.path); return true; }
+                    } catch (_) { } finally {
+                        downloadingFiles.delete(anim.animation.id);
+                    }
+                }
+            }
+        }
+    }
+    // 不满足自动下载条件，仅加载缩略图（相册用 <img> 渲染，仅取静态位图格式）
+    if (!shouldAutoDownloadPhoto()) {
+        if (anim.minithumbnail?.data && !thumbCache[msg.id]) {
+            thumbCache[msg.id] = `data:image/jpeg;base64,${anim.minithumbnail.data}`;
+            c = true;
+        }
+        return c;
+    }
+    const thumb = anim.thumbnail;
+    if (!thumb || !isThumbnailImgRenderable(thumb.format)) return false;
+    const thumbFile = thumb.file;
+    if (isFileReady(thumbFile) && !thumbCache[msg.id]) {
+        thumbCache[msg.id] = convertFileSrc(thumbFile.local.path);
+        c = true;
+    } else if (thumbFile.local.can_be_downloaded) {
+        // GIF 缩略图属于辅助资源：注册为隐藏的通用下载项，不占用下载管理器可见列表
+        if (thumbFile.id && !downloadingFiles.has(thumbFile.id)) {
+            const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
+            await downloadStore.registerDownload(thumbFile.id, `gif_cover_${thumbFile.id}.jpg`, chatTitle, 0, 'photo', undefined, undefined, undefined, true, false, 'video_cover');
+        }
+        try {
+            const r = await tdlibSend({ _: 'downloadFile', file_id: thumbFile.id, priority: DL_PRIORITY.THUMBNAIL, offset: 0, limit: 0, synchronous: true });
             if (isFileReady(r)) { thumbCache[msg.id] = convertFileSrc(r.local.path); c = true; }
         } catch (_) { }
     }

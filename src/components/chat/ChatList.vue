@@ -150,7 +150,7 @@
                                                 <div class="flex justify-between items-baseline mb-1">
                                                     <h3
                                                         class="text-sm font-semibold text-gray-900 flex items-center gap-1 min-w-0">
-                                                        <span class="truncate">{{ getChatTitle(chat) }}</span>
+                                                        <span class="truncate"><GlobalEmojiText :text="getChatTitle(chat)" /></span>
                                                         <!-- 静音图标 -->
                                                         <BellOffIcon v-if="isChatMuted(chat)"
                                                             class="w-3.5 h-3.5 text-gray-400 shrink-0" />
@@ -183,8 +183,7 @@
                                                                 :photo="senderMiniAvatar(chat)"
                                                                 :title="senderName(chat)" sizeClass="!w-4 !h-4"
                                                                 :radius="avatarRadius" class="shrink-0" />
-                                                            <span class="shrink-0 text-xs text-gray-400">{{
-                                                                senderName(chat) }}：</span>
+                                                            <span class="shrink-0 text-xs text-gray-400"><GlobalEmojiText :text="senderName(chat)" />：</span>
                                                         </template>
                                                         <!-- 图片/视频/相册：正方形缩略图预览（相册最多 3 个），有 caption 时追加文字 -->
                                                         <MessagePreviewMedia v-if="isMediaPreviewMsg(chat.last_message)"
@@ -231,9 +230,7 @@
                                 aria-label="返回">
                                 <ArrowLeftIcon class="w-4 h-4 text-gray-600" />
                             </button>
-                            <span class="text-sm font-medium text-gray-500 truncate">{{
-                                forumChatTitle
-                                }}</span>
+                            <span class="text-sm font-medium text-gray-500 truncate"><GlobalEmojiText :text="forumChatTitle" /></span>
                         </div>
                         <!-- Topic List -->
                         <div class="flex-1 overflow-y-auto custom-scrollbar" v-smooth-wheel>
@@ -272,13 +269,13 @@
                                                 class="w-5 h-5 rounded shrink-0 inline-flex items-center justify-center text-white text-[11px] font-bold"
                                                 :style="{ backgroundColor: topicIconColor(topic.info.icon.color) }">{{
                                                     topicNameInitial(topic.info.name) }}</span>
-                                            <span class="min-w-0 truncate">{{ topic.info.name }}</span>
+                                            <span class="min-w-0 truncate"><GlobalEmojiText :text="topic.info.name" /></span>
                                             <span v-if="topic.info.is_closed"
                                                 class="text-xs text-gray-400 ml-0.5 shrink-0">[已关闭]</span>
                                         </h3>
                                         <span class="text-xs text-gray-400 ml-1 shrink-0">{{
                                             formatTime(topic.last_message?.date)
-                                            }}</span>
+                                        }}</span>
                                     </div>
                                     <!-- 第二排：发送人（迷你头像）+ 消息，复用对话列表的发送人标记 -->
                                     <div class="flex items-center gap-2">
@@ -288,8 +285,7 @@
                                                     v-if="settings.chatList.showSenderMiniAvatar && topicMiniAvatar(topic)"
                                                     :photo="topicMiniAvatar(topic)" :title="topicSender(topic)"
                                                     sizeClass="!w-4 !h-4" :radius="avatarRadius" class="shrink-0" />
-                                                <span class="shrink-0 text-xs text-gray-400">{{
-                                                    topicSender(topic) }}：</span>
+                                                <span class="shrink-0 text-xs text-gray-400"><GlobalEmojiText :text="topicSender(topic)" />：</span>
                                             </template>
                                             <MessagePreviewMedia v-if="isMediaPreviewMsg(topic.last_message)"
                                                 :message="topic.last_message" :chat-id="forumChatId ?? undefined" />
@@ -387,6 +383,7 @@ import {
 } from '../contextMenu/chatActions';
 import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
 import FormattedTextInline from './FormattedTextInline.vue';
+import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 import MessagePreviewMedia from './MessagePreviewMedia.vue';
 import CustomEmojiInline from '../common/CustomEmojiInline.vue';
 import SlidingTabBar from '../common/SlidingTabBar.vue';
@@ -1049,11 +1046,14 @@ function buildFolderMenu(chat: Chat): ContextMenuItem[] {
     for (const folder of folders) {
         const folderId = folder.id;
         const inFolder = isChatInFolder(chat, folderId);
+        // 分组显示名：兼容 chatFolderInfo.name（chatFolderName.text.text）与旧的 title 形态；
+        // 用 || 而非 ??，避免空字符串标题渲染成空项。
+        const name = folder.name?.text?.text || folder.title?.text?.text || `分组 ${folderId}`;
         // 加到分组：列出不在其中的分组
         if (!inFolder) {
             children.push({
                 key: `add-${folderId}`,
-                label: folder.title?.text?.text ?? `分组 ${folderId}`,
+                label: name,
                 icon: FolderPlusIcon,
                 onClick: () => toggleChatInFolder(chatId, folderId, true),
             });
@@ -1062,7 +1062,7 @@ function buildFolderMenu(chat: Chat): ContextMenuItem[] {
             addedOne = true;
             children.push({
                 key: `remove-${folderId}`,
-                label: `从「${folder.title?.text?.text ?? `分组 ${folderId}`}」移出`,
+                label: `从「${name}」移出`,
                 icon: FolderMinusIcon,
                 danger: true,
                 onClick: () => toggleChatInFolder(chatId, folderId, false),

@@ -43,8 +43,7 @@
                                 </div>
                             </div>
                             <div class="min-w-0 flex-1">
-                                <p class="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{{
-                                    chatTitle(chat) }}</p>
+                                <p class="text-sm font-medium text-gray-800 dark:text-gray-200 truncate"><GlobalEmojiText :text="chatTitle(chat)" /></p>
                             </div>
                             <span class="text-xs text-gray-400 shrink-0">{{ chatTypeLabel(chat) }}</span>
                         </button>
@@ -73,6 +72,7 @@
 import { ref, computed, nextTick, watch } from "vue";
 import { XIcon, SearchIcon, BookmarkIcon } from "lucide-vue-next";
 import Avatar from "../chat/avatar.vue";
+import GlobalEmojiText from "../common/GlobalEmojiText.vue";
 import { tdlibSend } from "../../utils/tdlib";
 import { MessagePlugin } from "tdesign-vue-next";
 import { useChatStore } from "../../store/chat";

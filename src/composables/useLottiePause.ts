@@ -1,5 +1,16 @@
 import { onUnmounted, type Ref } from 'vue';
-import type { AnimationItem } from 'lottie-web';
+
+/**
+ * Lottie 播放器的最小可编程控制接口。
+ *
+ * 兼容 lottie-web 的 AnimationItem 与 rlottie-wasm-vue-player 的组件实例，
+ * 二者都提供 play() / pause()（可能还有 stop()）。
+ */
+export interface LottieControl {
+    play(): void;
+    pause(): void;
+    stop?(): void;
+}
 
 interface UseLottiePauseOptions {
     /** 是否在离开视口时暂停，进入视口时恢复。默认 true */
@@ -39,7 +50,7 @@ export function useLottiePause(
         threshold = 0.1,
     } = options;
 
-    let anim: AnimationItem | null = null;
+    let anim: LottieControl | null = null;
     let observer: IntersectionObserver | null = null;
     let inView = true;
     let focused = true;
@@ -60,7 +71,7 @@ export function useLottiePause(
     }
 
     /** 注册（或更新）Lottie 实例，并立即应用一次状态 */
-    function register(a: AnimationItem | null) {
+    function register(a: LottieControl | null) {
         anim = a;
         apply();
     }
@@ -71,14 +82,38 @@ export function useLottiePause(
     }
 
     // ─── 视口观察 ─────────────────────────────────────────────
+    /**
+     * 寻找最近的「可滚动」祖先容器作为观察 root。
+     * IntersectionObserver 默认 root 是窗口视口，不会考虑祖先滚动容器的裁剪，
+     * 导致内层滚动容器内被卷出可视区域的元素仍被判为「相交」——若自定义表情/贴纸
+     * 只是被卷出聊天列表等滚动容器（而非页面视口），Lottie 会继续满帧播放，拖累性能。
+     * 显式把滚动容器设为 root，才能让「被滚动容器卷出屏幕」的动画也正确暂停。
+     */
+    function findScrollRoot(el: HTMLElement): HTMLElement | null {
+        let node = el.parentElement;
+        while (node) {
+            const style = getComputedStyle(node);
+            const oy = style.overflowY;
+            if (
+                (oy === 'auto' || oy === 'scroll' || oy === 'overlay') &&
+                node.scrollHeight > node.clientHeight + 1
+            ) {
+                return node;
+            }
+            node = node.parentElement;
+        }
+        return null;
+    }
+
     function setupObserver(el: HTMLElement) {
         if (!visibility) return;
+        const root = findScrollRoot(el);
         observer = new IntersectionObserver((entries) => {
             const entry = entries[0];
             if (!entry) return;
             inView = entry.isIntersecting;
             apply();
-        }, { threshold });
+        }, { threshold, root });
         observer.observe(el);
     }
 

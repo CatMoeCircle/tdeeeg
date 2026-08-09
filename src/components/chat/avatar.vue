@@ -17,6 +17,7 @@ import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import type { chatPhotoInfo, profilePhoto } from "tdlib-types";
 import { tdlibSend, isFileReady, downloadingFiles } from '../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { DL_PRIORITY } from '../../utils/downloadPriority';
 import { useDownloadStore } from '../../store/downloads';
 import { useColors } from '../../store/colors';
 import { useViewportLoad } from '../../composables/useViewportLoad';
@@ -187,7 +188,7 @@ async function downloadCurrentPhoto(photo: chatPhotoInfo | profilePhoto) {
         const file = await tdlibSend({
             _: "downloadFile",
             file_id: f.id,
-            priority: 1,
+            priority: DL_PRIORITY.THUMBNAIL,
             offset: 0,
             limit: 0,
             synchronous: true,

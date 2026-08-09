@@ -1,11 +1,13 @@
 <template>
-    <div class="min-w-57.5 max-w-[320px] select-text">
+    <div ref="rootEl" class="min-w-57.5 max-w-[320px] select-text">
         <!-- 1. 居中 图标 + 标题 + 奖品 + 获奖说明 -->
         <div class="flex flex-col items-center">
             <MessageStickerContent v-if="stickerContent" :content="stickerContent" :size="112" class="shrink-0" />
             <!-- 无纪念贴纸时，播放本地 party.tgs 抽奖动画（只播一次，点击可重播） -->
-            <div v-else ref="partyLottieRef" class="h-28 w-28 shrink-0 cursor-pointer overflow-hidden"
-                @click="onPartyClick"></div>
+            <RlottiePlayer v-else-if="partyTgsData" ref="partyPlayerRef" :src="partyTgsData"
+                :loop="false" :autoplay="true" :width="partyRenderSize" :height="partyRenderSize"
+                :class="['h-28 w-28 shrink-0 cursor-pointer overflow-hidden', partyHiResClass]"
+                :style="partyHiResStyle" @click="onPartyClick" @load="onPartyLoad"></RlottiePlayer>
             <h3 class="mt-3 text-base font-bold text-gray-900 dark:text-white">获奖者已选出</h3>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ winnersText }}</p>
             <p v-if="prizeDescription" class="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{{
@@ -49,12 +51,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { computed, ref, watch, onMounted, nextTick } from 'vue';
 import type { message, messageGiveaway, messageGiveawayWinners, messageSticker, profilePhoto, sticker, user } from 'tdlib-types';
 import { tdlibSend } from '../../../../../utils/tdlib';
 import { accentColorStyle } from '../../../../../store/colors';
 import { useLottiePause } from '../../../../../composables/useLottiePause';
-import lottie, { type AnimationItem } from 'lottie-web';
+import { useRlottieRenderSize } from '../../../../../composables/useRlottieRenderSize';
+import { RlottiePlayer, type RlottiePlayerInstance } from 'rlottie-wasm-vue-player';
 import * as pako from 'pako';
 import Avatar from '../../../avatar.vue';
 import MessageStickerContent from './MessageStickerContent.vue';
@@ -83,26 +86,31 @@ const numberFormatter = new Intl.NumberFormat('zh-CN');
 const formatCount = (count: number) => numberFormatter.format(count);
 
 /** 本地 party.tgs（抽奖庆祝动画）资源 URL */
-const PARTY_TGS_URL = new URL('../../../../assets/party.tgs', import.meta.url).href;
+const PARTY_TGS_URL = new URL('../../../../../assets/party.tgs', import.meta.url).href;
 
-const partyLottieRef = ref<HTMLElement | null>(null);
-let partyAnim: AnimationItem | null = null;
+const rootEl = ref<HTMLElement | null>(null);
+const partyPlayerRef = ref<RlottiePlayerInstance | null>(null);
+/** 解析后的 party TGS Lottie JSON（字符串形式，作为 RlottiePlayer 的 src） */
+const partyTgsData = ref<string | null>(null);
+
+/** party 动画目标显示边长（100px），配合超采样提升清晰度 */
+const partySize = computed(() => 112);
+/** 超采样渲染尺寸与显示样式（提高 TGS 清晰度） */
+const { renderSize: partyRenderSize, hiResStyle: partyHiResStyle, hiResClass: partyHiResClass } = useRlottieRenderSize(partySize);
 
 /** 统一的 Lottie 暂停/恢复控制器：视口离开、窗口失焦、平滑滚动时暂停 */
-const { register: registerPartyAnim, get: getPartyAnim, setup: setupPartyPause } = useLottiePause(partyLottieRef);
+const { register: registerPartyAnim, get: getPartyAnim, setup: setupPartyPause } = useLottiePause(rootEl);
 
-function destroyPartyAnim() {
-    if (partyAnim) {
-        partyAnim.destroy();
-        partyAnim = null;
-    }
+/** RlottiePlayer 加载完成回调：把实例注册进暂停/恢复控制器 */
+function onPartyLoad() {
+    registerPartyAnim(partyPlayerRef.value);
 }
 
 /** 加载本地 party.tgs（gzipped Lottie JSON），只播一次 */
 async function loadPartyAnimation() {
-    destroyPartyAnim();
-    if (!partyLottieRef.value) return;
     try {
+        // 清空旧数据使 RlottiePlayer 卸载重建
+        partyTgsData.value = null;
         const resp = await fetch(PARTY_TGS_URL);
         const compressed = new Uint8Array(await resp.arrayBuffer());
 
@@ -115,18 +123,8 @@ async function loadPartyAnimation() {
         }
 
         const animData = JSON.parse(jsonStr);
-
-        await nextTick();
-        if (!partyLottieRef.value) return;
-
-        partyAnim = lottie.loadAnimation({
-            container: partyLottieRef.value,
-            renderer: 'svg',
-            loop: false,
-            autoplay: true,
-            animationData: animData,
-        });
-        registerPartyAnim(partyAnim);
+        // RlottiePlayer 的 src 接受 stringified JSON（不以 http / 开头会被当作 JSON 串处理）
+        partyTgsData.value = JSON.stringify(animData);
     } catch (e) {
         console.error('Failed to load party.tgs:', e);
     }
@@ -137,7 +135,7 @@ function onPartyClick() {
     const anim = getPartyAnim();
     if (!anim) return;
     // 若因窗口失焦/离开视口被暂停，重播不受影响
-    anim.stop();
+    anim.stop?.();
     anim.play();
 }
 
@@ -147,13 +145,15 @@ onMounted(() => {
     loadPartyAnimation();
 });
 
-onUnmounted(() => {
-    destroyPartyAnim();
-});
-
 // 贴纸来源变化时（如有/无纪念贴纸）同步刷新 party 动画
 watch(stickerContent, () => {
-    nextTick(() => loadPartyAnimation());
+    // 没有纪念贴纸时才渲染 party 动画；否则卸载并清空
+    if (stickerContent.value) {
+        partyTgsData.value = null;
+        registerPartyAnim(null);
+    } else {
+        nextTick(() => loadPartyAnimation());
+    }
 });
 
 /** 获奖者行样式：按用户主题色生成浅色背景与文字色，不同用户颜色不同 */

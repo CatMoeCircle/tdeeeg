@@ -7,7 +7,7 @@
                 <CustomEmojiInline v-if="String(button.icon_custom_emoji_id || 0) !== '0'"
                     :emojiId="String(button.icon_custom_emoji_id)" :size="18"
                     :fallback-text="button.text.slice(0, 1)" />
-                <span class="min-w-0 whitespace-pre-wrap wrap-break-word text-center">{{ button.text }}</span>
+                <span class="min-w-0 whitespace-pre-wrap wrap-break-word text-center"><GlobalEmojiText :text="button.text" /></span>
             </button>
         </div>
     </div>
@@ -21,7 +21,10 @@ import { MessagePlugin } from 'tdesign-vue-next';
 import type { inlineKeyboardButton, LoginUrlInfo, ButtonStyle } from 'tdlib-types';
 import { tdlibSend } from '../../../../../utils/tdlib';
 import { confirmExternalLink } from '../../../../../store/externalLink';
+import { resolveInternalLink } from '../../../../../utils/openInternalLink';
+import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
+import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 
 const props = defineProps<{
     rows: inlineKeyboardButton[][];
@@ -94,6 +97,20 @@ async function handleClick(button: inlineKeyboardButton, ri: number, bi: number)
 
 async function openButtonUrl(url: string) {
     try {
+        // Telegram 内部链接（t.me / tg://）先在应用内解析跳转
+        if (url.startsWith('https://t.me/') || url.startsWith('https://proxy.t.me/') || url.startsWith('tg://')) {
+            await resolveInternalLink(url, router);
+            return;
+        }
+        // 外部链接：先询问用户是否跳转外部，确认后再用系统浏览器打开
+        if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('mailto:') || url.startsWith('tel:')) {
+            try {
+                await confirmAndOpenExternalLink(url);
+            } catch (e) {
+                /* 用户取消，不跳转 */
+            }
+            return;
+        }
         await openUrl(url);
     } catch (e) {
         console.error('Open inline keyboard URL failed:', e);

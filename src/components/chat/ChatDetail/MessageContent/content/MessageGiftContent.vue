@@ -2,7 +2,7 @@
     <div class="w-80 max-w-[calc(100vw-2rem)] text-center">
         <div class="mb-1.5 inline-flex max-w-full rounded-full bg-white/30  px-3 py-1 text-xs font-medium shadow-sm">
             <span class="truncate">
-                {{ notificationText }}
+                <GlobalEmojiText :text="notificationText" />
             </span>
         </div>
 
@@ -12,10 +12,10 @@
                 <MessageStickerContent :content="stickerContent" :size="176" />
             </div>
             <h3 class="mt-1 text-xl font-semibold leading-tight text-gray-900 dark:text-white">
-                {{ cardTitle }}
+                <GlobalEmojiText :text="cardTitle" />
             </h3>
             <p class="mt-1 text-sm text-gray-700 dark:text-gray-300">
-                {{ profileText }}
+                <GlobalEmojiText :text="profileText" />
             </p>
             <p v-if="content.text.text" class="mt-2 line-clamp-2 text-sm text-gray-600 dark:text-gray-300">
                 “{{ content.text.text }}”
@@ -46,10 +46,10 @@
                             <MessageStickerContent :content="stickerContent" :size="144" />
                         </div>
                         <h2 id="gift-dialog-title" class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
-                            {{ dialogTitle }}
+                            <GlobalEmojiText :text="dialogTitle" />
                         </h2>
                         <p class="mx-auto mt-1 max-w-sm text-sm text-gray-600 dark:text-gray-300">
-                            {{ dialogDescription }}
+                            <GlobalEmojiText :text="dialogDescription" />
                         </p>
 
                         <div
@@ -65,7 +65,7 @@
                                         <Avatar :photo="party?.photo" :title="partyName"
                                             :accent-color-id="party?.accentColorId" />
                                     </div>
-                                    <span class="truncate font-medium">{{ partyName }}</span>
+                                    <span class="truncate font-medium"><GlobalEmojiText :text="partyName" /></span>
                                 </div>
                             </div>
                             <div class="flex min-h-12 border-b border-gray-200 dark:border-gray-600">
@@ -113,6 +113,7 @@ import { tdlibSend } from '../../../../../utils/tdlib';
 import { useUserStore } from '../../../../../store/user';
 import Avatar from '../../../avatar.vue';
 import MessageStickerContent from './MessageStickerContent.vue';
+import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 
 type GiftParty = {
     name: string;

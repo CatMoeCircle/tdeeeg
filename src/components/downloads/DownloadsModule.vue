@@ -184,14 +184,23 @@
                             @item-context-menu="onItemContextMenu" />
                     </div>
 
-                    <!-- 已完成 -->
+                    <!-- 已完成（分页渲染最新一页，避免海量 DOM 拖慢性能） -->
                     <div v-if="store.completedItems.length > 0" class="py-2">
                         <div class="px-4 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wider">
                             已完成
+                            <span class="ml-1 text-[10px] font-normal text-gray-400">{{ store.completedItems.length }}</span>
                         </div>
-                        <DownloadRow v-for="item in store.completedItems" :key="item.file_id" :item="item"
+                        <DownloadRow v-for="item in displayCompletedItems" :key="item.file_id" :item="item"
                             :can-open-in-player="canOpenInPlayer(item)" @dismiss="store.dismissItem"
                             @open-in-player="onCompletedClick" @item-context-menu="onItemContextMenu" />
+                        <!-- 加载更多按钮 -->
+                        <button v-if="completedHasMore" type="button" @click="loadMoreCompleted"
+                            class="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="6 9 12 15 18 9" />
+                            </svg>
+                            显示更多（剩余 {{ store.completedItems.length - displayCompletedItems.length }} 项）
+                        </button>
                     </div>
 
                     <!-- 空状态 -->
@@ -226,7 +235,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { useDownloadStore, type DownloadItem } from "../../store/downloads";
 import { useUploadStore } from "../../store/upload";
@@ -419,6 +428,31 @@ const hiddenAutoPhotosCount = computed(() => hiddenStats.value.autoPhotos);
 
 /** 隐藏（通用资源 + 自动下载图片）的进行中下载总数量 */
 const hiddenActiveCount = computed(() => hiddenStats.value.active);
+
+// ─── 已完成列表分页（性能优化：已完成条目可能非常多，一次性全量渲染会拖慢滚动/重绘） ──
+/** 已完成列表每页渲染的条目数 */
+const COMPLETED_PAGE_SIZE = 30;
+/** 当前已完成列表已渲染的条数上限 */
+const completedLimit = ref(COMPLETED_PAGE_SIZE);
+/** 已完成列表是否还有更多未渲染的条目 */
+const completedHasMore = computed(
+    () => store.completedItems.length > completedLimit.value
+);
+/** 已完成列表实际渲染的条目（仅最新的一页，避免海量 DOM） */
+const displayCompletedItems = computed(() =>
+    store.completedItems.slice(0, completedLimit.value)
+);
+/** 重置已完成分页（例如切换隐藏开关或清除已完成时） */
+watch(
+    () => [store.showHidden, store.showAutoPhotos, store.completedItems.length] as const,
+    () => {
+        completedLimit.value = COMPLETED_PAGE_SIZE;
+    }
+);
+/** 加载下一页已完成条目 */
+function loadMoreCompleted() {
+    completedLimit.value += COMPLETED_PAGE_SIZE;
+}
 
 /** 打开文件所在位置（文件管理器定位） */
 async function revealFile(item: DownloadItem) {

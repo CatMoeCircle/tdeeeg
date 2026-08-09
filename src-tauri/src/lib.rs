@@ -21,6 +21,13 @@ fn set_window_effect(window: tauri::WebviewWindow, effect: String) -> Result<(),
     window.set_effects(effects).map_err(|e| e.to_string())
 }
 
+/// 打开 WebView 开发者工具（Debug 构建默认可用；Release 构建需 tauri 启用 devtools feature）。
+#[tauri::command]
+fn open_devtools(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.open_devtools();
+    Ok(())
+}
+
 /// 用系统「打开方式」对话框选择应用打开文件（Windows 触发 OpenAs_RunDLL）。
 /// 非 Windows 平台退回系统默认程序打开。
 #[tauri::command]
@@ -81,6 +88,7 @@ pub fn run() {
             tdlib::get_system_proxy,
             set_window_effect,
             open_with_dialog,
+            open_devtools,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

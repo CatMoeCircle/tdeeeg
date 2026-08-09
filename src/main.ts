@@ -14,6 +14,7 @@ import { closeContextMenu } from "./store/contextMenu";
 import { initTdlib, waitForAuthorization } from "./init";
 import { registerLoaderStyle, type LoaderStyle } from "./components/common/LoaderIndicator";
 import { settings } from "./store/settings";
+import { initRlottie } from "./utils/rlottiePreload";
 
 // 全局右键处理：
 // - 输入框/可编辑元素/链接等保留原生右键（便于复制粘贴等）
@@ -78,6 +79,10 @@ async function bootstrap() {
     // 随 chunk 按需加载。这里在挂载前提前注册当前生效样式，确保首个 LoaderIndicator
     // 渲染为已定义的自定义元素（避免出现未知元素的空白闪烁）。
     registerLoaderStyle(settings.loadingStyle as LoaderStyle);
+
+    // 预加载 rlottie WASM 运行时（RlottiePlayer 依赖 window.Module / RLottieModule /
+    // RLottieHandler 全局），必须在任何 RlottiePlayer 组件挂载之前完成。
+    await initRlottie();
 
     // 授权态稳定、路由已定位，再渲染 App.vue
     app.mount("#app");

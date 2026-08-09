@@ -58,10 +58,12 @@ const isContacts = computed(() => route.name === 'contacts');
 const isSettings = computed(() => route.name === 'settings'
     || route.name === 'settings-appearance'
     || route.name === 'settings-download'
-    || route.name === 'settings-proxy');
+    || route.name === 'settings-proxy'
+    || route.name === 'settings-debug');
 const isSettingsDetail = computed(() => route.name === 'settings-appearance'
     || route.name === 'settings-download'
-    || route.name === 'settings-proxy');
+    || route.name === 'settings-proxy'
+    || route.name === 'settings-debug');
 const isArchiveSection = computed(() => route.name === 'archived');
 const isProfile = computed(() => route.name === 'user-profile' || route.name === 'chat-profile');
 
@@ -109,7 +111,7 @@ watch(
         }
 
         // 点击设置二级内容时，关闭当前聊天并显示对应设置页面。
-        if (name === 'settings-appearance' || name === 'settings-download' || name === 'settings-proxy') {
+        if (name === 'settings-appearance' || name === 'settings-download' || name === 'settings-proxy' || name === 'settings-debug') {
             closeActiveChat();
             return;
         }
@@ -120,7 +122,7 @@ watch(
             closeActiveChat();
             const prev = previous?.[0];
             if (prev === 'contacts') profileFromSection.value = 'contacts';
-            else if (prev === 'settings' || prev === 'settings-appearance' || prev === 'settings-download' || prev === 'settings-proxy') profileFromSection.value = 'settings';
+            else if (prev === 'settings' || prev === 'settings-appearance' || prev === 'settings-download' || prev === 'settings-proxy' || prev === 'settings-debug') profileFromSection.value = 'settings';
             else profileFromSection.value = 'chats';
             return;
         }

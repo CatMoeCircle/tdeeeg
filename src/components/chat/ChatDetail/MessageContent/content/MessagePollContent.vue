@@ -6,7 +6,7 @@
                 <template v-for="(seg, si) in splitFormattedText(poll.question)" :key="si">
                     <CustomEmojiInline v-if="seg.customEmojiId" :emoji-id="seg.customEmojiId" :size="18"
                         :fallback-text="seg.text" />
-                    <span v-else :class="seg.className">{{ seg.text }}</span>
+                    <GlobalEmojiText v-else :text="seg.text" :size="14" />
                 </template>
             </h3>
         </div>
@@ -17,7 +17,7 @@
             <template v-for="(seg, si) in splitFormattedText(content.description)" :key="si">
                 <CustomEmojiInline v-if="seg.customEmojiId" :emoji-id="seg.customEmojiId" :size="14"
                     :fallback-text="seg.text" />
-                <span v-else :class="seg.className">{{ seg.text }}</span>
+                <GlobalEmojiText v-else :text="seg.text" :size="12" />
             </template>
         </p>
 
@@ -46,7 +46,7 @@
                     <template v-for="(seg, si) in splitFormattedText(option.text)" :key="si">
                         <CustomEmojiInline v-if="seg.customEmojiId" :emoji-id="seg.customEmojiId" :size="18"
                             :fallback-text="seg.text" />
-                        <span v-else :class="seg.className">{{ seg.text }}</span>
+                        <GlobalEmojiText v-else :text="seg.text" :size="14" />
                     </template>
                 </span>
             </div>
@@ -81,7 +81,7 @@
                                 <template v-for="(seg, si) in splitFormattedText(option.text)" :key="si">
                                     <CustomEmojiInline v-if="seg.customEmojiId" :emoji-id="seg.customEmojiId" :size="18"
                                         :fallback-text="seg.text" />
-                                    <span v-else :class="seg.className">{{ seg.text }}</span>
+                                    <GlobalEmojiText v-else :text="seg.text" :size="14" />
                                 </template>
                             </span>
                             <!-- 头像：非匿名且有结果时才有数据 -->
@@ -120,6 +120,7 @@ import type { formattedText, messagePoll, MessageSender, pollOption, textEntity 
 import { MessagePlugin } from 'tdesign-vue-next';
 import { CheckCircleIcon, CheckIcon } from 'lucide-vue-next';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
+import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 import { tdlibSend } from '../../../../../utils/tdlib';
 import {
     ensureSenderLoaded,

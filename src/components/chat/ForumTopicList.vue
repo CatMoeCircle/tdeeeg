@@ -15,7 +15,7 @@
                 </div>
                 <div class="flex flex-col min-w-0">
                     <h2 class="font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight truncate">
-                        {{ chat?.title || '话题' }}
+                        <GlobalEmojiText :text="chat?.title || '话题'" />
                     </h2>
                     <span class="text-xs text-gray-400 truncate">{{ topics.length }} 个话题</span>
                 </div>
@@ -55,14 +55,14 @@
                     <div class="flex-1 min-w-0">
                         <div class="flex justify-between items-baseline mb-0.5">
                             <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
-                                {{ topic.info.name }}
+                                <GlobalEmojiText :text="topic.info.name" />
                                 <span v-if="topic.info.is_closed" class="text-xs text-gray-400 ml-1">[已关闭]</span>
                             </h3>
                             <span class="text-xs text-gray-400 ml-2 shrink-0">{{ formatTime(topic.last_message?.date)
                                 }}</span>
                         </div>
                         <div class="flex items-center gap-2">
-                            <p class="flex-1 min-w-0 text-xs text-gray-500 truncate">{{ getTopicPreview(topic) }}</p>
+                            <p class="flex-1 min-w-0 text-xs text-gray-500 truncate"><GlobalEmojiText :text="getTopicPreview(topic)" /></p>
                             <span v-if="topic.unread_count > 0"
                                 class="shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-blue-500 text-white text-[11px] font-semibold leading-5 text-center">
                                 {{ formatUnreadCount(topic.unread_count) }}
@@ -82,6 +82,7 @@ import { ArrowLeftIcon, MessageCircleIcon } from 'lucide-vue-next';
 import { tdlibSend } from '../../utils/tdlib';
 import type { chat, forumTopic, forumTopics, supergroup } from 'tdlib-types';
 import Avatar from './avatar.vue';
+import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 const route = useRoute();
 const router = useRouter();
 

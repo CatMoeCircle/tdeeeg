@@ -16,8 +16,9 @@
                 <!-- 消息预览 -->
                 <div class="flex-1 min-w-0 flex items-center gap-2">
                     <span class="text-xs font-medium text-blue-500 dark:text-blue-400 shrink-0">顶置消息</span>
-                    <span class="text-sm text-gray-700 dark:text-gray-300 truncate">{{ getMessagePreview(currentPinned)
-                    }}</span>
+                    <span class="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-300">
+                        <GlobalEmojiText :text="getMessagePreview(currentPinned)" :size="14" />
+                    </span>
                 </div>
                 <!-- 展开按钮 -->
                 <button v-if="pinnedMessages.length > 1" @click.stop="expanded = !expanded"
@@ -55,8 +56,9 @@
                                     getMessageSenderName(msg) }}</span>
                                 <span class="text-[10px] text-gray-400">{{ formatPinTime(msg.date) }}</span>
                             </div>
-                            <p class="text-sm text-gray-700 dark:text-gray-300 line-clamp-2 leading-snug">{{
-                                getMessagePreview(msg) }}</p>
+                            <p class="text-sm text-gray-700 dark:text-gray-300 line-clamp-2 leading-snug">
+                                <GlobalEmojiText :text="getMessagePreview(msg)" :size="14" />
+                            </p>
                         </div>
                         <ChevronRightIcon
                             class="shrink-0 w-4 h-4 text-gray-300 dark:text-gray-600 mt-1 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -79,6 +81,7 @@ import { PinIcon, ChevronDownIcon, ChevronRightIcon, XIcon } from 'lucide-vue-ne
 import { tdlibSend } from '../../../utils/tdlib';
 import type { message } from 'tdlib-types';
 import MusicPlayerEntry from '../../audio/MusicPlayerEntry.vue';
+import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
 import { useAudioPlayerStore } from '../../../store/audioPlayer';
 
 const props = defineProps<{

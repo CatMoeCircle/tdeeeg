@@ -6,7 +6,7 @@
             <div class="flex items-center gap-3" v-if="chat">
                 <Avatar :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" />
                 <div class="flex flex-col">
-                    <h2 class="font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight">{{ chat.title }}
+                    <h2 class="font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight"><GlobalEmojiText :text="chat.title" />
                     </h2>
                     <span class="text-xs text-gray-400">{{ getChatStatus() }}</span>
                 </div>
@@ -49,9 +49,7 @@
                     <!-- Sender Name (only for groups/channels and not self) -->
                     <p v-if="!isSelf(msg) && shouldShowSenderName && isFirstInGroup(index)"
                         class="text-xs font-bold mb-1" :class="isSelf(msg) ? 'text-blue-100' : 'text-blue-500'">
-                        {{ getSenderName(msg) }}
-                    </p>
-
+                        <GlobalEmojiText :text="getSenderName(msg)" />
                     <!-- Message Content -->
                     <MessageContent :content="msg.content" />
 
@@ -75,6 +73,7 @@
 import { SearchIcon, MoreHorizontalIcon } from 'lucide-vue-next';
 import MessageInput from './ChatDetail/MessageInput.vue';
 import Avatar from './avatar.vue';
+import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 import MessageContent from './ChatDetail/MessageContent/index.vue';
 import { ref, computed, watch, onMounted, nextTick, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';

@@ -25,7 +25,7 @@
 
                 <!-- 来源名称（peer title）+ 原始作者签名（频道帖子 / 匿名群管），同一行内紧跟 -->
                 <span class="min-w-0 flex items-center gap-0 overflow-hidden whitespace-nowrap">
-                    <span class="min-w-0 max-w-full truncate">{{ name }}</span>
+                    <span class="min-w-0 max-w-full truncate"><GlobalEmojiText :text="name" /></span>
                     <template v-if="originalName">
                         <span class="shrink-0 opacity-80">&nbsp;(</span>
                         <span class="min-w-0 max-w-[45%] shrink truncate">{{ originalName }}</span>
@@ -40,6 +40,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import Avatar from '../../../avatar.vue';
+import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 import type { chatPhotoInfo, profilePhoto } from 'tdlib-types';
 
 const props = defineProps<{

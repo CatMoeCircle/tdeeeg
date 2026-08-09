@@ -12,7 +12,7 @@
                 <div v-else class="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
                 <div class="ml-3">
                     <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                        {{ userProfile ? (userProfile.first_name + ' ' + userProfile.last_name) : '加载中...' }}
+                        <GlobalEmojiText :text="userProfile ? (userProfile.first_name + ' ' + userProfile.last_name) : '加载中...'" />
                     </p>
                     <p class="text-xs text-gray-400">
                         {{ userStatusText }}
@@ -95,11 +95,26 @@
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                 </div>
+
+                <!-- 开发者选项设置入口（连点版本号 5 次解锁后显示） -->
+                <router-link v-if="debugMode" to="/home/settings/debug"
+                    class="flex items-center px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    active-class="bg-blue-50 dark:bg-gray-800 text-blue-600">
+                    <div class="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center mr-3">
+                        <TerminalSquareIcon class="w-5 h-5" />
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">开发者选项</h3>
+                        <p class="text-xs text-gray-500">发送 TDLib 方法, 更新日志, 开发者工具</p>
+                    </div>
+                    <ChevronRightIcon class="w-4 h-4 text-gray-400" />
+                </router-link>
             </div>
         </div>
-        <!-- 版本信息 -->
+        <!-- 版本信息（连点 5 次打开/关闭开发者选项） -->
         <div class="px-4 py-3 border-t border-gray-200 dark:border-gray-800">
-            <p class="text-xs text-gray-400 leading-5 select-text">
+            <p class="text-xs text-gray-400 leading-5 select-text cursor-pointer"
+                :title="debugMode ? '已开启开发者选项（连点 5 次关闭）' : '连点 5 次打开开发者选项'" @click="onVersionClick">
                 {{ appName }} v{{ appVersion }}
             </p>
             <p class="text-xs text-gray-400 leading-5 select-text">
@@ -110,8 +125,9 @@
 </template>
 
 <script setup lang="ts">
-import { PaletteIcon, ChevronRightIcon, GlobeIcon, DatabaseIcon, NetworkIcon, SendIcon } from 'lucide-vue-next';
+import { PaletteIcon, ChevronRightIcon, GlobeIcon, DatabaseIcon, NetworkIcon, SendIcon, TerminalSquare as TerminalSquareIcon } from 'lucide-vue-next';
 import avatar from './avatar.vue';
+import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 import { useUserStore } from '../../store/user';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
@@ -122,6 +138,7 @@ import { tdlibSend } from '../../utils/tdlib';
 import { resolveInternalLink } from '../../utils/openInternalLink';
 import { getVersion } from '@tauri-apps/api/app';
 import packageInfo from '../../../package.json';
+import { debugMode, setDebugMode, setLogUpdates } from '../../store/debug';
 
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
@@ -187,4 +204,26 @@ onMounted(() => {
     loadAppVersion();
     loadTdlibVersion();
 });
+
+/** 连点版本号 5 次打开/关闭开发者选项（防止误触，2s 窗口内不连点则归零） */
+const VERSION_CLICK_THRESHOLD = 5;
+const VERSION_CLICK_WINDOW_MS = 2000;
+let versionClickCount = 0;
+let versionClickTimer: ReturnType<typeof setTimeout> | null = null;
+
+function onVersionClick() {
+    versionClickCount++;
+    if (versionClickTimer) clearTimeout(versionClickTimer);
+    versionClickTimer = setTimeout(() => {
+        versionClickCount = 0;
+    }, VERSION_CLICK_WINDOW_MS);
+    if (versionClickCount < VERSION_CLICK_THRESHOLD) return;
+    // 达到阈值，重置计数并切换调试模式
+    versionClickCount = 0;
+    if (versionClickTimer) { clearTimeout(versionClickTimer); versionClickTimer = null; }
+    setDebugMode(!debugMode.value);
+    if (!debugMode.value) {
+        setLogUpdates(false);
+    }
+}
 </script>

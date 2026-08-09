@@ -26,6 +26,7 @@ import { computed, onBeforeUnmount, reactive, watch } from 'vue';
 import type { file } from 'tdlib-types';
 import { DownloadIcon } from 'lucide-vue-next';
 import { tdlibSend, isFileReady, downloadingFiles, reactiveDownloadingFiles } from '../../../../../utils/tdlib';
+import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { useDownloadStore, type DownloadFileType } from '../../../../../store/downloads';
 import { useChatStore } from '../../../../../store/chat';
 import LoaderIndicator from '../../../../common/LoaderIndicator';
@@ -142,13 +143,13 @@ async function startDownload() {
             props.messageId,
         );
 
+        // 用户手动点击下载：走 addFileToDownloads（持久化下载列表）
         await tdlibSend({
-            _: 'downloadFile',
+            _: 'addFileToDownloads',
             file_id: fid,
-            priority: 1,
-            offset: 0,
-            limit: 0,
-            synchronous: false,
+            chat_id: props.chatId,
+            message_id: props.messageId,
+            priority: DL_PRIORITY.USER_ACTIVE,
         });
         trackProgress();
     } catch (e) {

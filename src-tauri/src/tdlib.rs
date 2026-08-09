@@ -238,13 +238,25 @@ fn build_add_proxy_req(cfg: &ProxyConfig) -> serde_json::Value {
 /// - mode=disabled → disableProxy
 /// - mode=custom → enableProxy(proxy_id)（从代理列表选用已有代理）
 /// - mode=system → 读取系统代理并 addProxy(enable=true)
+///
+/// 注：切换/启用代理后追加 setNetworkType(networkTypeOther) 强制所有网络连接重开，
+/// 确保新代理立即生效（TDLib 文档：调用 setNetworkType 会强制所有连接重新打开，
+/// 用于缓解切换网络/代理后的生效延迟）。
 fn apply_proxy_to_client(send_fn: TdJsonClientSend, client: *mut c_void, cfg: &ProxyConfig) {
-    let request = if cfg.mode == "disabled" {
-        json!({ "@type": "disableProxy" })
+    // 构造要发送的请求序列
+    let requests: Vec<serde_json::Value> = if cfg.mode == "disabled" {
+        vec![json!({ "@type": "disableProxy" })]
     } else if cfg.mode == "custom" {
         match cfg.proxy_id {
-            Some(id) => json!({ "@type": "enableProxy", "proxy_id": id }),
-            None => json!({ "@type": "disableProxy" }),
+            Some(id) => vec![
+                json!({ "@type": "enableProxy", "proxy_id": id }),
+                // 强制重连，使新代理立即生效
+                json!({
+                    "@type": "setNetworkType",
+                    "type": { "@type": "networkTypeOther" }
+                }),
+            ],
+            None => vec![json!({ "@type": "disableProxy" })],
         }
     } else {
         let mut effective = cfg.clone();
@@ -264,10 +276,19 @@ fn apply_proxy_to_client(send_fn: TdJsonClientSend, client: *mut c_void, cfg: &P
                 }
             }
         }
-        build_add_proxy_req(&effective)
+        vec![
+            build_add_proxy_req(&effective),
+            // 强制重连，使新代理立即生效
+            json!({
+                "@type": "setNetworkType",
+                "type": { "@type": "networkTypeOther" }
+            }),
+        ]
     };
-    let req_str = CString::new(request.to_string()).unwrap();
-    unsafe { send_fn(client, req_str.as_ptr()) };
+    for req in requests {
+        let req_str = CString::new(req.to_string()).unwrap();
+        unsafe { send_fn(client, req_str.as_ptr()) };
+    }
 }
 
 /// 保存代理配置并立即应用到已运行的 TDLib 客户端。
@@ -334,6 +355,76 @@ pub fn set_proxy_config(
 }
 
 // --- 初始化 TDLib ---
+
+/// 当前平台的 TDLib 动态库文件名。
+fn tdjson_lib_name() -> &'static str {
+    #[cfg(target_os = "windows")]
+    {
+        "tdjson.dll"
+    }
+    #[cfg(target_os = "macos")]
+    {
+        "libtdjson.dylib"
+    }
+    #[cfg(target_os = "linux")]
+    {
+        "libtdjson.so"
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        "tdjson"
+    }
+}
+
+/// 候选的 TDLib 动态库搜索路径（可执行文件同级 + bin/ 子目录）。
+fn tdjson_candidate_paths(exe_dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let name = tdjson_lib_name();
+    vec![
+        exe_dir.join(name),
+        exe_dir.join("bin").join(name),
+        // macOS .app bundle：Contents/Resources（资源被打包到 Resources 目录时）
+        exe_dir.join("Resources").join(name),
+    ]
+}
+
+/// 在 Linux/macOS 上，先把 TDLib 所在目录中的同名依赖动态库以全局方式加载，
+/// 使 tdjson 加载时能解析到其同目录依赖（libcrypto/libssl/zlib 等）。
+/// Windows 依赖卸载由 SetDllDirectoryW 处理，此处仅处理 unix。
+#[cfg(unix)]
+fn preload_tdjson_dependencies(lib_dir: &std::path::Path, app_handle: &tauri::AppHandle) {
+    // 加载时要让依赖库的符号全局可见，便于别的库链接到它们。
+    // flags: RTLD_LAZY | RTLD_GLOBAL（各平台取值不同，用 cfg 定义）
+    #[cfg(target_os = "macos")]
+    const RTLD_FLAGS: i32 = 0x1 | 0x8; // RTLD_LAZY | RTLD_GLOBAL (macOS)
+    #[cfg(not(target_os = "macos"))]
+    const RTLD_FLAGS: i32 = 0x1 | 0x100; // RTLD_LAZY | RTLD_GLOBAL (Linux/其他)
+
+    use std::os::unix::ffi::OsStrExt;
+
+    let Ok(entries) = std::fs::read_dir(lib_dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        // 跳过 tdjson 本体（稍后单独加载）
+        if path.file_name().and_then(|n| n.to_str()) == Some(tdjson_lib_name()) {
+            continue;
+        }
+        // 加载 libtdjson 依赖的共享库（.so / .dylib）
+        let is_lib = path
+            .extension()
+            .map(|e| e == "so" || e == "dylib")
+            .unwrap_or(false);
+        if is_lib {
+            let _ = app_handle.emit("tdlib-log", format!("Preloading dependency: {:?}", path));
+            // 使用 libloading 的 unix 接口以 RTLD_LAZY | RTLD_GLOBAL 加载，使符号全局可见
+            unsafe {
+                let _ = libloading::os::unix::Library::open(Some(&path), RTLD_FLAGS);
+            }
+        }
+    }
+}
+
 #[tauri::command]
 pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Result<(), String> {
     let mut tdlib_guard = state.tdlib.lock().map_err(|e| e.to_string())?;
@@ -344,20 +435,17 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
 
     println!("Initializing TDLib...");
 
-    // 1. 加载 DLL
+    // 1. 加载动态库
     let exe_path = std::env::current_exe().map_err(|e| e.to_string())?;
     let exe_dir = exe_path.parent().ok_or("Cannot get exe directory")?;
 
-    let possible_paths = vec![
-        exe_dir.join("tdjson.dll"),
-        exe_dir.join("bin").join("tdjson.dll"),
-    ];
+    let possible_paths = tdjson_candidate_paths(exe_dir);
 
     let mut dll_path = possible_paths[0].clone();
     let mut found = false;
 
     for path in &possible_paths {
-        let _ = app_handle.emit("tdlib-log", format!("Checking DLL at: {:?}", path));
+        let _ = app_handle.emit("tdlib-log", format!("Checking library at: {:?}", path));
         if path.exists() {
             dll_path = path.clone();
             found = true;
@@ -365,19 +453,20 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
         }
     }
 
-    println!("Loading DLL from: {:?}", dll_path);
-    let _ = app_handle.emit("tdlib-log", format!("Loading DLL from: {:?}", dll_path));
+    println!("Loading TDLib library from: {:?}", dll_path);
+    let _ = app_handle.emit("tdlib-log", format!("Loading TDLib library from: {:?}", dll_path));
 
     if !found {
         let err_msg = format!(
-            "tdjson.dll not found. Checked paths: {:?}. Please ensure the TDLib dynamic library is placed correctly.",
+            "{} not found. Checked paths: {:?}. Please ensure the TDLib dynamic library is placed correctly.",
+            tdjson_lib_name(),
             possible_paths
         );
         let _ = app_handle.emit("tdlib-init-error", json!({ "message": err_msg }));
         return Err(err_msg);
     }
 
-    // 如果 DLL 在 bin/ 子目录中，将其加入 Windows DLL 搜索路径以加载其依赖
+    // 如果库在 bin/ 子目录中，将其加入 Windows DLL 搜索路径以加载其依赖
     #[cfg(windows)]
     if let Some(parent) = dll_path.parent() {
         if parent != exe_dir {
@@ -400,6 +489,12 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
         }
     }
 
+    // Linux/macOS：先全局加载同目录依赖库，再加载 tdjson 本体
+    #[cfg(unix)]
+    if let Some(parent) = dll_path.parent() {
+        preload_tdjson_dependencies(parent, &app_handle);
+    }
+
     let lib = unsafe {
         Library::new(&dll_path).map_err(|e| {
             let err_msg = format!("Failed to load {}: {}", dll_path.display(), e);
@@ -407,7 +502,7 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
             err_msg
         })?
     };
-    let _ = app_handle.emit("tdlib-log", "DLL loaded successfully");
+    let _ = app_handle.emit("tdlib-log", "TDLib library loaded successfully");
     // 2. 获取函数符号
 
     let client_create: Symbol<TdJsonClientCreate> = unsafe {
@@ -689,9 +784,12 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
 
                         // 处理上传（发送文件）进度。TDLib 在上传文件时同样会推送
                         // updateFile，其中 file.remote 的 is_uploading_active /
-                        // is_uploading_completed / uploaded_size 表示上传状态/进度。
-                        // 仅当 detected 上传标记为 active 或完全上传完成时才处理，
-                        // 避免与下载流程（本地文件）混淆。
+                        // uploaded_size 表示上传状态/进度。
+                        //
+                        // 注意：remote.is_uploading_completed 只表示「远端副本可用」，
+                        // 对任何从服务器下载到本地的文件（如自动下载的图片/视频）也为
+                        // true，因此不能作为上传标识！这里**仅以 is_uploading_active 判定
+                        // 上传**，自动下载的文件其 is_uploading_active 恒为 false，不会误判。
                         if event.get("_").and_then(|v| v.as_str()) == Some("updateFile") {
                             if let Some(file) = event.get("file") {
                                 if let Some(file_id) = file.get("id").and_then(|v| v.as_i64()) {
@@ -699,12 +797,8 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
                                         .pointer("/remote/is_uploading_active")
                                         .and_then(|v| v.as_bool())
                                         .unwrap_or(false);
-                                    let is_up_completed = file
-                                        .pointer("/remote/is_uploading_completed")
-                                        .and_then(|v| v.as_bool())
-                                        .unwrap_or(false);
-                                    // 非上传相关的 updateFile（下载、仅本地文件等）直接跳过
-                                    if is_up_active || is_up_completed {
+                                    // 非上传（下载/仅本地文件）直接跳过
+                                    if is_up_active {
                                         let uploaded_size = file
                                             .pointer("/remote/uploaded_size")
                                             .and_then(|v| v.as_i64())
@@ -719,6 +813,9 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
                                             .unwrap_or(0);
                                         let effective_total =
                                             if total_size > 0 { total_size } else { expected };
+                                        // 已完成 = 已上传大小达到总大小（total 已知时）
+                                        let is_up_completed =
+                                            effective_total > 0 && uploaded_size >= effective_total;
 
                                         // 该文件的来源本地路径（用于去重）
                                         let local_path = file

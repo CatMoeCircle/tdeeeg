@@ -36,6 +36,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { Image as ImageIcon, Play as PlayIcon } from 'lucide-vue-next';
 import type { animation, chatPhoto, file, linkPreview, linkPreviewTypeAlbum, photo, sticker, video, LinkPreviewType } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
+import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { isThumbnailImgRenderable, isThumbnailVideoRenderable } from '../../../../../utils/thumbnail';
 
 const props = defineProps<{
@@ -248,7 +249,7 @@ async function load() {
     if (!downloadingFiles.has(f.id)) {
         downloadingFiles.add(f.id);
         try {
-            await tdlibSend({ _: 'downloadFile', file_id: f.id, priority: 1, offset: 0, limit: 0, synchronous: false });
+            await tdlibSend({ _: 'downloadFile', file_id: f.id, priority: DL_PRIORITY.THUMBNAIL, offset: 0, limit: 0, synchronous: false });
         } catch {
             return;
         } finally {

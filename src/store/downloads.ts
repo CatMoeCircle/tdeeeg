@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { DL_PRIORITY } from "../utils/downloadPriority";
 
 /** 文件类型分类（与 Rust 端 DownloadFileType 对应） */
 export type DownloadFileType =
@@ -408,7 +409,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                     request: { _: "toggleDownloadIsPaused", file_id: fileId, is_paused: false },
                 });
                 await invoke("tdlib_send", {
-                    request: { _: "downloadFile", file_id: fileId, priority: 1, offset: 0, limit: 0, synchronous: false },
+                    request: { _: "downloadFile", file_id: fileId, priority: DL_PRIORITY.USER_ACTIVE, offset: 0, limit: 0, synchronous: false },
                 });
                 items.value[fileId] = { ...items.value[fileId], is_paused: false };
             }

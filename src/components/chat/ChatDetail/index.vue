@@ -65,7 +65,7 @@
                                         class="block w-9 h-9 rounded-full overflow-hidden focus:outline-none"
                                         :class="{ 'cursor-pointer': true }"
                                         @click.stop="openSenderProfile(item.messages[0])"
-                                        :disabled="!senderUserId(item.messages[0])">
+                                        :disabled="!canOpenSenderProfile(item.messages[0])">
                                         <Avatar :photo="getDisplaySenderPhoto(item.messages[0])"
                                             :title="getDisplaySenderName(item.messages[0])"
                                             :accentColorId="getDisplaySenderProfileAccentId(item.messages[0])"
@@ -80,9 +80,11 @@
                                         <p v-if="showSenderDisplayName(item.messages[0])"
                                             class="text-xs font-semibold px-2 pt-2 pb-0.5 flex items-center gap-1.5"
                                             :style="senderNameColor(item.messages[0])">
-                                            <span class="min-w-0 flex-1 truncate">{{
-                                                getDisplaySenderName(item.messages[0])
-                                                }}</span>
+                                            <button type="button"
+                                                :class="['min-w-0 flex-1 truncate text-left', canOpenSenderProfile(item.messages[0]) ? 'cursor-pointer hover:underline' : 'cursor-default']"
+                                                @click.stop="openSenderProfile(item.messages[0])">
+                                                <GlobalEmojiText :text="getDisplaySenderName(item.messages[0])" />
+                                            </button>
                                             <span v-if="getMessageLabel(item.messages[0])"
                                                 class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
                                                 :class="getMessageLabelClass(item.messages[0])">{{
@@ -143,7 +145,7 @@
                                     :class="{ 'invisible': !item.showAvatar }">
                                     <button type="button"
                                         class="block w-9 h-9 rounded-full overflow-hidden focus:outline-none"
-                                        @click.stop="openSenderProfile(item.msg)" :disabled="!senderUserId(item.msg)">
+                                        @click.stop="openSenderProfile(item.msg)" :disabled="!canOpenSenderProfile(item.msg)">
                                         <Avatar :photo="getDisplaySenderPhoto(item.msg)"
                                             :title="getDisplaySenderName(item.msg)"
                                             :accentColorId="getDisplaySenderProfileAccentId(item.msg)"
@@ -168,9 +170,11 @@
                                         <p v-if="showSenderDisplayName(item.msg) && item.isFirstInGroup"
                                             class="text-xs font-semibold m-0.5 flex items-center gap-1.5"
                                             :style="senderNameColor(item.msg)">
-                                            <span class="m-0.5 min-w-0 flex-1 truncate">{{
-                                                getDisplaySenderName(item.msg)
-                                            }}</span>
+                                            <button type="button"
+                                                :class="['m-0.5 min-w-0 flex-1 truncate text-left', canOpenSenderProfile(item.msg) ? 'cursor-pointer hover:underline' : 'cursor-default']"
+                                                @click.stop="openSenderProfile(item.msg)">
+                                                <GlobalEmojiText :text="getDisplaySenderName(item.msg)" />
+                                            </button>
                                             <span v-if="getMessageLabel(item.msg)"
                                                 class="shrink-0 font-normal text-[10px] leading-none px-1.5 py-0.5 rounded-full select-none"
                                                 :class="getMessageLabelClass(item.msg)">{{
@@ -301,7 +305,7 @@
                             <Avatar :photo="chat.photo" :title="chat.title" sizeClass="!w-20 !h-20"
                                 :accentColorId="getChatProfileAccentColorId(chat as any)" />
                         </button>
-                        <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">{{ overlayChatTitle }}</h2>
+                        <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100"><GlobalEmojiText :text="overlayChatTitle" /></h2>
                         <p class="text-sm text-gray-500 mt-1">{{ getChatSubtitle() }}</p>
                     </div>
 
@@ -406,6 +410,7 @@ import MessageAlbum from './MessageContent/content/MessageAlbum.vue';
 import ForwardBanner from './MessageContent/content/ForwardBanner.vue';
 import InlineKeyboard from './MessageContent/content/InlineKeyboard.vue';
 import ChatDetailHeader from './Header.vue';
+import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
 import MediaViewer from './MessageContent/MediaViewer.vue';
 import type { MediaViewerItem } from './MessageContent/MediaViewer.vue';
 import DeleteMessageConfirm from '../../contextMenu/DeleteMessageConfirm.vue';
@@ -482,7 +487,7 @@ import {
     isLinkedChannelMessage as isLinkedChannelMessageOf,
     getMessageLabel as getMessageLabelOf, getMessageLabelClass as getMessageLabelClassOf,
     getDisplayForwardInfo as getDisplayForwardInfoOf,
-    senderUserId as senderUserIdOf, getInlineKeyboard as getInlineKeyboardOf,
+    getInlineKeyboard as getInlineKeyboardOf,
     getDisplayAuthorSignature as getDisplayAuthorSignatureOf,
 } from './composables/messageMeta';
 import type { RoleContext, SelfDeps } from './composables/messageMeta';
@@ -1051,32 +1056,59 @@ const forwardedTargetMessageId = computed(() => {
 });
 
 // ==================== TDLib Updates ====================
+
+/**
+ * 根据消息所属 chat(+topic) 定位应被原地更新的消息数组。
+ *
+ * 实时消息（当前正在渲染的聊天 + 已就绪）返回 `messages.value`（它是响应式的，
+ * 与其缓存条目共享同一引用）；否则（该聊天已被缓存但当前不在渲染，或正在加载切换）
+ * 从模块级 `chatDetailCache` 中取对应的缓存 messages 数组进行原地更新，
+ * 保证缓存里的消息也能持续跟随 update 而刷新，返回该聊天后再恢复时不是陈旧数据。
+ *
+ * @returns 可原地修改的消息数组；未命中任何缓存时返回 `undefined`
+ */
+function findCachedMessagesForChat(chatIdNum: number, topicIdNum?: number | null): message[] | undefined {
+    const isCurrent = chatIdNum === chatId.value;
+    if (isCurrent && isReady.value) {
+        return messages.value;
+    }
+    const entry = chatDetailCache.get(chatDetailCacheKey(chatIdNum, topicIdNum));
+    return entry ? entry.messages : undefined;
+}
+
+/** 判断目标聊天的消息数组是否应补充发送者信息（仅当前渲染中的实时消息需要） */
+function isActiveChatForMessages(chatIdNum: number): boolean {
+    return chatIdNum === chatId.value && isReady.value;
+}
+
 const handleUpdate = async (update: Update) => {
     switch (update._) {
         case 'updateNewMessage': {
-            if (!isReady.value) return;
             const msg = update.message;
-            if (msg.chat_id !== chatId.value) return;
-            if (messages.value.find(m => m.id === msg.id)) return;
+            const targetList = findCachedMessagesForChat(msg.chat_id, msg.topic_id?._ === 'messageTopicForum' ? msg.topic_id.forum_topic_id : 0);
+            if (!targetList) return;
+            if (targetList.find(m => m.id === msg.id)) return;
 
             // 话题模式下只显示属于当前话题的消息
-            if (topicId.value) {
+            if (topicId.value && msg.chat_id === chatId.value) {
                 const msgTopicId = msg.topic_id?._ === 'messageTopicForum' ? msg.topic_id.forum_topic_id : 0;
                 if (msgTopicId !== topicId.value) return;
             }
 
+            const isActive = isActiveChatForMessages(msg.chat_id);
             const senderIsMe =
                 msg.sender_id._ === 'messageSenderUser' &&
                 msg.sender_id.user_id === myId.value;
 
-            const atBottom = isAtBottom();
-            newMessageIds.value.add(msg.id);
-
             // 追加到末尾（最新消息）
-            messages.value.push(msg);
+            targetList.push(msg);
             await fetchSenders([msg]);
             void fetchMemberStatuses([msg]);
 
+            // 仅当是当前正在渲染的聊天时才更新滚动/未读计数等 UI 状态
+            if (!isActive) break;
+            const atBottom = isAtBottom();
+            newMessageIds.value.add(msg.id);
             if (senderIsMe || atBottom) {
                 showScrollButton.value = false;
                 newMessageCount.value = 0;
@@ -1089,15 +1121,26 @@ const handleUpdate = async (update: Update) => {
         }
 
         case 'updateMessageContent': {
-            if (!isReady.value) return;
-            if (update.chat_id !== chatId.value) return;
-            const msg = messages.value.find(m => m.id === update.message_id);
-            if (msg) {
-                // 内容变化（如编辑文本变长）会改变气泡高度，
-                // 若用户停在底部附近则保持贴底，避免底部内容被顶出视口
-                const atBottom = isAtBottom();
-                msg.content = update.new_content;
-                if (atBottom) scrollToBottom();
+            // 先处理当前正在渲染的聊天（含滚动保持）
+            if (update.chat_id === chatId.value) {
+                const msg = messages.value.find(m => m.id === update.message_id);
+                if (msg) {
+                    // 内容变化（如编辑文本变长）会改变气泡高度，
+                    // 若用户停在底部附近则保持贴底，避免底部内容被顶出视口
+                    const atBottom = isAtBottom();
+                    msg.content = update.new_content;
+                    if (atBottom) scrollToBottom();
+                    break;
+                }
+            }
+            // 当前渲染聊天中未找到（或非当前聊天）→ 遍历缓存中的其他条目同步更新
+            for (const [key, entry] of chatDetailCache) {
+                if (!key.startsWith(`${update.chat_id}:`) && key !== String(update.chat_id)) continue;
+                const cachedMsg = entry.messages.find(m => m.id === update.message_id);
+                if (cachedMsg) {
+                    cachedMsg.content = update.new_content;
+                    break;
+                }
             }
             break;
         }
@@ -1136,14 +1179,20 @@ const handleUpdate = async (update: Update) => {
         }
 
         case 'updateDeleteMessages': {
-            if (!isReady.value) return;
-            if (update.chat_id !== chatId.value) return;
             // from_cache=true 的删除是本地缓存的过时标记，不是真实的删除，忽略
             if (update.from_cache) break;
-            const beforeCount = messages.value.length;
-            const filtered = messages.value.filter(m => !update.message_ids.includes(m.id));
-            if (filtered.length !== beforeCount) {
-                applyMessages(filtered);
+            const chatNum = update.chat_id;
+            // 对所有匹配该聊天的缓存条目（含话题）执行删除；当前渲染聊天走中央写入
+            for (const [key, entry] of chatDetailCache) {
+                if (!key.startsWith(`${chatNum}:`) && key !== String(chatNum)) continue;
+                const beforeCount = entry.messages.length;
+                const filtered = entry.messages.filter(m => !update.message_ids.includes(m.id));
+                if (filtered.length === beforeCount) continue;
+                if (chatNum === chatId.value && entry.messages === messages.value) {
+                    applyMessages(filtered);
+                } else {
+                    entry.messages = filtered;
+                }
             }
             break;
         }
@@ -1180,13 +1229,20 @@ const handleUpdate = async (update: Update) => {
         }
 
         case 'updateMessageEdited': {
-            if (update.chat_id !== chatId.value) return;
-            const msg = messages.value.find(m => m.id === update.message_id);
-            if (msg) {
+            // 对所有匹配该聊天的缓存条目（当前渲染聊天走 messages.value）查找并更新
+            for (const [key, entry] of chatDetailCache) {
+                if (!key.startsWith(`${update.chat_id}:`) && key !== String(update.chat_id)) continue;
+                const list = (update.chat_id === chatId.value && entry.messages === messages.value)
+                    ? messages.value
+                    : entry.messages;
+                const msg = list.find(m => m.id === update.message_id);
+                if (!msg) continue;
                 msg.edit_date = update.edit_date;
                 if (update.reply_markup) {
                     (msg as any).reply_markup = update.reply_markup;
                 }
+                // 当前聊天已就地修改，无需继续遍历
+                if (list === messages.value) break;
             }
             break;
         }
@@ -2218,14 +2274,18 @@ function resetState() {
 
 /**
  * 中央写入 messages 的入口：设置 messages.value 并累加版本号，
- * 同时把新数组同步回当前聊天的缓存条目（同一引用），
- * 保证实时更新（push/splice 原地改）与整体替换都回写缓存。
+ * 同时把新数组同步回当前聊天对应的缓存条目。
+ *
+ * 缓存条目按「当前 chatId[:topicId]」派生而非依赖共享的 currentCacheEntry 指针，
+ * 这样在并发加载/多个组件实例共存时，写入不会错落到另一个聊天的缓存里（防止消息互串）。
  */
 function applyMessages(next: message[]) {
     messages.value = next;
     messagesVersion.value++;
-    if (currentCacheEntry) {
-        currentCacheEntry.messages = next;
+    const key = chatDetailCacheKey(chatId.value ?? 0, topicId.value);
+    const entry = chatDetailCache.get(key);
+    if (entry) {
+        entry.messages = next;
     }
 }
 
@@ -2374,12 +2434,18 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
         onClick: () => copyMessageLink(cid!, msg),
     });
 
-    // 分隔线
-    if (!isService) {
+    // —— 置顶 / 取消置顶 ——
+    const canPin = !isService && canPinMessage(msg, cid);
+    // —— 删除（打开精确权限确认弹窗） ——
+    const canDelete = !isService && cid !== undefined && canDeleteMessage(msg, cid);
+
+    // 管理类操作（置顶/删除）：仅在确有至少一项时才插入【分隔线 + 这些项】，
+    // 避免留出悬空的空槽/分隔线。
+    if (canPin || canDelete) {
+        // 分隔线
         items.push({ key: 'divider-1', label: '', divider: true });
 
-        // —— 置顶 / 取消置顶 ——
-        if (canPinMessage(msg, cid)) {
+        if (canPin) {
             items.push({
                 key: 'pin',
                 label: msg.is_pinned ? '取消置顶' : '置顶',
@@ -2390,8 +2456,7 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
             });
         }
 
-        // —— 删除（打开精确权限确认弹窗） ——
-        if (cid !== undefined && canDeleteMessage(msg, cid)) {
+        if (canDelete) {
             items.push({
                 key: 'delete',
                 label: '删除',
@@ -2615,16 +2680,33 @@ const getDisplaySenderPhoto = (msg: message): chatPhotoInfo | profilePhoto | und
 const getDisplaySenderDeleted = (msg: message): boolean =>
     computeDisplaySenderDeleted(msg);
 
-/** 消息发送者的 user_id（仅当发送者为用户时返回，频道/群组等返回 undefined） */
-const senderUserId = (msg: message): number | undefined =>
-    senderUserIdOf(msg);
+/**
+ * 判断消息发送者是否可点击进入资料页。
+ * 支持两类发送者：用户（messageSenderUser）与频道/群组身份（messageSenderChat）。
+ * 马甲身份发送的消息其 sender 可能是频道（messageSenderChat），此时点击也应跳转到对应频道。
+ */
+const canOpenSenderProfile = (msg: message): boolean => {
+    const sid = msg.sender_id;
+    if (!sid) return false;
+    if (sid._ === 'messageSenderUser') return true;
+    if (sid._ === 'messageSenderChat') return true;
+    return false;
+};
 
-/** 点击消息头像 → 打开发送者个人资料页（仅限用户发送者或自己） */
+/**
+ * 点击消息发送者（头像/名称）→ 跳转到对应资料页：
+ * - 用户发送者（messageSenderUser）→ 用户资料页
+ * - 频道/群组身份（messageSenderChat，含马甲发送）→ 频道/群组资料页
+ */
 async function openSenderProfile(msg: message) {
-    const uid = senderUserId(msg);
-    if (!uid) return;
-    // 发送者是自己时也打开自己的资料页
-    router.push({ name: 'user-profile', params: { id: String(uid) } });
+    const sid = msg.sender_id;
+    if (!sid) return;
+    if (sid._ === 'messageSenderUser') {
+        // 发送者是自己时也打开自己的资料页
+        router.push({ name: 'user-profile', params: { id: String(sid.user_id) } });
+    } else if (sid._ === 'messageSenderChat') {
+        router.push({ name: 'chat-profile', params: { id: String(sid.chat_id) } });
+    }
 }
 
 const canNavigateForward = (forwardInfo: messageForwardInfo) =>
@@ -3000,6 +3082,18 @@ const handleScrollToBottom = async () => {
     -moz-user-select: text !important;
     -ms-user-select: text !important;
     user-select: text !important;
+}
+
+/* 正文内的装饰性元素（内嵌时间、代码块头部复制按钮等）仍保持不可选中，
+   覆盖上面 .msg-selectable-text * 的统一开放选择，避免与正文选择混淆。 */
+.messages-scroll [data-bubble-msg-id] .msg-selectable-text .msg-noselect,
+.messages-scroll [data-bubble-msg-id] .msg-selectable-text .msg-noselect *,
+.messages-scroll [data-bubble-msg-id] .msg-noselect,
+.messages-scroll [data-bubble-msg-id] .msg-noselect * {
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
 }
 
 /* Telegram-like bubble style: text should wrap nicely */

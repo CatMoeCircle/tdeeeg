@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import { tdlibSend, isFileReady, downloadingFiles } from '../utils/tdlib';
+import { DL_PRIORITY } from '../utils/downloadPriority';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { sticker, file } from 'tdlib-types';
 import { useDownloadStore } from './downloads';
@@ -21,6 +22,10 @@ export interface CustomEmojiState {
   loadingFile: boolean;
   /** 是否已下载完成 */
   ready: boolean;
+  /** 是否已发起过拉取（getCustomEmojiStickers）。
+   *  与 loadingFile/loadingThumbnail 区分：placeholder 刚创建时 loading 为 true
+   *  但不代表已在拉取，用此标志判断“已真正请求过”以避免重复请求与漏请求。 */
+  fetched: boolean;
 }
 
 /** 全局自定义 emoji 缓存 */
@@ -99,7 +104,7 @@ async function downloadThumbnail(emojiId: string, fileId: number) {
     const result = await tdlibSend({
       _: 'downloadFile',
       file_id: fileId,
-      priority: 2,
+      priority: DL_PRIORITY.THUMBNAIL,
       offset: 0,
       limit: 0,
       synchronous: true,
@@ -128,7 +133,7 @@ async function downloadStickerFile(emojiId: string, fileId: number) {
     const result = await tdlibSend({
       _: 'downloadFile',
       file_id: fileId,
-      priority: 1,
+      priority: DL_PRIORITY.LAZY_VISIBLE,
       offset: 0,
       limit: 0,
       synchronous: true,
@@ -163,6 +168,7 @@ export function useCustomEmoji(emojiId: string | number, fetch = true): CustomEm
       loadingThumbnail: true,
       loadingFile: true,
       ready: false,
+      fetched: false,
     };
     if (fetch) queueFetch(id);
   } else if (fetch && !emojiCache.value[id].sticker && !emojiCache.value[id].filePath) {
@@ -187,15 +193,16 @@ export function requestCustomEmoji(emojiId: string | number): void {
   }
   // 完整贴纸已就绪 → 无需再次拉取/下载（直接用已下载文件，不重复触发 downloadFile）
   if (state.ready && state.filePath) return;
-  // 正在拉取贴纸元数据或正在下载缩略图/主文件 → 幂等，不重复请求
-  if (state.loadingFile || state.loadingThumbnail) return;
-  // 已能显示缩略图但尚未拉取过主文件（或主文件下载失败）：仍补拉取一次以尝试下载完整贴纸
+  // 已发起过拉取（无论是否仍在下载）→ 幂等，不重复请求，避免漏掉首次拉取
+  if (state.fetched) return;
   queueFetch(id);
 }
 
 /** 将 ID 加入批量队列 */
 function queueFetch(id: string) {
   pendingIds.add(id);
+  const st = emojiCache.value[id];
+  if (st) st.fetched = true;
   if (!batchTimer) {
     batchTimer = setTimeout(() => {
       batchTimer = null;

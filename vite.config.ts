@@ -37,11 +37,25 @@ export default defineConfig(async () => ({
     }),
     vueDevTools(),
   ],
+  // 把 .tgs 纳入资源处理：默认 assetsInclude 不含 .tgs，导致
+  // new URL('...party.tgs', import.meta.url) 在打包时不会被 Vite 处理/产出，
+  // 生产环境 URL 指向不存在的文件而加载不出来。
+  assetsInclude: ["**/*.tgs"],
   // 单入口：主应用 index.html
   build: {
     rollupOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
+      },
+      output: {
+        manualChunks: {
+          // rlottie（TGS 动画引擎）体积很大，拆分到独立 chunk，
+          // 避免被内联进 MediaViewer / ChatDetail 等组件 chunk 导致其过大，
+          // 同时便于浏览器长期缓存复用。
+          rlottie: ["rlottie-wasm-vue-player"],
+          // pako 是 rlottie 解压 .tgs 数据时常用的 gzip 库，一并拆出
+          pako: ["pako"],
+        },
       },
     },
   },

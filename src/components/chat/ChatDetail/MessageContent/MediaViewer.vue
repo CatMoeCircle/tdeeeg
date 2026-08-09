@@ -367,6 +367,8 @@ import { save } from '@tauri-apps/plugin-dialog';
 import { MessagePlugin } from 'tdesign-vue-next';
 import type { formattedText } from 'tdlib-types';
 import { tdlibSend, downloadingFiles } from '../../../../utils/tdlib';
+import { DL_PRIORITY } from '../../../../utils/downloadPriority';
+import { settings } from '../../../../store/settings';
 import MessageTextContent from './content/MessageTextContent.vue';
 import LoaderIndicator from '../../../common/LoaderIndicator';
 
@@ -443,7 +445,7 @@ const dragStartPanY = ref(0);
 const videoRef = ref<HTMLVideoElement | null>(null);
 const isVideoPlaying = ref(false);
 const videoMuted = ref(false);
-const videoVolume = ref(0.7);
+const videoVolume = ref(settings.player.mediaVolume);
 const videoCurrent = ref(0);
 const videoDuration = ref(0);
 const videoLoaded = ref(false);
@@ -501,7 +503,14 @@ async function handleViewerVideoDownload() {
             ? useChatStore().chats[item.chatId]?.title || `对话 #${item.chatId}`
             : '';
         useDownloadStore().registerDownload(fileId, fileName, chatTitle, 0, 'video', undefined, item.chatId, item.messageId, false, false);
-        await tdlibSend({ _: 'downloadFile', file_id: fileId, priority: 1, offset: 0, limit: 0, synchronous: false });
+        // 用户手动点击下载：走 addFileToDownloads（持久化下载列表）
+        await tdlibSend({
+            _: 'addFileToDownloads',
+            file_id: fileId,
+            chat_id: item.chatId,
+            message_id: item.messageId,
+            priority: DL_PRIORITY.USER_ACTIVE,
+        });
         // 轮询下载进度
         const timer = setInterval(async () => {
             try {
@@ -940,6 +949,8 @@ function onVolumeChange(e: Event) {
         videoRef.value.muted = val === 0;
         videoMuted.value = val === 0;
     }
+    // 记忆媒体播放器音量，跨会话保留
+    settings.player.mediaVolume = val;
 }
 
 function onVideoTimeUpdate() {

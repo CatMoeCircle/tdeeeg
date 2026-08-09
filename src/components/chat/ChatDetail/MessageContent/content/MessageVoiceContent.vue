@@ -26,6 +26,7 @@ import { ref, computed, watch, onMounted } from 'vue';
 import type { messageVoiceNote, messageVideoNote } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { MicIcon, VideoIcon } from 'lucide-vue-next';
 import MessageTextContent from './MessageTextContent.vue';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
@@ -82,7 +83,7 @@ const downloadFile = async (fileId: number) => {
         const res = await tdlibSend({
             _: "downloadFile",
             file_id: fileId,
-            priority: 1,
+            priority: DL_PRIORITY.DEFAULT,
             offset: 0,
             limit: 0,
             synchronous: true

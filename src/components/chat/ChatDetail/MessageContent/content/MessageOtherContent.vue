@@ -29,8 +29,9 @@
             :message-id="messageId" />
 
         <!-- Dice -->
-        <div v-else-if="content._ === 'messageDice'" class="text-4xl text-center py-2">
-            {{ content.emoji }} {{ content.value }}
+        <div v-else-if="content._ === 'messageDice'" class="text-4xl text-center py-2 flex items-center justify-center gap-3">
+            <GlobalEmojiInline :emoji="content.emoji" :size="36" />
+            <span class="text-4xl">{{ content.value }}</span>
         </div>
 
         <!-- Game -->
@@ -64,6 +65,7 @@ import { computed } from 'vue';
 import type { MessageContent } from 'tdlib-types';
 import { MapPinIcon, PhoneIcon, VideoIcon } from 'lucide-vue-next';
 import MessagePollContent from './MessagePollContent.vue';
+import GlobalEmojiInline from '../../../../common/GlobalEmojiInline.vue';
 
 const props = defineProps<{
     content: MessageContent;

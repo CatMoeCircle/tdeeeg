@@ -43,8 +43,9 @@
                         <span v-else
                             :class="[segment.className, segment.copyable ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
                             @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined">
-                            <SpoilerSpan v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template v-else>{{
-                                segment.text }}</template>
+                            <SpoilerSpan v-if="segment.isSpoiler"><GlobalEmojiText :text="segment.text"
+                                    :size="emojiSize" /></SpoilerSpan><template v-else><GlobalEmojiText :text="segment.text"
+                                    :size="emojiSize" /></template>
                         </span>
                     </template>
                 </template>
@@ -67,10 +68,10 @@
                     class="flex items-center gap-1.5 border-b border-black/10 bg-black/3 pr-1 dark:border-white/10 dark:bg-white/5">
                     <span class="w-0.5 shrink-0 self-stretch rounded-full" :style="accentBarStyle"></span>
                     <span class="min-w-0 flex-1 truncate py-1 text-xs font-semibold" :style="accentTextStyle">{{
-                        group.codeLanguage || 'code'
+                        group.codeLanguage
                         }}</span>
                     <button type="button"
-                        class="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                        class="msg-noselect flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                         @click.stop="copyCodeBlock(group)">
                         <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                             stroke-linecap="round" stroke-linejoin="round">
@@ -106,15 +107,17 @@
                     <span v-else
                         :class="[segment.className, segment.copyable ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
                         @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined">
-                        <SpoilerSpan v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template v-else>{{
-                            segment.text }}</template>
+                        <SpoilerSpan v-if="segment.isSpoiler"><GlobalEmojiText :text="segment.text"
+                                :size="emojiSize" /></SpoilerSpan><template v-else><GlobalEmojiText :text="segment.text"
+                                :size="emojiSize" /></template>
                     </span>
                 </template>
             </template>
         </template>
         <!-- 内嵌时间：float 右对齐，跟随文本末行（参考网页版 time-seal），仅在普通文本消息开启。
-             pt-1 用于在同行的 1.4 行高内垂直居中时间（时间高度小于行高） -->
-        <span v-if="showInlineTime" class="float-right ml-1.5 pt-1 select-none pointer-events-none"
+             pt-1 用于在同行的 1.4 行高内垂直居中时间（时间高度小于行高）
+             msg-noselect：装饰信息，即使正文开放选择也不可被选中复制 -->
+        <span v-if="showInlineTime" class="msg-noselect float-right ml-1.5 pt-1 select-none pointer-events-none"
             :class="timeColorClass">
             <MessageStatus :date="timeDate!" :isOutgoing="timeIsOutgoing === true" :sendingState="timeSendingState"
                 :isRead="timeIsRead" :viewCount="timeViewCount" :authorSignature="timeAuthorSignature" />
@@ -131,6 +134,7 @@ import { resolveInternalLink as resolveInternalLinkUtil } from '../../../../../u
 import { useRouter } from 'vue-router';
 import { MessagePlugin } from 'tdesign-vue-next';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
+import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 import SpoilerSpan from '../spoiler/SpoilerSpan.vue';
 import { useColors, rgbToCss } from '../../../../../store/colors';
 import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';

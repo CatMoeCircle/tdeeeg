@@ -96,6 +96,15 @@ interface Settings {
     /** 自定义模式下选中的代理 ID（来自代理列表 getProxies） */
     selectedProxyId: number | null;
   };
+  /** 播放器设置（跨会话记忆） */
+  player: {
+    /** 音乐播放器音量（0~1），持久化记忆 */
+    musicVolume: number;
+    /** 音乐播放器列表循环模式：none=顺序, one=单曲循环, all=列表循环, shuffle=随机 */
+    musicRepeatMode: "none" | "one" | "all" | "shuffle";
+    /** 媒体播放器（视频查看器）音量（0~1），持久化记忆 */
+    mediaVolume: number;
+  };
 }
 
 const defaultSettings: Settings = {
@@ -152,6 +161,11 @@ const defaultSettings: Settings = {
   proxy: {
     mode: "disabled",
     selectedProxyId: null,
+  },
+  player: {
+    musicVolume: 0.8,
+    musicRepeatMode: "none",
+    mediaVolume: 0.7,
   },
 };
 

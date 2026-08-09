@@ -15,7 +15,8 @@
             <div class="text-xs truncate opacity-70 mt-0.5">
                 <template v-if="status === 'found' && replyData && replyData.mediaType">[{{ replyData.mediaType }}]
                 </template>
-                {{ status === 'found' && replyData ? replyData.text : subText }}
+                <GlobalEmojiText v-if="status === 'found' && replyData" :text="replyData.text" :size="12" />
+                <template v-else>{{ subText }}</template>
             </div>
         </div>
 
@@ -35,6 +36,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { isThumbnailImgRenderable } from '../../../../../utils/thumbnail';
 import { useColors, rgbToCss } from '../../../../../store/colors';
 import { getSenderAccentColorId } from '../../../../../utils/senderInfo';
+import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 
 const props = defineProps<{
     replyTo: messageReplyToMessage;

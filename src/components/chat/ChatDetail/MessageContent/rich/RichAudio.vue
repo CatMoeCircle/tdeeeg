@@ -49,6 +49,7 @@ import type { audio, pageBlockCaption, thumbnail } from 'tdlib-types';
 import { MusicIcon, PauseIcon, PlayIcon } from 'lucide-vue-next';
 import { tdlibSend, isFileReady } from '../../../../../utils/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { isThumbnailImgRenderable } from '../../../../../utils/thumbnail';
 import { useAudioPlayerStore } from '../../../../../store/audioPlayer';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
@@ -174,7 +175,7 @@ async function loadCover() {
             const downloaded = await tdlibSend({
                 _: 'downloadFile',
                 file_id: file.id,
-                priority: 1,
+                priority: DL_PRIORITY.THUMBNAIL,
                 offset: 0,
                 limit: 0,
                 synchronous: true,

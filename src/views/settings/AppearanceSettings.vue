@@ -26,7 +26,7 @@
                                 </div>
                                 <div class="max-w-[70%] bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 px-3 py-2 shadow-sm"
                                     :style="previewBubbleStyle('in', true)">
-                                    <p class="font-semibold text-xs mb-0.5 text-blue-500">{{ userName }}</p>
+                                    <p class="font-semibold text-xs mb-0.5 text-blue-500"><GlobalEmojiText :text="userName" /></p>
                                     <p class="whitespace-pre-wrap" :style="previewTextStyle">这是他人发来的一条消息预览</p>
                                 </div>
                             </div>
@@ -170,7 +170,7 @@
                                                 <component :is="tab.icon" class="w-3.5 h-3.5 shrink-0" />
                                             </span>
                                         </span>
-                                        <span>{{ tab.name }}</span>
+                                        <span><GlobalEmojiText :text="tab.name" /></span>
                                         <!-- 未读计数器：激活分组旁显示（宽度+透明度平滑过渡） -->
                                         <span class="folder-col folder-col-left"
                                             :class="{ open: settings.showFolderUnread && active }">
@@ -364,6 +364,7 @@ import { settings } from '../../store/settings';
 import { useUserStore } from '../../store/user';
 import ChatTypeToggle from '../../components/settings/ChatTypeToggle.vue';
 import Avatar from '../../components/chat/avatar.vue';
+import GlobalEmojiText from '../../components/common/GlobalEmojiText.vue';
 import EditableNumber from '../../components/settings/EditableNumber.vue';
 import LoaderIndicator from '../../components/common/LoaderIndicator';
 import SlidingTabBar from '../../components/common/SlidingTabBar.vue';

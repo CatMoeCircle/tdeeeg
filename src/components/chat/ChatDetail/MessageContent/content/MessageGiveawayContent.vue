@@ -8,9 +8,8 @@
                 <StarIcon v-else class="h-14 w-14 fill-current text-white" />
             </div>
             <h3 class="mt-3 text-base font-bold text-gray-900 dark:text-white">抽奖活动</h3>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ winnersText }}</p>
-            <p v-if="prizeDescription" class="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{{
-                prizeDescription }}</p>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400"><GlobalEmojiText :text="winnersText" /></p>
+            <p v-if="prizeDescription" class="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2"><GlobalEmojiText :text="prizeDescription" /></p>
         </div>
 
         <!-- 参与者 -->
@@ -24,7 +23,7 @@
                         <div class="h-7 w-7 shrink-0 overflow-hidden rounded-full">
                             <Avatar :photo="ch.photo" :title="ch.title" :accent-color-id="ch.accentColorId" />
                         </div>
-                        <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ ch.title }}</span>
+                        <span class="min-w-0 flex-1 truncate text-sm font-medium"><GlobalEmojiText :text="ch.title" /></span>
                     </div>
                 </div>
             </div>
@@ -63,11 +62,11 @@
                         </button>
                         <h2 id="giveaway-dialog-title"
                             class="text-center text-2xl font-semibold text-gray-900 dark:text-white">
-                            {{ dialogTitle }}
+                            <GlobalEmojiText :text="dialogTitle" />
                         </h2>
                         <div class="mt-4 space-y-3 text-sm leading-6 text-gray-700 dark:text-gray-300">
-                            <p>{{ sponsorText }}</p>
-                            <p>{{ selectionText }}</p>
+                            <p><GlobalEmojiText :text="sponsorText" /></p>
+                            <p><GlobalEmojiText :text="selectionText" /></p>
                             <p>您在此抽奖活动中没有中奖。</p>
                         </div>
                         <button type="button"
@@ -91,6 +90,7 @@ import { useChatStore } from '../../../../../store/chat';
 import { accentColorStyle } from '../../../../../store/colors';
 import Avatar from '../../../avatar.vue';
 import MessageStickerContent from './MessageStickerContent.vue';
+import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 
 interface GiveawayChannel {
     id: number;

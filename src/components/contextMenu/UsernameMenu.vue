@@ -40,8 +40,7 @@
                                 :accentColorId="display.accentId" />
                         </div>
                         <div class="flex-1 min-w-0">
-                            <p class="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{{ display.name
-                                }}</p>
+                            <p class="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate"><GlobalEmojiText :text="display.name" /></p>
                             <p class="text-xs text-blue-500 dark:text-blue-400">{{ typeLabel }}</p>
                         </div>
                         <span class="um-go">
@@ -61,6 +60,7 @@ import { useRouter } from "vue-router";
 import { AtSignIcon, GhostIcon, ChevronRightIcon } from "lucide-vue-next";
 import { MessagePlugin } from "tdesign-vue-next";
 import Avatar from "../chat/avatar.vue";
+import GlobalEmojiText from "../common/GlobalEmojiText.vue";
 import {
     visible, loading, errorMessage, username, display,
     usernameMenuPosition, closeUsernameMenu,
