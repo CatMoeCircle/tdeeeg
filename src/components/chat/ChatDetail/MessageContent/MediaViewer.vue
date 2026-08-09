@@ -362,6 +362,8 @@ import type { ContextMenuItem } from '../../../../components/contextMenu/types';
 import { EyeIcon, CornerUpRightIcon, DownloadIcon, FolderOpenIcon, CopyIcon } from 'lucide-vue-next';
 import { invoke } from '@tauri-apps/api/core';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { copyFile } from '@tauri-apps/plugin-fs';
+import { save } from '@tauri-apps/plugin-dialog';
 import { MessagePlugin } from 'tdesign-vue-next';
 import type { formattedText } from 'tdlib-types';
 import { tdlibSend, downloadingFiles } from '../../../../utils/tdlib';
@@ -702,8 +704,6 @@ async function handleSaveAs() {
     const p = currentLocalPath.value;
     if (!p) return;
     try {
-        const { save } = await import('@tauri-apps/plugin-dialog');
-        const { copyFile } = await import('@tauri-apps/plugin-fs');
         // 优先使用 tdlib 提供的文件名称
         const defaultName = currentFileName.value || 'media';
         const dest = await save({

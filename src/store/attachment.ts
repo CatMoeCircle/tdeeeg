@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { stat } from '@tauri-apps/plugin-fs';
+import { remove, stat } from '@tauri-apps/plugin-fs';
 
 /** 附件最终发送类型 */
 export type AttachmentKind = 'photo' | 'video' | 'animation' | 'document' | 'audio';
@@ -103,7 +103,6 @@ export const useAttachmentStore = defineStore('attachment', () => {
 /** 删除临时文件（幂等，失败静默） */
 async function cleanupTempFile(path: string) {
     try {
-        const { remove } = await import('@tauri-apps/plugin-fs');
         await remove(path);
     } catch {
         // 静默

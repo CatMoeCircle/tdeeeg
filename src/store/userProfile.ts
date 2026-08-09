@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { reactive, ref } from "vue";
+import { listen } from "@tauri-apps/api/event";
 import type {
   user,
   userFullInfo,
@@ -229,7 +230,6 @@ export const useUserProfileStore = defineStore("userProfile", () => {
   async function initUserProfileUpdates(): Promise<void> {
     if (updatesInitialized) return;
     updatesInitialized = true;
-    const { listen } = await import("@tauri-apps/api/event");
     await listen<TdlibUpdatePayload>("tdlib-update", (event) => {
       const update = event.payload;
       if (!update || typeof update !== "object") return;

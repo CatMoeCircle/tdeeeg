@@ -43,6 +43,8 @@ import {
     BarChart2Icon, FileIcon, ImageIcon, ListIcon, MusicIcon, PaperclipIcon, UserIcon,
 } from 'lucide-vue-next';
 import { open } from '@tauri-apps/plugin-dialog';
+import { remove, writeFile } from '@tauri-apps/plugin-fs';
+import { tempDir } from '@tauri-apps/api/path';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import {
     canSendAudioRights,
@@ -343,7 +345,6 @@ function timestampName(now: Date, ext = 'png'): string {
 
 async function cleanupTemp(path: string) {
     try {
-        const { remove } = await import('@tauri-apps/plugin-fs');
         await remove(path);
     } catch {
         // 静默
@@ -351,8 +352,6 @@ async function cleanupTemp(path: string) {
 }
 
 async function writeClipboardImage(blob: Blob): Promise<string> {
-    const { tempDir } = await import('@tauri-apps/api/path');
-    const { writeFile } = await import('@tauri-apps/plugin-fs');
     const dir = await tempDir();
     const buf = new Uint8Array(await blob.arrayBuffer());
     const base = timestampName(new Date(), imageExtFromMime(blob.type));
@@ -395,8 +394,6 @@ function onPaste(e: ClipboardEvent) {
 
 async function writeFileItemToTemp(file: File) {
     try {
-        const { tempDir } = await import('@tauri-apps/api/path');
-        const { writeFile } = await import('@tauri-apps/plugin-fs');
         const dir = await tempDir();
         const buf = new Uint8Array(await file.arrayBuffer());
         let target = `${dir}\\${file.name}`.replace(/\/$/, '');
