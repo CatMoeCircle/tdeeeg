@@ -1,6 +1,10 @@
 <template>
     <!-- 外层 div 使用媒体宽度，使图片+文字+时间共享统一宽度（仿 Telegram Web） -->
     <div ref="rootEl" class="message-media relative" :style="mediaContainerStyle">
+        <!-- 回复预览（引用）放在确定宽度的媒体容器内：超长引用文本不会再把外层 w-fit 气泡撑宽 -->
+        <MessageReply v-if="replyTo" :replyTo="replyTo" :isSelf="isSelf" :chatId="chatId" :messageList="messageList"
+            :accentColorId="accentColorId" @jump="onReplyJump" />
+
         <ForwardBanner v-if="forwardInfo" :name="forwardName ?? ''" :original-name="forwardOriginalName"
             :photo="forwardPhoto" :accent-id="forwardAccentId" :navigable="forwardNavigable" :self="isSelf"
             :text-color="forwardTextColor" media-inline @open-source="emit('openForwardSource')" />
@@ -185,7 +189,8 @@
             <!-- 上传进度覆盖层（发送中的图片/视频/动画） -->
             <div v-if="uploading && !contentUploadInfo?.is_completed"
                 class="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/40 pointer-events-none">
-                <LoaderIndicator :progress="mediaUploadProgress > 0 && mediaUploadProgress < 1 ? mediaUploadProgress : undefined"
+                <LoaderIndicator
+                    :progress="mediaUploadProgress > 0 && mediaUploadProgress < 1 ? mediaUploadProgress : undefined"
                     size="40" color="#ffffff" />
                 <span class="mt-2 text-xs text-white leading-none">
                     上传中 {{ Math.min(100, Math.round(mediaUploadProgress * 100)) }}%
@@ -220,7 +225,8 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import type { MessageContent, messageForwardInfo, MessageSendingState, chatPhotoInfo, profilePhoto } from 'tdlib-types';
+import type { MessageContent, messageForwardInfo, MessageSendingState, chatPhotoInfo, profilePhoto, messageReplyToMessage, message } from 'tdlib-types';
+import MessageReply from './MessageReply.vue';
 import { tdlibSend, isFileReady, downloadingFiles, safeDownloadFile } from '../../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { VideoIcon } from 'lucide-vue-next';
@@ -274,11 +280,23 @@ const props = defineProps<{
     messageId?: number;
     /** 发送人显示名称（用于查看器底部信息展示） */
     senderName?: string;
+    /** 回复目标（引用） */
+    replyTo?: messageReplyToMessage;
+    /** 当前消息列表（用于在本列表查找被回复的消息） */
+    messageList?: message[];
+    /** 发送者 accent_color_id（用于回复栏配色） */
+    accentColorId?: number;
 }>();
 
 const emit = defineEmits<{
     openForwardSource: [];
+    jumpToMessage: [messageId: number];
 }>();
+
+/** 点击回复预览：向上冒泡跳转到被回复消息 */
+function onReplyJump(messageId: number) {
+    emit('jumpToMessage', messageId);
+}
 
 const mediaSrc = ref<string | undefined>(undefined);
 const isDownloading = ref(false);

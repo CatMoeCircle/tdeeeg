@@ -77,11 +77,8 @@ declare module 'vue' {
     SpoilerMedia: typeof import('./components/chat/ChatDetail/MessageContent/spoiler/SpoilerMedia.vue')['default']
     SpoilerPhoto: typeof import('./components/chat/ChatDetail/MessageContent/spoiler/SpoilerPhoto.vue')['default']
     SpoilerSpan: typeof import('./components/chat/ChatDetail/MessageContent/spoiler/SpoilerSpan.vue')['default']
-    TButton: typeof import('tdesign-vue-next')['Button']
     TitleBar: typeof import('./components/TitleBar.vue')['default']
     ToggleSwitch: typeof import('./components/settings/ToggleSwitch.vue')['default']
-    TOption: typeof import('tdesign-vue-next')['Option']
-    TSelect: typeof import('tdesign-vue-next')['Select']
     TTooltip: typeof import('tdesign-vue-next')['Tooltip']
     UsernameMenu: typeof import('./components/contextMenu/UsernameMenu.vue')['default']
   }

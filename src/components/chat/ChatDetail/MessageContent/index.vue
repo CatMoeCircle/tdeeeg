@@ -11,9 +11,10 @@
         :messageList="messageList" @jump="onServiceJump" />
 
     <template v-else>
-        <!-- Reply preview -->
-        <MessageReply v-if="replyTo && !isStickerLikeContent" :replyTo="replyTo" :isSelf="isSelf ?? false"
-            :chatId="chatId" :messageList="messageList" :accentColorId="accentColorId" @jump="onJumpToMessage" />
+        <!-- Reply preview（媒体消息的回复预览由 MessageMediaContent 在媒体宽度容器内渲染，避免撑宽 w-fit 气泡） -->
+        <MessageReply v-if="replyTo && !isStickerLikeContent && !isMediaType" :replyTo="replyTo"
+            :isSelf="isSelf ?? false" :chatId="chatId" :messageList="messageList" :accentColorId="accentColorId"
+            @jump="onJumpToMessage" />
 
         <!-- Text messages -->
         <MessageTextContent v-if="content._ === 'messageText'" :formattedText="content.text"
@@ -36,7 +37,9 @@
             :forwardPhoto="forwardPhoto" :forwardAccentId="forwardAccentId" :forwardOriginalName="forwardOriginalName"
             :forwardTextColor="forwardTextColor" :isFirstInGroup="isFirstInGroup" :isLastInGroup="isLastInGroup"
             :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature"
-            :chatId="chatId" :messageId="messageId" :senderName="senderName" @openForwardSource="onOpenForwardSource" />
+            :chatId="chatId" :messageId="messageId" :senderName="senderName" :replyTo="replyTo"
+            :messageList="messageList" :accentColorId="accentColorId" @openForwardSource="onOpenForwardSource"
+            @jumpToMessage="onJumpToMessage" />
 
         <!-- Stickers / animated emoji are rendered without a message bubble.
              回复预览显示在贴纸旁边（小宽度），而非贴纸上方 -->

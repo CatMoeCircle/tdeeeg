@@ -1,5 +1,5 @@
 <template>
-    <div class="flex flex-col h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800">
+    <div class="flex flex-col h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 rounded-tl-xl overflow-hidden">
         <div class="mt-3">
             <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 @click="openMyProfile">
