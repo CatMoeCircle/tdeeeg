@@ -1250,7 +1250,7 @@ const handleUpdate = async (update: Update) => {
                 const beforeCount = entry.messages.length;
                 const filtered = entry.messages.filter(m => !update.message_ids.includes(m.id));
                 if (filtered.length === beforeCount) continue;
-                if (chatNum === chatId.value && entry.messages === messages.value) {
+                if (chatNum === chatId.value && isReady.value) {
                     applyMessages(filtered);
                 } else {
                     entry.messages = filtered;
