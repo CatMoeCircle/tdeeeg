@@ -61,6 +61,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { SearchIcon, XIcon, Star, Trash2 } from 'lucide-vue-next';
 import StickerGroupSection from './StickerGroupSection.vue';
 import { useStickerPicker } from './composables/useStickerPicker';
+import { setProgrammaticScroll } from './composables/useStickerVisibility';
 import { openContextMenu } from '../../../../store/contextMenu';
 import type { ContextMenuItem } from '../../../../components/contextMenu/types';
 import type { sticker } from 'tdlib-types';
@@ -93,6 +94,16 @@ function loadSetFn(setId: string) {
 /** 当前贴纸集选择器高亮的 key */
 const activeSetKey = ref<string | null>(null);
 
+/** 程序化（平滑）跳转结束判定计时器：平滑滚动停顿 ~200ms 视为结束 */
+let progScrollTimer: ReturnType<typeof setTimeout> | null = null;
+function clearProgrammaticScroll() {
+    if (progScrollTimer) clearTimeout(progScrollTimer);
+    progScrollTimer = setTimeout(() => {
+        progScrollTimer = null;
+        setProgrammaticScroll(false);
+    }, 200);
+}
+
 /** 滚动到指定贴纸集分组，并更新顶部选择器高亮 */
 function scrollToSet(g: StickerGroup, index: number) {
     activeSetKey.value = g.key;
@@ -100,10 +111,16 @@ function scrollToSet(g: StickerGroup, index: number) {
     if (!el) return;
     const target = el.querySelector<HTMLElement>(`[data-set-key="${g.key}"]`);
     if (target) {
+        // 平滑跳转途中会沿途扫过中间集，置「程序化跳转」标志，
+        // 让 StickerMediaItem 途中只经过不下载，落地后再补下。
+        setProgrammaticScroll(true);
         // 兼容从选择器第一项（最近/收藏通常在最前）跳转：找到即滚动
         el.scrollTo({ top: target.offsetTop - el.offsetTop - 4, behavior: 'smooth' });
+        clearProgrammaticScroll();
     } else if (index === 0 && el.scrollTop > 0) {
+        setProgrammaticScroll(true);
         el.scrollTo({ top: 0, behavior: 'smooth' });
+        clearProgrammaticScroll();
     }
 }
 
@@ -111,6 +128,8 @@ function scrollToSet(g: StickerGroup, index: number) {
 function onScroll() {
     const el = scrollEl.value;
     if (!el) return;
+    // 程序化跳转进行中：有 scroll 事件即重置停顿计时器
+    if (progScrollTimer) clearProgrammaticScroll();
     // 触底加载下一页（搜索模式）
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 60 && hasQuery.value) {
         sticker.loadMore();
@@ -211,30 +230,8 @@ defineExpose({ activate: () => sticker.activate(), deactivate: () => sticker.dea
     scrollbar-width: none;
 }
 
-/* 骨架屏 */
+/* 骨架屏（加载中，纯色占位，无动画） */
 .sp-skeleton {
     background: rgba(128, 128, 128, 0.14);
-    background-image: linear-gradient(100deg,
-            transparent 20%,
-            rgba(255, 255, 255, 0.35) 40%,
-            transparent 60%);
-    background-size: 200% 100%;
-    animation: sp-shimmer 1.4s infinite;
-}
-
-@keyframes sp-shimmer {
-    0% {
-        background-position: 200% 0;
-    }
-
-    100% {
-        background-position: -200% 0;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .sp-skeleton {
-        animation: none;
-    }
 }
 </style>

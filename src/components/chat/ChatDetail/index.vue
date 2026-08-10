@@ -337,8 +337,8 @@
             </div>
             <MessageInput class="relative z-10" v-model="messageInput" :reply-target="replyTargetInfo" :chat="chat"
                 :users="users" :supergroups="supergroups" :basic-groups="basicGroups" :my-id="myId"
-                :member-status="currentMemberStatus" :is-premium="isMePremium" @clear-reply="clearReply"
-                @send="handleSend" @attach="handleAttach" @attach-file="handleAttachFile"
+                :member-status="currentMemberStatus" :is-premium="isMePremium" :custom-emojis="pendingCustomEmoji"
+                @clear-reply="clearReply" @send="handleSend" @attach="handleAttach" @attach-file="handleAttachFile"
                 @attach-music="handleAttachMusic" @attach-poll="handleAttachPoll"
                 @attach-checklist="handleAttachChecklist" @attach-contact="handleAttachContact"
                 @sticker="openStickerPanel" />
@@ -2206,8 +2206,14 @@ const onScroll = async (e: Event) => {
 };
 
 // ==================== Send Message ====================
-const handleSend = async (text: string) => {
+/**
+ * 发送文本消息。
+ * @param input 发送内容。MessageInput 现在发送的是 formattedText（含实体）；
+ *              为兼容旧调用，仍接受纯字符串（此时无实体）。
+ */
+const handleSend = async (input: string | { _: 'formattedText'; text: string; entities?: textEntity$Input[] }) => {
     if (!chatId.value) return;
+    const text = typeof input === 'string' ? input : input.text;
     const attachStore = useAttachmentStore();
     // 有附件 → 发送附件（文本作为描述）
     if (attachStore.items.length > 0) {
@@ -2234,7 +2240,10 @@ const handleSend = async (text: string) => {
     }
     if (!text.trim()) return;
     try {
-        const entities = buildCustomEmojiEntities(text);
+        // 富文本实体（来自输入框格式菜单）与自定义 emoji 实体会并
+        const richEntities = (typeof input === 'string' ? [] : input.entities || []) as textEntity$Input[];
+        const customEmojiEntities = buildCustomEmojiEntities(text);
+        const entities = [...richEntities, ...customEmojiEntities];
         const params: sendMessage = {
             _: 'sendMessage',
             chat_id: chatId.value!,

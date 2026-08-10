@@ -118,30 +118,8 @@ defineExpose({ activate: () => gifs.activate(), deactivate: () => gifs.deactivat
     overscroll-behavior: contain;
 }
 
-/* 骨架屏 */
+/* 骨架屏（加载中，纯色占位，无动画） */
 .sp-skeleton {
     background: rgba(128, 128, 128, 0.12);
-    background-image: linear-gradient(100deg,
-            transparent 20%,
-            rgba(255, 255, 255, 0.3) 40%,
-            transparent 60%);
-    background-size: 200% 100%;
-    animation: sp-shimmer 1.4s infinite;
-}
-
-@keyframes sp-shimmer {
-    0% {
-        background-position: 200% 0;
-    }
-
-    100% {
-        background-position: -200% 0;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .sp-skeleton {
-        animation: none;
-    }
 }
 </style>

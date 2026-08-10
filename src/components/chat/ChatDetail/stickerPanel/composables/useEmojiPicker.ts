@@ -64,9 +64,14 @@ export function useEmojiPicker(opts: {
     await loadRecentCustom();
     await customData.ensureInstalledCustomEmoji();
     await customData.ensureTrendingCustomEmoji();
-    // 首次加载已安装的每个 set 的完整内容（保证一打开就有内容）——首包全量
-    for (const set of customData.installedSets.value.slice(0, 1)) {
-      await customData.loadSet(set.id);
+    // 注意：这里「不」逐个 loadSet 已安装的自定义 emoji 包。
+    // previously 版本会在此对每个已装包调用 getStickerSet（loadSet），
+    // 若安装了十几~几十个包，一打开表情面板就会排队拉几十个 GetStickerSet，
+    // 造成大量 TDLib 请求与卡顿。
+    // 改为：只加载首个已安装包用于立即有内容，其余由 EmojiDrawer 里
+    // 每个包区块「滚动进入可视区时」再懒加载（loadSet），与贴纸抽屉一致。
+    if (customData.installedSets.value.length > 0) {
+      await customData.loadSet(customData.installedSets.value[0].id);
     }
   }
 

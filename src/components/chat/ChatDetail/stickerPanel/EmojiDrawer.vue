@@ -124,7 +124,7 @@
                     <p class="sp-emoji-block-title">我的表情包</p>
                 </div>
                 <div v-for="set in installedSets" :key="set.id" class="sp-emoji-section"
-                    :data-emoji-block="`custom_${set.id}`">
+                    :data-emoji-block="`custom_${set.id}`" :ref="(el) => registerCustomSetSection(set.id, el)">
                     <div class="flex items-center justify-between">
                         <p class="sp-emoji-block-title">{{ setEmojiTitle(set) }}</p>
                         <button type="button" v-if="!isCustomLoaded(set.id)"
@@ -189,12 +189,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { SearchIcon, XIcon, ClockIcon } from 'lucide-vue-next';
 import GlobalEmojiInline from '../../../common/GlobalEmojiInline.vue';
 import StickerMediaItem from './StickerMediaItem.vue';
 import { useEmojiPicker, type EmojiSearchResult } from './composables/useEmojiPicker';
 import { useLocalEmojiPrefs } from './composables/useLocalEmojiPrefs';
+import { onVisibleOnce, unobserve, setProgrammaticScroll } from './composables/useStickerVisibility';
 import { stickerPanelState } from './types';
 import { tdlibSend } from '../../../../utils/tdlib';
 import type { sticker, animation, stickerSetInfo } from 'tdlib-types';
@@ -308,6 +309,20 @@ function onCatsRowWheel(e: WheelEvent) {
     el.scrollLeft += e.deltaY || e.deltaX;
 }
 
+/** 程序化（平滑）跳转结束判定计时器 */
+let progScrollTimer: ReturnType<typeof setTimeout> | null = null;
+/**
+ * 程序化平滑跳转结束后解除「抑制沿途下载」。采用滚动停顿检测：
+ * 每次收到 scroll 事件重置计时器，停顿 ~200ms 即视为跳转结束。
+ */
+function clearProgrammaticScroll() {
+    if (progScrollTimer) clearTimeout(progScrollTimer);
+    progScrollTimer = setTimeout(() => {
+        progScrollTimer = null;
+        setProgrammaticScroll(false);
+    }, 200);
+}
+
 /** 滚动到指定 emoji 区块，并更新顶部选择器高亮（与贴纸抽屉 scrollToSet 一致） */
 function scrollToBlock(key: string) {
     activeBlock.value = key;
@@ -315,7 +330,11 @@ function scrollToBlock(key: string) {
     if (!el) return;
     const target = el.querySelector<HTMLElement>(`[data-emoji-block="${key}"]`);
     if (target) {
+        // 平滑跳转途中会沿途扫过中间区块，若让途径的 emoji 一并下载会浪费；
+        // 置「程序化跳转」标志，StickerMediaItem 途中不下载，落地后再补下。
+        setProgrammaticScroll(true);
         el.scrollTo({ top: target.offsetTop - el.offsetTop - 4, behavior: 'smooth' });
+        clearProgrammaticScroll();
     }
 }
 
@@ -323,6 +342,8 @@ function scrollToBlock(key: string) {
 function onScroll() {
     const el = scrollEl.value;
     if (!el || hasQuery.value) return;
+    // 程序化跳转进行中：有 scroll 事件即重置停顿计时器
+    if (progScrollTimer) clearProgrammaticScroll();
     let current: string | null = null;
     for (const node of el.querySelectorAll<HTMLElement>('[data-emoji-block]')) {
         if (node.offsetTop - el.scrollTop <= el.clientHeight * 0.4) {
@@ -364,6 +385,44 @@ function previewMore(set: stickerSetInfo): number {
 
 onMounted(() => {
     picker.activate();
+});
+
+// ─── 已安装自定义包「滚动进入可视区」懒加载（与贴纸抽屉 StickerGroupSection 一致）───
+// 打开面板时 useEmojiPicker.activate 只 loadSet 首个包，其余包在对应区块
+// 滚动进入可视区时再拉取完整贴纸，避免一次性对所有已装包发起 GetStickerSet。
+/** 记录每个已安装自定义包区块的根元素 */
+const customSetEls = new Map<string, HTMLElement>();
+/** 已注册过「可视区懒加载」的 set id（避免重复观察） */
+const observedSetIds = new Set<string>();
+
+function registerCustomSetSection(setId: string, el: unknown) {
+    if (!el) { customSetEls.delete(setId); return; }
+    customSetEls.set(setId, el as HTMLElement);
+}
+
+/** 为尚未完整加载的 set 区块注册一次性可视区观察，进入可视区才 loadSet */
+function observeCustomSet(setId: string) {
+    if (isCustomLoaded(setId) || observedSetIds.has(setId)) return;
+    const el = customSetEls.get(setId);
+    if (!el) return;
+    observedSetIds.add(setId);
+    onVisibleOnce(el, () => {
+        customData.loadSet(setId);
+    });
+}
+
+watch(installedSets, async () => {
+    // installedSets 由 activate 异步填充，等待区块渲染后再注册观察器
+    await nextTick();
+    for (const set of installedSets.value) {
+        observeCustomSet(set.id);
+    }
+}, { deep: true });
+
+onBeforeUnmount(() => {
+    for (const el of customSetEls.values()) unobserve(el);
+    customSetEls.clear();
+    observedSetIds.clear();
 });
 
 function onPickResult(r: EmojiSearchResult) {
@@ -552,30 +611,8 @@ defineExpose({ activate: picker.activate, deactivate: picker.deactivate });
     border-top: 1px solid rgba(128, 128, 128, 0.16);
 }
 
-/* 骨架屏（搜索/加载中） */
+/* 骨架屏（加载中，纯色占位，无动画） */
 .sp-skeleton {
     background: rgba(128, 128, 128, 0.14);
-    background-image: linear-gradient(100deg,
-            transparent 20%,
-            rgba(255, 255, 255, 0.35) 40%,
-            transparent 60%);
-    background-size: 200% 100%;
-    animation: sp-shimmer 1.4s infinite;
-}
-
-@keyframes sp-shimmer {
-    0% {
-        background-position: 200% 0;
-    }
-
-    100% {
-        background-position: -200% 0;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .sp-skeleton {
-        animation: none;
-    }
 }
 </style>

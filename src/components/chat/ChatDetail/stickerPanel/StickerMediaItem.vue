@@ -8,7 +8,8 @@
         <!-- WEBP / MPEG4 / GIF：<img> 或 <video>（100% 铺满 + object-fit: cover） -->
         <img v-else-if="format === 'webp' && src" :src="src" :alt="alt" draggable="false" :style="imgStyle"
             loading="lazy" />
-        <video v-else-if="format !== 'tgs' && src" :src="src" autoplay loop muted playsinline :style="imgStyle" />
+        <video v-else-if="format !== 'tgs' && src" ref="videoRef" :src="src" autoplay loop muted playsinline
+            :style="imgStyle" />
         <!-- 占位：骨架屏（不显示进度） -->
         <div v-else class="sp-media-ph" :style="imgStyle"></div>
     </div>
@@ -19,7 +20,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { sticker, animation } from 'tdlib-types';
 import { RlottiePlayer, type RlottiePlayerInstance } from 'rlottie-wasm-vue-player';
 import { useStickerMedia } from './composables/useStickerMedia';
-import { onVisibilityChange, unobserve } from './composables/useStickerVisibility';
+import { onVisibilityChange, unobserve, isProgrammaticScroll, deferLoadWhileScrolling, isWindowActive, onWindowActiveChange } from './composables/useStickerVisibility';
 import { useRlottieRenderSize } from '../../../../composables/useRlottieRenderSize';
 
 const props = withDefaults(defineProps<{
@@ -46,6 +47,8 @@ const emit = defineEmits<{
 
 const rootEl = ref<HTMLElement | null>(null);
 const playerRef = ref<RlottiePlayerInstance | null>(null);
+/** GIF / webm / mp4 视频元素（用于暂停/恢复） */
+const videoRef = ref<HTMLVideoElement | null>(null);
 
 /** 统一媒体源解析（下载 + TGS 肤色替换） */
 const media = useStickerMedia(() => props.item, props.kind, { skinTone: computed(() => props.skinTone) });
@@ -90,19 +93,40 @@ let downloadStarted = false;
 let inView = false;
 
 /**
- * 视口门控（共享观察器）：
+ * 播放门控（共享观察器 + 窗口激活状态）：
  *  - 首次进入可视区才触发下载；
- *  - TGS 仅在「窗口范围内」才播放 —— 进入即 play，离开即 pause，
- *    避免滚出视口后仍持续跑 rAF 渲染循环（rlottie render 是主要性能瓶颈）。
+ *  - TGS / GIF(webm/mp4 video) 仅在「可视区 **且** 窗口激活（聚焦未隐藏）」时播放。
+ *    进入即 play，离开视口或窗口失焦/隐藏即 pause，避免离屏或后台仍跑 rAF/video。
+ *  - 动画 webp（<img>）浏览器无暂停 API，保持现状（Telegram 的 webp 贴纸/emoji 为静态图）。
  */
-function syncPlayback() {
-    const wantPlay = inView && format.value === 'tgs' && !!src.value;
-    if (wantPlay) {
-        playerRef.value?.play();
-    } else {
-        playerRef.value?.pause();
+function applyPlayback() {
+    const windowOk = isWindowActive();
+    // TGS：rlottie 播放器
+    if (format.value === 'tgs') {
+        if (inView && windowOk && !!src.value) {
+            playerRef.value?.play();
+        } else {
+            playerRef.value?.pause();
+        }
+        return;
+    }
+    // GIF / webm / mp4：视频元素可暂停
+    if (format.value !== 'webp') {
+        const v = videoRef.value;
+        if (!v) return;
+        if (inView && windowOk && !!src.value) {
+            try { v.play(); } catch { /* 静默 */ }
+        } else {
+            v.pause();
+        }
     }
 }
+
+function syncPlayback() {
+    applyPlayback();
+}
+
+let unsubscribeWindow: (() => void) | null = null;
 
 onMounted(() => {
     onVisibilityChange(
@@ -112,24 +136,40 @@ onMounted(() => {
             // 可见时测量一次实际格子宽（TGS 渲染尺寸需要真实的宽度）
             if (!cellMeasured) measureCellWidth();
             if (!downloadStarted) {
-                downloadStarted = true;
-                media.download();
+                if (isProgrammaticScroll()) {
+                    // 程序化跳转途中：暂不下载（避免沿途把路过的 emoji 全拉下来），
+                    // 等跳转结束若仍在可视区再补下。
+                    deferLoadWhileScrolling(() => {
+                        if (inView && !downloadStarted) {
+                            downloadStarted = true;
+                            media.download();
+                        }
+                    });
+                } else {
+                    downloadStarted = true;
+                    media.download();
+                }
             }
-            syncPlayback();
+            applyPlayback();
         },
         () => {
             inView = false;
-            // 离开可视区：暂停 TGS，省掉离屏渲染
+            // 离开可视区：暂停 TGS 与 GIF/video，省掉离屏渲染
             playerRef.value?.pause();
+            videoRef.value?.pause();
         },
     );
+    // 窗口失焦/隐藏 → 整体暂停；聚焦/回到窗口 → 恢复仍在可视区的项
+    unsubscribeWindow = onWindowActiveChange(() => applyPlayback());
 });
 
 // 源就绪 / 格式确定后（如首次下载完成）若当前在可视区则补一次播放
 watch(src, () => syncPlayback());
 
-// 清理：卸载后解除观察，避免残留回调
+// 清理：卸载后解除观察与窗口订阅，避免残留回调
 onUnmounted(() => {
+    unsubscribeWindow?.();
+    unsubscribeWindow = null;
     unobserve(rootEl.value);
 });
 
@@ -166,29 +206,7 @@ function onContextMenu(ev: MouseEvent) {
     align-items: center;
     justify-content: center;
     border-radius: 8px;
-    /* 骨架屏：占位灰块 + 微光扫过 */
+    /* 骨架屏：占位灰块（无动画） */
     background: rgba(128, 128, 128, 0.12);
-    background-image: linear-gradient(100deg,
-            transparent 20%,
-            rgba(255, 255, 255, 0.35) 40%,
-            transparent 60%);
-    background-size: 200% 100%;
-    animation: sp-shimmer 1.4s infinite;
-}
-
-@keyframes sp-shimmer {
-    0% {
-        background-position: 200% 0;
-    }
-
-    100% {
-        background-position: -200% 0;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .sp-media-ph {
-        animation: none;
-    }
 }
 </style>

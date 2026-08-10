@@ -93,9 +93,9 @@ const partyPlayerRef = ref<RlottiePlayerInstance | null>(null);
 /** 解析后的 party TGS Lottie JSON（字符串形式，作为 RlottiePlayer 的 src） */
 const partyTgsData = ref<string | null>(null);
 
-/** party 动画目标显示边长（100px），配合超采样提升清晰度 */
+/** party 动画目标显示边长（100px） */
 const partySize = computed(() => 112);
-/** 超采样渲染尺寸与显示样式（提高 TGS 清晰度） */
+/** 超采样渲染尺寸与显示样式（本地 party.tgs，仅抽奖结果弹出时短暂播放；走默认极低质量以保持速率一致） */
 const { renderSize: partyRenderSize, hiResStyle: partyHiResStyle, hiResClass: partyHiResClass } = useRlottieRenderSize(partySize);
 
 /** 统一的 Lottie 暂停/恢复控制器：视口离开、窗口失焦、平滑滚动时暂停 */

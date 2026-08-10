@@ -40,6 +40,20 @@ window.addEventListener("contextmenu", (e) => {
     e.preventDefault();
 });
 
+// 屏蔽开发者工具快捷键：F12，以及 Ctrl/Cmd+Shift+I / J / C（打开 DevTools / 元素审查）。
+// 用户仍可通过「开发者选项 → 打开开发者工具」按钮主动打开（Rust open_devtools）。
+window.addEventListener("keydown", (e) => {
+    const key = e.key.toLowerCase();
+    const shortcut = e.key === "F12" ||
+        (key === "i" && e.shiftKey && (e.ctrlKey || e.metaKey)) ||
+        (key === "j" && e.shiftKey && (e.ctrlKey || e.metaKey)) ||
+        (key === "c" && e.shiftKey && (e.ctrlKey || e.metaKey));
+    if (shortcut) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+});
+
 const app = createApp(App);
 const pinia = createPinia();
 

@@ -10,7 +10,7 @@
         :autoplay="true" :width="emojiRenderSize" :height="emojiRenderSize" :class="emojiHiResClass"
         :style="emojiHiResStyle" @load="onAnimLoad" />
       <!-- WEBM video -->
-      <video v-else-if="emojiFormat === 'webm'" :src="state.filePath" autoplay loop muted playsinline
+      <video v-else-if="emojiFormat === 'webm'" ref="videoRef" :src="state.filePath" autoplay loop muted playsinline
         class="w-full h-full object-contain" />
     </template>
     <!-- 缩略图预览（模糊） -->
@@ -44,17 +44,22 @@ const props = defineProps<{
 }>();
 
 const size = computed(() => props.size || 22);
-/** 超采样渲染尺寸与显示样式（提高 TGS 清晰度） */
+/**
+ * 自定义 emoji（消息文本内联 / 聊天列表 / 对话文件夹等）→ 极低质量渲染。
+ * 用默认超采样倍率 1：此类 emoji 出现数量极大，务必保证显示速率一致、不掉帧。
+ */
 const { renderSize: emojiRenderSize, hiResStyle: emojiHiResStyle, hiResClass: emojiHiResClass } = useRlottieRenderSize(size);
 const rootEl = ref<HTMLElement | null>(null);
 // 创建状态但不立即拉取下载；进入视口后由 requestCustomEmoji 触发（视口懒加载）
 const state = useCustomEmoji(props.emojiId, false);
 const playerRef = ref<RlottiePlayerInstance | null>(null);
+/** WEBM/GIF 视频元素（受同一窗口/视口暂停门控） */
+const videoRef = ref<HTMLVideoElement | null>(null);
 /** 解析后的 TGS Lottie JSON（字符串形式，作为 RlottiePlayer 的 src） */
 const tgsData = ref<string | null>(null);
 
 /** 统一的 Lottie 暂停/恢复控制器：视口离开、窗口失焦、平滑滚动时暂停 */
-const { register: registerAnim, setup: setupPause } = useLottiePause(rootEl);
+const { register: registerAnim, registerVideo, setup: setupPause } = useLottiePause(rootEl);
 
 /** 检测贴纸格式 */
 const emojiFormat = computed(() => {
@@ -107,6 +112,11 @@ watch([() => state.ready, () => state.sticker?.sticker?.local?.path, emojiFormat
       registerAnim(null);
     }
   }, { immediate: true });
+
+// WEBM 视频：等 DOM 渲染出 <video> 后注册进窗口/视口暂停门控
+watch([emojiFormat, () => state.ready], () => {
+  registerVideo(emojiFormat.value === 'webm' ? videoRef.value : null);
+}, { flush: 'post' });
 
 // 视口门控：进入视口才拉取/下载自定义 emoji；未进入显示 fallback 文本或骨架。
 const { start: startViewportLoad } = useViewportLoad(rootEl, () => {

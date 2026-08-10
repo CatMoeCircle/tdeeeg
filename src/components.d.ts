@@ -86,8 +86,11 @@ declare module 'vue' {
     StickerMediaItem: typeof import('./components/chat/ChatDetail/stickerPanel/StickerMediaItem.vue')['default']
     StickerPanel: typeof import('./components/chat/ChatDetail/stickerPanel/StickerPanel.vue')['default']
     StickerSetItem: typeof import('./components/chat/ChatDetail/stickerPanel/StickerSetItem.vue')['default']
+    TButton: typeof import('tdesign-vue-next')['Button']
     TitleBar: typeof import('./components/TitleBar.vue')['default']
     ToggleSwitch: typeof import('./components/settings/ToggleSwitch.vue')['default']
+    TOption: typeof import('tdesign-vue-next')['Option']
+    TSelect: typeof import('tdesign-vue-next')['Select']
     TTooltip: typeof import('tdesign-vue-next')['Tooltip']
     UsernameMenu: typeof import('./components/contextMenu/UsernameMenu.vue')['default']
   }

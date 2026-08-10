@@ -8,7 +8,7 @@
             :autoplay="true" :width="tgsRenderSize" :height="tgsRenderSize" :class="tgsHiResClass"
             :style="tgsHiResStyle" @load="onAnimLoad" />
         <!-- WEBM video sticker -->
-        <video v-else-if="format === 'webm' && mediaSrc" :src="mediaSrc" autoplay loop muted playsinline
+        <video v-else-if="format === 'webm' && mediaSrc" ref="videoRef" :src="mediaSrc" autoplay loop muted playsinline
             class="w-full h-full object-contain" />
         <!-- Fallback -->
         <div v-else class="w-full h-full flex items-center justify-center text-2xl">
@@ -41,6 +41,8 @@ const props = defineProps<{
 
 const rootEl = ref<HTMLElement | null>(null);
 const playerRef = ref<RlottiePlayerInstance | null>(null);
+/** WEBM/GIF 视频元素（受同一窗口/视口暂停门控） */
+const videoRef = ref<HTMLVideoElement | null>(null);
 const mediaSrc = ref<string | undefined>(undefined);
 const isDownloading = ref(false);
 /** 解析、Fitzpatrick 替换后的 TGS Lottie JSON（字符串形式，作为 RlottiePlayer 的 src） */
@@ -50,13 +52,21 @@ const tgsData = ref<string | null>(null);
 const isAnimatedEmoji = computed(() => props.content._ === 'messageAnimatedEmoji');
 
 /** 统一的 Lottie 暂停/恢复控制器：视口离开、窗口失焦、平滑滚动时暂停 */
-const { register: registerAnim, get: getAnim, setup: setupPause } = useLottiePause(rootEl);
+const { register: registerAnim, registerVideo, get: getAnim, setup: setupPause } = useLottiePause(rootEl);
 
 /** TGS 画布尺寸（动画表情固定方形；普通贴纸跟随设置） */
 const tgsSize = computed(() => isAnimatedEmoji.value ? 96 : (props.size ?? settings.sticker.size));
 
-/** 超采样渲染尺寸与显示样式（提高 TGS 清晰度） */
-const { renderSize: tgsRenderSize, hiResStyle: tgsHiResStyle, hiResClass: tgsHiResClass } = useRlottieRenderSize(tgsSize);
+/**
+ * 超采样渲染倍率：
+ * - 普通贴纸（messageSticker）→ 2（消息气泡中的贴纸保留较高清晰度）；
+ * - 动画表情（messageAnimatedEmoji）→ 1（极低质量，是消息文本内联 emoji 的一类，
+ *   与 CustomEmojiInline 一致，保证密集时显示速率一致、不掉帧）。
+ * isAnimatedEmoji 由消息类型决定、在 setup 时已确定，作为静态值传入。
+ */
+const stickerRenderScale = isAnimatedEmoji.value ? 1 : 2;
+/** 超采样渲染尺寸与显示样式（普通贴纸高质量；动画表情极低质量） */
+const { renderSize: tgsRenderSize, hiResStyle: tgsHiResStyle, hiResClass: tgsHiResClass } = useRlottieRenderSize(tgsSize, stickerRenderScale);
 
 /** 贴纸尺寸样式（跟随设置，仅对普通贴纸生效；动画表情保持固定） */
 const stickerSizeStyle = computed<Record<string, string>>(() => ({
@@ -171,6 +181,11 @@ async function loadTgs(filePath: string) {
 function onAnimLoad() {
     registerAnim(playerRef.value);
 }
+
+// WEBM/GIF 视频：等 DOM 渲染出 <video> 后注册进窗口/视口暂停门控
+watch([format, mediaSrc, () => props.content], () => {
+    registerVideo(format.value === 'webm' && mediaSrc.value ? videoRef.value : null);
+}, { flush: 'post' });
 
 /** 点击大号动画表情时从头重播（普通贴纸不受影响） */
 function onContentClick() {

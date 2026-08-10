@@ -6,7 +6,8 @@
             <div class="flex items-center gap-3" v-if="chat">
                 <Avatar :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" />
                 <div class="flex flex-col">
-                    <h2 class="font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight"><GlobalEmojiText :text="chat.title" />
+                    <h2 class="font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight">
+                        <GlobalEmojiText :text="chat.title" />
                     </h2>
                     <span class="text-xs text-gray-400">{{ getChatStatus() }}</span>
                 </div>
@@ -50,6 +51,7 @@
                     <p v-if="!isSelf(msg) && shouldShowSenderName && isFirstInGroup(index)"
                         class="text-xs font-bold mb-1" :class="isSelf(msg) ? 'text-blue-100' : 'text-blue-500'">
                         <GlobalEmojiText :text="getSenderName(msg)" />
+                    </p>
                     <!-- Message Content -->
                     <MessageContent :content="msg.content" />
 
@@ -404,8 +406,11 @@ const scrollToBottom = () => {
 };
 
 // 发送消息的处理函数，调用 TDLib 的 sendMessage
-const handleSend = async (text: string) => {
-    if (!chatId.value || !text.trim()) return;
+const handleSend = async (input: string | { _: 'formattedText'; text: string; entities?: any[] }) => {
+    if (!chatId.value) return;
+    const text = typeof input === 'string' ? input : input.text;
+    const entities = typeof input === 'string' ? [] : (input.entities || []);
+    if (!text.trim()) return;
 
     try {
         await tdlibSend({
@@ -416,7 +421,7 @@ const handleSend = async (text: string) => {
                 text: {
                     _: 'formattedText',
                     text: text,
-                    entities: []
+                    entities: entities
                 },
                 disable_web_page_preview: false,
                 clear_draft: true

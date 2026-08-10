@@ -31,11 +31,18 @@
                 @attach-checklist="emit('attachChecklist')" @attach-poll="emit('attachPoll')"
                 @attach-contact="emit('attachContact')" @attach-location="emit('attachLocation')" />
 
-            <div class="flex-1 min-w-0 rounded-full dark:bg-gray-800 flex items-center px-2 my-2">
-                <textarea v-model="localValue" :placeholder="inputPlaceholder"
-                    class="message-input-scrollbar flex-1 min-w-0 bg-transparent resize-none focus:outline-none text-sm leading-5 text-gray-800 dark:text-gray-200 px-2 py-2 min-h-9 max-h-40 overflow-y-auto field-sizing-content"
-                    rows="1" @keydown.enter.exact.prevent="onEnter" @keydown.enter.shift.stop
-                    @paste="onPaste"></textarea>
+            <div class="flex-1 min-w-0 rounded-full dark:bg-gray-800 flex items-center my-2 relative">
+                <!-- 富文本格式预览层：与 textarea 逐像素重叠，展示已赋予的实体样式。
+                     组合（输入法预打字）期间不显示预览层，避免与 textarea 正常颜色的组合文字重叠。 -->
+                <div v-show="previewHTML && !isComposing" aria-hidden="true"
+                    class="input-preview absolute inset-0 pointer-events-none select-none overflow-hidden">
+                    <div ref="previewInnerRef" class="input-preview-inner" v-html="previewHTML"></div>
+                </div>
+                <textarea ref="textareaRef" v-model="localValue" :placeholder="inputPlaceholder"
+                    :class="['message-input-scrollbar input-textarea flex-1 min-w-0 bg-transparent resize-none focus:outline-none text-sm leading-5 text-gray-800 dark:text-gray-200 px-2 py-2 min-h-9 max-h-40 overflow-y-auto field-sizing-content', { composing: isComposing }]"
+                    rows="1" @input="onInput" @keydown.enter.exact.prevent="onEnter" @keydown.enter.shift.stop
+                    @compositionstart="isComposing = true" @compositionend="isComposing = false"
+                    @paste="onPaste" @scroll="syncPreviewScroll" @contextmenu.prevent.stop="onContextMenu"></textarea>
             </div>
 
             <div class="flex items-center gap-2 ml-2 mb-1.5 shrink-0">
@@ -53,11 +60,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import type { chat, ChatMemberStatus, user } from 'tdlib-types';
-import { CornerUpLeftIcon, SendIcon, Smile, XIcon } from 'lucide-vue-next';
+import { computed, ref, watch, onMounted, nextTick } from 'vue';
+import type { chat, ChatMemberStatus, user, textEntity, formattedText } from 'tdlib-types';
+import { CornerUpLeftIcon, SendIcon, Smile, XIcon, TypeIcon, Bold, Italic, Underline, Strikethrough, EyeOff, Code2, Quote, Link2, Eraser } from 'lucide-vue-next';
 import { sending } from '../../../utils/attachmentSend';
 import { useAttachmentStore } from '../../../store/attachment';
+import { useCustomEmoji } from '../../../store/customEmoji';
+import { openContextMenu } from '../../../store/contextMenu';
+import type { ContextMenuItem } from '../../contextMenu/types';
+import {
+    toggleFormat, clearFormats, hasFormat, shiftEntitiesAfterTextChange, insertTextShiftEntities,
+    renderEntitiesHTML,
+} from '../../../utils/textFormatters';
+import type { FormatKind } from '../../../utils/textFormatters';
 import AttachmentMenu from './AttachmentMenu.vue';
 import AttachmentTray from './AttachmentTray.vue';
 
@@ -80,6 +95,8 @@ const props = defineProps<{
     memberStatus?: ChatMemberStatus;
     isPremium?: boolean;
     isPremiumAvailable?: boolean;
+    /** 输入框内已添加的自定义 emoji（id + 占位 alt），用于在预览层渲染对应图片 */
+    customEmojis?: { id: string; alt: string }[];
 }>();
 
 const emit = defineEmits([
@@ -90,12 +107,109 @@ const emit = defineEmits([
 
 const attachmentStore = useAttachmentStore();
 const localValue = ref(props.modelValue || '');
+/**
+ * 输入框富文本实体列表（text + entities 构成 formattedText）。
+ * 文本由 <textarea> 维护（v-model 到 localValue），实体由本组件维护；
+ * 发送时把 (localValue, entities) 一并交给父组件。
+ */
+const entities = ref<textEntity[]>([]);
+/** 记录上一次文本值，用于 input 时 diff 出编辑位置并平移实体偏移 */
+let lastText = props.modelValue || '';
+const textareaRef = ref<HTMLTextAreaElement | null>(null);
+const previewInnerRef = ref<HTMLDivElement | null>(null);
+/** 输入法组合（预打字）进行中：组合期间 textarea 显示正常颜色文字，预览层隐藏 */
+const isComposing = ref(false);
+
+/**
+ * 富文本预览层 HTML：由当前文本 + 实体渲染。
+ * 叠加层文字颜色需与 textarea 文字一致，才能“压”在真实文字上；为简化，
+ * 叠加层只负责展示实体样式（粗/斜/下划/剧透背景等），普通文字留空不重复绘制。
+ */
+const previewHTML = computed(() =>
+    renderEntitiesHTML(localValue.value, entities.value, {
+        customEmojis: props.customEmojis,
+        customEmojiSrc: (id) => resolveCustomEmojiSrc(id),
+    }));
+
+/**
+ * 自定义 emoji 图片/动画源缓存（id → store 的响应式 state 引用）。
+ * 惰性创建并请求自定义 emoji：首次遇到某 id 时调用 useCustomEmoji(id, true)，
+ * 之后复用其引用。由于 state 是 store 里的响应式对象，computed 读取 .filePath/.thumbnailUrl
+ * 会自动跟踪，下载完成后 previewHTML 会重新求值并把占位升级为图片/动画。
+ */
+const customEmojiCache = new Map<string, ReturnType<typeof useCustomEmoji>>();
+function resolveCustomEmojiSrc(id: string): { src: string; kind: 'img' | 'video' } | null {
+    let st = customEmojiCache.get(id);
+    if (!st && !customEmojiCache.has(id)) {
+        st = useCustomEmoji(id, true);
+        customEmojiCache.set(id, st);
+    }
+    if (!st) return null;
+    const fmt = st.sticker?.format?._;
+    // webm 动画 → <video>（img 无法播放）
+    if (fmt === 'stickerFormatWebm' && st.filePath) {
+        return { src: st.filePath, kind: 'video' };
+    }
+    // webp 静态 → <img>
+    if (fmt === 'stickerFormatWebp' && st.filePath) {
+        return { src: st.filePath, kind: 'img' };
+    }
+    // tgs 动画：主文件 .tgs 无法直接用 <img>/<video> 显示，尽量用 webp 缩略图
+    if (fmt === 'stickerFormatTgs' && st.thumbnailUrl) {
+        return { src: st.thumbnailUrl, kind: 'img' };
+    }
+    // 兜底：主文件或缩略图任意可显示源
+    if (st.filePath) {
+        return { src: st.filePath, kind: fmt === 'stickerFormatWebm' ? 'video' : 'img' };
+    }
+    if (st.thumbnailUrl) {
+        return { src: st.thumbnailUrl, kind: 'img' };
+    }
+    return null;
+}
+
+/** textarea 滚动时同步预览层滚动偏移，保证装饰不错位 */
+function syncPreviewScroll() {
+    const el = textareaRef.value;
+    const inner = previewInnerRef.value;
+    if (el && inner) inner.scrollTop = el.scrollTop;
+}
+
+// 初始聚焦后同步一次滚动基线
+onMounted(() => nextTick(syncPreviewScroll));
 
 watch(() => props.modelValue, (v) => {
-    if (v !== localValue.value) localValue.value = v || '';
+    if (v !== localValue.value) {
+        const old = localValue.value;
+        // 外部整体替换文本（草稿/清空/emoji 追加/命令插入等）→
+        // 尝试 diff 平移实体；若外部是整段替换（如加载草稿/清空）则无需保留实体，
+        // 但纯文本追加（emoji/命令）应尽量保留已有实体，故交给 diff 判断
+        if (old.length > 0 && v && v.length > old.length && v.startsWith(old)) {
+            // 追加场景（emoji、bot 命令等）：保留实体
+            entities.value = insertTextShiftEntities(entities.value, old.length, old.length, v.length - old.length);
+        } else if (v === '') {
+            // 清空
+            entities.value = [];
+        } else {
+            // 其余情况（加载草稿等）：无可靠偏移可循，保留原实体并在发送前由 TDLib 校验
+            // 保守处理：清空，避免错位实体
+            entities.value = [];
+        }
+        localValue.value = v || '';
+        lastText = v || '';
+    }
 });
 
 watch(localValue, (v) => emit('update:modelValue', v));
+
+/** 文本被用户手动编辑：diff 出变化位置并平移实体偏移 */
+function onInput() {
+    const next = localValue.value;
+    if (next !== lastText) {
+        entities.value = shiftEntitiesAfterTextChange(entities.value, lastText, next);
+    }
+    lastText = next;
+}
 
 const inputPlaceholder = computed(() =>
     attachmentStore.items.length > 0 ? '描述' : (props.placeholder || '输入消息...'));
@@ -105,8 +219,11 @@ const attachmentMenuRef = ref<InstanceType<typeof AttachmentMenu> | null>(null);
 const onClickSend = () => {
     if (sending.value) return;
     if (attachmentStore.items.length === 0 && !localValue.value.trim()) return;
-    emit('send', localValue.value);
+    const ft: formattedText = { _: 'formattedText', text: localValue.value, entities: entities.value };
+    emit('send', ft);
     localValue.value = '';
+    entities.value = [];
+    lastText = '';
 };
 
 const onEnter = () => {
@@ -120,6 +237,163 @@ const onPaste = (e: ClipboardEvent) => {
 const onDrop = (e: DragEvent) => {
     attachmentMenuRef.value?.onDrop(e);
 };
+
+/* =========================================================================
+ * 文本选中 + 右键格式菜单
+ * ========================================================================= */
+
+/** 当前 textarea 选区 [start, end) */
+function getRange(): [number, number] {
+    const el = textareaRef.value;
+    if (!el) return [0, 0];
+    return [el.selectionStart, el.selectionEnd];
+}
+
+/** 选中区是否存在（非空选区） */
+function hasSelection(): boolean {
+    const [s, e] = getRange();
+    return e > s;
+}
+
+/** 对当前选区应用/切换格式，并更新实体列表 */
+function applyFormat(kind: FormatKind, value?: string) {
+    const [s, e] = getRange();
+    if (e <= s) return;
+    entities.value = toggleFormat(entities.value, localValue.value, s, e, kind, value);
+    // 应用后保持选区，便于连续操作；重新聚焦让后续右键/快捷键仍然可用
+    textareaRef.value?.focus();
+}
+
+/** 清空选区所有格式（纯文本） */
+function applyPlainText() {
+    const [s, e] = getRange();
+    if (e <= s) return;
+    entities.value = clearFormats(entities.value, localValue.value, s, e);
+    textareaRef.value?.focus();
+}
+
+/** 组装“格式”二级菜单子项 */
+function buildFormatChildren(): ContextMenuItem[] {
+    const [s, e] = getRange();
+    const checked = (k: FormatKind) => e > s && hasFormat(entities.value, s, e, k);
+    return [
+        { key: 'fmt-bold', label: '加粗', icon: Bold, checked: checked('bold'), onClick: () => applyFormat('bold') },
+        { key: 'fmt-italic', label: '斜体', icon: Italic, checked: checked('italic'), onClick: () => applyFormat('italic') },
+        { key: 'fmt-underline', label: '下划线', icon: Underline, checked: checked('underline'), onClick: () => applyFormat('underline') },
+        { key: 'fmt-strike', label: '删除线', icon: Strikethrough, checked: checked('strikethrough'), onClick: () => applyFormat('strikethrough') },
+        { key: 'fmt-quote', label: '引用', icon: Quote, checked: checked('quote'), onClick: () => applyFormat('quote') },
+        { key: 'fmt-code', label: '等宽', icon: Code2, checked: checked('code'), onClick: () => applyFormat('code') },
+        { key: 'fmt-spoiler', label: '剧透', icon: EyeOff, checked: checked('spoiler'), onClick: () => applyFormat('spoiler') },
+        { key: 'fmt-link', label: '链接', icon: Link2, checked: checked('link'), onClick: () => applyLink() },
+        { divider: true, label: '' },
+        { key: 'fmt-plain', label: '纯文本', icon: Eraser, onClick: () => applyPlainText() },
+    ];
+}
+
+/** 链接格式：让用户输入 URL（选中文本默认作为展示文本），空则不应用 */
+function applyLink() {
+    const [s, e] = getRange();
+    if (e <= s) return;
+    const selText = localValue.value.slice(s, e).trim();
+    const guess = /^[a-z]+:\/\/|^tg:\/\//i.test(selText) ? selText : '';
+    const url = window.prompt('输入链接地址（http:// 或 https://）：', guess);
+    if (url == null) return;
+    const u = url.trim();
+    if (!u) return;
+    // 无协议时补全 http://，让 TDLib 识别为链接
+    const full = /^[a-z][a-z0-9+.-]*:\/\//i.test(u) ? u : `http://${u}`;
+    applyFormat('link', full);
+}
+
+/** 右键打开输入框编辑菜单（复制/剪切/粘贴/全选 + 格式二级菜单） */
+function onContextMenu(e: MouseEvent) {
+    const items: ContextMenuItem[] = [];
+    const sel = hasSelection();
+    if (sel) {
+        items.push({ key: 'copy', label: '复制', onClick: () => copySelection() });
+        items.push({ key: 'cut', label: '剪切', onClick: () => cutSelection() });
+    }
+    items.push({ key: 'paste', label: '粘贴', onClick: () => pasteFromClipboard() });
+    items.push({ key: 'selectAll', label: '全选', onClick: () => selectAll() });
+    if (sel) {
+        items.push({ key: 'fmt-sep', divider: true, label: '' });
+        items.push({
+            key: 'fmt',
+            label: '格式',
+            icon: TypeIcon,
+            children: buildFormatChildren(),
+        });
+    }
+    openContextMenu(e.clientX, e.clientY, items);
+}
+
+/** 复制选中文本到剪贴板（复制纯文本，不携带实体） */
+function copySelection() {
+    const el = textareaRef.value;
+    if (!el) return;
+    const [s, e] = getRange();
+    const text = el.value.slice(s, e);
+    navigator.clipboard.writeText(text).catch(() => {
+        // 兼容降级：用 execCommand 复制
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+        } catch { /* 忽略 */ }
+    });
+}
+
+/** 剪切选中文本（复制到剪贴板后移除，并平移实体） */
+function cutSelection() {
+    const el = textareaRef.value;
+    if (!el) return;
+    const [s, e] = getRange();
+    if (e <= s) return;
+    copySelection();
+    const old = el.value;
+    el.value = old.slice(0, s) + old.slice(e);
+    el.selectionStart = el.selectionEnd = s;
+    localValue.value = el.value;
+    entities.value = shiftEntitiesAfterTextChange(entities.value, old, el.value);
+    lastText = el.value;
+    el.focus();
+}
+
+/** 从剪贴板粘贴文本到光标处（含实体平移） */
+async function pasteFromClipboard() {
+    const el = textareaRef.value;
+    if (!el) return;
+    let text = '';
+    try {
+        text = await navigator.clipboard.readText();
+    } catch {
+        try {
+            text = window.prompt('粘贴内容：', '') ?? '';
+        } catch { /* 忽略 */ }
+    }
+    if (!text) return;
+    const [s, e] = getRange();
+    const old = el.value;
+    el.value = old.slice(0, s) + text + old.slice(e);
+    const caret = s + text.length;
+    el.selectionStart = el.selectionEnd = caret;
+    localValue.value = el.value;
+    entities.value = shiftEntitiesAfterTextChange(entities.value, old, el.value);
+    lastText = el.value;
+    el.focus();
+}
+
+/** 全选 */
+function selectAll() {
+    const el = textareaRef.value;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(0, el.value.length);
+}
+
 </script>
 
 <style scoped>
@@ -136,5 +410,90 @@ const onDrop = (e: DragEvent) => {
 .mi-fade-leave-to {
     opacity: 0;
     transform: translateY(-4px);
+}
+
+/* ---- 富文本预览层：与 textarea 逐像素重叠 ---- */
+/* textarea 文字透明，仅保留光标与选区；真实文字由预览层统一绘制，避免两层重叠 */
+.input-textarea {
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    caret-color: #1f2937;
+}
+.input-textarea::placeholder {
+    color: rgba(128, 128, 128, 0.6);
+    -webkit-text-fill-color: rgba(128, 128, 128, 0.6);
+}
+/* 输入法组合（预打字）期间：恢复真实文字颜色，让拼音/候选可见；
+   此时的预览层已隐藏，文字由 textarea 直接绘制，避免重叠 */
+.input-textarea.composing {
+    color: #1f2937;
+    -webkit-text-fill-color: #1f2937;
+}
+@media (prefers-color-scheme: dark) {
+    .input-textarea {
+        caret-color: #e5e7eb;
+    }
+    .input-textarea.composing {
+        color: #e5e7eb;
+        -webkit-text-fill-color: #e5e7eb;
+    }
+}
+
+/* 预览层内部排版与 textarea 完全一致（font / padding / line-height / 换行） */
+.input-preview-inner {
+    box-sizing: border-box;
+    height: 100%;
+    overflow-y: auto;
+    padding: 0.5rem;        /* = px-2 py-2，与 textarea 一致 */
+    font-size: 0.875rem;    /* text-sm */
+    line-height: 1.25rem;   /* leading-5 */
+    color: #1f2937;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    /* 同步滚动基线：隐藏原生滚动条（滚动由 textarea 驱动） */
+    scrollbar-width: none;
+}
+.input-preview-inner::-webkit-scrollbar {
+    display: none;
+}
+@media (prefers-color-scheme: dark) {
+    .input-preview-inner {
+        color: #e5e7eb;
+    }
+}
+
+/* 预览层内渲染的 emoji 图片/动画（普通 emoji → Apple PNG；自定义 emoji → 对应贴纸/动画）。
+   该 HTML 经 v-html 注入，节点不带 scoped 属性 → 必须用 :deep() 才能命中。 */
+.input-preview-inner :deep(.mi-emoji) {
+    display: inline-block;
+    width: 1.2em;
+    height: 1.2em;
+    margin: 0 0.05em;
+    vertical-align: -0.1em;
+    object-fit: contain;
+    pointer-events: none;
+}
+.input-preview-inner :deep(video.mi-emoji) {
+    background: transparent;
+    border: none;
+}
+
+/* ---- 选中文本（选区）配色 ---- */
+/* textarea 文字透明，负责提供统一的选区高亮背景 */
+.input-textarea::selection {
+    background-color: #3390ff;
+    color: transparent;
+}
+/* 预览层内 v-html 注入的文字，选中时改白色（见文件底部非 scoped style 块） */
+</style>
+
+<!-- 预览层 HTML 经 v-html 注入，节点不带 scoped 属性。
+     这里用非 scoped style 处理选中文本（选区）时预览层文字的颜色，
+     使其在 textarea 的蓝色选区背景上显示为白色，避免“黑字蓝底”不协调。 -->
+<style>
+.input-preview-inner ::selection {
+    color: #ffffff;
+    background: transparent;
 }
 </style>
