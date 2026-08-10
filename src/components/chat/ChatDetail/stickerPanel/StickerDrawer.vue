@@ -61,7 +61,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { SearchIcon, XIcon, Star, Trash2 } from 'lucide-vue-next';
 import StickerGroupSection from './StickerGroupSection.vue';
 import { useStickerPicker } from './composables/useStickerPicker';
-import { setProgrammaticScroll } from './composables/useStickerVisibility';
+import { setProgrammaticScroll, beginUserScroll, endUserScroll } from './composables/useStickerVisibility';
 import { openContextMenu } from '../../../../store/contextMenu';
 import type { ContextMenuItem } from '../../../../components/contextMenu/types';
 import type { sticker } from 'tdlib-types';
@@ -124,27 +124,49 @@ function scrollToSet(g: StickerGroup, index: number) {
     }
 }
 
+/** 用户滚动（滚轮/拖动滚动条）停顿判定计时器：停顿 200ms 视为滚动结束 */
+let userScrollTimer: ReturnType<typeof setTimeout> | null = null;
+function clearUserScroll() {
+    if (userScrollTimer) clearTimeout(userScrollTimer);
+    userScrollTimer = setTimeout(() => {
+        userScrollTimer = null;
+        endUserScroll();
+    }, 200);
+}
+
+/** onScroll 的 rAF 去抖句柄：避免每帧同步强制布局 */
+let scrollRaf: number | null = null;
+
 /** 滚动时联动顶部选择器高亮 */
 function onScroll() {
     const el = scrollEl.value;
     if (!el) return;
+    // 用户滚动进行中：维持「抑制沿途下载」标志，停顿后自动解除
+    beginUserScroll();
+    clearUserScroll();
     // 程序化跳转进行中：有 scroll 事件即重置停顿计时器
     if (progScrollTimer) clearProgrammaticScroll();
-    // 触底加载下一页（搜索模式）
+    // 触底加载下一页（搜索模式）：需立即执行，不进 rAF
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 60 && hasQuery.value) {
         sticker.loadMore();
     }
-    // 更新当前贴纸集高亮：找到第一个顶部进入可视区的分组
     if (hasQuery.value) return;
-    let current: string | null = null;
-    for (const node of el.querySelectorAll<HTMLElement>('[data-set-key]')) {
-        if (node.offsetTop - el.scrollTop <= el.clientHeight * 0.4) {
-            current = node.dataset.setKey ?? null;
-        } else {
-            break;
+    // 更新当前贴纸集高亮：rAF 去抖，避免每次滚动同步遍历 + 强制布局
+    if (scrollRaf !== null) cancelAnimationFrame(scrollRaf);
+    scrollRaf = requestAnimationFrame(() => {
+        scrollRaf = null;
+        const j = scrollEl.value;
+        if (!j) return;
+        let current: string | null = null;
+        for (const node of j.querySelectorAll<HTMLElement>('[data-set-key]')) {
+            if (node.offsetTop - j.scrollTop <= j.clientHeight * 0.4) {
+                current = node.dataset.setKey ?? null;
+            } else {
+                break;
+            }
         }
-    }
-    if (current && current !== activeSetKey.value) activeSetKey.value = current;
+        if (current && current !== activeSetKey.value) activeSetKey.value = current;
+    });
 }
 
 const scrollEl = ref<HTMLElement | null>(null);
@@ -163,7 +185,12 @@ onMounted(() => {
     sticker.activate();
     measureCellSize();
 });
-onBeforeUnmount(() => sticker.deactivate());
+onBeforeUnmount(() => {
+    sticker.deactivate();
+    if (userScrollTimer) { clearTimeout(userScrollTimer); userScrollTimer = null; }
+    if (scrollRaf !== null) { cancelAnimationFrame(scrollRaf); scrollRaf = null; }
+    endUserScroll();
+});
 
 /** 面板宽度固定时每格正方形边长：滚动容器内边距 px-2(左右各 8px) + grid-cols-4 gap-1(3×4px) */
 function measureCellSize() {

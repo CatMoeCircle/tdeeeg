@@ -195,7 +195,7 @@ import GlobalEmojiInline from '../../../common/GlobalEmojiInline.vue';
 import StickerMediaItem from './StickerMediaItem.vue';
 import { useEmojiPicker, type EmojiSearchResult } from './composables/useEmojiPicker';
 import { useLocalEmojiPrefs } from './composables/useLocalEmojiPrefs';
-import { onVisibleOnce, unobserve, setProgrammaticScroll } from './composables/useStickerVisibility';
+import { onVisibleOnce, unobserve, setProgrammaticScroll, beginUserScroll, endUserScroll } from './composables/useStickerVisibility';
 import { stickerPanelState } from './types';
 import { tdlibSend } from '../../../../utils/tdlib';
 import type { sticker, animation, stickerSetInfo } from 'tdlib-types';
@@ -338,21 +338,48 @@ function scrollToBlock(key: string) {
     }
 }
 
+/** 用户滚动（滚轮/拖动滚动条）停顿判定计时器：停顿 200ms 视为滚动结束 */
+let userScrollTimer: ReturnType<typeof setTimeout> | null = null;
+function clearUserScroll() {
+    if (userScrollTimer) clearTimeout(userScrollTimer);
+    userScrollTimer = setTimeout(() => {
+        userScrollTimer = null;
+        endUserScroll();
+    }, 200);
+}
+
+/** onScroll 的 rAF 去抖句柄：避免每帧同步强制布局 */
+let scrollRaf: number | null = null;
+
 /** 滚动时联动顶部选择器高亮 */
 function onScroll() {
     const el = scrollEl.value;
-    if (!el || hasQuery.value) return;
+    if (!el) return;
+    // 用户滚动进行中：维持「抑制沿途下载」标志，停顿后自动解除
+    beginUserScroll();
+    clearUserScroll();
+    if (hasQuery.value) {
+        if (progScrollTimer) clearProgrammaticScroll();
+        return;
+    }
     // 程序化跳转进行中：有 scroll 事件即重置停顿计时器
     if (progScrollTimer) clearProgrammaticScroll();
-    let current: string | null = null;
-    for (const node of el.querySelectorAll<HTMLElement>('[data-emoji-block]')) {
-        if (node.offsetTop - el.scrollTop <= el.clientHeight * 0.4) {
-            current = node.dataset.emojiBlock ?? null;
-        } else {
-            break;
+    // rAF 去抖联动顶部选择器高亮：避免每次滚动事件都同步遍历 + 强制布局
+    if (scrollRaf !== null) cancelAnimationFrame(scrollRaf);
+    scrollRaf = requestAnimationFrame(() => {
+        scrollRaf = null;
+        const j = scrollEl.value;
+        if (!j) return;
+        let current: string | null = null;
+        for (const node of j.querySelectorAll<HTMLElement>('[data-emoji-block]')) {
+            if (node.offsetTop - j.scrollTop <= j.clientHeight * 0.4) {
+                current = node.dataset.emojiBlock ?? null;
+            } else {
+                break;
+            }
         }
-    }
-    if (current && current !== activeBlock.value) activeBlock.value = current;
+        if (current && current !== activeBlock.value) activeBlock.value = current;
+    });
 }
 
 /** 自定义包区块标题（优先用标题文本） */
@@ -423,6 +450,9 @@ onBeforeUnmount(() => {
     for (const el of customSetEls.values()) unobserve(el);
     customSetEls.clear();
     observedSetIds.clear();
+    if (userScrollTimer) { clearTimeout(userScrollTimer); userScrollTimer = null; }
+    if (scrollRaf !== null) { cancelAnimationFrame(scrollRaf); scrollRaf = null; }
+    endUserScroll();
 });
 
 function onPickResult(r: EmojiSearchResult) {

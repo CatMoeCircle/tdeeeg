@@ -120,6 +120,18 @@ let programmaticScroll = false;
 /** 等待跳转结束后补下载的项（进入可视区但被抑制） */
 const pendingLoads = new Set<() => void>();
 
+/** True while the user is actively scrolling fast (wheel / drag). */
+let userScrolling = false;
+
+/** Flush items that were suppressed during scrolling, on the next frame. */
+function flushPendingLoads() {
+  requestAnimationFrame(() => {
+    const pending = Array.from(pendingLoads);
+    pendingLoads.clear();
+    pending.forEach((fn) => fn());
+  });
+}
+
 /** 是否正处于程序化跳转（平滑滚动）中 */
 export function isProgrammaticScroll() {
   return programmaticScroll;
@@ -132,13 +144,8 @@ export function isProgrammaticScroll() {
 export function setProgrammaticScroll(v: boolean) {
   programmaticScroll = v;
   if (!v) {
-    // 结束：把「在可视区但被抑制下载」的项补上。放到下一帧统一执行，
-    // 避免在滚动结束的同一同步流程里触发热点下载。
-    requestAnimationFrame(() => {
-      const pending = Array.from(pendingLoads);
-      pendingLoads.clear();
-      pending.forEach((fn) => fn());
-    });
+    // Flush suppressed loads after a programmatic jump completes.
+    flushPendingLoads();
   }
 }
 
@@ -149,6 +156,30 @@ export function setProgrammaticScroll(v: boolean) {
  */
 export function deferLoadWhileScrolling(fn: () => void) {
   pendingLoads.add(fn);
+}
+
+/** True while the user is actively scrolling fast (wheel / drag). */
+export function isUserScrolling() {
+  return userScrolling;
+}
+
+/**
+ * Mark the beginning of a user-driven fast scroll. Items entering the
+ * visible area while this is true defer their download until the scroll
+ * pauses (see endUserScroll).
+ */
+export function beginUserScroll() {
+  userScrolling = true;
+}
+
+/**
+ * End a user-driven fast scroll. Suppressed loads are flushed once the
+ * scroll has stopped for a short pause.
+ */
+export function endUserScroll() {
+  if (!userScrolling) return;
+  userScrolling = false;
+  flushPendingLoads();
 }
 
 /**

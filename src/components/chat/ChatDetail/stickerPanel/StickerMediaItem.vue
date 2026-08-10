@@ -20,7 +20,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { sticker, animation } from 'tdlib-types';
 import { RlottiePlayer, type RlottiePlayerInstance } from 'rlottie-wasm-vue-player';
 import { useStickerMedia } from './composables/useStickerMedia';
-import { onVisibilityChange, unobserve, isProgrammaticScroll, deferLoadWhileScrolling, isWindowActive, onWindowActiveChange } from './composables/useStickerVisibility';
+import { onVisibilityChange, unobserve, isProgrammaticScroll, isUserScrolling, deferLoadWhileScrolling, isWindowActive, onWindowActiveChange } from './composables/useStickerVisibility';
 import { useRlottieRenderSize } from '../../../../composables/useRlottieRenderSize';
 
 const props = withDefaults(defineProps<{
@@ -136,7 +136,7 @@ onMounted(() => {
             // 可见时测量一次实际格子宽（TGS 渲染尺寸需要真实的宽度）
             if (!cellMeasured) measureCellWidth();
             if (!downloadStarted) {
-                if (isProgrammaticScroll()) {
+                if (isProgrammaticScroll() || isUserScrolling()) {
                     // 程序化跳转途中：暂不下载（避免沿途把路过的 emoji 全拉下来），
                     // 等跳转结束若仍在可视区再补下。
                     deferLoadWhileScrolling(() => {
