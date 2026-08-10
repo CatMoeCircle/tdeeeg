@@ -8,8 +8,12 @@
                 <StarIcon v-else class="h-14 w-14 fill-current text-white" />
             </div>
             <h3 class="mt-3 text-base font-bold text-gray-900 dark:text-white">抽奖活动</h3>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400"><GlobalEmojiText :text="winnersText" /></p>
-            <p v-if="prizeDescription" class="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2"><GlobalEmojiText :text="prizeDescription" /></p>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                <GlobalEmojiText :text="winnersText" />
+            </p>
+            <p v-if="prizeDescription" class="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
+                <GlobalEmojiText :text="prizeDescription" />
+            </p>
         </div>
 
         <!-- 参与者 -->
@@ -23,7 +27,9 @@
                         <div class="h-7 w-7 shrink-0 overflow-hidden rounded-full">
                             <Avatar :photo="ch.photo" :title="ch.title" :accent-color-id="ch.accentColorId" />
                         </div>
-                        <span class="min-w-0 flex-1 truncate text-sm font-medium"><GlobalEmojiText :text="ch.title" /></span>
+                        <span class="min-w-0 flex-1 truncate text-sm font-medium">
+                            <GlobalEmojiText :text="ch.title" />
+                        </span>
                     </div>
                 </div>
             </div>
@@ -65,8 +71,12 @@
                             <GlobalEmojiText :text="dialogTitle" />
                         </h2>
                         <div class="mt-4 space-y-3 text-sm leading-6 text-gray-700 dark:text-gray-300">
-                            <p><GlobalEmojiText :text="sponsorText" /></p>
-                            <p><GlobalEmojiText :text="selectionText" /></p>
+                            <p>
+                                <GlobalEmojiText :text="sponsorText" />
+                            </p>
+                            <p>
+                                <GlobalEmojiText :text="selectionText" />
+                            </p>
                             <p>您在此抽奖活动中没有中奖。</p>
                         </div>
                         <button type="button"
@@ -148,7 +158,7 @@ const winnersText = computed(() => {
     const prize = props.content.prize;
     const count = props.content.winner_count;
     if (prize._ === 'giveawayPrizeStars') {
-        return `${formatCount(prize.star_count)} Stars 位获奖者将分享 ${count} `;
+        return `${formatCount(prize.star_count)} Stars 将会分发给 ${count} 位获奖者`;
     }
     return `${count} 位获奖者将获得 Telegram Premium ${prize.month_count} 个月`;
 });
