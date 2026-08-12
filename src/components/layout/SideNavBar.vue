@@ -74,7 +74,7 @@ const downloadStore = useDownloadStore();
 const uploadStore = useUploadStore();
 const route = useRoute();
 const isChatNavActive = computed(() => route.name === 'chats' || route.name === 'chat-detail' || route.name === 'chat-topic-detail');
-const isSettingsNavActive = computed(() => route.name === 'settings' || route.name === 'settings-appearance' || route.name === 'settings-download' || route.name === 'settings-proxy' || route.name === 'settings-storage' || route.name === 'settings-debug');
+const isSettingsNavActive = computed(() => route.name === 'settings' || route.name === 'settings-appearance' || route.name === 'settings-download' || route.name === 'settings-proxy' || route.name === 'settings-debug');
 
 onMounted(() => {
     if (!userProfile.value) {

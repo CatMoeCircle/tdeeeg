@@ -25,7 +25,7 @@ fn set_window_effect(window: tauri::WebviewWindow, effect: String) -> Result<(),
 /// 打开 WebView 开发者工具（Debug 构建默认可用；Release 构建需 tauri 启用 devtools feature）。
 #[tauri::command]
 fn open_devtools(window: tauri::WebviewWindow) -> Result<(), String> {
-    window.open_devtools();
+    // window.open_devtools();
     Ok(())
 }
 
@@ -62,8 +62,8 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
             // 根据持久化的数据存储模式解析数据根目录（AppData 或应用自带目录）
-            let data_dir = data_loc::resolve_current_data_dir(app.handle())
-                .map_err(|e| e.to_string())?;
+            let data_dir =
+                data_loc::resolve_current_data_dir(app.handle()).map_err(|e| e.to_string())?;
             std::fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
             app.manage(tdlib::AppState::new(data_dir));
             Ok(())
