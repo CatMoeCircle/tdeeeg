@@ -84,6 +84,11 @@ const router = createRouter({
           component: () => import("../views/settings/DeveloperSettings.vue"),
         },
         {
+          path: "settings/system",
+          name: "settings-system",
+          component: () => import("../views/settings/SystemSettings.vue"),
+        },
+        {
           path: "user/:id",
           name: "user-profile",
           component: () => import("../views/user/UserProfile.vue"),

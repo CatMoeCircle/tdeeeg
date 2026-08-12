@@ -1,5 +1,5 @@
 import { ref } from "vue";
-import type { proxy } from "tdlib-types";
+import type { proxy, ProxyType$Input } from "tdlib-types";
 
 /**
  * 「从 proxy.t.me 链接添加代理」弹窗的全局状态。
@@ -90,28 +90,50 @@ export function cancelPingWarning() {
 export async function pingCurrentProxy(): Promise<void> {
     const p = pendingProxy.value;
     if (!p || pingLoading.value) return;
+    await pingProxyOf(p.server, p.port, p.type);
+}
 
-    // 先弹出 IP 警告
+/**
+ * 对指定代理执行 ping 测试（带 IP 暴露警告），返回结果。
+ * @param server 代理服务器
+ * @param port 端口
+ * @param type TDLib ProxyType（如 proxyTypeHttp / proxyTypeSocks5 / proxyTypeMtproto）
+ */
+export async function pingProxyOf(
+    server: string,
+    port: number,
+    type: ProxyType$Input,
+): Promise<{ ok: boolean; text: string } | null> {
+    if (pingLoading.value) return null;
+    // 先弹出 IP 暴露警告
     const confirmed = await showPingWarning();
-    if (!confirmed) return;
+    if (!confirmed) return null;
 
     pingLoading.value = true;
     pingResult.value = null;
     try {
-        const res = await tdlibSend({ _: "pingProxy", proxy: { _: "proxy", server: p.server, port: p.port, type: p.type } });
+        const res = await tdlibSend({
+            _: "pingProxy",
+            proxy: { _: "proxy", server, port, type },
+        });
         const seconds = (res as any).seconds;
+        let result: { ok: boolean; text: string };
         if (typeof seconds === "number") {
-            pingResult.value = {
+            result = {
                 ok: true,
                 text: seconds < 1
                     ? `延迟 ${Math.round(seconds * 1000)}ms`
                     : `延迟 ${seconds.toFixed(2)}s`,
             };
         } else {
-            pingResult.value = { ok: false, text: "无法测量延迟" };
+            result = { ok: false, text: "无法测量延迟" };
         }
+        pingResult.value = result;
+        return result;
     } catch (e: any) {
-        pingResult.value = { ok: false, text: e?.message || "ping 失败" };
+        const result = { ok: false, text: e?.message || "ping 失败" };
+        pingResult.value = result;
+        return result;
     } finally {
         pingLoading.value = false;
     }

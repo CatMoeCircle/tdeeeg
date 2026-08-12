@@ -1,14 +1,18 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch, nextTick } from "vue";
+import { onMounted, onUnmounted, ref, computed, watch, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import QRCodeStyling from "qr-code-styling";
+import { AsYouType, parsePhoneNumberFromString } from "libphonenumber-js";
 import { useI18n } from 'vue-i18n';
+import i18n from "../../i18n";
 import { tdlibSend } from "../../utils/tdlib";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { MessagePlugin } from 'tdesign-vue-next';
 import type { AuthorizationState, Update, countryInfo } from "tdlib-types";
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
+import LoginProxyMenu from "./LoginProxyMenu.vue";
+import LoginSystemMenu from "./LoginSystemMenu.vue";
 
 
 
@@ -24,6 +28,100 @@ const { t } = useI18n();
 /** 用户点击手机登录时，若正在二维码状态，先重置再发请求 */
 const pendingPhoneLogin = ref<string | null>(null);
 
+/**
+ * 国家显示名：
+ * - 中文 locale 下，对 native 名称本身为汉字（中文可读）的常见地区使用其本地名（name），
+ *   其余统一用英文名（english_name），避免显示用户看不懂的外语本地名。
+ * - 非中文 locale 统一用英文名（english_name），保证通用可读。
+ */
+const isChineseLocale = computed(() => i18n.global.locale.value.startsWith("zh"));
+function displayName(c: countryInfo): string {
+    // native name 为汉字的地区（中国、香港、澳门、台湾、新加坡、日本），中文用户可直接识别
+    const zhReadable = new Set(["CN", "HK", "MO", "TW", "SG", "JP"]);
+    if (isChineseLocale.value && zhReadable.has(c.country_code)) {
+        return c.name || c.english_name;
+    }
+    return c.english_name || c.name;
+}
+
+/** 常用国家/地区置顶（按区号），便于快速选择 */
+const COUNTRY_PRIORITY: Record<string, number> = { CN: 0, HK: 1, MO: 2, TW: 3, US: 4, JP: 5, SG: 6 };
+/** 按优先级 + 英文名排序后的国家列表 */
+const sortedCountries = computed(() => {
+    return [...Countries.value].sort((a, b) => {
+        const pa = COUNTRY_PRIORITY[a.country_code];
+        const pb = COUNTRY_PRIORITY[b.country_code];
+        if (pa !== undefined || pb !== undefined) return (pa ?? 99) - (pb ?? 99);
+        return displayName(a).localeCompare(displayName(b));
+    });
+});
+
+/** 自定义过滤：支持按国家名（中/英）、区号搜索 */
+function countryFilter(search: string, option: any): boolean {
+    if (!search) return true;
+    const kw = search.trim().toLowerCase();
+    const c: countryInfo = sortedCountries.value.find(x => x.country_code === option?.value) as countryInfo;
+    if (!c) return false;
+    return (
+        c.english_name.toLowerCase().includes(kw) ||
+        c.name.toLowerCase().includes(kw) ||
+        c.calling_codes.some(code => code.toLowerCase().includes(kw)) ||
+        c.country_code.toLowerCase().includes(kw)
+    );
+}
+
+/**
+ * 用 libphonenumber-js（无参 AsYouType）对号码做格式化显示。
+ * 无参 AsYouType 以 `+区号` 开头自动识别国家，删除时也稳定（不会把区号当作本地号码造成 `+86 86`）。
+ * 若内容无任何数字，则直接清空（避免残留孤立的 `+`）。
+ */
+function onPhoneInput() {
+    const digits = phoneNumber.value.replace(/[^\d+]/g, "");
+    const withPlus = digits.startsWith("+") ? digits : "+" + digits;
+    if (!withPlus.replace(/[^\d]/g, "")) {
+        phoneNumber.value = "";
+        return;
+    }
+    const asYouType = new AsYouType();
+    phoneNumber.value = asYouType.input(withPlus);
+}
+
+// 输入框优先：当输入框中的区号变化时，让选择器跟随更新。
+watch(phoneNumber, (newVal) => {
+    const cleanNum = newVal.replace(/[^\d]/g, "");
+    if (!cleanNum) return;
+
+    let detected: string | null = null;
+    // 优先用 libphonenumber-js 精确识别国家：能区分 +1 共享区号的美加等国家
+    // （如 +1416... 是多伦多=CA，+1202... 是华盛顿=US），而 TDLib 的 calling_codes
+    // 对共享区号只返回第一个匹配项，无法区分。
+    const parsed = parsePhoneNumberFromString('+' + cleanNum);
+    if (parsed?.country) {
+        detected = parsed.country;
+    } else {
+        // 号码过短（如 +1、+1416）时 libphonenumber 尚无法确定国家，回退用 Countries 匹配最长区号
+        let best: string | null = null;
+        let maxLen = 0;
+        for (const c of Countries.value) {
+            for (const code of c.calling_codes) {
+                if (cleanNum.startsWith(code) && code.length > maxLen) {
+                    maxLen = code.length;
+                    best = c.country_code;
+                }
+            }
+        }
+        detected = best;
+    }
+
+    if (detected && detected !== selectedCountry.value) {
+        // 标记该选择器变化来自输入框，watch(selectedCountry) 据此不再回填输入框
+        isAutoSwitching.value = true;
+        selectedCountry.value = detected;
+    }
+});
+
+// 选择器 → 输入框：手动选择国家时，若输入框为空则预填 +区号，便于接着输入本地号码。
+// 输入框触发的选择器变化（isAutoSwitching）不覆盖已有输入。
 watch(selectedCountry, (newVal) => {
     if (isAutoSwitching.value) {
         isAutoSwitching.value = false;
@@ -31,42 +129,9 @@ watch(selectedCountry, (newVal) => {
     }
     const country = Countries.value.find((c) => c.country_code === newVal);
     if (country && country.calling_codes.length > 0) {
-        phoneNumber.value = country.calling_codes[0];
-    }
-});
-
-watch(phoneNumber, (newVal) => {
-    const cleanNum = newVal.replace(/^\+/, "");
-    let bestMatch: countryInfo | null = null;
-    let maxLen = 0;
-
-    for (const c of Countries.value) {
-        for (const code of c.calling_codes) {
-            if (cleanNum.startsWith(code)) {
-                if (code.length > maxLen) {
-                    maxLen = code.length;
-                    bestMatch = c;
-                }
-            }
-        }
-    }
-
-    if (bestMatch && bestMatch.country_code !== selectedCountry.value) {
-        const currentCountry = Countries.value.find(c => c.country_code === selectedCountry.value);
-        let currentMatchLen = 0;
-        if (currentCountry) {
-            for (const code of currentCountry.calling_codes) {
-                if (cleanNum.startsWith(code)) {
-                    if (code.length > currentMatchLen) {
-                        currentMatchLen = code.length;
-                    }
-                }
-            }
-        }
-
-        if (maxLen > currentMatchLen || currentMatchLen === 0) {
-            isAutoSwitching.value = true;
-            selectedCountry.value = bestMatch.country_code;
+        const current = phoneNumber.value.replace(/[^\d]/g, "");
+        if (!current) {
+            phoneNumber.value = "+" + country.calling_codes[0];
         }
     }
 });
@@ -141,10 +206,10 @@ const initOrUpdateQrCode = (link: string) => {
 const login = async () => {
     if (!phoneNumber.value) return;
 
-    // 确保手机号有 + 前缀
-    const rawPhone = phoneNumber.value.startsWith('+')
-        ? phoneNumber.value
-        : '+' + phoneNumber.value;
+    // 去掉格式化产生的非数字字符，得到含区号的完整号码，并补上 +（E.164）
+    const cleanNum = phoneNumber.value.replace(/[^\d]/g, "");
+    if (!cleanNum) return;
+    const rawPhone = '+' + cleanNum;
 
     // 检查当前授权状态
     try {
@@ -252,13 +317,21 @@ const AuthState = async (State: AuthorizationState) => {
 }
 
 onMounted(async () => {
-    await getCurrentWindow().setMinSize(new LogicalSize(700, 450));
+    const appWindow = getCurrentWindow();
+
+    await appWindow.setMinSize(new LogicalSize(700, 450));
 
     // 登录页面使用默认 mica 效果
     try {
         await invoke("set_window_effect", { effect: "mica" });
     } catch (e) {
         console.warn("设置 Mica 失败:", e);
+    }
+
+    try {
+        await appWindow.setShadow(true);
+    } catch (e) {
+        console.warn("开启窗口阴影失败:", e);
     }
 
     qrlinkupdate = await listen<Update>("tdlib-update", async (event) => {
@@ -304,7 +377,13 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="flex justify-center items-center h-full select-none">
+    <div class="flex justify-center items-center h-full select-none relative">
+        <!-- 右上角 API/测试DC 与 代理设置按钮 -->
+        <div class="absolute top-4 right-4 z-20 flex items-center gap-2">
+            <LoginSystemMenu />
+            <LoginProxyMenu />
+        </div>
+
         <div class="flex w-200 items-center justify-between">
             <!-- Left Side: Phone Login -->
             <div class="flex-1 flex flex-col items-center text-center px-8">
@@ -315,17 +394,23 @@ onUnmounted(() => {
 
                 <div class="w-full max-w-xs mb-8">
                     <div class="mb-4">
-                        <t-select v-model="selectedCountry" :placeholder="t('login.selectCountry')" filterable>
-                            <t-option v-for="country in Countries" :key="country.country_code"
-                                :value="country.country_code" :label="`+${country.calling_codes[0]} ${country.name}`">
-                                <span>+{{ country.calling_codes[0] }} {{ country.name }}</span>
+                        <t-select v-model="selectedCountry" :placeholder="t('login.selectCountry')" filterable
+                            :filter="countryFilter" class="country-select">
+                            <t-option v-for="country in sortedCountries" :key="country.country_code"
+                                :value="country.country_code"
+                                :label="`${country.flag_emoji} +${country.calling_codes[0]} ${displayName(country)}`">
+                                <span class="flex items-center gap-2">
+                                    <span class="w-6 text-left shrink-0">{{ country.flag_emoji || '🏳️' }}</span>
+                                    <span class="flex-1 min-w-0 truncate">{{ displayName(country) }}</span>
+                                    <span class="text-gray-400 text-xs shrink-0">+{{ country.calling_codes[0] }}</span>
+                                </span>
                             </t-option>
                         </t-select>
                     </div>
                     <div
                         class="flex items-center border border-gray-300 rounded-xl px-4 py-3 focus-within:border-[#3390ec] transition-colors">
-                        <span class="text-base text-gray-500 mr-3">+</span>
-                        <input type="text" :placeholder="t('login.phonePlaceholder')" v-model="phoneNumber"
+                        <input type="tel" inputmode="tel" :placeholder="t('login.phonePlaceholder')"
+                            v-model="phoneNumber" @input="onPhoneInput"
                             class="flex-1 text-base outline-none bg-transparent placeholder-gray-400 text-black" />
                     </div>
                 </div>

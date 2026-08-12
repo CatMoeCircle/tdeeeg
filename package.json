@@ -1,7 +1,7 @@
 {
   "name": "tdeeeg",
   "private": true,
-  "version": "0.1.2",
+  "version": "0.1.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,6 +17,7 @@
     "@tauri-apps/plugin-window-state": "^2.4.1",
     "@tdesign-vue-next/auto-import-resolver": "^0.1.4",
     "katex": "^0.18.1",
+    "libphonenumber-js": "^1.13.10",
     "pako": "^3.0.1",
     "rlottie-wasm-vue-player": "^1.0.4",
     "twemoji-parser": "^14.0.0",

@@ -103,13 +103,25 @@ interface Settings {
   proxy: {
     /**
      * 代理模式：
+     * - auto：跟随系统代理（默认）。系统代理开启时使用系统代理，关闭时不使用代理
      * - disabled：禁用代理
-     * - system：使用系统代理
+     * - system：始终使用系统代理
      * - custom：使用代理列表中的某个代理
      */
-    mode: "disabled" | "system" | "custom";
+    mode: "auto" | "disabled" | "system" | "custom";
     /** 自定义模式下选中的代理 ID（来自代理列表 getProxies） */
     selectedProxyId: number | null;
+  };
+  /** 系统设置（TDLib 连接参数，均需重启 TDLib 生效） */
+  system: {
+    /** 是否使用测试数据中心（默认 false） */
+    useTestDc: boolean;
+    /** 是否启用自定义 API ID/Hash（false 时使用编译期 env TG_API_ID/TG_API_HASH） */
+    customApiCreds: boolean;
+    /** 自定义 API ID（字符串，防止数字精度丢失；应用时转 number） */
+    apiId: string;
+    /** 自定义 API Hash */
+    apiHash: string;
   };
   /** 播放器设置（跨会话记忆） */
   player: {
@@ -182,8 +194,15 @@ const defaultSettings: Settings = {
     },
   },
   proxy: {
-    mode: "disabled",
+    // 默认跟随系统代理：系统代理开启时自动使用，关闭时直连
+    mode: "auto",
     selectedProxyId: null,
+  },
+  system: {
+    useTestDc: false,
+    customApiCreds: false,
+    apiId: "",
+    apiHash: "",
   },
   player: {
     musicVolume: 0.8,

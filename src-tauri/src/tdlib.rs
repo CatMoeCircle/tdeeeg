@@ -45,7 +45,7 @@ pub struct TdLibConfig {
 /// 前端保存的代理配置，供 TDLib 客户端创建后立即应用。
 #[derive(Clone)]
 pub struct ProxyConfig {
-    /// disabled / system / custom
+    /// disabled / auto / system / custom
     pub mode: String,
     /// custom 模式下要启用的代理 ID（来自 getProxies）
     pub proxy_id: Option<i64>,
@@ -81,6 +81,7 @@ type TdJsonClientReceive =
     unsafe extern "C" fn(client: *mut c_void, timeout: c_double) -> *const c_char;
 type TdJsonClientExecute =
     unsafe extern "C" fn(client: *mut c_void, request: *const c_char) -> *const c_char;
+type TdJsonClientDestroy = unsafe extern "C" fn(client: *mut c_void);
 
 // --- 包装结构体 ---
 pub struct TdLibWrapper {
@@ -89,6 +90,17 @@ pub struct TdLibWrapper {
     send_fn: TdJsonClientSend,
     _receive_fn: TdJsonClientReceive, // 标记为未使用，因为我们在后台线程中使用函数指针副本
     _execute_fn: TdJsonClientExecute,
+    destroy_fn: TdJsonClientDestroy,
+}
+
+impl Drop for TdLibWrapper {
+    fn drop(&mut self) {
+        // 释放底层 TDLib client 内存（幂等：TDLib 内部会处理已 close 的 client）。
+        if !self.client.is_null() {
+            unsafe { (self.destroy_fn)(self.client) };
+        }
+        // _lib 在此处 drop，卸载动态库
+    }
 }
 
 // TDLib 的 client 是线程安全的
@@ -181,6 +193,76 @@ pub fn set_tdlib_parameters(
     Ok(())
 }
 
+/// 关闭当前 TDLib 客户端，等待资源释放（authorizationStateClosed），然后销毁旧 wrapper。
+/// 供「重启 / 重建 TDLib 客户端」（如修改 use_test_dc、api_id/api_hash 后）使用。
+/// 返回后 `state.tdlib` 为 None，可再次调用 init_tdlib 用新的 config 重建。
+async fn close_and_destroy_tdlib(state: &AppState) -> Result<(), String> {
+    shutdown_tdlib(state, "close").await
+}
+
+/// 通用关闭/登出：向客户端发送指定动作（close / logOut），
+/// 等待 authorizationStateClosed，然后销毁旧 wrapper（state.tdlib=None）。
+async fn shutdown_tdlib(state: &AppState, action: &str) -> Result<(), String> {
+    let send_and_client: Option<(TdJsonClientSend, *mut c_void)> = {
+        let guard = state.tdlib.lock().map_err(|e| e.to_string())?;
+        guard
+            .as_ref()
+            .map(|wrapper| (wrapper.send_fn, wrapper.client))
+    };
+    let Some((send_fn, client)) = send_and_client else {
+        return Ok(());
+    };
+
+    // 发送 close/logOut，等待 authorizationStateClosed（后台线程收到后发送信号并退出）
+    let (tx, rx) = oneshot::channel::<()>();
+    {
+        let mut sig = state.close_signal.lock().map_err(|e| e.to_string())?;
+        *sig = Some(tx);
+    }
+    let req = json!({ "@type": action, "@extra": { "request_id": "internal-shutdown" } });
+    let c_str = CString::new(req.to_string()).unwrap();
+    unsafe { send_fn(client, c_str.as_ptr()) };
+
+    tokio::time::timeout(Duration::from_secs(30), rx)
+        .await
+        .map_err(|_| "等待 TDLib 资源释放超时".to_string())?
+        .map_err(|_| "TDLib 关闭通道异常".to_string())?;
+
+    // 后台线程已退出，置空 wrapper（Drop 会调用 td_json_client_destroy 释放 client 与库）
+    let mut guard = state.tdlib.lock().map_err(|e| e.to_string())?;
+    *guard = None;
+    Ok(())
+}
+
+/// 用当前已保存的参数（use_test_dc / api_id / api_hash）重建 TDLib 客户端。
+/// 前端在修改这些参数后调用：先 set_tdlib_parameters 更新 config，再调本命令重建。
+#[tauri::command]
+pub async fn restart_tdlib(
+    app_handle: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    // 1. 关闭并销毁旧客户端（等待资源释放）
+    close_and_destroy_tdlib(state.inner()).await?;
+    // 2. 用当前 config 重建（state.tdlib 已为 None，init_tdlib 会创建新客户端）
+    init_tdlib(app_handle, state)?;
+    Ok(())
+}
+
+/// 退出登录：向 TDLib 发送 logOut，等待其销毁本地数据并关闭客户端，
+/// 然后重建一个新客户端进入待登录状态（authorizationStateWaitPhoneNumber）。
+/// 前端在用户确认退出后调用，并跳转登录页。
+#[tauri::command]
+pub async fn logout_tdlib(
+    app_handle: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    // 1. logOut → 等待 closed（本地数据销毁）
+    shutdown_tdlib(state.inner(), "logOut").await?;
+    // 2. 重建新客户端，进入待登录状态
+    init_tdlib(app_handle, state)?;
+    Ok(())
+}
+
 /// 根据本地文件扩展名推断上传任务的展示类型（与前端 DownloadFileType 对应）。
 /// 图片 → photo，视频 → video，音频 → audio，其余 → document。
 fn infer_upload_type(path: &str) -> String {
@@ -248,7 +330,7 @@ fn build_add_proxy_req(cfg: &ProxyConfig) -> serde_json::Value {
 /// 将当前代理配置应用到已存在的 TDLib 客户端。
 /// - mode=disabled → disableProxy
 /// - mode=custom → enableProxy(proxy_id)（从代理列表选用已有代理）
-/// - mode=system → 读取系统代理并 addProxy(enable=true)
+/// - mode=system / auto → 读取系统代理并 addProxy(enable=true)；系统代理未开启则 disableProxy
 ///
 /// 注：切换/启用代理后追加 setNetworkType(networkTypeOther) 强制所有网络连接重开，
 /// 确保新代理立即生效（TDLib 文档：调用 setNetworkType 会强制所有连接重新打开，
@@ -271,8 +353,9 @@ fn apply_proxy_to_client(send_fn: TdJsonClientSend, client: *mut c_void, cfg: &P
         }
     } else {
         let mut effective = cfg.clone();
-        // 系统代理：尝试读取系统代理地址；若未启用则退化为禁用代理
-        if cfg.mode == "system" {
+        // system / auto：跟随系统代理。开启则使用系统代理，关闭则退化为直连（禁用代理）。
+        // auto 与 system 在运行时行为一致，区别只体现在前端（auto 为默认的“跟随系统开关”模式）。
+        if cfg.mode == "system" || cfg.mode == "auto" {
             match read_windows_system_proxy() {
                 Some((host, port)) => {
                     effective.proxy_type = "http".to_string();
@@ -533,11 +616,16 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
         lib.get(b"td_json_client_execute")
             .map_err(|e| e.to_string())?
     };
+    let client_destroy: Symbol<TdJsonClientDestroy> = unsafe {
+        lib.get(b"td_json_client_destroy")
+            .map_err(|e| e.to_string())?
+    };
     // 解引用 Symbol 获取原始函数指针
     let create_fn = *client_create;
     let send_fn = *client_send;
     let receive_fn = *client_receive;
     let execute_fn = *client_execute;
+    let destroy_fn = *client_destroy;
 
     // 设置日志等级
     let log_config =
@@ -616,6 +704,8 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
                                             let _ = tx.send(());
                                         }
                                     }
+                                    // 客户端已关闭，后台接收线程退出（供重建 TDLib 客户端时释放旧线程）
+                                    break;
                                 }
                             }
                         }
@@ -922,6 +1012,7 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
         send_fn,
         _receive_fn: receive_fn,
         _execute_fn: execute_fn,
+        destroy_fn,
     });
 
     Ok(())

@@ -73,8 +73,15 @@ async function bootstrap() {
     // 等待 router 就绪，确保后续 push 基于已解析的路由表执行
     await router.isReady();
 
-    // 设置 TDLib 参数（连接正式数据中心），须在 init_tdlib 之前调用
-    await invoke("set_tdlib_parameters", { useTestDc: false });
+    // 设置 TDLib 参数（连接正式/测试数据中心，使用自定义或默认 API 凭据），须在 init_tdlib 之前调用。
+    // 用户可在「系统设置」中修改 use_test_dc / api_id / api_hash（持久化到 settings.system）。
+    const sys = settings.system;
+    await invoke("set_tdlib_parameters", {
+        useTestDc: sys.useTestDc,
+        ...(sys.customApiCreds && sys.apiId && sys.apiHash
+            ? { api_id: Number(sys.apiId), api_hash: sys.apiHash }
+            : {}),
+    });
 
     let authState: "ready" | "login";
     try {

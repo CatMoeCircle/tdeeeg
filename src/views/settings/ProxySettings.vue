@@ -13,6 +13,29 @@
                         代理模式</h3>
 
                     <div class="space-y-3">
+                        <!-- 跟随系统代理（默认） -->
+                        <div class="flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-colors"
+                            :class="settings.proxy.mode === 'auto'
+                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'"
+                            @click="selectMode('auto')">
+                            <div class="flex items-center">
+                                <div
+                                    class="w-9 h-9 rounded-full flex items-center justify-center mr-3 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600">
+                                    <SmartphoneIcon class="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">跟随系统代理（推荐）</h4>
+                                    <p class="text-xs text-gray-400 mt-0.5">系统代理开启时自动使用，关闭时直连</p>
+                                </div>
+                            </div>
+                            <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0"
+                                :class="settings.proxy.mode === 'auto' ? 'border-blue-500' : 'border-gray-300'">
+                                <div v-if="settings.proxy.mode === 'auto'" class="w-2 h-2 rounded-full bg-blue-500">
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- 禁用代理 -->
                         <div class="flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-colors"
                             :class="settings.proxy.mode === 'disabled'
@@ -94,7 +117,8 @@
                                 </p>
                                 <div v-else class="flex items-center gap-2 text-sm">
                                     <span class="text-gray-500 dark:text-gray-400">当前使用：</span>
-                                    <span class="text-gray-800 dark:text-gray-200 font-medium">{{ selectedProxy.proxy.server
+                                    <span class="text-gray-800 dark:text-gray-200 font-medium">{{
+                                        selectedProxy.proxy.server
                                     }}</span>
                                     <span
                                         class="px-1.5 py-0.5 rounded text-[10px] font-medium text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-900/30">
@@ -110,8 +134,8 @@
                 <!-- 已添加的代理列表 -->
                 <div>
                     <div class="flex items-center gap-2 mb-4">
-                        <h3
-                            class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">代理列表</h3>
+                        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">代理列表
+                        </h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                         <button type="button" @click="refreshProxies" :disabled="proxiesLoading"
                             class="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-60 disabled:cursor-wait transition-colors">
@@ -126,12 +150,11 @@
                     </div>
 
                     <!-- 加载中 -->
-                    <div v-if="proxiesLoading"
-                        class="py-6 flex items-center justify-center text-sm text-gray-400">加载代理列表中...</div>
+                    <div v-if="proxiesLoading" class="py-6 flex items-center justify-center text-sm text-gray-400">
+                        加载代理列表中...</div>
 
                     <!-- 加载失败 -->
-                    <div v-else-if="proxiesError"
-                        class="py-6 flex flex-col items-center justify-center gap-2 text-sm">
+                    <div v-else-if="proxiesError" class="py-6 flex flex-col items-center justify-center gap-2 text-sm">
                         <p class="text-red-500">{{ proxiesError }}</p>
                         <button type="button" @click="refreshProxies"
                             class="px-3 py-1 rounded-lg text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">
@@ -160,11 +183,9 @@
                                     : 'border-gray-300 dark:border-gray-600'">
                                 <CheckIcon v-if="isCurrentProxy(p)" class="w-4 h-4" />
                             </div>
-                            <div
-                                class="w-9 h-9 shrink-0 rounded-full flex items-center justify-center"
-                                :class="p.is_enabled
-                                    ? 'bg-green-100 dark:bg-green-900/30 text-green-600'
-                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-400'">
+                            <div class="w-9 h-9 shrink-0 rounded-full flex items-center justify-center" :class="p.is_enabled
+                                ? 'bg-green-100 dark:bg-green-900/30 text-green-600'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-400'">
                                 <ServerIcon class="w-5 h-5" />
                             </div>
                             <div class="flex-1 min-w-0">
@@ -193,6 +214,13 @@
                                 使用
                             </button>
 
+                            <!-- Ping 测试（阻止冒泡） -->
+                            <button type="button" @click.stop="pingProxy(p)" :disabled="pinging"
+                                class="shrink-0 text-gray-400 hover:text-cyan-500 transition-colors disabled:opacity-50"
+                                :class="pinging ? 'animate-pulse' : ''" title="Ping 测试">
+                                <ActivityIcon class="w-5 h-5" />
+                            </button>
+
                             <!-- 分享（阻止冒泡） -->
                             <button type="button" @click.stop="shareProxy(p)"
                                 class="shrink-0 text-gray-400 hover:text-cyan-500 transition-colors" title="生成分享链接">
@@ -214,11 +242,13 @@
         <!-- 添加代理弹窗 -->
         <Teleport to="body">
             <Transition name="elc-fade">
-                <div v-if="addVisible" class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+                <div v-if="addVisible"
+                    class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
                     @mousedown.self="closeAddDialog">
                     <div
                         class="w-100 max-w-[92vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
-                        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                        <div
+                            class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
                             <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">添加代理</h3>
                             <button type="button"
                                 class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
@@ -230,7 +260,8 @@
                         <div class="px-4 py-4 space-y-3">
                             <!-- 代理类型 -->
                             <div>
-                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">代理类型</label>
+                                <label
+                                    class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">代理类型</label>
                                 <div class="flex gap-2">
                                     <button v-for="t in proxyTypes" :key="t.value" type="button"
                                         class="px-3 py-1.5 rounded-lg text-sm transition-colors"
@@ -246,13 +277,15 @@
                             <!-- 服务器 + 端口 -->
                             <div class="grid grid-cols-[1fr_110px] gap-3">
                                 <div>
-                                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">服务器</label>
+                                    <label
+                                        class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">服务器</label>
                                     <input type="text" v-model.trim="form.server"
                                         placeholder="例如 127.0.0.1 或 proxy.example.com"
                                         class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">端口</label>
+                                    <label
+                                        class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">端口</label>
                                     <input type="number" v-model.trim="form.port" placeholder="8080"
                                         class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
                                 </div>
@@ -260,7 +293,8 @@
 
                             <!-- MTProto 密文 -->
                             <div v-if="form.type === 'mtproto'">
-                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">密文（Secret）</label>
+                                <label
+                                    class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">密文（Secret）</label>
                                 <input type="text" v-model.trim="form.secret" placeholder="代理的十六进制 secret"
                                     class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
                             </div>
@@ -269,12 +303,14 @@
                             <template v-if="form.type !== 'mtproto'">
                                 <div class="grid grid-cols-2 gap-3">
                                     <div>
-                                        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">用户名（可选）</label>
+                                        <label
+                                            class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">用户名（可选）</label>
                                         <input type="text" v-model="form.username"
                                             class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">密码（可选）</label>
+                                        <label
+                                            class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">密码（可选）</label>
                                         <input type="password" v-model="form.password"
                                             class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
                                     </div>
@@ -283,7 +319,8 @@
 
                             <!-- 备注 -->
                             <div>
-                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">备注（可选）</label>
+                                <label
+                                    class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">备注（可选）</label>
                                 <input type="text" v-model="form.comment" placeholder="用于标识该代理"
                                     class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
                             </div>
@@ -295,7 +332,8 @@
                             </label>
                         </div>
 
-                        <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
+                        <div
+                            class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
                             <button type="button" @click="closeAddDialog"
                                 class="px-4 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
                                 取消
@@ -317,9 +355,10 @@ import { computed, reactive, ref, onMounted, onActivated } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { MessagePlugin } from "tdesign-vue-next";
 import {
-    BanIcon, MonitorIcon, ServerIcon, TrashIcon, RefreshCwIcon, PlusIcon, XIcon, PlayIcon, Share2Icon, CheckIcon,
+    BanIcon, MonitorIcon, ServerIcon, TrashIcon, RefreshCwIcon, PlusIcon, XIcon, PlayIcon, Share2Icon, CheckIcon, SmartphoneIcon, ActivityIcon,
 } from "lucide-vue-next";
 import { settings } from "../../store/settings";
+import { pingProxyOf } from "../../store/proxyLink";
 import {
     proxies,
     proxiesLoading,
@@ -356,7 +395,7 @@ const selectedProxy = computed<addedProxy | null>(() => {
 });
 
 /** 切换代理模式，并向 Rust 应用 */
-async function selectMode(mode: "disabled" | "system" | "custom") {
+async function selectMode(mode: "auto" | "disabled" | "system" | "custom") {
     settings.proxy.mode = mode;
     if (mode === "disabled") {
         // 禁用代理：清除已选代理的勾选状态
@@ -500,6 +539,24 @@ async function shareProxy(p: addedProxy) {
     } catch (e: any) {
         MessagePlugin.error("复制失败");
         console.error(e);
+    }
+}
+
+/** 是否正在 ping */
+const pinging = ref(false);
+
+/** 对指定代理执行 ping 测试，并用消息展示结果 */
+async function pingProxy(p: addedProxy) {
+    if (pinging.value) return;
+    pinging.value = true;
+    try {
+        const res = await pingProxyOf(p.proxy.server, p.proxy.port, p.proxy.type);
+        if (res) {
+            if (res.ok) MessagePlugin.success(`${p.proxy.server}:${p.proxy.port} — ${res.text}`);
+            else MessagePlugin.warning(`${p.proxy.server}:${p.proxy.port} — ${res.text}`);
+        }
+    } finally {
+        pinging.value = false;
     }
 }
 
