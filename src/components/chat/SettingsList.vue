@@ -69,6 +69,19 @@
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                 </router-link>
 
+                <router-link to="/home/settings/storage"
+                    class="flex items-center px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    active-class="bg-blue-50 dark:bg-gray-800 text-blue-600">
+                    <div class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center mr-3">
+                        <HardDriveIcon class="w-5 h-5" />
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">存储位置</h3>
+                        <p class="text-xs text-gray-500">数据目录（AppData / 应用自带）</p>
+                    </div>
+                    <ChevronRightIcon class="w-4 h-4 text-gray-400" />
+                </router-link>
+
                 <div
                     class="flex items-center px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-not-allowed opacity-60">
                     <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-3">
@@ -125,7 +138,7 @@
 </template>
 
 <script setup lang="ts">
-import { PaletteIcon, ChevronRightIcon, GlobeIcon, DatabaseIcon, NetworkIcon, SendIcon, TerminalSquare as TerminalSquareIcon } from 'lucide-vue-next';
+import { PaletteIcon, ChevronRightIcon, GlobeIcon, DatabaseIcon, NetworkIcon, SendIcon, HardDrive as HardDriveIcon, TerminalSquare as TerminalSquareIcon } from 'lucide-vue-next';
 import avatar from './avatar.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 import { useUserStore } from '../../store/user';

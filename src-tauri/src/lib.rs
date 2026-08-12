@@ -1,5 +1,6 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 mod chat_store;
+mod data_loc;
 mod download_store;
 mod media_stream;
 mod tdlib;
@@ -60,7 +61,10 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
-            let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+            // 根据持久化的数据存储模式解析数据根目录（AppData 或应用自带目录）
+            let data_dir = data_loc::resolve_current_data_dir(app.handle())
+                .map_err(|e| e.to_string())?;
+            std::fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
             app.manage(tdlib::AppState::new(data_dir));
             Ok(())
         })
@@ -86,6 +90,8 @@ pub fn run() {
             tdlib::get_cached_options,
             tdlib::get_cached_option,
             tdlib::get_system_proxy,
+            tdlib::get_data_location,
+            tdlib::migrate_data_dir,
             set_window_effect,
             open_with_dialog,
             open_devtools,

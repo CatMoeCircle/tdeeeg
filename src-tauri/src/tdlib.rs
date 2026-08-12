@@ -5,6 +5,8 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_double, c_void};
+use std::path::PathBuf;
+use std::time::Duration;
 #[cfg(windows)]
 use std::os::windows::ffi::OsStrExt;
 use std::ptr;
@@ -106,10 +108,15 @@ pub struct AppState {
     pub stream_locks: Mutex<HashMap<i32, Arc<Mutex<()>>>>,
     pub connection_state: Arc<Mutex<Option<String>>>,
     pub options: Arc<Mutex<HashMap<String, String>>>,
+    /// 当前数据根目录（TDLib 数据 + 下载记录都存放于其下）
+    pub data_dir: PathBuf,
+    /// 迁移数据目录时，后台接收线程收到 authorizationStateClosed（资源释放完成）
+    /// 后通过该 oneshot 通知等待方，然后才执行目录移动。
+    pub close_signal: Arc<Mutex<Option<oneshot::Sender<()>>>>,
 }
 
 impl AppState {
-    pub fn new(data_dir: std::path::PathBuf) -> Self {
+    pub fn new(data_dir: PathBuf) -> Self {
         Self {
             tdlib: Mutex::new(None),
             pending_requests: Arc::new(Mutex::new(HashMap::new())),
@@ -123,10 +130,12 @@ impl AppState {
             })),
             proxy_config: Arc::new(Mutex::new(ProxyConfig::default())),
             chat_store: Arc::new(Mutex::new(ChatStore::new())),
-            download_store: Arc::new(Mutex::new(DownloadStore::new(data_dir))),
+            download_store: Arc::new(Mutex::new(DownloadStore::new(data_dir.clone()))),
             stream_locks: Mutex::new(HashMap::new()),
             connection_state: Arc::new(Mutex::new(None)),
             options: Arc::new(Mutex::new(HashMap::new())),
+            data_dir,
+            close_signal: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -531,11 +540,7 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
     unsafe { execute_fn(ptr::null_mut(), log_config.as_ptr()) };
 
     // 注册 TDLib 数据目录到 asset protocol 作用域，使前端能加载图片等文件
-    let tdlib_data_dir = app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?
-        .join("TDLib");
+    let tdlib_data_dir = state.data_dir.join("TDLib");
     // 确保数据子目录存在
     std::fs::create_dir_all(tdlib_data_dir.join("tdlib_db"))
         .map_err(|e| format!("Failed to create TDLib db directory: {}", e))?;
@@ -579,6 +584,7 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
     let tdlib_files_dir = tdlib_data_dir.join("tdlib_files");
     let connection_state = state.connection_state.clone();
     let options = state.options.clone();
+    let close_signal = state.close_signal.clone();
     std::thread::spawn(move || {
         let client = client_ptr as *mut c_void;
         loop {
@@ -590,6 +596,24 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
 
                     // 尝试解析 JSON 以检查是否需要自动处理
                     if let Ok(mut event) = serde_json::from_str::<serde_json::Value>(&json_str) {
+                        // 资源释放完成（客户端已 close）：通知迁移等待方
+                        if event.get("@type").and_then(|v| v.as_str())
+                            == Some("updateAuthorizationState")
+                        {
+                            if let Some(state_type) = event
+                                .get("authorization_state")
+                                .and_then(|v| v.get("@type"))
+                                .and_then(|v| v.as_str())
+                            {
+                                if state_type == "authorizationStateClosed" {
+                                    if let Ok(mut sig) = close_signal.lock() {
+                                        if let Some(tx) = sig.take() {
+                                            let _ = tx.send(());
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         // 打印收到的 update（调试），仅在 debug 构建打印
                         #[cfg(debug_assertions)]
                         if let Some(t) = event.get("@type").and_then(|v| v.as_str()) {
@@ -1226,4 +1250,212 @@ pub fn get_system_proxy() -> Result<Option<serde_json::Value>, String> {
         }))),
         None => Ok(None),
     }
+}
+
+// ==================== 数据存储位置 / 迁移命令 ====================
+
+/// 向前端发送迁移进度事件。
+fn emit_migration_progress(app: &tauri::AppHandle, percent: u32, stage: &str, message: impl std::fmt::Display) {
+    let _ = app.emit(
+        "data-migration-progress",
+        json!({ "percent": percent, "stage": stage, "message": message.to_string() }),
+    );
+}
+
+/// 返回当前数据存储位置信息。
+#[tauri::command]
+pub fn get_data_location(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+) -> Result<serde_json::Value, String> {
+    let mode = crate::data_loc::read_mode(&app);
+    let current_dir = state.data_dir.clone();
+    let appdata_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+    let portable_dir = crate::data_loc::resolve_data_dir(&app, crate::data_loc::DataMode::Portable)?;
+    let config_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+
+    // 统计当前数据目录中 TDLib 数据与下载记录的大致体积
+    let mut tdlib_size: u64 = 0;
+    let mut downloads_size: u64 = 0;
+    fn dir_size(dir: &std::path::Path) -> u64 {
+        fn walk(dir: &std::path::Path) -> u64 {
+            let mut total = 0u64;
+            if let Ok(entries) = std::fs::read_dir(dir) {
+                for entry in entries.flatten() {
+                    let p = entry.path();
+                    if p.is_dir() {
+                        total += walk(&p);
+                    } else if let Ok(meta) = p.metadata() {
+                        total += meta.len();
+                    }
+                }
+            }
+            total
+        }
+        walk(dir)
+    }
+    let tdlib_dir = current_dir.join("TDLib");
+    let dl_dir = current_dir.join("downloads");
+    if tdlib_dir.is_dir() {
+        tdlib_size = dir_size(&tdlib_dir);
+    }
+    if dl_dir.is_dir() {
+        downloads_size = dir_size(&dl_dir);
+    }
+
+    Ok(json!({
+        "mode": mode.as_str(),
+        "current_dir": current_dir.to_string_lossy().to_string(),
+        "appdata_dir": appdata_dir.to_string_lossy().to_string(),
+        "portable_dir": portable_dir.to_string_lossy().to_string(),
+        "config_dir": config_dir.to_string_lossy().to_string(),
+        "tdlib_size": tdlib_size,
+        "downloads_size": downloads_size,
+        "total_size": tdlib_size + downloads_size,
+    }))
+}
+
+/// 把数据目录整棵移动（源到目标）。源不存在时直接返回成功（首次迁移到新位置）。
+fn move_data_tree(src: &std::path::Path, dst: &std::path::Path) -> Result<(), String> {
+    if !src.exists() {
+        return Ok(());
+    }
+    if dst.exists() {
+        // 目标已有内容：先备份目标（改名 .bak-<时间戳>），避免覆盖既有数据
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        let bak = std::path::PathBuf::from(format!("{}.bak-{}", dst.to_string_lossy(), ts));
+        std::fs::rename(dst, &bak).map_err(|e| format!("备份目标目录失败 {}: {e}", dst.display()))?;
+    }
+    if let Some(parent) = dst.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("无法创建目标父目录 {}: {e}", parent.display()))?;
+    }
+    match std::fs::rename(src, dst) {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            // Windows 上跨盘（如 C: → D:）rename 会失败，退化为复制+删除
+            copy_and_remove(src, dst).map_err(|copy_err| {
+                format!("移动目录失败 {}: {e} / {copy_err}", src.display())
+            })
+        }
+    }
+}
+
+/// 跨卷复制目录后删除源（作为 rename 失败的兜底）。
+fn copy_and_remove(src: &std::path::Path, dst: &std::path::Path) -> Result<(), std::io::Error> {
+    fn copy_dir(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {
+        std::fs::create_dir_all(to)?;
+        for entry in std::fs::read_dir(from)? {
+            let entry = entry?;
+            let src_path = entry.path();
+            let dst_path = to.join(entry.file_name());
+            if src_path.is_dir() {
+                copy_dir(&src_path, &dst_path)?;
+            } else {
+                std::fs::copy(&src_path, &dst_path)?;
+            }
+        }
+        Ok(())
+    }
+    copy_dir(src, dst)?;
+    std::fs::remove_dir_all(src)?;
+    Ok(())
+}
+
+/// 迁移数据目录到目标模式，并在完成后重启应用。
+///
+/// 流程：
+/// 1. 向 TDLib 发送 close，等待 authorizationStateClosed（资源释放更新）；
+/// 2. 移动 TDLib 数据目录（tdlib_db/tdlib_files）与下载记录（downloads）到新位置；
+/// 3. 持久化新的存储模式；
+/// 4. 重启应用，重启后 TDLib 数据目录指向新位置。
+#[tauri::command]
+pub async fn migrate_data_dir(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    mode: String,
+) -> Result<(), String> {
+    use crate::data_loc::DataMode;
+    let target_mode = match mode.as_str() {
+        "appdata" => DataMode::AppData,
+        "portable" => DataMode::Portable,
+        other => return Err(format!("未知的存储模式: {other}")),
+    };
+
+    let current_mode = crate::data_loc::read_mode(&app);
+    if current_mode == target_mode {
+        return Ok(()); // 已经是目标模式，无需迁移
+    }
+
+    let target_dir = crate::data_loc::resolve_data_dir(&app, target_mode)?;
+
+    emit_migration_progress(&app, 5, "prepare", "准备迁移…");
+
+    // 1. 关闭 TDLib，等待资源释放
+    let client_closed = {
+        let guard = state.tdlib.lock().map_err(|e| e.to_string())?;
+        let wrapper = guard.as_ref().ok_or("TDLib 尚未初始化，无法迁移")?;
+        let (tx, rx) = oneshot::channel::<()>();
+        {
+            let mut sig = state.close_signal.lock().map_err(|e| e.to_string())?;
+            *sig = Some(tx);
+        }
+        let close_req = json!({ "@type": "close", "@extra": { "request_id": "internal-close" } });
+        let c_str = CString::new(close_req.to_string()).unwrap();
+        unsafe { (wrapper.send_fn)(wrapper.client, c_str.as_ptr()) };
+        emit_migration_progress(&app, 10, "close", "正在关闭 TDLib，等待资源释放…");
+        rx
+    };
+
+    // 等待 authorizationStateClosed，最多 30 秒
+    let closed = tokio::time::timeout(Duration::from_secs(30), client_closed)
+        .await
+        .map_err(|_| "等待 TDLib 资源释放超时，迁移已取消".to_string())?;
+    if closed.is_err() {
+        return Err("TDLib 关闭通道异常".to_string());
+    }
+    emit_migration_progress(&app, 40, "released", "资源已释放，开始移动数据…");
+
+    // 2. 移动数据
+    let src_dir = state.data_dir.clone();
+    let mut failed = None::<String>;
+    // TDLib 数据
+    emit_migration_progress(&app, 50, "move", "移动 TDLib 数据库…");
+    if let Err(e) = move_data_tree(&src_dir.join("TDLib"), &target_dir.join("TDLib")) {
+        failed = Some(e);
+    }
+    emit_migration_progress(&app, 75, "move", "移动下载记录…");
+    if let Err(e) = move_data_tree(&src_dir.join("downloads"), &target_dir.join("downloads")) {
+        if failed.is_none() {
+            failed = Some(e);
+        }
+    }
+    emit_migration_progress(&app, 90, "config", "保存存储位置配置…");
+
+    if let Some(err) = failed {
+        // 移动过程中出错：恢复为原模式（保证应用仍能启动），并提示错误后重启。
+        emit_migration_progress(&app, 95, "error", format!("迁移出错：{err}"));
+        let _ = crate::data_loc::write_mode(&app, current_mode);
+    } else {
+        // 3. 持久化新模式（成功）
+        if let Err(e) = crate::data_loc::write_mode(&app, target_mode) {
+            emit_migration_progress(&app, 95, "error", format!("保存配置失败：{e}"));
+            let _ = crate::data_loc::write_mode(&app, current_mode);
+        } else {
+            emit_migration_progress(&app, 100, "done", "迁移完成，正在重启应用…");
+        }
+    }
+
+    // 略微延迟，让进度事件送达前端后再重启（无论成败都重启以恢复一致状态）
+    tokio::time::sleep(Duration::from_millis(800)).await;
+
+    // 4. 重启应用（重启后 TDLib 数据目录将指向配置的位置）
+    //    注意：restart() 会终止当前进程，后续代码不会执行。
+    app.restart();
 }

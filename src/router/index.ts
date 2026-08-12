@@ -79,6 +79,11 @@ const router = createRouter({
           component: () => import("../views/settings/ProxySettings.vue"),
         },
         {
+          path: "settings/storage",
+          name: "settings-storage",
+          component: () => import("../views/settings/StorageSettings.vue"),
+        },
+        {
           path: "settings/debug",
           name: "settings-debug",
           component: () => import("../views/settings/DeveloperSettings.vue"),
