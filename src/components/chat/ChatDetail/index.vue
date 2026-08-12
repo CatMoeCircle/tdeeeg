@@ -492,6 +492,7 @@ import {
     showMembershipAction as showMembershipActionOf, canJoinCurrentChat as canJoinCurrentChatOf,
     isChannelWithSenderDisplay as isChannelWithSenderDisplayOf, showSenderName as showSenderNameOf,
     showAvatarColumn as showAvatarColumnOf, showChannelActions as showChannelActionsOf,
+    canSendEmojiRights as canSendEmojiRightsOf, canSendStickerGifRights as canSendStickerGifRightsOf,
 } from './composables/permissions';
 import {
     isSelfMessage, isOutgoingMessage as isOutgoingMessageOf,
@@ -2939,9 +2940,14 @@ watch(
         const st = stickerPanelState.value;
         st.chat = chat.value;
         st.isPremium = isMePremium.value;
-        const perms = chat.value?.permissions;
-        st.canSendBasic = perms?.can_send_basic_messages ?? true;
-        st.canSendOther = perms?.can_send_other_messages ?? true;
+        // emoji 受 can_send_basic_messages（能发文本即可用 emoji）；
+        // 贴纸 / GIF 受 can_send_other_messages；频道中只要有发送消息权限即全部放行。
+        st.canSendBasic = chat.value
+            ? canSendEmojiRightsOf(chat.value, currentMemberStatus.value, groupCaches())
+            : true;
+        st.canSendOther = chat.value
+            ? canSendStickerGifRightsOf(chat.value, currentMemberStatus.value, groupCaches())
+            : true;
         st.onPickEmoji = insertEmojiIntoInput;
         st.onPickCustomEmoji = insertCustomEmojiIntoInput;
         st.onPickSticker = sendSticker;

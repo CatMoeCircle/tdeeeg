@@ -281,6 +281,47 @@ export function canSendMessageRights(
 }
 
 /**
+ * emoji 权限（能发送基本消息即可，emoji 属于文本内容）：
+ * - 私聊 / 密聊 / 管理员 / 创建者放行；
+ * - 受限成员以本人 can_send_basic_messages 为准；
+ * - 其余看 chat.permissions.can_send_basic_messages（缺失时放行）。
+ * 频道同样：只要有发送消息权限即可使用 emoji。
+ */
+export function canSendEmojiRights(
+    currentChat: chat,
+    memberStatus: ChatMemberStatus | undefined,
+    caches: GroupCache,
+): boolean {
+    return canSendCapability(currentChat, memberStatus, caches, 'can_send_basic_messages');
+}
+
+/**
+ * 贴纸 / GIF 权限：
+ * - 群组：需 can_send_other_messages（贴纸 / GIF / 骰子等同受此权限控制）——贴纸与 GIF 是一起的；
+ * - 频道：只要有发送消息权限（can_send_basic_messages）即可发送贴纸 / GIF。
+ * 参见用户规则："发送贴纸和gif是一起的"；"能发送文本就能使用emoji"；"频道中只要有发送消息权限就都能发"。
+ */
+export function canSendStickerGifRights(
+    currentChat: chat,
+    memberStatus: ChatMemberStatus | undefined,
+    caches: GroupCache,
+): boolean {
+    // 频道：只要有发送消息权限即放行全部（贴纸 / GIF / emoji）
+    if (currentChat.type._ === 'chatTypeSupergroup' && currentChat.type.is_channel) {
+        return canSendCapability(currentChat, memberStatus, caches, 'can_send_basic_messages');
+    }
+    // 私聊 / 密聊（自身 Saved Messages 等）直接允许
+    if (isPeerChat(currentChat)) return true;
+    // 管理员 / 创建者始终允许
+    if (isAdminOrCreator(currentChat, caches)) return true;
+    const perms = memberStatus?._ === 'chatMemberStatusRestricted'
+        ? memberStatus.permissions
+        : currentChat.permissions;
+    if (!perms) return true; // 未知时放开
+    return perms.can_send_other_messages !== false;
+}
+
+/**
  * 投票的聊天类型是否允许（pollsAllowed）：
  * - 超群 / 基本群：直接允许；
  * - 私聊：对方是 Bot 或是"自己（Saved Messages）"。

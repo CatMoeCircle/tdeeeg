@@ -456,7 +456,10 @@ function renderCustomEmojiHtml(
         }
         return `<img class="mi-emoji mi-ce" draggable="false" alt="${escapeHtml(r.alt)}" src="${escapeHtml(med.src)}">`;
     }
-    return escapeHtml(r.alt);
+    // 源尚未就绪（缩略图/完整贴纸仍在下）→ 渲染一个与 emoji 等宽的加载占位，
+    // 占位与 textarea 里的占位字符同宽（1.2em）以保持光标/排版对齐；就绪后平滑显示成图，
+    // 避免“先显示系统 emoji → 再切成自定义图”的来回闪烁。
+    return `<span class="mi-ce mi-ce-loading" aria-label="${escapeHtml(r.alt)}"></span>`;
 }
 
 /**

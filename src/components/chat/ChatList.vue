@@ -284,7 +284,7 @@
                                         </h3>
                                         <span class="text-xs text-gray-400 ml-1 shrink-0">{{
                                             formatTime(topic.last_message?.date)
-                                            }}</span>
+                                        }}</span>
                                     </div>
                                     <!-- 第二排：发送人（迷你头像）+ 消息，复用对话列表的发送人标记 -->
                                     <div class="flex items-center gap-2">

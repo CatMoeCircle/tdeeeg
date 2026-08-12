@@ -32,16 +32,17 @@
                 @attach-contact="emit('attachContact')" @attach-location="emit('attachLocation')" />
 
             <div class="flex-1 min-w-0 rounded-full dark:bg-gray-800 flex items-center my-2 relative">
-                <!-- 富文本格式预览层：与 textarea 逐像素重叠，展示已赋予的实体样式。
-                     组合（输入法预打字）期间不显示预览层，避免与 textarea 正常颜色的组合文字重叠。 -->
-                <div v-show="previewHTML && !isComposing" aria-hidden="true"
+                <!-- 富文本格式预览层：与 textarea 逐像素重叠，展示实体样式与 emoji 图片。
+                     预览层始终显示（含输入法组合期间），textarea 文字保持透明，由预览层统一绘制
+                     （含组合中的拼音）。text 的当前值（含拼音）由 onInput 实时从 DOM 读回，
+                     保证预览层在组合期间也即时反映——这样自定义/全局 emoji 不会回退成原始样式。 -->
+                <div v-show="previewHTML" aria-hidden="true"
                     class="input-preview absolute inset-0 pointer-events-none select-none overflow-hidden">
                     <div ref="previewInnerRef" class="input-preview-inner" v-html="previewHTML"></div>
                 </div>
                 <textarea ref="textareaRef" v-model="localValue" :placeholder="inputPlaceholder"
-                    :class="['message-input-scrollbar input-textarea flex-1 min-w-0 bg-transparent resize-none focus:outline-none text-sm leading-5 text-gray-800 dark:text-gray-200 px-2 py-2 min-h-9 max-h-40 overflow-y-auto field-sizing-content', { composing: isComposing }]"
+                    :class="['message-input-scrollbar input-textarea flex-1 min-w-0 bg-transparent resize-none focus:outline-none text-sm leading-5 text-gray-800 dark:text-gray-200 px-2 py-2 min-h-9 max-h-40 overflow-y-auto field-sizing-content']"
                     rows="1" @input="onInput" @keydown.enter.exact.prevent="onEnter" @keydown.enter.shift.stop
-                    @compositionstart="isComposing = true" @compositionend="isComposing = false"
                     @paste="onPaste" @scroll="syncPreviewScroll" @contextmenu.prevent.stop="onContextMenu"></textarea>
             </div>
 
@@ -56,6 +57,9 @@
                 </button>
             </div>
         </div>
+
+        <!-- 链接地址输入对话框（替代 window.prompt） -->
+        <LinkInputDialog v-model="linkDialogOpen" :initial-url="linkInitialUrl" @submit="onLinkSubmit" />
     </div>
 </template>
 
@@ -75,6 +79,7 @@ import {
 import type { FormatKind } from '../../../utils/textFormatters';
 import AttachmentMenu from './AttachmentMenu.vue';
 import AttachmentTray from './AttachmentTray.vue';
+import LinkInputDialog from './LinkInputDialog.vue';
 
 export interface ReplyTarget {
     title: string;
@@ -117,8 +122,6 @@ const entities = ref<textEntity[]>([]);
 let lastText = props.modelValue || '';
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const previewInnerRef = ref<HTMLDivElement | null>(null);
-/** 输入法组合（预打字）进行中：组合期间 textarea 显示正常颜色文字，预览层隐藏 */
-const isComposing = ref(false);
 
 /**
  * 富文本预览层 HTML：由当前文本 + 实体渲染。
@@ -146,25 +149,28 @@ function resolveCustomEmojiSrc(id: string): { src: string; kind: 'img' | 'video'
     }
     if (!st) return null;
     const fmt = st.sticker?.format?._;
-    // webm 动画 → <video>（img 无法播放）
-    if (fmt === 'stickerFormatWebm' && st.filePath) {
-        return { src: st.filePath, kind: 'video' };
+    if (fmt === 'stickerFormatWebm') {
+        // webm 动画 → <video>（img 无法播放）；完整文件未就绪时缩略图兜底
+        if (st.filePath) return { src: st.filePath, kind: 'video' };
+        if (st.thumbnailUrl) return { src: st.thumbnailUrl, kind: 'img' };
+        return null;
     }
-    // webp 静态 → <img>
-    if (fmt === 'stickerFormatWebp' && st.filePath) {
-        return { src: st.filePath, kind: 'img' };
+    if (fmt === 'stickerFormatWebp') {
+        // webp 静态 → <img>：优先完整文件；完整体还没下好时先用缩略图兜底，
+        // 避免“先显示系统 emoji → 再切成自定义图”的突兀回退。
+        if (st.filePath) return { src: st.filePath, kind: 'img' };
+        if (st.thumbnailUrl) return { src: st.thumbnailUrl, kind: 'img' };
+        return null;
     }
-    // tgs 动画：主文件 .tgs 无法直接用 <img>/<video> 显示，尽量用 webp 缩略图
-    if (fmt === 'stickerFormatTgs' && st.thumbnailUrl) {
-        return { src: st.thumbnailUrl, kind: 'img' };
+    if (fmt === 'stickerFormatTgs') {
+        // tgs 主文件是 .tgs，无法用 <img>/<video> 直接显示，只能用 (webp) 缩略图；
+        // 绝不能 fallback 到 st.filePath（.tgs）当作图源，否则会渲染破图。
+        if (st.thumbnailUrl) return { src: st.thumbnailUrl, kind: 'img' };
+        return null;
     }
-    // 兜底：主文件或缩略图任意可显示源
-    if (st.filePath) {
-        return { src: st.filePath, kind: fmt === 'stickerFormatWebm' ? 'video' : 'img' };
-    }
-    if (st.thumbnailUrl) {
-        return { src: st.thumbnailUrl, kind: 'img' };
-    }
+    // 未知格式：主文件或缩略图任意可显示源
+    if (st.filePath) return { src: st.filePath, kind: 'img' };
+    if (st.thumbnailUrl) return { src: st.thumbnailUrl, kind: 'img' };
     return null;
 }
 
@@ -202,8 +208,16 @@ watch(() => props.modelValue, (v) => {
 
 watch(localValue, (v) => emit('update:modelValue', v));
 
-/** 文本被用户手动编辑：diff 出变化位置并平移实体偏移 */
-function onInput() {
+/**
+ * 文本被用户手动编辑：diff 出变化位置并平移实体偏移。
+ *
+ * 同时从 DOM <textarea> 实时读回当前值并强制同步 localValue：Vue 的 v-model
+ * 在输入法组合（composition）期间会延迟赋值，若不强制同步，预览层会停留在
+ * 组合前的旧文本，导致组合期间 emoji 回退成原始样式、拼音也不在预览层展示。
+ */
+function onInput(e: Event) {
+    const el = e.target as HTMLTextAreaElement;
+    localValue.value = el.value;
     const next = localValue.value;
     if (next !== lastText) {
         entities.value = shiftEntitiesAfterTextChange(entities.value, lastText, next);
@@ -290,18 +304,36 @@ function buildFormatChildren(): ContextMenuItem[] {
     ];
 }
 
-/** 链接格式：让用户输入 URL（选中文本默认作为展示文本），空则不应用 */
+/** 链接对话框状态（自定义 UI，替代 window.prompt） */
+const linkDialogOpen = ref(false);
+/** 打开对话框时捕获的选区，对话框期间 textarea 失焦会用这里保证定位不丢 */
+let linkSelection: [number, number] = [0, 0];
+/** 对话框预填的初始 URL */
+const linkInitialUrl = ref('');
+
+/** 链接格式：打开自定义对话框让用户输入 URL（选中文本默认作为展示文本） */
 function applyLink() {
     const [s, e] = getRange();
     if (e <= s) return;
+    // 先捕获选区：打开对话框后 textarea 失焦会导致 selectionStart/End 丢失
+    linkSelection = [s, e];
     const selText = localValue.value.slice(s, e).trim();
-    const guess = /^[a-z]+:\/\/|^tg:\/\//i.test(selText) ? selText : '';
-    const url = window.prompt('输入链接地址（http:// 或 https://）：', guess);
-    if (url == null) return;
+    linkInitialUrl.value = /^[a-z]+:\/\/|^tg:\/\//i.test(selText) ? selText : '';
+    linkDialogOpen.value = true;
+}
+
+/** 对话框提交：对保存的选区应用链接格式，空 URL 则不应用 */
+function onLinkSubmit(url: string) {
     const u = url.trim();
     if (!u) return;
     // 无协议时补全 http://，让 TDLib 识别为链接
     const full = /^[a-z][a-z0-9+.-]*:\/\//i.test(u) ? u : `http://${u}`;
+    // 恢复选区后应用格式
+    const ta = textareaRef.value;
+    if (ta) {
+        ta.focus();
+        ta.setSelectionRange(linkSelection[0], linkSelection[1]);
+    }
     applyFormat('link', full);
 }
 
@@ -423,19 +455,9 @@ function selectAll() {
     color: rgba(128, 128, 128, 0.6);
     -webkit-text-fill-color: rgba(128, 128, 128, 0.6);
 }
-/* 输入法组合（预打字）期间：恢复真实文字颜色，让拼音/候选可见；
-   此时的预览层已隐藏，文字由 textarea 直接绘制，避免重叠 */
-.input-textarea.composing {
-    color: #1f2937;
-    -webkit-text-fill-color: #1f2937;
-}
 @media (prefers-color-scheme: dark) {
     .input-textarea {
         caret-color: #e5e7eb;
-    }
-    .input-textarea.composing {
-        color: #e5e7eb;
-        -webkit-text-fill-color: #e5e7eb;
     }
 }
 
@@ -477,6 +499,23 @@ function selectAll() {
 .input-preview-inner :deep(video.mi-emoji) {
     background: transparent;
     border: none;
+}
+/* 自定义 emoji 数据未就绪时的加载占位：与 emoji 等宽，保持与 textarea 内占位字符
+   同宽（1.2em）以免排版错位/光标跳动；就绪后由 <img>/<video> 平滑替换。 */
+.input-preview-inner :deep(.mi-ce-loading) {
+    display: inline-block;
+    width: 1.2em;
+    height: 1.2em;
+    margin: 0 0.05em;
+    vertical-align: -0.1em;
+    border-radius: 0.25rem;
+    background: rgba(128, 128, 128, 0.25);
+    animation: mi-ce-pulse 1.2s ease-in-out infinite;
+    pointer-events: none;
+}
+@keyframes mi-ce-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
 }
 
 /* ---- 选中文本（选区）配色 ---- */
