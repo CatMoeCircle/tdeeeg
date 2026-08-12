@@ -5,13 +5,13 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_double, c_void};
-use std::path::PathBuf;
-use std::time::Duration;
 #[cfg(windows)]
 use std::os::windows::ffi::OsStrExt;
+use std::path::PathBuf;
 use std::ptr;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tauri::{Emitter, Manager, State};
 use tokio::sync::oneshot;
 
@@ -195,7 +195,9 @@ fn infer_upload_type(path: &str) -> String {
     const VIDEO_EXTS: &[&str] = &[
         "mp4", "mov", "mkv", "avi", "webm", "m4v", "mpeg", "mpg", "wmv", "flv", "3gp", "ogv",
     ];
-    const AUDIO_EXTS: &[&str] = &["mp3", "m4a", "aac", "ogg", "opus", "flac", "wav", "wma", "amr"];
+    const AUDIO_EXTS: &[&str] = &[
+        "mp3", "m4a", "aac", "ogg", "opus", "flac", "wav", "wma", "amr",
+    ];
     if IMAGE_EXTS.contains(&ext.as_str()) {
         "photo".to_string()
     } else if VIDEO_EXTS.contains(&ext.as_str()) {
@@ -463,7 +465,10 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
     }
 
     println!("Loading TDLib library from: {:?}", dll_path);
-    let _ = app_handle.emit("tdlib-log", format!("Loading TDLib library from: {:?}", dll_path));
+    let _ = app_handle.emit(
+        "tdlib-log",
+        format!("Loading TDLib library from: {:?}", dll_path),
+    );
 
     if !found {
         let err_msg = format!(
@@ -827,10 +832,8 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
                                             .pointer("/remote/uploaded_size")
                                             .and_then(|v| v.as_i64())
                                             .unwrap_or(0);
-                                        let total_size = file
-                                            .get("size")
-                                            .and_then(|v| v.as_i64())
-                                            .unwrap_or(0);
+                                        let total_size =
+                                            file.get("size").and_then(|v| v.as_i64()).unwrap_or(0);
                                         let expected = file
                                             .get("expected_size")
                                             .and_then(|v| v.as_i64())
@@ -883,10 +886,8 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
                                             is_up_active,
                                             is_up_completed,
                                         ) {
-                                            let _ = app_handle_clone.emit(
-                                                "upload-progress-update",
-                                                &item,
-                                            );
+                                            let _ = app_handle_clone
+                                                .emit("upload-progress-update", &item);
                                         }
                                     }
                                 }
@@ -1255,7 +1256,12 @@ pub fn get_system_proxy() -> Result<Option<serde_json::Value>, String> {
 // ==================== 数据存储位置 / 迁移命令 ====================
 
 /// 向前端发送迁移进度事件。
-fn emit_migration_progress(app: &tauri::AppHandle, percent: u32, stage: &str, message: impl std::fmt::Display) {
+fn emit_migration_progress(
+    app: &tauri::AppHandle,
+    percent: u32,
+    stage: &str,
+    message: impl std::fmt::Display,
+) {
     let _ = app.emit(
         "data-migration-progress",
         json!({ "percent": percent, "stage": stage, "message": message.to_string() }),
@@ -1270,11 +1276,9 @@ pub fn get_data_location(
 ) -> Result<serde_json::Value, String> {
     let mode = crate::data_loc::read_mode(&app);
     let current_dir = state.data_dir.clone();
-    let appdata_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?;
-    let portable_dir = crate::data_loc::resolve_data_dir(&app, crate::data_loc::DataMode::Portable)?;
+    let appdata_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let portable_dir =
+        crate::data_loc::resolve_data_dir(&app, crate::data_loc::DataMode::Portable)?;
     let config_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
 
     // 统计当前数据目录中 TDLib 数据与下载记录的大致体积
@@ -1330,7 +1334,8 @@ fn move_data_tree(src: &std::path::Path, dst: &std::path::Path) -> Result<(), St
             .map(|d| d.as_millis())
             .unwrap_or(0);
         let bak = std::path::PathBuf::from(format!("{}.bak-{}", dst.to_string_lossy(), ts));
-        std::fs::rename(dst, &bak).map_err(|e| format!("备份目标目录失败 {}: {e}", dst.display()))?;
+        std::fs::rename(dst, &bak)
+            .map_err(|e| format!("备份目标目录失败 {}: {e}", dst.display()))?;
     }
     if let Some(parent) = dst.parent() {
         std::fs::create_dir_all(parent)
@@ -1340,9 +1345,8 @@ fn move_data_tree(src: &std::path::Path, dst: &std::path::Path) -> Result<(), St
         Ok(()) => Ok(()),
         Err(e) => {
             // Windows 上跨盘（如 C: → D:）rename 会失败，退化为复制+删除
-            copy_and_remove(src, dst).map_err(|copy_err| {
-                format!("移动目录失败 {}: {e} / {copy_err}", src.display())
-            })
+            copy_and_remove(src, dst)
+                .map_err(|copy_err| format!("移动目录失败 {}: {e} / {copy_err}", src.display()))
         }
     }
 }

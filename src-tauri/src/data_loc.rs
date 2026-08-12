@@ -61,13 +61,15 @@ pub fn read_mode<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> DataMode {
 }
 
 /// 持久化当前激活的数据模式。
-pub fn write_mode<R: tauri::Runtime>(app: &tauri::AppHandle<R>, mode: DataMode) -> Result<(), String> {
+pub fn write_mode<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    mode: DataMode,
+) -> Result<(), String> {
     let config_dir = app
         .path()
         .app_config_dir()
         .map_err(|e| format!("无法定位配置目录: {e}"))?;
-    std::fs::create_dir_all(&config_dir)
-        .map_err(|e| format!("无法创建配置目录: {e}"))?;
+    std::fs::create_dir_all(&config_dir).map_err(|e| format!("无法创建配置目录: {e}"))?;
     let config_path = config_dir.join(CONFIG_FILE);
     let content = serde_json::to_string_pretty(&DataLocationConfig { mode })
         .map_err(|e| format!("序列化配置失败: {e}"))?;
@@ -77,7 +79,10 @@ pub fn write_mode<R: tauri::Runtime>(app: &tauri::AppHandle<R>, mode: DataMode) 
 /// 根据模式解析数据根目录：
 /// - AppData → `app_data_dir()`
 /// - Portable → 可执行文件所在目录
-pub fn resolve_data_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>, mode: DataMode) -> Result<PathBuf, String> {
+pub fn resolve_data_dir<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    mode: DataMode,
+) -> Result<PathBuf, String> {
     match mode {
         DataMode::AppData => app
             .path()
@@ -98,7 +103,9 @@ pub fn resolve_data_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>, mode: Data
 }
 
 /// 读取当前激活的数据根目录（供 setup / init 调用）。
-pub fn resolve_current_data_dir<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
+pub fn resolve_current_data_dir<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<PathBuf, String> {
     let mode = read_mode(app);
     resolve_data_dir(app, mode)
 }

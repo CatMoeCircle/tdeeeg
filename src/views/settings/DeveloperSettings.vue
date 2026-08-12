@@ -54,6 +54,25 @@
                     </button>
                 </section>
 
+                <!-- 右键菜单调试项 -->
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
+                        右键菜单</h3>
+                    <button type="button"
+                        class="w-full flex items-center justify-between p-4 rounded-xl border bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                        @click="setShowCopyJsonInMenus(!showCopyJsonInMenus)">
+                        <div class="text-left">
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">显示“复制原始 JSON”</p>
+                            <p class="text-xs text-gray-500 mt-0.5">在对话列表与消息右键菜单中显示“复制对话/消息原始 JSON”调试项</p>
+                        </div>
+                        <div class="w-9 h-5 rounded-full transition-colors relative"
+                            :class="showCopyJsonInMenus ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'">
+                            <div class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                                :class="showCopyJsonInMenus ? 'translate-x-4' : ''" />
+                        </div>
+                    </button>
+                </section>
+
                 <!-- 打开开发者工具 -->
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
@@ -101,6 +120,7 @@ import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Refre
 import { invoke } from '@tauri-apps/api/core';
 import {
     logUpdates, setLogUpdates, openDevTools, rawTdlibSend,
+    showCopyJsonInMenus, setShowCopyJsonInMenus,
 } from '../../store/debug';
 
 const router = useRouter();

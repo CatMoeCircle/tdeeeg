@@ -5,66 +5,76 @@
                 @contextmenu.prevent.stop="onRootContextMenu">
                 <div class="cm-menu" @click.stop="onMenuClick">
                     <template v-for="(item, idx) in visibleItems" :key="item.key ?? idx">
-                        <!-- 分隔线：用 v-if / v-else-if / v-else 互斥，避免分隔线项额外渲染一个空的 .cm-item -->
-                        <div v-if="item.divider" class="cm-divider"></div>
-                        <!-- 子菜单 -->
-                        <div v-else-if="item.children && visibleChildren(item.children).length" class="cm-item-wrap"
-                            :class="{ 'cm-disabled': item.disabled }" @mouseenter="onSubmenuEnter(idx)">
-                            <div class="cm-item"
-                                :class="{ 'cm-open': openSubIdx === idx, 'cm-disabled': item.disabled }">
-                                <span class="cm-icon" v-if="item.icon">
-                                    <component :is="item.icon" class="w-4 h-4" />
-                                </span>
-                                <span class="cm-label">{{ item.label }}</span>
-                                <span class="cm-check" v-if="item.checked">
-                                    <CheckIcon class="w-4 h-4" />
-                                </span>
-                                <span class="cm-shortcut cm-sub-arrow">
-                                    <ChevronRightIcon class="w-4 h-4" />
-                                </span>
-                            </div>
-                            <Teleport to="body">
-                                <div v-if="openSubIdx === idx && visibleChildren(item.children).length" data-cm-submenu
-                                    class="cm-menu cm-submenu" :class="{ 'cm-sub-left': subOpensLeft }"
-                                    :style="subStyle">
-                                    <template v-for="(child, cIdx) in visibleChildren(item.children)"
-                                        :key="child.key ?? cIdx">
-                                        <!-- 分隔线：只渲染分隔线，不再额外渲染一个空的可 hover .cm-item -->
-                                        <div v-if="child.divider" class="cm-divider"></div>
-                                        <div v-else class="cm-item-wrap" :class="{ 'cm-disabled': child.disabled }">
-                                            <div class="cm-item"
-                                                :class="{ 'cm-danger': child.danger, 'cm-disabled': child.disabled, 'cm-checked': child.checked }"
-                                                @click="onChildClick(child)">
-                                                <span class="cm-icon" v-if="child.icon">
-                                                    <component :is="child.icon" class="w-4 h-4" />
-                                                </span>
-                                                <span class="cm-label">{{ child.label }}</span>
-                                                <span class="cm-check" v-if="child.checked">
-                                                    <CheckIcon class="w-4 h-4" />
-                                                </span>
-                                                <span class="cm-shortcut" v-if="child.shortcut">{{ child.shortcut
-                                                }}</span>
-                                            </div>
-                                        </div>
-                                    </template>
+                        <!-- 分隔线：仅当该项是“纯分隔线”（无图标/文案/子菜单）时才只渲染分隔线；
+                            若某项同时带 divider:true 与内容（如“退出群组”“复制 JSON”），则先渲染分隔线、再渲染该项本身。 -->
+                        <div v-if="isDividerOnly(item)" class="cm-divider"></div>
+                        <template v-else>
+                            <div v-if="item.divider" class="cm-divider"></div>
+                            <!-- 子菜单 -->
+                            <div v-if="item.children && visibleChildren(item.children).length" class="cm-item-wrap"
+                                :class="{ 'cm-disabled': item.disabled }" @mouseenter="onSubmenuEnter(idx)">
+                                <div class="cm-item"
+                                    :class="{ 'cm-open': openSubIdx === idx, 'cm-disabled': item.disabled }">
+                                    <span class="cm-icon" v-if="item.icon">
+                                        <component :is="item.icon" class="w-4 h-4" />
+                                    </span>
+                                    <span class="cm-label">{{ item.label }}</span>
+                                    <span class="cm-check" v-if="item.checked">
+                                        <CheckIcon class="w-4 h-4" />
+                                    </span>
+                                    <span class="cm-shortcut cm-sub-arrow">
+                                        <ChevronRightIcon class="w-4 h-4" />
+                                    </span>
                                 </div>
-                            </Teleport>
-                        </div>
-                        <!-- 普通项 -->
-                        <div v-else class="cm-item-wrap" :class="{ 'cm-disabled': item.disabled }">
-                            <div class="cm-item"
-                                :class="{ 'cm-danger': item.danger, 'cm-disabled': item.disabled, 'cm-checked': item.checked }"
-                                @click="onItemClick(item)">
-                                <span class="cm-icon" v-if="item.icon">
-                                    <component :is="item.icon" class="w-4 h-4" />
-                                </span>
-                                <span class="cm-label">{{ item.label }}</span>
-                                <span class="cm-check" v-if="item.checked">
-                                    <CheckIcon class="w-4 h-4" />
-                                </span>
-                                <span class="cm-shortcut" v-if="item.shortcut">{{ item.shortcut }}</span>
+                                <Teleport to="body">
+                                    <div v-if="openSubIdx === idx && visibleChildren(item.children).length"
+                                        data-cm-submenu class="cm-menu cm-submenu"
+                                        :class="{ 'cm-sub-left': subOpensLeft }" :style="subStyle">
+                                        <template v-for="(child, cIdx) in visibleChildren(item.children)"
+                                            :key="child.key ?? cIdx">
+                                            <!-- 分隔线：只渲染分隔线，不再额外渲染一个空的可 hover .cm-item -->
+                                            <template v-if="isDividerOnly(child)">
+                                                <div class="cm-divider"></div>
+                                            </template>
+                                            <template v-else>
+                                                <div v-if="child.divider" class="cm-divider"></div>
+                                                <div class="cm-item-wrap" :class="{ 'cm-disabled': child.disabled }">
+                                                    <div class="cm-item"
+                                                        :class="{ 'cm-danger': child.danger, 'cm-disabled': child.disabled, 'cm-checked': child.checked }"
+                                                        @click="onChildClick(child)">
+                                                        <span class="cm-icon" v-if="child.icon">
+                                                            <component :is="child.icon" class="w-4 h-4" />
+                                                        </span>
+                                                        <span class="cm-label">{{ child.label }}</span>
+                                                        <span class="cm-check" v-if="child.checked">
+                                                            <CheckIcon class="w-4 h-4" />
+                                                        </span>
+                                                        <span class="cm-shortcut" v-if="child.shortcut">{{
+                                                            child.shortcut
+                                                            }}</span>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </template>
+                                    </div>
+                                </Teleport>
                             </div>
-                        </div>
+                            <!-- 普通项 -->
+                            <div v-else class="cm-item-wrap" :class="{ 'cm-disabled': item.disabled }">
+                                <div class="cm-item"
+                                    :class="{ 'cm-danger': item.danger, 'cm-disabled': item.disabled, 'cm-checked': item.checked }"
+                                    @click="onItemClick(item)">
+                                    <span class="cm-icon" v-if="item.icon">
+                                        <component :is="item.icon" class="w-4 h-4" />
+                                    </span>
+                                    <span class="cm-label">{{ item.label }}</span>
+                                    <span class="cm-check" v-if="item.checked">
+                                        <CheckIcon class="w-4 h-4" />
+                                    </span>
+                                    <span class="cm-shortcut" v-if="item.shortcut">{{ item.shortcut }}</span>
+                                </div>
+                            </div>
+                        </template>
                     </template>
                 </div>
             </div>
@@ -102,6 +112,21 @@ function isItemVisible(item: ContextMenuItem): boolean {
     if (item.icon) return true;
     if (item.checked) return true;
     return (item.label ?? '').trim().length > 0;
+}
+
+/**
+ * 判断是否为“纯分隔线”项：只有 divider 标记、没有任何可交互内容
+ * （无文案、无图标、无子菜单、无勾选态）。这种项只渲染一条分隔线。
+ *
+ * 与“带分隔线的普通项”（如“退出群组”“复制 JSON”）区分——后者既有
+ * divider:true 也有内容，应当先渲染分隔线、再渲染该项本身。
+ */
+function isDividerOnly(item: ContextMenuItem): boolean {
+    if (!item.divider) return false;
+    if (item.children && item.children.length) return false;
+    if (item.icon) return false;
+    if (item.checked) return false;
+    return (item.label ?? '').trim().length === 0;
 }
 
 /** 过滤掉空槽位后的可见菜单项（避免渲染空的可 hover div） */

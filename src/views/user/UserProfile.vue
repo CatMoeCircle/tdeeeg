@@ -31,7 +31,9 @@
 
             <!-- 昵称 -->
             <h1 class="mt-3 text-2xl font-bold flex items-center gap-1.5 max-w-full">
-              <span class="truncate"><GlobalEmojiText :text="userName" /></span>
+              <span class="truncate">
+                <GlobalEmojiText :text="userName" />
+              </span>
               <CustomEmojiInline v-if="!isDeletedProfile && customEmojiId" :emojiId="customEmojiId" :size="22"
                 fallback-text="😀" />
               <!-- 有自定义 emoji 状态时不显示星星，仅无自定义 emoji 状态时显示 Premium 星星 -->
@@ -91,7 +93,9 @@
 
             <!-- 名称 -->
             <h1 class="mt-3 text-2xl font-bold flex items-center gap-1.5 max-w-full">
-              <span class="truncate"><GlobalEmojiText :text="chatTitle" /></span>
+              <span class="truncate">
+                <GlobalEmojiText :text="chatTitle" />
+              </span>
               <VerifiedFilledIcon v-if="isChatVerified" class="text-blue-500 text-lg" title="已验证"
                 :fill-color='["currentColor", "transparent"]' :stroke-color='["currentColor", "#0052d9"]'
                 :stroke-width="1.5" />
@@ -192,7 +196,9 @@
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2">
                   <p class="min-w-0 flex items-center gap-1">
-                    <span class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate"><GlobalEmojiText :text="personalChatTitle" /></span>
+                    <span class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+                      <GlobalEmojiText :text="personalChatTitle" />
+                    </span>
                     <Megaphone class="w-3.5 h-3.5 text-gray-400 shrink-0" />
                   </p>
                   <span v-if="channelPostTime" class="ml-auto text-[11px] text-gray-400 shrink-0">{{ channelPostTime
@@ -213,7 +219,9 @@
             class="flex items-start gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
             <InfoIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
             <div class="min-w-0 flex-1">
-              <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed"><GlobalEmojiText :text="chatDescription" /></p>
+              <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
+                <GlobalEmojiText :text="chatDescription" />
+              </p>
               <p class="text-xs text-gray-400 mt-0.5">简介</p>
             </div>
           </div>
@@ -257,7 +265,9 @@
             class="flex items-start gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
             <InfoIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
             <div class="min-w-0 flex-1">
-              <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed"><GlobalEmojiText :text="bioText" /></p>
+              <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
+                <GlobalEmojiText :text="bioText" />
+              </p>
               <p class="text-xs text-gray-400 mt-0.5">个人简介</p>
             </div>
           </div>
@@ -469,7 +479,8 @@
                 <div v-for="(gift, i) in giftsList" :key="gift.received_gift_id || i"
                   class="aspect-square rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden"
                   :title="giftText(gift)">
-                  <img v-if="giftUrls[i]" :src="giftUrls[i]" class="w-full h-full object-cover" />
+                  <MessageStickerContent v-if="giftStickerContent(gift)" :content="giftStickerContent(gift)!"
+                    :size="profileGiftCellSize" />
                   <Gift v-else class="text-3xl text-gray-400" />
                 </div>
               </div>
@@ -655,10 +666,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, receivedGift, story, chat, audio as TdAudio, birthdate, file, message, thumbnail, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo } from "tdlib-types";
+import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, receivedGift, story, chat, audio as TdAudio, birthdate, file, message, thumbnail, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo, messageSticker } from "tdlib-types";
 import Avatar from "../../components/chat/avatar.vue";
 import CustomEmojiInline from "../../components/common/CustomEmojiInline.vue";
 import GlobalEmojiText from "../../components/common/GlobalEmojiText.vue";
+import MessageStickerContent from "../../components/chat/ChatDetail/MessageContent/content/MessageStickerContent.vue";
 import MediaViewer from "../../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
 import type { MediaViewerItem } from "../../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
 import { useUserProfileStore } from "../../store/userProfile";
@@ -1110,20 +1122,39 @@ function closePhotoViewer() {
   photoViewerItemsOverride.value = null;
 }
 
-// ===== 礼物 URL =====
-const giftUrls = ref<Record<number, string>>({});
-async function loadGiftUrls() {
-  const urls: Record<number, string> = {};
-  for (let i = 0; i < giftsList.value.length; i++) {
-    const g = giftsList.value[i];
-    const sticker = (g.gift as any).sticker as { thumbnail?: { file?: { id?: number } } } | undefined;
-    const thumbFile = sticker?.thumbnail?.file as any;
-    if (thumbFile?.id) {
-      const url = await downloadFileUrl(thumbFile, `gift_${i}.webp`, 'gift');
-      if (url) urls[i] = url;
-    }
+// ===== 礼物渲染 =====
+// 礼物网格单元格宽（用于限制 MessageStickerContent 的贴纸尺寸）。
+// grid-cols-3 在 ~400px 内容区下每格约 120px，取略小值确保不溢出。
+const profileGiftCellSize = 112;
+
+/**
+ * 从收货礼物中提取可交给 MessageStickerContent 渲染的贴纸内容（messageSticker）。
+ * 兼容两种结构化：
+ *   - TDLib 类型定义：receivedGift.gift 是 SentGift（sentGiftRegular.gift.sticker）
+ *   - 运行时常量：部分场景 receivedGift.gift 直接是 gift 对象（gift.sticker）
+ * 升级礼物（sentGiftUpgraded）无单一 sticker 时返回 undefined，由调用方回退到图标占位。
+ */
+function giftStickerContent(gift: receivedGift): messageSticker | undefined {
+  const sent = gift.gift as any;
+  if (!sent) return undefined;
+  let st: unknown;
+  // sentGiftRegular.gift.sticker
+  if (sent._ === 'sentGiftRegular') {
+    st = sent.gift?.sticker;
+  } else if (sent._ === 'gift') {
+    // 运行时时 gift.gift 就是 gift 对象
+    st = sent.sticker;
   }
-  giftUrls.value = urls;
+  // 兜底：无论结构，直接取可能的 sticker 字段
+  if (!st) st = sent.sticker || sent.gift?.sticker;
+  if (st) {
+    return {
+      _: 'messageSticker',
+      sticker: st as any,
+      is_premium: false,
+    };
+  }
+  return undefined;
 }
 
 /** 礼物 tooltip 文本 */
@@ -1223,13 +1254,11 @@ async function loadData() {
     return;
   }
   photoUrls.value = {};
-  giftUrls.value = {};
   await profileStore.loadProfile(userId.value);
   await Promise.all([
     loadHeaderPhoto(),
     loadProfileMusicCover(),
     loadPhotoUrls(),
-    loadGiftUrls(),
     loadStoryUrls(),
     loadPhoneInfo(),
     loadChannelInfo(),

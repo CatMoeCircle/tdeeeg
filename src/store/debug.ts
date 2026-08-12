@@ -73,3 +73,28 @@ export async function openDevTools(): Promise<void> {
         console.warn("open_devtools failed:", e);
     }
 }
+
+const COPY_JSON_KEY = "tdgram-debug-copy-json";
+
+/**
+ * 是否在右键菜单中显示「复制 XX 原始 JSON」调试项。
+ * 由「开发者选项」设置页的开关控制（不再由 import.meta.env.DEV 决定），
+ * 持久化到 localStorage，重启后保持。
+ */
+export const showCopyJsonInMenus = ref(false);
+
+try {
+    showCopyJsonInMenus.value = localStorage.getItem(COPY_JSON_KEY) === "1";
+} catch {
+    showCopyJsonInMenus.value = false;
+}
+
+/** 切换右键菜单显示「复制原始 JSON」项并持久化 */
+export function setShowCopyJsonInMenus(enabled: boolean): void {
+    showCopyJsonInMenus.value = enabled;
+    try {
+        localStorage.setItem(COPY_JSON_KEY, enabled ? "1" : "0");
+    } catch {
+        // ignore
+    }
+}

@@ -441,6 +441,7 @@ import { useAudioPlayerStore } from '../../../store/audioPlayer';
 import { storeToRefs } from 'pinia';
 import { listen } from "@tauri-apps/api/event";
 import { settings } from '../../../store/settings';
+import { showCopyJsonInMenus } from '../../../store/debug';
 import { useCommandInsert, clearPendingCommand } from '../../../store/commandInsert';
 import { useCustomEmoji } from '../../../store/customEmoji';
 import type { ContextMenuItem } from '../../contextMenu/types';
@@ -2602,8 +2603,8 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
         }
     }
 
-    // 开发环境：复制消息原始 JSON
-    if (import.meta.env.DEV) {
+    // 复制消息原始 JSON（调试用，由「开发者选项」设置页开关控制）
+    if (showCopyJsonInMenus.value) {
         items.push({
             key: 'divider-json',
             label: '',

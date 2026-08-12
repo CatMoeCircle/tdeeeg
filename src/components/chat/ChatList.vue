@@ -151,7 +151,9 @@
                                                 <div class="flex justify-between items-baseline mb-1">
                                                     <h3
                                                         class="text-sm font-semibold text-gray-900 flex items-center gap-1 min-w-0">
-                                                        <span class="truncate"><GlobalEmojiText :text="getChatTitle(chat)" /></span>
+                                                        <span class="truncate">
+                                                            <GlobalEmojiText :text="getChatTitle(chat)" />
+                                                        </span>
                                                         <!-- 静音图标 -->
                                                         <BellOffIcon v-if="isChatMuted(chat)"
                                                             class="w-3.5 h-3.5 text-gray-400 shrink-0" />
@@ -184,7 +186,9 @@
                                                                 :photo="senderMiniAvatar(chat)"
                                                                 :title="senderName(chat)" sizeClass="!w-4 !h-4"
                                                                 :radius="avatarRadius" class="shrink-0" />
-                                                            <span class="shrink-0 text-xs text-gray-400"><GlobalEmojiText :text="senderName(chat)" />：</span>
+                                                            <span class="shrink-0 text-xs text-gray-400">
+                                                                <GlobalEmojiText :text="senderName(chat)" />：
+                                                            </span>
                                                         </template>
                                                         <!-- 图片/视频/相册：正方形缩略图预览（相册最多 3 个），有 caption 时追加文字 -->
                                                         <MessagePreviewMedia v-if="isMediaPreviewMsg(chat.last_message)"
@@ -231,7 +235,9 @@
                                 aria-label="返回">
                                 <ArrowLeftIcon class="w-4 h-4 text-gray-600" />
                             </button>
-                            <span class="text-sm font-medium text-gray-500 truncate"><GlobalEmojiText :text="forumChatTitle" /></span>
+                            <span class="text-sm font-medium text-gray-500 truncate">
+                                <GlobalEmojiText :text="forumChatTitle" />
+                            </span>
                         </div>
                         <!-- Topic List -->
                         <div class="flex-1 overflow-y-auto custom-scrollbar" v-smooth-wheel>
@@ -270,13 +276,15 @@
                                                 class="w-5 h-5 rounded shrink-0 inline-flex items-center justify-center text-white text-[11px] font-bold"
                                                 :style="{ backgroundColor: topicIconColor(topic.info.icon.color) }">{{
                                                     topicNameInitial(topic.info.name) }}</span>
-                                            <span class="min-w-0 truncate"><GlobalEmojiText :text="topic.info.name" /></span>
+                                            <span class="min-w-0 truncate">
+                                                <GlobalEmojiText :text="topic.info.name" />
+                                            </span>
                                             <span v-if="topic.info.is_closed"
                                                 class="text-xs text-gray-400 ml-0.5 shrink-0">[已关闭]</span>
                                         </h3>
                                         <span class="text-xs text-gray-400 ml-1 shrink-0">{{
                                             formatTime(topic.last_message?.date)
-                                        }}</span>
+                                            }}</span>
                                     </div>
                                     <!-- 第二排：发送人（迷你头像）+ 消息，复用对话列表的发送人标记 -->
                                     <div class="flex items-center gap-2">
@@ -286,7 +294,9 @@
                                                     v-if="settings.chatList.showSenderMiniAvatar && topicMiniAvatar(topic)"
                                                     :photo="topicMiniAvatar(topic)" :title="topicSender(topic)"
                                                     sizeClass="!w-4 !h-4" :radius="avatarRadius" class="shrink-0" />
-                                                <span class="shrink-0 text-xs text-gray-400"><GlobalEmojiText :text="topicSender(topic)" />：</span>
+                                                <span class="shrink-0 text-xs text-gray-400">
+                                                    <GlobalEmojiText :text="topicSender(topic)" />：
+                                                </span>
                                             </template>
                                             <MessagePreviewMedia v-if="isMediaPreviewMsg(topic.last_message)"
                                                 :message="topic.last_message" :chat-id="forumChatId ?? undefined" />
@@ -371,6 +381,7 @@ import {
 import { useChatStore } from '../../store/chat';
 import type { Chat } from '../../store/chat';
 import { useUserStore } from '../../store/user';
+import { showCopyJsonInMenus } from '../../store/debug';
 import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../utils/savedMessages';
 import Avatar from './avatar.vue';
 import type { message, forumTopic, forumTopics, formattedText } from 'tdlib-types';
@@ -1050,8 +1061,8 @@ const buildChatContextMenu = (chat: Chat): ContextMenuItem[] => {
         onClick: () => onChatSelect(chat),
     });
 
-    // 开发环境：复制对话原始 JSON 数据
-    if (import.meta.env.DEV) {
+    // 复制对话原始 JSON 数据（调试用，由「开发者选项」设置页开关控制）
+    if (showCopyJsonInMenus.value) {
         items.push({
             key: 'copy-json',
             label: '复制对话原始 JSON',

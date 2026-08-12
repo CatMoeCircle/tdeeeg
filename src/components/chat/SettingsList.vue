@@ -1,5 +1,6 @@
 <template>
-    <div class="flex flex-col h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 rounded-tl-xl overflow-hidden">
+    <div
+        class="flex flex-col h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 rounded-tl-xl overflow-hidden">
         <div class="mt-3">
             <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 @click="openMyProfile">
@@ -12,7 +13,8 @@
                 <div v-else class="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
                 <div class="ml-3">
                     <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                        <GlobalEmojiText :text="userProfile ? (userProfile.first_name + ' ' + userProfile.last_name) : '加载中...'" />
+                        <GlobalEmojiText
+                            :text="userProfile ? (userProfile.first_name + ' ' + userProfile.last_name) : '加载中...'" />
                     </p>
                     <p class="text-xs text-gray-400">
                         {{ userStatusText }}
@@ -65,19 +67,6 @@
                     <div class="flex-1">
                         <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">代理</h3>
                         <p class="text-xs text-gray-500">禁用、系统或自定义代理</p>
-                    </div>
-                    <ChevronRightIcon class="w-4 h-4 text-gray-400" />
-                </router-link>
-
-                <router-link to="/home/settings/storage"
-                    class="flex items-center px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                    active-class="bg-blue-50 dark:bg-gray-800 text-blue-600">
-                    <div class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center mr-3">
-                        <HardDriveIcon class="w-5 h-5" />
-                    </div>
-                    <div class="flex-1">
-                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">存储位置</h3>
-                        <p class="text-xs text-gray-500">数据目录（AppData / 应用自带）</p>
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                 </router-link>
@@ -138,7 +127,7 @@
 </template>
 
 <script setup lang="ts">
-import { PaletteIcon, ChevronRightIcon, GlobeIcon, DatabaseIcon, NetworkIcon, SendIcon, HardDrive as HardDriveIcon, TerminalSquare as TerminalSquareIcon } from 'lucide-vue-next';
+import { PaletteIcon, ChevronRightIcon, GlobeIcon, DatabaseIcon, NetworkIcon, SendIcon, TerminalSquare as TerminalSquareIcon } from 'lucide-vue-next';
 import avatar from './avatar.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 import { useUserStore } from '../../store/user';
