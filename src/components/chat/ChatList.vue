@@ -94,8 +94,9 @@
                                     FLIP 为发生位移的项应用 transform 过渡。归档入口也作为列表项
                                     参与（有固定 key），保证置顶/取消置顶时整体平滑移动。
                                     注意：每个列表项依赖 :key=chat.id 保持身份稳定，移动动画才有意义。
+                                    当 tdlib 更新过于密集时通过 :name 动态锁定动画（见 reorderAnimName）。
                                 -->
-                                <TransitionGroup name="chat-list" tag="div">
+                                <TransitionGroup :name="reorderAnimName" tag="div">
                                     <!-- 归档入口：归档位置为“全部对话顶部”时显示 -->
                                     <div v-if="settings.chatList.archivePosition === 'top' && tab.id === 'chatListMain' && !props.isArchive"
                                         key="__archive__" @click="goToArchive"
@@ -571,6 +572,41 @@ const tabsWithContent = computed(() => {
         chats: chatStore.getList(tab.id).value
     }));
 });
+
+// ==================== 换位动画节流锁 ====================
+// tdlib 在短时间内涌入大量更新时，lists 会被多次 flush 重建，每次都触发
+// 对话顺序变化 → TransitionGroup 频繁播放 FLIP 移动动画，造成视觉抖动。
+// 这里引入节流锁：只有当距上次实际播动画超过一个动画时长时才允许播，
+// 否则把 TransitionGroup 的 name 切到无动画变体（chat-list-locked），
+// 直接跳到最终位置，不再播放位移/进入过渡。
+const REORDER_ANIM_MS = 750; // 与 .chat-list-move 动画时长保持一致
+const reorderAnimName = ref<'chat-list' | 'chat-list-locked'>('chat-list');
+let lastReorderAnimAt = 0;
+/** 记录每个 tab 上一份 ID 签名，仅在实际顺序（增删/排序）变化时应用锁 */
+let prevReorderSig: Record<string, string> = {};
+
+watch(tabsWithContent, (tabs) => {
+    // 只关心真实顺序变化：内容/未读数更新不会触发 -move 动画，故不消耗锁额度
+    let reordered = false;
+    for (const tab of tabs) {
+        const sig = tab.chats.map(c => c.id).join(',');
+        if (prevReorderSig[tab.id] !== undefined && prevReorderSig[tab.id] !== sig) {
+            reordered = true;
+        }
+        prevReorderSig[tab.id] = sig;
+    }
+    if (!reordered) return;
+
+    // 用 pre flush 在 DOM patch 前更新 name，保证本次 TransitionGroup 应用 FLIP
+    // 时读到正确的 name（锁定则无过渡，正常则播动画）。
+    const now = performance.now();
+    if (now - lastReorderAnimAt >= REORDER_ANIM_MS) {
+        lastReorderAnimAt = now;
+        reorderAnimName.value = 'chat-list';
+    } else {
+        reorderAnimName.value = 'chat-list-locked';
+    }
+}, { flush: 'pre' });
 
 const selectedChatId = ref<number | null>(null);
 watch(() => route.params.id, (id) => {
@@ -1421,6 +1457,24 @@ function getTopicPreview(topic: forumTopic): formattedText {
 .chat-list-leave-active {
     position: absolute;
     transition: opacity 0.4s ease;
+}
+
+/*
+ * 换位动画节流锁定态：tdlib 更新密集时（reorderAnimName === 'chat-list-locked'）
+ * 由锁逻辑动态切换 TransitionGroup 的 name 到这里。此变体不定义任何位移/进入
+ * 过渡，位移动画与进入淡入全部禁用——元素直接跳到最终位置，避免抖动。
+ * （若未定义规则，Vue 不会报错，但显式置为 none 可防止继承/历史过渡残留。）
+ */
+.chat-list-locked-move,
+.chat-list-locked-enter-active,
+.chat-list-locked-leave-active {
+    transition: none !important;
+}
+
+.chat-list-locked-enter-from,
+.chat-list-locked-leave-to {
+    opacity: 1;
+    transform: none;
 }
 
 .chat-list-leave-to {

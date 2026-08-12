@@ -702,13 +702,58 @@ function openViewer() {
  * 视口门控：组件挂载时立即设置 base64 缩略图预览，但真正的下载（loadMedia）
  * 延迟到组件进入用户视口后才触发。未进入视口的离屏消息只显示 base64。
  */
-const { start: startViewportLoad } = useViewportLoad(rootEl, () => {
+const { start: startViewportLoad, entered: mediaViewportEntered } = useViewportLoad(rootEl, () => {
     void loadMedia();
 });
 
 onMounted(() => {
     setMediaPreview();
     startViewportLoad();
+});
+
+/**
+ * 内容被原地替换（TDLib updateMessageContent 会替换 msg.content 但 id 不变，
+ * 组件不重挂载）时，重置本次预览/媒体状态并重新加载，避免显示成上一个内容的
+ * 缩略图/大图（串图）。base64 minithumbnail 内联在新内容里始终正确，因此优先
+ * 先展示它，再按当前内容走下载/懒加载。
+ */
+function resetMediaForContent() {
+    // 停掉旧内容遗留的所有下载轮询，避免异步结果污染新内容
+    stopAnimDownloadPolling();
+    stopPhotoDownloadPolling();
+    stopVideoCoverPolling();
+    stopAnimThumbPolling();
+    if (props.messageId) unregisterMediaItem(props.messageId);
+    // 重置全部预览/媒体状态
+    thumbSrc.value = undefined;
+    mediaSrc.value = undefined;
+    videoThumbSrc.value = undefined;
+    videoThumbIsVideo.value = false;
+    animThumbSrc.value = undefined;
+    animThumbIsVideo.value = false;
+    videoDownloaded.value = false;
+    videoDownloading.value = false;
+    videoProgress.value = 0;
+    videoBuffering.value = false;
+    isDownloading.value = false;
+    animDownloading.value = false;
+    mediaLoaded.value = false;
+    imageLoaded.value = false;
+    imageError.value = false;
+    inlineVideoCurrent.value = 0;
+    inlineVideoDuration.value = 0;
+    if (videoElRef.value) {
+        videoObserver?.unobserve(videoElRef.value);
+        videoElRef.value.pause();
+    }
+    // 先展示新内容自带的 base64 缩略图（内联，始终正确）
+    setMediaPreview();
+    // 已进入视口则立即加载新内容；否则保持 base64 占位，由视口门控触发
+    if (mediaViewportEntered.value) void loadMedia();
+}
+
+watch(() => props.content, () => {
+    resetMediaForContent();
 });
 
 // ---- Download store integration ---

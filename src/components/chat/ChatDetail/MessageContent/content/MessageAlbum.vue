@@ -102,6 +102,32 @@ function onTileContextMenu(e: MouseEvent, idx: number) {
 const thumbCache = reactive<Record<number, string>>({});
 const mediaCache = reactive<Record<number, string>>({});
 
+/**
+ * 记录上一次构建时每条消息的对象引用，用于检测「同一 msg.id 的内容被原地替换」。
+ * TDLib 的 updateMessageContent 会原地替换 msg.content（引用变化但 id 不变），
+ * 组件不会重挂载，而 thumbCache/mediaCache 又带 !cache[id] 守卫永不刷新，导致
+ * 相册缩略图/大图显示成旧内容（串图）。只要内容对象引用变化，就作废旧缓存。
+ */
+let prevAlbumMsgRefs = new Map<number, message>();
+
+/** 清理内容已被替换的消息的旧缩略图/大图缓存，并更新引用快照 */
+function invalidateAlbumCaches(msgs: message[]) {
+    const next = new Map<number, message>();
+    for (const m of msgs) {
+        const prev = prevAlbumMsgRefs.get(m.id);
+        if (prev && prev !== m) {
+            delete thumbCache[m.id];
+            delete mediaCache[m.id];
+        } else if (!prev) {
+            // 首次见到该消息：清掉可能残留的占位缓存（防御性）
+            delete thumbCache[m.id];
+            delete mediaCache[m.id];
+        }
+        next.set(m.id, m);
+    }
+    prevAlbumMsgRefs = next;
+}
+
 /** 相册根元素（用于视口门控：进入视口才下载） */
 const rootEl = ref<HTMLElement | null>(null);
 
@@ -330,7 +356,9 @@ loadAlbumFn = async (msgs) => {
 const { start: startViewportLoad, entered: albumEntered } = useViewportLoad(rootEl, () => {
     runAlbumLoad();
 });
-watch(() => props.messages, () => {
+watch(() => props.messages, (msgs) => {
+    // 内容被原地替换（updateMessageContent）时作废旧缩略图/大图缓存，避免串图
+    invalidateAlbumCaches(msgs);
     setAlbumPreview();
     rebuildLayout();
     // 仅当相册已进入视口时才下载（否则保持 base64 占位）
