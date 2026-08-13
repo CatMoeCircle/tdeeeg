@@ -7,68 +7,39 @@
             <h2 class="text-lg font-semibold">系统设置</h2>
         </div>
 
-        <!-- 二级菜单 + 内容展示区 -->
-        <div class="flex flex-1 min-h-0">
-            <!-- 左侧二级菜单 -->
-            <div class="w-48 shrink-0 border-r border-gray-200 dark:border-gray-800 py-3">
-                <button v-for="item in sections" :key="item.key" type="button" @click="activeSection = item.key"
-                    class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors" :class="activeSection === item.key
-                        ? 'bg-blue-50 dark:bg-gray-800 text-blue-600 font-medium'
-                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50'">
-                    <component :is="item.icon" class="w-4 h-4 shrink-0" />
-                    {{ item.label }}
-                </button>
-            </div>
+        <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
+            <div class="max-w-2xl space-y-8">
 
-            <!-- 右侧内容展示区 -->
-            <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
                 <!-- 连接设置 -->
-                <div v-if="activeSection === 'connection'" class="max-w-2xl space-y-6">
-                    <p class="text-xs text-gray-400">以下更改需要通过重建 TDLib 客户端才会生效。</p>
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">连接设置
+                        </h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2">以下更改需要通过重建 TDLib 客户端才会生效。</p>
 
                     <!-- 使用测试数据中心 -->
-                    <section class="border-b border-gray-200 dark:border-gray-700 pb-6">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">使用测试数据中心</h3>
-                                <p class="text-xs text-gray-500 mt-1">连接到 Telegram 测试服务器（测试账号与正式账号数据隔离）</p>
-                            </div>
-                            <button type="button" @click="useTestDc = !useTestDc"
-                                class="w-11 h-6 rounded-full transition-colors relative shrink-0"
-                                :class="useTestDc ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'">
-                                <div class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform"
-                                    :class="useTestDc ? 'translate-x-5' : ''" />
-                            </button>
+                    <div class="mt-5 flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                        <div>
+                            <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">使用测试数据中心</h4>
+                            <p class="text-xs text-gray-500 mt-0.5">连接到 Telegram 测试服务器（测试账号与正式账号数据隔离）</p>
                         </div>
-                        <div class="mt-4 flex justify-end">
-                            <button type="button" @click="applyConnection"
-                                class="px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors"
-                                :class="applying ? 'bg-blue-400 cursor-wait' : 'bg-blue-500 hover:bg-blue-600'"
-                                :disabled="applying">
-                                {{ applying ? '正在重建 TDLib…' : '应用并重启 TDLib' }}
-                            </button>
-                        </div>
-                    </section>
+                        <button type="button" @click="useTestDc = !useTestDc"
+                            class="w-11 h-6 rounded-full transition-colors relative shrink-0"
+                            :class="useTestDc ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'">
+                            <div class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+                                :class="useTestDc ? 'translate-x-5' : ''" />
+                        </button>
+                    </div>
 
                     <!-- 自定义 API ID / Hash -->
-                    <section>
-                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">自定义 API ID / Hash</h3>
-                        <p class="text-xs text-gray-500 mb-4">
-                            启用后使用自定义凭据代替编译期默认值（.env 的 TG_API_ID / TG_API_HASH）。
-                        </p>
+                    <div class="mt-5">
                         <div
-                            class="flex items-start gap-2 px-3 py-2.5 mb-4 rounded-lg border border-amber-300/60 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400">
-                            <InfoIcon class="w-4 h-4 shrink-0 mt-0.5" />
-                            <p class="text-xs leading-5">
-                                修改 API ID / Hash 后，需要<strong>退出并重新登录</strong>，新的自定义凭据才会对当前账户生效（不同的 API 凭据对应独立的账号会话）。
-                            </p>
-                        </div>
-
-                        <div
-                            class="flex items-center justify-between p-3 rounded-xl border border-gray-200 dark:border-gray-700 mb-4">
+                            class="flex items-center justify-between p-3 rounded-xl border border-gray-200 dark:border-gray-700">
                             <div>
-                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100">使用自定义凭据</p>
-                                <p class="text-xs text-gray-500 mt-0.5">关闭则恢复使用默认 API ID / Hash</p>
+                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100">自定义 API ID / Hash</p>
+                                <p class="text-xs text-gray-500 mt-0.5">启用后使用自定义凭据代替编译期默认值（.env 的 TG_API_ID / TG_API_HASH）</p>
                             </div>
                             <button type="button" @click="customApiCreds = !customApiCreds"
                                 class="w-11 h-6 rounded-full transition-colors relative shrink-0"
@@ -78,19 +49,24 @@
                             </button>
                         </div>
 
-                        <template v-if="customApiCreds">
-                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API
-                                ID</label>
-                            <input v-model="apiId" type="text" inputmode="numeric" placeholder="例如 12345"
-                                spellcheck="false"
+                        <div v-if="customApiCreds" class="mt-4">
+                            <div
+                                class="flex items-start gap-2 px-3 py-2.5 mb-4 rounded-lg border border-amber-300/60 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400">
+                                <InfoIcon class="w-4 h-4 shrink-0 mt-0.5" />
+                                <p class="text-xs leading-5">
+                                    修改 API ID / Hash 后，需要<strong>退出并重新登录</strong>，新的自定义凭据才会对当前账户生效（不同的 API 凭据对应独立的账号会话）。
+                                </p>
+                            </div>
+
+                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API ID</label>
+                            <input v-model="apiId" type="text" inputmode="numeric" placeholder="例如 12345" spellcheck="false"
                                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none mb-4" />
-                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API
-                                Hash</label>
+                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API Hash</label>
                             <input v-model="apiHash" type="text" placeholder="32 位十六进制字符串" spellcheck="false"
                                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none mb-4" />
-                        </template>
+                        </div>
 
-                        <div class="flex items-center justify-end gap-3">
+                        <div class="mt-4 flex items-center justify-end gap-3">
                             <button v-if="customApiCreds" type="button" @click="resetApiCreds"
                                 class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800">
                                 恢复默认
@@ -102,14 +78,18 @@
                                 {{ applying ? '正在重建 TDLib…' : '应用并重启 TDLib' }}
                             </button>
                         </div>
-                    </section>
-                </div>
+                    </div>
+                </section>
 
                 <!-- 账户 -->
-                <div v-else-if="activeSection === 'account'" class="max-w-2xl space-y-4">
-                    <p class="text-xs text-gray-400">退出登录会清除当前账户的本地会话，需重新登录。</p>
-                    <div
-                        class="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">账户
+                        </h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2">退出登录会清除当前账户的本地会话，需重新登录。</p>
+                    <div class="mt-5 flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                         <div class="flex items-center">
                             <div
                                 class="w-9 h-9 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 flex items-center justify-center mr-3">
@@ -126,13 +106,28 @@
                             {{ loggingOut ? '正在退出…' : '退出登录' }}
                         </button>
                     </div>
-                </div>
+                </section>
 
                 <!-- 关于 -->
-                <div v-else class="max-w-2xl space-y-4 text-sm text-gray-600 dark:text-gray-300">
-                    <p class="text-xs text-gray-400">当前生效的 TDLib 连接参数。</p>
-                    <div
-                        class="rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800">
+                <section>
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">关于
+                        </h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+
+                    <!-- 版本信息：应用版本 + TDLib 版本 一排居中 -->
+                    <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 py-6">
+                        <div class="flex items-center justify-center gap-6 text-sm text-gray-600 dark:text-gray-300">
+                            <span>{{ appName }} v{{ appVersion }}</span>
+                            <span class="text-gray-300 dark:text-gray-600">|</span>
+                            <span>TDLib {{ tdlibVersion }}</span>
+                        </div>
+                        <p class="mt-2 text-center text-xs text-gray-400">当前生效的 TDLib 连接参数如下</p>
+                    </div>
+
+                    <!-- 当前连接参数 -->
+                    <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800 text-sm text-gray-600 dark:text-gray-300">
                         <div class="px-4 py-3 flex items-center justify-between">
                             <span class="text-gray-500 dark:text-gray-400">数据中心</span>
                             <span class="font-mono">{{ useTestDc ? '测试 (Test DC)' : '正式 (Main DC)' }}</span>
@@ -146,34 +141,61 @@
                             <span class="font-mono break-all">{{ apiHash ? apiHash.slice(0, 8) + '…' : '(默认)' }}</span>
                         </div>
                     </div>
-                </div>
+                </section>
+
             </div>
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { ChevronLeft as ChevronLeftIcon, Plug as PlugIcon, Info as InfoIcon, LogOut as LogOutIcon } from 'lucide-vue-next';
+import { ChevronLeft as ChevronLeftIcon, Info as InfoIcon, LogOut as LogOutIcon } from 'lucide-vue-next';
 import { invoke } from '@tauri-apps/api/core';
+import { getVersion } from '@tauri-apps/api/app';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { settings } from '../../store/settings';
+import { tdlibSend } from '../../utils/tdlib';
+import packageInfo from '../../../package.json';
 
 const router = useRouter();
-
-/** 二级菜单分区 */
-const sections = [
-    { key: 'connection', label: '连接', icon: PlugIcon },
-    { key: 'account', label: '账户', icon: LogOutIcon },
-    { key: 'about', label: '关于', icon: InfoIcon },
-] as const;
-const activeSection = ref<'connection' | 'account' | 'about'>('connection');
 
 /** 返回设置列表 */
 function goBack() {
     router.push('/home/settings');
 }
+
+// ─── 版本信息 ───
+const appName = packageInfo.name ?? 'tdeeeg';
+const appVersion = ref(packageInfo.version ?? '');
+const tdlibVersion = ref('...');
+
+/** 获取客户端版本号（优先从 Tauri 动态获取，失败时回退到 package.json 编译期版本） */
+async function loadAppVersion() {
+    try {
+        appVersion.value = await getVersion();
+    } catch {
+        appVersion.value = packageInfo.version ?? '';
+    }
+}
+
+/** 从 TDLib 返回的 option 中获取版本号 */
+async function loadTdlibVersion() {
+    try {
+        const res = await tdlibSend({ _: 'getOption', name: 'version' });
+        if (res && res._ === 'optionValueString') {
+            tdlibVersion.value = res.value;
+        }
+    } catch {
+        tdlibVersion.value = '未连接';
+    }
+}
+
+onMounted(() => {
+    loadAppVersion();
+    loadTdlibVersion();
+});
 
 // ─── 表单状态（从持久化 settings.system 初始化）───
 const useTestDc = ref(settings.system.useTestDc);

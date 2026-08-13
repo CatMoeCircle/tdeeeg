@@ -12,43 +12,6 @@ export type MediaKind = 'sticker' | 'animation';
 export type MediaFormat = 'tgs' | 'webm' | 'webp' | 'mpeg4' | 'other';
 
 /**
- * —— 并发下载限制（信号量）——
- * 表情包/贴纸/GIF 面板内容很多时，若所有可见项的 `StickerMediaItem` 同时
- * `download()`，会一次性并发几十个 `downloadFile` 请求刷爆 TDLib。
- * 这里用模块级信号量把并发下载数限制为 MAX_CONCURRENT（5）个，超出排队，
- * 完成一个再放一个（5 个 5 个地并发加载，而非全部并发）。
- */
-const MAX_CONCURRENT = 5;
-let activeDownloads = 0;
-const pendingQueue: Array<() => void> = [];
-
-/** 获取一个并发槽位；满则进入队列等待。返回 release 放回槽位。 */
-function acquireDownloadSlot(): Promise<() => void> {
-  return new Promise((resolve) => {
-    const release = () => {
-      activeDownloads--;
-      const next = pendingQueue.shift();
-      if (next) next();
-    };
-    if (activeDownloads < MAX_CONCURRENT) {
-      activeDownloads++;
-      resolve(release);
-    } else {
-      pendingQueue.push(() => {
-        activeDownloads++;
-        resolve(release);
-      });
-    }
-  });
-}
-
-/** 复位并发信号量（抽屉整体卸载时可调用） */
-export function resetDownloadConcurrency() {
-  activeDownloads = 0;
-  pendingQueue.length = 0;
-}
-
-/**
  * 从 sticker 或 animation 解析统一的可播放信息。
  */
 export interface MediaSource {
@@ -155,8 +118,6 @@ export function useStickerMedia(
       );
     } catch { /* 忽略注册失败 */ }
 
-    // 用一个并发槽位执行实际下载（最多同时 5 个，其余排队）
-    const release = await acquireDownloadSlot();
     try {
       const res = await tdlibSend({
         _: 'downloadFile',
@@ -172,7 +133,6 @@ export function useStickerMedia(
     } catch (e) {
       // 静默回退（空源），不阻塞界面
     } finally {
-      release();
       downloadingFiles.delete(f.id);
       downloading.value = false;
     }

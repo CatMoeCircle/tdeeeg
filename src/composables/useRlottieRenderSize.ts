@@ -1,7 +1,7 @@
 import { computed, type Ref } from 'vue';
 
 /**
- * rlottie (rlottie-wasm-vue-player) 渲染质量控制工具。
+ * rlottie (rlottie-wasm-vue-player) 渲染质量提升工具。
  *
  * 背景：`RlottiePlayer` 组件的 canvas 物理分辨率等于其 `width/height` props，
  * 与 CSS 显示尺寸（canvas 100% 填满容器）在 DPR>1 或放大场景下不匹配，
@@ -9,18 +9,11 @@ import { computed, type Ref } from 'vue';
  *
  * 本工具采用「超采样」：让组件以 显示尺寸 × SCALE 的分辨率渲染，
  * 再用带 `!important` 的容器样式把最终显示尺寸压回目标尺寸。
- *
- * ⚠️ 性能 / 速率一致性权衡（2026-08-10）：
- * 默认 SCALE 已从 2 降为 1（极低质量）。WASM 光栅化按 显示尺寸 × SCALE 计算物理像素，
- * SCALE 越高渲染像素越多、单帧越慢——当 TGS emoji 密集出现（表情选择器、聊天列表、
- * 对话文件夹、消息文本内联 emoji）时，低渲染能力导致部分动画掉帧、看起来「变慢」，
- * 显示速率不一致。降为 1 后每个动画负载骤减（面积只有 2x 的 1/4），可保证所有
- * 动画以一致速率满帧播放。质量不做保证，仅「消息气泡中的贴纸」通过 MessageStickerContent
- * 单独传较高的 scale 保留清晰度。
+ * 这样矢量 TGS 先以高分辨率光栅化再缩放显示，边缘更平滑、文字更清楚。
  */
 
-/** 渲染超采样倍数（默认）：渲染分辨率 = 显示尺寸 × SCALE。1 = 极低质量、速率一致；2 = 高质量、负载高 */
-export const RLOTTIE_RENDER_SCALE = 1;
+/** 渲染超采样倍数：渲染分辨率 = 显示尺寸 × SCALE */
+export const RLOTTIE_RENDER_SCALE = 2;
 
 /** 用于把 RlottiePlayer 显示尺寸固定为目标值的全局类（配合 CSS 变量，见 index.css） */
 export const RLOTTIE_HI_RES_CLASS = 'rlottie-hi-res';

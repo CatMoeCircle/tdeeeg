@@ -125,17 +125,19 @@
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                 </router-link>
+
+                <!-- 版本信息（连点 5 次打开/关闭开发者选项） -->
+                <div class="flex items-center justify-center gap-2 px-4 pt-3 pb-4">
+                    <p class="text-xs text-gray-400 leading-5 select-text cursor-pointer whitespace-nowrap"
+                        :title="debugMode ? '已开启开发者选项（连点 5 次关闭）' : '连点 5 次打开开发者选项'" @click="onVersionClick">
+                        {{ appName }} v{{ appVersion }}
+                    </p>
+                    <span class="text-gray-300 dark:text-gray-600">|</span>
+                    <p class="text-xs text-gray-400 leading-5 select-text whitespace-nowrap">
+                        TDLib {{ tdlibVersion }}
+                    </p>
+                </div>
             </div>
-        </div>
-        <!-- 版本信息（连点 5 次打开/关闭开发者选项） -->
-        <div class="px-4 py-3 border-t border-gray-200 dark:border-gray-800">
-            <p class="text-xs text-gray-400 leading-5 select-text cursor-pointer"
-                :title="debugMode ? '已开启开发者选项（连点 5 次关闭）' : '连点 5 次打开开发者选项'" @click="onVersionClick">
-                {{ appName }} v{{ appVersion }}
-            </p>
-            <p class="text-xs text-gray-400 leading-5 select-text">
-                TDLib {{ tdlibVersion }}
-            </p>
         </div>
     </div>
 </template>

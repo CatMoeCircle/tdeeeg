@@ -40,7 +40,7 @@
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
                         日志</h3>
                     <button type="button"
-                        class="w-full flex items-center justify-between p-4 rounded-xl border bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                        class="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
                         @click="setLogUpdates(!logUpdates)">
                         <div class="text-left">
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100">控制台打印 Update</p>
@@ -59,7 +59,7 @@
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
                         右键菜单</h3>
                     <button type="button"
-                        class="w-full flex items-center justify-between p-4 rounded-xl border bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                        class="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
                         @click="setShowCopyJsonInMenus(!showCopyJsonInMenus)">
                         <div class="text-left">
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100">显示“复制原始 JSON”</p>
@@ -78,7 +78,7 @@
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
                         调试工具</h3>
                     <button type="button"
-                        class="w-full flex items-center justify-between p-4 rounded-xl border bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                        class="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
                         @click="openDevTools">
                         <div class="text-left">
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100">打开开发者工具</p>
