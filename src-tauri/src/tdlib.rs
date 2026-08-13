@@ -338,18 +338,26 @@ fn build_add_proxy_req(cfg: &ProxyConfig) -> serde_json::Value {
 fn apply_proxy_to_client(send_fn: TdJsonClientSend, client: *mut c_void, cfg: &ProxyConfig) {
     // 构造要发送的请求序列
     let requests: Vec<serde_json::Value> = if cfg.mode == "disabled" {
-        vec![json!({ "@type": "disableProxy" })]
+        let mut v: Vec<serde_json::Value> = Vec::new();
+        v.push(json!({ "@type": "disableProxy" }));
+        v
     } else if cfg.mode == "custom" {
         match cfg.proxy_id {
-            Some(id) => vec![
-                json!({ "@type": "enableProxy", "proxy_id": id }),
+            Some(id) => {
+                let mut v: Vec<serde_json::Value> = Vec::new();
+                v.push(json!({ "@type": "enableProxy", "proxy_id": id }));
                 // 强制重连，使新代理立即生效
-                json!({
+                v.push(json!({
                     "@type": "setNetworkType",
                     "type": { "@type": "networkTypeOther" }
-                }),
-            ],
-            None => vec![json!({ "@type": "disableProxy" })],
+                }));
+                v
+            }
+            None => {
+                let mut v: Vec<serde_json::Value> = Vec::new();
+                v.push(json!({ "@type": "disableProxy" }));
+                v
+            }
         }
     } else {
         let mut effective = cfg.clone();
@@ -370,14 +378,14 @@ fn apply_proxy_to_client(send_fn: TdJsonClientSend, client: *mut c_void, cfg: &P
                 }
             }
         }
-        vec![
-            build_add_proxy_req(&effective),
-            // 强制重连，使新代理立即生效
-            json!({
-                "@type": "setNetworkType",
-                "type": { "@type": "networkTypeOther" }
-            }),
-        ]
+        let mut out: Vec<serde_json::Value> = Vec::new();
+        out.push(build_add_proxy_req(&effective));
+        // 强制重连，使新代理立即生效
+        out.push(json!({
+            "@type": "setNetworkType",
+            "type": { "@type": "networkTypeOther" }
+        }));
+        out
     };
     for req in requests {
         let req_str = CString::new(req.to_string()).unwrap();
@@ -473,12 +481,12 @@ fn tdjson_lib_name() -> &'static str {
 /// 候选的 TDLib 动态库搜索路径（可执行文件同级 + bin/ 子目录）。
 fn tdjson_candidate_paths(exe_dir: &std::path::Path) -> Vec<std::path::PathBuf> {
     let name = tdjson_lib_name();
-    vec![
-        exe_dir.join(name),
-        exe_dir.join("bin").join(name),
-        // macOS .app bundle：Contents/Resources（资源被打包到 Resources 目录时）
-        exe_dir.join("Resources").join(name),
-    ]
+    let mut out: Vec<std::path::PathBuf> = Vec::new();
+    out.push(exe_dir.join(name));
+    out.push(exe_dir.join("bin").join(name));
+    // macOS .app bundle：Contents/Resources（资源被打包到 Resources 目录时）
+    out.push(exe_dir.join("Resources").join(name));
+    out
 }
 
 /// 在 Linux/macOS 上，先把 TDLib 所在目录中的同名依赖动态库以全局方式加载，

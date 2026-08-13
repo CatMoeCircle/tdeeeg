@@ -14,7 +14,112 @@ import { onUnmounted, type Ref } from 'vue';
  * 用法：
  *   const rootEl = ref<HTMLElement|null>(null);
  *   onMounted(() => onVisibleOnce(rootEl.value, () => { load(); }));
+ *
+ * ─── 滚动状态与窗口激活状态（补充） ─────────────────────────────
+ * 除了可见性，本模块还维护两个模块级状态，供抽屉与媒体项协作：
+ * - 滚动状态：抽屉在程序化跳转 / 用户滚动时置位，媒体项借此判断
+ *   「是否正在滚动途中」，途中暂不下载 / 延迟下载（见 setProgrammaticScroll /
+ *   beginUserScroll / endUserScroll / isProgrammaticScroll / isUserScrolling /
+ *   deferLoadWhileScrolling）。
+ * - 窗口激活状态：窗口失焦 / 隐藏时整体暂停媒体播放（见 isWindowActive /
+ *   onWindowActiveChange）。
  */
+
+// ─── 滚动状态（模块级标志，抽屉写入、媒体项读取）───────────────
+let programmaticScrolling = false;
+let userScrolling = false;
+/** 程序化滚动结束后待补下载的回调队列 */
+let pendingScrollingLoads: (() => void)[] = [];
+/** 滚动状态解除后执行延迟任务的计时器（去抖） */
+let scrollSettleTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** 标记是否处于程序化（平滑）滚动途中。抽屉在 scrollTo 时置 true，停顿后置 false。 */
+export function setProgrammaticScroll(v: boolean) {
+  programmaticScrolling = v;
+  if (!v) flushDeferredLoads();
+}
+
+/** 查询是否处于程序化（平滑）滚动途中（供媒体项抑制沿途下载） */
+export function isProgrammaticScroll(): boolean {
+  return programmaticScrolling;
+}
+
+/** 标记用户滚动开始（滚轮 / 拖动滚动条收到 scroll 事件时调用） */
+export function beginUserScroll() {
+  userScrolling = true;
+  if (scrollSettleTimer) { clearTimeout(scrollSettleTimer); scrollSettleTimer = null; }
+}
+
+/** 标记用户滚动结束（抽屉在停顿 ~200ms 后调用），解除抑制并补执行延迟任务 */
+export function endUserScroll() {
+  userScrolling = false;
+  flushDeferredLoads();
+}
+
+/** 查询是否正处于用户滚动中（供媒体项抑制沿途下载） */
+export function isUserScrolling(): boolean {
+  return userScrolling;
+}
+
+/**
+ * 若当前正在滚动（程序化或用户），把回调延迟到滚动结束（转静）后执行；
+ * 否则立即执行。用于「跳转 / 滚动途中只经过不下载，落地后若仍在可视区再补下」。
+ */
+export function deferLoadWhileScrolling(cb: () => void) {
+  if (!programmaticScrolling && !userScrolling) {
+    cb();
+    return;
+  }
+  pendingScrollingLoads.push(cb);
+  // 冗余兜底：若滚动标志因异常未及时解除，兜底 400ms 后强制执行
+  if (!scrollSettleTimer) {
+    scrollSettleTimer = setTimeout(() => {
+      scrollSettleTimer = null;
+      programmaticScrolling = false;
+      userScrolling = false;
+      flushDeferredLoads();
+    }, 400);
+  }
+}
+
+/** 依次执行并清空延迟下载队列 */
+function flushDeferredLoads() {
+  if (scrollSettleTimer) { clearTimeout(scrollSettleTimer); scrollSettleTimer = null; }
+  if (pendingScrollingLoads.length === 0) return;
+  const queue = pendingScrollingLoads;
+  pendingScrollingLoads = [];
+  for (const cb of queue) cb();
+}
+
+// ─── 窗口激活状态（失焦 / 隐藏时暂停媒体）───────────────────────
+const windowActiveListeners = new Set<() => void>();
+
+function updateWindowActive() {
+  for (const cb of windowActiveListeners) cb();
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('focus', updateWindowActive);
+  window.addEventListener('blur', updateWindowActive);
+  document.addEventListener('visibilitychange', updateWindowActive);
+}
+
+/** 窗口当前是否激活（可见且未被遮挡/隐藏），供媒体项决定是否播放 */
+export function isWindowActive(): boolean {
+  if (typeof document === 'undefined') return true;
+  return document.visibilityState === 'visible' && !document.hidden;
+}
+
+/**
+ * 订阅窗口激活状态变化（聚焦/失焦/隐藏/显示），返回取消订阅函数。
+ * 媒体项在窗口失焦/隐藏时整体暂停，恢复时若仍在可视区则续播。
+ */
+export function onWindowActiveChange(cb: () => void): () => void {
+  windowActiveListeners.add(cb);
+  return () => {
+    windowActiveListeners.delete(cb);
+  };
+}
 /** 单个元素的可观察状态 */
 interface ObserverEntry {
   /** 一次性回调（首次进入视口触发后清除） */
