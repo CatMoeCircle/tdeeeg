@@ -23,7 +23,8 @@
                 <div class="text-sm text-gray-500 dark:text-gray-400">{{ participantsText }}</div>
                 <div v-if="channels.length" class="mt-2 space-y-1.5">
                     <div v-for="ch in channels" :key="ch.id"
-                        class="mx-auto flex w-fit items-center gap-1.5 rounded-full pr-3" :style="channelRowStyle(ch)">
+                        class="mx-auto flex w-fit cursor-pointer items-center gap-1.5 rounded-full pr-3 transition-opacity hover:opacity-80"
+                        :style="channelRowStyle(ch)" @click="openChannel(ch.id)">
                         <div class="h-7 w-7 shrink-0 overflow-hidden rounded-full">
                             <Avatar :photo="ch.photo" :title="ch.title" :accent-color-id="ch.accentColorId" />
                         </div>
@@ -93,6 +94,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { GiftIcon, StarIcon, XIcon } from 'lucide-vue-next';
 import type { chat, chatPhotoInfo, messageGiveaway, messageSticker } from 'tdlib-types';
 import { tdlibSend } from '../../../../../utils/tdlib';
@@ -117,6 +119,12 @@ const props = defineProps<{
 const detailsOpen = ref(false);
 const channels = ref<GiveawayChannel[]>([]);
 const chatStore = useChatStore();
+const router = useRouter();
+
+/** 点击参与者频道行 → 打开对应的频道 */
+function openChannel(chatId: number) {
+    router.push({ name: 'chat-detail', params: { id: String(chatId) } });
+}
 
 const numberFormatter = new Intl.NumberFormat('zh-CN');
 const formatCount = (count: number) => numberFormatter.format(count);
