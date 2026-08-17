@@ -126,8 +126,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import type { messageDocument, messageAudio, textEntity, InternalLinkType, thumbnail } from 'tdlib-types';
+import type { messageDocument, messageAudio, textEntity, thumbnail } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles, reactiveDownloadingFiles } from '../../../../../utils/tdlib';
+import { resolveInternalLink } from '../../../../../utils/openInternalLink';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { FileIcon, DownloadIcon, MusicIcon, PauseIcon, PlayIcon } from 'lucide-vue-next';
@@ -380,34 +381,8 @@ async function openCaptionLink(href: string) {
 async function resolveCaptionLink(href: string) {
     captionLoadingLinks.value = new Set(captionLoadingLinks.value).add(href);
     try {
-        const linkType = await tdlibSend({ _: 'getInternalLinkType', link: href }) as InternalLinkType;
-
-        switch (linkType._) {
-            case 'internalLinkTypeMessage': {
-                const info = await tdlibSend({ _: 'getMessageLinkInfo', url: linkType.url });
-                if (info.chat_id) {
-                    const query: Record<string, string> = {};
-                    if (info.message) {
-                        query.message = String(info.message.id);
-                    }
-                    await router.push({
-                        name: 'chat-detail',
-                        params: { id: String(info.chat_id) },
-                        query: Object.keys(query).length > 0 ? query : undefined,
-                    });
-                }
-                break;
-            }
-            case 'internalLinkTypePublicChat': {
-                const chat = await tdlibSend({ _: 'searchPublicChat', username: linkType.chat_username });
-                await router.push(`/home/chat/${chat.id}`);
-                break;
-            }
-            default: {
-                openUrl(href);
-                break;
-            }
-        }
+        // 复用统一内部链接解析（含 bot start 深链接等，解析失败会自动回退外部打开）
+        await resolveInternalLink(href, router);
     } catch (e) {
         console.warn('Failed to resolve internal link, opening externally:', e);
         openUrl(href);

@@ -1,4 +1,4 @@
-import type { InternalLinkType, proxy } from "tdlib-types";
+import type { InternalLinkType, proxy, chat } from "tdlib-types";
 import { tdlibSend } from "./tdlib";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { MessagePlugin } from "tdesign-vue-next";
@@ -13,6 +13,7 @@ import type { Router } from "vue-router";
  *   - internalLinkTypeMessage    → getMessageLinkInfo 解析出 chat，跳转 chat-detail
  *   - internalLinkTypePublicChat → searchPublicChat 解析用户名，跳转 /home/chat/{id}
  *   - internalLinkTypeProxy      → 弹出「添加代理」确认，确认后 addProxy
+ *   - internalLinkTypeBotStart   → searchPublicChat 解析出 bot，跳转其私聊；autostart 时自动发送 /start 深链接
  *   - 其他 / 解析失败            → 外部浏览器打开（openUrl）
  *
  * @param href   t.me / tg:// 链接
@@ -44,6 +45,30 @@ export async function resolveInternalLink(href: string, router: Router): Promise
             case "internalLinkTypePublicChat": {
                 const chat = await tdlibSend({ _: "searchPublicChat", username: linkType.chat_username });
                 await router.push(`/home/chat/${chat.id}`);
+                return true;
+            }
+            case "internalLinkTypeBotStart": {
+                // t.me/xxxbot?start=xxx 深链接：解析出与 bot 的私聊并跳转；autostart 时自动发送 /start 深链接消息
+                const chat = await tdlibSend({ _: "searchPublicChat", username: linkType.bot_username }) as chat;
+                await router.push(`/home/chat/${chat.id}`);
+                if (linkType.autostart && linkType.start_parameter) {
+                    const botUserId =
+                        chat.type && (chat.type._ === "chatTypePrivate" || chat.type._ === "chatTypeSecret")
+                            ? chat.type.user_id
+                            : undefined;
+                    if (botUserId) {
+                        try {
+                            await tdlibSend({
+                                _: "sendBotStartMessage",
+                                bot_user_id: botUserId,
+                                chat_id: chat.id,
+                                parameter: linkType.start_parameter,
+                            });
+                        } catch (e) {
+                            console.warn("Failed to send bot start message:", e);
+                        }
+                    }
+                }
                 return true;
             }
             case "internalLinkTypeProxy": {
