@@ -306,7 +306,7 @@
                             class="w-20 h-20 mb-3 rounded-full overflow-hidden focus:outline-none cursor-pointer"
                             :disabled="!overlayUserId" @click="openOverlayUserProfile">
                             <Avatar :photo="chat.photo" :title="chat.title" sizeClass="!w-20 !h-20"
-                                :accentColorId="getChatProfileAccentColorId(chat as any)" />
+                                :accentColorId="getChatProfileAccentColorId(chat)" />
                         </button>
                         <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">
                             <GlobalEmojiText :text="overlayChatTitle" />
@@ -346,7 +346,7 @@
                 @sticker="openStickerPanel" />
 
             <!-- 表情包面板（emoji/GIF/贴纸 三合一） -->
-            <StickerPanel ref="stickerPanelRef" :anchor="inputAnchorEl" @pick-emoji="insertEmojiIntoInput"
+            <StickerPanel :anchor="inputAnchorEl" @pick-emoji="insertEmojiIntoInput"
                 @pick-custom-emoji="insertCustomEmojiIntoInput" @pick-sticker="sendSticker"
                 @pick-animation="sendAnimation" />
         </div>
@@ -459,7 +459,7 @@ import { confirmDeleteMessage } from '../../../store/deleteMessage';
 import type { DeleteMessageRequest } from '../../../store/deleteMessage';
 import { openContextMenu } from '../../../store/contextMenu';
 
-import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, forumTopic, inputTextQuote, sendMessage, $Function, textEntity$Input } from 'tdlib-types';
+import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity$Input } from 'tdlib-types';
 import { getViewerState, closeMediaViewer, registerMediaItem, unregisterMediaItem, isMediaViewerActive, openMediaViewer } from '../../../store/mediaViewer';
 import { isFileReady } from '../../../utils/tdlib';
 import { buildVideoQualities } from '../../../utils/videoQualities';
@@ -683,7 +683,6 @@ const messagesContainer = ref<HTMLElement | null>(null);
 // ===== 表情包面板（StickerPanel emoji/GIF/贴纸） =====
 /** 面板锚点（输入区容器元素），用于定位悬浮面板 */
 const inputAnchorEl = ref<HTMLElement | null>(null);
-const stickerPanelRef = ref<InstanceType<typeof StickerPanel> | null>(null);
 
 /** 打开/切换面板（MessageInput @sticker 触发，默认切到贴纸 Tab）：
  *  已打开时再次点击则关闭（toggle）。 */
@@ -1302,22 +1301,36 @@ const handleUpdate = async (update: Update) => {
         }
 
         case 'updateMessageEdited': {
-            // 对所有匹配该聊天的缓存条目（当前渲染聊天走 messages.value）查找并更新
+            /** 将 reply_markup 就地应用到某个消息对象（有值更新按钮、空值清除旧键盘） */
+            const applyReplyMarkup = (msg: message) => {
+                msg.edit_date = update.edit_date;
+                // updateMessageEdited 携带新的 reply_markup（可能为 null，表示移除内联键盘）：
+                // 有值时更新按钮；值为 null/空时清除旧按钮并刷新锁定，避免残留旧键盘
+                if (update.reply_markup) {
+                    msg.reply_markup = update.reply_markup;
+                } else if (update.reply_markup !== undefined && msg.reply_markup !== undefined) {
+                    msg.reply_markup = undefined;
+                }
+                refreshKeyboardLock(update.message_id);
+            };
+
+            // 当前正在渲染的聊天：优先直接更新渲染列表（messages.value），
+            // 确保内联键盘按钮随 updateMessageEdited.reply_markup 实时刷新
+            if (update.chat_id === chatId.value) {
+                const msg = messages.value.find(m => m.id === update.message_id);
+                if (msg) {
+                    applyReplyMarkup(msg);
+                    break;
+                }
+            }
+            // 当前渲染聊天中未找到（或非当前聊天）→ 遍历缓存中的其他条目同步更新
             for (const [key, entry] of chatDetailCache) {
                 if (!key.startsWith(`${update.chat_id}:`) && key !== String(update.chat_id)) continue;
-                const list = (update.chat_id === chatId.value && entry.messages === messages.value)
-                    ? messages.value
-                    : entry.messages;
-                const msg = list.find(m => m.id === update.message_id);
-                if (!msg) continue;
-                msg.edit_date = update.edit_date;
-                if (update.reply_markup) {
-                    (msg as any).reply_markup = update.reply_markup;
-                    // 内联键盘按钮被更新（文本/布局变化，或按钮被移除）：刷新锁定状态
-                    refreshKeyboardLock(update.message_id);
+                const cachedMsg = entry.messages.find(m => m.id === update.message_id);
+                if (cachedMsg) {
+                    applyReplyMarkup(cachedMsg);
+                    break;
                 }
-                // 当前聊天已就地修改，无需继续遍历
-                if (list === messages.value) break;
             }
             break;
         }
@@ -1883,7 +1896,7 @@ const fetchMemberStatuses = async (msgs: message[]) => {
                     _: 'getChatMember',
                     chat_id: cid,
                     member_id: { _: 'messageSenderUser', user_id: uid },
-                }) as any;
+                }) as ChatMember;
                 if (member) {
                     memberStatus.value[uid] = {
                         status: member.status,
@@ -2007,8 +2020,8 @@ async function markVisibleMessagesAsRead() {
             chat_id: currentChatId,
             message_ids: messageIds,
             force_read: true,
-            source: topicId.value ? { _: 'messageSourceForumTopicHistory' } : undefined,
-        } as any);
+            source: topicId.value ? { _: 'messageSourceForumTopicHistory' } as const : undefined,
+        });
     } catch (e) {
         if (chatId.value === currentChatId && lastReportedReadMessageId === latestVisibleId) {
             lastReportedReadMessageId = previousReportedId;
