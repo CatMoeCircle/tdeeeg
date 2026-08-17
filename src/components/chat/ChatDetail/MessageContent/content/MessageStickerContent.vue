@@ -10,8 +10,9 @@
         <!-- WEBM video sticker -->
         <video v-else-if="format === 'webm' && mediaSrc" ref="videoRef" :src="mediaSrc" autoplay loop muted playsinline
             class="w-full h-full object-contain" />
-        <div v-else class="w-full h-full flex items-center justify-center">
-            <div class="w-full h-full rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
+        <!-- Fallback -->
+        <div v-else class="w-full h-full flex items-center justify-center text-2xl">
+            <GlobalEmojiInline :emoji="emoji" :size="48" />
         </div>
     </div>
 </template>
@@ -28,6 +29,7 @@ import { useLottiePause } from '../../../../../composables/useLottiePause';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import { useRlottieRenderSize } from '../../../../../composables/useRlottieRenderSize';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
+import GlobalEmojiInline from '../../../../common/GlobalEmojiInline.vue';
 import { applyFitzpatrick } from '../../../../../utils/fitzpatrick';
 import { RlottiePlayer, type RlottiePlayerInstance } from 'rlottie-wasm-vue-player';
 import * as pako from 'pako';
@@ -75,6 +77,9 @@ const stickerSizeStyle = computed<Record<string, string>>(() => ({
 const sticker = computed(() => props.content._ === 'messageSticker'
     ? props.content.sticker
     : props.content.animated_emoji.sticker);
+const emoji = computed(() => props.content._ === 'messageSticker'
+    ? props.content.sticker.emoji || '🧩'
+    : props.content.emoji);
 
 /** 检测贴纸格式 */
 const format = computed(() => sticker.value?.format._ === 'stickerFormatTgs' ? 'tgs'

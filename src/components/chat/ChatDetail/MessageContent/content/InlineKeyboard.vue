@@ -7,7 +7,9 @@
                 <CustomEmojiInline v-if="String(button.icon_custom_emoji_id || 0) !== '0'"
                     :emojiId="String(button.icon_custom_emoji_id)" :size="18"
                     :fallback-text="button.text.slice(0, 1)" />
-                <span class="min-w-0 whitespace-pre-wrap wrap-break-word text-center"><GlobalEmojiText :text="button.text" /></span>
+                <span class="min-w-0 whitespace-pre-wrap wrap-break-word text-center">
+                    <GlobalEmojiText :text="button.text" />
+                </span>
             </button>
         </div>
     </div>
@@ -34,6 +36,18 @@ const props = defineProps<{
 
 const router = useRouter();
 const pendingKey = ref<string | null>(null);
+
+/**
+ * 锁定状态由上级（消息列表组件）在收到消息更新时主动刷新：
+ * 消息更新（updateMessageContent / updateMessageEdited 等）后，回调期间的按钮锁定
+ * 可能已失效——按钮文本可能已变，或该按钮在更新中已被移除。上级在下一次更新时
+ * 通过本方法释放锁定，避免按钮持续被禁用或残留锁定拦截后续点击。
+ */
+function resetLock() {
+    pendingKey.value = null;
+}
+
+defineExpose({ resetLock });
 
 function buttonKey(ri: number, bi: number): string {
     return `${ri}:${bi}`;

@@ -1,6 +1,6 @@
 <template>
     <div class="flex flex-col h-full border-r border-gray-200 pt-4" @touchstart="onTouchStart" @touchmove="onTouchMove"
-        @touchend="onTouchEnd">
+        @touchend="onTouchEnd" @touchcancel="onTouchCancel">
         <!-- Search Bar (forum mode 时向上滑动隐藏) -->
         <Transition name="slide-up">
             <div v-if="!forumMode" class="py-1 px-3 overflow-hidden max-h-14">
@@ -47,8 +47,8 @@
                 <!-- Swipe Track (shrinks in forum mode) -->
                 <div ref="swipeContainer" class="h-full overflow-hidden"
                     :class="forumMode ? 'w-17 shrink-0' : 'flex-1'">
-                    <div class="swipe-track h-full flex"
-                        :style="{ transform: forumMode ? 'translateX(0px)' : `translateX(${swipeOffset}px)`, transition: isSwiping || forumMode ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }">
+                    <div ref="swipeTrackEl" class="swipe-track h-full flex"
+                        :style="{ transform: forumMode ? 'translateX(0px)' : `translateX(${swipeOffset}px)`, transition: isSwiping || forumMode || modeSwitching ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }">
                         <!-- forum 模式只需渲染当前激活分组的单一页面（68px 头像列），
                              避免把全部分组页面并排渲染而露出相邻分组头像 -->
                         <div v-for="tab in tabsWithContent" :key="tab.id" v-show="!forumMode || tab.id === activeTab"
@@ -368,7 +368,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, type Component } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick, type Component } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon, UserIcon, UsersIcon, MegaphoneIcon, BotIcon, FolderIcon, BellOffIcon, PinIcon, ArchiveIcon, ChevronRightIcon, ArchiveRestore as ArchiveRestoreIcon, PinOff as PinOffIcon, FolderPlus as FolderPlusIcon, FolderMinus as FolderMinusIcon, BellRing as BellRingIcon, LogOut as LogOutIcon, CheckCheck as CheckCheckIcon, Trash2 as Trash2Icon, X as XIcon, Copy as CopyIcon } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
@@ -416,6 +416,7 @@ const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
 
 const swipeContainer = ref<HTMLElement | null>(null);
+const swipeTrackEl = ref<HTMLElement | null>(null);
 const pageWidth = ref(0);
 
 // ---- Swipe state ----
@@ -425,6 +426,15 @@ let touchStartX = 0;
 let touchStartY = 0;
 let currentTranslateX = 0;
 let isHorizontalSwipe: boolean | null = null;
+/** 触摸是否起始于顶部文件夹标签栏（SlidingTabBar）内——此时交由标签栏自行横向滚动，不切换列表 */
+let touchOnTabBar = false;
+/** 松手吸附动画的 rAF 句柄（非 null 表示吸附动画进行中） */
+let trackAnimRaf: number | null = null;
+
+/** 判断触摸目标是否落在顶部文件夹标签栏区域内 */
+function isTouchOnTabBar(el: EventTarget | null): boolean {
+    return el instanceof HTMLElement && !!el.closest('.sliding-tabbar');
+}
 
 // ---- Resize observer for page width ----
 let resizeObserver: ResizeObserver | null = null;
@@ -724,6 +734,34 @@ let forumNextOffsetDate = 0;
 let forumNextOffsetMessageId = 0;
 let forumNextOffsetForumTopicId = 0;
 let forumHasMore = true;
+
+/**
+ * 论坛模式切换标志：进入/退出论坛模式时，swipe-track 的 transform 会被强制
+ * 覆盖（forumMode 时 translateX(0)）。若退出的瞬间立刻恢复 transition，
+ * transform 会从 translateX(0)（对应第一个文件夹）动画到正确偏移，
+ * 造成“关闭动画从第一个文件夹开始”的错误横移。
+ * 此标志在切换期间保持 transition:none，并把 swipeOffset 直接定位到当前
+ * tab 对应的偏移，使列表无横移地回到进入前的文件夹，仅话题面板向右滑出。
+ */
+const modeSwitching = ref(false);
+
+// 进入/退出论坛模式时：禁止 swipe-track 横移过渡，并把偏移定位到当前 tab
+watch(forumMode, () => {
+    // 取消可能仍在进行的松手吸附动画，避免其 rAF 继续写 swipe-track 的
+    // transform，与论坛模式的 translateX(0)（进入）/正确偏移（退出）冲突。
+    cancelTrackAnim();
+    isSwiping.value = false;
+    modeSwitching.value = true;
+    const idx = currentIndex.value;
+    if (pageWidth.value) {
+        swipeOffset.value = -idx * pageWidth.value;
+    }
+    // 下一帧（等 forumMode 相关的 DOM patch 完成）再恢复过渡，
+    // 之后正常的横向滑动切换仍可播放动画。
+    nextTick(() => {
+        modeSwitching.value = false;
+    });
+});
 
 const isSavedMessages = (chat: Chat) => isSavedMessagesChat(chat, userProfile.value?.id);
 /** 检测是否为占位对话（chat 对象尚未到达，仅有 id，title 为 '…'），此时渲染骨架屏 */
@@ -1139,10 +1177,13 @@ watch(tabsWithContent, (list) => {
 // 切换 Tab 时重置该列表的加载状态，并始终发起 loadChats
 // （即使分组已有对话也要加载，否则只有一个/少量对话的分组永远不会继续拉取直到 404）
 watch(activeTab, (newTab) => {
-    if (!pageWidth.value) return;
-    const idx = tabs.value.findIndex(t => t.id === newTab);
-    if (idx >= 0) {
-        swipeOffset.value = -idx * pageWidth.value;
+    // 若正处于松手吸附动画中：不要用目标偏移覆盖 swipeOffset（否则会让响式 :style
+    // 提前跳到目标位置、破坏从手指位置开始的平滑滑动画），动画结束后自会落位。
+    if (trackAnimRaf === null && pageWidth.value) {
+        const idx = tabs.value.findIndex(t => t.id === newTab);
+        if (idx >= 0) {
+            swipeOffset.value = -idx * pageWidth.value;
+        }
     }
     chatStore.resetListState(newTab);
     triggerLoadMore(newTab);
@@ -1181,6 +1222,12 @@ function switchToTab(tabId: string) {
 }
 
 // ---- Touch / Swipe handlers ----
+/**
+ * 触屏左右滑动切换文件夹。
+ * 高帧率拖动：touchmove 直接写 swipe-track 的 transform（绕过 Vue 响应式批处理），
+ * 避免每帧经响应式 flush 带来的滞后/卡顿；释放时再提交到 swipeOffset/activeTab，
+ * 由响应式 :style 接管完成 0.3s 的吸附动画。
+ */
 function onTouchStart(e: TouchEvent) {
     if (forumMode.value) return; // 论坛模式禁用滑动切换
     if (tabs.value.length <= 1) return;
@@ -1188,29 +1235,110 @@ function onTouchStart(e: TouchEvent) {
     touchStartX = touch.clientX;
     touchStartY = touch.clientY;
     isHorizontalSwipe = null;
+    // 触摸起点在顶部文件夹标签栏内：不启动列表横滑，交给标签栏自身横向滚动浏览
+    touchOnTabBar = isTouchOnTabBar(e.target);
+    if (touchOnTabBar) return;
+    // 取消可能仍在进行的吸附动画，并复位过渡/内联样式，从干净状态开始新拖动
+    cancelTrackAnim();
+    if (swipeTrackEl.value) {
+        swipeTrackEl.value.style.transition = '';
+        swipeTrackEl.value.style.transform = '';
+    }
     currentTranslateX = swipeOffset.value;
+    // 拖动期间禁用 transition，保证手指跟随无延迟
+    isSwiping.value = true;
+    if (swipeTrackEl.value) {
+        swipeTrackEl.value.style.transition = 'none';
+    }
+}
+
+/** 把 swipe-track 直接定位到指定偏移（拖动时绕过响应式，实时跟随手指） */
+function applyTrackOffset(offset: number) {
+    if (swipeTrackEl.value) {
+        swipeTrackEl.value.style.transform = `translateX(${offset}px)`;
+    }
+}
+
+// ---- 松手吸附动画 ----
+/** 吸附动画时长（ms），与 .chat-list 的 0.3s 视觉节奏一致 */
+const TRACK_SNAP_MS = 300;
+
+/** 取消进行中的吸附动画 */
+function cancelTrackAnim() {
+    if (trackAnimRaf !== null) {
+        cancelAnimationFrame(trackAnimRaf);
+        trackAnimRaf = null;
+    }
+}
+
+/**
+ * 从当前 offset 平滑缓动到 targetOffset。
+ * 用手动 rAF 驱动（transition 全程 none），保证动画严格从松手时的位置开始，
+ * 不依赖 CSS 过渡与响应式 watcher 的时序，避免"先回原位再跳转"。动画期间
+ * 同步更新 swipeOffset 保持响应式一致，结束后由响式 :style（0.3s）接管。
+ */
+function animateTrackTo(targetOffset: number) {
+    cancelTrackAnim();
+    if (!swipeTrackEl.value) {
+        swipeOffset.value = targetOffset;
+        return;
+    }
+    const startOffset = swipeOffset.value;
+    const delta = targetOffset - startOffset;
+    // 无位移则直接落位
+    if (Math.abs(delta) < 0.5) {
+        swipeOffset.value = targetOffset;
+        applyTrackOffset(targetOffset);
+        isSwiping.value = false;
+        return;
+    }
+    const startTime = performance.now();
+    const step = (now: number) => {
+        const t = Math.min(1, (now - startTime) / TRACK_SNAP_MS);
+        // ease-out cubic 缓动：起步快、收尾稳，吸附自然
+        const eased = 1 - Math.pow(1 - t, 3);
+        const offset = startOffset + delta * eased;
+        swipeOffset.value = offset;
+        applyTrackOffset(offset);
+        if (t < 1) {
+            trackAnimRaf = requestAnimationFrame(step);
+        } else {
+            trackAnimRaf = null;
+            swipeOffset.value = targetOffset;
+            applyTrackOffset(targetOffset);
+            // 动画结束：恢复响应式 :style 接管（此时已是目标位置，无跳变）
+            isSwiping.value = false;
+            if (swipeTrackEl.value) {
+                swipeTrackEl.value.style.transition = '';
+                swipeTrackEl.value.style.transform = '';
+            }
+        }
+    };
+    trackAnimRaf = requestAnimationFrame(step);
 }
 
 function onTouchMove(e: TouchEvent) {
     if (forumMode.value) return; // 论坛模式禁用滑动切换
     if (tabs.value.length <= 1) return;
+    // 起始于标签栏的触摸：完全放行，让浏览器默认横向滚动标签栏（不 preventDefault、不切换）
+    if (touchOnTabBar) return;
     const touch = e.touches[0];
     const dx = touch.clientX - touchStartX;
     const dy = touch.clientY - touchStartY;
 
-    // 判断滑动方向
+    // 判断滑动方向（更早锁定水平方向，减少与垂直滚动的争抢）
     if (isHorizontalSwipe === null) {
         if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
             isHorizontalSwipe = Math.abs(dx) > Math.abs(dy);
         }
+        // 尚未锁定方向时不拦截，保证垂直滚动顺畅
+        if (isHorizontalSwipe === false) return;
     }
-
     if (!isHorizontalSwipe) return; // 垂直滚动交给浏览器
 
     e.preventDefault();
 
     if (!pageWidth.value) return;
-    isSwiping.value = true;
 
     const totalPages = tabs.value.length;
     let newOffset = currentTranslateX + dx;
@@ -1231,17 +1359,29 @@ function onTouchMove(e: TouchEvent) {
         }
     }
 
+    // 同步写 DOM，实时跟随手指（不经过响应式批处理，避免卡顿）
     swipeOffset.value = newOffset;
+    applyTrackOffset(newOffset);
 }
 
 function onTouchEnd(e: TouchEvent) {
     if (forumMode.value) return; // 论坛模式禁用滑动切换
     if (tabs.value.length <= 1) return;
+    if (touchOnTabBar) {
+        touchOnTabBar = false;
+        return;
+    }
     if (!pageWidth.value) return;
 
-    isSwiping.value = false;
-
-    if (!isHorizontalSwipe) return;
+    // 非水平滑动（垂直滚动等）：复位拖动状态与内联样式，不切换
+    if (!isHorizontalSwipe) {
+        isSwiping.value = false;
+        if (swipeTrackEl.value) {
+            swipeTrackEl.value.style.transition = '';
+            swipeTrackEl.value.style.transform = '';
+        }
+        return;
+    }
 
     const touch = e.changedTouches[0];
     const dx = touch.clientX - touchStartX;
@@ -1259,15 +1399,31 @@ function onTouchEnd(e: TouchEvent) {
     }
 
     const targetTab = tabs.value[targetIndex];
-    if (targetTab) {
+
+    if (targetTab && targetTab.id !== activeTab.value) {
+        // 切换：先记录目标，再播放从手指位置到目标文件夹的平滑吸附动画
         activeTab.value = targetTab.id;
+        animateTrackTo(-targetIndex * pageWidth.value);
     } else {
-        // 回弹到当前 tab
-        swipeOffset.value = -currentIndex.value * pageWidth.value;
+        // 未过阈值：回弹到当前 tab
+        animateTrackTo(-currentIndex.value * pageWidth.value);
     }
 
     isHorizontalSwipe = null;
 }
+
+/** 触摸被系统打断（touchcancel）：复位拖动内联样式，避免 transition 卡在 none */
+function onTouchCancel() {
+    touchOnTabBar = false;
+    cancelTrackAnim();
+    if (swipeTrackEl.value) {
+        swipeTrackEl.value.style.transition = '';
+        swipeTrackEl.value.style.transform = '';
+    }
+    isSwiping.value = false;
+    isHorizontalSwipe = null;
+}
+
 
 // ---- Forum Topic Helpers ----
 const topicIconColors: Record<number, string> = {

@@ -6,6 +6,7 @@ import { useDownloadStore } from "./store/downloads";
 import { useUploadStore } from "./store/upload";
 import { useConnectionStore } from "./store/connectionState";
 import { useOptionsStore } from "./store/options";
+import { useUserStore } from "./store/user";
 import { initSenderInfo } from "./utils/senderInfo";
 import { initColors, watchSystemColorScheme } from "./store/colors";
 import { settings } from "./store/settings";
@@ -25,6 +26,7 @@ export async function initTdlib() {
     const uploadStore = useUploadStore();
     const connectionStore = useConnectionStore();
     const optionsStore = useOptionsStore();
+    const userStore = useUserStore();
 
     // 初始化下载管理器的 updateFile 监听
     await downloadStore.init();
@@ -36,6 +38,8 @@ export async function initTdlib() {
     optionsStore.init();
     // 初始化发送者缓存监听（复用 update 中携带的用户/对话数据，避免重复 getUser/getChat）
     await initSenderInfo();
+    // 初始化当前用户信息监听（导航栏头像/名称实时刷新）
+    await userStore.initUpdates();
     // 初始化 Telegram 色彩主题系统（updateAccentColors / updateProfileAccentColors）
     await initColors();
     // 跟随系统明暗模式，供 accent 色选择对应明暗色板

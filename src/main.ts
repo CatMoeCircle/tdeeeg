@@ -14,6 +14,7 @@ import { closeContextMenu } from "./store/contextMenu";
 import { initTdlib, waitForAuthorization } from "./init";
 import { registerLoaderStyle, type LoaderStyle } from "./components/common/LoaderIndicator";
 import { settings } from "./store/settings";
+import { debugMode } from "./store/debug";
 import { initRlottie } from "./utils/rlottiePreload";
 
 // 全局右键处理：
@@ -41,8 +42,10 @@ window.addEventListener("contextmenu", (e) => {
 });
 
 // 屏蔽开发者工具快捷键：F12，以及 Ctrl/Cmd+Shift+I / J / C（打开 DevTools / 元素审查）。
-// 用户仍可通过「开发者选项 → 打开开发者工具」按钮主动打开（Rust open_devtools）。
+// 开发模式（调试模式 debugMode 开启）下不屏蔽，便于直接按 F12 打开控制台。
+// 用户也可通过「开发者选项 → 打开开发者工具」按钮主动打开（Rust open_devtools）。
 window.addEventListener("keydown", (e) => {
+    if (debugMode.value) return; // 开发模式下放行 F12 等调试快捷键
     const key = e.key.toLowerCase();
     const shortcut = e.key === "F12" ||
         (key === "i" && e.shiftKey && (e.ctrlKey || e.metaKey)) ||

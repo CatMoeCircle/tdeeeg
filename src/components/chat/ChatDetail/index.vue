@@ -110,6 +110,7 @@
                                             @message-context-menu="onAlbumMessageContextMenu" />
                                     </div>
                                     <InlineKeyboard v-if="getInlineKeyboard(item.messages[0])" class="mt-1 w-full"
+                                        :ref="registerKeyboardRef(item.messages[0].id)"
                                         :rows="getInlineKeyboard(item.messages[0])!.rows" :chat-id="chatId"
                                         :message-id="item.messages[0].id" />
                                 </div>
@@ -229,6 +230,7 @@
                                         </span>
                                     </div>
                                     <InlineKeyboard v-if="getInlineKeyboard(item.msg)" class="mt-1 w-full"
+                                        :ref="registerKeyboardRef(item.msg.id)"
                                         :rows="getInlineKeyboard(item.msg)!.rows" :chat-id="chatId"
                                         :message-id="item.msg.id" />
                                 </div>
@@ -1193,6 +1195,8 @@ const handleUpdate = async (update: Update) => {
                     // 若用户停在底部附近则保持贴底，避免底部内容被顶出视口
                     const atBottom = isAtBottom();
                     msg.content = update.new_content;
+                    // 消息更新后刷新该消息内联键盘的锁定状态
+                    refreshKeyboardLock(update.message_id);
                     if (atBottom) scrollToBottom();
                     break;
                 }
@@ -1231,6 +1235,11 @@ const handleUpdate = async (update: Update) => {
             if (newMessageIds.value.delete(update.old_message_id)) {
                 newMessageIds.value.add(update.message.id);
             }
+            // 发送成功后消息被替换为最终版本（携带真正生成的内联键盘按钮），
+            // 且消息 id 由临时 id 变为正式 id。若发送前已有内联键盘，组件实例复用、
+            // 内部 pendingKey 可能残留，这里刷新锁定使其与新按钮布局保持一致。
+            refreshKeyboardLock(update.message.id);
+            // 旧 id 对应的键盘组件若已随替换卸载，其 ref 会在卸载回调中被自动移除。
             // 为新消息获取发送者信息
             await fetchSenders([update.message]);
             break;
@@ -1304,9 +1313,37 @@ const handleUpdate = async (update: Update) => {
                 msg.edit_date = update.edit_date;
                 if (update.reply_markup) {
                     (msg as any).reply_markup = update.reply_markup;
+                    // 内联键盘按钮被更新（文本/布局变化，或按钮被移除）：刷新锁定状态
+                    refreshKeyboardLock(update.message_id);
                 }
                 // 当前聊天已就地修改，无需继续遍历
                 if (list === messages.value) break;
+            }
+            break;
+        }
+
+        // ---- 发送者/频道信息实时回填：让消息气泡旁的头像/名称随 update 刷新 ----
+        // 消息头像/名称读取本地 users/chats ref，若不回填，换头像/改名后气泡不会更新。
+        case 'updateUser': {
+            // updateUser 携带完整 user 对象（含 first_name/last_name/profile_photo）：
+            // 本地已缓存该用户时整体替换，驱动消息头像/名称实时刷新
+            const u = update.user;
+            if (u && users.value[u.id]) {
+                users.value[u.id] = u;
+            }
+            break;
+        }
+        case 'updateChatPhoto': {
+            // 频道/群组换头像：updateChatPhoto 携带新的 photo，回填本地缓存
+            if (typeof update.chat_id === 'number' && chats.value[update.chat_id]) {
+                chats.value[update.chat_id].photo = update.photo;
+            }
+            break;
+        }
+        case 'updateChatTitle': {
+            // 频道/群组改名：回填本地缓存，刷新消息来源显示名
+            if (typeof update.chat_id === 'number' && chats.value[update.chat_id]) {
+                chats.value[update.chat_id].title = update.title;
             }
             break;
         }
@@ -3081,6 +3118,26 @@ function onMessageAnimEnd(event: AnimationEvent, messageId: number) {
     } else {
         removeNewMessageId(messageId);
     }
+}
+
+// ==================== Inline Keyboard Refresh ====================
+// InlineKeyboard 组件通过 defineExpose 暴露 resetLock()。
+// 消息发生更新（内容编辑 / reply_markup 变化）后，回调期间的按钮锁定可能已失效：
+// 按钮文本可能被更新，或该按钮已在下一次更新中被移除。
+// 由本级（持有消息数据的一方）在收到 updateMessageContent / updateMessageEdited 时，
+// 找到对应的 InlineKeyboard 组件实例并调用 resetLock() 刷新锁定状态。
+const keyboardRefs = new Map<number, { resetLock: () => void }>();
+
+function registerKeyboardRef(messageId: number) {
+    return (el: unknown) => {
+        if (el) keyboardRefs.set(messageId, el as { resetLock: () => void });
+        else keyboardRefs.delete(messageId);
+    };
+}
+
+/** 消息更新后刷新该消息的内联键盘锁定状态 */
+function refreshKeyboardLock(messageId: number) {
+    keyboardRefs.get(messageId)?.resetLock();
 }
 
 /**

@@ -131,8 +131,8 @@ watch(() => props.tabs, () => {
 </script>
 
 <template>
-    <div ref="container" v-smooth-wheel="'horizontal'" class="relative overflow-x-auto no-scrollbar shrink-0"
-        :class="containerClass">
+    <div ref="container" v-smooth-wheel="'horizontal'"
+        class="sliding-tabbar relative overflow-x-auto no-scrollbar shrink-0" :class="containerClass">
         <!-- tabs 样式的滑动小蓝条：left 先滑动，width 延迟展开 -->
         <span v-if="isTabs && showIndicator && tabs.length > 1" ref="indicator"
             class="pointer-events-none absolute bottom-0 h-0.5 rounded-full bg-blue-500" :style="indicatorStyle"></span>
