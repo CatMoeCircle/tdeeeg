@@ -782,6 +782,15 @@ const isForumChat = (chat: Chat): boolean => {
 
 /** 进入论坛模式：选中论坛群组，加载话题列表 */
 const selectForumChat = async (chat: Chat) => {
+    if (!isForumChat(chat)) {
+        exitForumMode();
+        selectedChatId.value = chat.id;
+        await router.push({
+            name: 'chat-detail',
+            params: { id: String(chat.id) },
+        });
+        return;
+    }
     if (forumChatId.value === chat.id) return; // 已经选中
     forumChatId.value = chat.id;
     forumChatTitle.value = chat.title;
