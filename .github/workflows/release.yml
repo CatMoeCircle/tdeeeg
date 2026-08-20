@@ -101,6 +101,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path src-tauri/bin
           # 使用通配符复制所有 .dll（通常只有 tdlib.dll）
+          Copy-Item td/tdlib/bin/*.dll src-tauri/bin/ -Force
         shell: pwsh
 
       - name: Build and release
