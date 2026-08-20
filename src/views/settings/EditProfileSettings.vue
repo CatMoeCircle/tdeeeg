@@ -18,11 +18,13 @@
             <div class="max-w-2xl mx-auto p-6 space-y-6">
                 <!-- 头像 -->
                 <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">头像</h3>
-                    <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 flex items-center gap-4">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">头像
+                    </h3>
+                    <div
+                        class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 flex items-center gap-4">
                         <div class="w-20 h-20 shrink-0">
-                            <Avatar :photo="user?.profile_photo" :title="fullName" :accentColorId="user?.profile_accent_color_id"
-                                sizeClass="!w-20 !h-20" />
+                            <Avatar :photo="user?.profile_photo" :title="fullName"
+                                :accentColorId="user?.profile_accent_color_id" sizeClass="!w-20 !h-20" />
                         </div>
                         <div class="min-w-0 flex-1">
                             <button type="button" @click="avatarEditorVisible = true"
@@ -36,8 +38,10 @@
 
                 <!-- 姓名 -->
                 <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">姓名</h3>
-                    <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 space-y-3">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">姓名
+                    </h3>
+                    <div
+                        class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 space-y-3">
                         <div>
                             <label class="text-xs text-gray-400">名字</label>
                             <input v-model="firstName" type="text" maxlength="64"
@@ -54,8 +58,10 @@
 
                 <!-- 个人简介 -->
                 <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">个人简介</h3>
-                    <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 space-y-2">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">
+                        个人简介</h3>
+                    <div
+                        class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 space-y-2">
                         <textarea v-model="bio" rows="3" :maxlength="bioMax"
                             class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-teal-500"></textarea>
                         <div class="flex items-center justify-between">
@@ -67,12 +73,14 @@
 
                 <!-- 手机号码 -->
                 <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">手机号码</h3>
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">
+                        手机号码</h3>
                     <button type="button" @click="phoneVisible = true"
                         class="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                         <PhoneIcon class="w-5 h-5 text-gray-400 shrink-0" />
                         <div class="min-w-0 flex-1">
-                            <p class="text-sm text-gray-800 dark:text-gray-100 select-all">{{ formattedPhone || '未设置' }}</p>
+                            <p class="text-sm text-gray-800 dark:text-gray-100 select-all">{{ formattedPhone || '未设置' }}
+                            </p>
                             <p class="text-xs text-gray-400 mt-0.5">更改手机号仅支持在官方客户端进行</p>
                         </div>
                         <ChevronRightIcon class="w-4 h-4 text-gray-400" />
@@ -81,7 +89,8 @@
 
                 <!-- 用户名 -->
                 <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">用户名</h3>
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">用户名
+                    </h3>
                     <button type="button" @click="openUsernamePopup"
                         class="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                         <AtSignIcon class="w-5 h-5 text-gray-400 shrink-0" />
@@ -95,21 +104,26 @@
 
                 <!-- 生日 -->
                 <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">生日</h3>
-                    <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 space-y-3">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">生日
+                    </h3>
+                    <div
+                        class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 space-y-3">
                         <div class="flex items-center gap-3">
                             <CalendarIcon class="w-5 h-5 text-gray-400 shrink-0" />
-                            <p v-if="birthdateText" class="text-sm text-gray-800 dark:text-gray-100">{{ birthdateText }}</p>
+                            <p v-if="birthdateText" class="text-sm text-gray-800 dark:text-gray-100">{{ birthdateText }}
+                            </p>
                             <p v-else class="text-sm text-gray-400">未设置生日</p>
                         </div>
                         <div class="flex flex-wrap items-center gap-3">
                             <TDatePicker v-model="birthdatePickerValue" mode="date" format="YYYY-MM-DD" clearable
                                 :style="{ width: '180px' }" @change="(v) => saveBirthdate(v as string)" />
-                            <label class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 select-none cursor-pointer">
+                            <label
+                                class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 select-none cursor-pointer">
                                 <input type="checkbox" v-model="hideYear" class="w-4 h-4 accent-teal-500" />
                                 不显示年份
                             </label>
-                            <button type="button" v-if="birthdateInfo" @click="deleteBirthdate" :disabled="savingBirthdate"
+                            <button type="button" v-if="birthdateInfo" @click="deleteBirthdate"
+                                :disabled="savingBirthdate"
                                 class="px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50">
                                 删除生日
                             </button>
@@ -119,18 +133,21 @@
 
                 <!-- 个人主页频道 -->
                 <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">个人主页频道</h3>
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">
+                        个人主页频道</h3>
                     <button type="button" @click="openPersonalChatPopup"
                         class="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                         <div class="w-10 h-10 shrink-0" v-if="personalChat">
                             <Avatar :photo="personalChat.photo" :title="personalChat.title"
                                 :accentColorId="personalChatAccent" sizeClass="!w-10 !h-10" />
                         </div>
-                        <div v-else class="w-10 h-10 shrink-0 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                        <div v-else
+                            class="w-10 h-10 shrink-0 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
                             <MegaphoneIcon class="w-5 h-5 text-gray-400" />
                         </div>
                         <div class="min-w-0 flex-1">
-                            <p class="text-sm text-gray-800 dark:text-gray-100 truncate">{{ personalChat?.title || '未设置' }}</p>
+                            <p class="text-sm text-gray-800 dark:text-gray-100 truncate">{{ personalChat?.title || '未设置'
+                                }}</p>
                             <p class="text-xs text-gray-400 mt-0.5">显示在您个人主页顶部的频道</p>
                         </div>
                         <ChevronRightIcon class="w-4 h-4 text-gray-400" />
@@ -139,14 +156,17 @@
 
                 <!-- 营业时间 -->
                 <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">营业时间</h3>
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">
+                        营业时间</h3>
                     <button type="button" @click="openBusinessHoursPopup"
                         class="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                         <ClockIcon class="w-5 h-5 text-gray-400 shrink-0" />
                         <div class="min-w-0 flex-1">
-                            <p v-if="businessHoursLines.length" class="text-sm text-gray-800 dark:text-gray-100">{{ businessHoursLines[0] }}</p>
+                            <p v-if="businessHoursLines.length" class="text-sm text-gray-800 dark:text-gray-100">{{
+                                businessHoursLines[0] }}</p>
                             <p v-else class="text-sm text-gray-400">未设置营业时间</p>
-                            <p class="text-xs text-gray-400 mt-0.5" v-if="businessHoursLines.length > 1">另有 {{ businessHoursLines.length - 1 }} 个时段</p>
+                            <p class="text-xs text-gray-400 mt-0.5" v-if="businessHoursLines.length > 1">另有 {{
+                                businessHoursLines.length - 1 }} 个时段</p>
                         </div>
                         <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                     </button>
@@ -154,12 +174,14 @@
 
                 <!-- 位置 -->
                 <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">位置</h3>
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">位置
+                    </h3>
                     <button type="button" @click="locationVisible = true"
                         class="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                         <MapPinIcon class="w-5 h-5 text-gray-400 shrink-0" />
                         <div class="min-w-0 flex-1">
-                            <p class="text-sm text-gray-800 dark:text-gray-100 truncate">{{ businessLocation?.address || '未设置位置' }}</p>
+                            <p class="text-sm text-gray-800 dark:text-gray-100 truncate">{{ businessLocation?.address ||
+                                '未设置位置' }}</p>
                             <p class="text-xs text-gray-400 mt-0.5">位置修改暂未适配，请前往官方客户端</p>
                         </div>
                         <ChevronRightIcon class="w-4 h-4 text-gray-400" />
@@ -168,7 +190,8 @@
 
                 <!-- 聊天机器人 -->
                 <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">聊天机器人</h3>
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">
+                        聊天机器人</h3>
                     <button type="button" @click="openChatbotPopup"
                         class="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                         <BotIcon class="w-5 h-5 text-gray-400 shrink-0" />
@@ -189,7 +212,8 @@
         <!-- 手机号码弹窗 -->
         <ModalDialog v-model="phoneVisible" title="更改手机号码">
             <div class="flex flex-col items-center text-center py-6 gap-3">
-                <div class="w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-500 flex items-center justify-center">
+                <div
+                    class="w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-500 flex items-center justify-center">
                     <PhoneIcon class="w-7 h-7" />
                 </div>
                 <p class="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
@@ -227,11 +251,13 @@
 
                 <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
                     <p class="text-xs text-gray-400 mb-2">用户名排序（适用于多个用户名）</p>
-                    <div v-if="activeUsernames.length === 0" class="text-sm text-gray-400 py-3 text-center">暂无活跃用户名</div>
+                    <div v-if="activeUsernames.length === 0" class="text-sm text-gray-400 py-3 text-center">暂无活跃用户名
+                    </div>
                     <div v-else class="space-y-2">
                         <div v-for="(u, i) in activeUsernames" :key="u"
                             class="flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2">
-                            <span class="text-sm text-gray-800 dark:text-gray-100 flex-1 min-w-0 truncate">@{{ u }}</span>
+                            <span class="text-sm text-gray-800 dark:text-gray-100 flex-1 min-w-0 truncate">@{{ u
+                                }}</span>
                             <span v-if="i === 0" class="text-xs text-teal-500 shrink-0">主要</span>
                             <button type="button" :disabled="i === 0"
                                 class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
@@ -250,7 +276,9 @@
                     <div v-else class="space-y-1.5">
                         <div v-for="u in disabledUsernames" :key="u"
                             class="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800">
-                            <span class="text-sm text-gray-500 dark:text-gray-400 flex-1 min-w-0 truncate line-through">@{{ u }}</span>
+                            <span
+                                class="text-sm text-gray-500 dark:text-gray-400 flex-1 min-w-0 truncate line-through">@{{
+                                u }}</span>
                             <button type="button" @click="toggleUsername(u, true)"
                                 class="text-xs text-teal-600 hover:text-teal-700 shrink-0">启用</button>
                         </div>
@@ -265,7 +293,8 @@
                 <p class="text-xs text-gray-400 mb-2">选择要在个人主页顶部展示的频道</p>
                 <button type="button" @click="removePersonalChat"
                     class="w-full flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                    <div class="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center shrink-0">
+                    <div
+                        class="w-9 h-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center shrink-0">
                         <BanIcon class="w-4.5 h-4.5 text-gray-400" />
                     </div>
                     <span class="text-sm text-gray-700 dark:text-gray-200">移除个人主页频道</span>
@@ -273,11 +302,13 @@
                 <p v-if="suitableChatsLoading" class="text-sm text-gray-400 py-4 text-center">正在加载可选频道…</p>
                 <p v-else-if="suitableChats.length === 0" class="text-sm text-gray-400 py-4 text-center">暂无可用的频道</p>
                 <template v-else>
-                    <button v-for="c in suitableChats" :key="c.chat_id" type="button" @click="setPersonalChat(c.chat_id)"
+                    <button v-for="c in suitableChats" :key="c.chat_id" type="button"
+                        @click="setPersonalChat(c.chat_id)"
                         class="w-full flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                         :class="c.chat_id === personalChatId ? 'border-teal-500 bg-teal-50 dark:bg-teal-500/10' : ''">
                         <div class="w-9 h-9 shrink-0">
-                            <Avatar :photo="c.photo" :title="c.title" :accentColorId="c.accentId" sizeClass="!w-9 !h-9" />
+                            <Avatar :photo="c.photo" :title="c.title" :accentColorId="c.accentId"
+                                sizeClass="!w-9 !h-9" />
                         </div>
                         <div class="min-w-0 flex-1">
                             <p class="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{{ c.title }}</p>
@@ -301,9 +332,11 @@
                 <div class="space-y-2">
                     <div v-for="(d, i) in days" :key="i"
                         class="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2">
-                        <input type="checkbox" v-model="d.enabled"
-                            class="w-4 h-4 accent-teal-500 shrink-0" :id="'bh-day-' + i" />
-                        <label :for="'bh-day-' + i" class="text-sm text-gray-800 dark:text-gray-100 w-10 shrink-0">{{ d.name }}</label>
+                        <input type="checkbox" v-model="d.enabled" class="w-4 h-4 accent-teal-500 shrink-0"
+                            :id="'bh-day-' + i" />
+                        <label :for="'bh-day-' + i" class="text-sm text-gray-800 dark:text-gray-100 w-10 shrink-0">{{
+                            d.name
+                            }}</label>
                         <TTimePicker v-if="d.enabled" v-model="d.start" format="HH:mm" placeholder="开始"
                             class="flex-1 min-w-0" />
                         <span v-if="d.enabled" class="text-gray-400 text-xs">至</span>
@@ -328,7 +361,8 @@
         <!-- 位置弹窗 -->
         <ModalDialog v-model="locationVisible" title="位置">
             <div class="flex flex-col items-center text-center py-6 gap-3">
-                <div class="w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-500 flex items-center justify-center">
+                <div
+                    class="w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-500 flex items-center justify-center">
                     <MapPinIcon class="w-7 h-7" />
                 </div>
                 <p class="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
@@ -344,7 +378,8 @@
         <!-- 聊天机器人弹窗 -->
         <ModalDialog v-model="chatbotVisible" title="聊天机器人">
             <div class="flex flex-col items-center text-center py-6 gap-3">
-                <div class="w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-500 flex items-center justify-center">
+                <div
+                    class="w-14 h-14 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-500 flex items-center justify-center">
                     <BotIcon class="w-7 h-7" />
                 </div>
                 <p v-if="chatbotText" class="text-sm text-gray-700 dark:text-gray-300">
@@ -393,16 +428,42 @@ const phoneVisible = ref(false);
 
 const user = computed<TdUser | undefined>(() => userStore.userProfile);
 const myId = computed(() => user.value?.id ?? 0);
-const formattedPhone = computed(() => {
+
+// TDLib 返回的 phone_number 未必是带 + 号的标准 E.164 格式（可能是匿名号、本国号等），
+// 直接 parsePhoneNumberFromString 解析不出来会返回 undefined。因此优先使用
+// getPhoneNumberInfoSync 的权威本地化格式，parsePhoneNumberFromString 仅作为兜底。
+const formattedPhone = ref('');
+const phoneIsAnonymous = ref(false);
+async function loadPhoneDisplay() {
     const raw = user.value?.phone_number;
-    if (!raw) return '';
+    if (!raw) {
+        formattedPhone.value = '';
+        phoneIsAnonymous.value = false;
+        return;
+    }
+    // 兜底 1：若能按国际格式解析则用之
     try {
         const parsed = parsePhoneNumberFromString(raw);
-        return parsed ? parsed.formatInternational() : raw;
+        if (parsed) {
+            formattedPhone.value = parsed.formatInternational();
+            return;
+        }
     } catch {
-        return raw;
+        // 忽略
     }
-});
+    formattedPhone.value = raw;
+    // 兜底 2：交给 TDLib 提供本地化格式（与 UserProfile 一致）
+    try {
+        const info = await profileStore.getPhoneInfo(myId.value);
+        if (info?.formatted_phone_number) {
+            const code = info.country_calling_code ? `+${info.country_calling_code} ` : '';
+            formattedPhone.value = code + info.formatted_phone_number.replace(/-/g, ' ');
+        }
+        phoneIsAnonymous.value = !!info?.is_anonymous;
+    } catch {
+        // 忽略
+    }
+}
 const fullInfo = computed<userFullInfo | undefined>(() => (myId.value ? profileStore.fullInfos.get(myId.value) : undefined));
 const photos = computed<chatPhoto[]>(() => (myId.value ? profileStore.photos.get(myId.value) ?? [] : []));
 
@@ -419,6 +480,7 @@ async function loadAll() {
         ]);
     }
     initEditors();
+    loadPhoneDisplay();
 }
 
 async function initEditors() {
@@ -438,6 +500,7 @@ onMounted(() => {
 async function onProfileChanged() {
     await Promise.all([userStore.fetchUser(), profileStore.refreshProfile(myId.value)]);
     initEditors();
+    loadPhoneDisplay();
 }
 
 function goBack() {

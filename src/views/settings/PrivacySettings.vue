@@ -64,7 +64,7 @@
                             <div class="min-w-0 flex-1">
                                 <p class="text-sm text-gray-800 dark:text-gray-100 flex items-center gap-1.5">
                                     {{ item.label }}
-                                    <LockIcon v-if="item.premiumOnly" class="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                    <span v-if="item.premiumOnly" class="tgico tgico-lock shrink-0" style="font-size:14px" />
                                 </p>
                                 <p class="text-xs text-gray-400 mt-0.5">{{ itemSummary(item) }}</p>
                             </div>
@@ -195,7 +195,7 @@
                 <!-- Premium 专属提示 -->
                 <div v-if="activeItem?.premiumOnly && !isPremium"
                     class="flex items-start gap-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 px-3.5 py-3 text-amber-600 dark:text-amber-400">
-                    <LockIcon class="w-4.5 h-4.5 shrink-0 mt-0.5" />
+                    <span class="tgico tgico-lock shrink-0 mt-0.5" style="font-size:18px" />
                     <p class="text-xs leading-relaxed">此设置需要 Telegram Premium 会员才能使用。</p>
                 </div>
 
@@ -317,7 +317,7 @@
                 </template>
                 <!-- 礼物 -->
                 <template v-else-if="activeItem?.kind === 'gifts'">
-                    <div :class="!isPremium ? 'opacity-50 pointer-events-none select-none' : ''">
+                    <div>
                         <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">{{ activeItem?.whoLabel }}</p>
                         <div class="flex flex-wrap gap-2">
                             <button v-for="opt in presetOptions(PRESET_ALL)" :key="opt.value" type="button"
@@ -372,7 +372,7 @@
 
                 <!-- 私聊消息 -->
                 <template v-else-if="activeItem?.kind === 'newchat'">
-                    <div>
+                    <div :class="activeItem?.premiumOnly && !isPremium ? 'opacity-50 pointer-events-none select-none' : ''">
                         <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">谁可以给您发送私聊消息</p>
                         <div class="space-y-2">
                             <button v-for="opt in newChatOptions" :key="opt.value" type="button"
@@ -496,7 +496,7 @@ import { useRouter } from 'vue-router';
 import {
     ArrowLeft as ArrowLeftIcon, Ban as BanIcon, Check as CheckIcon,
     ChevronRight as ChevronRightIcon, KeyRound as KeyRoundIcon,
-    Lock as LockIcon, TimerReset as TimerResetIcon, Trash2 as Trash2Icon,
+    TimerReset as TimerResetIcon, Trash2 as Trash2Icon,
 } from 'lucide-vue-next';
 import { MessagePlugin, Slider as TSlider } from 'tdesign-vue-next';
 import Avatar from '../../components/chat/avatar.vue';
@@ -838,9 +838,9 @@ const privacyItems: PrivacyItemDef[] = [
     { key: 'audio', label: '个人资料音乐', kind: 'standard', whoLabel: '谁可以看到我的个人资料音乐' },
     { key: 'forward', label: '转发消息', kind: 'standard', whoLabel: '谁可以在转发消息中看到我的账号' },
     { key: 'calls', label: '通话呼叫', kind: 'standard', whoLabel: '谁可以给我打电话' },
-    { key: 'gifts', label: '礼物展示', kind: 'gifts', whoLabel: '谁可以看到我的礼物', premiumOnly: true },
+    { key: 'gifts', label: '礼物展示', kind: 'gifts', whoLabel: '谁可以看到我的礼物' },
     { key: 'voice', label: '语音消息', kind: 'voice', whoLabel: '谁可以给我发送语音消息', premiumOnly: true },
-    { key: 'newchat', label: '私聊消息', kind: 'newchat' },
+    { key: 'newchat', label: '私聊消息', kind: 'newchat', premiumOnly: true },
     { key: 'invites', label: '邀请设置', kind: 'standard', whoLabel: '谁可以将我添加到群组和频道' },
 ];
 
@@ -1270,23 +1270,21 @@ async function savePrivacyItem() {
             } as any);
             await Promise.all([loadRules('status'), loadReadDateSetting()]);
         } else if (item.kind === 'gifts') {
-            if (!isPremium.value) {
-                MessagePlugin.warning('需要 Telegram Premium 才能修改此设置');
-                return;
-            }
             await tdlibSend({
                 _: 'setUserPrivacySettingRules',
                 setting: PRIVACY_SETTINGS.gifts,
                 rules: rulesForPreset(activePreset.value, exceptionList.value),
             } as any);
-            await tdlibSend({
-                _: 'setGiftSettings',
-                settings: {
-                    _: 'giftSettings',
-                    show_gift_button: false,
-                    accepted_gift_types: { _: 'acceptedGiftTypes', ...acceptedGiftTypes },
-                },
-            } as any);
+            if (isPremium.value) {
+                await tdlibSend({
+                    _: 'setGiftSettings',
+                    settings: {
+                        _: 'giftSettings',
+                        show_gift_button: false,
+                        accepted_gift_types: { _: 'acceptedGiftTypes', ...acceptedGiftTypes },
+                    },
+                } as any);
+            }
             await loadRules('gifts');
         } else if (item.kind === 'voice') {
             if (!isPremium.value) {
@@ -1300,6 +1298,10 @@ async function savePrivacyItem() {
             } as any);
             await loadRules('voice');
         } else if (item.kind === 'newchat') {
+            if (!isPremium.value) {
+                MessagePlugin.warning('需要 Telegram Premium 才能修改此设置');
+                return;
+            }
             await saveNewChatSettings();
         } else {
             await tdlibSend({

@@ -28,6 +28,14 @@
 .tgico-pin::before {
   content: "\e952";
 }
+/* 锁定图标（Telegram Premium 专属设置，字符 U+EA2A，Premium 渐变） */
+.tgico-lock::before {
+  content: "\ea2a";
+  background: linear-gradient(to top right, #8a6dff 0%, #5f8bff 50%, #40d6d8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
 
 /* ===== Telegram 官方图标字体 tgico ===== */
 

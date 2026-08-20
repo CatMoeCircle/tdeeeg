@@ -93,6 +93,7 @@ declare module 'vue' {
     TitleBar: typeof import('./components/TitleBar.vue')['default']
     ToggleSwitch: typeof import('./components/settings/ToggleSwitch.vue')['default']
     TOption: typeof import('tdesign-vue-next')['Option']
+    TranslateMessageModal: typeof import('./components/contextMenu/TranslateMessageModal.vue')['default']
     TSelect: typeof import('tdesign-vue-next')['Select']
     TTooltip: typeof import('tdesign-vue-next')['Tooltip']
     UsernameMenu: typeof import('./components/contextMenu/UsernameMenu.vue')['default']

@@ -69,6 +69,9 @@ import type { StickerGroup } from './composables/useStickerPicker';
 
 const emit = defineEmits<{ (e: 'pickSticker', stickerId: string): void }>();
 
+/** 贴纸区滚动位置记忆：记录上次浏览位置，重新打开时恢复（模块级，跨会话面板挂载保留） */
+let savedScrollTop = 0;
+
 const sticker = useStickerPicker({
     groupSetId: () => '0', // 由 ChatDetail 注入 supergroupFullInfo.sticker_set_id
     onStickerUpdates: () => () => { },
@@ -141,6 +144,8 @@ let scrollRaf: number | null = null;
 function onScroll() {
     const el = scrollEl.value;
     if (!el) return;
+    // 记录滚动位置，供重新打开时恢复记忆
+    savedScrollTop = el.scrollTop;
     // 用户滚动进行中：维持「抑制沿途下载」标志，停顿后自动解除
     beginUserScroll();
     clearUserScroll();
@@ -184,6 +189,12 @@ const cellSize = ref(48);
 onMounted(() => {
     sticker.activate();
     measureCellSize();
+    // 恢复上次浏览的滚动位置（需等首帧渲染后再设置）
+    if (savedScrollTop > 0 && scrollEl.value) {
+        requestAnimationFrame(() => {
+            if (scrollEl.value) scrollEl.value.scrollTop = savedScrollTop;
+        });
+    }
 });
 onBeforeUnmount(() => {
     sticker.deactivate();

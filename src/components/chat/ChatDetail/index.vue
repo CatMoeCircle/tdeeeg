@@ -410,6 +410,8 @@
 
         <!-- ===== 删除消息确认弹窗 ===== -->
         <DeleteMessageConfirm />
+        <!-- ===== 翻译消息弹窗 ===== -->
+        <TranslateMessageModal />
     </div>
 </template>
 <script setup lang="ts">
@@ -427,6 +429,7 @@ import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
 import MediaViewer from './MessageContent/MediaViewer.vue';
 import type { MediaViewerItem } from './MessageContent/MediaViewer.vue';
 import DeleteMessageConfirm from '../../contextMenu/DeleteMessageConfirm.vue';
+import TranslateMessageModal from '../../contextMenu/TranslateMessageModal.vue';
 import PinnedMessageBar from './PinnedMessageBar.vue';
 
 import { tdlibSend } from '../../../utils/tdlib';
@@ -434,7 +437,7 @@ import { sendAttachments, sending } from '../../../utils/attachmentSend';
 import { useAttachmentStore } from '../../../store/attachment';
 import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
 
-import { MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, CornerUpLeftIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, Quote as QuoteIcon, User as UserIcon } from 'lucide-vue-next';
+import { MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, CornerUpLeftIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, Quote as QuoteIcon, Languages as LanguagesIcon, User as UserIcon } from 'lucide-vue-next';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { useRoute, useRouter } from 'vue-router';
 import { computed, watch, ref, onMounted, onUnmounted, nextTick } from 'vue';
@@ -447,7 +450,7 @@ import { showCopyJsonInMenus } from '../../../store/debug';
 import { useCommandInsert, clearPendingCommand } from '../../../store/commandInsert';
 import { useCustomEmoji } from '../../../store/customEmoji';
 import type { ContextMenuItem } from '../../contextMenu/types';
-import { getMessagePlainText } from '../../../utils/messageText';
+import { getMessagePlainText, getMessageFormattedText } from '../../../utils/messageText';
 import {
     copyMessageText, copyMessageJson, copyMessageLink,
     toggleMessagePinned, getMessageProperties,
@@ -457,6 +460,7 @@ import {
 } from '../../contextMenu/messageActions';
 import { confirmDeleteMessage } from '../../../store/deleteMessage';
 import type { DeleteMessageRequest } from '../../../store/deleteMessage';
+import { showTranslateDialog } from '../../../store/translate';
 import { openContextMenu } from '../../../store/contextMenu';
 
 import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity$Input } from 'tdlib-types';
@@ -684,13 +688,14 @@ const messagesContainer = ref<HTMLElement | null>(null);
 /** 面板锚点（输入区容器元素），用于定位悬浮面板 */
 const inputAnchorEl = ref<HTMLElement | null>(null);
 
-/** 打开/切换面板（MessageInput @sticker 触发，默认切到贴纸 Tab）：
- *  已打开时再次点击则关闭（toggle）。 */
+/** 打开/切换面板（MessageInput @sticker 触发）：
+ *  已打开时再次点击则关闭（toggle）；重新打开时恢复上次所在 Tab（记忆）。 */
 function openStickerPanel() {
     if (stickerPanelState.value.open) {
         closeStickerPanelOf();
     } else {
-        openStickerPanelOf('sticker');
+        // 记住上次所在的 Tab：恢复它，而非总是切到 'sticker'
+        openStickerPanelOf(stickerPanelState.value.tab);
     }
 }
 
@@ -2561,8 +2566,19 @@ function onAlbumMessageContextMenu(msg: message, x: number, y: number) {
     void openMessageContextMenu(msg, x, y);
 }
 
-/**
- * 构建消息右键菜单项（开发环境附带“复制消息原始 JSON”）。
+/** 打开消息翻译弹窗（提取富文本并交给 TranslateMessageModal） */
+function openTranslateDialogFor(msg: message) {
+    const ft = getMessageFormattedText(msg);
+    if (!ft || !ft.text.trim()) return;
+    showTranslateDialog({
+        chatId: chatId.value ?? 0,
+        msg,
+        text: ft,
+        plainText: getMessagePlainText(msg),
+    });
+}
+
+/** 构建消息右键菜单项（开发环境附带“复制消息原始 JSON”）。
  * 权限已在打开前通过 getMessageProperties 获取完毕，此处仅作纯同步渲染。
  */
 function buildMessageContextMenu(msg: message): ContextMenuItem[] {
@@ -2609,6 +2625,17 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
         disabled: !canCopyMessage(msg, cid),
         onClick: () => copyMessageText(msg),
     });
+
+    // —— 翻译 ——
+    const msgFormattedText = getMessageFormattedText(msg);
+    if (!isService && msgFormattedText && msgFormattedText.text.trim().length > 0) {
+        items.push({
+            key: 'translate',
+            label: '翻译',
+            icon: LanguagesIcon,
+            onClick: () => openTranslateDialogFor(msg),
+        });
+    }
 
     // —— 复制链接 ——
     items.push({

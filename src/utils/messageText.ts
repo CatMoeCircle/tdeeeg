@@ -59,3 +59,26 @@ export function getMessagePlainText(msg: message): string {
             return "";
     }
 }
+
+/**
+ * 从消息内容中提取可翻译的富文本（formattedText）。
+ * 支持文本消息与媒体 caption；无可用文本时返回 null。
+ */
+export function getMessageFormattedText(msg: message): formattedText | null {
+    const c = msg.content;
+    if (!c) return null;
+    switch (c._) {
+        case "messageText":
+            return c.text;
+        case "messagePhoto":
+        case "messageVideo":
+        case "messageAnimation":
+        case "messageVoiceNote":
+        case "messageAudio":
+        case "messageDocument":
+        case "messagePaidMedia":
+            return c.caption;
+        default:
+            return null;
+    }
+}
