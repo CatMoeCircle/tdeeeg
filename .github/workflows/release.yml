@@ -4,14 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '版本号 (例如: 1.0.0)'
+        description: "版本号 (例如: 1.0.0)"
         required: true
         type: string
       release_type:
-        description: '发布类型'
+        description: "发布类型"
         required: true
         type: choice
-        default: 'stable'
+        default: "stable"
         options:
           - stable
           - prerelease
@@ -68,8 +68,12 @@ jobs:
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          # Tauri 签名私钥（新标准变量名）
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Telegram API 密钥
+          TG_API_ID: ${{ secrets.TG_API_ID }}
+          TG_API_HASH: ${{ secrets.TG_API_HASH }}
         with:
           tagName: v${{ steps.version.outputs.version }}
           releaseName: "TDEEEG v${{ steps.version.outputs.version }}"
