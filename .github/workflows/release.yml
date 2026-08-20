@@ -15,9 +15,11 @@ on:
         options:
           - stable
           - prerelease
-  push:
-    tags:
-      - "v*"
+      tdlib_commit_hash:
+        description: "TDlib commit hash"
+        required: true
+        type: string
+        default: "v1.8.0"
 
 permissions:
   contents: write
@@ -39,11 +41,7 @@ jobs:
       - name: Get version
         id: version
         run: |
-          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
-            $VERSION = "${{ github.event.inputs.version }}"
-          } else {
-            $VERSION = "${{ github.ref_name }}" -replace '^v', ''
-          }
+          $VERSION = "${{ github.event.inputs.version }}"
           echo "version=$VERSION" >> $env:GITHUB_OUTPUT
           echo "tag=v$VERSION" >> $env:GITHUB_OUTPUT
         shell: pwsh
@@ -51,11 +49,7 @@ jobs:
       - name: Get release type
         id: release_type
         run: |
-          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
-            $TYPE = "${{ github.event.inputs.release_type }}"
-          } else {
-            $TYPE = "stable"
-          }
+          $TYPE = "${{ github.event.inputs.release_type }}"
           echo "type=$TYPE" >> $env:GITHUB_OUTPUT
           if ($TYPE -eq "prerelease") {
             echo "prerelease=true" >> $env:GITHUB_OUTPUT
@@ -64,14 +58,45 @@ jobs:
           }
         shell: pwsh
 
+      - name: Checkout TDlib
+        run: |
+          git clone https://github.com/tdlib/td.git
+          cd td
+          git checkout ${{ github.event.inputs.tdlib_commit_hash }}
+        shell: pwsh
+
+      - name: Setup vcpkg
+        run: |
+          cd td
+          git clone https://github.com/Microsoft/vcpkg.git
+          cd vcpkg
+          ./bootstrap-vcpkg.bat
+          # 安装静态依赖库
+          ./vcpkg.exe install gperf:x64-windows-static openssl:x64-windows-static zlib:x64-windows-static
+        shell: pwsh
+
+      - name: Build TDlib
+        run: |
+          cd td
+          Remove-Item build -Force -Recurse -ErrorAction SilentlyContinue
+          mkdir build
+          cd build
+          cmake -A x64 -DCMAKE_INSTALL_PREFIX:PATH=../tdlib -DCMAKE_TOOLCHAIN_FILE:FILEPATH=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-static -DTD_ENABLE_OPENSSL_STATIC=ON -DTD_ENABLE_ZLIB_STATIC=ON ..
+          cmake --build . --target install --config Release
+        shell: pwsh
+
+      - name: Copy TDlib.dll to src-tauri/bin
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri/bin
+          Copy-Item td/tdlib/bin/tdlib.dll src-tauri/bin/ -Force
+        shell: pwsh
+
       - name: Build and release
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Tauri 签名私钥（新标准变量名）
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # Telegram API 密钥
           TG_API_ID: ${{ secrets.TG_API_ID }}
           TG_API_HASH: ${{ secrets.TG_API_HASH }}
         with:
