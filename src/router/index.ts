@@ -89,6 +89,21 @@ const router = createRouter({
           component: () => import("../views/settings/SystemSettings.vue"),
         },
         {
+          path: "settings/edit-profile",
+          name: "settings-edit-profile",
+          component: () => import("../views/settings/EditProfileSettings.vue"),
+        },
+        {
+          path: "settings/privacy",
+          name: "settings-privacy",
+          component: () => import("../views/settings/PrivacySettings.vue"),
+        },
+        {
+          path: "settings/devices",
+          name: "settings-devices",
+          component: () => import("../views/settings/DevicesSettings.vue"),
+        },
+        {
           path: "user/:id",
           name: "user-profile",
           component: () => import("../views/user/UserProfile.vue"),

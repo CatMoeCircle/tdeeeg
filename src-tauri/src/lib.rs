@@ -46,6 +46,7 @@ fn open_with_dialog(path: String) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .register_asynchronous_uri_scheme_protocol("tdstream", |context, request, responder| {
             media_stream::respond(context.app_handle().clone(), request, responder);
         })

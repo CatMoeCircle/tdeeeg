@@ -313,6 +313,7 @@ export const useUserProfileStore = defineStore("userProfile", () => {
     refreshProfile,
     fetchUser,
     fetchFullInfo,
+    fetchPhotos,
     initUserProfileUpdates,
     getPhoneInfo,
   };
