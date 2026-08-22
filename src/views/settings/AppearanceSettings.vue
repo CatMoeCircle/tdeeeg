@@ -135,6 +135,61 @@
                     </div>
                 </div>
 
+                <!-- 翻译显示设置 -->
+                <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
+                        翻译显示</h3>
+                    <p class="mb-4 text-sm text-gray-500">设置在消息右键菜单中点击「翻译」后，译文以何种方式显示。</p>
+
+                    <div class="space-y-3">
+                        <!-- 弹窗翻译 -->
+                        <div class="flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-colors"
+                            :class="settings.translate.displayMode === 'popup'
+                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'"
+                            @click="settings.translate.displayMode = 'popup'">
+                            <div class="flex items-center">
+                                <div
+                                    class="w-9 h-9 rounded-full flex items-center justify-center mr-3 bg-blue-100 dark:bg-blue-900/30 text-blue-600">
+                                    <LanguageIcon class="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">弹窗显示</h4>
+                                    <p class="text-xs text-gray-400 mt-0.5">译文在独立弹窗中展示，可切换目标语言</p>
+                                </div>
+                            </div>
+                            <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0"
+                                :class="settings.translate.displayMode === 'popup' ? 'border-blue-500' : 'border-gray-300'">
+                                <div v-if="settings.translate.displayMode === 'popup'"
+                                    class="w-2 h-2 rounded-full bg-blue-500"></div>
+                            </div>
+                        </div>
+
+                        <!-- 内联翻译 -->
+                        <div class="flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-colors"
+                            :class="settings.translate.displayMode === 'inline'
+                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'"
+                            @click="settings.translate.displayMode = 'inline'">
+                            <div class="flex items-center">
+                                <div
+                                    class="w-9 h-9 rounded-full flex items-center justify-center mr-3 bg-green-100 dark:bg-green-900/30 text-green-600">
+                                    <MessageSquareTextIcon class="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">在原消息中显示</h4>
+                                    <p class="text-xs text-gray-400 mt-0.5">译文直接显示在消息气泡内，可随时移除</p>
+                                </div>
+                            </div>
+                            <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0"
+                                :class="settings.translate.displayMode === 'inline' ? 'border-blue-500' : 'border-gray-300'">
+                                <div v-if="settings.translate.displayMode === 'inline'"
+                                    class="w-2 h-2 rounded-full bg-blue-500"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
                         分组文件夹样式</h3>
@@ -358,6 +413,7 @@
 import { ref, computed, onMounted, type Component } from 'vue';
 import {
     MessageCircleIcon, UserIcon, UsersIcon, MegaphoneIcon,
+    Languages as LanguageIcon, MessageSquareText as MessageSquareTextIcon,
 } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
 import { settings } from '../../store/settings';

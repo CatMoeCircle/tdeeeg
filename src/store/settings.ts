@@ -132,6 +132,11 @@ interface Settings {
     /** 媒体播放器（视频查看器）音量（0~1），持久化记忆 */
     mediaVolume: number;
   };
+  /** 翻译显示设置 */
+  translate: {
+    /** 翻译结果显示方式：popup=弹窗，inline=在原消息气泡中显示 */
+    displayMode: "popup" | "inline";
+  };
 }
 
 const defaultSettings: Settings = {
@@ -208,6 +213,10 @@ const defaultSettings: Settings = {
     musicVolume: 0.8,
     musicRepeatMode: "none",
     mediaVolume: 0.7,
+  },
+  translate: {
+    // 默认使用弹窗方式
+    displayMode: "popup",
   },
 };
 

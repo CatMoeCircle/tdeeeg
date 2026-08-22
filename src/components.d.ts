@@ -39,6 +39,7 @@ declare module 'vue' {
     GlobalEmojiText: typeof import('./components/common/GlobalEmojiText.vue')['default']
     Header: typeof import('./components/chat/ChatDetail/Header.vue')['default']
     InlineKeyboard: typeof import('./components/chat/ChatDetail/MessageContent/content/InlineKeyboard.vue')['default']
+    InlineTranslation: typeof import('./components/chat/ChatDetail/MessageContent/content/InlineTranslation.vue')['default']
     LatexFormula: typeof import('./components/chat/ChatDetail/MessageContent/rich/LatexFormula.vue')['default']
     LinkInputDialog: typeof import('./components/chat/ChatDetail/LinkInputDialog.vue')['default']
     LinkPreviewMedia: typeof import('./components/chat/ChatDetail/MessageContent/content/LinkPreviewMedia.vue')['default']

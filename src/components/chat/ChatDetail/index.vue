@@ -212,6 +212,10 @@
                                             :inlineTime="isInlineTimeMessage(item.msg)"
                                             @jumpToMessage="handleReplyJumpToMessage"
                                             @openForwardSource="item.msg.forward_info && openForwardSource(item.msg.forward_info)" />
+                                        <!-- 内联翻译：在原消息气泡中显示译文 -->
+                                        <InlineTranslation v-if="getInlineTranslation(chatId ?? 0, item.msg.id)"
+                                            :chat-id="chatId ?? 0" :message-id="item.msg.id"
+                                            :text="getMessageFormattedText(item.msg)" />
                                         <span
                                             v-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isInlineTimeMessage(item.msg) && !isOutgoingMsg(item.msg)"
                                             class="block text-right text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 leading-none">
@@ -424,6 +428,7 @@ import MessageStatus from './MessageContent/content/MessageStatus.vue';
 import MessageAlbum from './MessageContent/content/MessageAlbum.vue';
 import ForwardBanner from './MessageContent/content/ForwardBanner.vue';
 import InlineKeyboard from './MessageContent/content/InlineKeyboard.vue';
+import InlineTranslation from './MessageContent/content/InlineTranslation.vue';
 import ChatDetailHeader from './Header.vue';
 import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
 import MediaViewer from './MessageContent/MediaViewer.vue';
@@ -460,8 +465,13 @@ import {
 } from '../../contextMenu/messageActions';
 import { confirmDeleteMessage } from '../../../store/deleteMessage';
 import type { DeleteMessageRequest } from '../../../store/deleteMessage';
-import { showTranslateDialog } from '../../../store/translate';
+import {
+    showTranslateDialog,
+    translateInlineMessage,
+    getInlineTranslation,
+} from '../../../store/translate';
 import { openContextMenu } from '../../../store/contextMenu';
+import { DEFAULT_TRANSLATE_TARGET } from '../../../utils/translateLanguages';
 
 import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity$Input } from 'tdlib-types';
 import { getViewerState, closeMediaViewer, registerMediaItem, unregisterMediaItem, isMediaViewerActive, openMediaViewer } from '../../../store/mediaViewer';
@@ -2578,6 +2588,22 @@ function openTranslateDialogFor(msg: message) {
     });
 }
 
+/** 根据「翻译显示设置」选择弹窗或内联翻译 */
+function openTranslateFor(msg: message) {
+    const ft = getMessageFormattedText(msg);
+    if (!ft || !ft.text.trim()) return;
+    const cid = chatId.value ?? 0;
+    // 相册消息不提供内联展示槽位，回退到弹窗
+    const isAlbumMember = !!msg.media_album_id && msg.media_album_id !== '0';
+    if (settings.translate.displayMode === 'inline' && !isAlbumMember) {
+        // 内联：在原消息气泡中显示译文
+        void translateInlineMessage(cid, msg.id, ft, DEFAULT_TRANSLATE_TARGET);
+    } else {
+        // 弹窗：默认行为
+        openTranslateDialogFor(msg);
+    }
+}
+
 /** 构建消息右键菜单项（开发环境附带“复制消息原始 JSON”）。
  * 权限已在打开前通过 getMessageProperties 获取完毕，此处仅作纯同步渲染。
  */
@@ -2633,7 +2659,7 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
             key: 'translate',
             label: '翻译',
             icon: LanguagesIcon,
-            onClick: () => openTranslateDialogFor(msg),
+            onClick: () => openTranslateFor(msg),
         });
     }
 
