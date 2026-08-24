@@ -240,7 +240,7 @@
                 ref="contentRef" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp"
                 @pointercancel="onPointerUp">
 
-                <img v-if="!isAnimation && currentSrc" :src="currentSrc"
+                <img v-if="!isAnimation && currentSrc" :src="currentSrc" ref="imageRef"
                     class="max-w-full max-h-full transition-transform duration-200 ease-out select-none"
                     :style="{ transform: `scale(${zoom}) rotate(${rotation}deg) translate(${panX}px, ${panY}px)` }"
                     draggable="false" @dblclick="toggleZoom" />
@@ -573,6 +573,8 @@ function onVideoMouseLeave() {
 
 const containerRef = ref<HTMLElement | null>(null);
 const imageContainerRef = ref<HTMLElement | null>(null);
+/** 当前显示的图片元素（复制回退路径用：转 PNG 后写入剪贴板） */
+const imageRef = ref<HTMLImageElement | null>(null);
 /** 当前可见的查看器根（视频或图片容器） */
 const viewerRoot = computed(() => isVideo.value ? containerRef.value : imageContainerRef.value);
 const contentRef = ref<HTMLElement | null>(null);
@@ -728,17 +730,38 @@ async function handleSaveAs() {
     }
 }
 
-/** 复制图片数据到剪贴板 */
+/** 复制图片到剪贴板：优先原生（即时、无格式限制、不会清空剪贴板）；无本地文件时回退 Canvas 转 PNG */
 async function handleCopyImage() {
+    // 主路径：本地文件 → Rust 原生写入系统剪贴板
+    const lp = currentLocalPath.value;
+    if (lp) {
+        try {
+            await invoke('copy_image_to_clipboard', { path: lp });
+            MessagePlugin.success('已复制到剪贴板');
+            return;
+        } catch (e) {
+            console.error('native copy image failed:', e);
+            // 回退到 Canvas 转 PNG
+        }
+    }
+    // 回退路径：用已加载的图片元素转 PNG（异步剪贴板 API 仅支持 image/png）
+    const img = imageRef.value;
+    if (!img || !img.naturalWidth) {
+        MessagePlugin.error('复制失败');
+        return;
+    }
     try {
-        const src = currentSrc.value;
-        if (!src) return;
-        // asset:// 或 http 资源：转为 Blob 后写入剪贴板
-        const resp = await fetch(src);
-        const blob = await resp.blob();
-        await navigator.clipboard.write([
-            new ClipboardItem({ [blob.type || 'image/png']: blob }),
-        ]);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('canvas 2d context unavailable');
+        ctx.drawImage(img, 0, 0);
+        const blob = await new Promise<Blob | null>((resolve) =>
+            canvas.toBlob(resolve, 'image/png')
+        );
+        if (!blob) throw new Error('toBlob returned null');
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
         MessagePlugin.success('已复制到剪贴板');
     } catch (e) {
         console.error('copy image failed:', e);

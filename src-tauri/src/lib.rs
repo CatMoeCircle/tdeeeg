@@ -43,6 +43,31 @@ fn open_with_dialog(path: String) -> Result<(), String> {
     }
 }
 
+/// 把本地图片文件原生写入系统剪贴板。
+/// WebView2 的 `navigator.clipboard.write()` 只支持 image/png，且大图异步写入慢、
+/// 失败时可能清空剪贴板；这里用 image 解码为 RGBA 后经 arboard 直接写入
+/// Windows 剪贴板（CF_DIB），立即生效、支持任意格式。后台线程执行，不阻塞 UI。
+#[tauri::command]
+async fn copy_image_to_clipboard(path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let img = image::open(&path)
+            .map_err(|e| format!("decode image failed: {e}"))?
+            .into_rgba8();
+        let (w, h) = img.dimensions();
+        let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+        clipboard
+            .set_image(arboard::ImageData {
+                width: w as usize,
+                height: h as usize,
+                bytes: img.into_raw().into(),
+            })
+            .map_err(|e| format!("set clipboard failed: {e}"))?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("clipboard task failed: {e}"))?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -90,6 +115,7 @@ pub fn run() {
             tdlib::migrate_data_dir,
             set_window_effect,
             open_with_dialog,
+            copy_image_to_clipboard,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
