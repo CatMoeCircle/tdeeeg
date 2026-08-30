@@ -148,10 +148,10 @@ jobs:
 
       - name: Verify TDlib DLL
         run: |
-          if (Test-Path src-tauri/bin/tdlib.dll) {
-            Write-Host "tdlib.dll found in src-tauri/bin"
+          if (Test-Path src-tauri/bin/tdjson.dll) {
+            Write-Host "tdjson.dll found in src-tauri/bin"
           } else {
-            Write-Host "tdlib.dll NOT found!" -ForegroundColor Red
+            Write-Host "tdjson.dll NOT found!" -ForegroundColor Red
             exit 1
           }
         shell: pwsh
