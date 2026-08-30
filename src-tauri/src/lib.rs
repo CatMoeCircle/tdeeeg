@@ -5,7 +5,11 @@ mod download_store;
 mod media_stream;
 mod tdlib;
 
-use tauri::Manager;
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    Manager, RunEvent,
+};
 
 #[tauri::command]
 fn set_window_effect(window: tauri::WebviewWindow, effect: String) -> Result<(), String> {
@@ -71,6 +75,14 @@ async fn copy_image_to_clipboard(path: String) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // 单实例插件必须最先注册
+        .plugin(tauri_plugin_single_instance::Builder::new().callback(|app, _argv, _cwd| {
+            // 第二个实例启动时，聚焦已有窗口
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }).build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .register_asynchronous_uri_scheme_protocol("tdstream", |context, request, responder| {
             media_stream::respond(context.app_handle().clone(), request, responder);
@@ -85,6 +97,58 @@ pub fn run() {
                 data_loc::resolve_current_data_dir(app.handle()).map_err(|e| e.to_string())?;
             std::fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
             app.manage(tdlib::AppState::new(data_dir));
+
+            // ===== 系统托盘 =====
+            let show_i = MenuItem::with_id(app, "show", "显示窗口", true, None::<&str>)?;
+            let quit_i = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
+
+            let _tray = TrayIconBuilder::with_id("main-tray")
+                .tooltip("tdeeeg")
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(move |app, event| match event.id.as_ref() {
+                    "show" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    "quit" => {
+                        app.exit(0);
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button_state: MouseButtonState::Down,
+                        button: MouseButton::Left,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+
+            // ===== 拦截窗口关闭事件：隐藏而非销毁 =====
+            let app_handle = app.handle().clone();
+            let main_window = app.get_webview_window("main").unwrap();
+            main_window.on_window_event(move |event| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    // 阻止默认关闭行为，改为隐藏窗口
+                    api.prevent_close();
+                    if let Some(w) = app_handle.get_webview_window("main") {
+                        let _ = w.hide();
+                    }
+                }
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -117,6 +181,18 @@ pub fn run() {
             open_with_dialog,
             copy_image_to_clipboard,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app_handle, event| {
+            match event {
+                // 所有窗口关闭时阻止退出（托盘仍在运行）
+                // code.is_none() 表示是窗口全部关闭触发的，非 app.exit() 调用
+                RunEvent::ExitRequested { code, api, .. } => {
+                    if code.is_none() {
+                        api.prevent_exit();
+                    }
+                }
+                _ => {}
+            }
+        });
 }

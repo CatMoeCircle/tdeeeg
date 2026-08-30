@@ -57,6 +57,40 @@ jobs:
           }
         shell: pwsh
 
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # 获取上一个 tag
+          $prevTag = git describe --tags --abbrev=0 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            # 没有之前的 tag，获取所有提交
+            $commits = git log --pretty=format:"- %s (%h)" HEAD
+          } else {
+            $commits = git log --pretty=format:"- %s (%h)" "$prevTag..HEAD"
+          }
+
+          # 构建 release body
+          $body = "## TDEEEG v${{ github.event.inputs.version }}`n`n"
+          if ($commits) {
+            $body += "### 更新内容`n`n$commits"
+          } else {
+            $body += "### 更新内容`n`n无提交记录"
+          }
+
+          # 写入临时文件，供后续步骤读取
+          Set-Content -Path "RELEASE_BODY.md" -Value $body -NoNewline
+        shell: pwsh
+
+      - name: Read changelog
+        id: changelog_read
+        run: |
+          $body = Get-Content -Path "RELEASE_BODY.md" -Raw
+          # 使用 delimiter 语法输出多行值
+          echo "body<<EOF" >> $env:GITHUB_OUTPUT
+          echo "$body" >> $env:GITHUB_OUTPUT
+          echo "EOF" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
       - name: Checkout TDlib
         run: |
           git clone https://github.com/tdlib/td.git
@@ -64,17 +98,32 @@ jobs:
           git checkout ${{ github.event.inputs.tdlib_commit_hash }}
         shell: pwsh
 
-      - name: Setup vcpkg
+      # 缓存 TDlib 构建目录和安装目录（按 commit hash + OS + arch）
+      - name: Cache TDlib build
+        id: cache_tdlib
+        uses: actions/cache@v3
+        with:
+          path: |
+            td/build
+            td/tdlib
+          key: tdlib-${{ github.event.inputs.tdlib_commit_hash }}-${{ runner.os }}-${{ runner.arch }}
+          restore-keys: |
+            tdlib-${{ github.event.inputs.tdlib_commit_hash }}-${{ runner.os }}-
+            tdlib-${{ github.event.inputs.tdlib_commit_hash }}-
+
+      # 如果缓存未命中，则执行完整的 TDlib 构建
+      - name: Setup vcpkg (if cache miss)
+        if: steps.cache_tdlib.outputs.cache-hit != 'true'
         run: |
           cd td
           git clone https://github.com/Microsoft/vcpkg.git
           cd vcpkg
           ./bootstrap-vcpkg.bat
-          # 安装静态依赖（gperf 是构建工具，实际链接只用 openssl 和 zlib 的静态库）
           ./vcpkg.exe install gperf:x64-windows-static openssl:x64-windows-static zlib:x64-windows-static
         shell: pwsh
 
-      - name: Build TDlib (shared library)
+      - name: Build TDlib shared library (if cache miss)
+        if: steps.cache_tdlib.outputs.cache-hit != 'true'
         run: |
           cd td
           Remove-Item build -Force -Recurse -ErrorAction SilentlyContinue
@@ -91,16 +140,20 @@ jobs:
           cmake --build . --target install --config Release
         shell: pwsh
 
-      - name: List TDlib output (debug)
-        run: |
-          Write-Host "Contents of td/tdlib:"
-          dir td/tdlib -Recurse | ForEach-Object { $_.FullName }
-        shell: pwsh
-
       - name: Copy TDlib.dll to src-tauri/bin
         run: |
           New-Item -ItemType Directory -Force -Path src-tauri/bin
           Copy-Item td/tdlib/bin/*.dll src-tauri/bin/ -Force
+        shell: pwsh
+
+      - name: Verify TDlib DLL
+        run: |
+          if (Test-Path src-tauri/bin/tdlib.dll) {
+            Write-Host "tdlib.dll found in src-tauri/bin"
+          } else {
+            Write-Host "tdlib.dll NOT found!" -ForegroundColor Red
+            exit 1
+          }
         shell: pwsh
 
       - name: Build and release
@@ -114,6 +167,6 @@ jobs:
         with:
           tagName: v${{ steps.version.outputs.version }}
           releaseName: "TDEEEG v${{ steps.version.outputs.version }}"
-          releaseBody: "TDEEEG v${{ steps.version.outputs.version }}"
+          releaseBody: "${{ steps.changelog_read.outputs.body }}"
           releaseDraft: false
           prerelease: ${{ steps.release_type.outputs.prerelease }}
