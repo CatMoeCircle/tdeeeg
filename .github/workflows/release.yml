@@ -60,13 +60,19 @@ jobs:
       - name: Generate changelog
         id: changelog
         run: |
-          # 获取上一个 tag
-          $prevTag = git describe --tags --abbrev=0 2>$null
-          if ($LASTEXITCODE -ne 0) {
-            # 没有之前的 tag，获取所有提交
-            $commits = git log --pretty=format:"- %s (%h)" HEAD
-          } else {
+          $newTag = "v${{ github.event.inputs.version }}"
+
+          # 获取所有 tag 并按版本号排序（排除新 tag 如果已存在）
+          $tags = git tag --list "v*" | Where-Object { $_ -ne $newTag } | Sort-Object -Property { [version]($_ -replace '^v','') } -Descending
+
+          $prevTag = $tags | Select-Object -First 1
+
+          if ($prevTag) {
+            Write-Host "上一个 tag: $prevTag"
             $commits = git log --pretty=format:"- %s (%h)" "$prevTag..HEAD"
+          } else {
+            Write-Host "没有之前的 tag，获取所有提交"
+            $commits = git log --pretty=format:"- %s (%h)" HEAD
           }
 
           # 构建 release body
@@ -76,6 +82,9 @@ jobs:
           } else {
             $body += "### 更新内容`n`n无提交记录"
           }
+
+          Write-Host "--- Release Body ---"
+          Write-Host $body
 
           # 写入临时文件，供后续步骤读取
           Set-Content -Path "RELEASE_BODY.md" -Value $body -NoNewline
