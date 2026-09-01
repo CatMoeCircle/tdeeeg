@@ -1494,6 +1494,8 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
 
         isReady.value = true;
         scheduleVisibleMessagesRead();
+        // 恢复该聊天的输入框草稿
+        restoreDraft(currentId, topicId.value);
         // 通知 TDLib 该聊天已打开（接收推送更新）
         void tdlibSend({ _: 'openChat', chat_id: currentId });
         return;
