@@ -2,7 +2,7 @@ import { tdlibSend } from "../../utils/tdlib";
 import { getMessagePlainText } from "../../utils/messageText";
 import { MessagePlugin } from "tdesign-vue-next";
 import { TrashIcon } from "lucide-vue-next";
-import type { message, messageProperties, MessageSender } from "tdlib-types";
+import type { message, messageProperties, MessageSender, formattedText$Input, textEntity$Input } from "tdlib-types";
 import type { ContextMenuItem } from "./types";
 import type { DeleteMessageResult } from "../../store/deleteMessage";
 
@@ -247,6 +247,33 @@ export function canEditMessage(msg: message, chatId?: number): boolean {
     const cp = p ?? (msg as any);
     if (cp.can_be_edited !== undefined) return cp.can_be_edited === true;
     return (msg as any).can_be_edited !== false;
+}
+
+/** 编辑消息文本（editMessageText + inputMessageText） */
+export async function editTextMessage(
+    chatId: number,
+    messageId: number,
+    text: string,
+    entities?: textEntity$Input[],
+): Promise<boolean> {
+    try {
+        const content: formattedText$Input = { _: 'formattedText', text, entities: entities ?? [] };
+        await tdlibSend({
+            _: 'editMessageText',
+            chat_id: chatId,
+            message_id: messageId,
+            input_message_content: {
+                _: 'inputMessageText',
+                text: content,
+                clear_draft: true,
+            },
+        } as any);
+        return true;
+    } catch (e) {
+        console.error('editMessageText failed:', e);
+        MessagePlugin.error({ content: '编辑消息失败', placement: 'center' });
+        return false;
+    }
 }
 
 /** 开关消息置顶 */

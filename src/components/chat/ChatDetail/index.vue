@@ -342,10 +342,27 @@
             <div aria-hidden="true"
                 class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
             </div>
-            <MessageInput class="relative z-10" v-model="messageInput" :reply-target="replyTargetInfo" :chat="chat"
+            <!-- 编辑消息横幅 -->
+            <Transition name="mi-fade">
+                <div v-if="editTargetInfo"
+                    class="relative z-10 flex items-start gap-2 mx-5 mt-3 px-3 py-2 rounded-2xl bg-white/70 dark:bg-gray-800/90 shadow-sm border border-gray-200/60 dark:border-gray-700/60">
+                    <PencilIcon class="w-4 h-4 shrink-0 mt-0.5 text-orange-500" />
+                    <div class="min-w-0 flex-1">
+                        <p class="text-xs font-semibold text-orange-500">编辑消息</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ editTargetInfo.text || '（无文本内容）' }}</p>
+                    </div>
+                    <button type="button" aria-label="取消编辑"
+                        class="w-6 h-6 shrink-0 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400"
+                        @click="cancelEdit">
+                        <XIcon class="w-3.5 h-3.5" />
+                    </button>
+                </div>
+            </Transition>
+            <MessageInput class="relative z-10" v-model="messageInput" :reply-target="replyTargetInfo"
+                :edit-target="editTargetInfo" :chat="chat"
                 :users="users" :supergroups="supergroups" :basic-groups="basicGroups" :my-id="myId"
                 :member-status="currentMemberStatus" :is-premium="isMePremium" :custom-emojis="pendingCustomEmoji"
-                @clear-reply="clearReply" @send="handleSend" @attach="handleAttach" @attach-file="handleAttachFile"
+                @clear-reply="clearReply" @clear-edit="cancelEdit" @send="handleSend" @attach="handleAttach" @attach-file="handleAttachFile"
                 @attach-music="handleAttachMusic" @attach-poll="handleAttachPoll"
                 @attach-checklist="handleAttachChecklist" @attach-contact="handleAttachContact"
                 @sticker="openStickerPanel" />
@@ -394,7 +411,8 @@
         <!-- ===== Floating scroll-to-bottom button ===== -->
         <Transition name="fade">
             <button v-if="showScrollButton"
-                class="absolute bottom-28 right-4 z-20 w-10 h-10 bg-white dark:bg-gray-700 rounded-full shadow-lg flex items-center justify-center text-gray-500 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                class="absolute right-4 z-20 w-10 h-10 bg-white dark:bg-gray-700 rounded-full shadow-lg flex items-center justify-center text-gray-500 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                :style="{ bottom: (replyTargetInfo || editTargetInfo) ? '11.5rem' : '7rem' }"
                 @click="handleScrollToBottom" title="跳到底部">
                 <span v-if="newMessageCount > 0"
                     class="absolute -top-1 -right-1 min-w-4.5 h-4.5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1 leading-none">
@@ -442,7 +460,7 @@ import { sendAttachments, sending } from '../../../utils/attachmentSend';
 import { useAttachmentStore } from '../../../store/attachment';
 import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
 
-import { MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, CornerUpLeftIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, Quote as QuoteIcon, Languages as LanguagesIcon, User as UserIcon } from 'lucide-vue-next';
+import { MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, CornerUpLeftIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, Quote as QuoteIcon, Languages as LanguagesIcon, User as UserIcon, Pencil as PencilIcon } from 'lucide-vue-next';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { useRoute, useRouter } from 'vue-router';
 import { computed, watch, ref, onMounted, onUnmounted, nextTick } from 'vue';
@@ -461,7 +479,7 @@ import {
     toggleMessagePinned, getMessageProperties,
     executeDeleteActions,
     canCopyMessage, canGetMessageLink, canPinMessage, canDeleteMessage,
-    canReplyMessage,
+    canReplyMessage, canEditMessage, editTextMessage,
 } from '../../contextMenu/messageActions';
 import { confirmDeleteMessage } from '../../../store/deleteMessage';
 import type { DeleteMessageRequest } from '../../../store/deleteMessage';
@@ -846,6 +864,34 @@ function getSelectedQuoteForMessage(msg: message): string | null {
 function clearReply() {
     replyTargetMsg.value = null;
     replyQuoteText.value = null;
+}
+
+// ===== 编辑模式 =====
+/** 当前正在编辑的消息（null 表示非编辑状态） */
+const editingMsg = ref<message | null>(null);
+
+/** 编辑目标摘要，供 MessageInput 显示编辑横幅 */
+const editTargetInfo = computed<{ text: string } | null>(() => {
+    const m = editingMsg.value;
+    if (!m) return null;
+    const ft = getMessageFormattedText(m);
+    return { text: ft?.text ?? getMessagePlainText(m) };
+});
+
+/** 进入编辑模式：清空回复状态，将消息文本填入输入框 */
+function startEdit(msg: message) {
+    // 先退出回复/引用模式
+    clearReply();
+    editingMsg.value = msg;
+    // 将消息文本预填到输入框
+    const ft = getMessageFormattedText(msg);
+    messageInput.value = ft?.text ?? getMessagePlainText(msg);
+}
+
+/** 退出编辑模式 */
+function cancelEdit() {
+    editingMsg.value = null;
+    messageInput.value = '';
 }
 
 /**
@@ -2287,6 +2333,26 @@ const onScroll = async (e: Event) => {
 const handleSend = async (input: string | { _: 'formattedText'; text: string; entities?: textEntity$Input[] }) => {
     if (!chatId.value) return;
     const text = typeof input === 'string' ? input : input.text;
+
+    // —— 编辑模式：调用 editMessageText ——
+    if (editingMsg.value) {
+        if (!text.trim()) return;
+        try {
+            const richEntities = (typeof input === 'string' ? [] : input.entities || []) as textEntity$Input[];
+            const customEmojiEntities = buildCustomEmojiEntities(text);
+            const entities = [...richEntities, ...customEmojiEntities];
+            const ok = await editTextMessage(chatId.value, editingMsg.value.id, text, entities);
+            if (ok) {
+                messageInput.value = '';
+                pendingCustomEmoji.value = [];
+                editingMsg.value = null;
+            }
+        } catch (e) {
+            console.error('Failed to edit message:', e);
+        }
+        return;
+    }
+
     const attachStore = useAttachmentStore();
     // 有附件 → 发送附件（文本作为描述）
     if (attachStore.items.length > 0) {
@@ -2470,8 +2536,9 @@ function resetState() {
     historyMode.value = 'normal';
     jumpOlderExhausted.value = false;
     jumpNewerExhausted.value = false;
-    // 清空回复与多选状态
+    // 清空回复、编辑与多选状态
     clearReply();
+    editingMsg.value = null;
     selectionMode.value = false;
     selectedMsgIds.value = [];
     if (highlightTimer !== null) {
@@ -2644,6 +2711,16 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
             label: '引用回复',
             icon: QuoteIcon,
             onClick: () => startQuoteReply(msg, quotedText),
+        });
+    }
+
+    // —— 编辑（仅自己发送的文本消息可编辑）——
+    if (!isService && isSelf(msg) && canEditMessage(msg, cid)) {
+        items.push({
+            key: 'edit',
+            label: '编辑',
+            icon: PencilIcon,
+            onClick: () => startEdit(msg),
         });
     }
 
@@ -3356,6 +3433,17 @@ const handleScrollToBottom = async () => {
 <style>
 .messages-scroll {
     min-height: 0;
+}
+
+.mi-fade-enter-active,
+.mi-fade-leave-active {
+    transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.mi-fade-enter-from,
+.mi-fade-leave-to {
+    opacity: 0;
+    transform: translateY(-4px);
 }
 
 /* 消息区默认不可选中（继承全局 user-select:none）；只有「消息正文 text」和

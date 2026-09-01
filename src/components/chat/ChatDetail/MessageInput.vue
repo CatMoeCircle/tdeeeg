@@ -43,7 +43,7 @@
                 <textarea ref="textareaRef" v-model="localValue" :placeholder="inputPlaceholder"
                     :class="['message-input-scrollbar input-textarea flex-1 min-w-0 bg-transparent resize-none focus:outline-none text-sm leading-5 text-gray-800 dark:text-gray-200 px-2 py-2 min-h-9 max-h-40 overflow-y-auto field-sizing-content']"
                     rows="1" @input="onInput" @keydown.enter.exact.prevent="onEnter" @keydown.enter.shift.stop
-                    @paste="onPaste" @scroll="syncPreviewScroll" @contextmenu.prevent.stop="onContextMenu"></textarea>
+                    @keydown.escape="onEscape" @paste="onPaste" @scroll="syncPreviewScroll" @contextmenu.prevent.stop="onContextMenu"></textarea>
             </div>
 
             <div class="flex items-center gap-2 ml-2 mb-1.5 shrink-0">
@@ -92,6 +92,7 @@ const props = defineProps<{
     modelValue?: string;
     placeholder?: string;
     replyTarget?: ReplyTarget | null;
+    editTarget?: { text: string } | null;
     chat?: chat;
     users?: Record<number, user>;
     supergroups?: Record<number, import('tdlib-types').supergroup>;
@@ -105,7 +106,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits([
-    'update:modelValue', 'send', 'sticker', 'language', 'attach', 'clearReply',
+    'update:modelValue', 'send', 'sticker', 'language', 'attach', 'clearReply', 'clearEdit',
     'attachPhoto', 'attachFile', 'attachMusic', 'attachChecklist', 'attachPoll',
     'attachContact', 'attachLocation',
 ]);
@@ -226,7 +227,7 @@ function onInput(e: Event) {
 }
 
 const inputPlaceholder = computed(() =>
-    attachmentStore.items.length > 0 ? '描述' : (props.placeholder || '输入消息...'));
+    props.editTarget ? '编辑消息...' : (attachmentStore.items.length > 0 ? '描述' : (props.placeholder || '输入消息...')));
 
 const attachmentMenuRef = ref<InstanceType<typeof AttachmentMenu> | null>(null);
 
@@ -242,6 +243,12 @@ const onClickSend = () => {
 
 const onEnter = () => {
     onClickSend();
+};
+
+const onEscape = () => {
+    if (props.editTarget) {
+        emit('clearEdit');
+    }
 };
 
 const onPaste = (e: ClipboardEvent) => {

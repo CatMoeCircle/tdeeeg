@@ -1179,8 +1179,6 @@ watch(() => props.visible, (v) => {
 /** 文档级右键监听：仅当右键命中查看器内部时才打开菜单（不受元素挂载时序影响） */
 function onDocContextMenu(e: MouseEvent) {
     const root = viewerRoot.value;
-    const isV = isVideo.value;
-    const targeting = (e.target as HTMLElement | null)?.className || (e.target as HTMLElement | null)?.tagName || 'null';
     if (!root || !props.visible) return;
     const target = e.target as Node | null;
     if (target && root.contains(target)) {
