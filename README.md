@@ -1,6 +1,6 @@
-# tdgram
+# tdeeeg
 
-> ⚠️ **本项目功能尚未完善，处于积极开发阶段。** 多数核心功能已实现但可能存在不稳定或缺失的部分，欢迎试用并提交 Issue。
+> ⚠️ **本项目功能尚未完善，处于积极开发阶段。** 多数核心功能已实现但可能存在不稳定或bug显示不按预期的部分，欢迎试用并提交 Issue。
 
 基于 [Tauri 2](https://v2.tauri.app/) + [Vue 3](https://vuejs.org/) + [TDLib](https://core.telegram.org/tdlib) 构建的 Telegram 桌面客户端，由 AI Agent 工具辅助完成全部开发工作。
 
