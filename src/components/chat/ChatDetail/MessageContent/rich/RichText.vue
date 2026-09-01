@@ -69,10 +69,10 @@ import type { RichText } from 'tdlib-types';
 import LatexFormula from './LatexFormula.vue';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { useRouter } from 'vue-router';
-import { tdlibSend } from '../../../../../utils/tdlib';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
 import SpoilerSpan from '../spoiler/SpoilerSpan.vue';
 import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
+import { resolveInternalLink as resolveInternalLinkUtil } from '../../../../../utils/openInternalLink';
 
 const props = defineProps<{
     text?: RichText;
@@ -182,24 +182,7 @@ function extractText(t?: RichText): string {
 
 async function resolveInternalLink(href: string) {
     try {
-        if (href.startsWith('tg://')) {
-            openUrl(href);
-            return;
-        }
-        // t.me/username
-        const m = href.match(/^https:\/\/t\.me\/([^/?#]+)(?:\/(\d+))?/);
-        if (m) {
-            const chat = await tdlibSend({ _: 'searchPublicChat', username: m[1] });
-            if (chat?.id) {
-                await router.push({
-                    name: 'chat-detail',
-                    params: { id: String(chat.id) },
-                    query: m[2] ? { message: m[2] } : undefined,
-                });
-                return;
-            }
-        }
-        openUrl(href);
+        await resolveInternalLinkUtil(href, router);
     } catch (e) {
         console.warn('Failed to resolve internal link, opening externally:', e);
         openUrl(href);

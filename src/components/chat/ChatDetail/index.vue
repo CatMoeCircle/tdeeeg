@@ -1140,9 +1140,14 @@ onMounted(async () => {
     unlisten = await listen<Update>("tdlib-update", (event) => {
         handleUpdate(event.payload);
     });
+
+    // 同聊天内链接跳转：resolveInternalLink 检测到目标消息在当前聊天时，
+    // 分发此事件而非 router.push，避免路由变更导致 ChatDetail 重建/缓存恢复。
+    window.addEventListener('tdgram:jump-to-message-in-chat', onSameChatJump);
 });
 
 onUnmounted(() => {
+    window.removeEventListener('tdgram:jump-to-message-in-chat', onSameChatJump);
     if (unlisten) unlisten();
     if (bubbleWidthObserver) bubbleWidthObserver.disconnect();
     if (readVisibilityTimer !== null) window.clearTimeout(readVisibilityTimer);
@@ -2184,6 +2189,19 @@ async function jumpToMessageInternal(messageId: number, gen: number): Promise<bo
 
 async function jumpToMessage(messageId: number) {
     await jumpToMessageInternal(messageId, loadGeneration);
+}
+
+/**
+ * 同聊天内链接跳转的事件处理器。
+ * resolveInternalLink 检测到链接目标消息在当前聊天时，分发 CustomEvent，
+ * 本函数接收后直接调用 jumpToMessage，避免 router.push 触发路由重建。
+ */
+function onSameChatJump(e: Event) {
+    const detail = (e as CustomEvent).detail;
+    const messageId = Number(detail?.messageId);
+    if (Number.isSafeInteger(messageId) && messageId > 0) {
+        void jumpToMessage(messageId);
+    }
 }
 
 /**

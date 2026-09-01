@@ -16,6 +16,11 @@ import type { Router } from "vue-router";
  *   - internalLinkTypeBotStart   → searchPublicChat 解析出 bot，跳转其私聊；autostart 时自动发送 /start 深链接
  *   - 其他 / 解析失败            → 外部浏览器打开（openUrl）
  *
+ * **同聊天优化**：若链接目标消息所在 chat 与当前打开的聊天一致（params.id 匹配），
+ * 不走 router.push（会触发整个 ChatDetail 重建/缓存恢复），而是分发轻量 CustomEvent
+ * `tdgram:jump-to-message-in-chat`，由 ChatDetail 监听并直接 jumpToMessage，
+ * 零路由变更、零重渲染。
+ *
  * @param href   t.me / tg:// 链接
  * @param router 当前组件路由实例（配合 returnType 在 setup 中传入）
  * @returns      是否已被内部处理（true 表示已内部跳转/已弹出代理框，无需再外部打开）
@@ -30,13 +35,26 @@ export async function resolveInternalLink(href: string, router: Router): Promise
             case "internalLinkTypeMessage": {
                 const info = await tdlibSend({ _: "getMessageLinkInfo", url: linkType.url });
                 if (info.chat_id) {
+                    const targetChatId = String(info.chat_id);
+                    const currentChatId = String(router.currentRoute.value.params.id ?? '');
+
+                    // 同一聊天内跳转：直接 dispatch 事件，不走路由导航
+                    if (targetChatId === currentChatId && info.message) {
+                        window.dispatchEvent(
+                            new CustomEvent('tdgram:jump-to-message-in-chat', {
+                                detail: { messageId: info.message.id },
+                            }),
+                        );
+                        return true;
+                    }
+
                     const query: Record<string, string> = {};
                     if (info.message) {
                         query.message = String(info.message.id);
                     }
                     await router.push({
                         name: "chat-detail",
-                        params: { id: String(info.chat_id) },
+                        params: { id: targetChatId },
                         query: Object.keys(query).length > 0 ? query : undefined,
                     });
                 }
