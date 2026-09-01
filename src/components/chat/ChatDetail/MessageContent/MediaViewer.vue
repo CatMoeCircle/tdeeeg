@@ -240,11 +240,11 @@
                 ref="contentRef" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp"
                 @pointercancel="onPointerUp">
 
-                <img v-if="!isAnimation && currentSrc" :src="currentSrc" ref="imageRef"
+                <img v-if="!isAnimation && currentMediaSrc" :src="currentMediaSrc" ref="imageRef"
                     class="max-w-full max-h-full transition-transform duration-200 ease-out select-none"
                     :style="{ transform: `scale(${zoom}) rotate(${rotation}deg) translate(${panX}px, ${panY}px)` }"
                     draggable="false" @dblclick="toggleZoom" />
-                <video v-else-if="isAnimation && currentSrc" :src="currentSrc" autoplay loop muted playsinline
+                <video v-else-if="isAnimation && currentMediaSrc" :src="currentMediaSrc" autoplay loop muted playsinline
                     class="max-w-full max-h-full transition-transform duration-200 ease-out select-none"
                     :style="{ transform: `scale(${zoom}) rotate(${rotation}deg) translate(${panX}px, ${panY}px)` }"
                     @dblclick="toggleZoom" />
@@ -365,8 +365,9 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { copyFile } from '@tauri-apps/plugin-fs';
 import { save } from '@tauri-apps/plugin-dialog';
 import { MessagePlugin } from 'tdesign-vue-next';
-import type { formattedText } from 'tdlib-types';
+import type { formattedText, message, file as TdFile } from 'tdlib-types';
 import { tdlibSend, downloadingFiles } from '../../../../utils/tdlib';
+import { buildVideoQualities } from '../../../../utils/videoQualities';
 import { DL_PRIORITY } from '../../../../utils/downloadPriority';
 import { settings } from '../../../../store/settings';
 import MessageTextContent from './content/MessageTextContent.vue';
@@ -386,30 +387,26 @@ export interface MediaViewerVideoQuality {
 }
 
 export interface MediaViewerItem {
-    type: 'photo' | 'video' | 'animation';
-    src: string;
-    thumb?: string;
-    caption?: string;
     /** caption 富文本（含 entities），用于渲染消息实体与保留换行 */
     captionFormatted?: formattedText;
-    /** 发送人显示名称（可选） */
+    /** 发送人显示名称（可选，没有时通过 message 消息对象获取） */
     senderName?: string;
-    /** 消息发送时间（Unix 秒，可选） */
-    date?: number;
-    /** 可选画质列表（仅视频，若存在多种画质） */
-    qualities?: MediaViewerVideoQuality[];
     /** 所属消息 ID（用于查看/转发） */
     messageId?: number;
     /** 所属对话 ID（用于查看/转发） */
     chatId?: number;
-    /** 本地文件路径（用于打开/另存为） */
-    localPath?: string;
-    /** 文件名称（tdlib 提供，用于另存为默认名） */
-    fileName?: string;
-    /** 主文件未就绪但可手动下载（用于未自动下载的视频，播放器内显示下载按钮） */
-    canDownload?: boolean;
-    /** 主文件 ID（配合 canDownload 用于手动触发下载） */
-    fileId?: number;
+    /** 所属话题 ID（论坛话题，用于跳转/转发） */
+    topicId?: number;
+    /** 视频播放时长（秒，仅视频） */
+    duration?: number;
+    /** 完整的 tdlib 消息对象（用于查看器内获取完整内容） */
+    message?: message;
+    /** 媒体文件（tdlib File 对象） */
+    file?: TdFile;
+    /** 媒体类型（直接指定，不通过 message 推导，用于非消息媒体如头像照片） */
+    type?: 'photo' | 'video' | 'animation';
+    /** 缩略图（直接指定） */
+    thumb?: string;
 }
 
 const props = defineProps<{
@@ -422,8 +419,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     close: [currentTime?: number];
-    /** 查看：跳转到该媒体所属消息 */
-    jumpToMessage: [messageId: number];
+    /** 查看：跳转到该媒体所属消息（messageId, topicId） */
+    jumpToMessage: [messageId: number, topicId?: number];
     /** 转发该媒体所属消息 */
     forwardMessage: [messageId: number];
 }>();
@@ -463,8 +460,12 @@ const speedMenuVisible = ref(false);
 const isFullscreen = ref(false);
 const videoContainerRef = ref<HTMLElement | null>(null);
 
-/** 当前视频项的可选画质列表 */
-const currentQualities = computed(() => currentItem.value?.qualities || []);
+/** 当前视频项的可选画质列表（从 alternative_videos 构建） */
+const currentQualities = computed<MediaViewerVideoQuality[]>(() => {
+    const c = currentItem.value?.message?.content;
+    if (!c || c._ !== 'messageVideo' || !currentMediaSrc.value) return [];
+    return buildVideoQualities(c.alternative_videos, currentMediaSrc.value, { width: c.video.width, height: c.video.height });
+});
 /** 当前选中的画质项 */
 const activeQuality = computed(() =>
     currentQualities.value.find((q) => q.src === activeQualitySrc.value)
@@ -474,44 +475,44 @@ const activeQuality = computed(() =>
 const qualityLabel = computed(() => activeQuality.value?.label || '');
 
 // ---- 视频未下载时的手动下载（未自动下载的视频显示下载按钮） ----
-/** 查看器内手动下载完成后的本地 src（覆盖 media 项的 src，用于播放未自动下载的视频） */
+/** 查看器内手动下载完成后的本地 src */
 const videoSrcOverride = ref('');
 /** 是否正在手动下载视频 */
 const videoDownloading = ref(false);
 /** 手动下载进度（0~1） */
 const videoDownloadProgress = ref(0);
-/** 当前视频项是否可手动下载（未就绪但能下载） */
-const currentCanDownload = computed(
-    () => isVideo.value && !effectiveVideoSrc.value && !!currentItem.value?.canDownload
-);
+/** 当前视频是否可手动下载（未就绪但能下载） */
+const currentCanDownload = computed(() => {
+    if (!isVideo.value || currentMediaSrc.value) return false;
+    const c = currentItem.value?.message?.content;
+    if (!c || c._ !== 'messageVideo') return false;
+    return !!c.video.video?.local?.can_be_downloaded;
+});
 /** 当前视频有效 src：优先手动下载完成后的本地文件，其次 media 项 src */
-const effectiveVideoSrc = computed(() => videoSrcOverride.value || currentSrc.value);
+const effectiveVideoSrc = computed(() => videoSrcOverride.value || currentMediaSrc.value);
 
 /** 手动下载当前视频（未自动下载的视频，用户点击下载按钮触发） */
 async function handleViewerVideoDownload() {
-    const item = currentItem.value;
-    if (!item || !item.fileId || videoDownloading.value) return;
-    const fileId = item.fileId;
-    if (downloadingFiles.has(fileId)) return;
+    const c = currentItem.value?.message?.content;
+    if (!c || c._ !== 'messageVideo' || videoDownloading.value) return;
+    const fileId = c.video.video?.id;
+    if (!fileId || downloadingFiles.has(fileId)) return;
+    const chatId = currentItem.value?.chatId;
+    const messageId = currentItem.value?.messageId;
     videoDownloading.value = true;
     videoDownloadProgress.value = 0;
     downloadingFiles.add(fileId);
     try {
-        const fileName = item.fileName || `video_${item.messageId || fileId}.mp4`;
-        // 注册到下载管理器（正常显示，不隐藏），让用户能看到下载进度
-        const chatTitle = item.chatId
-            ? useChatStore().chats[item.chatId]?.title || `对话 #${item.chatId}`
-            : '';
-        useDownloadStore().registerDownload(fileId, fileName, chatTitle, 0, 'video', undefined, item.chatId, item.messageId, false, false);
-        // 用户手动点击下载：走 addFileToDownloads（持久化下载列表）
+        const fileName = c.video.file_name || `video_${messageId || fileId}.mp4`;
+        const chatTitle = chatId ? useChatStore().chats[chatId]?.title || `对话 #${chatId}` : '';
+        useDownloadStore().registerDownload(fileId, fileName, chatTitle, 0, 'video', undefined, chatId, messageId, false, false);
         await tdlibSend({
             _: 'addFileToDownloads',
             file_id: fileId,
-            chat_id: item.chatId,
-            message_id: item.messageId,
+            chat_id: chatId,
+            message_id: messageId,
             priority: DL_PRIORITY.USER_ACTIVE,
         });
-        // 轮询下载进度
         const timer = setInterval(async () => {
             try {
                 const info = await tdlibSend({ _: 'getFile', file_id: fileId }) as any;
@@ -524,7 +525,6 @@ async function handleViewerVideoDownload() {
                     videoDownloading.value = false;
                     videoSrcOverride.value = convertFileSrc(info.local.path);
                     videoLoaded.value = false;
-                    // 立即开始播放
                     isVideoPlaying.value = false;
                     videoCurrent.value = 0;
                 }
@@ -581,34 +581,120 @@ const contentRef = ref<HTMLElement | null>(null);
 
 const totalCount = computed(() => props.items.length);
 const currentItem = computed(() => props.items[currentIndex.value]);
-const isImage = computed(() => currentItem.value?.type === 'photo' || currentItem.value?.type === 'animation');
-const isVideo = computed(() => currentItem.value?.type === 'video');
-const isAnimation = computed(() => currentItem.value?.type === 'animation');
-const currentSrc = computed(() => currentItem.value?.src || '');
-const currentThumb = computed(() => currentItem.value?.thumb || '');
-const caption = computed(() => currentItem.value?.caption || '');
-/** caption 富文本（含 entities），用于渲染消息实体与保留换行 */
-const captionFormatted = computed(() => currentItem.value?.captionFormatted);
+
+// ---- 从 message 派生媒体属性 ----
+/** 当前消息内容 */
+const currentContent = computed(() => currentItem.value?.message?.content);
+/** 媒体类型（优先从 message 推导，其次使用直接指定的 type） */
+const currentMediaType = computed(() => {
+    const c = currentContent.value;
+    if (c) {
+        if (c._ === 'messagePhoto') return 'photo' as const;
+        if (c._ === 'messageVideo') return 'video' as const;
+        if (c._ === 'messageAnimation') return 'animation' as const;
+    }
+    return currentItem.value?.type;
+});
+const isImage = computed(() => currentMediaType.value === 'photo' || currentMediaType.value === 'animation');
+const isVideo = computed(() => currentMediaType.value === 'video');
+const isAnimation = computed(() => currentMediaType.value === 'animation');
+
+/** 从当前消息的 file 或 message.content 获取 src */
+const currentMediaSrc = computed(() => {
+    const c = currentContent.value;
+    // 优先从 message.content 推导
+    if (c) {
+        const getFile = (f: any) => f?.local?.is_downloading_completed ? f.local.path : undefined;
+        let localPath: string | undefined;
+        if (c._ === 'messagePhoto') {
+            const sizes = c.photo.sizes;
+            if (sizes.length > 0) {
+                const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
+                localPath = getFile(largest.photo);
+            }
+        } else if (c._ === 'messageVideo') {
+            localPath = getFile(c.video.video);
+            if (!localPath && c.video.supports_streaming && c.video.video.size > 0) {
+                return `${convertFileSrc(String(c.video.video.id), 'tdstream')}?mime=${c.video.mime_type}`;
+            }
+        } else if (c._ === 'messageAnimation') {
+            localPath = getFile(c.animation.animation);
+        }
+        if (localPath) return convertFileSrc(localPath);
+    }
+    // 回退：从 item.file 推导
+    const file = currentItem.value?.file;
+    if (file?.local?.is_downloading_completed && file.local.path) {
+        return convertFileSrc(file.local.path);
+    }
+    return '';
+});
+
+/** 缩略图 */
+const currentThumb = computed(() => {
+    const c = currentContent.value;
+    if (c) {
+        if (c._ === 'messagePhoto' && c.photo.minithumbnail?.data) return `data:image/jpeg;base64,${c.photo.minithumbnail.data}`;
+        if (c._ === 'messageVideo') return `data:image/jpeg;base64,${c.video.minithumbnail?.data || c.cover?.minithumbnail?.data || ''}`;
+        if (c._ === 'messageAnimation' && c.animation.minithumbnail?.data) return `data:image/jpeg;base64,${c.animation.minithumbnail.data}`;
+    }
+    return currentItem.value?.thumb || '';
+});
+
+/** caption 纯文本 */
+const caption = computed(() => {
+    const c = currentContent.value;
+    if (!c) return '';
+    if ('caption' in c && c.caption?.text) return c.caption.text;
+    return '';
+});
+/** caption 富文本 */
+const captionFormatted = computed(() => {
+    const c = currentContent.value;
+    if (!c || !('caption' in c) || !c.caption) return undefined;
+    return c.caption;
+});
+/** 发送人显示名称 */
 const currentSenderName = computed(() => currentItem.value?.senderName || '');
-const currentDate = computed(() => currentItem.value?.date || 0);
+/** 消息发送时间 */
+const currentDate = computed(() => currentItem.value?.message?.date || 0);
+
+/** 本地文件路径（用于打开/另存为） */
+const currentLocalPath = computed(() => {
+    const c = currentContent.value;
+    if (!c) return '';
+    const getFile = (f: any) => f?.local?.is_downloading_completed ? f.local.path : undefined;
+    if (c._ === 'messagePhoto') {
+        const sizes = c.photo.sizes;
+        if (sizes.length > 0) {
+            const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
+            return getFile(largest.photo) || '';
+        }
+    }
+    if (c._ === 'messageVideo') return getFile(c.video.video) || '';
+    if (c._ === 'messageAnimation') return getFile(c.animation.animation) || '';
+    return '';
+});
+
+/** 文件名 */
+const currentFileName = computed(() => {
+    const p = currentLocalPath.value;
+    return p ? p.split(/[\\/]/).pop() || '' : '';
+});
 
 // ---- 图片加载状态 ----
 const downloadStore = useDownloadStore();
-/** 当前媒体对应下载项（按 chatId+messageId 匹配，用于图片未就绪时显示进度） */
 const currentDownload = computed(() => {
     const cid = currentItem.value?.chatId;
     const mid = currentItem.value?.messageId;
     if (cid === undefined || mid === undefined) return undefined;
     return Object.values(downloadStore.items).find((d) => d.chat_id === cid && d.message_id === mid);
 });
-/** 图片下载/加载进度（0~1） */
 const imageProgress = computed(() => {
     const p = currentDownload.value?.progress;
     return typeof p === 'number' ? Math.min(1, Math.max(0, p)) : 0;
 });
-/** 图片是否仍在加载（无主图 src） */
-const isImageLoading = computed(() => isImage.value && !currentSrc.value);
-/** 是否有缩略图可用于预览 */
+const isImageLoading = computed(() => isImage.value && !currentMediaSrc.value);
 const hasThumbPreview = computed(() => !!currentThumb.value);
 
 // Video card: fill the full screen
@@ -635,7 +721,7 @@ watch(() => props.visible, (v) => {
         videoSrcOverride.value = '';
         videoDownloading.value = false;
         videoDownloadProgress.value = 0;
-        activeQualitySrc.value = props.items[currentIndex.value]?.src || '';
+        activeQualitySrc.value = currentMediaSrc.value || '';
         speedMenuVisible.value = false;
         qualityMenuVisible.value = false;
     } else {
@@ -659,7 +745,7 @@ watch(currentIndex, () => {
     videoSrcOverride.value = '';
     videoDownloading.value = false;
     videoDownloadProgress.value = 0;
-    activeQualitySrc.value = props.items[currentIndex.value]?.src || '';
+    activeQualitySrc.value = currentMediaSrc.value || '';
     speedMenuVisible.value = false;
     qualityMenuVisible.value = false;
 });
@@ -676,19 +762,14 @@ function goTo(index: number) {
 }
 
 // ==================== 右键菜单 ====================
-/** 当前媒体项本地路径（用于打开 / 另存为） */
-const currentLocalPath = computed(() => currentItem.value?.localPath || '');
 const currentMessageId = computed(() => currentItem.value?.messageId);
-/** 当前媒体项文件名称（tdlib 提供，另存为默认名） */
-const currentFileName = computed(() => currentItem.value?.fileName || '');
-/** 是否有本地文件（决定 打开/另存为 是否可用） */
 const hasLocalFile = computed(() => currentLocalPath.value.length > 0);
 
 /** 查看：关闭查看器并跳转到该媒体所在消息 */
 function handleViewItem() {
     const id = currentMessageId.value;
     if (id === undefined) return;
-    emit('jumpToMessage', id);
+    emit('jumpToMessage', id, currentItem.value?.topicId);
 }
 
 /** 转发该媒体所在消息 */
@@ -778,7 +859,7 @@ function onContextMenu(e: MouseEvent) {
         isVideo: isVideo.value,
         isImage: isImage.value,
         currentMessageId: currentMessageId.value,
-        currentSrc: currentSrc.value,
+        currentSrc: currentMediaSrc.value,
         hasLocalFile: hasLocalFile.value,
         thumb: currentThumb.value,
     });
@@ -992,7 +1073,7 @@ function onVideoLoaded() {
         videoRef.value.playbackRate = playbackRate.value;
         // 同步画质源（当前项 src 未选定时作为默认）
         if (!activeQualitySrc.value) {
-            activeQualitySrc.value = props.items[currentIndex.value]?.src || '';
+            activeQualitySrc.value = currentMediaSrc.value || '';
         }
         // 同步内联视频的播放进度
         if (props.initialTime && props.initialTime > 0) {
@@ -1100,15 +1181,6 @@ function onDocContextMenu(e: MouseEvent) {
     const root = viewerRoot.value;
     const isV = isVideo.value;
     const targeting = (e.target as HTMLElement | null)?.className || (e.target as HTMLElement | null)?.tagName || 'null';
-    console.log('[MediaViewer][CM] doc contextmenu°', {
-        visible: props.visible,
-        isVideo: isV,
-        isImage: isImage.value,
-        hasRoot: !!root,
-        rootTag: root?.tagName,
-        targetClass: targeting,
-        contains: root ? (e.target as Node | null ? root.contains(e.target as Node) : false) : false,
-    });
     if (!root || !props.visible) return;
     const target = e.target as Node | null;
     if (target && root.contains(target)) {

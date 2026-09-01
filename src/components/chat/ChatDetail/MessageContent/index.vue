@@ -37,9 +37,9 @@
             :forwardPhoto="forwardPhoto" :forwardAccentId="forwardAccentId" :forwardOriginalName="forwardOriginalName"
             :forwardTextColor="forwardTextColor" :isFirstInGroup="isFirstInGroup" :isLastInGroup="isLastInGroup"
             :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature"
-            :chatId="chatId" :messageId="messageId" :senderName="senderName" :replyTo="replyTo"
-            :messageList="messageList" :accentColorId="accentColorId" @openForwardSource="onOpenForwardSource"
-            @jumpToMessage="onJumpToMessage" />
+            :chatId="chatId" :messageId="messageId" :message="message" :topicId="topicId" :senderName="senderName"
+            :replyTo="replyTo" :messageList="messageList" :accentColorId="accentColorId"
+            @openForwardSource="onOpenForwardSource" @jumpToMessage="onJumpToMessage" />
 
         <!-- Stickers / animated emoji are rendered without a message bubble.
              回复预览显示在贴纸旁边（小宽度），而非贴纸上方 -->
@@ -198,6 +198,10 @@ const props = defineProps<{
     authorSignature?: string;
     chatId?: number;
     messageId?: number;
+    /** 完整 tdlib 消息对象（传递给媒体查看器） */
+    message?: message;
+    /** 话题 ID（论坛话题，传递给媒体查看器） */
+    topicId?: number;
     replyTo?: messageReplyToMessage;
     messageList?: message[];
     /** 发送者 accent_color_id（用于回复栏/引用标记配色） */

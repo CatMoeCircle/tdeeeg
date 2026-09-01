@@ -104,7 +104,7 @@
                                             media-inline
                                             @open-source="openForwardSource(item.messages[0].forward_info)" />
                                         <MessageAlbum :messages="item.messages" :isSelf="isOutgoingAlbum(item)"
-                                            :chatId="chatId"
+                                            :chatId="chatId" :topicId="topicId"
                                             :isRead="isMessageRead(item.messages[item.messages.length - 1])"
                                             :authorSignature="getDisplayAuthorSignature(item.messages[0])"
                                             @message-context-menu="onAlbumMessageContextMenu" />
@@ -206,7 +206,8 @@
                                             :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
                                             :viewCount="item.msg.interaction_info?.view_count"
                                             :authorSignature="getDisplayAuthorSignature(item.msg)" :chatId="chatId"
-                                            :messageId="item.msg.id" :senderName="getDisplaySenderName(item.msg)"
+                                            :messageId="item.msg.id" :message="item.msg" :topicId="topicId"
+                                            :senderName="getDisplaySenderName(item.msg)"
                                             :replyTo="item.msg.reply_to?._ === 'messageReplyToMessage' ? item.msg.reply_to : undefined"
                                             :messageList="messages" :accentColorId="getSenderAccentId(item.msg)"
                                             :inlineTime="isInlineTimeMessage(item.msg)"
@@ -432,7 +433,6 @@ import InlineTranslation from './MessageContent/content/InlineTranslation.vue';
 import ChatDetailHeader from './Header.vue';
 import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
 import MediaViewer from './MessageContent/MediaViewer.vue';
-import type { MediaViewerItem } from './MessageContent/MediaViewer.vue';
 import DeleteMessageConfirm from '../../contextMenu/DeleteMessageConfirm.vue';
 import TranslateMessageModal from '../../contextMenu/TranslateMessageModal.vue';
 import PinnedMessageBar from './PinnedMessageBar.vue';
@@ -474,10 +474,8 @@ import { openContextMenu } from '../../../store/contextMenu';
 import { DEFAULT_TRANSLATE_TARGET } from '../../../utils/translateLanguages';
 
 import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity$Input } from 'tdlib-types';
-import { getViewerState, closeMediaViewer, registerMediaItem, unregisterMediaItem, isMediaViewerActive, openMediaViewer } from '../../../store/mediaViewer';
-import { isFileReady } from '../../../utils/tdlib';
-import { buildVideoQualities } from '../../../utils/videoQualities';
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { getViewerState, closeMediaViewer, isMediaViewerActive, openMediaViewer } from '../../../store/mediaViewer';
+
 import { getSenderAccentColorId, getSenderProfileAccentColorId, getChatProfileAccentColorId, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
 import { useColors } from '../../../store/colors';
 import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage } from './composables/messageType';
@@ -544,6 +542,55 @@ const lastBrowseCacheKey = (id: number, tid?: number | null) =>
 const clearLastBrowsePosition = (id: number, tid?: number | null) => {
     lastBrowsePositionCache.delete(lastBrowseCacheKey(id, tid));
 };
+
+// ==================== 草稿缓存（模块级） ====================
+// 每个聊天的输入框草稿（文本 + 自定义 emoji 队列），按 chatId(+topicId) 缓存。
+// 切换聊天时保存当前草稿，进入新聊天时恢复；组件卸载时也会保存，保证不丢。
+interface DraftEntry {
+    text: string;
+    customEmojis: { id: string; alt: string }[];
+}
+const draftCache = new Map<string, DraftEntry>();
+const DRAFT_CACHE_MAX = 50;
+
+function draftCacheKey(id: number, tid?: number | null) {
+    return tid ? `${id}:${tid}` : `${id}`;
+}
+
+/** 保存当前输入框草稿到缓存 */
+function saveDraft() {
+    const text = messageInput.value;
+    const emojis = pendingCustomEmoji.value;
+    // 无内容时不保存，避免空条目堆积
+    if (!text && emojis.length === 0) {
+        if (chatId.value !== undefined) {
+            draftCache.delete(draftCacheKey(chatId.value, topicId.value));
+        }
+        return;
+    }
+    if (chatId.value === undefined) return;
+    const key = draftCacheKey(chatId.value, topicId.value);
+    draftCache.set(key, { text, customEmojis: [...emojis] });
+    // LRU 淘汰
+    while (draftCache.size > DRAFT_CACHE_MAX) {
+        const oldest = draftCache.keys().next().value;
+        if (oldest === undefined) break;
+        draftCache.delete(oldest);
+    }
+}
+
+/** 从缓存恢复草稿到输入框 */
+function restoreDraft(chatIdNum: number, tid?: number | null) {
+    const key = draftCacheKey(chatIdNum, tid);
+    const entry = draftCache.get(key);
+    if (entry) {
+        messageInput.value = entry.text;
+        pendingCustomEmoji.value = [...entry.customEmojis];
+    } else {
+        messageInput.value = '';
+        pendingCustomEmoji.value = [];
+    }
+}
 
 // ==================== 聊天消息缓存（模块级） ====================
 // 缓存每个聊天(id[:topicId])已加载的消息与相关状态。放在模块级，
@@ -960,77 +1007,6 @@ const { viewerVisible, viewerIndex, viewerInitialTime, viewerItems, viewerCurren
 // ==================== 主题色彩 ====================
 const { accentTextColor, accentColorStyle, isDark } = useColors();
 
-// 当消息列表变化时，将已有媒体消息注册到全局查看器
-const previousMsgIds = ref<Set<number>>(new Set());
-watch(messages, (msgs) => {
-    const newIds = new Set<number>();
-    for (const msg of msgs) {
-        newIds.add(msg.id);
-        if (previousMsgIds.value.has(msg.id)) continue;
-        const c = msg.content;
-        const capt = 'caption' in c && c.caption?.text ? c.caption.text : '';
-        const captFormatted = ('caption' in c && c.caption?.text) ? c.caption : undefined;
-        // 发送人显示名称与消息时间（用于查看器底部信息展示）
-        const senderName = computeDisplaySenderName(msg, senderDeps());
-        const date = typeof msg.date === 'number' ? msg.date : 0;
-        const msgId = msg.id;
-        const cid = chatId.value;
-        const meta = { messageId: msgId, chatId: cid };
-        const basename = (p: string | undefined) => {
-            if (!p) return '';
-            return p.split(/[\\/]/).pop() || '';
-        };
-        let item: MediaViewerItem | null = null;
-        if (c._ === 'messagePhoto') {
-            const sizes = c.photo.sizes;
-            if (sizes.length > 0) {
-                const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
-                const f = largest.photo;
-                const thumb = c.photo.minithumbnail?.data ? `data:image/jpeg;base64,${c.photo.minithumbnail.data}` : '';
-                if (f && isFileReady(f)) {
-                    item = { type: 'photo', src: convertFileSrc(f.local.path), thumb: thumb || undefined, caption: capt, captionFormatted: captFormatted, senderName, date, localPath: f.local.path, fileName: basename(f.local.path), ...meta };
-                } else if (f && f.local && f.local.can_be_downloaded) {
-                    // 尚未下载：注册占位项（空 src），查看器内展示缩略图预览与下载进度
-                    item = { type: 'photo', src: '', thumb: thumb || undefined, caption: capt, captionFormatted: captFormatted, senderName, date, ...meta };
-                }
-            }
-        } else if (c._ === 'messageVideo') {
-            const file = c.video.video;
-            let src = '';
-            let localPath: string | undefined;
-            if (isFileReady(file)) {
-                src = convertFileSrc(file.local.path);
-                localPath = file.local.path;
-            } else if (c.video.supports_streaming && file.size > 0) {
-                src = `${convertFileSrc(String(file.id), 'tdstream')}?mime=${c.video.mime_type}`;
-            }
-            if (src) {
-                const qualities = buildVideoQualities(
-                    c.alternative_videos,
-                    src,
-                    { width: c.video.width, height: c.video.height },
-                );
-                item = {
-                    type: 'video', src, caption: capt, captionFormatted: captFormatted, senderName, date, localPath,
-                    fileName: c.video.file_name || basename(localPath),
-                    qualities: qualities.length ? qualities : undefined, ...meta,
-                };
-            }
-        } else if (c._ === 'messageAnimation') {
-            const file = c.animation.animation;
-            if (isFileReady(file)) {
-                item = { type: 'animation', src: convertFileSrc(file.local.path), caption: capt, captionFormatted: captFormatted, senderName, date, localPath: file.local.path, fileName: c.animation.file_name || basename(file.local.path), ...meta };
-            }
-        }
-        if (item) registerMediaItem(msg.id, item);
-    }
-    // 清理已删除消息的注册
-    for (const oldId of previousMsgIds.value) {
-        if (!newIds.has(oldId)) unregisterMediaItem(oldId);
-    }
-    previousMsgIds.value = newIds;
-}, { immediate: true, deep: true });
-
 // ==================== 气泡宽度测量（同宽消息右侧连接） ====================
 /** 记录每条消息气泡的实际渲染宽度（msgId → px），用于判断相邻消息是否同宽 */
 const bubbleWidths = ref<Record<number, number>>({});
@@ -1090,7 +1066,7 @@ function onViewerClose(currentTime?: number) {
 }
 
 /** 查看器右键「查看」：关闭查看器并跳转到对应消息 */
-function handleViewerJump(messageId: number) {
+function handleViewerJump(messageId: number, _topicId?: number) {
     closeMediaViewer();
     void jumpToMessage(messageId);
 }
@@ -1125,6 +1101,12 @@ onUnmounted(() => {
     if (bubbleWidthObserver) bubbleWidthObserver.disconnect();
     if (readVisibilityTimer !== null) window.clearTimeout(readVisibilityTimer);
     if (chatLoadRetryTimer !== null) window.clearTimeout(chatLoadRetryTimer);
+    // 保存当前聊天的输入框草稿
+    saveDraft();
+    // 通知 TDLib 该聊天已关闭（停收推送更新等）
+    if (chat.value) {
+        void tdlibSend({ _: 'closeChat', chat_id: chat.value.id });
+    }
     // 组件卸载（如关聊天面板）后置空“当前缓存条目”，
     // 避免重挂另一聊天时 saveCurrentChatToCache 把重置态错写进旧聊天缓存
     currentCacheEntry = null;
@@ -1270,12 +1252,15 @@ const handleUpdate = async (update: Update) => {
             if (update.from_cache) break;
             const chatNum = update.chat_id;
             // 对所有匹配该聊天的缓存条目（含话题）执行删除；当前渲染聊天走中央写入
+            // 注意：仅当缓存 key 精确匹配当前视图（chatId+topicId）时才调用 applyMessages，
+            // 避免其他话题的缓存条目覆盖当前显示的消息列表。
+            const currentKey = chatDetailCacheKey(chatId.value ?? 0, topicId.value);
             for (const [key, entry] of chatDetailCache) {
                 if (!key.startsWith(`${chatNum}:`) && key !== String(chatNum)) continue;
                 const beforeCount = entry.messages.length;
                 const filtered = entry.messages.filter(m => !update.message_ids.includes(m.id));
                 if (filtered.length === beforeCount) continue;
-                if (chatNum === chatId.value && isReady.value) {
+                if (key === currentKey && isReady.value) {
                     applyMessages(filtered);
                 } else {
                     entry.messages = filtered;
@@ -1452,6 +1437,14 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
     // 切换前先把当前聊天的非消息状态快照写回缓存（消息数组通过 applyMessages 已同步）
     saveCurrentChatToCache();
 
+    // 通知 TDLib 关闭旧聊天（停收推送更新等）
+    if (chat.value) {
+        void tdlibSend({ _: 'closeChat', chat_id: chat.value.id });
+    }
+
+    // 保存当前聊天的输入框草稿
+    saveDraft();
+
     // 重置全部状态
     resetState();
 
@@ -1501,6 +1494,8 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
 
         isReady.value = true;
         scheduleVisibleMessagesRead();
+        // 通知 TDLib 该聊天已打开（接收推送更新）
+        void tdlibSend({ _: 'openChat', chat_id: currentId });
         return;
     }
     // 未命中缓存：标记当前缓存条目为“进行中”，最终加载完成后写回
@@ -1565,6 +1560,10 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
                 chatLoadRetryCount = 0;
                 saveCurrentChatToCache();
                 scheduleVisibleMessagesRead();
+                // 恢复该聊天的输入框草稿
+                restoreDraft(currentId, topicId.value);
+                // 通知 TDLib 该聊天已打开（接收推送更新）
+                void tdlibSend({ _: 'openChat', chat_id: currentId });
                 // 下载管理器跳转：按 query.open 自动在播放器中打开媒体（图片/音乐）
                 void autoOpenMediaFromQuery(gen);
                 return;
@@ -1628,6 +1627,10 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
         // 5. 标记完成
         isReady.value = true;
         chatLoadRetryCount = 0;
+        // 恢复该聊天的输入框草稿
+        restoreDraft(currentId, topicId.value);
+        // 通知 TDLib 该聊天已打开（接收推送更新）
+        void tdlibSend({ _: 'openChat', chat_id: currentId });
 
         // 6. 确保加载后消息容器可滚动（至少撑满视口）
         await nextTick();
@@ -1701,12 +1704,15 @@ async function fetchMessages(chatIdNum: number, fromMessageId: number, limit: nu
     }
 }
 
-/** 合并消息并去重（oldest-first 顺序），返回新数组 */
+/** 合并消息并去重（oldest-first 顺序），返回新数组。
+ *  过滤掉 chat_id 不属于当前聊天的消息，防止跨对话污染。 */
 function mergeMessages(existing: message[], incoming: message[]): message[] {
-    if (existing.length === 0) return incoming;
-    if (incoming.length === 0) return existing;
+    const cid = chatId.value;
+    const safe = cid != null ? incoming.filter(m => m.chat_id === cid) : incoming;
+    if (existing.length === 0) return safe;
+    if (safe.length === 0) return existing;
     const existingIds = new Set(existing.map(m => m.id));
-    const unique = incoming.filter(m => !existingIds.has(m.id));
+    const unique = safe.filter(m => !existingIds.has(m.id));
     if (unique.length === 0) return existing;
     // incoming 已是最旧→最新，incoming 比 existing 更旧，prepend
     return [...unique, ...existing];
@@ -2150,10 +2156,8 @@ async function autoOpenMediaFromQuery(gen: number) {
     if (!isGenerationValid(gen)) return;
 
     if (action === 'photo' && isMediaMessage(msg)) {
-        // 等子组件（MessageMediaContent / MessageAlbum）完成 media 注册后再打开查看器
-        await new Promise<void>((resolve) => window.setTimeout(resolve, 300));
         if (!isGenerationValid(gen)) return;
-        openMediaViewer(requestedMessageId, 0, 0);
+        openMediaViewer({ messageId: msg.id, chatId: chatId.value, topicId: topicId.value, message: msg });
     } else if (action === 'audio' && msg.content._ === 'messageAudio') {
         await player.playMessageAudio(msg);
     }
@@ -2333,7 +2337,10 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
         await tdlibSend(params as $Function);
         messageInput.value = '';
         pendingCustomEmoji.value = [];
-        // 发送成功后清除回复状态
+        // 发送成功后清除草稿并清除回复状态
+        if (chatId.value !== undefined) {
+            draftCache.delete(draftCacheKey(chatId.value, topicId.value));
+        }
         clearReply();
     } catch (e) {
         console.error("Failed to send message:", e);
@@ -2478,14 +2485,19 @@ function resetState() {
  *
  * 缓存条目按「当前 chatId[:topicId]」派生而非依赖共享的 currentCacheEntry 指针，
  * 这样在并发加载/多个组件实例共存时，写入不会错落到另一个聊天的缓存里（防止消息互串）。
+ *
+ * 写入前会过滤掉 chat_id 不属于当前聊天的消息，作为最后一道防线，
+ * 防止任何上游遗漏导致其他对话的消息泄露到当前视图。
  */
 function applyMessages(next: message[]) {
-    messages.value = next;
+    const cid = chatId.value;
+    const safe = cid != null ? next.filter(m => m.chat_id === cid) : next;
+    messages.value = safe;
     messagesVersion.value++;
-    const key = chatDetailCacheKey(chatId.value ?? 0, topicId.value);
+    const key = chatDetailCacheKey(cid ?? 0, topicId.value);
     const entry = chatDetailCache.get(key);
     if (entry) {
-        entry.messages = next;
+        entry.messages = safe;
     }
 }
 

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="h-full flex flex-col text-gray-900 dark:text-gray-100 overflow-hidden">
     <!-- 内容区 -->
     <div class="flex-1 overflow-y-auto custom-scrollbar" v-smooth-wheel>
@@ -49,7 +49,7 @@
               {{ statusText }}
             </p>
 
-            <!-- 操作按钮区（非自己时显示：发消息 / 通知 / 礼物 / 更多） -->
+            <!-- 操作按钮区（非自己时显示：发消息 / 通话 / 通知 / 礼物 / 更多） -->
             <div v-if="!isSelf" class="mt-4 flex items-center gap-2.5">
               <!-- 发消息 -->
               <button type="button"
@@ -59,83 +59,126 @@
                 发消息
               </button>
 
+              <!-- 语音通话 -->
+              <button type="button"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                @click="startCall(false)">
+                <PhoneCall class="w-4 h-4" />
+                通话
+              </button>
+
+              <!-- 视频通话 -->
+              <button type="button"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                @click="startCall(true)">
+                <Video class="w-4 h-4" />
+                视频
+              </button>
+
+              <!-- 搜索 -->
+              <button type="button"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                @click="searchInChat">
+                <Search class="w-4 h-4" />
+                搜索
+              </button>
+
               <!-- 通知（按下拉开的更多菜单里也能切换；这里开关通知） -->
-              <button type="button" :title="isPrivateChatMuted ? '开启通知' : '关闭通知'"
-                class="flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              <button type="button"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
                 @click="toggleNotifications">
                 <BellOff v-if="isPrivateChatMuted" class="w-4 h-4" />
                 <Bell v-else class="w-4 h-4" />
-              </button>
-
-              <!-- 赠送礼物（暂未实现） -->
-              <button type="button" title="赠送礼物"
-                class="flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-                @click="onSendGift">
-                <Gift class="w-4 h-4" />
+                {{ isPrivateChatMuted ? '开启通知' : '关闭通知' }}
               </button>
 
               <!-- 更多 -->
-              <button type="button" title="更多"
-                class="flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              <button type="button"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
                 @click="openMoreMenu($event)">
                 <MoreHorizontal class="w-4 h-4" />
+                更多
               </button>
             </div>
           </div>
 
-          <!-- 频道/群组模式头像/名称/订阅数 -->
+          <!-- 频道/群组/秘密聊天模式头像/名称 -->
           <div v-else-if="chatObj" class="flex flex-col items-center pt-10 pb-5 px-4 text-gray-900 dark:text-gray-100">
-            <!-- 头像 -->
+            <!-- 头像：秘密聊天显示用户头像，其他显示聊天头像 -->
             <div class="w-24 h-24 rounded-full overflow-hidden">
-              <Avatar :photo="chatPhotoInfo" :title="chatTitle" :accentColorId="chatAccentColorId"
+              <Avatar v-if="isSecretChat && secretChatUser" :photo="secretChatUser.profile_photo"
+                :title="`${secretChatUser.first_name} ${secretChatUser.last_name}`"
+                :accentColorId="secretChatUser.profile_accent_color_id" sizeClass="!w-24 !h-24" no-background />
+              <Avatar v-else :photo="chatPhotoInfo" :title="chatTitle" :accentColorId="chatAccentColorId"
                 sizeClass="!w-24 !h-24" no-background />
             </div>
 
             <!-- 名称 -->
             <h1 class="mt-3 text-2xl font-bold flex items-center gap-1.5 max-w-full">
               <span class="truncate">
-                <GlobalEmojiText :text="chatTitle" />
+                <GlobalEmojiText
+                  :text="isSecretChat && secretChatUser ? `${secretChatUser.first_name} ${secretChatUser.last_name}`.trim() || '秘密聊天' : chatTitle" />
               </span>
               <VerifiedFilledIcon v-if="isChatVerified" class="text-blue-500 text-lg" title="已验证"
                 :fill-color='["currentColor", "transparent"]' :stroke-color='["currentColor", "#0052d9"]'
                 :stroke-width="1.5" />
             </h1>
 
-            <!-- 订阅/成员人数（在线时间改为订阅数） -->
+            <!-- 副标题 -->
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {{ chatMemberCountText }}
+              {{ isSecretChat ? '秘密聊天' : chatMemberCountText }}
             </p>
 
-            <!-- 操作按钮区（查看频道/群组 / 关闭通知 / 礼物 / 更多） -->
+            <!-- 操作按钮区 -->
             <div class="mt-4 flex items-center gap-2.5">
-              <!-- 查看频道 / 查看群组 -->
-              <button type="button"
-                class="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors"
-                @click="openChatChannel">
-                <Eye class="w-4 h-4" />
-                {{ isChatChannel ? '查看频道' : '查看群组' }}
-              </button>
+              <!-- 秘密聊天：发消息 / 通话 / 更多 -->
+              <template v-if="isSecretChat">
+                <button type="button"
+                  class="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors"
+                  @click="openChatChannel">
+                  <Send class="w-4 h-4" />
+                  发消息
+                </button>
+                <button type="button"
+                  class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                  @click="startCall(false)">
+                  <PhoneCall class="w-4 h-4" />
+                  通话
+                </button>
+                <button type="button"
+                  class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                  @click="startCall(true)">
+                  <Video class="w-4 h-4" />
+                  视频
+                </button>
+              </template>
+              <!-- 频道/群组：加入/退出按钮 + 查看频道/群组 -->
+              <template v-else>
+                <button type="button"
+                  class="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-white text-sm font-medium transition-colors"
+                  :class="isChatJoined ? 'bg-gray-500 hover:bg-gray-600' : 'bg-teal-500 hover:bg-teal-600'"
+                  @click="isChatJoined ? unsubscribeChat() : joinChat()">
+                  <Eye v-if="!isChatJoined" class="w-4 h-4" />
+                  <LogOut v-else class="w-4 h-4" />
+                  {{ isChatJoined ? joinButtonText : joinButtonText }}
+                </button>
+              </template>
 
-              <!-- 关闭通知 -->
-              <button type="button" :title="chatNotificationMuted ? '开启通知' : '关闭通知'"
-                class="flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              <!-- 通知 -->
+              <button type="button"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
                 @click="chatToggleNotifications">
                 <BellOff v-if="chatNotificationMuted" class="w-4 h-4" />
                 <Bell v-else class="w-4 h-4" />
-              </button>
-
-              <!-- Telegram 礼物（暂未实现） -->
-              <button type="button" title="赠送礼物"
-                class="flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-                @click="onSendGift">
-                <Gift class="w-4 h-4" />
+                {{ chatNotificationMuted ? '开启通知' : '关闭通知' }}
               </button>
 
               <!-- 更多 -->
-              <button type="button" title="更多"
-                class="flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              <button type="button"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
                 @click="openChatMoreMenu($event)">
                 <MoreHorizontal class="w-4 h-4" />
+                更多
               </button>
             </div>
           </div>
@@ -212,10 +255,59 @@
           </div>
         </div>
 
-        <!-- ===== 第二部分（频道/群组模式）：介绍 / 用户名 / ID ===== -->
+        <!-- ===== 第二部分（频道/群组/秘密聊天模式）：介绍 / 用户名 / ID ===== -->
         <div v-if="chatMode" class="px-4 mt-4 space-y-2">
-          <!-- 介绍 -->
-          <div v-if="chatDescription"
+          <!-- 秘密聊天：显示用户信息（bio/手机号/用户名） -->
+          <template v-if="isSecretChat && secretChatUser">
+            <!-- 个人简介 -->
+            <div v-if="secretChatFullInfo?.bio?.text"
+              class="flex items-start gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
+              <InfoIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
+              <div class="min-w-0 flex-1">
+                <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
+                  <GlobalEmojiText :text="secretChatFullInfo.bio.text" />
+                </p>
+                <p class="text-xs text-gray-400 mt-0.5">个人简介</p>
+              </div>
+            </div>
+            <!-- 手机号码 -->
+            <div v-if="secretChatUser.phone_number"
+              class="flex items-center gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
+              <PhoneIcon class="w-5 h-5 text-gray-400 shrink-0" />
+              <div class="min-w-0 flex-1">
+                <p class="text-sm text-gray-800 dark:text-gray-100 select-all">
+                  <CopyableText :text="secretChatUser.phone_number" @click.stop />
+                </p>
+                <p class="text-xs text-gray-400">手机号码</p>
+              </div>
+            </div>
+            <!-- 用户名 -->
+            <div v-if="secretChatUser.usernames?.active_usernames?.length"
+              class="flex items-start gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              @click="secretChatUser.usernames?.active_usernames?.[0] && copyText('@' + secretChatUser.usernames.active_usernames[0])">
+              <AtSignIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
+              <div class="min-w-0 flex-1">
+                <p class="text-sm font-bold text-gray-900 dark:text-gray-100 select-all wrap-break-word leading-snug">
+                  <CopyableText :text="secretChatUser.usernames.active_usernames[0]" @click.stop />
+                </p>
+                <p class="mt-0.5 text-xs text-gray-400">用户名</p>
+              </div>
+            </div>
+            <!-- ID -->
+            <div
+              class="flex items-center gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
+              <IdCardIcon class="w-5 h-5 text-gray-400 shrink-0" />
+              <div class="min-w-0 flex-1">
+                <p class="text-sm text-gray-800 dark:text-gray-100 select-all">
+                  <CopyableText :text="String(secretChatUser.id)" @click.stop />
+                </p>
+                <p class="text-xs text-gray-400">用户 ID</p>
+              </div>
+            </div>
+          </template>
+
+          <!-- 频道/群组：介绍 -->
+          <div v-else-if="chatDescription"
             class="flex items-start gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
             <InfoIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
             <div class="min-w-0 flex-1">
@@ -226,7 +318,7 @@
             </div>
           </div>
 
-          <!-- 用户名（频道/群组名） -->
+          <!-- 频道/群组用户名 -->
           <div v-if="chatUsername"
             class="flex items-start gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             @click="chatUsername && copyText('@' + chatUsername)">
@@ -239,8 +331,8 @@
             </div>
           </div>
 
-          <!-- ID -->
-          <div
+          <!-- 频道/群组 ID -->
+          <div v-if="!isSecretChat"
             class="flex items-center gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
             <IdCardIcon class="w-5 h-5 text-gray-400 shrink-0" />
             <div class="min-w-0 flex-1">
@@ -404,28 +496,26 @@
         <!-- ===== 第四部分：底部功能导航栏（动态 / 归档动态 / 礼物 / 共同群组） ===== -->
         <div v-if="hasBottomContent" class="px-4 mt-5">
           <div
-            class="flex items-center gap-1.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-1 w-max">
-            <button type="button" class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
-              :class="activeTab === 'stories' ? 'bg-teal-500 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'"
-              @click="activeTab = 'stories'">动态</button>
-            <!-- 归档标签只在“自己”/普通用户的资料页出现（getChatArchivedStories 需 can_edit_stories 权限，仅自己/管理员可拉） -->
-            <button v-if="!chatMode && isSelf" type="button"
-              class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
-              :class="activeTab === 'archived' ? 'bg-teal-500 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'"
-              @click="activeTab = 'archived'">归档动态</button>
-            <!-- 礼物标签仅普通用户资料页显示 -->
-            <button v-if="!chatMode" type="button" class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
-              :class="activeTab === 'gifts' ? 'bg-teal-500 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'"
-              @click="activeTab = 'gifts'">礼物</button>
-            <!-- 共同群组标签仅在查看他人资料页时显示 -->
-            <button v-if="!chatMode && !isSelf" type="button"
-              class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
-              :class="activeTab === 'groups' ? 'bg-teal-500 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'"
-              @click="activeTab = 'groups'">共同群组</button>
+            class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] overflow-x-auto scrollbar-none"
+            v-smooth-wheel="'horizontal'" @wheel.prevent>
+            <div class="flex items-center gap-1.5 p-1 w-max">
+              <button v-for="tab in profileTabs" :key="tab.key" type="button"
+                class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1.5"
+                :class="activeTab === tab.key ? 'bg-teal-500 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'"
+                @click="activeTab = tab.key">
+                <component :is="tabIconMap[tab.key]" class="w-3.5 h-3.5" />
+                {{ tab.label }}
+                <span v-if="tab.count > 0"
+                  class="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none"
+                  :class="activeTab === tab.key ? 'bg-white/20 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'">
+                  {{ tab.count > 999 ? `${Math.floor(tab.count / 1000)}k` : tab.count }}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
 
-        <!-- ===== 第五部分：媒体内容区（宫格） ===== -->
+        <!-- ===== 第五部分：媒体内容区（宫格 + 共享媒体） ===== -->
         <div v-if="hasBottomContent" class="px-4 mt-3">
           <!-- 动态区 -->
           <div v-if="activeTab === 'stories'" class="py-6 text-center text-sm text-gray-400">
@@ -506,6 +596,184 @@
               </button>
             </div>
           </div>
+
+          <!-- 成员区（频道/群组成员） -->
+          <div v-else-if="activeTab === 'members'" class="py-4">
+            <p v-if="chatMemberCountText" class="text-center text-sm text-gray-400 py-6">{{ chatMemberCountText }}</p>
+            <p v-else class="text-center text-sm text-gray-400 py-6">暂无成员信息</p>
+          </div>
+
+          <!-- 话题区（论坛话题） -->
+          <div v-else-if="activeTab === 'topics'" class="py-4">
+            <p class="text-center text-sm text-gray-400 py-6">暂无话题</p>
+          </div>
+
+          <!-- 共享媒体区（照片/视频） -->
+          <div v-else-if="activeTab === 'media'" class="py-4">
+            <div v-if="sharedMediaLoading" class="text-center text-sm text-gray-400 py-6">正在加载媒体…</div>
+            <div v-else-if="sharedMediaItems.length === 0" class="text-center text-sm text-gray-400 py-6">暂无媒体</div>
+            <div v-else class="grid grid-cols-3 gap-1">
+              <div v-for="item in sharedMediaItems" :key="item.messageId"
+                class="aspect-square overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800 relative cursor-pointer"
+                @click="openSharedMediaViewer(sharedMediaItems.indexOf(item))"
+                @contextmenu="showSharedMediaContextMenu($event, item)">
+                <!-- 加载中的 minithumbnail 模糊占位 -->
+                <img v-if="sharedMediaMiniSrc(item) && !sharedMediaUrl(item.messageId)" :src="sharedMediaMiniSrc(item)"
+                  class="w-full h-full object-cover scale-110 blur-sm" />
+                <!-- 加载完成的缩略图 -->
+                <img v-if="sharedMediaUrl(item.messageId)" :src="sharedMediaUrl(item.messageId)"
+                  class="w-full h-full object-cover" />
+                <!-- 未下载且无 minithumbnail 时的占位 -->
+                <div v-if="!sharedMediaMiniSrc(item) && !sharedMediaUrl(item.messageId)"
+                  class="w-full h-full flex items-center justify-center text-xs text-gray-400">
+                  <Film class="w-6 h-6" />
+                </div>
+                <!-- 视频角标 -->
+                <span v-if="item.isVideo && item.duration"
+                  class="absolute bottom-1 right-1 text-[10px] leading-none bg-black/60 text-white px-1 py-0.5 rounded">
+                  {{ `${Math.floor(item.duration / 60)}:${String(Math.floor(item.duration % 60)).padStart(2, '0')}` }}
+                </span>
+              </div>
+            </div>
+            <!-- 无限滚动哨兵 -->
+            <div ref="loadMoreSentinel" class="h-1" />
+            <div v-if="sharedMediaLoadingMore" class="text-center py-3">
+              <span class="text-sm text-gray-400">加载中…</span>
+            </div>
+          </div>
+
+          <!-- 共享文件区 -->
+          <div v-else-if="activeTab === 'files'" class="py-4">
+            <div v-if="sharedMediaLoading" class="text-center text-sm text-gray-400 py-6">正在加载文件…</div>
+            <div v-else-if="sharedMediaItems.length === 0" class="text-center text-sm text-gray-400 py-6">暂无文件</div>
+            <div v-else class="space-y-1">
+              <div v-for="item in sharedMediaItems" :key="item.messageId"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                @click="jumpToMessage(item.chatId, item.messageId)"
+                @contextmenu="showSharedMediaContextMenu($event, item)">
+                <div
+                  class="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
+                  <FileText class="w-5 h-5 text-gray-400" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ item.fileName || '文件' }}
+                  </p>
+                  <p class="text-xs text-gray-400 mt-0.5">{{ item.fileSize ? `${(item.fileSize / 1024).toFixed(1)} KB` :
+                    '' }}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div ref="loadMoreSentinel" class="h-1" />
+            <div v-if="sharedMediaLoadingMore" class="text-center py-3">
+              <span class="text-sm text-gray-400">加载中…</span>
+            </div>
+          </div>
+
+          <!-- 共享链接区 -->
+          <div v-else-if="activeTab === 'links'" class="py-4">
+            <div v-if="sharedMediaLoading" class="text-center text-sm text-gray-400 py-6">正在加载链接…</div>
+            <div v-else-if="sharedMediaItems.length === 0" class="text-center text-sm text-gray-400 py-6">暂无链接</div>
+            <div v-else class="space-y-1">
+              <div v-for="item in sharedMediaItems" :key="item.messageId"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                @click="openSharedLink(item.url)" @contextmenu="showSharedMediaContextMenu($event, item)">
+                <div
+                  class="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
+                  <Link class="w-5 h-5 text-blue-500" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm text-blue-600 dark:text-blue-400 truncate">{{ item.url || '链接' }}</p>
+                </div>
+              </div>
+            </div>
+            <div ref="loadMoreSentinel" class="h-1" />
+            <div v-if="sharedMediaLoadingMore" class="text-center py-3">
+              <span class="text-sm text-gray-400">加载中…</span>
+            </div>
+          </div>
+
+          <!-- 共享音乐区 -->
+          <div v-else-if="activeTab === 'music'" class="py-4">
+            <div v-if="sharedMediaLoading" class="text-center text-sm text-gray-400 py-6">正在加载音乐…</div>
+            <div v-else-if="sharedMediaItems.length === 0" class="text-center text-sm text-gray-400 py-6">暂无音乐</div>
+            <div v-else class="space-y-1">
+              <div v-for="(item, idx) in sharedMediaItems" :key="item.messageId"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                @click="playSharedMusic(idx)"
+                @contextmenu="showSharedMediaContextMenu($event, item)">
+                <!-- 专辑封面（优先缩略图，无则图标） -->
+                <div class="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0 overflow-hidden">
+                  <img v-if="item.miniSrc" :src="item.miniSrc" class="w-full h-full object-cover" />
+                  <Music v-else class="w-5 h-5 text-gray-400" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                    {{ item.audioTitle || item.fileName || '未知音乐' }}
+                  </p>
+                  <p class="text-xs text-gray-400 mt-0.5 truncate">
+                    {{ item.performer || '' }}<template v-if="item.performer && item.audioDuration"> · </template><template v-if="item.audioDuration">{{ formatAudioDuration(item.audioDuration) }}</template>
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div ref="loadMoreSentinel" class="h-1" />
+            <div v-if="sharedMediaLoadingMore" class="text-center py-3">
+              <span class="text-sm text-gray-400">加载中…</span>
+            </div>
+          </div>
+
+          <!-- 共享语音区 -->
+          <div v-else-if="activeTab === 'voice'" class="py-4">
+            <div v-if="sharedMediaLoading" class="text-center text-sm text-gray-400 py-6">正在加载语音…</div>
+            <div v-else-if="sharedMediaItems.length === 0" class="text-center text-sm text-gray-400 py-6">暂无语音</div>
+            <div v-else class="space-y-1">
+              <div v-for="item in sharedMediaItems" :key="item.messageId"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                @click="jumpToMessage(item.chatId, item.messageId)"
+                @contextmenu="showSharedMediaContextMenu($event, item)">
+                <div
+                  class="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
+                  <Mic class="w-5 h-5 text-gray-400" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">语音消息</p>
+                  <p class="text-xs text-gray-400 mt-0.5">{{ item.fileSize ? `${(item.fileSize / 1024).toFixed(1)} KB` :
+                    '' }}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div ref="loadMoreSentinel" class="h-1" />
+            <div v-if="sharedMediaLoadingMore" class="text-center py-3">
+              <span class="text-sm text-gray-400">加载中…</span>
+            </div>
+          </div>
+
+          <!-- GIF 区 -->
+          <div v-else-if="activeTab === 'gifs'" class="py-4">
+            <div v-if="sharedMediaLoading" class="text-center text-sm text-gray-400 py-6">正在加载 GIF…</div>
+            <div v-else-if="sharedMediaItems.length === 0" class="text-center text-sm text-gray-400 py-6">暂无 GIF</div>
+            <div v-else class="grid grid-cols-3 gap-1">
+              <div v-for="item in sharedMediaItems" :key="item.messageId"
+                class="aspect-square overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800 relative cursor-pointer"
+                @click="openSharedMediaViewer(sharedMediaItems.indexOf(item))"
+                @contextmenu="showSharedMediaContextMenu($event, item)">
+                <img v-if="sharedMediaMiniSrc(item) && !sharedMediaUrl(item.messageId)" :src="sharedMediaMiniSrc(item)"
+                  class="w-full h-full object-cover scale-110 blur-sm" />
+                <img v-if="sharedMediaUrl(item.messageId)" :src="sharedMediaUrl(item.messageId)"
+                  class="w-full h-full object-cover" />
+                <div v-if="!sharedMediaMiniSrc(item) && !sharedMediaUrl(item.messageId)"
+                  class="w-full h-full flex items-center justify-center text-xs text-gray-400">
+                  <Film class="w-6 h-6" />
+                </div>
+              </div>
+            </div>
+            <div ref="loadMoreSentinel" class="h-1" />
+            <div v-if="sharedMediaLoadingMore" class="text-center py-3">
+              <span class="text-sm text-gray-400">加载中…</span>
+            </div>
+          </div>
         </div>
 
         <!-- ===== 加载 / 错误状态（用户模式） ===== -->
@@ -538,6 +806,10 @@
         <!-- ===== 照片查看器（复用 MediaViewer，左右切换；动态也走这里） ===== -->
         <MediaViewer :visible="photoViewerVisible" :items="viewerItems" :initial-index="photoViewerIndex"
           :source-rect="null" @close="closePhotoViewer" />
+
+        <!-- ===== 共享媒体查看器 ===== -->
+        <MediaViewer :visible="sharedMediaViewerVisible" :items="sharedMediaViewerItems"
+          :initial-index="sharedMediaViewerIndex" :source-rect="null" @close="sharedMediaViewerVisible = false" />
 
         <!-- ===== 自动删除设置弹窗 ===== -->
         <div v-if="autoDeleteVisible"
@@ -664,9 +936,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, receivedGift, story, chat, audio as TdAudio, birthdate, file, message, thumbnail, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo, messageSticker } from "tdlib-types";
+import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, receivedGift, story, chat, audio as TdAudio, birthdate, file, message, thumbnail, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo, messageSticker, secretChat, SearchMessagesFilter$Input } from "tdlib-types";
 import Avatar from "../../components/chat/avatar.vue";
 import CustomEmojiInline from "../../components/common/CustomEmojiInline.vue";
 import GlobalEmojiText from "../../components/common/GlobalEmojiText.vue";
@@ -682,19 +954,24 @@ import { downloadFileUrl } from "../../utils/profileMedia";
 import { formatBusinessHours } from "../../utils/businessHours";
 import { isThumbnailImgRenderable } from "../../utils/thumbnail";
 import { tdlibSend } from "../../utils/tdlib";
+
 import { ensureChat, getReactiveUser, getReactiveChat, getChatTitle, DELETED_ACCOUNT_LABEL } from "../../utils/senderInfo";
 import { useAudioPlayerStore } from "../../store/audioPlayer";
 import formatTime from "../../utils/formatTime";
 import { openContextMenu, closeContextMenu } from "../../store/contextMenu";
 import type { ContextMenuItem } from "../../components/contextMenu/types";
 import { MessagePlugin } from "tdesign-vue-next";
+import { buildProfileTabs, type ProfileTab, type ProfileTabKey } from "../../utils/profileTabs";
+import type { SharedMediaCounts } from "../../utils/sharedMediaCounts";
+import { useProfileSharedMedia } from "../../composables/useProfileSharedMedia";
 
 // ===== 图标组件（lucide-vue-next，与项目其余部分一致） =====
 import {
   ArrowLeft, Copy, Clock, MapPin, Gift, Bot, Play, Pause,
   Music, ChevronDown, Megaphone, ExternalLink, Send, Bell, BellOff,
   MoreHorizontal, TimerReset, Ban, UserPlus, UserMinus, X as XIcon,
-  Eye, LogOut, MessageSquareText,
+  Eye, LogOut, MessageSquareText, PhoneCall, Video,
+  Search, Users, Hash, FileText, Link, Mic, Film,
   Info as InfoIcon, Phone as PhoneIcon, AtSign as AtSignIcon,
   Calendar as CalendarIcon, IdCard as IdCardIcon,
 } from "lucide-vue-next"; import { VerifiedFilledIcon } from "tdesign-icons-vue-next";
@@ -712,6 +989,26 @@ const userId = computed(() => Number(route.params.id));
 // =====================================================================
 const chatMode = computed(() => route.name === 'chat-profile');
 const chatId = computed(() => (chatMode.value ? Number(route.params.id) : undefined));
+
+/** 私密聊天信息（chatTypeSecret 时有值） */
+const secretChatObj = ref<secretChat | undefined>(undefined);
+/** 是否为秘密聊天模式 */
+const isSecretChat = computed(() => chatObj.value?.type?._ === 'chatTypeSecret');
+/** 秘密聊天对应的用户 ID（chatTypeSecret 时使用） */
+const secretChatUserId = computed(() => {
+  if (chatObj.value?.type?._ === 'chatTypeSecret') return chatObj.value.type.user_id;
+  return undefined;
+});
+/** 秘密聊天用户信息（优先使用 secretChatUserId） */
+const secretChatUser = computed<TdUser | undefined>(() => {
+  if (!secretChatUserId.value) return undefined;
+  return getReactiveUser(secretChatUserId.value);
+});
+/** 秘密聊天用户完整信息 */
+const secretChatFullInfo = computed<userFullInfo | undefined>(() => {
+  if (!secretChatUserId.value) return undefined;
+  return profileStore.fullInfos.get(secretChatUserId.value);
+});
 
 /** 当前资料对应的聊天对象（chatMode 时有值） */
 const chatObj = ref<chat | undefined>(undefined);
@@ -799,10 +1096,16 @@ const hasError = computed(() => profileStore.error.get(userId.value) ?? false);
  */
 const hasBottomContent = computed(() => {
   if (chatMode.value) {
-    return chatLoading.value || chatActiveStories.value.length > 0;
+    return chatLoading.value || chatActiveStories.value.length > 0
+      || sharedMediaCounts.value.media > 0 || sharedMediaCounts.value.files > 0
+      || sharedMediaCounts.value.links > 0 || sharedMediaCounts.value.music > 0
+      || sharedMediaCounts.value.voice > 0 || sharedMediaCounts.value.gifs > 0;
   }
   return isLoading.value || activeStoriesList.value.length > 0 || giftsList.value.length > 0
-    || (!isSelf.value && commonGroupsList.value.length > 0);
+    || (!isSelf.value && commonGroupsList.value.length > 0)
+    || sharedMediaCounts.value.media > 0 || sharedMediaCounts.value.files > 0
+    || sharedMediaCounts.value.links > 0 || sharedMediaCounts.value.music > 0
+    || sharedMediaCounts.value.voice > 0 || sharedMediaCounts.value.gifs > 0;
 });
 
 // ===== 派生属性 =====
@@ -945,7 +1248,300 @@ const channelPostTime = computed(() => {
 });
 
 /** 底部导航栏当前选中的标签 */
-const activeTab = ref<'stories' | 'archived' | 'gifts' | 'groups'>('stories');
+const activeTab = ref<ProfileTabKey>('stories');
+
+/** 共享媒体计数（由 getChatMessageCount 获取） */
+const sharedMediaCounts = ref<SharedMediaCounts>({ media: 0, files: 0, links: 0, music: 0, voice: 0, gifs: 0 });
+
+/** 动态生成的 Tab 列表（匹配 Unigram 的 ProfileTab 系统） */
+const profileTabs = computed<ProfileTab[]>(() => {
+  const storyList = chatMode.value ? chatActiveStories.value : activeStoriesList.value;
+  const archivedList = chatMode.value ? chatArchivedStories.value : archivedStoriesList.value;
+
+  return buildProfileTabs({
+    chatMode: chatMode.value,
+    isSelf: isSelf.value,
+    hasPostedStories: storyList.length > 0,
+    hasArchivedStories: archivedList.length > 0,
+    giftCount: giftsList.value.length,
+    commonGroupCount: commonGroupsList.value.length,
+    isBot: isBot.value,
+    hasTopics: false,
+    chatType: chatObj.value?.type,
+    isChannel: isChatChannel.value,
+    hasForumTabs: false,
+    memberCount: chatMode.value
+      ? (supergroupFull.value?.member_count || supergroupObj.value?.member_count || basicGroupObj.value?.member_count || 0)
+      : 0,
+    mediaCount: sharedMediaCounts.value.media,
+    fileCount: sharedMediaCounts.value.files,
+    linkCount: sharedMediaCounts.value.links,
+    musicCount: sharedMediaCounts.value.music,
+    voiceCount: sharedMediaCounts.value.voice,
+    gifCount: sharedMediaCounts.value.gifs,
+  });
+});
+
+/** Tab 图标映射 */
+const tabIconMap: Record<ProfileTabKey, any> = {
+  stories: Eye,
+  archived: Eye,
+  gifts: Gift,
+  groups: Users,
+  members: Users,
+  topics: Hash,
+  media: Film,
+  files: FileText,
+  links: Link,
+  music: Music,
+  voice: Mic,
+  gifs: Film,
+};
+
+// =====================================================================
+// 共享媒体搜索与展示
+// =====================================================================
+/** Tab → SearchMessagesFilter 映射 */
+const sharedMediaFilterMap: Record<string, SearchMessagesFilter$Input> = {
+  media: { _: 'searchMessagesFilterPhotoAndVideo' },
+  files: { _: 'searchMessagesFilterDocument' },
+  links: { _: 'searchMessagesFilterUrl' },
+  music: { _: 'searchMessagesFilterAudio' },
+  voice: { _: 'searchMessagesFilterVoiceAndVideoNote' },
+  gifs: { _: 'searchMessagesFilterAnimation' },
+};
+
+/** 当前共享媒体搜索使用的 chatId（用户模式用私聊 id，聊天模式用 chatId） */
+const sharedMediaChatId = computed<number | undefined>(() => {
+  if (chatMode.value) return chatId.value;
+  return privateChatId.value;
+});
+
+/** 当前选中的共享媒体 filter */
+const currentSharedMediaFilter = computed<SearchMessagesFilter$Input | undefined>(() => {
+  const f = sharedMediaFilterMap[activeTab.value];
+  return f || undefined;
+});
+
+/** 共享媒体懒加载 hook */
+const {
+  items: sharedMediaItems,
+  loading: sharedMediaLoading,
+  loadingMore: sharedMediaLoadingMore,
+  hasMore: sharedMediaHasMore,
+  loadMore: sharedMediaLoadMore,
+  reset: sharedMediaReset,
+} = useProfileSharedMedia(sharedMediaChatId, currentSharedMediaFilter);
+
+/** activeTab 切换时重新拉取共享媒体（仅在切换到共享媒体 tab 时） */
+let lastLoadedFilter = '';
+watch(activeTab, (tab) => {
+  const f = sharedMediaFilterMap[tab];
+  if (f && sharedMediaChatId.value) {
+    const key = `${sharedMediaChatId.value}:${tab}`;
+    if (key !== lastLoadedFilter) {
+      lastLoadedFilter = key;
+      sharedMediaReset();
+    }
+  }
+});
+
+/** 新增共享媒体项后，自动开始懒加载缩略图 */
+watch(sharedMediaItems, (items) => {
+  for (const item of items) {
+    if (!sharedMediaUrlCache.value[item.messageId] && item.photo) {
+      void loadSharedMediaThumb(item);
+    }
+  }
+}, { immediate: true });
+
+// =====================================================================
+// 共享媒体无限滚动：滚动到底部自动加载更多
+// =====================================================================
+const loadMoreSentinel = ref<HTMLElement | null>(null);
+let loadMoreObserver: IntersectionObserver | null = null;
+
+function setupLoadMoreObserver() {
+  cleanupLoadMoreObserver();
+  const el = loadMoreSentinel.value;
+  if (!el) return;
+  loadMoreObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting && sharedMediaHasMore.value && !sharedMediaLoadingMore.value && !sharedMediaLoading.value) {
+          sharedMediaLoadMore();
+        }
+      }
+    },
+    { root: null, rootMargin: '200px', threshold: 0.01 },
+  );
+  loadMoreObserver.observe(el);
+}
+
+function cleanupLoadMoreObserver() {
+  if (loadMoreObserver) {
+    loadMoreObserver.disconnect();
+    loadMoreObserver = null;
+  }
+}
+
+// activeTab 或 sharedMediaItems 变化时重建观察器
+watch([activeTab, sharedMediaItems], () => {
+  nextTick(setupLoadMoreObserver);
+});
+
+/** 打开共享媒体查看器 */
+const sharedMediaViewerVisible = ref(false);
+const sharedMediaViewerIndex = ref(0);
+const sharedMediaViewerItems = computed<MediaViewerItem[]>(() =>
+  sharedMediaItems.value
+    .filter(i => i.src || i.miniSrc)
+    .map(i => ({
+      type: i.isVideo ? 'video' as const : 'photo' as const,
+      thumb: i.miniSrc,
+      messageId: i.messageId,
+      chatId: i.chatId,
+      duration: i.duration,
+      message: i.message,
+    })),
+);
+/** 共享媒体项 → viewer 项的索引映射 */
+const sharedMediaToViewerIndex = computed(() => {
+  const map = new Map<number, number>();
+  let viewerIdx = 0;
+  for (const item of sharedMediaItems.value) {
+    if (item.src || item.miniSrc) {
+      map.set(item.messageId, viewerIdx++);
+    }
+  }
+  return map;
+});
+function openSharedMediaViewer(index: number) {
+  const item = sharedMediaItems.value[index];
+  if (!item) return;
+  const viewerIdx = sharedMediaToViewerIndex.value.get(item.messageId);
+  if (viewerIdx === undefined) return;
+  sharedMediaViewerIndex.value = viewerIdx;
+  sharedMediaViewerVisible.value = true;
+}
+
+/** 打开共享链接 */
+function openSharedLink(url?: string) {
+  if (!url) return;
+  confirmAndOpenExternalLink(url).catch(() => { });
+}
+
+/** 跳转到聊天中的对应消息 */
+function jumpToMessage(chatId: number, messageId: number) {
+  router.push({ name: 'chat-detail', params: { id: String(chatId) }, query: { message: String(messageId) } });
+}
+
+/** 共享媒体右键菜单：跳转到消息 */
+function showSharedMediaContextMenu(e: MouseEvent, item: { messageId: number; chatId: number; url?: string; fileName?: string }) {
+  e.preventDefault();
+  const menuItems: ContextMenuItem[] = [
+    {
+      key: 'jump-to-message',
+      label: '在聊天中查看',
+      icon: Eye,
+      onClick: () => { jumpToMessage(item.chatId, item.messageId); },
+    },
+  ];
+  if (item.url) {
+    menuItems.push({
+      key: 'open-link',
+      label: '打开链接',
+      icon: ExternalLink,
+      onClick: () => { openSharedLink(item.url); },
+    });
+  }
+  openContextMenu(e.clientX, e.clientY, menuItems, e.currentTarget as HTMLElement);
+}
+
+/** 格式化音频时长：秒 → m:ss */
+function formatAudioDuration(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+/**
+ * 点击共享音乐项：将所有音乐项构建为播放列表并从点击位置开始播放。
+ * 复用 audioPlayer 的 setPlaylist，与资料页音乐卡片播放体验一致。
+ */
+async function playSharedMusic(clickedIndex: number) {
+  const musicItems = sharedMediaItems.value.filter(
+    (i) => i.contentType === 'messageAudio' && i.message,
+  );
+  if (musicItems.length === 0) return;
+
+  // 找到点击项在纯音乐列表中的索引
+  const targetItem = sharedMediaItems.value[clickedIndex];
+  const targetIdx = musicItems.findIndex((i) => i.messageId === targetItem.messageId);
+  const startIdx = targetIdx >= 0 ? targetIdx : 0;
+
+  // 逐条播放（audioPlayer.playMessageAudio 内部会处理下载/流式/去重），
+  // 但为了获得完整的列表体验，我们用 setPlaylist 替换整个播放列表。
+  // 先为每条消息构建 AudioTrack，filePath 稍后由 playTrack 按需准备。
+  const { convertFileSrc } = await import('@tauri-apps/api/core');
+  const { isFileReady } = await import('../../utils/tdlib');
+
+  const tracks = musicItems.map((item) => {
+    const msg = item.message!;
+    const audio = (msg.content as any).audio;
+    const file = audio.audio;
+    let filePath = '';
+    if (isFileReady(file) && file.local?.path) {
+      filePath = convertFileSrc(file.local.path);
+    }
+    return {
+      messageId: msg.id,
+      chatId: msg.chat_id,
+      title: audio.title || audio.file_name || '未知音乐',
+      performer: audio.performer || '未知艺术家',
+      duration: audio.duration,
+      fileId: file.id,
+      filePath,
+      sizeBytes: file.size || 0,
+      mimeType: audio.mime_type || 'audio/mpeg',
+      ready: !!filePath,
+      source: 'message' as const,
+    };
+  });
+
+  audioPlayer.setPlaylist(tracks, startIdx);
+}
+
+/** 共享媒体缩略图 URL 缓存（messageId → URL） */
+const sharedMediaUrlCache = ref<Record<number, string>>({});
+
+/** 下载共享媒体的缩略图（最小尺寸，用于网格展示） */
+async function loadSharedMediaThumb(item: { messageId: number; photo?: any }) {
+  if (sharedMediaUrlCache.value[item.messageId]) return;
+  if (!item.photo?.sizes?.length) return;
+  const sorted = item.photo.sizes
+    .filter((s: any) => s.photo)
+    .slice()
+    .sort((a: any, b: any) => (a.width * a.height) - (b.width * b.height));
+  const smallest = sorted[0]?.photo;
+  if (!smallest) return;
+  try {
+    const url = await downloadFileUrl(smallest, `shared_${item.messageId}_${smallest.id}.jpg`, 'avatar');
+    if (url) {
+      sharedMediaUrlCache.value = { ...sharedMediaUrlCache.value, [item.messageId]: url };
+    }
+  } catch { /* 忽略 */ }
+}
+
+/** 获取共享媒体项的缩略图 URL */
+function sharedMediaUrl(msgId: number): string | undefined {
+  return sharedMediaUrlCache.value[msgId];
+}
+
+/** 共享媒体 minithumbnail 占位 URL */
+function sharedMediaMiniSrc(item: { photo?: any; miniSrc?: string }): string | undefined {
+  return item.miniSrc;
+}
 
 const businessInfo = computed(() => fullInfo.value?.business_info);
 const businessLocation = computed(() => businessInfo.value?.location);
@@ -1089,12 +1685,12 @@ async function loadPhotoUrls() {
 // ===== 照片查看器（复用 MediaViewer，支持左右切换；动态也可复用） =====
 const photoViewerVisible = ref(false);
 const photoViewerIndex = ref(0);
-/** 查看器项目列表（仅包含已加载出 src 的照片） */
+/** 查看器项目列表（仅包含已加载出的照片） */
 const photoViewerItems = computed<MediaViewerItem[]>(() =>
   photosList.value
-    .map((_, i) => photoUrls.value[i])
-    .filter((src): src is string => !!src)
-    .map((src) => ({ type: 'photo' as const, src })),
+    .map((p, i) => ({ photo: p, url: photoUrls.value[i] }))
+    .filter((item): item is { photo: chatPhoto; url: string } => !!item.url)
+    .map(({ photo }) => ({ type: 'photo' as const, file: pickLargestPhotoFile(photo) })),
 );
 /** 打开单条动态时临时覆盖展示的媒体列表（优先级最高）；null 表示正常照片宫格 */
 const photoViewerItemsOverride = ref<MediaViewerItem[] | null>(null);
@@ -1239,10 +1835,20 @@ function formatStoryDuration(s: story): string {
 
 /** 打开动态：把动态媒体塞进 MediaViewer 展示（照片/视频封面统一走图片查看器） */
 function openStory(s: story) {
-  const url = storyUrlOf(s);
-  if (!url) return;
+  const c = s.content;
+  if (!c) return;
+  let f: file | undefined;
+  if (c._ === 'storyContentPhoto') {
+    const sizes = c.photo.sizes;
+    if (sizes.length > 0) {
+      const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
+      f = largest.photo;
+    }
+  } else if (c._ === 'storyContentVideo') {
+    f = c.video.video;
+  }
   photoViewerIndex.value = 0;
-  photoViewerItemsOverride.value = [{ type: 'photo', src: url }];
+  photoViewerItemsOverride.value = [{ type: 'photo', file: f }];
   photoViewerVisible.value = true;
 }
 
@@ -1265,6 +1871,12 @@ async function loadData() {
     refreshPrivateChatMuted(),
     ...commonGroupsList.value.map((id) => ensureChat(id).catch(() => { })),
   ]);
+  // 获取共享媒体计数（用户模式下需要私聊 chat id）
+  const cid = await getPrivateChatId();
+  if (cid) {
+    const counts = await profileStore.fetchSharedMediaCountsForChat(cid);
+    sharedMediaCounts.value = counts;
+  }
 }
 
 // ===== 频道/群组资料加载 =====
@@ -1283,6 +1895,7 @@ async function loadChatData() {
   basicGroupObj.value = undefined;
   supergroupFull.value = undefined;
   basicGroupFull.value = undefined;
+  secretChatObj.value = undefined;
   chatActiveStories.value = [];
   chatArchivedStories.value = [];
   chatStoryUrls.value = {};
@@ -1295,6 +1908,24 @@ async function loadChatData() {
     }
     chatObj.value = c;
 
+    // 秘密聊天：额外获取 secretChat 信息 + 用户信息
+    if (c.type?._ === 'chatTypeSecret') {
+      try {
+        secretChatObj.value = await tdlibSend({
+          _: 'getSecretChat',
+          secret_chat_id: c.type.secret_chat_id,
+        }) as secretChat;
+      } catch (e) {
+        console.error('Failed to load secret chat', e);
+      }
+      // 获取秘密聊天对方的用户信息（复用 profileStore 缓存）
+      const uid = c.type.user_id;
+      if (uid) {
+        void profileStore.fetchUser(uid).catch(() => { });
+        void profileStore.fetchFullInfo(uid).catch(() => { });
+      }
+    }
+
     // 主内容（标题/头像）已就绪，先结束加载态，让页面立即渲染；
     // 群组详情与动态在后台异步刷新，各自容错，不阻塞页面。
     chatLoaded.value = true;
@@ -1302,6 +1933,10 @@ async function loadChatData() {
     void loadChatGroupInfo();
     void loadChatStories();
     void refreshChatNotificationMuted();
+    // 获取共享媒体计数（频道/群组模式）
+    void profileStore.fetchSharedMediaCountsForChat(cid).then((counts) => {
+      sharedMediaCounts.value = counts;
+    });
   } catch (e) {
     chatError.value = true;
     chatLoading.value = false;
@@ -1314,7 +1949,13 @@ async function loadChatGroupInfo() {
   const c = chatObj.value;
   if (!c) return;
   try {
-    if (c.type._ === 'chatTypeSupergroup') {
+    if (c.type._ === 'chatTypeSecret') {
+      // 秘密聊天：用户信息已在 loadChatData 中获取
+      supergroupObj.value = undefined;
+      supergroupFull.value = undefined;
+      basicGroupObj.value = undefined;
+      basicGroupFull.value = undefined;
+    } else if (c.type._ === 'chatTypeSupergroup') {
       const sgId = c.type.supergroup_id;
       try {
         supergroupObj.value = await tdlibSend({ _: 'getSupergroup', supergroup_id: sgId }) as supergroup;
@@ -1485,6 +2126,44 @@ async function openPrivateChat() {
   router.push({ name: "chat-detail", params: { id: String(cid) } });
 }
 
+/** 语音/视频通话 */
+async function startCall(video: boolean) {
+  const cid = await getPrivateChatId();
+  if (!cid) return;
+  // 跳转到聊天页面（通话功能需要在聊天页面触发）
+  router.push({ name: 'chat-detail', params: { id: String(cid) } });
+  // TODO: 通过 VoIP 服务发起通话
+  MessagePlugin.info(video ? '视频通话功能开发中' : '语音通话功能开发中');
+}
+
+/** 搜索聊天中的消息 */
+async function searchInChat() {
+  const cid = chatMode.value ? chatId.value : await getPrivateChatId();
+  if (!cid) return;
+  router.push({ name: 'chat-detail', params: { id: String(cid) } });
+}
+
+/** 加入频道/群组 */
+async function joinChat() {
+  const cid = chatId.value;
+  if (!cid) return;
+  try {
+    await tdlibSend({ _: 'joinChat', chat_id: cid });
+    MessagePlugin.success('已加入');
+    loadData();
+  } catch (e: any) {
+    MessagePlugin.error(e?.message || '加入失败');
+  }
+}
+
+/** 获取加入/退出按钮文本 */
+const joinButtonText = computed(() => {
+  if (isChatJoined.value) {
+    return isChatChannel.value ? '取消订阅' : '退出群组';
+  }
+  return isChatChannel.value ? '加入频道' : '加入群组';
+});
+
 /** 切换通知（静音 / 取消静音） */
 async function toggleNotifications() {
   const cid = await getPrivateChatId();
@@ -1506,11 +2185,6 @@ async function toggleNotifications() {
   } catch (e: any) {
     MessagePlugin.error(e?.message || '操作失败');
   }
-}
-
-/** 赠送礼物：礼物页面暂未实现，提示用户等待更新 */
-function onSendGift() {
-  MessagePlugin.info('暂未实现，请等待后续更新');
 }
 
 /** 打开「更多」菜单 */
@@ -1629,29 +2303,42 @@ function unsubscribeChat() {
   );
 }
 
-/** 频道/群组「更多」选项菜单 */
+/** 频道/群组/秘密聊天「更多」选项菜单 */
 function openChatMoreMenu(e: MouseEvent) {
   const menuItems: ContextMenuItem[] = [];
-  // 进入关联群组：仅当存在关联群组（讨论组）时显示
-  if (chatLinkedChatId.value) {
+
+  if (isSecretChat.value) {
+    // 秘密聊天：显示加密信息、删除聊天
     menuItems.push({
-      key: 'linked-group',
-      label: '进入关联群组',
-      icon: MessageSquareText,
-      onClick: () => { openLinkedGroup(); },
-    });
-  }
-  // 已加入/订阅时显示取消订阅（带二级提示）
-  if (isChatJoined.value) {
-    menuItems.push({ key: 'divider-chat', label: '', divider: true });
-    menuItems.push({
-      key: 'unsubscribe',
-      label: '取消订阅',
-      icon: LogOut,
+      key: 'delete-chat',
+      label: '删除聊天',
+      icon: Ban,
       danger: true,
-      onClick: () => { unsubscribeChat(); },
+      onClick: () => { /* TODO: 删除秘密聊天 */ },
     });
+  } else {
+    // 频道/群组：进入关联群组
+    if (chatLinkedChatId.value) {
+      menuItems.push({
+        key: 'linked-group',
+        label: '进入关联群组',
+        icon: MessageSquareText,
+        onClick: () => { openLinkedGroup(); },
+      });
+    }
+    // 已加入/订阅时显示取消订阅（带二级提示）
+    if (isChatJoined.value) {
+      menuItems.push({ key: 'divider-chat', label: '', divider: true });
+      menuItems.push({
+        key: 'unsubscribe',
+        label: '取消订阅',
+        icon: LogOut,
+        danger: true,
+        onClick: () => { unsubscribeChat(); },
+      });
+    }
   }
+
   if (menuItems.length === 0) {
     MessagePlugin.info('暂无可用的更多选项');
     return;

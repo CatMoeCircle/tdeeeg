@@ -157,8 +157,8 @@
                 <!-- Thumbnail: 静态位图用 <img>，MPEG4/WEBM 动态图用 <video> -->
                 <img v-if="animThumbSrc && !animThumbIsVideo && !mediaSrc" :src="animThumbSrc"
                     class="absolute inset-0 w-full h-full object-cover" />
-                <video v-else-if="animThumbSrc && animThumbIsVideo && !mediaSrc" :src="animThumbSrc" autoplay loop
-                    muted playsinline class="absolute inset-0 w-full h-full object-cover" />
+                <video v-else-if="animThumbSrc && animThumbIsVideo && !mediaSrc" :src="animThumbSrc" autoplay loop muted
+                    playsinline class="absolute inset-0 w-full h-full object-cover" />
                 <!-- Full GIF (animation) -->
                 <video v-if="mediaSrc" :src="mediaSrc" autoplay loop muted playsinline
                     class="w-full h-full object-cover" />
@@ -245,13 +245,11 @@ import MessageTextContent from './MessageTextContent.vue';
 import SpoilerMedia from '../spoiler/SpoilerMedia.vue';
 import MessageStatus from './MessageStatus.vue';
 import LoaderIndicator from '../../../../common/LoaderIndicator';
-import type { MediaViewerItem } from '../MediaViewer.vue';
-import { buildVideoQualities } from '../../../../../utils/videoQualities';
 import { useDownloadStore, type DownloadFileType } from '../../../../../store/downloads';
 import { useUploadStore } from '../../../../../store/upload';
 import { useChatStore } from '../../../../../store/chat';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
-import { registerMediaItem, unregisterMediaItem, openMediaViewer, isMediaViewerActive } from '../../../../../store/mediaViewer';
+import { openMediaViewer, isMediaViewerActive } from '../../../../../store/mediaViewer';
 import { settings } from '../../../../../store/settings';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { getChatCategory } from '../../../../../utils/autoDownload';
@@ -289,6 +287,10 @@ const props = defineProps<{
     authorSignature?: string;
     chatId?: number;
     messageId?: number;
+    /** 完整 tdlib 消息对象（传递给媒体查看器） */
+    message?: message;
+    /** 话题 ID（论坛话题，传递给媒体查看器用于跳转） */
+    topicId?: number;
     /** 发送人显示名称（用于查看器底部信息展示） */
     senderName?: string;
     /** 回复目标（引用） */
@@ -484,57 +486,6 @@ watch(globalVideoMuted, (muted) => {
     }
 });
 
-// 注册媒体项到全局查看器
-watch(mediaSrc, (src) => {
-    if (src && props.messageId) {
-        const c = props.content;
-        const capt = 'caption' in c && c.caption?.text ? c.caption.text : '';
-        const captFormatted = ('caption' in c && c.caption?.text) ? c.caption : undefined;
-        // 发送人显示名称与消息时间（用于查看器底部信息展示）
-        const senderName = props.senderName || '';
-        const date = typeof props.date === 'number' ? props.date : 0;
-        const meta = { messageId: props.messageId, chatId: props.chatId };
-        const basename = (p: string | undefined) => {
-            if (!p) return '';
-            return p.split(/[\\/]/).pop() || '';
-        };
-        let item: MediaViewerItem | null = null;
-        if (c._ === 'messagePhoto') {
-            let localPath: string | undefined;
-            const sizes = c.photo.sizes;
-            if (sizes.length > 0) {
-                const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
-                if (isFileReady(largest.photo)) localPath = largest.photo.local.path;
-            }
-            item = { type: 'photo', src, thumb: thumbSrc.value, caption: capt, captionFormatted: captFormatted, senderName, date, localPath, fileName: basename(localPath), ...meta };
-        } else if (c._ === 'messageVideo') {
-            const qualities = buildVideoQualities(
-                c.alternative_videos,
-                src,
-                { width: c.video.width, height: c.video.height },
-            );
-            const localPath = isFileReady(c.video.video) ? c.video.video.local.path : undefined;
-            item = {
-                type: 'video', src, caption: capt, captionFormatted: captFormatted, senderName, date,
-                localPath,
-                fileName: c.video.file_name || basename(localPath),
-                qualities: qualities.length ? qualities : undefined, ...meta,
-            };
-        } else if (c._ === 'messageAnimation') {
-            const animLocalPath = isFileReady(c.animation.animation) ? c.animation.animation.local.path : undefined;
-            item = {
-                type: 'animation', src, caption: capt, captionFormatted: captFormatted, senderName, date,
-                localPath: animLocalPath,
-                fileName: c.animation.file_name || basename(animLocalPath), ...meta,
-            };
-        }
-        if (item) registerMediaItem(props.messageId, item);
-    }
-});
-onUnmounted(() => {
-    if (props.messageId) unregisterMediaItem(props.messageId);
-});
-
 // ---- Computed ----
 
 const captionText = computed(() => {
@@ -689,10 +640,15 @@ function openViewer() {
             wasPlayingBeforeViewer = !videoElRef.value.paused;
             videoElRef.value.pause();
             if (videoObserver) videoObserver.unobserve(videoElRef.value);
-            // 全屏播放视频时暂停音乐
             pauseAudioForVideo();
         }
-        openMediaViewer(props.messageId, 0, initialTime);
+        openMediaViewer({
+            messageId: props.messageId,
+            chatId: props.chatId,
+            topicId: props.topicId,
+            senderName: props.senderName,
+            message: props.message,
+        }, initialTime);
     }
 }
 
@@ -723,7 +679,6 @@ function resetMediaForContent() {
     stopPhotoDownloadPolling();
     stopVideoCoverPolling();
     stopAnimThumbPolling();
-    if (props.messageId) unregisterMediaItem(props.messageId);
     // 重置全部预览/媒体状态
     thumbSrc.value = undefined;
     mediaSrc.value = undefined;

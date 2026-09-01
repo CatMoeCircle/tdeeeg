@@ -76,13 +76,17 @@ async fn copy_image_to_clipboard(path: String) -> Result<(), String> {
 pub fn run() {
     tauri::Builder::default()
         // 单实例插件必须最先注册
-        .plugin(tauri_plugin_single_instance::Builder::new().callback(|app, _argv, _cwd| {
-            // 第二个实例启动时，聚焦已有窗口
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
-        }).build())
+        .plugin(
+            tauri_plugin_single_instance::Builder::new()
+                .callback(|app, _argv, _cwd| {
+                    // 第二个实例启动时，聚焦已有窗口
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                })
+                .build(),
+        )
         .plugin(tauri_plugin_updater::Builder::new().build())
         .register_asynchronous_uri_scheme_protocol("tdstream", |context, request, responder| {
             media_stream::respond(context.app_handle().clone(), request, responder);

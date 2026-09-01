@@ -13,6 +13,7 @@ import type {
 import { tdlibSend } from "../utils/tdlib";
 import { ensureUser, ensureChat } from "../utils/senderInfo";
 import { useUserStore } from "./user";
+import { fetchSharedMediaCounts, type SharedMediaCounts } from "../utils/sharedMediaCounts";
 
 /**
  * 个人资料页状态管理（Pinia setup store）。
@@ -44,6 +45,8 @@ export const useUserProfileStore = defineStore("userProfile", () => {
   const activeStories = reactive(new Map<number, story[]>());
   /** 每个用户的归档动态 */
   const archivedStories = reactive(new Map<number, story[]>());
+  /** 每个用户的共享媒体计数（照片/文件/链接/音乐/语音/GIF） */
+  const sharedMediaCounts = reactive(new Map<number, SharedMediaCounts>());
 
   /** 是否正在加载（按 userId） */
   const loading = reactive(new Map<number, boolean>());
@@ -182,6 +185,13 @@ export const useUserProfileStore = defineStore("userProfile", () => {
     }
   }
 
+  /** 获取某个聊天的共享媒体计数（照片/文件/链接/音乐/语音/GIF） */
+  async function fetchSharedMediaCountsForChat(chatId: number): Promise<SharedMediaCounts> {
+    const counts = await fetchSharedMediaCounts(chatId);
+    sharedMediaCounts.set(chatId, counts);
+    return counts;
+  }
+
   /** 拉取单个用户的全部个人资料数据 */
   async function loadProfile(userId: number): Promise<void> {
     activeUserId.value = userId;
@@ -305,6 +315,7 @@ export const useUserProfileStore = defineStore("userProfile", () => {
     stories,
     activeStories,
     archivedStories,
+    sharedMediaCounts,
     loading,
     loaded,
     error,
@@ -314,6 +325,7 @@ export const useUserProfileStore = defineStore("userProfile", () => {
     fetchUser,
     fetchFullInfo,
     fetchPhotos,
+    fetchSharedMediaCountsForChat,
     initUserProfileUpdates,
     getPhoneInfo,
   };

@@ -56,29 +56,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, reactive, watch, onMounted } from 'vue';
 import type { message } from 'tdlib-types';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { tdlibSend, isFileReady, downloadingFiles, safeDownloadFile } from '../../../../../utils/tdlib';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import MessageStatus from './MessageStatus.vue';
 import MessageTextContent from './MessageTextContent.vue';
-import type { MediaViewerItem } from '../MediaViewer.vue';
 import { layoutMediaGroup, type MediaGroupSize } from '../../../../../utils/mediaGroupLayout';
-import { registerMediaItem, unregisterMediaItem, openMediaViewer } from '../../../../../store/mediaViewer';
-import { getSenderName } from '../../../../../utils/senderInfo';
-import { buildVideoQualities } from '../../../../../utils/videoQualities';
+import { openMediaViewer } from '../../../../../store/mediaViewer';
+import { useDownloadStore } from '../../../../../store/downloads';
 import { settings } from '../../../../../store/settings';
 import { getChatCategory } from '../../../../../utils/autoDownload';
 import { isThumbnailImgRenderable } from '../../../../../utils/thumbnail';
 import { useChatStore } from '../../../../../store/chat';
-import { useDownloadStore } from '../../../../../store/downloads';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 
 const props = defineProps<{
     messages: message[];
     isSelf: boolean;
     chatId?: number;
+    /** 话题 ID（论坛话题，传递给媒体查看器） */
+    topicId?: number;
     authorSignature?: string;
     isRead?: boolean;
 }>();
@@ -147,84 +146,15 @@ function setAlbumPreview() {
     }
 }
 
-// 将相册中每条消息的媒体项注册到全局查看器
-watch([() => props.messages, mediaCache], () => {
-    for (const msg of props.messages) {
-        const c = msg.content;
-        const capt = 'caption' in c && c.caption?.text ? c.caption.text : '';
-        const captFormatted = ('caption' in c && c.caption?.text) ? c.caption : undefined;
-        // 发送人显示名称与消息时间（用于查看器底部信息展示）
-        const senderName = getSenderName(msg.sender_id);
-        const date = typeof msg.date === 'number' ? msg.date : 0;
-        const meta = { messageId: msg.id, chatId: props.chatId };
-        const basename = (p: string | undefined) => {
-            if (!p) return '';
-            return p.split(/[\\/]/).pop() || '';
-        };
-        let item: MediaViewerItem | null = null;
-        if (c._ === 'messagePhoto') {
-            const sizes = c.photo.sizes;
-            if (sizes.length > 0) {
-                const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
-                const src = mediaCache[msg.id] || (isFileReady(largest.photo) ? convertFileSrc(largest.photo.local.path) : '');
-                const thumb = thumbCache[msg.id] || (c.photo.minithumbnail?.data ? `data:image/jpeg;base64,${c.photo.minithumbnail.data}` : '');
-                const localPath = isFileReady(largest.photo) ? largest.photo.local.path : undefined;
-                const canDl = largest.photo?.local?.can_be_downloaded;
-                // src 未就绪但可下载时也注册占位项，查看器内显示缩略图预览与进度
-                if (src || canDl) {
-                    item = { type: 'photo', src, thumb: thumb || undefined, caption: capt, captionFormatted: captFormatted, senderName, date, localPath, fileName: basename(localPath), ...meta };
-                }
-            }
-        } else if (c._ === 'messageVideo') {
-            const file = c.video.video;
-            let src = mediaCache[msg.id] || (isFileReady(file) ? convertFileSrc(file.local.path) : '');
-            const thumb = thumbCache[msg.id] || (c.video.minithumbnail?.data ? `data:image/jpeg;base64,${c.video.minithumbnail.data}` : '');
-            // 未下载：仅当满足自动下载设置（视频分类开关 + 不超过文件大小上限）时才用流式边下边播，
-            // 否则不自动下载，注册占位项供查看器显示缩略图 + 手动下载按钮。
-            if (!src && !canAutoDownloadVideo(c)) {
-                item = {
-                    type: 'video', src: '', thumb: thumb || undefined, caption: capt,
-                    captionFormatted: captFormatted, senderName, date,
-                    fileName: c.video.file_name || '',
-                    canDownload: !!file?.local?.can_be_downloaded,
-                    fileId: file?.id, ...meta,
-                };
-            } else if (src) {
-                const qualities = buildVideoQualities(
-                    c.alternative_videos,
-                    src,
-                    { width: c.video.width, height: c.video.height },
-                );
-                const localPath = isFileReady(file) ? file.local.path : undefined;
-                item = {
-                    type: 'video', src, caption: capt, captionFormatted: captFormatted, senderName, date,
-                    localPath,
-                    fileName: c.video.file_name || basename(localPath),
-                    qualities: qualities.length ? qualities : undefined, ...meta,
-                };
-            }
-        } else if (c._ === 'messageAnimation') {
-            const file = c.animation.animation;
-            const src = mediaCache[msg.id] || (isFileReady(file) ? convertFileSrc(file.local.path) : '');
-            if (src) {
-                const localPath = isFileReady(file) ? file.local.path : undefined;
-                item = { type: 'animation', src, caption: capt, captionFormatted: captFormatted, senderName, date, localPath, fileName: c.animation.file_name || basename(localPath), ...meta };
-            }
-        }
-        if (item) registerMediaItem(msg.id, item);
-    }
-}, { immediate: true, deep: true });
-
-onUnmounted(() => {
-    for (const msg of props.messages) {
-        unregisterMediaItem(msg.id);
-    }
-});
-
 function openViewer(idx: number) {
     const msg = props.messages[idx];
     if (msg) {
-        openMediaViewer(msg.id, 0, 0);
+        openMediaViewer({
+            messageId: msg.id,
+            chatId: props.chatId,
+            topicId: props.topicId,
+            message: msg,
+        }, 0);
     }
 }
 
@@ -425,19 +355,6 @@ async function loadPhoto(msg: message): Promise<boolean> {
  * 仅当自动下载总开关开启、该对话类型对应的视频开关开启，且视频体积不超过 maxSize 时，
  * 才允许自动流式加载；否则一律不自动下载，交由用户手动点击下载按钮。
  */
-function canAutoDownloadVideo(c: Extract<message['content'], { _: 'messageVideo' }>): boolean {
-    if (!settings.autoDownload.enabled) return false;
-    if (!props.chatId) return false;
-    const cs = useChatStore();
-    const chatData = cs.chats[props.chatId] as any;
-    if (!chatData) return false;
-    const category = getChatCategory(chatData);
-    const cfg = settings.autoDownload.videos;
-    if (!cfg.enabled || !cfg[category]) return false;
-    const sizeMB = (c.video.video.size || 0) / (1024 * 1024);
-    return sizeMB <= cfg.maxSize;
-}
-
 async function loadVideo(msg: message): Promise<boolean> {
     if (msg.content._ !== 'messageVideo') return false;
     const downloadStore = useDownloadStore();
