@@ -414,17 +414,10 @@ onMounted(() => {
                     restoringFromViewer = false;
                     return;
                 }
-                // 新视频进入视口：暂停之前的视频，注册当前视频
-                registerPlaying(props.messageId, (prevId) => {
-                    // 通过 DOM 查找之前视频的 video 元素并暂停
-                    const prevEl = document.querySelector(
-                        `[data-video-msg-id="${prevId}"]`
-                    ) as HTMLVideoElement | null;
-                    prevEl?.pause();
-                });
-                vid.play().catch(() => { });
+                // 进入视口：登记可见并交由全局调度（暂停旧视频、播放目标视频）
+                registerPlaying(props.messageId);
             } else if (!entry.isIntersecting && props.messageId) {
-                vid.pause();
+                // 离开视口：注销可见并触发全局调度（可能恢复上一个仍在视口内的视频）
                 unregisterPlaying(props.messageId);
             }
         }

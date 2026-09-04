@@ -7,12 +7,12 @@
 
     <MessageGiftContent v-else-if="content._ === 'messageGift'" :content="content" :date="date" />
 
-    <MessageServiceContent v-else-if="isServiceType" :content="content" :senderName="senderName"
-        :senderUserId="senderUserId" :messageList="messageList" @jump="onServiceJump" />
+    <MessageServiceContent v-else-if="isServiceContent(content)" :content="content" :senderName="senderName"
+        :messageList="messageList" @jump="onServiceJump" />
 
     <template v-else>
         <!-- Reply preview（媒体消息的回复预览由 MessageMediaContent 在媒体宽度容器内渲染，避免撑宽 w-fit 气泡） -->
-        <MessageReply v-if="replyTo && !isStickerLikeContent && !isMediaType" :replyTo="replyTo"
+        <MessageReply v-if="replyTo && !isStickerLikeContent && !isMediaContent(content)" :replyTo="replyTo"
             :isSelf="isSelf ?? false" :chatId="chatId" :messageList="messageList" :accentColorId="accentColorId"
             @jump="onJumpToMessage" />
 
@@ -32,8 +32,8 @@
             :message-id="messageId" :is-self="isSelf ?? false" />
 
         <!-- Media messages -->
-        <MessageMediaContent v-else-if="isMediaType" :content="content as any" :isSelf="isSelf ?? false" :date="date"
-            :forwardInfo="forwardInfo" :forwardName="forwardName" :forwardNavigable="forwardNavigable"
+        <MessageMediaContent v-else-if="isMediaContent(content)" :content="content" :isSelf="isSelf ?? false"
+            :date="date" :forwardInfo="forwardInfo" :forwardName="forwardName" :forwardNavigable="forwardNavigable"
             :forwardPhoto="forwardPhoto" :forwardAccentId="forwardAccentId" :forwardOriginalName="forwardOriginalName"
             :forwardTextColor="forwardTextColor" :isFirstInGroup="isFirstInGroup" :isLastInGroup="isLastInGroup"
             :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature"
@@ -231,8 +231,17 @@ function onOpenForwardSource() {
     emit('openForwardSource');
 }
 
-const isServiceType = computed(() => SERVICE_TYPES.has(props.content._));
-const isMediaType = computed(() => MEDIA_TYPES.has(props.content._));
+/** 媒体消息类型收窄（v-if 类型守卫） */
+type MediaContent = Extract<MessageContent, { _: 'messagePhoto' | 'messageVideo' | 'messageAnimation' }>;
+function isMediaContent(content: MessageContent): content is MediaContent {
+    return MEDIA_TYPES.has(content._);
+}
+
+/** 服务消息类型守卫 */
+function isServiceContent(content: MessageContent): boolean {
+    return SERVICE_TYPES.has(content._);
+}
+
 /** 贴纸 / 动画表情：无气泡渲染，回复显示在贴纸旁边（小宽度） */
 const isStickerLikeContent = computed(
     () => props.content._ === 'messageSticker' || props.content._ === 'messageAnimatedEmoji',
