@@ -1574,8 +1574,21 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
     currentCacheEntry = freshEntry;
 
     try {
-        // 1. 获取 chat 基础信息
-        const chatData = await tdlibSend({ _: 'getChat', chat_id: currentId }) as chat;
+        // 读取上次浏览位置（决定首屏加载锚点）
+        const cachedPos = lastBrowsePositionCache.get(lastBrowseCacheKey(currentId, topicId.value)) || 0;
+
+        // 并行发起：chat 基础信息 + 话题信息 +（可提前确定的）首屏消息
+        const chatPromise = tdlibSend({ _: 'getChat', chat_id: currentId }) as Promise<chat>;
+        const topicPromise: Promise<forumTopic | undefined> = topicId.value
+            ? tdlibSend({ _: 'getForumTopic', chat_id: currentId, forum_topic_id: topicId.value }) as Promise<forumTopic>
+            : Promise.resolve(undefined);
+
+        // 有上次浏览位置时，围绕该位置先拉一个小窗口（前 5 后 5），无需等待 getChat
+        const earlyMessages: Promise<message[]> | null = cachedPos > 0 && !requestedMessageId
+            ? fetchMessages(currentId, cachedPos, 10, -5, gen)
+            : null;
+
+        const chatData = await chatPromise;
         if (!isGenerationValid(gen)) return;
         chat.value = chatData;
 
@@ -1583,11 +1596,7 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
         if (topicId.value) {
             topic.value = undefined;
             try {
-                const t = await tdlibSend({
-                    _: 'getForumTopic',
-                    chat_id: currentId,
-                    forum_topic_id: topicId.value,
-                }) as forumTopic;
+                const t = await topicPromise;
                 if (!isGenerationValid(gen)) return;
                 topic.value = t;
             } catch (e) {
@@ -1597,14 +1606,7 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
             topic.value = undefined;
         }
 
-        // 获取 supergroup / basicGroup 补充信息
-        await Promise.all([
-            fetchGroupInfo(chatData, gen),
-            syncNotificationMuteState(chatData, currentId)
-        ]);
-        if (!isGenerationValid(gen)) return;
-
-        // 2. 有未读消息时，以最后一条已读收件箱消息作为历史定位锚点
+        // 有未读消息时，以最后一条已读收件箱消息作为历史定位锚点
         const lastReadId = chatData.unread_count > 0
             ? chatData.last_read_inbox_message_id
             : 0;
@@ -1619,79 +1621,73 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
                 chatLoadRetryCount = 0;
                 saveCurrentChatToCache();
                 scheduleVisibleMessagesRead();
-                // 恢复该聊天的输入框草稿
                 restoreDraft(currentId, topicId.value);
-                // 通知 TDLib 该聊天已打开（接收推送更新）
                 void tdlibSend({ _: 'openChat', chat_id: currentId });
-                // 下载管理器跳转：按 query.open 自动在播放器中打开媒体（图片/音乐）
                 void autoOpenMediaFromQuery(gen);
                 return;
             }
         }
 
-        // 3. 普通进入：围绕读点加载历史
-        const historyAnchorId = lastReadId;
-        let allMsgs = await fetchMessages(
+        // 首屏消息（10 条）与群组/通知信息并行加载：
+        //   - 有上次位置 → 复用提前发起的 earlyMessages
+        //   - 否则有未读 → 围绕最后已读位置拉未读分隔线附近窗口
+        //   - 否则 → 从最新消息向历史拉
+        const firstBatchPromise = earlyMessages ?? fetchMessages(
             currentId,
-            historyAnchorId,
-            historyAnchorId > 0 ? 60 : 30,
-            historyAnchorId > 0 ? -30 : 0,
+            lastReadId,
+            10,
+            lastReadId > 0 ? -5 : 0,
             gen
         );
+        const [firstBatch] = await Promise.all([
+            firstBatchPromise,
+            fetchGroupInfo(chatData, gen),
+            syncNotificationMuteState(chatData, currentId),
+        ]);
         if (!isGenerationValid(gen)) return;
-        if (allMsgs.length === 0 && chatData.last_message) {
+        if (firstBatch.length === 0 && chatData.last_message) {
             throw new Error(`Chat ${currentId} returned empty history despite having a last message`);
         }
-
-        // 如果消息太少，多加载几页填充以确保可滚动
-        if (allMsgs.length > 0 && allMsgs.length < 80) {
-            for (let i = 0; i < 3; i++) {
-                if (!isGenerationValid(gen)) return;
-                const oldest = allMsgs[0];
-                const more = await fetchMessages(currentId, oldest.id, 50, 0, gen);
-                if (more.length === 0) break;
-                const existingIds = new Set(allMsgs.map(m => m.id));
-                const unique = more.filter(m => !existingIds.has(m.id));
-                if (unique.length === 0) break;
-                allMsgs = [...unique, ...allMsgs];
-            }
+        // earlyMessages 发起时 chat 尚未就绪，群成员状态可能被跳过，这里补拉一次
+        if (earlyMessages) {
+            void fetchMemberStatuses(firstBatch);
         }
 
         const firstUnreadMessage = chatData.unread_count > 0
-            ? allMsgs.find(message => !message.is_outgoing && (lastReadId === 0 || message.id > lastReadId))
+            ? firstBatch.find(message => !message.is_outgoing && (lastReadId === 0 || message.id > lastReadId))
             : undefined;
         const unreadAlbumId = firstUnreadMessage?.media_album_id;
         unreadBoundaryMessageId.value = unreadAlbumId && unreadAlbumId !== '0'
-            ? allMsgs.find(message => message.media_album_id === unreadAlbumId)?.id || firstUnreadMessage.id
+            ? firstBatch.find(message => message.media_album_id === unreadAlbumId)?.id || firstUnreadMessage.id
             : firstUnreadMessage?.id || null;
 
-        applyMessages(allMsgs);
+        // 渲染首屏，骨架屏随即消失
+        applyMessages(firstBatch);
         await nextTick();
 
-        // 4. 定位滚动位置：
-        //    - 有未读消息 → 定位到新消息分界线（用户需先看到新内容）
-        //    - 否则若有"上次浏览位置"缓存 → 恢复到上次浏览的位置（不每次跳到底部）
-        //    - 否则 → 滚到底部
-        const cachedPos = lastBrowsePositionCache.get(lastBrowseCacheKey(currentId, topicId.value)) || 0;
-        const scrollTargetId =
-            (unreadBoundaryMessageId.value || 0) ||
-            (chatData.unread_count === 0 ? cachedPos : 0) ||
-            lastReadId;
-        if (scrollTargetId > 0) {
-            await scrollToTargetOrBottom(scrollTargetId, currentId, gen);
+        // 定位：上次浏览位置优先 → 未读分隔线 → 底部
+        const unreadBoundary = unreadBoundaryMessageId.value;
+        if (cachedPos > 0 && firstBatch.some(m => m.id === cachedPos)) {
+            scrollToMessage(cachedPos);
+        } else if (unreadBoundary != null && unreadBoundary > 0) {
+            scrollToMessage(unreadBoundary);
         } else {
-            await scrollToBottomAsync();
+            scrollToBottom();
         }
 
-        // 5. 标记完成
         isReady.value = true;
         chatLoadRetryCount = 0;
-        // 恢复该聊天的输入框草稿
         restoreDraft(currentId, topicId.value);
-        // 通知 TDLib 该聊天已打开（接收推送更新）
         void tdlibSend({ _: 'openChat', chat_id: currentId });
 
-        // 6. 确保加载后消息容器可滚动（至少撑满视口）
+        // 定位后向更旧方向补齐历史，直到足够滚动（渐进，不阻塞首屏）
+        for (let i = 0; i < 4 && messages.value.length < 80 && !isHistoryExhausted.value; i++) {
+            if (!isGenerationValid(gen)) return;
+            const ok = await loadHistoryOlder(currentId, gen);
+            if (!ok) break;
+        }
+
+        // 补齐后仍未撑满视口，继续向更旧方向拉
         await nextTick();
         const container = messagesContainer.value;
         if (container && container.scrollHeight <= container.clientHeight + 2) {
@@ -1704,7 +1700,6 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
             }
         }
 
-        // 首次加载完成：把 chat/话题/边界等状态一并写回缓存
         saveCurrentChatToCache();
         scheduleVisibleMessagesRead();
     } catch (e) {
