@@ -460,12 +460,12 @@ import TranslateMessageModal from '../../contextMenu/TranslateMessageModal.vue';
 import PinMessageConfirm from '../../contextMenu/PinMessageConfirm.vue';
 import PinnedMessageBar from './PinnedMessageBar.vue';
 
-import { tdlibSend } from '../../../utils/tdlib';
+import { tdlibSend, isFileReady } from '../../../utils/tdlib';
 import { sendAttachments, sending } from '../../../utils/attachmentSend';
 import { useAttachmentStore } from '../../../store/attachment';
 import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
 
-import { MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, CornerUpLeftIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, Quote as QuoteIcon, Languages as LanguagesIcon, User as UserIcon, Pencil as PencilIcon } from 'lucide-vue-next';
+import { MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, CornerUpLeftIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, Quote as QuoteIcon, Languages as LanguagesIcon, User as UserIcon, Pencil as PencilIcon, FolderOpenIcon, DownloadIcon } from 'lucide-vue-next';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { useRoute, useRouter } from 'vue-router';
 import { computed, watch, ref, onMounted, onUnmounted, nextTick } from 'vue';
@@ -473,6 +473,9 @@ import { useUserStore } from '../../../store/user';
 import { useAudioPlayerStore } from '../../../store/audioPlayer';
 import { storeToRefs } from 'pinia';
 import { listen } from "@tauri-apps/api/event";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { copyFile } from "@tauri-apps/plugin-fs";
+import { save } from "@tauri-apps/plugin-dialog";
 import { settings } from '../../../store/settings';
 import { showCopyJsonInMenus } from '../../../store/debug';
 import { useCommandInsert, clearPendingCommand } from '../../../store/commandInsert';
@@ -497,7 +500,7 @@ import {
 import { openContextMenu } from '../../../store/contextMenu';
 import { DEFAULT_TRANSLATE_TARGET } from '../../../utils/translateLanguages';
 
-import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity$Input } from 'tdlib-types';
+import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity$Input, file as TdFile } from 'tdlib-types';
 import { getViewerState, closeMediaViewer, isMediaViewerActive, openMediaViewer } from '../../../store/mediaViewer';
 
 import { getSenderAccentColorId, getSenderProfileAccentColorId, getChatProfileAccentColorId, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
@@ -2704,6 +2707,64 @@ function openTranslateFor(msg: message) {
     }
 }
 
+// ==================== 媒体文件「打开目录 / 另存为」 ====================
+
+/** 从文档/图片/视频/音乐消息中提取实际承载内容的 file 对象（无则返回 undefined） */
+function getMessageFile(msg: message): TdFile | undefined {
+    const c = msg.content;
+    if (c._ === 'messagePhoto') {
+        const sizes = c.photo.sizes;
+        if (sizes.length === 0) return undefined;
+        const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
+        return largest.photo;
+    }
+    if (c._ === 'messageVideo') return c.video.video;
+    if (c._ === 'messageDocument') return c.document.document;
+    if (c._ === 'messageAudio') return c.audio.audio;
+    return undefined;
+}
+
+/** 提取媒体文件建议名称：优先发送方提供的 file_name，图片等无名称时回退本地路径末段 */
+function getMessageFileName(msg: message, file: TdFile): string {
+    const c = msg.content;
+    let name = '';
+    if (c._ === 'messageVideo') name = c.video.file_name;
+    else if (c._ === 'messageDocument') name = c.document.file_name;
+    else if (c._ === 'messageAudio') name = c.audio.file_name;
+    if (name) return name;
+    const p = file.local.path;
+    return p ? p.split(/[\\/]/).pop() || 'media' : 'media';
+}
+
+/** 打开目录：在系统文件管理器中定位到该媒体本地文件 */
+async function handleRevealInDir(path: string) {
+    if (!path) return;
+    try {
+        await revealItemInDir([path]);
+    } catch (e) {
+        console.error('revealItemInDir failed:', e);
+        MessagePlugin.error('打开目录失败');
+    }
+}
+
+/** 另存为：弹出保存对话框并把源文件复制到目标位置 */
+async function handleMessageSaveAs(file: TdFile, fileName: string) {
+    const src = file.local.path;
+    if (!src) return;
+    try {
+        const dest = await save({
+            title: '另存为',
+            defaultPath: fileName,
+        });
+        if (!dest) return;
+        await copyFile(src, dest);
+        MessagePlugin.success('已另存为');
+    } catch (e) {
+        console.error('saveAs failed:', e);
+        MessagePlugin.error('另存为失败');
+    }
+}
+
 /** 构建消息右键菜单项（开发环境附带“复制消息原始 JSON”）。
  * 权限已在打开前通过 getMessageProperties 获取完毕，此处仅作纯同步渲染。
  */
@@ -2761,6 +2822,24 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
         disabled: !canCopyMessage(msg, cid),
         onClick: () => copyMessageText(msg),
     });
+
+    // —— 媒体文件：打开目录 / 另存为（仅文件完全下载完成后可用）——
+    const mediaFile = getMessageFile(msg);
+    if (mediaFile && isFileReady(mediaFile)) {
+        items.push({ key: 'divider-file', label: '', divider: true });
+        items.push({
+            key: 'reveal-in-dir',
+            label: '打开目录',
+            icon: FolderOpenIcon,
+            onClick: () => handleRevealInDir(mediaFile.local.path),
+        });
+        items.push({
+            key: 'save-as',
+            label: '另存为',
+            icon: DownloadIcon,
+            onClick: () => handleMessageSaveAs(mediaFile, getMessageFileName(msg, mediaFile)),
+        });
+    }
 
     // —— 翻译 ——
     const msgFormattedText = getMessageFormattedText(msg);

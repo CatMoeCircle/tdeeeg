@@ -1,7 +1,8 @@
 <template>
     <Teleport to="body">
         <Transition name="pmc-fade">
-            <div v-if="visible" class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            <div v-if="visible"
+                class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
                 @mousedown.self="cancel">
                 <div
                     class="w-96 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
@@ -29,8 +30,7 @@
                         <label v-if="isPrivate"
                             class="flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors"
                             :class="optPinForOther ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40'">
-                            <input v-model="optPinForOther" type="checkbox"
-                                class="w-4 h-4 accent-blue-500 shrink-0" />
+                            <input v-model="optPinForOther" type="checkbox" class="w-4 h-4 accent-blue-500 shrink-0" />
                             <div class="min-w-0 flex-1">
                                 <p class="text-sm font-medium text-gray-800 dark:text-gray-200">
                                     同时为对方置顶
@@ -45,8 +45,7 @@
                         <label v-else
                             class="flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors"
                             :class="optNotify ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40'">
-                            <input v-model="optNotify" type="checkbox"
-                                class="w-4 h-4 accent-blue-500 shrink-0" />
+                            <input v-model="optNotify" type="checkbox" class="w-4 h-4 accent-blue-500 shrink-0" />
                             <div class="min-w-0 flex-1">
                                 <p class="text-sm font-medium text-gray-800 dark:text-gray-200">
                                     通知群成员
