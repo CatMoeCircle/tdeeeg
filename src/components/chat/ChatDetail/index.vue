@@ -135,7 +135,8 @@
                             </div>
                             <div v-if="isServiceMessage(item.msg)" class="flex justify-center my-0.5">
                                 <MessageContent :content="item.msg.content" :date="item.msg.date"
-                                    :senderName="getDisplaySenderName(item.msg)" :messageList="messages"
+                                    :senderName="getDisplaySenderName(item.msg)"
+                                    :senderUserId="senderUserIdOf(item.msg)" :messageList="messages"
                                     @jumpToMessage="handleReplyJumpToMessage" />
                             </div>
                             <div v-else class="flex" :class="[
@@ -349,7 +350,8 @@
                     <PencilIcon class="w-4 h-4 shrink-0 mt-0.5 text-orange-500" />
                     <div class="min-w-0 flex-1">
                         <p class="text-xs font-semibold text-orange-500">编辑消息</p>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ editTargetInfo.text || '（无文本内容）' }}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ editTargetInfo.text || '（无文本内容）'
+                            }}</p>
                     </div>
                     <button type="button" aria-label="取消编辑"
                         class="w-6 h-6 shrink-0 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400"
@@ -359,10 +361,10 @@
                 </div>
             </Transition>
             <MessageInput class="relative z-10" v-model="messageInput" :reply-target="replyTargetInfo"
-                :edit-target="editTargetInfo" :chat="chat"
-                :users="users" :supergroups="supergroups" :basic-groups="basicGroups" :my-id="myId"
-                :member-status="currentMemberStatus" :is-premium="isMePremium" :custom-emojis="pendingCustomEmoji"
-                @clear-reply="clearReply" @clear-edit="cancelEdit" @send="handleSend" @attach="handleAttach" @attach-file="handleAttachFile"
+                :edit-target="editTargetInfo" :chat="chat" :users="users" :supergroups="supergroups"
+                :basic-groups="basicGroups" :my-id="myId" :member-status="currentMemberStatus" :is-premium="isMePremium"
+                :custom-emojis="pendingCustomEmoji" @clear-reply="clearReply" @clear-edit="cancelEdit"
+                @send="handleSend" @attach="handleAttach" @attach-file="handleAttachFile"
                 @attach-music="handleAttachMusic" @attach-poll="handleAttachPoll"
                 @attach-checklist="handleAttachChecklist" @attach-contact="handleAttachContact"
                 @sticker="openStickerPanel" />
@@ -2885,6 +2887,12 @@ function getSenderModeration(msg: message): { canDeleteAll: boolean; canBan: boo
     }
 
     return { canDeleteAll, canBan };
+}
+
+/** 消息发送者（用户类型）的 user_id；其他类型发送者（频道等）返回 undefined */
+function senderUserIdOf(msg: message): number | undefined {
+    const s = msg.sender_id;
+    return s?._ === 'messageSenderUser' ? s.user_id : undefined;
 }
 
 /**

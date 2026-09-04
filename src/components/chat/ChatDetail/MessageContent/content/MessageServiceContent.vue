@@ -7,13 +7,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import type { MessageContent, message } from 'tdlib-types';
+import { ensureUser, getUserDisplayName } from '../../../../../utils/senderInfo';
 
 const props = defineProps<{
     content: MessageContent;
     /** 服务消息发送者的显示名称（清单完成/添加等提示会用到） */
     senderName?: string;
+    /** 服务消息发送者（操作者）的用户 id，用于判断成员是否为自行退出 */
+    senderUserId?: number;
     /** 当前消息列表（用于按 checklist_message_id 查找清单消息，展示任务文本） */
     messageList?: message[];
 }>();
@@ -24,6 +27,15 @@ const emit = defineEmits<{
 
 /** 发送者名称（未解析到时兜底） */
 const sender = computed(() => props.senderName?.trim() || '有人');
+
+/** 离开的成员可能已不在群内，主动发 getUser 拉取；用户缓存就绪后文案自动更新 */
+watch(
+    () => (props.content._ === 'messageChatDeleteMember' ? props.content.user_id : 0),
+    (userId) => {
+        if (userId) ensureUser(userId);
+    },
+    { immediate: true },
+);
 
 /** 是否为“投票选项被添加/删除”的服务消息；关联的投票消息 id >0 时可点击跳转 */
 const pollMessageId = computed(() => {
@@ -53,6 +65,21 @@ function findTaskNames(checklistMessageId: number): Map<number, string> {
     return map;
 }
 
+/**
+ * 成员离开/被移出的提示文案。messageChatDeleteMember 自带 user_id，
+ * 能精确显示“是谁”离开/被移出，而非笼统的“有成员离开”。
+ */
+function memberRemovedText(userId: number): string {
+    const name = getUserDisplayName(userId);
+    if (!name) return '有成员离开了群组';
+    // 成员自行退出：此时消息发送者即该成员本人
+    if (props.senderUserId === userId) return `${name} 退出了群组`;
+    // 被其他成员/管理员移出：优先带出操作者
+    const actor = props.senderName?.trim();
+    if (actor) return `${actor} 将 ${name} 移出了群组`;
+    return `${name} 被移出了群组`;
+}
+
 const serviceText = computed(() => {
     const c = props.content;
     switch (c._) {
@@ -73,7 +100,7 @@ const serviceText = computed(() => {
         case 'messageChatJoinByRequest':
             return `${sender.value} 通过申请加入了群组`;
         case 'messageChatDeleteMember':
-            return `有成员离开了群组`;
+            return memberRemovedText(c.user_id);
         case 'messageChatUpgradeTo':
             return `群组已升级为超级群组`;
         case 'messageChatUpgradeFrom':

@@ -8,7 +8,7 @@
     <MessageGiftContent v-else-if="content._ === 'messageGift'" :content="content" :date="date" />
 
     <MessageServiceContent v-else-if="isServiceType" :content="content" :senderName="senderName"
-        :messageList="messageList" @jump="onServiceJump" />
+        :senderUserId="senderUserId" :messageList="messageList" @jump="onServiceJump" />
 
     <template v-else>
         <!-- Reply preview（媒体消息的回复预览由 MessageMediaContent 在媒体宽度容器内渲染，避免撑宽 w-fit 气泡） -->
@@ -208,6 +208,8 @@ const props = defineProps<{
     accentColorId?: number;
     /** 发送人显示名称（用于查看器底部信息展示） */
     senderName?: string;
+    /** 消息发送者（操作者）的用户 id（服务消息区分“自行退出/被移出”需要） */
+    senderUserId?: number;
     /** 是否将时间内嵌到普通文本消息末尾（float 同行，参考网页版），由 ChatDetail 决策 */
     inlineTime?: boolean;
 }>();

@@ -78,14 +78,20 @@ export async function initSenderInfo(): Promise<void> {
       }
     }
     // updateUserAccentColor / updateUserProfileAccentColor：名称/头像主题色变更
-    else if (type_ === "updateUserAccentColor" && typeof update.user_id === "number") {
+    else if (
+      type_ === "updateUserAccentColor" &&
+      typeof update.user_id === "number"
+    ) {
       const u = users.get(update.user_id);
       if (u && typeof update.accent_color_id === "number") {
         u.accent_color_id = update.accent_color_id;
       }
     }
     // updateUserProfileAccentColor：头像渐变主题色变更
-    else if (type_ === "updateUserProfileAccentColor" && typeof update.user_id === "number") {
+    else if (
+      type_ === "updateUserProfileAccentColor" &&
+      typeof update.user_id === "number"
+    ) {
       const u = users.get(update.user_id);
       if (u && typeof update.profile_accent_color_id === "number") {
         u.profile_accent_color_id = update.profile_accent_color_id;
@@ -105,7 +111,8 @@ export async function initSenderInfo(): Promise<void> {
         }
       }
     } else if (
-      (type_ === "updateChatAccentColor" || type_ === "updateChatAccentColors") &&
+      (type_ === "updateChatAccentColor" ||
+        type_ === "updateChatAccentColors") &&
       typeof update.chat_id === "number"
     ) {
       const c = chats.get(update.chat_id);
@@ -139,15 +146,27 @@ export async function initSenderInfo(): Promise<void> {
       if (typeof update.chat_id !== "number") return;
       const c = chats.get(update.chat_id);
       if (!c) return;
-      if (type_ === "updateChatLastMessage" && update.last_message !== undefined) {
+      if (
+        type_ === "updateChatLastMessage" &&
+        update.last_message !== undefined
+      ) {
         c.last_message = update.last_message ?? undefined;
       } else if (type_ === "updateChatDraftMessage") {
         c.draft_message = update.draft_message ?? undefined;
-      } else if (type_ === "updateChatReadInbox" && typeof update.unread_count === "number") {
+      } else if (
+        type_ === "updateChatReadInbox" &&
+        typeof update.unread_count === "number"
+      ) {
         c.unread_count = update.unread_count;
-      } else if (type_ === "updateChatNotificationSettings" && update.notification_settings) {
+      } else if (
+        type_ === "updateChatNotificationSettings" &&
+        update.notification_settings
+      ) {
         c.notification_settings = update.notification_settings;
-      } else if (type_ === "updateChatViewAsTopics" && typeof update.view_as_topics === "boolean") {
+      } else if (
+        type_ === "updateChatViewAsTopics" &&
+        typeof update.view_as_topics === "boolean"
+      ) {
         c.view_as_topics = update.view_as_topics;
       }
     }
@@ -189,7 +208,9 @@ export async function ensureChat(chatId: number): Promise<void> {
 }
 
 /** 确保消息发送者信息已加载 */
-export async function ensureSenderLoaded(senderId?: MessageSender): Promise<void> {
+export async function ensureSenderLoaded(
+  senderId?: MessageSender,
+): Promise<void> {
   if (!senderId) return;
   if (senderId._ === "messageSenderUser") {
     await ensureUser(senderId.user_id);
@@ -224,6 +245,14 @@ export async function ensureViaBotLoaded(viaBotUserId?: number): Promise<void> {
 /** 已注销账户的显示名称 */
 export const DELETED_ACCOUNT_LABEL = "已注销账户";
 
+/** 按用户 id 取显示名（用于非消息发送者的 user_id，如“被移出群组的成员”）；未缓存返回空串 */
+export function getUserDisplayName(userId: number): string {
+  const u = users.get(userId);
+  if (!u) return "";
+  if (u.type?._ === "userTypeDeleted") return DELETED_ACCOUNT_LABEL;
+  return `${u.first_name} ${u.last_name}`.trim();
+}
+
 /** 发送者显示名称 */
 export function getSenderName(senderId?: MessageSender): string {
   if (!senderId) return "";
@@ -248,7 +277,7 @@ export function getChatTitle(chat?: Chat): string {
 
 /** 发送者迷你头像 */
 export function getSenderPhoto(
-  senderId?: MessageSender
+  senderId?: MessageSender,
 ): chatPhotoInfo | profilePhoto | undefined {
   if (!senderId) return undefined;
   if (senderId._ === "messageSenderUser") {
@@ -277,7 +306,9 @@ export function isDeletedChat(chat: Chat | undefined): boolean {
 }
 
 /** 发送者的名称主题色 id（user.accent_color_id / chat.accent_color_id） */
-export function getSenderAccentColorId(senderId?: MessageSender): number | undefined {
+export function getSenderAccentColorId(
+  senderId?: MessageSender,
+): number | undefined {
   if (!senderId) return undefined;
   if (senderId._ === "messageSenderUser") {
     return users.get(senderId.user_id)?.accent_color_id;
@@ -288,7 +319,9 @@ export function getSenderAccentColorId(senderId?: MessageSender): number | undef
 }
 
 /** 发送者的头像渐变主题色 id（user.profile_accent_color_id / chat.profile_accent_color_id；-1 视为无） */
-export function getSenderProfileAccentColorId(senderId?: MessageSender): number | undefined {
+export function getSenderProfileAccentColorId(
+  senderId?: MessageSender,
+): number | undefined {
   if (!senderId) return undefined;
   let id: number | undefined;
   if (senderId._ === "messageSenderUser") {
@@ -304,7 +337,9 @@ export function getSenderProfileAccentColorId(senderId?: MessageSender): number 
  * - 私聊/密聊：取对应用户的 profile_accent_color_id
  * - 群组/频道/机器人：取 chat 的 profile_accent_color_id
  */
-export function getChatProfileAccentColorId(chat: Chat | undefined): number | undefined {
+export function getChatProfileAccentColorId(
+  chat: Chat | undefined,
+): number | undefined {
   if (!chat) return undefined;
   let id: number | undefined;
   const t = chat.type?._;
@@ -322,7 +357,9 @@ export function getChatProfileAccentColorId(chat: Chat | undefined): number | un
  * - 私聊/密聊：取对应 user 的 accent_color_id（chat 本身不带用户 accent）
  * - 群组/频道/机器人：取 chat.accent_color_id（超级群/频道自定义色）
  */
-export function getChatAccentColorId(chat: Chat | undefined): number | undefined {
+export function getChatAccentColorId(
+  chat: Chat | undefined,
+): number | undefined {
   if (!chat) return undefined;
   const t = chat.type?._;
   if (t === "chatTypePrivate" || t === "chatTypeSecret") {
@@ -334,7 +371,9 @@ export function getChatAccentColorId(chat: Chat | undefined): number | undefined
 }
 
 /** 异步确保对话的 accent 色可用（私聊需拉取用户） */
-export async function ensureChatAccentLoaded(chat: Chat | undefined): Promise<void> {
+export async function ensureChatAccentLoaded(
+  chat: Chat | undefined,
+): Promise<void> {
   if (!chat) return;
   const uid = getChatUserId(chat.type);
   if (uid) await ensureUser(uid);
