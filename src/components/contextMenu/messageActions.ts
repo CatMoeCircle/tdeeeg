@@ -276,26 +276,50 @@ export async function editTextMessage(
     }
 }
 
-/** 开关消息置顶 */
-export async function toggleMessagePinned(chatId: number, msg: message) {
+/**
+ * 置顶消息。
+ * - disableNotification：静默置顶（不通知成员），仅群组有效；
+ * - onlyForSelf：仅为自己置顶，仅私聊有效。
+ */
+export async function pinMessage(
+    chatId: number,
+    msg: message,
+    opts?: { disableNotification?: boolean; onlyForSelf?: boolean },
+) {
     try {
-        if (msg.is_pinned) {
-            await tdlibSend({
-                _: 'unpinChatMessage',
-                chat_id: chatId,
-                message_id: msg.id,
-            });
-        } else {
-            await tdlibSend({
-                _: 'pinChatMessage',
-                chat_id: chatId,
-                message_id: msg.id,
-                disable_notification: false,
-            });
-        }
-        MessagePlugin.success(msg.is_pinned ? '已取消置顶' : '已置顶');
+        await tdlibSend({
+            _: 'pinChatMessage',
+            chat_id: chatId,
+            message_id: msg.id,
+            disable_notification: opts?.disableNotification ?? false,
+            only_for_self: opts?.onlyForSelf ?? false,
+        } as any);
+        MessagePlugin.success('已置顶');
     } catch (e: any) {
         MessagePlugin.error(e?.message || '操作失败');
+    }
+}
+
+/** 取消置顶 */
+export async function unpinMessage(chatId: number, msg: message) {
+    try {
+        await tdlibSend({
+            _: 'unpinChatMessage',
+            chat_id: chatId,
+            message_id: msg.id,
+        });
+        MessagePlugin.success('已取消置顶');
+    } catch (e: any) {
+        MessagePlugin.error(e?.message || '操作失败');
+    }
+}
+
+/** 开关消息置顶 */
+export async function toggleMessagePinned(chatId: number, msg: message) {
+    if (msg.is_pinned) {
+        await unpinMessage(chatId, msg);
+    } else {
+        await pinMessage(chatId, msg);
     }
 }
 

@@ -437,6 +437,8 @@
         <DeleteMessageConfirm />
         <!-- ===== 翻译消息弹窗 ===== -->
         <TranslateMessageModal />
+        <!-- ===== 置顶消息确认弹窗 ===== -->
+        <PinMessageConfirm />
     </div>
 </template>
 <script setup lang="ts">
@@ -455,6 +457,7 @@ import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
 import MediaViewer from './MessageContent/MediaViewer.vue';
 import DeleteMessageConfirm from '../../contextMenu/DeleteMessageConfirm.vue';
 import TranslateMessageModal from '../../contextMenu/TranslateMessageModal.vue';
+import PinMessageConfirm from '../../contextMenu/PinMessageConfirm.vue';
 import PinnedMessageBar from './PinnedMessageBar.vue';
 
 import { tdlibSend } from '../../../utils/tdlib';
@@ -478,13 +481,14 @@ import type { ContextMenuItem } from '../../contextMenu/types';
 import { getMessagePlainText, getMessageFormattedText } from '../../../utils/messageText';
 import {
     copyMessageText, copyMessageJson, copyMessageLink,
-    toggleMessagePinned, getMessageProperties,
+    toggleMessagePinned, pinMessage, getMessageProperties,
     executeDeleteActions,
     canCopyMessage, canGetMessageLink, canPinMessage, canDeleteMessage,
     canReplyMessage, canEditMessage, editTextMessage,
 } from '../../contextMenu/messageActions';
 import { confirmDeleteMessage } from '../../../store/deleteMessage';
 import type { DeleteMessageRequest } from '../../../store/deleteMessage';
+import { confirmPinMessage } from '../../../store/pinMessage';
 import {
     showTranslateDialog,
     translateInlineMessage,
@@ -2795,14 +2799,25 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
         items.push({ key: 'divider-1', label: '', divider: true });
 
         if (canPin) {
-            items.push({
-                key: 'pin',
-                label: msg.is_pinned ? '取消置顶' : '置顶',
-                icon: PinIcon,
-                onClick: async () => {
-                    await toggleMessagePinned(cid!, msg);
-                },
-            });
+            if (msg.is_pinned) {
+                items.push({
+                    key: 'pin',
+                    label: '取消置顶',
+                    icon: PinIcon,
+                    onClick: async () => {
+                        await toggleMessagePinned(cid!, msg);
+                    },
+                });
+            } else {
+                items.push({
+                    key: 'pin',
+                    label: '置顶',
+                    icon: PinIcon,
+                    onClick: async () => {
+                        await openPinConfirm(msg);
+                    },
+                });
+            }
         }
 
         if (canDelete) {
@@ -2834,6 +2849,43 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
     }
 
     return items;
+}
+
+/**
+ * 打开「置顶」确认弹窗。
+ * - 频道：无可选，直接置顶；
+ * - 私聊：弹窗询问是否为对方置顶（对应 pinChatMessage.only_for_self）；
+ * - 群组：弹窗询问是否通知群成员（对应 pinChatMessage.disable_notification）。
+ */
+async function openPinConfirm(msg: message) {
+    const cid = chatId.value;
+    if (cid === undefined) return;
+
+    const t = chat.value?.type;
+    const isChannel = t?._ === 'chatTypeSupergroup' && t.is_channel;
+    const isPrivate = t?._ === 'chatTypePrivate' || t?._ === 'chatTypeSecret';
+    const isGroup =
+        t?._ === 'chatTypeBasicGroup' ||
+        (t?._ === 'chatTypeSupergroup' && !t.is_channel);
+
+    // 频道（或无法识别类型）：无可选，直接置顶
+    if (isChannel || (!isPrivate && !isGroup)) {
+        await pinMessage(cid, msg);
+        return;
+    }
+
+    const scope: 'private' | 'group' = isPrivate ? 'private' : 'group';
+
+    try {
+        const result = await confirmPinMessage({ chatId: cid, msg, scope });
+        if (scope === 'private') {
+            await pinMessage(cid, msg, { onlyForSelf: !result.pinForOther });
+        } else {
+            await pinMessage(cid, msg, { disableNotification: !result.notifyMembers });
+        }
+    } catch {
+        // 用户取消，忽略
+    }
 }
 
 // ==================== 删除确认弹窗 ====================
