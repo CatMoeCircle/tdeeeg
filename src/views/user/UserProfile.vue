@@ -496,8 +496,8 @@
         <!-- ===== 第四部分：底部功能导航栏（动态 / 归档动态 / 礼物 / 共同群组） ===== -->
         <div v-if="hasBottomContent" class="px-4 mt-5">
           <div
-            class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] overflow-x-auto scrollbar-none"
-            v-smooth-wheel="'horizontal'" @wheel.prevent>
+            class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] overflow-x-auto overflow-y-hidden scrollbar-none"
+            v-smooth-wheel="'horizontal'" @wheel.stop.prevent>
             <div class="flex items-center gap-1.5 p-1 w-max">
               <button v-for="tab in profileTabs" :key="tab.key" type="button"
                 class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1.5"
@@ -612,7 +612,7 @@
           <div v-else-if="activeTab === 'media'" class="py-4">
             <div v-if="sharedMediaLoading" class="text-center text-sm text-gray-400 py-6">正在加载媒体…</div>
             <div v-else-if="sharedMediaItems.length === 0" class="text-center text-sm text-gray-400 py-6">暂无媒体</div>
-            <div v-else class="grid grid-cols-3 gap-1">
+            <div v-else class="grid grid-cols-5 gap-1">
               <div v-for="item in sharedMediaItems" :key="item.messageId"
                 class="aspect-square overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800 relative cursor-pointer"
                 @click="openSharedMediaViewer(sharedMediaItems.indexOf(item))"
@@ -700,10 +700,10 @@
             <div v-else class="space-y-1">
               <div v-for="(item, idx) in sharedMediaItems" :key="item.messageId"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-                @click="playSharedMusic(idx)"
-                @contextmenu="showSharedMediaContextMenu($event, item)">
+                @click="playSharedMusic(idx)" @contextmenu="showSharedMediaContextMenu($event, item)">
                 <!-- 专辑封面（优先缩略图，无则图标） -->
-                <div class="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0 overflow-hidden">
+                <div
+                  class="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0 overflow-hidden">
                   <img v-if="item.miniSrc" :src="item.miniSrc" class="w-full h-full object-cover" />
                   <Music v-else class="w-5 h-5 text-gray-400" />
                 </div>
@@ -712,7 +712,9 @@
                     {{ item.audioTitle || item.fileName || '未知音乐' }}
                   </p>
                   <p class="text-xs text-gray-400 mt-0.5 truncate">
-                    {{ item.performer || '' }}<template v-if="item.performer && item.audioDuration"> · </template><template v-if="item.audioDuration">{{ formatAudioDuration(item.audioDuration) }}</template>
+                    {{ item.performer || '' }}<template v-if="item.performer && item.audioDuration"> ·
+                    </template><template v-if="item.audioDuration">{{ formatAudioDuration(item.audioDuration)
+                      }}</template>
                   </p>
                 </div>
               </div>
@@ -754,7 +756,7 @@
           <div v-else-if="activeTab === 'gifs'" class="py-4">
             <div v-if="sharedMediaLoading" class="text-center text-sm text-gray-400 py-6">正在加载 GIF…</div>
             <div v-else-if="sharedMediaItems.length === 0" class="text-center text-sm text-gray-400 py-6">暂无 GIF</div>
-            <div v-else class="grid grid-cols-3 gap-1">
+            <div v-else class="grid grid-cols-5 gap-1">
               <div v-for="item in sharedMediaItems" :key="item.messageId"
                 class="aspect-square overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800 relative cursor-pointer"
                 @click="openSharedMediaViewer(sharedMediaItems.indexOf(item))"
