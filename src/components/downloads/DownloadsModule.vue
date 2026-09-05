@@ -110,33 +110,6 @@
                     </div>
                 </div>
 
-                <!-- 隐藏资源提示条 -->
-                <div v-if="store.hasHiddenActive && !store.showHidden"
-                    class="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800/30 flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400">
-                    <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2">
-                        <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
-                        <line x1="1" y1="1" x2="23" y2="23" />
-                    </svg>
-                    <span>有 {{ hiddenGenericsCount }} 个通用资源下载已隐藏</span>
-                    <button type="button" @click="store.showHidden = true"
-                        class="ml-auto font-medium hover:underline shrink-0">查看</button>
-                </div>
-
-                <!-- 自动下载图片隐藏提示条（独立开关） -->
-                <div v-if="store.hasHiddenAutoPhotos && !store.showAutoPhotos"
-                    class="px-4 py-2 bg-purple-50 dark:bg-purple-900/20 border-b border-purple-100 dark:border-purple-800/30 flex items-center gap-2 text-xs text-purple-600 dark:text-purple-400">
-                    <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2">
-                        <rect x="3" y="3" width="18" height="18" rx="2" />
-                        <circle cx="8.5" cy="8.5" r="1.5" />
-                        <path d="M21 15l-5-5L5 21" />
-                    </svg>
-                    <span>有 {{ hiddenAutoPhotosCount }} 个自动下载图片已隐藏</span>
-                    <button type="button" @click="store.toggleShowAutoPhotos()"
-                        class="ml-auto font-medium hover:underline shrink-0">查看</button>
-                </div>
-
                 <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar" v-smooth-wheel>
                     <!-- 正在上传（发送文件） -->
                     <div v-if="uploadStore.activeItems.length > 0" class="py-2">

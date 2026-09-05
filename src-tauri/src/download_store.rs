@@ -61,6 +61,20 @@ pub struct DownloadItem {
     /// 不持久化到磁盘；用于下载管理器中独立「上传」区域的进度展示。
     #[serde(default)]
     pub is_upload: bool,
+    /// 下载记录时间戳（Unix 毫秒）：注册下载时记录创建时间，下载完成时刷新为
+    /// 完成时间。用于下载管理器「最近下载排前」的排序。
+    /// file_id 只反映文件在 Telegram 服务器上的创建顺序，不能反映用户下载的时间，
+    /// 故不能作为历史记录排序依据。
+    #[serde(default)]
+    pub created_at: i64,
+}
+
+/// 当前 Unix 毫秒时间戳（用于记录下载记录创建/完成时间）。
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -132,7 +146,11 @@ impl DownloadStore {
 
     pub fn get_all_items(&self) -> Vec<DownloadItem> {
         let mut items: Vec<DownloadItem> = self.items.values().cloned().collect();
-        items.sort_by(|a, b| b.file_id.cmp(&a.file_id));
+        items.sort_by(|a, b| {
+            b.created_at
+                .cmp(&a.created_at)
+                .then_with(|| b.file_id.cmp(&a.file_id))
+        });
         items
     }
 
@@ -168,7 +186,11 @@ impl DownloadStore {
             })
             .cloned()
             .collect();
-        items.sort_by(|a, b| b.file_id.cmp(&a.file_id));
+        items.sort_by(|a, b| {
+            b.created_at
+                .cmp(&a.created_at)
+                .then_with(|| b.file_id.cmp(&a.file_id))
+        });
         items
     }
 
@@ -265,6 +287,8 @@ impl DownloadStore {
                     hidden_category,
                     is_auto_photo,
                     is_streaming,
+                    // 旧数据缺少 created_at（0）时补上当前时间戳，保证升级后历史记录也能参与时间排序
+                    created_at: if existing.created_at > 0 { existing.created_at } else { now_ms() },
                     ..existing.clone()
                 };
                 self.items.insert(file_id, updated);
@@ -293,6 +317,7 @@ impl DownloadStore {
             is_streaming,
             dismissed: false,
             is_upload: false,
+            created_at: now_ms(),
         };
         self.items.insert(file_id, item);
         self.save_to_disk();
@@ -324,6 +349,8 @@ impl DownloadStore {
             item.is_paused = !is_downloading_active && !is_downloading_completed;
             item.is_completed = is_downloading_completed;
             if is_downloading_completed {
+                // 完成时刷新时间戳，使「已完成」历史按最近下载完成的时间排序
+                item.created_at = now_ms();
                 if let Some(path) = local_path {
                     if !path.is_empty() {
                         item.local_path = Some(path);
@@ -475,6 +502,7 @@ impl DownloadStore {
                 is_streaming: false,
                 dismissed: false,
                 is_upload: true,
+                created_at: now_ms(),
             },
         );
     }

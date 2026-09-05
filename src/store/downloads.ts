@@ -55,6 +55,9 @@ export interface DownloadItem {
     dismissed: boolean;
     /** 是否为上传任务（发送中的文件/图片/音乐/视频），在下载管理器「上传」区展示 */
     is_upload?: boolean;
+    /** 下载记录时间戳（Unix 毫秒）：注册时记录创建时间，完成时刷新为完成时间，
+     * 用于「最近下载排前」的排序（file_id 不能反映下载时间） */
+    created_at?: number;
 }
 
 /** 通用资源分类标识类型 */
@@ -128,7 +131,7 @@ export const useDownloadStore = defineStore("downloads", () => {
             .filter((item) => !item.dismissed
                 && (showHidden.value || !item.is_generic)
                 && (showAutoPhotos.value || !item.is_auto_photo))
-            .sort((a, b) => b.file_id - a.file_id)
+            .sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0) || b.file_id - a.file_id)
     );
 
     /** 已完成且可见的项 */
@@ -223,6 +226,10 @@ export const useDownloadStore = defineStore("downloads", () => {
         if (item.is_auto_photo !== undefined) existing.is_auto_photo = item.is_auto_photo;
         if (item.is_streaming !== undefined) existing.is_streaming = item.is_streaming;
         if (item.dismissed !== undefined) existing.dismissed = item.dismissed;
+        // 完成时 Rust 端会刷新 created_at，这里同步以让已完成列表按最近下载完成时间重排
+        if (typeof item.created_at === "number" && item.created_at !== existing.created_at) {
+            existing.created_at = item.created_at;
+        }
     }
 
     function flushPendingUpdates() {
@@ -361,6 +368,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                 chat_id: chatId,
                 message_id: messageId,
                 local_path: undefined,
+                created_at: Date.now(),
             };
         } catch (e) {
             console.error("registerDownload failed:", e);
@@ -383,6 +391,7 @@ export const useDownloadStore = defineStore("downloads", () => {
         item.is_completed = true;
         item.progress = 1;
         item.downloaded_size = item.total_size;
+        item.created_at = Date.now();
     }
 
     /** 获取指定文件的下载状态 */

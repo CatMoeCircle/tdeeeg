@@ -171,10 +171,10 @@
                                     ]"
                                         :style="getInlineKeyboard(item.msg) ? { ...bubbleStyle(item), width: '100%' } : bubbleStyle(item)">
                                         <p v-if="showSenderDisplayName(item.msg) && item.isFirstInGroup"
-                                            class="text-xs font-semibold m-0.5 flex items-center gap-1.5"
+                                            class="text-xs font-semibold flex items-center gap-1.5"
                                             :style="senderNameColor(item.msg)">
                                             <button type="button"
-                                                :class="['m-0.5 min-w-0 flex-1 truncate text-left', canOpenSenderProfile(item.msg) ? 'cursor-pointer hover:underline' : 'cursor-default']"
+                                                :class="[' min-w-0 flex-1 truncate text-left', canOpenSenderProfile(item.msg) ? 'cursor-pointer hover:underline' : 'cursor-default']"
                                                 @click.stop="openSenderProfile(item.msg)">
                                                 <GlobalEmojiText :text="getDisplaySenderName(item.msg)" />
                                             </button>
@@ -351,7 +351,7 @@
                     <div class="min-w-0 flex-1">
                         <p class="text-xs font-semibold text-orange-500">编辑消息</p>
                         <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ editTargetInfo.text || '（无文本内容）'
-                            }}</p>
+                        }}</p>
                     </div>
                     <button type="button" aria-label="取消编辑"
                         class="w-6 h-6 shrink-0 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400"
