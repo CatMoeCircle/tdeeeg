@@ -55,7 +55,7 @@
                             @animationend="onMessageAnimEnd($event, item.messages[0].id)">
                             <div class="flex mb-2" :class="isSelfAlbum(item) ? 'justify-end' : 'justify-start'">
                                 <div v-if="selectionMode"
-                                    class="self-end shrink-0 mr-1 z-10 w-5 h-5 rounded-full border-2 flex items-center justify-center pointer-events-none select-none"
+                                    class="self-center shrink-0 mr-1 z-10 w-5 h-5 rounded-full border-2 flex items-center justify-center pointer-events-none select-none"
                                     :class="isMsgSelected(item.messages[0].id) ? 'bg-blue-500 border-blue-500' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600'">
                                     <CheckIcon v-if="isMsgSelected(item.messages[0].id)" class="w-3.5 h-3.5 text-white" />
                                 </div>
@@ -144,7 +144,7 @@
                                 item.isLastInGroup ? 'mb-2' : 'mb-0.5'
                             ]">
                                 <div v-if="selectionMode"
-                                    class="self-end shrink-0 mr-1 z-10 w-5 h-5 rounded-full border-2 flex items-center justify-center pointer-events-none select-none"
+                                    class="self-center shrink-0 mr-1 z-10 w-5 h-5 rounded-full border-2 flex items-center justify-center pointer-events-none select-none"
                                     :class="isMsgSelected(item.msg.id) ? 'bg-blue-500 border-blue-500' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600'">
                                     <CheckIcon v-if="isMsgSelected(item.msg.id)" class="w-3.5 h-3.5 text-white" />
                                 </div>
@@ -264,10 +264,10 @@
                 @openInfo="handleTopClick" />
         </div>
 
-        <!-- ===== 多选操作栏（多选模式时替换 Header） ===== -->
+        <!-- ===== 多选操作栏（多选模式时叠在输入框上方） ===== -->
         <Transition name="multi-bar">
             <div v-if="selectionMode"
-                class="absolute top-0 left-0 right-0 z-20 flex items-center gap-2 px-3 h-13 bg-white/80 dark:bg-[#1c1c1c]/70 backdrop-blur-lg border-b border-gray-200/60 dark:border-gray-800/60">
+                class="absolute left-2.5 right-2.5 bottom-2.5 z-20 flex items-center gap-2 px-3 h-13 rounded-full bg-white/70 dark:bg-gray-900/80 backdrop-blur-lg shadow-lg border border-gray-200/50 dark:border-gray-700/50">
                 <button type="button" aria-label="退出多选"
                     class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" @click="exitSelectionMode">
                     <XIcon class="w-5 h-5 text-gray-600 dark:text-gray-300" />
@@ -275,19 +275,14 @@
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-200 flex-1 truncate">
                     已选 {{ selectedMsgIds.length }} 条
                 </span>
-                <button type="button" aria-label="回复选中消息" title="回复"
-                    class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 disabled:opacity-40"
-                    :disabled="selectedMsgIds.length !== 1" @click="onReplySelected">
-                    <CornerUpLeftIcon class="w-5 h-5" />
-                </button>
                 <button type="button" aria-label="转发选中消息" title="转发"
-                    class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 disabled:opacity-40"
+                    class="p-2 rounded-full enabled:hover:bg-gray-100 dark:enabled:hover:bg-gray-800 text-gray-600 dark:text-gray-300 disabled:opacity-40"
                     :disabled="selectedMsgIds.length === 0" @click="openForwardPicker">
                     <ShareIcon class="w-5 h-5" />
                 </button>
                 <button type="button" aria-label="删除选中消息" title="删除"
-                    class="p-2 rounded-full hover:bg-red-50 dark:hover:bg-red-900/30 text-red-500 disabled:opacity-40"
-                    :disabled="selectedMsgIds.length === 0" @click="onDeleteSelected">
+                    class="p-2 rounded-full enabled:hover:bg-red-50 dark:enabled:hover:bg-red-900/30 text-red-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                    :disabled="!canDeleteSelected" @click="onDeleteSelected">
                     <TrashIcon class="w-5 h-5" />
                 </button>
             </div>
@@ -470,7 +465,7 @@ import { sendAttachments, sending } from '../../../utils/attachmentSend';
 import { useAttachmentStore } from '../../../store/attachment';
 import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
 
-import { MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, CornerUpLeftIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, Quote as QuoteIcon, Languages as LanguagesIcon, User as UserIcon, Pencil as PencilIcon, FolderOpenIcon, DownloadIcon } from 'lucide-vue-next';
+import { MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, Quote as QuoteIcon, Languages as LanguagesIcon, User as UserIcon, Pencil as PencilIcon, FolderOpenIcon, DownloadIcon } from 'lucide-vue-next';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { useRoute, useRouter } from 'vue-router';
 import { computed, watch, ref, onMounted, onUnmounted, nextTick } from 'vue';
@@ -931,6 +926,10 @@ function buildReplyQuote(): inputTextQuote | null {
 const selectionMode = ref(false);
 /** 多选中选中的消息 id 集合（按加入顺序用数组保持稳定） */
 const selectedMsgIds = ref<number[]>([]);
+/** 选中消息中「可删除」的 id 集合（异步按 messageProperties 刷新） */
+const deletableSelectedIds = ref<Set<number>>(new Set());
+/** 权限刷新请求令牌：避免快速切换选择时旧结果覆盖新结果 */
+let selectionPermToken = 0;
 
 /** 切换到多选模式 */
 function enterSelectionMode(msg: message) {
@@ -938,12 +937,15 @@ function enterSelectionMode(msg: message) {
     if (!selectedMsgIds.value.includes(msg.id)) {
         selectedMsgIds.value.push(msg.id);
     }
+    void refreshSelectionPermissions();
 }
 
 /** 退出多选模式 */
 function exitSelectionMode() {
     selectionMode.value = false;
     selectedMsgIds.value = [];
+    deletableSelectedIds.value = new Set();
+    selectionPermToken++;
 }
 
 /** 切换单条消息的选中状态 */
@@ -954,12 +956,45 @@ function toggleSelectMsg(msgId: number) {
     } else {
         selectedMsgIds.value.push(msgId);
     }
+    void refreshSelectionPermissions();
 }
 
 /** 消息是否被选中 */
 function isMsgSelected(msgId: number): boolean {
     return selectedMsgIds.value.includes(msgId);
 }
+
+/** 刷新选中消息的删除权限（getMessageProperties 离线预取 + 缓存判定） */
+async function refreshSelectionPermissions() {
+    const token = ++selectionPermToken;
+    const cid = chatId.value;
+    const ids = [...selectedMsgIds.value];
+    const result = new Set<number>();
+    if (cid === undefined) {
+        deletableSelectedIds.value = result;
+        return;
+    }
+    await Promise.all(ids.map(async (id) => {
+        const msg = messages.value.find((m) => m.id === id);
+        if (!msg) return;
+        if (canDeleteMessage(msg, cid)) {
+            result.add(id);
+            return;
+        }
+        // 缓存未命中时预取精确权限后再判定
+        await getMessageProperties(cid, id);
+        if (canDeleteMessage(msg, cid)) result.add(id);
+    }));
+    // 期间选择已变化则丢弃过期结果
+    if (token !== selectionPermToken) return;
+    deletableSelectedIds.value = result;
+}
+
+/** 选中的消息是否全部可删除（多选删除按钮的启用状态） */
+const canDeleteSelected = computed(() =>
+    selectedMsgIds.value.length > 0 &&
+    selectedMsgIds.value.every((id) => deletableSelectedIds.value.has(id))
+);
 
 // ===== 多选模式：操作 =====
 const forwardPickerVisible = ref(false);
@@ -975,15 +1010,6 @@ function openForwardPicker() {
 /** 转发完成后退出多选 */
 function onForwardDone() {
     exitSelectionMode();
-}
-
-/** 多选模式下对单条选中消息发起回复 */
-function onReplySelected() {
-    if (selectedMsgIds.value.length !== 1) return;
-    const msg = messages.value.find((m) => m.id === selectedMsgIds.value[0]) || null;
-    if (!msg) return;
-    exitSelectionMode();
-    startReply(msg);
 }
 
 /** 删除所有选中消息 */
@@ -3584,7 +3610,7 @@ const handleScrollToBottom = async () => {
 .multi-bar-enter-from,
 .multi-bar-leave-to {
     opacity: 0;
-    transform: translateY(-8px);
+    transform: translateY(8px);
 }
 </style>
 <style>

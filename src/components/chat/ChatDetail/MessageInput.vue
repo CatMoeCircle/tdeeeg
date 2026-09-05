@@ -1,5 +1,5 @@
 <template>
-    <div class="p-5 bg-transparent" @dragover.prevent @drop.prevent="onDrop">
+    <div class="p-2.5 bg-transparent" @dragover.prevent @drop.prevent="onDrop">
         <Transition name="mi-fade">
             <div v-if="replyTarget"
                 class="flex items-start gap-2 mb-2 mx-1 px-3 py-2 rounded-2xl bg-white/70 dark:bg-gray-800/90 shadow-sm border border-gray-200/60 dark:border-gray-700/60">
@@ -43,7 +43,8 @@
                 <textarea ref="textareaRef" v-model="localValue" :placeholder="inputPlaceholder"
                     :class="['message-input-scrollbar input-textarea flex-1 min-w-0 bg-transparent resize-none focus:outline-none text-sm leading-5 text-gray-800 dark:text-gray-200 px-2 py-2 min-h-9 max-h-40 overflow-y-auto field-sizing-content']"
                     rows="1" @input="onInput" @keydown.enter.exact.prevent="onEnter" @keydown.enter.shift.stop
-                    @keydown.escape="onEscape" @paste="onPaste" @scroll="syncPreviewScroll" @contextmenu.prevent.stop="onContextMenu"></textarea>
+                    @keydown.escape="onEscape" @paste="onPaste" @scroll="syncPreviewScroll"
+                    @contextmenu.prevent.stop="onContextMenu"></textarea>
             </div>
 
             <div class="flex items-center gap-2 ml-2 mb-1.5 shrink-0">
@@ -458,10 +459,12 @@ function selectAll() {
     -webkit-text-fill-color: transparent;
     caret-color: #1f2937;
 }
+
 .input-textarea::placeholder {
     color: rgba(128, 128, 128, 0.6);
     -webkit-text-fill-color: rgba(128, 128, 128, 0.6);
 }
+
 @media (prefers-color-scheme: dark) {
     .input-textarea {
         caret-color: #e5e7eb;
@@ -473,9 +476,12 @@ function selectAll() {
     box-sizing: border-box;
     height: 100%;
     overflow-y: auto;
-    padding: 0.5rem;        /* = px-2 py-2，与 textarea 一致 */
-    font-size: 0.875rem;    /* text-sm */
-    line-height: 1.25rem;   /* leading-5 */
+    padding: 0.5rem;
+    /* = px-2 py-2，与 textarea 一致 */
+    font-size: 0.875rem;
+    /* text-sm */
+    line-height: 1.25rem;
+    /* leading-5 */
     color: #1f2937;
     white-space: pre-wrap;
     word-break: break-word;
@@ -483,9 +489,11 @@ function selectAll() {
     /* 同步滚动基线：隐藏原生滚动条（滚动由 textarea 驱动） */
     scrollbar-width: none;
 }
+
 .input-preview-inner::-webkit-scrollbar {
     display: none;
 }
+
 @media (prefers-color-scheme: dark) {
     .input-preview-inner {
         color: #e5e7eb;
@@ -503,10 +511,12 @@ function selectAll() {
     object-fit: contain;
     pointer-events: none;
 }
+
 .input-preview-inner :deep(video.mi-emoji) {
     background: transparent;
     border: none;
 }
+
 /* 自定义 emoji 数据未就绪时的加载占位：与 emoji 等宽，保持与 textarea 内占位字符
    同宽（1.2em）以免排版错位/光标跳动；就绪后由 <img>/<video> 平滑替换。 */
 .input-preview-inner :deep(.mi-ce-loading) {
@@ -520,9 +530,17 @@ function selectAll() {
     animation: mi-ce-pulse 1.2s ease-in-out infinite;
     pointer-events: none;
 }
+
 @keyframes mi-ce-pulse {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 1; }
+
+    0%,
+    100% {
+        opacity: 0.5;
+    }
+
+    50% {
+        opacity: 1;
+    }
 }
 
 /* ---- 选中文本（选区）配色 ---- */
@@ -531,6 +549,7 @@ function selectAll() {
     background-color: #3390ff;
     color: transparent;
 }
+
 /* 预览层内 v-html 注入的文字，选中时改白色（见文件底部非 scoped style 块） */
 </style>
 
