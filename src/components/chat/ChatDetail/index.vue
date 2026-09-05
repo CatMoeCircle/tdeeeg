@@ -53,12 +53,12 @@
                             v-context-menu="selectionMode ? null : makeMsgMenu(item.messages[0])"
                             @click="selectionMode && toggleSelectMsg(item.messages[0].id)"
                             @animationend="onMessageAnimEnd($event, item.messages[0].id)">
-                            <div v-if="selectionMode"
-                                class="absolute left-1 top-1 z-10 w-5 h-5 rounded-full border-2 flex items-center justify-center pointer-events-none select-none"
-                                :class="isMsgSelected(item.messages[0].id) ? 'bg-blue-500 border-blue-500' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600'">
-                                <CheckIcon v-if="isMsgSelected(item.messages[0].id)" class="w-3.5 h-3.5 text-white" />
-                            </div>
                             <div class="flex mb-2" :class="isSelfAlbum(item) ? 'justify-end' : 'justify-start'">
+                                <div v-if="selectionMode"
+                                    class="self-end shrink-0 mr-1 z-10 w-5 h-5 rounded-full border-2 flex items-center justify-center pointer-events-none select-none"
+                                    :class="isMsgSelected(item.messages[0].id) ? 'bg-blue-500 border-blue-500' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600'">
+                                    <CheckIcon v-if="isMsgSelected(item.messages[0].id)" class="w-3.5 h-3.5 text-white" />
+                                </div>
                                 <div v-if="shouldReserveAvatarColumn(item.messages[0])"
                                     class="w-9 shrink-0 mr-2 self-end">
                                     <button type="button"
@@ -128,12 +128,12 @@
                             v-context-menu="selectionMode ? null : makeMsgMenu(item.msg)"
                             @click="selectionMode && toggleSelectMsg(item.msg.id)"
                             @animationend="onMessageAnimEnd($event, item.msg.id)">
-                            <div v-if="selectionMode"
-                                class="absolute left-1 top-1 z-10 w-5 h-5 rounded-full border-2 flex items-center justify-center pointer-events-none select-none"
-                                :class="isMsgSelected(item.msg.id) ? 'bg-blue-500 border-blue-500' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600'">
-                                <CheckIcon v-if="isMsgSelected(item.msg.id)" class="w-3.5 h-3.5 text-white" />
-                            </div>
-                            <div v-if="isServiceMessage(item.msg)" class="flex justify-center my-0.5">
+                            <div v-if="isServiceMessage(item.msg)" class="relative flex justify-center my-0.5">
+                                <div v-if="selectionMode"
+                                    class="absolute left-1 top-1 z-10 w-5 h-5 rounded-full border-2 flex items-center justify-center pointer-events-none select-none"
+                                    :class="isMsgSelected(item.msg.id) ? 'bg-blue-500 border-blue-500' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600'">
+                                    <CheckIcon v-if="isMsgSelected(item.msg.id)" class="w-3.5 h-3.5 text-white" />
+                                </div>
                                 <MessageContent :content="item.msg.content" :date="item.msg.date"
                                     :senderName="getDisplaySenderName(item.msg)"
                                     :senderUserId="senderUserIdOf(item.msg)" :messageList="messages"
@@ -143,6 +143,11 @@
                                 isSelf(item.msg) ? 'justify-end' : 'justify-start',
                                 item.isLastInGroup ? 'mb-2' : 'mb-0.5'
                             ]">
+                                <div v-if="selectionMode"
+                                    class="self-end shrink-0 mr-1 z-10 w-5 h-5 rounded-full border-2 flex items-center justify-center pointer-events-none select-none"
+                                    :class="isMsgSelected(item.msg.id) ? 'bg-blue-500 border-blue-500' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600'">
+                                    <CheckIcon v-if="isMsgSelected(item.msg.id)" class="w-3.5 h-3.5 text-white" />
+                                </div>
                                 <div v-if="shouldReserveAvatarColumn(item.msg)" class="w-9 shrink-0 mr-2 self-end"
                                     :class="{ 'invisible': !item.showAvatar }">
                                     <button type="button"
