@@ -59,7 +59,7 @@
 
         <div class="flex gap-4 text-gray-500">
             <slot name="actions" />
-            <SearchIcon class="w-5 h-5 cursor-pointer hover:text-blue-500" />
+            <SearchIcon class="w-5 h-5 cursor-pointer hover:text-blue-500" @click="emit('search')" />
             <MoreHorizontalIcon class="w-5 h-5 cursor-pointer hover:text-blue-500" />
         </div>
     </div>
@@ -90,6 +90,7 @@ const props = defineProps<{
 const emit = defineEmits<{
     back: [];
     openInfo: [];
+    search: [];
 }>();
 
 const status = ref('');

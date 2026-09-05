@@ -261,8 +261,12 @@
         <div
             class="absolute top-0 left-0 right-0 z-10 bg-white/80 dark:bg-[#1c1c1c]/70 backdrop-blur-lg border-b border-gray-200/60 dark:border-gray-800/60">
             <ChatDetailHeader :chat="chat" :topic="topic" :showBack="showBackBtn" @back="handleBack"
-                @openInfo="handleTopClick" />
+                @openInfo="handleTopClick" @search="searchActive = true" />
         </div>
+
+        <!-- ===== 消息搜索栏（覆盖 Header） ===== -->
+        <SearchBar v-if="searchActive && chatId !== undefined" :chat-id="chatId" :topic-id="topicId" :chat="chat"
+            @close="searchActive = false" @jump="handleReplyJumpToMessage" />
 
         <!-- ===== 多选操作栏（多选模式时叠在输入框上方） ===== -->
         <Transition name="multi-bar">
@@ -459,6 +463,7 @@ import DeleteMessageConfirm from '../../contextMenu/DeleteMessageConfirm.vue';
 import TranslateMessageModal from '../../contextMenu/TranslateMessageModal.vue';
 import PinMessageConfirm from '../../contextMenu/PinMessageConfirm.vue';
 import PinnedMessageBar from './PinnedMessageBar.vue';
+import SearchBar from './SearchBar.vue';
 
 import { tdlibSend, isFileReady } from '../../../utils/tdlib';
 import { sendAttachments, sending } from '../../../utils/attachmentSend';
@@ -672,6 +677,8 @@ const topicId = computed(() => {
 
 // ==================== Overlay State ====================
 const showOverlay = ref(false);
+/** 消息搜索栏是否激活（覆盖 Header） */
+const searchActive = ref(false);
 
 function openOverlay() {
     showOverlay.value = true;
@@ -1538,6 +1545,7 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
 
     // 重置全部状态
     resetState();
+    searchActive.value = false;
 
     // 命中缓存：直接恢复上次已加载的消息列表，不重复从 TDLib 拉取历史。
     // 仅当没有显式定位请求（如跳转到某条消息/下载管理器）时才走缓存；
