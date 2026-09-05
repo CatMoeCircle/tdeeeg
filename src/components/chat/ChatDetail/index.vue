@@ -78,10 +78,10 @@
                                         :class="isSelfAlbum(item) ? 'text-gray-900' : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'"
                                         :style="getInlineKeyboard(item.messages[0]) ? { ...albumStyle(item), width: '100%' } : albumStyle(item)">
                                         <p v-if="showSenderDisplayName(item.messages[0])"
-                                            class="text-xs font-semibold px-2 pt-2 pb-0.5 flex items-center gap-1.5"
+                                            class="msg-sender-name text-xs font-semibold px-2 pt-2 pb-0.5 flex items-center gap-1.5"
                                             :style="senderNameColor(item.messages[0])">
                                             <button type="button"
-                                                :class="['min-w-0 flex-1 truncate text-left', canOpenSenderProfile(item.messages[0]) ? 'cursor-pointer hover:underline' : 'cursor-default']"
+                                                :class="['min-w-0 flex-1 truncate text-left', canOpenSenderProfile(item.messages[0]) ? 'cursor-pointer' : 'cursor-default']"
                                                 @click.stop="openSenderProfile(item.messages[0])">
                                                 <GlobalEmojiText :text="getDisplaySenderName(item.messages[0])" />
                                             </button>
@@ -171,10 +171,10 @@
                                     ]"
                                         :style="getInlineKeyboard(item.msg) ? { ...bubbleStyle(item), width: '100%' } : bubbleStyle(item)">
                                         <p v-if="showSenderDisplayName(item.msg) && item.isFirstInGroup"
-                                            class="text-xs font-semibold flex items-center gap-1.5"
+                                            class="msg-sender-name text-xs font-semibold flex items-center gap-1.5"
                                             :style="senderNameColor(item.msg)">
                                             <button type="button"
-                                                :class="[' min-w-0 flex-1 truncate text-left', canOpenSenderProfile(item.msg) ? 'cursor-pointer hover:underline' : 'cursor-default']"
+                                                :class="['min-w-0 flex-1 truncate text-left', canOpenSenderProfile(item.msg) ? 'cursor-pointer' : 'cursor-default']"
                                                 @click.stop="openSenderProfile(item.msg)">
                                                 <GlobalEmojiText :text="getDisplaySenderName(item.msg)" />
                                             </button>
@@ -3625,6 +3625,16 @@ const handleScrollToBottom = async () => {
 .messages-scroll [data-bubble-msg-id] .msg-selectable-text .msg-noselect *,
 .messages-scroll [data-bubble-msg-id] .msg-noselect,
 .messages-scroll [data-bubble-msg-id] .msg-noselect * {
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+}
+
+/* 发送者名称（含内部 button）始终不可选中：覆盖全局 button { user-select: text }，
+   确保框选 / 复制消息正文时不会把用户名称一并选中。 */
+.messages-scroll .msg-sender-name,
+.messages-scroll .msg-sender-name * {
     -webkit-user-select: none !important;
     -moz-user-select: none !important;
     -ms-user-select: none !important;
