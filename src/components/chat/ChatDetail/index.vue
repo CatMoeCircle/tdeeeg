@@ -57,7 +57,8 @@
                                 <div v-if="selectionMode"
                                     class="self-center shrink-0 mr-1 z-10 w-5 h-5 rounded-full border-2 flex items-center justify-center pointer-events-none select-none"
                                     :class="isMsgSelected(item.messages[0].id) ? 'bg-blue-500 border-blue-500' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600'">
-                                    <CheckIcon v-if="isMsgSelected(item.messages[0].id)" class="w-3.5 h-3.5 text-white" />
+                                    <CheckIcon v-if="isMsgSelected(item.messages[0].id)"
+                                        class="w-3.5 h-3.5 text-white" />
                                 </div>
                                 <div v-if="shouldReserveAvatarColumn(item.messages[0])"
                                     class="w-9 shrink-0 mr-2 self-end">
@@ -266,7 +267,7 @@
 
         <!-- ===== 消息搜索栏（覆盖 Header） ===== -->
         <SearchBar v-if="searchActive && chatId !== undefined" :chat-id="chatId" :topic-id="topicId" :chat="chat"
-            @close="searchActive = false" @jump="handleReplyJumpToMessage" />
+            :initial-query="hashtagSearchQuery" @close="searchActive = false" @jump="handleReplyJumpToMessage" />
 
         <!-- ===== 多选操作栏（多选模式时叠在输入框上方） ===== -->
         <Transition name="multi-bar">
@@ -353,7 +354,7 @@
                     class="relative z-10 flex items-start gap-2 mx-5 mt-3 px-3 py-2 rounded-2xl bg-white/70 dark:bg-gray-800/90 shadow-sm border border-gray-200/60 dark:border-gray-700/60">
                     <PencilIcon class="w-4 h-4 shrink-0 mt-0.5 text-orange-500" />
                     <div class="min-w-0 flex-1">
-                        <p class="text-xs font-semibold text-orange-500">编辑消息</p>
+                        <p class="text-xs font-semibold text-orange-500">{{ editTargetInfo.label }}</p>
                         <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ editTargetInfo.text || '（无文本内容）'
                         }}</p>
                     </div>
@@ -443,6 +444,8 @@
         <TranslateMessageModal />
         <!-- ===== 置顶消息确认弹窗 ===== -->
         <PinMessageConfirm />
+        <!-- ===== 举报消息确认弹窗 ===== -->
+        <ReportMessageConfirm />
     </div>
 </template>
 <script setup lang="ts">
@@ -462,6 +465,7 @@ import MediaViewer from './MessageContent/MediaViewer.vue';
 import DeleteMessageConfirm from '../../contextMenu/DeleteMessageConfirm.vue';
 import TranslateMessageModal from '../../contextMenu/TranslateMessageModal.vue';
 import PinMessageConfirm from '../../contextMenu/PinMessageConfirm.vue';
+import ReportMessageConfirm from '../../contextMenu/ReportMessageConfirm.vue';
 import PinnedMessageBar from './PinnedMessageBar.vue';
 import SearchBar from './SearchBar.vue';
 
@@ -470,7 +474,7 @@ import { sendAttachments, sending } from '../../../utils/attachmentSend';
 import { useAttachmentStore } from '../../../store/attachment';
 import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
 
-import { MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, Quote as QuoteIcon, Languages as LanguagesIcon, User as UserIcon, Pencil as PencilIcon, FolderOpenIcon, DownloadIcon } from 'lucide-vue-next';
+import { MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, Quote as QuoteIcon, Languages as LanguagesIcon, User as UserIcon, Pencil as PencilIcon, FolderOpenIcon, DownloadIcon, BookmarkIcon, EyeIcon, UserCheckIcon, MessageSquareIcon, AudioLinesIcon, FlagIcon } from 'lucide-vue-next';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { useRoute, useRouter } from 'vue-router';
 import { computed, watch, ref, onMounted, onUnmounted, nextTick } from 'vue';
@@ -484,6 +488,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { settings } from '../../../store/settings';
 import { showCopyJsonInMenus } from '../../../store/debug';
 import { useCommandInsert, clearPendingCommand } from '../../../store/commandInsert';
+import { useHashtagSearch, clearPendingHashtag } from '../../../store/hashtagSearch';
 import { useCustomEmoji } from '../../../store/customEmoji';
 import type { ContextMenuItem } from '../../contextMenu/types';
 import { getMessagePlainText, getMessageFormattedText } from '../../../utils/messageText';
@@ -492,11 +497,14 @@ import {
     toggleMessagePinned, pinMessage, getMessageProperties,
     executeDeleteActions,
     canCopyMessage, canGetMessageLink, canPinMessage, canDeleteMessage,
-    canReplyMessage, canEditMessage, editTextMessage,
+    canReplyMessage, canEditMessage, editTextMessage, editCaptionMessage,
+    canSaveMessage, canGetViewers, canGetReadDate, canGetAuthor,
+    canGetMessageThread, canRecognizeSpeech, canReportMessage,
 } from '../../contextMenu/messageActions';
 import { confirmDeleteMessage } from '../../../store/deleteMessage';
 import type { DeleteMessageRequest } from '../../../store/deleteMessage';
 import { confirmPinMessage } from '../../../store/pinMessage';
+import { confirmReportMessage } from '../../../store/reportMessage';
 import {
     showTranslateDialog,
     translateInlineMessage,
@@ -679,6 +687,8 @@ const topicId = computed(() => {
 const showOverlay = ref(false);
 /** 消息搜索栏是否激活（覆盖 Header） */
 const searchActive = ref(false);
+/** 打开搜索栏时预填的搜索词（如点击 #标签 触发的搜索） */
+const hashtagSearchQuery = ref('');
 
 function openOverlay() {
     showOverlay.value = true;
@@ -887,11 +897,15 @@ function clearReply() {
 const editingMsg = ref<message | null>(null);
 
 /** 编辑目标摘要，供 MessageInput 显示编辑横幅 */
-const editTargetInfo = computed<{ text: string } | null>(() => {
+const editTargetInfo = computed<{ text: string; label: string } | null>(() => {
     const m = editingMsg.value;
     if (!m) return null;
     const ft = getMessageFormattedText(m);
-    return { text: ft?.text ?? getMessagePlainText(m) };
+    const isMedia = isMediaMessage(m);
+    return {
+        text: ft?.text ?? getMessagePlainText(m),
+        label: isMedia ? '编辑描述' : '编辑消息',
+    };
 });
 
 /** 进入编辑模式：清空回复状态，将消息文本填入输入框 */
@@ -1048,6 +1062,15 @@ watch(pendingCommand, (cmd) => {
         ? `${cmd} ${messageInput.value}`
         : cmd;
     clearPendingCommand();
+});
+
+// 点击 #标签 → 激活聊天内搜索并预填标签
+const { pendingHashtag } = useHashtagSearch();
+watch(pendingHashtag, (tag) => {
+    if (!tag) return;
+    hashtagSearchQuery.value = tag;
+    searchActive.value = true;
+    clearPendingHashtag();
 });
 
 const isLoadingMore = ref(false);
@@ -2395,14 +2418,18 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
     if (!chatId.value) return;
     const text = typeof input === 'string' ? input : input.text;
 
-    // —— 编辑模式：调用 editMessageText ——
+    // —— 编辑模式：文本消息用 editMessageText，媒体消息用 editMessageCaption ——
     if (editingMsg.value) {
-        if (!text.trim()) return;
+        const isMedia = isMediaMessage(editingMsg.value);
+        // 文本消息不允许空内容；媒体消息允许清空描述
+        if (!text.trim() && !isMedia) return;
         try {
             const richEntities = (typeof input === 'string' ? [] : input.entities || []) as textEntity$Input[];
             const customEmojiEntities = buildCustomEmojiEntities(text);
             const entities = [...richEntities, ...customEmojiEntities];
-            const ok = await editTextMessage(chatId.value, editingMsg.value.id, text, entities);
+            const ok = isMedia
+                ? await editCaptionMessage(chatId.value, editingMsg.value.id, text, entities)
+                : await editTextMessage(chatId.value, editingMsg.value.id, text, entities);
             if (ok) {
                 messageInput.value = '';
                 pendingCustomEmoji.value = [];
@@ -2691,6 +2718,8 @@ function makeMsgMenu(msg: message): (e: MouseEvent, data?: any) => Promise<Conte
             // 先获取精确权限（离线方法，很快，命中缓存立即返回）
             await getMessageProperties(cid, msg.id);
         }
+        // 并行预取阅读状态标签
+        pendingReadDateLabel = await fetchReadDateLabel(msg);
         return buildMessageContextMenu(msg);
     };
 }
@@ -2707,6 +2736,8 @@ async function openMessageContextMenu(msg: message, x: number, y: number) {
     if (cid !== undefined) {
         await getMessageProperties(cid, msg.id);
     }
+    // 并行预取阅读状态标签
+    pendingReadDateLabel = await fetchReadDateLabel(msg);
     // 获取完成后若仍对应这条消息则打开菜单，否则忽略（已被其它操作替换）
     if (currentMenuMsg !== msg) return;
     openContextMenu(x, y, buildMessageContextMenu(msg), null);
@@ -2804,6 +2835,187 @@ async function handleMessageSaveAs(file: TdFile, fileName: string) {
     }
 }
 
+/** 保存消息到收藏（Saved Messages） */
+async function handleSaveMessage(msg: message) {
+    const cid = chatId.value;
+    if (cid === undefined) return;
+    try {
+        // Saved Messages 是与自己的私聊，chat_id = myId
+        const savedChatId = myId.value;
+        if (!savedChatId) {
+            MessagePlugin.warning('无法获取收藏对话');
+            return;
+        }
+        await tdlibSend({
+            _: 'forwardMessages',
+            from_chat_id: cid,
+            message_ids: [msg.id],
+            to_chat_id: savedChatId,
+            as_copy: true,
+            disable_notification: false,
+            send_pinned: false,
+        });
+        MessagePlugin.success('已保存到收藏');
+    } catch (e: any) {
+        console.error('saveMessage failed:', e);
+        MessagePlugin.error(e?.message || '保存失败');
+    }
+}
+
+/** 查看消息回应者 */
+async function handleGetViewers(msg: message) {
+    const cid = chatId.value;
+    if (cid === undefined) return;
+    try {
+        const result = await tdlibSend({
+            _: 'getMessageViewers',
+            chat_id: cid,
+            message_id: msg.id,
+        }) as any;
+        const viewers: Array<{ user_id: number; view_date: number }> = result?.viewers || [];
+        if (viewers.length === 0) {
+            MessagePlugin.info('暂无回应者');
+            return;
+        }
+        // 批量获取用户信息以显示名称
+        const userPromises = viewers.map(v =>
+            tdlibSend({ _: 'getUser', user_id: v.user_id } as any).catch(() => null)
+        );
+        const users = await Promise.all(userPromises);
+        const names = users
+            .filter((u): u is any => u && u._ === 'user')
+            .map(u => `${u.first_name}${u.last_name ? ' ' + u.last_name : ''}`);
+        const nameList = names.length > 0 ? names.join('、') : `${viewers.length} 位用户`;
+        MessagePlugin.success({ content: `回应者：${nameList}`, duration: 5000 });
+    } catch (e: any) {
+        console.error('getMessageViewers failed:', e);
+        MessagePlugin.error(e?.message || '获取回应者失败');
+    }
+}
+
+/** 当前右键菜单对应的阅读状态标签（异步预取后写入） */
+let pendingReadDateLabel: string | null = null;
+
+/** 预取阅读状态，返回可显示的标签文本（null 表示不显示） */
+async function fetchReadDateLabel(msg: message): Promise<string | null> {
+    const cid = chatId.value;
+    if (cid === undefined) return null;
+    if (!canGetReadDate(msg, cid)) return null;
+    try {
+        const result = await tdlibSend({
+            _: 'getMessageReadDate',
+            chat_id: cid,
+            message_id: msg.id,
+        }) as any;
+        switch (result?._) {
+            case 'messageReadDateRead': {
+                const d = new Date(result.read_date * 1000);
+                const timeStr = d.toLocaleString('zh-CN', {
+                    month: 'short', day: 'numeric',
+                    hour: '2-digit', minute: '2-digit',
+                });
+                return `对方已于 ${timeStr} 阅读`;
+            }
+            case 'messageReadDateUnread':
+                return '对方尚未阅读';
+            case 'messageReadDateTooOld':
+                return '消息太旧，无法获取阅读状态';
+            case 'messageReadDateUserPrivacyRestricted':
+                return '对方隐私设置限制了阅读状态';
+            case 'messageReadDateMyPrivacyRestricted':
+                return '你的隐私设置限制了阅读状态';
+            default:
+                return null;
+        }
+    } catch {
+        return null;
+    }
+}
+
+/** 查看消息真实作者（频道代发消息） */
+async function handleGetAuthor(msg: message) {
+    const cid = chatId.value;
+    if (cid === undefined) return;
+    try {
+        const author = await tdlibSend({
+            _: 'getMessageAuthor',
+            chat_id: cid,
+            message_id: msg.id,
+        }) as any;
+        if (author && author._ === 'user') {
+            router.push({ name: 'user-profile', params: { id: String(author.id) } });
+        } else {
+            MessagePlugin.info('无法获取作者信息');
+        }
+    } catch (e: any) {
+        console.error('getMessageAuthor failed:', e);
+        MessagePlugin.error(e?.message || '获取作者失败');
+    }
+}
+
+/** 查看消息线程 */
+async function handleGetMessageThread(msg: message) {
+    const cid = chatId.value;
+    if (cid === undefined) return;
+    try {
+        const thread = await tdlibSend({
+            _: 'getMessageThread',
+            chat_id: cid,
+            message_id: msg.id,
+        }) as any;
+        if (thread && thread._ === 'messageThreadInfo') {
+            const replyCount = thread.reply_info?.reply_count ?? 0;
+            const unread = thread.unread_message_count ?? 0;
+            const parts: string[] = [];
+            if (replyCount > 0) parts.push(`${replyCount} 条回复`);
+            if (unread > 0) parts.push(`${unread} 条未读`);
+            parts.push('查看消息功能开发中')
+            MessagePlugin.success(parts.length > 0 ? `消息线程：${parts.join('，')}` : '消息线程暂无回复');
+        } else {
+            MessagePlugin.info('该消息没有回复线程');
+        }
+    } catch (e: any) {
+        console.error('getMessageThread failed:', e);
+        MessagePlugin.error(e?.message || '获取消息线程失败');
+    }
+}
+
+/** 语音转文字 */
+async function handleRecognizeSpeech(msg: message) {
+    const cid = chatId.value;
+    if (cid === undefined) return;
+    try {
+        const result = await tdlibSend({
+            _: 'recognizeSpeech',
+            chat_id: cid,
+            message_id: msg.id,
+        }) as any;
+        if (result && result.text) {
+            MessagePlugin.success(`识别结果：${result.text}`);
+        } else {
+            MessagePlugin.info('无法识别语音内容');
+        }
+    } catch (e: any) {
+        console.error('recognizeSpeech failed:', e);
+        MessagePlugin.error(e?.message || '语音识别失败');
+    }
+}
+
+/** 举报消息（弹出举报原因选择器） */
+async function handleReportMessage(msg: message) {
+    const cid = chatId.value;
+    if (cid === undefined) return;
+    try {
+        await confirmReportMessage({ chatId: cid, msg });
+        MessagePlugin.success('已举报');
+    } catch (e: any) {
+        if (e?.message !== 'canceled') {
+            console.error('reportChat failed:', e);
+            MessagePlugin.error(e?.message || '举报失败');
+        }
+    }
+}
+
 /** 构建消息右键菜单项（开发环境附带“复制消息原始 JSON”）。
  * 权限已在打开前通过 getMessageProperties 获取完毕，此处仅作纯同步渲染。
  */
@@ -2811,6 +3023,16 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
     const items: ContextMenuItem[] = [];
     const isService = isServiceMessage(msg);
     const cid = chatId.value;
+
+    // —— 阅读状态（信息项，不可点击）——
+    if (pendingReadDateLabel) {
+        items.push({
+            key: 'read-status',
+            label: pendingReadDateLabel,
+            disabled: true,
+        });
+        items.push({ key: 'divider-read', label: '', divider: true });
+    }
 
     // —— 回复 ——
     if (!isService && canReplyMessage(msg, cid)) {
@@ -2833,11 +3055,11 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
         });
     }
 
-    // —— 编辑（仅自己发送的文本消息可编辑）——
+    // —— 编辑（文本消息编辑内容，媒体消息编辑描述）——
     if (!isService && isSelf(msg) && canEditMessage(msg, cid)) {
         items.push({
             key: 'edit',
-            label: '编辑',
+            label: isMediaMessage(msg) ? '编辑描述' : '编辑',
             icon: PencilIcon,
             onClick: () => startEdit(msg),
         });
@@ -2861,6 +3083,16 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
         disabled: !canCopyMessage(msg, cid),
         onClick: () => copyMessageText(msg),
     });
+
+    // —— 保存到收藏 ——
+    if (!isService && canSaveMessage(msg, cid)) {
+        items.push({
+            key: 'save',
+            label: '保存到收藏',
+            icon: BookmarkIcon,
+            onClick: () => handleSaveMessage(msg),
+        });
+    }
 
     // —— 媒体文件：打开目录 / 另存为（仅文件完全下载完成后可用）——
     const mediaFile = getMessageFile(msg);
@@ -2899,6 +3131,57 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
         disabled: !canGetMessageLink(msg, cid),
         onClick: () => copyMessageLink(cid!, msg),
     });
+
+    // —— 查看回应者 ——
+    if (!isService && canGetViewers(msg, cid)) {
+        items.push({
+            key: 'viewers',
+            label: '查看回应者',
+            icon: EyeIcon,
+            onClick: () => handleGetViewers(msg),
+        });
+    }
+
+    // —— 查看真实作者（频道代发消息） ——
+    if (!isService && canGetAuthor(msg, cid)) {
+        items.push({
+            key: 'author',
+            label: '查看真实作者',
+            icon: UserCheckIcon,
+            onClick: () => handleGetAuthor(msg),
+        });
+    }
+
+    // —— 查看消息线程（仅当有回复时才显示）——
+    if (!isService && canGetMessageThread(msg, cid) && (msg.interaction_info?.reply_info?.reply_count ?? 0) > 0) {
+        items.push({
+            key: 'thread',
+            label: '查看回复',
+            icon: MessageSquareIcon,
+            onClick: () => handleGetMessageThread(msg),
+        });
+    }
+
+    // —— 语音转文字 ——
+    if (!isService && canRecognizeSpeech(msg, cid)) {
+        items.push({
+            key: 'recognize-speech',
+            label: '语音转文字',
+            icon: AudioLinesIcon,
+            onClick: () => handleRecognizeSpeech(msg),
+        });
+    }
+
+    // —— 举报 ——
+    if (!isService && canReportMessage(msg, cid)) {
+        items.push({
+            key: 'report',
+            label: '举报',
+            icon: FlagIcon,
+            danger: true,
+            onClick: () => handleReportMessage(msg),
+        });
+    }
 
     // —— 置顶 / 取消置顶 ——
     const canPin = !isService && canPinMessage(msg, cid);

@@ -93,7 +93,7 @@ const props = defineProps<{
     modelValue?: string;
     placeholder?: string;
     replyTarget?: ReplyTarget | null;
-    editTarget?: { text: string } | null;
+    editTarget?: { text: string; label?: string } | null;
     chat?: chat;
     users?: Record<number, user>;
     supergroups?: Record<number, import('tdlib-types').supergroup>;
@@ -228,13 +228,14 @@ function onInput(e: Event) {
 }
 
 const inputPlaceholder = computed(() =>
-    props.editTarget ? '编辑消息...' : (attachmentStore.items.length > 0 ? '描述' : (props.placeholder || '输入消息...')));
+    props.editTarget ? `${props.editTarget.label || '编辑消息'}...` : (attachmentStore.items.length > 0 ? '描述' : (props.placeholder || '输入消息...')));
 
 const attachmentMenuRef = ref<InstanceType<typeof AttachmentMenu> | null>(null);
 
 const onClickSend = () => {
     if (sending.value) return;
-    if (attachmentStore.items.length === 0 && !localValue.value.trim()) return;
+    // 编辑模式下允许空文本（媒体消息可清空描述）；非编辑模式需有内容或附件
+    if (!props.editTarget && attachmentStore.items.length === 0 && !localValue.value.trim()) return;
     const ft: formattedText = { _: 'formattedText', text: localValue.value, entities: entities.value };
     emit('send', ft);
     localValue.value = '';

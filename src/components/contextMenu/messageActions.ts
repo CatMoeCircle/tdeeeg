@@ -249,6 +249,87 @@ export function canEditMessage(msg: message, chatId?: number): boolean {
     return (msg as any).can_be_edited !== false;
 }
 
+/** 消息是否可保存到收藏（messageProperties.can_be_saved） */
+export function canSaveMessage(msg: message, chatId?: number): boolean {
+    if (isServiceMessage(msg)) return false;
+    let p: messageProperties | undefined;
+    if (chatId !== undefined) p = propsOf(chatId, msg);
+    const cp = p ?? (msg as any);
+    if (cp.can_be_saved !== undefined) return cp.can_be_saved === true;
+    return true;
+}
+
+/** 消息是否可查看回应者（messageProperties.can_get_viewers） */
+export function canGetViewers(msg: message, chatId?: number): boolean {
+    if (isServiceMessage(msg)) return false;
+    let p: messageProperties | undefined;
+    if (chatId !== undefined) p = propsOf(chatId, msg);
+    const cp = p ?? (msg as any);
+    if (cp.can_get_viewers !== undefined) return cp.can_get_viewers === true;
+    return false;
+}
+
+/** 消息是否可查看阅读者（messageProperties.can_get_read_date） */
+export function canGetReadDate(msg: message, chatId?: number): boolean {
+    if (isServiceMessage(msg)) return false;
+    let p: messageProperties | undefined;
+    if (chatId !== undefined) p = propsOf(chatId, msg);
+    const cp = p ?? (msg as any);
+    if (cp.can_get_read_date !== undefined) return cp.can_get_read_date === true;
+    return false;
+}
+
+/** 消息是否可查看真实作者（messageProperties.can_get_author） */
+export function canGetAuthor(msg: message, chatId?: number): boolean {
+    if (isServiceMessage(msg)) return false;
+    let p: messageProperties | undefined;
+    if (chatId !== undefined) p = propsOf(chatId, msg);
+    const cp = p ?? (msg as any);
+    if (cp.can_get_author !== undefined) return cp.can_get_author === true;
+    return false;
+}
+
+/** 消息是否可查看消息线程（messageProperties.can_get_message_thread） */
+export function canGetMessageThread(msg: message, chatId?: number): boolean {
+    if (isServiceMessage(msg)) return false;
+    let p: messageProperties | undefined;
+    if (chatId !== undefined) p = propsOf(chatId, msg);
+    const cp = p ?? (msg as any);
+    if (cp.can_get_message_thread !== undefined) return cp.can_get_message_thread === true;
+    return false;
+}
+
+/** 消息是否可语音转文字（messageProperties.can_recognize_speech） */
+export function canRecognizeSpeech(msg: message, chatId?: number): boolean {
+    if (isServiceMessage(msg)) return false;
+    let p: messageProperties | undefined;
+    if (chatId !== undefined) p = propsOf(chatId, msg);
+    const cp = p ?? (msg as any);
+    if (cp.can_recognize_speech !== undefined) return cp.can_recognize_speech === true;
+    return false;
+}
+
+/** 消息是否可举报（messageProperties.can_report_chat 或 can_report_supergroup_spam） */
+export function canReportMessage(msg: message, chatId?: number): boolean {
+    if (isServiceMessage(msg)) return false;
+    let p: messageProperties | undefined;
+    if (chatId !== undefined) p = propsOf(chatId, msg);
+    const cp = p ?? (msg as any);
+    if (cp.can_report_chat !== undefined) return cp.can_report_chat === true;
+    if (cp.can_report_supergroup_spam !== undefined) return cp.can_report_supergroup_spam === true;
+    return false;
+}
+
+/** 消息是否可编辑媒体（messageProperties.can_edit_media） */
+export function canEditMedia(msg: message, chatId?: number): boolean {
+    if (isServiceMessage(msg)) return false;
+    let p: messageProperties | undefined;
+    if (chatId !== undefined) p = propsOf(chatId, msg);
+    const cp = p ?? (msg as any);
+    if (cp.can_edit_media !== undefined) return cp.can_edit_media === true;
+    return false;
+}
+
 /** 编辑消息文本（editMessageText + inputMessageText） */
 export async function editTextMessage(
     chatId: number,
@@ -272,6 +353,31 @@ export async function editTextMessage(
     } catch (e) {
         console.error('editMessageText failed:', e);
         MessagePlugin.error({ content: '编辑消息失败', placement: 'center' });
+        return false;
+    }
+}
+
+/** 编辑媒体消息描述（editMessageCaption）；传空文本时移除描述 */
+export async function editCaptionMessage(
+    chatId: number,
+    messageId: number,
+    text: string,
+    entities?: textEntity$Input[],
+): Promise<boolean> {
+    try {
+        const caption = text.trim()
+            ? { _: 'formattedText', text, entities: entities ?? [] } as formattedText$Input
+            : null;
+        await tdlibSend({
+            _: 'editMessageCaption',
+            chat_id: chatId,
+            message_id: messageId,
+            caption,
+        } as any);
+        return true;
+    } catch (e) {
+        console.error('editMessageCaption failed:', e);
+        MessagePlugin.error({ content: '编辑描述失败', placement: 'center' });
         return false;
     }
 }

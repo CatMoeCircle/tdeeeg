@@ -35,8 +35,7 @@
 
             <!-- 用户筛选 -->
             <button type="button" aria-label="按发送者筛选"
-                class="w-9 h-9 shrink-0 flex items-center justify-center rounded-full transition-colors"
-                :class="senderFilter
+                class="w-9 h-9 shrink-0 flex items-center justify-center rounded-full transition-colors" :class="senderFilter
                     ? 'bg-blue-500 text-white hover:bg-blue-600'
                     : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'"
                 @click="toggleSenderPanel">
@@ -121,6 +120,8 @@ const props = defineProps<{
     chatId?: number | null;
     topicId?: number | null;
     chat?: chat;
+    /** 初始搜索词（如点击 #标签 打开搜索时预填），变化时同步到搜索框 */
+    initialQuery?: string;
 }>();
 
 const emit = defineEmits<{
@@ -154,7 +155,17 @@ let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
 onMounted(() => {
     loadSenderOptions();
+    if (props.initialQuery) {
+        query.value = props.initialQuery;
+    }
     nextTick(() => inputEl.value?.focus());
+});
+
+watch(() => props.initialQuery, (v) => {
+    if (v) {
+        query.value = v;
+        resultsOpen.value = true;
+    }
 });
 
 watch([query, senderFilter], () => {

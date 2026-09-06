@@ -71,6 +71,7 @@ declare module 'vue' {
     PinMessageConfirm: typeof import('./components/contextMenu/PinMessageConfirm.vue')['default']
     PinnedMessageBar: typeof import('./components/chat/ChatDetail/PinnedMessageBar.vue')['default']
     ProxyLinkConfirm: typeof import('./components/contextMenu/ProxyLinkConfirm.vue')['default']
+    ReportMessageConfirm: typeof import('./components/contextMenu/ReportMessageConfirm.vue')['default']
     ResizableLayout: typeof import('./components/layout/ResizableLayout.vue')['default']
     RichAudio: typeof import('./components/chat/ChatDetail/MessageContent/rich/RichAudio.vue')['default']
     RichCaption: typeof import('./components/chat/ChatDetail/MessageContent/rich/RichCaption.vue')['default']

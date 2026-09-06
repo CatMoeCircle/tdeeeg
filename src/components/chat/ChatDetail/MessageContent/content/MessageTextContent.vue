@@ -23,8 +23,9 @@
                             @click.prevent.stop="handleSegmentClick($event, segment)"
                             @contextmenu="handleSegmentContextMenu($event, segment)">{{ segment.text }}</a>
                         <span v-else
-                            :class="[segment.className, segment.copyable ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
-                            @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined">
+                            :class="[segment.className, (segment.copyable || segment.isHashtag) ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
+                            @click="(segment.copyable || segment.isCommand || segment.isHashtag) ? handleSegmentClick($event, segment) : undefined"
+                            @contextmenu="segment.isHashtag ? handleSegmentContextMenu($event, segment) : undefined">
                             <SpoilerSpan v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template v-else>{{
                                 segment.text }}</template>
                         </span>
@@ -41,11 +42,14 @@
                             @click.prevent.stop="handleSegmentClick($event, segment)"
                             @contextmenu="handleSegmentContextMenu($event, segment)">{{ segment.text }}</a>
                         <span v-else
-                            :class="[segment.className, segment.copyable ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
-                            @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined">
-                            <SpoilerSpan v-if="segment.isSpoiler"><GlobalEmojiText :text="segment.text"
-                                    :size="emojiSize" /></SpoilerSpan><template v-else><GlobalEmojiText :text="segment.text"
-                                    :size="emojiSize" /></template>
+                            :class="[segment.className, (segment.copyable || segment.isHashtag) ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
+                            @click="(segment.copyable || segment.isCommand || segment.isHashtag) ? handleSegmentClick($event, segment) : undefined"
+                            @contextmenu="segment.isHashtag ? handleSegmentContextMenu($event, segment) : undefined">
+                            <SpoilerSpan v-if="segment.isSpoiler">
+                                <GlobalEmojiText :text="segment.text" :size="emojiSize" />
+                            </SpoilerSpan><template v-else>
+                                <GlobalEmojiText :text="segment.text" :size="emojiSize" />
+                            </template>
                         </span>
                     </template>
                 </template>
@@ -69,7 +73,7 @@
                     <span class="w-0.5 shrink-0 self-stretch rounded-full" :style="accentBarStyle"></span>
                     <span class="min-w-0 flex-1 truncate py-1 text-xs font-semibold" :style="accentTextStyle">{{
                         group.codeLanguage
-                        }}</span>
+                    }}</span>
                     <button type="button"
                         class="msg-noselect flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                         @click.stop="copyCodeBlock(group)">
@@ -105,11 +109,14 @@
                         @click.prevent.stop="handleSegmentClick($event, segment)"
                         @contextmenu="handleSegmentContextMenu($event, segment)">{{ segment.text }}</a>
                     <span v-else
-                        :class="[segment.className, segment.copyable ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
-                        @click="(segment.copyable || segment.isCommand) ? handleSegmentClick($event, segment) : undefined">
-                        <SpoilerSpan v-if="segment.isSpoiler"><GlobalEmojiText :text="segment.text"
-                                :size="emojiSize" /></SpoilerSpan><template v-else><GlobalEmojiText :text="segment.text"
-                                :size="emojiSize" /></template>
+                        :class="[segment.className, (segment.copyable || segment.isHashtag) ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
+                        @click="(segment.copyable || segment.isCommand || segment.isHashtag) ? handleSegmentClick($event, segment) : undefined"
+                        @contextmenu="segment.isHashtag ? handleSegmentContextMenu($event, segment) : undefined">
+                        <SpoilerSpan v-if="segment.isSpoiler">
+                            <GlobalEmojiText :text="segment.text" :size="emojiSize" />
+                        </SpoilerSpan><template v-else>
+                            <GlobalEmojiText :text="segment.text" :size="emojiSize" />
+                        </template>
                     </span>
                 </template>
             </template>
@@ -139,7 +146,9 @@ import SpoilerSpan from '../spoiler/SpoilerSpan.vue';
 import { useColors, rgbToCss } from '../../../../../store/colors';
 import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
 import { requestInsertCommand } from '../../../../../store/commandInsert';
+import { requestHashtagSearch } from '../../../../../store/hashtagSearch';
 import { openUsernameMenu } from '../../../../../store/usernameMenu';
+import { openContextMenu } from '../../../../../store/contextMenu';
 import { settings } from '../../../../../store/settings';
 import MessageLinkPreview from './MessageLinkPreview.vue';
 import MessageStatus from './MessageStatus.vue';
@@ -206,6 +215,8 @@ type Segment = {
     isCommand?: boolean;
     /** 是否为 @用户名 提及（textEntityTypeMention），右键打开用户资料菜单 */
     isMention?: boolean;
+    /** 是否为 #话题标签（textEntityTypeHashtag），点击激活聊天内搜索，右键复制 */
+    isHashtag?: boolean;
     /** 是否在引用块内 */
     isBlockquote?: boolean;
     /** 引用块类型：'expandable' 表示可折叠引用 */
@@ -299,9 +310,11 @@ const segments = computed<Segment[]>(() => {
         const isCommand = activeEntities.some(e => e.type._ === 'textEntityTypeBotCommand');
         // 是否为 @用户名 提及：右键打开用户资料菜单
         const isMention = activeEntities.some(e => e.type._ === 'textEntityTypeMention');
+        // 是否为 #话题标签：点击激活聊天内搜索，右键复制
+        const isHashtag = activeEntities.some(e => e.type._ === 'textEntityTypeHashtag');
         // 是否为剧透：点击后揭示显示（仿 Web Telegram）
         const isSpoiler = activeEntities.some(e => e.type._ === 'textEntityTypeSpoiler');
-        return { text: segmentText, href, className, copyable, isCommand, isMention, isBlockquote, blockquoteType, isCodeBlock, codeLanguage, isSpoiler };
+        return { text: segmentText, href, className, copyable, isCommand, isMention, isHashtag, isBlockquote, blockquoteType, isCodeBlock, codeLanguage, isSpoiler };
     });
 });
 
@@ -410,9 +423,7 @@ function getEntityClass(entity: textEntity): string {
 
 function isCopyableEntity(entity: textEntity): boolean {
     switch (entity.type._) {
-        // #话题标签 点击复制（临时方案，后续搜索功能优化时改为搜索该标签）。
         // 行内代码：点击复制（块级代码 pre/preCode 已有头部「复制」按钮，不再支持点击复制，避免与按钮冲突）
-        case 'textEntityTypeHashtag':
         case 'textEntityTypeCode':
             return true;
         default:
@@ -444,6 +455,11 @@ function handleSegmentClick(_event: MouseEvent, segment: Segment) {
         }
         return;
     }
+    // #话题标签：激活聊天内搜索该标签
+    if (segment.isHashtag) {
+        requestHashtagSearch(segment.text);
+        return;
+    }
     if (segment.href) {
         // 链接：复制文本 + 导航
         if (segment.copyable) {
@@ -456,8 +472,19 @@ function handleSegmentClick(_event: MouseEvent, segment: Segment) {
     }
 }
 
-/** 右击 @用户名 提及：打开用户资料菜单（非提及段直接忽略，不阻止默认） */
+/** 右击 @用户名 提及：打开用户资料菜单；右击 #话题标签：弹出「复制」菜单（非以上段直接忽略，不阻止默认） */
 function handleSegmentContextMenu(e: MouseEvent, segment: Segment) {
+    if (segment.isHashtag) {
+        if (!segment.text) return;
+        e.preventDefault();
+        e.stopPropagation();
+        openContextMenu(e.clientX, e.clientY, [{
+            key: 'copy-hashtag',
+            label: '复制',
+            onClick: () => copyToClipboard(segment.text),
+        }], e.currentTarget as HTMLElement | null);
+        return;
+    }
     if (!segment.isMention || !segment.text) return;
     e.preventDefault();
     e.stopPropagation();

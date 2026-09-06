@@ -11,7 +11,9 @@
                 </div>
             </div>
             <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
-                <span class="max-w-full truncate text-sm font-medium"><GlobalEmojiText :text="content.document.file_name" /></span>
+                <span class="max-w-full truncate text-sm font-medium">
+                    <GlobalEmojiText :text="content.document.file_name" />
+                </span>
                 <span class="truncate text-xs text-gray-500">
                     <template v-if="uploading">
                         {{ formatSize(uploadCurrentSize) + ' / ' + formatSize(uploadTotalSize) }}
@@ -114,10 +116,14 @@
             @click.prevent.stop="handleCaptionSegmentClick($event, segment)">{{ segment.text
             }}</a>
         <span v-else
-            :class="[segment.className, segment.copyable ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
-            @click="(segment.copyable || segment.isCommand) ? handleCaptionSegmentClick($event, segment) : undefined">
-            <SpoilerSpan v-if="segment.isSpoiler"><GlobalEmojiText :text="segment.text" :size="22" /></SpoilerSpan><template
-                v-else><GlobalEmojiText :text="segment.text" :size="22" /></template>
+            :class="[segment.className, (segment.copyable || segment.isHashtag) ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
+            @click="(segment.copyable || segment.isCommand || segment.isHashtag) ? handleCaptionSegmentClick($event, segment) : undefined"
+            @contextmenu="segment.isHashtag ? handleCaptionSegmentContextMenu($event, segment) : undefined">
+            <SpoilerSpan v-if="segment.isSpoiler">
+                <GlobalEmojiText :text="segment.text" :size="22" />
+            </SpoilerSpan><template v-else>
+                <GlobalEmojiText :text="segment.text" :size="22" />
+            </template>
         </span>
     </template>
 </p>
@@ -143,6 +149,8 @@ import { useUploadStore } from '../../../../../store/upload';
 import { useChatStore } from '../../../../../store/chat';
 import { settings } from '../../../../../store/settings';
 import { requestInsertCommand } from '../../../../../store/commandInsert';
+import { requestHashtagSearch } from '../../../../../store/hashtagSearch';
+import { openContextMenu } from '../../../../../store/contextMenu';
 import { getChatCategory } from '../../../../../utils/autoDownload';
 import { useAudioPlayerStore } from '../../../../../store/audioPlayer';
 import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
@@ -245,6 +253,8 @@ type CaptionSegment = {
     copyable?: boolean;
     /** 是否为 bot 命令（/command），点击后插入输入框（可设置） */
     isCommand?: boolean;
+    /** 是否为 #话题标签（textEntityTypeHashtag），点击激活聊天内搜索，右键复制 */
+    isHashtag?: boolean;
     /** 是否为剧透（点击后揭示显示） */
     isSpoiler?: boolean;
 };
@@ -290,8 +300,9 @@ const captionSegments = computed<CaptionSegment[]>(() => {
         const className = activeEntities.map(getEntityClass).filter(Boolean).join(' ');
         const copyable = activeEntities.some(e => isCopyableEntity(e));
         const isCommand = activeEntities.some(e => e.type._ === 'textEntityTypeBotCommand');
+        const isHashtag = activeEntities.some(e => e.type._ === 'textEntityTypeHashtag');
         const isSpoiler = activeEntities.some(e => e.type._ === 'textEntityTypeSpoiler');
-        return { text: segmentText, href, className, copyable, isCommand, isSpoiler };
+        return { text: segmentText, href, className, copyable, isCommand, isHashtag, isSpoiler };
     });
 });
 
@@ -313,6 +324,9 @@ function getEntityClass(entity: textEntity): string {
         case 'textEntityTypeItalic': return 'italic';
         case 'textEntityTypeUnderline': return 'underline';
         case 'textEntityTypeStrikethrough': return 'line-through';
+        // 话题标签：蓝色强调（与普通文本消息一致），点击激活聊天内搜索
+        case 'textEntityTypeHashtag':
+            return 'text-blue-500 dark:text-blue-400';
         // 代码（行内 / 块级）：点击复制，不添加灰色背景（与富文本可复制文本一致）
         case 'textEntityTypeCode':
         case 'textEntityTypePre':
@@ -326,9 +340,7 @@ function getEntityClass(entity: textEntity): string {
 
 function isCopyableEntity(entity: textEntity): boolean {
     switch (entity.type._) {
-        // #话题标签 点击复制（临时方案，后续搜索功能优化时改为搜索该标签）。
         // 行内代码 / 块级代码：点击复制代码文本（与富文本 richTextFixed 的可复制适配一致）。
-        case 'textEntityTypeHashtag':
         case 'textEntityTypeCode':
         case 'textEntityTypePre':
         case 'textEntityTypePreCode':
@@ -355,6 +367,11 @@ function handleCaptionSegmentClick(_event: MouseEvent, segment: CaptionSegment) 
         }
         return;
     }
+    // #话题标签：激活聊天内搜索该标签
+    if (segment.isHashtag) {
+        requestHashtagSearch(segment.text);
+        return;
+    }
     if (segment.href) {
         if (segment.copyable) {
             copyToClipboard(segment.text);
@@ -363,6 +380,18 @@ function handleCaptionSegmentClick(_event: MouseEvent, segment: CaptionSegment) 
     } else if (segment.copyable) {
         copyToClipboard(segment.text);
     }
+}
+
+/** 右击 #话题标签：弹出「复制」菜单 */
+function handleCaptionSegmentContextMenu(e: MouseEvent, segment: CaptionSegment) {
+    if (!segment.isHashtag || !segment.text) return;
+    e.preventDefault();
+    e.stopPropagation();
+    openContextMenu(e.clientX, e.clientY, [{
+        key: 'copy-hashtag',
+        label: '复制',
+        onClick: () => copyToClipboard(segment.text),
+    }], e.currentTarget as HTMLElement | null);
 }
 
 async function openCaptionLink(href: string) {
