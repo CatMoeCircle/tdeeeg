@@ -494,7 +494,7 @@
 
 
         <!-- ===== 第四部分：底部功能导航栏（动态 / 归档动态 / 礼物 / 共同群组） ===== -->
-        <div v-if="hasBottomContent" class="px-4 mt-5">
+        <div v-if="hasBottomContent" class="px-4 mt-5 sticky top-0 z-10 bg-white dark:bg-[#1a1a1a] pt-2 pb-2">
           <div
             class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] overflow-x-auto overflow-y-hidden scrollbar-none"
             v-smooth-wheel="'horizontal'" @wheel.stop.prevent>
