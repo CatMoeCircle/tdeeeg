@@ -616,7 +616,7 @@
               <div v-for="item in sharedMediaItems" :key="item.messageId"
                 class="aspect-square overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800 relative cursor-pointer"
                 @click="openSharedMediaViewer(sharedMediaItems.indexOf(item))"
-                @contextmenu="showSharedMediaContextMenu($event, item)">
+                @contextmenu.stop="showSharedMediaContextMenu($event, item)">
                 <!-- 加载中的 minithumbnail 模糊占位 -->
                 <img v-if="sharedMediaMiniSrc(item) && !sharedMediaUrl(item.messageId)" :src="sharedMediaMiniSrc(item)"
                   class="w-full h-full object-cover scale-110 blur-sm" />
@@ -650,7 +650,7 @@
               <div v-for="item in sharedMediaItems" :key="item.messageId"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
                 @click="jumpToMessage(item.chatId, item.messageId)"
-                @contextmenu="showSharedMediaContextMenu($event, item)">
+                @contextmenu.stop="showSharedMediaContextMenu($event, item)">
                 <div
                   class="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
                   <FileText class="w-5 h-5 text-gray-400" />
@@ -677,7 +677,7 @@
             <div v-else class="space-y-1">
               <div v-for="item in sharedMediaItems" :key="item.messageId"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-                @click="openSharedLink(item.url)" @contextmenu="showSharedMediaContextMenu($event, item)">
+                @click="openSharedLink(item.url)" @contextmenu.stop="showSharedMediaContextMenu($event, item)">
                 <div
                   class="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
                   <Link class="w-5 h-5 text-blue-500" />
@@ -700,7 +700,7 @@
             <div v-else class="space-y-1">
               <div v-for="(item, idx) in sharedMediaItems" :key="item.messageId"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-                @click="playSharedMusic(idx)" @contextmenu="showSharedMediaContextMenu($event, item)">
+                @click="playSharedMusic(idx)" @contextmenu.stop="showSharedMediaContextMenu($event, item)">
                 <!-- 专辑封面（优先缩略图，无则图标） -->
                 <div
                   class="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0 overflow-hidden">
@@ -714,7 +714,7 @@
                   <p class="text-xs text-gray-400 mt-0.5 truncate">
                     {{ item.performer || '' }}<template v-if="item.performer && item.audioDuration"> ·
                     </template><template v-if="item.audioDuration">{{ formatAudioDuration(item.audioDuration)
-                      }}</template>
+                    }}</template>
                   </p>
                 </div>
               </div>
@@ -733,7 +733,7 @@
               <div v-for="item in sharedMediaItems" :key="item.messageId"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
                 @click="jumpToMessage(item.chatId, item.messageId)"
-                @contextmenu="showSharedMediaContextMenu($event, item)">
+                @contextmenu.stop="showSharedMediaContextMenu($event, item)">
                 <div
                   class="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
                   <Mic class="w-5 h-5 text-gray-400" />
@@ -760,7 +760,7 @@
               <div v-for="item in sharedMediaItems" :key="item.messageId"
                 class="aspect-square overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800 relative cursor-pointer"
                 @click="openSharedMediaViewer(sharedMediaItems.indexOf(item))"
-                @contextmenu="showSharedMediaContextMenu($event, item)">
+                @contextmenu.stop="showSharedMediaContextMenu($event, item)">
                 <img v-if="sharedMediaMiniSrc(item) && !sharedMediaUrl(item.messageId)" :src="sharedMediaMiniSrc(item)"
                   class="w-full h-full object-cover scale-110 blur-sm" />
                 <img v-if="sharedMediaUrl(item.messageId)" :src="sharedMediaUrl(item.messageId)"
