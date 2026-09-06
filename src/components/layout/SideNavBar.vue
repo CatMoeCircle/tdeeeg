@@ -3,11 +3,14 @@
     <div class="w-14 h-full dark:bg-gray-900 flex flex-col items-center py-4 dark:border-gray-800 pt-1">
         <!-- Avatar / Profile -->
         <div class="mb-5 ">
-            <div v-if="userProfile" class="w-10 h-10">
-                <Avatar :photo="userProfile.profile_photo" :title="userProfile.first_name + ' ' + userProfile.last_name"
-                    :accentColorId="userProfile.profile_accent_color_id" />
-            </div>
-            <div v-else class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
+            <button type="button" class="block" title="账户" @click="accountMenuOpen = true">
+                <div v-if="userProfile" class="w-10 h-10">
+                    <Avatar :photo="userProfile.profile_photo"
+                        :title="userProfile.first_name + ' ' + userProfile.last_name"
+                        :accentColorId="userProfile.profile_accent_color_id" />
+                </div>
+                <div v-else class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
+            </button>
         </div>
 
         <!-- 侧边栏-上部分-->
@@ -51,13 +54,15 @@
                 <SettingsIcon :class="iconStyle" />
             </router-link>
         </div>
+        <AccountMenu v-model="accountMenuOpen" />
     </div>
 </template>
 
 <script setup lang="ts">
 import { MessageCircleIcon, UsersIcon, ArchiveIcon, DownloadIcon, SettingsIcon } from 'lucide-vue-next';
 import Avatar from "../chat/avatar.vue";
-import { computed, onMounted } from 'vue';
+import AccountMenu from "../AccountMenu.vue";
+import { computed, ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useUserStore } from '../../store/user';
 import { useDownloadStore } from '../../store/downloads';
@@ -72,6 +77,7 @@ const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
 const downloadStore = useDownloadStore();
 const uploadStore = useUploadStore();
+const accountMenuOpen = ref(false);
 const route = useRoute();
 const isChatNavActive = computed(() => route.name === 'chats' || route.name === 'chat-detail' || route.name === 'chat-topic-detail');
 const isSettingsNavActive = computed(() => route.name === 'settings' || route.name === 'settings-appearance' || route.name === 'settings-download' || route.name === 'settings-proxy' || route.name === 'settings-debug' || route.name === 'settings-system' || route.name === 'settings-edit-profile' || route.name === 'settings-privacy' || route.name === 'settings-devices');

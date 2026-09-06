@@ -88,24 +88,45 @@
                         </h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
-                    <p class="text-xs text-gray-400 mt-2">退出登录会清除当前账户的本地会话，需重新登录。</p>
-                    <div class="mt-5 flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                        <div class="flex items-center">
-                            <div
-                                class="w-9 h-9 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 flex items-center justify-center mr-3">
-                                <LogOutIcon class="w-5 h-5" />
+                    <p class="text-xs text-gray-400 mt-2">可同时登录多个账户，并在账户之间快速切换。</p>
+
+                    <!-- 账户列表 -->
+                    <div class="mt-5 space-y-2">
+                        <div v-for="acc in accounts" :key="acc.id"
+                            class="flex items-center p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                            <img v-if="acc.avatar_path" :src="avatarSrc(acc)" alt="avatar"
+                                class="w-10 h-10 rounded-full object-cover mr-3 shrink-0" />
+                            <div v-else
+                                class="w-10 h-10 rounded-full mr-3 shrink-0 flex items-center justify-center text-white text-xs bg-gradient-to-br from-blue-400 to-indigo-500">
+                                {{ accountInitials(acc) }}
                             </div>
-                            <div>
-                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100">退出登录</p>
-                                <p class="text-xs text-gray-400 mt-0.5">退出当前账号，保留本地缓存数据</p>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                                    {{ accountName(acc) }}
+                                    <span v-if="acc.is_active"
+                                        class="ml-1 text-xs font-normal text-blue-500">(当前)</span>
+                                </p>
+                                <p class="text-xs text-gray-400 truncate">{{ accountSubtitle(acc) }}</p>
+                            </div>
+                            <div class="flex items-center gap-2 shrink-0">
+                                <button v-if="!acc.is_active" type="button" @click="switchAcc(acc)"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-medium text-blue-600 dark:text-blue-400 border border-blue-300 dark:border-blue-500/40 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors">
+                                    {{ acc.logged_in ? '切换' : '登录' }}
+                                </button>
+                                <button v-if="acc.logged_in && !acc.is_active" type="button"
+                                    @click="logoutAcc(acc)"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-500/40 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors">
+                                    登出
+                                </button>
                             </div>
                         </div>
-                        <button type="button" @click="logout"
-                            class="px-4 py-2 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-500/40 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-60"
-                            :disabled="loggingOut">
-                            {{ loggingOut ? '正在退出…' : '退出登录' }}
-                        </button>
                     </div>
+
+                    <!-- 添加账户 -->
+                    <button type="button" @click="showAddDialog = true"
+                        class="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-dashed border-blue-300 dark:border-blue-500/40 text-sm font-medium text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors">
+                        <PlusIcon class="w-4 h-4" /> 添加账户
+                    </button>
                 </section>
 
                 <!-- 关于 -->
@@ -146,17 +167,50 @@
             </div>
         </div>
     </div>
+
+    <!-- 添加账户确认弹窗 -->
+    <Teleport to="body">
+        <div v-if="showAddDialog"
+            class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            @mousedown.self="showAddDialog = false" @keydown.esc="showAddDialog = false">
+            <div
+                class="w-90 max-w-[calc(100vw-2rem)] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
+                <div class="px-4 pt-5 pb-3 text-center">
+                    <div
+                        class="mx-auto w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-500 flex items-center justify-center mb-3">
+                        <LogOutIcon class="w-6 h-6" />
+                    </div>
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">添加账户</h3>
+                    <p class="mt-1.5 text-sm text-gray-500 dark:text-gray-400 leading-5">
+                        将登录一个新的 Telegram 账户，多个账户可并存并随时切换。
+                    </p>
+                </div>
+                <div class="px-4 pb-4 flex items-center justify-end gap-3">
+                    <button type="button" @click="showAddDialog = false"
+                        class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                        取消
+                    </button>
+                    <button type="button" @click="confirmAdd" :disabled="adding"
+                        class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:cursor-wait">
+                        {{ adding ? '正在创建…' : '继续' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </Teleport>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { ChevronLeft as ChevronLeftIcon, Info as InfoIcon, LogOut as LogOutIcon } from 'lucide-vue-next';
-import { invoke } from '@tauri-apps/api/core';
+import { ChevronLeft as ChevronLeftIcon, Info as InfoIcon, LogOut as LogOutIcon, Plus as PlusIcon, UserPlus as UserPlusIcon } from 'lucide-vue-next';
+import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { settings } from '../../store/settings';
 import { tdlibSend } from '../../utils/tdlib';
+import { useAccountsStore, type AccountInfo } from '../../store/accounts';
+import { storeToRefs } from 'pinia';
 import packageInfo from '../../../package.json';
 
 const router = useRouter();
@@ -195,6 +249,7 @@ async function loadTdlibVersion() {
 onMounted(() => {
     loadAppVersion();
     loadTdlibVersion();
+    accountsStore.init();
 });
 
 // ─── 表单状态（从持久化 settings.system 初始化）───
@@ -265,14 +320,78 @@ async function logout() {
     if (!ok) return;
     loggingOut.value = true;
     try {
-        // logOut → 等待本地数据销毁并重建客户端（回到待登录状态）
         await invoke('logout_tdlib');
         MessagePlugin.success('已退出登录');
-        // 重建前端，bootstrap 会根据新的授权态跳转到登录页
         window.location.reload();
     } catch (e: any) {
         MessagePlugin.error(e?.message || '退出登录失败');
         loggingOut.value = false;
     }
 }
+
+// ─── 账户管理 ───
+const accountsStore = useAccountsStore();
+const { accounts } = storeToRefs(accountsStore);
+const showAddDialog = ref(false);
+const adding = ref(false);
+
+function avatarSrc(acc: AccountInfo): string | undefined {
+    return acc.avatar_path ? convertFileSrc(acc.avatar_path) : undefined;
+}
+
+function accountInitials(acc: AccountInfo): string {
+    const name = (acc.first_name || '') + (acc.last_name || '');
+    return name.trim().substring(0, 2) || '#';
+}
+
+function accountName(acc: AccountInfo): string {
+    if (acc.first_name || acc.last_name) {
+        return (acc.first_name || '') + ' ' + (acc.last_name || '');
+    }
+    return '未登录账户';
+}
+
+function accountSubtitle(acc: AccountInfo): string {
+    if (acc.logged_in) {
+        return acc.username ? '@' + acc.username : `#${acc.id}`;
+    }
+    return '未登录';
+}
+
+async function switchAcc(acc: AccountInfo) {
+    try {
+        await accountsStore.switchAccount(acc.id);
+    } catch (e: any) {
+        MessagePlugin.error(e?.message || '切换账户失败');
+    }
+}
+
+async function logoutAcc(acc: AccountInfo) {
+    const label = acc.first_name || acc.last_name || acc.username || acc.id;
+    const ok = window.confirm(`确定要登出账户「${label}」吗？`);
+    if (!ok) return;
+    try {
+        await accountsStore.logoutAccount(acc.id);
+    } catch (e: any) {
+        MessagePlugin.error(e?.message || '登出失败');
+    }
+}
+
+async function confirmAdd() {
+    if (adding.value) return;
+    adding.value = true;
+    try {
+        await accountsStore.addAccount();
+        showAddDialog.value = false;
+    } catch (e: any) {
+        adding.value = false;
+        MessagePlugin.error(e?.message || '添加账户失败');
+    }
+}
+
+onMounted(() => {
+    loadAppVersion();
+    loadTdlibVersion();
+    accountsStore.init();
+});
 </script>

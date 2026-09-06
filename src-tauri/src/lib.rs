@@ -1,4 +1,5 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+mod accounts;
 mod chat_store;
 mod data_loc;
 mod download_store;
@@ -181,6 +182,10 @@ pub fn run() {
             tdlib::get_system_proxy,
             tdlib::get_data_location,
             tdlib::migrate_data_dir,
+            tdlib::get_accounts,
+            tdlib::add_account,
+            tdlib::switch_account,
+            tdlib::logout_account,
             set_window_effect,
             open_with_dialog,
             copy_image_to_clipboard,

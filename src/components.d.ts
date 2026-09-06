@@ -11,6 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AccountMenu: typeof import('./components/AccountMenu.vue')['default']
     AttachmentMenu: typeof import('./components/chat/ChatDetail/AttachmentMenu.vue')['default']
     AttachmentTray: typeof import('./components/chat/ChatDetail/AttachmentTray.vue')['default']
     AudioPlayerCore: typeof import('./components/audio/AudioPlayerCore.vue')['default']
