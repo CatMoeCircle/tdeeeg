@@ -80,7 +80,7 @@ jobs:
           # 构建 release body
           $body = "## TDEEEG v${{ github.event.inputs.version }}`n`n"
           if ($commits) {
-            $body += "### 更新内容`n`n$commits"
+            $body += "### 更新内容`n`n$($commits -join "`n")"
           } else {
             $body += "### 更新内容`n`n无提交记录"
           }
