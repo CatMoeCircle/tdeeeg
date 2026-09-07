@@ -158,7 +158,6 @@ const emptyStateText = computed(() => {
 onMounted(async () => {
     console.log("主页面加载");
     const appWindow = getCurrentWindow();
-    await appWindow.setSize(new LogicalSize(1000, 600));
     await appWindow.setMinSize(new LogicalSize(800, 450));
 
     try {

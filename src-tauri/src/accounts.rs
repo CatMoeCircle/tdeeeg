@@ -18,6 +18,15 @@ pub struct AccountRecord {
     pub last_name: String,
     #[serde(default)]
     pub username: String,
+    /// 该账户创建/登录时使用的 api_id（None 时使用全局默认值）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_id: Option<i32>,
+    /// 该账户创建/登录时使用的 api_hash
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_hash: Option<String>,
+    /// 该账户创建/登录时是否使用测试数据中心
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub use_test_dc: Option<bool>,
 }
 
 /// accounts.json 的磁盘结构。
@@ -66,6 +75,9 @@ impl AccountsStore {
                 first_name: String::new(),
                 last_name: String::new(),
                 username: String::new(),
+                api_id: None,
+                api_hash: None,
+                use_test_dc: None,
             });
             store.file.active = 0;
             store.file.next_id = 1;
@@ -105,6 +117,7 @@ impl AccountsStore {
         self.file.accounts.iter().map(|a| a.id).collect()
     }
 
+    #[allow(dead_code)]
     pub fn contains(&self, id: i64) -> bool {
         self.file.accounts.iter().any(|a| a.id == id)
     }
@@ -118,6 +131,9 @@ impl AccountsStore {
             first_name: String::new(),
             last_name: String::new(),
             username: String::new(),
+            api_id: None,
+            api_hash: None,
+            use_test_dc: None,
         });
         id
     }
@@ -144,6 +160,9 @@ impl AccountsStore {
                 first_name: String::new(),
                 last_name: String::new(),
                 username: String::new(),
+                api_id: None,
+                api_hash: None,
+                use_test_dc: None,
             });
             self.file.active = 0;
         }
@@ -158,5 +177,31 @@ impl AccountsStore {
             rec.username = username;
             let _ = self.save();
         }
+    }
+
+    /// 保存账户的 TDLib 凭据（api_id / api_hash / use_test_dc），登录时调用一次。
+    pub fn set_tdlib_params(
+        &mut self,
+        id: i64,
+        api_id: i32,
+        api_hash: &str,
+        use_test_dc: bool,
+    ) {
+        if let Some(rec) = self.file.accounts.iter_mut().find(|a| a.id == id) {
+            rec.api_id = Some(api_id);
+            rec.api_hash = Some(api_hash.to_string());
+            rec.use_test_dc = Some(use_test_dc);
+            let _ = self.save();
+        }
+    }
+
+    /// 获取账户的 TDLib 凭据；返回 (api_id, api_hash, use_test_dc)。
+    /// 任一字段缺失时返回 None（调用方应 fallback 到全局 config）。
+    pub fn get_tdlib_params(&self, id: i64) -> Option<(i32, String, bool)> {
+        let rec = self.file.accounts.iter().find(|a| a.id == id)?;
+        let api_id = rec.api_id?;
+        let api_hash = rec.api_hash.as_deref()?;
+        let use_test_dc = rec.use_test_dc?;
+        Some((api_id, api_hash.to_string(), use_test_dc))
     }
 }

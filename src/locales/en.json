@@ -18,7 +18,9 @@
     "enterPassword": "Enter Password",
     "passwordDesc": "Your account has 2FA enabled, please enter your password.",
     "passwordPlaceholder": "Password",
-    "passwordError": "Invalid Password"
+    "passwordError": "Invalid Password",
+    "switchToAccount": "Switch Account",
+    "switchBackHint": "Already have an account logged in?"
   },
   "connection": {
     "connecting": "Connecting",

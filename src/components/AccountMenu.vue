@@ -11,7 +11,8 @@
                             <Avatar v-if="userProfile" :photo="userProfile.profile_photo"
                                 :title="userProfile.first_name + ' ' + userProfile.last_name"
                                 :accentColorId="userProfile.profile_accent_color_id" />
-                            <div v-else class="w-full h-full rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
+                            <div v-else class="w-full h-full rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse">
+                            </div>
                         </div>
                         <div class="min-w-0 flex-1">
                             <p class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
@@ -33,7 +34,7 @@
                             <img v-if="avatarSrc(acc)" :src="avatarSrc(acc)" alt="avatar"
                                 class="w-9 h-9 rounded-full object-cover shrink-0" />
                             <div v-else
-                                class="w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-xs text-white bg-gradient-to-br from-blue-400 to-indigo-500">
+                                class="w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-xs text-white bg-linear-to-br from-blue-400 to-indigo-500">
                                 {{ accountInitials(acc) }}
                             </div>
                             <div class="min-w-0 flex-1">
@@ -57,7 +58,8 @@
                     <div class="border-t border-gray-100 dark:border-gray-700">
                         <button type="button" @click="showAdd = true"
                             class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors text-left">
-                            <span class="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-500 flex items-center justify-center">
+                            <span
+                                class="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-500 flex items-center justify-center">
                                 <UserPlusIcon class="w-5 h-5" />
                             </span>
                             添加账户
@@ -74,9 +76,11 @@
             <div v-if="showAdd"
                 class="fixed inset-0 z-9991 flex items-center justify-center bg-black/40 backdrop-blur-sm"
                 @mousedown.self="showAdd = false" @keydown.esc="showAdd = false">
-                <div class="w-90 max-w-[calc(100vw-2rem)] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
+                <div
+                    class="w-90 max-w-[calc(100vw-2rem)] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
                     <div class="px-4 pt-5 pb-3 text-center">
-                        <div class="mx-auto w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-500 flex items-center justify-center mb-3">
+                        <div
+                            class="mx-auto w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-500 flex items-center justify-center mb-3">
                             <UserPlusIcon class="w-6 h-6" />
                         </div>
                         <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">添加账户</h3>
@@ -186,6 +190,7 @@ async function confirmAdd() {
 .account-menu-leave-active {
     transition: opacity 0.15s ease;
 }
+
 .account-menu-enter-from,
 .account-menu-leave-to {
     opacity: 0;

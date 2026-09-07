@@ -492,6 +492,7 @@ import { useHashtagSearch, clearPendingHashtag } from '../../../store/hashtagSea
 import { useCustomEmoji } from '../../../store/customEmoji';
 import type { ContextMenuItem } from '../../contextMenu/types';
 import { getMessagePlainText, getMessageFormattedText } from '../../../utils/messageText';
+import { applyTerminalFileToMessages, isTerminalFileUpdate } from '../../../utils/messageFileSnapshot';
 import {
     copyMessageText, copyMessageJson, copyMessageLink,
     toggleMessagePinned, pinMessage, getMessageProperties,
@@ -1264,6 +1265,43 @@ function isActiveChatForMessages(chatIdNum: number): boolean {
     return chatIdNum === chatId.value && isReady.value;
 }
 
+/**
+ * 收集当前所有在内存中（正在渲染 + 各聊天缓存）的消息对象，按对象去重后返回。
+ * TDLib 的 updateFile 没有 chat/message 维度，只有 file.id，因此需要全量扫描，
+ * 以便把更新文件同文件 id 的内嵌 File 快照写回任一会话中的消息。
+ */
+function collectAllInMemoryMessages(): message[] {
+    const seen = new Set<message>();
+    const out: message[] = [];
+    // 当前正在渲染的实时消息（其数组与缓存共享同一引用，但按对象去重可避免重复操作）
+    const live = messages.value;
+    if (live) {
+        for (const m of live) {
+            if (m && !seen.has(m)) {
+                seen.add(m);
+                out.push(m);
+            }
+        }
+    }
+    for (const entry of chatDetailCache.values()) {
+        for (const m of entry.messages) {
+            if (m && !seen.has(m)) {
+                seen.add(m);
+                out.push(m);
+            }
+        }
+    }
+    return out;
+}
+
+/** 依据 updateFile 终态，把同 file.id 的消息内嵌 File 快照就地更新（用于复制 JSON/转发前后一致）。 */
+function syncEmbeddedFileSnapshot(file: TdFile): void {
+    if (!isTerminalFileUpdate(file)) return;
+    const all = collectAllInMemoryMessages();
+    if (all.length === 0) return;
+    applyTerminalFileToMessages(all, file);
+}
+
 const handleUpdate = async (update: Update) => {
     switch (update._) {
         case 'updateNewMessage': {
@@ -1299,6 +1337,17 @@ const handleUpdate = async (update: Update) => {
             } else {
                 showScrollButton.value = true;
                 newMessageCount.value++;
+            }
+            break;
+        }
+
+        case 'updateFile': {
+            // 文件（下载/上传）信息更新：把「本地已下载完成并带路径」等终态写回消息内嵌的
+            // File 快照，让复制消息原始 JSON / 转发引用的本地状态保持一致，而不是停留在
+            // 下载完成前获取时的旧快照。纯进度 tick 由 applyTerminalFileToMessages 内部门控跳过。
+            const uf = update.file;
+            if (uf && typeof uf.id === 'number') {
+                syncEmbeddedFileSnapshot(uf);
             }
             break;
         }

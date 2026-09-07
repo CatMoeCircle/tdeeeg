@@ -6,13 +6,14 @@ import { AsYouType, parsePhoneNumberFromString } from "libphonenumber-js";
 import { useI18n } from 'vue-i18n';
 import i18n from "../../i18n";
 import { tdlibSend } from "../../utils/tdlib";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { MessagePlugin } from 'tdesign-vue-next';
 import type { AuthorizationState, Update, countryInfo } from "tdlib-types";
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import LoginProxyMenu from "./LoginProxyMenu.vue";
 import LoginSystemMenu from "./LoginSystemMenu.vue";
+import { useAccountsStore } from "../../store/accounts";
 
 
 
@@ -27,6 +28,23 @@ let qrCode: QRCodeStyling | null = null;
 const { t } = useI18n();
 /** 用户点击手机登录时，若正在二维码状态，先重置再发请求 */
 const pendingPhoneLogin = ref<string | null>(null);
+
+// 多账户：显示已登录账户列表，方便用户切换回去
+const accountsStore = useAccountsStore();
+const loggedAccounts = computed(() => accountsStore.accounts.filter(a => a.logged_in && !a.is_active));
+
+function accountName(acc: { first_name: string; last_name: string; username: string; id: number }): string {
+    const name = (acc.first_name || '') + (acc.last_name || '');
+    return name.trim() || acc.username || `#${acc.id}`;
+}
+
+function accountAvatar(acc: { avatar_path: string | null }): string | undefined {
+    return acc.avatar_path ? convertFileSrc(acc.avatar_path) : undefined;
+}
+
+function switchToAccount(id: number) {
+    accountsStore.switchAccount(id);
+}
 
 /**
  * 国家显示名：
@@ -418,6 +436,31 @@ onUnmounted(() => {
                 <t-button variant="outline" class="placement-top-right" @click="login">
                     {{ t('login.next') }}
                 </t-button>
+
+                <!-- 已登录账户切换 -->
+                <div v-if="loggedAccounts.length > 0" class="w-full max-w-xs mt-8">
+                    <div class="text-xs text-gray-400 mb-2">{{ t('login.switchBackHint') }}</div>
+                    <div class="space-y-2">
+                        <button v-for="acc in loggedAccounts" :key="acc.id" type="button"
+                            @click="switchToAccount(acc.id)"
+                            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all text-left group">
+                            <img v-if="accountAvatar(acc)" :src="accountAvatar(acc)" alt="avatar"
+                                class="w-8 h-8 rounded-full object-cover shrink-0" />
+                            <div v-else
+                                class="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs text-white bg-linear-to-br from-blue-400 to-indigo-500">
+                                {{ accountName(acc).substring(0, 2) }}
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm font-medium text-gray-800 truncate">{{ accountName(acc) }}</p>
+                                <p class="text-xs text-gray-400 truncate">{{ acc.username ? '@' + acc.username : '' }}
+                                </p>
+                            </div>
+                            <span
+                                class="text-xs text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">{{
+                                    t('login.switchToAccount') }} →</span>
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <!-- Divider -->

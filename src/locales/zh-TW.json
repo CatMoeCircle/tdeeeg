@@ -10,7 +10,9 @@
     "step2": "2. 前往 設定 > 裝置 > 連結 桌面裝置",
     "step3": "3. 掃描此圖像以登入",
     "clickToShowQr": "點擊顯示二維碼",
-    "waiting": "正在等待二維碼..."
+    "waiting": "正在等待二維碼...",
+    "switchToAccount": "切換帳戶",
+    "switchBackHint": "已登入其他帳戶？點擊切換"
   },
   "connection": {
     "connecting": "正在連接",

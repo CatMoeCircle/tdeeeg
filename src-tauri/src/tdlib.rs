@@ -90,6 +90,7 @@ pub struct TdLibShared {
     create_fn: TdJsonClientCreate,
     send_fn: TdJsonClientSend,
     receive_fn: TdJsonClientReceive,
+    #[allow(dead_code)]
     execute_fn: TdJsonClientExecute,
     destroy_fn: TdJsonClientDestroy,
 }
@@ -230,10 +231,18 @@ fn build_accounts_payload(state: &AppState) -> Result<Vec<serde_json::Value>, St
 
 /// 账户的 TDLib 数据子目录（database / files）。
 pub fn account_db_dir(data_dir: &std::path::Path, id: i64) -> PathBuf {
-    data_dir.join("TDLib").join("accounts").join(id.to_string()).join("tdlib_db")
+    data_dir
+        .join("TDLib")
+        .join("accounts")
+        .join(id.to_string())
+        .join("tdlib_db")
 }
 pub fn account_files_dir(data_dir: &std::path::Path, id: i64) -> PathBuf {
-    data_dir.join("TDLib").join("accounts").join(id.to_string()).join("tdlib_files")
+    data_dir
+        .join("TDLib")
+        .join("accounts")
+        .join(id.to_string())
+        .join("tdlib_files")
 }
 
 // --- TDLib 自定义启动参数 ---
@@ -255,6 +264,9 @@ pub fn set_tdlib_parameters(
         return Err("No parameters provided to update".to_string());
     }
 
+    // 仅更新全局 config；账户级凭据持久化由 receive loop 在客户端
+    // 实际初始化（authorizationStateWaitTdlibParameters）时完成，
+    // 避免 bootstrap 用全局默认值覆盖已有账户的自定义凭据。
     let mut config = state.config.lock().map_err(|e| e.to_string())?;
 
     if let Some(test_dc) = use_test_dc {
@@ -279,11 +291,7 @@ pub fn set_tdlib_parameters(
 /// 向指定账户发送 close/logOut 并等待 authorizationStateClosed，
 /// 然后从 `clients` 移除该账户（Arc drop 会销毁底层客户端）。
 /// 返回后该账户不再存在于 clients 中。
-async fn shutdown_client(
-    state: &AppState,
-    session_id: i64,
-    action: &str,
-) -> Result<(), String> {
+async fn shutdown_client(state: &AppState, session_id: i64, action: &str) -> Result<(), String> {
     let sh = shared(state)?;
     let (send_fn, client_ptr, close_signal) = {
         let clients = state.clients.lock().map_err(|e| e.to_string())?;
@@ -346,7 +354,11 @@ pub async fn logout_tdlib(
     let session_id = state.active.load(Ordering::SeqCst);
     shutdown_client(state.inner(), session_id, "logOut").await?;
     // 清理账户目录残留后重建
-    let dir = state.data_dir.join("TDLib").join("accounts").join(session_id.to_string());
+    let dir = state
+        .data_dir
+        .join("TDLib")
+        .join("accounts")
+        .join(session_id.to_string());
     let _ = std::fs::remove_dir_all(&dir);
     create_client(&app_handle, state.inner(), session_id)?;
     Ok(())
@@ -362,10 +374,7 @@ pub fn get_accounts(state: State<AppState>) -> Result<Vec<serde_json::Value>, St
 /// 新增一个账户：分配新 id，创建其客户端（未登录态），并设为活动账户。
 /// 返回新账户的 id。前端随后 reload 进入登录流程。
 #[tauri::command]
-pub fn add_account(
-    app_handle: tauri::AppHandle,
-    state: State<AppState>,
-) -> Result<i64, String> {
+pub fn add_account(app_handle: tauri::AppHandle, state: State<AppState>) -> Result<i64, String> {
     ensure_shared_loaded(&app_handle, state.inner())?;
     let id = {
         let mut accounts = state.accounts.lock().map_err(|e| e.to_string())?;
@@ -465,7 +474,9 @@ fn infer_upload_type(path: &str) -> String {
     const VIDEO_EXTS: &[&str] = &[
         "mp4", "mov", "mkv", "avi", "webm", "m4v", "mpeg", "mpg", "wmv", "flv", "3gp", "ogv",
     ];
-    const AUDIO_EXTS: &[&str] = &["mp3", "m4a", "aac", "ogg", "opus", "flac", "wav", "wma", "amr"];
+    const AUDIO_EXTS: &[&str] = &[
+        "mp3", "m4a", "aac", "ogg", "opus", "flac", "wav", "wma", "amr",
+    ];
     if IMAGE_EXTS.contains(&ext.as_str()) {
         "photo".to_string()
     } else if VIDEO_EXTS.contains(&ext.as_str()) {
@@ -513,40 +524,57 @@ fn build_add_proxy_req(cfg: &ProxyConfig) -> serde_json::Value {
     })
 }
 
-/// 将当前代理配置应用到指定 TDLib 客户端。
-fn apply_proxy_to_client(send_fn: TdJsonClientSend, client: *mut c_void, cfg: &ProxyConfig) {
-    let requests: Vec<serde_json::Value> = if cfg.mode == "disabled" {
-        vec![json!({ "@type": "disableProxy" })]
+/// 解析当前代理配置，返回要发送给 TDLib 的请求列表。
+/// system/auto 模式下若无法读取系统代理则发送 disableProxy。
+fn resolve_proxy_requests(
+    send_fn: TdJsonClientSend,
+    client: *mut c_void,
+    cfg: &ProxyConfig,
+) -> Vec<serde_json::Value> {
+    let mut result: Vec<serde_json::Value> = Vec::new();
+    if cfg.mode == "disabled" {
+        result.push(json!({ "@type": "disableProxy" }));
     } else if cfg.mode == "custom" {
         match cfg.proxy_id {
-            Some(id) => vec![
-                json!({ "@type": "enableProxy", "proxy_id": id }),
-                json!({ "@type": "setNetworkType", "type": { "@type": "networkTypeOther" } }),
-            ],
-            None => vec![json!({ "@type": "disableProxy" })],
-        }
-    } else {
-        let mut effective = cfg.clone();
-        if cfg.mode == "system" || cfg.mode == "auto" {
-            match read_windows_system_proxy() {
-                Some((host, port)) => {
-                    effective.proxy_type = "http".to_string();
-                    effective.server = host;
-                    effective.port = port.to_string();
-                }
-                None => {
-                    let req = json!({ "@type": "disableProxy" });
-                    let req_str = CString::new(req.to_string()).unwrap();
-                    unsafe { send_fn(client, req_str.as_ptr()) };
-                    return;
-                }
+            Some(id) => {
+                result.push(json!({ "@type": "enableProxy", "proxy_id": id }));
+                result.push(
+                    json!({ "@type": "setNetworkType", "type": { "@type": "networkTypeOther" } }),
+                );
+            }
+            None => {
+                result.push(json!({ "@type": "disableProxy" }));
             }
         }
-        vec![
-            build_add_proxy_req(&effective),
-            json!({ "@type": "setNetworkType", "type": { "@type": "networkTypeOther" } }),
-        ]
-    };
+    } else if cfg.mode == "system" || cfg.mode == "auto" {
+        match read_windows_system_proxy() {
+            Some((host, port)) => {
+                let mut effective = cfg.clone();
+                effective.proxy_type = "http".to_string();
+                effective.server = host;
+                effective.port = port.to_string();
+                result.push(build_add_proxy_req(&effective));
+                result.push(
+                    json!({ "@type": "setNetworkType", "type": { "@type": "networkTypeOther" } }),
+                );
+            }
+            None => {
+                // 无法读取系统代理，发送 disableProxy
+                let req = json!({ "@type": "disableProxy" });
+                let req_str = CString::new(req.to_string()).unwrap();
+                unsafe { send_fn(client, req_str.as_ptr()) };
+            }
+        }
+    } else {
+        result.push(build_add_proxy_req(cfg));
+        result.push(json!({ "@type": "setNetworkType", "type": { "@type": "networkTypeOther" } }));
+    }
+    result
+}
+
+/// 将当前代理配置应用到指定 TDLib 客户端。
+fn apply_proxy_to_client(send_fn: TdJsonClientSend, client: *mut c_void, cfg: &ProxyConfig) {
+    let requests = resolve_proxy_requests(send_fn, client, cfg);
     for req in requests {
         let req_str = CString::new(req.to_string()).unwrap();
         unsafe { send_fn(client, req_str.as_ptr()) };
@@ -600,7 +628,11 @@ pub fn set_proxy_config(
     }
 
     // 应用到所有已创建的客户端
-    let cfg = state.proxy_config.lock().map_err(|e| e.to_string())?.clone();
+    let cfg = state
+        .proxy_config
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone();
     let send_fn = shared(state.inner())?.send_fn;
     let clients = state.clients.lock().map_err(|e| e.to_string())?;
     for client in clients.values() {
@@ -675,7 +707,12 @@ fn ensure_shared_loaded(
     app_handle: &tauri::AppHandle,
     state: &AppState,
 ) -> Result<Arc<TdLibShared>, String> {
-    if let Some(sh) = state.tdlib_shared.lock().map_err(|e| e.to_string())?.clone() {
+    if let Some(sh) = state
+        .tdlib_shared
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+    {
         return Ok(sh);
     }
 
@@ -735,16 +772,24 @@ fn ensure_shared_loaded(
     };
     let _ = app_handle.emit("tdlib-log", "TDLib library loaded successfully");
 
-    let client_create: Symbol<TdJsonClientCreate> =
-        unsafe { lib.get(b"td_json_client_create").map_err(|e| e.to_string())? };
+    let client_create: Symbol<TdJsonClientCreate> = unsafe {
+        lib.get(b"td_json_client_create")
+            .map_err(|e| e.to_string())?
+    };
     let client_send: Symbol<TdJsonClientSend> =
         unsafe { lib.get(b"td_json_client_send").map_err(|e| e.to_string())? };
-    let client_receive: Symbol<TdJsonClientReceive> =
-        unsafe { lib.get(b"td_json_client_receive").map_err(|e| e.to_string())? };
-    let client_execute: Symbol<TdJsonClientExecute> =
-        unsafe { lib.get(b"td_json_client_execute").map_err(|e| e.to_string())? };
-    let client_destroy: Symbol<TdJsonClientDestroy> =
-        unsafe { lib.get(b"td_json_client_destroy").map_err(|e| e.to_string())? };
+    let client_receive: Symbol<TdJsonClientReceive> = unsafe {
+        lib.get(b"td_json_client_receive")
+            .map_err(|e| e.to_string())?
+    };
+    let client_execute: Symbol<TdJsonClientExecute> = unsafe {
+        lib.get(b"td_json_client_execute")
+            .map_err(|e| e.to_string())?
+    };
+    let client_destroy: Symbol<TdJsonClientDestroy> = unsafe {
+        lib.get(b"td_json_client_destroy")
+            .map_err(|e| e.to_string())?
+    };
 
     let create_fn = *client_create;
     let send_fn = *client_send;
@@ -789,16 +834,24 @@ fn create_client(
 
     let db_dir = account_db_dir(&state.data_dir, session_id);
     let files_dir = account_files_dir(&state.data_dir, session_id);
-    std::fs::create_dir_all(&db_dir).map_err(|e| format!("Failed to create TDLib db directory: {e}"))?;
-    std::fs::create_dir_all(&files_dir).map_err(|e| format!("Failed to create TDLib files directory: {e}"))?;
+    std::fs::create_dir_all(&db_dir)
+        .map_err(|e| format!("Failed to create TDLib db directory: {e}"))?;
+    std::fs::create_dir_all(&files_dir)
+        .map_err(|e| format!("Failed to create TDLib files directory: {e}"))?;
 
     let client_ptr = unsafe { (sh.create_fn)() };
     if client_ptr.is_null() {
-        return Err("Failed to create TDLib client: td_json_client_create returned null".to_string());
+        return Err(
+            "Failed to create TDLib client: td_json_client_create returned null".to_string(),
+        );
     }
 
     // 应用代理配置（在授权开始前生效）
-    let proxy_cfg = state.proxy_config.lock().map_err(|e| e.to_string())?.clone();
+    let proxy_cfg = state
+        .proxy_config
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone();
     if proxy_cfg.mode != "disabled" {
         apply_proxy_to_client(sh.send_fn, client_ptr, &proxy_cfg);
     }
@@ -827,7 +880,10 @@ fn create_client(
     {
         let mut meta = state.account_meta.lock().map_err(|e| e.to_string())?;
         meta.entry(session_id)
-            .or_insert_with(|| AccountRuntimeMeta { logged_in: false, avatar_path: None });
+            .or_insert_with(|| AccountRuntimeMeta {
+                logged_in: false,
+                avatar_path: None,
+            });
     }
 
     spawn_receive_loop(
@@ -949,15 +1005,16 @@ fn spawn_receive_loop(
                 if let Some(type_field) = event.get("@type").and_then(|v| v.as_str()) {
                     if type_field == "updateAuthorizationState" {
                         if let Some(auth_state) = event.get("authorization_state") {
-                            if let Some(state_type) = auth_state.get("@type").and_then(|v| v.as_str()) {
+                            if let Some(state_type) =
+                                auth_state.get("@type").and_then(|v| v.as_str())
+                            {
                                 // 记录授权态
                                 if let Ok(mut a) = client.authorization_state.lock() {
                                     *a = Some(state_type.to_string());
                                 }
                                 let is_ready = state_type == "authorizationStateReady";
-                                let is_closed_kind =
-                                    state_type == "authorizationStateClosed"
-                                        || state_type == "authorizationStateLoggingOut";
+                                let is_closed_kind = state_type == "authorizationStateClosed"
+                                    || state_type == "authorizationStateLoggingOut";
 
                                 // 更新账户登录状态
                                 {
@@ -970,9 +1027,16 @@ fn spawn_receive_loop(
                                 }
 
                                 if state_type == "authorizationStateWaitTdlibParameters" {
+                                    // 优先使用该账户自身保存的凭据，fallback 到全局 config
                                     let (api_id, api_hash, use_test_dc) = {
-                                        let cfg = state.config.lock().unwrap();
-                                        (cfg.api_id, cfg.api_hash.clone(), cfg.use_test_dc)
+                                        let accounts = state.accounts.lock().unwrap();
+                                        if let Some(params) = accounts.get_tdlib_params(session_id)
+                                        {
+                                            params
+                                        } else {
+                                            let cfg = state.config.lock().unwrap();
+                                            (cfg.api_id, cfg.api_hash.clone(), cfg.use_test_dc)
+                                        }
                                     };
                                     let db_dir = tdlib_db_dir.to_string_lossy().to_string();
                                     let files_dir = tdlib_files_dir.to_string_lossy().to_string();
@@ -995,6 +1059,16 @@ fn spawn_receive_loop(
                                     });
                                     let req_str = CString::new(request.to_string()).unwrap();
                                     send_fn(client.client, req_str.as_ptr());
+                                    // 将实际使用的凭据持久化到该账户的记录中，
+                                    // 确保下次初始化该客户端时仍使用相同的参数。
+                                    if let Ok(mut accounts) = state.accounts.lock() {
+                                        accounts.set_tdlib_params(
+                                            session_id,
+                                            api_id,
+                                            &api_hash,
+                                            use_test_dc,
+                                        );
+                                    }
                                 } else if state_type == "authorizationStateReady" {
                                     // 拉取自己的信息（用于账户列表显示名称/头像）
                                     let request = json!({
@@ -1042,7 +1116,15 @@ fn spawn_receive_loop(
 
                 // internal-getMe 响应：缓存自己的信息，更新账户列表与头像
                 if internal_kind.as_deref() == Some("internal-getMe") {
-                    handle_get_me(&event, session_id, client.client, send_fn, &state, &app_handle, &client);
+                    handle_get_me(
+                        &event,
+                        session_id,
+                        client.client,
+                        send_fn,
+                        &state,
+                        &app_handle,
+                        &client,
+                    );
                     continue;
                 }
 
@@ -1062,10 +1144,22 @@ fn spawn_receive_loop(
 
                 // 自己信息/头像变化时，更新账户列表
                 if event.get("_").and_then(|v| v.as_str()) == Some("updateUser") {
-                    if let Some(uid) = event.get("user").and_then(|v| v.get("id")).and_then(|v| v.as_i64()) {
+                    if let Some(uid) = event
+                        .get("user")
+                        .and_then(|v| v.get("id"))
+                        .and_then(|v| v.as_i64())
+                    {
                         let my = client.my_id.lock().unwrap().clone();
                         if my == Some(uid) {
-                            update_me_from_user(&event, session_id, client.client, send_fn, &state, &app_handle, &client);
+                            update_me_from_user(
+                                &event,
+                                session_id,
+                                client.client,
+                                send_fn,
+                                &state,
+                                &app_handle,
+                                &client,
+                            );
                         }
                     }
                 }
@@ -1121,8 +1215,16 @@ fn handle_get_me(
         }
     }
 
-    let first = event.get("first_name").and_then(|v| v.as_str()).unwrap_or("").to_string();
-    let last = event.get("last_name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let first = event
+        .get("first_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let last = event
+        .get("last_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
     let username = extract_username(event);
     if let Ok(mut accounts) = state.accounts.lock() {
         accounts.update_profile(session_id, first, last, username);
@@ -1142,10 +1244,16 @@ fn handle_get_me(
                 .unwrap_or(false);
             if has_path {
                 if let Ok(mut ap) = client.avatar_path.lock() {
-                    *ap = small.pointer("/local/path").and_then(|v| v.as_str()).map(|s| s.to_string());
+                    *ap = small
+                        .pointer("/local/path")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
                     if let Ok(mut meta) = state.account_meta.lock() {
                         if let Some(m) = meta.get_mut(&session_id) {
-                            m.avatar_path = small.pointer("/local/path").and_then(|v| v.as_str()).map(|s| s.to_string());
+                            m.avatar_path = small
+                                .pointer("/local/path")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
                         }
                     }
                 }
@@ -1183,8 +1291,16 @@ fn update_me_from_user(
     if let Ok(mut me) = client.me.lock() {
         *me = Some(user.clone());
     }
-    let first = user.get("first_name").and_then(|v| v.as_str()).unwrap_or("").to_string();
-    let last = user.get("last_name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let first = user
+        .get("first_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let last = user
+        .get("last_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
     let username = extract_username(user);
     if let Ok(mut accounts) = state.accounts.lock() {
         accounts.update_profile(session_id, first, last, username);
@@ -1230,8 +1346,12 @@ fn maybe_update_avatar(
     app_handle: &tauri::AppHandle,
     client: &Arc<TdLibClient>,
 ) {
-    let Some(file) = event.get("file") else { return };
-    let Some(fid) = file.get("id").and_then(|v| v.as_i64()) else { return };
+    let Some(file) = event.get("file") else {
+        return;
+    };
+    let Some(fid) = file.get("id").and_then(|v| v.as_i64()) else {
+        return;
+    };
 
     let Some(avatar_fid) = client.avatar_file_id.lock().unwrap().clone() else {
         return;
@@ -1306,7 +1426,9 @@ fn handle_update_file(
     state: &AppStateRef,
     app_handle: &tauri::AppHandle,
 ) {
-    let Some(file) = event.get("file") else { return };
+    let Some(file) = event.get("file") else {
+        return;
+    };
     let Some(file_id) = file.get("id").and_then(|v| v.as_i64()) else {
         return;
     };
@@ -1318,7 +1440,10 @@ fn handle_update_file(
             .and_then(|v| v.as_i64())
             .unwrap_or(0);
         let total_size = file.get("size").and_then(|v| v.as_i64()).unwrap_or(0);
-        let expected = file.get("expected_size").and_then(|v| v.as_i64()).unwrap_or(0);
+        let expected = file
+            .get("expected_size")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
         let effective_total = if total_size > 0 { total_size } else { expected };
         let is_dl_active = file
             .pointer("/local/is_downloading_active")
@@ -1400,7 +1525,10 @@ fn handle_update_file(
                 .and_then(|v| v.as_i64())
                 .unwrap_or(0);
             let total_size = file.get("size").and_then(|v| v.as_i64()).unwrap_or(0);
-            let expected = file.get("expected_size").and_then(|v| v.as_i64()).unwrap_or(0);
+            let expected = file
+                .get("expected_size")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
             let effective_total = if total_size > 0 { total_size } else { expected };
             let is_up_completed = effective_total > 0 && uploaded_size >= effective_total;
             let local_path = file
@@ -1599,7 +1727,9 @@ pub fn get_chat_list(
 // ==================== 下载管理器 Tauri 命令 ====================
 
 #[tauri::command]
-pub fn get_downloads(state: State<AppState>) -> Result<Vec<crate::download_store::DownloadItem>, String> {
+pub fn get_downloads(
+    state: State<AppState>,
+) -> Result<Vec<crate::download_store::DownloadItem>, String> {
     let store = state.download_store.lock().map_err(|e| e.to_string())?;
     Ok(store.get_all_items())
 }
@@ -1687,7 +1817,9 @@ pub fn set_show_auto_photos_downloads(state: State<AppState>, value: bool) -> Re
 // ==================== 上传任务（发送文件）命令 ====================
 
 #[tauri::command]
-pub fn get_uploads(state: State<AppState>) -> Result<Vec<crate::download_store::DownloadItem>, String> {
+pub fn get_uploads(
+    state: State<AppState>,
+) -> Result<Vec<crate::download_store::DownloadItem>, String> {
     let store = state.download_store.lock().map_err(|e| e.to_string())?;
     Ok(store.get_uploads())
 }
@@ -1702,7 +1834,9 @@ pub fn dismiss_upload(state: State<AppState>, file_id: i32) -> Result<(), String
 // ==================== 连接状态缓存命令 ====================
 
 #[tauri::command]
-pub fn get_cached_connection_state(state: State<AppState>) -> Result<Option<serde_json::Value>, String> {
+pub fn get_cached_connection_state(
+    state: State<AppState>,
+) -> Result<Option<serde_json::Value>, String> {
     let client = active_client(state.inner())?;
     let cs = client.connection_state.lock().map_err(|e| e.to_string())?;
     match cs.as_ref() {
@@ -1738,7 +1872,8 @@ pub fn get_cached_option(
     let opts = client.options.lock().map_err(|e| e.to_string())?;
     match opts.get(&name) {
         Some(value_json) => {
-            let v: serde_json::Value = serde_json::from_str(value_json).map_err(|e| e.to_string())?;
+            let v: serde_json::Value =
+                serde_json::from_str(value_json).map_err(|e| e.to_string())?;
             Ok(Some(v))
         }
         None => Ok(None),

@@ -20,7 +20,8 @@
                     <p class="text-xs text-gray-400 mt-2">以下更改需要通过重建 TDLib 客户端才会生效。</p>
 
                     <!-- 使用测试数据中心 -->
-                    <div class="mt-5 flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                    <div
+                        class="mt-5 flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                         <div>
                             <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">使用测试数据中心</h4>
                             <p class="text-xs text-gray-500 mt-0.5">连接到 Telegram 测试服务器（测试账号与正式账号数据隔离）</p>
@@ -39,7 +40,8 @@
                             class="flex items-center justify-between p-3 rounded-xl border border-gray-200 dark:border-gray-700">
                             <div>
                                 <p class="text-sm font-medium text-gray-900 dark:text-gray-100">自定义 API ID / Hash</p>
-                                <p class="text-xs text-gray-500 mt-0.5">启用后使用自定义凭据代替编译期默认值（.env 的 TG_API_ID / TG_API_HASH）</p>
+                                <p class="text-xs text-gray-500 mt-0.5">启用后使用自定义凭据代替编译期默认值（.env 的 TG_API_ID /
+                                    TG_API_HASH）</p>
                             </div>
                             <button type="button" @click="customApiCreds = !customApiCreds"
                                 class="w-11 h-6 rounded-full transition-colors relative shrink-0"
@@ -58,10 +60,13 @@
                                 </p>
                             </div>
 
-                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API ID</label>
-                            <input v-model="apiId" type="text" inputmode="numeric" placeholder="例如 12345" spellcheck="false"
+                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API
+                                ID</label>
+                            <input v-model="apiId" type="text" inputmode="numeric" placeholder="例如 12345"
+                                spellcheck="false"
                                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none mb-4" />
-                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API Hash</label>
+                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API
+                                Hash</label>
                             <input v-model="apiHash" type="text" placeholder="32 位十六进制字符串" spellcheck="false"
                                 class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none mb-4" />
                         </div>
@@ -97,7 +102,7 @@
                             <img v-if="acc.avatar_path" :src="avatarSrc(acc)" alt="avatar"
                                 class="w-10 h-10 rounded-full object-cover mr-3 shrink-0" />
                             <div v-else
-                                class="w-10 h-10 rounded-full mr-3 shrink-0 flex items-center justify-center text-white text-xs bg-gradient-to-br from-blue-400 to-indigo-500">
+                                class="w-10 h-10 rounded-full mr-3 shrink-0 flex items-center justify-center text-white text-xs bg-linear-to-br from-blue-400 to-indigo-500">
                                 {{ accountInitials(acc) }}
                             </div>
                             <div class="flex-1 min-w-0">
@@ -113,8 +118,7 @@
                                     class="px-3 py-1.5 rounded-lg text-xs font-medium text-blue-600 dark:text-blue-400 border border-blue-300 dark:border-blue-500/40 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors">
                                     {{ acc.logged_in ? '切换' : '登录' }}
                                 </button>
-                                <button v-if="acc.logged_in && !acc.is_active" type="button"
-                                    @click="logoutAcc(acc)"
+                                <button v-if="acc.logged_in && !acc.is_active" type="button" @click="logoutAcc(acc)"
                                     class="px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-500/40 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors">
                                     登出
                                 </button>
@@ -138,7 +142,8 @@
                     </div>
 
                     <!-- 版本信息：应用版本 + TDLib 版本 一排居中 -->
-                    <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 py-6">
+                    <div
+                        class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 py-6">
                         <div class="flex items-center justify-center gap-6 text-sm text-gray-600 dark:text-gray-300">
                             <span>{{ appName }} v{{ appVersion }}</span>
                             <span class="text-gray-300 dark:text-gray-600">|</span>
@@ -148,7 +153,8 @@
                     </div>
 
                     <!-- 当前连接参数 -->
-                    <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800 text-sm text-gray-600 dark:text-gray-300">
+                    <div
+                        class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800 text-sm text-gray-600 dark:text-gray-300">
                         <div class="px-4 py-3 flex items-center justify-between">
                             <span class="text-gray-500 dark:text-gray-400">数据中心</span>
                             <span class="font-mono">{{ useTestDc ? '测试 (Test DC)' : '正式 (Main DC)' }}</span>
@@ -203,7 +209,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { ChevronLeft as ChevronLeftIcon, Info as InfoIcon, LogOut as LogOutIcon, Plus as PlusIcon, UserPlus as UserPlusIcon } from 'lucide-vue-next';
+import { ChevronLeft as ChevronLeftIcon, Info as InfoIcon, LogOut as LogOutIcon, Plus as PlusIcon } from 'lucide-vue-next';
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { MessagePlugin } from 'tdesign-vue-next';
@@ -308,24 +314,6 @@ async function applyConnection() {
     } catch (e: any) {
         MessagePlugin.error(e?.message || '应用参数失败');
         applying.value = false;
-    }
-}
-
-const loggingOut = ref(false);
-
-/** 退出登录：调用 TDLib logOut 清除本地会话，重建后跳转登录页 */
-async function logout() {
-    if (loggingOut.value) return;
-    const ok = window.confirm('确定要退出登录吗？退出后需要重新登录才能继续使用。');
-    if (!ok) return;
-    loggingOut.value = true;
-    try {
-        await invoke('logout_tdlib');
-        MessagePlugin.success('已退出登录');
-        window.location.reload();
-    } catch (e: any) {
-        MessagePlugin.error(e?.message || '退出登录失败');
-        loggingOut.value = false;
     }
 }
 

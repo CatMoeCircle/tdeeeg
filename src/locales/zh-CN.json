@@ -26,7 +26,9 @@
     "enterPassword": "输入密码",
     "passwordDesc": "您的账户启用了两步验证，请输入密码。",
     "passwordPlaceholder": "密码",
-    "passwordError": "密码错误"
+    "passwordError": "密码错误",
+    "switchToAccount": "切换账户",
+    "switchBackHint": "已登录其他账户？点击切换"
   },
   "connection": {
     "connecting": "正在连接",
