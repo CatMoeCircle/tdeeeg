@@ -93,8 +93,8 @@ impl AccountsStore {
         if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| format!("创建账户配置目录失败: {e}"))?;
         }
-        let content =
-            serde_json::to_string_pretty(&self.file).map_err(|e| format!("序列化账户配置失败: {e}"))?;
+        let content = serde_json::to_string_pretty(&self.file)
+            .map_err(|e| format!("序列化账户配置失败: {e}"))?;
         std::fs::write(&self.path, content).map_err(|e| format!("写入账户配置失败: {e}"))
     }
 
@@ -150,13 +150,7 @@ impl AccountsStore {
             return Err(format!("账户 {id} 不存在"));
         }
         if self.file.active == id {
-            self.file.active = self
-                .file
-                .accounts
-                .iter()
-                .map(|a| a.id)
-                .min()
-                .unwrap_or(0);
+            self.file.active = self.file.accounts.iter().map(|a| a.id).min().unwrap_or(0);
         }
         if self.file.accounts.is_empty() {
             self.file.accounts.push(AccountRecord {
@@ -175,7 +169,13 @@ impl AccountsStore {
     }
 
     /// 更新账户最近已知的姓名 / 用户名并持久化。
-    pub fn update_profile(&mut self, id: i64, first_name: String, last_name: String, username: String) {
+    pub fn update_profile(
+        &mut self,
+        id: i64,
+        first_name: String,
+        last_name: String,
+        username: String,
+    ) {
         if let Some(rec) = self.file.accounts.iter_mut().find(|a| a.id == id) {
             rec.first_name = first_name;
             rec.last_name = last_name;
@@ -207,18 +207,11 @@ impl AccountsStore {
         }
     }
 
-    /// 获取账户的 TDLib 凭据；返回 (api_id, api_hash, use_test_dc)。
-    /// 任一字段缺失时返回 None（调用方应 fallback 到全局 config）。
-    pub fn get_tdlib_params(&self, id: i64) -> Option<(i32, String, bool)> {
+    /// 获取账户的 TDLib 凭据；返回 (api_id?, api_hash?, use_test_dc?)。
+    /// 内置凭据时 api_id/api_hash 为 None（不保存到磁盘防泄露）。
+    /// use_test_dc 可能为 None（旧账户或尚未保存），调用方需 fallback。
+    pub fn get_tdlib_params(&self, id: i64) -> Option<(Option<i32>, Option<String>, Option<bool>)> {
         let rec = self.file.accounts.iter().find(|a| a.id == id)?;
-        let api_id = rec.api_id?;
-        let api_hash = rec.api_hash.as_deref()?;
-        let use_test_dc = rec.use_test_dc?;
-        Some((api_id, api_hash.to_string(), use_test_dc))
-    }
-
-    /// 获取账户是否使用了自定义凭据。
-    pub fn is_custom_api_creds(&self, id: i64) -> Option<bool> {
-        self.file.accounts.iter().find(|a| a.id == id)?.custom_api_creds
+        Some((rec.api_id, rec.api_hash.clone(), rec.use_test_dc))
     }
 }

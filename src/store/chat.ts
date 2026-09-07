@@ -12,6 +12,7 @@ import type {
   chatListArchive,
   chatFolderInfo,
   ChatType,
+  MessageSender,
 } from "tdlib-types";
 
 /** 聊天列表示例项：主列表 | 归档 | 文件夹信息 */
@@ -35,6 +36,8 @@ export interface Chat {
   accent_color_id?: number;
   /** 头像渐变 profile accent 色 id（-1 表示无） */
   profile_accent_color_id?: number;
+  /** 当前聊天的消息发送身份（频道/匿名群组等可切换身份） */
+  message_sender_id?: MessageSender;
 }
 
 export interface ChatListState {

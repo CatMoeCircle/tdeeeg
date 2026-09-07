@@ -224,6 +224,10 @@ fn build_accounts_payload(state: &AppState) -> Result<Vec<serde_json::Value>, St
                 "logged_in": m.map(|x| x.logged_in).unwrap_or(false),
                 "avatar_path": m.and_then(|x| x.avatar_path.clone()),
                 "is_active": rec.id == active,
+                "use_test_dc": rec.use_test_dc,
+                "custom_api_creds": rec.custom_api_creds,
+                "api_id": rec.api_id,
+                "api_hash": rec.api_hash,
             })
         })
         .collect())
@@ -1044,12 +1048,18 @@ fn spawn_receive_loop(
                                 }
 
                                 if state_type == "authorizationStateWaitTdlibParameters" {
-                                    // 优先使用该账户自身保存的凭据，fallback 到全局 config
+                                    // 优先使用该账户自身保存的凭据，fallback 到全局 config。
+                                    // 内置凭据时 api_id/api_hash 为 None，需从全局 config 补全。
+                                    // use_test_dc 也可能为 None（旧账户），同样 fallback。
                                     let (api_id, api_hash, use_test_dc) = {
                                         let accounts = state.accounts.lock().unwrap();
-                                        if let Some(params) = accounts.get_tdlib_params(session_id)
-                                        {
-                                            params
+                                        if let Some((acct_id, acct_hash, test_dc)) = accounts.get_tdlib_params(session_id) {
+                                            let cfg = state.config.lock().unwrap();
+                                            (
+                                                acct_id.unwrap_or(cfg.api_id),
+                                                acct_hash.unwrap_or_else(|| cfg.api_hash.clone()),
+                                                test_dc.unwrap_or(cfg.use_test_dc),
+                                            )
                                         } else {
                                             let cfg = state.config.lock().unwrap();
                                             (cfg.api_id, cfg.api_hash.clone(), cfg.use_test_dc)
@@ -1422,6 +1432,10 @@ fn build_accounts_payload_ref(state: &AppStateRef) -> Vec<serde_json::Value> {
                 "logged_in": m.map(|x| x.logged_in).unwrap_or(false),
                 "avatar_path": m.and_then(|x| x.avatar_path.clone()),
                 "is_active": rec.id == active,
+                "use_test_dc": rec.use_test_dc,
+                "custom_api_creds": rec.custom_api_creds,
+                "api_id": rec.api_id,
+                "api_hash": rec.api_hash,
             })
         })
         .collect()

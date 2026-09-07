@@ -83,6 +83,7 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SearchBar: typeof import('./components/chat/ChatDetail/SearchBar.vue')['default']
+    SenderSelector: typeof import('./components/chat/ChatDetail/SenderSelector.vue')['default']
     SettingsList: typeof import('./components/chat/SettingsList.vue')['default']
     SideNavBar: typeof import('./components/layout/SideNavBar.vue')['default']
     SlidingTabBar: typeof import('./components/common/SlidingTabBar.vue')['default']

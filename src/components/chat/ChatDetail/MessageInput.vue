@@ -24,6 +24,10 @@
 
         <div
             class="flex items-end gap-3 bg-white/60 dark:bg-gray-900/80 backdrop-blur-md px-2 rounded-4xl shadow-lg border border-gray-200/50 dark:border-gray-700/50">
+            <SenderSelector v-if="showSenderSelector" :current-sender-id="currentSenderId"
+                :available-senders="availableSenders || []" :loading="sendersLoading"
+                @select="emit('change-sender', $event)" />
+
             <AttachmentMenu ref="attachmentMenuRef" :chat="chat" :users="users" :supergroups="supergroups"
                 :basic-groups="basicGroups" :my-id="myId" :member-status="memberStatus" :is-premium="isPremium"
                 :is-premium-available="isPremiumAvailable" @attach-photo="emit('attachPhoto')"
@@ -78,9 +82,11 @@ import {
     renderEntitiesHTML,
 } from '../../../utils/textFormatters';
 import type { FormatKind } from '../../../utils/textFormatters';
+import type { MessageSender, chatMessageSender } from 'tdlib-types';
 import AttachmentMenu from './AttachmentMenu.vue';
 import AttachmentTray from './AttachmentTray.vue';
 import LinkInputDialog from './LinkInputDialog.vue';
+import SenderSelector from './SenderSelector.vue';
 
 export interface ReplyTarget {
     title: string;
@@ -104,12 +110,18 @@ const props = defineProps<{
     isPremiumAvailable?: boolean;
     /** 输入框内已添加的自定义 emoji（id + 占位 alt），用于在预览层渲染对应图片 */
     customEmojis?: { id: string; alt: string }[];
+    /** 当前聊天的消息发送身份（频道/匿名群组等） */
+    currentSenderId?: MessageSender;
+    /** 可用的发送身份列表 */
+    availableSenders?: chatMessageSender[];
+    /** 是否正在加载可用发送身份 */
+    sendersLoading?: boolean;
 }>();
 
 const emit = defineEmits([
     'update:modelValue', 'send', 'sticker', 'language', 'attach', 'clearReply', 'clearEdit',
     'attachPhoto', 'attachFile', 'attachMusic', 'attachChecklist', 'attachPoll',
-    'attachContact', 'attachLocation',
+    'attachContact', 'attachLocation', 'change-sender',
 ]);
 
 const attachmentStore = useAttachmentStore();
@@ -229,6 +241,12 @@ function onInput(e: Event) {
 
 const inputPlaceholder = computed(() =>
     props.editTarget ? `${props.editTarget.label || '编辑消息'}...` : (attachmentStore.items.length > 0 ? '描述' : (props.placeholder || '输入消息...')));
+
+/** 是否显示身份选择器（有多个可用发送身份时） */
+const showSenderSelector = computed(() => {
+    const senders = props.availableSenders;
+    return senders && senders.length > 1;
+});
 
 const attachmentMenuRef = ref<InstanceType<typeof AttachmentMenu> | null>(null);
 

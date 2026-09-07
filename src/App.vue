@@ -5,8 +5,9 @@ import ExternalLinkConfirm from "./components/contextMenu/ExternalLinkConfirm.vu
 import ProxyLinkConfirm from "./components/contextMenu/ProxyLinkConfirm.vue";
 
 // 注意：TDLib 初始化、授权态判定与首屏路由跳转已在 src/main.ts 的
-// bootstrap() 中于 app.mount 之前完成。此处 App.vue 只负责渲染 UI，
-// 因此启动时不会闪现登录页。
+// bootstrap() 中于 app.mount 之前完成，且窗口在 bootstrap 完成前通过
+// tauri.conf.json 的 visible:false 保持隐藏。因此 App.vue 只负责渲染 UI，
+// 启动时不会闪现空白页或登录页。
 </script>
 
 <template>

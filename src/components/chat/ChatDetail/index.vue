@@ -368,10 +368,15 @@
             <MessageInput class="relative z-10" v-model="messageInput" :reply-target="replyTargetInfo"
                 :edit-target="editTargetInfo" :chat="chat" :users="users" :supergroups="supergroups"
                 :basic-groups="basicGroups" :my-id="myId" :member-status="currentMemberStatus" :is-premium="isMePremium"
-                :custom-emojis="pendingCustomEmoji" @clear-reply="clearReply" @clear-edit="cancelEdit"
+                :custom-emojis="pendingCustomEmoji"
+                :current-sender-id="chat?.message_sender_id"
+                :available-senders="availableSenders"
+                :senders-loading="sendersLoading"
+                @clear-reply="clearReply" @clear-edit="cancelEdit"
                 @send="handleSend" @attach="handleAttach" @attach-file="handleAttachFile"
                 @attach-music="handleAttachMusic" @attach-poll="handleAttachPoll"
                 @attach-checklist="handleAttachChecklist" @attach-contact="handleAttachContact"
+                @change-sender="handleChangeSender"
                 @sticker="openStickerPanel" />
 
             <!-- 表情包面板（emoji/GIF/贴纸 三合一） -->
@@ -633,45 +638,7 @@ function restoreDraft(chatIdNum: number, tid?: number | null) {
     }
 }
 
-// ==================== 聊天消息缓存（模块级） ====================
-// 缓存每个聊天(id[:topicId])已加载的消息与相关状态。放在模块级，
-// 故跨聊天切换、甚至关闭/重开聊天面板（组件卸载重挂）后依然保留。
-// 这样通过消息中的用户名、频道链接等跳转到其他对话后再返回原对话时，
-// 能直接复用缓存的消息列表，无需重新从 TDLib 拉取历史，避免每次返回都重新加载。
-type HistoryModeCache = 'normal' | 'jump';
 
-interface ChatDetailCacheEntry {
-    /** 已加载的消息数组（oldest-first，与 messages.value 共享同一引用，原地更新自动同步） */
-    messages: message[];
-    chat?: chat;
-    topic?: forumTopic;
-    isHistoryExhausted: boolean;
-    isNewerExhausted: boolean;
-    unreadBoundaryMessageId: number | null;
-    historyMode: HistoryModeCache;
-    jumpOlderExhausted: boolean;
-    jumpNewerExhausted: boolean;
-}
-
-/** 聊天消息缓存：key = chatId[:topicId] */
-const chatDetailCache = new Map<string, ChatDetailCacheEntry>();
-
-/** 缓存最大条目数，超出后按插入顺序淘汰最久未访问的条目，避免内存无限增长 */
-const CHAT_DETAIL_CACHE_MAX = 30;
-
-function trimChatDetailCache() {
-    while (chatDetailCache.size > CHAT_DETAIL_CACHE_MAX) {
-        const oldestKey = chatDetailCache.keys().next().value;
-        if (oldestKey === undefined) break;
-        chatDetailCache.delete(oldestKey);
-    }
-}
-
-const chatDetailCacheKey = (id: number, tid?: number | null) =>
-    tid ? `${id}:${tid}` : `${id}`;
-
-/** 当前正在渲染聊天的缓存条目（null 表示尚未建立） */
-let currentCacheEntry: ChatDetailCacheEntry | null = null;
 
 const chatId = computed(() => {
     const id = props.chatId ?? route.params.id;
@@ -1090,6 +1057,12 @@ const linkedChatId = ref(0);
 const isJoinPending = ref(false);
 const joinRequestSent = ref(false);
 
+// --- 消息发送身份选择器 ---
+/** 当前聊天可用的发送身份列表 */
+const availableSenders = ref<import('tdlib-types').chatMessageSender[]>([]);
+/** 是否正在加载可用发送身份 */
+const sendersLoading = ref(false);
+
 // 缓存
 const users = ref<Record<number, user>>({});
 const chats = ref<Record<number, chat>>({});
@@ -1229,9 +1202,6 @@ onUnmounted(() => {
     if (chat.value) {
         void tdlibSend({ _: 'closeChat', chat_id: chat.value.id });
     }
-    // 组件卸载（如关聊天面板）后置空“当前缓存条目”，
-    // 避免重挂另一聊天时 saveCurrentChatToCache 把重置态错写进旧聊天缓存
-    currentCacheEntry = null;
 });
 
 const forwardedTargetMessageId = computed(() => {
@@ -1242,49 +1212,16 @@ const forwardedTargetMessageId = computed(() => {
 // ==================== TDLib Updates ====================
 
 /**
- * 根据消息所属 chat(+topic) 定位应被原地更新的消息数组。
- *
- * 实时消息（当前正在渲染的聊天 + 已就绪）返回 `messages.value`（它是响应式的，
- * 与其缓存条目共享同一引用）；否则（该聊天已被缓存但当前不在渲染，或正在加载切换）
- * 从模块级 `chatDetailCache` 中取对应的缓存 messages 数组进行原地更新，
- * 保证缓存里的消息也能持续跟随 update 而刷新，返回该聊天后再恢复时不是陈旧数据。
- *
- * @returns 可原地修改的消息数组；未命中任何缓存时返回 `undefined`
- */
-function findCachedMessagesForChat(chatIdNum: number, topicIdNum?: number | null): message[] | undefined {
-    const isCurrent = chatIdNum === chatId.value;
-    if (isCurrent && isReady.value) {
-        return messages.value;
-    }
-    const entry = chatDetailCache.get(chatDetailCacheKey(chatIdNum, topicIdNum));
-    return entry ? entry.messages : undefined;
-}
-
-/** 判断目标聊天的消息数组是否应补充发送者信息（仅当前渲染中的实时消息需要） */
-function isActiveChatForMessages(chatIdNum: number): boolean {
-    return chatIdNum === chatId.value && isReady.value;
-}
-
-/**
- * 收集当前所有在内存中（正在渲染 + 各聊天缓存）的消息对象，按对象去重后返回。
+ * 收集当前正在渲染的消息对象，按对象去重后返回。
  * TDLib 的 updateFile 没有 chat/message 维度，只有 file.id，因此需要全量扫描，
- * 以便把更新文件同文件 id 的内嵌 File 快照写回任一会话中的消息。
+ * 以便把更新文件同文件 id 的内嵌 File 快照写回消息。
  */
 function collectAllInMemoryMessages(): message[] {
     const seen = new Set<message>();
     const out: message[] = [];
-    // 当前正在渲染的实时消息（其数组与缓存共享同一引用，但按对象去重可避免重复操作）
     const live = messages.value;
     if (live) {
         for (const m of live) {
-            if (m && !seen.has(m)) {
-                seen.add(m);
-                out.push(m);
-            }
-        }
-    }
-    for (const entry of chatDetailCache.values()) {
-        for (const m of entry.messages) {
             if (m && !seen.has(m)) {
                 seen.add(m);
                 out.push(m);
@@ -1306,28 +1243,25 @@ const handleUpdate = async (update: Update) => {
     switch (update._) {
         case 'updateNewMessage': {
             const msg = update.message;
-            const targetList = findCachedMessagesForChat(msg.chat_id, msg.topic_id?._ === 'messageTopicForum' ? msg.topic_id.forum_topic_id : 0);
-            if (!targetList) return;
-            if (targetList.find(m => m.id === msg.id)) return;
+            // 仅处理当前正在渲染的聊天中的消息
+            if (msg.chat_id !== chatId.value || !isReady.value) return;
+            if (messages.value.find(m => m.id === msg.id)) return;
 
             // 话题模式下只显示属于当前话题的消息
-            if (topicId.value && msg.chat_id === chatId.value) {
+            if (topicId.value) {
                 const msgTopicId = msg.topic_id?._ === 'messageTopicForum' ? msg.topic_id.forum_topic_id : 0;
                 if (msgTopicId !== topicId.value) return;
             }
 
-            const isActive = isActiveChatForMessages(msg.chat_id);
             const senderIsMe =
                 msg.sender_id._ === 'messageSenderUser' &&
                 msg.sender_id.user_id === myId.value;
 
             // 追加到末尾（最新消息）
-            targetList.push(msg);
+            messages.value.push(msg);
             await fetchSenders([msg]);
             void fetchMemberStatuses([msg]);
 
-            // 仅当是当前正在渲染的聊天时才更新滚动/未读计数等 UI 状态
-            if (!isActive) break;
             const atBottom = isAtBottom();
             newMessageIds.value.add(msg.id);
             if (senderIsMe || atBottom) {
@@ -1353,28 +1287,16 @@ const handleUpdate = async (update: Update) => {
         }
 
         case 'updateMessageContent': {
-            // 先处理当前正在渲染的聊天（含滚动保持）
-            if (update.chat_id === chatId.value) {
-                const msg = messages.value.find(m => m.id === update.message_id);
-                if (msg) {
-                    // 内容变化（如编辑文本变长）会改变气泡高度，
-                    // 若用户停在底部附近则保持贴底，避免底部内容被顶出视口
-                    const atBottom = isAtBottom();
-                    msg.content = update.new_content;
-                    // 消息更新后刷新该消息内联键盘的锁定状态
-                    refreshKeyboardLock(update.message_id);
-                    if (atBottom) scrollToBottom();
-                    break;
-                }
-            }
-            // 当前渲染聊天中未找到（或非当前聊天）→ 遍历缓存中的其他条目同步更新
-            for (const [key, entry] of chatDetailCache) {
-                if (!key.startsWith(`${update.chat_id}:`) && key !== String(update.chat_id)) continue;
-                const cachedMsg = entry.messages.find(m => m.id === update.message_id);
-                if (cachedMsg) {
-                    cachedMsg.content = update.new_content;
-                    break;
-                }
+            if (update.chat_id !== chatId.value) break;
+            const msg = messages.value.find(m => m.id === update.message_id);
+            if (msg) {
+                // 内容变化（如编辑文本变长）会改变气泡高度，
+                // 若用户停在底部附近则保持贴底，避免底部内容被顶出视口
+                const atBottom = isAtBottom();
+                msg.content = update.new_content;
+                // 消息更新后刷新该消息内联键盘的锁定状态
+                refreshKeyboardLock(update.message_id);
+                if (atBottom) scrollToBottom();
             }
             break;
         }
@@ -1420,21 +1342,10 @@ const handleUpdate = async (update: Update) => {
         case 'updateDeleteMessages': {
             // from_cache=true 的删除是本地缓存的过时标记，不是真实的删除，忽略
             if (update.from_cache) break;
-            const chatNum = update.chat_id;
-            // 对所有匹配该聊天的缓存条目（含话题）执行删除；当前渲染聊天走中央写入
-            // 注意：仅当缓存 key 精确匹配当前视图（chatId+topicId）时才调用 applyMessages，
-            // 避免其他话题的缓存条目覆盖当前显示的消息列表。
-            const currentKey = chatDetailCacheKey(chatId.value ?? 0, topicId.value);
-            for (const [key, entry] of chatDetailCache) {
-                if (!key.startsWith(`${chatNum}:`) && key !== String(chatNum)) continue;
-                const beforeCount = entry.messages.length;
-                const filtered = entry.messages.filter(m => !update.message_ids.includes(m.id));
-                if (filtered.length === beforeCount) continue;
-                if (key === currentKey && isReady.value) {
-                    applyMessages(filtered);
-                } else {
-                    entry.messages = filtered;
-                }
+            if (update.chat_id !== chatId.value || !isReady.value) break;
+            const filtered = messages.value.filter(m => !update.message_ids.includes(m.id));
+            if (filtered.length < messages.value.length) {
+                applyMessages(filtered);
             }
             break;
         }
@@ -1443,6 +1354,12 @@ const handleUpdate = async (update: Update) => {
             if (update.chat_id !== chatId.value || !chat.value) return;
             chat.value.notification_settings = update.notification_settings;
             void syncNotificationMuteState(chat.value, update.chat_id);
+            break;
+        }
+
+        case 'updateChatMessageSender': {
+            if (update.chat_id !== chatId.value || !chat.value) return;
+            chat.value.message_sender_id = update.message_sender_id;
             break;
         }
 
@@ -1484,22 +1401,10 @@ const handleUpdate = async (update: Update) => {
                 refreshKeyboardLock(update.message_id);
             };
 
-            // 当前正在渲染的聊天：优先直接更新渲染列表（messages.value），
-            // 确保内联键盘按钮随 updateMessageEdited.reply_markup 实时刷新
             if (update.chat_id === chatId.value) {
                 const msg = messages.value.find(m => m.id === update.message_id);
                 if (msg) {
                     applyReplyMarkup(msg);
-                    break;
-                }
-            }
-            // 当前渲染聊天中未找到（或非当前聊天）→ 遍历缓存中的其他条目同步更新
-            for (const [key, entry] of chatDetailCache) {
-                if (!key.startsWith(`${update.chat_id}:`) && key !== String(update.chat_id)) continue;
-                const cachedMsg = entry.messages.find(m => m.id === update.message_id);
-                if (cachedMsg) {
-                    applyReplyMarkup(cachedMsg);
-                    break;
                 }
             }
             break;
@@ -1602,10 +1507,7 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
     }
     const currentId = newChatId;
     const gen = ++loadGeneration;
-    const cacheKey = chatDetailCacheKey(currentId, topicId.value);
 
-    // 切换前先把当前聊天的非消息状态快照写回缓存（消息数组通过 applyMessages 已同步）
-    saveCurrentChatToCache();
 
     // 通知 TDLib 关闭旧聊天（停收推送更新等）
     if (chat.value) {
@@ -1618,74 +1520,6 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
     // 重置全部状态
     resetState();
     searchActive.value = false;
-
-    // 命中缓存：直接恢复上次已加载的消息列表，不重复从 TDLib 拉取历史。
-    // 仅当没有显式定位请求（如跳转到某条消息/下载管理器）时才走缓存；
-    // 有 requestedMessageId 时仍需按目标重新加载窗口。
-    const cached = chatDetailCache.get(cacheKey);
-    if (cached && cached.messages.length > 0 && !requestedMessageId) {
-        // 命中缓存：刷新 LRU 新鲜度（删除后重插，让它在淘汰顺序里靠后）
-        chatDetailCache.delete(cacheKey);
-        chatDetailCache.set(cacheKey, cached);
-        currentCacheEntry = cached;
-        chat.value = cached.chat;
-        topic.value = cached.topic;
-        isHistoryExhausted.value = cached.isHistoryExhausted;
-        isNewerExhausted.value = cached.isNewerExhausted;
-        unreadBoundaryMessageId.value = cached.unreadBoundaryMessageId;
-        historyMode.value = cached.historyMode;
-        jumpOlderExhausted.value = cached.jumpOlderExhausted;
-        jumpNewerExhausted.value = cached.jumpNewerExhausted;
-        messages.value = cached.messages;
-        messagesVersion.value++;
-        lastReportedReadMessageId = chat.value?.last_read_inbox_message_id ?? 0;
-
-        // 组件重挂后 supergroups/basicGroups/mute/linkedChat 等组件级缓存已清空，
-        // 补拉群组信息与通知状态（轻量，不重新拉取历史消息），保证头部/权限正确
-        if (chat.value) {
-            void fetchGroupInfo(chat.value, gen);
-            void syncNotificationMuteState(chat.value, currentId);
-        }
-        await nextTick();
-
-        // 恢复滚动位置：上次浏览位置缓存优先；无则贴底
-        const cachedPos = lastBrowsePositionCache.get(lastBrowseCacheKey(currentId, topicId.value)) || 0;
-        if (cachedPos > 0) {
-            await scrollToTargetOrBottom(cachedPos, currentId, gen);
-        } else {
-            await scrollToBottomAsync();
-        }
-
-        // 恢复后补一次 60ms 二次定位（与完整加载一致，确保滚动稳定）
-        if (cachedPos > 0 && isGenerationValid(gen)) {
-            window.setTimeout(() => {
-                if (isGenerationValid(gen)) scrollToMessage(cachedPos);
-            }, 200);
-        }
-
-        isReady.value = true;
-        scheduleVisibleMessagesRead();
-        // 恢复该聊天的输入框草稿
-        restoreDraft(currentId, topicId.value);
-        // 通知 TDLib 该聊天已打开（接收推送更新）
-        void tdlibSend({ _: 'openChat', chat_id: currentId });
-        return;
-    }
-    // 未命中缓存：标记当前缓存条目为“进行中”，最终加载完成后写回
-    const freshEntry: ChatDetailCacheEntry = {
-        messages: [],
-        chat: undefined,
-        topic: undefined,
-        isHistoryExhausted: false,
-        isNewerExhausted: false,
-        unreadBoundaryMessageId: null,
-        historyMode: 'normal',
-        jumpOlderExhausted: false,
-        jumpNewerExhausted: false,
-    };
-    chatDetailCache.set(cacheKey, freshEntry);
-    trimChatDetailCache();
-    currentCacheEntry = freshEntry;
 
     try {
         // 读取上次浏览位置（决定首屏加载锚点）
@@ -1733,7 +1567,6 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
                 unreadBoundaryMessageId.value = null;
                 isReady.value = true;
                 chatLoadRetryCount = 0;
-                saveCurrentChatToCache();
                 scheduleVisibleMessagesRead();
                 restoreDraft(currentId, topicId.value);
                 void tdlibSend({ _: 'openChat', chat_id: currentId });
@@ -1757,6 +1590,7 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
             firstBatchPromise,
             fetchGroupInfo(chatData, gen),
             syncNotificationMuteState(chatData, currentId),
+            fetchAvailableSenders(currentId, gen),
         ]);
         if (!isGenerationValid(gen)) return;
         if (firstBatch.length === 0 && chatData.last_message) {
@@ -1814,7 +1648,6 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
             }
         }
 
-        saveCurrentChatToCache();
         scheduleVisibleMessagesRead();
     } catch (e) {
         console.error("Error loading chat:", e);
@@ -2159,6 +1992,37 @@ async function fetchGroupInfo(chatData: chat, gen: number) {
     }
 }
 
+// ==================== Sender Selector ====================
+
+/** 获取当前聊天可用的消息发送身份列表（频道/匿名群组等） */
+async function fetchAvailableSenders(cid: number, gen: number) {
+    sendersLoading.value = true;
+    try {
+        const result = await tdlibSend({ _: 'getChatAvailableMessageSenders', chat_id: cid });
+        if (!isGenerationValid(gen)) return;
+        availableSenders.value = result.senders || [];
+    } catch {
+        availableSenders.value = [];
+    } finally {
+        sendersLoading.value = false;
+    }
+}
+
+/** 切换消息发送身份 */
+async function handleChangeSender(senderId: import('tdlib-types').MessageSender) {
+    if (!chatId.value) return;
+    try {
+        await tdlibSend({
+            _: 'setChatMessageSender',
+            chat_id: chatId.value,
+            message_sender_id: senderId,
+        });
+        // updateChatMessageSender 会通过 TDLib update 自动更新 chat.value.message_sender_id
+    } catch (e) {
+        console.error('Failed to change sender:', e);
+    }
+}
+
 // ==================== Scroll Management ====================
 /** 滚动稳定后，将当前视口中的未读消息批量标记为已读 */
 function scheduleVisibleMessagesRead() {
@@ -2235,14 +2099,6 @@ const scrollToBottom = () => {
             messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
         }
     });
-};
-
-/** 异步等待后滚动到底部 */
-const scrollToBottomAsync = async () => {
-    await nextTick();
-    scrollToBottom();
-    // 媒体加载后二次校准
-    setTimeout(scrollToBottom, 200);
 };
 
 /** 滚动到指定消息元素，将其放在视口约 45% 位置 */
@@ -2348,32 +2204,6 @@ async function autoOpenMediaFromQuery(gen: number) {
 const handleReplyJumpToMessage = (messageId: number) => {
     void jumpToMessage(messageId);
 };
-
-/** 尝试定位到目标消息，找不到则到底部 */
-async function scrollToTargetOrBottom(targetId: number, chatIdNum: number, gen: number) {
-    for (let attempt = 0; attempt < 10; attempt++) {
-        if (!isGenerationValid(gen)) return;
-        const exists = messages.value.some(m => m.id === targetId);
-        if (exists) {
-            scrollToMessage(targetId);
-            setTimeout(() => {
-                if (isGenerationValid(gen)) scrollToMessage(targetId);
-            }, 200);
-            return;
-        }
-        if (isHistoryExhausted.value || messages.value.length === 0) break;
-        const oldest = messages.value[0];
-        const more = await fetchMessages(chatIdNum, oldest.id, 30, 0, gen);
-        if (more.length === 0) break;
-        const previousCount = messages.value.length;
-        applyMessages(mergeMessages(messages.value, more));
-        await nextTick();
-        if (messages.value.length === previousCount) {
-            break;
-        }
-    }
-    scrollToBottom();
-}
 
 // ==================== Scroll Events ====================
 /** 计算当前视口顶部可见的第一条消息 id（用于记录上次浏览位置） */
@@ -2670,6 +2500,8 @@ function resetState() {
     isJoinPending.value = false;
     joinRequestSent.value = false;
     pinnedBarVisible.value = false;
+    availableSenders.value = [];
+    sendersLoading.value = false;
     historyMode.value = 'normal';
     jumpOlderExhausted.value = false;
     jumpNewerExhausted.value = false;
@@ -2686,11 +2518,7 @@ function resetState() {
 }
 
 /**
- * 中央写入 messages 的入口：设置 messages.value 并累加版本号，
- * 同时把新数组同步回当前聊天对应的缓存条目。
- *
- * 缓存条目按「当前 chatId[:topicId]」派生而非依赖共享的 currentCacheEntry 指针，
- * 这样在并发加载/多个组件实例共存时，写入不会错落到另一个聊天的缓存里（防止消息互串）。
+ * 中央写入 messages 的入口：设置 messages.value 并累加版本号。
  *
  * 写入前会过滤掉 chat_id 不属于当前聊天的消息，作为最后一道防线，
  * 防止任何上游遗漏导致其他对话的消息泄露到当前视图。
@@ -2700,24 +2528,6 @@ function applyMessages(next: message[]) {
     const safe = cid != null ? next.filter(m => m.chat_id === cid) : next;
     messages.value = safe;
     messagesVersion.value++;
-    const key = chatDetailCacheKey(cid ?? 0, topicId.value);
-    const entry = chatDetailCache.get(key);
-    if (entry) {
-        entry.messages = safe;
-    }
-}
-
-/** 缓存当前正在渲染聊天的非消息状态快照（供切换后恢复） */
-function saveCurrentChatToCache() {
-    if (!currentCacheEntry) return;
-    currentCacheEntry.chat = chat.value;
-    currentCacheEntry.topic = topic.value;
-    currentCacheEntry.isHistoryExhausted = isHistoryExhausted.value;
-    currentCacheEntry.isNewerExhausted = isNewerExhausted.value;
-    currentCacheEntry.unreadBoundaryMessageId = unreadBoundaryMessageId.value;
-    currentCacheEntry.historyMode = historyMode.value;
-    currentCacheEntry.jumpOlderExhausted = jumpOlderExhausted.value;
-    currentCacheEntry.jumpNewerExhausted = jumpNewerExhausted.value;
 }
 
 // ==================== Helpers ====================

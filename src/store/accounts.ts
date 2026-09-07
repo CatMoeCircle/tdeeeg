@@ -12,6 +12,11 @@ export interface AccountInfo {
   logged_in: boolean;
   avatar_path: string | null;
   is_active: boolean;
+  /** 该账户登录时使用的 TDLib 参数 */
+  use_test_dc: boolean | null;
+  custom_api_creds: boolean | null;
+  api_id: number | null;
+  api_hash: string | null;
 }
 
 export const useAccountsStore = defineStore("accounts", () => {

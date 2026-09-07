@@ -20,7 +20,8 @@
                     <p class="text-xs text-gray-400 mt-2">当前生效的连接参数（只读）。如需更改，请在添加新账户时通过登录页面右上角的设置按钮配置。</p>
 
                     <div class="mt-5 space-y-3">
-                        <div class="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                        <div
+                            class="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                             <div>
                                 <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">使用测试数据中心</h4>
                                 <p class="text-xs text-gray-500 mt-0.5">连接到 Telegram 测试服务器</p>
@@ -32,10 +33,12 @@
                             </div>
                         </div>
 
-                        <div class="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                        <div
+                            class="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
                             <div>
                                 <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">自定义 API ID / Hash</h4>
-                                <p class="text-xs text-gray-500 mt-0.5">{{ customApiCreds ? '已启用自定义凭据' : '使用内置默认凭据' }}</p>
+                                <p class="text-xs text-gray-500 mt-0.5">{{ customApiCreds ? '已启用自定义凭据' : '使用内置默认凭据' }}
+                                </p>
                             </div>
                             <div class="w-11 h-6 rounded-full relative shrink-0 opacity-50 cursor-not-allowed"
                                 :class="customApiCreds ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'">
@@ -123,13 +126,19 @@
                             <span class="text-gray-500 dark:text-gray-400">数据中心</span>
                             <span class="font-mono">{{ useTestDc ? '测试 (Test DC)' : '正式 (Main DC)' }}</span>
                         </div>
-                        <div class="px-4 py-3 flex items-center justify-between">
-                            <span class="text-gray-500 dark:text-gray-400">API ID</span>
-                            <span class="font-mono">{{ apiId || '(默认)' }}</span>
-                        </div>
-                        <div class="px-4 py-3 flex items-center justify-between">
-                            <span class="text-gray-500 dark:text-gray-400">API Hash</span>
-                            <span class="font-mono break-all">{{ apiHash ? apiHash.slice(0, 8) + '…' : '(默认)' }}</span>
+                        <template v-if="customApiCreds">
+                            <div class="px-4 py-3 flex items-center justify-between">
+                                <span class="text-gray-500 dark:text-gray-400">API ID</span>
+                                <span class="font-mono">{{ apiId }}</span>
+                            </div>
+                            <div class="px-4 py-3 flex items-center justify-between">
+                                <span class="text-gray-500 dark:text-gray-400">API Hash</span>
+                                <span class="font-mono break-all">{{ apiHash ? apiHash.slice(0, 8) + '…' : '' }}</span>
+                            </div>
+                        </template>
+                        <div v-else class="px-4 py-3 flex items-center justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">API 凭据</span>
+                            <span class="font-mono text-gray-400">内置默认</span>
                         </div>
                     </div>
                 </section>
@@ -171,13 +180,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { ChevronLeft as ChevronLeftIcon, Info as InfoIcon, LogOut as LogOutIcon, Plus as PlusIcon } from 'lucide-vue-next';
-import { invoke, convertFileSrc } from '@tauri-apps/api/core';
+import { ChevronLeft as ChevronLeftIcon, LogOut as LogOutIcon, Plus as PlusIcon } from 'lucide-vue-next';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { MessagePlugin } from 'tdesign-vue-next';
-import { settings } from '../../store/settings';
 import { tdlibSend } from '../../utils/tdlib';
 import { useAccountsStore, type AccountInfo } from '../../store/accounts';
 import { storeToRefs } from 'pinia';
@@ -222,33 +230,13 @@ onMounted(() => {
     accountsStore.init();
 });
 
-// ─── 表单状态（从持久化 settings.system 初始化）───
-const useTestDc = ref(settings.system.useTestDc);
-const customApiCreds = ref(settings.system.customApiCreds);
-const apiId = ref(settings.system.apiId);
-const apiHash = ref(settings.system.apiHash);
+// ─── 从活动账户的 Rust 持久化数据读取连接参数（非 localStorage 缓存）───
+const activeAccountData = computed(() => accountsStore.activeAccount);
+const useTestDc = computed(() => activeAccountData.value?.use_test_dc ?? false);
+const customApiCreds = computed(() => activeAccountData.value?.custom_api_creds ?? false);
+const apiId = computed(() => activeAccountData.value?.api_id ?? null);
+const apiHash = computed(() => activeAccountData.value?.api_hash ?? null);
 
-// 本地表单变化同步到持久化 settings（localStorage）
-watch(useTestDc, (v) => { settings.system.useTestDc = v; });
-watch(customApiCreds, (v) => { settings.system.customApiCreds = v; });
-watch(apiId, (v) => { settings.system.apiId = v.trim(); });
-watch(apiHash, (v) => { settings.system.apiHash = v.trim(); });
-
-const applying = ref(false);
-
-/** 重启 TDLib 客户端（不修改参数） */
-async function restartTdlib() {
-    if (applying.value) return;
-    applying.value = true;
-    try {
-        await invoke('restart_tdlib');
-        MessagePlugin.success('TDLib 已重启，正在重新连接…');
-        window.location.reload();
-    } catch (e: any) {
-        MessagePlugin.error(e?.message || '重启 TDLib 失败');
-        applying.value = false;
-    }
-}
 
 // ─── 账户管理 ───
 const accountsStore = useAccountsStore();
@@ -320,10 +308,4 @@ async function confirmAdd() {
         MessagePlugin.error(e?.message || '添加账户失败');
     }
 }
-
-onMounted(() => {
-    loadAppVersion();
-    loadTdlibVersion();
-    accountsStore.init();
-});
 </script>

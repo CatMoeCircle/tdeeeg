@@ -1,6 +1,7 @@
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import App from "./App.vue";
 import router from "./router";
 import "./assets/css/index.css";
@@ -111,6 +112,9 @@ async function bootstrap() {
 
     // 授权态稳定、路由已定位，再渲染 App.vue
     app.mount("#app");
+
+    // 所有初始化完成，显示窗口（之前通过 tauri.conf.json visible:false 隐藏）
+    await getCurrentWebviewWindow().show();
 }
 
 bootstrap();
