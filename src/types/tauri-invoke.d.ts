@@ -13,6 +13,7 @@ declare module "@tauri-apps/api/core" {
       api_id?: number;
       api_hash?: string;
       use_test_dc?: boolean;
+      persist?: boolean;
     }
   ): Promise<void>;
 

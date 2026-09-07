@@ -27,6 +27,8 @@ pub struct AccountRecord {
     /// 该账户创建/登录时是否使用测试数据中心
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub use_test_dc: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_api_creds: Option<bool>,
 }
 
 /// accounts.json 的磁盘结构。
@@ -78,6 +80,7 @@ impl AccountsStore {
                 api_id: None,
                 api_hash: None,
                 use_test_dc: None,
+                custom_api_creds: None,
             });
             store.file.active = 0;
             store.file.next_id = 1;
@@ -134,6 +137,7 @@ impl AccountsStore {
             api_id: None,
             api_hash: None,
             use_test_dc: None,
+            custom_api_creds: None,
         });
         id
     }
@@ -163,6 +167,7 @@ impl AccountsStore {
                 api_id: None,
                 api_hash: None,
                 use_test_dc: None,
+                custom_api_creds: None,
             });
             self.file.active = 0;
         }
@@ -183,14 +188,21 @@ impl AccountsStore {
     pub fn set_tdlib_params(
         &mut self,
         id: i64,
-        api_id: i32,
-        api_hash: &str,
+        api_id: Option<i32>,
+        api_hash: Option<&str>,
         use_test_dc: bool,
+        custom_api_creds: bool,
     ) {
         if let Some(rec) = self.file.accounts.iter_mut().find(|a| a.id == id) {
-            rec.api_id = Some(api_id);
-            rec.api_hash = Some(api_hash.to_string());
             rec.use_test_dc = Some(use_test_dc);
+            rec.custom_api_creds = Some(custom_api_creds);
+            if custom_api_creds {
+                rec.api_id = api_id;
+                rec.api_hash = api_hash.map(|s| s.to_string());
+            } else {
+                rec.api_id = None;
+                rec.api_hash = None;
+            }
             let _ = self.save();
         }
     }
@@ -203,5 +215,10 @@ impl AccountsStore {
         let api_hash = rec.api_hash.as_deref()?;
         let use_test_dc = rec.use_test_dc?;
         Some((api_id, api_hash.to_string(), use_test_dc))
+    }
+
+    /// 获取账户是否使用了自定义凭据。
+    pub fn is_custom_api_creds(&self, id: i64) -> Option<bool> {
+        self.file.accounts.iter().find(|a| a.id == id)?.custom_api_creds
     }
 }

@@ -252,6 +252,7 @@ pub fn set_tdlib_parameters(
     api_id: Option<i32>,
     api_hash: Option<String>,
     use_test_dc: Option<bool>,
+    persist: Option<bool>,
 ) -> Result<(), String> {
     let has_creds = api_id.is_some() && api_hash.is_some();
     let has_test_dc = use_test_dc.is_some();
@@ -264,24 +265,40 @@ pub fn set_tdlib_parameters(
         return Err("No parameters provided to update".to_string());
     }
 
-    // 仅更新全局 config；账户级凭据持久化由 receive loop 在客户端
-    // 实际初始化（authorizationStateWaitTdlibParameters）时完成，
-    // 避免 bootstrap 用全局默认值覆盖已有账户的自定义凭据。
-    let mut config = state.config.lock().map_err(|e| e.to_string())?;
+    let should_persist = persist.unwrap_or(false);
 
-    if let Some(test_dc) = use_test_dc {
-        config.use_test_dc = test_dc;
+    // 更新全局 config
+    {
+        let mut config = state.config.lock().map_err(|e| e.to_string())?;
+        if let Some(test_dc) = use_test_dc {
+            config.use_test_dc = test_dc;
+        }
+        if let (Some(id), Some(hash)) = (api_id.as_ref(), api_hash.as_ref()) {
+            if *id <= 0 {
+                return Err("Invalid api_id: must be greater than 0".to_string());
+            }
+            if hash.trim().is_empty() {
+                return Err("Invalid api_hash: cannot be empty".to_string());
+            }
+            config.api_id = *id;
+            config.api_hash = hash.clone();
+        }
     }
 
-    if let (Some(id), Some(hash)) = (api_id, api_hash) {
-        if id <= 0 {
-            return Err("Invalid api_id: must be greater than 0".to_string());
+    // persist=true 时将凭据持久化到活动账户的记录中。
+    // 内置凭据（无自定义 api_id/api_hash）不保存 api_id/hash 到磁盘，防止泄露。
+    if should_persist {
+        let active_id = state.active.load(Ordering::SeqCst);
+        let cfg = state.config.lock().map_err(|e| e.to_string())?;
+        if let Ok(mut accounts) = state.accounts.lock() {
+            accounts.set_tdlib_params(
+                active_id,
+                api_id,
+                api_hash.as_deref(),
+                cfg.use_test_dc,
+                has_creds,
+            );
         }
-        if hash.trim().is_empty() {
-            return Err("Invalid api_hash: cannot be empty".to_string());
-        }
-        config.api_id = id;
-        config.api_hash = hash;
     }
     Ok(())
 }
@@ -975,9 +992,9 @@ fn spawn_receive_loop(
                 #[cfg(debug_assertions)]
                 if let Some(t) = event.get("@type").and_then(|v| v.as_str()) {
                     if t == "error" {
-                        println!("[tdlib-update] error: {}", json_str);
+                        println!("[client:{}][tdlib-update] error: {}", client.id, json_str);
                     } else {
-                        println!("[tdlib-update] {}", t);
+                        println!("[client:{}][tdlib-update] {}", client.id, t);
                     }
                 }
 
@@ -1059,16 +1076,6 @@ fn spawn_receive_loop(
                                     });
                                     let req_str = CString::new(request.to_string()).unwrap();
                                     send_fn(client.client, req_str.as_ptr());
-                                    // 将实际使用的凭据持久化到该账户的记录中，
-                                    // 确保下次初始化该客户端时仍使用相同的参数。
-                                    if let Ok(mut accounts) = state.accounts.lock() {
-                                        accounts.set_tdlib_params(
-                                            session_id,
-                                            api_id,
-                                            &api_hash,
-                                            use_test_dc,
-                                        );
-                                    }
                                 } else if state_type == "authorizationStateReady" {
                                     // 拉取自己的信息（用于账户列表显示名称/头像）
                                     let request = json!({

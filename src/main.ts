@@ -84,6 +84,7 @@ async function bootstrap() {
         ...(sys.customApiCreds && sys.apiId && sys.apiHash
             ? { api_id: Number(sys.apiId), api_hash: sys.apiHash }
             : {}),
+        persist: false,
     });
 
     let authState: "ready" | "login";

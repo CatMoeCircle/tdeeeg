@@ -29,6 +29,11 @@
                     <div class="p-4 space-y-4">
                         <p class="text-xs text-gray-400">更改后需重建 TDLib 客户端才会生效，可能需重新登录。</p>
 
+                        <div class="flex items-start gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
+                            <InfoIcon class="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                            <p class="text-xs text-blue-600 dark:text-blue-400 leading-5">这些设置仅影响当前正在登录的新账户，已有账户不受影响。</p>
+                        </div>
+
                         <!-- 使用测试数据中心 -->
                         <div class="flex items-center justify-between">
                             <div>
@@ -48,7 +53,7 @@
                                 <div>
                                     <p class="text-sm font-medium text-gray-900 dark:text-gray-100">自定义 API ID / Hash
                                     </p>
-                                    <p class="text-xs text-gray-400 mt-0.5">关闭则使用编译期默认值</p>
+                                    <p class="text-xs text-gray-400 mt-0.5">关闭则使用内置默认凭据</p>
                                 </div>
                                 <button type="button" @click="customApiCreds = !customApiCreds"
                                     class="w-11 h-6 rounded-full transition-colors relative shrink-0"
@@ -94,7 +99,7 @@
 import { ref, watch, onMounted, onUnmounted, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { MessagePlugin } from "tdesign-vue-next";
-import { Settings as SettingsIcon, X as XIcon } from "lucide-vue-next";
+import { Settings as SettingsIcon, X as XIcon, Info as InfoIcon } from 'lucide-vue-next';
 import { settings } from "../../store/settings";
 
 const visible = ref(false);
@@ -148,9 +153,12 @@ async function apply() {
 
     applying.value = true;
     try {
+        // 通知 LoginView 清空二维码（如果正在显示）
+        window.dispatchEvent(new CustomEvent('login-menu-clear-qr'));
         await invoke('set_tdlib_parameters', {
             useTestDc: useTestDc.value,
             ...(apiIdNum !== undefined && apiHashStr ? { api_id: apiIdNum, api_hash: apiHashStr } : {}),
+            persist: true,
         });
         await invoke('restart_tdlib');
         MessagePlugin.success('已应用，正在重新连接…');

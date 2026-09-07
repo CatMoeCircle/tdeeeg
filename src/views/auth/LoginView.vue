@@ -31,6 +31,14 @@ const pendingPhoneLogin = ref<string | null>(null);
 
 // 多账户：显示已登录账户列表，方便用户切换回去
 const accountsStore = useAccountsStore();
+const showAccountDropdown = ref(false);
+const accountDropdownRef = ref<HTMLElement | null>(null);
+
+function onDropdownClickOutside(e: MouseEvent) {
+    if (accountDropdownRef.value && !accountDropdownRef.value.contains(e.target as Node)) {
+        showAccountDropdown.value = false;
+    }
+}
 const loggedAccounts = computed(() => accountsStore.accounts.filter(a => a.logged_in && !a.is_active));
 
 function accountName(acc: { first_name: string; last_name: string; username: string; id: number }): string {
@@ -262,6 +270,7 @@ const login = async () => {
 };
 
 let qrlinkupdate: () => void;
+let clearQrListener: (() => void) | null = null;
 
 const getqrlink = async () => {
     const State = await tdlibSend({
@@ -377,6 +386,13 @@ onMounted(async () => {
         if (!qrCodeContainer.value) return;
         initOrUpdateQrCode(val);
     });
+
+    // 监听 LoginSystemMenu 发出的清空二维码事件（用户在弹窗中应用了新参数）
+    clearQrListener = () => { clearQrCode(); qrlink.value = ''; };
+    window.addEventListener('login-menu-clear-qr', clearQrListener);
+
+    // 点击外部关闭账户下拉
+    document.addEventListener('click', onDropdownClickOutside, true);
 });
 
 onUnmounted(() => {
@@ -386,6 +402,14 @@ onUnmounted(() => {
     // 清理二维码 DOM
     if (qrCodeContainer.value) qrCodeContainer.value.innerHTML = "";
     qrCode = null;
+
+    // 移除 LoginSystemMenu 清空二维码事件监听
+    if (clearQrListener) {
+        window.removeEventListener('login-menu-clear-qr', clearQrListener);
+    }
+
+    // 移除点击外部关闭账户下拉
+    document.removeEventListener('click', onDropdownClickOutside, true);
 
     // 取消 TDLib 事件监听
     if (qrlinkupdate) {
@@ -440,25 +464,48 @@ onUnmounted(() => {
                 <!-- 已登录账户切换 -->
                 <div v-if="loggedAccounts.length > 0" class="w-full max-w-xs mt-8">
                     <div class="text-xs text-gray-400 mb-2">{{ t('login.switchBackHint') }}</div>
-                    <div class="space-y-2">
-                        <button v-for="acc in loggedAccounts" :key="acc.id" type="button"
-                            @click="switchToAccount(acc.id)"
-                            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all text-left group">
-                            <img v-if="accountAvatar(acc)" :src="accountAvatar(acc)" alt="avatar"
+                    <div ref="accountDropdownRef" class="relative">
+                        <!-- 当前选中账户（点击展开下拉） -->
+                        <button type="button"
+                            @click="showAccountDropdown = !showAccountDropdown"
+                            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all text-left">
+                            <img v-if="accountAvatar(loggedAccounts[0])" :src="accountAvatar(loggedAccounts[0])" alt="avatar"
                                 class="w-8 h-8 rounded-full object-cover shrink-0" />
                             <div v-else
                                 class="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs text-white bg-linear-to-br from-blue-400 to-indigo-500">
-                                {{ accountName(acc).substring(0, 2) }}
+                                {{ accountName(loggedAccounts[0]).substring(0, 2) }}
                             </div>
                             <div class="min-w-0 flex-1">
-                                <p class="text-sm font-medium text-gray-800 truncate">{{ accountName(acc) }}</p>
-                                <p class="text-xs text-gray-400 truncate">{{ acc.username ? '@' + acc.username : '' }}
-                                </p>
+                                <p class="text-sm font-medium text-gray-800 truncate">{{ accountName(loggedAccounts[0]) }}</p>
+                                <p class="text-xs text-gray-400 truncate">{{ loggedAccounts[0].username ? '@' + loggedAccounts[0].username : '' }}</p>
                             </div>
-                            <span
-                                class="text-xs text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">{{
-                                    t('login.switchToAccount') }} →</span>
+                            <svg class="w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200"
+                                :class="{ 'rotate-180': showAccountDropdown }"
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
                         </button>
+
+                        <!-- 下拉账户列表（向上展开，右对齐） -->
+                        <Transition name="account-menu">
+                            <div v-if="showAccountDropdown && loggedAccounts.length > 1"
+                                class="absolute z-10 right-0 bottom-full mb-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg max-h-[50vh] overflow-y-auto custom-scrollbar">
+                                <div v-for="acc in loggedAccounts" :key="acc.id"
+                                    @click="switchToAccount(acc.id); showAccountDropdown = false"
+                                    class="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer">
+                                    <img v-if="accountAvatar(acc)" :src="accountAvatar(acc)" alt="avatar"
+                                        class="w-8 h-8 rounded-full object-cover shrink-0" />
+                                    <div v-else
+                                        class="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs text-white bg-linear-to-br from-blue-400 to-indigo-500">
+                                        {{ accountName(acc).substring(0, 2) }}
+                                    </div>
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-sm font-medium text-gray-800 truncate">{{ accountName(acc) }}</p>
+                                        <p class="text-xs text-gray-400 truncate">{{ acc.username ? '@' + acc.username : '' }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </Transition>
                     </div>
                 </div>
             </div>
