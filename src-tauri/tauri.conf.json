@@ -14,22 +14,19 @@
       {
         "title": "tdeeeg",
         "width": 1000,
-        "height": 700,
+        "height": 500,
         "decorations": false,
         "transparent": true,
         "shadow": false,
-        "dragDropEnabled": true
+        "dragDropEnabled": true,
+        "zoomHotkeysEnabled": false
       }
     ],
     "security": {
       "csp": "default-src 'self' ipc: http://ipc.localhost; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data: asset: http://asset.localhost; img-src 'self' data: asset: http://asset.localhost; media-src 'self' data: asset: http://asset.localhost tdstream: http://tdstream.localhost",
       "assetProtocol": {
         "enable": true,
-        "scope": [
-          "$APPDATA/assets/*",
-          "../assets/*",
-          "**"
-        ]
+        "scope": ["$APPDATA/assets/*", "../assets/*", "**"]
       }
     }
   },
@@ -46,16 +43,11 @@
     ],
     "windows": {
       "nsis": {
-        "languages": [
-          "English",
-          "SimpChinese"
-        ],
+        "languages": ["English", "SimpChinese"],
         "displayLanguageSelector": false
       }
     },
-    "resources": [
-      "./bin/*"
-    ]
+    "resources": ["./bin/*"]
   },
   "plugins": {
     "updater": {

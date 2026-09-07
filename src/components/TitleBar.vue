@@ -55,3 +55,13 @@ const close = () => appWindow.close();
         </Teleport>
     </div>
 </template>
+
+<style scoped>
+[data-tauri-drag-region] {
+    -webkit-app-region: drag;
+}
+
+[data-tauri-drag-region-exclude] {
+    -webkit-app-region: no-drag;
+}
+</style>
