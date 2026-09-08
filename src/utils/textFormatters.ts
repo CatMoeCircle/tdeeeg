@@ -1,5 +1,5 @@
 import type { textEntity, TextEntityType } from "tdlib-types";
-import { splitTextByEmoji, emojiImageSrc } from "./emoji";
+import { splitTextByEmoji } from "./emoji";
 
 /**
  * 输入框富文本实体工具。
@@ -491,12 +491,8 @@ function renderSegmentWithEmoji(
             out += escapeHtml(p.text);
             continue;
         }
-        const src = emojiImageSrc(p.text);
-        if (src) {
-            out += `<img class="mi-emoji" draggable="false" alt="${escapeHtml(p.text)}" src="${escapeHtml(src)}">`;
-        } else {
-            out += escapeHtml(p.text);
-        }
+        // 使用 Apple Color Emoji 字体渲染
+        out += `<span class="apple-emoji">${escapeHtml(p.text)}</span>`;
     }
     return out;
 }

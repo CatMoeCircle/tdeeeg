@@ -34,7 +34,6 @@
     "@types/pako": "^2.0.4",
     "@types/twemoji-parser": "^13.1.4",
     "@vitejs/plugin-vue": "^5.2.1",
-    "emoji-datasource-apple": "16.0.0",
     "ldrs": "^1.1.9",
     "lucide-vue-next": "^0.556.0",
     "pinia": "^3.0.4",

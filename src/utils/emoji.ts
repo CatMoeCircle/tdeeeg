@@ -1,30 +1,16 @@
 /**
- * 全局 Apple 风格 emoji 引擎（Telegram 网页版同款方案）。
+ * 全局 Apple 风格 emoji 引擎。
  *
- * 用 Apple 风格的 PNG（public/emoji/*.png，来自 emoji-datasource-apple，Unicode 16）
- * 替代系统字体渲染的 emoji，保证跨平台外观一致。
+ * 使用 Apple Color Emoji 字体（apple.ttf）渲染 emoji，
+ * 替代旧的 PNG 图片方案，减少网络请求并提升渲染性能。
  *
- * 实现方式（与 telegram-tt 的 util/emoji 一致）：
- *   1. 检测：用 twemoji-parser 的官方正则（Telegram Web 同款）精确识别文本里的
- *      所有合法 emoji 序列（含 ZWJ、肤色、旗帜），拿到每个 emoji 的位置( indices )。
- *   2. 映射：用 src/utils/emojiUnified.ts（由 emoji-datasource-apple 的 emoji.json 生成）
- *      把 emoji 的 native 字符串映射到 Apple 风格图片文件名。
- *   3. 渲染：emoji 段替换成 <img src="/emoji/{file}">。
+ * 实现方式：
+ *   1. 检测：用 twemoji-parser 的官方正则精确识别文本里的
+ *      所有合法 emoji 序列（含 ZWJ、肤色、旗帜），拿到每个 emoji 的位置。
+ *   2. 渲染：emoji 段用 apple-emoji CSS class 渲染，由字体直接绘制。
  */
 
 import { parse as twemojiParse } from "twemoji-parser";
-import { EMOJI_TO_IMAGE } from "./emojiUnified";
-
-/** 图片 URL 前缀（public/emoji/ 在构建后位于应用根目录，属 'self'，CSP img-src 允许） */
-export const EMOJI_BASE = "/emoji";
-
-/** 缓存 Map：native emoji 字符串 → 图片文件名 */
-const emojiMap = new Map<string, string>();
-for (const [native, image] of EMOJI_TO_IMAGE) {
-  if (!emojiMap.has(native)) {
-    emojiMap.set(native, image);
-  }
-}
 
 export interface EmojiToken {
   text: string;
@@ -59,21 +45,7 @@ export function splitTextByEmoji(text: string): EmojiToken[] {
 
 /** 判断某个字符串是否为已知可渲染的 emoji */
 export function isEmoji(text: string): boolean {
-  return emojiMap.has(text);
-}
-
-/** 取某个 emoji 对应的 Apple 图片文件名；未知返回 null */
-export function emojiToImage(native: string): string | null {
-  return emojiMap.get(native) ?? null;
-}
-
-/** emoji 图片完整 URL（未知 emoji 返回 null） */
-export function emojiImageSrc(native: string): string | null {
-  const file = emojiMap.get(native);
-  return file ? `${EMOJI_BASE}/${file}` : null;
-}
-
-/** 供调试：确认映射规模 */
-export function emojiMapSize(): number {
-  return emojiMap.size;
+  // 使用 twemoji-parser 检测是否为合法 emoji 序列
+  const entities = twemojiParse(text, { assetType: "png" });
+  return entities.length === 1 && entities[0].text === text;
 }

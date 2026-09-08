@@ -1,6 +1,24 @@
 @import "tailwindcss";
 @import "./theme.css";
 
+/* ===== Apple Emoji 字体 ===== */
+@font-face {
+  font-family: "Apple Color Emoji";
+  src: url("../apple.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+.apple-emoji {
+  font-family:
+    "Apple Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  font-style: normal;
+  font-weight: normal;
+  line-height: 1;
+  vertical-align: -0.2em;
+}
+
 /* ===== Telegram 官方图标字体 tgico ===== */
 @font-face {
   font-family: "tgico";
