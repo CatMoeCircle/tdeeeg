@@ -10,10 +10,10 @@
         <!-- WEBM video sticker -->
         <video v-else-if="format === 'webm' && mediaSrc" ref="videoRef" :src="mediaSrc" autoplay loop muted playsinline
             class="w-full h-full object-contain" />
-        <!-- Fallback -->
-        <div v-else class="w-full h-full flex items-center justify-center text-2xl">
-            <GlobalEmojiInline :emoji="emoji" :size="48" />
-        </div>
+        <!-- Thumbnail placeholder (sticker's own thumbnail) -->
+        <img v-else-if="thumbSrc" :src="thumbSrc" class="w-full h-full object-contain" />
+        <!-- Fallback: gray background -->
+        <div v-else class="w-full h-full sticker-placeholder" />
     </div>
 </template>
 
@@ -21,7 +21,6 @@
 import { computed, ref, watch, onMounted } from 'vue';
 import type { messageAnimatedEmoji, messageSticker } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { readFile } from '@tauri-apps/plugin-fs';
 import { useDownloadStore } from '../../../../../store/downloads';
 import { settings } from '../../../../../store/settings';
@@ -29,7 +28,7 @@ import { useLottiePause } from '../../../../../composables/useLottiePause';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import { useRlottieRenderSize } from '../../../../../composables/useRlottieRenderSize';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
-import GlobalEmojiInline from '../../../../common/GlobalEmojiInline.vue';
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { applyFitzpatrick } from '../../../../../utils/fitzpatrick';
 import { RlottiePlayer, type RlottiePlayerInstance } from 'rlottie-wasm-vue-player';
 import * as pako from 'pako';
@@ -77,9 +76,17 @@ const stickerSizeStyle = computed<Record<string, string>>(() => ({
 const sticker = computed(() => props.content._ === 'messageSticker'
     ? props.content.sticker
     : props.content.animated_emoji.sticker);
-const emoji = computed(() => props.content._ === 'messageSticker'
-    ? props.content.sticker.emoji || '🧩'
-    : props.content.emoji);
+
+/** 贴纸自带缩略图（已下载时可直接显示，作为加载前的占位） */
+const thumbSrc = computed(() => {
+    const s = sticker.value;
+    if (!s?.thumbnail?.file) return undefined;
+    const f = s.thumbnail.file;
+    if (f.local.is_downloading_completed && f.local.path) {
+        return convertFileSrc(f.local.path);
+    }
+    return undefined;
+});
 
 /** 检测贴纸格式 */
 const format = computed(() => sticker.value?.format._ === 'stickerFormatTgs' ? 'tgs'
@@ -217,3 +224,10 @@ onMounted(() => {
     startViewportLoad();
 });
 </script>
+
+<style scoped>
+.sticker-placeholder {
+    background: rgba(128, 128, 128, 0.12);
+    border-radius: 8px;
+}
+</style>

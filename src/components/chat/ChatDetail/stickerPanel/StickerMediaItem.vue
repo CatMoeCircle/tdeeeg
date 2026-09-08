@@ -10,7 +10,9 @@
             loading="lazy" />
         <video v-else-if="format !== 'tgs' && src" ref="videoRef" :src="src" autoplay loop muted playsinline
             :style="imgStyle" />
-        <!-- 占位：骨架屏（不显示进度） -->
+        <!-- Thumbnail placeholder (sticker's own thumbnail) -->
+        <img v-else-if="thumbSrc" :src="thumbSrc" :alt="alt" draggable="false" :style="imgStyle" loading="lazy" />
+        <!-- 占位：灰色背景 -->
         <div v-else class="sp-media-ph" :style="imgStyle"></div>
     </div>
 </template>
@@ -19,6 +21,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { sticker, animation } from 'tdlib-types';
 import { RlottiePlayer, type RlottiePlayerInstance } from 'rlottie-wasm-vue-player';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { useStickerMedia } from './composables/useStickerMedia';
 import { onVisibilityChange, unobserve, isProgrammaticScroll, isUserScrolling, deferLoadWhileScrolling, isWindowActive, onWindowActiveChange } from './composables/useStickerVisibility';
 import { useRlottieRenderSize } from '../../../../composables/useRlottieRenderSize';
@@ -86,6 +89,20 @@ const imgStyle = computed<Record<string, string>>(() => ({
     height: '100%',
     objectFit: 'cover',
 }));
+
+/** 贴纸自带缩略图（已下载时可直接显示，作为加载前的占位） */
+const thumbSrc = computed(() => {
+    const o = props.item;
+    if (!o) return undefined;
+    // sticker 类型有 thumbnail；animation 类型无 thumbnail
+    if ('thumbnail' in o && o.thumbnail?.file) {
+        const f = o.thumbnail.file;
+        if (f.local.is_downloading_completed && f.local.path) {
+            return convertFileSrc(f.local.path);
+        }
+    }
+    return undefined;
+});
 
 /** 已否触发过首次下载 */
 let downloadStarted = false;
