@@ -27,7 +27,7 @@
                 <img v-if="thumbSrc && !mediaSrc" :src="thumbSrc"
                     class="absolute inset-0 w-full h-full object-cover blur-sm scale-105" />
                 <!-- Full image (object-cover fills area) -->
-                <img v-if="mediaSrc" :src="mediaSrc" class="w-full h-full object-cover select-none"
+                <img v-if="mediaSrc" ref="photoImgEl" :src="mediaSrc" class="w-full h-full object-cover select-none"
                     :class="{ 'opacity-0': !imageLoaded }" @load="onImageLoad" @error="onImageError" />
                 <!-- Placeholder -->
                 <div v-if="!mediaSrc && !thumbSrc" class="flex items-center justify-center w-full h-full">
@@ -234,7 +234,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import type { MessageContent, messageForwardInfo, MessageSendingState, chatPhotoInfo, profilePhoto, messageReplyToMessage, message } from 'tdlib-types';
 import MessageReply from './MessageReply.vue';
 import { tdlibSend, isFileReady, downloadingFiles, safeDownloadFile } from '../../../../../utils/tdlib';
@@ -622,8 +622,21 @@ const mediaContainerStyle = computed(() => {
 // Image state
 const imageLoaded = ref(false);
 const imageError = ref(false);
+const photoImgEl = ref<HTMLImageElement | null>(null);
 function onImageLoad() { imageLoaded.value = true; mediaLoaded.value = true; }
 function onImageError() { imageError.value = true; }
+
+/** 图片已就绪后，若其 URL 命中浏览器缓存导致 @load 早于监听器绑定而漏触发，
+ *  则在此兜底：DOM 已 complete 且有实际尺寸即可视为加载成功。 */
+function checkPhotoLoaded() {
+    nextTick(() => {
+        const el = photoImgEl.value;
+        if (el && el.complete && el.naturalWidth > 0) {
+            imageLoaded.value = true;
+            mediaLoaded.value = true;
+        }
+    });
+}
 
 function openViewer() {
     if (props.messageId && mediaSrc.value) {
@@ -802,6 +815,7 @@ async function loadPhotoThumb() {
     if (f && isFileReady(f)) {
         mediaSrc.value = convertFileSrc(f.local.path);
         mediaLoaded.value = true;
+        checkPhotoLoaded();
         return;
     }
     // 根据自动下载设置决定是否自动下载图片

@@ -1294,6 +1294,10 @@ const handleUpdate = async (update: Update) => {
                 // 若用户停在底部附近则保持贴底，避免底部内容被顶出视口
                 const atBottom = isAtBottom();
                 msg.content = update.new_content;
+                // 内容整体替换后旧内联键盘按钮已失效，清空回调按钮列表
+                if (msg.reply_markup !== undefined) {
+                    msg.reply_markup = undefined;
+                }
                 // 消息更新后刷新该消息内联键盘的锁定状态
                 refreshKeyboardLock(update.message_id);
                 if (atBottom) scrollToBottom();
