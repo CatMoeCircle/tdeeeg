@@ -43,7 +43,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
 import type { MessageSender, chatMessageSender } from 'tdlib-types';
 import Avatar from '../avatar.vue';
 import { ensureSenderLoaded, getSenderName, getSenderPhoto, getSenderAccentColorId } from '../../../utils/senderInfo';
