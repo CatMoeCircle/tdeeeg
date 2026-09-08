@@ -1,21 +1,23 @@
 <template>
-    <div class="h-full flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 overflow-hidden">
+    <div class="h-full flex flex-col bg-white dark:bg-gray-900">
         <!-- 顶部导航 -->
-        <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3 shrink-0">
-            <button type="button" aria-label="返回"
-                class="w-9 h-9 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                @click="goBack">
-                <ArrowLeftIcon class="w-5 h-5" />
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3 shrink-0">
+            <button type="button" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" @click="goBack">
+                <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
             </button>
             <h2 class="text-lg font-semibold">设备</h2>
         </div>
 
-        <div class="flex-1 overflow-y-auto custom-scrollbar" v-smooth-wheel>
-            <div class="max-w-2xl mx-auto p-6 space-y-6">
+        <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
+            <div class="max-w-2xl space-y-6">
                 <!-- 区域1：当前设备 -->
-                <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">当前设备</h3>
-                    <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4">
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">当前设备</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <div class="mt-5 space-y-3">
+                    <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4">
                         <div class="flex items-start gap-3">
                             <div
                                 class="w-10 h-10 shrink-0 rounded-full bg-teal-100 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center">
@@ -39,19 +41,24 @@
                     </div>
 
                     <button type="button" @click="terminateOthers"
-                        class="mt-3 w-full py-2.5 rounded-xl border border-red-200 dark:border-red-500/30 text-red-500 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors">
+                        class="mt-3 w-full py-1.5 rounded-lg border border-red-200 dark:border-red-500/30 text-red-500 text-xs font-medium hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors">
                         终止所有其它会话
                     </button>
                     <p class="text-xs text-gray-400 mt-2 leading-relaxed">退出所有其它会话，只保留目前使用的。</p>
+                    </div>
                 </section>
 
                 <!-- 区域2：活跃会话 -->
-                <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">活跃会话</h3>
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">活跃会话</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <div class="mt-5 space-y-3">
                     <div v-if="loading" class="text-sm text-gray-400 py-8 text-center">正在加载会话…</div>
                     <div v-else-if="otherSessions.length === 0" class="text-sm text-gray-400 py-8 text-center">没有其它活跃会话</div>
                     <div v-else
-                        class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] divide-y divide-gray-200 dark:divide-gray-700 overflow-hidden">
+                        class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 divide-y divide-gray-100 dark:divide-gray-800 overflow-hidden">
                         <div v-for="s in otherSessions" :key="s.id" class="flex items-center gap-3 px-4 py-3">
                             <div
                                 class="w-9 h-9 shrink-0 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 flex items-center justify-center">
@@ -67,13 +74,18 @@
                         </div>
                     </div>
                     <p class="text-xs text-gray-400 mt-2 leading-relaxed">Telegram 官方客户端支持iPhone,iPad, Android, macOS, Windows, Linux 系统平台。</p>
+                    </div>
                 </section>
 
                 <!-- 区域3：自动终止旧会话 -->
                 <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">自动终止旧会话</h3>
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">自动终止旧会话</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <div class="mt-5 space-y-3">
                     <button type="button" @click="ttlVisible = true"
-                        class="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                         <TimerResetIcon class="w-5 h-5 text-gray-400 shrink-0" />
                         <div class="min-w-0 flex-1">
                             <p class="text-sm text-gray-800 dark:text-gray-100">不活跃时间</p>
@@ -81,6 +93,7 @@
                         </div>
                         <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                     </button>
+                    </div>
                 </section>
             </div>
         </div>
@@ -92,10 +105,10 @@
                 <button v-for="opt in ttlOptions" :key="opt.days" type="button" @click="saveTtl(opt.days)"
                     class="w-full flex items-center justify-between rounded-xl border px-4 py-2.5 text-sm text-left transition-colors"
                     :class="ttlDays === opt.days
-                        ? 'border-teal-500 bg-teal-50 dark:bg-teal-500/10 text-gray-900 dark:text-gray-100'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-gray-900 dark:text-gray-100'
                         : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800'">
                     <span>{{ opt.label }}</span>
-                    <CheckIcon v-if="ttlDays === opt.days" class="w-4 h-4 text-teal-500" />
+                    <CheckIcon v-if="ttlDays === opt.days" class="w-4 h-4 text-blue-500" />
                 </button>
             </div>
         </ModalDialog>
@@ -106,7 +119,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import {
-    ArrowLeft as ArrowLeftIcon, Check as CheckIcon, ChevronRight as ChevronRightIcon,
+    ChevronLeft as ChevronLeftIcon, Check as CheckIcon, ChevronRight as ChevronRightIcon,
     Globe as GlobeIcon, Laptop as LaptopIcon, Smartphone as SmartphoneIcon,
     Tablet as TabletIcon, TimerReset as TimerResetIcon,
 } from 'lucide-vue-next';

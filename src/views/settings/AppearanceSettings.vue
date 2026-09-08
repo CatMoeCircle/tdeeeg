@@ -1,14 +1,17 @@
 <template>
-    <div class="h-full flex flex-col bg-white ">
-        <div class="p-4 border-b border-gray-200 ">
+    <div class="h-full flex flex-col bg-white dark:bg-gray-900">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800">
             <h2 class="text-lg font-semibold">外观设置</h2>
         </div>
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
             <div class="max-w-2xl">
                 <!-- 消息显示设置 -->
                 <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
-                        消息显示</h3>
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            消息显示</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
 
                     <!-- 预览：模拟消息气泡，实时反映圆角/字体/缩放 -->
                     <div class="mb-6 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
@@ -54,7 +57,7 @@
 
                     <!-- 消息显示选项 -->
                     <div
-                        class="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
+                        class="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-800">
                         <!-- 消息圆角 -->
                         <div class="px-4 py-3">
                             <div class="flex items-center justify-between mb-2">
@@ -137,9 +140,12 @@
 
                 <!-- 翻译显示设置 -->
                 <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
-                        翻译显示</h3>
-                    <p class="mb-4 text-sm text-gray-500">设置在消息右键菜单中点击「翻译」后，译文以何种方式显示。</p>
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            翻译显示</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2">设置在消息右键菜单中点击「翻译」后，译文以何种方式显示。</p>
 
                     <div class="space-y-3">
                         <!-- 弹窗翻译 -->
@@ -191,8 +197,11 @@
                 </div>
 
                 <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
-                        分组文件夹样式</h3>
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            分组文件夹样式</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
 
                     <!-- 实时预览：分组栏即样式 -->
                     <div class="mb-6 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
@@ -244,7 +253,7 @@
                     <!-- 分组栏显示选项（属于分组文件夹样式大类） -->
                     <div class="mt-4">
                         <div
-                            class="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
+                            class="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-800">
                             <div class="px-4 py-2">
                                 <ChatTypeToggle label="显示未读消息计数器" v-model="settings.showFolderUnread" />
                             </div>
@@ -258,14 +267,17 @@
                                 <ChatTypeToggle label="显示分组图标" v-model="settings.showFolderIcons" />
                             </div>
                         </div>
-                        <p class="mt-2 text-sm text-gray-500">控制聊天列表顶部分组栏中是否显示未读计数与分组图标。</p>
+                        <p class="mt-2 text-xs text-gray-400">控制聊天列表顶部分组栏中是否显示未读计数与分组图标。</p>
                     </div>
                 </div>
 
                 <!-- 聊天列表设置 -->
                 <div class="mb-8">
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
-                        聊天列表</h3>
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            聊天列表</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
 
                     <!-- 预览：模拟聊天列表项 -->
                     <div class="mb-6 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
@@ -310,7 +322,7 @@
 
                     <!-- 聊天列表选项 -->
                     <div
-                        class="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
+                        class="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-800">
                         <!-- 头像圆角 -->
                         <div class="px-4 py-3">
                             <div class="flex items-center justify-between mb-2">
@@ -378,9 +390,12 @@
 
                 <!-- 加载指示器样式（排在外观设置最后） -->
                 <div class="mb-8">
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
-                        加载指示器样式</h3>
-                    <p class="mb-4 text-sm text-gray-500">为聊天列表、图片/视频加载等选择你喜欢的加载进度条样式。</p>
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            加载指示器样式</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2">为聊天列表、图片/视频加载等选择你喜欢的加载进度条样式。</p>
 
                     <!-- 实时预览：网格展示各 loader + 点击选择 -->
                     <div class="mb-4 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">

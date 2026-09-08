@@ -1,82 +1,99 @@
 <template>
-    <div class="h-full flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 overflow-hidden">
+    <div class="h-full flex flex-col bg-white dark:bg-gray-900">
         <!-- 顶部导航 -->
-        <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3 shrink-0">
-            <button type="button" aria-label="返回"
-                class="w-9 h-9 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                @click="goBack">
-                <ArrowLeftIcon class="w-5 h-5" />
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3 shrink-0">
+            <button type="button" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" @click="goBack">
+                <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
             </button>
             <h2 class="text-lg font-semibold flex-1">编辑个人资料</h2>
             <button type="button" @click="saveProfile" :disabled="savingProfile"
-                class="px-4 py-2 rounded-xl bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors disabled:opacity-50 shrink-0">
+                class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 shrink-0">
                 {{ savingProfile ? '保存中…' : '保存' }}
             </button>
         </div>
 
-        <div class="flex-1 overflow-y-auto custom-scrollbar" v-smooth-wheel>
-            <div class="max-w-2xl mx-auto p-6 space-y-6">
+        <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
+            <div class="max-w-2xl space-y-6">
                 <!-- 头像 -->
-                <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">头像
-                    </h3>
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">头像
+                        </h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <div class="mt-5 space-y-3">
                     <div
-                        class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 flex items-center gap-4">
+                        class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-4">
                         <div class="w-20 h-20 shrink-0">
                             <Avatar :photo="user?.profile_photo" :title="fullName"
                                 :accentColorId="user?.profile_accent_color_id" sizeClass="!w-20 !h-20" />
                         </div>
                         <div class="min-w-0 flex-1">
                             <button type="button" @click="avatarEditorVisible = true"
-                                class="px-4 py-2 rounded-xl bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors">
+                                class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors">
                                 更换头像
                             </button>
                             <p class="text-xs text-gray-400 mt-2">支持从历史头像中选择，或上传新照片并裁剪</p>
                         </div>
                     </div>
+                    </div>
                 </section>
 
                 <!-- 姓名 -->
-                <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">姓名
-                    </h3>
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">姓名
+                        </h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <div class="mt-5 space-y-3">
                     <div
-                        class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 space-y-3">
+                        class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 space-y-3">
                         <div>
                             <label class="text-xs text-gray-400">名字</label>
                             <input v-model="firstName" type="text" maxlength="64"
-                                class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                                class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
                         <div>
                             <label class="text-xs text-gray-400">姓氏</label>
                             <input v-model="lastName" type="text" maxlength="64"
-                                class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                                class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
 
+                    </div>
                     </div>
                 </section>
 
                 <!-- 个人简介 -->
-                <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">
-                        个人简介</h3>
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            个人简介</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <div class="mt-5 space-y-3">
                     <div
-                        class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 space-y-2">
+                        class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 space-y-2">
                         <textarea v-model="bio" rows="3" :maxlength="bioMax"
-                            class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-teal-500"></textarea>
+                            class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
                         <div class="flex items-center justify-between">
                             <span class="text-xs text-gray-400">{{ bio.length }} / {{ bioMax }}</span>
                             <span class="text-xs text-gray-400">姓名与简介请在右上角统一保存</span>
                         </div>
                     </div>
+                    </div>
                 </section>
 
                 <!-- 手机号码 -->
-                <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">
-                        手机号码</h3>
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            手机号码</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <div class="mt-5 space-y-3">
                     <button type="button" @click="phoneVisible = true"
-                        class="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                         <PhoneIcon class="w-5 h-5 text-gray-400 shrink-0" />
                         <div class="min-w-0 flex-1">
                             <p class="text-sm text-gray-800 dark:text-gray-100 select-all">{{ formattedPhone || '未设置' }}
@@ -85,14 +102,19 @@
                         </div>
                         <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                     </button>
+                    </div>
                 </section>
 
                 <!-- 用户名 -->
-                <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">用户名
-                    </h3>
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">用户名
+                        </h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <div class="mt-5 space-y-3">
                     <button type="button" @click="openUsernamePopup"
-                        class="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                         <AtSignIcon class="w-5 h-5 text-gray-400 shrink-0" />
                         <div class="min-w-0 flex-1">
                             <p class="text-sm text-gray-800 dark:text-gray-100">@{{ primaryUsername || '未设置' }}</p>
@@ -100,14 +122,19 @@
                         </div>
                         <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                     </button>
+                    </div>
                 </section>
 
                 <!-- 生日 -->
-                <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">生日
-                    </h3>
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">生日
+                        </h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <div class="mt-5 space-y-3">
                     <div
-                        class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 space-y-3">
+                        class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 space-y-3">
                         <div class="flex items-center gap-3">
                             <CalendarIcon class="w-5 h-5 text-gray-400 shrink-0" />
                             <p v-if="birthdateText" class="text-sm text-gray-800 dark:text-gray-100">{{ birthdateText }}
@@ -129,14 +156,19 @@
                             </button>
                         </div>
                     </div>
+                    </div>
                 </section>
 
                 <!-- 个人主页频道 -->
-                <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">
-                        个人主页频道</h3>
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            个人主页频道</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <div class="mt-5 space-y-3">
                     <button type="button" @click="openPersonalChatPopup"
-                        class="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                         <div class="w-10 h-10 shrink-0" v-if="personalChat">
                             <Avatar :photo="personalChat.photo" :title="personalChat.title"
                                 :accentColorId="personalChatAccent" sizeClass="!w-10 !h-10" />
@@ -152,14 +184,19 @@
                         </div>
                         <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                     </button>
+                    </div>
                 </section>
 
                 <!-- 营业时间 -->
-                <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">
-                        营业时间</h3>
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            营业时间</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <div class="mt-5 space-y-3">
                     <button type="button" @click="openBusinessHoursPopup"
-                        class="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                         <ClockIcon class="w-5 h-5 text-gray-400 shrink-0" />
                         <div class="min-w-0 flex-1">
                             <p v-if="businessHoursLines.length" class="text-sm text-gray-800 dark:text-gray-100">{{
@@ -170,14 +207,19 @@
                         </div>
                         <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                     </button>
+                    </div>
                 </section>
 
                 <!-- 位置 -->
-                <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">位置
-                    </h3>
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">位置
+                        </h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <div class="mt-5 space-y-3">
                     <button type="button" @click="locationVisible = true"
-                        class="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                         <MapPinIcon class="w-5 h-5 text-gray-400 shrink-0" />
                         <div class="min-w-0 flex-1">
                             <p class="text-sm text-gray-800 dark:text-gray-100 truncate">{{ businessLocation?.address ||
@@ -186,14 +228,19 @@
                         </div>
                         <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                     </button>
+                    </div>
                 </section>
 
                 <!-- 聊天机器人 -->
                 <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">
-                        聊天机器人</h3>
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            聊天机器人</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <div class="mt-5 space-y-3">
                     <button type="button" @click="openChatbotPopup"
-                        class="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                         <BotIcon class="w-5 h-5 text-gray-400 shrink-0" />
                         <div class="min-w-0 flex-1">
                             <p class="text-sm text-gray-800 dark:text-gray-100 truncate">{{ chatbotText || '未设置' }}</p>
@@ -201,6 +248,7 @@
                         </div>
                         <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                     </button>
+                    </div>
                 </section>
             </div>
         </div>
@@ -220,7 +268,7 @@
                     更改手机号码仅支持在官方客户端中进行。<br />出于安全考虑，第三方客户端无法修改手机号码，请前往 Telegram 官方客户端修改。
                 </p>
                 <button type="button" @click="goOfficialClient"
-                    class="mt-2 px-5 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors">
+                    class="mt-2 px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors">
                     前往官方客户端
                 </button>
             </div>
@@ -235,10 +283,10 @@
                     <div class="mt-1 flex items-center gap-2">
                         <span class="text-gray-500 dark:text-gray-400 text-sm">@</span>
                         <input v-model="usernameInput" type="text" spellcheck="false"
-                            class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                            class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                             @input="checkUsernameDebounced" @keydown.enter="saveUsername" />
                         <button type="button" @click="saveUsername" :disabled="savingUsername"
-                            class="px-4 py-2 rounded-xl bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors disabled:opacity-50 shrink-0">
+                            class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 shrink-0">
                             {{ savingUsername ? '保存中…' : '设置' }}
                         </button>
                     </div>
@@ -305,7 +353,7 @@
                     <button v-for="c in suitableChats" :key="c.chat_id" type="button"
                         @click="setPersonalChat(c.chat_id)"
                         class="w-full flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                        :class="c.chat_id === personalChatId ? 'border-teal-500 bg-teal-50 dark:bg-teal-500/10' : ''">
+                        :class="c.chat_id === personalChatId ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : ''">
                         <div class="w-9 h-9 shrink-0">
                             <Avatar :photo="c.photo" :title="c.title" :accentColorId="c.accentId"
                                 sizeClass="!w-9 !h-9" />
@@ -314,7 +362,7 @@
                             <p class="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{{ c.title }}</p>
 
                         </div>
-                        <CheckIcon v-if="c.chat_id === personalChatId" class="w-4 h-4 text-teal-500 shrink-0" />
+                        <CheckIcon v-if="c.chat_id === personalChatId" class="w-4 h-4 text-blue-500 shrink-0" />
                     </button>
                 </template>
             </div>
@@ -326,7 +374,7 @@
                 <div>
                     <label class="text-xs text-gray-400">时区</label>
                     <input v-model="timeZoneInput" type="text"
-                        class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                        class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     <p class="text-xs text-gray-400 mt-1">需为有效的 IANA 时区标识，例如 Asia/Shanghai</p>
                 </div>
                 <div class="space-y-2">
@@ -346,11 +394,11 @@
                 </div>
                 <div class="flex justify-end gap-2">
                     <button type="button" @click="clearBusinessHours"
-                        class="px-4 py-2 rounded-xl text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors">
+                        class="px-4 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors">
                         清除营业时间
                     </button>
                     <button type="button" @click="saveBusinessHours" :disabled="savingHours"
-                        class="px-5 py-2 rounded-xl bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors disabled:opacity-50">
+                        class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50">
                         {{ savingHours ? '保存中…' : '保存' }}
                     </button>
                 </div>
@@ -369,7 +417,7 @@
                     位置修改功能暂未适配。<br />请前往 Telegram 官方客户端修改您的商业位置信息。
                 </p>
                 <button type="button" @click="goOfficialClient"
-                    class="mt-2 px-5 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors">
+                    class="mt-2 px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors">
                     前往官方客户端
                 </button>
             </div>
@@ -389,7 +437,7 @@
                     聊天机器人的添加与修改暂未适配。<br />请前往 Telegram 官方客户端修改。
                 </p>
                 <button type="button" @click="goOfficialClient"
-                    class="mt-2 px-5 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors">
+                    class="mt-2 px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors">
                     前往官方客户端
                 </button>
             </div>
@@ -401,7 +449,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
-    ArrowLeft as ArrowLeftIcon, ArrowUp as ArrowUpIcon, ArrowDown as ArrowDownIcon,
+    ArrowUp as ArrowUpIcon, ArrowDown as ArrowDownIcon,
     AtSign as AtSignIcon, Bot as BotIcon, Ban as BanIcon, Calendar as CalendarIcon,
     ChevronRight as ChevronRightIcon, Check as CheckIcon, Clock as ClockIcon,
     MapPin as MapPinIcon, Megaphone as MegaphoneIcon, Phone as PhoneIcon,

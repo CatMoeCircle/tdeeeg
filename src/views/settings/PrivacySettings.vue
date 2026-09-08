@@ -1,22 +1,24 @@
 <template>
-    <div class="h-full flex flex-col bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 overflow-hidden">
+    <div class="h-full flex flex-col bg-white dark:bg-gray-900">
         <!-- 顶部导航 -->
-        <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-3 shrink-0">
-            <button type="button" aria-label="返回"
-                class="w-9 h-9 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                @click="goBack">
-                <ArrowLeftIcon class="w-5 h-5" />
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3 shrink-0">
+            <button type="button" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" @click="goBack">
+                <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
             </button>
             <h2 class="text-lg font-semibold">隐私设置</h2>
         </div>
 
-        <div class="flex-1 overflow-y-auto custom-scrollbar" v-smooth-wheel>
-            <div class="max-w-2xl mx-auto p-6 space-y-6">
+        <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
+            <div class="max-w-2xl space-y-6">
                 <!-- 拉黑用户列表 -->
-                <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">拉黑</h3>
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">拉黑</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <div class="mt-5 space-y-3">
                     <button type="button" @click="openBlockedPopup"
-                        class="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                         <BanIcon class="w-5 h-5 text-gray-400 shrink-0" />
                         <div class="min-w-0 flex-1">
                             <p class="text-sm text-gray-800 dark:text-gray-100">拉黑用户列表</p>
@@ -24,13 +26,18 @@
                         </div>
                         <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                     </button>
+                    </div>
                 </section>
 
                 <!-- 两步验证 -->
-                <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">两步验证</h3>
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">两步验证</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <div class="mt-5 space-y-3">
                     <button type="button" @click="openTwoStepPopup"
-                        class="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                         <KeyRoundIcon class="w-5 h-5 text-gray-400 shrink-0" />
                         <div class="min-w-0 flex-1">
                             <p class="text-sm text-gray-800 dark:text-gray-100">两步验证密码</p>
@@ -38,13 +45,18 @@
                         </div>
                         <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                     </button>
+                    </div>
                 </section>
 
                 <!-- 自动删除设置 -->
-                <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">自动删除</h3>
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">自动删除</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <div class="mt-5 space-y-3">
                     <button type="button" @click="openAutoDeletePopup"
-                        class="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                         <TimerResetIcon class="w-5 h-5 text-gray-400 shrink-0" />
                         <div class="min-w-0 flex-1">
                             <p class="text-sm text-gray-800 dark:text-gray-100">自动删除新聊天中的消息</p>
@@ -52,12 +64,17 @@
                         </div>
                         <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                     </button>
+                    </div>
                 </section>
 
                 <!-- 可见性和权限 -->
-                <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">可见性和权限</h3>
-                    <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] overflow-hidden divide-y divide-gray-200 dark:divide-gray-700">
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">可见性和权限</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <div class="mt-5 space-y-3">
+                    <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
                         <button v-for="item in privacyItems" :key="item.key" type="button"
                             class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                             @click="openPrivacyItem(item)">
@@ -71,13 +88,18 @@
                             <ChevronRightIcon class="w-4 h-4 text-gray-400 shrink-0" />
                         </button>
                     </div>
+                    </div>
                 </section>
 
                 <!-- 账户删除时间设置 -->
-                <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">账户</h3>
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">账户</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <div class="mt-5 space-y-3">
                     <button type="button" @click="openAccountTtlPopup"
-                        class="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                         <Trash2Icon class="w-5 h-5 text-gray-400 shrink-0" />
                         <div class="min-w-0 flex-1">
                             <p class="text-sm text-gray-800 dark:text-gray-100">账户删除时间设置</p>
@@ -85,12 +107,17 @@
                         </div>
                         <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                     </button>
+                    </div>
                 </section>
 
                 <!-- 18+ 内容 -->
                 <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 uppercase tracking-wider">敏感内容</h3>
-                    <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] px-4 py-3 flex items-center gap-3"
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">敏感内容</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <div class="mt-5 space-y-3">
+                    <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 flex items-center gap-3"
                         :class="!canIgnoreSensitive ? 'opacity-60' : ''">
                         <div class="min-w-0 flex-1">
                             <p class="text-sm text-gray-800 dark:text-gray-100">显示 18+ 内容</p>
@@ -101,6 +128,7 @@
                         <ToggleSwitch v-model="ignoreSensitiveContent" :disabled="!canIgnoreSensitive"
                             @update:model-value="saveIgnoreSensitive" />
                     </div>
+                    </div>
                 </section>
             </div>
         </div>
@@ -109,10 +137,10 @@
             <div class="space-y-3">
                 <div class="flex items-center gap-2">
                     <input v-model="blockInput" type="text" placeholder="输入用户名或用户 ID 以拉黑" spellcheck="false"
-                        class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                         @keydown.enter="addBlocked" />
                     <button type="button" @click="addBlocked" :disabled="blockingAdd"
-                        class="px-4 py-2 rounded-xl bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors disabled:opacity-50 shrink-0">
+                        class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 shrink-0">
                         拉黑
                     </button>
                 </div>
@@ -146,22 +174,22 @@
                 <div v-if="passwordState?.has_password">
                     <label class="text-xs text-gray-400">当前密码</label>
                     <input v-model="twoStepCurrent" type="password" autocomplete="off"
-                        class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                        class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
                     <label class="text-xs text-gray-400">{{ passwordState?.has_password ? '新密码（留空则保留当前密码）' : '新密码' }}</label>
                     <input v-model="twoStepNew" type="password" autocomplete="new-password"
-                        class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                        class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
                     <label class="text-xs text-gray-400">密码提示（可选）</label>
                     <input v-model="twoStepHint" type="text" maxlength="64"
-                        class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                        class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
                     <label class="text-xs text-gray-400">恢复邮箱（可选）</label>
                     <input v-model="twoStepEmail" type="email"
-                        class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                        class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div class="flex items-center justify-between pt-1">
                     <button v-if="passwordState?.has_password" type="button" @click="disableTwoStep"
@@ -169,7 +197,7 @@
                         关闭两步验证
                     </button>
                     <button type="button" @click="saveTwoStep" :disabled="savingTwoStep"
-                        class="ml-auto px-5 py-2.5 rounded-xl bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors disabled:opacity-50">
+                        class="ml-auto px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50">
                         {{ savingTwoStep ? '保存中…' : (passwordState?.has_password ? '保存修改' : '设置密码') }}
                     </button>
                 </div>
@@ -182,10 +210,10 @@
                 <button v-for="opt in autoDeleteOptions" :key="opt.time" type="button" @click="saveAutoDelete(opt.time)"
                     class="w-full flex items-center justify-between rounded-xl border px-4 py-2.5 text-sm text-left transition-colors"
                     :class="autoDeleteTime === opt.time
-                        ? 'border-teal-500 bg-teal-50 dark:bg-teal-500/10 text-gray-900 dark:text-gray-100'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-gray-900 dark:text-gray-100'
                         : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800'">
                     <span>{{ opt.label }}</span>
-                    <CheckIcon v-if="autoDeleteTime === opt.time" class="w-4 h-4 text-teal-500" />
+                    <CheckIcon v-if="autoDeleteTime === opt.time" class="w-4 h-4 text-blue-500" />
                 </button>
             </div>
         </ModalDialog>
@@ -207,7 +235,7 @@
                             <button v-for="opt in presetOptions(PRESET_ALL)" :key="opt.value" type="button"
                                 class="px-3.5 py-2 rounded-xl text-sm transition-colors"
                                 :class="phoneNumberPreset === opt.value
-                                    ? 'bg-teal-500 text-white font-medium'
+                                    ? 'bg-blue-500 text-white font-medium'
                                     : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'"
                                 @click="phoneNumberPreset = opt.value">
                                 {{ opt.label }}
@@ -222,7 +250,7 @@
                             <button v-for="opt in presetOptions(PRESET_FIND)" :key="opt.value" type="button"
                                 class="px-3.5 py-2 rounded-xl text-sm transition-colors"
                                 :class="phoneFindPreset === opt.value
-                                    ? 'bg-teal-500 text-white font-medium'
+                                    ? 'bg-blue-500 text-white font-medium'
                                     : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'"
                                 @click="phoneFindPreset = opt.value">
                                 {{ opt.label }}
@@ -235,10 +263,10 @@
                             <p class="text-xs text-gray-400 mb-2">您可以将用户或群组添加为例外，添加为例外将不会遵循全局设置。</p>
                             <div class="flex items-center gap-2 mb-3">
                                 <input v-model="phoneFindInput" type="text" placeholder="输入用户名或用户 ID" spellcheck="false"
-                                    class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                    class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     @keydown.enter="addException('phone_find')" />
                                 <button type="button" @click="addException('phone_find')" :disabled="exceptionAdding"
-                                    class="px-4 py-2 rounded-xl bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors disabled:opacity-50 shrink-0">
+                                    class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 shrink-0">
                                     添加
                                 </button>
                             </div>
@@ -267,7 +295,7 @@
                             <button v-for="opt in presetOptions(PRESET_ALL)" :key="opt.value" type="button"
                                 class="px-3.5 py-2 rounded-xl text-sm transition-colors"
                                 :class="activePreset === opt.value
-                                    ? 'bg-teal-500 text-white font-medium'
+                                    ? 'bg-blue-500 text-white font-medium'
                                     : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'"
                                 @click="activePreset = opt.value">
                                 {{ opt.label }}
@@ -281,10 +309,10 @@
                         <p class="text-xs text-gray-400 mb-2">您可以将用户或群组添加为例外，添加为例外将不会遵循全局设置。</p>
                         <div class="flex items-center gap-2 mb-3">
                             <input v-model="exceptionInput" type="text" placeholder="输入用户名或用户 ID" spellcheck="false"
-                                class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 @keydown.enter="addException('list')" />
                             <button type="button" @click="addException('list')" :disabled="exceptionAdding"
-                                class="px-4 py-2 rounded-xl bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors disabled:opacity-50 shrink-0">
+                                class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 shrink-0">
                                 添加
                             </button>
                         </div>
@@ -323,7 +351,7 @@
                             <button v-for="opt in presetOptions(PRESET_ALL)" :key="opt.value" type="button"
                                 class="px-3.5 py-2 rounded-xl text-sm transition-colors"
                                 :class="activePreset === opt.value
-                                    ? 'bg-teal-500 text-white font-medium'
+                                    ? 'bg-blue-500 text-white font-medium'
                                     : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'"
                                 @click="activePreset = opt.value">
                                 {{ opt.label }}
@@ -334,10 +362,10 @@
                             <p class="text-xs text-gray-400 mb-2">您可以将用户或群组添加为例外，添加为例外将不会遵循全局设置。</p>
                             <div class="flex items-center gap-2 mb-3">
                                 <input v-model="exceptionInput" type="text" placeholder="输入用户名或用户 ID" spellcheck="false"
-                                    class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                    class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     @keydown.enter="addException('list')" />
                                 <button type="button" @click="addException('list')" :disabled="exceptionAdding"
-                                    class="px-4 py-2 rounded-xl bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors disabled:opacity-50 shrink-0">
+                                    class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 shrink-0">
                                     添加
                                 </button>
                             </div>
@@ -378,12 +406,12 @@
                             <button v-for="opt in newChatOptions" :key="opt.value" type="button"
                                 class="w-full flex items-center justify-between rounded-xl border px-4 py-3 text-sm text-left transition-colors"
                                 :class="newChatMode === opt.value
-                                    ? 'border-teal-500 bg-teal-50 dark:bg-teal-500/10'
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                                     : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'"
                                 :disabled="opt.value === 'paid' && !canEnablePaidMessages"
                                 @click="selectNewChatMode(opt.value)">
                                 <span class="text-gray-800 dark:text-gray-100 font-medium">{{ opt.label }}</span>
-                                <CheckIcon v-if="newChatMode === opt.value" class="w-4 h-4 text-teal-500 shrink-0" />
+                                <CheckIcon v-if="newChatMode === opt.value" class="w-4 h-4 text-blue-500 shrink-0" />
                             </button>
                         </div>
                         <p v-if="!canEnablePaidMessages" class="text-xs text-gray-400 mt-2">您的账号暂不支持开启付费消息。</p>
@@ -403,10 +431,10 @@
                         <p class="text-xs text-gray-400 mb-2">这些用户或群组可以免费向您发送私聊消息，不遵循全局设置。</p>
                         <div class="flex items-center gap-2 mb-3">
                             <input v-model="newChatInput" type="text" placeholder="输入用户名或用户 ID" spellcheck="false"
-                                class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 @keydown.enter="addException('newchat')" />
                             <button type="button" @click="addException('newchat')" :disabled="exceptionAdding"
-                                class="px-4 py-2 rounded-xl bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors disabled:opacity-50 shrink-0">
+                                class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 shrink-0">
                                 添加
                             </button>
                         </div>
@@ -434,7 +462,7 @@
                             <button v-for="opt in presetOptions(PRESET_ALL)" :key="opt.value" type="button"
                                 class="px-3.5 py-2 rounded-xl text-sm transition-colors"
                                 :class="activePreset === opt.value
-                                    ? 'bg-teal-500 text-white font-medium'
+                                    ? 'bg-blue-500 text-white font-medium'
                                     : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'"
                                 @click="activePreset = opt.value">
                                 {{ opt.label }}
@@ -445,10 +473,10 @@
                             <p class="text-xs text-gray-400 mb-2">您可以将用户或群组添加为例外，添加为例外将不会遵循全局设置。</p>
                             <div class="flex items-center gap-2 mb-3">
                                 <input v-model="exceptionInput" type="text" placeholder="输入用户名或用户 ID" spellcheck="false"
-                                    class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                    class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     @keydown.enter="addException('list')" />
                                 <button type="button" @click="addException('list')" :disabled="exceptionAdding"
-                                    class="px-4 py-2 rounded-xl bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors disabled:opacity-50 shrink-0">
+                                    class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 shrink-0">
                                     添加
                                 </button>
                             </div>
@@ -480,10 +508,10 @@
                 <button v-for="opt in accountTtlOptions" :key="opt.days" type="button" @click="saveAccountTtl(opt.days)"
                     class="w-full flex items-center justify-between rounded-xl border px-4 py-2.5 text-sm text-left transition-colors"
                     :class="accountTtlDays === opt.days
-                        ? 'border-teal-500 bg-teal-50 dark:bg-teal-500/10 text-gray-900 dark:text-gray-100'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-gray-900 dark:text-gray-100'
                         : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800'">
                     <span>{{ opt.label }}</span>
-                    <CheckIcon v-if="accountTtlDays === opt.days" class="w-4 h-4 text-teal-500" />
+                    <CheckIcon v-if="accountTtlDays === opt.days" class="w-4 h-4 text-blue-500" />
                 </button>
             </div>
         </ModalDialog>
@@ -494,7 +522,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
-    ArrowLeft as ArrowLeftIcon, Ban as BanIcon, Check as CheckIcon,
+    ChevronLeft as ChevronLeftIcon, Ban as BanIcon, Check as CheckIcon,
     ChevronRight as ChevronRightIcon, KeyRound as KeyRoundIcon,
     TimerReset as TimerResetIcon, Trash2 as Trash2Icon,
 } from 'lucide-vue-next';

@@ -9,8 +9,11 @@
 
                 <!-- 代理模式选择 -->
                 <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
-                        代理模式</h3>
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            代理模式</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
 
                     <div class="space-y-3">
                         <!-- 跟随系统代理（默认） -->
@@ -133,8 +136,8 @@
 
                 <!-- 已添加的代理列表 -->
                 <div>
-                    <div class="flex items-center gap-2 mb-4">
-                        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">代理列表
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">代理列表
                         </h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                         <button type="button" @click="refreshProxies" :disabled="proxiesLoading"
@@ -180,7 +183,7 @@
                             <div class="w-6 h-6 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors"
                                 :class="isCurrentProxy(p)
                                     ? 'border-green-500 bg-green-500 text-white'
-                                    : 'border-gray-300 dark:border-gray-600'">
+                                    : 'border-gray-200 dark:border-gray-700'">
                                 <CheckIcon v-if="isCurrentProxy(p)" class="w-4 h-4" />
                             </div>
                             <div class="w-9 h-9 shrink-0 rounded-full flex items-center justify-center" :class="p.is_enabled
@@ -281,13 +284,13 @@
                                         class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">服务器</label>
                                     <input type="text" v-model.trim="form.server"
                                         placeholder="例如 127.0.0.1 或 proxy.example.com"
-                                        class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+                                        class="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                                 </div>
                                 <div>
                                     <label
                                         class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">端口</label>
                                     <input type="number" v-model.trim="form.port" placeholder="8080"
-                                        class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+                                        class="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                                 </div>
                             </div>
 
@@ -296,7 +299,7 @@
                                 <label
                                     class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">密文（Secret）</label>
                                 <input type="text" v-model.trim="form.secret" placeholder="代理的十六进制 secret"
-                                    class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+                                    class="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                             </div>
 
                             <!-- SOCKS5 / HTTP 用户名密码 -->
@@ -306,13 +309,13 @@
                                         <label
                                             class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">用户名（可选）</label>
                                         <input type="text" v-model="form.username"
-                                            class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+                                            class="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                                     </div>
                                     <div>
                                         <label
                                             class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">密码（可选）</label>
                                         <input type="password" v-model="form.password"
-                                            class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+                                            class="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                                     </div>
                                 </div>
                             </template>
@@ -322,7 +325,7 @@
                                 <label
                                     class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">备注（可选）</label>
                                 <input type="text" v-model="form.comment" placeholder="用于标识该代理"
-                                    class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+                                    class="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                             </div>
 
                             <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
@@ -335,11 +338,11 @@
                         <div
                             class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
                             <button type="button" @click="closeAddDialog"
-                                class="px-4 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
                                 取消
                             </button>
                             <button type="button" @click="submitAdd" :disabled="adding"
-                                class="px-4 py-1.5 rounded-lg text-sm bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-60 disabled:cursor-wait">
+                                class="px-4 py-2 rounded-lg text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-60 disabled:cursor-wait">
                                 {{ adding ? '添加中...' : '添加' }}
                             </button>
                         </div>
