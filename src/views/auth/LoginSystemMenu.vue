@@ -157,7 +157,7 @@ async function apply() {
         window.dispatchEvent(new CustomEvent('login-menu-clear-qr'));
         await invoke('set_tdlib_parameters', {
             useTestDc: useTestDc.value,
-            ...(apiIdNum !== undefined && apiHashStr ? { api_id: apiIdNum, api_hash: apiHashStr } : {}),
+            ...(apiIdNum !== undefined && apiHashStr ? { apiId: apiIdNum, apiHash: apiHashStr } : {}),
             persist: true,
         });
         await invoke('restart_tdlib');

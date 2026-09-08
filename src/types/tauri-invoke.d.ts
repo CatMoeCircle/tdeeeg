@@ -10,9 +10,9 @@ declare module "@tauri-apps/api/core" {
   export function invoke(
     cmd: "set_tdlib_parameters",
     args: {
-      api_id?: number;
-      api_hash?: string;
-      use_test_dc?: boolean;
+      apiId?: number;
+      apiHash?: string;
+      useTestDc?: boolean;
       persist?: boolean;
     }
   ): Promise<void>;

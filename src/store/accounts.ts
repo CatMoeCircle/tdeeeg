@@ -45,9 +45,23 @@ export const useAccountsStore = defineStore("accounts", () => {
     }
   }
 
-  /** 新增账户：Rust 端创建新会话并设为活动，随后重载进入登录流程 */
-  async function addAccount() {
-    await invoke<number>("add_account");
+  /** 获取内置 API 账户数量与上限信息 */
+  async function getAccountLimits(): Promise<{ builtin_count: number; limit: number; reached: boolean }> {
+    return await invoke("get_account_limits");
+  }
+
+  /**
+   * 新增账户：Rust 端创建新会话并设为活动，随后重载进入登录流程。
+   * @param apiId  自定义 API ID（可选）
+   * @param apiHash 自定义 API Hash（可选）
+   */
+  async function addAccount(apiId?: number, apiHash?: string) {
+    const args: Record<string, unknown> = {};
+    if (apiId !== undefined && apiHash) {
+      args.apiId = apiId;
+      args.apiHash = apiHash;
+    }
+    await invoke<number>("add_account", args);
     window.location.reload();
   }
 
@@ -63,5 +77,5 @@ export const useAccountsStore = defineStore("accounts", () => {
     window.location.reload();
   }
 
-  return { accounts, activeAccount, init, refresh, addAccount, switchAccount, logoutAccount };
+  return { accounts, activeAccount, init, refresh, getAccountLimits, addAccount, switchAccount, logoutAccount };
 });

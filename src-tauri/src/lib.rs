@@ -183,6 +183,7 @@ pub fn run() {
             tdlib::get_data_location,
             tdlib::migrate_data_dir,
             tdlib::get_accounts,
+            tdlib::get_account_limits,
             tdlib::add_account,
             tdlib::switch_account,
             tdlib::logout_account,

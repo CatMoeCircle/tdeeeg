@@ -83,7 +83,7 @@ async function bootstrap() {
     await invoke("set_tdlib_parameters", {
         useTestDc: sys.useTestDc,
         ...(sys.customApiCreds && sys.apiId && sys.apiHash
-            ? { api_id: Number(sys.apiId), api_hash: sys.apiHash }
+            ? { apiId: Number(sys.apiId), apiHash: sys.apiHash }
             : {}),
         persist: false,
     });

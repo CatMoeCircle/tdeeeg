@@ -125,6 +125,19 @@ impl AccountsStore {
         self.file.accounts.iter().any(|a| a.id == id)
     }
 
+    /// 使用内置 API（非自定义凭据）的账户数量。
+    /// `custom_api_creds == Some(true)` 的账户不算在内。
+    pub fn count_builtin_accounts(&self) -> usize {
+        self.file
+            .accounts
+            .iter()
+            .filter(|a| a.custom_api_creds != Some(true))
+            .count()
+    }
+
+    /// 内置 API 账户上限。
+    pub const BUILTIN_API_LIMIT: usize = 5;
+
     /// 新增一个账户，返回新分配的 id。
     pub fn add(&mut self) -> i64 {
         let id = self.file.next_id;

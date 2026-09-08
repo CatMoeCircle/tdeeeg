@@ -78,26 +78,72 @@
                 @mousedown.self="showAdd = false" @keydown.esc="showAdd = false">
                 <div
                     class="w-90 max-w-[calc(100vw-2rem)] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
-                    <div class="px-4 pt-5 pb-3 text-center">
-                        <div
-                            class="mx-auto w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-500 flex items-center justify-center mb-3">
-                            <UserPlusIcon class="w-6 h-6" />
+                    <!-- 内置 API 确认（未达上限） -->
+                    <template v-if="!limitReached">
+                        <div class="px-4 pt-5 pb-3 text-center">
+                            <div
+                                class="mx-auto w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-500 flex items-center justify-center mb-3">
+                                <UserPlusIcon class="w-6 h-6" />
+                            </div>
+                            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">添加账户</h3>
+                            <p class="mt-1.5 text-sm text-gray-500 dark:text-gray-400 leading-5">
+                                将登录一个新的 Telegram 账户，多个账户可并存并随时切换。
+                            </p>
                         </div>
-                        <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">添加账户</h3>
-                        <p class="mt-1.5 text-sm text-gray-500 dark:text-gray-400 leading-5">
-                            将登录一个新的 Telegram 账户，多个账户可并存并随时切换。
-                        </p>
-                    </div>
-                    <div class="px-4 pb-4 flex items-center justify-end gap-3">
-                        <button type="button" @click="showAdd = false"
-                            class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                            取消
-                        </button>
-                        <button type="button" @click="confirmAdd" :disabled="adding"
-                            class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:cursor-wait">
-                            {{ adding ? '正在创建…' : '继续' }}
-                        </button>
-                    </div>
+                        <div class="px-4 pb-4 flex items-center justify-end gap-3">
+                            <button type="button" @click="showAdd = false"
+                                class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                取消
+                            </button>
+                            <button type="button" @click="confirmAdd" :disabled="adding"
+                                class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:cursor-wait">
+                                {{ adding ? '正在创建…' : '继续' }}
+                            </button>
+                        </div>
+                    </template>
+
+                    <!-- 自定义 API 表单（达到上限） -->
+                    <template v-else>
+                        <div class="px-4 pt-5 pb-3">
+                            <div class="flex items-center gap-2 mb-3">
+                                <div
+                                    class="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
+                                    <AlertIcon class="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">需要自定义 API</h3>
+                                    <p class="text-xs text-gray-400">内置 API 账户已达上限（{{ limitInfo?.limit ?? 5 }} 个）</p>
+                                </div>
+                            </div>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 leading-5 mb-4">
+                                请在 <a href="https://my.telegram.org" target="_blank" rel="noopener"
+                                    class="text-blue-500 hover:underline">my.telegram.org</a> 获取您的 API ID 和 API Hash。
+                            </p>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API ID</label>
+                                    <input v-model="customApiId" type="text" inputmode="numeric" placeholder="例如 12345"
+                                        spellcheck="false"
+                                        class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API Hash</label>
+                                    <input v-model="customApiHash" type="text" placeholder="32 位十六进制字符串" spellcheck="false"
+                                        class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="px-4 pb-4 flex items-center justify-end gap-3">
+                            <button type="button" @click="showAdd = false"
+                                class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                取消
+                            </button>
+                            <button type="button" @click="confirmAddCustom" :disabled="adding"
+                                class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:cursor-wait">
+                                {{ adding ? '正在创建…' : '使用自定义 API 登录' }}
+                            </button>
+                        </div>
+                    </template>
                 </div>
             </div>
         </Transition>
@@ -105,9 +151,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { UserPlus as UserPlusIcon, Check as CheckIcon, LogOut as LogOutIcon } from 'lucide-vue-next';
+import { UserPlus as UserPlusIcon, Check as CheckIcon, LogOut as LogOutIcon, AlertTriangle as AlertIcon } from 'lucide-vue-next';
+import { MessagePlugin } from 'tdesign-vue-next';
 import Avatar from './chat/avatar.vue';
 import { useUserStore } from '../store/user';
 import { useAccountsStore, type AccountInfo } from '../store/accounts';
@@ -123,6 +170,12 @@ const { accounts } = storeToRefs(accountsStore);
 
 const showAdd = ref(false);
 const adding = ref(false);
+const limitReached = ref(false);
+const limitInfo = ref<{ builtin_count: number; limit: number; reached: boolean } | null>(null);
+
+/** 自定义 API 表单 */
+const customApiId = ref('');
+const customApiHash = ref('');
 
 const currentName = computed(() => {
     if (!userProfile.value) return '加载中…';
@@ -173,6 +226,23 @@ function onLogout(acc: AccountInfo) {
     }
 }
 
+/** 打开添加账户弹窗时检查内置 API 额度 */
+watch(showAdd, async (v) => {
+    if (!v) return;
+    try {
+        const info = await accountsStore.getAccountLimits();
+        limitInfo.value = info;
+        limitReached.value = info.reached;
+    } catch (e: any) {
+        console.error('Failed to get account limits:', e);
+        limitReached.value = false;
+    }
+    // 重置表单
+    customApiId.value = '';
+    customApiHash.value = '';
+});
+
+/** 使用内置 API 添加账户 */
 async function confirmAdd() {
     if (adding.value) return;
     adding.value = true;
@@ -180,7 +250,32 @@ async function confirmAdd() {
         await accountsStore.addAccount();
     } catch (e: any) {
         adding.value = false;
-        console.error('Failed to add account:', e);
+        MessagePlugin.error(e?.message || '添加账户失败');
+    }
+}
+
+/** 使用自定义 API 添加账户 */
+async function confirmAddCustom() {
+    if (adding.value) return;
+
+    const idStr = customApiId.value.trim();
+    const hash = customApiHash.value.trim();
+    if (!idStr || !hash) {
+        MessagePlugin.warning('请输入 API ID 和 API Hash');
+        return;
+    }
+    const idNum = Number(idStr);
+    if (!Number.isInteger(idNum) || idNum <= 0) {
+        MessagePlugin.warning('API ID 必须为正整数');
+        return;
+    }
+
+    adding.value = true;
+    try {
+        await accountsStore.addAccount(idNum, hash);
+    } catch (e: any) {
+        adding.value = false;
+        MessagePlugin.error(e?.message || '添加账户失败');
     }
 }
 </script>

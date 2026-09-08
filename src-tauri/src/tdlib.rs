@@ -392,15 +392,64 @@ pub fn get_accounts(state: State<AppState>) -> Result<Vec<serde_json::Value>, St
     build_accounts_payload(state.inner())
 }
 
+/// 返回内置 API 账户数量与上限，供前端判断是否需要弹出自定义 API 弹窗。
+#[tauri::command]
+pub fn get_account_limits(state: State<AppState>) -> Result<serde_json::Value, String> {
+    let accounts = state.accounts.lock().map_err(|e| e.to_string())?;
+    let builtin_count = accounts.count_builtin_accounts();
+    let limit = AccountsStore::BUILTIN_API_LIMIT;
+    Ok(json!({
+        "builtin_count": builtin_count,
+        "limit": limit,
+        "reached": builtin_count >= limit,
+    }))
+}
+
 /// 新增一个账户：分配新 id，创建其客户端（未登录态），并设为活动账户。
 /// 返回新账户的 id。前端随后 reload 进入登录流程。
+///
+/// - 使用内置 API 时，`api_id` / `api_hash` 为 None；Rust 端会检查是否超过 5 个内置账户上限。
+/// - 使用自定义 API 时，前端传入 `api_id` 和 `api_hash`，直接写入新账户记录。
 #[tauri::command]
-pub fn add_account(app_handle: tauri::AppHandle, state: State<AppState>) -> Result<i64, String> {
+pub fn add_account(
+    app_handle: tauri::AppHandle,
+    state: State<AppState>,
+    api_id: Option<i32>,
+    api_hash: Option<String>,
+) -> Result<i64, String> {
     ensure_shared_loaded(&app_handle, state.inner())?;
+
+    let use_custom = api_id.is_some() && api_hash.is_some();
+
     let id = {
         let mut accounts = state.accounts.lock().map_err(|e| e.to_string())?;
+
+        // 内置 API 账户上限检查
+        if !use_custom {
+            let builtin_count = accounts.count_builtin_accounts();
+            if builtin_count >= AccountsStore::BUILTIN_API_LIMIT {
+                return Err(format!(
+                    "内置 API 账户已达上限（{}个），请使用自定义 API ID / Hash 添加新账户",
+                    AccountsStore::BUILTIN_API_LIMIT
+                ));
+            }
+        }
+
         let id = accounts.add();
         accounts.set_active(id)?;
+
+        // 如果提供了自定义凭据，立即持久化到新账户记录
+        if use_custom {
+            let cfg = state.config.lock().map_err(|e| e.to_string())?;
+            accounts.set_tdlib_params(
+                id,
+                api_id,
+                api_hash.as_deref(),
+                cfg.use_test_dc,
+                true, // custom_api_creds = true
+            );
+        }
+
         id
     };
     state.active.store(id, Ordering::SeqCst);
