@@ -519,18 +519,9 @@ function selectAll() {
     }
 }
 
-/* 预览层内渲染的 emoji 字体/动画（普通 emoji → Apple Color Emoji 字体；自定义 emoji → 对应贴纸/动画）。
-   该 HTML 经 v-html 注入，节点不带 scoped 属性 → 必须用 :deep() 才能命中。 */
-.input-preview-inner :deep(.apple-emoji) {
-    font-family: "Apple Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
-    font-style: normal;
-    font-weight: normal;
-    line-height: 1;
-    vertical-align: -0.2em;
-    display: inline-block;
-    pointer-events: none;
-}
-
+/* 预览层内渲染的 emoji 字体/动画（自定义 emoji → 对应贴纸/动画）。
+   该 HTML 经 v-html 注入，节点不带 scoped 属性 → 必须用 :deep() 才能命中。
+   普通 emoji 已由全局 CSS 字体栈自动渲染，无需额外包裹。 */
 .input-preview-inner :deep(.mi-emoji) {
     display: inline-block;
     width: 1.2em;

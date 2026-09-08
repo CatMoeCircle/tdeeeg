@@ -12,7 +12,7 @@
             </div>
             <div class="flex min-w-0 flex-1 flex-col overflow-hidden">
                 <span class="max-w-full truncate text-sm font-medium">
-                    <GlobalEmojiText :text="content.document.file_name" />
+                    {{ content.document.file_name }}
                 </span>
                 <span class="truncate text-xs text-gray-500">
                     <template v-if="uploading">
@@ -120,9 +120,9 @@
             @click="(segment.copyable || segment.isCommand || segment.isHashtag) ? handleCaptionSegmentClick($event, segment) : undefined"
             @contextmenu="segment.isHashtag ? handleCaptionSegmentContextMenu($event, segment) : undefined">
             <SpoilerSpan v-if="segment.isSpoiler">
-                <GlobalEmojiText :text="segment.text" :size="22" />
+                {{ segment.text }}
             </SpoilerSpan><template v-else>
-                <GlobalEmojiText :text="segment.text" :size="22" />
+                {{ segment.text }}
             </template>
         </span>
     </template>
@@ -141,7 +141,6 @@ import { FileIcon, DownloadIcon, MusicIcon, PauseIcon, PlayIcon } from 'lucide-v
 import { useRouter } from 'vue-router';
 import { MessagePlugin } from 'tdesign-vue-next';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
-import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 import SpoilerSpan from '../spoiler/SpoilerSpan.vue';
 import LoaderIndicator from '../../../../common/LoaderIndicator';
 import { useDownloadStore, type DownloadFileType } from '../../../../../store/downloads';

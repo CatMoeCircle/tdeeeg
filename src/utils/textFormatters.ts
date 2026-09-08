@@ -1,5 +1,4 @@
 import type { textEntity, TextEntityType } from "tdlib-types";
-import { splitTextByEmoji } from "./emoji";
 
 /**
  * 输入框富文本实体工具。
@@ -463,37 +462,15 @@ function renderCustomEmojiHtml(
 }
 
 /**
- * 渲染一段普通文本（未被自定义 emoji 区间完全覆盖），把其中的普通 emoji 换成 Apple 图片。
- * 若该段与某些自定义 emoji 区间部分重叠（理论上不应发生，因为边界已切好），额外跳过其覆盖部分，避免二次替换。
+ * 渲染一段普通文本（未被自定义 emoji 区间完全覆盖）。
+ * 全局 CSS 字体栈已包含 Apple Color Emoji，emoji 会自动渲染，无需额外包裹。
  */
 function renderSegmentWithEmoji(
     seg: string,
-    customRanges: CustomEmojiRange[],
-    segStart: number,
+    _customRanges: CustomEmojiRange[],
+    _segStart: number,
 ): string {
     if (!seg) return '';
-    const parts = splitTextByEmoji(seg);
-    let out = '';
-    let cursor = 0;
-    for (const p of parts) {
-        const relStart = cursor;
-        cursor += p.text.length;
-        if (!p.isEmoji) {
-            out += escapeHtml(p.text);
-            continue;
-        }
-        // 若该 emoji 恰好落在某个自定义 emoji 区间内（说明被自定义 emoji 占用），不当作普通 emoji 渲染
-        const absStart = segStart + relStart;
-        const absEnd = absStart + p.text.length;
-        const isCustom = customRanges.some(r =>
-            r.start >= absStart && r.end <= absEnd);
-        if (isCustom) {
-            out += escapeHtml(p.text);
-            continue;
-        }
-        // 使用 Apple Color Emoji 字体渲染
-        out += `<span class="apple-emoji">${escapeHtml(p.text)}</span>`;
-    }
-    return out;
+    return escapeHtml(seg);
 }
 

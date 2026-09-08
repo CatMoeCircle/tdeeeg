@@ -45,11 +45,8 @@
                             :class="[segment.className, (segment.copyable || segment.isHashtag) ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
                             @click="(segment.copyable || segment.isCommand || segment.isHashtag) ? handleSegmentClick($event, segment) : undefined"
                             @contextmenu="segment.isHashtag ? handleSegmentContextMenu($event, segment) : undefined">
-                            <SpoilerSpan v-if="segment.isSpoiler">
-                                <GlobalEmojiText :text="segment.text" :size="emojiSize" />
-                            </SpoilerSpan><template v-else>
-                                <GlobalEmojiText :text="segment.text" :size="emojiSize" />
-                            </template>
+                            <SpoilerSpan v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template v-else>{{
+                                segment.text }}</template>
                         </span>
                     </template>
                 </template>
@@ -112,11 +109,8 @@
                         :class="[segment.className, (segment.copyable || segment.isHashtag) ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
                         @click="(segment.copyable || segment.isCommand || segment.isHashtag) ? handleSegmentClick($event, segment) : undefined"
                         @contextmenu="segment.isHashtag ? handleSegmentContextMenu($event, segment) : undefined">
-                        <SpoilerSpan v-if="segment.isSpoiler">
-                            <GlobalEmojiText :text="segment.text" :size="emojiSize" />
-                        </SpoilerSpan><template v-else>
-                            <GlobalEmojiText :text="segment.text" :size="emojiSize" />
-                        </template>
+                        <SpoilerSpan v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template v-else>{{
+                            segment.text }}</template>
                     </span>
                 </template>
             </template>
@@ -141,7 +135,7 @@ import { resolveInternalLink as resolveInternalLinkUtil } from '../../../../../u
 import { useRouter } from 'vue-router';
 import { MessagePlugin } from 'tdesign-vue-next';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
-import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
+
 import SpoilerSpan from '../spoiler/SpoilerSpan.vue';
 import { useColors, rgbToCss } from '../../../../../store/colors';
 import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';

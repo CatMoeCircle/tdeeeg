@@ -31,7 +31,7 @@
                     <button type="button"
                         class="sp-cat-pill shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-base leading-none transition-colors hover:bg-black/5 dark:hover:bg-white/10"
                         @click="scrollToBlock(localActiveCatId)" :title="localActiveCatName">
-                        <GlobalEmojiInline :emoji="localActiveCatEmoji" :size="20" />
+                        <span :style="{ fontSize: '20px', lineHeight: '1' }">{{ localActiveCatEmoji }}</span>
                     </button>
                 </template>
                 <!-- 展开态：聚焦本地 emoji 之一时，显示全部本地分类 -->
@@ -40,7 +40,7 @@
                         class="sp-cat-pill shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-base leading-none transition-colors"
                         :class="activeBlock === cat.id ? 'bg-white dark:bg-gray-700 shadow' : 'hover:bg-black/5 dark:hover:bg-white/10'"
                         @click="scrollToBlock(cat.id)" :title="cat.name">
-                        <GlobalEmojiInline :emoji="cat.items[0]?.emoji ?? ''" :size="20" />
+                        <span :style="{ fontSize: '20px', lineHeight: '1' }">{{ cat.items[0]?.emoji ?? '' }}</span>
                     </button>
                 </template>
             </div>
@@ -73,7 +73,7 @@
                                 kind="sticker" :size="30" :skin-tone="skinTone" />
                             <span v-else class="text-xl">{{ r.display }}</span>
                         </template>
-                        <GlobalEmojiInline v-else :emoji="r.display" :size="28" />
+                        <span v-else :style="{ fontSize: '28px', lineHeight: '1' }">{{ r.display }}</span>
                     </button>
                 </div>
                 <div v-if="!searching && searchResults.length === 0" class="text-center text-sm text-gray-400 py-8">
@@ -90,7 +90,7 @@
                         <button v-for="em in recentEmoji" :key="em"
                             class="sp-emoji-cell flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 w-full aspect-square"
                             @click="onPickLocal(em)">
-                            <GlobalEmojiInline :emoji="em" :size="28" />
+                            <span :style="{ fontSize: '28px', lineHeight: '1' }">{{ em }}</span>
                         </button>
                         <div v-if="recentEmoji.length === 0"
                             class="text-center text-sm text-gray-400 py-6 col-span-full">
@@ -114,7 +114,7 @@
                         <button v-for="it in cat.items" :key="it.emoji"
                             class="sp-emoji-cell flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 w-full aspect-square"
                             @click="it.fitzpatrick ? openSkinTone(it.emoji) : onPickLocal(it.emoji)">
-                            <GlobalEmojiInline :emoji="it.emoji" :size="28" />
+                            <span :style="{ fontSize: '28px', lineHeight: '1' }">{{ it.emoji }}</span>
                         </button>
                     </div>
                 </div>
@@ -172,7 +172,7 @@
                 <div
                     class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-4 border border-black/10 dark:border-white/10">
                     <div class="flex items-center gap-2 mb-2">
-                        <GlobalEmojiInline :emoji="skinToneTarget" :size="40" />
+                        <span :style="{ fontSize: '40px', lineHeight: '1' }">{{ skinToneTarget }}</span>
                     </div>
                     <div class="flex items-center gap-2">
                         <button v-for="t in SKIN_TONES" :key="t.value"
@@ -191,7 +191,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { SearchIcon, XIcon, ClockIcon } from 'lucide-vue-next';
-import GlobalEmojiInline from '../../../common/GlobalEmojiInline.vue';
+// GlobalEmojiInline removed - using global Apple Color Emoji font
 import StickerMediaItem from './StickerMediaItem.vue';
 import { useEmojiPicker, type EmojiSearchResult } from './composables/useEmojiPicker';
 import { useLocalEmojiPrefs } from './composables/useLocalEmojiPrefs';

@@ -3,7 +3,7 @@
         <CustomEmojiInline v-if="seg.customEmojiId" :emojiId="seg.customEmojiId" :size="size"
             :fallback-text="seg.text" />
         <span v-else-if="seg.isSpoiler" class="fts-spoiler" :style="{ width: seg.widthPx + 'px' }"></span>
-        <GlobalEmojiText v-else :text="seg.text" :size="size" />
+        <template v-else>{{ seg.text }}</template>
     </template>
 </template>
 
@@ -11,7 +11,6 @@
 import { computed } from 'vue';
 import type { formattedText } from 'tdlib-types';
 import CustomEmojiInline from '../common/CustomEmojiInline.vue';
-import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 
 const props = defineProps<{
     /** 需要渲染的富文本；为空时不渲染任何内容 */
@@ -20,7 +19,7 @@ const props = defineProps<{
     size?: number;
 }>();
 
-const size = computed(() => props.size || 14);
+const size = computed(() => props.size || 22);
 
 type Segment = { text: string; customEmojiId?: string; isSpoiler?: boolean; widthPx?: number };
 

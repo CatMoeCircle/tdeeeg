@@ -29,8 +29,9 @@
             :message-id="messageId" />
 
         <!-- Dice -->
-        <div v-else-if="content._ === 'messageDice'" class="text-4xl text-center py-2 flex items-center justify-center gap-3">
-            <GlobalEmojiInline :emoji="content.emoji" :size="36" />
+        <div v-else-if="content._ === 'messageDice'"
+            class="text-4xl text-center py-2 flex items-center justify-center gap-3">
+            <span :style="{ fontSize: '36px', lineHeight: '1' }">{{ content.emoji }}</span>
             <span class="text-4xl">{{ content.value }}</span>
         </div>
 
@@ -65,7 +66,7 @@ import { computed } from 'vue';
 import type { MessageContent } from 'tdlib-types';
 import { MapPinIcon, PhoneIcon, VideoIcon } from 'lucide-vue-next';
 import MessagePollContent from './MessagePollContent.vue';
-import GlobalEmojiInline from '../../../../common/GlobalEmojiInline.vue';
+// GlobalEmojiInline removed - using global Apple Color Emoji font
 
 const props = defineProps<{
     content: MessageContent;
