@@ -223,6 +223,9 @@
             <MessageTextContent :formattedText="captionFormatted" />
         </div>
 
+        <!-- Reactions slot（caption 与时间之间） -->
+        <slot name="reactions" />
+
         <!-- Time & status below -->
         <span v-if="captionBelow && date" class="block text-right px-2 pb-1"
             :class="isSelf ? 'text-gray-700/70' : 'text-gray-400'">

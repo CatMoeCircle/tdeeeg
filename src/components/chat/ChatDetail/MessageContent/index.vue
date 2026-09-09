@@ -21,7 +21,9 @@
             :linkPreview="content.link_preview" :accentColorId="accentColorId" :showInlineTime="inlineTime"
             :timeDate="date" :timeIsOutgoing="isSelf" :timeSendingState="sendingState" :timeIsRead="isRead"
             :timeViewCount="viewCount" :timeAuthorSignature="authorSignature"
-            :timeColorClass="isSelf ? 'text-gray-600/70 dark:text-gray-400/70' : 'text-gray-400 dark:text-gray-500'" />
+            :timeColorClass="isSelf ? 'text-gray-600/70 dark:text-gray-400/70' : 'text-gray-400 dark:text-gray-500'">
+            <slot />
+        </MessageTextContent>
 
         <!-- Rich messages -->
         <MessageRichMessage v-else-if="content._ === 'messageRichMessage'" :blocks="content.message.blocks"
@@ -39,41 +41,51 @@
             :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature"
             :chatId="chatId" :messageId="messageId" :message="message" :topicId="topicId" :senderName="senderName"
             :replyTo="replyTo" :messageList="messageList" :accentColorId="accentColorId"
-            @openForwardSource="onOpenForwardSource" @jumpToMessage="onJumpToMessage" />
+            @openForwardSource="onOpenForwardSource" @jumpToMessage="onJumpToMessage">
+            <template #reactions>
+                <slot name="reactions" />
+            </template>
+        </MessageMediaContent>
 
         <!-- Stickers / animated emoji are rendered without a message bubble.
-             回复预览显示在贴纸旁边（小宽度），而非贴纸上方 -->
-        <div v-else-if="isStickerLikeContent" class="flex items-end gap-1.5 pb-2">
-            <!-- 自己消息：贴纸在右，回复在左 -->
-            <template v-if="isSelf">
-                <div v-if="replyTo" class="w-40 shrink-0">
-                    <MessageReply :replyTo="replyTo" :isSelf="true" :chatId="chatId" :messageList="messageList"
-                        :accentColorId="accentColorId" @jump="onJumpToMessage" />
-                </div>
-                <div class="relative inline-block align-bottom">
-                    <MessageStickerContent :content="stickerContent" />
-                    <span v-if="date && !settings.sticker.hideTimestamp"
-                        class="absolute right-1 bottom-3 translate-y-1/2 rounded-md bg-black/55 px-1.5 py-0.4 text-white shadow-sm">
-                        <MessageStatus :date="date" :isOutgoing="true" :sendingState="sendingState" :isRead="isRead"
-                            :viewCount="viewCount" :authorSignature="authorSignature" overMedia />
-                    </span>
-                </div>
-            </template>
-            <!-- 他人消息：贴纸在左，回复在右 -->
-            <template v-else>
-                <div class="relative inline-block align-bottom">
-                    <MessageStickerContent :content="stickerContent" />
-                    <span v-if="date && !settings.sticker.hideTimestamp"
-                        class="absolute right-1 bottom-3 translate-y-1/2 rounded-md bg-black/55 px-1.5 py-0.4 text-white shadow-sm">
-                        <MessageStatus :date="date" :isOutgoing="false" :sendingState="sendingState" :isRead="isRead"
-                            :viewCount="viewCount" :authorSignature="authorSignature" overMedia />
-                    </span>
-                </div>
-                <div v-if="replyTo" class="w-40 shrink-0">
-                    <MessageReply :replyTo="replyTo" :isSelf="false" :chatId="chatId" :messageList="messageList"
-                        :accentColorId="accentColorId" @jump="onJumpToMessage" />
-                </div>
-            </template>
+             回复预览显示在贴纸旁边（小宽度），而非贴纸上方。
+             ReactionsBar 放在贴纸下方（气泡外） -->
+        <div v-else-if="isStickerLikeContent" class="flex flex-col items-center gap-0.5 pb-2">
+            <div class="flex items-end gap-1.5">
+                <!-- 自己消息：贴纸在右，回复在左 -->
+                <template v-if="isSelf">
+                    <div v-if="replyTo" class="w-40 shrink-0">
+                        <MessageReply :replyTo="replyTo" :isSelf="true" :chatId="chatId" :messageList="messageList"
+                            :accentColorId="accentColorId" @jump="onJumpToMessage" />
+                    </div>
+                    <div class="relative inline-block align-bottom">
+                        <MessageStickerContent :content="stickerContent" />
+                        <span v-if="date && !settings.sticker.hideTimestamp"
+                            class="absolute right-1 bottom-3 translate-y-1/2 rounded-md bg-black/55 px-1.5 py-0.4 text-white shadow-sm">
+                            <MessageStatus :date="date" :isOutgoing="true" :sendingState="sendingState" :isRead="isRead"
+                                :viewCount="viewCount" :authorSignature="authorSignature" overMedia />
+                        </span>
+                    </div>
+                </template>
+                <!-- 他人消息：贴纸在左，回复在右 -->
+                <template v-else>
+                    <div class="relative inline-block align-bottom">
+                        <MessageStickerContent :content="stickerContent" />
+                        <span v-if="date && !settings.sticker.hideTimestamp"
+                            class="absolute right-1 bottom-3 translate-y-1/2 rounded-md bg-black/55 px-1.5 py-0.4 text-white shadow-sm">
+                            <MessageStatus :date="date" :isOutgoing="false" :sendingState="sendingState"
+                                :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature" overMedia />
+                        </span>
+                    </div>
+                    <div v-if="replyTo" class="w-40 shrink-0">
+                        <MessageReply :replyTo="replyTo" :isSelf="false" :chatId="chatId" :messageList="messageList"
+                            :accentColorId="accentColorId" @jump="onJumpToMessage" />
+                    </div>
+                </template>
+            </div>
+            <!-- ReactionsBar（气泡外，贴纸下方） -->
+            <ReactionsBar v-if="hasReactions && onToggleReaction" :msg="message!" :isSelf="isSelfReaction ?? false"
+                @toggle-reaction="onToggleReaction" />
         </div>
 
         <!-- Voice / Video notes -->
@@ -107,6 +119,7 @@ import MessageGiveawayContent from './content/MessageGiveawayContent.vue';
 import MessageGiveawayWinnersContent from './content/MessageGiveawayWinnersContent.vue';
 import MessageOtherContent from './content/MessageOtherContent.vue';
 import MessageStatus from './content/MessageStatus.vue';
+import ReactionsBar from '../ReactionsBar.vue';
 import { settings } from '../../../../store/settings';
 
 const MEDIA_TYPES = new Set([
@@ -212,6 +225,12 @@ const props = defineProps<{
     senderUserId?: number;
     /** 是否将时间内嵌到普通文本消息末尾（float 同行，参考网页版），由 ChatDetail 决策 */
     inlineTime?: boolean;
+    /** 是否有回应（用于贴纸/动画表情气泡外渲染 ReactionsBar） */
+    hasReactions?: boolean;
+    /** 回应切换回调（贴纸场景使用） */
+    onToggleReaction?: (type: import('tdlib-types').ReactionType) => void;
+    /** 消息是否为自己发送（贴纸场景使用） */
+    isSelfReaction?: boolean;
 }>();
 
 const emit = defineEmits<{

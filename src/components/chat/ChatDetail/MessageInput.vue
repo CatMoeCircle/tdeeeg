@@ -23,7 +23,7 @@
         <AttachmentTray />
 
         <div
-            class="flex items-end gap-3 bg-white/60 dark:bg-gray-900/80 backdrop-blur-md px-2 rounded-4xl shadow-lg border border-gray-200/50 dark:border-gray-700/50">
+            class="flex items-end gap-3 dark:bg-gray-900/80 backdrop-blur-md px-2 rounded-4xl shadow-lg border border-gray-200/50 dark:border-gray-700/50">
             <SenderSelector v-if="showSenderSelector" :current-sender-id="currentSenderId"
                 :available-senders="availableSenders || []" :loading="sendersLoading"
                 @select="emit('change-sender', $event)" />

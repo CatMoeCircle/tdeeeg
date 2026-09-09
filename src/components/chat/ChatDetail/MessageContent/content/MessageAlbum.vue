@@ -48,6 +48,8 @@
             :class="isSelf ? 'text-gray-900' : 'text-gray-800 dark:text-gray-200'">
             <MessageTextContent :formattedText="captionFormatted" />
         </div>
+        <!-- Reactions slot（caption 与时间之间） -->
+        <slot name="reactions" />
         <span v-if="captionText" class="block text-right px-2 pb-1" :class="isSelf ? 'text-black/50' : 'text-gray-400'">
             <MessageStatus :date="lastDate" :isOutgoing="isSelf" :sendingState="lastSendingState" :isRead="isRead"
                 :viewCount="lastViewCount" :authorSignature="authorSignature" />

@@ -1,4 +1,19 @@
 import type { Component } from "vue";
+import type { ReactionType } from "tdlib-types";
+
+/** 菜单顶部回应栏中的单个回应按钮 */
+export interface ContextMenuReactionItem {
+    /** 回应类型 */
+    type: ReactionType;
+    /** 显示的 emoji 文本 */
+    emoji: string;
+    /** 自定义 emoji id（仅自定义 emoji 回应有值） */
+    customEmojiId?: string;
+    /** 是否需要 Premium */
+    needsPremium?: boolean;
+    /** 点击回调 */
+    onClick?: () => void;
+}
 
 /** 右键菜单项定义 */
 export interface ContextMenuItem {
@@ -22,6 +37,16 @@ export interface ContextMenuItem {
     children?: ContextMenuItem[];
     /** 点击回调 */
     onClick?: () => void;
+}
+
+/** 菜单顶部回应栏配置 */
+export interface ContextMenuReactionRow {
+    /** 显示的回应列表 */
+    reactions: ContextMenuReactionItem[];
+    /** 是否显示"更多回应"下拉箭头（当可用回应多于显示数量时） */
+    hasMore?: boolean;
+    /** 点击"更多回应"的回调，接收菜单位置信息 */
+    onMore?: (anchorRect?: { x: number; y: number; width: number; height: number }) => void;
 }
 
 /** 开放右键菜单时携带的上下文（组件可用它自定义菜单内容） */

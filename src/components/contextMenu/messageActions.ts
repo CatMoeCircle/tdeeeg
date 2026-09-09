@@ -555,3 +555,83 @@ export async function copyMessageLink(chatId: number, msg: message) {
         MessagePlugin.error(e?.message || '无法获取链接');
     }
 }
+
+// ==================== Reactions ====================
+
+import type { ReactionType, ReactionType$Input } from 'tdlib-types';
+import { isSameReactionType } from '../../utils/reactionHelpers';
+
+/** 检查消息是否可以添加回应（非服务消息即可） */
+export function canAddReaction(msg: message, _chatId?: number): boolean {
+    if (isServiceMessage(msg)) return false;
+    // 服务消息不支持回应
+    // 具体权限由 TDLib 在 addMessageReaction 时校验
+    return true;
+}
+
+/** 切换消息的回应（已选则移除，未选则添加） */
+export async function toggleReaction(
+    chatId: number,
+    msg: message,
+    reactionType: ReactionType,
+): Promise<void> {
+    const isChosen = msg.interaction_info?.reactions?.reactions?.some(
+        (r) => r.is_chosen && isSameReactionType(r.type, reactionType),
+    ) ?? false;
+
+    try {
+        if (isChosen) {
+            await tdlibSend({
+                _: 'removeMessageReaction',
+                chat_id: chatId,
+                message_id: msg.id,
+                reaction_type: reactionType as ReactionType$Input,
+            });
+        } else {
+            await tdlibSend({
+                _: 'addMessageReaction',
+                chat_id: chatId,
+                message_id: msg.id,
+                reaction_type: reactionType as ReactionType$Input,
+                is_big: false,
+                update_recent_reactions: true,
+            });
+        }
+    } catch (e: any) {
+        console.warn('toggleReaction failed:', e);
+        // 不弹错误提示，TDLib 会在 update 中反映最终状态
+    }
+}
+
+/** 快速添加回应（用于快捷点击，默认大动画） */
+export async function addQuickReaction(
+    chatId: number,
+    msg: message,
+    reactionType: ReactionType,
+): Promise<void> {
+    const isChosen = msg.interaction_info?.reactions?.reactions?.some(
+        (r) => r.is_chosen && isSameReactionType(r.type, reactionType),
+    ) ?? false;
+
+    try {
+        if (isChosen) {
+            await tdlibSend({
+                _: 'removeMessageReaction',
+                chat_id: chatId,
+                message_id: msg.id,
+                reaction_type: reactionType as ReactionType$Input,
+            });
+        } else {
+            await tdlibSend({
+                _: 'addMessageReaction',
+                chat_id: chatId,
+                message_id: msg.id,
+                reaction_type: reactionType as ReactionType$Input,
+                is_big: true,
+                update_recent_reactions: true,
+            });
+        }
+    } catch (e: any) {
+        console.warn('addQuickReaction failed:', e);
+    }
+}

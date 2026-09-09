@@ -1,5 +1,5 @@
 import { reactive, ref } from "vue";
-import type { ContextMenuItem } from "../components/contextMenu/types";
+import type { ContextMenuItem, ContextMenuReactionRow } from "../components/contextMenu/types";
 
 /** 全局右键菜单状态：任何组件通过 openContextMenu 打开，ContextMenu.vue 监听此状态渲染 */
 export const visible = ref(false);
@@ -9,6 +9,10 @@ export const items = ref<ContextMenuItem[]>([]);
 export const target = ref<HTMLElement | null>(null);
 /** 供自定义组件渲染用的附加数据 */
 export const payloadData = ref<Record<string, any> | null>(null);
+/** 菜单顶部回应栏 */
+export const reactionRow = ref<ContextMenuReactionRow | null>(null);
+/** 当前用户是否为 Premium（供回应栏禁用 Premium 回应） */
+export const isPremium = ref(false);
 
 /** 防抖定时器：让关闭在事件冒泡后执行，避免点击菜单项时被立即关闭 */
 let closeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -29,6 +33,8 @@ export function openContextMenu(
     menuItems: ContextMenuItem[],
     el: HTMLElement | null = null,
     data: Record<string, any> | null = null,
+    reactions: ContextMenuReactionRow | null = null,
+    premium = false,
 ) {
     if (closeTimer) {
         clearTimeout(closeTimer);
@@ -39,6 +45,8 @@ export function openContextMenu(
     items.value = menuItems;
     target.value = el;
     payloadData.value = data;
+    reactionRow.value = reactions;
+    isPremium.value = premium;
     visible.value = true;
     interactionLocked.value = false;
 }
@@ -50,6 +58,7 @@ export function closeContextMenu() {
     items.value = [];
     target.value = null;
     payloadData.value = null;
+    reactionRow.value = null;
 }
 
 /** 延迟关闭（用于处理点击菜单项后让事件先冒泡） */
@@ -78,4 +87,6 @@ export const state = reactive({
     items,
     target,
     payloadData,
+    reactionRow,
+    isPremium,
 });

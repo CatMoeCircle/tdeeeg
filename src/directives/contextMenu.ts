@@ -1,6 +1,6 @@
 import type { Directive, DirectiveBinding } from "vue";
 import { openContextMenu } from "../store/contextMenu";
-import type { ContextMenuItem } from "../components/contextMenu/types";
+import type { ContextMenuItem, ContextMenuReactionRow } from "../components/contextMenu/types";
 
 /**
  * 右键菜单指令：v-context-menu
@@ -8,7 +8,7 @@ import type { ContextMenuItem } from "../components/contextMenu/types";
  * 用法：
  *   1. 常量值：v-context-menu="[{label, icon, danger, divider, disabled, shortcut, checked, onClick, children}]"
  *   2. 函数：   v-context-menu="(e, payloadData) => items"  —— 每次右键根据事件/数据返回菜单项
- *   3. 对象：   v-context-menu="{ items?: 同 1 或 2, onOpen?: (e, data) => void }"
+ *   3. 对象：   v-context-menu="{ items?: 同 1 或 2, onOpen?: (e, data) => void, reactionRow?: ContextMenuReactionRow }"
  *
  * 指令值可以带附加数据：v-context-menu="... :context-menu-data="someObject"
  * （指令同时读取同元素的 data 或通过修饰传参）。
@@ -20,6 +20,7 @@ export type ContextMenuValue =
         items?: ContextMenuItem[] | ((e: MouseEvent, data?: any) => ContextMenuItem[] | Promise<ContextMenuItem[]>);
         onOpen?: (e: MouseEvent, data?: any) => void;
         closeOnClick?: boolean;
+        reactionRow?: ContextMenuReactionRow | null;
     };
 
 async function resolveItems(value: ContextMenuValue, e: MouseEvent, data: any): Promise<ContextMenuItem[]> {
@@ -33,6 +34,13 @@ async function resolveItems(value: ContextMenuValue, e: MouseEvent, data: any): 
         return (await (items as (e: MouseEvent, data?: any) => ContextMenuItem[] | Promise<ContextMenuItem[]>)(e, data)) || [];
     }
     return (items as ContextMenuItem[]) || [];
+}
+
+function resolveReactionRow(value: ContextMenuValue): ContextMenuReactionRow | null {
+    if (typeof value === "object" && !Array.isArray(value) && !(typeof value === "function")) {
+        return value.reactionRow ?? null;
+    }
+    return null;
 }
 
 async function openMenu(el: HTMLElement, binding: DirectiveBinding<ContextMenuValue>, e: MouseEvent) {
@@ -51,7 +59,8 @@ async function openMenu(el: HTMLElement, binding: DirectiveBinding<ContextMenuVa
         return;
     }
 
-    openContextMenu(e.clientX, e.clientY, menuItems, el, data);
+    const reactions = resolveReactionRow(value);
+    openContextMenu(e.clientX, e.clientY, menuItems, el, data, reactions);
 }
 
 export function setContextMenuData(el: HTMLElement, data: any) {

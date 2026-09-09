@@ -218,6 +218,10 @@ function handleOutsideClick(e: MouseEvent) {
     const sub = getSubmenuEl();
     if (root?.contains(e.target as Node)) return;
     if (sub?.contains(e.target as Node)) return;
+    // 忽略与菜单共存的浮动元素（如胶囊回应选择器）。这些元素用
+    // data-context-menu-ignore 标记，点击它们不应关闭菜单。
+    const targetEl = e.target as Element | null;
+    if (targetEl && typeof targetEl.closest === 'function' && targetEl.closest('[data-context-menu-ignore]')) return;
     closeContextMenu();
 }
 

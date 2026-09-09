@@ -130,6 +130,9 @@ export function isInlineTimeMessage(msg: message): boolean {
   if (c._ !== "messageText") return false;
   // 置底链接预览存在时，时间无法内嵌到文本末行，退回独立底部行
   if (c.link_preview && !c.link_preview.show_above_text) return false;
+  // 有回应时禁用内嵌时间，将 ReactionsBar 放在文本和时间之间
+  const reactions = msg.interaction_info?.reactions;
+  if (reactions && reactions.reactions.length > 0) return false;
   return true;
 }
 

@@ -108,7 +108,21 @@
                                             :chatId="chatId" :topicId="topicId"
                                             :isRead="isMessageRead(item.messages[item.messages.length - 1])"
                                             :authorSignature="getDisplayAuthorSignature(item.messages[0])"
-                                            @message-context-menu="onAlbumMessageContextMenu" />
+                                            @message-context-menu="onAlbumMessageContextMenu">
+                                            <!-- 相册有 caption 时：回应放在 caption 与时间之间（气泡内 named slot） -->
+                                            <template
+                                                v-if="hasReactions(item.messages[0]) && hasMediaCaption(item.messages[0])"
+                                                #reactions>
+                                                <ReactionsBar class="pl-2" :msg="item.messages[0]"
+                                                    :isSelf="isSelfAlbum(item)"
+                                                    @toggle-reaction="(type: ReactionType) => toggleReaction(chatId!, item.messages[0], type)" />
+                                            </template>
+                                        </MessageAlbum>
+                                        <!-- 相册无 caption 时：回应放在气泡外面 -->
+                                        <ReactionsBar
+                                            v-if="hasReactions(item.messages[0]) && !hasMediaCaption(item.messages[0])"
+                                            :msg="item.messages[0]" :isSelf="isSelfAlbum(item)"
+                                            @toggle-reaction="(type: ReactionType) => toggleReaction(chatId!, item.messages[0], type)" />
                                     </div>
                                     <InlineKeyboard v-if="getInlineKeyboard(item.messages[0])" class="mt-1 w-full"
                                         :ref="registerKeyboardRef(item.messages[0].id)"
@@ -218,12 +232,33 @@
                                             :replyTo="item.msg.reply_to?._ === 'messageReplyToMessage' ? item.msg.reply_to : undefined"
                                             :messageList="messages" :accentColorId="getSenderAccentId(item.msg)"
                                             :inlineTime="isInlineTimeMessage(item.msg)"
+                                            :hasReactions="hasReactions(item.msg)" :isSelfReaction="isSelf(item.msg)"
+                                            :onToggleReaction="hasReactions(item.msg) ? (type: ReactionType) => toggleReaction(chatId!, item.msg, type) : undefined"
                                             @jumpToMessage="handleReplyJumpToMessage"
-                                            @openForwardSource="item.msg.forward_info && openForwardSource(item.msg.forward_info)" />
+                                            @openForwardSource="item.msg.forward_info && openForwardSource(item.msg.forward_info)">
+                                            <!-- 纯文本：回应放在文本与时间之间（default slot → MessageTextContent <slot/>） -->
+                                            <template
+                                                v-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && hasReactions(item.msg)">
+                                                <ReactionsBar :msg="item.msg" :isSelf="isSelf(item.msg)"
+                                                    @toggle-reaction="(type: ReactionType) => toggleReaction(chatId!, item.msg, type)" />
+                                            </template>
+                                            <!-- 媒体 caption：回应放在 caption 与时间之间（named slot → MessageMediaContent #reactions） -->
+                                            <template
+                                                v-if="isMediaMessage(item.msg) && hasMediaCaption(item.msg) && hasReactions(item.msg)"
+                                                #reactions>
+                                                <ReactionsBar class="pl-2" :msg="item.msg" :isSelf="isSelf(item.msg)"
+                                                    @toggle-reaction="(type: ReactionType) => toggleReaction(chatId!, item.msg, type)" />
+                                            </template>
+                                        </MessageContent>
                                         <!-- 内联翻译：在原消息气泡中显示译文 -->
                                         <InlineTranslation v-if="getInlineTranslation(chatId ?? 0, item.msg.id)"
                                             :chat-id="chatId ?? 0" :message-id="item.msg.id"
                                             :text="getMessageFormattedText(item.msg)" />
+                                        <!-- 纯媒体（无 caption）：回应放在气泡外面 -->
+                                        <ReactionsBar
+                                            v-if="isMediaMessage(item.msg) && !hasMediaCaption(item.msg) && hasReactions(item.msg)"
+                                            :msg="item.msg" :isSelf="isSelf(item.msg)"
+                                            @toggle-reaction="(type: ReactionType) => toggleReaction(chatId!, item.msg, type)" />
                                         <span
                                             v-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isInlineTimeMessage(item.msg) && !isOutgoingMsg(item.msg)"
                                             class="block text-right text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 leading-none">
@@ -268,6 +303,37 @@
         <!-- ===== 消息搜索栏（覆盖 Header） ===== -->
         <SearchBar v-if="searchActive && chatId !== undefined" :chat-id="chatId" :topic-id="topicId" :chat="chat"
             :initial-query="hashtagSearchQuery" @close="searchActive = false" @jump="handleReplyJumpToMessage" />
+
+        <!-- ===== 胶囊回应选择器（右键菜单上方的独立浮动栏） ===== -->
+        <Teleport to="body">
+            <Transition name="reaction-picker-fade">
+                <div v-if="reactionCapsuleVisible && reactionCapsuleData && reactionCapsuleData.reactions.length > 0"
+                    ref="reactionCapsuleRef" data-context-menu-ignore
+                    class="fixed z-10001 flex items-center gap-0.5 px-1.5 py-1 rounded-full bg-white/85 dark:bg-gray-800/85 backdrop-blur-xl shadow-xl border border-gray-200/60 dark:border-gray-700/60"
+                    :style="reactionCapsuleStyle" @mousedown.stop @click.stop>
+                    <button v-for="r in reactionCapsuleData.reactions" :key="r.emoji + (r.customEmojiId ?? '')"
+                        type="button"
+                        class="flex items-center justify-center w-9 h-9 rounded-full text-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-100 select-none shrink-0"
+                        :class="{ 'opacity-50 cursor-not-allowed': r.needsPremium && !(userProfile?.is_premium) }"
+                        :disabled="r.needsPremium && !(userProfile?.is_premium)"
+                        :title="r.needsPremium ? '需要 Premium' : r.type._ === 'reactionTypePaid' ? '付费回应' : r.emoji"
+                        @click.stop="onCapsuleReactionClick(r)">
+                        <PaidReactionIcon v-if="r.type._ === 'reactionTypePaid'" :size="28" />
+                        <span v-else-if="!r.customEmojiId" class="leading-none">{{ r.emoji }}</span>
+                        <CustomEmojiInline v-else :emojiId="r.customEmojiId" :size="28" :fallbackText="r.emoji" />
+                    </button>
+                    <!-- 更多回应按钮 -->
+                    <button v-if="reactionCapsuleData.hasMore" type="button"
+                        class="flex items-center justify-center w-8 h-8 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-100 select-none shrink-0"
+                        @click.stop="onCapsuleMoreClick" title="更多回应">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </button>
+                </div>
+            </Transition>
+        </Teleport>
 
         <!-- ===== 多选操作栏（多选模式时叠在输入框上方） ===== -->
         <Transition name="multi-bar">
@@ -356,7 +422,7 @@
                     <div class="min-w-0 flex-1">
                         <p class="text-xs font-semibold text-orange-500">{{ editTargetInfo.label }}</p>
                         <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ editTargetInfo.text || '（无文本内容）'
-                        }}</p>
+                            }}</p>
                     </div>
                     <button type="button" aria-label="取消编辑"
                         class="w-6 h-6 shrink-0 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400"
@@ -368,16 +434,12 @@
             <MessageInput class="relative z-10" v-model="messageInput" :reply-target="replyTargetInfo"
                 :edit-target="editTargetInfo" :chat="chat" :users="users" :supergroups="supergroups"
                 :basic-groups="basicGroups" :my-id="myId" :member-status="currentMemberStatus" :is-premium="isMePremium"
-                :custom-emojis="pendingCustomEmoji"
-                :current-sender-id="chat?.message_sender_id"
-                :available-senders="availableSenders"
-                :senders-loading="sendersLoading"
-                @clear-reply="clearReply" @clear-edit="cancelEdit"
-                @send="handleSend" @attach="handleAttach" @attach-file="handleAttachFile"
+                :custom-emojis="pendingCustomEmoji" :current-sender-id="chat?.message_sender_id"
+                :available-senders="availableSenders" :senders-loading="sendersLoading" @clear-reply="clearReply"
+                @clear-edit="cancelEdit" @send="handleSend" @attach="handleAttach" @attach-file="handleAttachFile"
                 @attach-music="handleAttachMusic" @attach-poll="handleAttachPoll"
                 @attach-checklist="handleAttachChecklist" @attach-contact="handleAttachContact"
-                @change-sender="handleChangeSender"
-                @sticker="openStickerPanel" />
+                @change-sender="handleChangeSender" @sticker="openStickerPanel" />
 
             <!-- 表情包面板（emoji/GIF/贴纸 三合一） -->
             <StickerPanel :anchor="inputAnchorEl" @pick-emoji="insertEmojiIntoInput"
@@ -451,6 +513,11 @@
         <PinMessageConfirm />
         <!-- ===== 举报消息确认弹窗 ===== -->
         <ReportMessageConfirm />
+        <!-- ===== Reaction 选择器 ===== -->
+        <ReactionPicker :visible="reactionPickerVisible" :msg="reactionPickerMsg" :anchorRect="reactionPickerAnchor"
+            :isPremium="userProfile?.is_premium ?? false" :fullEmoji="reactionPickerFullEmoji"
+            @select="onReactionPickerSelect" @select-emoji="onReactionPickerSelectEmoji"
+            @select-custom-emoji="onReactionPickerSelectCustomEmoji" @close="closeReactionPicker" />
     </div>
 </template>
 <script setup lang="ts">
@@ -466,6 +533,8 @@ import InlineKeyboard from './MessageContent/content/InlineKeyboard.vue';
 import InlineTranslation from './MessageContent/content/InlineTranslation.vue';
 import ChatDetailHeader from './Header.vue';
 import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
+import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
+import PaidReactionIcon from '../../common/PaidReactionIcon.vue';
 import MediaViewer from './MessageContent/MediaViewer.vue';
 import DeleteMessageConfirm from '../../contextMenu/DeleteMessageConfirm.vue';
 import TranslateMessageModal from '../../contextMenu/TranslateMessageModal.vue';
@@ -473,6 +542,8 @@ import PinMessageConfirm from '../../contextMenu/PinMessageConfirm.vue';
 import ReportMessageConfirm from '../../contextMenu/ReportMessageConfirm.vue';
 import PinnedMessageBar from './PinnedMessageBar.vue';
 import SearchBar from './SearchBar.vue';
+import ReactionsBar from './ReactionsBar.vue';
+import ReactionPicker from './ReactionPicker.vue';
 
 import { tdlibSend, isFileReady } from '../../../utils/tdlib';
 import { sendAttachments, sending } from '../../../utils/attachmentSend';
@@ -506,7 +577,9 @@ import {
     canReplyMessage, canEditMessage, editTextMessage, editCaptionMessage,
     canSaveMessage, canGetViewers, canGetReadDate, canGetAuthor,
     canGetMessageThread, canRecognizeSpeech, canReportMessage,
+    toggleReaction,
 } from '../../contextMenu/messageActions';
+import { hasReactions } from '../../../utils/reactionHelpers';
 import { confirmDeleteMessage } from '../../../store/deleteMessage';
 import type { DeleteMessageRequest } from '../../../store/deleteMessage';
 import { confirmPinMessage } from '../../../store/pinMessage';
@@ -516,10 +589,11 @@ import {
     translateInlineMessage,
     getInlineTranslation,
 } from '../../../store/translate';
-import { openContextMenu } from '../../../store/contextMenu';
+import { openContextMenu, visible as contextMenuVisible, reactionRow as contextMenuReactionRow, closeContextMenu as closeContextMenuStore } from '../../../store/contextMenu';
+import type { ContextMenuReactionItem, ContextMenuReactionRow } from '../../contextMenu/types';
 import { DEFAULT_TRANSLATE_TARGET } from '../../../utils/translateLanguages';
 
-import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity$Input, file as TdFile } from 'tdlib-types';
+import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity$Input, file as TdFile, ReactionType } from 'tdlib-types';
 import { getViewerState, closeMediaViewer, isMediaViewerActive, openMediaViewer } from '../../../store/mediaViewer';
 
 import { getSenderAccentColorId, getSenderProfileAccentColorId, getChatProfileAccentColorId, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
@@ -1001,6 +1075,174 @@ function onForwardDone() {
     exitSelectionMode();
 }
 
+// ===== Reaction Picker =====
+/** reaction 选择器是否可见 */
+const reactionPickerVisible = ref(false);
+/** reaction 选择器锚定的消息 */
+const reactionPickerMsg = ref<message | null>(null);
+/** reaction 选择器锚定元素的位置 */
+const reactionPickerAnchor = ref<{ x: number; y: number; width: number; height: number } | undefined>(undefined);
+/** reaction 选择器是否为全 emoji 模式 */
+const reactionPickerFullEmoji = ref(false);
+
+/** 打开 reaction 选择器 */
+function openReactionPicker(msg: message, anchorEl?: HTMLElement, fullEmoji = false, contextMenuRect?: { x: number; y: number; width: number; height: number }) {
+    reactionPickerMsg.value = msg;
+    reactionPickerFullEmoji.value = fullEmoji;
+    if (contextMenuRect) {
+        // 从右键菜单位置打开胶囊回应选择器：放在菜单原位稍偏下
+        reactionPickerAnchor.value = {
+            x: contextMenuRect.x,
+            y: contextMenuRect.y,
+            width: contextMenuRect.width,
+            height: contextMenuRect.height,
+        };
+    } else if (anchorEl) {
+        const rect = anchorEl.getBoundingClientRect();
+        reactionPickerAnchor.value = { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+    } else {
+        // 从消息气泡定位
+        const bubble = document.querySelector(`[data-bubble-msg-id="${msg.id}"]`);
+        if (bubble) {
+            const rect = bubble.getBoundingClientRect();
+            reactionPickerAnchor.value = { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+        } else {
+            reactionPickerAnchor.value = { x: window.innerWidth / 2 - 100, y: window.innerHeight / 2, width: 200, height: 0 };
+        }
+    }
+    reactionPickerVisible.value = true;
+}
+
+/** 关闭 reaction 选择器 */
+function closeReactionPicker() {
+    reactionPickerVisible.value = false;
+    reactionPickerMsg.value = null;
+    reactionPickerAnchor.value = undefined;
+}
+
+/** 从选择器中选择了一个 reaction */
+function onReactionPickerSelect(type: ReactionType) {
+    const msg = reactionPickerMsg.value;
+    if (!msg || chatId.value === undefined) return;
+    void toggleReaction(chatId.value, msg, type);
+    closeReactionPicker();
+}
+
+/** 从全 emoji 选择器中选择了一个 emoji（构造 reactionTypeEmoji 发送） */
+function onReactionPickerSelectEmoji(emoji: string) {
+    const msg = reactionPickerMsg.value;
+    if (!msg || chatId.value === undefined) return;
+    const type: ReactionType = { _: 'reactionTypeEmoji', emoji };
+    void toggleReaction(chatId.value, msg, type);
+    closeReactionPicker();
+}
+
+/** 从全 emoji 选择器中选择了一个自定义 emoji（构造 reactionTypeCustomEmoji 发送） */
+function onReactionPickerSelectCustomEmoji(id: string) {
+    const msg = reactionPickerMsg.value;
+    if (!msg || chatId.value === undefined) return;
+    const type: ReactionType = { _: 'reactionTypeCustomEmoji', custom_emoji_id: id };
+    void toggleReaction(chatId.value, msg, type);
+    closeReactionPicker();
+}
+
+// ===== 胶囊回应选择器（独立于右键菜单的浮动栏） =====
+import { watch as vueWatch } from 'vue';
+import { state as contextMenuState } from '../../../store/contextMenu';
+const reactionCapsuleRef = ref<HTMLElement | null>(null);
+const reactionCapsuleVisible = ref(false);
+const reactionCapsuleData = ref<ContextMenuReactionRow | null>(null);
+const reactionCapsuleStyle = ref<Record<string, string>>({});
+
+/**
+ * 计算胶囊位置：绑定到右键菜单的最终渲染位置，居中对齐菜单顶部，
+ * 参与四边夹紧确保不超出视口。
+ */
+function updateCapsulePosition() {
+    if (!reactionCapsuleVisible.value) return;
+    nextTick(() => {
+        const menuEl = document.querySelector('.cm-menu') as HTMLElement | null;
+        const capsuleEl = reactionCapsuleRef.value;
+        if (!menuEl || !capsuleEl) return;
+
+        const menuRect = menuEl.getBoundingClientRect();
+        const capsuleRect = capsuleEl.getBoundingClientRect();
+        const margin = 8;
+        const gap = 6; // 胶囊与菜单之间的间距
+
+        // 水平居中对齐菜单，参与左右夹紧
+        let left = menuRect.left + menuRect.width / 2 - capsuleRect.width / 2;
+        if (left < margin) left = margin;
+        if (left + capsuleRect.width > window.innerWidth - margin) {
+            left = window.innerWidth - capsuleRect.width - margin;
+        }
+
+        // 垂直：优先放在菜单上方；若放不下则放在菜单下方
+        let top = menuRect.top - capsuleRect.height - gap;
+        if (top < margin) {
+            top = menuRect.bottom + gap;
+        }
+        // 若下方也放不下，夹紧到顶部
+        if (top < margin) top = margin;
+
+        reactionCapsuleStyle.value = { left: `${left}px`, top: `${top}px` };
+    });
+}
+
+/** 监听右键菜单的 reactionRow 状态 + 菜单位置，同步显示/隐藏胶囊 */
+vueWatch([contextMenuVisible, contextMenuReactionRow, () => contextMenuState.x, () => contextMenuState.y], () => {
+    if (contextMenuVisible.value && contextMenuReactionRow.value && contextMenuReactionRow.value.reactions.length > 0) {
+        // 菜单打开且有回应数据：显示胶囊
+        reactionCapsuleData.value = contextMenuReactionRow.value;
+        reactionCapsuleVisible.value = true;
+        // 菜单已经由 ContextMenu.vue 的 positionMenuInViewport 完成夹紧定位，
+        // 等菜单渲染完毕后再根据菜单最终位置计算胶囊位置
+        nextTick(() => {
+            // 菜单的 positionMenuInViewport 在 nextTick 中执行，再等一帧确保完成
+            nextTick(updateCapsulePosition);
+        });
+    } else {
+        // 菜单关闭或无回应：隐藏胶囊
+        reactionCapsuleVisible.value = false;
+        reactionCapsuleData.value = null;
+    }
+}, { immediate: true });
+
+/** 窗口 resize 时重新定位胶囊 */
+function onCapsuleResize() {
+    if (reactionCapsuleVisible.value) updateCapsulePosition();
+}
+onMounted(() => window.addEventListener('resize', onCapsuleResize));
+onUnmounted(() => window.removeEventListener('resize', onCapsuleResize));
+
+/** 点击胶囊中的某个回应 */
+function onCapsuleReactionClick(r: ContextMenuReactionItem) {
+    if (r.needsPremium && !(userProfile.value?.is_premium)) return;
+    r.onClick?.();
+    reactionCapsuleVisible.value = false;
+    reactionCapsuleData.value = null;
+    // 点击回应后同时关闭右键菜单
+    closeContextMenuStore();
+}
+
+/** 点击胶囊中的更多按钮：关闭胶囊+菜单，打开完整回应选择器 */
+function onCapsuleMoreClick() {
+    // 先获取回调和胶囊位置，再关闭胶囊
+    const onMore = reactionCapsuleData.value?.onMore;
+    const capsuleRect = reactionCapsuleRef.value?.getBoundingClientRect();
+    // 关闭胶囊
+    reactionCapsuleVisible.value = false;
+    reactionCapsuleData.value = null;
+    // 关闭右键菜单（避免菜单残留）
+    closeContextMenuStore();
+    // 传入胶囊位置作为锚点，让选择器在胶囊原位展开
+    if (capsuleRect) {
+        onMore?.({ x: capsuleRect.left, y: capsuleRect.top, width: capsuleRect.width, height: capsuleRect.height });
+    } else {
+        onMore?.();
+    }
+}
+
 /** 删除所有选中消息 */
 async function onDeleteSelected() {
     const ids = [...selectedMsgIds.value];
@@ -1436,6 +1678,31 @@ const handleUpdate = async (update: Update) => {
             // 频道/群组改名：回填本地缓存，刷新消息来源显示名
             if (typeof update.chat_id === 'number' && chats.value[update.chat_id]) {
                 chats.value[update.chat_id].title = update.title;
+            }
+            break;
+        }
+
+        // ---- 消息回应更新 ----
+        case 'updateMessageInteractionInfo': {
+            if (update.chat_id !== chatId.value) break;
+            const idx = messages.value.findIndex(m => m.id === update.message_id);
+            if (idx !== -1) {
+                messages.value.splice(idx, 1, {
+                    ...messages.value[idx],
+                    interaction_info: update.interaction_info,
+                });
+            }
+            break;
+        }
+
+        case 'updateMessageUnreadReactions': {
+            if (update.chat_id !== chatId.value) break;
+            const idx = messages.value.findIndex(m => m.id === update.message_id);
+            if (idx !== -1) {
+                messages.value.splice(idx, 1, {
+                    ...messages.value[idx],
+                    unread_reactions: update.unread_reactions,
+                });
             }
             break;
         }
@@ -2561,8 +2828,69 @@ const selfDeps = (): SelfDeps => ({
 const isMessageRead = (msg: message) =>
     isMessageReadOf(msg, chat.value);
 
+/** 媒体消息是否有标题文本（caption），用于决定 ReactionsBar 位置 */
+function hasMediaCaption(msg: message): boolean {
+    const c = msg.content;
+    return ('caption' in c) && !!(c as any).caption?.text;
+}
+
 /** 当前右键菜单对应的消息（供获取完成后判断是否需要打开菜单） */
 let currentMenuMsg: message | null = null;
+
+/**
+ * 构建消息右键菜单的回应栏数据。
+ * 调用 TDLib getMessageAvailableReactions 获取该消息的可用回应，取前 6 个作为快捷行。
+ */
+async function buildReactionRow(msg: message): Promise<import('../../contextMenu/types').ContextMenuReactionRow | null> {
+    const cid = chatId.value;
+    if (cid === undefined) return null;
+    try {
+        const result = await tdlibSend({
+            _: 'getMessageAvailableReactions',
+            chat_id: cid,
+            message_id: msg.id,
+        });
+        if (result._ !== 'availableReactions') return null;
+        const avail = result;
+        // 合并 top + recent + popular，去重后取前 6 个
+        const seen = new Set<string>();
+        const all: { type: any; emoji: string; customEmojiId?: string; needsPremium: boolean }[] = [];
+        for (const r of [...avail.top_reactions, ...avail.recent_reactions, ...avail.popular_reactions]) {
+            const key = r.type._ === 'reactionTypeEmoji' ? r.type.emoji
+                : r.type._ === 'reactionTypeCustomEmoji' ? `c:${r.type.custom_emoji_id}`
+                    : 'paid';
+            if (seen.has(key)) continue;
+            seen.add(key);
+            const emoji = r.type._ === 'reactionTypeEmoji' ? r.type.emoji
+                : r.type._ === 'reactionTypeCustomEmoji' ? '🏷'
+                    : '付费回应';
+            all.push({ type: r.type, emoji, customEmojiId: r.type._ === 'reactionTypeCustomEmoji' ? r.type.custom_emoji_id : undefined, needsPremium: r.needs_premium });
+            if (all.length >= 6) break;
+        }
+        if (all.length === 0) return null;
+        // 检测聊天是否允许所有 emoji 回应（chatAvailableReactionsAll）
+        const currentChat = chat.value;
+        const isAllReactions = currentChat?.available_reactions?._ === 'chatAvailableReactionsAll';
+        const totalAvailable = avail.top_reactions.length + avail.recent_reactions.length + avail.popular_reactions.length;
+        return {
+            reactions: all.map(r => ({
+                type: r.type,
+                emoji: r.emoji,
+                customEmojiId: r.customEmojiId,
+                needsPremium: r.needsPremium,
+                onClick: () => void toggleReaction(cid!, msg, r.type),
+            })),
+            hasMore: totalAvailable > 6 || isAllReactions,
+            onMore: (anchorRect?: { x: number; y: number; width: number; height: number }) => openReactionPicker(msg, undefined, isAllReactions, anchorRect),
+        };
+    } catch (e) {
+        console.warn('buildReactionRow failed:', e);
+        return null;
+    }
+}
+
+/** 缓存最近一次构建的回应栏（供 v-context-menu 指令读取） */
+let pendingReactionRow: import('../../contextMenu/types').ContextMenuReactionRow | null = null;
 
 /**
  * 返回消息右键菜单构建函数（指令函数形式受支持）。
@@ -2572,18 +2900,21 @@ let currentMenuMsg: message | null = null;
  * 获取到精确权限后再渲染菜单，避免每个消息气泡渲染时都触发、以及先显示乐观值
  * 再异步重建造成的闪烁/短暂不可用。
  */
-function makeMsgMenu(msg: message): (e: MouseEvent, data?: any) => Promise<ContextMenuItem[]> {
-    return async (e: MouseEvent, data?: any): Promise<ContextMenuItem[]> => {
-        void e;
-        void data;
-        const cid = chatId.value;
-        if (cid !== undefined) {
-            // 先获取精确权限（离线方法，很快，命中缓存立即返回）
-            await getMessageProperties(cid, msg.id);
-        }
-        // 并行预取阅读状态标签
-        pendingReadDateLabel = await fetchReadDateLabel(msg);
-        return buildMessageContextMenu(msg);
+function makeMsgMenu(msg: message): { items: (e: MouseEvent, data?: any) => Promise<ContextMenuItem[]>; reactionRow: import('../../contextMenu/types').ContextMenuReactionRow | null } {
+    return {
+        items: async (e: MouseEvent, data?: any): Promise<ContextMenuItem[]> => {
+            void e;
+            void data;
+            const cid = chatId.value;
+            if (cid !== undefined) {
+                await getMessageProperties(cid, msg.id);
+            }
+            pendingReadDateLabel = await fetchReadDateLabel(msg);
+            // 右键时才加载可用回应列表
+            pendingReactionRow = await buildReactionRow(msg);
+            return buildMessageContextMenu(msg);
+        },
+        get reactionRow() { return pendingReactionRow; },
     };
 }
 
@@ -2599,11 +2930,15 @@ async function openMessageContextMenu(msg: message, x: number, y: number) {
     if (cid !== undefined) {
         await getMessageProperties(cid, msg.id);
     }
-    // 并行预取阅读状态标签
-    pendingReadDateLabel = await fetchReadDateLabel(msg);
+    // 并行预取阅读状态标签和回应栏
+    const [readLabel, reactionRow] = await Promise.all([
+        fetchReadDateLabel(msg),
+        buildReactionRow(msg),
+    ]);
+    pendingReadDateLabel = readLabel;
     // 获取完成后若仍对应这条消息则打开菜单，否则忽略（已被其它操作替换）
     if (currentMenuMsg !== msg) return;
-    openContextMenu(x, y, buildMessageContextMenu(msg), null);
+    openContextMenu(x, y, buildMessageContextMenu(msg), null, null, reactionRow);
 }
 
 /** 相册中某块媒体被右键：以该条消息 + 坐标打开菜单 */

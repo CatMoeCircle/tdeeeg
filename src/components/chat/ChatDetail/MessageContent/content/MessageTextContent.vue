@@ -70,7 +70,7 @@
                     <span class="w-0.5 shrink-0 self-stretch rounded-full" :style="accentBarStyle"></span>
                     <span class="min-w-0 flex-1 truncate py-1 text-xs font-semibold" :style="accentTextStyle">{{
                         group.codeLanguage
-                    }}</span>
+                        }}</span>
                     <button type="button"
                         class="msg-noselect flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                         @click.stop="copyCodeBlock(group)">
@@ -115,6 +115,8 @@
                 </template>
             </template>
         </template>
+        <!-- Reactions slot：回应在文本末尾、内嵌时间之前（float 上方） -->
+        <slot />
         <!-- 内嵌时间：float 右对齐，跟随文本末行（参考网页版 time-seal），仅在普通文本消息开启。
              pt-1 用于在同行的 1.4 行高内垂直居中时间（时间高度小于行高）
              msg-noselect：装饰信息，即使正文开放选择也不可被选中复制 -->
