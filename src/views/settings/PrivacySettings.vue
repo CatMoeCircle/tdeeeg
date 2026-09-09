@@ -13,121 +13,129 @@
                 <!-- 拉黑用户列表 -->
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <div class="flex items-center gap-3 mb-1">
-                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">拉黑</h3>
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">拉黑
+                        </h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
                     <div class="mt-5 space-y-3">
-                    <button type="button" @click="openBlockedPopup"
-                        class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                        <BanIcon class="w-5 h-5 text-gray-400 shrink-0" />
-                        <div class="min-w-0 flex-1">
-                            <p class="text-sm text-gray-800 dark:text-gray-100">拉黑用户列表</p>
-                            <p class="text-xs text-gray-400 mt-0.5">{{ blockedCountText }}</p>
-                        </div>
-                        <ChevronRightIcon class="w-4 h-4 text-gray-400" />
-                    </button>
+                        <button type="button" @click="openBlockedPopup"
+                            class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                            <BanIcon class="w-5 h-5 text-gray-400 shrink-0" />
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm text-gray-800 dark:text-gray-100">拉黑用户列表</p>
+                                <p class="text-xs text-gray-400 mt-0.5">{{ blockedCountText }}</p>
+                            </div>
+                            <ChevronRightIcon class="w-4 h-4 text-gray-400" />
+                        </button>
                     </div>
                 </section>
 
                 <!-- 两步验证 -->
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <div class="flex items-center gap-3 mb-1">
-                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">两步验证</h3>
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">两步验证
+                        </h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
                     <div class="mt-5 space-y-3">
-                    <button type="button" @click="openTwoStepPopup"
-                        class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                        <KeyRoundIcon class="w-5 h-5 text-gray-400 shrink-0" />
-                        <div class="min-w-0 flex-1">
-                            <p class="text-sm text-gray-800 dark:text-gray-100">两步验证密码</p>
-                            <p class="text-xs text-gray-400 mt-0.5">{{ twoStepText }}</p>
-                        </div>
-                        <ChevronRightIcon class="w-4 h-4 text-gray-400" />
-                    </button>
+                        <button type="button" @click="openTwoStepPopup"
+                            class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                            <KeyRoundIcon class="w-5 h-5 text-gray-400 shrink-0" />
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm text-gray-800 dark:text-gray-100">两步验证密码</p>
+                                <p class="text-xs text-gray-400 mt-0.5">{{ twoStepText }}</p>
+                            </div>
+                            <!-- <ChevronRightIcon class="w-4 h-4 text-gray-400" /> -->
+                        </button>
                     </div>
                 </section>
 
                 <!-- 自动删除设置 -->
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <div class="flex items-center gap-3 mb-1">
-                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">自动删除</h3>
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">自动删除
+                        </h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
                     <div class="mt-5 space-y-3">
-                    <button type="button" @click="openAutoDeletePopup"
-                        class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                        <TimerResetIcon class="w-5 h-5 text-gray-400 shrink-0" />
-                        <div class="min-w-0 flex-1">
-                            <p class="text-sm text-gray-800 dark:text-gray-100">自动删除新聊天中的消息</p>
-                            <p class="text-xs text-gray-400 mt-0.5">{{ autoDeleteText }}</p>
-                        </div>
-                        <ChevronRightIcon class="w-4 h-4 text-gray-400" />
-                    </button>
+                        <button type="button" @click="openAutoDeletePopup"
+                            class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                            <TimerResetIcon class="w-5 h-5 text-gray-400 shrink-0" />
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm text-gray-800 dark:text-gray-100">自动删除新聊天中的消息</p>
+                                <p class="text-xs text-gray-400 mt-0.5">{{ autoDeleteText }}</p>
+                            </div>
+                            <ChevronRightIcon class="w-4 h-4 text-gray-400" />
+                        </button>
                     </div>
                 </section>
 
                 <!-- 可见性和权限 -->
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <div class="flex items-center gap-3 mb-1">
-                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">可见性和权限</h3>
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            可见性和权限</h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
                     <div class="mt-5 space-y-3">
-                    <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
-                        <button v-for="item in privacyItems" :key="item.key" type="button"
-                            class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                            @click="openPrivacyItem(item)">
-                            <div class="min-w-0 flex-1">
-                                <p class="text-sm text-gray-800 dark:text-gray-100 flex items-center gap-1.5">
-                                    {{ item.label }}
-                                    <span v-if="item.premiumOnly" class="tgico tgico-lock shrink-0" style="font-size:14px" />
-                                </p>
-                                <p class="text-xs text-gray-400 mt-0.5">{{ itemSummary(item) }}</p>
-                            </div>
-                            <ChevronRightIcon class="w-4 h-4 text-gray-400 shrink-0" />
-                        </button>
-                    </div>
+                        <div
+                            class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+                            <button v-for="item in privacyItems" :key="item.key" type="button"
+                                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                @click="openPrivacyItem(item)">
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-sm text-gray-800 dark:text-gray-100 flex items-center gap-1.5">
+                                        {{ item.label }}
+                                        <span v-if="item.premiumOnly" class="tgico tgico-lock shrink-0"
+                                            style="font-size:14px" />
+                                    </p>
+                                    <p class="text-xs text-gray-400 mt-0.5">{{ itemSummary(item) }}</p>
+                                </div>
+                                <ChevronRightIcon class="w-4 h-4 text-gray-400 shrink-0" />
+                            </button>
+                        </div>
                     </div>
                 </section>
 
                 <!-- 账户删除时间设置 -->
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <div class="flex items-center gap-3 mb-1">
-                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">账户</h3>
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">账户
+                        </h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
                     <div class="mt-5 space-y-3">
-                    <button type="button" @click="openAccountTtlPopup"
-                        class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                        <Trash2Icon class="w-5 h-5 text-gray-400 shrink-0" />
-                        <div class="min-w-0 flex-1">
-                            <p class="text-sm text-gray-800 dark:text-gray-100">账户删除时间设置</p>
-                            <p class="text-xs text-gray-400 mt-0.5">{{ accountTtlText }}</p>
-                        </div>
-                        <ChevronRightIcon class="w-4 h-4 text-gray-400" />
-                    </button>
+                        <button type="button" @click="openAccountTtlPopup"
+                            class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                            <Trash2Icon class="w-5 h-5 text-gray-400 shrink-0" />
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm text-gray-800 dark:text-gray-100">账户删除时间设置</p>
+                                <p class="text-xs text-gray-400 mt-0.5">{{ accountTtlText }}</p>
+                            </div>
+                            <ChevronRightIcon class="w-4 h-4 text-gray-400" />
+                        </button>
                     </div>
                 </section>
 
                 <!-- 18+ 内容 -->
                 <section>
                     <div class="flex items-center gap-3 mb-1">
-                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">敏感内容</h3>
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">敏感内容
+                        </h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
                     <div class="mt-5 space-y-3">
-                    <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 flex items-center gap-3"
-                        :class="!canIgnoreSensitive ? 'opacity-60' : ''">
-                        <div class="min-w-0 flex-1">
-                            <p class="text-sm text-gray-800 dark:text-gray-100">显示 18+ 内容</p>
-                            <p class="text-xs text-gray-400 mt-0.5">
-                                {{ canIgnoreSensitive ? '开启后可在本客户端显示受年龄限制的内容' : '当前账号暂不支持修改该设置' }}
-                            </p>
+                        <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 flex items-center gap-3"
+                            :class="!canIgnoreSensitive ? 'opacity-60' : ''">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm text-gray-800 dark:text-gray-100">显示 18+ 内容</p>
+                                <p class="text-xs text-gray-400 mt-0.5">
+                                    {{ canIgnoreSensitive ? '开启后可在本客户端显示受年龄限制的内容' : '当前账号暂不支持修改该设置' }}
+                                </p>
+                            </div>
+                            <ToggleSwitch v-model="ignoreSensitiveContent" :disabled="!canIgnoreSensitive"
+                                @update:model-value="saveIgnoreSensitive" />
                         </div>
-                        <ToggleSwitch v-model="ignoreSensitiveContent" :disabled="!canIgnoreSensitive"
-                            @update:model-value="saveIgnoreSensitive" />
-                    </div>
                     </div>
                 </section>
             </div>
@@ -152,7 +160,8 @@
                         class="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-context-menu"
                         @contextmenu.prevent="onBlockedContextMenu($event, item)">
                         <div class="w-9 h-9 shrink-0">
-                            <Avatar :photo="item.photo" :title="item.title" :accentColorId="item.accentId" sizeClass="!w-9 !h-9" />
+                            <Avatar :photo="item.photo" :title="item.title" :accentColorId="item.accentId"
+                                sizeClass="!w-9 !h-9" />
                         </div>
                         <div class="min-w-0 flex-1">
                             <p class="text-sm text-gray-800 dark:text-gray-100 truncate">{{ item.title }}</p>
@@ -177,7 +186,8 @@
                         class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
-                    <label class="text-xs text-gray-400">{{ passwordState?.has_password ? '新密码（留空则保留当前密码）' : '新密码' }}</label>
+                    <label class="text-xs text-gray-400">{{ passwordState?.has_password ? '新密码（留空则保留当前密码）' : '新密码'
+                        }}</label>
                     <input v-model="twoStepNew" type="password" autocomplete="new-password"
                         class="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
@@ -256,7 +266,8 @@
                                 {{ opt.label }}
                             </button>
                         </div>
-                        <p class="text-xs text-gray-400 mt-2 leading-relaxed">将您的手机号码添加到其联系人的用户，只有在他们是您的联系人时，才会在 Telegram 上看到您的手机号码。</p>
+                        <p class="text-xs text-gray-400 mt-2 leading-relaxed">将您的手机号码添加到其联系人的用户，只有在他们是您的联系人时，才会在
+                            Telegram 上看到您的手机号码。</p>
 
                         <div class="mt-4 border-t border-gray-200 dark:border-gray-700 pt-3">
                             <p class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">添加例外 · 绝不允许</p>
@@ -271,14 +282,17 @@
                                 </button>
                             </div>
                             <p v-if="exceptionError" class="text-xs text-red-500 mb-2">{{ exceptionError }}</p>
-                            <div v-if="phoneFindExceptions.length === 0" class="text-sm text-gray-400 py-2 text-center">暂无例外</div>
+                            <div v-if="phoneFindExceptions.length === 0" class="text-sm text-gray-400 py-2 text-center">
+                                暂无例外</div>
                             <div v-else class="space-y-1.5">
                                 <div v-for="e in phoneFindExceptions" :key="(e.isChat ? 'c' : 'u') + e.id"
                                     class="flex items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800">
                                     <div class="w-8 h-8 shrink-0">
-                                        <Avatar :photo="e.photo" :title="e.title" :accentColorId="e.accentId" sizeClass="!w-8 !h-8" />
+                                        <Avatar :photo="e.photo" :title="e.title" :accentColorId="e.accentId"
+                                            sizeClass="!w-8 !h-8" />
                                     </div>
-                                    <span class="text-sm text-gray-800 dark:text-gray-100 flex-1 min-w-0 truncate">{{ e.title }}</span>
+                                    <span class="text-sm text-gray-800 dark:text-gray-100 flex-1 min-w-0 truncate">{{
+                                        e.title }}</span>
                                     <button type="button" @click="removeException('phone_find', e)"
                                         class="text-xs text-red-500 hover:text-red-600 shrink-0">移除</button>
                                 </div>
@@ -301,11 +315,13 @@
                                 {{ opt.label }}
                             </button>
                         </div>
-                        <p class="text-xs text-gray-400 mt-2 leading-relaxed">除非您已订阅了 Telegram Premium，否则您不会看到未与您共享在线状态的用户的在线状态。显示的是大致的上线时间（如：最近，一周内，一个月内）。</p>
+                        <p class="text-xs text-gray-400 mt-2 leading-relaxed">除非您已订阅了 Telegram
+                            Premium，否则您不会看到未与您共享在线状态的用户的在线状态。显示的是大致的上线时间（如：最近，一周内，一个月内）。</p>
                     </div>
 
                     <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
-                        <p class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">添加例外 · {{ exceptionSemanticLabel }}</p>
+                        <p class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">添加例外 · {{
+                            exceptionSemanticLabel }}</p>
                         <p class="text-xs text-gray-400 mb-2">您可以将用户或群组添加为例外，添加为例外将不会遵循全局设置。</p>
                         <div class="flex items-center gap-2 mb-3">
                             <input v-model="exceptionInput" type="text" placeholder="输入用户名或用户 ID" spellcheck="false"
@@ -322,9 +338,11 @@
                             <div v-for="e in exceptionList" :key="(e.isChat ? 'c' : 'u') + e.id"
                                 class="flex items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800">
                                 <div class="w-8 h-8 shrink-0">
-                                    <Avatar :photo="e.photo" :title="e.title" :accentColorId="e.accentId" sizeClass="!w-8 !h-8" />
+                                    <Avatar :photo="e.photo" :title="e.title" :accentColorId="e.accentId"
+                                        sizeClass="!w-8 !h-8" />
                                 </div>
-                                <span class="text-sm text-gray-800 dark:text-gray-100 flex-1 min-w-0 truncate">{{ e.title }}</span>
+                                <span class="text-sm text-gray-800 dark:text-gray-100 flex-1 min-w-0 truncate">{{
+                                    e.title }}</span>
                                 <button type="button" @click="removeException('list', e)"
                                     class="text-xs text-red-500 hover:text-red-600 shrink-0">移除</button>
                             </div>
@@ -334,7 +352,9 @@
                     <div class="border-t border-gray-200 dark:border-gray-700 pt-4 flex items-center gap-3">
                         <div class="min-w-0 flex-1">
                             <p class="text-sm text-gray-800 dark:text-gray-100">隐藏消息已读时间</p>
-                            <p class="text-xs text-gray-400 mt-0.5 leading-relaxed">对无法看到您的上线状态的用户隐藏您的已读时间。如果您开启此功能，对方的已读时间也会对您隐藏（除非您已订阅了 Telegram Premium）。此设置不影响群聊，仅限私聊。</p>
+                            <p class="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                                对无法看到您的上线状态的用户隐藏您的已读时间。如果您开启此功能，对方的已读时间也会对您隐藏（除非您已订阅了 Telegram Premium）。此设置不影响群聊，仅限私聊。
+                            </p>
                         </div>
                         <ToggleSwitch v-model="hideReadTime" />
                     </div>
@@ -346,7 +366,8 @@
                 <!-- 礼物 -->
                 <template v-else-if="activeItem?.kind === 'gifts'">
                     <div>
-                        <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">{{ activeItem?.whoLabel }}</p>
+                        <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">{{ activeItem?.whoLabel }}
+                        </p>
                         <div class="flex flex-wrap gap-2">
                             <button v-for="opt in presetOptions(PRESET_ALL)" :key="opt.value" type="button"
                                 class="px-3.5 py-2 rounded-xl text-sm transition-colors"
@@ -358,7 +379,8 @@
                             </button>
                         </div>
                         <div class="mt-4 border-t border-gray-200 dark:border-gray-700 pt-3">
-                            <p class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">添加例外 · {{ exceptionSemanticLabel }}</p>
+                            <p class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">添加例外 · {{
+                                exceptionSemanticLabel }}</p>
                             <p class="text-xs text-gray-400 mb-2">您可以将用户或群组添加为例外，添加为例外将不会遵循全局设置。</p>
                             <div class="flex items-center gap-2 mb-3">
                                 <input v-model="exceptionInput" type="text" placeholder="输入用户名或用户 ID" spellcheck="false"
@@ -370,14 +392,17 @@
                                 </button>
                             </div>
                             <p v-if="exceptionError" class="text-xs text-red-500 mb-2">{{ exceptionError }}</p>
-                            <div v-if="exceptionList.length === 0" class="text-sm text-gray-400 py-2 text-center">暂无例外</div>
+                            <div v-if="exceptionList.length === 0" class="text-sm text-gray-400 py-2 text-center">暂无例外
+                            </div>
                             <div v-else class="space-y-1.5">
                                 <div v-for="e in exceptionList" :key="(e.isChat ? 'c' : 'u') + e.id"
                                     class="flex items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800">
                                     <div class="w-8 h-8 shrink-0">
-                                        <Avatar :photo="e.photo" :title="e.title" :accentColorId="e.accentId" sizeClass="!w-8 !h-8" />
+                                        <Avatar :photo="e.photo" :title="e.title" :accentColorId="e.accentId"
+                                            sizeClass="!w-8 !h-8" />
                                     </div>
-                                    <span class="text-sm text-gray-800 dark:text-gray-100 flex-1 min-w-0 truncate">{{ e.title }}</span>
+                                    <span class="text-sm text-gray-800 dark:text-gray-100 flex-1 min-w-0 truncate">{{
+                                        e.title }}</span>
                                     <button type="button" @click="removeException('list', e)"
                                         class="text-xs text-red-500 hover:text-red-600 shrink-0">移除</button>
                                 </div>
@@ -391,7 +416,8 @@
                         <div class="space-y-2">
                             <label v-for="t in giftTypeOptions" :key="t.key"
                                 class="flex items-center gap-2.5 rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                                <input type="checkbox" v-model="acceptedGiftTypes[t.key]" class="w-4 h-4 accent-teal-500 shrink-0" />
+                                <input type="checkbox" v-model="acceptedGiftTypes[t.key]"
+                                    class="w-4 h-4 accent-teal-500 shrink-0" />
                                 <span class="text-sm text-gray-800 dark:text-gray-100">{{ t.label }}</span>
                             </label>
                         </div>
@@ -400,7 +426,8 @@
 
                 <!-- 私聊消息 -->
                 <template v-else-if="activeItem?.kind === 'newchat'">
-                    <div :class="activeItem?.premiumOnly && !isPremium ? 'opacity-50 pointer-events-none select-none' : ''">
+                    <div
+                        :class="activeItem?.premiumOnly && !isPremium ? 'opacity-50 pointer-events-none select-none' : ''">
                         <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">谁可以给您发送私聊消息</p>
                         <div class="space-y-2">
                             <button v-for="opt in newChatOptions" :key="opt.value" type="button"
@@ -418,12 +445,15 @@
                         <div v-if="newChatMode === 'paid'" class="mt-3">
                             <div class="flex items-center justify-between mb-1.5">
                                 <label class="text-xs text-gray-400">每条消息星币数</label>
-                                <span class="text-sm font-medium text-gray-800 dark:text-gray-100">{{ paidStarCount }} ⭐</span>
+                                <span class="text-sm font-medium text-gray-800 dark:text-gray-100">{{ paidStarCount }}
+                                    ⭐</span>
                             </div>
-                            <t-slider v-model="paidStarCount" :min="1" :max="PAID_STAR_MAX" :show-tooltip="true" :input-number-props="starInputNumberProps" />
+                            <t-slider v-model="paidStarCount" :min="1" :max="PAID_STAR_MAX" :show-tooltip="true"
+                                :input-number-props="starInputNumberProps" />
                             <p class="text-xs text-gray-400 mt-1.5 leading-relaxed">范围 1 - {{ PAID_STAR_MAX }} 星币</p>
                         </div>
-                        <p v-if="newChatMode === 'paid'" class="text-xs text-gray-400 mt-1.5 leading-relaxed">非联系人需要支付 Telegram 星币才能给您发送私聊消息，您将获得其中的大部分收益。</p>
+                        <p v-if="newChatMode === 'paid'" class="text-xs text-gray-400 mt-1.5 leading-relaxed">非联系人需要支付
+                            Telegram 星币才能给您发送私聊消息，您将获得其中的大部分收益。</p>
                     </div>
 
                     <div v-if="newChatMode === 'paid'" class="border-t border-gray-200 dark:border-gray-700 pt-4">
@@ -439,14 +469,17 @@
                             </button>
                         </div>
                         <p v-if="exceptionError" class="text-xs text-red-500 mb-2">{{ exceptionError }}</p>
-                        <div v-if="newChatExceptions.length === 0" class="text-sm text-gray-400 py-2 text-center">暂无例外</div>
+                        <div v-if="newChatExceptions.length === 0" class="text-sm text-gray-400 py-2 text-center">暂无例外
+                        </div>
                         <div v-else class="space-y-1.5">
                             <div v-for="e in newChatExceptions" :key="(e.isChat ? 'c' : 'u') + e.id"
                                 class="flex items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800">
                                 <div class="w-8 h-8 shrink-0">
-                                    <Avatar :photo="e.photo" :title="e.title" :accentColorId="e.accentId" sizeClass="!w-8 !h-8" />
+                                    <Avatar :photo="e.photo" :title="e.title" :accentColorId="e.accentId"
+                                        sizeClass="!w-8 !h-8" />
                                 </div>
-                                <span class="text-sm text-gray-800 dark:text-gray-100 flex-1 min-w-0 truncate">{{ e.title }}</span>
+                                <span class="text-sm text-gray-800 dark:text-gray-100 flex-1 min-w-0 truncate">{{
+                                    e.title }}</span>
                                 <button type="button" @click="removeException('newchat', e)"
                                     class="text-xs text-red-500 hover:text-red-600 shrink-0">移除</button>
                             </div>
@@ -456,8 +489,10 @@
 
                 <!-- 语音消息 / 标准项 -->
                 <template v-else>
-                    <div :class="activeItem?.premiumOnly && !isPremium ? 'opacity-50 pointer-events-none select-none' : ''">
-                        <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">{{ activeItem?.whoLabel }}</p>
+                    <div
+                        :class="activeItem?.premiumOnly && !isPremium ? 'opacity-50 pointer-events-none select-none' : ''">
+                        <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">{{ activeItem?.whoLabel }}
+                        </p>
                         <div class="flex flex-wrap gap-2">
                             <button v-for="opt in presetOptions(PRESET_ALL)" :key="opt.value" type="button"
                                 class="px-3.5 py-2 rounded-xl text-sm transition-colors"
@@ -469,7 +504,8 @@
                             </button>
                         </div>
                         <div class="mt-4 border-t border-gray-200 dark:border-gray-700 pt-3">
-                            <p class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">添加例外 · {{ exceptionSemanticLabel }}</p>
+                            <p class="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">添加例外 · {{
+                                exceptionSemanticLabel }}</p>
                             <p class="text-xs text-gray-400 mb-2">您可以将用户或群组添加为例外，添加为例外将不会遵循全局设置。</p>
                             <div class="flex items-center gap-2 mb-3">
                                 <input v-model="exceptionInput" type="text" placeholder="输入用户名或用户 ID" spellcheck="false"
@@ -481,14 +517,17 @@
                                 </button>
                             </div>
                             <p v-if="exceptionError" class="text-xs text-red-500 mb-2">{{ exceptionError }}</p>
-                            <div v-if="exceptionList.length === 0" class="text-sm text-gray-400 py-2 text-center">暂无例外</div>
+                            <div v-if="exceptionList.length === 0" class="text-sm text-gray-400 py-2 text-center">暂无例外
+                            </div>
                             <div v-else class="space-y-1.5">
                                 <div v-for="e in exceptionList" :key="(e.isChat ? 'c' : 'u') + e.id"
                                     class="flex items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800">
                                     <div class="w-8 h-8 shrink-0">
-                                        <Avatar :photo="e.photo" :title="e.title" :accentColorId="e.accentId" sizeClass="!w-8 !h-8" />
+                                        <Avatar :photo="e.photo" :title="e.title" :accentColorId="e.accentId"
+                                            sizeClass="!w-8 !h-8" />
                                     </div>
-                                    <span class="text-sm text-gray-800 dark:text-gray-100 flex-1 min-w-0 truncate">{{ e.title }}</span>
+                                    <span class="text-sm text-gray-800 dark:text-gray-100 flex-1 min-w-0 truncate">{{
+                                        e.title }}</span>
                                     <button type="button" @click="removeException('list', e)"
                                         class="text-xs text-red-500 hover:text-red-600 shrink-0">移除</button>
                                 </div>

@@ -138,18 +138,26 @@
                             class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 space-y-3">
                             <div class="flex items-center gap-3">
                                 <CalendarIcon class="w-5 h-5 text-gray-400 shrink-0" />
-                                <p v-if="birthdateText" class="text-sm text-gray-800 dark:text-gray-100">{{
+                                <p v-if="birthdateText" class="text-sm text-gray-800 dark:text-gray-100 flex-1">{{
                                     birthdateText }}
                                 </p>
-                                <p v-else class="text-sm text-gray-400">未设置生日</p>
+                                <p v-else class="text-sm text-gray-400 flex-1">未设置生日</p>
+                                <button type="button" @click="toggleBirthdayEditing"
+                                    class="px-3 py-1.5 rounded-lg text-sm text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors shrink-0">
+                                    {{ birthdayEditing ? '收起' : '修改' }}
+                                </button>
                             </div>
-                            <div class="flex flex-wrap items-center gap-3">
+                            <div v-if="birthdayEditing" class="flex flex-wrap items-center gap-3">
                                 <TDatePicker v-model="birthdatePickerValue" mode="date" format="YYYY-MM-DD" clearable
                                     :style="{ width: '180px' }" @change="(v) => saveBirthdate(v as string)" />
-                                <label
-                                    class="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 select-none cursor-pointer">
-                                    <input type="checkbox" v-model="hideYear" class="w-4 h-4 accent-teal-500" />
-                                    不显示年份
+                                <label class="flex items-center gap-2 cursor-pointer select-none shrink-0" @click.prevent="setHideYear(!hideYear)">
+                                    <button type="button" role="switch" :aria-checked="hideYear"
+                                        class="relative w-10 h-6 rounded-full transition-colors duration-200"
+                                        :class="hideYear ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'">
+                                        <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ease-in-out"
+                                            :class="hideYear ? 'translate-x-4' : 'translate-x-0'" />
+                                    </button>
+                                    <span class="text-sm text-gray-500 dark:text-gray-400">不显示年份</span>
                                 </label>
                                 <button type="button" v-if="birthdateInfo" @click="deleteBirthdate"
                                     :disabled="savingBirthdate"
@@ -731,7 +739,23 @@ async function toggleUsername(name: string, isActive: boolean) {
 const birthdateInfo = computed<birthdate | undefined>(() => fullInfo.value?.birthdate);
 const birthdatePickerValue = ref('');
 const hideYear = ref(false);
+const birthdayEditing = ref(false);
 const savingBirthdate = ref(false);
+
+function toggleBirthdayEditing() {
+    birthdayEditing.value = !birthdayEditing.value;
+    if (birthdayEditing.value) {
+        birthdatePickerValue.value = birthdateToPicker(birthdateInfo.value);
+        hideYear.value = !!(birthdateInfo.value && birthdateInfo.value.year <= 0);
+    }
+}
+
+function setHideYear(val: boolean) {
+    hideYear.value = val;
+    if (birthdatePickerValue.value) {
+        saveBirthdate();
+    }
+}
 
 const birthdateText = computed(() => {
     const b = birthdateInfo.value;
