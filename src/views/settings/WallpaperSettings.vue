@@ -33,7 +33,8 @@
                             <span class="text-xs text-gray-500 dark:text-gray-400">{{ selectedLabel }}</span><button
                                 type="button"
                                 class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50"
-                                :disabled="saving || !hasCustomDefault" @click="resetDefault">恢复默认</button></div>
+                                :disabled="saving || !hasCustomDefault" @click="resetDefault">恢复默认</button>
+                        </div>
                     </div>
                     <div
                         class="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 space-y-4">
@@ -55,6 +56,17 @@
                                 class="mt-2 w-full accent-blue-500" />
                         </div>
                     </div>
+                </section>
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            添加壁纸</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2">从本地选择图片文件作为壁纸</p>
+                    <button type="button" :disabled="saving" @click="pickLocalWallpaper"
+                        class="mt-4 w-full py-3 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 text-sm font-medium hover:border-blue-400 hover:text-blue-500 dark:hover:border-blue-500 dark:hover:text-blue-400 transition-colors disabled:opacity-50">
+                        选择图片文件</button>
                 </section>
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <div class="flex items-center gap-3 mb-1">
@@ -109,6 +121,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-dialog';
 import { useRouter } from 'vue-router';
 import { ChevronLeft as ChevronLeftIcon } from 'lucide-vue-next';
 import { MessagePlugin } from 'tdesign-vue-next';
@@ -186,8 +199,21 @@ async function ensureFullResolution(item: background): Promise<string> {
     return refreshed.local.path!;
 }
 async function loadBackgrounds() { loading.value = true; error.value = ''; thumbnailSources.value = {}; coverSources.value = {}; try { const result = await tdlibSend({ _: 'getInstalledBackgrounds', for_dark_theme: forDarkTheme.value }) as backgrounds; backgrounds.value = result.backgrounds ?? []; await Promise.all(backgrounds.value.map(prepareThumbnail)); } catch (err: any) { error.value = err?.message || '加载壁纸失败'; } finally { loading.value = false; } }
-async function save(backgroundInput: any, type: any, label: string, key: string, visual: { kind: 'color' | 'image'; color?: string; path?: string }) { saving.value = true; try { await tdlibSend({ _: 'setDefaultBackground', background: backgroundInput, type, for_dark_theme: forDarkTheme.value }); settings.chatWallpaper = visual; selectedKey.value = key; selectedLabel.value = label; hasCustomDefault.value = true; window.dispatchEvent(new Event('tdgram:chat-wallpaper-changed')); MessagePlugin.success('对话壁纸已更新'); } catch (err: any) { console.error('[WallpaperSettings] setDefaultBackground failed:', err); MessagePlugin.error(err?.message || err?.error?.message || '设置壁纸失败'); } finally { saving.value = false; } }
+async function save(backgroundInput: any, type: any, label: string, key: string, visual: { kind: 'color' | 'image'; color?: string; path?: string }, localDoc?: { thumbnailPath?: string; documentPath?: string }) { saving.value = true; try { await tdlibSend({ _: 'setDefaultBackground', background: backgroundInput, type, for_dark_theme: forDarkTheme.value }); settings.chatWallpaper = visual; selectedKey.value = key; selectedLabel.value = label; hasCustomDefault.value = true; window.dispatchEvent(new Event('tdgram:chat-wallpaper-changed')); if (localDoc) { const fakeId = `local_${Date.now()}`; const fakeDoc: any = { _: 'document', file_name: 'wallpaper.jpg', mime_type: 'image/jpeg', document: { _: 'file', id: Date.now(), size: 0, expected_size: 0, local: { _: 'localFile', can_be_downloaded: false, can_be_uploaded: false, is_downloading_active: false, is_downloading_completed: true, is_uploading_active: false, is_uploading_completed: false, path: localDoc.documentPath ?? localDoc.thumbnailPath ?? '' }, remote: { _: 'remoteFile', id: '', unique_id: '', is_uploading_active: false, is_uploading_completed: false } } }; if (localDoc.thumbnailPath) { fakeDoc.thumbnail = { _: 'thumbnail', format: { _: 'thumbnailFormatJpeg' }, width: 0, height: 0, file: { _: 'file', id: Date.now() + 1, size: 0, expected_size: 0, local: { _: 'localFile', can_be_downloaded: false, can_be_uploaded: false, is_downloading_active: false, is_downloading_completed: true, is_uploading_active: false, is_uploading_completed: false, path: localDoc.thumbnailPath }, remote: { _: 'remoteFile', id: '', unique_id: '', is_uploading_active: false, is_uploading_completed: false } } }; } const newItem: background = { _: 'background', id: fakeId, is_default: false, is_dark: false, name: label, document: fakeDoc, type: type as any }; backgrounds.value = [...backgrounds.value, newItem]; if (localDoc.thumbnailPath) thumbnailSources.value[fakeId] = convertFileSrc(localDoc.thumbnailPath); if (localDoc.documentPath) coverSources.value[fakeId] = convertFileSrc(localDoc.documentPath); } MessagePlugin.success('对话壁纸已更新'); } catch (err: any) { console.error('[WallpaperSettings] setDefaultBackground failed:', err); MessagePlugin.error(err?.message || err?.error?.message || '设置壁纸失败'); } finally { saving.value = false; } }
 function setSolid(color: typeof colors[number]) { void save(null, { _: 'backgroundTypeFill', fill: { _: 'backgroundFillSolid', color: color.value } }, color.label, color.key, { kind: 'color', color: color.css }); }
+async function pickLocalWallpaper() {
+    const selected = await open({ multiple: false, filters: [{ name: '图片', extensions: ['jpg', 'jpeg', 'png'] }] });
+    if (!selected) return;
+    const filePath = typeof selected === 'string' ? selected : selected as string;
+    await save(
+        { _: 'inputBackgroundLocal', background: { _: 'inputFileLocal', path: filePath } },
+        { _: 'backgroundTypeWallpaper', is_blurred: false, is_moving: false },
+        '本地壁纸',
+        `local:${filePath}`,
+        { kind: 'image', path: filePath },
+        { thumbnailPath: filePath, documentPath: filePath },
+    );
+}
 async function setRemote(item: background) {
     saving.value = true;
     try {
@@ -200,7 +226,7 @@ async function setRemote(item: background) {
         saving.value = false;
     }
 }
-async function resetDefault() { saving.value = true; try { await tdlibSend({ _: 'deleteDefaultBackground', for_dark_theme: forDarkTheme.value }); settings.chatWallpaper = null; selectedKey.value = ''; selectedLabel.value = '跟随 Telegram 默认壁纸'; hasCustomDefault.value = false; window.dispatchEvent(new Event('tdgram:chat-wallpaper-changed')); MessagePlugin.success('已恢复默认壁纸'); } catch (err: any) { MessagePlugin.error(err?.message || '恢复默认壁纸失败'); } finally { saving.value = false; } }
+async function resetDefault() { saving.value = true; try { await tdlibSend({ _: 'deleteDefaultBackground', for_dark_theme: forDarkTheme.value }); settings.chatWallpaper = null; selectedKey.value = ''; selectedLabel.value = '跟随 Telegram 默认壁纸'; hasCustomDefault.value = false; window.dispatchEvent(new Event('tdgram:chat-wallpaper-changed')); MessagePlugin.success('已恢复默认壁纸'); await loadBackgrounds(); } catch (err: any) { MessagePlugin.error(err?.message || '恢复默认壁纸失败'); } finally { saving.value = false; } }
 onMounted(async () => {
     unlisten = await listen<Update>('tdlib-update', (event) => {
         if (event.payload._ !== 'updateFile') return;

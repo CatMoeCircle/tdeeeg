@@ -43,6 +43,7 @@ import {
     BarChart2Icon, FileIcon, ImageIcon, ListIcon, MusicIcon, PaperclipIcon, UserIcon,
 } from 'lucide-vue-next';
 import { open } from '@tauri-apps/plugin-dialog';
+import { invoke } from '@tauri-apps/api/core';
 import { remove, writeFile } from '@tauri-apps/plugin-fs';
 import { tempDir } from '@tauri-apps/api/path';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
@@ -329,20 +330,6 @@ const onClickOutside = (e: MouseEvent) => {
     }
 };
 
-function imageExtFromMime(type: string): string {
-    const mime = type.toLowerCase();
-    if (mime.includes('gif')) return 'gif';
-    if (mime.includes('webp')) return 'webp';
-    if (mime.includes('bmp')) return 'bmp';
-    if (mime.includes('jpeg') || mime.includes('jpg')) return 'jpg';
-    return 'png';
-}
-
-function timestampName(now: Date, ext = 'png'): string {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `image_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.${ext}`;
-}
-
 async function cleanupTemp(path: string) {
     try {
         await remove(path);
@@ -351,45 +338,19 @@ async function cleanupTemp(path: string) {
     }
 }
 
-async function writeClipboardImage(blob: Blob): Promise<string> {
-    const dir = await tempDir();
-    const buf = new Uint8Array(await blob.arrayBuffer());
-    const base = timestampName(new Date(), imageExtFromMime(blob.type));
-    let target = `${dir}\\${base}`.replace(/\/$/, '');
-    let n = 1;
-    while (true) {
-        try {
-            await writeFile(target, buf);
-            break;
-        } catch {
-            const dot = base.lastIndexOf('.');
-            target = `${dir}\\${base.slice(0, dot)}_${n}${base.slice(dot)}`;
-            n++;
-        }
-    }
-    return target;
-}
-
 function onPaste(e: ClipboardEvent) {
     const dt = e.clipboardData;
     if (!dt) return;
-    const fileItems = Array.from(dt.files || []);
-    for (const f of fileItems) {
-        writeFileItemToTemp(f);
-        e.preventDefault();
-        return;
-    }
-    const items = Array.from(dt.items || []);
-    const imgItem = items.find((i) => i.type.startsWith('image/'));
-    if (imgItem?.getAsFile) {
-        const blob = imgItem.getAsFile();
-        if (blob) {
-            writeClipboardImage(blob)
-                .then((path) => addFile(path, baseName(path), true))
-                .catch(() => { });
-            e.preventDefault();
-        }
-    }
+    // 检查是否有图片类型的文件/项目（用于判断是否要处理粘贴）
+    const hasImage = Array.from(dt.files || []).some((f) => f.type.startsWith('image/'))
+        || Array.from(dt.items || []).some((i) => i.type.startsWith('image/'));
+    if (!hasImage) return;
+    e.preventDefault();
+    // 使用 Tauri 原生命令从系统剪贴板读取图片，直接写入应用数据目录
+    // 避免 HTML5 ClipboardEvent 写入系统 Temp 目录的问题
+    invoke('read_clipboard_image')
+        .then((path) => addFile(path, baseName(path)))
+        .catch(() => { });
 }
 
 async function writeFileItemToTemp(file: File) {

@@ -48,4 +48,6 @@ declare module "@tauri-apps/api/core" {
       comment?: string;
     }
   ): Promise<void>;
+
+  export function invoke(cmd: "read_clipboard_image"): Promise<string>;
 }

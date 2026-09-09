@@ -72,7 +72,72 @@ async fn copy_image_to_clipboard(path: String) -> Result<(), String> {
     .await
     .map_err(|e| format!("clipboard task failed: {e}"))?
 }
+/// 从系统剪贴板读取图片数据，写入应用数据目录的 clipboard/ 子目录。
+/// 返回写入后的本地文件绝对路径。
+/// 比前端 HTML5 ClipboardEvent 方案更可靠：
+/// 1. 直接读取 Windows CF_DIB/CF_BITMAP，不经过 WebView 层
+/// 2. 文件写入应用数据目录而非系统 Temp，避免路径不可控
+/// 3. 支持任意图片格式（由 image crate 自动探测）
+#[tauri::command]
+async fn read_clipboard_image(state: tauri::State<'_, tdlib::AppState>) -> Result<String, String> {
+    let data_dir = state.data_dir.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+        let img_data = clipboard
+            .get_image()
+            .map_err(|e| format!("no image in clipboard: {e}"))?;
 
+        let rgba = image::RgbaImage::from_raw(
+            img_data.width as u32,
+            img_data.height as u32,
+            img_data.bytes.into(),
+        )
+        .ok_or_else(|| "failed to construct image from clipboard data".to_string())?;
+
+        let clip_dir = data_dir.join("clipboard");
+        std::fs::create_dir_all(&clip_dir)
+            .map_err(|e| format!("create clipboard dir failed: {e}"))?;
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|e| e.to_string())?;
+        let ts = now.as_secs();
+        let millis = now.subsec_millis();
+
+        // 编码为 PNG（原始 RGBA 字节不是有效图片文件）
+        let dyn_img = image::DynamicImage::ImageRgba8(rgba);
+        let mut png_buf: Vec<u8> = Vec::new();
+        dyn_img
+            .write_to(
+                &mut std::io::Cursor::new(&mut png_buf),
+                image::ImageFormat::Png,
+            )
+            .map_err(|e| format!("encode png failed: {e}"))?;
+
+        let mut path;
+        let mut n: u32 = 0;
+        loop {
+            let name = if n == 0 {
+                format!("image_{}_{:03}.png", ts, millis)
+            } else {
+                format!("image_{}_{:03}_{}.png", ts, millis, n)
+            };
+            path = clip_dir.join(&name);
+            match std::fs::write(&path, &png_buf) {
+                Ok(()) => break,
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                    n += 1;
+                    continue;
+                }
+                Err(e) => return Err(format!("write clipboard image failed: {e}")),
+            }
+        }
+
+        Ok(path.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| format!("clipboard read task failed: {e}"))?
+}
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -190,6 +255,7 @@ pub fn run() {
             set_window_effect,
             open_with_dialog,
             copy_image_to_clipboard,
+            read_clipboard_image,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

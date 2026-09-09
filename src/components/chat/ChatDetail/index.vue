@@ -6,7 +6,7 @@
         <!-- ===== Messages Area (底层，穿透 header/footer) ===== -->
         <!-- Skeleton -->
         <div v-if="showSkeleton"
-            class="absolute inset-0 overflow-y-auto px-4 custom-scrollbar flex flex-col messages-scroll"
+            class="absolute inset-0 z-10 overflow-y-auto px-4 custom-scrollbar flex flex-col messages-scroll"
             :class="topPaddingClass">
             <div class="flex-1"></div>
             <div v-for="n in 8" :key="n" class="flex mb-4" :class="n % 3 === 0 ? 'justify-end' : 'justify-start'">
@@ -20,7 +20,7 @@
 
         <!-- Messages -->
         <div v-else ref="messagesContainer"
-            class="absolute inset-0 overflow-y-auto px-4 custom-scrollbar flex flex-col messages-scroll pb-15"
+            class="absolute inset-0 z-10 overflow-y-auto px-4 custom-scrollbar flex flex-col messages-scroll pb-15"
             :class="topPaddingClass" :style="messagesStyle" @scroll.passive="onScroll">
 
             <!-- 顶部加载更多指示器 -->
@@ -409,7 +409,7 @@
 
         <!-- ===== Input Area（顶层，磨砂玻璃） ===== -->
         <div v-if="canSend" ref="inputAnchorEl"
-            class="absolute bottom-0 left-0 right-0 z-10 dark:from-gray-900/80 via-white/60 dark:via-gray-900/60 to-transparent">
+            class="absolute bottom-0 left-0 right-0 z-10 dark:from-gray-900/80 dark:via-gray-900/60 to-transparent">
             <div aria-hidden="true"
                 class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
             </div>
