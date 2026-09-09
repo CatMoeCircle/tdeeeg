@@ -1,6 +1,9 @@
 <template>
     <div class="h-full flex flex-col bg-white dark:bg-gray-900">
-        <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3">
+            <button type="button" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" @click="goBack">
+                <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
+            </button>
             <h2 class="text-lg font-semibold">外观设置</h2>
         </div>
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
@@ -450,10 +453,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, type Component } from 'vue';
+import { useRouter } from 'vue-router';
 import {
     MessageCircleIcon, UserIcon, UsersIcon, MegaphoneIcon,
     Languages as LanguageIcon, MessageSquareText as MessageSquareTextIcon,
-    ChevronRight as ChevronRightIcon, Wallpaper as WallpaperIcon,
+    ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Wallpaper as WallpaperIcon,
 } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
 import { settings } from '../../store/settings';
@@ -464,6 +468,13 @@ import GlobalEmojiText from '../../components/common/GlobalEmojiText.vue';
 import EditableNumber from '../../components/settings/EditableNumber.vue';
 import LoaderIndicator from '../../components/common/LoaderIndicator';
 import SlidingTabBar from '../../components/common/SlidingTabBar.vue';
+
+const router = useRouter();
+
+/** 返回设置列表 */
+function goBack() {
+    router.push('/home/settings');
+}
 
 /** 消息显示/贴纸设置默认值（用于显示“(默认)”标记，与 settings.ts 默认值一致） */
 const DEFAULT_MESSAGE = { cornerRadius: 18, fontSize: 14, stickerSize: 160 };

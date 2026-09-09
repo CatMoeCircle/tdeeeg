@@ -93,14 +93,14 @@
                         暂无已保存壁纸</div>
                     <div v-else class="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-3"><button
                             v-for="background in backgrounds" :key="background.id" type="button"
-                            class="relative aspect-[4/3] overflow-hidden rounded-xl border bg-gray-100 dark:bg-gray-800 transition-colors"
+                            class="relative aspect-4/3 overflow-hidden rounded-xl border bg-gray-100 dark:bg-gray-800 transition-colors"
                             :class="selectedKey === `remote:${background.id}` ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900' : 'border-gray-200 dark:border-gray-700 hover:border-blue-300'"
                             @click="setRemote(background)"><img
                                 v-if="coverSources[background.id] || thumbnailSources[background.id]"
                                 :src="coverSources[background.id] || thumbnailSources[background.id]" alt=""
                                 class="absolute inset-0 h-full w-full object-cover" />
                             <div v-else class="absolute inset-0" :style="backgroundPreviewStyle(background)"></div>
-                            <div class="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent"></div>
+                            <div class="absolute inset-0 bg-linear-to-t from-black/25 to-transparent"></div>
                         </button></div>
                     <p v-if="error" class="mt-3 text-xs text-red-500">{{ error }}</p>
                 </section>

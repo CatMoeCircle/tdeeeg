@@ -1,6 +1,9 @@
 <template>
     <div class="h-full flex flex-col bg-white dark:bg-gray-900">
-        <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3">
+            <button type="button" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" @click="goBack">
+                <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
+            </button>
             <h2 class="text-lg font-semibold">代理设置</h2>
         </div>
 
@@ -357,8 +360,9 @@
 import { computed, reactive, ref, onMounted, onActivated } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { MessagePlugin } from "tdesign-vue-next";
+import { useRouter } from 'vue-router';
 import {
-    BanIcon, MonitorIcon, ServerIcon, TrashIcon, RefreshCwIcon, PlusIcon, XIcon, PlayIcon, Share2Icon, CheckIcon, SmartphoneIcon, ActivityIcon,
+    BanIcon, ChevronLeft as ChevronLeftIcon, MonitorIcon, ServerIcon, TrashIcon, RefreshCwIcon, PlusIcon, XIcon, PlayIcon, Share2Icon, CheckIcon, SmartphoneIcon, ActivityIcon,
 } from "lucide-vue-next";
 import { settings } from "../../store/settings";
 import { pingProxyOf } from "../../store/proxyLink";
@@ -374,6 +378,13 @@ import {
     proxyShareLink,
 } from "../../store/proxyList";
 import type { addedProxy } from "tdlib-types";
+
+const router = useRouter();
+
+/** 返回设置列表 */
+function goBack() {
+    router.push('/home/settings');
+}
 
 const proxyTypes = [
     { value: "http", label: "HTTP" },

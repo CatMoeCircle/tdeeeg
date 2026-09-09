@@ -1,6 +1,9 @@
 <template>
     <div class="h-full flex flex-col bg-white dark:bg-gray-900">
-        <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3">
+            <button type="button" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" @click="goBack">
+                <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
+            </button>
             <h2 class="text-lg font-semibold">数据和存储</h2>
         </div>
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
@@ -208,16 +211,24 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { MessagePlugin } from 'tdesign-vue-next';
-import { AppWindowIcon, FolderOpenIcon, FolderSyncIcon } from 'lucide-vue-next';
+import { AppWindowIcon, ChevronLeft as ChevronLeftIcon, FolderOpenIcon, FolderSyncIcon } from 'lucide-vue-next';
 import { settings } from '../../store/settings';
 import type { AutoDownloadByType } from '../../store/settings';
 import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
 import CollapsibleSection from '../../components/settings/CollapsibleSection.vue';
 import ChatTypeToggle from '../../components/settings/ChatTypeToggle.vue';
 import EditableNumber from '../../components/settings/EditableNumber.vue';
+
+const router = useRouter();
+
+/** 返回设置列表 */
+function goBack() {
+    router.push('/home/settings');
+}
 
 interface DataLocationInfo {
     mode: string;
