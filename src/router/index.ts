@@ -69,6 +69,11 @@ const router = createRouter({
           component: () => import("../views/settings/AppearanceSettings.vue"),
         },
         {
+          path: "settings/wallpaper",
+          name: "settings-wallpaper",
+          component: () => import("../views/settings/WallpaperSettings.vue"),
+        },
+        {
           path: "settings/download",
           name: "settings-download",
           component: () => import("../views/settings/DownloadSettings.vue"),

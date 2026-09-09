@@ -29,7 +29,21 @@ export interface AutoDownloadFilesConfig extends AutoDownloadByType {
   maxSize: number;
 }
 
+export interface ChatWallpaperVisual {
+  kind: "color" | "image";
+  color?: string;
+  path?: string;
+}
+
 interface Settings {
+  /** 默认对话壁纸的本地渲染信息；聊天专属背景由 TDLib Chat.background 覆盖 */
+  chatWallpaper: ChatWallpaperVisual | null;
+  /** 是否将默认壁纸扩展到 HomeView 右侧整个内容区域 */
+  chatWallpaperFullScreen: boolean;
+  /** 默认壁纸上方的白色叠加透明度（0-100） */
+  chatWallpaperOverlayOpacity: number;
+  /** 默认图片壁纸的模糊半径（0-24px） */
+  chatWallpaperBlur: number;
   folderStyle: "tabs" | "pills" | "text";
   /** 加载指示器样式（ldrs loader 名，ring2 为默认） */
   loadingStyle: "ring2" | "squircle" | "square" | "reuleaux" | "infinity" | "trefoil";
@@ -140,6 +154,10 @@ interface Settings {
 }
 
 const defaultSettings: Settings = {
+  chatWallpaper: null,
+  chatWallpaperFullScreen: false,
+  chatWallpaperOverlayOpacity: 0,
+  chatWallpaperBlur: 0,
   folderStyle: "tabs",
   loadingStyle: "ring2",
   showFolderUnread: true,

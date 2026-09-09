@@ -80,7 +80,7 @@ const uploadStore = useUploadStore();
 const accountMenuOpen = ref(false);
 const route = useRoute();
 const isChatNavActive = computed(() => route.name === 'chats' || route.name === 'chat-detail' || route.name === 'chat-topic-detail');
-const isSettingsNavActive = computed(() => route.name === 'settings' || route.name === 'settings-appearance' || route.name === 'settings-download' || route.name === 'settings-proxy' || route.name === 'settings-debug' || route.name === 'settings-system' || route.name === 'settings-edit-profile' || route.name === 'settings-privacy' || route.name === 'settings-devices');
+const isSettingsNavActive = computed(() => route.name === 'settings' || route.name === 'settings-appearance' || route.name === 'settings-wallpaper' || route.name === 'settings-download' || route.name === 'settings-proxy' || route.name === 'settings-debug' || route.name === 'settings-system' || route.name === 'settings-edit-profile' || route.name === 'settings-privacy' || route.name === 'settings-devices');
 
 onMounted(() => {
     if (!userProfile.value) {

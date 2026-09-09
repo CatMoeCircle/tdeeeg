@@ -5,6 +5,26 @@
         </div>
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
             <div class="max-w-2xl">
+                <section class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">对话壁纸
+                        </h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2">管理没有单独设置背景的对话所使用的默认壁纸。</p>
+                    <router-link to="/home/settings/wallpaper"
+                        class="mt-5 flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                        <div
+                            class="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center">
+                            <WallpaperIcon class="w-5 h-5" />
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">对话壁纸</p>
+                            <p class="mt-0.5 text-xs text-gray-400">纯色、图案和已安装的图片壁纸</p>
+                        </div>
+                        <ChevronRightIcon class="w-4 h-4 text-gray-400" />
+                    </router-link>
+                </section>
                 <!-- 消息显示设置 -->
                 <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
                     <div class="flex items-center gap-3 mb-1">
@@ -29,7 +49,9 @@
                                 </div>
                                 <div class="max-w-[70%] bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 px-3 py-2 shadow-sm"
                                     :style="previewBubbleStyle('in', true)">
-                                    <p class="font-semibold text-xs mb-0.5 text-blue-500"><GlobalEmojiText :text="userName" /></p>
+                                    <p class="font-semibold text-xs mb-0.5 text-blue-500">
+                                        <GlobalEmojiText :text="userName" />
+                                    </p>
                                     <p class="whitespace-pre-wrap" :style="previewTextStyle">这是他人发来的一条消息预览</p>
                                 </div>
                             </div>
@@ -234,7 +256,9 @@
                                                 <component :is="tab.icon" class="w-3.5 h-3.5 shrink-0" />
                                             </span>
                                         </span>
-                                        <span><GlobalEmojiText :text="tab.name" /></span>
+                                        <span>
+                                            <GlobalEmojiText :text="tab.name" />
+                                        </span>
                                         <!-- 未读计数器：激活分组旁显示（宽度+透明度平滑过渡） -->
                                         <span class="folder-col folder-col-left"
                                             :class="{ open: settings.showFolderUnread && active }">
@@ -429,6 +453,7 @@ import { ref, computed, onMounted, type Component } from 'vue';
 import {
     MessageCircleIcon, UserIcon, UsersIcon, MegaphoneIcon,
     Languages as LanguageIcon, MessageSquareText as MessageSquareTextIcon,
+    ChevronRight as ChevronRightIcon, Wallpaper as WallpaperIcon,
 } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
 import { settings } from '../../store/settings';

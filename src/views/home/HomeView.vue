@@ -1,8 +1,14 @@
 <template>
     <div class="flex h-full w-full bg-white/40 overflow-hidden dark:bg-black text-gray-900 dark:text-gray-100">
         <SideNavBar />
-        <div class="flex-1 min-w-0 bg-white rounded-tl-xl relative">
-            <ResizableLayout>
+        <div class="flex-1 min-w-0 bg-white rounded-tl-xl relative overflow-hidden" :style="homeBackgroundStyle">
+            <div v-if="settings.chatWallpaperFullScreen && settings.chatWallpaper"
+                class="absolute inset-0 pointer-events-none overflow-hidden">
+                <div class="absolute inset-0" :style="homeWallpaperLayerStyle"></div>
+                <div class="absolute inset-0 bg-white" :style="{ opacity: settings.chatWallpaperOverlayOpacity / 100 }">
+                </div>
+            </div>
+            <ResizableLayout class="relative z-10">
                 <template #sidebar>
                     <ChatList v-if="sidebarShowsChats" :is-archive="isArchiveSection" />
                     <ContactList v-else-if="sidebarShowsContacts" />
@@ -52,11 +58,42 @@ import AudioPlayerCore from '../../components/audio/AudioPlayerCore.vue';
 import MusicPlayerOverlay from '../../components/audio/MusicPlayerOverlay.vue';
 import UsernameMenu from '../../components/contextMenu/UsernameMenu.vue';
 import DownloadsModule from '../../components/downloads/DownloadsModule.vue';
+import { convertFileSrc } from '@tauri-apps/api/core';
+import { settings } from '../../store/settings';
 
 const route = useRoute();
+const homeBackgroundStyle = computed(() => {
+    if (!settings.chatWallpaperFullScreen || !settings.chatWallpaper) return {};
+    const visual = settings.chatWallpaper;
+    if (visual.kind === 'image' && visual.path) {
+        return {
+            backgroundColor: '#f5f5f5',
+            backgroundImage: `url("${convertFileSrc(visual.path)}")`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+        };
+    }
+    return { backgroundColor: visual.color || '#f5f5f5' };
+});
+const homeWallpaperLayerStyle = computed(() => {
+    const visual = settings.chatWallpaper;
+    if (!visual) return {};
+    const style: Record<string, string> = {
+        backgroundColor: visual.color || '#f5f5f5',
+        filter: `blur(${settings.chatWallpaperBlur}px)`,
+        transform: settings.chatWallpaperBlur > 0 ? 'scale(1.05)' : 'none',
+    };
+    if (visual.kind === 'image' && visual.path) {
+        style.backgroundImage = `url("${convertFileSrc(visual.path)}")`;
+        style.backgroundSize = 'cover';
+        style.backgroundPosition = 'center';
+    }
+    return style;
+});
 const isContacts = computed(() => route.name === 'contacts');
 const isSettings = computed(() => route.name === 'settings'
     || route.name === 'settings-appearance'
+    || route.name === 'settings-wallpaper'
     || route.name === 'settings-download'
     || route.name === 'settings-proxy'
     || route.name === 'settings-debug'
@@ -65,6 +102,7 @@ const isSettings = computed(() => route.name === 'settings'
     || route.name === 'settings-privacy'
     || route.name === 'settings-devices');
 const isSettingsDetail = computed(() => route.name === 'settings-appearance'
+    || route.name === 'settings-wallpaper'
     || route.name === 'settings-download'
     || route.name === 'settings-proxy'
     || route.name === 'settings-debug'
@@ -119,7 +157,7 @@ watch(
         }
 
         // 点击设置二级内容时，关闭当前聊天并显示对应设置页面。
-        if (name === 'settings-appearance' || name === 'settings-download' || name === 'settings-proxy' || name === 'settings-debug' || name === 'settings-system' || name === 'settings-edit-profile' || name === 'settings-privacy' || name === 'settings-devices') {
+        if (name === 'settings-appearance' || name === 'settings-wallpaper' || name === 'settings-download' || name === 'settings-proxy' || name === 'settings-debug' || name === 'settings-system' || name === 'settings-edit-profile' || name === 'settings-privacy' || name === 'settings-devices') {
             closeActiveChat();
             return;
         }
@@ -130,7 +168,7 @@ watch(
             closeActiveChat();
             const prev = previous?.[0];
             if (prev === 'contacts') profileFromSection.value = 'contacts';
-            else if (prev === 'settings' || prev === 'settings-appearance' || prev === 'settings-download' || prev === 'settings-proxy' || prev === 'settings-debug' || prev === 'settings-system') profileFromSection.value = 'settings';
+            else if (prev === 'settings' || prev === 'settings-appearance' || prev === 'settings-wallpaper' || prev === 'settings-download' || prev === 'settings-proxy' || prev === 'settings-debug' || prev === 'settings-system') profileFromSection.value = 'settings';
             else profileFromSection.value = 'chats';
             return;
         }

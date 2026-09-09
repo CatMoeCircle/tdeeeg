@@ -1,5 +1,8 @@
 <template>
-    <div class="h-full relative bg-[#f5f5f5] dark:bg-[#1c1c1c] overflow-hidden">
+    <div class="h-full relative overflow-hidden chat-wallpaper-root" :style="chatBackgroundStyle">
+        <div class="absolute inset-0 pointer-events-none chat-wallpaper-layer" :style="chatWallpaperLayerStyle"></div>
+        <div class="absolute inset-0 pointer-events-none bg-white chat-wallpaper-overlay"
+            :style="{ opacity: settings.chatWallpaperOverlayOpacity / 100 }"></div>
         <!-- ===== Messages Area (底层，穿透 header/footer) ===== -->
         <!-- Skeleton -->
         <div v-if="showSkeleton"
@@ -289,10 +292,6 @@
                 <div class="shrink-0 h-4"></div>
             </div>
         </div>
-        <!-- ===== 底部渐变淡出遮罩 ===== -->
-        <div aria-hidden="true"
-            class="absolute bottom-0 left-0 right-0 h-24 z-3 pointer-events-none bg-linear-to-t from-[#f5f5f5] dark:from-[#1c1c1c] via-[#f5f5f5]/60 dark:via-[#1c1c1c]/60 to-transparent">
-        </div>
         <!-- ===== Header（顶层，磨砂玻璃） ===== -->
         <div
             class="absolute top-0 left-0 right-0 z-10 bg-white/80 dark:bg-[#1c1c1c]/70 backdrop-blur-lg border-b border-gray-200/60 dark:border-gray-800/60">
@@ -410,7 +409,7 @@
 
         <!-- ===== Input Area（顶层，磨砂玻璃） ===== -->
         <div v-if="canSend" ref="inputAnchorEl"
-            class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-white/80 dark:from-gray-900/80 via-white/60 dark:via-gray-900/60 to-transparent">
+            class="absolute bottom-0 left-0 right-0 z-10 dark:from-gray-900/80 via-white/60 dark:via-gray-900/60 to-transparent">
             <div aria-hidden="true"
                 class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
             </div>
@@ -422,7 +421,7 @@
                     <div class="min-w-0 flex-1">
                         <p class="text-xs font-semibold text-orange-500">{{ editTargetInfo.label }}</p>
                         <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ editTargetInfo.text || '（无文本内容）'
-                            }}</p>
+                        }}</p>
                     </div>
                     <button type="button" aria-label="取消编辑"
                         class="w-6 h-6 shrink-0 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400"
@@ -561,7 +560,8 @@ import { listen } from "@tauri-apps/api/event";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { copyFile } from "@tauri-apps/plugin-fs";
 import { save } from "@tauri-apps/plugin-dialog";
-import { settings } from '../../../store/settings';
+import { settings, type ChatWallpaperVisual } from '../../../store/settings';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { showCopyJsonInMenus } from '../../../store/debug';
 import { useCommandInsert, clearPendingCommand } from '../../../store/commandInsert';
 import { useHashtagSearch, clearPendingHashtag } from '../../../store/hashtagSearch';
@@ -814,6 +814,34 @@ function openInNewChat() {
 
 // ==================== State ====================
 const chat = ref<chat | undefined>(undefined);
+const chatBackgroundStyle = computed(() => {
+    const visual = chatBackgroundVisual.value;
+    return { backgroundColor: visual?.color || '#f5f5f5' };
+});
+const chatBackgroundVisual = computed<ChatWallpaperVisual | null>(() => {
+    const background = chat.value?.background?.background;
+    return background
+        ? background.type._ === 'backgroundTypeFill' && background.type.fill._ === 'backgroundFillSolid'
+            ? { kind: 'color', color: `#${(background.type.fill.color & 0xffffff).toString(16).padStart(6, '0')}` }
+            : background.document?.thumbnail?.file.local.path
+                ? { kind: 'image', path: background.document.thumbnail.file.local.path }
+                : settings.chatWallpaper
+        : settings.chatWallpaper;
+});
+const chatWallpaperLayerStyle = computed(() => {
+    const visual = chatBackgroundVisual.value;
+    const style: Record<string, string> = {
+        backgroundColor: visual?.color || '#f5f5f5',
+        filter: `blur(${settings.chatWallpaperBlur}px)`,
+        transform: settings.chatWallpaperBlur > 0 ? 'scale(1.05)' : 'none',
+    };
+    if (visual?.kind === 'image' && visual.path) {
+        style.backgroundImage = `url("${convertFileSrc(visual.path)}")`;
+        style.backgroundSize = 'cover';
+        style.backgroundPosition = 'center';
+    }
+    return style;
+});
 /** 叠层对话信息面板显示的对话标题（已注销账户对话显示「已注销账户」） */
 const overlayChatTitle = computed(() => {
     if (!chat.value) return '';
@@ -4022,6 +4050,11 @@ const handleScrollToBottom = async () => {
 };
 </script>
 <style scoped>
+.chat-wallpaper-layer,
+.chat-wallpaper-overlay {
+    z-index: 0;
+}
+
 /* 新消息淡入上弹动画 */
 @keyframes message-pop-in {
     from {

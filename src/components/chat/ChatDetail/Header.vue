@@ -32,13 +32,16 @@
                 <Avatar v-else :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" :square="isForumChat"
                     :accentColorId="headerAccentColorId" :deletedAccount="isDeletedChat(props.chat as any)" />
                 <div class="flex flex-col min-w-0">
-                    <h2 class="flex font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight truncate"><GlobalEmojiText :text="headerTitle" /><span v-if="verificationState" class="text-blue-500 ml-1 shrink-0">
+                    <h2 class="flex font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight truncate">
+                        <GlobalEmojiText :text="headerTitle" /><span v-if="verificationState"
+                            class="text-blue-500 ml-1 shrink-0">
                             <component :is="verificationState" />
                         </span>
                     </h2>
                     <span class="text-xs text-gray-400 truncate">
                         <template v-if="isTopicMode">
-                            在 <GlobalEmojiText :text="props.chat?.title || ''" />
+                            在
+                            <GlobalEmojiText :text="props.chat?.title || ''" />
                         </template>
                         <template v-else-if="showConnectionStatus">
                             {{ displayStatus }}<span class="animated-dots"><span class="dot-1">.</span><span
