@@ -1,8 +1,8 @@
 <!-- 侧边栏 -->
 <template>
-    <div class="w-14 h-full dark:bg-gray-900 flex flex-col items-center py-4 dark:border-gray-800 pt-1">
-        <!-- Avatar / Profile -->
-        <div class="mb-5 ">
+    <div class="w-14 h-full dark:bg-gray-900 flex flex-col items-center py-4 dark:border-gray-800 pt-3">
+        <!-- Avatar / Profile：titlebar 模式下隐藏（已移至标题栏） -->
+        <div v-if="!isTitlebarMode" class="mb-5 ">
             <button type="button" class="block" title="账户" @click="accountMenuOpen = true">
                 <div v-if="userProfile" class="w-10 h-10">
                     <Avatar :photo="userProfile.profile_photo"
@@ -69,6 +69,8 @@ import { useDownloadStore } from '../../store/downloads';
 import { useUploadStore } from '../../store/upload';
 import { storeToRefs } from 'pinia';
 import { settings } from '../../store/settings';
+
+const isTitlebarMode = computed(() => settings.chatHeaderAvatarPosition === 'titlebar');
 
 const buttonStyle = 'w-10 h-10 flex items-center justify-center text-gray-500 transition-colors relative rounded-lg hover:bg-white/60 hover:shadow-sm';
 const iconStyle = 'w-5 h-5';

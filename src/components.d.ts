@@ -101,6 +101,7 @@ declare module 'vue' {
     StickerSetItem: typeof import('./components/chat/ChatDetail/stickerPanel/StickerSetItem.vue')['default']
     TButton: typeof import('tdesign-vue-next')['Button']
     TitleBar: typeof import('./components/TitleBar.vue')['default']
+    TitleBarEmojiStatus: typeof import('./components/common/TitleBarEmojiStatus.vue')['default']
     ToggleSwitch: typeof import('./components/settings/ToggleSwitch.vue')['default']
     TOption: typeof import('tdesign-vue-next')['Option']
     TranslateMessageModal: typeof import('./components/contextMenu/TranslateMessageModal.vue')['default']

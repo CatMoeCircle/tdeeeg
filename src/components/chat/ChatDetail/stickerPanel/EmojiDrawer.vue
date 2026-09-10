@@ -1,7 +1,7 @@
 <template>
     <div class="sp-emoji-drawer flex h-full flex-col">
         <!-- 顶部：搜索框 -->
-        <div class="sp-search px-3 pt-2 pb-1">
+        <div v-if="!showDefaultEmojiStatus" class="sp-search px-3 pt-2 pb-1">
             <div class="flex items-center gap-2 rounded-lg bg-black/5 dark:bg-white/10 px-3 py-1.5">
                 <SearchIcon class="w-4 h-4 text-gray-400 shrink-0" />
                 <input v-model="query" type="text" placeholder="搜索表情"
@@ -25,7 +25,7 @@
             </button>
 
             <!-- 本地胶囊（可展开/收缩） -->
-            <div class="sp-emoji-cats flex items-center gap-0.5 rounded-full px-1 py-0.5">
+            <div v-if="!showDefaultEmojiStatus" class="sp-emoji-cats flex items-center gap-0.5 rounded-full px-1 py-0.5">
                 <!-- 折叠态：未聚焦本地 emoji 时，只显示代表图标 -->
                 <template v-if="!isLocalActive">
                     <button type="button"
@@ -44,6 +44,14 @@
                     </button>
                 </template>
             </div>
+
+            <!-- 升级礼物典藏品 -->
+            <button v-if="giftEmojiIds.length > 0" type="button"
+                class="sp-cat-pill shrink-0 w-8 h-8 flex items-center justify-center transition-colors"
+                :class="activeBlock === 'gift_status' ? 'bg-blue-500/15' : 'text-gray-500 hover:bg-black/5 dark:hover:bg-white/10'"
+                @click="scrollToBlock('gift_status')" title="典藏品">
+                <span class="tgico tgico-collectible text-[20px]" />
+            </button>
 
             <!-- 自定义 emoji 包（自己的） -->
             <button v-for="set in installedSets" :key="`custom_${set.id}`" type="button"
@@ -87,18 +95,27 @@
                 <div class="sp-emoji-section" data-emoji-block="recent">
                     <p class="sp-emoji-block-title">最近</p>
                     <div class="sp-emoji-shelf">
-                        <button v-for="em in recentEmoji" :key="em"
+                        <button v-if="showDefaultEmojiStatus" type="button"
+                            class="sp-emoji-cell flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 w-full aspect-square"
+                            title="默认会员徽章" @click="emit('pickDefaultStatus')">
+                            <span class="tgico tgico-emoji-status text-[28px]" />
+                        </button>
+                        <template v-if="showDefaultEmojiStatus">
+                            <StickerMediaItem v-for="s in recentStatusStickers" :key="s.id" :item="s" kind="sticker"
+                                :size="26" :skin-tone="skinTone" @pick="onPickCustom" />
+                        </template>
+                        <button v-else v-for="em in recentEmoji" :key="em"
                             class="sp-emoji-cell flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 w-full aspect-square"
                             @click="onPickLocal(em)">
                             <span :style="{ fontSize: '28px', lineHeight: '1' }">{{ em }}</span>
                         </button>
-                        <div v-if="recentEmoji.length === 0"
+                        <div v-if="(showDefaultEmojiStatus ? recentStatusStickers.length : recentEmoji.length) === 0"
                             class="text-center text-sm text-gray-400 py-6 col-span-full">
                             还没有最近使用
                         </div>
                     </div>
                     <!-- 最近自定义 emoji -->
-                    <div v-if="recentCustomStickers.length > 0" class="mt-1">
+                    <div v-if="!showDefaultEmojiStatus && recentCustomStickers.length > 0" class="mt-1">
                         <p class="sp-emoji-block-title">最近动态表情</p>
                         <div class="flex flex-wrap gap-0.5">
                             <StickerMediaItem v-for="s in recentCustomStickers" :key="s.id" :item="s" kind="sticker"
@@ -108,7 +125,7 @@
                 </div>
 
                 <!-- 8 大分类：完整展开（标题为纯文字，不显示图标） -->
-                <div v-for="cat in categories" :key="cat.id" class="sp-emoji-section" :data-emoji-block="cat.id">
+                <div v-if="!showDefaultEmojiStatus" v-for="cat in categories" :key="cat.id" class="sp-emoji-section" :data-emoji-block="cat.id">
                     <p class="sp-emoji-block-title">{{ cat.name }}</p>
                     <div class="sp-emoji-shelf">
                         <button v-for="it in cat.items" :key="it.emoji"
@@ -116,6 +133,15 @@
                             @click="it.fitzpatrick ? openSkinTone(it.emoji) : onPickLocal(it.emoji)">
                             <span :style="{ fontSize: '28px', lineHeight: '1' }">{{ it.emoji }}</span>
                         </button>
+                    </div>
+                </div>
+
+                <!-- 升级礼物状态（典藏品） -->
+                <div v-if="giftEmojiIds.length > 0" class="sp-emoji-section" data-emoji-block="gift_status">
+                    <p class="sp-emoji-block-title">典藏品</p>
+                    <div class="sp-emoji-shelf">
+                        <StickerMediaItem v-for="s in giftStickers" :key="s.id" :item="s" kind="sticker"
+                            :size="26" :skin-tone="skinTone" @pick="onPickCustom" />
                     </div>
                 </div>
 
@@ -198,7 +224,7 @@ import { useLocalEmojiPrefs } from './composables/useLocalEmojiPrefs';
 import { onVisibleOnce, unobserve, setProgrammaticScroll, beginUserScroll, endUserScroll } from './composables/useStickerVisibility';
 import { stickerPanelState } from './types';
 import { tdlibSend } from '../../../../utils/tdlib';
-import type { sticker, animation, stickerSetInfo } from 'tdlib-types';
+import type { sticker, animation, stickerSetInfo, emojiStatus } from 'tdlib-types';
 
 /** Fitzpatrick 肤色选项 */
 const SKIN_TONES = [
@@ -212,11 +238,15 @@ const SKIN_TONES = [
 
 const props = defineProps<{
     isPremium?: boolean;
+    emojiStatusGiftStatuses?: emojiStatus[];
+    emojiStatusRecentStatuses?: emojiStatus[];
+    showDefaultEmojiStatus?: boolean;
 }>();
 
 const emit = defineEmits<{
     (e: 'pickEmoji', emoji: string): void;
     (e: 'pickCustomEmoji', id: string): void;
+    (e: 'pickDefaultStatus'): void;
 }>();
 
 /** Fitzpatrick 修饰符（U+1F3FB ~ U+1F3FF）对应 type 1..6 */
@@ -257,6 +287,18 @@ const skinToneTarget = computed(() => picker.skinToneTarget.value);
 /** 顶层解包，便于模板自动解包 */
 const recentEmoji = picker.prefs.recentEmoji;
 const skinTone = picker.prefs.skinTone;
+const giftEmojiIds = computed(() => (props.emojiStatusGiftStatuses ?? [])
+    .map((status: any) => status.type?._ === 'emojiStatusTypeUpgradedGift'
+        ? String(status.type.model_custom_emoji_id) : '')
+    .filter(Boolean));
+const giftStickers = ref<sticker[]>([]);
+const recentStatusStickers = ref<sticker[]>([]);
+const recentStatusEmojiIds = computed(() => (props.emojiStatusRecentStatuses ?? [])
+    .map((status: any) => status.type?._ === 'emojiStatusTypeCustomEmoji'
+        ? String(status.type.custom_emoji_id)
+        : status.type?._ === 'emojiStatusTypeUpgradedGift'
+            ? String(status.type.model_custom_emoji_id) : '')
+    .filter(Boolean));
 
 /** 自定义 emoji 包数据（已安装「自己的」+ 热门「推荐」） */
 const customData = picker.customData;
@@ -410,9 +452,35 @@ function previewMore(set: stickerSetInfo): number {
     return Math.max(0, (set.size ?? 0) - TRENDING_PREVIEW_COUNT);
 }
 
+async function loadGiftStickers(ids: string[]) {
+    if (ids.length === 0) {
+        giftStickers.value = [];
+        return;
+    }
+    giftStickers.value = await customData.resolveCustomEmojis(ids);
+}
+
+async function loadRecentStatusStickers(ids: string[]) {
+    if (ids.length === 0) {
+        recentStatusStickers.value = [];
+        return;
+    }
+    recentStatusStickers.value = await customData.resolveCustomEmojis(ids);
+}
+
 onMounted(() => {
     picker.activate();
+    void loadGiftStickers(giftEmojiIds.value);
+    void loadRecentStatusStickers(recentStatusEmojiIds.value);
 });
+
+watch(giftEmojiIds, (ids) => {
+    void loadGiftStickers(ids);
+}, { deep: true });
+
+watch(recentStatusEmojiIds, (ids) => {
+    void loadRecentStatusStickers(ids);
+}, { deep: true });
 
 // ─── 已安装自定义包「滚动进入可视区」懒加载（与贴纸抽屉 StickerGroupSection 一致）───
 // 打开面板时 useEmojiPicker.activate 只 loadSet 首个包，其余包在对应区块
@@ -524,6 +592,15 @@ defineExpose({ activate: picker.activate, deactivate: picker.deactivate });
 </script>
 
 <style scoped>
+.tgico-collectible::before {
+    content: "\e9ef";
+}
+
+.tgico-emoji-status::before {
+    content: "\ea2a";
+    color: #FF5288C1;
+}
+
 .sp-emoji-drawer {
     height: 100%;
 }

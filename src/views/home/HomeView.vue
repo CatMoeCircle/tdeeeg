@@ -1,7 +1,8 @@
 <template>
     <div class="flex h-full w-full bg-white/40 overflow-hidden dark:bg-black text-gray-900 dark:text-gray-100">
         <SideNavBar />
-        <div class="flex-1 min-w-0 bg-white rounded-tl-xl relative overflow-hidden" :style="homeBackgroundStyle">
+        <div class="flex-1 min-w-0 bg-white rounded-tl-xl rounded-sm relative overflow-hidden m-1"
+            :style="homeBackgroundStyle">
             <div v-if="settings.chatWallpaperFullScreen && settings.chatWallpaper"
                 class="absolute inset-0 pointer-events-none overflow-hidden">
                 <div class="absolute inset-0" :style="homeWallpaperLayerStyle"></div>

@@ -86,10 +86,21 @@ function updateIndicator() {
     };
 }
 
-/** 将激活标签滚动进可视区（横向） */
+/** 将激活标签横向滚入本容器可视区。
+ *  不用 scrollIntoView：它会连带滚动所有可滚动祖先，把外层纵向列表/设置页一起拖走。 */
 function scrollActiveIntoView() {
     const el = tabRefs.value?.find(t => t.dataset.tabId === props.activeId);
-    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    const cont = container.value;
+    if (!el || !cont) return;
+    const elLeft = el.offsetLeft;
+    const elRight = elLeft + el.offsetWidth;
+    const viewLeft = cont.scrollLeft;
+    const viewRight = viewLeft + cont.clientWidth;
+    if (elLeft < viewLeft) {
+        cont.scrollLeft = elLeft;
+    } else if (elRight > viewRight) {
+        cont.scrollLeft = elRight - cont.clientWidth;
+    }
 }
 
 /** 点击标签 */

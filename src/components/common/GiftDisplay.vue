@@ -202,10 +202,7 @@ const isPinned = computed(() => props.gift.is_pinned);
 const badgeText = computed(() => {
     const g = upgradedData.value;
     if (!g) return '';
-    if (g.max_upgraded_count > 0) {
-        return `#${g.number}`;
-    }
-    return '';
+    return `#${g.number}`;
 });
 
 const badgeStyle = computed(() => {
@@ -349,19 +346,15 @@ watch(() => props.showSenderAvatar, async (show) => {
 }
 
 .gift-badge-text {
-    display: block;
     color: #fff;
     font-size: 10px;
     font-weight: 600;
     position: absolute;
-    right: 0;
-    top: 0;
-    width: 58px;
-    height: 58px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transform: matrix(0.707107, 0.707107, -0.707107, 0.707107, 3.53553, 17.6777);
+    /* 丝带中线：y = x - 11.32，过 (29, 17.68) ≈ 宽 50%、高 30.5% */
+    left: 50%;
+    top: 30.5%;
+    transform: translate(-50%, -50%) rotate(45deg);
+    width: max-content;
     white-space: nowrap;
     line-height: 1;
     pointer-events: none;
@@ -383,6 +376,7 @@ watch(() => props.showSenderAvatar, async (show) => {
     border: 1px solid rgba(0, 0, 0, 0.06);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
+
 :root.dark .gift-regular,
 .dark .gift-regular {
     background: rgba(255, 255, 255, 0.06);

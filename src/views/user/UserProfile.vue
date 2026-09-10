@@ -34,10 +34,13 @@
               <span class="truncate">
                 <GlobalEmojiText :text="userName" />
               </span>
-              <CustomEmojiInline v-if="!isDeletedProfile && customEmojiId" :emojiId="customEmojiId" :size="22"
-                fallback-text="😀" />
-              <!-- 有自定义 emoji 状态时不显示星星，仅无自定义 emoji 状态时显示 Premium 星星 -->
-              <span v-if="!isDeletedProfile && user?.is_premium && !user?.emoji_status" class="text-base"
+              <button v-if="!isDeletedProfile && isSelf && user?.is_premium" type="button"
+                class="w-6 h-6 inline-flex items-center justify-center rounded-full hover:bg-blue-500/10 transition-colors"
+                title="更换 emoji 状态" aria-label="更换 emoji 状态" @click.stop="openEmojiStatusPicker">
+                <CustomEmojiInline v-if="emojiStatusDisplayId" :emojiId="emojiStatusDisplayId" :size="22" />
+                <span v-else class="tgico tgico-emoji-status text-[20px]" />
+              </button>
+              <span v-if="!isDeletedProfile && !isSelf && user?.is_premium && !user?.emoji_status" class="text-base"
                 title="Telegram Premium">⭐</span>
               <VerifiedFilledIcon v-if="!isDeletedProfile && verificationType === 'verified'"
                 class="text-blue-500 text-lg" title="已验证" :fill-color='["currentColor", "transparent"]'
@@ -582,8 +585,8 @@
                 class="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 @click="openCommonGroup(gid)">
                 <div class="w-10 h-10 shrink-0">
-                  <Avatar :photo="(getReactiveChat(gid) as any)?.photo" :title="getChatTitle(getReactiveChat(gid))"
-                    :accentColorId="(getReactiveChat(gid) as any)?.profile_accent_color_id ?? (getReactiveChat(gid) as any)?.accent_color_id"
+                  <Avatar :photo="getReactiveChat(gid)?.photo" :title="getChatTitle(getReactiveChat(gid))"
+                    :accentColorId="getReactiveChat(gid)?.profile_accent_color_id ?? getReactiveChat(gid)?.accent_color_id"
                     sizeClass="!w-10 !h-10" />
                 </div>
                 <div class="min-w-0 flex-1">
@@ -931,16 +934,29 @@
         </button>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div v-if="emojiStatusPickerOpen" class="fixed inset-0 z-200" @mousedown="onEmojiStatusBackdrop">
+        <div ref="emojiStatusPanel" class="fixed w-70 h-80 -translate-x-1/2 rounded-2xl bg-white dark:bg-gray-900 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden"
+          :style="emojiStatusPanelStyle" @mousedown.stop>
+          <EmojiDrawer :is-premium="true" :show-default-emoji-status="true"
+            :emoji-status-gift-statuses="emojiStatusGiftStatuses"
+            :emoji-status-recent-statuses="emojiStatusRecentStatuses" @pick-default-status="onDefaultEmojiStatus"
+            @pick-custom-emoji="onEmojiStatusPicked" />
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, receivedGift, story, chat, audio as TdAudio, birthdate, file, message, thumbnail, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo, secretChat, SearchMessagesFilter$Input } from "tdlib-types";
+import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, receivedGift, story, chat, audio as TdAudio, birthdate, file, message, thumbnail, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo, secretChat, SearchMessagesFilter$Input, emojiStatus, emojiStatus$Input, BlockList$Input } from "tdlib-types";
 import Avatar from "../../components/chat/avatar.vue";
 import CustomEmojiInline from "../../components/common/CustomEmojiInline.vue";
 import GlobalEmojiText from "../../components/common/GlobalEmojiText.vue";
+import EmojiDrawer from "../../components/chat/ChatDetail/stickerPanel/EmojiDrawer.vue";
 import GiftDisplay from "../../components/common/GiftDisplay.vue";
 import MediaViewer from "../../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
 import type { MediaViewerItem } from "../../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
@@ -955,7 +971,7 @@ import { isThumbnailImgRenderable } from "../../utils/thumbnail";
 import { tdlibSend } from "../../utils/tdlib";
 
 import { ensureChat, getReactiveUser, getReactiveChat, getChatTitle, DELETED_ACCOUNT_LABEL } from "../../utils/senderInfo";
-import { useAudioPlayerStore } from "../../store/audioPlayer";
+import { useAudioPlayerStore, type AudioTrack } from "../../store/audioPlayer";
 import formatTime from "../../utils/formatTime";
 import { openContextMenu, closeContextMenu } from "../../store/contextMenu";
 import type { ContextMenuItem } from "../../components/contextMenu/types";
@@ -963,6 +979,7 @@ import { MessagePlugin } from "tdesign-vue-next";
 import { buildProfileTabs, type ProfileTab, type ProfileTabKey } from "../../utils/profileTabs";
 import type { SharedMediaCounts } from "../../utils/sharedMediaCounts";
 import { useProfileSharedMedia } from "../../composables/useProfileSharedMedia";
+import { requestCustomEmoji } from "../../store/customEmoji";
 
 // ===== 图标组件（lucide-vue-next，与项目其余部分一致） =====
 import {
@@ -1037,7 +1054,7 @@ const chatTitle = computed(() => chatObj.value?.title || '');
 /** 聊天头像（chat.photo 为 chatPhotoInfo，可直接交给 Avatar 组件） */
 const chatPhotoInfo = computed<chatPhotoInfo | undefined>(() => chatObj.value?.photo);
 const chatAccentColorId = computed<number | undefined>(() =>
-  (chatObj.value as any)?.profile_accent_color_id ?? (chatObj.value as any)?.accent_color_id,
+  chatObj.value?.profile_accent_color_id ?? chatObj.value?.accent_color_id,
 );
 /** 聊天简介（超级群组/基本群组的描述） */
 const chatDescription = computed(() => supergroupFull.value?.description || basicGroupFull.value?.description || '');
@@ -1157,11 +1174,151 @@ const isUserMusicPlaying = computed(() =>
 );
 
 /** 自定义 emoji 状态的 custom_emoji_id（emojiStatusTypeCustomEmoji 类型时才有） */
-const customEmojiId = computed<string | undefined>(() => {
+const emojiStatusDisplayId = computed<string | undefined>(() => {
   const t = user.value?.emoji_status?.type;
   if (t && t._ === 'emojiStatusTypeCustomEmoji') return t.custom_emoji_id;
+  if (t && t._ === 'emojiStatusTypeUpgradedGift') return t.model_custom_emoji_id;
   return undefined;
 });
+
+type EmojiStatusOption = {
+  key: string;
+  emojiId: string;
+  title: string;
+  status?: emojiStatus;
+};
+
+const emojiStatusPickerOpen = ref(false);
+const emojiStatusLoading = ref(false);
+const emojiStatusOptions = ref<EmojiStatusOption[]>([]);
+const emojiStatusGiftStatuses = ref<emojiStatus[]>([]);
+const emojiStatusRecentStatuses = ref<emojiStatus[]>([]);
+const emojiStatusPanelStyle = ref<Record<string, string>>({ top: '8px', left: '8px' });
+let emojiStatusRequestId = 0;
+
+function customEmojiIdOf(status: any): string | undefined {
+  if (status?.type?._ === 'emojiStatusTypeCustomEmoji') return String(status.type.custom_emoji_id);
+  return undefined;
+}
+
+async function loadEmojiStatusOptions() {
+  const requestId = ++emojiStatusRequestId;
+  emojiStatusLoading.value = true;
+  try {
+    const [themed, recent, defaults, gifts, installed] = await Promise.all([
+      tdlibSend({ _: 'getThemedEmojiStatuses' }).catch(() => ({ custom_emoji_ids: [] })),
+      tdlibSend({ _: 'getRecentEmojiStatuses' }).catch(() => ({ emoji_statuses: [] })),
+      tdlibSend({ _: 'getDefaultEmojiStatuses' }).catch(() => ({ custom_emoji_ids: [] })),
+      tdlibSend({ _: 'getUpgradedGiftEmojiStatuses' }).catch(() => ({ emoji_statuses: [] })),
+      tdlibSend({ _: 'getInstalledStickerSets', sticker_type: { _: 'stickerTypeCustomEmoji' } }).catch(() => ({ sets: [] })),
+    ]);
+    if (requestId !== emojiStatusRequestId) return;
+
+    const defaultIds: string[] = [];
+    const addDefaultId = (id: unknown) => {
+      if (id !== undefined && id !== null && !defaultIds.includes(String(id))) defaultIds.push(String(id));
+    };
+    for (const id of themed.custom_emoji_ids.slice(0, 7)) addDefaultId(id);
+    for (const status of recent.emoji_statuses) addDefaultId(customEmojiIdOf(status));
+    for (const id of defaults.custom_emoji_ids) addDefaultId(id);
+
+    const giftStatuses = gifts.emoji_statuses;
+    emojiStatusRecentStatuses.value = recent.emoji_statuses;
+    emojiStatusGiftStatuses.value = giftStatuses;
+    const giftIds = giftStatuses
+      .map((status: any) => status.type?._ === 'emojiStatusTypeUpgradedGift' ? String(status.type.model_custom_emoji_id) : undefined)
+      .filter((id): id is string => !!id);
+
+    const installedIds: string[] = [];
+    for (const set of installed.sets) {
+      const stickerSet = await tdlibSend({ _: 'getStickerSet', set_id: set.id }).catch(() => undefined);
+      for (const sticker of stickerSet?.stickers ?? []) {
+        if (sticker.id) installedIds.push(String(sticker.id));
+      }
+    }
+
+    const allIds = [...new Set([...defaultIds, ...giftIds, ...installedIds])].slice(0, 200);
+    await tdlibSend({ _: 'getCustomEmojiStickers', custom_emoji_ids: giftIds }).catch(() => undefined);
+    await tdlibSend({ _: 'getCustomEmojiStickers', custom_emoji_ids: allIds }).catch(() => undefined);
+    if (requestId !== emojiStatusRequestId) return;
+
+    const seen = new Set<string>();
+    const options: EmojiStatusOption[] = [];
+    const addOption = (emojiId: string, title: string, status?: emojiStatus) => {
+      if (seen.has(emojiId)) return;
+      seen.add(emojiId);
+      options.push({ key: `${title}-${emojiId}`, emojiId, title, status });
+      requestCustomEmoji(emojiId);
+    };
+    for (const id of defaultIds) addOption(id, '默认状态');
+    for (const status of giftStatuses) {
+      const id = status.type._ === 'emojiStatusTypeUpgradedGift'
+        ? String(status.type.model_custom_emoji_id) : undefined;
+      if (id) addOption(id, '升级礼物状态', status);
+    }
+    for (const id of installedIds) addOption(id, '已安装 emoji');
+    emojiStatusOptions.value = options;
+  } finally {
+    if (requestId === emojiStatusRequestId) emojiStatusLoading.value = false;
+  }
+}
+
+function openEmojiStatusPicker(event: MouseEvent) {
+  const target = event.currentTarget as HTMLElement;
+  const rect = target.getBoundingClientRect();
+  const width = 280;
+  const center = rect.left + rect.width / 2;
+  const left = Math.min(
+    Math.max(width / 2 + 8, center),
+    window.innerWidth - width / 2 - 8,
+  );
+  const top = rect.bottom + 8;
+  emojiStatusPanelStyle.value = { top: `${top}px`, left: `${left}px` };
+  emojiStatusPickerOpen.value = true;
+  if (emojiStatusOptions.value.length === 0) void loadEmojiStatusOptions();
+}
+
+function closeEmojiStatusPicker() {
+  emojiStatusRequestId++;
+  emojiStatusPickerOpen.value = false;
+}
+
+function onEmojiStatusBackdrop(event: MouseEvent) {
+  if (event.target === event.currentTarget) closeEmojiStatusPicker();
+}
+
+function onEmojiStatusPicked(emojiId: string) {
+  const giftStatus = [...emojiStatusGiftStatuses.value, ...emojiStatusRecentStatuses.value].find((status: any) =>
+    status.type?._ === 'emojiStatusTypeUpgradedGift'
+    && String(status.type.model_custom_emoji_id) === String(emojiId));
+  void setEmojiStatus({
+    key: `selected-${emojiId}`,
+    emojiId,
+    title: giftStatus ? '升级礼物状态' : '自定义 emoji',
+    status: giftStatus,
+  });
+}
+
+function onDefaultEmojiStatus() {
+  void setEmojiStatus();
+}
+
+async function setEmojiStatus(option?: EmojiStatusOption) {
+  try {
+    await tdlibSend({
+      _: 'setEmojiStatus',
+      emoji_status: option?.status
+        ? { _: 'emojiStatus', type: option.status.type, expiration_date: option.status.expiration_date }
+        : option
+          ? { _: 'emojiStatus', type: { _: 'emojiStatusTypeCustomEmoji', custom_emoji_id: option.emojiId }, expiration_date: 0 }
+          : null as unknown as emojiStatus$Input,
+    });
+    closeEmojiStatusPicker();
+    await profileStore.loadProfile(userId.value);
+  } catch (error) {
+    console.error('Failed to set emoji status:', error);
+  }
+}
 
 /** 认证/安全状态：verified（蓝 V）｜fake（假冒）｜scam（诈骗）｜none */
 const verificationType = computed<'verified' | 'fake' | 'scam' | 'none'>(() => {
@@ -1205,7 +1362,7 @@ async function loadChannelInfo() {
     const t = c.type;
     const sgId = t?._ === 'chatTypeSupergroup' ? t.supergroup_id : undefined;
     if (sgId) {
-      const sg = (await tdlibSend({ _: 'getSupergroup', supergroup_id: sgId })) as { member_count?: number };
+      const sg = await tdlibSend({ _: 'getSupergroup', supergroup_id: sgId });
       channelMemberCount.value = sg?.member_count ?? null;
     }
   } catch (e) {
@@ -1221,8 +1378,8 @@ function channelPreview(msg: message | undefined): string {
     return msg.content.text?.text || '';
   }
   // 带 caption 的媒体消息：caption 也是 formattedText
-  const c = msg.content as { caption?: { text?: string } } | null;
-  return c?.caption?.text || '';
+  if ('caption' in msg.content) return msg.content.caption?.text || '';
+  return '';
 }
 
 /** 频道订阅按钮文本，如「2452 订阅」 */
@@ -1396,7 +1553,7 @@ const sharedMediaViewerItems = computed<MediaViewerItem[]>(() =>
   sharedMediaItems.value
     .filter(i => i.src || i.miniSrc)
     .map(i => ({
-      type: i.isVideo ? 'video' as const : 'photo' as const,
+      type: i.isVideo ? 'video' : 'photo',
       thumb: i.miniSrc,
       messageId: i.messageId,
       chatId: i.chatId,
@@ -1485,9 +1642,10 @@ async function playSharedMusic(clickedIndex: number) {
   const { convertFileSrc } = await import('@tauri-apps/api/core');
   const { isFileReady } = await import('../../utils/tdlib');
 
-  const tracks = musicItems.map((item) => {
+  const tracks = musicItems.map((item): AudioTrack | undefined => {
     const msg = item.message!;
-    const audio = (msg.content as any).audio;
+    if (msg.content._ !== 'messageAudio') return;
+    const audio = msg.content.audio;
     const file = audio.audio;
     let filePath = '';
     if (isFileReady(file) && file.local?.path) {
@@ -1504,9 +1662,9 @@ async function playSharedMusic(clickedIndex: number) {
       sizeBytes: file.size || 0,
       mimeType: audio.mime_type || 'audio/mpeg',
       ready: !!filePath,
-      source: 'message' as const,
+      source: 'message',
     };
-  });
+  }).filter((track): track is AudioTrack => !!track);
 
   audioPlayer.setPlaylist(tracks, startIdx);
 }
@@ -1689,7 +1847,7 @@ const photoViewerItems = computed<MediaViewerItem[]>(() =>
   photosList.value
     .map((p, i) => ({ photo: p, url: photoUrls.value[i] }))
     .filter((item): item is { photo: chatPhoto; url: string } => !!item.url)
-    .map(({ photo }) => ({ type: 'photo' as const, file: pickLargestPhotoFile(photo) })),
+    .map(({ photo }) => ({ type: 'photo', file: pickLargestPhotoFile(photo) })),
 );
 /** 打开单条动态时临时覆盖展示的媒体列表（优先级最高）；null 表示正常照片宫格 */
 const photoViewerItemsOverride = ref<MediaViewerItem[] | null>(null);
@@ -1724,8 +1882,8 @@ const profileGiftCellSize = 112;
 
 /** 礼物 tooltip 文本 */
 function giftText(gift: receivedGift): string {
-  const g = (gift.gift as any)?.gift as { name?: string } | undefined;
-  return g?.name || gift.text?.text || '礼物';
+  const title = gift.gift._ === 'sentGiftUpgraded' ? gift.gift.gift.title : undefined;
+  return title || gift.text?.text || '礼物';
 }
 
 // ===== 动态 URL =====
@@ -1766,7 +1924,7 @@ function pickStoryCoverFile(s: story): file | undefined {
   if (c._ === 'storyContentVideo') {
     const th = c.video?.thumbnail;
     if (th && th._ === 'thumbnail' && th.file?.id) {
-      return th.file as file;
+      return th.file;
     }
     // 视频无缩略图时尝试用 minithumbnail 兜底（无 file id，返回 undefined）
     return undefined;
@@ -1873,7 +2031,7 @@ async function loadChatData() {
     // 缓存缺失时再通过 getChat 拉取。
     let c = getReactiveChat(cid);
     if (!c) {
-      c = await tdlibSend({ _: 'getChat', chat_id: cid }) as chat;
+      c = await tdlibSend({ _: 'getChat', chat_id: cid });
     }
     chatObj.value = c;
 
@@ -1883,7 +2041,7 @@ async function loadChatData() {
         secretChatObj.value = await tdlibSend({
           _: 'getSecretChat',
           secret_chat_id: c.type.secret_chat_id,
-        }) as secretChat;
+        });
       } catch (e) {
         console.error('Failed to load secret chat', e);
       }
@@ -1927,7 +2085,7 @@ async function loadChatGroupInfo() {
     } else if (c.type._ === 'chatTypeSupergroup') {
       const sgId = c.type.supergroup_id;
       try {
-        supergroupObj.value = await tdlibSend({ _: 'getSupergroup', supergroup_id: sgId }) as supergroup;
+        supergroupObj.value = await tdlibSend({ _: 'getSupergroup', supergroup_id: sgId });
       } catch (e) {
         console.error('Failed to load supergroup', e);
       }
@@ -1935,7 +2093,7 @@ async function loadChatGroupInfo() {
         supergroupFull.value = await tdlibSend({
           _: 'getSupergroupFullInfo',
           supergroup_id: sgId,
-        }) as supergroupFullInfo;
+        });
       } catch (e) {
         supergroupFull.value = undefined;
         console.error('Failed to load supergroup full info', e);
@@ -1945,7 +2103,7 @@ async function loadChatGroupInfo() {
     } else if (c.type._ === 'chatTypeBasicGroup') {
       const bgId = c.type.basic_group_id;
       try {
-        basicGroupObj.value = await tdlibSend({ _: 'getBasicGroup', basic_group_id: bgId }) as basicGroup;
+        basicGroupObj.value = await tdlibSend({ _: 'getBasicGroup', basic_group_id: bgId });
       } catch (e) {
         console.error('Failed to load basic group', e);
       }
@@ -1953,7 +2111,7 @@ async function loadChatGroupInfo() {
         basicGroupFull.value = await tdlibSend({
           _: 'getBasicGroupFullInfo',
           basic_group_id: bgId,
-        }) as basicGroupFullInfo;
+        });
       } catch (e) {
         basicGroupFull.value = undefined;
         console.error('Failed to load basic group full info', e);
@@ -1980,12 +2138,12 @@ async function loadChatStories() {
   if (!cid) return;
   let fullActive: story[] = [];
   try {
-    const page = (await tdlibSend({
+    const page = await tdlibSend({
       _: 'getChatPostedToChatPageStories',
       chat_id: cid,
       from_story_id: 0,
       limit: 100,
-    })) as { stories: story[] };
+    });
     fullActive = page.stories ?? [];
   } catch (e) { /* 忽略：无主页动态 */ }
   chatActiveStories.value = fullActive;
@@ -2065,11 +2223,11 @@ const privateChatId = ref<number | undefined>(undefined);
 async function getPrivateChatId(): Promise<number | undefined> {
   if (privateChatId.value) return privateChatId.value;
   try {
-    const res = (await tdlibSend({
+    const res = await tdlibSend({
       _: 'createPrivateChat',
       user_id: userId.value,
       force: false,
-    })) as { id: number };
+    });
     privateChatId.value = res.id;
     return res.id;
   } catch (e) {
@@ -2084,7 +2242,7 @@ async function refreshPrivateChatMuted() {
   const cid = await getPrivateChatId();
   if (!cid) return;
   const chat = getReactiveChat(cid);
-  const muteFor = (chat as any)?.notification_settings?.mute_for ?? 0;
+  const muteFor = chat?.notification_settings?.mute_for ?? 0;
   isPrivateChatMuted.value = muteFor > 0;
 }
 
@@ -2147,7 +2305,7 @@ async function toggleNotifications() {
         mute_for: isPrivateChatMuted.value ? 0 : 366 * 24 * 60 * 60,
         use_default_sound: true,
         sound_id: '0',
-      } as any,
+      },
     });
     isPrivateChatMuted.value = !isPrivateChatMuted.value;
     MessagePlugin.success(isPrivateChatMuted.value ? '已关闭通知' : '已开启通知');
@@ -2208,7 +2366,7 @@ const chatNotificationMuted = ref(false);
 async function refreshChatNotificationMuted() {
   const cid = chatId.value;
   if (!cid) return;
-  const c = getReactiveChat(cid) as any;
+  const c = getReactiveChat(cid);
   const muteFor = c?.notification_settings?.mute_for ?? 0;
   chatNotificationMuted.value = muteFor > 0;
 }
@@ -2234,7 +2392,7 @@ async function chatToggleNotifications() {
         mute_for: chatNotificationMuted.value ? 0 : 366 * 24 * 60 * 60,
         use_default_sound: true,
         sound_id: '0',
-      } as any,
+      },
     });
     chatNotificationMuted.value = !chatNotificationMuted.value;
     MessagePlugin.success(chatNotificationMuted.value ? '已关闭通知' : '已开启通知');
@@ -2332,7 +2490,7 @@ async function openAutoDelete() {
   if (!cid) return;
   // 读取当前私聊的自动删除时间
   try {
-    const chat = getReactiveChat(cid) as any;
+    const chat = getReactiveChat(cid);
     autoDeleteTime.value = chat?.message_auto_delete_time ?? 0;
   } catch {
     autoDeleteTime.value = 0;
@@ -2391,7 +2549,7 @@ async function saveContact() {
         note: contactNote.value
           ? { _: 'formattedText', text: contactNote.value, entities: [] }
           : undefined,
-      } as any,
+      },
       share_phone_number: false,
     });
     MessagePlugin.success('联系人已保存');
@@ -2446,7 +2604,7 @@ async function onToggleBlock() {
             _: 'setMessageSenderBlockList',
             sender_id: { _: 'messageSenderUser', user_id: userId.value },
             block_list: { _: 'blockListMain' },
-          } as any);
+          });
           MessagePlugin.success('已拉黑');
           cancelConfirmDialog();
           loadData();
@@ -2465,8 +2623,8 @@ async function onToggleBlock() {
           await tdlibSend({
             _: 'setMessageSenderBlockList',
             sender_id: { _: 'messageSenderUser', user_id: userId.value },
-            block_list: null,
-          } as any);
+            block_list: null as unknown as BlockList$Input,
+          });
           MessagePlugin.success('已解除拉黑');
           cancelConfirmDialog();
           loadData();
@@ -2520,6 +2678,12 @@ watch([userId, chatMode], () => {
 </script>
 
 <style scoped>
+/* 默认 emoji 状态图标（tgico U+EA2A，指定浅蓝色） */
+.tgico-emoji-status::before {
+  content: "\ea2a";
+  color: #FF5288C1;
+}
+
 /* ===== 顶部头像/昵称区域（无背景色，随页面背景） ===== */
 .profile-hero {
   min-height: 220px;

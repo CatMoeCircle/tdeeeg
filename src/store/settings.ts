@@ -151,6 +151,8 @@ interface Settings {
     /** 翻译结果显示方式：popup=弹窗，inline=在原消息气泡中显示 */
     displayMode: "popup" | "inline";
   };
+  /** 导航栏头像位置：default=聊天标题栏左侧（默认），titlebar=窗口标题栏右侧 */
+  chatHeaderAvatarPosition: "default" | "titlebar";
 }
 
 const defaultSettings: Settings = {
@@ -236,6 +238,7 @@ const defaultSettings: Settings = {
     // 默认使用弹窗方式
     displayMode: "popup",
   },
+  chatHeaderAvatarPosition: "default",
 };
 
 // Load from localStorage（与默认值深度合并，确保新增的嵌套字段始终有默认值）

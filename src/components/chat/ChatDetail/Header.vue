@@ -1,6 +1,6 @@
 <template>
     <div class="h-16 pt-0 flex items-center px-4 justify-between shrink-0">
-        <div class="flex items-center gap-3 min-w-0" v-if="chat">
+        <div class="flex items-center gap-3 min-w-0" v-if="chat && !isTitlebarMode">
             <!-- 返回按钮（叠层模式） -->
             <button v-if="showBack" type="button" @click="emit('back')"
                 class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shrink-0 -ml-1"
@@ -52,7 +52,7 @@
                 </div>
             </button>
         </div>
-        <div v-else class="flex items-center gap-3">
+        <div v-else-if="!isTitlebarMode" class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
             <div class="flex flex-col w-48">
                 <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2 animate-pulse"></div>
@@ -83,6 +83,8 @@ import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../../utils/savedM
 import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
 import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
 import { getChatProfileAccentColorId, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
+import { settings } from '../../../store/settings';
+import { updateActiveChatTitleBar, clearActiveChatTitleBar } from '../../../store/activeChatTitleBar';
 
 const props = defineProps<{
     chat: chat | undefined;
@@ -95,6 +97,9 @@ const emit = defineEmits<{
     openInfo: [];
     search: [];
 }>();
+
+/** 是否为 titlebar 头像模式 */
+const isTitlebarMode = computed(() => settings.chatHeaderAvatarPosition === 'titlebar');
 
 const status = ref('');
 const verificationState = ref<null | ReturnType<typeof h>>(null);
@@ -189,7 +194,10 @@ watch([() => props.chat, () => userProfile.value?.id], async ([newChat]) => {
     const requestId = ++statusRequestId;
     status.value = '';
     verificationState.value = null;
-    if (!newChat) return;
+    if (!newChat) {
+        clearActiveChatTitleBar();
+        return;
+    }
 
     if (isSavedMessagesChat(newChat, userProfile.value?.id)) return;
 
@@ -245,6 +253,19 @@ watch([() => props.chat, () => userProfile.value?.id], async ([newChat]) => {
         if (isCurrentRequest()) console.error('Failed to load chat header status:', error);
     }
 }, { immediate: true });
+
+// 同步当前聊天信息到 TitleBar 活跃聊天存储（titlebar 头像模式用）
+watch(
+    [chatTitle, () => props.chat?.photo, displayStatus],
+    ([title, photo, sText]) => {
+        updateActiveChatTitleBar({
+            title: title || '',
+            photo: photo,
+            statusText: sText || '',
+        });
+    },
+    { immediate: true }
+);
 
 // 更新验证状态图标
 const updateVerificationState = (status?: verificationStatus) => {

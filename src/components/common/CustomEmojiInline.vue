@@ -6,11 +6,11 @@
       <!-- WEBP static -->
       <img v-if="emojiFormat === 'webp'" :src="state.filePath" class="w-full h-full object-contain" />
       <!-- TGS animated (Lottie) -->
-      <RlottiePlayer v-else-if="emojiFormat === 'tgs' && tgsData" ref="playerRef" :src="tgsData" :loop="true"
+      <RlottiePlayer v-else-if="emojiFormat === 'tgs' && tgsData" ref="playerRef" :src="tgsData" :loop="props.loop ?? true"
         :autoplay="true" :width="emojiRenderSize" :height="emojiRenderSize" :class="emojiHiResClass"
         :style="emojiHiResStyle" @load="onAnimLoad" />
       <!-- WEBM video -->
-      <video v-else-if="emojiFormat === 'webm'" ref="videoRef" :src="state.filePath" autoplay loop muted playsinline
+      <video v-else-if="emojiFormat === 'webm'" ref="videoRef" :src="state.filePath" autoplay :loop="props.loop ?? true" muted playsinline
         class="w-full h-full object-contain" />
     </template>
     <!-- 缩略图预览（模糊） -->
@@ -41,6 +41,8 @@ const props = defineProps<{
   size?: number;
   /** 未加载完成或加载失败时显示的原始 emoji 兜底 */
   fallbackText?: string;
+  /** 是否循环播放动态 Emoji，默认循环 */
+  loop?: boolean;
 }>();
 
 const size = computed(() => props.size || 22);

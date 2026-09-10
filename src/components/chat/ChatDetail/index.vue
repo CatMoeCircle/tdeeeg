@@ -421,7 +421,7 @@
                     <div class="min-w-0 flex-1">
                         <p class="text-xs font-semibold text-orange-500">{{ editTargetInfo.label }}</p>
                         <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ editTargetInfo.text || '（无文本内容）'
-                        }}</p>
+                            }}</p>
                     </div>
                     <button type="button" aria-label="取消编辑"
                         class="w-6 h-6 shrink-0 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400"
@@ -555,6 +555,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { computed, watch, ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useUserStore } from '../../../store/user';
 import { useAudioPlayerStore } from '../../../store/audioPlayer';
+import { clearActiveChatTitleBar } from '../../../store/activeChatTitleBar';
 import { storeToRefs } from 'pinia';
 import { listen } from "@tauri-apps/api/event";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -1472,6 +1473,7 @@ onUnmounted(() => {
     if (chat.value) {
         void tdlibSend({ _: 'closeChat', chat_id: chat.value.id });
     }
+    clearActiveChatTitleBar();
 });
 
 const forwardedTargetMessageId = computed(() => {
@@ -2784,6 +2786,7 @@ function resetState() {
     lastReportedReadMessageId = 0;
     messages.value = [];
     chat.value = undefined;
+    clearActiveChatTitleBar();
     topic.value = undefined;
     memberStatus.value = {};
     isHistoryExhausted.value = false;
