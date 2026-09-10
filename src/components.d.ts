@@ -36,6 +36,7 @@ declare module 'vue' {
     ForwardBanner: typeof import('./components/chat/ChatDetail/MessageContent/content/ForwardBanner.vue')['default']
     ForwardPicker: typeof import('./components/contextMenu/ForwardPicker.vue')['default']
     GifDrawer: typeof import('./components/chat/ChatDetail/stickerPanel/GifDrawer.vue')['default']
+    GiftDisplay: typeof import('./components/common/GiftDisplay.vue')['default']
     GlobalEmojiText: typeof import('./components/common/GlobalEmojiText.vue')['default']
     Header: typeof import('./components/chat/ChatDetail/Header.vue')['default']
     InlineKeyboard: typeof import('./components/chat/ChatDetail/MessageContent/content/InlineKeyboard.vue')['default']

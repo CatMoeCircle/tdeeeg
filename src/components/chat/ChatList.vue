@@ -163,8 +163,8 @@
                                                         ? 'px-2 py-0.5 rounded-full text-gray-500 bg-gray-400/10'
                                                         : ''">
                                                         <!-- 顶置图标：显示在时间左边，仅置顶对话显示 -->
-                                                        <PinIcon v-if="isChatPinned(chat)"
-                                                            class="rotate-45 w-3.5 h-3.5 shrink-0"
+                                                        <span v-if="isChatPinned(chat)"
+                                                            class="tgico tgico-pin rotate-45 w-3.5 h-3.5 shrink-0"
                                                             :class="isChatMuted(chat) ? 'text-gray-300' : 'text-gray-400'" />
                                                         <span class="text-xs"
                                                             :class="isChatPinned(chat) ? 'text-gray-500' : 'text-gray-400'">{{

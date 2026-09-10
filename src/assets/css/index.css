@@ -33,9 +33,9 @@
 .tgico-avatar-deletedaccount::before {
   content: "\e979";
 }
-/* 置顶/图钉图标（Web K: dialog-subtitle-badge-pinned，字符 U+E952） */
+/* 置顶/图钉图标（字符 U+E9DA） */
 .tgico-pin::before {
-  content: "\e952";
+    content: "\e9da";
 }
 /* 锁定图标（Telegram Premium 专属设置，字符 U+EA2A，Premium 渐变） */
 .tgico-lock::before {

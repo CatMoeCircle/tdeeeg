@@ -150,11 +150,13 @@
                             <div v-if="birthdayEditing" class="flex flex-wrap items-center gap-3">
                                 <TDatePicker v-model="birthdatePickerValue" mode="date" format="YYYY-MM-DD" clearable
                                     :style="{ width: '180px' }" @change="(v) => saveBirthdate(v as string)" />
-                                <label class="flex items-center gap-2 cursor-pointer select-none shrink-0" @click.prevent="setHideYear(!hideYear)">
+                                <label class="flex items-center gap-2 cursor-pointer select-none shrink-0"
+                                    @click.prevent="setHideYear(!hideYear)">
                                     <button type="button" role="switch" :aria-checked="hideYear"
                                         class="relative w-10 h-6 rounded-full transition-colors duration-200"
                                         :class="hideYear ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'">
-                                        <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ease-in-out"
+                                        <span
+                                            class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ease-in-out"
                                             :class="hideYear ? 'translate-x-4' : 'translate-x-0'" />
                                     </button>
                                     <span class="text-sm text-gray-500 dark:text-gray-400">不显示年份</span>
@@ -190,7 +192,7 @@
                             <div class="min-w-0 flex-1">
                                 <p class="text-sm text-gray-800 dark:text-gray-100 truncate">{{ personalChat?.title ||
                                     '未设置'
-                                    }}</p>
+                                }}</p>
                                 <p class="text-xs text-gray-400 mt-0.5">显示在您个人主页顶部的频道</p>
                             </div>
                             <ChevronRightIcon class="w-4 h-4 text-gray-400" />
@@ -318,7 +320,7 @@
                         <div v-for="(u, i) in activeUsernames" :key="u"
                             class="flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2">
                             <span class="text-sm text-gray-800 dark:text-gray-100 flex-1 min-w-0 truncate">@{{ u
-                            }}</span>
+                                }}</span>
                             <span v-if="i === 0" class="text-xs text-teal-500 shrink-0">主要</span>
                             <button type="button" :disabled="i === 0"
                                 class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
@@ -397,7 +399,7 @@
                             :id="'bh-day-' + i" />
                         <label :for="'bh-day-' + i" class="text-sm text-gray-800 dark:text-gray-100 w-10 shrink-0">{{
                             d.name
-                        }}</label>
+                            }}</label>
                         <TTimePicker v-if="d.enabled" v-model="d.start" format="HH:mm" placeholder="开始"
                             class="flex-1 min-w-0" />
                         <span v-if="d.enabled" class="text-gray-400 text-xs">至</span>

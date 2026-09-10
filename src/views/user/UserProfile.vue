@@ -565,13 +565,10 @@
               <div v-if="giftsList.length" class="flex items-center justify-between mb-2">
                 <span class="px-2 py-0.5 rounded-lg bg-teal-600 text-white text-xs font-medium">礼物</span>
               </div>
-              <div class="grid grid-cols-3 gap-1.5">
+              <div class="grid grid-cols-4 gap-1.5">
                 <div v-for="(gift, i) in giftsList" :key="gift.received_gift_id || i"
-                  class="aspect-square rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden"
-                  :title="giftText(gift)">
-                  <MessageStickerContent v-if="giftStickerContent(gift)" :content="giftStickerContent(gift)!"
-                    :size="profileGiftCellSize" />
-                  <Gift v-else class="text-3xl text-gray-400" />
+                  class="flex items-center justify-center" :title="giftText(gift)">
+                  <GiftDisplay :gift="gift" :size="profileGiftCellSize" :show-sender-avatar="!gift.is_private" />
                 </div>
               </div>
             </div>
@@ -940,11 +937,11 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, receivedGift, story, chat, audio as TdAudio, birthdate, file, message, thumbnail, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo, messageSticker, secretChat, SearchMessagesFilter$Input } from "tdlib-types";
+import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, receivedGift, story, chat, audio as TdAudio, birthdate, file, message, thumbnail, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo, secretChat, SearchMessagesFilter$Input } from "tdlib-types";
 import Avatar from "../../components/chat/avatar.vue";
 import CustomEmojiInline from "../../components/common/CustomEmojiInline.vue";
 import GlobalEmojiText from "../../components/common/GlobalEmojiText.vue";
-import MessageStickerContent from "../../components/chat/ChatDetail/MessageContent/content/MessageStickerContent.vue";
+import GiftDisplay from "../../components/common/GiftDisplay.vue";
 import MediaViewer from "../../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
 import type { MediaViewerItem } from "../../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
 import { useUserProfileStore } from "../../store/userProfile";
@@ -1721,39 +1718,9 @@ function closePhotoViewer() {
 }
 
 // ===== 礼物渲染 =====
-// 礼物网格单元格宽（用于限制 MessageStickerContent 的贴纸尺寸）。
-// grid-cols-3 在 ~400px 内容区下每格约 120px，取略小值确保不溢出。
+// 礼物网格单元格宽（用于 GiftDisplay 组件的尺寸）。
+// grid-cols-4 在 ~544px 内容区下每格约 131px，取 112 留出间距且卡片足够大。
 const profileGiftCellSize = 112;
-
-/**
- * 从收货礼物中提取可交给 MessageStickerContent 渲染的贴纸内容（messageSticker）。
- * 兼容两种结构化：
- *   - TDLib 类型定义：receivedGift.gift 是 SentGift（sentGiftRegular.gift.sticker）
- *   - 运行时常量：部分场景 receivedGift.gift 直接是 gift 对象（gift.sticker）
- * 升级礼物（sentGiftUpgraded）无单一 sticker 时返回 undefined，由调用方回退到图标占位。
- */
-function giftStickerContent(gift: receivedGift): messageSticker | undefined {
-  const sent = gift.gift as any;
-  if (!sent) return undefined;
-  let st: unknown;
-  // sentGiftRegular.gift.sticker
-  if (sent._ === 'sentGiftRegular') {
-    st = sent.gift?.sticker;
-  } else if (sent._ === 'gift') {
-    // 运行时时 gift.gift 就是 gift 对象
-    st = sent.sticker;
-  }
-  // 兜底：无论结构，直接取可能的 sticker 字段
-  if (!st) st = sent.sticker || sent.gift?.sticker;
-  if (st) {
-    return {
-      _: 'messageSticker',
-      sticker: st as any,
-      is_premium: false,
-    };
-  }
-  return undefined;
-}
 
 /** 礼物 tooltip 文本 */
 function giftText(gift: receivedGift): string {

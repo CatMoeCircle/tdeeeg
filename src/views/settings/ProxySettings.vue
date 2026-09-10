@@ -125,7 +125,7 @@
                                     <span class="text-gray-500 dark:text-gray-400">当前使用：</span>
                                     <span class="text-gray-800 dark:text-gray-200 font-medium">{{
                                         selectedProxy.proxy.server
-                                    }}</span>
+                                        }}</span>
                                     <span
                                         class="px-1.5 py-0.5 rounded text-[10px] font-medium text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-900/30">
                                         {{ proxyTypeLabel(selectedProxy.proxy.type) }}
