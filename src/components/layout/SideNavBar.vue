@@ -1,6 +1,7 @@
 <!-- 侧边栏 -->
 <template>
-    <div class="w-14 h-full dark:bg-gray-900 flex flex-col items-center py-4 dark:border-gray-800 pt-3">
+    <div class="w-14 h-full dark:bg-gray-900 flex flex-col items-center py-4 dark:border-gray-800"
+        :class="isTitlebarMode ? 'pt-3' : 'pt-1'">
         <!-- Avatar / Profile：titlebar 模式下隐藏（已移至标题栏） -->
         <div v-if="!isTitlebarMode" class="mb-5 ">
             <button type="button" class="block" title="账户" @click="accountMenuOpen = true">
