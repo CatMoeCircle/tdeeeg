@@ -4,7 +4,7 @@
             <div v-if="visible" class="fixed inset-0 z-9990" @mousedown.self="close" @keydown.esc="close">
                 <!-- 账户菜单浮层（左下角，跟随导航栏头像位置） -->
                 <div
-                    class="absolute left-3 bottom-3 w-80 max-w-[calc(100vw-2rem)] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
+                    class="absolute left-3 top-10 w-80 max-w-[calc(100vw-2rem)] max-h-[calc(100vh-3.5rem)] flex flex-col rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
                     <!-- 当前用户信息 -->
                     <div class="flex items-center gap-3 px-4 py-4 border-b border-gray-100 dark:border-gray-700">
                         <div class="w-12 h-12 shrink-0">
@@ -25,7 +25,7 @@
                     </div>
 
                     <!-- 账户列表 -->
-                    <div class="py-1.5">
+                    <div class="account-menu-scroll py-1.5 flex-1 min-h-0 overflow-y-auto overscroll-contain scroll-smooth">
                         <p class="px-4 pt-2 pb-1 text-xs font-medium text-gray-400 uppercase tracking-wider">登录账户</p>
                         <div v-if="accounts.length === 0" class="px-4 py-3 text-sm text-gray-400">无可用账户</div>
                         <div v-for="acc in accounts" :key="acc.id"
@@ -289,5 +289,32 @@ async function confirmAddCustom() {
 .account-menu-enter-from,
 .account-menu-leave-to {
     opacity: 0;
+}
+</style>
+
+<style>
+.account-menu-scroll::-webkit-scrollbar {
+    width: 4px;
+}
+
+.account-menu-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.account-menu-scroll::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+}
+
+.account-menu-scroll::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(0, 0, 0, 0.25);
+}
+
+.dark .account-menu-scroll::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.dark .account-menu-scroll::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.25);
 }
 </style>
