@@ -160,7 +160,15 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        // 不恢复 VISIBLE：插件默认会在 setup 阶段直接 show()，导致 TDLib
+        // 授权态尚未确认时窗口就弹出。可见性始终由 tauri.conf.json
+        // (visible:false) + 前端 bootstrap 完成后再 show() 控制。
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(tauri_plugin_window_state::StateFlags::all()
+                    & !tauri_plugin_window_state::StateFlags::VISIBLE)
+                .build(),
+        )
         .setup(|app| {
             // 根据持久化的数据存储模式解析数据根目录（AppData 或应用自带目录）
             let data_dir =
@@ -209,6 +217,8 @@ pub fn run() {
             // ===== 拦截窗口关闭事件：隐藏而非销毁 =====
             let app_handle = app.handle().clone();
             let main_window = app.get_webview_window("main").unwrap();
+            // 启动阶段强制隐藏：TDLib 授权确认与路由就绪由前端 bootstrap 完成后再 show()
+            let _ = main_window.hide();
             main_window.on_window_event(move |event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     // 阻止默认关闭行为，改为隐藏窗口
