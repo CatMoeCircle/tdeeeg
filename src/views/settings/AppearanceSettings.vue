@@ -8,182 +8,11 @@
         </div>
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
             <div class="max-w-2xl">
-                <!-- 导航栏头像位置 -->
-                <section class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
-                    <div class="flex items-center gap-3 mb-1">
-                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            导航栏头像位置</h3>
-                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
-                    </div>
-                    <p class="text-xs text-gray-400 mt-2">选择对话中头像和名称的显示位置。</p>
-
-                    <!-- 预览：模拟窗口内部布局 -->
-                    <div class="mb-6 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-                        <div
-                            class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">预览</span>
-                            <span class="text-xs text-gray-400 dark:text-gray-500">{{ settings.chatHeaderAvatarPosition
-                                === 'titlebar' ? '标题栏模式' : '默认模式' }}</span>
-                        </div>
-                        <!-- 窗口模拟（四周有间距，像真实窗口嵌在卡片内） -->
-                        <div class="p-4">
-                            <div
-                                class="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm bg-white dark:bg-gray-900">
-                                <!-- 标题栏 -->
-                                <div
-                                    class="h-7 flex items-center justify-between px-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                                    <div class="flex items-center gap-1.5 min-w-0">
-                                        <template v-if="settings.chatHeaderAvatarPosition !== 'titlebar'">
-                                            <TitleBarEmojiStatus />
-                                        </template>
-                                        <span
-                                            class="text-[10px] font-medium text-gray-500 dark:text-gray-400 truncate">TDEEEG</span>
-                                        <!-- titlebar 模式：用户头像 + 名称 + emoji状态 -->
-                                        <template v-if="settings.chatHeaderAvatarPosition === 'titlebar'">
-                                            <span class="w-1.5"></span>
-                                            <Avatar :photo="userPhoto" :title="userName"
-                                                :radius="settings.chatList.avatarCornerRadius" sizeClass="!w-4 !h-4" />
-                                            <span
-                                                class="text-[10px] font-medium text-gray-700 dark:text-gray-300 truncate">{{
-                                                    userName }}</span>
-                                            <TitleBarEmojiStatus />
-                                        </template>
-                                    </div>
-                                    <div class="flex items-center gap-1 mr-0.5">
-                                        <span class="w-2.5 h-px bg-gray-300 dark:bg-gray-600"></span>
-                                        <span
-                                            class="w-2.5 h-2.5 border border-gray-300 dark:border-gray-600 rounded-xs"></span>
-                                        <span class="text-[9px] text-gray-300 dark:text-gray-600 leading-none">✕</span>
-                                    </div>
-                                </div>
-                                <!-- 内容区 -->
-                                <div class="flex" style="height: 130px;">
-                                    <!-- 侧边栏（始终存在，仅 titlebar 模式下头像隐藏） -->
-                                    <div
-                                        class="w-10 shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col items-center pt-2.5 gap-2 bg-gray-50 dark:bg-gray-800/50">
-                                        <Avatar v-if="settings.chatHeaderAvatarPosition !== 'titlebar'"
-                                            :photo="userPhoto" :title="userName"
-                                            :radius="settings.chatList.avatarCornerRadius"
-                                            sizeClass="!w-8 !h-8 shrink-0" />
-                                        <div class="w-6 h-6 rounded-md bg-gray-200 dark:bg-gray-600"></div>
-                                        <div class="w-6 h-6 rounded-md bg-gray-200 dark:bg-gray-600"></div>
-                                    </div>
-                                    <!-- 聊天列表 -->
-                                    <div
-                                        class="w-[40%] shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-                                        <div v-for="n in 4" :key="n"
-                                            class="flex items-center gap-2 px-2 py-2 border-b border-gray-100 dark:border-gray-800/50"
-                                            :class="n === 1 ? 'bg-gray-100 dark:bg-gray-800' : ''">
-                                            <div class="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-600 shrink-0">
-                                            </div>
-                                            <div class="flex-1 min-w-0 space-y-1">
-                                                <div class="h-2 rounded bg-gray-200 dark:bg-gray-600"
-                                                    :style="{ width: n === 1 ? '55%' : '40%' }"></div>
-                                                <div class="h-1.5 rounded bg-gray-100 dark:bg-gray-700 w-full"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <!-- 聊天详情 -->
-                                    <div class="flex-1 min-w-0 flex flex-col bg-white dark:bg-gray-900">
-                                        <!-- 聊天头部 -->
-                                        <div
-                                            class="flex items-center px-2.5 h-8 border-b border-gray-200 dark:border-gray-700 shrink-0">
-                                            <div class="w-5 h-5 rounded-full bg-gray-300 dark:bg-gray-600 shrink-0">
-                                            </div>
-                                            <div class="ml-1.5 space-y-1">
-                                                <div class="h-2 w-16 rounded bg-gray-300 dark:bg-gray-600"></div>
-                                                <div class="h-1.5 w-10 rounded bg-gray-200 dark:bg-gray-700"></div>
-                                            </div>
-                                            <div class="flex-1"></div>
-                                            <div class="flex gap-2">
-                                                <div class="w-3 h-3 rounded-full bg-gray-200 dark:bg-gray-600"></div>
-                                                <div class="w-3 h-3 rounded-full bg-gray-200 dark:bg-gray-600"></div>
-                                            </div>
-                                        </div>
-                                        <!-- 消息区域 -->
-                                        <div class="flex-1 p-2.5 flex flex-col justify-end gap-2">
-                                            <div class="flex items-end gap-1.5">
-                                                <div class="w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-600 shrink-0">
-                                                </div>
-                                                <div
-                                                    class="bg-gray-100 dark:bg-gray-800 rounded-lg rounded-bl-sm px-2.5 py-1.5 space-y-1 max-w-[50%]">
-                                                    <div class="h-1.5 rounded bg-gray-300 dark:bg-gray-600 w-24"></div>
-                                                    <div class="h-1.5 rounded bg-gray-200 dark:bg-gray-700 w-16"></div>
-                                                </div>
-                                            </div>
-                                            <div class="flex items-end gap-1.5 justify-end">
-                                                <div
-                                                    class="bg-gray-200 dark:bg-gray-700 rounded-lg rounded-br-sm px-2.5 py-1.5 space-y-1 max-w-[40%]">
-                                                    <div class="h-1.5 rounded bg-gray-300 dark:bg-gray-600 w-12"></div>
-                                                </div>
-                                            </div>
-                                            <!-- 输入框占位 -->
-                                            <div
-                                                class="h-6 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 选项卡切换 -->
-                    <div class="grid grid-cols-2 gap-3">
-                        <button type="button" @click="settings.chatHeaderAvatarPosition = 'default'"
-                            class="flex items-center gap-3 p-3 rounded-xl border transition-colors" :class="settings.chatHeaderAvatarPosition === 'default'
-                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'">
-                            <div
-                                class="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center shrink-0">
-                                <LayoutListIcon class="w-5 h-5" />
-                            </div>
-                            <div class="text-left min-w-0">
-                                <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">导航栏</h4>
-                                <p class="text-xs text-gray-400 mt-0.5 truncate">头像在侧边导航栏</p>
-                            </div>
-                        </button>
-                        <button type="button" @click="settings.chatHeaderAvatarPosition = 'titlebar'"
-                            class="flex items-center gap-3 p-3 rounded-xl border transition-colors" :class="settings.chatHeaderAvatarPosition === 'titlebar'
-                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'">
-                            <div
-                                class="w-9 h-9 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 flex items-center justify-center shrink-0">
-                                <PanelTopIcon class="w-5 h-5" />
-                            </div>
-                            <div class="text-left min-w-0">
-                                <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">标题栏</h4>
-                                <p class="text-xs text-gray-400 mt-0.5 truncate">头像在窗口标题栏</p>
-                            </div>
-                        </button>
-                    </div>
-                </section>
-
-                <section class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
-                    <div class="flex items-center gap-3 mb-1">
-                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">对话壁纸
-                        </h3>
-                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
-                    </div>
-                    <p class="text-xs text-gray-400 mt-2">管理没有单独设置背景的对话所使用的默认壁纸。</p>
-                    <router-link to="/home/settings/wallpaper"
-                        class="mt-5 flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                        <div
-                            class="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center">
-                            <WallpaperIcon class="w-5 h-5" />
-                        </div>
-                        <div class="min-w-0 flex-1">
-                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">对话壁纸</p>
-                            <p class="mt-0.5 text-xs text-gray-400">纯色、图案和已安装的图片壁纸</p>
-                        </div>
-                        <ChevronRightIcon class="w-4 h-4 text-gray-400" />
-                    </router-link>
-                </section>
-                <!-- 消息显示设置 -->
+                <!-- 聊天页面设置 -->
                 <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
                     <div class="flex items-center gap-3 mb-1">
                         <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            消息显示</h3>
+                            聊天页面</h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
 
@@ -317,62 +146,76 @@
                             <ChatTypeToggle label="点击机器人命令添加到输入框" v-model="settings.message.botCommandInsert" />
                             <p class="mt-1 text-xs text-gray-400">点击 /start 等命令时添加到输入框最前面（空格分隔），而非直接发送</p>
                         </div>
-                    </div>
-                </div>
 
-                <!-- 翻译显示设置 -->
-                <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
-                    <div class="flex items-center gap-3 mb-1">
-                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            翻译显示</h3>
-                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                        <!-- 对话壁纸入口 -->
+                        <router-link to="/home/settings/wallpaper"
+                            class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                            <div
+                                class="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center shrink-0">
+                                <WallpaperIcon class="w-5 h-5" />
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100">对话壁纸</p>
+                                <p class="text-xs text-gray-400">纯色、图案和已安装的图片壁纸</p>
+                            </div>
+                            <ChevronRightIcon class="w-4 h-4 text-gray-400" />
+                        </router-link>
                     </div>
-                    <p class="text-xs text-gray-400 mt-2">设置在消息右键菜单中点击「翻译」后，译文以何种方式显示。</p>
 
-                    <div class="space-y-3">
-                        <!-- 弹窗翻译 -->
-                        <div class="flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-colors"
-                            :class="settings.translate.displayMode === 'popup'
-                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'"
-                            @click="settings.translate.displayMode = 'popup'">
-                            <div class="flex items-center">
-                                <div
-                                    class="w-9 h-9 rounded-full flex items-center justify-center mr-3 bg-blue-100 dark:bg-blue-900/30 text-blue-600">
-                                    <LanguageIcon class="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">弹窗显示</h4>
-                                    <p class="text-xs text-gray-400 mt-0.5">译文在独立弹窗中展示，可切换目标语言</p>
-                                </div>
-                            </div>
-                            <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0"
-                                :class="settings.translate.displayMode === 'popup' ? 'border-blue-500' : 'border-gray-300'">
-                                <div v-if="settings.translate.displayMode === 'popup'"
-                                    class="w-2 h-2 rounded-full bg-blue-500"></div>
-                            </div>
+                    <!-- 翻译显示（二级分类） -->
+                    <div class="mt-4">
+                        <div class="flex items-center gap-3 mb-3">
+                            <h4 class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                                翻译显示</h4>
+                            <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                         </div>
+                        <p class="text-xs text-gray-400 mb-3">设置在消息右键菜单中点击「翻译」后，译文以何种方式显示。</p>
 
-                        <!-- 内联翻译 -->
-                        <div class="flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-colors"
-                            :class="settings.translate.displayMode === 'inline'
-                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'"
-                            @click="settings.translate.displayMode = 'inline'">
-                            <div class="flex items-center">
-                                <div
-                                    class="w-9 h-9 rounded-full flex items-center justify-center mr-3 bg-green-100 dark:bg-green-900/30 text-green-600">
-                                    <MessageSquareTextIcon class="w-5 h-5" />
+                        <div class="space-y-3">
+                            <!-- 弹窗翻译 -->
+                            <div class="flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-colors"
+                                :class="settings.translate.displayMode === 'popup'
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'"
+                                @click="settings.translate.displayMode = 'popup'">
+                                <div class="flex items-center">
+                                    <div
+                                        class="w-9 h-9 rounded-full flex items-center justify-center mr-3 bg-blue-100 dark:bg-blue-900/30 text-blue-600">
+                                        <LanguageIcon class="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">弹窗显示</h4>
+                                        <p class="text-xs text-gray-400 mt-0.5">译文在独立弹窗中展示，可切换目标语言</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">在原消息中显示</h4>
-                                    <p class="text-xs text-gray-400 mt-0.5">译文直接显示在消息气泡内，可随时移除</p>
+                                <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0"
+                                    :class="settings.translate.displayMode === 'popup' ? 'border-blue-500' : 'border-gray-300'">
+                                    <div v-if="settings.translate.displayMode === 'popup'"
+                                        class="w-2 h-2 rounded-full bg-blue-500"></div>
                                 </div>
                             </div>
-                            <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0"
-                                :class="settings.translate.displayMode === 'inline' ? 'border-blue-500' : 'border-gray-300'">
-                                <div v-if="settings.translate.displayMode === 'inline'"
-                                    class="w-2 h-2 rounded-full bg-blue-500"></div>
+
+                            <!-- 内联翻译 -->
+                            <div class="flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-colors"
+                                :class="settings.translate.displayMode === 'inline'
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'"
+                                @click="settings.translate.displayMode = 'inline'">
+                                <div class="flex items-center">
+                                    <div
+                                        class="w-9 h-9 rounded-full flex items-center justify-center mr-3 bg-green-100 dark:bg-green-900/30 text-green-600">
+                                        <MessageSquareTextIcon class="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">在原消息中显示</h4>
+                                        <p class="text-xs text-gray-400 mt-0.5">译文直接显示在消息气泡内，可随时移除</p>
+                                    </div>
+                                </div>
+                                <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0"
+                                    :class="settings.translate.displayMode === 'inline' ? 'border-blue-500' : 'border-gray-300'">
+                                    <div v-if="settings.translate.displayMode === 'inline'"
+                                        class="w-2 h-2 rounded-full bg-blue-500"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -603,6 +446,157 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- 导航栏头像位置 -->
+                <section class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            导航栏头像位置</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2">选择对话中头像和名称的显示位置。</p>
+
+                    <!-- 预览：模拟窗口内部布局 -->
+                    <div class="mb-6 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+                        <div
+                            class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">预览</span>
+                            <span class="text-xs text-gray-400 dark:text-gray-500">{{ settings.chatHeaderAvatarPosition
+                                === 'titlebar' ? '标题栏模式' : '默认模式' }}</span>
+                        </div>
+                        <!-- 窗口模拟（四周有间距，像真实窗口嵌在卡片内） -->
+                        <div class="p-4">
+                            <div
+                                class="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm bg-white dark:bg-gray-900">
+                                <!-- 标题栏 -->
+                                <div
+                                    class="h-7 flex items-center justify-between px-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                                    <div class="flex items-center gap-1.5 min-w-0">
+                                        <template v-if="settings.chatHeaderAvatarPosition !== 'titlebar'">
+                                            <TitleBarEmojiStatus readonly />
+                                        </template>
+                                        <span
+                                            class="text-[10px] font-medium text-gray-500 dark:text-gray-400 truncate">TDEEEG</span>
+                                        <!-- titlebar 模式：用户头像 + 名称 + emoji状态 -->
+                                        <template v-if="settings.chatHeaderAvatarPosition === 'titlebar'">
+                                            <span class="w-1.5"></span>
+                                            <Avatar :photo="userPhoto" :title="userName"
+                                                :radius="settings.chatList.avatarCornerRadius" sizeClass="!w-4 !h-4" />
+                                            <span
+                                                class="text-[10px] font-medium text-gray-700 dark:text-gray-300 truncate">{{
+                                                    userName }}</span>
+                                            <TitleBarEmojiStatus readonly />
+                                        </template>
+                                    </div>
+                                    <div class="flex items-center gap-1 mr-0.5">
+                                        <span class="w-2.5 h-px bg-gray-300 dark:bg-gray-600"></span>
+                                        <span
+                                            class="w-2.5 h-2.5 border border-gray-300 dark:border-gray-600 rounded-xs"></span>
+                                        <span class="text-[9px] text-gray-300 dark:text-gray-600 leading-none">✕</span>
+                                    </div>
+                                </div>
+                                <!-- 内容区 -->
+                                <div class="flex" style="height: 130px;">
+                                    <!-- 侧边栏（始终存在，仅 titlebar 模式下头像隐藏） -->
+                                    <div
+                                        class="w-10 shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col items-center pt-2.5 gap-2 bg-gray-50 dark:bg-gray-800/50">
+                                        <Avatar v-if="settings.chatHeaderAvatarPosition !== 'titlebar'"
+                                            :photo="userPhoto" :title="userName"
+                                            :radius="settings.chatList.avatarCornerRadius"
+                                            sizeClass="!w-8 !h-8 shrink-0" />
+                                        <div class="w-6 h-6 rounded-md bg-gray-200 dark:bg-gray-600"></div>
+                                        <div class="w-6 h-6 rounded-md bg-gray-200 dark:bg-gray-600"></div>
+                                    </div>
+                                    <!-- 聊天列表 -->
+                                    <div
+                                        class="w-[40%] shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+                                        <div v-for="n in 4" :key="n"
+                                            class="flex items-center gap-2 px-2 py-2 border-b border-gray-100 dark:border-gray-800/50"
+                                            :class="n === 1 ? 'bg-gray-100 dark:bg-gray-800' : ''">
+                                            <div class="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-600 shrink-0">
+                                            </div>
+                                            <div class="flex-1 min-w-0 space-y-1">
+                                                <div class="h-2 rounded bg-gray-200 dark:bg-gray-600"
+                                                    :style="{ width: n === 1 ? '55%' : '40%' }"></div>
+                                                <div class="h-1.5 rounded bg-gray-100 dark:bg-gray-700 w-full"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <!-- 聊天详情 -->
+                                    <div class="flex-1 min-w-0 flex flex-col bg-white dark:bg-gray-900">
+                                        <!-- 聊天头部 -->
+                                        <div
+                                            class="flex items-center px-2.5 h-8 border-b border-gray-200 dark:border-gray-700 shrink-0">
+                                            <div class="w-5 h-5 rounded-full bg-gray-300 dark:bg-gray-600 shrink-0">
+                                            </div>
+                                            <div class="ml-1.5 space-y-1">
+                                                <div class="h-2 w-16 rounded bg-gray-300 dark:bg-gray-600"></div>
+                                                <div class="h-1.5 w-10 rounded bg-gray-200 dark:bg-gray-700"></div>
+                                            </div>
+                                            <div class="flex-1"></div>
+                                            <div class="flex gap-2">
+                                                <div class="w-3 h-3 rounded-full bg-gray-200 dark:bg-gray-600"></div>
+                                                <div class="w-3 h-3 rounded-full bg-gray-200 dark:bg-gray-600"></div>
+                                            </div>
+                                        </div>
+                                        <!-- 消息区域 -->
+                                        <div class="flex-1 p-2.5 flex flex-col justify-end gap-2">
+                                            <div class="flex items-end gap-1.5">
+                                                <div class="w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-600 shrink-0">
+                                                </div>
+                                                <div
+                                                    class="bg-gray-100 dark:bg-gray-800 rounded-lg rounded-bl-sm px-2.5 py-1.5 space-y-1 max-w-[50%]">
+                                                    <div class="h-1.5 rounded bg-gray-300 dark:bg-gray-600 w-24"></div>
+                                                    <div class="h-1.5 rounded bg-gray-200 dark:bg-gray-700 w-16"></div>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-end gap-1.5 justify-end">
+                                                <div
+                                                    class="bg-gray-200 dark:bg-gray-700 rounded-lg rounded-br-sm px-2.5 py-1.5 space-y-1 max-w-[40%]">
+                                                    <div class="h-1.5 rounded bg-gray-300 dark:bg-gray-600 w-12"></div>
+                                                </div>
+                                            </div>
+                                            <!-- 输入框占位 -->
+                                            <div
+                                                class="h-6 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 选项卡切换 -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <button type="button" @click="settings.chatHeaderAvatarPosition = 'default'"
+                            class="flex items-center gap-3 p-3 rounded-xl border transition-colors" :class="settings.chatHeaderAvatarPosition === 'default'
+                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'">
+                            <div
+                                class="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center shrink-0">
+                                <LayoutListIcon class="w-5 h-5" />
+                            </div>
+                            <div class="text-left min-w-0">
+                                <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">导航栏</h4>
+                                <p class="text-xs text-gray-400 mt-0.5 truncate">头像在侧边导航栏</p>
+                            </div>
+                        </button>
+                        <button type="button" @click="settings.chatHeaderAvatarPosition = 'titlebar'"
+                            class="flex items-center gap-3 p-3 rounded-xl border transition-colors" :class="settings.chatHeaderAvatarPosition === 'titlebar'
+                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'">
+                            <div
+                                class="w-9 h-9 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 flex items-center justify-center shrink-0">
+                                <PanelTopIcon class="w-5 h-5" />
+                            </div>
+                            <div class="text-left min-w-0">
+                                <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">标题栏</h4>
+                                <p class="text-xs text-gray-400 mt-0.5 truncate">头像在窗口标题栏</p>
+                            </div>
+                        </button>
+                    </div>
+                </section>
             </div>
         </div>
     </div>

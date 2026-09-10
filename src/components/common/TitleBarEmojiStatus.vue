@@ -1,7 +1,9 @@
 <template>
   <div v-if="userProfile?.is_premium" class="relative shrink-0" data-tauri-drag-region-exclude>
-    <button type="button" class="w-7 h-7 flex items-center justify-center rounded-full text-gray-500 hover:bg-blue-500/10 transition-colors"
-      title="更换 emoji 状态" aria-label="更换 emoji 状态" @click.stop="togglePicker">
+    <button type="button" class="w-7 h-7 flex items-center justify-center rounded-full text-gray-500"
+      :class="readonly ? 'cursor-default' : 'hover:bg-blue-500/10 transition-colors'"
+      :title="readonly ? undefined : '更换 emoji 状态'" :aria-label="readonly ? undefined : '更换 emoji 状态'"
+      :disabled="readonly" @click.stop="togglePicker">
       <CustomEmojiInline v-if="displayEmojiId" :emojiId="displayEmojiId" :size="22" :loop="false" />
       <span v-else class="tgico tgico-emoji-status text-[22px]" />
     </button>
@@ -26,6 +28,8 @@ import { useUserStore } from '../../store/user';
 import { tdlibSend } from '../../utils/tdlib';
 import CustomEmojiInline from './CustomEmojiInline.vue';
 import EmojiDrawer from '../chat/ChatDetail/stickerPanel/EmojiDrawer.vue';
+
+defineProps<{ readonly?: boolean }>();
 
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
