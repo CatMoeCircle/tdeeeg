@@ -2,7 +2,7 @@ import { ref } from 'vue';
 import { tdlibSend } from './tdlib';
 import { probeImage, probeVideo } from './mediaProbe';
 import type { $Function } from 'tdlib-types';
-import type { inputTextQuote } from 'tdlib-types';
+import type { inputTextQuote, textEntity$Input } from 'tdlib-types';
 import type { AttachmentItem, AttachmentKind } from '../store/attachment';
 
 /** 文件大小上限 */
@@ -145,15 +145,15 @@ function thumbnailOf(path?: string) {
     return { _: 'inputThumbnail', thumbnail: file(path), width: 0, height: 0 } as const;
 }
 
-function photoContent(it: AttachmentItem, caption: string) {
+function photoContent(it: AttachmentItem, caption: string | formattedCaption) {
     return {
         _: 'inputMessagePhoto',
         photo: { _: 'inputPhoto', photo: file(it.path), width: it.width, height: it.height },
-        caption: fmtText(caption),
+        caption: captionToFormatted(caption),
     } as const;
 }
 
-function videoContent(it: AttachmentItem, caption: string, cover?: string) {
+function videoContent(it: AttachmentItem, caption: string | formattedCaption, cover?: string) {
     return {
         _: 'inputMessageVideo',
         video: {
@@ -165,11 +165,11 @@ function videoContent(it: AttachmentItem, caption: string, cover?: string) {
             supports_streaming: true,
             cover: cover ? file(cover) : undefined,
         },
-        caption: fmtText(caption),
+        caption: captionToFormatted(caption),
     } as const;
 }
 
-function animationContent(it: AttachmentItem, caption: string) {
+function animationContent(it: AttachmentItem, caption: string | formattedCaption) {
     return {
         _: 'inputMessageAnimation',
         animation: {
@@ -178,11 +178,11 @@ function animationContent(it: AttachmentItem, caption: string) {
             width: it.width,
             height: it.height,
         },
-        caption: fmtText(caption),
+        caption: captionToFormatted(caption),
     } as const;
 }
 
-function documentContent(it: AttachmentItem, caption: string, cover?: string) {
+function documentContent(it: AttachmentItem, caption: string | formattedCaption, cover?: string) {
     return {
         _: 'inputMessageDocument',
         document: {
@@ -191,11 +191,11 @@ function documentContent(it: AttachmentItem, caption: string, cover?: string) {
             disable_content_type_detection: false,
             thumbnail: thumbnailOf(cover),
         },
-        caption: fmtText(caption),
+        caption: captionToFormatted(caption),
     } as const;
 }
 
-function audioContent(it: AttachmentItem, caption: string, cover?: string) {
+function audioContent(it: AttachmentItem, caption: string | formattedCaption, cover?: string) {
     return {
         _: 'inputMessageAudio',
         audio: {
@@ -203,8 +203,39 @@ function audioContent(it: AttachmentItem, caption: string, cover?: string) {
             audio: file(it.path),
             album_cover_thumbnail: thumbnailOf(cover),
         },
-        caption: fmtText(caption),
+        caption: captionToFormatted(caption),
     } as const;
+}
+
+type formattedCaption = { text: string; entities?: textEntity$Input[] };
+
+function captionToFormatted(caption: string | formattedCaption) {
+    if (typeof caption === 'string') return fmtText(caption);
+    return {
+        _: 'formattedText' as const,
+        text: caption.text,
+        entities: caption.entities ?? [],
+    };
+}
+
+/**
+ * 由附件构造 editMessageMedia 所需的 InputMessageContent。
+ * 描述可带实体，用于「只改媒体」时一并提交当前描述。
+ */
+export function buildEditMediaContent(
+    it: AttachmentItem,
+    caption: string,
+    entities?: textEntity$Input[],
+): Record<string, unknown> {
+    const cap: formattedCaption = { text: caption, entities };
+    switch (it.kind) {
+        case 'photo': return photoContent(it, cap) as unknown as Record<string, unknown>;
+        case 'video': return videoContent(it, cap, it.cover) as unknown as Record<string, unknown>;
+        case 'document': return documentContent(it, cap, it.cover) as unknown as Record<string, unknown>;
+        case 'audio': return audioContent(it, cap, it.cover) as unknown as Record<string, unknown>;
+        case 'animation':
+        default: return animationContent(it, cap) as unknown as Record<string, unknown>;
+    }
 }
 
 interface SendCtx {

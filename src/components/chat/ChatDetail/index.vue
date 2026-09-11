@@ -416,22 +416,46 @@
             <!-- 编辑消息横幅 -->
             <Transition name="mi-fade">
                 <div v-if="editTargetInfo"
-                    class="relative z-10 flex items-start gap-2 mx-5 mt-3 px-3 py-2 rounded-2xl bg-white/70 dark:bg-gray-800/90 shadow-sm border border-gray-200/60 dark:border-gray-700/60">
-                    <PencilIcon class="w-4 h-4 shrink-0 mt-0.5 text-orange-500" />
-                    <div class="min-w-0 flex-1">
-                        <p class="text-xs font-semibold text-orange-500">{{ editTargetInfo.label }}</p>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ editTargetInfo.text || '（无文本内容）'
-                            }}</p>
+                    class="relative z-10 mx-5 mt-3 px-3 py-2 rounded-2xl bg-white/70 dark:bg-gray-800/90 shadow-sm border border-gray-200/60 dark:border-gray-700/60">
+                    <div class="flex items-start gap-2">
+                        <PencilIcon class="w-4 h-4 shrink-0 mt-0.5 text-orange-500" />
+                        <div class="min-w-0 flex-1">
+                            <p class="text-xs font-semibold text-orange-500">编辑</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ editTargetInfo.text || '（无文本内容）' }}</p>
+                        </div>
+                        <button type="button" aria-label="取消编辑"
+                            class="w-6 h-6 shrink-0 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400"
+                            @click="cancelEdit">
+                            <XIcon class="w-3.5 h-3.5" />
+                        </button>
                     </div>
-                    <button type="button" aria-label="取消编辑"
-                        class="w-6 h-6 shrink-0 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400"
-                        @click="cancelEdit">
-                        <XIcon class="w-3.5 h-3.5" />
-                    </button>
+                    <!-- 媒体预览：不可删除，可更换 -->
+                    <div v-if="editHasMedia" class="mt-2 flex items-center gap-2">
+                        <div
+                            class="relative w-14 h-14 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 shrink-0">
+                            <img v-if="editMediaDisplaySrc" :src="editMediaDisplaySrc" alt=""
+                                class="w-full h-full object-cover" draggable="false" />
+                            <div v-else
+                                class="w-full h-full flex items-center justify-center text-[10px] text-gray-500">
+                                媒体
+                            </div>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                {{ editMediaReplacement ? editMediaReplacement.name : (editMediaPreviewSrc ? '已附带媒体' : '无媒体预览') }}
+                            </p>
+                            <p v-if="editMediaReplacement" class="text-[11px] text-orange-500">已选择新媒体，发送时将替换</p>
+                        </div>
+                        <button type="button"
+                            class="shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+                            @click="pickEditMediaReplacement">
+                            更换
+                        </button>
+                    </div>
                 </div>
             </Transition>
-            <MessageInput class="relative z-10" v-model="messageInput" :reply-target="replyTargetInfo"
-                :edit-target="editTargetInfo" :chat="chat" :users="users" :supergroups="supergroups"
+            <MessageInput ref="messageInputRef" class="relative z-10" v-model="messageInput" :reply-target="replyTargetInfo"
+                :edit-target="editTargetInfo" :edit-entities="editSeedEntitiesForInput" :chat="chat" :users="users" :supergroups="supergroups"
                 :basic-groups="basicGroups" :my-id="myId" :member-status="currentMemberStatus" :is-premium="isMePremium"
                 :custom-emojis="pendingCustomEmoji" :current-sender-id="chat?.message_sender_id"
                 :available-senders="availableSenders" :senders-loading="sendersLoading" @clear-reply="clearReply"
@@ -547,6 +571,7 @@ import ReactionPicker from './ReactionPicker.vue';
 import { tdlibSend, isFileReady } from '../../../utils/tdlib';
 import { sendAttachments, sending } from '../../../utils/attachmentSend';
 import { useAttachmentStore } from '../../../store/attachment';
+import type { AttachmentItem } from '../../../store/attachment';
 import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
 
 import { MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, Quote as QuoteIcon, Languages as LanguagesIcon, User as UserIcon, Pencil as PencilIcon, FolderOpenIcon, DownloadIcon, BookmarkIcon, EyeIcon, UserCheckIcon, MessageSquareIcon, AudioLinesIcon, FlagIcon } from 'lucide-vue-next';
@@ -560,7 +585,7 @@ import { storeToRefs } from 'pinia';
 import { listen } from "@tauri-apps/api/event";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { copyFile } from "@tauri-apps/plugin-fs";
-import { save } from "@tauri-apps/plugin-dialog";
+import { save, open as openDialog } from "@tauri-apps/plugin-dialog";
 import { settings, type ChatWallpaperVisual } from '../../../store/settings';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { showCopyJsonInMenus } from '../../../store/debug';
@@ -576,10 +601,13 @@ import {
     executeDeleteActions,
     canCopyMessage, canGetMessageLink, canPinMessage, canDeleteMessage,
     canReplyMessage, canEditMessage, editTextMessage, editCaptionMessage,
+    editMessageMediaContent,
     canSaveMessage, canGetViewers, canGetReadDate, canGetAuthor,
     canGetMessageThread, canRecognizeSpeech, canReportMessage,
     toggleReaction,
 } from '../../contextMenu/messageActions';
+import { classifyAttachment, buildEditMediaContent } from '../../../utils/attachmentSend';
+import { isSavedMessagesChat } from '../../../utils/savedMessages';
 import { hasReactions } from '../../../utils/reactionHelpers';
 import { confirmDeleteMessage } from '../../../store/deleteMessage';
 import type { DeleteMessageRequest } from '../../../store/deleteMessage';
@@ -1067,33 +1095,211 @@ function clearReply() {
 // ===== 编辑模式 =====
 /** 当前正在编辑的消息（null 表示非编辑状态） */
 const editingMsg = ref<message | null>(null);
+/** 编辑时载入输入框的原始实体（加粗/斜体/链接/自定义 emoji 等） */
+const editSeedEntities = ref<textEntity$Input[] | null>(null);
+/** 媒体消息编辑：原媒体预览（不可删除） */
+const editMediaPreviewSrc = ref<string | null>(null);
+/** 媒体消息编辑：用户选择的替换媒体（null 表示未更换） */
+const editMediaReplacement = ref<AttachmentItem | null>(null);
+/** MessageInput 实例（用于写入编辑实体） */
+const messageInputRef = ref<InstanceType<typeof MessageInput> | null>(null);
+/** 传给 MessageInput 的编辑实体（补齐必填字段） */
+const editSeedEntitiesForInput = computed<textEntity[] | null>(() =>
+    editSeedEntities.value ? normalizeEditEntities(editSeedEntities.value) : null
+);
 
-/** 编辑目标摘要，供 MessageInput 显示编辑横幅 */
+/** 编辑目标摘要，供 MessageInput 显示编辑横幅；统一使用「编辑」文案 */
 const editTargetInfo = computed<{ text: string; label: string } | null>(() => {
     const m = editingMsg.value;
     if (!m) return null;
     const ft = getMessageFormattedText(m);
-    const isMedia = isMediaMessage(m);
     return {
         text: ft?.text ?? getMessagePlainText(m),
-        label: isMedia ? '编辑描述' : '编辑消息',
+        label: '编辑',
     };
 });
 
-/** 进入编辑模式：清空回复状态，将消息文本填入输入框 */
-function startEdit(msg: message) {
-    // 先退出回复/引用模式
-    clearReply();
-    editingMsg.value = msg;
-    // 将消息文本预填到输入框
-    const ft = getMessageFormattedText(msg);
-    messageInput.value = ft?.text ?? getMessagePlainText(msg);
+/** 从消息内容提取媒体预览 URL（本地文件 / minithumbnail base64） */
+function extractEditMediaPreview(msg: message): string | null {
+    const c = msg.content;
+    try {
+        if (c._ === 'messagePhoto') {
+            const f = c.photo.sizes?.[c.photo.sizes.length - 1]?.photo;
+            if (f?.local?.is_downloading_completed && f.local.path) {
+                return convertFileSrc(f.local.path);
+            }
+            if (c.photo.minithumbnail?.data) {
+                return `data:image/jpeg;base64,${c.photo.minithumbnail.data}`;
+            }
+            return null;
+        }
+        if (c._ === 'messageVideo') {
+            if (c.video.thumbnail?.file?.local?.is_downloading_completed && c.video.thumbnail.file.local.path) {
+                return convertFileSrc(c.video.thumbnail.file.local.path);
+            }
+            if (c.video.minithumbnail?.data) {
+                return `data:image/jpeg;base64,${c.video.minithumbnail.data}`;
+            }
+            return null;
+        }
+        if (c._ === 'messageAnimation') {
+            if (c.animation.thumbnail?.file?.local?.is_downloading_completed && c.animation.thumbnail.file.local.path) {
+                return convertFileSrc(c.animation.thumbnail.file.local.path);
+            }
+            if (c.animation.minithumbnail?.data) {
+                return `data:image/jpeg;base64,${c.animation.minithumbnail.data}`;
+            }
+            return null;
+        }
+        if (c._ === 'messageDocument') {
+            if (c.document.thumbnail?.file?.local?.is_downloading_completed && c.document.thumbnail.file.local.path) {
+                return convertFileSrc(c.document.thumbnail.file.local.path);
+            }
+            if (c.document.minithumbnail?.data) {
+                return `data:image/jpeg;base64,${c.document.minithumbnail.data}`;
+            }
+            return null;
+        }
+        if (c._ === 'messageAudio') {
+            if (c.audio.album_cover_thumbnail?.file?.local?.is_downloading_completed
+                && c.audio.album_cover_thumbnail.file.local.path) {
+                return convertFileSrc(c.audio.album_cover_thumbnail.file.local.path);
+            }
+            return null;
+        }
+    } catch {
+        // 预览失败不阻塞编辑
+    }
+    return null;
 }
 
-/** 退出编辑模式 */
+/** 当前编辑消息是否有可替换的媒体 */
+const editHasMedia = computed(() => {
+    const m = editingMsg.value;
+    if (!m) return false;
+    const t = m.content._;
+    return t === 'messagePhoto' || t === 'messageVideo' || t === 'messageAnimation'
+        || t === 'messageDocument' || t === 'messageAudio';
+});
+
+/** 编辑区媒体预览：更换后显示新图，否则显示原图 */
+const editMediaDisplaySrc = computed(() =>
+    editMediaReplacement.value
+        ? convertFileSrc(editMediaReplacement.value.path)
+        : editMediaPreviewSrc.value
+);
+
+/** 当前聊天是否为「收藏」（Saved Messages）——收藏内不允许进入编辑 */
+const isInSavedMessages = computed(() =>
+    !!chat.value && !!myId.value && isSavedMessagesChat(chat.value, myId.value)
+);
+
+/**
+ * 进入编辑模式：清空回复状态，将消息文本与原始实体填入输入框。
+ * 可编辑性以 TDLib 为准：收藏夹消息一律禁止；其余看 canEditMessage
+ * （普通消息 MessageProperties.can_be_edited / 快捷回复 quickReplyMessage.can_be_edited）。
+ */
+async function startEdit(msg: message) {
+    if (chatId.value === undefined) return;
+    if (isInSavedMessages.value) return;
+    if (!canEditMessage(msg, chatId.value)) return;
+
+    // 进入编辑前先把当前输入存为草稿，取消编辑时可恢复
+    saveDraft();
+
+    clearReply();
+    // 编辑不走附件托盘；清空附件避免误发。媒体替换单独用 editMediaReplacement。
+    void useAttachmentStore().clearWithCleanup();
+
+    editingMsg.value = msg;
+    editMediaReplacement.value = null;
+    editMediaPreviewSrc.value = extractEditMediaPreview(msg);
+
+    const ft = getMessageFormattedText(msg);
+    const text = ft?.text ?? getMessagePlainText(msg);
+    const entities = (ft?.entities ?? []) as textEntity$Input[];
+    editSeedEntities.value = entities;
+    messageInput.value = text;
+    pendingCustomEmoji.value = [];
+
+    // modelValue 同步到 MessageInput 后再写入实体，避免被整体替换清空逻辑覆盖
+    await nextTick();
+    messageInputRef.value?.setEntities(normalizeEditEntities(entities));
+}
+
+/** textEntity$Input → textEntity：补齐必填 offset/length */
+function normalizeEditEntities(ents: textEntity$Input[]): textEntity[] {
+    return ents.map((e) => ({
+        _: 'textEntity' as const,
+        offset: e.offset ?? 0,
+        length: e.length ?? 0,
+        type: e.type as textEntity['type'],
+    }));
+}
+
+/** 退出编辑模式：恢复进入编辑前保存的草稿（若有） */
 function cancelEdit() {
     editingMsg.value = null;
-    messageInput.value = '';
+    editSeedEntities.value = null;
+    editMediaPreviewSrc.value = null;
+    editMediaReplacement.value = null;
+    if (chatId.value !== undefined) {
+        restoreDraft(chatId.value, topicId.value, chat.value?.draft_message);
+    } else {
+        messageInput.value = '';
+        pendingCustomEmoji.value = [];
+    }
+}
+
+/** 更换编辑中的媒体：打开文件选择器，分类后写入 editMediaReplacement */
+async function pickEditMediaReplacement() {
+    if (!editingMsg.value || !editHasMedia.value) return;
+    try {
+        const selected = await openDialog({
+            multiple: false,
+            title: '选择新的媒体文件',
+            filters: [{
+                name: '媒体文件',
+                extensions: [
+                    'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'heic', 'heif',
+                    'mp4', 'mov', 'mkv', 'avi', 'webm', 'm4v', 'mpeg', 'mpg', 'wmv', 'flv', '3gp', 'ogv',
+                    'mp3', 'm4a', 'aac', 'ogg', 'opus', 'flac', 'wav', 'wma', 'amr',
+                    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'zip', 'rar', '7z', 'txt',
+                ],
+            }],
+        });
+        if (!selected) return;
+        const path = Array.isArray(selected) ? selected[0] : selected;
+        if (!path) return;
+
+        const name = path.split(/[\\/]/).pop() || path;
+        const { stat } = await import('@tauri-apps/plugin-fs');
+        let size = 0;
+        try { size = (await stat(path)).size; } catch { size = 0; }
+
+        const result = await classifyAttachment({
+            path, name, size,
+            album: false,
+            isPremium: isMePremium.value,
+        });
+        if (result.status === 'rejected') {
+            MessagePlugin.warning(result.reason);
+            return;
+        }
+        editMediaReplacement.value = {
+            id: `edit-media-${Date.now()}`,
+            path, name, size,
+            kind: result.kind,
+            width: result.width,
+            height: result.height,
+            duration: result.duration,
+            probeFailed: result.probeFailed,
+        };
+        editMediaPreviewSrc.value = convertFileSrc(path);
+    } catch (e) {
+        console.error('pick edit media failed:', e);
+        MessagePlugin.error({ content: '选择媒体失败', placement: 'center' });
+    }
 }
 
 /**
@@ -1925,14 +2131,46 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
     const currentId = newChatId;
     const gen = ++loadGeneration;
 
-
     // 通知 TDLib 关闭旧聊天（停收推送更新等）
     if (chat.value) {
         void tdlibSend({ _: 'closeChat', chat_id: chat.value.id });
     }
 
-    // 保存当前聊天的输入框草稿
-    saveDraft();
+    // 切换对话/话题：必须用「旧」chatId 存草稿。
+    // watch 回调触发时 chatId.value 已是新值，若直接 saveDraft() 会把
+    // 上一聊天的输入错误地写到新聊天的 key 下，导致切换后输入框残留旧内容。
+    const [oldChatId, oldTopicId] = oldVals ?? [];
+    const switchingChat = oldChatId !== undefined
+        && (oldChatId !== newChatId || oldTopicId !== newTopicId);
+    if (switchingChat) {
+        // 编辑态下的输入框是被编辑消息内容，不是草稿；丢弃编辑并走本地缓存恢复，
+        // 绝不能把编辑内容写成草稿，也不要把旧草稿覆盖成空。
+        suppressDraftAutosave = true;
+        if (editingMsg.value) {
+            editingMsg.value = null;
+            editSeedEntities.value = null;
+            editMediaPreviewSrc.value = null;
+            editMediaReplacement.value = null;
+            messageInput.value = '';
+            pendingCustomEmoji.value = [];
+            if (localDraftTimer !== null) {
+                window.clearTimeout(localDraftTimer);
+                localDraftTimer = null;
+            }
+        } else {
+            saveDraft(oldChatId!, oldTopicId);
+            // 抑制自动存草稿并立刻清空输入框，避免加载期间看到旧内容、
+            // 或防抖回调用新 chatId 把空输入误存成「删除新聊天草稿」。
+            if (localDraftTimer !== null) {
+                window.clearTimeout(localDraftTimer);
+                localDraftTimer = null;
+            }
+            messageInput.value = '';
+            pendingCustomEmoji.value = [];
+        }
+    } else {
+        suppressDraftAutosave = false;
+    }
 
     // 重置全部状态
     resetState();
@@ -2720,22 +2958,47 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
     if (!chatId.value) return;
     const text = typeof input === 'string' ? input : input.text;
 
-    // —— 编辑模式：文本消息用 editMessageText，媒体消息用 editMessageCaption ——
+    // —— 编辑模式：有新媒体 → editMessageMedia；仅文本 → editMessageText；仅描述 → editMessageCaption ——
     if (editingMsg.value) {
-        const isMedia = isMediaMessage(editingMsg.value);
+        const target = editingMsg.value;
+        const isMedia = isMediaMessage(target) || editHasMedia.value;
         // 文本消息不允许空内容；媒体消息允许清空描述
-        if (!text.trim() && !isMedia) return;
+        if (!text.trim() && !isMedia && !editMediaReplacement.value) return;
         try {
             const richEntities = (typeof input === 'string' ? [] : input.entities || []) as textEntity$Input[];
             const customEmojiEntities = buildCustomEmojiEntities(text);
             const entities = [...richEntities, ...customEmojiEntities];
-            const ok = isMedia
-                ? await editCaptionMessage(chatId.value, editingMsg.value.id, text, entities)
-                : await editTextMessage(chatId.value, editingMsg.value.id, text, entities);
+            let ok = false;
+            if (editMediaReplacement.value) {
+                // 更换媒体：走 editMessageMedia（描述与新媒体一并提交）
+                const content = buildEditMediaContent(editMediaReplacement.value, text, entities);
+                ok = await editMessageMediaContent(chatId.value, target.id, content);
+            } else if (isMedia) {
+                // 仅改描述
+                ok = await editCaptionMessage(chatId.value, target.id, text, entities);
+            } else {
+                ok = await editTextMessage(chatId.value, target.id, text, entities);
+            }
             if (ok) {
                 messageInput.value = '';
                 pendingCustomEmoji.value = [];
                 editingMsg.value = null;
+                editSeedEntities.value = null;
+                editMediaPreviewSrc.value = null;
+                editMediaReplacement.value = null;
+                if (localDraftTimer !== null) {
+                    window.clearTimeout(localDraftTimer);
+                    localDraftTimer = null;
+                }
+                // 编辑成功后恢复进入编辑前保存的草稿，避免输入框被清空丢失草稿视图
+                if (chatId.value !== undefined) {
+                    suppressDraftAutosave = true;
+                    restoreDraft(chatId.value, topicId.value, chat.value?.draft_message);
+                    // restore 触发的模型更新在 nextTick 后结束，再解除抑制
+                    void nextTick(() => {
+                        suppressDraftAutosave = false;
+                    });
+                }
             }
         } catch (e) {
             console.error('Failed to edit message:', e);
@@ -2937,6 +3200,9 @@ function resetState() {
     // 清空回复、编辑与多选状态
     clearReply();
     editingMsg.value = null;
+    editSeedEntities.value = null;
+    editMediaPreviewSrc.value = null;
+    editMediaReplacement.value = null;
     selectionMode.value = false;
     selectedMsgIds.value = [];
     if (highlightTimer !== null) {

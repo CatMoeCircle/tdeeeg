@@ -239,14 +239,31 @@ export function canReplyMessage(msg: message, chatId?: number): boolean {
     return true;
 }
 
-/** 消息是否可编辑（messageProperties.can_be_edited） */
+/**
+ * 消息是否可编辑。
+ * - 快捷回复：以 quickReplyMessage.can_be_edited 为准（走 editQuickReplyMessage）
+ * - 普通消息：以 getMessageProperties → messageProperties.can_be_edited 为准
+ * 客户端不自行按类型/发送者/时限等推算，最终权限由 Telegram/TDLib 校验；
+ * 属性未加载时仅作乐观占位（可先渲染菜单），点击后仍由 TDLib 决定成败。
+ */
 export function canEditMessage(msg: message, chatId?: number): boolean {
     if (isServiceMessage(msg)) return false;
-    let p: messageProperties | undefined;
-    if (chatId !== undefined) p = propsOf(chatId, msg);
-    const cp = p ?? (msg as any);
-    if (cp.can_be_edited !== undefined) return cp.can_be_edited === true;
-    return (msg as any).can_be_edited !== false;
+
+    // 快捷回复消息（与普通 message 形态不同）
+    const qr = msg as unknown as { _?: string; can_be_edited?: boolean };
+    if (qr._ === 'quickReplyMessage') {
+        return qr.can_be_edited === true;
+    }
+
+    // 普通消息：优先 MessageProperties.can_be_edited
+    if (chatId !== undefined) {
+        const p = propsOf(chatId, msg);
+        if (p?.can_be_edited !== undefined) return p.can_be_edited === true;
+    }
+    const inline = (msg as unknown as { can_be_edited?: boolean }).can_be_edited;
+    if (inline !== undefined) return inline === true;
+    // 属性未就绪时乐观放行；提交编辑时仍由 TDLib 拒绝非法操作
+    return true;
 }
 
 /** 消息是否可保存到收藏（messageProperties.can_be_saved） */
@@ -379,6 +396,30 @@ export async function editCaptionMessage(
     } catch (e) {
         console.error('editMessageCaption failed:', e);
         MessagePlugin.error({ content: '编辑描述失败', placement: 'center' });
+        return false;
+    }
+}
+
+/**
+ * 更换媒体内容（editMessageMedia）。
+ * 仅当媒体本身被替换时使用；只改描述请走 editMessageCaption。
+ */
+export async function editMessageMediaContent(
+    chatId: number,
+    messageId: number,
+    inputMessageContent: Record<string, unknown>,
+): Promise<boolean> {
+    try {
+        await tdlibSend({
+            _: 'editMessageMedia',
+            chat_id: chatId,
+            message_id: messageId,
+            input_message_content: inputMessageContent,
+        } as any);
+        return true;
+    } catch (e) {
+        console.error('editMessageMedia failed:', e);
+        MessagePlugin.error({ content: '更换媒体失败', placement: 'center' });
         return false;
     }
 }

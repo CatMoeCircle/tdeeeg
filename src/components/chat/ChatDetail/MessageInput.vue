@@ -100,6 +100,8 @@ const props = defineProps<{
     placeholder?: string;
     replyTarget?: ReplyTarget | null;
     editTarget?: { text: string; label?: string } | null;
+    /** 进入编辑模式时要载入的原始实体（加粗/斜体/链接/自定义 emoji 等） */
+    editEntities?: textEntity[] | null;
     chat?: chat;
     users?: Record<number, user>;
     supergroups?: Record<number, import('tdlib-types').supergroup>;
@@ -123,6 +125,13 @@ const emit = defineEmits([
     'attachPhoto', 'attachFile', 'attachMusic', 'attachChecklist', 'attachPoll',
     'attachContact', 'attachLocation', 'change-sender',
 ]);
+
+/** 供父组件在进入编辑后写入原始实体（在 modelValue 稳定后调用） */
+function setEntities(ents: textEntity[] | null | undefined) {
+    entities.value = (ents ?? []).map((e) => ({ ...e }));
+    lastText = localValue.value;
+}
+defineExpose({ setEntities });
 
 const attachmentStore = useAttachmentStore();
 const localValue = ref(props.modelValue || '');
@@ -201,7 +210,7 @@ onMounted(() => nextTick(syncPreviewScroll));
 watch(() => props.modelValue, (v) => {
     if (v !== localValue.value) {
         const old = localValue.value;
-        // 外部整体替换文本（草稿/清空/emoji 追加/命令插入等）→
+        // 外部整体替换文本（草稿/清空/emoji 追加/命令插入/进入编辑）→
         // 尝试 diff 平移实体；若外部是整段替换（如加载草稿/清空）则无需保留实体，
         // 但纯文本追加（emoji/命令）应尽量保留已有实体，故交给 diff 判断
         if (old.length > 0 && v && v.length > old.length && v.startsWith(old)) {
@@ -209,6 +218,9 @@ watch(() => props.modelValue, (v) => {
             entities.value = insertTextShiftEntities(entities.value, old.length, old.length, v.length - old.length);
         } else if (v === '') {
             // 清空
+            entities.value = [];
+        } else if (props.editTarget) {
+            // 进入编辑 / 编辑中整体替换：先清空，随后由 editEntities / setEntities 恢复
             entities.value = [];
         } else {
             // 其余情况（加载草稿等）：无可靠偏移可循，保留原实体并在发送前由 TDLib 校验
@@ -218,6 +230,21 @@ watch(() => props.modelValue, (v) => {
         localValue.value = v || '';
         lastText = v || '';
     }
+});
+
+// 进入编辑时，把原始消息实体灌进输入框（在 modelValue 应用后执行，避免被清空逻辑覆盖）
+watch(() => props.editEntities, (ents) => {
+    if (!props.editTarget) return;
+    // 等 modelValue 同步到 localValue 后再写入实体
+    void nextTick(() => {
+        if (!props.editTarget) return;
+        setEntities(ents);
+    });
+}, { immediate: true });
+
+// 退出编辑时清空实体，避免残留到下一次输入
+watch(() => props.editTarget, (t, old) => {
+    if (!t && old) entities.value = [];
 });
 
 watch(localValue, (v) => emit('update:modelValue', v));
