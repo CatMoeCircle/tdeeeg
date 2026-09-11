@@ -594,7 +594,7 @@ import { openContextMenu, visible as contextMenuVisible, reactionRow as contextM
 import type { ContextMenuReactionItem, ContextMenuReactionRow } from '../../contextMenu/types';
 import { DEFAULT_TRANSLATE_TARGET } from '../../../utils/translateLanguages';
 
-import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity$Input, file as TdFile, ReactionType } from 'tdlib-types';
+import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity, textEntity$Input, file as TdFile, ReactionType } from 'tdlib-types';
 import { getViewerState, closeMediaViewer, isMediaViewerActive, openMediaViewer } from '../../../store/mediaViewer';
 
 import { getSenderAccentColorId, getSenderProfileAccentColorId, getChatProfileAccentColorId, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
@@ -666,7 +666,8 @@ const clearLastBrowsePosition = (id: number, tid?: number | null) => {
 
 // ==================== 草稿缓存（模块级） ====================
 // 每个聊天的输入框草稿（文本 + 自定义 emoji 队列），按 chatId(+topicId) 缓存。
-// 切换聊天时保存当前草稿，进入新聊天时恢复；组件卸载时也会保存，保证不丢。
+// 切换聊天时用「旧 chatId」保存当前草稿，进入新聊天时恢复；组件卸载时也会保存。
+// 同时同步到 TDLib setChatDraftMessage，使会话列表草稿 / 跨端草稿一致。
 interface DraftEntry {
     text: string;
     customEmojis: { id: string; alt: string }[];
@@ -678,39 +679,126 @@ function draftCacheKey(id: number, tid?: number | null) {
     return tid ? `${id}:${tid}` : `${id}`;
 }
 
-/** 保存当前输入框草稿到缓存 */
-function saveDraft() {
+/** TDLib setChatDraftMessage 的防抖定时器 */
+let tdlibDraftTimer: number | null = null;
+/** 本地输入变更后写入草稿的防抖定时器 */
+let localDraftTimer: number | null = null;
+/** 切换对话加载期间为 true：抑制自动存草稿，避免清空输入误删新聊天草稿 */
+let suppressDraftAutosave = false;
+/** 待提交到 TDLib 的草稿（防抖窗口内切换聊天时，先冲刷旧聊天草稿，避免被新聊天覆盖丢失） */
+let pendingTdlibDraft: { cid: number; tid?: number | null; text?: string } | null = null;
+
+function draftTopicInput(tid?: number | null) {
+    return tid
+        ? ({ _: 'messageTopicForum', forum_topic_id: tid } as const)
+        : undefined;
+}
+
+/** 立即把 pendingTdlibDraft 提交到 TDLib；无待提交则不操作 */
+function flushTdlibDraftNow() {
+    if (!pendingTdlibDraft) return;
+    const { cid, tid, text } = pendingTdlibDraft;
+    pendingTdlibDraft = null;
+    const body = text?.trim()
+        ? {
+            _: 'draftMessage' as const,
+            date: Math.floor(Date.now() / 1000),
+            content: {
+                _: 'draftMessageContentText' as const,
+                text: { _: 'formattedText' as const, text: text!, entities: [] },
+            },
+        }
+        : null;
+    void tdlibSend({
+        _: 'setChatDraftMessage',
+        chat_id: cid,
+        topic_id: draftTopicInput(tid),
+        draft_message: body,
+    } as any).catch((e) => {
+        // 草稿同步失败不影响本地输入，仅记录
+        console.warn('setChatDraftMessage failed:', e);
+    });
+}
+
+/**
+ * 把草稿同步到 TDLib（setChatDraftMessage）。
+ * text 为空时传 null，等价于清除服务端草稿。
+ * 防抖执行，避免输入过程中高频调用；若上一次待提交草稿属于其它聊天，先立即冲刷。
+ */
+function syncTdlibDraft(cid: number, tid?: number | null, text?: string) {
+    if (tdlibDraftTimer !== null) {
+        window.clearTimeout(tdlibDraftTimer);
+        tdlibDraftTimer = null;
+    }
+    // 跨聊天切换：立刻提交旧聊天草稿，防止被下面的新 pending 覆盖
+    if (pendingTdlibDraft && pendingTdlibDraft.cid !== cid) {
+        flushTdlibDraftNow();
+    }
+    pendingTdlibDraft = { cid, tid, text };
+    tdlibDraftTimer = window.setTimeout(() => {
+        tdlibDraftTimer = null;
+        flushTdlibDraftNow();
+    }, 400);
+}
+
+/**
+ * 保存输入框草稿到本地缓存 + TDLib。
+ * @param targetChatId 目标聊天（切换时必须传「旧」chatId）；缺省用当前 chatId
+ * @param targetTopicId 目标话题（配合 targetChatId）；缺省用当前 topicId
+ */
+function saveDraft(targetChatId?: number, targetTopicId?: number | null) {
+    const cid = targetChatId ?? chatId.value;
+    if (cid === undefined) return;
+    const tid = targetTopicId !== undefined ? targetTopicId : topicId.value;
     const text = messageInput.value;
     const emojis = pendingCustomEmoji.value;
-    // 无内容时不保存，避免空条目堆积
+    const key = draftCacheKey(cid, tid);
+
     if (!text && emojis.length === 0) {
-        if (chatId.value !== undefined) {
-            draftCache.delete(draftCacheKey(chatId.value, topicId.value));
-        }
+        draftCache.delete(key);
+        syncTdlibDraft(cid, tid, '');
         return;
     }
-    if (chatId.value === undefined) return;
-    const key = draftCacheKey(chatId.value, topicId.value);
     draftCache.set(key, { text, customEmojis: [...emojis] });
-    // LRU 淘汰
     while (draftCache.size > DRAFT_CACHE_MAX) {
         const oldest = draftCache.keys().next().value;
         if (oldest === undefined) break;
         draftCache.delete(oldest);
     }
+    syncTdlibDraft(cid, tid, text);
 }
 
-/** 从缓存恢复草稿到输入框 */
-function restoreDraft(chatIdNum: number, tid?: number | null) {
-    const key = draftCacheKey(chatIdNum, tid);
-    const entry = draftCache.get(key);
+/** 仅写入本地缓存（恢复远端草稿时用，避免回写 TDLib 造成无意义更新） */
+function putLocalDraft(cid: number, tid: number | null | undefined, entry: DraftEntry) {
+    draftCache.set(draftCacheKey(cid, tid), entry);
+}
+
+/**
+ * 从缓存 / TDLib 草稿恢复到输入框。
+ * 本地缓存优先；否则尝试从 chat.draft_message（TDLib）取文本草稿。
+ */
+function restoreDraft(
+    chatIdNum: number,
+    tid?: number | null,
+    remoteDraft?: { content?: { _?: string; text?: { text?: string } } } | null,
+) {
+    const entry = draftCache.get(draftCacheKey(chatIdNum, tid));
     if (entry) {
         messageInput.value = entry.text;
         pendingCustomEmoji.value = [...entry.customEmojis];
-    } else {
-        messageInput.value = '';
-        pendingCustomEmoji.value = [];
+        return;
     }
+    const remoteText = remoteDraft?.content?._ === 'draftMessageContentText'
+        ? (remoteDraft.content.text?.text ?? '')
+        : '';
+    if (remoteText) {
+        messageInput.value = remoteText;
+        pendingCustomEmoji.value = [];
+        putLocalDraft(chatIdNum, tid, { text: remoteText, customEmojis: [] });
+        return;
+    }
+    messageInput.value = '';
+    pendingCustomEmoji.value = [];
 }
 
 
@@ -853,6 +941,19 @@ const topic = ref<forumTopic | undefined>(undefined);
 const messageInput = ref('');
 /** 面板插入的自定义 emoji 队列（按插入顺序；发送时据此生成实体） */
 const pendingCustomEmoji = ref<{ id: string; alt: string }[]>([]);
+
+// 输入过程中防抖写入草稿（本地 + TDLib）；编辑模式不写草稿
+watch([messageInput, pendingCustomEmoji], () => {
+    if (suppressDraftAutosave) return;
+    if (editingMsg.value) return;
+    if (chatId.value === undefined) return;
+    if (localDraftTimer !== null) window.clearTimeout(localDraftTimer);
+    localDraftTimer = window.setTimeout(() => {
+        localDraftTimer = null;
+        if (suppressDraftAutosave || editingMsg.value) return;
+        saveDraft();
+    }, 500);
+});
 const messages = ref<message[]>([]);
 const messagesContainer = ref<HTMLElement | null>(null);
 
@@ -1467,8 +1568,20 @@ onUnmounted(() => {
     if (bubbleWidthObserver) bubbleWidthObserver.disconnect();
     if (readVisibilityTimer !== null) window.clearTimeout(readVisibilityTimer);
     if (chatLoadRetryTimer !== null) window.clearTimeout(chatLoadRetryTimer);
-    // 保存当前聊天的输入框草稿
-    saveDraft();
+    if (localDraftTimer !== null) {
+        window.clearTimeout(localDraftTimer);
+        localDraftTimer = null;
+    }
+    // 编辑中卸载：编辑文本不是草稿，不要写入；直接冲刷先前已保存的 TDLib 草稿
+    if (!editingMsg.value) {
+        saveDraft();
+    }
+    // 无论是否编辑，都把待提交草稿冲刷出队，避免组件卸载后丢草稿
+    if (tdlibDraftTimer !== null) {
+        window.clearTimeout(tdlibDraftTimer);
+        tdlibDraftTimer = null;
+    }
+    flushTdlibDraftNow();
     // 通知 TDLib 该聊天已关闭（停收推送更新等）
     if (chat.value) {
         void tdlibSend({ _: 'closeChat', chat_id: chat.value.id });
@@ -1796,7 +1909,10 @@ function isGenerationValid(gen: number): boolean {
 }
 
 // 监听 chatId 变化，加载聊天信息和消息
-watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([newChatId, , , requestedMessageId]) => {
+watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
+    [newChatId, newTopicId, , requestedMessageId],
+    oldVals,
+) => {
     if (newChatId === undefined) return;
     if (chatLoadRetryId !== newChatId) {
         chatLoadRetryId = newChatId;
@@ -1869,7 +1985,7 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
                 isReady.value = true;
                 chatLoadRetryCount = 0;
                 scheduleVisibleMessagesRead();
-                restoreDraft(currentId, topicId.value);
+                restoreDraft(currentId, topicId.value, chatData.draft_message);
                 void tdlibSend({ _: 'openChat', chat_id: currentId });
                 void autoOpenMediaFromQuery(gen);
                 return;
@@ -1926,7 +2042,7 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
 
         isReady.value = true;
         chatLoadRetryCount = 0;
-        restoreDraft(currentId, topicId.value);
+        restoreDraft(currentId, topicId.value, chatData.draft_message);
         void tdlibSend({ _: 'openChat', chat_id: currentId });
 
         // 定位后向更旧方向补齐历史，直到足够滚动（渐进，不阻塞首屏）
@@ -1961,6 +2077,12 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async ([n
             }, chatLoadRetryCount * 300);
         } else {
             isReady.value = true;
+        }
+    } finally {
+        // 仅当仍是当前这一代加载时解除抑制；
+        // 若期间又切换了聊天（gen 已更新），交给新一代自行管理。
+        if (loadGeneration === gen) {
+            suppressDraftAutosave = false;
         }
     }
 }, { immediate: true });
@@ -2673,9 +2795,14 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
         await tdlibSend(params as $Function);
         messageInput.value = '';
         pendingCustomEmoji.value = [];
-        // 发送成功后清除草稿并清除回复状态
+        // 发送成功后清除本地草稿与 TDLib 草稿，并清除回复状态
         if (chatId.value !== undefined) {
             draftCache.delete(draftCacheKey(chatId.value, topicId.value));
+            if (localDraftTimer !== null) {
+                window.clearTimeout(localDraftTimer);
+                localDraftTimer = null;
+            }
+            syncTdlibDraft(chatId.value, topicId.value, '');
         }
         clearReply();
     } catch (e) {

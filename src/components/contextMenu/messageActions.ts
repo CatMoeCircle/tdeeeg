@@ -346,7 +346,8 @@ export async function editTextMessage(
             input_message_content: {
                 _: 'inputMessageText',
                 text: content,
-                clear_draft: true,
+                // 编辑消息与草稿无关，绝不能 clear_draft，否则会误删本聊天草稿
+                clear_draft: false,
             },
         } as any);
         return true;
