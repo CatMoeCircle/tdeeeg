@@ -79,6 +79,11 @@ const router = createRouter({
           component: () => import("../views/settings/DownloadSettings.vue"),
         },
         {
+          path: "settings/notifications",
+          name: "settings-notifications",
+          component: () => import("../views/settings/NotificationSettings.vue"),
+        },
+        {
           path: "settings/proxy",
           name: "settings-proxy",
           component: () => import("../views/settings/ProxySettings.vue"),

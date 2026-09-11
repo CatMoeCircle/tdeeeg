@@ -1203,6 +1203,17 @@ fn spawn_receive_loop(
                     }
                 }
 
+                // 系统通知：在 Rust 侧处理 updateNotificationGroup / 连接态 / 用户缓存
+                if let Some(svc) = app_handle.try_state::<crate::notifications::NotificationService>() {
+                    crate::notifications::handle_update(
+                        svc.inner(),
+                        &event,
+                        &chat_store,
+                        &app_handle,
+                        is_active,
+                    );
+                }
+
                 // 处理下载管理器的 updateFile 事件（全局下载任务）
                 if event.get("_").and_then(|v| v.as_str()) == Some("updateFile") {
                     handle_update_file(&event, &state, &app_handle);
@@ -1278,6 +1289,20 @@ fn handle_get_me(
     if let Some(uid) = event.get("id").and_then(|v| v.as_i64()) {
         if let Ok(mut m) = client.my_id.lock() {
             *m = Some(uid);
+        }
+        // 通知服务缓存自己的 id / 资料（私聊标题「发送者 → 自己」）
+        if let Some(svc) = app_handle.try_state::<crate::notifications::NotificationService>() {
+            svc.set_my_id(uid);
+            // handle_update 的 cache_user 是私有方法；通过 updateUser 路径缓存
+            // 这里直接再走一次 handle_update 的 updateUser 分支逻辑
+            let fake = json!({ "_": "updateUser", "user": event });
+            crate::notifications::handle_update(
+                svc.inner(),
+                &fake,
+                &client.chat_store,
+                app_handle,
+                true,
+            );
         }
     }
 

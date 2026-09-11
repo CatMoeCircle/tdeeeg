@@ -10,6 +10,7 @@ import { useUserStore } from "./store/user";
 import { useAccountsStore } from "./store/accounts";
 import { initSenderInfo } from "./utils/senderInfo";
 import { initColors, watchSystemColorScheme } from "./store/colors";
+import { initNativeNotifications } from "./store/notifications";
 import { settings } from "./store/settings";
 // import type { Update } from "tdlib-types";
 
@@ -48,6 +49,8 @@ export async function initTdlib() {
     await initColors();
     // 跟随系统明暗模式，供 accent 色选择对应明暗色板
     watchSystemColorScheme();
+    // 初始化系统原生通知（Windows Toast / 通知中心）
+    await initNativeNotifications();
 
     // if (import.meta.env.DEV) {
     //     await listen<Update>("tdlib-update", (event) => {

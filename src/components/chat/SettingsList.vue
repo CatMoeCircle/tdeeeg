@@ -58,6 +58,19 @@
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                 </router-link>
 
+                <router-link to="/home/settings/notifications"
+                    class="flex items-center px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    active-class="bg-blue-50 dark:bg-gray-800 text-blue-600">
+                    <div class="w-8 h-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mr-3">
+                        <BellIcon class="w-5 h-5" />
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">通知</h3>
+                        <p class="text-xs text-gray-500">系统弹窗, 消息预览, 权限</p>
+                    </div>
+                    <ChevronRightIcon class="w-4 h-4 text-gray-400" />
+                </router-link>
+
                 <router-link to="/home/settings/privacy"
                     class="flex items-center px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                     active-class="bg-blue-50 dark:bg-gray-800 text-blue-600">
@@ -182,7 +195,7 @@
 </template>
 
 <script setup lang="ts">
-import { PaletteIcon, ChevronRightIcon, GlobeIcon, DatabaseIcon, NetworkIcon, SendIcon, TerminalSquare as TerminalSquareIcon, Settings as SettingsIcon, UserCog as UserCogIcon, Shield as ShieldIcon, Laptop as LaptopIcon } from 'lucide-vue-next';
+import { PaletteIcon, ChevronRightIcon, GlobeIcon, DatabaseIcon, NetworkIcon, SendIcon, TerminalSquare as TerminalSquareIcon, Settings as SettingsIcon, UserCog as UserCogIcon, Shield as ShieldIcon, Laptop as LaptopIcon, Bell as BellIcon } from 'lucide-vue-next';
 import avatar from './avatar.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 import { useUserStore } from '../../store/user';

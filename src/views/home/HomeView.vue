@@ -96,6 +96,7 @@ const isSettings = computed(() => route.name === 'settings'
     || route.name === 'settings-appearance'
     || route.name === 'settings-wallpaper'
     || route.name === 'settings-download'
+    || route.name === 'settings-notifications'
     || route.name === 'settings-proxy'
     || route.name === 'settings-debug'
     || route.name === 'settings-system'
@@ -105,6 +106,7 @@ const isSettings = computed(() => route.name === 'settings'
 const isSettingsDetail = computed(() => route.name === 'settings-appearance'
     || route.name === 'settings-wallpaper'
     || route.name === 'settings-download'
+    || route.name === 'settings-notifications'
     || route.name === 'settings-proxy'
     || route.name === 'settings-debug'
     || route.name === 'settings-system'
@@ -158,7 +160,7 @@ watch(
         }
 
         // 点击设置二级内容时，关闭当前聊天并显示对应设置页面。
-        if (name === 'settings-appearance' || name === 'settings-wallpaper' || name === 'settings-download' || name === 'settings-proxy' || name === 'settings-debug' || name === 'settings-system' || name === 'settings-edit-profile' || name === 'settings-privacy' || name === 'settings-devices') {
+        if (name === 'settings-appearance' || name === 'settings-wallpaper' || name === 'settings-download' || name === 'settings-notifications' || name === 'settings-proxy' || name === 'settings-debug' || name === 'settings-system' || name === 'settings-edit-profile' || name === 'settings-privacy' || name === 'settings-devices') {
             closeActiveChat();
             return;
         }
@@ -169,7 +171,7 @@ watch(
             closeActiveChat();
             const prev = previous?.[0];
             if (prev === 'contacts') profileFromSection.value = 'contacts';
-            else if (prev === 'settings' || prev === 'settings-appearance' || prev === 'settings-wallpaper' || prev === 'settings-download' || prev === 'settings-proxy' || prev === 'settings-debug' || prev === 'settings-system') profileFromSection.value = 'settings';
+            else if (prev === 'settings' || prev === 'settings-appearance' || prev === 'settings-wallpaper' || prev === 'settings-download' || prev === 'settings-notifications' || prev === 'settings-proxy' || prev === 'settings-debug' || prev === 'settings-system') profileFromSection.value = 'settings';
             else profileFromSection.value = 'chats';
             return;
         }

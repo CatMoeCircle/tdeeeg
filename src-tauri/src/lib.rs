@@ -4,7 +4,9 @@ mod chat_store;
 mod data_loc;
 mod download_store;
 mod media_stream;
+mod notifications;
 mod tdlib;
+mod toast_identity;
 
 use tauri::{
     menu::{Menu, MenuItem},
@@ -160,6 +162,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_notification::init())
         // 不恢复 VISIBLE：插件默认会在 setup 阶段直接 show()，导致 TDLib
         // 授权态尚未确认时窗口就弹出。可见性始终由 tauri.conf.json
         // (visible:false) + 前端 bootstrap 完成后再 show() 控制。
@@ -175,6 +178,11 @@ pub fn run() {
                 data_loc::resolve_current_data_dir(app.handle()).map_err(|e| e.to_string())?;
             std::fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
             app.manage(tdlib::AppState::new(data_dir));
+
+            // 注册开始菜单 AUMID 快捷方式，保证 Toast 归属为本应用而非启动 shell
+            toast_identity::init_toast_identity();
+            // 通知服务状态（Rust 侧处理 updateNotificationGroup）
+            notifications::init(app);
 
             // ===== 系统托盘 =====
             let show_i = MenuItem::with_id(app, "show", "显示窗口", true, None::<&str>)?;
@@ -266,6 +274,9 @@ pub fn run() {
             open_with_dialog,
             copy_image_to_clipboard,
             read_clipboard_image,
+            toast_identity::show_system_notification,
+            notifications::set_notification_prefs,
+            notifications::set_active_chat_for_notifications,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

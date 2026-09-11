@@ -153,6 +153,17 @@ interface Settings {
   };
   /** 导航栏头像位置：default=聊天标题栏左侧（默认），titlebar=窗口标题栏右侧 */
   chatHeaderAvatarPosition: "default" | "titlebar";
+  /** 系统通知设置 */
+  notifications: {
+    /** 是否启用系统原生通知弹窗 */
+    enabled: boolean;
+    /** 是否在通知中显示消息内容预览 */
+    showPreview: boolean;
+    /** 群组/频道通知是否显示发送者姓名 */
+    showSenderName: boolean;
+    /** 窗口已在前台且正在浏览其他页面时是否仍弹出通知 */
+    whenAppFocused: boolean;
+  };
 }
 
 const defaultSettings: Settings = {
@@ -239,6 +250,12 @@ const defaultSettings: Settings = {
     displayMode: "popup",
   },
   chatHeaderAvatarPosition: "default",
+  notifications: {
+    enabled: true,
+    showPreview: true,
+    showSenderName: true,
+    whenAppFocused: true,
+  },
 };
 
 // Load from localStorage（与默认值深度合并，确保新增的嵌套字段始终有默认值）
