@@ -3411,13 +3411,15 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
         });
     }
 
-    // —— 编辑（文本消息编辑内容，媒体消息编辑描述）——
-    if (!isService && isSelf(msg) && canEditMessage(msg, cid)) {
+    // —— 编辑（文本消息编辑内容，媒体消息编辑描述/更换媒体）——
+    // 收藏夹（Saved Messages）内不允许编辑；其余以 TDLib can_be_edited 为准
+    // （普通消息 MessageProperties.can_be_edited / 快捷回复 quickReplyMessage.can_be_edited）
+    if (!isService && !isInSavedMessages.value && canEditMessage(msg, cid)) {
         items.push({
             key: 'edit',
-            label: isMediaMessage(msg) ? '编辑描述' : '编辑',
+            label: '编辑',
             icon: PencilIcon,
-            onClick: () => startEdit(msg),
+            onClick: () => void startEdit(msg),
         });
     }
 
