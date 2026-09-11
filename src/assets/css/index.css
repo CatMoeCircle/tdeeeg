@@ -50,6 +50,13 @@
   background-clip: text;
   color: transparent;
 }
+/* 故事点赞：未点赞 U+EA47 / 已点赞 U+EA48 */
+.tgico-favorite::before {
+  content: "\ea47";
+}
+.tgico-favorite-filled::before {
+  content: "\ea48";
+}
 
 /* ===== Telegram 官方图标字体 tgico ===== */
 

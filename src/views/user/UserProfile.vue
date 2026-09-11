@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="h-full flex flex-col text-gray-900 dark:text-gray-100 overflow-hidden">
     <!-- 内容区 -->
     <div class="flex-1 overflow-y-auto custom-scrollbar" v-smooth-wheel>
@@ -526,7 +526,7 @@
             <p v-else-if="displayActiveStories.length === 0">暂无动态</p>
             <div v-else class="grid grid-cols-3 gap-1.5">
               <button v-for="s in displayActiveStories" :key="s.id" type="button"
-                class="aspect-square w-full overflow-hidden rounded-lg bg-gray-200 dark:bg-gray-700 relative"
+                class="aspect-[3/4] w-full overflow-hidden rounded-lg bg-gray-200 dark:bg-gray-700 relative"
                 @click="openStory(s)">
                 <img v-if="storyUrlOf(s)" :src="storyUrlOf(s)" class="w-full h-full object-cover" />
                 <div v-else class="w-full h-full flex items-center justify-center text-xs text-gray-400">
@@ -547,7 +547,7 @@
             <p v-else-if="displayArchivedStories.length === 0">暂无归档动态</p>
             <div v-else class="grid grid-cols-3 gap-1.5">
               <button v-for="s in displayArchivedStories" :key="s.id" type="button"
-                class="aspect-square w-full overflow-hidden rounded-lg bg-gray-200 dark:bg-gray-700 relative"
+                class="aspect-[3/4] w-full overflow-hidden rounded-lg bg-gray-200 dark:bg-gray-700 relative"
                 @click="openStory(s)">
                 <img v-if="storyUrlOf(s)" :src="storyUrlOf(s)" class="w-full h-full object-cover" />
                 <div v-else class="w-full h-full flex items-center justify-center text-xs text-gray-400">
@@ -966,6 +966,7 @@ import { accentColorStyle, rgbToCss } from "../../store/colors";
 import { confirmAndOpenExternalLink } from "../../utils/openExternalLink";
 import formatStatus from "../../utils/status";
 import { downloadFileUrl } from "../../utils/profileMedia";
+import { openStoryViewer } from "../../store/storyViewer";
 import { formatBusinessHours } from "../../utils/businessHours";
 import { isThumbnailImgRenderable } from "../../utils/thumbnail";
 import { tdlibSend } from "../../utils/tdlib";
@@ -1960,23 +1961,11 @@ function formatStoryDuration(s: story): string {
   return '';
 }
 
-/** 打开动态：把动态媒体塞进 MediaViewer 展示（照片/视频封面统一走图片查看器） */
+/** 打开动态：在故事播放器中按列表播放 */
 function openStory(s: story) {
-  const c = s.content;
-  if (!c) return;
-  let f: file | undefined;
-  if (c._ === 'storyContentPhoto') {
-    const sizes = c.photo.sizes;
-    if (sizes.length > 0) {
-      const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
-      f = largest.photo;
-    }
-  } else if (c._ === 'storyContentVideo') {
-    f = c.video.video;
-  }
-  photoViewerIndex.value = 0;
-  photoViewerItemsOverride.value = [{ type: 'photo', file: f }];
-  photoViewerVisible.value = true;
+  const list = activeTab.value === 'archived' ? displayArchivedStories.value : displayActiveStories.value;
+  const idx = Math.max(0, list.findIndex((x) => x.id === s.id));
+  openStoryViewer(list, idx);
 }
 
 // ===== 数据加载 =====
