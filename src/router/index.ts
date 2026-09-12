@@ -126,6 +126,11 @@ const router = createRouter({
         },
       ],
     },
+    // 兜底：未匹配路由回到根占位，避免 router-view 渲染空白
+    {
+      path: "/:pathMatch(.*)*",
+      redirect: "/",
+    },
   ],
 });
 

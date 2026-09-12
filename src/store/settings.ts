@@ -273,8 +273,24 @@ function mergeSettings(defaults: any, saved: any): any {
   return saved !== undefined ? saved : defaults;
 }
 
-const savedSettings = localStorage.getItem(SETTINGS_KEY);
-const initialState = mergeSettings(defaultSettings, savedSettings ? JSON.parse(savedSettings) : {});
+let parsedSettings: Record<string, unknown> = {};
+try {
+  const savedSettings = localStorage.getItem(SETTINGS_KEY);
+  if (savedSettings) {
+    parsedSettings = JSON.parse(savedSettings);
+    if (typeof parsedSettings !== "object" || parsedSettings === null || Array.isArray(parsedSettings)) {
+      parsedSettings = {};
+    }
+  }
+} catch (e) {
+  console.error("[settings] localStorage 配置损坏，已回退默认值:", e);
+  try {
+    localStorage.removeItem(SETTINGS_KEY);
+  } catch {
+    // ignore
+  }
+}
+const initialState = mergeSettings(defaultSettings, parsedSettings);
 
 export const settings = reactive<Settings>(initialState);
 
