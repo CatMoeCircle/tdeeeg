@@ -53,7 +53,7 @@
         <!-- ===== 发送者筛选面板 ===== -->
         <Transition name="search-drop">
             <div v-if="showSenderPanel"
-                class="absolute top-full right-3 min-w-56 max-w-[80%] mt-1 rounded-xl bg-white dark:bg-gray-800 shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden max-h-72 overflow-y-auto custom-scrollbar">
+                class="absolute top-full right-3 min-w-56 max-w-[80%] mt-1 rounded-xl bg-white/80 dark:bg-gray-700/50 backdrop-blur-xl shadow-lg border border-white/40 dark:border-gray-600/40 overflow-hidden max-h-72 overflow-y-auto custom-scrollbar">
                 <button type="button"
                     class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                     @click="setSenderFilter(null)">
@@ -76,7 +76,7 @@
 
         <!-- ===== 搜索结果面板 ===== -->
         <div v-if="showResults" ref="resultsEl"
-            class="absolute top-full inset-x-0 mt-1 bg-white dark:bg-gray-800 shadow-xl border-t border-gray-200 dark:border-gray-700 max-h-[60vh] overflow-y-auto custom-scrollbar"
+            class="absolute top-full inset-x-0 mt-1 rounded-b-xl backdrop-blur-xl shadow-lg border-t border-gray-200/20 dark:border-gray-700/20 max-h-[60vh] overflow-y-auto custom-scrollbar"
             @scroll.passive="onResultsScroll">
             <div v-if="results.length === 0" class="px-4 py-3 text-sm text-center text-gray-400">
                 {{ loading ? '搜索中...' : '无结果' }}
