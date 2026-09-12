@@ -310,7 +310,7 @@
             <Transition name="reaction-picker-fade">
                 <div v-if="reactionCapsuleVisible && reactionCapsuleData && reactionCapsuleData.reactions.length > 0"
                     ref="reactionCapsuleRef" data-context-menu-ignore
-                    class="fixed z-10001 flex items-center gap-0.5 px-1.5 py-1 rounded-full bg-white/85 dark:bg-gray-800/85 backdrop-blur-xl shadow-xl border border-gray-200/60 dark:border-gray-700/60"
+                    class="fixed z-10001 flex items-center gap-0.5 px-1.5 py-1 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md shadow-lg border border-gray-200/50 dark:border-gray-700/50"
                     :style="reactionCapsuleStyle" @mousedown.stop @click.stop>
                     <button v-for="r in reactionCapsuleData.reactions" :key="r.emoji + (r.customEmojiId ?? '')"
                         type="button"
@@ -339,7 +339,7 @@
         <!-- ===== 多选操作栏（多选模式时叠在输入框上方） ===== -->
         <Transition name="multi-bar">
             <div v-if="selectionMode"
-                class="absolute left-3 right-3 bottom-3 z-20 flex items-center gap-2 px-3 h-13 rounded-full bg-white/70 dark:bg-gray-900/80 backdrop-blur-lg shadow-lg border border-gray-200/50 dark:border-gray-700/50">
+                class="absolute left-3 right-3 bottom-3 z-20 flex items-center gap-2 px-3 h-13 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md shadow-lg border border-gray-200/50 dark:border-gray-700/50">
                 <button type="button" aria-label="退出多选"
                     class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" @click="exitSelectionMode">
                     <XIcon class="w-5 h-5 text-gray-600 dark:text-gray-300" />
@@ -418,7 +418,7 @@
             <!-- 编辑消息横幅 -->
             <Transition name="mi-fade">
                 <div v-if="editTargetInfo"
-                    class="relative z-10 mx-3 mt-3 px-3 py-2 rounded-2xl bg-white/70 dark:bg-gray-800/90 shadow-sm border border-gray-200/60 dark:border-gray-700/60">
+                    class="relative z-10 mx-3 mt-3 px-3 py-2 rounded-2xl bg-white/70 dark:bg-gray-800/70 backdrop-blur-md shadow-sm border border-gray-200/50 dark:border-gray-700/50">
                     <div class="flex items-start gap-2">
                         <PencilIcon class="w-4 h-4 shrink-0 mt-0.5 text-orange-500" />
                         <div class="min-w-0 flex-1">
@@ -480,7 +480,7 @@
             </div>
             <div class="relative z-10 flex items-center justify-center p-5">
                 <button type="button" :disabled="!canJoinCurrentChat || isJoinPending || joinRequestSent"
-                    class="h-12 min-w-32 px-5 rounded-full bg-white/60 dark:bg-gray-900/80 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg text-sm font-medium text-blue-500 dark:text-blue-400 hover:bg-white/80 dark:hover:bg-gray-800/90 disabled:opacity-60 disabled:cursor-default transition-colors"
+                    class="h-12 min-w-32 px-5 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg text-sm font-medium text-blue-500 dark:text-blue-400 hover:bg-white/80 dark:hover:bg-gray-800/90 disabled:opacity-60 disabled:cursor-default transition-colors"
                     @click="joinCurrentChat">
                     {{ membershipActionLabel }}
                 </button>
@@ -495,12 +495,12 @@
             </div>
             <div class="relative z-10 flex items-center justify-center gap-3 p-5">
                 <button type="button" :disabled="isNotificationTogglePending"
-                    class="h-12 min-w-32 px-5 rounded-full bg-white/60 dark:bg-gray-900/80 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg text-sm font-medium text-blue-500 dark:text-blue-400 hover:bg-white/80 dark:hover:bg-gray-800/90 disabled:opacity-60 disabled:cursor-wait transition-colors"
+                    class="h-12 min-w-32 px-5 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg text-sm font-medium text-blue-500 dark:text-blue-400 hover:bg-white/80 dark:hover:bg-gray-800/90 disabled:opacity-60 disabled:cursor-wait transition-colors"
                     @click="toggleNotifications">
                     {{ notificationsMuted ? '开启通知' : '关闭通知' }}
                 </button>
                 <button v-if="linkedChatId" type="button" title="打开讨论组" aria-label="打开讨论组"
-                    class="w-12 h-12 rounded-full bg-white/60 dark:bg-gray-900/80 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg flex items-center justify-center text-blue-500 dark:text-blue-400 hover:bg-white/80 dark:hover:bg-gray-800/90 transition-colors"
+                    class="w-12 h-12 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg flex items-center justify-center text-blue-500 dark:text-blue-400 hover:bg-white/80 dark:hover:bg-gray-800/90 transition-colors"
                     @click="openLinkedChat">
                     <MessageCircleIcon class="w-5 h-5" />
                 </button>

@@ -1,6 +1,6 @@
 <template>
     <div v-if="pinnedMessages.length > 0 || player.showEntry"
-        class="rounded-xl bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg shadow-lg border border-gray-200/50 dark:border-gray-700/50 overflow-hidden transition-all duration-200"
+        class="rounded-xl bg-white/70 dark:bg-gray-800/70 backdrop-blur-md shadow-lg border border-gray-200/50 dark:border-gray-700/50 overflow-hidden transition-all duration-200"
         :class="expanded ? 'max-h-96' : hasPlayer ? 'max-h-32' : 'max-h-14'">
         <!-- 顶置消息部分 -->
         <template v-if="pinnedMessages.length > 0">

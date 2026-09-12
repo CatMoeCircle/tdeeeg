@@ -1,7 +1,7 @@
 <template>
     <div class="h-16 px-3 py-1.5 flex items-center justify-center shrink-0">
         <div
-            class="flex items-center w-full min-w-0 h-full px-2 sm:px-3 rounded-full bg-white/80 dark:bg-[#2b293b]/90 backdrop-blur-xl border border-gray-300/70 dark:border-white/20 shadow-[0_4px_18px_rgba(15,23,42,0.12)] dark:shadow-[0_6px_24px_rgba(0,0,0,0.28)] transition-[background-color,box-shadow] duration-200">
+            class="flex items-center w-full min-w-0 h-full px-2 sm:px-3 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg transition-[background-color,box-shadow] duration-200">
             <div class="flex items-center gap-3 min-w-0 flex-1" v-if="chat">
             <!-- 返回按钮（叠层模式） -->
             <button v-if="showBack" type="button" @click="emit('back')"
