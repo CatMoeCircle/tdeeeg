@@ -55,7 +55,7 @@
                 <SettingsIcon :class="iconStyle" />
             </router-link>
         </div>
-        <AccountMenu v-model="accountMenuOpen" />
+        <AccountMenu v-model:visible="accountMenuOpen" />
     </div>
 </template>
 

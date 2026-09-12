@@ -2,7 +2,7 @@
     <MessageLinkPreview v-if="linkPreview?.show_above_text" :preview="linkPreview" :accentColorId="accentColorId"
         @open="openLink" />
     <!-- overflow:hidden 使 <p> 建立 BFC，包含内嵌时间（float:right）以免溢出气泡 -->
-    <p class="whitespace-pre-wrap msg-selectable-text overflow-hidden"
+    <p v-bind="$attrs" class="whitespace-pre-wrap msg-selectable-text overflow-hidden"
         :style="{ fontSize: 'var(--msg-font-size, 14px)', lineHeight: '1.4' }">
         <template v-for="(group, gi) in renderGroups" :key="gi">
             <!-- Blockquote group: 用容器包裹，加引用竖线 -->
@@ -149,6 +149,9 @@ import { settings } from '../../../../../store/settings';
 import MessageLinkPreview from './MessageLinkPreview.vue';
 import MessageStatus from './MessageStatus.vue';
 import type { MessageSendingState } from 'tdlib-types';
+// 组件为多根节点（MessageLinkPreview / p / MessageLinkPreview），关闭自动继承，
+// 转为手动把透传属性（如居中、文字色 class）绑定到文本 <p> 上。
+defineOptions({ inheritAttrs: false });
 const props = defineProps<{
     formattedText: formattedText;
     linkPreview?: LinkPreview;
