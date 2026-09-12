@@ -1,4 +1,4 @@
-﻿<template>
+<template>
     <!-- 大图媒体（链接预览主图） -->
     <div v-if="large && plan" :class="largeWrapCls" :style="largeWrapStyle">
         <img v-if="src && !plan.fileIsVideo" :src="src" alt="" :class="largeImgCls" />
@@ -38,6 +38,7 @@ import type { animation, chatPhoto, file, linkPreview, linkPreviewTypeAlbum, pho
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { isThumbnailImgRenderable, isThumbnailVideoRenderable } from '../../../../../utils/thumbnail';
+import { mediaFitStyle, fitMediaSize } from '../../../../../utils/fitMediaSize';
 
 const props = defineProps<{
     preview: linkPreview;
@@ -263,23 +264,32 @@ async function load() {
 watch(plan, () => { void load(); }, { immediate: true });
 onUnmounted(stopPoll);
 
-/** 大图布局：按媒体宽高比展示，最高 300px */
+/** 大图布局：按媒体宽高比等比缩放，最大 432×432 / 最小 96（防止细长图撑爆气泡） */
 const largeStyle = computed(() => {
     const p = plan.value;
     if (!p || !p.width || !p.height) return undefined;
-    return { width: '100%', aspectRatio: `${p.width} / ${p.height}`, maxHeight: '300px' };
+    return mediaFitStyle(p.width, p.height);
 });
 
 /** contain 模式：完整展示图片（不裁剪），居中；默认 cover 裁剪填充 */
 const largeWrapCls = computed(() => props.contain
     ? 'relative flex min-h-40 items-center justify-center overflow-hidden bg-gray-200 dark:bg-gray-700'
     : 'relative overflow-hidden bg-gray-200 dark:bg-gray-700');
-const largeWrapStyle = computed(() => (props.contain ? undefined : largeStyle.value));
+const largeWrapStyle = computed(() => {
+    const p = plan.value;
+    if (props.contain) {
+        if (!p || !p.width || !p.height) return undefined;
+        // contain：用 fit 尺寸约束外框，避免贴纸等超长图溢出
+        const s = fitMediaSize(p.width, p.height);
+        return { width: '100%', maxWidth: `${s.width}px`, maxHeight: `${s.height}px` };
+    }
+    return largeStyle.value;
+});
 const largeImgCls = computed(() => props.contain
-    ? 'max-h-[280px] max-w-full object-contain'
+    ? 'max-h-full max-w-full object-contain'
     : 'h-full w-full object-cover');
 const largePlaceholderCls = computed(() => props.contain
-    ? 'max-h-[280px] max-w-full object-contain opacity-60'
+    ? 'max-h-full max-w-full object-contain opacity-60'
     : 'h-full w-full scale-105 object-cover blur-sm');
 const largeFallbackCls = computed(() => props.contain
     ? 'flex h-40 w-full items-center justify-center'

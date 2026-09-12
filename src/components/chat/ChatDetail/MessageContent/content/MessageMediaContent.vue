@@ -257,6 +257,7 @@ import { settings } from '../../../../../store/settings';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { getChatCategory } from '../../../../../utils/autoDownload';
 import { isThumbnailImgRenderable, isThumbnailVideoRenderable } from '../../../../../utils/thumbnail';
+import { fitMediaSize } from '../../../../../utils/fitMediaSize';
 import {
     currentlyPlayingId,
     globalVideoMuted,
@@ -558,83 +559,41 @@ function formatSize(bytes: number): string {
     return value.toFixed(i === 0 ? 0 : 1) + " " + units[i];
 }
 
-function getOriginalRatio(): string | undefined {
+/** 媒体原始宽高（图片取最大 PhotoSize） */
+function getOriginalDims(): { width: number; height: number } {
     const c = props.content;
     if (c._ === 'messagePhoto') {
         const sizes = c.photo.sizes;
-        if (sizes.length === 0) return undefined;
+        if (sizes.length === 0) return { width: 1, height: 1 };
         const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
-        if (largest.height === 0) return undefined;
-        return `${largest.width} / ${largest.height}`;
+        return { width: largest.width, height: largest.height };
     }
     if (c._ === 'messageVideo') {
-        const { width, height } = c.video;
-        if (height === 0) return undefined;
-        return `${width} / ${height}`;
+        return { width: c.video.width, height: c.video.height };
     }
     if (c._ === 'messageAnimation') {
-        const { width, height } = c.animation;
-        if (height === 0) return undefined;
-        return `${width} / ${height}`;
+        return { width: c.animation.width, height: c.animation.height };
     }
-    return undefined;
+    return { width: 1, height: 1 };
 }
 
-type MediaOrientation = 'portrait' | 'landscape' | 'square';
-function getOrientation(): MediaOrientation {
-    const c = props.content;
-    let w = 1, h = 1;
-    if (c._ === 'messagePhoto') {
-        const sizes = c.photo.sizes;
-        if (sizes.length > 0) {
-            const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
-            w = largest.width; h = largest.height;
-        }
-    } else if (c._ === 'messageVideo') {
-        w = c.video.width; h = c.video.height;
-    } else if (c._ === 'messageAnimation') {
-        w = c.animation.width; h = c.animation.height;
-    }
-    if (h === 0) return 'square';
-    const ratio = w / h;
-    if (ratio > 1.2) return 'landscape';
-    if (ratio < 0.8) return 'portrait';
-    return 'square';
-}
-
-// Telegram Web 风格尺寸：视频 320px，图片 280px
-const PHOTO_W = 280;
-const VIDEO_W = 320;
+/** Unigram 风格：按原始比例等比缩放，限制在 432×432 / 96×96 */
+const mediaDisplaySize = computed(() => {
+    const { width, height } = getOriginalDims();
+    return fitMediaSize(width, height);
+});
 
 const photoSizeStyle = computed(() => {
-    const ratio = getOriginalRatio();
-    const orient = getOrientation();
-    let w = PHOTO_W;
-    if (orient === 'landscape') w = Math.round(PHOTO_W * 1.15);
-    else if (orient === 'portrait') w = Math.round(PHOTO_W * 0.85);
-    return { width: `${w}px`, aspectRatio: ratio || '1' };
+    const s = mediaDisplaySize.value;
+    return { width: `${s.width}px`, height: `${s.height}px` };
 });
 
-const videoSizeStyle = computed(() => {
-    const ratio = getOriginalRatio();
-    const orient = getOrientation();
-    let w = VIDEO_W;
-    if (orient === 'portrait') w = Math.round(VIDEO_W * 0.7);
-    return { width: `${w}px`, aspectRatio: ratio || '16/9' };
-});
-
-const animSizeStyle = computed(() => {
-    const ratio = getOriginalRatio();
-    let w = PHOTO_W;
-    return { width: `${w}px`, aspectRatio: ratio || '1' };
-});
+const videoSizeStyle = computed(() => photoSizeStyle.value);
+const animSizeStyle = computed(() => photoSizeStyle.value);
 
 /** 外层容器宽度 = 媒体宽度，使图片+文字+时间共享统一宽度 */
 const mediaContainerStyle = computed(() => {
-    const c = props.content;
-    if (c._ === 'messageVideo') return videoSizeStyle.value;
-    if (c._ === 'messageAnimation') return animSizeStyle.value;
-    return photoSizeStyle.value;
+    return { width: `${mediaDisplaySize.value.width}px` };
 });
 
 // Image state
