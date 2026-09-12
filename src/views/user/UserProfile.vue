@@ -701,10 +701,13 @@
               <div v-for="(item, idx) in sharedMediaItems" :key="item.messageId"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
                 @click="playSharedMusic(idx)" @contextmenu.stop="showSharedMediaContextMenu($event, item)">
-                <!-- 专辑封面（优先缩略图，无则图标） -->
+                <!-- 专辑封面（高清就绪后替换；低清仅作占位） -->
                 <div
                   class="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0 overflow-hidden">
-                  <img v-if="item.miniSrc" :src="item.miniSrc" class="w-full h-full object-cover" />
+                  <img v-if="sharedMediaUrl(item.messageId)"
+                    :src="sharedMediaUrl(item.messageId)"
+                    class="w-full h-full object-cover" />
+                  <img v-else-if="item.miniSrc" :src="item.miniSrc" class="w-full h-full object-cover" />
                   <Music v-else class="w-5 h-5 text-gray-400" />
                 </div>
                 <div class="min-w-0 flex-1">
@@ -952,7 +955,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, receivedGift, story, chat, audio as TdAudio, birthdate, file, message, thumbnail, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo, secretChat, SearchMessagesFilter$Input, emojiStatus, emojiStatus$Input, BlockList$Input } from "tdlib-types";
+import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, receivedGift, story, chat, audio as TdAudio, birthdate, file, message, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo, secretChat, SearchMessagesFilter$Input, emojiStatus, emojiStatus$Input, BlockList$Input } from "tdlib-types";
 import Avatar from "../../components/chat/avatar.vue";
 import CustomEmojiInline from "../../components/common/CustomEmojiInline.vue";
 import GlobalEmojiText from "../../components/common/GlobalEmojiText.vue";
@@ -965,10 +968,9 @@ import { useUserStore } from "../../store/user";
 import { accentColorStyle, rgbToCss } from "../../store/colors";
 import { confirmAndOpenExternalLink } from "../../utils/openExternalLink";
 import formatStatus from "../../utils/status";
-import { downloadFileUrl } from "../../utils/profileMedia";
+import { downloadFileUrl, listAlbumCoverFiles } from "../../utils/profileMedia";
 import { openStoryViewer } from "../../store/storyViewer";
 import { formatBusinessHours } from "../../utils/businessHours";
-import { isThumbnailImgRenderable } from "../../utils/thumbnail";
 import { tdlibSend } from "../../utils/tdlib";
 
 import { ensureChat, getReactiveUser, getReactiveChat, getChatTitle, DELETED_ACCOUNT_LABEL } from "../../utils/senderInfo";
@@ -1531,10 +1533,16 @@ watch(activeTab, (tab) => {
   }
 });
 
-/** 新增共享媒体项后，自动开始懒加载缩略图 */
+/** 新增共享媒体项后，自动开始懒加载缩略图 / 音乐封面 */
 watch(sharedMediaItems, (items) => {
   for (const item of items) {
-    if (!sharedMediaUrlCache.value[item.messageId] && item.photo) {
+    if (sharedMediaUrlCache.value[item.messageId]) continue;
+    // 构建时已就绪的高清图直接写入缓存，避免再发起一次下载
+    if (item.src) {
+      sharedMediaUrlCache.value = { ...sharedMediaUrlCache.value, [item.messageId]: item.src };
+      continue;
+    }
+    if (item.photo || item.contentType === 'messageAudio') {
       void loadSharedMediaThumb(item);
     }
   }
@@ -1701,9 +1709,24 @@ async function playSharedMusic(clickedIndex: number) {
 /** 共享媒体缩略图 URL 缓存（messageId → URL） */
 const sharedMediaUrlCache = ref<Record<number, string>>({});
 
-/** 下载共享媒体的缩略图（最小尺寸，用于网格展示） */
-async function loadSharedMediaThumb(item: { messageId: number; photo?: any }) {
+/** 下载共享媒体缩略图 / 音乐专辑封面（用于列表与网格展示） */
+async function loadSharedMediaThumb(item: { messageId: number; photo?: any; contentType?: string; message?: any }) {
   if (sharedMediaUrlCache.value[item.messageId]) return;
+
+  // 音乐：下载专辑封面（内嵌优先，外部备选按清晰度降序）
+  if (item.contentType === 'messageAudio' && item.message?.content?._ === 'messageAudio') {
+    for (const coverFile of listAlbumCoverFiles(item.message.content.audio)) {
+      try {
+        const url = await downloadFileUrl(coverFile, `shared_music_cover_${item.messageId}_${coverFile.id}.jpg`, 'music_cover');
+        if (url) {
+          sharedMediaUrlCache.value = { ...sharedMediaUrlCache.value, [item.messageId]: url };
+          return;
+        }
+      } catch { /* 尝试下一个候选 */ }
+    }
+    return;
+  }
+
   if (!item.photo?.sizes?.length) return;
   const sorted = item.photo.sizes
     .filter((s: any) => s.photo)
@@ -1800,20 +1823,6 @@ const profileMusicCover = computed<string | undefined>(() => {
 const profileMusicCoverShowTransition = computed(() =>
   !profileMusicCoverHd.value && profileMusicCoverLoading.value
 );
-
-/** 收集可渲染的专辑封面文件：内嵌封面优先，外部备选按清晰度从高到低 */
-function listAlbumCoverFiles(a: TdAudio | undefined): file[] {
-  if (!a) return [];
-  const imgOk = (t: thumbnail | undefined): t is thumbnail =>
-    !!t && isThumbnailImgRenderable(t.format);
-  const primaries: thumbnail[] = imgOk(a.album_cover_thumbnail) ? [a.album_cover_thumbnail] : [];
-  const externals = (Array.isArray(a.external_album_covers) ? a.external_album_covers : [])
-    .filter(imgOk)
-    .sort((x, y) => (y.width * y.height) - (x.width * x.height));
-  return [...primaries, ...externals]
-    .map((t) => t.file)
-    .filter((f): f is file => !!f?.id);
-}
 
 /** 加载资料音乐的高清专辑封面（逐个候选尝试；失败则保留低清 minithumbnail） */
 async function loadProfileMusicCover() {

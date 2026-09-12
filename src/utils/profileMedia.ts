@@ -1,8 +1,26 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
-import type { file } from "tdlib-types";
+import type { audio, file, thumbnail } from "tdlib-types";
 import { tdlibSend, isFileReady, downloadingFiles } from "./tdlib";
 import { DL_PRIORITY } from "./downloadPriority";
 import { useDownloadStore } from "../store/downloads";
+import { isThumbnailImgRenderable } from "./thumbnail";
+
+/**
+ * 收集可渲染的专辑封面文件：内嵌封面优先，外部备选按清晰度从高到低。
+ * 供资料音乐卡片与共享音乐列表共用。
+ */
+export function listAlbumCoverFiles(a: audio | undefined): file[] {
+  if (!a) return [];
+  const imgOk = (t: thumbnail | undefined): t is thumbnail =>
+    !!t && isThumbnailImgRenderable(t.format);
+  const primaries: thumbnail[] = imgOk(a.album_cover_thumbnail) ? [a.album_cover_thumbnail] : [];
+  const externals = (Array.isArray(a.external_album_covers) ? a.external_album_covers : [])
+    .filter(imgOk)
+    .sort((x, y) => (y.width * y.height) - (x.width * x.height));
+  return [...primaries, ...externals]
+    .map((t) => t.file)
+    .filter((f): f is file => !!f?.id);
+}
 
 /** 轮询 getFile 等待文件就绪（用于并发下载或 downloadFile 返回对象未写回路径时） */
 async function waitForFileReady(

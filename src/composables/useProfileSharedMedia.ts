@@ -3,6 +3,7 @@ import { onVisibleOnce, unobserveVisibleOnce } from './useSharedIntersectionObse
 import { tdlibSend, isFileReady } from '../utils/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { isThumbnailImgRenderable } from '../utils/thumbnail';
+import { listAlbumCoverFiles } from '../utils/profileMedia';
 import type { message, SearchMessagesFilter$Input, photo, file } from 'tdlib-types';
 
 /** 共享媒体网格项 */
@@ -112,6 +113,8 @@ function messageToItem(msg: message): SharedMediaItem | null {
         };
     }
     if (c._ === 'messageAudio') {
+        // 已就绪的高清封面可直接用；未就绪时仍先展示 minithumbnail
+        const readyCover = listAlbumCoverFiles(c.audio).find((f) => isFileReady(f));
         return {
             ...base,
             fileName: c.audio.file_name || c.audio.title,
@@ -121,7 +124,7 @@ function messageToItem(msg: message): SharedMediaItem | null {
             performer: c.audio.performer || '未知艺术家',
             audioDuration: c.audio.duration,
             miniSrc: c.audio.album_cover_minithumbnail?.data ? `data:image/jpeg;base64,${c.audio.album_cover_minithumbnail.data}` : undefined,
-            src: undefined,
+            src: readyCover?.local?.path ? convertFileSrc(readyCover.local.path) : undefined,
             loaded: false,
         };
     }
@@ -284,6 +287,21 @@ export function useSharedMediaCell(
                             return;
                         }
                     } catch { /* 忽略 */ }
+                }
+            }
+
+            // 音乐专辑封面（内嵌优先，失败再试外部备选）
+            if (it.contentType === 'messageAudio' && it.message?.content._ === 'messageAudio') {
+                const { downloadFileUrl } = await import('../utils/profileMedia');
+                for (const coverFile of listAlbumCoverFiles(it.message.content.audio)) {
+                    try {
+                        const url = await downloadFileUrl(coverFile, `shared_music_cover_${it.messageId}_${coverFile.id}.jpg`, 'music_cover');
+                        if (url) {
+                            visibleSrc.value = url;
+                            isBlurred.value = false;
+                            return;
+                        }
+                    } catch { /* 尝试下一个候选 */ }
                 }
             }
 
