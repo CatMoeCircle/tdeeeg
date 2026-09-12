@@ -145,6 +145,8 @@ interface Settings {
     musicRepeatMode: "none" | "one" | "all" | "shuffle";
     /** 媒体播放器（视频查看器）音量（0~1），持久化记忆 */
     mediaVolume: number;
+    /** 故事播放器静音状态，跨会话记忆（默认静音） */
+    storyMuted: boolean;
   };
   /** 翻译显示设置 */
   translate: {
@@ -244,6 +246,7 @@ const defaultSettings: Settings = {
     musicVolume: 0.8,
     musicRepeatMode: "none",
     mediaVolume: 0.7,
+    storyMuted: true,
   },
   translate: {
     // 默认使用弹窗方式

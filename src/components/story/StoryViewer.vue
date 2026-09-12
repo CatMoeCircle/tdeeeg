@@ -232,6 +232,8 @@ import {
     closeStoryViewer,
     isStoryViewerActive,
 } from "../../store/storyViewer";
+import { settings } from "../../store/settings";
+import { useAudioPlayerStore } from "../../store/audioPlayer";
 import { openContextMenu } from "../../store/contextMenu";
 import type { ContextMenuItem } from "../contextMenu/types";
 import {
@@ -264,7 +266,7 @@ const rootRef = ref<HTMLElement | null>(null);
 const phoneRef = ref<HTMLElement | null>(null);
 const videoRef = ref<HTMLVideoElement | null>(null);
 
-const muted = ref(true);
+const muted = ref(settings.player.storyMuted);
 const loadingMedia = ref(false);
 const currentSrc = ref("");
 const currentThumb = ref("");
@@ -281,6 +283,7 @@ let photoStart = 0;
 let photoPausedAt = 0;
 let holdPaused = false;
 let openStoryId: number | null = null;
+let audioPausedByStory = false;
 
 // pointer 手势
 let pointerDownX = 0;
@@ -704,6 +707,8 @@ async function loadCurrentMedia() {
                 el.muted = muted.value;
                 try {
                     await el.play();
+                    // 视频故事（含静音）占用音频通道，暂停正在播放的音乐
+                    if (!isAnimationVideo.value) pauseMusicForStory();
                 } catch {
                     /* 自动播放被拦截：等用户手势 */
                 }
@@ -796,7 +801,11 @@ function onVideoLoaded() {
     if (!el) return;
     videoDurationSec.value = el.duration || 0;
     el.muted = muted.value;
-    void el.play().catch(() => { });
+    void el.play()
+        .then(() => {
+            if (!isAnimationVideo.value) pauseMusicForStory();
+        })
+        .catch(() => { });
 }
 
 function onVideoEnded() {
@@ -843,6 +852,7 @@ function close() {
         el.removeAttribute("src");
         el.load();
     }
+    resumeMusicAfterStory();
     closeStoryViewer();
 }
 
@@ -888,8 +898,32 @@ async function markClosed() {
 
 function toggleMute() {
     muted.value = !muted.value;
+    settings.player.storyMuted = muted.value;
     const el = videoRef.value;
     if (el) el.muted = muted.value;
+    // 取消静音时确保背景音乐不会与故事声音重叠
+    if (!muted.value && currentKind.value === "video" && !isAnimationVideo.value) {
+        pauseMusicForStory();
+    }
+}
+
+/** 故事视频开始有声播放时暂停音乐，避免声音重叠 */
+function pauseMusicForStory() {
+    const audio = useAudioPlayerStore();
+    if (audio.isPlaying) {
+        audio.togglePlay();
+        audioPausedByStory = true;
+    }
+}
+
+/** 关闭故事查看器后，恢复因故事而暂停的音乐 */
+function resumeMusicAfterStory() {
+    if (!audioPausedByStory) return;
+    const audio = useAudioPlayerStore();
+    if (!audio.isPlaying) {
+        audio.togglePlay();
+    }
+    audioPausedByStory = false;
 }
 
 async function toggleLike() {
@@ -1079,6 +1113,7 @@ watch(
             holdPaused = false;
             isStoryViewerActive.value = false;
             document.body.style.overflow = "";
+            resumeMusicAfterStory();
             return;
         }
         isStoryViewerActive.value = true;
@@ -1112,6 +1147,7 @@ onBeforeUnmount(() => {
     stopPhotoTimer();
     if (holdTimer !== null) window.clearTimeout(holdTimer);
     document.body.style.overflow = "";
+    resumeMusicAfterStory();
     void markClosed();
 });
 </script>
