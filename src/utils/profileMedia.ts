@@ -4,6 +4,28 @@ import { tdlibSend, isFileReady, downloadingFiles } from "./tdlib";
 import { DL_PRIORITY } from "./downloadPriority";
 import { useDownloadStore } from "../store/downloads";
 
+/** 轮询 getFile 等待文件就绪（用于并发下载或 downloadFile 返回对象未写回路径时） */
+async function waitForFileReady(
+  fileId: number,
+  timeoutMs = 15000,
+): Promise<string | undefined> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const info = (await tdlibSend({ _: "getFile", file_id: fileId })) as file;
+      if (isFileReady(info)) return convertFileSrc(info.local.path!);
+    } catch {
+      // getFile 瞬时失败（文件信息未同步）时继续重试
+    }
+    if (!downloadingFiles.has(fileId)) {
+      // 下载已结束仍未就绪：视为失败
+      return undefined;
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  return undefined;
+}
+
 /**
  * 下载一个文件并返回其本地 asset URL（用于个人资料页的大图 / 照片墙 / 礼物贴纸等）。
  *
@@ -19,24 +41,31 @@ export async function downloadFileUrl(
 ): Promise<string | undefined> {
   if (!f || !f.id) return undefined;
   if (isFileReady(f)) return convertFileSrc(f.local.path);
+  const fileId = f.id;
 
-  if (!downloadingFiles.has(f.id)) {
-    try {
-      const ext = f.expected_size ? ".jpg" : ".bin";
-      const name = fileName || `profile_${f.id}${ext}`;
-      await useDownloadStore().registerDownload(f.id, name, "", 0, "avatar", undefined, undefined, undefined, true, false, hiddenCategory ?? "avatar");
-      const res = await tdlibSend({
-        _: "downloadFile",
-        file_id: f.id,
-        priority: DL_PRIORITY.THUMBNAIL,
-        offset: 0,
-        limit: 0,
-        synchronous: true,
-      });
-      if (isFileReady(res)) return convertFileSrc(res.local.path);
-    } catch (e) {
-      console.error("Failed to download file", e);
-    }
+  // 已在下载中：等待完成，而不是直接放弃（此前会导致高清封面永远升不上去）
+  if (downloadingFiles.has(fileId)) {
+    return waitForFileReady(fileId);
+  }
+
+  try {
+    const ext = f.expected_size ? ".jpg" : ".bin";
+    const name = fileName || `profile_${fileId}${ext}`;
+    await useDownloadStore().registerDownload(fileId, name, "", 0, "avatar", undefined, undefined, undefined, true, false, hiddenCategory ?? "avatar");
+    const res = await tdlibSend({
+      _: "downloadFile",
+      file_id: fileId,
+      priority: DL_PRIORITY.THUMBNAIL,
+      offset: 0,
+      limit: 0,
+      synchronous: true,
+    });
+    if (isFileReady(res)) return convertFileSrc(res.local.path);
+    // 原 file / download 返回对象可能未写回 local.path，再 getFile 兜底
+    const info = (await tdlibSend({ _: "getFile", file_id: fileId })) as file;
+    if (isFileReady(info)) return convertFileSrc(info.local.path!);
+  } catch (e) {
+    console.error("Failed to download file", e);
   }
   return undefined;
 }

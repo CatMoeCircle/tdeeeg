@@ -202,9 +202,9 @@
                 <div
                   class="relative w-14 h-14 rounded-lg shrink-0 overflow-hidden flex items-center justify-center bg-gray-100 dark:bg-gray-800">
                   <template v-if="profileMusicCover">
-                    <!-- 高清封面就绪后替换；低清 minithumbnail 仅作为过渡（模糊 + 放大） -->
+                    <!-- 高清封面就绪后替换；仅在高清下载过程中对低清 minithumbnail 做过渡模糊 -->
                     <img :src="profileMusicCover" class="w-full h-full object-cover"
-                      :class="profileMusicCoverIsLowRes ? 'scale-125 blur-[2px]' : ''" />
+                      :class="profileMusicCoverShowTransition ? 'scale-125 blur-[2px]' : ''" />
                   </template>
                   <Music v-else class="w-6 h-6 text-gray-400" />
                   <span class="absolute inset-0 flex items-center justify-center bg-black/30 text-white">
@@ -1754,44 +1754,59 @@ const profileAudioTitle = computed(() => profileAudio.value?.title || profileAud
 const profileAudioPerformer = computed(() => profileAudio.value?.performer || '未知艺术家');
 /** 高清封面 URL（下载完成后替换低清过渡图） */
 const profileMusicCoverHd = ref<string | undefined>(undefined);
-/** 当前封面：高清已就绪用高清，否则用低清 minithumbnail 作过渡 */
+/** 高清封面是否正在下载（仅此时对低清图加模糊过渡） */
+const profileMusicCoverLoading = ref(false);
+/** 高清封面加载 token，防止切换用户后过期写回 */
+let profileMusicCoverLoadToken = 0;
+/** 当前封面：高清已就绪用高清，否则用低清 minithumbnail */
 const profileMusicCover = computed<string | undefined>(() => {
   if (profileMusicCoverHd.value) return profileMusicCoverHd.value;
   const mini = profileAudio.value?.album_cover_minithumbnail?.data;
   return mini ? `data:image/jpeg;base64,${mini}` : undefined;
 });
-/** 是否只有低清封面（用于给过渡图加模糊/放大效果） */
-const profileMusicCoverIsLowRes = computed(() => !profileMusicCoverHd.value);
+/**
+ * 低清过渡效果：仅在高清下载过程中模糊放大。
+ * TDLib 的 album_cover_thumbnail 常在音频文件下载完成前为空（封面需从音频内嵌抽出），
+ * 若永远套用模糊，资料音乐封面会一直处于糊图状态。
+ */
+const profileMusicCoverShowTransition = computed(() =>
+  !profileMusicCoverHd.value && profileMusicCoverLoading.value
+);
 
-/** 挑出最大的可渲染（<img>）专辑封面缩略图文件 */
-function pickBestAlbumCoverFile(a: TdAudio | undefined): file | undefined {
-  if (!a) return undefined;
-  const candidates: thumbnail[] = [];
-  if (a.album_cover_thumbnail) candidates.push(a.album_cover_thumbnail);
-  if (Array.isArray(a.external_album_covers)) candidates.push(...a.external_album_covers);
-  let best: file | undefined;
-  let bestArea = 0;
-  for (const t of candidates) {
-    if (!isThumbnailImgRenderable(t.format)) continue;
-    const area = t.width * t.height;
-    if (area > bestArea) {
-      bestArea = area;
-      best = t.file;
-    }
-  }
-  return best;
+/** 收集可渲染的专辑封面文件：内嵌封面优先，外部备选按清晰度从高到低 */
+function listAlbumCoverFiles(a: TdAudio | undefined): file[] {
+  if (!a) return [];
+  const imgOk = (t: thumbnail | undefined): t is thumbnail =>
+    !!t && isThumbnailImgRenderable(t.format);
+  const primaries: thumbnail[] = imgOk(a.album_cover_thumbnail) ? [a.album_cover_thumbnail] : [];
+  const externals = (Array.isArray(a.external_album_covers) ? a.external_album_covers : [])
+    .filter(imgOk)
+    .sort((x, y) => (y.width * y.height) - (x.width * x.height));
+  return [...primaries, ...externals]
+    .map((t) => t.file)
+    .filter((f): f is file => !!f?.id);
 }
 
-/** 加载资料音乐的高清专辑封面（失败则保留低清过渡图） */
+/** 加载资料音乐的高清专辑封面（逐个候选尝试；失败则保留低清 minithumbnail） */
 async function loadProfileMusicCover() {
+  const token = ++profileMusicCoverLoadToken;
   profileMusicCoverHd.value = undefined;
-  const coverFile = pickBestAlbumCoverFile(profileAudio.value);
-  if (!coverFile) return;
+  profileMusicCoverLoading.value = true;
   try {
-    const url = await downloadFileUrl(coverFile, `profile_music_cover_${coverFile.id}.jpg`, 'music_cover');
-    if (url) profileMusicCoverHd.value = url;
+    for (const coverFile of listAlbumCoverFiles(profileAudio.value)) {
+      if (token !== profileMusicCoverLoadToken) return;
+      const url = await downloadFileUrl(coverFile, `profile_music_cover_${coverFile.id}.jpg`, 'music_cover');
+      if (url) {
+        if (token === profileMusicCoverLoadToken) profileMusicCoverHd.value = url;
+        return;
+      }
+    }
   } catch (e) {
     console.error('Failed to load profile music cover', e);
+  } finally {
+    if (token === profileMusicCoverLoadToken) {
+      profileMusicCoverLoading.value = false;
+    }
   }
 }
 
@@ -2198,6 +2213,11 @@ async function openUserMusicPlayer() {
   try {
     // 打开音乐播放器并载入该用户的完整资料音乐列表
     await audioPlayer.playUserProfileAudios(userId.value);
+    // 音频完整下载后 TDLib 才可能抽出内嵌封面；刷新 fullInfo 以升级资料页封面
+    if (!chatMode.value) {
+      await profileStore.fetchFullInfo(userId.value);
+      // fetchFullInfo 更新 fullInfos 后由 profileAudio watcher 触发 loadProfileMusicCover
+    }
   } catch (e) {
     console.error("Failed to play profile audio", e);
   }
@@ -2664,6 +2684,28 @@ watch([userId, chatMode], () => {
     loadData();
   }
 }, { immediate: true });
+
+// 资料音乐对象变更（updateUserFullInfo 补齐封面 / 音频下载后抽出内嵌封面）时重新加载高清封面
+watch(
+  () => {
+    const a = profileAudio.value;
+    if (!a) return '';
+    const externals = Array.isArray(a.external_album_covers)
+      ? a.external_album_covers.map((t) => t.file?.id ?? 0).join(',')
+      : '';
+    return [
+      a.audio?.id,
+      a.audio?.local?.is_downloading_completed,
+      a.album_cover_thumbnail?.file?.id,
+      a.album_cover_thumbnail?.file?.local?.is_downloading_completed,
+      externals,
+    ].join('|');
+  },
+  (key) => {
+    if (!key || chatMode.value || !profileAudio.value) return;
+    loadProfileMusicCover();
+  },
+);
 </script>
 
 <style scoped>
