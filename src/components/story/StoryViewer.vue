@@ -914,6 +914,26 @@ async function toggleLike() {
     }
 }
 
+/** 解析动态发布者的公开用户名：个人账号取 user.usernames，频道/超级群取 supergroup.usernames */
+async function resolveStoryPosterUsername(): Promise<string | undefined> {
+    const userUname = posterUser.value?.usernames?.active_usernames?.[0];
+    if (userUname) return userUname;
+
+    const chatType = posterChat.value?.type;
+    if (chatType?._ === "chatTypeSupergroup") {
+        try {
+            const sg = await tdlibSend({
+                _: "getSupergroup",
+                supergroup_id: chatType.supergroup_id,
+            });
+            return sg?.usernames?.active_usernames?.[0];
+        } catch {
+            return undefined;
+        }
+    }
+    return undefined;
+}
+
 function onShare() {
     const st = current.value;
     if (!st) return;
@@ -945,15 +965,31 @@ function onMoreClick(e: MouseEvent) {
             key: "copy-link",
             label: "复制链接",
             icon: LinkIcon,
-            onClick: () => {
-                const user = posterUser.value;
-                const uname = user?.usernames?.active_usernames?.[0];
-                if (uname) {
-                    const link = `https://t.me/${uname}/s${st.id}`;
-                    void navigator.clipboard.writeText(link);
-                    MessagePlugin.success("已复制链接");
-                } else {
+            onClick: async () => {
+                const uname = await resolveStoryPosterUsername();
+                if (!uname) {
                     MessagePlugin.warning("该账号没有公开用户名");
+                    return;
+                }
+                try {
+                    const link = await tdlibSend({
+                        _: "getInternalLink",
+                        type: {
+                            _: "internalLinkTypeStory",
+                            story_poster_username: uname,
+                            story_id: st.id,
+                        },
+                        is_http: true,
+                    });
+                    const url = link?.url;
+                    if (!url) {
+                        MessagePlugin.warning("无法获取该动态的链接");
+                        return;
+                    }
+                    void navigator.clipboard.writeText(url);
+                    MessagePlugin.success("已复制链接");
+                } catch (e: any) {
+                    MessagePlugin.error(e?.message || "获取链接失败");
                 }
             },
         },

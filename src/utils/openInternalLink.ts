@@ -1,9 +1,10 @@
-import type { InternalLinkType, proxy, chat } from "tdlib-types";
+import type { InternalLinkType, proxy, chat, story, stories } from "tdlib-types";
 import { tdlibSend } from "./tdlib";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { MessagePlugin } from "tdesign-vue-next";
 import { showProxyLinkDialog } from "../store/proxyLink";
 import { refreshProxies } from "../store/proxyList";
+import { openStoryViewer } from "../store/storyViewer";
 import type { Router } from "vue-router";
 
 /**
@@ -14,6 +15,7 @@ import type { Router } from "vue-router";
  *   - internalLinkTypePublicChat → searchPublicChat 解析用户名，跳转 /home/chat/{id}
  *   - internalLinkTypeProxy      → 弹出「添加代理」确认，确认后 addProxy
  *   - internalLinkTypeBotStart   → searchPublicChat 解析出 bot，跳转其私聊；autostart 时自动发送 /start 深链接
+ *   - internalLinkTypeStory      → searchPublicChat + getStory，打开故事播放器
  *   - 其他 / 解析失败            → 外部浏览器打开（openUrl）
  *
  * **同聊天优化**：若链接目标消息所在 chat 与当前打开的聊天一致（params.id 匹配），
@@ -87,6 +89,45 @@ export async function resolveInternalLink(href: string, router: Router): Promise
                         }
                     }
                 }
+                return true;
+            }
+            case "internalLinkTypeStory": {
+                // t.me/username/s123 → searchPublicChat → getStory → 故事播放器
+                const { story_poster_username, story_id } = linkType;
+                if (!story_poster_username || !story_id) {
+                    await MessagePlugin.warning({ content: "无效的动态链接", placement: "top-right" });
+                    return true;
+                }
+                const posterChat = await tdlibSend({
+                    _: "searchPublicChat",
+                    username: story_poster_username,
+                }) as chat;
+                const targetStory = await tdlibSend({
+                    _: "getStory",
+                    story_poster_chat_id: posterChat.id,
+                    story_id,
+                }) as story;
+
+                // 尽量加载该发布者主页动态列表，便于左右滑动浏览；失败则仅打开单条
+                let list: story[] = [targetStory];
+                let startIndex = 0;
+                try {
+                    const page = await tdlibSend({
+                        _: "getChatPostedToChatPageStories",
+                        chat_id: posterChat.id,
+                        from_story_id: 0,
+                        limit: 100,
+                    }) as stories;
+                    const storiesList = page?.stories ?? [];
+                    if (storiesList.length > 0) {
+                        const idx = storiesList.findIndex((s) => s.id === story_id);
+                        list = idx >= 0 ? storiesList : [targetStory, ...storiesList.filter((s) => s.id !== story_id)];
+                        startIndex = idx >= 0 ? idx : 0;
+                    }
+                } catch {
+                    /* 保持单条 */
+                }
+                openStoryViewer(list, startIndex);
                 return true;
             }
             case "internalLinkTypeProxy": {
