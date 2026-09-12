@@ -1,8 +1,8 @@
 <template>
-    <div class="p-2.5 bg-transparent" @dragover.prevent @drop.prevent="onDrop">
+    <div class="px-3 py-2.5 bg-transparent" @dragover.prevent @drop.prevent="onDrop">
         <Transition name="mi-fade">
             <div v-if="replyTarget"
-                class="flex items-start gap-2 mb-2 mx-1 px-3 py-2 rounded-2xl bg-white/70 dark:bg-gray-800/90 shadow-sm border border-gray-200/60 dark:border-gray-700/60">
+                class="flex items-start gap-2 mb-2 px-3 py-2 rounded-2xl bg-white/70 dark:bg-gray-800/90 shadow-sm border border-gray-200/60 dark:border-gray-700/60">
                 <CornerUpLeftIcon class="w-4 h-4 shrink-0 mt-0.5 text-blue-500" />
                 <div class="min-w-0 flex-1">
                     <p class="text-xs font-semibold text-blue-500 truncate">

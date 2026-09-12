@@ -47,7 +47,7 @@ export default defineConfig(async (): Promise<UserConfig> => ({
     exclude: ["tlottie"],
   },
   worker: {
-    format: "es" as const,
+    format: "es",
   },
   // 单入口：主应用 index.html
   build: {

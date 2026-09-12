@@ -339,7 +339,7 @@
         <!-- ===== 多选操作栏（多选模式时叠在输入框上方） ===== -->
         <Transition name="multi-bar">
             <div v-if="selectionMode"
-                class="absolute left-2.5 right-2.5 bottom-2.5 z-20 flex items-center gap-2 px-3 h-13 rounded-full bg-white/70 dark:bg-gray-900/80 backdrop-blur-lg shadow-lg border border-gray-200/50 dark:border-gray-700/50">
+                class="absolute left-3 right-3 bottom-3 z-20 flex items-center gap-2 px-3 h-13 rounded-full bg-white/70 dark:bg-gray-900/80 backdrop-blur-lg shadow-lg border border-gray-200/50 dark:border-gray-700/50">
                 <button type="button" aria-label="退出多选"
                     class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" @click="exitSelectionMode">
                     <XIcon class="w-5 h-5 text-gray-600 dark:text-gray-300" />
@@ -367,7 +367,7 @@
         <!-- ===== 顶置消息栏 + 音乐播放器（合并同一卡片） ===== -->
         <div class="absolute inset-x-0 z-10 flex justify-center pointer-events-none"
             :class="showTopCard ? 'top-17.5' : 'hidden'">
-            <div class="w-full px-1 pointer-events-auto">
+            <div class="w-full px-3 pointer-events-auto">
                 <PinnedMessageBar :chatId="chatId" @jumpToMessage="jumpToPinnedMessage"
                     @visibleChange="onPinnedVisibleChange" />
             </div>
@@ -418,7 +418,7 @@
             <!-- 编辑消息横幅 -->
             <Transition name="mi-fade">
                 <div v-if="editTargetInfo"
-                    class="relative z-10 mx-5 mt-3 px-3 py-2 rounded-2xl bg-white/70 dark:bg-gray-800/90 shadow-sm border border-gray-200/60 dark:border-gray-700/60">
+                    class="relative z-10 mx-3 mt-3 px-3 py-2 rounded-2xl bg-white/70 dark:bg-gray-800/90 shadow-sm border border-gray-200/60 dark:border-gray-700/60">
                     <div class="flex items-start gap-2">
                         <PencilIcon class="w-4 h-4 shrink-0 mt-0.5 text-orange-500" />
                         <div class="min-w-0 flex-1">

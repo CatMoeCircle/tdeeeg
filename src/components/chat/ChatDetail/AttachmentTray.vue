@@ -1,7 +1,7 @@
 <template>
     <Transition name="att-tray">
         <div v-show="attachmentStore.items.length > 0"
-            class="mb-2 mx-1 max-h-72 overflow-y-auto message-input-scrollbar rounded-xl bg-white/60 dark:bg-gray-900/50 p-2">
+            class="mb-2 max-h-72 overflow-y-auto message-input-scrollbar rounded-xl bg-white/60 dark:bg-gray-900/50 p-2">
             <VueDraggable v-model="draggableList" :animation="150" ghost-class="att-drag-ghost" :filter="'.no-drag'"
                 class="flex flex-wrap gap-2">
                 <template v-for="it in draggableList" :key="it.id">

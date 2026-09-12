@@ -1,7 +1,7 @@
 <template>
     <div class="flex h-full w-full bg-white/40 overflow-hidden dark:bg-black text-gray-900 dark:text-gray-100">
         <SideNavBar />
-        <div class="flex-1 min-w-0 bg-white rounded-tl-xl rounded-sm relative overflow-hidden m-1"
+        <div class="flex-1 min-w-0 bg-white rounded-tl-xl rounded-sm relative overflow-hidden mr-1 mb-1"
             :style="homeBackgroundStyle">
             <!-- 整块内容区共用的唯一默认壁纸底层（对话列表 + 聊天区） -->
             <div v-if="settings.chatWallpaper" class="absolute inset-0 pointer-events-none overflow-hidden">
