@@ -11,7 +11,7 @@
                         opacity-0 group-hover:opacity-100 hover:opacity-100 active:opacity-100 active:bg-blue-600
                         px-[3.5px] pt-8 bg-clip-content" @mousedown="startResize"></div>
         </div>
-        <div class="flex-1 h-full min-w-0  dark:bg-gray-900">
+        <div class="flex-1 h-full min-w-0">
             <slot name="content"></slot>
         </div>
     </div>

@@ -3,8 +3,8 @@
         <SideNavBar />
         <div class="flex-1 min-w-0 bg-white rounded-tl-xl rounded-sm relative overflow-hidden m-1"
             :style="homeBackgroundStyle">
-            <div v-if="settings.chatWallpaperFullScreen && settings.chatWallpaper"
-                class="absolute inset-0 pointer-events-none overflow-hidden">
+            <!-- 整块内容区共用的唯一默认壁纸底层（对话列表 + 聊天区） -->
+            <div v-if="settings.chatWallpaper" class="absolute inset-0 pointer-events-none overflow-hidden">
                 <div class="absolute inset-0" :style="homeWallpaperLayerStyle"></div>
                 <div class="absolute inset-0 bg-white" :style="{ opacity: settings.chatWallpaperOverlayOpacity / 100 }">
                 </div>
@@ -64,7 +64,7 @@ import { settings } from '../../store/settings';
 
 const route = useRoute();
 const homeBackgroundStyle = computed(() => {
-    if (!settings.chatWallpaperFullScreen || !settings.chatWallpaper) return {};
+    if (!settings.chatWallpaper) return {};
     const visual = settings.chatWallpaper;
     if (visual.kind === 'image' && visual.path) {
         return {

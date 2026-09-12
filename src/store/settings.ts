@@ -38,7 +38,7 @@ export interface ChatWallpaperVisual {
 interface Settings {
   /** 默认对话壁纸的本地渲染信息；聊天专属背景由 TDLib Chat.background 覆盖 */
   chatWallpaper: ChatWallpaperVisual | null;
-  /** 是否将默认壁纸扩展到 HomeView 右侧整个内容区域 */
+  /** @deprecated 默认壁纸现已固定铺在 HomeView 整块内容区底部，字段仅保留兼容旧配置 */
   chatWallpaperFullScreen: boolean;
   /** 默认壁纸上方的白色叠加透明度（0-100） */
   chatWallpaperOverlayOpacity: number;

@@ -1,8 +1,11 @@
 <template>
-    <div class="h-full relative overflow-hidden chat-wallpaper-root" :style="chatBackgroundStyle">
-        <div class="absolute inset-0 pointer-events-none chat-wallpaper-layer" :style="chatWallpaperLayerStyle"></div>
-        <div class="absolute inset-0 pointer-events-none bg-white chat-wallpaper-overlay"
-            :style="{ opacity: settings.chatWallpaperOverlayOpacity / 100 }"></div>
+    <!-- 默认壁纸由 HomeView 底层统一绘制；此处仅在聊天有专属背景时叠一层 -->
+    <div class="h-full relative overflow-hidden chat-wallpaper-root" :style="hasChatSpecificBackground ? chatBackgroundStyle : undefined">
+        <template v-if="hasChatSpecificBackground">
+            <div class="absolute inset-0 pointer-events-none chat-wallpaper-layer" :style="chatWallpaperLayerStyle"></div>
+            <div class="absolute inset-0 pointer-events-none bg-white chat-wallpaper-overlay"
+                :style="{ opacity: settings.chatWallpaperOverlayOpacity / 100 }"></div>
+        </template>
         <!-- ===== Messages Area (底层，穿透 header/footer) ===== -->
         <!-- Skeleton -->
         <div v-if="showSkeleton"
@@ -931,19 +934,26 @@ function openInNewChat() {
 
 // ==================== State ====================
 const chat = ref<chat | undefined>(undefined);
+const hasChatSpecificBackground = computed(() => {
+    const bg = chat.value?.background?.background;
+    if (!bg) return false;
+    if (bg.type._ === 'backgroundTypeFill') return true;
+    return !!bg.document?.thumbnail?.file.local.path;
+});
 const chatBackgroundStyle = computed(() => {
     const visual = chatBackgroundVisual.value;
     return { backgroundColor: visual?.color || '#f5f5f5' };
 });
 const chatBackgroundVisual = computed<ChatWallpaperVisual | null>(() => {
     const background = chat.value?.background?.background;
-    return background
-        ? background.type._ === 'backgroundTypeFill' && background.type.fill._ === 'backgroundFillSolid'
-            ? { kind: 'color', color: `#${(background.type.fill.color & 0xffffff).toString(16).padStart(6, '0')}` }
-            : background.document?.thumbnail?.file.local.path
-                ? { kind: 'image', path: background.document.thumbnail.file.local.path }
-                : settings.chatWallpaper
-        : settings.chatWallpaper;
+    if (!background) return settings.chatWallpaper;
+    if (background.type._ === 'backgroundTypeFill' && background.type.fill._ === 'backgroundFillSolid') {
+        return { kind: 'color', color: `#${(background.type.fill.color & 0xffffff).toString(16).padStart(6, '0')}` };
+    }
+    if (background.document?.thumbnail?.file.local.path) {
+        return { kind: 'image', path: background.document.thumbnail.file.local.path };
+    }
+    return settings.chatWallpaper;
 });
 const chatWallpaperLayerStyle = computed(() => {
     const visual = chatBackgroundVisual.value;

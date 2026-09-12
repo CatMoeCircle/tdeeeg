@@ -38,7 +38,6 @@
                     </div>
                     <div
                         class="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 space-y-4">
-                        <ChatTypeToggle label="全屏显示壁纸" v-model="settings.chatWallpaperFullScreen" />
                         <div>
                             <div class="flex items-center justify-between"><span
                                     class="text-sm text-gray-600 dark:text-gray-300">白色叠加</span><span
@@ -129,7 +128,6 @@ import { tdlibSend, isFileReady, safeDownloadFile } from '../../utils/tdlib';
 import { isThumbnailImgRenderable } from '../../utils/thumbnail';
 import { settings } from '../../store/settings';
 import { DL_PRIORITY } from '../../utils/downloadPriority';
-import ChatTypeToggle from '../../components/settings/ChatTypeToggle.vue';
 import type { background, backgrounds, file, Update } from 'tdlib-types';
 
 const router = useRouter();
