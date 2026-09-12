@@ -397,6 +397,7 @@ import {
 import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
 import FormattedTextInline from './FormattedTextInline.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
+import { folderTabClass as sharedFolderTabClass } from '../../utils/folderPillsTabClass';
 import MessagePreviewMedia from './MessagePreviewMedia.vue';
 import CustomEmojiInline from '../common/CustomEmojiInline.vue';
 import SlidingTabBar from '../common/SlidingTabBar.vue';
@@ -573,22 +574,8 @@ const folderIcon = (tab: { id: string; iconName?: string }): Component => {
 };
 
 /** 分组选项卡按钮类（按样式变体 + 激活态，与 SlidingTabBar 配合） */
-function folderTabClass(_id: string, active: boolean): string {
-    const base = 'px-2.5 py-1 text-xs font-medium gap-1';
-    switch (settings.folderStyle) {
-        case 'tabs':
-            return active
-                ? `${base} text-blue-600`
-                : `${base} text-gray-500 hover:text-gray-700`;
-        case 'pills':
-            return active
-                ? `${base} bg-blue-500 shadow-sm shadow-blue-500/50 text-white rounded-full my-1`
-                : `${base} bg-white/70 dark:bg-gray-800/70 backdrop-blur-md text-gray-600 dark:text-gray-300 hover:bg-white/80 dark:hover:bg-gray-800/90 rounded-full my-1`;
-        default:
-            return active
-                ? `${base} text-blue-600 font-bold`
-                : `${base} text-gray-500 hover:text-gray-700`;
-    }
+function folderTabClass(id: string, active: boolean): string {
+    return sharedFolderTabClass(settings.folderStyle, id, active);
 }
 
 /**

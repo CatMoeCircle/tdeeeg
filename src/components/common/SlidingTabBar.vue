@@ -2,7 +2,7 @@
 /**
  * SlidingTabBar —— 通用分组/标签栏组件
  *
- * 可复用于「对话列表分组栏」与「设置-分组文件夹样式预览」。
+ * 可复用于「对话列表分组栏」「设置-分组文件夹样式预览」「个人资料页标签栏」。
  * 它统一处理：
  *   - 标签的横向滚动布局
  *   - 激活标签的追踪（v 选中态）
@@ -143,7 +143,7 @@ watch(() => props.tabs, () => {
 
 <template>
     <div ref="container" v-smooth-wheel="'horizontal'"
-        class="sliding-tabbar relative overflow-x-auto no-scrollbar shrink-0" :class="containerClass">
+        class="sliding-tabbar relative overflow-x-auto no-scrollbar scrollbar-none shrink-0" :class="containerClass">
         <!-- tabs 样式的滑动小蓝条：left 先滑动，width 延迟展开 -->
         <span v-if="isTabs && showIndicator && tabs.length > 1" ref="indicator"
             class="pointer-events-none absolute bottom-0 h-0.5 rounded-full bg-blue-500" :style="indicatorStyle"></span>

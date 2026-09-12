@@ -1,7 +1,7 @@
 <template>
   <div class="h-full flex flex-col text-gray-900 dark:text-gray-100 overflow-hidden">
     <!-- 内容区 -->
-    <div class="flex-1 overflow-y-auto custom-scrollbar" v-smooth-wheel>
+    <div ref="profileScrollEl" class="flex-1 overflow-y-auto custom-scrollbar" v-smooth-wheel>
       <div class="max-w-2xl mx-auto pb-8" v-if="chatMode || user || chatObj || chatLoading || chatError">
         <!-- ===== 第一部分：顶部青绿色头部区域 ===== -->
         <div class="relative profile-hero overflow-hidden">
@@ -64,7 +64,7 @@
 
               <!-- 语音通话 -->
               <button type="button"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 text-gray-600 dark:text-gray-300 text-sm hover:bg-white/80 dark:hover:bg-gray-800/90 transition-colors"
                 @click="startCall(false)">
                 <PhoneCall class="w-4 h-4" />
                 通话
@@ -72,7 +72,7 @@
 
               <!-- 视频通话 -->
               <button type="button"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 text-gray-600 dark:text-gray-300 text-sm hover:bg-white/80 dark:hover:bg-gray-800/90 transition-colors"
                 @click="startCall(true)">
                 <Video class="w-4 h-4" />
                 视频
@@ -80,7 +80,7 @@
 
               <!-- 搜索 -->
               <button type="button"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 text-gray-600 dark:text-gray-300 text-sm hover:bg-white/80 dark:hover:bg-gray-800/90 transition-colors"
                 @click="searchInChat">
                 <Search class="w-4 h-4" />
                 搜索
@@ -88,7 +88,7 @@
 
               <!-- 通知（按下拉开的更多菜单里也能切换；这里开关通知） -->
               <button type="button"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 text-gray-600 dark:text-gray-300 text-sm hover:bg-white/80 dark:hover:bg-gray-800/90 transition-colors"
                 @click="toggleNotifications">
                 <BellOff v-if="isPrivateChatMuted" class="w-4 h-4" />
                 <Bell v-else class="w-4 h-4" />
@@ -97,7 +97,7 @@
 
               <!-- 更多 -->
               <button type="button"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 text-gray-600 dark:text-gray-300 text-sm hover:bg-white/80 dark:hover:bg-gray-800/90 transition-colors"
                 @click="openMoreMenu($event)">
                 <MoreHorizontal class="w-4 h-4" />
                 更多
@@ -143,33 +143,31 @@
                   发消息
                 </button>
                 <button type="button"
-                  class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                  class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 text-gray-600 dark:text-gray-300 text-sm hover:bg-white/80 dark:hover:bg-gray-800/90 transition-colors"
                   @click="startCall(false)">
                   <PhoneCall class="w-4 h-4" />
                   通话
                 </button>
                 <button type="button"
-                  class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                  class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 text-gray-600 dark:text-gray-300 text-sm hover:bg-white/80 dark:hover:bg-gray-800/90 transition-colors"
                   @click="startCall(true)">
                   <Video class="w-4 h-4" />
                   视频
                 </button>
               </template>
-              <!-- 频道/群组：加入/退出按钮 + 查看频道/群组 -->
+              <!-- 频道/群组：加入 或 进入聊天（退出/取消订阅收进「更多」） -->
               <template v-else>
                 <button type="button"
-                  class="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-white text-sm font-medium transition-colors"
-                  :class="isChatJoined ? 'bg-gray-500 hover:bg-gray-600' : 'bg-teal-500 hover:bg-teal-600'"
-                  @click="isChatJoined ? unsubscribeChat() : joinChat()">
-                  <Eye v-if="!isChatJoined" class="w-4 h-4" />
-                  <LogOut v-else class="w-4 h-4" />
-                  {{ isChatJoined ? joinButtonText : joinButtonText }}
+                  class="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-teal-500 hover:bg-teal-600 text-white text-sm font-medium transition-colors"
+                  @click="isChatJoined ? openChatChannel() : joinChat()">
+                  <MessageSquareText class="w-4 h-4" />
+                  {{ isChatJoined ? enterButtonText : joinButtonText }}
                 </button>
               </template>
 
               <!-- 通知 -->
               <button type="button"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 text-gray-600 dark:text-gray-300 text-sm hover:bg-white/80 dark:hover:bg-gray-800/90 transition-colors"
                 @click="chatToggleNotifications">
                 <BellOff v-if="chatNotificationMuted" class="w-4 h-4" />
                 <Bell v-else class="w-4 h-4" />
@@ -178,7 +176,7 @@
 
               <!-- 更多 -->
               <button type="button"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 text-gray-600 dark:text-gray-300 text-sm hover:bg-white/80 dark:hover:bg-gray-800/90 transition-colors"
                 @click="openChatMoreMenu($event)">
                 <MoreHorizontal class="w-4 h-4" />
                 更多
@@ -195,7 +193,7 @@
             <p class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">个人资料音乐</p>
             <!-- 卡片：音乐入口行 -->
             <div
-              class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] overflow-hidden mb-4">
+              class="rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden mb-4">
               <button type="button" @click="openUserMusicPlayer"
                 class="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                 <!-- 方形封面（播放/暂停按钮叠加在封面上） -->
@@ -223,7 +221,7 @@
 
           <!-- 频道订阅卡片 -->
           <div v-if="personalChatId"
-            class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] overflow-hidden">
+            class="rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden">
             <!-- 头部：频道 + 订阅数（使用该用户主题色） -->
             <div class="flex items-baseline justify-between px-3.5 pt-3 pb-1.5">
               <span class="text-sm font-semibold text-gray-900 dark:text-gray-100">频道</span>
@@ -264,7 +262,7 @@
           <template v-if="isSecretChat && secretChatUser">
             <!-- 个人简介 -->
             <div v-if="secretChatFullInfo?.bio?.text"
-              class="flex items-start gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
+              class="flex items-start gap-3 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5">
               <InfoIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
               <div class="min-w-0 flex-1">
                 <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
@@ -275,7 +273,7 @@
             </div>
             <!-- 手机号码 -->
             <div v-if="secretChatUser.phone_number"
-              class="flex items-center gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
+              class="flex items-center gap-3 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5">
               <PhoneIcon class="w-5 h-5 text-gray-400 shrink-0" />
               <div class="min-w-0 flex-1">
                 <p class="text-sm text-gray-800 dark:text-gray-100 select-all">
@@ -286,7 +284,7 @@
             </div>
             <!-- 用户名 -->
             <div v-if="secretChatUser.usernames?.active_usernames?.length"
-              class="flex items-start gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              class="flex items-start gap-3 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               @click="secretChatUser.usernames?.active_usernames?.[0] && copyText('@' + secretChatUser.usernames.active_usernames[0])">
               <AtSignIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
               <div class="min-w-0 flex-1">
@@ -298,7 +296,7 @@
             </div>
             <!-- ID -->
             <div
-              class="flex items-center gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
+              class="flex items-center gap-3 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5">
               <IdCardIcon class="w-5 h-5 text-gray-400 shrink-0" />
               <div class="min-w-0 flex-1">
                 <p class="text-sm text-gray-800 dark:text-gray-100 select-all">
@@ -311,7 +309,7 @@
 
           <!-- 频道/群组：介绍 -->
           <div v-else-if="chatDescription"
-            class="flex items-start gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
+            class="flex items-start gap-3 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5">
             <InfoIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
             <div class="min-w-0 flex-1">
               <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
@@ -323,7 +321,7 @@
 
           <!-- 频道/群组用户名 -->
           <div v-if="chatUsername"
-            class="flex items-start gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            class="flex items-start gap-3 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             @click="chatUsername && copyText('@' + chatUsername)">
             <AtSignIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
             <div class="min-w-0 flex-1">
@@ -336,7 +334,7 @@
 
           <!-- 频道/群组 ID -->
           <div v-if="!isSecretChat"
-            class="flex items-center gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
+            class="flex items-center gap-3 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5">
             <IdCardIcon class="w-5 h-5 text-gray-400 shrink-0" />
             <div class="min-w-0 flex-1">
               <p class="text-sm text-gray-800 dark:text-gray-100 select-all">
@@ -357,7 +355,7 @@
         <div v-if="!chatMode" class="px-4 mt-4 space-y-2">
           <!-- 3.1 个人简介 -->
           <div v-if="bioText"
-            class="flex items-start gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
+            class="flex items-start gap-3 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5">
             <InfoIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
             <div class="min-w-0 flex-1">
               <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
@@ -369,7 +367,7 @@
 
           <!-- 3.2 手机号码 -->
           <div v-if="user?.phone_number"
-            class="flex items-center gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
+            class="flex items-center gap-3 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5">
             <PhoneIcon class="w-5 h-5 text-gray-400 shrink-0" />
             <div class="min-w-0 flex-1">
               <p class="text-sm text-gray-800 dark:text-gray-100 select-all">
@@ -381,7 +379,7 @@
 
           <!-- 3.3 用户名（可复制文本：默认黑色，悬停变蓝，点击复制） -->
           <div v-if="primaryUsername || additionalUsernames.length"
-            class="flex items-start gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            class="flex items-start gap-3 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             @click="primaryUsername && copyText('@' + primaryUsername)">
             <AtSignIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
             <div class="min-w-0 flex-1">
@@ -404,7 +402,7 @@
 
           <!-- 3.4 生日 -->
           <div v-if="birthdateText"
-            class="flex items-center gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
+            class="flex items-center gap-3 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5">
             <CalendarIcon class="w-5 h-5 text-gray-400 shrink-0" />
             <div class="min-w-0 flex-1">
               <p class="text-sm text-gray-800 dark:text-gray-100">{{ birthdateText }}</p>
@@ -414,7 +412,7 @@
 
           <!-- 3.5 位置（点击用微软地图网页版打开） -->
           <button v-if="businessLocation" type="button"
-            class="w-full flex items-center gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            class="w-full flex items-center gap-3 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             @click="openLocation()">
             <MapPin class="w-5 h-5 text-gray-400 shrink-0" />
             <div class="min-w-0 flex-1">
@@ -431,7 +429,7 @@
 
           <!-- 3.6 营业时间（点击展开/收起详细时段） -->
           <div v-if="businessOpenNow"
-            class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] overflow-hidden">
+            class="rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden">
             <button type="button"
               class="w-full flex items-center gap-3 p-3.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               @click="hoursExpanded = !hoursExpanded">
@@ -460,7 +458,7 @@
 
           <!-- 3.7 ID -->
           <div
-            class="flex items-center gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
+            class="flex items-center gap-3 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5">
             <IdCardIcon class="w-5 h-5 text-gray-400 shrink-0" />
             <div class="min-w-0 flex-1">
               <p class="text-sm text-gray-800 dark:text-gray-100 select-all">
@@ -478,7 +476,7 @@
 
           <!-- 机器人资料（如为机器人） -->
           <div v-if="isBot"
-            class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] p-3.5">
+            class="rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5">
             <div class="flex items-center gap-2 mb-1">
               <Bot class="w-5 h-5 text-gray-400" />
               <span class="text-sm font-medium">机器人</span>
@@ -496,30 +494,32 @@
         </div>
 
 
-        <!-- ===== 第四部分：底部功能导航栏（动态 / 归档动态 / 礼物 / 共同群组） ===== -->
-        <div v-if="hasBottomContent" class="px-4 mt-5 sticky top-0 z-10 bg-white dark:bg-[#1a1a1a] pt-2 pb-2">
-          <div
-            class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1c1c1c] overflow-x-auto overflow-y-hidden scrollbar-none"
-            v-smooth-wheel="'horizontal'" @wheel.stop.prevent>
-            <div class="flex items-center gap-1.5 p-1 w-max">
-              <button v-for="tab in profileTabs" :key="tab.key" type="button"
-                class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1.5"
-                :class="activeTab === tab.key ? 'bg-teal-500 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'"
-                @click="activeTab = tab.key">
+        <!-- ===== 第四部分：底部功能导航栏（动态 / 归档动态 / 礼物 / 共享媒体） =====
+             滚动时粘性置顶；下方内容区保证足够高度，切换标签时标签栏稳定贴顶、内容不闪空 -->
+        <div v-if="hasBottomContent" ref="profileTabsEl"
+          class="px-4 mt-5 sticky top-0 z-10 py-2 scroll-mt-0">
+          <SlidingTabBar :active-id="activeTab" :tabs="profileTabItems" :variant="settings.folderStyle"
+            :tab-class="(id, active) => folderTabClass(settings.folderStyle, id, active)"
+            :show-indicator="settings.folderStyle === 'tabs'" @select="onProfileTabSelect">
+            <template #default="{ tab, active }">
+              <span class="inline-flex items-center gap-1.5 whitespace-nowrap">
                 <component :is="tabIconMap[tab.key]" class="w-3.5 h-3.5" />
                 {{ tab.label }}
                 <span v-if="tab.count > 0"
                   class="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none"
-                  :class="activeTab === tab.key ? 'bg-white/20 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'">
+                  :class="active && settings.folderStyle === 'pills'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'">
                   {{ tab.count > 999 ? `${Math.floor(tab.count / 1000)}k` : tab.count }}
                 </span>
-              </button>
-            </div>
-          </div>
+              </span>
+            </template>
+          </SlidingTabBar>
         </div>
 
-        <!-- ===== 第五部分：媒体内容区（宫格 + 共享媒体） ===== -->
-        <div v-if="hasBottomContent" class="px-4 mt-3">
+        <!-- ===== 第五部分：媒体内容区（宫格 + 共享媒体）=====
+             min-h + 较大底部留白：保证可滚到标签栏完全置顶，切换标签时高度不塌缩 -->
+        <div v-if="hasBottomContent" class="px-4 mt-3 min-h-[70vh] pb-24">
           <!-- 动态区 -->
           <div v-if="activeTab === 'stories'" class="py-6 text-center text-sm text-gray-400">
             <p v-if="isLoading">正在加载动态…</p>
@@ -978,6 +978,9 @@ import { openContextMenu, closeContextMenu } from "../../store/contextMenu";
 import type { ContextMenuItem } from "../../components/contextMenu/types";
 import { MessagePlugin } from "tdesign-vue-next";
 import { buildProfileTabs, type ProfileTab, type ProfileTabKey } from "../../utils/profileTabs";
+import SlidingTabBar from "../../components/common/SlidingTabBar.vue";
+import { settings } from "../../store/settings";
+import { folderTabClass } from "../../utils/folderPillsTabClass";
 import type { SharedMediaCounts } from "../../utils/sharedMediaCounts";
 import { useProfileSharedMedia } from "../../composables/useProfileSharedMedia";
 import { requestCustomEmoji } from "../../store/customEmoji";
@@ -997,6 +1000,10 @@ const router = useRouter();
 const userStore = useUserStore();
 const profileStore = useUserProfileStore();
 const audioPlayer = useAudioPlayerStore();
+
+/** 资料页纵向滚动容器 / 粘性标签栏（用于切换标签后保持标签栏置顶） */
+const profileScrollEl = ref<HTMLElement | null>(null);
+const profileTabsEl = ref<HTMLElement | null>(null);
 
 const userId = computed(() => Number(route.params.id));
 
@@ -1438,6 +1445,27 @@ const profileTabs = computed<ProfileTab[]>(() => {
     gifCount: sharedMediaCounts.value.gifs,
   });
 });
+
+/** 映射为 SlidingTabBar 需要的 id 字段 */
+const profileTabItems = computed(() =>
+  profileTabs.value.map((t) => ({ ...t, id: t.key })),
+);
+
+function onProfileTabSelect(id: string) {
+  activeTab.value = id as ProfileTabKey;
+  // 切换标签后：若标签栏已贴在滚动区顶部，则保持置顶，避免内容高度变化导致粘性条跳动闪空
+  nextTick(() => {
+    const scroller = profileScrollEl.value;
+    const bar = profileTabsEl.value;
+    if (!scroller || !bar) return;
+    const scrollerTop = scroller.getBoundingClientRect().top;
+    const barTop = bar.getBoundingClientRect().top;
+    // 仅在标签栏已接近/低于顶部时回正 scrollTop，不打断用户仍看上方内容时的滚动位置
+    if (barTop <= scrollerTop + 1) {
+      scroller.scrollTop += barTop - scrollerTop;
+    }
+  });
+}
 
 /** Tab 图标映射 */
 const tabIconMap: Record<ProfileTabKey, any> = {
@@ -2292,12 +2320,14 @@ async function joinChat() {
   }
 }
 
-/** 获取加入/退出按钮文本 */
+/** 加入按钮文本 */
 const joinButtonText = computed(() => {
-  if (isChatJoined.value) {
-    return isChatChannel.value ? '取消订阅' : '退出群组';
-  }
   return isChatChannel.value ? '加入频道' : '加入群组';
+});
+
+/** 已加入时「进入」按钮文本 */
+const enterButtonText = computed(() => {
+  return isChatChannel.value ? '进入频道' : '进入群组';
 });
 
 /** 切换通知（静音 / 取消静音） */
