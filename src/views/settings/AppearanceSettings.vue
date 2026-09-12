@@ -743,7 +743,7 @@ function folderClass(_id: string, active: boolean) {
         case 'pills':
             return active
                 ? `${base} bg-blue-500 text-white rounded-full shadow-sm shadow-blue-500/50`
-                : `${base} bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-full`;
+                : `${base} bg-white/70 dark:bg-gray-800/70 backdrop-blur-md text-gray-600 dark:text-gray-300 rounded-full`;
         default:
             return active
                 ? `${base} text-blue-600 font-bold`

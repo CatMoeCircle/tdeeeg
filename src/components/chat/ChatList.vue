@@ -60,8 +60,8 @@
                             <template v-if="forumMode">
                                 <div v-for="chat in tab.chats" :key="chat.id" @click="selectForumChat(chat)"
                                     v-context-menu="buildChatContextMenu(chat)"
-                                    class="relative flex items-center justify-center py-2.5 cursor-pointer transition-colors hover:bg-gray-100"
-                                    :class="forumChatId === chat.id ? 'bg-gray-100 rounded-lg' : ''"
+                                    class="relative flex items-center justify-center py-2.5 cursor-pointer transition-colors hover:bg-white/70 dark:hover:bg-gray-800/70"
+                                    :class="forumChatId === chat.id ? 'bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-lg' : ''"
                                     style="content-visibility: auto; contain-intrinsic-size: 68px">
                                     <!-- 选中标记：左侧色条 -->
                                     <div v-if="forumChatId === chat.id"
@@ -122,8 +122,8 @@
 
                                     <div v-for="chat in tab.chats" :key="chat.id" @click="selectChat(chat)"
                                         v-context-menu="buildChatContextMenu(chat)"
-                                        class="chat-list-item flex items-center p-2.5 mb-0.5 hover:bg-white/70 rounded-xl hover:shadow-(--box-shadow) cursor-pointer transition-colors"
-                                        :class="{ 'rounded-xl bg-gray-100 border border-gray-300': selectedChatId === chat.id, 'ring-2 ring-blue-500': chatSelectionMode && selectedChatIds.has(chat.id) }"
+                                        class="chat-list-item flex items-center p-2.5 mb-0.5 hover:bg-white/70 dark:hover:bg-gray-800/70 rounded-xl hover:shadow-(--box-shadow) cursor-pointer transition-colors"
+                                        :class="{ 'bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50': selectedChatId === chat.id, 'ring-2 ring-blue-500': chatSelectionMode && selectedChatIds.has(chat.id) }"
                                         style="content-visibility: auto; contain-intrinsic-size: 72px">
                                         <!-- 占位对话（chat 数据尚未到达）渲染骨架屏 -->
                                         <template v-if="isPlaceholderChat(chat)">
@@ -583,7 +583,7 @@ function folderTabClass(_id: string, active: boolean): string {
         case 'pills':
             return active
                 ? `${base} bg-blue-500 shadow-sm shadow-blue-500/50 text-white rounded-full my-1`
-                : `${base} bg-gray-100 text-gray-600 hover:bg-gray-200 rounded-full my-1`;
+                : `${base} bg-white/70 dark:bg-gray-800/70 backdrop-blur-md text-gray-600 dark:text-gray-300 hover:bg-white/80 dark:hover:bg-gray-800/90 rounded-full my-1`;
         default:
             return active
                 ? `${base} text-blue-600 font-bold`
