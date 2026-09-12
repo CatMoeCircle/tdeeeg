@@ -1,8 +1,8 @@
 <template>
-    <div class="absolute top-0 left-0 right-0 z-20">
+    <div class="absolute top-0 inset-x-0 z-20 h-16 px-3 py-1.5">
         <!-- ===== 搜索栏 ===== -->
         <div
-            class="h-16 flex items-center gap-2 px-4 bg-white/95 dark:bg-[#1c1c1c]/90 backdrop-blur-lg border-b border-gray-200/60 dark:border-gray-800/60">
+            class="relative h-full flex items-center gap-2 px-2 sm:px-3 rounded-full bg-white/80 dark:bg-[#2b293b]/90 backdrop-blur-xl border border-gray-300/70 dark:border-white/20 shadow-[0_4px_18px_rgba(15,23,42,0.12)] dark:shadow-[0_6px_24px_rgba(0,0,0,0.28)]">
             <!-- 上下跳转器（左右结构） -->
             <div class="flex items-center gap-0.5 shrink-0">
                 <button type="button" aria-label="上一个结果"
