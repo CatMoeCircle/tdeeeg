@@ -7,8 +7,8 @@
         </div>
         <img v-else-if="avatar && !imgError" :src="avatar" alt="avatar" class="w-full h-full object-cover"
             @error="onImgError" />
-        <div v-else class="w-full h-full flex items-center justify-center text-xs select-none"
-            :class="initialsTextClass" :style="initialsStyle">{{ initials }}</div>
+        <div v-else class="w-full h-full flex items-center justify-center select-none"
+            :class="initialsTextClass" :style="initialsTextStyle">{{ initials }}</div>
     </div>
 </template>
 
@@ -45,6 +45,9 @@ const deletedBackground = 'linear-gradient(#B8C2CC, #9EAAB5)';
 
 /** 已删除账户图标尺寸约为头像尺寸的 60% */
 const GHOST_ICON_RATIO = 0.6;
+
+/** 文字头像字号约为头像尺寸的 38%（略小于常见 0.4，避免小头像字母偏大） */
+const INITIALS_RATIO = 0.38;
 
 /** 组件根元素：用于测量实际渲染尺寸（消息列表头像未传 sizeClass 时仍能正确缩放图标） */
 const rootEl = ref<HTMLElement | null>(null);
@@ -87,10 +90,23 @@ const initials = computed(() => {
     return t.substring(0, 2);
 });
 
+/** 文字头像字号：按容器实测尺寸缩放，避免固定 text-xs 在小头像上显得偏大 */
+const initialsFontSize = computed(() => {
+    if (measuredPx.value && measuredPx.value > 0) {
+        return `${Math.round(measuredPx.value * INITIALS_RATIO)}px`;
+    }
+    const px = /(\d+)x?/.exec(props.sizeClass || '');
+    const size = px ? parseInt(px[1], 10) : 54;
+    return `${Math.round(size * INITIALS_RATIO)}px`;
+});
+
 /** 无头像时：有 accentColorId 用其主题渐变背景 + 白色文字；否则按标题哈希回退到内置渐变色，避免千篇一律的灰底 */
-const initialsStyle = computed(() => {
+const initialsTextStyle = computed(() => {
     const id = typeof props.accentColorId === 'number' ? props.accentColorId : hashAccentId();
-    return { background: accentAvatarBackground(id) };
+    return {
+        background: accentAvatarBackground(id),
+        fontSize: initialsFontSize.value,
+    };
 });
 
 const initialsTextClass = computed(() => 'text-white');

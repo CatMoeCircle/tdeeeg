@@ -59,13 +59,13 @@ const close = () => appWindow.close();
             </p>
             <!-- titlebar 模式：TDEEEG 右侧显示用户头像 + 名称 + emoji状态 -->
             <template v-if="isTitlebarMode">
-                <span class="w-2"></span>
+                <span class="w-2.5"></span>
                 <button type="button"
-                    class="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity min-w-0"
+                    class="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity min-w-0"
                     data-tauri-drag-region-exclude @click="accountMenuOpen = true">
                     <Avatar v-if="userProfile" :photo="userProfile.profile_photo" :title="userDisplayName"
-                        :accentColorId="userProfile.profile_accent_color_id" sizeClass="!w-5 !h-5" />
-                    <span v-if="userDisplayName" class="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">
+                        :accentColorId="userProfile.profile_accent_color_id" sizeClass="!w-6 !h-6" />
+                    <span v-if="userDisplayName" class="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
                         {{ userDisplayName }}
                     </span>
                 </button>
