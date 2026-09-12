@@ -577,7 +577,7 @@ import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
 import { MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, Quote as QuoteIcon, Languages as LanguagesIcon, User as UserIcon, Pencil as PencilIcon, FolderOpenIcon, DownloadIcon, BookmarkIcon, EyeIcon, UserCheckIcon, MessageSquareIcon, AudioLinesIcon, FlagIcon } from 'lucide-vue-next';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { useRoute, useRouter } from 'vue-router';
-import { computed, watch, ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { computed, watch, ref, shallowRef, markRaw, onMounted, onUnmounted, nextTick } from 'vue';
 import { useUserStore } from '../../../store/user';
 import { useAudioPlayerStore } from '../../../store/audioPlayer';
 import { clearActiveChatTitleBar } from '../../../store/activeChatTitleBar';
@@ -982,7 +982,15 @@ watch([messageInput, pendingCustomEmoji], () => {
         saveDraft();
     }, 500);
 });
-const messages = ref<message[]>([]);
+/**
+ * 消息列表使用 shallowRef + markRaw：
+ * TDLib message 是深层嵌套大对象，若用 ref 做深度响应式，任意字段变更
+ * （下载终态回写、编辑、回应）都会触发整表深遍历，聊天中随机白屏/卡死的主因之一。
+ * 所有变更必须通过 replaceMessages/patchMessage 等入口整体替换数组并 bump 版本号。
+ */
+const messages = shallowRef<message[]>([]);
+/** 内存中同时保留的消息上限，超出后从远离视口的一端裁剪，避免 DOM/内存无限增长 */
+const MAX_MESSAGE_WINDOW = 180;
 const messagesContainer = ref<HTMLElement | null>(null);
 
 // ===== 表情包面板（StickerPanel emoji/GIF/贴纸） =====
@@ -1699,14 +1707,16 @@ function measureBubbleWidths() {
     if (changed) bubbleWidths.value = next;
 }
 
-// 消息变化（新增/删除/内容编辑等）后重新测量宽度
+// 消息变化（新增/删除/内容编辑等）后重新测量宽度。
+// 不用 deep watch：messages 已是 shallowRef，深监听会把每次深层字段写入
+// 变成整表 O(n) 遍历 + DOM 扫描。
 watch(
-    messages,
+    messagesVersion,
     async () => {
         await nextTick();
         measureBubbleWidths();
     },
-    { immediate: true, deep: true }
+    { immediate: true }
 );
 
 // 容器尺寸变化（窗口缩放/布局变化）时重新测量
@@ -1849,7 +1859,7 @@ const handleUpdate = async (update: Update) => {
                 msg.sender_id.user_id === myId.value;
 
             // 追加到末尾（最新消息）
-            messages.value.push(msg);
+            appendMessages([msg]);
             await fetchSenders([msg]);
             void fetchMemberStatuses([msg]);
 
@@ -1884,11 +1894,11 @@ const handleUpdate = async (update: Update) => {
                 // 内容变化（如编辑文本变长）会改变气泡高度，
                 // 若用户停在底部附近则保持贴底，避免底部内容被顶出视口
                 const atBottom = isAtBottom();
-                msg.content = update.new_content;
-                // 内容整体替换后旧内联键盘按钮已失效，清空回调按钮列表
-                if (msg.reply_markup !== undefined) {
-                    msg.reply_markup = undefined;
-                }
+                // 内容整体替换后旧内联键盘按钮已失效，一并清空 reply_markup
+                patchMessage(update.message_id, {
+                    content: update.new_content,
+                    reply_markup: msg.reply_markup !== undefined ? undefined : msg.reply_markup,
+                });
                 // 消息更新后刷新该消息内联键盘的锁定状态
                 refreshKeyboardLock(update.message_id);
                 if (atBottom) scrollToBottom();
@@ -1905,14 +1915,14 @@ const handleUpdate = async (update: Update) => {
 
             if (oldIndex >= 0) {
                 if (currentIndex >= 0 && currentIndex !== oldIndex) {
-                    messages.value.splice(oldIndex, 1);
+                    removeMessagesByIds([update.old_message_id]);
                 } else {
-                    messages.value.splice(oldIndex, 1, update.message);
+                    setMessageObject(update.old_message_id, update.message);
                 }
             } else if (currentIndex >= 0) {
-                messages.value.splice(currentIndex, 1, update.message);
+                setMessageObject(update.message.id, update.message);
             } else {
-                messages.value.push(update.message);
+                appendMessages([update.message]);
             }
 
             if (newMessageIds.value.delete(update.old_message_id)) {
@@ -1938,10 +1948,7 @@ const handleUpdate = async (update: Update) => {
             // from_cache=true 的删除是本地缓存的过时标记，不是真实的删除，忽略
             if (update.from_cache) break;
             if (update.chat_id !== chatId.value || !isReady.value) break;
-            const filtered = messages.value.filter(m => !update.message_ids.includes(m.id));
-            if (filtered.length < messages.value.length) {
-                applyMessages(filtered);
-            }
+            removeMessagesByIds(update.message_ids);
             break;
         }
 
@@ -1985,14 +1992,15 @@ const handleUpdate = async (update: Update) => {
         case 'updateMessageEdited': {
             /** 将 reply_markup 就地应用到某个消息对象（有值更新按钮、空值清除旧键盘） */
             const applyReplyMarkup = (msg: message) => {
-                msg.edit_date = update.edit_date;
+                const patch: Partial<message> = { edit_date: update.edit_date };
                 // updateMessageEdited 携带新的 reply_markup（可能为 null，表示移除内联键盘）：
                 // 有值时更新按钮；值为 null/空时清除旧按钮并刷新锁定，避免残留旧键盘
                 if (update.reply_markup) {
-                    msg.reply_markup = update.reply_markup;
+                    patch.reply_markup = update.reply_markup;
                 } else if (update.reply_markup !== undefined && msg.reply_markup !== undefined) {
-                    msg.reply_markup = undefined;
+                    patch.reply_markup = undefined;
                 }
+                patchMessage(update.message_id, patch);
                 refreshKeyboardLock(update.message_id);
             };
 
@@ -2034,25 +2042,13 @@ const handleUpdate = async (update: Update) => {
         // ---- 消息回应更新 ----
         case 'updateMessageInteractionInfo': {
             if (update.chat_id !== chatId.value) break;
-            const idx = messages.value.findIndex(m => m.id === update.message_id);
-            if (idx !== -1) {
-                messages.value.splice(idx, 1, {
-                    ...messages.value[idx],
-                    interaction_info: update.interaction_info,
-                });
-            }
+            patchMessage(update.message_id, { interaction_info: update.interaction_info });
             break;
         }
 
         case 'updateMessageUnreadReactions': {
             if (update.chat_id !== chatId.value) break;
-            const idx = messages.value.findIndex(m => m.id === update.message_id);
-            if (idx !== -1) {
-                messages.value.splice(idx, 1, {
-                    ...messages.value[idx],
-                    unread_reactions: update.unread_reactions,
-                });
-            }
+            patchMessage(update.message_id, { unread_reactions: update.unread_reactions });
             break;
         }
 
@@ -2298,7 +2294,7 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
                 const oldest = messages.value[0];
                 const more = await fetchMessages(currentId, oldest.id, 50, 0, gen);
                 if (more.length > 0) {
-                    applyMessages(mergeMessages(messages.value, more));
+                    applyMessages(mergeMessages(messages.value, more), 'older');
                 }
             }
         }
@@ -2448,7 +2444,7 @@ async function loadHistoryOlder(loadChatId: number, gen: number): Promise<boolea
         const prevHeight = el?.scrollHeight ?? 0;
         const prevTop = el?.scrollTop ?? 0;
 
-        applyMessages([...unique, ...messages.value]);
+        applyMessages([...unique, ...messages.value], 'older');
         await nextTick();
 
         if (el) {
@@ -2492,7 +2488,7 @@ async function loadHistoryNewer(loadChatId: number, gen: number): Promise<boolea
             return false;
         }
 
-        applyMessages([...messages.value, ...unique]);
+        appendMessages(unique);
         await nextTick();
         return true;
     } finally {
@@ -3174,7 +3170,7 @@ function resetState() {
         readVisibilityTimer = null;
     }
     lastReportedReadMessageId = 0;
-    messages.value = [];
+    applyMessages([]);
     chat.value = undefined;
     clearActiveChatTitleBar();
     topic.value = undefined;
@@ -3212,16 +3208,62 @@ function resetState() {
     highlightedMessageId.value = null;
 }
 
+/** 冻结单条消息，阻止 Vue 深层代理（TDLib 对象很大且频繁整体替换） */
+function freezeMsg(m: message): message {
+    return markRaw(m);
+}
+
 /**
- * 中央写入 messages 的入口：设置 messages.value 并累加版本号。
- *
- * 写入前会过滤掉 chat_id 不属于当前聊天的消息，作为最后一道防线，
- * 防止任何上游遗漏导致其他对话的消息泄露到当前视图。
+ * 中央写入 messages 的入口：整体替换数组并累加版本号。
+ * 写入前过滤不属于当前聊天的消息，并对超长列表按 keep 端裁剪。
  */
-function applyMessages(next: message[]) {
+function applyMessages(next: message[], keep: 'older' | 'newer' = 'newer') {
     const cid = chatId.value;
     const safe = cid != null ? next.filter(m => m.chat_id === cid) : next;
-    messages.value = safe;
+    let list = safe.map(freezeMsg);
+    if (list.length > MAX_MESSAGE_WINDOW) {
+        list = keep === 'older'
+            ? list.slice(0, MAX_MESSAGE_WINDOW)
+            : list.slice(list.length - MAX_MESSAGE_WINDOW);
+    }
+    messages.value = list;
+    messagesVersion.value++;
+}
+
+/** 末尾追加消息（新消息 / 向更新方向加载），超出窗口时裁掉最旧一端 */
+function appendMessages(incoming: message[]) {
+    if (incoming.length === 0) return;
+    applyMessages([...messages.value, ...incoming], 'newer');
+}
+
+/** 按 id 补丁更新消息（浅合并后整体替换该条，驱动依赖该消息字段的子组件刷新） */
+function patchMessage(id: number, patch: Partial<message>) {
+    const idx = messages.value.findIndex(m => m.id === id);
+    if (idx === -1) return;
+    const next = messages.value.slice();
+    next[idx] = freezeMsg({ ...messages.value[idx], ...patch } as message);
+    messages.value = next;
+    messagesVersion.value++;
+}
+
+/** 按 id 删除消息 */
+function removeMessagesByIds(ids: number[]) {
+    if (ids.length === 0) return;
+    const drop = new Set(ids);
+    const next = messages.value.filter(m => !drop.has(m.id));
+    if (next.length !== messages.value.length) applyMessages(next);
+}
+
+/** 整条替换消息对象（发送成功后的最终版本等） */
+function setMessageObject(id: number, msg: message) {
+    const idx = messages.value.findIndex(m => m.id === id);
+    if (idx === -1) {
+        appendMessages([msg]);
+        return;
+    }
+    const next = messages.value.slice();
+    next[idx] = freezeMsg(msg);
+    messages.value = next;
     messagesVersion.value++;
 }
 
@@ -4424,7 +4466,7 @@ const handleScrollToBottom = async () => {
             const unique = newest.filter(m => !existingIds.has(m.id));
             if (unique.length > 0) {
                 // newest 已是 旧→新 且比现有列表更新，追加到末尾
-                applyMessages([...messages.value, ...unique]);
+                appendMessages(unique);
                 foundGap = true;
             }
         }
