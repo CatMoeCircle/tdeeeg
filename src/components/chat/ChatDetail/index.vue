@@ -296,8 +296,7 @@
             </div>
         </div>
         <!-- ===== Header（顶层，磨砂玻璃） ===== -->
-        <div
-            class="absolute top-0 left-0 right-0 z-10 bg-white/80 dark:bg-[#1c1c1c]/70 backdrop-blur-lg border-b border-gray-200/60 dark:border-gray-800/60">
+        <div class="absolute top-0 left-0 right-0 z-10">
             <ChatDetailHeader :chat="chat" :topic="topic" :showBack="showBackBtn" @back="handleBack"
                 @openInfo="handleTopClick" @search="searchActive = true" />
         </div>
@@ -475,7 +474,7 @@
 
         <!-- ===== 成员操作 ===== -->
         <div v-else-if="showMembershipAction"
-            class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-white/80 dark:from-gray-900/80 via-white/60 dark:via-gray-900/60 to-transparent">
+            class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-transparent dark:from-gray-900/80 via-transparent dark:via-gray-900/60 to-transparent">
             <div aria-hidden="true"
                 class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
             </div>
@@ -490,7 +489,7 @@
 
         <!-- ===== 只读 ===== -->
         <div v-else-if="showChannelActions"
-            class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-white/80 dark:from-gray-900/80 via-white/60 dark:via-gray-900/60 to-transparent">
+            class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-transparent dark:from-gray-900/80 via-transparent dark:via-gray-900/60 to-transparent">
             <div aria-hidden="true"
                 class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
             </div>

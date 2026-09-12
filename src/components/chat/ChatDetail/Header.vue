@@ -1,15 +1,17 @@
 <template>
-    <div class="h-16 pt-0 flex items-center px-4 justify-between shrink-0">
-        <div class="flex items-center gap-3 min-w-0" v-if="chat">
+    <div class="h-16 px-3 py-1.5 flex items-center justify-center shrink-0">
+        <div
+            class="flex items-center w-full min-w-0 h-full px-2 sm:px-3 rounded-full bg-white/80 dark:bg-[#2b293b]/90 backdrop-blur-xl border border-gray-300/70 dark:border-white/20 shadow-[0_4px_18px_rgba(15,23,42,0.12)] dark:shadow-[0_6px_24px_rgba(0,0,0,0.28)] transition-[background-color,box-shadow] duration-200">
+            <div class="flex items-center gap-3 min-w-0 flex-1" v-if="chat">
             <!-- 返回按钮（叠层模式） -->
             <button v-if="showBack" type="button" @click="emit('back')"
-                class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shrink-0 -ml-1"
+                class="w-9 h-9 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-300 bg-gray-100/70 dark:bg-white/10 hover:bg-gray-200/80 dark:hover:bg-white/20 active:scale-95 transition-[background-color,transform] duration-150 shrink-0 -ml-1"
                 aria-label="返回">
-                <ArrowLeftIcon class="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                <ArrowLeftIcon class="w-5 h-5" />
             </button>
             <!-- 点击头像/标题区域打开对话信息叠层 -->
             <button type="button" @click="emit('openInfo')"
-                class="flex items-center gap-3 min-w-0 text-left flex-1 cursor-pointer hover:opacity-80 transition-opacity">
+                class="flex items-center gap-3 min-w-0 text-left flex-1 cursor-pointer rounded-full hover:opacity-80 active:scale-[0.99] transition-[opacity,transform] duration-150">
                 <template v-if="isTopicMode">
                     <!-- 话题图标：General 用主题色 #，自定义 emoji 用 emoji，否则首字母色块 -->
                     <div v-if="topic!.info.is_general"
@@ -52,18 +54,27 @@
                 </div>
             </button>
         </div>
-        <div v-else class="flex items-center gap-3">
+            <div v-else class="flex items-center gap-3 flex-1 min-w-0">
             <div class="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
             <div class="flex flex-col w-48">
                 <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2 animate-pulse"></div>
                 <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2 animate-pulse"></div>
             </div>
-        </div>
+            </div>
 
-        <div class="flex gap-4 text-gray-500">
+            <div class="flex items-center gap-1 text-gray-500 dark:text-gray-300 shrink-0">
             <slot name="actions" />
-            <SearchIcon class="w-5 h-5 cursor-pointer hover:text-blue-500" @click="emit('search')" />
-            <MoreHorizontalIcon class="w-5 h-5 cursor-pointer hover:text-blue-500" />
+                <button type="button" @click="emit('search')"
+                    class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-200/80 dark:hover:bg-white/20 hover:text-blue-500 active:scale-95 transition-[background-color,color,transform] duration-150"
+                    aria-label="搜索">
+                    <SearchIcon class="w-5 h-5" />
+                </button>
+                <button type="button"
+                    class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-200/80 dark:hover:bg-white/20 hover:text-blue-500 active:scale-95 transition-[background-color,color,transform] duration-150"
+                    aria-label="更多">
+                    <MoreHorizontalIcon class="w-5 h-5" />
+                </button>
+            </div>
         </div>
     </div>
 </template>
