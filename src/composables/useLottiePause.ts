@@ -4,7 +4,7 @@ import { onVisibilityChange as sharedOnVisibilityChange, unobserveVisibility } f
 /**
  * Lottie 播放器的最小可编程控制接口。
  *
- * 兼容 lottie-web 的 AnimationItem 与 rlottie-wasm-vue-player 的组件实例，
+ * 兼容 lottie-web 的 AnimationItem 与 TgsPlayer/tlottie 的组件实例，
  * 二者都提供 play() / pause()（可能还有 stop()）。
  */
 export interface LottieControl {
@@ -66,8 +66,9 @@ export function useLottiePause(
         if (!shouldPause) {
             anim?.play();
             // 恢复视频（当前处于可视区且窗口聚焦才播）
+            // play() 返回 Promise：快速 play→pause 会 AbortError，属预期竞态
             if (video && inView && focused) {
-                try { video.play(); } catch { /* 静默 */ }
+                void video.play().catch(() => { /* 竞态/自动播放拦截，静默 */ });
             }
         } else {
             anim?.pause();

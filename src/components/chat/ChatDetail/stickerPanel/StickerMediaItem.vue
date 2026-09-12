@@ -1,10 +1,9 @@
 <template>
-    <!-- 根元素 w-full aspect-square：无论父格子多宽都铺满并保持正方形 -->
     <div ref="rootEl" class="sp-media-item w-full aspect-square" @click="onClick"
         @contextmenu.prevent.stop="onContextMenu">
-        <!-- TGS 动画贴纸 -->
-        <RlottiePlayer v-if="format === 'tgs' && src" ref="playerRef" :src="src" :width="renderSize"
-            :height="renderSize" loop :autoplay="false" :class="hiResClass" :style="hiResStyle" @error="onError" />
+        <!-- TGS 动画贴纸（tlottie） -->
+        <TgsPlayer v-if="format === 'tgs' && tgsSrc" ref="playerRef" :src="tgsSrc" :fitz-modifier="fitzModifier" loop
+            :autoplay="false" @error="onError" />
         <!-- WEBP / MPEG4 / GIF：<img> 或 <video>（100% 铺满 + object-fit: cover） -->
         <img v-else-if="format === 'webp' && src" :src="src" :alt="alt" draggable="false" :style="imgStyle"
             loading="lazy" />
@@ -20,11 +19,10 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { sticker, animation } from 'tdlib-types';
-import { RlottiePlayer, type RlottiePlayerInstance } from 'rlottie-wasm-vue-player';
+import TgsPlayer, { type TgsPlayerInstance } from '../../../common/TgsPlayer.vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useStickerMedia } from './composables/useStickerMedia';
 import { onVisibilityChange, unobserve, isProgrammaticScroll, isUserScrolling, deferLoadWhileScrolling, isWindowActive, onWindowActiveChange } from './composables/useStickerVisibility';
-import { useRlottieRenderSize } from '../../../../composables/useRlottieRenderSize';
 
 const props = withDefaults(defineProps<{
     /** 贴纸或动画对象（可为 null 直到加载完成） */
@@ -49,39 +47,18 @@ const emit = defineEmits<{
 }>();
 
 const rootEl = ref<HTMLElement | null>(null);
-const playerRef = ref<RlottiePlayerInstance | null>(null);
+const playerRef = ref<TgsPlayerInstance | null>(null);
 /** GIF / webm / mp4 视频元素（用于暂停/恢复） */
 const videoRef = ref<HTMLVideoElement | null>(null);
 
-/** 统一媒体源解析（下载 + TGS 肤色替换） */
+/** 统一媒体源解析（下载 + TGS 字节 + 肤色修饰符） */
 const media = useStickerMedia(() => props.item, props.kind, { skinTone: computed(() => props.skinTone) });
 
 /** 顶层解包，便于模板自动解包 */
 const format = media.format;
 const src = media.src;
-
-/**
- * TGS 渲染尺寸：由「可见时的实际格子宽度」驱动（w-full width 自适应父格子，
- * 因此不再依赖调用方传的 size）。可见时才测量一次 DOM（与可见性回调同机），
- * 不引入 per-item ResizeObserver，避免性能开销。
- * 贴纸网格以「数量/性能」优先：超采样倍数降到 1（即按显示尺寸渲染）。
- */
-const cellW = ref(Math.max(4, props.size));
-/** 是否已测量过实际格子宽，避免重复读取 DOM */
-let cellMeasured = false;
-const tgsSize = computed(() => cellW.value);
-const { renderSize, hiResStyle, hiResClass } = useRlottieRenderSize(tgsSize, 1);
-
-/** 记录实际格子宽度（正方形，读 width 即可）；失败则回退到 props.size */
-function measureCellWidth() {
-    const el = rootEl.value;
-    if (!el) return;
-    const w = el.getBoundingClientRect().width;
-    if (w > 0) {
-        cellW.value = Math.max(4, Math.round(w));
-        cellMeasured = true;
-    }
-}
+const tgsSrc = media.tgsSrc;
+const fitzModifier = media.fitzModifier;
 
 /** 图片/视频/占位尺寸样式 —— 100% 铺满正方形容器，内容居中裁剪（object-fit: cover） */
 const imgStyle = computed<Record<string, string>>(() => ({
@@ -120,7 +97,7 @@ function applyPlayback() {
     const windowOk = isWindowActive();
     // TGS：rlottie 播放器
     if (format.value === 'tgs') {
-        if (inView && windowOk && !!src.value) {
+        if (inView && windowOk && !!tgsSrc.value) {
             playerRef.value?.play();
         } else {
             playerRef.value?.pause();
@@ -132,7 +109,7 @@ function applyPlayback() {
         const v = videoRef.value;
         if (!v) return;
         if (inView && windowOk && !!src.value) {
-            try { v.play(); } catch { /* 静默 */ }
+            void v.play().catch(() => { /* 竞态/自动播放拦截 */ });
         } else {
             v.pause();
         }
@@ -150,8 +127,6 @@ onMounted(() => {
         rootEl.value,
         () => {
             inView = true;
-            // 可见时测量一次实际格子宽（TGS 渲染尺寸需要真实的宽度）
-            if (!cellMeasured) measureCellWidth();
             if (!downloadStarted) {
                 if (isProgrammaticScroll() || isUserScrolling()) {
                     // 程序化跳转途中：暂不下载（避免沿途把路过的 emoji 全拉下来），

@@ -1,9 +1,8 @@
 import { ref, watch, type MaybeRef, toValue } from 'vue';
 import type { sticker, animation } from 'tdlib-types';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import * as pako from 'pako';
-import { readFile } from '@tauri-apps/plugin-fs';
-import { applyFitzpatrick } from '../../../../../utils/fitzpatrick';
+import { telegramFitzToFitzModifier } from '../../../../../utils/tlottieFitz';
+import type { FitzModifier } from 'tlottie';
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { useDownloadStore } from '../../../../../store/downloads';
@@ -54,10 +53,8 @@ function extFor(format: MediaFormat): string {
  *
  * 封装了「TDLib DownloadFile → UpdateFile → 本地路径转换」的管线：
  *  - 未下载时下载到本地，并在下载 store 中记录为隐藏分类资源
- *  - TGS 走 readFile+pako 解压 + Fitzpatrick 肤色替换，输出 stringified JSON
+ *  - TGS 输出原始 gzip 字节（tlottie Worker 内解压）+ Fitzpatrick 修饰符
  *  - webm/mpeg4/webp 通过 convertFileSrc 直接得到可播放 URL
- *
- * 返回 { src（可播放源）、format、ready、download() }。
  */
 export function useStickerMedia(
   getObj: () => sticker | animation | undefined,
@@ -66,7 +63,12 @@ export function useStickerMedia(
 ) {
   const ready = ref(false);
   const downloading = ref(false);
+  /** 非 TGS：可播放 URL */
   const src = ref<string | null>(null);
+  /** TGS：本地 asset URL（tlottie 以 src fetch） */
+  const tgsSrc = ref<string | null>(null);
+  /** TGS 肤色（parse-time） */
+  const fitzModifier = ref<FitzModifier>(telegramFitzToFitzModifier(toValue(options.skinTone) ?? 0));
   const format = ref<MediaFormat>('other');
 
   const file = ref<any>(undefined);
@@ -83,11 +85,14 @@ export function useStickerMedia(
   watch(obj, (o) => {
     if (o) {
       file.value = fileOf(kind, o);
-      // 文件状态变化时若已就绪则自动载入
       if (file.value && isFileReady(file.value)) {
         loadLocal(file.value.local.path);
       }
     }
+  });
+
+  watch(() => toValue(options.skinTone), (tone) => {
+    fitzModifier.value = telegramFitzToFitzModifier(tone ?? 0);
   });
 
   /** 根据对象重算并触发（供 list 项在滚动进可视区时调用） */
@@ -107,7 +112,6 @@ export function useStickerMedia(
     downloading.value = true;
     downloadingFiles.add(f.id);
 
-    // 记录为隐藏下载资源（不占用下载面板来源展示）
     try {
       await useDownloadStore().registerDownload(
         f.id,
@@ -141,17 +145,9 @@ export function useStickerMedia(
   async function loadLocal(path: string) {
     try {
       if (format.value === 'tgs') {
-        const compressed = await readFile(path);
-        let jsonStr: string;
-        try {
-          jsonStr = new TextDecoder('utf-8').decode(pako.inflate(compressed));
-        } catch {
-          jsonStr = new TextDecoder('utf-8').decode(compressed);
-        }
-        const animData = JSON.parse(jsonStr);
-        const skinTone = toValue(options.skinTone) ?? 0;
-        const fitzAnimData = applyFitzpatrick(animData, skinTone);
-        src.value = JSON.stringify(fitzAnimData);
+        // asset URL + fitzModifier；gzip 解压在 Worker 内完成
+        tgsSrc.value = convertFileSrc(path);
+        fitzModifier.value = telegramFitzToFitzModifier(toValue(options.skinTone) ?? 0);
       } else {
         src.value = convertFileSrc(path);
       }
@@ -161,5 +157,5 @@ export function useStickerMedia(
     }
   }
 
-  return { src, format, ready, downloading, download };
+  return { src, tgsSrc, fitzModifier, format, ready, downloading, download };
 }

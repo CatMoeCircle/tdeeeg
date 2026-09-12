@@ -4,10 +4,10 @@
         <div class="flex flex-col items-center">
             <MessageStickerContent v-if="stickerContent" :content="stickerContent" :size="112" class="shrink-0" />
             <!-- 无纪念贴纸时，播放本地 party.tgs 抽奖动画（只播一次，点击可重播） -->
-            <RlottiePlayer v-else-if="partyTgsData" ref="partyPlayerRef" :src="partyTgsData"
-                :loop="false" :autoplay="true" :width="partyRenderSize" :height="partyRenderSize"
-                :class="['h-28 w-28 shrink-0 cursor-pointer overflow-hidden', partyHiResClass]"
-                :style="partyHiResStyle" @click="onPartyClick" @load="onPartyLoad"></RlottiePlayer>
+            <TgsPlayer v-else-if="partyTgsData" ref="partyPlayerRef" :data="partyTgsData"
+                :loop="false" :autoplay="true" :size="112"
+                class="h-28 w-28 shrink-0 cursor-pointer"
+                @click="onPartyClick" @load="onPartyLoad" />
             <h3 class="mt-3 text-base font-bold text-gray-900 dark:text-white">获奖者已选出</h3>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ winnersText }}</p>
             <p v-if="prizeDescription" class="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{{
@@ -56,9 +56,7 @@ import type { message, messageGiveaway, messageGiveawayWinners, messageSticker, 
 import { tdlibSend } from '../../../../../utils/tdlib';
 import { accentColorStyle } from '../../../../../store/colors';
 import { useLottiePause } from '../../../../../composables/useLottiePause';
-import { useRlottieRenderSize } from '../../../../../composables/useRlottieRenderSize';
-import { RlottiePlayer, type RlottiePlayerInstance } from 'rlottie-wasm-vue-player';
-import * as pako from 'pako';
+import TgsPlayer, { type TgsPlayerInstance } from '../../../../common/TgsPlayer.vue';
 import Avatar from '../../../avatar.vue';
 import MessageStickerContent from './MessageStickerContent.vue';
 
@@ -89,42 +87,24 @@ const formatCount = (count: number) => numberFormatter.format(count);
 const PARTY_TGS_URL = new URL('../../../../../assets/party.tgs', import.meta.url).href;
 
 const rootEl = ref<HTMLElement | null>(null);
-const partyPlayerRef = ref<RlottiePlayerInstance | null>(null);
-/** 解析后的 party TGS Lottie JSON（字符串形式，作为 RlottiePlayer 的 src） */
-const partyTgsData = ref<string | null>(null);
-
-/** party 动画目标显示边长（100px） */
-const partySize = computed(() => 112);
-/** 超采样渲染尺寸与显示样式（本地 party.tgs，仅抽奖结果弹出时短暂播放；走默认极低质量以保持速率一致） */
-const { renderSize: partyRenderSize, hiResStyle: partyHiResStyle, hiResClass: partyHiResClass } = useRlottieRenderSize(partySize);
+const partyPlayerRef = ref<TgsPlayerInstance | null>(null);
+/** party.tgs 原始字节（gzip，tlottie Worker 内解压） */
+const partyTgsData = ref<Uint8Array | null>(null);
 
 /** 统一的 Lottie 暂停/恢复控制器：视口离开、窗口失焦、平滑滚动时暂停 */
 const { register: registerPartyAnim, get: getPartyAnim, setup: setupPartyPause } = useLottiePause(rootEl);
 
-/** RlottiePlayer 加载完成回调：把实例注册进暂停/恢复控制器 */
+/** TgsPlayer 加载完成回调：把实例注册进暂停/恢复控制器 */
 function onPartyLoad() {
     registerPartyAnim(partyPlayerRef.value);
 }
 
-/** 加载本地 party.tgs（gzipped Lottie JSON），只播一次 */
+/** 加载本地 party.tgs 原始字节 */
 async function loadPartyAnimation() {
     try {
-        // 清空旧数据使 RlottiePlayer 卸载重建
         partyTgsData.value = null;
         const resp = await fetch(PARTY_TGS_URL);
-        const compressed = new Uint8Array(await resp.arrayBuffer());
-
-        // 解压 gzip
-        let jsonStr: string;
-        try {
-            jsonStr = new TextDecoder('utf-8').decode(pako.inflate(compressed));
-        } catch {
-            jsonStr = new TextDecoder('utf-8').decode(compressed);
-        }
-
-        const animData = JSON.parse(jsonStr);
-        // RlottiePlayer 的 src 接受 stringified JSON（不以 http / 开头会被当作 JSON 串处理）
-        partyTgsData.value = JSON.stringify(animData);
+        partyTgsData.value = new Uint8Array(await resp.arrayBuffer());
     } catch (e) {
         console.error('Failed to load party.tgs:', e);
     }

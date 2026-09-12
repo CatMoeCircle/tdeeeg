@@ -16,7 +16,11 @@ import { initTdlib, waitForAuthorization } from "./init";
 import { registerLoaderStyle, type LoaderStyle } from "./components/common/LoaderIndicator";
 import { settings } from "./store/settings";
 import { debugMode } from "./store/debug";
-import { initRlottie } from "./utils/rlottiePreload";
+import { initTlottie } from "./utils/tlottiePreload";
+import { installCrashGuard, showBootstrapFailure } from "./utils/crashGuard";
+
+// 尽早安装全局错误/白屏诊断（不依赖 Vue mount）
+installCrashGuard();
 
 // 全局右键处理：
 // - 输入框/可编辑元素/链接等保留原生右键（便于复制粘贴等）
@@ -61,6 +65,13 @@ window.addEventListener("keydown", (e) => {
 const app = createApp(App);
 const pinia = createPinia();
 
+app.config.errorHandler = (err, _instance, info) => {
+    console.error("[vue] errorHandler:", info, err);
+};
+app.config.warnHandler = (msg, _instance, trace) => {
+    console.warn("[vue] warn:", msg, trace);
+};
+
 app.use(pinia);
 app.use(router);
 app.use(i18n);
@@ -74,47 +85,86 @@ app.directive("smooth-wheel", vSmoothWheel);
 // 2. 等待授权态稳定（Ready / WaitCode... 等），据此跳转 /home 或 /login
 // 3. 完成后再挂载并渲染 App.vue，从而避免启动时闪现登录页
 async function bootstrap() {
-    // 等待 router 就绪，确保后续 push 基于已解析的路由表执行
-    await router.isReady();
-
-    // 设置 TDLib 参数（连接正式/测试数据中心，使用自定义或默认 API 凭据），须在 init_tdlib 之前调用。
-    // 用户可在「系统设置」中修改 use_test_dc / api_id / api_hash（持久化到 settings.system）。
-    const sys = settings.system;
-    await invoke("set_tdlib_parameters", {
-        useTestDc: sys.useTestDc,
-        ...(sys.customApiCreds && sys.apiId && sys.apiHash
-            ? { apiId: Number(sys.apiId), apiHash: sys.apiHash }
-            : {}),
-        persist: false,
-    });
-
-    let authState: "ready" | "login";
+    let step = "router.isReady";
     try {
-        await initTdlib();
-        authState = await waitForAuthorization();
+        // 等待 router 就绪，确保后续 push 基于已解析的路由表执行
+        await router.isReady();
+
+        // 设置 TDLib 参数（连接正式/测试数据中心，使用自定义或默认 API 凭据），须在 init_tdlib 之前调用。
+        // 用户可在「系统设置」中修改 use_test_dc / api_id / api_hash（持久化到 settings.system）。
+        step = "set_tdlib_parameters";
+        const sys = settings.system;
+        await invoke("set_tdlib_parameters", {
+            useTestDc: sys.useTestDc,
+            ...(sys.customApiCreds && sys.apiId && sys.apiHash
+                ? { apiId: Number(sys.apiId), apiHash: sys.apiHash }
+                : {}),
+            persist: false,
+        });
+
+        let authState: "ready" | "login";
+        try {
+            step = "initTdlib";
+            await initTdlib();
+            step = "waitForAuthorization";
+            authState = await waitForAuthorization();
+        } catch (e) {
+            console.error("Error initializing TDLib:", e);
+            authState = "login";
+        }
+
+        // mount 前先跳到对应路由
+        step = "router.push";
+        await router.push(authState === "ready" ? "/home" : "/login");
+
+        // 预注册加载指示器样式（ldrs 自定义元素）。
+        // ldrs 在打包后会被拆到独立 chunk（LoaderIndicator-*），其 register() 代码
+        // 随 chunk 按需加载。这里在挂载前提前注册当前生效样式，确保首个 LoaderIndicator
+        // 渲染为已定义的自定义元素（避免出现未知元素的空白闪烁）。
+        step = "registerLoaderStyle";
+        registerLoaderStyle(settings.loadingStyle as LoaderStyle);
+
+        // 预热 tlottie Worker + WASM。失败不阻塞启动：贴纸/表情可能不可用，但聊天 UI 仍可用。
+        step = "initTlottie";
+        try {
+            await withTimeout(initTlottie(), 15000, "initTlottie 超时（Worker/WASM 未就绪）");
+        } catch (e) {
+            console.warn("[bootstrap] tlottie 预热失败，贴纸动画可能不可用:", e);
+        }
+
+        // 授权态稳定、路由已定位，再渲染 App.vue
+        step = "app.mount";
+        app.mount("#app");
+
+        // 所有初始化完成，显示窗口（之前通过 tauri.conf.json visible:false 隐藏）
+        step = "window.show";
+        await getCurrentWebviewWindow().show();
     } catch (e) {
-        console.error("Error initializing TDLib:", e);
-        authState = "login";
+        // 任一关键步骤失败：窗口可能已可见（例如 location.reload 后），
+        // 若不处理会表现为「纯白屏 + 无元素」。这里用不依赖 Vue 的浮层暴露原因。
+        showBootstrapFailure(step, e);
+        try {
+            await getCurrentWebviewWindow().show();
+        } catch {
+            // ignore
+        }
     }
+}
 
-    // mount 前先跳到对应路由
-    await router.push(authState === "ready" ? "/home" : "/login");
-
-    // 预注册加载指示器样式（ldrs 自定义元素）。
-    // ldrs 在打包后会被拆到独立 chunk（LoaderIndicator-*），其 register() 代码
-    // 随 chunk 按需加载。这里在挂载前提前注册当前生效样式，确保首个 LoaderIndicator
-    // 渲染为已定义的自定义元素（避免出现未知元素的空白闪烁）。
-    registerLoaderStyle(settings.loadingStyle as LoaderStyle);
-
-    // 预加载 rlottie WASM 运行时（RlottiePlayer 依赖 window.Module / RLottieModule /
-    // RLottieHandler 全局），必须在任何 RlottiePlayer 组件挂载之前完成。
-    await initRlottie();
-
-    // 授权态稳定、路由已定位，再渲染 App.vue
-    app.mount("#app");
-
-    // 所有初始化完成，显示窗口（之前通过 tauri.conf.json visible:false 隐藏）
-    await getCurrentWebviewWindow().show();
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(message)), ms);
+        p.then(
+            (v) => {
+                clearTimeout(timer);
+                resolve(v);
+            },
+            (e) => {
+                clearTimeout(timer);
+                reject(e);
+            },
+        );
+    });
 }
 
 bootstrap();

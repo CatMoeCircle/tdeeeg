@@ -3,10 +3,9 @@
         :style="content._ !== 'messageAnimatedEmoji' ? stickerSizeStyle : undefined" @click="onContentClick">
         <!-- WEBP static sticker -->
         <img v-if="format === 'webp' && mediaSrc" :src="mediaSrc" class="w-full h-full object-contain" />
-        <!-- TGS animated sticker (Lottie) -->
-        <RlottiePlayer v-else-if="format === 'tgs' && tgsData" ref="playerRef" :src="tgsData" :loop="!isAnimatedEmoji"
-            :autoplay="true" :width="tgsRenderSize" :height="tgsRenderSize" :class="tgsHiResClass"
-            :style="tgsHiResStyle" @load="onAnimLoad" />
+        <!-- TGS animated sticker (tlottie) -->
+        <TgsPlayer v-else-if="format === 'tgs' && tgsSrc" ref="playerRef" :src="tgsSrc" :loop="!isAnimatedEmoji"
+            :autoplay="true" :size="tgsSize" :fitz-modifier="fitzModifier" @load="onAnimLoad" @error="onAnimError" />
         <!-- WEBM video sticker -->
         <video v-else-if="format === 'webm' && mediaSrc" ref="videoRef" :src="mediaSrc" autoplay loop muted playsinline
             class="w-full h-full object-contain" />
@@ -21,17 +20,14 @@
 import { computed, ref, watch, onMounted } from 'vue';
 import type { messageAnimatedEmoji, messageSticker } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
-import { readFile } from '@tauri-apps/plugin-fs';
 import { useDownloadStore } from '../../../../../store/downloads';
 import { settings } from '../../../../../store/settings';
 import { useLottiePause } from '../../../../../composables/useLottiePause';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
-import { useRlottieRenderSize } from '../../../../../composables/useRlottieRenderSize';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { applyFitzpatrick } from '../../../../../utils/fitzpatrick';
-import { RlottiePlayer, type RlottiePlayerInstance } from 'rlottie-wasm-vue-player';
-import * as pako from 'pako';
+import TgsPlayer, { type TgsPlayerInstance } from '../../../../common/TgsPlayer.vue';
+import { telegramFitzToFitzModifier } from '../../../../../utils/tlottieFitz';
 
 const props = defineProps<{
     content: messageSticker | messageAnimatedEmoji;
@@ -39,13 +35,20 @@ const props = defineProps<{
 }>();
 
 const rootEl = ref<HTMLElement | null>(null);
-const playerRef = ref<RlottiePlayerInstance | null>(null);
+const playerRef = ref<TgsPlayerInstance | null>(null);
 /** WEBM/GIF 视频元素（受同一窗口/视口暂停门控） */
 const videoRef = ref<HTMLVideoElement | null>(null);
 const mediaSrc = ref<string | undefined>(undefined);
 const isDownloading = ref(false);
-/** 解析、Fitzpatrick 替换后的 TGS Lottie JSON（字符串形式，作为 RlottiePlayer 的 src） */
-const tgsData = ref<string | null>(null);
+/** TGS 本地文件 URL（convertFileSrc → tlottie fetch） */
+const tgsSrc = ref<string | null>(null);
+/** Telegram fitzpatrick → tlottie FitzModifier */
+const fitzModifier = computed(() => {
+    const fitzType = props.content._ === 'messageAnimatedEmoji'
+        ? (props.content.animated_emoji.fitzpatrick_type || 0)
+        : 0;
+    return telegramFitzToFitzModifier(fitzType);
+});
 
 /** 是否为"大号动画表情"（messageAnimatedEmoji：只播一次、点击重播） */
 const isAnimatedEmoji = computed(() => props.content._ === 'messageAnimatedEmoji');
@@ -53,19 +56,8 @@ const isAnimatedEmoji = computed(() => props.content._ === 'messageAnimatedEmoji
 /** 统一的 Lottie 暂停/恢复控制器：视口离开、窗口失焦、平滑滚动时暂停 */
 const { register: registerAnim, registerVideo, get: getAnim, setup: setupPause } = useLottiePause(rootEl);
 
-/** TGS 画布尺寸（动画表情固定方形；普通贴纸跟随设置） */
+/** TGS 显示边长（动画表情固定方形；普通贴纸跟随设置） */
 const tgsSize = computed(() => isAnimatedEmoji.value ? 96 : (props.size ?? settings.sticker.size));
-
-/**
- * 超采样渲染倍率：
- * - 普通贴纸（messageSticker）→ 2（消息气泡中的贴纸保留较高清晰度）；
- * - 动画表情（messageAnimatedEmoji）→ 1（极低质量，是消息文本内联 emoji 的一类，
- *   与 CustomEmojiInline 一致，保证密集时显示速率一致、不掉帧）。
- * isAnimatedEmoji 由消息类型决定、在 setup 时已确定，作为静态值传入。
- */
-const stickerRenderScale = isAnimatedEmoji.value ? 1 : 2;
-/** 超采样渲染尺寸与显示样式（普通贴纸高质量；动画表情极低质量） */
-const { renderSize: tgsRenderSize, hiResStyle: tgsHiResStyle, hiResClass: tgsHiResClass } = useRlottieRenderSize(tgsSize, stickerRenderScale);
 
 /** 贴纸尺寸样式（跟随设置，仅对普通贴纸生效；动画表情保持固定） */
 const stickerSizeStyle = computed<Record<string, string>>(() => ({
@@ -139,52 +131,25 @@ async function loadSticker(filePath: string) {
     if (format.value === 'webp') {
         mediaSrc.value = convertFileSrc(filePath);
     } else if (format.value === 'tgs') {
-        await loadTgs(filePath);
+        loadTgs(filePath);
     } else if (format.value === 'webm') {
         mediaSrc.value = convertFileSrc(filePath);
     }
 }
 
-/** 加载 TGS（gzipped Lottie JSON）并交给 RlottiePlayer 播放 */
-async function loadTgs(filePath: string) {
-    try {
-        // 清空旧数据使 RlottiePlayer 卸载重建，避免残留上一份动画
-        tgsData.value = null;
-
-        // 通过 fs 插件直接读取文件字节。
-        // 不再用 fetch(convertFileSrc(url))——生产构建 CSP 默认不放开 connect-src 到 asset
-        // 协议，fetch 会被拦截（403），改用 readFile 读取原始字节更可靠。
-        const compressed = await readFile(filePath);
-
-        // 解压 gzip
-        let jsonStr: string;
-        try {
-            const decompressed = pako.inflate(compressed);
-            jsonStr = new TextDecoder('utf-8').decode(decompressed);
-        } catch {
-            // 可能不是 gzip 压缩的，尝试直接解析 JSON
-            const decoder = new TextDecoder('utf-8');
-            jsonStr = decoder.decode(compressed);
-        }
-
-        const animData = JSON.parse(jsonStr);
-
-        // Telegram 动态 emoji 的 Fitzpatrick 肤色替换：
-        // TGS 顶层内嵌 "fitz" 映射表，lottie 渲染器不识别，需在播放前
-        // 根据 animatedEmoji.fitzpatrick_type 把原色批量替换为目标肤色。
-        const fitzType = props.content._ === 'messageAnimatedEmoji'
-            ? (props.content.animated_emoji.fitzpatrick_type || 0)
-            : 0;
-        const fitzAnimData = applyFitzpatrick(animData, fitzType);
-
-        // RlottiePlayer 的 src 接受 stringified JSON（不以 http / 开头会被当作 JSON 串处理）
-        tgsData.value = JSON.stringify(fitzAnimData);
-    } catch (e) {
-        console.error("Failed to load TGS sticker:", e);
-    }
+/** 加载 TGS：本地路径 → asset URL，tlottie 以 src fetch + Worker 内解压 */
+function loadTgs(filePath: string) {
+    tgsSrc.value = null;
+    requestAnimationFrame(() => {
+        tgsSrc.value = convertFileSrc(filePath);
+    });
 }
 
-/** RlottiePlayer 加载完成回调：把实例注册进暂停/恢复控制器 */
+function onAnimError(e: unknown) {
+    console.error('[MessageStickerContent] TGS error', e, tgsSrc.value);
+}
+
+/** TgsPlayer 加载完成回调：把实例注册进暂停/恢复控制器 */
 function onAnimLoad() {
     registerAnim(playerRef.value);
 }
@@ -215,7 +180,7 @@ const { start: startViewportLoad, entered: stickerEntered } = useViewportLoad(ro
 });
 watch(() => props.content, () => {
     mediaSrc.value = undefined;
-    tgsData.value = null;
+    tgsSrc.value = null;
     registerAnim(null);
     // 已进入视口（此前无内容/已触发过）时新内容到达需补下载
     if (stickerEntered.value) loadMedia();

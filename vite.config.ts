@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, type UserConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 import AutoImport from "unplugin-auto-import/vite";
@@ -13,7 +13,7 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
-export default defineConfig(async () => ({
+export default defineConfig(async (): Promise<UserConfig> => ({
   plugins: [
     vue(),
     tailwindcss(),
@@ -41,21 +41,19 @@ export default defineConfig(async () => ({
   // new URL('...party.tgs', import.meta.url) 在打包时不会被 Vite 处理/产出，
   // 生产环境 URL 指向不存在的文件而加载不出来。
   assetsInclude: ["**/*.tgs"],
+  // tlottie 用 new URL('assets/tlottie.worker-*.js', import.meta.url) 创建 Worker。
+  // 依赖预构建会把相对 Worker 路径改写到 .vite/deps 下导致 404，必须排除。
+  optimizeDeps: {
+    exclude: ["tlottie"],
+  },
+  worker: {
+    format: "es" as const,
+  },
   // 单入口：主应用 index.html
   build: {
     rollupOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
-      },
-      output: {
-        manualChunks: {
-          // rlottie（TGS 动画引擎）体积很大，拆分到独立 chunk，
-          // 避免被内联进 MediaViewer / ChatDetail 等组件 chunk 导致其过大，
-          // 同时便于浏览器长期缓存复用。
-          rlottie: ["rlottie-wasm-vue-player"],
-          // pako 是 rlottie 解压 .tgs 数据时常用的 gzip 库，一并拆出
-          pako: ["pako"],
-        },
       },
     },
   },

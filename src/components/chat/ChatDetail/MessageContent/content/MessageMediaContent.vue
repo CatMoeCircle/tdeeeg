@@ -1338,7 +1338,11 @@ function onInlineVideoLoaded() {
     if (videoElRef.value) inlineVideoDuration.value = videoElRef.value.duration || 0;
 }
 function onInlineVideoEnded() {
-    if (videoElRef.value) { videoElRef.value.currentTime = 0; videoElRef.value.play(); }
+    if (videoElRef.value) {
+        videoElRef.value.currentTime = 0;
+        // play() 可能被随后的 pause()（切聊天/滚出视口）打断，AbortError 为预期竞态
+        void videoElRef.value.play().catch(() => { });
+    }
 }
 
 /** 视频进入缓冲（边下边播在拉取数据时触发）→ 显示加载转圈 */

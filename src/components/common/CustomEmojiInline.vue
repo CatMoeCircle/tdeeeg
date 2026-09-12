@@ -5,10 +5,9 @@
     <template v-if="state.ready && state.filePath && state.sticker">
       <!-- WEBP static -->
       <img v-if="emojiFormat === 'webp'" :src="state.filePath" class="w-full h-full object-contain" />
-      <!-- TGS animated (Lottie) -->
-      <RlottiePlayer v-else-if="emojiFormat === 'tgs' && tgsData" ref="playerRef" :src="tgsData" :loop="props.loop ?? true"
-        :autoplay="true" :width="emojiRenderSize" :height="emojiRenderSize" :class="emojiHiResClass"
-        :style="emojiHiResStyle" @load="onAnimLoad" />
+      <!-- TGS animated (Lottie / tlottie) -->
+      <TgsPlayer v-else-if="emojiFormat === 'tgs' && tgsSrc" ref="playerRef" :src="tgsSrc"
+        :loop="props.loop ?? true" :autoplay="true" :size="size" @load="onAnimLoad" @error="onAnimError" />
       <!-- WEBM video -->
       <video v-else-if="emojiFormat === 'webm'" ref="videoRef" :src="state.filePath" autoplay :loop="props.loop ?? true" muted playsinline
         class="w-full h-full object-contain" />
@@ -31,10 +30,8 @@ import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { useCustomEmoji, requestCustomEmoji } from '../../store/customEmoji';
 import { useLottiePause } from '../../composables/useLottiePause';
 import { useViewportLoad } from '../../composables/useViewportLoad';
-import { useRlottieRenderSize } from '../../composables/useRlottieRenderSize';
-import { readFile } from '@tauri-apps/plugin-fs';
-import { RlottiePlayer, type RlottiePlayerInstance } from 'rlottie-wasm-vue-player';
-import * as pako from 'pako';
+import { convertFileSrc } from '@tauri-apps/api/core';
+import TgsPlayer, { type TgsPlayerInstance } from './TgsPlayer.vue';
 
 const props = defineProps<{
   emojiId: string;
@@ -46,19 +43,14 @@ const props = defineProps<{
 }>();
 
 const size = computed(() => props.size || 22);
-/**
- * 自定义 emoji（消息文本内联 / 聊天列表 / 对话文件夹等）→ 极低质量渲染。
- * 用默认超采样倍率 1：此类 emoji 出现数量极大，务必保证显示速率一致、不掉帧。
- */
-const { renderSize: emojiRenderSize, hiResStyle: emojiHiResStyle, hiResClass: emojiHiResClass } = useRlottieRenderSize(size);
 const rootEl = ref<HTMLElement | null>(null);
 // 创建状态但不立即拉取下载；进入视口后由 requestCustomEmoji 触发（视口懒加载）
 const state = useCustomEmoji(props.emojiId, false);
-const playerRef = ref<RlottiePlayerInstance | null>(null);
+const playerRef = ref<TgsPlayerInstance | null>(null);
 /** WEBM/GIF 视频元素（受同一窗口/视口暂停门控） */
 const videoRef = ref<HTMLVideoElement | null>(null);
-/** 解析后的 TGS Lottie JSON（字符串形式，作为 RlottiePlayer 的 src） */
-const tgsData = ref<string | null>(null);
+/** TGS 本地文件 URL（convertFileSrc，交给 tlottie fetch） */
+const tgsSrc = ref<string | null>(null);
 
 /** 统一的 Lottie 暂停/恢复控制器：视口离开、窗口失焦、平滑滚动时暂停 */
 const { register: registerAnim, registerVideo, setup: setupPause } = useLottiePause(rootEl);
@@ -72,45 +64,31 @@ const emojiFormat = computed(() => {
   return 'webp';
 });
 
-/** 加载 TGS（gzipped Lottie JSON）并交给 RlottiePlayer 播放 */
-async function loadTgs(rawPath: string) {
-  try {
-    // 清空旧数据使 RlottiePlayer 卸载重建，避免残留上一份动画
-    tgsData.value = null;
-    // 通过 fs 插件直接读取文件原始字节。
-    // 不用 fetch(convertFileSrc(...))——生产构建 CSP 默认不放开 connect-src 到 asset
-    // 协议，fetch 会被拦截（403），改用 readFile 读取原始字节更可靠。
-    const compressed = await readFile(rawPath);
-    let jsonStr: string;
-    try {
-      const decompressed = pako.inflate(compressed);
-      jsonStr = new TextDecoder('utf-8').decode(decompressed);
-    } catch {
-      jsonStr = new TextDecoder('utf-8').decode(compressed);
-    }
-    const animData = JSON.parse(jsonStr);
-    // RlottiePlayer 的 src 接受 stringified JSON
-    tgsData.value = JSON.stringify(animData);
-  } catch (e) {
-    console.error('Failed to load TGS custom emoji:', e);
-  }
+/** 用本地路径生成 asset URL，交给 tlottie 以 src 方式 fetch */
+function loadTgs(rawPath: string) {
+  tgsSrc.value = null;
+  // 下一帧再赋值，确保 LottiePlayer 在 key 变化时干净重建
+  requestAnimationFrame(() => {
+    tgsSrc.value = convertFileSrc(rawPath);
+  });
 }
 
-/** RlottiePlayer 加载完成回调：把实例注册进暂停/恢复控制器 */
+function onAnimError(e: unknown) {
+  console.error('[CustomEmojiInline] TGS load error', e, tgsSrc.value);
+}
+
+/** TgsPlayer 加载完成：把实例注册进暂停/恢复控制器 */
 function onAnimLoad() {
   registerAnim(playerRef.value);
 }
 
 // 当 emoji 就绪且为 tgs 格式时，加载 Lottie。
-// TGS 用 fs 插件读原始字节，因此这里取原始本地路径（state.sticker.sticker.local.path），
-// 而不是已 convertFileSrc 的 filePath（那是给 <img>/<video> 的 asset URL）。
 watch([() => state.ready, () => state.sticker?.sticker?.local?.path, emojiFormat],
   async ([ready, rawPath, fmt]) => {
     if (ready && rawPath && fmt === 'tgs') {
-      await loadTgs(rawPath);
+      loadTgs(rawPath);
     } else {
-      // 格式变化为非 TGS 时确保不再渲染过期动画
-      tgsData.value = null;
+      tgsSrc.value = null;
       registerAnim(null);
     }
   }, { immediate: true });
@@ -120,12 +98,11 @@ watch([emojiFormat, () => state.ready], () => {
   registerVideo(emojiFormat.value === 'webm' ? videoRef.value : null);
 }, { flush: 'post' });
 
-// 视口门控：进入视口才拉取/下载自定义 emoji；未进入显示 fallback 文本或骨架。
+// 视口门控：进入视口才拉取/下载自定义 emoji
 const { start: startViewportLoad } = useViewportLoad(rootEl, () => {
   requestCustomEmoji(props.emojiId);
 });
 
-// 挂载后初始化暂停控制器（视口观察 + 窗口聚焦 + 平滑滚动监听）
 onMounted(() => {
   setupPause();
   startViewportLoad();
