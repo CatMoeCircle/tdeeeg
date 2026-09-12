@@ -168,6 +168,7 @@ const mediaSrc = ref<string | undefined>(undefined);
 const coverSrc = ref<string | undefined>(undefined);
 const docThumbSrc = ref<string | undefined>(undefined);
 const isDownloading = ref(false);
+const downloadStore = useDownloadStore();
 
 /** 合并本地下载状态 + 全局下载状态（响应式） */
 const isDownloadingOrGlobally = computed(() => {
@@ -178,7 +179,13 @@ const isDownloadingOrGlobally = computed(() => {
         : props.content._ === 'messageDocument'
             ? props.content.document.document.id
             : 0;
-    return fileId > 0 ? reactiveDownloadingFiles.value.has(fileId) : false;
+    if (fileId <= 0) return false;
+    if (reactiveDownloadingFiles.value.has(fileId)) return true;
+    // 播放按钮触发的流式/完整下载只会写入 download store（registerStreamingDownload /
+    // registerDownload），不会更新 reactiveDownloadingFiles；这里同步检测 store 中的进行中项，
+    // 使下载按钮能立即切换为进度指示，无需用户再点一次下载。
+    const info = downloadStore.getDownloadInfo(fileId);
+    return !!(info && !info.is_completed && !info.dismissed);
 });
 
 /** 下载按钮的 aria-label */
@@ -197,7 +204,6 @@ const uploadTotalSize = ref(0);
 /** 是否正在上传（发送中的文件） */
 const uploading = ref(false);
 
-const downloadStore = useDownloadStore();
 const uploadStore = useUploadStore();
 const audioPlayer = useAudioPlayerStore();
 
