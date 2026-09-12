@@ -264,7 +264,7 @@ async function load() {
 watch(plan, () => { void load(); }, { immediate: true });
 onUnmounted(stopPoll);
 
-/** 大图布局：按媒体宽高比等比缩放，最大 432×432 / 最小 96（防止细长图撑爆气泡） */
+/** 大图布局：按媒体宽高比等比缩放，最大 432×432；窄气泡下随宽度收缩 */
 const largeStyle = computed(() => {
     const p = plan.value;
     if (!p || !p.width || !p.height) return undefined;
@@ -279,9 +279,13 @@ const largeWrapStyle = computed(() => {
     const p = plan.value;
     if (props.contain) {
         if (!p || !p.width || !p.height) return undefined;
-        // contain：用 fit 尺寸约束外框，避免贴纸等超长图溢出
+        // contain：用 fit 尺寸约束外框，窄窗口下同样收缩
         const s = fitMediaSize(p.width, p.height);
-        return { width: '100%', maxWidth: `${s.width}px`, maxHeight: `${s.height}px` };
+        return {
+            width: '100%',
+            maxWidth: `${s.width}px`,
+            aspectRatio: `${p.width} / ${p.height}`,
+        };
     }
     return largeStyle.value;
 });

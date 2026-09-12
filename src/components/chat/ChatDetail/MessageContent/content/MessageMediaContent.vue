@@ -257,7 +257,7 @@ import { settings } from '../../../../../store/settings';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { getChatCategory } from '../../../../../utils/autoDownload';
 import { isThumbnailImgRenderable, isThumbnailVideoRenderable } from '../../../../../utils/thumbnail';
-import { fitMediaSize } from '../../../../../utils/fitMediaSize';
+import { fitMediaSize, mediaSizeStyle } from '../../../../../utils/fitMediaSize';
 import {
     currentlyPlayingId,
     globalVideoMuted,
@@ -577,23 +577,27 @@ function getOriginalDims(): { width: number; height: number } {
     return { width: 1, height: 1 };
 }
 
-/** Unigram 风格：按原始比例等比缩放，限制在 432×432 / 96×96 */
+/** Unigram 风格：按原始比例等比缩放，限制在 432×432 / 96×96；窄窗口下随气泡收缩 */
 const mediaDisplaySize = computed(() => {
     const { width, height } = getOriginalDims();
     return fitMediaSize(width, height);
 });
 
 const photoSizeStyle = computed(() => {
-    const s = mediaDisplaySize.value;
-    return { width: `${s.width}px`, height: `${s.height}px` };
+    const { width, height } = getOriginalDims();
+    // maxWidth:100% + aspect-ratio：窗口变窄时等比收缩，不被固定像素裁切
+    return mediaSizeStyle(width, height);
 });
 
 const videoSizeStyle = computed(() => photoSizeStyle.value);
 const animSizeStyle = computed(() => photoSizeStyle.value);
 
-/** 外层容器宽度 = 媒体宽度，使图片+文字+时间共享统一宽度 */
+/** 外层容器宽度 = 媒体宽度，使图片+文字+时间共享统一宽度；同样允许收缩 */
 const mediaContainerStyle = computed(() => {
-    return { width: `${mediaDisplaySize.value.width}px` };
+    return {
+        width: `${mediaDisplaySize.value.width}px`,
+        maxWidth: '100%',
+    };
 });
 
 // Image state
