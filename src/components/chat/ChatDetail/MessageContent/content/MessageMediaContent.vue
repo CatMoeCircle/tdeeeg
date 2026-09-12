@@ -260,8 +260,8 @@ import { isThumbnailImgRenderable, isThumbnailVideoRenderable } from '../../../.
 import {
     currentlyPlayingId,
     globalVideoMuted,
-    registerPlaying,
-    unregisterPlaying,
+    computeVisibleRatio,
+    reportVideoVisibility,
     toggleGlobalMute,
     pauseAudioForVideo,
 } from '../../../../../store/videoPlayback';
@@ -396,7 +396,29 @@ const videoDuration = computed(() => {
 
 // 已下载视频自动循环播放（IntersectionObserver 控制）
 // 同一时间只允许一个视频播放，GIF（animation）不受影响
+// 多档 threshold：高视频可能永远到不了 0.6，用细粒度上报 ratio 供「最居中」调度
+const VIDEO_IO_THRESHOLDS = [0, 0.05, 0.1, 0.2, 0.35, 0.5, 0.65, 0.8, 1];
 let videoObserver: IntersectionObserver | null = null;
+
+/** 刚从全屏查看器恢复，避免立即自动播放 */
+let restoringFromViewer = false;
+
+/** 进入全屏前视频是否正在播放，用于关闭查看器后恢复 */
+let wasPlayingBeforeViewer = false;
+
+/** 从 IO entry 计算可见比例（相对可显示高度）与中心距视口中心距离 */
+function readVideoMetrics(entry: IntersectionObserverEntry) {
+    const rect = entry.boundingClientRect;
+    const root = entry.rootBounds;
+    if (!root || rect.height <= 0 || rect.width <= 0) {
+        return { ratio: 0, centerDist: Number.POSITIVE_INFINITY };
+    }
+    const visibleH = Math.max(0, Math.min(rect.bottom, root.bottom) - Math.max(rect.top, root.top));
+    const ratio = computeVisibleRatio(rect.height, visibleH);
+    const elCenter = rect.top + rect.height / 2;
+    const rootCenter = root.top + root.height / 2;
+    return { ratio, centerDist: Math.abs(elCenter - rootCenter) };
+}
 
 onMounted(() => {
     videoObserver = new IntersectionObserver((entries) => {
@@ -411,20 +433,19 @@ onMounted(() => {
                 }
                 continue;
             }
-            if (entry.isIntersecting && props.messageId) {
-                // 刚关闭查看器恢复时不自动播放，仅注册
-                if (restoringFromViewer) {
-                    restoringFromViewer = false;
-                    return;
-                }
-                // 进入视口：登记可见并交由全局调度（暂停旧视频、播放目标视频）
-                registerPlaying(props.messageId);
-            } else if (!entry.isIntersecting && props.messageId) {
-                // 离开视口：注销可见并触发全局调度（可能恢复上一个仍在视口内的视频）
-                unregisterPlaying(props.messageId);
+            if (!props.messageId) continue;
+
+            const metrics = readVideoMetrics(entry);
+            if (metrics.ratio > 0) {
+                // 刚关闭查看器恢复时只登记可见，不抢播放权
+                const silent = restoringFromViewer;
+                if (silent) restoringFromViewer = false;
+                reportVideoVisibility(props.messageId, metrics, silent ? { silent: true } : undefined);
+            } else {
+                reportVideoVisibility(props.messageId, null);
             }
         }
-    }, { threshold: 0.6 });
+    }, { threshold: VIDEO_IO_THRESHOLDS });
 });
 
 onUnmounted(() => {
@@ -433,7 +454,7 @@ onUnmounted(() => {
     stopPhotoDownloadPolling();
     stopVideoCoverPolling();
     stopAnimThumbPolling();
-    if (props.messageId) unregisterPlaying(props.messageId);
+    if (props.messageId) reportVideoVisibility(props.messageId, null);
 });
 
 // 当视频下载完成后，将 videoElRef 加入观察
@@ -445,12 +466,6 @@ watch(videoDownloaded, (downloaded) => {
         videoObserver.observe(videoElRef.value);
     }
 }, { flush: 'post' });
-
-/** 刚从全屏查看器恢复，避免立即自动播放 */
-let restoringFromViewer = false;
-
-/** 进入全屏前视频是否正在播放，用于关闭查看器后恢复 */
-let wasPlayingBeforeViewer = false;
 
 // 媒体查看器关闭后，恢复视频的 IntersectionObserver 观察
 watch(isMediaViewerActive, (active, wasActive) => {
