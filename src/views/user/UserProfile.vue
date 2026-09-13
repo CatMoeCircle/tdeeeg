@@ -496,18 +496,16 @@
 
         <!-- ===== 第四部分：底部功能导航栏（动态 / 归档动态 / 礼物 / 共享媒体） =====
              滚动时粘性置顶；下方内容区保证足够高度，切换标签时标签栏稳定贴顶、内容不闪空 -->
-        <div v-if="hasBottomContent" ref="profileTabsEl"
-          class="px-4 mt-5 sticky top-0 z-10 py-2 scroll-mt-0">
+        <div v-if="hasBottomContent" ref="profileTabsEl" class="px-4 mt-5 sticky top-0 z-10 py-2 scroll-mt-0">
           <SlidingTabBar :active-id="activeTab" :tabs="profileTabItems" :variant="settings.folderStyle"
             :tab-class="(id, active) => folderTabClass(settings.folderStyle, id, active)"
             :show-indicator="settings.folderStyle === 'tabs'" @select="onProfileTabSelect">
             <template #default="{ tab, active }">
               <span class="inline-flex items-center gap-1.5 whitespace-nowrap">
-                <component :is="tabIconMap[tab.key]" class="w-3.5 h-3.5" />
+                <component :is="tabIcon(tab.key)" class="w-3.5 h-3.5" />
                 {{ tab.label }}
                 <span v-if="tab.count > 0"
-                  class="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none"
-                  :class="active && settings.folderStyle === 'pills'
+                  class="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none" :class="active && settings.folderStyle === 'pills'
                     ? 'bg-white/20 text-white'
                     : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'">
                   {{ tab.count > 999 ? `${Math.floor(tab.count / 1000)}k` : tab.count }}
@@ -526,7 +524,7 @@
             <p v-else-if="displayActiveStories.length === 0">暂无动态</p>
             <div v-else class="grid grid-cols-3 gap-1.5">
               <button v-for="s in displayActiveStories" :key="s.id" type="button"
-                class="aspect-[3/4] w-full overflow-hidden rounded-lg bg-gray-200 dark:bg-gray-700 relative"
+                class="aspect-3/4 w-full overflow-hidden rounded-lg bg-gray-200 dark:bg-gray-700 relative"
                 @click="openStory(s)">
                 <img v-if="storyUrlOf(s)" :src="storyUrlOf(s)" class="w-full h-full object-cover" />
                 <div v-else class="w-full h-full flex items-center justify-center text-xs text-gray-400">
@@ -547,7 +545,7 @@
             <p v-else-if="displayArchivedStories.length === 0">暂无归档动态</p>
             <div v-else class="grid grid-cols-3 gap-1.5">
               <button v-for="s in displayArchivedStories" :key="s.id" type="button"
-                class="aspect-[3/4] w-full overflow-hidden rounded-lg bg-gray-200 dark:bg-gray-700 relative"
+                class="aspect-3/4 w-full overflow-hidden rounded-lg bg-gray-200 dark:bg-gray-700 relative"
                 @click="openStory(s)">
                 <img v-if="storyUrlOf(s)" :src="storyUrlOf(s)" class="w-full h-full object-cover" />
                 <div v-else class="w-full h-full flex items-center justify-center text-xs text-gray-400">
@@ -704,8 +702,7 @@
                 <!-- 专辑封面（高清就绪后替换；低清仅作占位） -->
                 <div
                   class="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0 overflow-hidden">
-                  <img v-if="sharedMediaUrl(item.messageId)"
-                    :src="sharedMediaUrl(item.messageId)"
+                  <img v-if="sharedMediaUrl(item.messageId)" :src="sharedMediaUrl(item.messageId)"
                     class="w-full h-full object-cover" />
                   <img v-else-if="item.miniSrc" :src="item.miniSrc" class="w-full h-full object-cover" />
                   <Music v-else class="w-5 h-5 text-gray-400" />
@@ -940,7 +937,8 @@
 
     <Teleport to="body">
       <div v-if="emojiStatusPickerOpen" class="fixed inset-0 z-200" @mousedown="onEmojiStatusBackdrop">
-        <div ref="emojiStatusPanel" class="fixed w-70 h-80 -translate-x-1/2 rounded-2xl bg-white dark:bg-gray-900 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden"
+        <div ref="emojiStatusPanel"
+          class="fixed w-70 h-80 -translate-x-1/2 rounded-2xl bg-white dark:bg-gray-900 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden"
           :style="emojiStatusPanelStyle" @mousedown.stop>
           <EmojiDrawer :is-premium="true" :show-default-emoji-status="true"
             :emoji-status-gift-statuses="emojiStatusGiftStatuses"
@@ -1484,6 +1482,11 @@ const tabIconMap: Record<ProfileTabKey, any> = {
   voice: Mic,
   gifs: Film,
 };
+
+/** 插槽里 tab.key 是 any，这里收窄后再查图标，避免 TS7053 */
+function tabIcon(key: string) {
+  return (tabIconMap as Record<string, unknown>)[key];
+}
 
 // =====================================================================
 // 共享媒体搜索与展示
