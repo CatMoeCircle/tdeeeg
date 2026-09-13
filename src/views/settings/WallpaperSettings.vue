@@ -128,6 +128,14 @@ import { tdlibSend, isFileReady, safeDownloadFile } from '../../utils/tdlib';
 import { isThumbnailImgRenderable } from '../../utils/thumbnail';
 import { settings } from '../../store/settings';
 import { DL_PRIORITY } from '../../utils/downloadPriority';
+import {
+    ensureJpegWallpaper,
+    waitForFileSettled,
+    resolveBackgroundPath,
+    applyBackgroundToSettings,
+    restoreDefaultWallpaperFromTdlib,
+    initDefaultBackgroundSync,
+} from '../../utils/wallpaper';
 import type { background, backgrounds, file, Update } from 'tdlib-types';
 
 const router = useRouter();
@@ -196,37 +204,178 @@ async function ensureFullResolution(item: background): Promise<string> {
     if (!isFileReady(refreshed)) throw new Error('高清壁纸仍在下载中，请稍后重试');
     return refreshed.local.path!;
 }
-async function loadBackgrounds() { loading.value = true; error.value = ''; thumbnailSources.value = {}; coverSources.value = {}; try { const result = await tdlibSend({ _: 'getInstalledBackgrounds', for_dark_theme: forDarkTheme.value }) as backgrounds; backgrounds.value = result.backgrounds ?? []; await Promise.all(backgrounds.value.map(prepareThumbnail)); } catch (err: any) { error.value = err?.message || '加载壁纸失败'; } finally { loading.value = false; } }
-async function save(backgroundInput: any, type: any, label: string, key: string, visual: { kind: 'color' | 'image'; color?: string; path?: string }, localDoc?: { thumbnailPath?: string; documentPath?: string }) { saving.value = true; try { await tdlibSend({ _: 'setDefaultBackground', background: backgroundInput, type, for_dark_theme: forDarkTheme.value }); settings.chatWallpaper = visual; selectedKey.value = key; selectedLabel.value = label; hasCustomDefault.value = true; window.dispatchEvent(new Event('tdgram:chat-wallpaper-changed')); if (localDoc) { const fakeId = `local_${Date.now()}`; const fakeDoc: any = { _: 'document', file_name: 'wallpaper.jpg', mime_type: 'image/jpeg', document: { _: 'file', id: Date.now(), size: 0, expected_size: 0, local: { _: 'localFile', can_be_downloaded: false, can_be_uploaded: false, is_downloading_active: false, is_downloading_completed: true, is_uploading_active: false, is_uploading_completed: false, path: localDoc.documentPath ?? localDoc.thumbnailPath ?? '' }, remote: { _: 'remoteFile', id: '', unique_id: '', is_uploading_active: false, is_uploading_completed: false } } }; if (localDoc.thumbnailPath) { fakeDoc.thumbnail = { _: 'thumbnail', format: { _: 'thumbnailFormatJpeg' }, width: 0, height: 0, file: { _: 'file', id: Date.now() + 1, size: 0, expected_size: 0, local: { _: 'localFile', can_be_downloaded: false, can_be_uploaded: false, is_downloading_active: false, is_downloading_completed: true, is_uploading_active: false, is_uploading_completed: false, path: localDoc.thumbnailPath }, remote: { _: 'remoteFile', id: '', unique_id: '', is_uploading_active: false, is_uploading_completed: false } } }; } const newItem: background = { _: 'background', id: fakeId, is_default: false, is_dark: false, name: label, document: fakeDoc, type: type as any }; backgrounds.value = [...backgrounds.value, newItem]; if (localDoc.thumbnailPath) thumbnailSources.value[fakeId] = convertFileSrc(localDoc.thumbnailPath); if (localDoc.documentPath) coverSources.value[fakeId] = convertFileSrc(localDoc.documentPath); } MessagePlugin.success('对话壁纸已更新'); } catch (err: any) { console.error('[WallpaperSettings] setDefaultBackground failed:', err); MessagePlugin.error(err?.message || err?.error?.message || '设置壁纸失败'); } finally { saving.value = false; } }
-function setSolid(color: typeof colors[number]) { void save(null, { _: 'backgroundTypeFill', fill: { _: 'backgroundFillSolid', color: color.value } }, color.label, color.key, { kind: 'color', color: color.css }); }
-async function pickLocalWallpaper() {
-    const selected = await open({ multiple: false, filters: [{ name: '图片', extensions: ['jpg', 'jpeg', 'png'] }] });
-    if (!selected) return;
-    const filePath = typeof selected === 'string' ? selected : selected as string;
-    await save(
-        { _: 'inputBackgroundLocal', background: { _: 'inputFileLocal', path: filePath } },
-        { _: 'backgroundTypeWallpaper', is_blurred: false, is_moving: false },
-        '本地壁纸',
-        `local:${filePath}`,
-        { kind: 'image', path: filePath },
-        { thumbnailPath: filePath, documentPath: filePath },
-    );
+async function loadBackgrounds() {
+    loading.value = true;
+    error.value = '';
+    thumbnailSources.value = {};
+    coverSources.value = {};
+    try {
+        const result = await tdlibSend({ _: 'getInstalledBackgrounds', for_dark_theme: forDarkTheme.value }) as backgrounds;
+        backgrounds.value = result.backgrounds ?? [];
+        await Promise.all(backgrounds.value.map(prepareThumbnail));
+        // 若未本地选中过，按 TDLib 默认壁纸回填选中态
+        const def = backgrounds.value.find((b) => b.is_default);
+        if (def && !selectedKey.value) {
+            selectedKey.value = `remote:${def.id}`;
+            selectedLabel.value = def.name || '自定义壁纸';
+            hasCustomDefault.value = true;
+        }
+    } catch (err: any) {
+        error.value = err?.message || '加载壁纸失败';
+    } finally {
+        loading.value = false;
+    }
 }
-async function setRemote(item: background) {
+
+async function save(
+    backgroundInput: any,
+    type: any,
+    label: string,
+    key: string,
+    visual: { kind: 'color' | 'image'; color?: string; path?: string },
+) {
     saving.value = true;
     try {
-        const path = await ensureFullResolution(item);
-        await save({ _: 'inputBackgroundRemote', background_id: item.id }, item.type, item.name, `remote:${item.id}`, { kind: 'image', path });
+        const result = await tdlibSend({
+            _: 'setDefaultBackground',
+            background: backgroundInput,
+            type,
+            for_dark_theme: forDarkTheme.value,
+        }) as background;
+
+        // 本地壁纸：等 TDLib 上传完成，视觉路径改用 TDLib 返回的文件路径
+        let visualPath = visual.path;
+        if (backgroundInput?._ === 'inputBackgroundLocal' && result.document?.document?.id != null) {
+            try {
+                const settled = await waitForFileSettled(result.document.document.id);
+                if (settled.local?.path) visualPath = settled.local.path;
+            } catch (e) {
+                console.warn('[WallpaperSettings] wait for wallpaper upload:', e);
+            }
+        } else if (result.document) {
+            const path = await resolveBackgroundPath(result);
+            if (path) visualPath = path;
+        }
+
+        const finalVisual = visual.kind === 'image'
+            ? { kind: 'image' as const, path: visualPath ?? visual.path }
+            : visual;
+
+        settings.chatWallpaper = finalVisual;
+        selectedKey.value = result.document ? `remote:${result.id}` : key;
+        selectedLabel.value = label;
+        hasCustomDefault.value = true;
+        window.dispatchEvent(new Event('tdgram:chat-wallpaper-changed'));
+
+        // 从 TDLib 重新拉已安装列表，用真实 background 替换任何本地假条目
+        await loadBackgrounds();
+        if (result.document && backgrounds.value.some((b) => b.id === result.id)) {
+            selectedKey.value = `remote:${result.id}`;
+        }
+
+        MessagePlugin.success('对话壁纸已更新');
     } catch (err: any) {
-        console.error('[WallpaperSettings] high-resolution wallpaper unavailable:', err);
-        MessagePlugin.error(err?.message || '高清壁纸尚未准备好');
+        console.error('[WallpaperSettings] setDefaultBackground failed:', err);
+        MessagePlugin.error(err?.message || err?.error?.message || '设置壁纸失败');
     } finally {
         saving.value = false;
     }
 }
-async function resetDefault() { saving.value = true; try { await tdlibSend({ _: 'deleteDefaultBackground', for_dark_theme: forDarkTheme.value }); settings.chatWallpaper = null; selectedKey.value = ''; selectedLabel.value = '跟随 Telegram 默认壁纸'; hasCustomDefault.value = false; window.dispatchEvent(new Event('tdgram:chat-wallpaper-changed')); MessagePlugin.success('已恢复默认壁纸'); await loadBackgrounds(); } catch (err: any) { MessagePlugin.error(err?.message || '恢复默认壁纸失败'); } finally { saving.value = false; } }
+
+function setSolid(color: typeof colors[number]) {
+    void save(
+        null,
+        { _: 'backgroundTypeFill', fill: { _: 'backgroundFillSolid', color: color.value } },
+        color.label,
+        color.key,
+        { kind: 'color', color: color.css },
+    );
+}
+
+async function pickLocalWallpaper() {
+    const selected = await open({ multiple: false, filters: [{ name: '图片', extensions: ['jpg', 'jpeg', 'png'] }] });
+    if (!selected) return;
+    const rawPath = typeof selected === 'string' ? selected : String(selected);
+    saving.value = true;
+    try {
+        const filePath = await ensureJpegWallpaper(rawPath);
+        await save(
+            { _: 'inputBackgroundLocal', background: { _: 'inputFileLocal', path: filePath } },
+            { _: 'backgroundTypeWallpaper', is_blurred: false, is_moving: false },
+            '本地壁纸',
+            `local:${filePath}`,
+            { kind: 'image', path: filePath },
+        );
+    } catch (err: any) {
+        console.error('[WallpaperSettings] pick local wallpaper failed:', err);
+        MessagePlugin.error(err?.message || '选择壁纸失败');
+        saving.value = false;
+    }
+}
+
+async function setRemote(item: background) {
+    saving.value = true;
+    try {
+        const path = await ensureFullResolution(item);
+        await save(
+            { _: 'inputBackgroundRemote', background_id: item.id },
+            item.type,
+            item.name,
+            `remote:${item.id}`,
+            { kind: 'image', path },
+        );
+    } catch (err: any) {
+        console.error('[WallpaperSettings] high-resolution wallpaper unavailable:', err);
+        MessagePlugin.error(err?.message || '高清壁纸尚未准备好');
+        saving.value = false;
+    }
+}
+
+async function resetDefault() {
+    saving.value = true;
+    try {
+        await tdlibSend({ _: 'deleteDefaultBackground', for_dark_theme: forDarkTheme.value });
+        settings.chatWallpaper = null;
+        selectedKey.value = '';
+        selectedLabel.value = '跟随 Telegram 默认壁纸';
+        hasCustomDefault.value = false;
+        window.dispatchEvent(new Event('tdgram:chat-wallpaper-changed'));
+        MessagePlugin.success('已恢复默认壁纸');
+        await loadBackgrounds();
+    } catch (err: any) {
+        MessagePlugin.error(err?.message || '恢复默认壁纸失败');
+    } finally {
+        saving.value = false;
+    }
+}
+
 onMounted(async () => {
+    await initDefaultBackgroundSync();
+    // 先从 TDLib 恢复默认壁纸（覆盖失效的本地路径），再拉列表
+    await restoreDefaultWallpaperFromTdlib(forDarkTheme.value);
     unlisten = await listen<Update>('tdlib-update', (event) => {
+        if (event.payload._ === 'updateDefaultBackground') {
+            const bg = (event.payload as any).background as background | null | undefined;
+            if (!(event.payload as any).for_dark_theme) {
+                void applyBackgroundToSettings(bg ?? null);
+                if (bg) {
+                    hasCustomDefault.value = true;
+                    if (bg.document) {
+                        selectedKey.value = `remote:${bg.id}`;
+                        selectedLabel.value = bg.name || '自定义壁纸';
+                    } else if (bg.type._ === 'backgroundTypeFill' && bg.type.fill?._ === 'backgroundFillSolid') {
+                        const key = `solid:${bg.type.fill.color}`;
+                        selectedKey.value = key;
+                        selectedLabel.value = colors.find((c) => c.key === key)?.label || '纯色壁纸';
+                    }
+                } else {
+                    selectedKey.value = '';
+                    selectedLabel.value = '跟随 Telegram 默认壁纸';
+                    hasCustomDefault.value = false;
+                }
+            }
+            return;
+        }
         if (event.payload._ !== 'updateFile') return;
         const updatedFile = event.payload.file as file;
         const item = backgrounds.value.find((background) => background.document?.thumbnail?.file.id === updatedFile.id || background.document?.document.id === updatedFile.id);

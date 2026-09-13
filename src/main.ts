@@ -18,6 +18,7 @@ import { settings } from "./store/settings";
 import { debugMode } from "./store/debug";
 import { initTlottie } from "./utils/tlottiePreload";
 import { installCrashGuard, showBootstrapFailure } from "./utils/crashGuard";
+import { restoreDefaultWallpaperFromTdlib } from "./utils/wallpaper";
 
 // 尽早安装全局错误/白屏诊断（不依赖 Vue mount）
 installCrashGuard();
@@ -116,6 +117,11 @@ async function bootstrap() {
         // mount 前先跳到对应路由
         step = "router.push";
         await router.push(authState === "ready" ? "/home" : "/login");
+
+        // 授权后从 TDLib 恢复默认壁纸，避免只依赖可能失效的本地路径
+        if (authState === "ready") {
+            void restoreDefaultWallpaperFromTdlib();
+        }
 
         // 预注册加载指示器样式（ldrs 自定义元素）。
         // ldrs 在打包后会被拆到独立 chunk（LoaderIndicator-*），其 register() 代码
