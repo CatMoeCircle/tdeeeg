@@ -48,7 +48,7 @@
                             <CheckIcon v-if="acc.is_active" class="w-4 h-4 text-blue-500 shrink-0" />
                             <button v-if="acc.logged_in && !acc.is_active" type="button" @click.stop="onLogout(acc)"
                                 class="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors shrink-0"
-                                title="登出">
+                                :title="td('lng_passcode_logout', '登出')">
                                 <LogOutIcon class="w-4 h-4" />
                             </button>
                         </div>
@@ -97,7 +97,7 @@
                             </button>
                             <button type="button" @click="confirmAdd" :disabled="adding"
                                 class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:cursor-wait">
-                                {{ adding ? '正在创建…' : '继续' }}
+                                {{ adding ? '正在创建…' : td('lng_continue', '继续') }}
                             </button>
                         </div>
                     </template>
@@ -160,6 +160,7 @@ import { useUserStore } from '../store/user';
 import { useAccountsStore, type AccountInfo } from '../store/accounts';
 import { storeToRefs } from 'pinia';
 
+import { td } from "../utils/tdLang";
 const visible = defineModel<boolean>('visible', { default: false });
 const emit = defineEmits<{ (e: 'close'): void }>();
 

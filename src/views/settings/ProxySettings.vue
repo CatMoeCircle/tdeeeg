@@ -235,7 +235,7 @@
 
                             <!-- 删除（阻止冒泡） -->
                             <button type="button" @click.stop="confirmRemove(p)"
-                                class="shrink-0 text-gray-400 hover:text-red-500 transition-colors" title="删除">
+                                class="shrink-0 text-gray-400 hover:text-red-500 transition-colors" :title="td('lng_selected_delete', '删除')">
                                 <TrashIcon class="w-5 h-5" />
                             </button>
                         </div>
@@ -346,7 +346,7 @@
                             </button>
                             <button type="button" @click="submitAdd" :disabled="adding"
                                 class="px-4 py-2 rounded-lg text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-60 disabled:cursor-wait">
-                                {{ adding ? '添加中...' : '添加' }}
+                                {{ adding ? '添加中...' : td('lng_stickers_featured_add', '添加') }}
                             </button>
                         </div>
                     </div>
@@ -379,6 +379,7 @@ import {
 } from "../../store/proxyList";
 import type { addedProxy } from "tdlib-types";
 
+import { td } from "../../utils/tdLang";
 const router = useRouter();
 
 /** 返回设置列表 */

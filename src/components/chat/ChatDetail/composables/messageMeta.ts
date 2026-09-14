@@ -11,6 +11,7 @@ import { getForwardAuthorSignature } from './senderDisplay';
 import type { AlbumDisplayItem } from './messageItems';
 
 
+import { td } from "../../../../utils/tdLang";
 // ==================== 消息自身 / 已读判断 ====================
 
 /** `isSelf` 计算所需的外部依赖 */
@@ -210,7 +211,7 @@ export function isLinkedChannelMessage(msg: message): boolean {
  * @returns 标签文本
  */
 export function getMessageLabel(msg: message, ctx: RoleContext): string {
-    if (isLinkedChannelMessage(msg)) return '频道';
+    if (isLinkedChannelMessage(msg)) return td('lng_notification_channels', '频道');
     return getSenderRoleText(msg.sender_id, ctx);
 }
 

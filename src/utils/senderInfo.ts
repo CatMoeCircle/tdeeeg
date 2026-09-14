@@ -14,6 +14,7 @@ import type {
 import { tdlibSend } from "./tdlib";
 import type { Chat } from "../store/chat";
 
+import { td } from "../utils/tdLang";
 /**
  * TDLib update 事件 payload 的松散类型。
  * 部分更新类型（如 updateNewUser / updateUserAccentColor / updateChatAccentColor 等）未在
@@ -260,7 +261,7 @@ export function getSenderName(senderId?: MessageSender): string {
     const u = users.get(senderId.user_id);
     if (!u) return "";
     if (u.type?._ === "userTypeDeleted") return DELETED_ACCOUNT_LABEL;
-    return `${u.first_name} ${u.last_name}`.trim() || "未知用户";
+    return `${u.first_name} ${u.last_name}`.trim() || td('lng_credits_box_history_entry_anonymous', '未知用户');
   } else if (senderId._ === "messageSenderChat") {
     const c = chats.get(senderId.chat_id);
     return c?.title || "";

@@ -29,7 +29,7 @@
                 <!-- 关闭按钮 -->
                 <button @click.stop="dismiss"
                     class="shrink-0 w-6 h-6 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors opacity-0 group-hover:opacity-100"
-                    title="关闭">
+                    :title="td('lng_close', '关闭')">
                     <XIcon class="w-4 h-4 text-gray-400" />
                 </button>
             </div>
@@ -84,6 +84,7 @@ import MusicPlayerEntry from '../../audio/MusicPlayerEntry.vue';
 import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
 import { useAudioPlayerStore } from '../../../store/audioPlayer';
 
+import { td } from "../../../utils/tdLang";
 const props = defineProps<{
     chatId: number | undefined;
 }>();
@@ -208,7 +209,7 @@ function getMessagePreview(msg: message): string {
 
 function getMessageSenderName(msg: message): string {
     if (msg.sender_id._ === 'messageSenderUser') return '用户';
-    if (msg.sender_id._ === 'messageSenderChat') return '频道';
+    if (msg.sender_id._ === 'messageSenderChat') return td('lng_notification_channels', '频道');
     return '未知';
 }
 

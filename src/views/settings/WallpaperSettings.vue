@@ -2,7 +2,7 @@
     <div class="h-full flex flex-col bg-white dark:bg-gray-900">
         <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3 shrink-0">
             <button type="button" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" @click="goBack"
-                aria-label="返回">
+                :aria-label="td('lng_menu_back', '返回')">
                 <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
             </button>
             <h2 class="text-lg font-semibold">对话壁纸</h2>
@@ -138,6 +138,7 @@ import {
 } from '../../utils/wallpaper';
 import type { background, backgrounds, file, Update } from 'tdlib-types';
 
+import { td } from "../../utils/tdLang";
 const router = useRouter();
 const loading = ref(true);
 const saving = ref(false);
@@ -293,7 +294,7 @@ function setSolid(color: typeof colors[number]) {
 }
 
 async function pickLocalWallpaper() {
-    const selected = await open({ multiple: false, filters: [{ name: '图片', extensions: ['jpg', 'jpeg', 'png'] }] });
+    const selected = await open({ multiple: false, filters: [{ name: td('lng_in_dlg_photo', '图片'), extensions: ['jpg', 'jpeg', 'png'] }] });
     if (!selected) return;
     const rawPath = typeof selected === 'string' ? selected : String(selected);
     saving.value = true;

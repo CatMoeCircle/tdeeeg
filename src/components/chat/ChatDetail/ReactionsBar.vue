@@ -26,6 +26,7 @@ import { computed } from 'vue';
 import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
 import PaidReactionIcon from '../../common/PaidReactionIcon.vue';
 import type { message, messageReaction, ReactionType } from 'tdlib-types';
+import { td } from "../../../utils/tdLang";
 import {
     isReactionEmoji,
     isReactionCustomEmoji,
@@ -74,7 +75,7 @@ function toggleReaction(type: ReactionType) {
 
 /** 获取 reaction tooltip */
 function getReactionTooltip(reaction: messageReaction): string {
-    const text = isReactionEmoji(reaction.type) ? reaction.type.emoji : '付费回应';
+    const text = isReactionEmoji(reaction.type) ? reaction.type.emoji : td('lng_sr_message_column_paid_reactions', '付费回应');
     const chosen = reaction.is_chosen ? ' (已选中)' : '';
     return `${text} ${reaction.total_count}${chosen}`;
 }

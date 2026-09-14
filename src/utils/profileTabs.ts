@@ -7,6 +7,7 @@
 
 import type { chat } from 'tdlib-types';
 
+import { td } from "../utils/tdLang";
 // ── Tab type keys ────────────────────────────────────────────────────────────
 export type ProfileTabKey =
   | 'stories'
@@ -72,7 +73,7 @@ export function buildProfileTabs(ctx: ProfileTabContext): ProfileTab[] {
         tabs.push({ key: 'stories', label: '动态', count: -1, visible: true });
       }
       if (ctx.giftCount > 0) {
-        tabs.push({ key: 'gifts', label: '礼物', count: ctx.giftCount, visible: true });
+        tabs.push({ key: 'gifts', label: td('lng_sr_message_column_gift', '礼物'), count: ctx.giftCount, visible: true });
       }
       if (ctx.hasArchivedStories) {
         tabs.push({ key: 'archived', label: '归档动态', count: -1, visible: true });
@@ -86,7 +87,7 @@ export function buildProfileTabs(ctx: ProfileTabContext): ProfileTab[] {
         tabs.push({ key: 'stories', label: '动态', count: -1, visible: true });
       }
       if (ctx.giftCount > 0) {
-        tabs.push({ key: 'gifts', label: '礼物', count: ctx.giftCount, visible: true });
+        tabs.push({ key: 'gifts', label: td('lng_sr_message_column_gift', '礼物'), count: ctx.giftCount, visible: true });
       }
 
       // Shared media tabs
@@ -103,17 +104,17 @@ export function buildProfileTabs(ctx: ProfileTabContext): ProfileTab[] {
         tabs.push({ key: 'stories', label: '动态', count: -1, visible: true });
       }
       if (ctx.giftCount > 0) {
-        tabs.push({ key: 'gifts', label: '礼物', count: ctx.giftCount, visible: true });
+        tabs.push({ key: 'gifts', label: td('lng_sr_message_column_gift', '礼物'), count: ctx.giftCount, visible: true });
       }
       if (ctx.hasForumTabs && !ctx.isChannel) {
         tabs.push({ key: 'topics', label: '话题', count: -1, visible: true });
       }
       if (!ctx.isChannel) {
-        tabs.push({ key: 'members', label: '成员', count: ctx.memberCount, visible: true });
+        tabs.push({ key: 'members', label: td('lng_profile_participants_section', '成员'), count: ctx.memberCount, visible: true });
       }
       pushSharedMediaTabs(tabs, ctx);
     } else if (ctx.chatType?._ === 'chatTypeBasicGroup') {
-      tabs.push({ key: 'members', label: '成员', count: ctx.memberCount, visible: true });
+      tabs.push({ key: 'members', label: td('lng_profile_participants_section', '成员'), count: ctx.memberCount, visible: true });
       pushSharedMediaTabs(tabs, ctx);
     }
   }
@@ -127,13 +128,13 @@ function pushSharedMediaTabs(tabs: ProfileTab[], ctx: ProfileTabContext): void {
     tabs.push({ key: 'media', label: '媒体', count: ctx.mediaCount, visible: true });
   }
   if (ctx.fileCount > 0) {
-    tabs.push({ key: 'files', label: '文件', count: ctx.fileCount, visible: true });
+    tabs.push({ key: 'files', label: td('lng_in_dlg_file', '文件'), count: ctx.fileCount, visible: true });
   }
   if (ctx.linkCount > 0) {
-    tabs.push({ key: 'links', label: '链接', count: ctx.linkCount, visible: true });
+    tabs.push({ key: 'links', label: td('lng_link_header_short', '链接'), count: ctx.linkCount, visible: true });
   }
   if (ctx.musicCount > 0) {
-    tabs.push({ key: 'music', label: '音乐', count: ctx.musicCount, visible: true });
+    tabs.push({ key: 'music', label: td('lng_all_music', '音乐'), count: ctx.musicCount, visible: true });
   }
   if (ctx.voiceCount > 0) {
     tabs.push({ key: 'voice', label: '语音', count: ctx.voiceCount, visible: true });

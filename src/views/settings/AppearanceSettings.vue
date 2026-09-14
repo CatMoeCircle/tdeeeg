@@ -624,6 +624,7 @@ import SlidingTabBar from '../../components/common/SlidingTabBar.vue';
 import TitleBarEmojiStatus from '../../components/common/TitleBarEmojiStatus.vue';
 import stickerPreview from '../../assets/sticker.jpg';
 
+import { td } from "../../utils/tdLang";
 const router = useRouter();
 
 /** 返回设置列表 */
@@ -656,8 +657,8 @@ const loaderLabel = computed(() => {
 const folders: { id: string; name: string; unread: number; icon: Component }[] = [
     { id: 'all', name: '全部', unread: 5, icon: MessageCircleIcon },
     { id: 'private', name: '个人', unread: 2, icon: UserIcon },
-    { id: 'groups', name: '群组', unread: 8, icon: UsersIcon },
-    { id: 'channels', name: '频道', unread: 3, icon: MegaphoneIcon },
+    { id: 'groups', name: td('lng_notification_groups', '群组'), unread: 8, icon: UsersIcon },
+    { id: 'channels', name: td('lng_notification_channels', '频道'), unread: 3, icon: MegaphoneIcon },
 ];
 
 /** 预览中当前选中的分组 */
@@ -711,7 +712,7 @@ const showPreviewLeftBadge = computed(
 
 /** 样式选择选项（集成在预览内） */
 const styleOptions = [
-    { value: 'tabs', label: '标签' },
+    { value: 'tabs', label: td('lng_sr_chat_hashtag', '标签') },
     { value: 'pills', label: '胶囊' },
     { value: 'text', label: '文本' },
 ] as const;

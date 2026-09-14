@@ -373,6 +373,7 @@ import { settings } from '../../../../store/settings';
 import MessageTextContent from './content/MessageTextContent.vue';
 import LoaderIndicator from '../../../common/LoaderIndicator';
 
+import { td } from "../../../../utils/tdLang";
 export interface MediaViewerVideoQuality {
     /** 唯一标识 */
     id: string;
@@ -868,7 +869,7 @@ function onContextMenu(e: MouseEvent) {
     if (currentMessageId.value !== undefined) {
         items.push({
             key: 'view',
-            label: '查看',
+            label: td('lng_tagged_view_saved', '查看'),
             icon: EyeIcon,
             onClick: handleViewItem,
         });
@@ -878,7 +879,7 @@ function onContextMenu(e: MouseEvent) {
     if (isImage.value) {
         items.push({
             key: 'copy',
-            label: '复制',
+            label: td('lng_mac_menu_copy', '复制'),
             icon: CopyIcon,
             onClick: handleCopyImage,
         });
@@ -888,7 +889,7 @@ function onContextMenu(e: MouseEvent) {
     if (currentMessageId.value !== undefined) {
         items.push({
             key: 'forward',
-            label: '转发',
+            label: td('lng_mediaview_forward', '转发'),
             icon: CornerUpRightIcon,
             onClick: handleForwardItem,
         });

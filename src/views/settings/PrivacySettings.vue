@@ -583,6 +583,7 @@ import type { chat as TdChat, MessageSender } from 'tdlib-types';
 import { useUserStore } from '../../store/user';
 import { useUserProfileStore } from '../../store/userProfile';
 
+import { td } from "../../utils/tdLang";
 const router = useRouter();
 const userStore = useUserStore();
 const profileStore = useUserProfileStore();
@@ -844,7 +845,7 @@ const autoDeleteVisible = ref(false);
 const autoDeleteTime = ref(0);
 
 const autoDeleteOptions = [
-    { time: 0, label: '关闭' },
+    { time: 0, label: td('lng_close', '关闭') },
     { time: 86400, label: '1 天后' },
     { time: 7 * 86400, label: '1 周后' },
     { time: 31 * 86400, label: '1 个月后' },
@@ -897,10 +898,10 @@ interface PrivacyItemDef {
 }
 
 const privacyItems: PrivacyItemDef[] = [
-    { key: 'phone', label: '手机号码', kind: 'phone' },
+    { key: 'phone', label: td('lng_contact_phone', '手机号码'), kind: 'phone' },
     { key: 'status', label: '上线状态', kind: 'status' },
     { key: 'photo', label: '个人头像', kind: 'standard', whoLabel: '谁可以看到我的个人头像' },
-    { key: 'bio', label: '个人简介', kind: 'standard', whoLabel: '谁可以看到我的个人简介' },
+    { key: 'bio', label: td('lng_info_bio_label', '个人简介'), kind: 'standard', whoLabel: '谁可以看到我的个人简介' },
     { key: 'birthdate', label: '您的生日', kind: 'standard', whoLabel: '谁可以看到我的生日' },
     { key: 'audio', label: '个人资料音乐', kind: 'standard', whoLabel: '谁可以看到我的个人资料音乐' },
     { key: 'forward', label: '转发消息', kind: 'standard', whoLabel: '谁可以在转发消息中看到我的账号' },
@@ -942,7 +943,7 @@ const activeItem = ref<PrivacyItemDef | null>(null);
 const privacyDialogTitle = computed(() => {
     const item = activeItem.value;
     if (!item) return '';
-    return item.kind === 'phone' ? '手机号码' : item.label;
+    return item.kind === 'phone' ? td('lng_contact_phone', '手机号码') : item.label;
 });
 
 function countExceptions(d: DecodedPrivacy): number {

@@ -21,7 +21,7 @@
             <div class="relative flex-1">
                 <SearchIcon
                     class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
-                <input ref="inputEl" v-model="query" type="text" placeholder="搜索"
+                <input ref="inputEl" v-model="query" type="text" :placeholder="td('lng_dlg_filter', '搜索')"
                     class="w-full h-9 pl-9 pr-10 rounded-full bg-gray-100 dark:bg-gray-800 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                     @keydown.enter="onEnter" @keydown.esc="emit('close')" />
                 <!-- 收起/展开结果面板箭头 -->
@@ -116,6 +116,7 @@ import {
 import { formatDateLabel } from './composables/dateLabel';
 import Avatar from '../avatar.vue';
 
+import { td } from "../../../utils/tdLang";
 const props = defineProps<{
     chatId?: number | null;
     topicId?: number | null;
@@ -329,19 +330,19 @@ function previewText(msg: message): string {
     const text = getMessagePlainText(msg).trim();
     if (text) return text;
     switch (msg.content._) {
-        case 'messagePhoto': return '图片';
-        case 'messageVideo': return '视频';
+        case 'messagePhoto': return td('lng_in_dlg_photo', '图片');
+        case 'messageVideo': return td('lng_in_dlg_video', '视频');
         case 'messageAnimation': return '动画';
         case 'messageAudio': return '音频';
         case 'messageVoiceNote': return '语音';
-        case 'messageVideoNote': return '视频消息';
-        case 'messageDocument': return '文件';
-        case 'messageSticker': return '贴纸';
-        case 'messageLocation': return '位置';
-        case 'messageContact': return '联系人';
-        case 'messagePoll': return '投票';
-        case 'messageCall': return msg.content.is_video ? '视频通话' : '语音通话';
-        default: return '消息';
+        case 'messageVideoNote': return td('lng_media_type_rounds', '视频消息');
+        case 'messageDocument': return td('lng_in_dlg_file', '文件');
+        case 'messageSticker': return td('lng_in_dlg_sticker', '贴纸');
+        case 'messageLocation': return td('lng_maps_point', '位置');
+        case 'messageContact': return td('lng_contacts_header', '联系人');
+        case 'messagePoll': return td('lng_in_dlg_poll', '投票');
+        case 'messageCall': return msg.content.is_video ? '视频通话' : td('lng_settings_notifications_calls_title', '语音通话');
+        default: return td('lng_contact_send_message', '消息');
     }
 }
 

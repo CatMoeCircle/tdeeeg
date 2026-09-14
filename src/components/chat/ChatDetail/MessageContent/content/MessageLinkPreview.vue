@@ -1,5 +1,5 @@
 <template>
-    <!-- Sticker 链接预览：左侧主题条纹 + 图像占满剩余区域（无"查看"按钮），点击打开原链接 -->
+    <!-- Sticker 链接预览：左侧主题条纹 + 图像占满剩余区域（无「查看」按钮），点击打开原链接 -->
     <div v-if="isSticker" role="link" tabindex="0"
         class="my-1.5 flex items-stretch overflow-hidden rounded-lg bg-black/[0.04] dark:bg-white/[0.08]"
         @click="emit('open', preview.url)" @keydown.enter.prevent="emit('open', preview.url)"
@@ -83,7 +83,7 @@ const emit = defineEmits<{
 const showLarge = computed(() => props.preview.show_large_media);
 const mediaAbove = computed(() => props.preview.show_media_above_description);
 
-/** 是否为 Sticker 链接预览：用「左侧主题条纹 + 图像」卡片替代"查看"按钮 */
+/** 是否为 Sticker 链接预览：用「左侧主题条纹 + 图像」卡片替代「查看」按钮 */
 const isSticker = computed(() => props.preview.type._ === 'linkPreviewTypeSticker');
 
 const { accentColorStyle } = useColors();

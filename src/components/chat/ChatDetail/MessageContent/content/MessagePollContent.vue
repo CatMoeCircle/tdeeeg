@@ -55,7 +55,7 @@
             <button v-if="canVote" type="button" :disabled="!canSubmitVote"
                 class="mt-2 w-full rounded-lg bg-blue-500 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-600 active:opacity-80 disabled:cursor-default disabled:opacity-40"
                 @click="onVote">
-                {{ voting || beingChosen ? '投票中…' : '投票' }}
+                {{ voting || beingChosen ? '投票中…' : td('lng_in_dlg_poll', '投票') }}
             </button>
             <!-- 不可投票原因 -->
             <p v-else-if="restrictionText" class="mt-1.5 text-xs leading-4 text-gray-400 dark:text-gray-500">
@@ -122,6 +122,7 @@ import { CheckCircleIcon, CheckIcon } from 'lucide-vue-next';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
 import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 import { tdlibSend } from '../../../../../utils/tdlib';
+import { td } from "../../../../../utils/tdLang";
 import {
     ensureSenderLoaded,
     getSenderName,

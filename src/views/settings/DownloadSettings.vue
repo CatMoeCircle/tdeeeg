@@ -30,7 +30,7 @@
                     <template v-if="settings.autoDownload.enabled">
 
                         <!-- ===== 图片（折叠） ===== -->
-                        <CollapsibleSection :open="openSections.photos" title="图片" description="视频封面、图片、贴纸、音频封面等"
+                        <CollapsibleSection :open="openSections.photos" :title="td('lng_in_dlg_photo', '图片')" description="视频封面、图片、贴纸、音频封面等"
                             @toggle="openSections.photos = !openSections.photos">
                             <ChatTypeToggle v-for="cat in categories" :key="'photo-' + cat.key" :label="cat.label"
                                 :modelValue="settings.autoDownload.photos[cat.key]"
@@ -38,7 +38,7 @@
                         </CollapsibleSection>
 
                         <!-- ===== 视频（折叠） ===== -->
-                        <CollapsibleSection :open="openSections.videos" title="视频" description="自动下载小于指定体积的视频"
+                        <CollapsibleSection :open="openSections.videos" :title="td('lng_in_dlg_video', '视频')" description="自动下载小于指定体积的视频"
                             @toggle="openSections.videos = !openSections.videos">
                             <ChatTypeToggle v-for="cat in categories" :key="'video-' + cat.key" :label="cat.label"
                                 :modelValue="settings.autoDownload.videos[cat.key]"
@@ -56,7 +56,7 @@
                         </CollapsibleSection>
 
                         <!-- ===== 文件（折叠） ===== -->
-                        <CollapsibleSection :open="openSections.files" title="文件" description="自动下载小于指定体积的文档文件"
+                        <CollapsibleSection :open="openSections.files" :title="td('lng_in_dlg_file', '文件')" description="自动下载小于指定体积的文档文件"
                             @toggle="openSections.files = !openSections.files">
                             <ChatTypeToggle v-for="cat in categories" :key="'file-' + cat.key" :label="cat.label"
                                 :modelValue="settings.autoDownload.files[cat.key]"
@@ -223,6 +223,7 @@ import CollapsibleSection from '../../components/settings/CollapsibleSection.vue
 import ChatTypeToggle from '../../components/settings/ChatTypeToggle.vue';
 import EditableNumber from '../../components/settings/EditableNumber.vue';
 
+import { td } from "../../utils/tdLang";
 const router = useRouter();
 
 /** 返回设置列表 */
@@ -248,10 +249,10 @@ interface MigrationProgress {
 }
 
 const categories: { key: keyof AutoDownloadByType; label: string }[] = [
-    { key: 'contacts', label: '联系人' },
-    { key: 'privateChats', label: '私聊' },
-    { key: 'channels', label: '频道' },
-    { key: 'groups', label: '群组' },
+    { key: 'contacts', label: td('lng_contacts_header', '联系人') },
+    { key: 'privateChats', label: td('lng_media_auto_private_chats', '私聊') },
+    { key: 'channels', label: td('lng_notification_channels', '频道') },
+    { key: 'groups', label: td('lng_notification_groups', '群组') },
 ];
 
 const openSections = reactive({

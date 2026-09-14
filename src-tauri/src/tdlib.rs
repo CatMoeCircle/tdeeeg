@@ -41,6 +41,12 @@ pub struct TdLibConfig {
     pub api_id: i32,
     pub api_hash: String,
     pub use_test_dc: bool,
+    /// 当前使用的 TDLib 语言包 ID（tdesktop 本地化目标下的包标识，如 en / zh-hans-raw）
+    pub language_pack_id: String,
+    /// TDLib 本地化目标，固定使用 tdesktop
+    pub localization_target: String,
+    /// 操作系统语言 IETF 标签（setTdlibParameters.system_language_code）
+    pub system_language_code: String,
 }
 
 /// 前端保存的代理配置，供 TDLib 客户端创建后立即应用。
@@ -175,6 +181,9 @@ impl AppState {
                     .expect("TG_API_ID must be a number"),
                 api_hash: env!("TG_API_HASH").to_string(),
                 use_test_dc: false,
+                language_pack_id: "en".into(),
+                localization_target: "tdesktop".into(),
+                system_language_code: "en".into(),
             })),
             proxy_config: Arc::new(Mutex::new(ProxyConfig::default())),
             download_store: Arc::new(Mutex::new(DownloadStore::new(data_dir.clone()))),
@@ -257,15 +266,21 @@ pub fn set_tdlib_parameters(
     api_hash: Option<String>,
     use_test_dc: Option<bool>,
     persist: Option<bool>,
+    language_pack_id: Option<String>,
+    localization_target: Option<String>,
+    system_language_code: Option<String>,
 ) -> Result<(), String> {
     let has_creds = api_id.is_some() && api_hash.is_some();
     let has_test_dc = use_test_dc.is_some();
+    let has_language = language_pack_id.is_some()
+        || localization_target.is_some()
+        || system_language_code.is_some();
 
     if api_id.is_some() != api_hash.is_some() {
         return Err("api_id and api_hash must be provided together".to_string());
     }
 
-    if !has_creds && !has_test_dc {
+    if !has_creds && !has_test_dc && !has_language {
         return Err("No parameters provided to update".to_string());
     }
 
@@ -286,6 +301,24 @@ pub fn set_tdlib_parameters(
             }
             config.api_id = *id;
             config.api_hash = hash.clone();
+        }
+        if let Some(pack) = language_pack_id {
+            let pack = pack.trim();
+            if !pack.is_empty() {
+                config.language_pack_id = pack.to_string();
+            }
+        }
+        if let Some(target) = localization_target {
+            let target = target.trim();
+            if !target.is_empty() {
+                config.localization_target = target.to_string();
+            }
+        }
+        if let Some(sys_lang) = system_language_code {
+            let sys_lang = sys_lang.trim();
+            if !sys_lang.is_empty() {
+                config.system_language_code = sys_lang.to_string();
+            }
         }
     }
 
@@ -1100,7 +1133,7 @@ fn spawn_receive_loop(
                                     // 优先使用该账户自身保存的凭据，fallback 到全局 config。
                                     // 内置凭据时 api_id/api_hash 为 None，需从全局 config 补全。
                                     // use_test_dc 也可能为 None（旧账户），同样 fallback。
-                                    let (api_id, api_hash, use_test_dc) = {
+                                    let (api_id, api_hash, use_test_dc, language_pack_id, localization_target, system_language_code) = {
                                         let accounts = state.accounts.lock().unwrap();
                                         if let Some((acct_id, acct_hash, test_dc)) = accounts.get_tdlib_params(session_id) {
                                             let cfg = state.config.lock().unwrap();
@@ -1108,10 +1141,20 @@ fn spawn_receive_loop(
                                                 acct_id.unwrap_or(cfg.api_id),
                                                 acct_hash.unwrap_or_else(|| cfg.api_hash.clone()),
                                                 test_dc.unwrap_or(cfg.use_test_dc),
+                                                cfg.language_pack_id.clone(),
+                                                cfg.localization_target.clone(),
+                                                cfg.system_language_code.clone(),
                                             )
                                         } else {
                                             let cfg = state.config.lock().unwrap();
-                                            (cfg.api_id, cfg.api_hash.clone(), cfg.use_test_dc)
+                                            (
+                                                cfg.api_id,
+                                                cfg.api_hash.clone(),
+                                                cfg.use_test_dc,
+                                                cfg.language_pack_id.clone(),
+                                                cfg.localization_target.clone(),
+                                                cfg.system_language_code.clone(),
+                                            )
                                         }
                                     };
                                     let db_dir = tdlib_db_dir.to_string_lossy().to_string();
@@ -1127,7 +1170,7 @@ fn spawn_receive_loop(
                                         "use_secret_chats": true,
                                         "api_id": api_id,
                                         "api_hash": api_hash,
-                                        "system_language_code": "en",
+                                        "system_language_code": system_language_code,
                                         "device_model": "Desktop",
                                         "application_version": env!("CARGO_PKG_VERSION"),
                                         "enable_storage_optimizer": true,
@@ -1135,6 +1178,23 @@ fn spawn_receive_loop(
                                     });
                                     let req_str = CString::new(request.to_string()).unwrap();
                                     send_fn(client.client, req_str.as_ptr());
+
+                                    // 本地化目标与语言包在 setTdlibParameters 之外以 option 形式设置。
+                                    // localization_target 固定/默认 tdesktop；language_pack_id 决定 Telegram 官方语言包。
+                                    let loc_target = localization_target.clone();
+                                    let pack_id = language_pack_id.clone();
+                                    for (name, value) in [
+                                        ("localization_target", loc_target),
+                                        ("language_pack_id", pack_id),
+                                    ] {
+                                        let opt = json!({
+                                            "@type": "setOption",
+                                            "name": name,
+                                            "value": { "@type": "optionValueString", "value": value }
+                                        });
+                                        let opt_str = CString::new(opt.to_string()).unwrap();
+                                        send_fn(client.client, opt_str.as_ptr());
+                                    }
                                 } else if state_type == "authorizationStateReady" {
                                     // 拉取自己的信息（用于账户列表显示名称/头像）
                                     let request = json!({

@@ -95,11 +95,28 @@ async function bootstrap() {
         // 用户可在「系统设置」中修改 use_test_dc / api_id / api_hash（持久化到 settings.system）。
         step = "set_tdlib_parameters";
         const sys = settings.system;
+        const langCode = settings.language?.code || "zh-CN";
+        // 内置 locale → tdesktop 语言包 ID 映射；未知 code 原样作为 pack id
+        const BUILTIN_PACK: Record<string, string> = {
+            "zh-CN": "zh-hans-raw",
+            "zh-TW": "zh-hant-raw",
+            en: "en",
+        };
+        const languagePackId = BUILTIN_PACK[langCode] || langCode;
+        const systemLanguageCode =
+            langCode === "zh-CN" || langCode === "zh-TW" || langCode.startsWith("zh")
+                ? "zh-hans"
+                : langCode.startsWith("en")
+                    ? "en"
+                    : langCode;
         await invoke("set_tdlib_parameters", {
             useTestDc: sys.useTestDc,
             ...(sys.customApiCreds && sys.apiId && sys.apiHash
                 ? { apiId: Number(sys.apiId), apiHash: sys.apiHash }
                 : {}),
+            languagePackId,
+            localizationTarget: "tdesktop",
+            systemLanguageCode,
             persist: false,
         });
 
@@ -121,6 +138,14 @@ async function bootstrap() {
         // 授权后从 TDLib 恢复默认壁纸，避免只依赖可能失效的本地路径
         if (authState === "ready") {
             void restoreDefaultWallpaperFromTdlib();
+            // 授权就绪后再同步一次 language_pack_id（登录前 setOption 可能尚未生效）
+            try {
+                const { useLanguageStore } = await import("./store/language");
+                const langStore = useLanguageStore();
+                void langStore.setLanguage(langStore.currentCode, { silent: true });
+            } catch (e) {
+                console.warn("[bootstrap] re-apply language failed:", e);
+            }
         }
 
         // 预注册加载指示器样式（ldrs 自定义元素）。

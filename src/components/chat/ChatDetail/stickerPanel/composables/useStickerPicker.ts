@@ -2,6 +2,7 @@ import { computed, ref, watch } from 'vue';
 import type { sticker, stickerSet, stickerSetInfo } from 'tdlib-types';
 import { tdlibSend } from '../../../../../utils/tdlib';
 
+import { td } from "../../../../../utils/tdLang";
 /** 一个展示分组：已加载 stickers + 元信息 */
 export interface StickerGroup {
     key: string;
@@ -149,10 +150,10 @@ export function useStickerPicker(opts: {
         const groups: StickerGroup[] = [];
         // 收藏/最近置顶，便于快速访问（与 emoji 面板一致）
         if (favorites.value.length) {
-            groups.push({ key: 'favorites', title: '收藏', lazy: false, size: favorites.value.length, stickers: favorites.value, setId: '', isFavorites: true });
+            groups.push({ key: 'favorites', title: td('lng_saved_short', '收藏'), lazy: false, size: favorites.value.length, stickers: favorites.value, setId: '', isFavorites: true });
         }
         if (recent.value.length) {
-            groups.push({ key: 'recent', title: '最近', lazy: false, size: recent.value.length, stickers: recent.value, setId: '' });
+            groups.push({ key: 'recent', title: td('lng_recent_title', '最近'), lazy: false, size: recent.value.length, stickers: recent.value, setId: '' });
         }
         // 当前会话的群组贴纸包
         if (groupGroup.value) groups.push(groupGroup.value);

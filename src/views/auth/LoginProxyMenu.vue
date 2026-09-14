@@ -128,7 +128,7 @@
                                             <ActivityIcon class="w-3.5 h-3.5" />
                                         </button>
                                         <button type="button" @click.stop="confirmRemove(p)"
-                                            class="text-gray-300 hover:text-red-500 transition-colors" title="删除">
+                                            class="text-gray-300 hover:text-red-500 transition-colors" :title="td('lng_selected_delete', '删除')">
                                             <TrashIcon class="w-3.5 h-3.5" />
                                         </button>
                                     </div>
@@ -234,7 +234,7 @@
                         </button>
                         <button type="button" @click="submitAdd" :disabled="adding"
                             class="px-4 py-1.5 rounded-lg text-sm bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-60 disabled:cursor-wait">
-                            {{ adding ? '添加中…' : '添加' }}
+                            {{ adding ? '添加中…' : td('lng_stickers_featured_add', '添加') }}
                         </button>
                     </div>
                 </div>
@@ -260,6 +260,7 @@ import {
 } from "../../store/proxyList";
 import type { addedProxy } from "tdlib-types";
 
+import { td } from "../../utils/tdLang";
 const visible = ref(false);
 /** 当前系统代理（用于提示） */
 const systemProxy = ref<{ server: string; port: number } | null>(null);

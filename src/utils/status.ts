@@ -1,6 +1,7 @@
 import formatTime from "./formatTime";
 import type { UserStatus } from "tdlib-types";
 
+import { td } from "../utils/tdLang";
 const MINUTES_RECENT = 5;
 
 function isSameDay(a: Date, b: Date) {
@@ -27,7 +28,7 @@ export default function formatStatus(userStatus?: UserStatus): string {
 
   switch (userStatus._) {
     case "userStatusOnline":
-      return "在线";
+      return td('lng_status_online', '在线');
 
     case "userStatusOffline": {
       const lastSeen = userStatus.was_online;

@@ -59,6 +59,7 @@ import { getFileSize, useAttachmentStore } from '../../../store/attachment';
 import { classifyAttachment } from '../../../utils/attachmentSend';
 import { isInAlbum } from '../../../utils/attachmentHelpers';
 
+import { td } from "../../../utils/tdLang";
 type AttachAction =
     | 'photo'
     | 'file'
@@ -162,7 +163,7 @@ async function handleAttachMusic() {
         multiple: true,
         title: '选择音乐',
         filters: [{
-            name: '音乐',
+            name: td('lng_all_music', '音乐'),
             extensions: ['mp3', 'm4a', 'aac', 'ogg', 'opus', 'flac', 'wav', 'wma', 'amr'],
         }],
     });
@@ -226,13 +227,13 @@ const attachItems = computed<AttachItem[]>(() => [
     },
     {
         key: 'file',
-        label: '文件',
+        label: td('lng_in_dlg_file', '文件'),
         icon: FileIcon,
         hidden: !documentRights.value,
     },
     {
         key: 'music',
-        label: '音乐',
+        label: td('lng_all_music', '音乐'),
         icon: MusicIcon,
         hidden: !audioRights.value,
     },
@@ -245,13 +246,13 @@ const attachItems = computed<AttachItem[]>(() => [
     },
     {
         key: 'poll',
-        label: '投票',
+        label: td('lng_in_dlg_poll', '投票'),
         icon: BarChart2Icon,
         hidden: !pollRights.value,
     },
     {
         key: 'contact',
-        label: '联系人',
+        label: td('lng_contacts_header', '联系人'),
         icon: UserIcon,
         hidden: !messageRights.value,
     },

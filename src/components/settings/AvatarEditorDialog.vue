@@ -9,7 +9,7 @@
                     <div
                         class="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
                         <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">更换头像</h3>
-                        <button type="button" aria-label="关闭"
+                        <button type="button" :aria-label="td('lng_close', '关闭')"
                             class="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                             @click="close">
                             <XIcon class="w-4.5 h-4.5" />
@@ -115,6 +115,7 @@ import { tdlibSend } from '../../utils/tdlib';
 import { downloadFileUrl } from '../../utils/profileMedia';
 import type { chatPhoto, file } from 'tdlib-types';
 
+import { td } from "../../utils/tdLang";
 const props = defineProps<{
     modelValue: boolean;
     /** 历史头像列表（getUserProfilePhotos） */
@@ -281,7 +282,7 @@ async function pickNewPhoto() {
         const selected = await open({
             multiple: false,
             title: '选择图片',
-            filters: [{ name: '图片', extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif'] }],
+            filters: [{ name: td('lng_in_dlg_photo', '图片'), extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif'] }],
         });
         if (!selected || Array.isArray(selected)) return;
         await loadUploadImage(selected);

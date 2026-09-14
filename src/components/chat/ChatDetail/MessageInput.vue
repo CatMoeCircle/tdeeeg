@@ -52,11 +52,11 @@
             </div>
 
             <div class="flex items-center gap-2 ml-2 mb-1.5 shrink-0">
-                <button @click="$emit('sticker')" type="button" aria-label="贴纸"
+                <button @click="$emit('sticker')" type="button" :aria-label="td('lng_in_dlg_sticker', '贴纸')"
                     class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">
                     <Smile class="w-5 h-5" />
                 </button>
-                <button @click="onClickSend" type="button" aria-label="发送" :disabled="sending"
+                <button @click="onClickSend" type="button" :aria-label="td('lng_forward_send', '发送')" :disabled="sending"
                     class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-blue-500 text-gray-500 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-default">
                     <SendIcon class="w-5 h-5" />
                 </button>
@@ -88,6 +88,7 @@ import AttachmentTray from './AttachmentTray.vue';
 import LinkInputDialog from './LinkInputDialog.vue';
 import SenderSelector from './SenderSelector.vue';
 
+import { td } from "../../../utils/tdLang";
 export interface ReplyTarget {
     title: string;
     text: string;
@@ -352,7 +353,7 @@ function buildFormatChildren(): ContextMenuItem[] {
         { key: 'fmt-quote', label: '引用', icon: Quote, checked: checked('quote'), onClick: () => applyFormat('quote') },
         { key: 'fmt-code', label: '等宽', icon: Code2, checked: checked('code'), onClick: () => applyFormat('code') },
         { key: 'fmt-spoiler', label: '剧透', icon: EyeOff, checked: checked('spoiler'), onClick: () => applyFormat('spoiler') },
-        { key: 'fmt-link', label: '链接', icon: Link2, checked: checked('link'), onClick: () => applyLink() },
+        { key: 'fmt-link', label: td('lng_link_header_short', '链接'), icon: Link2, checked: checked('link'), onClick: () => applyLink() },
         { divider: true, label: '' },
         { key: 'fmt-plain', label: '纯文本', icon: Eraser, onClick: () => applyPlainText() },
     ];
@@ -396,7 +397,7 @@ function onContextMenu(e: MouseEvent) {
     const items: ContextMenuItem[] = [];
     const sel = hasSelection();
     if (sel) {
-        items.push({ key: 'copy', label: '复制', onClick: () => copySelection() });
+        items.push({ key: 'copy', label: td('lng_mac_menu_copy', '复制'), onClick: () => copySelection() });
         items.push({ key: 'cut', label: '剪切', onClick: () => cutSelection() });
     }
     items.push({ key: 'paste', label: '粘贴', onClick: () => pasteFromClipboard() });

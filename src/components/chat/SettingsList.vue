@@ -14,7 +14,7 @@
                 <div class="ml-3">
                     <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
                         <GlobalEmojiText
-                            :text="userProfile ? (userProfile.first_name + ' ' + userProfile.last_name) : '加载中...'" />
+                            :text="userProfile ? (userProfile.first_name + ' ' + userProfile.last_name) : t('lng_context_seen_loading')" />
                     </p>
                     <p class="text-xs text-gray-400">
                         {{ userStatusText }}
@@ -39,8 +39,11 @@
                         <UserCogIcon class="w-5 h-5" />
                     </div>
                     <div class="flex-1">
-                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">账户</h3>
-                        <p class="text-xs text-gray-500">姓名, 头像, 用户名, 生日</p>
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {{ t('lng_settings_information') }}</h3>
+                        <p class="text-xs text-gray-500">{{ t('lng_settings_name_label') }}, {{ t('lng_settings_upload')
+                            }},
+                            {{ t('lng_settings_username') }}</p>
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                 </router-link>
@@ -48,12 +51,16 @@
                 <router-link to="/home/settings/appearance"
                     class="flex items-center px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                     active-class="bg-blue-50 dark:bg-gray-800 text-blue-600">
-                    <div class="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center mr-3">
+                    <div
+                        class="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center mr-3">
                         <PaletteIcon class="w-5 h-5" />
                     </div>
                     <div class="flex-1">
-                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">外观</h3>
-                        <p class="text-xs text-gray-500">主题, 字体, 聊天背景</p>
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('lng_edit_channel_color')
+                            }}
+                        </h3>
+                        <p class="text-xs text-gray-500">{{ t('lng_settings_section_chat_settings') }}, {{
+                            t('lng_settings_section_background') }}</p>
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                 </router-link>
@@ -65,8 +72,10 @@
                         <BellIcon class="w-5 h-5" />
                     </div>
                     <div class="flex-1">
-                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">通知</h3>
-                        <p class="text-xs text-gray-500">系统弹窗, 消息预览, 权限</p>
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {{ t('lng_settings_section_notify') }}</h3>
+                        <p class="text-xs text-gray-500">{{ t('lng_settings_desktop_notify') }},
+                            {{ t('lng_settings_notify_title') }}</p>
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                 </router-link>
@@ -74,12 +83,15 @@
                 <router-link to="/home/settings/privacy"
                     class="flex items-center px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                     active-class="bg-blue-50 dark:bg-gray-800 text-blue-600">
-                    <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center mr-3">
+                    <div
+                        class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center mr-3">
                         <ShieldIcon class="w-5 h-5" />
                     </div>
                     <div class="flex-1">
-                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">隐私设置</h3>
-                        <p class="text-xs text-gray-500">拉黑, 两步验证, 可见性, 权限</p>
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {{ t('lng_settings_section_privacy') }}</h3>
+                        <p class="text-xs text-gray-500">{{ t('lng_settings_password_title') }},
+                            {{ t('lng_settings_blocked_users') }}, {{t('lng_settings_privacy_title')}}</p>
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                 </router-link>
@@ -91,8 +103,10 @@
                         <DatabaseIcon class="w-5 h-5" />
                     </div>
                     <div class="flex-1">
-                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">数据</h3>
-                        <p class="text-xs text-gray-500">自动下载, 存储管理</p>
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{
+                            t('lng_settings_data_storage') }}</h3>
+                        <p class="text-xs text-gray-500">{{ t('lng_media_auto_settings') }},{{
+                            t('lng_settings_manage_local_storage') }}</p>
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                 </router-link>
@@ -104,8 +118,9 @@
                         <NetworkIcon class="w-5 h-5" />
                     </div>
                     <div class="flex-1">
-                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">代理</h3>
-                        <p class="text-xs text-gray-500">禁用、系统或自定义代理</p>
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {{ t('lng_settings_network_proxy') }}</h3>
+                        <p class="text-xs text-gray-500">{{ t('lng_proxy_disable') }} ,{{ t('lng_proxy_add') }}</p>
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                 </router-link>
@@ -113,27 +128,32 @@
                 <router-link to="/home/settings/devices"
                     class="flex items-center px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                     active-class="bg-blue-50 dark:bg-gray-800 text-blue-600">
-                    <div class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center mr-3">
+                    <div
+                        class="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center mr-3">
                         <LaptopIcon class="w-5 h-5" />
                     </div>
                     <div class="flex-1">
-                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">设备</h3>
-                        <p class="text-xs text-gray-500">活跃会话, 设备管理</p>
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {{ t('lng_url_auth_device_label') }}</h3>
+                        <p class="text-xs text-gray-500">
+                            {{ t('lng_settings_show_sessions') }},{{ t('lng_sessions_terminate') }}</p>
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                 </router-link>
 
-                <div
-                    class="flex items-center px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-not-allowed opacity-60">
+                <router-link to="/home/settings/language"
+                    class="flex items-center px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    active-class="bg-blue-50 dark:bg-gray-800 text-blue-600">
                     <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-3">
                         <GlobeIcon class="w-5 h-5" />
                     </div>
                     <div class="flex-1">
-                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">语言</h3>
-                        <p class="text-xs text-gray-500">中文, English</p>
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t("lng_settings_language")
+                        }}</h3>
+                        <p class="text-xs text-gray-500">{{ t('lng_language_name') }}</p>
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
-                </div>
+                </router-link>
 
                 <!-- 系统设置（测试数据中心、自定义 API ID/Hash） -->
                 <router-link to="/home/settings/system"
@@ -143,8 +163,10 @@
                         <SettingsIcon class="w-5 h-5" />
                     </div>
                     <div class="flex-1">
-                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">系统</h3>
-                        <p class="text-xs text-gray-500">测试数据中心, API ID / Hash</p>
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('lng_settings_advanced')
+                            }}
+                        </h3>
+                        <p class="text-xs text-gray-500">{{ t('settingsList.systemSubtitle') }}</p>
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                 </router-link>
@@ -158,7 +180,7 @@
                         <SendIcon class="w-5 h-5" />
                     </div>
                     <div class="flex-1">
-                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">TDEEEG 官方群组</h3>
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('settingsList.officialGroup') }}</h3>
                         <p class="text-xs text-gray-500">@xiaoqvan_chat</p>
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
@@ -172,8 +194,8 @@
                         <TerminalSquareIcon class="w-5 h-5" />
                     </div>
                     <div class="flex-1">
-                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">开发者选项</h3>
-                        <p class="text-xs text-gray-500">发送 TDLib 方法, 更新日志, 开发者工具</p>
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('settingsList.devOptions') }}</h3>
+                        <p class="text-xs text-gray-500">{{ t('settingsList.devOptionsDesc') }}</p>
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                 </router-link>
@@ -181,7 +203,8 @@
                 <!-- 版本信息（连点 5 次打开/关闭开发者选项） -->
                 <div class="flex items-center justify-center gap-2 px-4 pt-3 pb-4">
                     <p class="text-xs text-gray-400 leading-5 select-text cursor-pointer whitespace-nowrap"
-                        :title="debugMode ? '已开启开发者选项（连点 5 次关闭）' : '连点 5 次打开开发者选项'" @click="onVersionClick">
+                        :title="debugMode ? t('settingsList.devOnHint') : t('settingsList.devOffHint')"
+                        @click="onVersionClick">
                         {{ appName }} v{{ appVersion }}
                     </p>
                     <span class="text-gray-300 dark:text-gray-600">|</span>
@@ -209,10 +232,12 @@ import { resolveInternalLink } from '../../utils/openInternalLink';
 import { getVersion } from '@tauri-apps/api/app';
 import packageInfo from '../../../package.json';
 import { debugMode, setDebugMode, setLogUpdates } from '../../store/debug';
+import { useI18n } from 'vue-i18n';
 
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
 const router = useRouter();
+const { t } = useI18n();
 
 /** 点击自己的头像/名字 → 打开自己的个人资料页 */
 function openMyProfile() {
@@ -237,9 +262,9 @@ const isChatOpen = computed(() => /^\/home\/chat\/\d+/.test(route.path));
 
 /** 用户状态显示文本：优先用 formatStatus 显示上次在线时间，无数据时显示离线 */
 const userStatusText = computed(() => {
-    if (!userProfile.value) return '加载中...';
+    if (!userProfile.value) return t('lng_context_seen_loading');
     const status = userProfile.value.status;
-    if (!status) return '离线';
+    if (!status) return t('settingsList.offline');
     return formatStatus(status);
 });
 
@@ -266,7 +291,7 @@ async function loadTdlibVersion() {
             tdlibVersion.value = res.value;
         }
     } catch {
-        tdlibVersion.value = '未连接';
+        tdlibVersion.value = t('settingsList.notConnected');
     }
 }
 

@@ -9,6 +9,7 @@ import type {
     availableReaction,
     message,
 } from 'tdlib-types';
+import { td } from './tdLang';
 
 /* =========================================================================
  * Reaction 工具函数
@@ -33,7 +34,7 @@ export function isReactionPaid(type: ReactionType): type is reactionTypePaid {
 export function getReactionText(type: ReactionType): string {
     if (isReactionEmoji(type)) return type.emoji;
     if (isReactionCustomEmoji(type)) return type.custom_emoji_id;
-    if (isReactionPaid(type)) return '付费回应';
+    if (isReactionPaid(type)) return td('lng_sr_message_column_paid_reactions', '付费回应');
     return '';
 }
 

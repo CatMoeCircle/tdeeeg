@@ -166,6 +166,15 @@ interface Settings {
     /** 窗口已在前台且正在浏览其他页面时是否仍弹出通知 */
     whenAppFocused: boolean;
   };
+  /** 界面语言 */
+  language: {
+    /**
+     * 当前语言 code：
+     * - 内置：zh-CN / zh-TW / en
+     * - TDLib 语言包：tdesktop 目标下的 pack id（如 ja-raw）
+     */
+    code: string;
+  };
 }
 
 const defaultSettings: Settings = {
@@ -258,6 +267,10 @@ const defaultSettings: Settings = {
     showPreview: true,
     showSenderName: true,
     whenAppFocused: true,
+  },
+  language: {
+    // 默认简体中文，与历史行为一致
+    code: "zh-CN",
   },
 };
 

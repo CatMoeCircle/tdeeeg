@@ -79,6 +79,7 @@ import { useChatStore } from "../../store/chat";
 import { useUserStore } from "../../store/user";
 import type { chat } from "tdlib-types";
 
+import { td } from "../../utils/tdLang";
 const props = defineProps<{
     visible: boolean;
     /** 源对话 id */
@@ -126,12 +127,12 @@ const chatTitle = (chat: chat) => {
 };
 
 function chatTypeLabel(chat: chat): string {
-    if (isSaved(chat)) return "私聊";
+    if (isSaved(chat)) return td('lng_media_auto_private_chats', '私聊');
     const t = (chat as any).type?._;
-    if (t === "chatTypePrivate") return "私聊";
-    if (t === "chatTypeBasicGroup") return "群组";
+    if (t === "chatTypePrivate") return td('lng_media_auto_private_chats', '私聊');
+    if (t === "chatTypeBasicGroup") return td('lng_notification_groups', '群组');
     if (t === "chatTypeSupergroup") {
-        return (chat as any).type?.is_channel ? "频道" : "群组";
+        return (chat as any).type?.is_channel ? td('lng_notification_channels', '频道') : td('lng_notification_groups', '群组');
     }
     return "";
 }

@@ -22,6 +22,7 @@ import { useDownloadStore } from '../../store/downloads';
 import { useColors } from '../../store/colors';
 import { useViewportLoad } from '../../composables/useViewportLoad';
 
+import { td } from "../../utils/tdLang";
 const props = defineProps<{
     photo?: chatPhotoInfo | profilePhoto;
     title?: string;
@@ -198,7 +199,7 @@ async function downloadCurrentPhoto(photo: chatPhotoInfo | profilePhoto) {
     if (isFileReady(f) || downloadingFiles.has(f.id)) return;
     downloadingFiles.add(f.id);
     // 头像：记录为隐藏资源，不需要来源（chat_id/message_id 留空），分类为 avatar
-    const fileName = `${props.title || '头像'}_${f.id}.jpg`;
+    const fileName = `${props.title || td('lng_mediaview_profile_photo', '头像')}_${f.id}.jpg`;
     try {
         await useDownloadStore().registerDownload(f.id, fileName, '', 0, 'avatar', undefined, undefined, undefined, true, false, 'avatar');
         const file = await tdlibSend({

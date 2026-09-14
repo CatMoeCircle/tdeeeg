@@ -11,6 +11,7 @@ import { computed, watch } from 'vue';
 import type { MessageContent, message } from 'tdlib-types';
 import { ensureUser, getUserDisplayName } from '../../../../../utils/senderInfo';
 
+import { td } from "../../../../../utils/tdLang";
 const props = defineProps<{
     content: MessageContent;
     /** 服务消息发送者的显示名称（清单完成/添加等提示会用到） */
@@ -122,7 +123,7 @@ const serviceText = computed(() => {
         case 'messageContactRegistered':
             return `对方已注册 Telegram`;
         case 'messageCall':
-            return c.is_video ? '视频通话' : '语音通话';
+            return c.is_video ? '视频通话' : td('lng_settings_notifications_calls_title', '语音通话');
         case 'messageGameScore':
             return `游戏得分已更新`;
         case 'messagePaymentSuccessful':

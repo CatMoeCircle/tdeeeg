@@ -24,7 +24,7 @@
                         <button type="button"
                             class="shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50"
                             :disabled="debugTdlibSending" @click="sendDebugTdlib">
-                            {{ debugTdlibSending ? '发送中…' : '发送' }}
+                            {{ debugTdlibSending ? '发送中…' : td('lng_forward_send', '发送') }}
                         </button>
                     </div>
                     <pre v-if="debugTdlibResult"
@@ -189,6 +189,7 @@ import {
 } from '../../store/debug';
 import { readCrashLog, clearCrashLog } from '../../utils/crashGuard';
 
+import { td } from "../../utils/tdLang";
 function formatUpdateTime(t: number): string {
     const d = new Date(t);
     const pad = (n: number) => String(n).padStart(2, '0');

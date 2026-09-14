@@ -12,7 +12,7 @@
                     </div>
                     <button type="button"
                         class="audio-cover-button absolute inset-0 flex items-center justify-center bg-black/20 text-white transition-colors hover:bg-black/30"
-                        :aria-label="isGloballyPlaying ? '暂停' : '播放'" @click="togglePlayback">
+                        :aria-label="isGloballyPlaying ? td('lng_mac_menu_player_pause', '暂停') : '播放'" @click="togglePlayback">
                         <PauseIcon v-if="isGloballyPlaying" class="h-6 w-6 fill-current" />
                         <PlayIcon v-else class="ml-0.5 h-6 w-6 fill-current" />
                     </button>
@@ -56,6 +56,7 @@ import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import RichMediaDownload from './RichMediaDownload.vue';
 import RichCaption from './RichCaption.vue';
 
+import { td } from "../../../../../utils/tdLang";
 const props = defineProps<{
     audio?: audio | null;
     caption?: pageBlockCaption | null;

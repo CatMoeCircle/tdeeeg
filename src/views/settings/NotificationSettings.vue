@@ -28,7 +28,7 @@
                             class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                             <span class="text-xs font-medium text-gray-500 dark:text-gray-400">预览</span>
                             <span class="text-xs text-gray-400 dark:text-gray-500">
-                                {{ previewMode === 'private' ? '私聊' : '群组' }}
+                                {{ previewMode === 'private' ? td('lng_media_auto_private_chats', '私聊') : td('lng_notification_groups', '群组') }}
                             </span>
                         </div>
 
@@ -171,6 +171,7 @@ import Avatar from '../../components/chat/avatar.vue';
 import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
 import appLogo from '../../assets/logo.png';
 
+import { td } from "../../utils/tdLang";
 const router = useRouter();
 const previewMode = ref<'private' | 'group'>('private');
 

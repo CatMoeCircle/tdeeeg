@@ -8,6 +8,7 @@ import { useConnectionStore } from "./store/connectionState";
 import { useOptionsStore } from "./store/options";
 import { useUserStore } from "./store/user";
 import { useAccountsStore } from "./store/accounts";
+import { useLanguageStore } from "./store/language";
 import { initSenderInfo } from "./utils/senderInfo";
 import { initColors, watchSystemColorScheme } from "./store/colors";
 import { initNativeNotifications } from "./store/notifications";
@@ -31,6 +32,7 @@ export async function initTdlib() {
     const optionsStore = useOptionsStore();
     const userStore = useUserStore();
     const accountsStore = useAccountsStore();
+    const languageStore = useLanguageStore();
 
     // 初始化下载管理器的 updateFile 监听
     await downloadStore.init();
@@ -54,6 +56,8 @@ export async function initTdlib() {
     await initNativeNotifications();
     // 默认壁纸与 TDLib 同步（updateDefaultBackground + 启动时从已安装列表恢复）
     await initDefaultBackgroundSync();
+    // 语言系统：恢复 UI 语言、监听 updateLanguagePackStrings、同步 TDLib language_pack_id
+    await languageStore.init();
 
     // if (import.meta.env.DEV) {
     //     await listen<Update>("tdlib-update", (event) => {

@@ -89,6 +89,11 @@ const router = createRouter({
           component: () => import("../views/settings/ProxySettings.vue"),
         },
         {
+          path: "settings/language",
+          name: "settings-language",
+          component: () => import("../views/settings/LanguageSettings.vue"),
+        },
+        {
           path: "settings/debug",
           name: "settings-debug",
           component: () => import("../views/settings/DeveloperSettings.vue"),

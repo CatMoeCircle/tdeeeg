@@ -3,6 +3,7 @@ import TitleBar from "./components/TitleBar.vue";
 import ContextMenu from "./components/contextMenu/ContextMenu.vue";
 import ExternalLinkConfirm from "./components/contextMenu/ExternalLinkConfirm.vue";
 import ProxyLinkConfirm from "./components/contextMenu/ProxyLinkConfirm.vue";
+import LanguagePackConfirm from "./components/settings/LanguagePackConfirm.vue";
 import StoryViewer from "./components/story/StoryViewer.vue";
 
 // 注意：TDLib 初始化、授权态判定与首屏路由跳转已在 src/main.ts 的
@@ -34,6 +35,8 @@ import StoryViewer from "./components/story/StoryViewer.vue";
     <ExternalLinkConfirm />
     <!-- 从 proxy.t.me 链接添加代理弹窗（Teleport 到 body） -->
     <ProxyLinkConfirm />
+    <!-- 从 t.me/setlanguage 链接添加语言包弹窗（Teleport 到 body） -->
+    <LanguagePackConfirm />
     <!-- 故事播放器（Teleport 到 body） -->
     <StoryViewer />
   </div>

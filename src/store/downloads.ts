@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { DL_PRIORITY } from "../utils/downloadPriority";
 
+import { td } from "../utils/tdLang";
 /** 文件类型分类（与 Rust 端 DownloadFileType 对应） */
 export type DownloadFileType =
     | "document"   // 普通文件
@@ -84,12 +85,12 @@ function inferHiddenCategory(fileType: DownloadFileType): HiddenCategory {
 
 /** 各隐藏分类对应的中文显示标签 */
 const HIDDEN_CATEGORY_LABELS: Record<HiddenCategory, string> = {
-    emoji: "表情",
+    emoji: td('lng_stickers_installed_tab', '表情'),
     video_cover: "视频封面",
-    avatar: "头像",
+    avatar: td('lng_mediaview_profile_photo', '头像'),
     story_cover: "动态封面",
-    sticker: "贴纸",
-    gift: "礼物",
+    sticker: td('lng_in_dlg_sticker', '贴纸'),
+    gift: td('lng_sr_message_column_gift', '礼物'),
     music_cover: "音乐封面",
     other: "通用",
 };

@@ -5,6 +5,8 @@ import { MessagePlugin } from "tdesign-vue-next";
 import { showProxyLinkDialog } from "../store/proxyLink";
 import { refreshProxies } from "../store/proxyList";
 import { openStoryViewer } from "../store/storyViewer";
+import { showLanguagePackDialog } from "../store/languagePackLink";
+import { useLanguageStore } from "../store/language";
 import type { Router } from "vue-router";
 
 /**
@@ -149,7 +151,33 @@ export async function resolveInternalLink(href: string, router: Router): Promise
                         // 刷新代理列表，让代理设置页跟随更新
                         refreshProxies();
                     } catch (e: any) {
-                        await MessagePlugin.error({ content: e?.message || "添加代理失败", placement: "top-right" });
+                        await MessagePlugin.error({ content: e?.message || "添加失败", placement: "top-right" });
+                    }
+                }
+                return true;
+            }
+            case "internalLinkTypeLanguagePack": {
+                // t.me/setlanguage/xxx：弹出「是否添加本语言包」确认框
+                const packId = linkType.language_pack_id;
+                if (!packId) {
+                    await MessagePlugin.warning({ content: "无效的语言包链接", placement: "top-right" });
+                    return true;
+                }
+                const action = await showLanguagePackDialog(packId);
+                if (action === "add") {
+                    try {
+                        // 应用语言：切换 UI + TDLib language_pack_id，并下载缓存
+                        const langStore = useLanguageStore();
+                        await langStore.setLanguage(packId);
+                        await MessagePlugin.success({
+                            content: `语言包 ${packId} 已启用`,
+                            placement: "top-right",
+                        });
+                    } catch (e: any) {
+                        await MessagePlugin.error({
+                            content: e?.message || "应用语言包失败",
+                            placement: "top-right",
+                        });
                     }
                 }
                 return true;

@@ -85,6 +85,7 @@ import { tdlibSend } from '../../utils/tdlib';
 import { listen } from "@tauri-apps/api/event";
 import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup } from 'tdlib-types';
 
+import { td } from "../../utils/tdLang";
 const route = useRoute();
 // 聊天输入框的双向绑定内容
 const messageInput = ref('');
@@ -484,10 +485,10 @@ const formatTime = (timestamp: number) => {
 const getChatStatus = () => {
     if (!chat.value) return '';
     // Simple status logic
-    if (chat.value.type._ === 'chatTypePrivate') return '私聊';
-    if (chat.value.type._ === 'chatTypeBasicGroup') return '群组';
+    if (chat.value.type._ === 'chatTypePrivate') return td('lng_media_auto_private_chats', '私聊');
+    if (chat.value.type._ === 'chatTypeBasicGroup') return td('lng_notification_groups', '群组');
     if (chat.value.type._ === 'chatTypeSupergroup') {
-        return chat.value.type.is_channel ? '频道' : '超级群组';
+        return chat.value.type.is_channel ? td('lng_notification_channels', '频道') : '超级群组';
     }
     return '';
 };

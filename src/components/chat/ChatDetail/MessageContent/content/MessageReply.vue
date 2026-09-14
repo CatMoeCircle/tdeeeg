@@ -38,6 +38,7 @@ import { useColors, rgbToCss } from '../../../../../store/colors';
 import { getSenderAccentColorId } from '../../../../../utils/senderInfo';
 import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 
+import { td } from "../../../../../utils/tdLang";
 const props = defineProps<{
     replyTo: messageReplyToMessage;
     isSelf: boolean;
@@ -199,7 +200,7 @@ async function loadReplyData() {
             if (replyAccentColorId.value === undefined && typeof c?.accent_color_id === 'number') {
                 replyAccentColorId.value = c.accent_color_id;
             }
-            senderName = c.title || '群组';
+            senderName = c.title || td('lng_notification_groups', '群组');
         } catch (_) { }
     }
 
@@ -238,7 +239,7 @@ function getMediaInfo(content: MessageContent, _msg: message): { mediaType: stri
             }
         }
     } else if (content._ === 'messageVideo') {
-        mediaType = '视频';
+        mediaType = td('lng_in_dlg_video', '视频');
         const thumb = content.video.thumbnail;
         if (thumb && isThumbnailImgRenderable(thumb.format) && isFileReady(thumb.file)) {
             thumbSrc = convertFileSrc(thumb.file.local.path);
@@ -252,13 +253,13 @@ function getMediaInfo(content: MessageContent, _msg: message): { mediaType: stri
             thumbSrc = convertFileSrc(thumb.file.local.path);
         }
     } else if (content._ === 'messageDocument') {
-        mediaType = '文件';
+        mediaType = td('lng_in_dlg_file', '文件');
     } else if (content._ === 'messageAudio') {
-        mediaType = '音乐';
+        mediaType = td('lng_all_music', '音乐');
     } else if (content._ === 'messageVoiceNote') {
         mediaType = '语音';
     } else if (content._ === 'messageSticker') {
-        mediaType = '贴纸';
+        mediaType = td('lng_in_dlg_sticker', '贴纸');
         const stickerThumb = content.sticker.thumbnail;
         if (stickerThumb && isThumbnailImgRenderable(stickerThumb.format) && isFileReady(stickerThumb.file)) {
             thumbSrc = convertFileSrc(stickerThumb.file.local.path);

@@ -13,6 +13,7 @@ import type { AuthorizationState, Update, countryInfo } from "tdlib-types";
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import LoginProxyMenu from "./LoginProxyMenu.vue";
 import LoginSystemMenu from "./LoginSystemMenu.vue";
+import LoginLanguageMenu from "./LoginLanguageMenu.vue";
 import { useAccountsStore } from "../../store/accounts";
 
 
@@ -420,8 +421,9 @@ onUnmounted(() => {
 
 <template>
     <div class="flex justify-center items-center h-full select-none relative">
-        <!-- 右上角 API/测试DC 与 代理设置按钮 -->
+        <!-- 右上角 语言 / API/测试DC / 代理设置按钮 -->
         <div class="absolute top-4 right-4 z-20 flex items-center gap-2">
+            <LoginLanguageMenu />
             <LoginSystemMenu />
             <LoginProxyMenu />
         </div>

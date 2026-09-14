@@ -3,6 +3,7 @@ import { isSavedMessagesChat, isOutgoingAliasMessage } from '../../../../utils/s
 import { isDeletedSender } from '../../../../utils/senderInfo';
 import { isMediaMessage, isStandaloneMessage } from './messageType';
 
+import { td } from "../../../../utils/tdLang";
 /**
  * 发送者 / 转发来源的显示信息计算（纯函数，无任何响应式依赖）。
  *
@@ -49,7 +50,7 @@ export function getForwardName(
         case 'messageOriginChat':
             return caches.chats[origin.sender_chat_id]?.title || origin.author_signature || '聊天';
         case 'messageOriginChannel':
-            return caches.chats[origin.chat_id]?.title || origin.author_signature || '频道';
+            return caches.chats[origin.chat_id]?.title || origin.author_signature || td('lng_notification_channels', '频道');
     }
 }
 
@@ -103,9 +104,9 @@ export function getSenderName(
 ): string {
     if (msg.sender_id._ === 'messageSenderUser') {
         const u = caches.users[msg.sender_id.user_id];
-        if (!u) return '未知用户';
+        if (!u) return td('lng_credits_box_history_entry_anonymous', '未知用户');
         if (u.type?._ === 'userTypeDeleted') return '已注销账户';
-        return `${u.first_name} ${u.last_name}`.trim() || '未知用户';
+        return `${u.first_name} ${u.last_name}`.trim() || td('lng_credits_box_history_entry_anonymous', '未知用户');
     } else if (msg.sender_id._ === 'messageSenderChat') {
         const c = caches.chats[msg.sender_id.chat_id];
         return c ? c.title : '未知频道';
