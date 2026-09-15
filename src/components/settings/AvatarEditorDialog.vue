@@ -8,8 +8,8 @@
                     class="relative w-full max-w-md max-h-[85vh] flex flex-col rounded-2xl bg-white dark:bg-[#1f2937] shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                     <div
                         class="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
-                        <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">更换头像</h3>
-                        <button type="button" :aria-label="td('lng_close', '关闭')"
+                        <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ t('avatar.change') }}</h3>
+                        <button type="button" :aria-label="t('lng_close')"
                             class="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                             @click="close">
                             <XIcon class="w-4.5 h-4.5" />
@@ -21,19 +21,20 @@
                         <div class="flex items-center gap-1.5 rounded-xl bg-gray-100 dark:bg-gray-800 p-1 w-max">
                             <button type="button" class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
                                 :class="tab === 'history' ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-100' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'"
-                                @click="tab = 'history'">历史头像</button>
+                                @click="tab = 'history'">{{ t('avatar.history') }}</button>
                             <button type="button" class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
                                 :class="tab === 'upload' ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-100' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'"
-                                @click="tab = 'upload'">上传新照片</button>
+                                @click="tab = 'upload'">{{ t('avatar.upload') }}</button>
                         </div>
                     </div>
 
                     <div class="flex-1 overflow-y-auto custom-scrollbar p-5">
                         <!-- 历史头像 -->
                         <template v-if="tab === 'history'">
-                            <p v-if="historyLoading" class="text-sm text-gray-400 py-8 text-center">正在加载头像…</p>
+                            <p v-if="historyLoading" class="text-sm text-gray-400 py-8 text-center">{{
+                                t('avatar.loadingHistory') }}</p>
                             <p v-else-if="historyItems.length === 0" class="text-sm text-gray-400 py-8 text-center">
-                                暂无历史头像</p>
+                                {{ t('avatar.noHistory') }}</p>
                             <div v-else class="grid grid-cols-4 gap-2.5">
                                 <button v-for="(item, i) in historyItems" :key="item.id" type="button"
                                     class="aspect-square rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 transition-transform hover:scale-105"
@@ -42,13 +43,14 @@
                                     <img v-if="item.url || item.preview" :src="item.url ?? item.preview"
                                         class="w-full h-full object-cover" />
                                     <span v-else
-                                        class="w-full h-full flex items-center justify-center text-gray-400 text-xs">加载中</span>
+                                        class="w-full h-full flex items-center justify-center text-gray-400 text-xs">{{
+                                            t('avatar.loading') }}</span>
                                 </button>
                             </div>
                             <button v-if="selectedHistoryIndex >= 0" type="button" @click="saveFromHistory"
                                 :disabled="saving"
                                 class="mt-4 w-full py-2.5 rounded-xl bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors disabled:opacity-50">
-                                {{ saving ? '设置中…' : '设为头像' }}
+                                {{ saving ? t('avatar.setting') : t('avatar.setAsAvatar') }}
                             </button>
                         </template>
 
@@ -58,9 +60,9 @@
                                 <button type="button" @click="pickNewPhoto"
                                     class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
                                     <ImagePlusIcon class="w-4.5 h-4.5" />
-                                    选择图片
+                                    {{ t('avatar.chooseImage') }}
                                 </button>
-                                <p class="text-xs text-gray-400">支持 JPG / PNG / WEBP 等图片格式</p>
+                                <p class="text-xs text-gray-400">{{ t('avatar.supportedFormats') }}</p>
                             </div>
                             <div v-else>
                                 <!-- 裁剪画布 -->
@@ -77,14 +79,14 @@
                                         class="flex-1 accent-teal-500" @input="redrawCrop" />
                                     <ZoomInIcon class="w-4 h-4 text-gray-400 shrink-0" />
                                 </div>
-                                <p class="text-xs text-gray-400 mt-1">拖动图片调整位置，拖动滑块调整缩放</p>
+                                <p class="text-xs text-gray-400 mt-1">{{ t('avatar.dragHint') }}</p>
                                 <button type="button" @click="saveFromUpload" :disabled="saving"
                                     class="mt-4 w-full py-2.5 rounded-xl bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors disabled:opacity-50">
-                                    {{ saving ? '设置中…' : '保存为头像' }}
+                                    {{ saving ? t('avatar.setting') : t('avatar.saveAsAvatar') }}
                                 </button>
                                 <button type="button" @click="resetUpload"
                                     class="mt-2 w-full py-2 rounded-xl text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                                    重新选择
+                                    {{ t('avatar.reselect') }}
                                 </button>
                             </div>
                         </template>
@@ -92,10 +94,10 @@
 
                     <div v-if="currentPhotoId"
                         class="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between shrink-0">
-                        <span class="text-xs text-gray-400">当前头像</span>
+                        <span class="text-xs text-gray-400">{{ t('avatar.currentAvatar') }}</span>
                         <button type="button" @click="deleteCurrent" :disabled="saving"
                             class="text-sm text-red-500 hover:text-red-600 font-medium disabled:opacity-50">
-                            {{ saving ? '处理中…' : '删除当前头像' }}
+                            {{ saving ? t('avatar.processing') : t('avatar.deleteCurrent') }}
                         </button>
                     </div>
                 </div>
@@ -104,6 +106,8 @@
     </Teleport>
 </template>
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { ref, watch, nextTick, onUnmounted } from 'vue';
 import { XIcon, ImagePlusIcon, ZoomInIcon, ZoomOutIcon } from 'lucide-vue-next';
 import { open } from '@tauri-apps/plugin-dialog';
@@ -115,7 +119,6 @@ import { tdlibSend } from '../../utils/tdlib';
 import { downloadFileUrl } from '../../utils/profileMedia';
 import type { chatPhoto, file } from 'tdlib-types';
 
-import { td } from "../../utils/tdLang";
 const props = defineProps<{
     modelValue: boolean;
     /** 历史头像列表（getUserProfilePhotos） */
@@ -281,14 +284,14 @@ async function pickNewPhoto() {
     try {
         const selected = await open({
             multiple: false,
-            title: '选择图片',
-            filters: [{ name: td('lng_in_dlg_photo', '图片'), extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif'] }],
+            title: t('avatar.pickImage'),
+            filters: [{ name: t('lng_in_dlg_photo'), extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif'] }],
         });
         if (!selected || Array.isArray(selected)) return;
         await loadUploadImage(selected);
     } catch (e) {
         console.error('pick new photo failed:', e);
-        MessagePlugin.error('选择图片失败');
+        MessagePlugin.error(t('avatar.pickFailed'));
     }
 }
 
@@ -305,8 +308,8 @@ function loadUploadImage(path: string): Promise<void> {
             resolve();
         };
         img.onerror = () => {
-            reject(new Error('图片加载失败'));
-            MessagePlugin.error('图片加载失败，请换一张图片');
+            reject(new Error(t('avatar.imageLoadFailed')));
+            MessagePlugin.error(t('avatar.imageLoadFailedHint'));
         };
         img.src = convertFileSrc(path);
     });
@@ -342,12 +345,12 @@ async function saveFromHistory() {
             _: 'setProfilePhoto',
             photo: { _: 'inputChatPhotoPrevious', chat_photo_id: item.id },
         });
-        MessagePlugin.success('头像已更新');
+        MessagePlugin.success(t('avatar.avatarUpdated'));
         emit('changed');
         close();
     } catch (e) {
         console.error('set profile photo from history failed:', e);
-        MessagePlugin.error('设置头像失败');
+        MessagePlugin.error(t('avatar.setFailed'));
     } finally {
         saving.value = false;
     }
@@ -362,12 +365,12 @@ async function saveFromUpload() {
             _: 'setProfilePhoto',
             photo: { _: 'inputChatPhotoStatic', photo: { _: 'inputFileLocal', path } },
         });
-        MessagePlugin.success('头像已更新');
+        MessagePlugin.success(t('avatar.avatarUpdated'));
         emit('changed');
         close();
     } catch (e) {
         console.error('set profile photo from upload failed:', e);
-        MessagePlugin.error('设置头像失败');
+        MessagePlugin.error(t('avatar.setFailed'));
     } finally {
         saving.value = false;
     }
@@ -378,12 +381,12 @@ async function deleteCurrent() {
     saving.value = true;
     try {
         await tdlibSend({ _: 'deleteProfilePhoto', profile_photo_id: props.currentPhotoId });
-        MessagePlugin.success('头像已删除');
+        MessagePlugin.success(t('avatar.deleted'));
         emit('changed');
         close();
     } catch (e) {
         console.error('delete profile photo failed:', e);
-        MessagePlugin.error('删除头像失败');
+        MessagePlugin.error(t('avatar.deleteFailed'));
     } finally {
         saving.value = false;
     }

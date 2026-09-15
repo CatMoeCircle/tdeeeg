@@ -9,7 +9,7 @@
                     <div
                         class="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
                         <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ title }}</h3>
-                        <button type="button" :aria-label="td('lng_close', '关闭')"
+                        <button type="button" :aria-label="t('lng_close')"
                             class="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                             @click="$emit('update:modelValue', false)">
                             <XIcon class="w-4.5 h-4.5" />
@@ -29,9 +29,10 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { XIcon } from 'lucide-vue-next';
 
-import { td } from "../../utils/tdLang";
 defineProps<{
     modelValue: boolean;
     title: string;

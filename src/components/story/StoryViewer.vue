@@ -60,7 +60,7 @@
                                 class="w-8 h-8 rounded-full flex items-center justify-center transition-colors" :class="isAnimationVideo
                                     ? 'text-white/40 cursor-default'
                                     : 'text-white/90 hover:text-white hover:bg-white/10'" :disabled="isAnimationVideo"
-                                @click.stop="toggleMute" :title="isAnimationVideo ? '无声动画' : (muted ? '打开声音' : td('lng_channel_mute', '静音'))">
+                                @click.stop="toggleMute" :title="isAnimationVideo ? '无声动画' : (muted ? '打开声音' : t('lng_channel_mute'))">
                                 <Volume2Icon v-if="!muted && !isAnimationVideo" :size="18" />
                                 <VolumeXIcon v-else :size="18" />
                             </button>
@@ -160,7 +160,7 @@
                                     @keydown.enter.prevent="onSendLiveReply" />
                                 <button type="button"
                                     class="w-9 h-9 rounded-full flex items-center justify-center text-white/90 hover:bg-white/10 transition-colors shrink-0 disabled:opacity-40"
-                                    :disabled="!liveReplyText.trim()" @click.stop="onSendLiveReply" :title="td('lng_forward_send', '发送')">
+                                    :disabled="!liveReplyText.trim()" @click.stop="onSendLiveReply" :title="t('lng_forward_send')">
                                     <SendIcon :size="18" />
                                 </button>
                                 <button type="button"
@@ -184,7 +184,7 @@
                             <div class="flex-1" />
                             <button type="button"
                                 class="w-9 h-9 rounded-full flex items-center justify-center text-white/90 hover:text-white hover:bg-white/10 transition-colors"
-                                @click.stop="onShare" :title="td('lng_proxy_share', '分享')">
+                                @click.stop="onShare" :title="t('lng_proxy_share')">
                                 <ShareIcon :size="18" />
                             </button>
                             <button type="button"
@@ -204,7 +204,7 @@
                                     @keydown.enter.prevent="onSendReply" @pointerdown.stop />
                                 <button type="button"
                                     class="w-9 h-9 rounded-full flex items-center justify-center text-white/90 hover:bg-white/10 transition-colors shrink-0 disabled:opacity-40"
-                                    :disabled="!replyText.trim()" @click.stop="onSendReply" :title="td('lng_forward_send', '发送')">
+                                    :disabled="!replyText.trim()" @click.stop="onSendReply" :title="t('lng_forward_send')">
                                     <SendIcon :size="18" />
                                 </button>
                             </div>
@@ -217,6 +217,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import type { story, file, photo, chatPhotoInfo, profilePhoto, formattedText } from "tdlib-types";
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -236,7 +238,6 @@ import { settings } from "../../store/settings";
 import { useAudioPlayerStore } from "../../store/audioPlayer";
 import { openContextMenu } from "../../store/contextMenu";
 import type { ContextMenuItem } from "../contextMenu/types";
-import { td } from "../../utils/tdLang";
 import {
     CopyIcon,
     LinkIcon,
@@ -1030,7 +1031,7 @@ function onMoreClick(e: MouseEvent) {
         },
         {
             key: "mute",
-            label: muted.value ? "打开声音" : td('lng_channel_mute', '静音'),
+            label: muted.value ? "打开声音" : t('lng_channel_mute'),
             icon: SoundIcon,
             onClick: toggleMute,
             // 照片故事无静音；动画视频不可切换声音
@@ -1038,7 +1039,7 @@ function onMoreClick(e: MouseEvent) {
         },
         {
             key: "close",
-            label: td('lng_close', '关闭'),
+            label: t('lng_close'),
             icon: CloseIcon,
             onClick: close,
         },

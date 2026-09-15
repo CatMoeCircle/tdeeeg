@@ -15,7 +15,7 @@ withDefaults(defineProps<{
 });
 
 /** 本地 PaidReactionActivate.tgs 资源 URL */
-const PAID_TGS_URL = new URL('../../assets/PaidReactionActivate.tgs', import.meta.url).href;
+const PAID_TGS_URL = new URL('../../assets/animations/PaidReactionActivate.tgs', import.meta.url).href;
 
 const playerRef = ref<TgsPlayerInstance | null>(null);
 const tgsData = ref<Uint8Array | null>(null);

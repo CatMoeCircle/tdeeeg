@@ -84,7 +84,7 @@ const numberFormatter = new Intl.NumberFormat('zh-CN');
 const formatCount = (count: number) => numberFormatter.format(count);
 
 /** 本地 party.tgs（抽奖庆祝动画）资源 URL */
-const PARTY_TGS_URL = new URL('../../../../../assets/party.tgs', import.meta.url).href;
+const PARTY_TGS_URL = new URL('../../../../../assets/animations/party.tgs', import.meta.url).href;
 
 const rootEl = ref<HTMLElement | null>(null);
 const partyPlayerRef = ref<TgsPlayerInstance | null>(null);

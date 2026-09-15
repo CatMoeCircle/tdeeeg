@@ -4,7 +4,7 @@
             <button type="button" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" @click="goBack">
                 <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
             </button>
-            <h2 class="text-lg font-semibold">开发者选项</h2>
+            <h2 class="text-lg font-semibold">{{ t('dev.title') }}</h2>
         </div>
 
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
@@ -13,9 +13,9 @@
                 <!-- 发送 TDLib 方法 -->
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
-                        发送 TDLib 方法</h3>
+                        {{ t('dev.sendTdlib') }}</h3>
                     <p class="text-xs text-gray-500 mb-2">
-                        粘贴 JSON 请求（如 {"_":"getMe"}），或直接输入方法名（如 getMe），结果会打印到控制台。调试时请谨慎操作。
+                        {{ t('dev.sendTdlibDesc') }}
                     </p>
                     <div class="flex items-center gap-2">
                         <input v-model="debugTdlibInput" type="text" placeholder='{"_":"getMe"}' spellcheck="false"
@@ -24,7 +24,7 @@
                         <button type="button"
                             class="shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50"
                             :disabled="debugTdlibSending" @click="sendDebugTdlib">
-                            {{ debugTdlibSending ? '发送中…' : td('lng_forward_send', '发送') }}
+                            {{ debugTdlibSending ? t('dev.sending') : t('lng_forward_send') }}
                         </button>
                     </div>
                     <pre v-if="debugTdlibResult"
@@ -38,13 +38,13 @@
                 <!-- 开关控制台打印 update -->
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
-                        日志</h3>
+                        {{ t('dev.logs') }}</h3>
                     <button type="button"
                         class="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
                         @click="setLogUpdates(!logUpdates)">
                         <div class="text-left">
-                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">控制台打印 Update</p>
-                            <p class="text-xs text-gray-500 mt-0.5">开启后在控制台打印，并在下方列表展示最近的 tdlib-update</p>
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('dev.logUpdates') }}</p>
+                            <p class="text-xs text-gray-500 mt-0.5">{{ t('dev.logUpdatesDesc') }}</p>
                         </div>
                         <div class="w-9 h-5 rounded-full transition-colors relative"
                             :class="logUpdates ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'">
@@ -56,16 +56,17 @@
                     <!-- 最近 Update 列表 -->
                     <div v-if="logUpdates" class="mt-4">
                         <div class="flex items-center justify-between mb-2">
-                            <p class="text-xs text-gray-500">最近 {{ recentUpdates.length }} 条（最多保留 200 条，最新在上）</p>
+                            <p class="text-xs text-gray-500">{{ t('dev.recentCount', { count: recentUpdates.length })
+                            }}</p>
                             <button type="button"
                                 class="px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
                                 @click="clearRecentUpdates()">
-                                清空
+                                {{ t('dev.clear') }}
                             </button>
                         </div>
                         <div v-if="recentUpdates.length === 0"
                             class="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-3 py-6 text-center text-xs text-gray-400">
-                            等待 update 事件…（与 Telegram 交互后会陆续出现）
+                            {{ t('dev.waitingUpdate') }}
                         </div>
                         <div v-else
                             class="rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800 max-h-96 overflow-y-auto custom-scrollbar">
@@ -84,9 +85,9 @@
                                 </div>
                                 <button type="button"
                                     class="shrink-0 px-2 py-1 rounded-md text-[11px] font-medium bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-                                    title="复制完整 update JSON"
+                                    :title="t('dev.copyFullJson')"
                                     @click="copyUpdate(u)">
-                                    复制
+                                    {{ t('dev.copy') }}
                                 </button>
                             </div>
                         </div>
@@ -96,13 +97,14 @@
                 <!-- 右键菜单调试项 -->
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
-                        右键菜单</h3>
+                        {{ t('dev.contextMenu') }}</h3>
                     <button type="button"
                         class="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
                         @click="setShowCopyJsonInMenus(!showCopyJsonInMenus)">
                         <div class="text-left">
-                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">显示“复制原始 JSON”</p>
-                            <p class="text-xs text-gray-500 mt-0.5">在对话列表与消息右键菜单中显示“复制对话/消息原始 JSON”调试项</p>
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('dev.showCopyJson')
+                            }}</p>
+                            <p class="text-xs text-gray-500 mt-0.5">{{ t('dev.showCopyJsonDesc') }}</p>
                         </div>
                         <div class="w-9 h-5 rounded-full transition-colors relative"
                             :class="showCopyJsonInMenus ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'">
@@ -115,37 +117,38 @@
                 <!-- 崩溃/白屏日志 -->
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
-                        崩溃日志</h3>
+                        {{ t('dev.crashLog') }}</h3>
                     <p class="text-xs text-gray-500 mb-3">
-                        记录全局错误、未处理 Promise、bootstrap 失败与 #app 被清空事件（localStorage: tdgram-crash-log）
+                        {{ t('dev.crashLogDesc') }}
                     </p>
                     <div class="flex gap-2">
                         <button type="button"
                             class="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700"
                             @click="loadCrashLog">
-                            刷新日志
+                            {{ t('dev.refreshLog') }}
                         </button>
                         <button type="button"
                             class="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-red-500"
                             @click="clearCrashLogAndReload">
-                            清空
+                            {{ t('dev.clear') }}
                         </button>
                     </div>
                     <pre v-if="crashLogText"
                         class="mt-3 p-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-xs font-mono text-gray-700 dark:text-gray-300 overflow-auto max-h-80 whitespace-pre-wrap break-all">{{ crashLogText }}</pre>
-                    <p v-else class="mt-3 text-xs text-gray-400">暂无崩溃日志</p>
+                    <p v-else class="mt-3 text-xs text-gray-400">{{ t('dev.noCrashLog') }}</p>
                 </section>
 
                 <!-- 打开开发者工具 -->
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
-                        调试工具</h3>
+                        {{ t('dev.debugTools') }}</h3>
                     <button type="button"
                         class="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
                         @click="openDevTools">
                         <div class="text-left">
-                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">打开开发者工具</p>
-                            <p class="text-xs text-gray-500 mt-0.5">打开前端 F12 调试工具</p>
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('dev.openDevtools')
+                            }}</p>
+                            <p class="text-xs text-gray-500 mt-0.5">{{ t('dev.openDevtoolsDesc') }}</p>
                         </div>
                         <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                     </button>
@@ -154,13 +157,13 @@
                 <!-- 显示当前所有 Option 状态 -->
                 <section>
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
-                        Option 状态</h3>
+                        {{ t('dev.optionStatus') }}</h3>
                     <button type="button"
                         class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 text-sm text-gray-900 dark:text-gray-100"
                         :disabled="debugOptionsLoading" @click="loadDebugOptions">
                         <RefreshCwIcon class="w-4 h-4 text-gray-400"
                             :class="debugOptionsLoading ? 'animate-spin' : ''" />
-                        <span>{{ debugOptionsLoading ? '加载中…' : '刷新当前 Option 状态' }}</span>
+                        <span>{{ debugOptionsLoading ? t('dev.loading') : t('dev.refreshOptions') }}</span>
                     </button>
                     <div v-if="debugOptions && debugOptions.length"
                         class="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800">
@@ -177,6 +180,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, RefreshCw as RefreshCwIcon } from 'lucide-vue-next';
@@ -189,7 +194,6 @@ import {
 } from '../../store/debug';
 import { readCrashLog, clearCrashLog } from '../../utils/crashGuard';
 
-import { td } from "../../utils/tdLang";
 function formatUpdateTime(t: number): string {
     const d = new Date(t);
     const pad = (n: number) => String(n).padStart(2, '0');
@@ -199,9 +203,9 @@ function formatUpdateTime(t: number): string {
 async function copyUpdate(u: CachedUpdate) {
     try {
         await navigator.clipboard.writeText(JSON.stringify(u.payload, null, 2));
-        MessagePlugin.success({ content: `已复制 ${u.type}`, placement: 'top-right' });
+        MessagePlugin.success({ content: t('dev.copied', { type: u.type }), placement: 'top-right' });
     } catch (e) {
-        MessagePlugin.error({ content: '复制失败', placement: 'top-right' });
+        MessagePlugin.error({ content: t('dev.copyFailed'), placement: 'top-right' });
         console.warn('copy update failed', e);
     }
 }

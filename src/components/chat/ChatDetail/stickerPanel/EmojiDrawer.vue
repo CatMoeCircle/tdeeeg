@@ -20,7 +20,7 @@
             <button type="button"
                 class="sp-cat-pill shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-base leading-none transition-colors"
                 :class="activeBlock === 'recent' ? 'bg-blue-500/15 text-blue-500' : 'text-gray-500 hover:bg-black/5 dark:hover:bg-white/10'"
-                @click="scrollToBlock('recent')" :title="td('lng_recent_title', '最近')">
+                @click="scrollToBlock('recent')" :title="t('lng_recent_title')">
                 <ClockIcon class="w-4 h-4" />
             </button>
 
@@ -60,7 +60,7 @@
                 @click="scrollToBlock(`custom_${set.id}`)" :title="set.title">
                 <StickerMediaItem v-if="installedIcon(set) && !isTgsIcon(set)" :item="installedIcon(set)" kind="sticker"
                     :size="20" :skin-tone="skinTone" />
-                <span v-else class="text-sm">{{ (set.title || td('lng_stickers_installed_tab', '表情'))?.[0] ?? '✨' }}</span>
+                <span v-else class="text-sm">{{ (set.title || t('lng_stickers_installed_tab'))?.[0] ?? '✨' }}</span>
             </button>
         </div>
 
@@ -184,7 +184,7 @@
                             class="sp-add-btn shrink-0 ml-2 px-2.5 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50"
                             :class="isSetInstalled(set.id) ? 'bg-black/5 dark:bg-white/10 text-gray-400 cursor-default' : 'bg-blue-500/15 text-blue-500 hover:bg-blue-500/25'"
                             @click="addTrendingSet(set.id)">
-                            {{ isSetInstalled(set.id) ? '已添加' : td('lng_stickers_featured_add', '添加') }}
+                            {{ isSetInstalled(set.id) ? '已添加' : t('lng_stickers_featured_add') }}
                         </button>
                     </div>
                 </div>
@@ -215,6 +215,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { SearchIcon, XIcon, ClockIcon } from 'lucide-vue-next';
 // GlobalEmojiInline removed - using global Apple Color Emoji font
@@ -226,7 +228,6 @@ import { stickerPanelState } from './types';
 import { tdlibSend } from '../../../../utils/tdlib';
 import type { sticker, animation, stickerSetInfo, emojiStatus } from 'tdlib-types';
 
-import { td } from "../../../../utils/tdLang";
 /** Fitzpatrick 肤色选项 */
 const SKIN_TONES = [
     { value: 0, color: '#FFE0BD', label: '默认' },   // 用皮肤色占位，实际渲染原 emoji
@@ -317,7 +318,7 @@ function installedIcon(set: stickerSetInfo): sticker | undefined {
 function isTgsIcon(set: stickerSetInfo): boolean {
     return installedIcon(set)?.format?._ === 'stickerFormatTgs';
 }
-/** 推荐包是否已被安装（用于td('lng_stickers_featured_add', '添加')按钮文案切换） */
+/** 推荐包是否已被安装（用于 t('lng_stickers_featured_add') 按钮文案切换） */
 function isSetInstalled(setId: string): boolean {
     return installedSets.value.some((s) => String(s.id) === String(setId));
 }

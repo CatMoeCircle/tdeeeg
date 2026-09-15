@@ -317,7 +317,7 @@
                         class="flex items-center justify-center w-9 h-9 rounded-full text-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-100 select-none shrink-0"
                         :class="{ 'opacity-50 cursor-not-allowed': r.needsPremium && !(userProfile?.is_premium) }"
                         :disabled="r.needsPremium && !(userProfile?.is_premium)"
-                        :title="r.needsPremium ? '需要 Premium' : r.type._ === 'reactionTypePaid' ? td('lng_sr_message_column_paid_reactions', '付费回应') : r.emoji"
+                        :title="r.needsPremium ? '需要 Premium' : r.type._ === 'reactionTypePaid' ? t('lng_sr_message_column_paid_reactions') : r.emoji"
                         @click.stop="onCapsuleReactionClick(r)">
                         <PaidReactionIcon v-if="r.type._ === 'reactionTypePaid'" :size="28" />
                         <span v-else-if="!r.customEmojiId" class="leading-none">{{ r.emoji }}</span>
@@ -347,12 +347,12 @@
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-200 flex-1 truncate">
                     已选 {{ selectedMsgIds.length }} 条
                 </span>
-                <button type="button" aria-label="转发选中消息" :title="td('lng_mediaview_forward', '转发')"
+                <button type="button" aria-label="转发选中消息" :title="t('lng_mediaview_forward')"
                     class="p-2 rounded-full enabled:hover:bg-gray-100 dark:enabled:hover:bg-gray-800 text-gray-600 dark:text-gray-300 disabled:opacity-40"
                     :disabled="selectedMsgIds.length === 0" @click="openForwardPicker">
                     <ShareIcon class="w-5 h-5" />
                 </button>
-                <button type="button" aria-label="删除选中消息" :title="td('lng_selected_delete', '删除')"
+                <button type="button" aria-label="删除选中消息" :title="t('lng_selected_delete')"
                     class="p-2 rounded-full enabled:hover:bg-red-50 dark:enabled:hover:bg-red-900/30 text-red-500 disabled:opacity-40 disabled:cursor-not-allowed"
                     :disabled="!canDeleteSelected" @click="onDeleteSelected">
                     <TrashIcon class="w-5 h-5" />
@@ -497,7 +497,7 @@
                 <button type="button" :disabled="isNotificationTogglePending"
                     class="h-12 min-w-32 px-5 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg text-sm font-medium text-blue-500 dark:text-blue-400 hover:bg-white/80 dark:hover:bg-gray-800/90 disabled:opacity-60 disabled:cursor-wait transition-colors"
                     @click="toggleNotifications">
-                    {{ notificationsMuted ? td('lng_enable_notifications_from_tray', '开启通知') : td('lng_channel_mute', '关闭通知') }}
+                    {{ notificationsMuted ? t('lng_enable_notifications_from_tray') : t('lng_channel_mute') }}
                 </button>
                 <button v-if="linkedChatId" type="button" title="打开讨论组" aria-label="打开讨论组"
                     class="w-12 h-12 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg flex items-center justify-center text-blue-500 dark:text-blue-400 hover:bg-white/80 dark:hover:bg-gray-800/90 transition-colors"
@@ -546,6 +546,8 @@
     </div>
 </template>
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import MessageInput from './MessageInput.vue';
 import StickerPanel from './stickerPanel/StickerPanel.vue';
 import { stickerPanelState, openStickerPanel as openStickerPanelOf, closeStickerPanel as closeStickerPanelOf } from './stickerPanel/types';
@@ -915,13 +917,13 @@ function getChatSubtitle(): string {
     if (!chat.value) return '';
     const c = chat.value;
     if (c.type._ === 'chatTypePrivate' || c.type._ === 'chatTypeSecret') {
-        return td('lng_media_auto_private_chats', '私聊');
+        return t('lng_media_auto_private_chats');
     }
     if (c.type._ === 'chatTypeBasicGroup') {
-        return td('lng_notification_groups', '群组');
+        return t('lng_notification_groups');
     }
     if (c.type._ === 'chatTypeSupergroup') {
-        return c.type.is_channel ? td('lng_notification_channels', '频道') : '超级群组';
+        return c.type.is_channel ? t('lng_notification_channels') : '超级群组';
     }
     return '';
 }
@@ -1060,7 +1062,7 @@ const replyQuoteText = ref<string | null>(null);
 const replyTargetInfo = computed<{ title: string; text: string; quote?: string } | null>(() => {
     const m = replyTargetMsg.value;
     if (!m) return null;
-    const title = isSelf(m) ? '你' : getDisplaySenderName(m) || td('lng_profile_participants_section', '成员');
+    const title = isSelf(m) ? '你' : getDisplaySenderName(m) || t('lng_profile_participants_section');
     const text = getMessagePlainText(m);
     return { title, text, quote: replyQuoteText.value ?? undefined };
 });
@@ -1132,7 +1134,7 @@ const editTargetInfo = computed<{ text: string; label: string } | null>(() => {
     const ft = getMessageFormattedText(m);
     return {
         text: ft?.text ?? getMessagePlainText(m),
-        label: td('lng_theme_edit', '编辑'),
+        label: t('lng_theme_edit'),
     };
 });
 
@@ -1502,7 +1504,6 @@ function onReactionPickerSelectCustomEmoji(id: string) {
 // ===== 胶囊回应选择器（独立于右键菜单的浮动栏） =====
 import { watch as vueWatch } from 'vue';
 import { state as contextMenuState } from '../../../store/contextMenu';
-import { td } from "../../../utils/tdLang";
 const reactionCapsuleRef = ref<HTMLElement | null>(null);
 const reactionCapsuleVisible = ref(false);
 const reactionCapsuleData = ref<ContextMenuReactionRow | null>(null);
@@ -3339,7 +3340,7 @@ async function buildReactionRow(msg: message): Promise<import('../../contextMenu
             seen.add(key);
             const emoji = r.type._ === 'reactionTypeEmoji' ? r.type.emoji
                 : r.type._ === 'reactionTypeCustomEmoji' ? '🏷'
-                    : td('lng_sr_message_column_paid_reactions', '付费回应');
+                    : t('lng_sr_message_column_paid_reactions');
             all.push({ type: r.type, emoji, customEmojiId: r.type._ === 'reactionTypeCustomEmoji' ? r.type.custom_emoji_id : undefined, needsPremium: r.needs_premium });
             if (all.length >= 6) break;
         }
@@ -3712,7 +3713,7 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
     if (!isService && canReplyMessage(msg, cid)) {
         items.push({
             key: 'reply',
-            label: td('lng_in_reply_to', '回复'),
+            label: t('lng_in_reply_to'),
             icon: ReplyIcon,
             onClick: () => startReply(msg),
         });
@@ -3735,7 +3736,7 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
     if (!isService && !isInSavedMessages.value && canEditMessage(msg, cid)) {
         items.push({
             key: 'edit',
-            label: td('lng_theme_edit', '编辑'),
+            label: t('lng_theme_edit'),
             icon: PencilIcon,
             onClick: () => void startEdit(msg),
         });
@@ -3793,7 +3794,7 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
     if (!isService && msgFormattedText && msgFormattedText.text.trim().length > 0) {
         items.push({
             key: 'translate',
-            label: td('lng_ai_compose_tab_translate', '翻译'),
+            label: t('lng_ai_compose_tab_translate'),
             icon: LanguagesIcon,
             onClick: () => openTranslateFor(msg),
         });
@@ -3874,7 +3875,7 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
             if (msg.is_pinned) {
                 items.push({
                     key: 'pin',
-                    label: td('lng_context_unpin_from_top', '取消置顶'),
+                    label: t('lng_context_unpin_from_top'),
                     icon: PinIcon,
                     onClick: async () => {
                         await toggleMessagePinned(cid!, msg);
@@ -3883,7 +3884,7 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
             } else {
                 items.push({
                     key: 'pin',
-                    label: td('lng_context_pin_to_top', '置顶'),
+                    label: t('lng_context_pin_to_top'),
                     icon: PinIcon,
                     onClick: async () => {
                         await openPinConfirm(msg);
@@ -3895,7 +3896,7 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
         if (canDelete) {
             items.push({
                 key: 'delete',
-                label: td('lng_selected_delete', '删除'),
+                label: t('lng_selected_delete'),
                 icon: TrashIcon,
                 danger: true,
                 onClick: async () => {
@@ -4314,7 +4315,7 @@ const canJoinCurrentChat = computed(() =>
 
 const membershipActionLabel = computed(() => {
     const currentChat = chat.value;
-    const noun = currentChat?.type._ === 'chatTypeSupergroup' && currentChat.type.is_channel ? td('lng_notification_channels', '频道') : td('lng_notification_groups', '群组');
+    const noun = currentChat?.type._ === 'chatTypeSupergroup' && currentChat.type.is_channel ? t('lng_notification_channels') : t('lng_notification_groups');
     if (isJoinPending.value) return '处理中...';
     if (joinRequestSent.value) return '已发送加入申请';
     if (!canJoinCurrentChat.value) return `无法加入${noun}`;

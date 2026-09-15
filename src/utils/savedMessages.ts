@@ -1,6 +1,6 @@
 import type { ChatType } from 'tdlib-types';
+import i18n from "../i18n";
 
-import { td } from "../utils/tdLang";
 type MessageDisplayDirection = {
   is_outgoing?: boolean;
   sender_id: {
@@ -10,7 +10,7 @@ type MessageDisplayDirection = {
   forward_info?: unknown;
 };
 
-export const SAVED_MESSAGES_TITLE = td('lng_saved_short', '收藏');
+export const SAVED_MESSAGES_TITLE = i18n.global.t('lng_saved_short');
 
 /** TDLib 将收藏表示为与当前账号自己的私聊。 */
 export const isSavedMessagesChat = (

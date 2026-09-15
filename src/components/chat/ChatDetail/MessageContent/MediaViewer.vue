@@ -352,6 +352,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { isMediaViewerActive } from '../../../../store/mediaViewer';
 import { pauseAudioForVideo, onVideoStopped } from '../../../../store/videoPlayback';
@@ -373,7 +375,6 @@ import { settings } from '../../../../store/settings';
 import MessageTextContent from './content/MessageTextContent.vue';
 import LoaderIndicator from '../../../common/LoaderIndicator';
 
-import { td } from "../../../../utils/tdLang";
 export interface MediaViewerVideoQuality {
     /** 唯一标识 */
     id: string;
@@ -869,7 +870,7 @@ function onContextMenu(e: MouseEvent) {
     if (currentMessageId.value !== undefined) {
         items.push({
             key: 'view',
-            label: td('lng_tagged_view_saved', '查看'),
+            label: t('lng_tagged_view_saved'),
             icon: EyeIcon,
             onClick: handleViewItem,
         });
@@ -879,7 +880,7 @@ function onContextMenu(e: MouseEvent) {
     if (isImage.value) {
         items.push({
             key: 'copy',
-            label: td('lng_mac_menu_copy', '复制'),
+            label: t('lng_mac_menu_copy'),
             icon: CopyIcon,
             onClick: handleCopyImage,
         });
@@ -889,7 +890,7 @@ function onContextMenu(e: MouseEvent) {
     if (currentMessageId.value !== undefined) {
         items.push({
             key: 'forward',
-            label: td('lng_mediaview_forward', '转发'),
+            label: t('lng_mediaview_forward'),
             icon: CornerUpRightIcon,
             onClick: handleForwardItem,
         });

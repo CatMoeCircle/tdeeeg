@@ -36,7 +36,7 @@
                 <div
                     class="w-120 max-w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-800">
                     <div class="relative px-6 pb-5 pt-5 text-center">
-                        <button type="button" :aria-label="td('lng_close', '关闭')"
+                        <button type="button" :aria-label="t('lng_close')"
                             class="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
                             @click="closeDetails">
                             <XIcon class="h-5 w-5" />
@@ -106,6 +106,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { XIcon } from 'lucide-vue-next';
 import type { chat, chatPhotoInfo, messageGift, messageSticker, profilePhoto, user, MessageSender } from 'tdlib-types';
@@ -115,7 +117,6 @@ import Avatar from '../../../avatar.vue';
 import MessageStickerContent from './MessageStickerContent.vue';
 import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 
-import { td } from "../../../../../utils/tdLang";
 type GiftParty = {
     name: string;
     photo?: chatPhotoInfo | profilePhoto;

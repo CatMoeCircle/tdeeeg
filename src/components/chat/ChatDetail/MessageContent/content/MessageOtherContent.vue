@@ -51,7 +51,7 @@
         <div v-else-if="content._ === 'messageCall'" class="flex items-center gap-2 text-sm">
             <component :is="content.is_video ? VideoIcon : PhoneIcon" class="w-4 h-4 shrink-0"
                 :class="content.is_video ? 'text-green-500' : 'text-blue-500'" />
-            <span>{{ content.is_video ? '视频通话' : td('lng_settings_notifications_calls_title', '语音通话') }}</span>
+            <span>{{ content.is_video ? '视频通话' : t('lng_settings_notifications_calls_title') }}</span>
         </div>
 
         <!-- Unsupported -->
@@ -62,11 +62,12 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { computed } from 'vue';
 import type { MessageContent } from 'tdlib-types';
 import { MapPinIcon, PhoneIcon, VideoIcon } from 'lucide-vue-next';
 import MessagePollContent from './MessagePollContent.vue';
-import { td } from "../../../../../utils/tdLang";
 // GlobalEmojiInline removed - using global Apple Color Emoji font
 
 const props = defineProps<{

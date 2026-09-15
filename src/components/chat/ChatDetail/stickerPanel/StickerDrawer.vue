@@ -57,6 +57,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { SearchIcon, XIcon, Star, Trash2 } from 'lucide-vue-next';
 import StickerGroupSection from './StickerGroupSection.vue';
@@ -67,7 +69,6 @@ import type { ContextMenuItem } from '../../../../components/contextMenu/types';
 import type { sticker } from 'tdlib-types';
 import type { StickerGroup } from './composables/useStickerPicker';
 
-import { td } from "../../../../utils/tdLang";
 const emit = defineEmits<{ (e: 'pickSticker', stickerId: string): void }>();
 
 /** 贴纸区滚动位置记忆：记录上次浏览位置，重新打开时恢复（模块级，跨会话面板挂载保留） */
@@ -231,7 +232,7 @@ function onStickerContextMenu(ev: MouseEvent, s: sticker) {
     const items: ContextMenuItem[] = [
         {
             key: 'toggle-fav',
-            label: isFav ? '取消收藏' : td('lng_saved_short', '收藏'),
+            label: isFav ? '取消收藏' : t('lng_saved_short'),
             icon: Star,
             onClick: async () => {
                 await sticker.toggleFavorite(s);

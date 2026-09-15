@@ -4,7 +4,7 @@
         <Transition name="slide-up">
             <div v-if="!forumMode" class="py-1 px-3 overflow-hidden max-h-14">
                 <div class="relative">
-                    <input type="text" :placeholder="td('lng_dlg_filter', '搜索')"
+                    <input type="text" :placeholder="t('lng_dlg_filter')"
                         class="w-full pl-7 pr-3.5 py-1.5 bg-white/60 shadow-(--box-shadow) rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     <SearchIcon class="w-3.5 h-3.5 absolute left-2.5 top-2 text-gray-400" />
                 </div>
@@ -232,7 +232,7 @@
                         <div class="flex items-center gap-2 px-3 py-2.5 border-b border-gray-200 shrink-0">
                             <button type="button" @click="exitForumMode"
                                 class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-200 transition-colors shrink-0"
-                                :aria-label="td('lng_menu_back', '返回')">
+                                :aria-label="t('lng_menu_back')">
                                 <ArrowLeftIcon class="w-4 h-4 text-gray-600" />
                             </button>
                             <span class="text-sm font-medium text-gray-500 truncate">
@@ -330,7 +330,7 @@
                 class="border-t border-gray-200 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shrink-0 px-3 py-2.5">
                 <div class="flex items-stretch gap-2">
                     <div class="flex items-center gap-2">
-                        <button type="button" :aria-label="td('lng_cancel', '取消')"
+                        <button type="button" :aria-label="t('lng_cancel')"
                             class="flex items-center justify-center w-8 h-8 shrink-0 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
                             @click="exitChatSelectionMode">
                             <XIcon class="w-4 h-4" />
@@ -340,21 +340,21 @@
                         </span>
                     </div>
                     <div class="flex-1"></div>
-                    <button type="button" :title="toolbarNarrow ? td('lng_filters_type_no_archived', '归档') : ''"
+                    <button type="button" :title="toolbarNarrow ? t('lng_filters_type_no_archived') : ''"
                         class="flex flex-col items-center justify-center px-2 py-1 rounded-lg text-xs text-blue-500 hover:bg-blue-500/10 disabled:opacity-40"
                         :class="toolbarNarrow ? 'w-9 h-9' : 'gap-0.5'" :disabled="selectedChatIds.size === 0"
                         @click="archiveSelectedChats">
                         <ArchiveIcon class="w-5 h-5" />
                         <span v-if="!toolbarNarrow">归档</span>
                     </button>
-                    <button type="button" :title="toolbarNarrow ? td('lng_channel_mute', '静音') : ''"
+                    <button type="button" :title="toolbarNarrow ? t('lng_channel_mute') : ''"
                         class="flex flex-col items-center justify-center px-2 py-1 rounded-lg text-xs text-blue-500 hover:bg-blue-500/10 disabled:opacity-40"
                         :class="toolbarNarrow ? 'w-9 h-9' : 'gap-0.5'" :disabled="selectedChatIds.size === 0"
                         @click="muteSelectedChats">
                         <BellOffIcon class="w-5 h-5" />
                         <span v-if="!toolbarNarrow">静音</span>
                     </button>
-                    <button type="button" :title="toolbarNarrow ? td('lng_selected_delete', '删除') : ''"
+                    <button type="button" :title="toolbarNarrow ? t('lng_selected_delete') : ''"
                         class="flex flex-col items-center justify-center px-2 py-1 rounded-lg text-xs text-red-500 hover:bg-red-500/10 disabled:opacity-40"
                         :class="toolbarNarrow ? 'w-9 h-9' : 'gap-0.5'" :disabled="selectedChatIds.size === 0"
                         @click="deleteSelectedChats">
@@ -368,6 +368,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, type Component } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon, UserIcon, UsersIcon, MegaphoneIcon, BotIcon, FolderIcon, BellOffIcon, PinIcon, ArchiveIcon, ChevronRightIcon, ArchiveRestore as ArchiveRestoreIcon, PinOff as PinOffIcon, FolderPlus as FolderPlusIcon, FolderMinus as FolderMinusIcon, BellRing as BellRingIcon, LogOut as LogOutIcon, CheckCheck as CheckCheckIcon, Trash2 as Trash2Icon, X as XIcon, Copy as CopyIcon } from 'lucide-vue-next';
@@ -401,7 +403,6 @@ import MessagePreviewMedia from './MessagePreviewMedia.vue';
 import CustomEmojiInline from '../common/CustomEmojiInline.vue';
 import SlidingTabBar from '../common/SlidingTabBar.vue';
 
-import { td } from "../../utils/tdLang";
 const props = defineProps<{
     isArchive?: boolean;
 }>();
@@ -1059,7 +1060,7 @@ const buildChatContextMenu = (chat: Chat): ContextMenuItem[] => {
     // 取消置顶 / 置顶
     items.push({
         key: 'pin',
-        label: pinned ? td('lng_context_unpin_from_top', '取消置顶') : td('lng_context_pin_to_top', '置顶'),
+        label: pinned ? t('lng_context_unpin_from_top') : t('lng_context_pin_to_top'),
         icon: pinned ? PinOffIcon : PinIcon,
         onClick: () => {
             const list = archived ? { _: 'chatListArchive' } : undefined;
@@ -1089,7 +1090,7 @@ const buildChatContextMenu = (chat: Chat): ContextMenuItem[] => {
     if (!archived) {
         items.push({
             key: 'notify',
-            label: muted ? td('lng_enable_notifications_from_tray', '开启通知') : td('lng_channel_mute', '关闭通知'),
+            label: muted ? t('lng_enable_notifications_from_tray') : t('lng_channel_mute'),
             icon: muted ? BellRingIcon : BellOffIcon,
             onClick: () => (muted ? unmuteChat(chatId) : muteChat(chatId)),
         });

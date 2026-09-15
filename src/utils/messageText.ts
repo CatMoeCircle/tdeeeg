@@ -1,6 +1,6 @@
 import type { message, formattedText } from "tdlib-types";
+import i18n from "../i18n";
 
-import { td } from "../utils/tdLang";
 /**
  * 从消息内容中提取可复制/展示的纯文本。
  * 支持文本、富文本、代码、引用、文件/音频 caption、媒体 caption、贴纸 emoji 等。
@@ -45,17 +45,17 @@ export function getMessagePlainText(msg: message): string {
         case "messagePollOptionDeleted":
             return "删除了选项：" + (c.text.text ?? "");
         case "messageLocation":
-            return td('lng_maps_point', '位置');
+            return i18n.global.t('lng_maps_point');
         case "messageVenue":
-            return c.venue.title ?? td('lng_maps_point', '位置');
+            return c.venue.title ?? i18n.global.t('lng_maps_point');
         case "messageContact":
-            return (c.contact.first_name + " " + c.contact.last_name).trim() || td('lng_contacts_header', '联系人');
+            return (c.contact.first_name + " " + c.contact.last_name).trim() || i18n.global.t('lng_contacts_header');
         case "messageGame":
             return c.game.title ?? "";
         case "messageDice":
             return (c.emoji ?? "") + " " + (c.value ?? "") + "🎲";
         case "messageCall":
-            return c.is_video ? "视频通话" : td('lng_settings_notifications_calls_title', '语音通话');
+            return c.is_video ? "视频通话" : i18n.global.t('lng_settings_notifications_calls_title');
         default:
             return "";
     }

@@ -2,20 +2,20 @@
     <div class="h-full flex flex-col bg-white dark:bg-gray-900">
         <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3 shrink-0">
             <button type="button" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" @click="goBack"
-                :aria-label="td('lng_menu_back', '返回')">
+                :aria-label="t('lng_menu_back')">
                 <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
             </button>
-            <h2 class="text-lg font-semibold">对话壁纸</h2>
+            <h2 class="text-lg font-semibold">{{ t('wallpaper.title') }}</h2>
         </div>
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
             <div class="max-w-2xl space-y-6">
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <div class="flex items-center gap-3 mb-1">
-                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">默认壁纸
-                        </h3>
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{
+                            t('wallpaper.defaultSection') }}</h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
-                    <p class="text-xs text-gray-400 mt-2">没有单独设置聊天背景时，新对话会使用这里的壁纸。</p>
+                    <p class="text-xs text-gray-400 mt-2">{{ t('wallpaper.defaultDesc') }}</p>
                     <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                         <div class="h-32 relative overflow-hidden">
                             <div class="absolute inset-0" :style="previewBackgroundStyle"></div>
@@ -24,32 +24,33 @@
                             <div class="absolute inset-0 bg-black/5"></div>
                             <div
                                 class="absolute left-4 bottom-4 z-10 rounded-2xl rounded-bl-md bg-white/90 dark:bg-gray-800/90 px-3 py-2 text-xs text-gray-700 dark:text-gray-200 shadow-sm">
-                                对话壁纸预览</div>
+                                {{ t('wallpaper.previewIncoming') }}</div>
                             <div
                                 class="absolute right-4 bottom-4 z-10 rounded-2xl rounded-br-md bg-blue-500/90 px-3 py-2 text-xs text-white shadow-sm">
-                                看起来不错</div>
+                                {{ t('wallpaper.previewOutgoing') }}</div>
                         </div>
                         <div class="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 flex items-center justify-between gap-3">
                             <span class="text-xs text-gray-500 dark:text-gray-400">{{ selectedLabel }}</span><button
                                 type="button"
                                 class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50"
-                                :disabled="saving || !hasCustomDefault" @click="resetDefault">恢复默认</button>
+                                :disabled="saving || !hasCustomDefault" @click="resetDefault">{{
+                                    t('wallpaper.resetDefault') }}</button>
                         </div>
                     </div>
                     <div
                         class="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 space-y-4">
                         <div>
                             <div class="flex items-center justify-between"><span
-                                    class="text-sm text-gray-600 dark:text-gray-300">白色叠加</span><span
+                                    class="text-sm text-gray-600 dark:text-gray-300">{{ t('wallpaper.overlay') }}</span><span
                                     class="text-xs text-gray-400">{{ settings.chatWallpaperOverlayOpacity }}%</span>
                             </div>
                             <input v-model.number="settings.chatWallpaperOverlayOpacity" type="range" min="0" max="100"
                                 step="1" class="mt-2 w-full accent-blue-500" />
-                            <p class="mt-1 text-xs text-gray-400">降低壁纸对消息和界面的干扰</p>
+                            <p class="mt-1 text-xs text-gray-400">{{ t('wallpaper.overlayDesc') }}</p>
                         </div>
                         <div>
                             <div class="flex items-center justify-between"><span
-                                    class="text-sm text-gray-600 dark:text-gray-300">图片模糊度</span><span
+                                    class="text-sm text-gray-600 dark:text-gray-300">{{ t('wallpaper.blur') }}</span><span
                                     class="text-xs text-gray-400">{{ settings.chatWallpaperBlur }}px</span></div>
                             <input v-model.number="settings.chatWallpaperBlur" type="range" min="0" max="24" step="1"
                                 class="mt-2 w-full accent-blue-500" />
@@ -59,18 +60,18 @@
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <div class="flex items-center gap-3 mb-1">
                         <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            添加壁纸</h3>
+                            {{ t('wallpaper.addSection') }}</h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
-                    <p class="text-xs text-gray-400 mt-2">从本地选择图片文件作为壁纸</p>
+                    <p class="text-xs text-gray-400 mt-2">{{ t('wallpaper.addDesc') }}</p>
                     <button type="button" :disabled="saving" @click="pickLocalWallpaper"
                         class="mt-4 w-full py-3 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 text-sm font-medium hover:border-blue-400 hover:text-blue-500 dark:hover:border-blue-500 dark:hover:text-blue-400 transition-colors disabled:opacity-50">
-                        选择图片文件</button>
+                        {{ t('wallpaper.pickFile') }}</button>
                 </section>
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <div class="flex items-center gap-3 mb-1">
-                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">纯色壁纸
-                        </h3>
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{
+                            t('wallpaper.solidSection') }}</h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
                     <div class="mt-5 grid grid-cols-4 sm:grid-cols-6 gap-3"><button v-for="color in colors"
@@ -83,13 +84,14 @@
                 <section>
                     <div class="flex items-center gap-3 mb-1">
                         <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            已保存壁纸</h3>
+                            {{ t('wallpaper.savedSection') }}</h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
-                    <div v-if="loading" class="mt-5 py-8 text-center text-sm text-gray-400">正在加载壁纸...</div>
+                    <div v-if="loading" class="mt-5 py-8 text-center text-sm text-gray-400">{{ t('wallpaper.loading')
+                    }}</div>
                     <div v-else-if="backgrounds.length === 0"
                         class="mt-5 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 py-8 text-center text-sm text-gray-400">
-                        暂无已保存壁纸</div>
+                        {{ t('wallpaper.emptySaved') }}</div>
                     <div v-else class="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-3"><button
                             v-for="background in backgrounds" :key="background.id" type="button"
                             class="relative aspect-4/3 overflow-hidden rounded-xl border bg-gray-100 dark:bg-gray-800 transition-colors"
@@ -106,8 +108,8 @@
                 <label
                     class="flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 cursor-pointer">
                     <div>
-                        <p class="text-sm text-gray-800 dark:text-gray-100">深色模式下使用深色壁纸</p>
-                        <p class="mt-0.5 text-xs text-gray-400">切换后重新加载对应的已安装壁纸</p>
+                        <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('wallpaper.darkMode') }}</p>
+                        <p class="mt-0.5 text-xs text-gray-400">{{ t('wallpaper.darkModeDesc') }}</p>
                     </div><input v-model="forDarkTheme" type="checkbox" class="h-4 w-4 accent-blue-500"
                         @change="loadBackgrounds" />
                 </label>
@@ -117,6 +119,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -138,7 +142,6 @@ import {
 } from '../../utils/wallpaper';
 import type { background, backgrounds, file, Update } from 'tdlib-types';
 
-import { td } from "../../utils/tdLang";
 const router = useRouter();
 const loading = ref(true);
 const saving = ref(false);
@@ -146,16 +149,21 @@ const error = ref('');
 const backgrounds = ref<background[]>([]);
 const forDarkTheme = ref(false);
 const selectedKey = ref('');
-const selectedLabel = ref('跟随 Telegram 默认壁纸');
+const selectedLabel = ref(t('wallpaper.followTelegram'));
 const hasCustomDefault = ref(false);
 const thumbnailSources = ref<Record<string, string>>({});
 const coverSources = ref<Record<string, string>>({});
 let unlisten: UnlistenFn | undefined;
-const colors = [
-    { key: 'solid:16777215', value: 16777215, css: '#ffffff', label: '白色' }, { key: 'solid:16119285', value: 16119285, css: '#f5f5f5', label: '雾灰' }, { key: 'solid:15790320', value: 15790320, css: '#f0f0f0', label: '银灰' }, { key: 'solid:15132390', value: 15132390, css: '#e6f0ff', label: '晴蓝' }, { key: 'solid:16777165', value: 16777165, css: '#fff5cd', label: '奶油黄' }, { key: 'solid:15597825', value: 15597825, css: '#edff81', label: '薄荷绿' },
-];
+const colors = computed(() => [
+    { key: 'solid:16777215', value: 16777215, css: '#ffffff', label: t('wallpaper.colorWhite') },
+    { key: 'solid:16119285', value: 16119285, css: '#f5f5f5', label: t('wallpaper.colorFog') },
+    { key: 'solid:15790320', value: 15790320, css: '#f0f0f0', label: t('wallpaper.colorSilver') },
+    { key: 'solid:15132390', value: 15132390, css: '#e6f0ff', label: t('wallpaper.colorSky') },
+    { key: 'solid:16777165', value: 16777165, css: '#fff5cd', label: t('wallpaper.colorCream') },
+    { key: 'solid:15597825', value: 15597825, css: '#edff81', label: t('wallpaper.colorMint') },
+]);
 const previewStyle = computed(() => {
-    const color = colors.find((item) => item.key === selectedKey.value);
+    const color = colors.value.find((item) => item.key === selectedKey.value);
     if (color) return { backgroundColor: color.css };
     const visual = settings.chatWallpaper;
     if (visual?.kind === 'image' && visual.path) {
@@ -195,14 +203,14 @@ async function prepareThumbnail(item: background) {
 }
 async function ensureFullResolution(item: background): Promise<string> {
     const documentFile = getDocumentFile(item);
-    if (!documentFile) throw new Error('该壁纸没有可用的高清文件');
+    if (!documentFile) throw new Error(t('wallpaper.noHdFile'));
     if (!isFileReady(documentFile)) {
         await safeDownloadFile(documentFile.id, true, DL_PRIORITY.DEFAULT);
     }
     const refreshed = await tdlibSend({ _: 'getFile', file_id: documentFile.id }) as file;
     item.document!.document = refreshed;
     updateCoverSource(item);
-    if (!isFileReady(refreshed)) throw new Error('高清壁纸仍在下载中，请稍后重试');
+    if (!isFileReady(refreshed)) throw new Error(t('wallpaper.stillDownloading'));
     return refreshed.local.path!;
 }
 async function loadBackgrounds() {
@@ -218,11 +226,11 @@ async function loadBackgrounds() {
         const def = backgrounds.value.find((b) => b.is_default);
         if (def && !selectedKey.value) {
             selectedKey.value = `remote:${def.id}`;
-            selectedLabel.value = def.name || '自定义壁纸';
+            selectedLabel.value = def.name || t('wallpaper.custom');
             hasCustomDefault.value = true;
         }
     } catch (err: any) {
-        error.value = err?.message || '加载壁纸失败';
+        error.value = err?.message || t('wallpaper.loadFailed');
     } finally {
         loading.value = false;
     }
@@ -274,16 +282,16 @@ async function save(
             selectedKey.value = `remote:${result.id}`;
         }
 
-        MessagePlugin.success('对话壁纸已更新');
+        MessagePlugin.success(t('wallpaper.updated'));
     } catch (err: any) {
         console.error('[WallpaperSettings] setDefaultBackground failed:', err);
-        MessagePlugin.error(err?.message || err?.error?.message || '设置壁纸失败');
+        MessagePlugin.error(err?.message || err?.error?.message || t('wallpaper.setFailed'));
     } finally {
         saving.value = false;
     }
 }
 
-function setSolid(color: typeof colors[number]) {
+function setSolid(color: (typeof colors.value)[number]) {
     void save(
         null,
         { _: 'backgroundTypeFill', fill: { _: 'backgroundFillSolid', color: color.value } },
@@ -294,7 +302,7 @@ function setSolid(color: typeof colors[number]) {
 }
 
 async function pickLocalWallpaper() {
-    const selected = await open({ multiple: false, filters: [{ name: td('lng_in_dlg_photo', '图片'), extensions: ['jpg', 'jpeg', 'png'] }] });
+    const selected = await open({ multiple: false, filters: [{ name: t('lng_in_dlg_photo'), extensions: ['jpg', 'jpeg', 'png'] }] });
     if (!selected) return;
     const rawPath = typeof selected === 'string' ? selected : String(selected);
     saving.value = true;
@@ -303,13 +311,13 @@ async function pickLocalWallpaper() {
         await save(
             { _: 'inputBackgroundLocal', background: { _: 'inputFileLocal', path: filePath } },
             { _: 'backgroundTypeWallpaper', is_blurred: false, is_moving: false },
-            '本地壁纸',
+            t('wallpaper.local'),
             `local:${filePath}`,
             { kind: 'image', path: filePath },
         );
     } catch (err: any) {
         console.error('[WallpaperSettings] pick local wallpaper failed:', err);
-        MessagePlugin.error(err?.message || '选择壁纸失败');
+        MessagePlugin.error(err?.message || t('wallpaper.pickFailed'));
         saving.value = false;
     }
 }
@@ -327,7 +335,7 @@ async function setRemote(item: background) {
         );
     } catch (err: any) {
         console.error('[WallpaperSettings] high-resolution wallpaper unavailable:', err);
-        MessagePlugin.error(err?.message || '高清壁纸尚未准备好');
+        MessagePlugin.error(err?.message || t('wallpaper.notReady'));
         saving.value = false;
     }
 }
@@ -338,13 +346,13 @@ async function resetDefault() {
         await tdlibSend({ _: 'deleteDefaultBackground', for_dark_theme: forDarkTheme.value });
         settings.chatWallpaper = null;
         selectedKey.value = '';
-        selectedLabel.value = '跟随 Telegram 默认壁纸';
+        selectedLabel.value = t('wallpaper.followTelegram');
         hasCustomDefault.value = false;
         window.dispatchEvent(new Event('tdgram:chat-wallpaper-changed'));
-        MessagePlugin.success('已恢复默认壁纸');
+        MessagePlugin.success(t('wallpaper.resetOk'));
         await loadBackgrounds();
     } catch (err: any) {
-        MessagePlugin.error(err?.message || '恢复默认壁纸失败');
+        MessagePlugin.error(err?.message || t('wallpaper.resetFailed'));
     } finally {
         saving.value = false;
     }
@@ -363,15 +371,15 @@ onMounted(async () => {
                     hasCustomDefault.value = true;
                     if (bg.document) {
                         selectedKey.value = `remote:${bg.id}`;
-                        selectedLabel.value = bg.name || '自定义壁纸';
+                        selectedLabel.value = bg.name || t('wallpaper.custom');
                     } else if (bg.type._ === 'backgroundTypeFill' && bg.type.fill?._ === 'backgroundFillSolid') {
                         const key = `solid:${bg.type.fill.color}`;
                         selectedKey.value = key;
-                        selectedLabel.value = colors.find((c) => c.key === key)?.label || '纯色壁纸';
+                        selectedLabel.value = colors.value.find((c) => c.key === key)?.label || t('wallpaper.solid');
                     }
                 } else {
                     selectedKey.value = '';
-                    selectedLabel.value = '跟随 Telegram 默认壁纸';
+                    selectedLabel.value = t('wallpaper.followTelegram');
                     hasCustomDefault.value = false;
                 }
             }

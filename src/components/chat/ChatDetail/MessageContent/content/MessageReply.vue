@@ -29,6 +29,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { ref, computed, onMounted } from 'vue';
 import type { message, MessageContent, messageReplyToMessage } from 'tdlib-types';
 import { tdlibSend, isFileReady } from '../../../../../utils/tdlib';
@@ -38,7 +40,6 @@ import { useColors, rgbToCss } from '../../../../../store/colors';
 import { getSenderAccentColorId } from '../../../../../utils/senderInfo';
 import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 
-import { td } from "../../../../../utils/tdLang";
 const props = defineProps<{
     replyTo: messageReplyToMessage;
     isSelf: boolean;
@@ -200,7 +201,7 @@ async function loadReplyData() {
             if (replyAccentColorId.value === undefined && typeof c?.accent_color_id === 'number') {
                 replyAccentColorId.value = c.accent_color_id;
             }
-            senderName = c.title || td('lng_notification_groups', '群组');
+            senderName = c.title || t('lng_notification_groups');
         } catch (_) { }
     }
 
@@ -239,7 +240,7 @@ function getMediaInfo(content: MessageContent, _msg: message): { mediaType: stri
             }
         }
     } else if (content._ === 'messageVideo') {
-        mediaType = td('lng_in_dlg_video', '视频');
+        mediaType = t('lng_in_dlg_video');
         const thumb = content.video.thumbnail;
         if (thumb && isThumbnailImgRenderable(thumb.format) && isFileReady(thumb.file)) {
             thumbSrc = convertFileSrc(thumb.file.local.path);
@@ -253,13 +254,13 @@ function getMediaInfo(content: MessageContent, _msg: message): { mediaType: stri
             thumbSrc = convertFileSrc(thumb.file.local.path);
         }
     } else if (content._ === 'messageDocument') {
-        mediaType = td('lng_in_dlg_file', '文件');
+        mediaType = t('lng_in_dlg_file');
     } else if (content._ === 'messageAudio') {
-        mediaType = td('lng_all_music', '音乐');
+        mediaType = t('lng_all_music');
     } else if (content._ === 'messageVoiceNote') {
         mediaType = '语音';
     } else if (content._ === 'messageSticker') {
-        mediaType = td('lng_in_dlg_sticker', '贴纸');
+        mediaType = t('lng_in_dlg_sticker');
         const stickerThumb = content.sticker.thumbnail;
         if (stickerThumb && isThumbnailImgRenderable(stickerThumb.format) && isFileReady(stickerThumb.file)) {
             thumbSrc = convertFileSrc(stickerThumb.file.local.path);

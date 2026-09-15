@@ -8,6 +8,7 @@ import { useDownloadStore } from './downloads';
 import { useChatStore } from './chat';
 import { isThumbnailImgRenderable } from '../utils/thumbnail';
 import { shouldAutoDownloadAudio } from '../utils/autoDownload';
+import { fetchItunesCoverForAudio, fetchUrlImageBuffer } from '../utils/itunesCover';
 import { settings } from './settings';
 
 export interface AudioTrack {
@@ -409,28 +410,15 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
     }
 
     /**
-     * 封面候选构建：区分「音频内嵌封面」与「外部备选封面」的语义。
-     *
-     * TDLib 语义：
-     * - `album_cover_thumbnail`：音频文件内嵌的真实专辑封面，**优先**使用；
-     * - `external_album_covers`：仅当音频文件无内置封面时才应作为备选。
-     *
-     * 因此返回 `{ primary, external }` 两个独立列表，调用方必须先完整尝试 primary，
-     * primary 缺失/下载失败后才轮到 external，而不是把它们混在同一个优先级队列里
-     * （避免内嵌封面仅因 can_be_downloaded=false 就被外部封面顶替）。
+     * 封面候选构建：只使用音频内嵌 album_cover_thumbnail。
+     * 不再下载 external_album_covers；内嵌封面为空时由调用方走 iTunes Search。
      */
     function buildCoverCandidates(audio: audio) {
         const imgRenderable = (t: thumbnail | undefined): t is thumbnail =>
             !!t && isThumbnailImgRenderable(t.format);
 
-        // primary：内嵌封面。只要可渲染（静态位图）即视为可用，不因 can_be_downloaded 而排除。
         const primary = imgRenderable(audio.album_cover_thumbnail) ? audio.album_cover_thumbnail : undefined;
-        // external：外部备选封面。同样只取可渲染的静态位图，按清晰度从高到低排序。
-        const external = (audio.external_album_covers ?? [])
-            .filter(imgRenderable)
-            .sort((a, b) => (b.width * b.height) - (a.width * a.height));
 
-        // minithumbnail base64：始终可用，作为最终兜底缓冲来源
         const miniData = audio.album_cover_minithumbnail?.data;
         const miniCover: CoverResult | undefined = miniData
             ? {
@@ -439,7 +427,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
             }
             : undefined;
 
-        return { primary, external, miniCover };
+        return { primary, miniCover };
     }
 
     /** 判定缩略图文件当前是否已下载就绪且路径有效 */
@@ -451,9 +439,8 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
     function resolveCover(audioMsg: AudioContentMessage): CoverResult {
         if (audioMsg.content._ !== 'messageAudio') return {};
         const audio = audioMsg.content.audio;
-        const { primary, external, miniCover } = buildCoverCandidates(audio);
+        const { primary, miniCover } = buildCoverCandidates(audio);
 
-        // ① 同步扫描内嵌封面（absolute priority）：已下载则直接返回高清路径。
         if (primary && coverFileReady(primary)) {
             return {
                 url: convertFileSrc(primary.file.local.path),
@@ -464,70 +451,63 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
             };
         }
 
-        // ② 内嵌封面不可用（缺失/未下载）时，同步扫描外部备选封面。
-        for (const thumb of external) {
-            if (coverFileReady(thumb)) {
-                return {
-                    url: convertFileSrc(thumb.file.local.path),
-                    source: {
-                        file: thumb.file.local.path,
-                        ...(miniCover?.source?.buffer ? { buffer: miniCover.source.buffer } : {}),
-                    },
-                };
-            }
-        }
-
-        // 无可立即使用的文件缩略图，退回 minithumbnail base64
+        // 无可立即使用的内嵌封面缩略图，退回 minithumbnail base64
         return miniCover ?? {};
     }
 
     /**
-     * 依次尝试下载封面文件，返回第一个成功下载的本地路径（供 UI / SMTC 使用）。
-     * 严格遵循「内嵌封面绝对优先，缺失时再用外部备选」的语义。
+     * 下载内嵌封面文件，返回本地路径。
+     * 不再下载 external_album_covers。
      */
     async function downloadFirstCover(audio: audio): Promise<string | undefined> {
-        const { primary, external } = buildCoverCandidates(audio);
-        const groups = primary ? [primary, ...external] : external;
-
-        for (const thumb of groups) {
-            if (!thumb) continue;
-            const file = thumb.file;
-            if (coverFileReady(thumb)) return file.local.path;
-            if (!file.local.can_be_downloaded) continue;
-            try {
-                const downloaded = await tdlibSend({
-                    _: 'downloadFile',
-                    file_id: file.id,
-                    priority: DL_PRIORITY.THUMBNAIL,
-                    offset: 0,
-                    limit: 0,
-                    synchronous: true,
-                });
-                if (isFileReady(downloaded) && downloaded.local?.path) {
-                    return downloaded.local.path;
-                }
-            } catch (_) { }
-        }
+        const { primary } = buildCoverCandidates(audio);
+        if (!primary) return undefined;
+        const file = primary.file;
+        if (coverFileReady(primary)) return file.local.path;
+        if (!file.local.can_be_downloaded) return undefined;
+        try {
+            const downloaded = await tdlibSend({
+                _: 'downloadFile',
+                file_id: file.id,
+                priority: DL_PRIORITY.THUMBNAIL,
+                offset: 0,
+                limit: 0,
+                synchronous: true,
+            });
+            if (isFileReady(downloaded) && downloaded.local?.path) {
+                return downloaded.local.path;
+            }
+        } catch (_) { }
         return undefined;
     }
 
-    /** 从 messageAudio 中异步下载封面缩略图并返回其 URL（供 UI 使用） */
+    /** 从 messageAudio 中异步获取封面 URL：内嵌优先，空则 iTunes Search */
     async function loadCoverUrl(audioMsg: AudioContentMessage): Promise<string | undefined> {
         const sync = resolveCover(audioMsg);
-        if (sync.url) return sync.url;
-        if (audioMsg.content._ !== 'messageAudio') return undefined;
-        // 内嵌封面绝对优先；仅当其缺失/不可下载时才回退到外部备选。
-        const path = await downloadFirstCover(audioMsg.content.audio);
-        return path ? convertFileSrc(path) : sync.url;
+        // 已有高清内嵌封面路径时直接用；仅有 minithumbnail 时仍继续尝试升级
+        if (sync.url && !sync.url.startsWith('data:')) return sync.url;
+        if (audioMsg.content._ !== 'messageAudio') return sync.url;
+        const audio = audioMsg.content.audio;
+        const path = await downloadFirstCover(audio);
+        if (path) return convertFileSrc(path);
+        const itunes = await fetchItunesCoverForAudio(audio);
+        return itunes ?? sync.url;
     }
 
-    /** 异步获取封面原始来源（优先下载文件缩略图路径，失败退回 minithumbnail buffer） */
+    /** 异步获取封面原始来源（内嵌文件优先，空则 iTunes 封面字节，失败退回 minithumbnail） */
     async function loadCoverSource(audioMsg: AudioContentMessage): Promise<{ file?: string; buffer?: number[] } | undefined> {
         const sync = resolveCover(audioMsg);
-        if (sync.source?.file || sync.source?.buffer) return sync.source;
-        if (audioMsg.content._ !== 'messageAudio') return undefined;
-        const path = await downloadFirstCover(audioMsg.content.audio);
-        return path ? { file: path } : sync.source;
+        if (sync.source?.file) return sync.source;
+        if (audioMsg.content._ !== 'messageAudio') return sync.source;
+        const audio = audioMsg.content.audio;
+        const path = await downloadFirstCover(audio);
+        if (path) return { file: path };
+        const itunes = await fetchItunesCoverForAudio(audio);
+        if (itunes) {
+            const buffer = await fetchUrlImageBuffer(itunes);
+            if (buffer) return { buffer };
+        }
+        return sync.source;
     }
 
     /** 播放指定消息（从外部调用，如 MessageFileContent） */

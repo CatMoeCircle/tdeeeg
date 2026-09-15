@@ -6,7 +6,7 @@
         <!-- ===== 第一部分：顶部青绿色头部区域 ===== -->
         <div class="relative profile-hero overflow-hidden">
           <!-- 返回导航 -->
-          <button type="button" :aria-label="td('lng_menu_back', '返回')"
+          <button type="button" :aria-label="t('lng_menu_back')"
             class="absolute top-2 left-2 z-10 w-9 h-9 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             @click="goBack">
             <ArrowLeft class="w-6 h-6" />
@@ -92,7 +92,7 @@
                 @click="toggleNotifications">
                 <BellOff v-if="isPrivateChatMuted" class="w-4 h-4" />
                 <Bell v-else class="w-4 h-4" />
-                {{ isPrivateChatMuted ? td('lng_enable_notifications_from_tray', '开启通知') : td('lng_channel_mute', '关闭通知') }}
+                {{ isPrivateChatMuted ? t('lng_enable_notifications_from_tray') : t('lng_channel_mute') }}
               </button>
 
               <!-- 更多 -->
@@ -171,7 +171,7 @@
                 @click="chatToggleNotifications">
                 <BellOff v-if="chatNotificationMuted" class="w-4 h-4" />
                 <Bell v-else class="w-4 h-4" />
-                {{ chatNotificationMuted ? td('lng_enable_notifications_from_tray', '开启通知') : td('lng_channel_mute', '关闭通知') }}
+                {{ chatNotificationMuted ? t('lng_enable_notifications_from_tray') : t('lng_channel_mute') }}
               </button>
 
               <!-- 更多 -->
@@ -654,7 +654,7 @@
                   <FileText class="w-5 h-5 text-gray-400" />
                 </div>
                 <div class="min-w-0 flex-1">
-                  <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ item.fileName || td('lng_in_dlg_file', '文件') }}
+                  <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ item.fileName || t('lng_in_dlg_file') }}
                   </p>
                   <p class="text-xs text-gray-400 mt-0.5">{{ item.fileSize ? `${(item.fileSize / 1024).toFixed(1)} KB` :
                     '' }}
@@ -681,7 +681,7 @@
                   <Link class="w-5 h-5 text-blue-500" />
                 </div>
                 <div class="min-w-0 flex-1">
-                  <p class="text-sm text-blue-600 dark:text-blue-400 truncate">{{ item.url || td('lng_link_header_short', '链接') }}</p>
+                  <p class="text-sm text-blue-600 dark:text-blue-400 truncate">{{ item.url || t('lng_link_header_short') }}</p>
                 </div>
               </div>
             </div>
@@ -951,6 +951,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { computed, ref, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, receivedGift, story, chat, audio as TdAudio, birthdate, file, message, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo, secretChat, SearchMessagesFilter$Input, emojiStatus, emojiStatus$Input, BlockList$Input } from "tdlib-types";
@@ -967,6 +969,7 @@ import { accentColorStyle, rgbToCss } from "../../store/colors";
 import { confirmAndOpenExternalLink } from "../../utils/openExternalLink";
 import formatStatus from "../../utils/status";
 import { downloadFileUrl, listAlbumCoverFiles } from "../../utils/profileMedia";
+import { fetchItunesCoverForAudio } from "../../utils/itunesCover";
 import { openStoryViewer } from "../../store/storyViewer";
 import { formatBusinessHours } from "../../utils/businessHours";
 import { tdlibSend } from "../../utils/tdlib";
@@ -985,7 +988,6 @@ import type { SharedMediaCounts } from "../../utils/sharedMediaCounts";
 import { useProfileSharedMedia } from "../../composables/useProfileSharedMedia";
 import { requestCustomEmoji } from "../../store/customEmoji";
 
-import { td } from "../../utils/tdLang";
 // ===== 图标组件（lucide-vue-next，与项目其余部分一致） =====
 import {
   ArrowLeft, Copy, Clock, MapPin, Gift, Bot, Play, Pause,
@@ -1089,8 +1091,8 @@ const chatMemberCountText = computed(() => {
   const count = chatMode.value
     ? (supergroupFull.value?.member_count || supergroupObj.value?.member_count || basicGroupObj.value?.member_count || 0)
     : 0;
-  if (count <= 0) return isChatChannel.value ? td('lng_notification_channels', '频道') : td('lng_notification_groups', '群组');
-  const unit = isChatChannel.value ? '订阅者' : td('lng_profile_participants_section', '成员');
+  if (count <= 0) return isChatChannel.value ? t('lng_notification_channels') : t('lng_notification_groups');
+  const unit = isChatChannel.value ? '订阅者' : t('lng_profile_participants_section');
   return `${count.toLocaleString()} ${unit}`;
 });
 
@@ -1137,7 +1139,7 @@ const hasBottomContent = computed(() => {
 
 /**
  * 是否为「已注销/未知用户」。
- * 已注销账户（userTypeDeleted）或无名（first/last 都为空，即td('lng_credits_box_history_entry_anonymous', '未知用户')）都按已注销账户处理：
+ * 已注销账户（userTypeDeleted）或无名（first/last 都为空，即 t('lng_credits_box_history_entry_anonymous')）都按已注销账户处理：
  * 名称显示「已注销账户」、头像显示幽灵图标。
  */
 const isDeletedProfile = computed(() => {
@@ -1149,7 +1151,7 @@ const isDeletedProfile = computed(() => {
 
 const userName = computed(() =>
   isDeletedProfile.value ? DELETED_ACCOUNT_LABEL
-    : `${user.value?.first_name ?? ''} ${user.value?.last_name ?? ''}`.trim() || td('lng_credits_box_history_entry_anonymous', '未知用户'));
+    : `${user.value?.first_name ?? ''} ${user.value?.last_name ?? ''}`.trim() || t('lng_credits_box_history_entry_anonymous'));
 // 主用户名（active_usernames[0]）
 const primaryUsername = computed(() => user.value?.usernames?.active_usernames?.[0] || '');
 // 附加用户名（其余 active + collectible），与主用户名区分
@@ -1717,9 +1719,10 @@ const sharedMediaUrlCache = ref<Record<number, string>>({});
 async function loadSharedMediaThumb(item: { messageId: number; photo?: any; contentType?: string; message?: any }) {
   if (sharedMediaUrlCache.value[item.messageId]) return;
 
-  // 音乐：下载专辑封面（内嵌优先，外部备选按清晰度降序）
+  // 音乐：仅下载内嵌封面；为空时走 iTunes Search
   if (item.contentType === 'messageAudio' && item.message?.content?._ === 'messageAudio') {
-    for (const coverFile of listAlbumCoverFiles(item.message.content.audio)) {
+    const audio = item.message.content.audio;
+    for (const coverFile of listAlbumCoverFiles(audio)) {
       try {
         const url = await downloadFileUrl(coverFile, `shared_music_cover_${item.messageId}_${coverFile.id}.jpg`, 'music_cover');
         if (url) {
@@ -1727,6 +1730,10 @@ async function loadSharedMediaThumb(item: { messageId: number; photo?: any; cont
           return;
         }
       } catch { /* 尝试下一个候选 */ }
+    }
+    const itunes = await fetchItunesCoverForAudio(audio);
+    if (itunes) {
+      sharedMediaUrlCache.value = { ...sharedMediaUrlCache.value, [item.messageId]: itunes };
     }
     return;
   }
@@ -1805,7 +1812,7 @@ const botInfo = computed(() => fullInfo.value?.bot_info);
 const botDescription = computed(() => botInfo.value?.short_description || botInfo.value?.description || '');
 
 const profileAudio = computed<TdAudio | undefined>(() => fullInfo.value?.first_profile_audio);
-const profileAudioTitle = computed(() => profileAudio.value?.title || profileAudio.value?.file_name || td('lng_all_music', '音乐'));
+const profileAudioTitle = computed(() => profileAudio.value?.title || profileAudio.value?.file_name || t('lng_all_music'));
 const profileAudioPerformer = computed(() => profileAudio.value?.performer || '未知艺术家');
 /** 高清封面 URL（下载完成后替换低清过渡图） */
 const profileMusicCoverHd = ref<string | undefined>(undefined);
@@ -1828,7 +1835,7 @@ const profileMusicCoverShowTransition = computed(() =>
   !profileMusicCoverHd.value && profileMusicCoverLoading.value
 );
 
-/** 加载资料音乐的高清专辑封面（逐个候选尝试；失败则保留低清 minithumbnail） */
+/** 加载资料音乐的高清专辑封面（内嵌优先；空则 iTunes Search；失败保留低清 minithumbnail） */
 async function loadProfileMusicCover() {
   const token = ++profileMusicCoverLoadToken;
   profileMusicCoverHd.value = undefined;
@@ -1840,6 +1847,12 @@ async function loadProfileMusicCover() {
       if (url) {
         if (token === profileMusicCoverLoadToken) profileMusicCoverHd.value = url;
         return;
+      }
+    }
+    if (profileAudio.value && token === profileMusicCoverLoadToken) {
+      const itunes = await fetchItunesCoverForAudio(profileAudio.value);
+      if (itunes && token === profileMusicCoverLoadToken) {
+        profileMusicCoverHd.value = itunes;
       }
     }
   } catch (e) {
@@ -1940,7 +1953,7 @@ const profileGiftCellSize = 112;
 /** 礼物 tooltip 文本 */
 function giftText(gift: receivedGift): string {
   const title = gift.gift._ === 'sentGiftUpgraded' ? gift.gift.gift.title : undefined;
-  return title || gift.text?.text || td('lng_sr_message_column_gift', '礼物');
+  return title || gift.text?.text || t('lng_sr_message_column_gift');
 }
 
 // ===== 动态 URL =====
@@ -2531,7 +2544,7 @@ function openChatMoreMenu(e: MouseEvent) {
 const autoDeleteVisible = ref(false);
 const autoDeleteTime = ref<number>(0);
 const autoDeleteOptions = [
-  { value: 0, label: td('lng_close', '关闭') },
+  { value: 0, label: t('lng_close') },
   { value: 86400, label: '1 天后' },
   { value: 7 * 86400, label: '7 天后' },
   { value: 31 * 86400, label: '31 天后' },
@@ -2629,7 +2642,7 @@ const confirmDialog = ref<{
   visible: false,
   title: '',
   message: '',
-  confirmText: td('lng_box_ok', '确定'),
+  confirmText: t('lng_box_ok'),
   onConfirm: () => { },
 });
 
@@ -2693,7 +2706,7 @@ function onDeleteContact() {
   showConfirm(
     '删除联系人',
     `确定要将「${userName.value}」从联系人中删除吗？`,
-    td('lng_selected_delete', '删除'),
+    t('lng_selected_delete'),
     async () => {
       try {
         await tdlibSend({
@@ -2733,15 +2746,11 @@ watch(
   () => {
     const a = profileAudio.value;
     if (!a) return '';
-    const externals = Array.isArray(a.external_album_covers)
-      ? a.external_album_covers.map((t) => t.file?.id ?? 0).join(',')
-      : '';
     return [
       a.audio?.id,
       a.audio?.local?.is_downloading_completed,
       a.album_cover_thumbnail?.file?.id,
       a.album_cover_thumbnail?.file?.local?.is_downloading_completed,
-      externals,
     ].join('|');
   },
   (key) => {

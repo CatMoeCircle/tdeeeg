@@ -95,7 +95,7 @@
             <template v-else-if="!item.is_completed">
                 <button type="button" @click.stop="emit('togglePause', item.file_id)"
                     class="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                    :title="item.is_paused ? td('lng_continue', '继续') : td('lng_mac_menu_player_pause', '暂停')">
+                    :title="item.is_paused ? t('lng_continue') : t('lng_mac_menu_player_pause')">
                     <svg v-if="item.is_paused" class="w-4 h-4 text-gray-500" viewBox="0 0 24 24" fill="currentColor">
                         <polygon points="5 3 19 12 5 21 5 3" />
                     </svg>
@@ -106,7 +106,7 @@
                 </button>
                 <button type="button" @click.stop="emit('cancel', item.file_id)"
                     class="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                    :title="td('lng_cancel', '取消')">
+                    :title="t('lng_cancel')">
                     <svg class="w-4 h-4 text-gray-400 hover:text-red-500" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" stroke-width="2">
                         <line x1="18" y1="6" x2="6" y2="18" />
@@ -130,6 +130,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { computed } from "vue";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import {
@@ -138,7 +140,6 @@ import {
 import type { Component } from "vue";
 import { hiddenCategoryLabel, type DownloadFileType, type DownloadItem } from "../../store/downloads";
 
-import { td } from "../../utils/tdLang";
 const props = defineProps<{
     item: DownloadItem;
     canOpenInPlayer: boolean;

@@ -4,7 +4,7 @@
         <div class="h-16 flex items-center px-4 border-b border-gray-200 dark:border-gray-800 shrink-0">
             <button type="button" @click="goBack"
                 class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shrink-0 -ml-1"
-                :aria-label="td('lng_menu_back', '返回')">
+                :aria-label="t('lng_menu_back')">
                 <ArrowLeftIcon class="w-5 h-5 text-gray-600 dark:text-gray-300" />
             </button>
             <div class="flex items-center gap-3 ml-2 min-w-0">
@@ -76,6 +76,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ArrowLeftIcon, MessageCircleIcon } from 'lucide-vue-next';
@@ -83,7 +85,6 @@ import { tdlibSend } from '../../utils/tdlib';
 import type { chat, forumTopic, forumTopics, supergroup } from 'tdlib-types';
 import Avatar from './avatar.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
-import { td } from "../../utils/tdLang";
 const route = useRoute();
 const router = useRouter();
 

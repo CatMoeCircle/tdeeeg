@@ -4,7 +4,8 @@
             <button type="button" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" @click="goBack">
                 <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
             </button>
-            <h2 class="text-lg font-semibold">外观设置</h2>
+            <h2 class="text-lg font-semibold">{{ t('lng_edit_channel_color')
+                }}</h2>
         </div>
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
             <div class="max-w-2xl">
@@ -12,7 +13,7 @@
                 <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
                     <div class="flex items-center gap-3 mb-1">
                         <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            聊天页面</h3>
+                            {{ t('appearance.chatPage') }}</h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
 
@@ -20,8 +21,8 @@
                     <div class="mb-6 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
                         <div
                             class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">预览</span>
-                            <span class="text-xs text-gray-400 dark:text-gray-500">消息气泡</span>
+                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('appearance.preview') }}</span>
+                            <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('appearance.previewBubbles') }}</span>
                         </div>
                         <div class="relative bg-[#f5f5f5] dark:bg-[#1c1c1c] p-4 flex flex-col gap-3 overflow-hidden">
                             <div class="absolute inset-0" :style="messagePreviewBackgroundStyle"></div>
@@ -40,14 +41,14 @@
                                         <p class="font-semibold text-xs mb-0.5 text-blue-500">
                                             <GlobalEmojiText :text="userName" />
                                         </p>
-                                        <p class="whitespace-pre-wrap" :style="previewTextStyle">这是他人发来的一条消息预览</p>
+                                        <p class="whitespace-pre-wrap" :style="previewTextStyle">{{ t('appearance.previewIncoming') }}</p>
                                     </div>
                                 </div>
                                 <!-- 自己消息 -->
                                 <div class="flex justify-end">
                                     <div class="max-w-[70%] bg-[#e3fee0] text-gray-900 px-3 py-2 shadow-sm"
                                         :style="previewBubbleStyle('out', false)">
-                                        <p class="whitespace-pre-wrap" :style="previewTextStyle">这是你发送的一条消息预览</p>
+                                        <p class="whitespace-pre-wrap" :style="previewTextStyle">{{ t('appearance.previewOutgoing') }}</p>
                                     </div>
                                 </div>
                                 <!-- 贴纸消息预览（右下角时间胶囊 + 大小调整） -->
@@ -72,63 +73,63 @@
                         <!-- 消息圆角 -->
                         <div class="px-4 py-3">
                             <div class="flex items-center justify-between mb-2">
-                                <span class="text-sm text-gray-600 dark:text-gray-400">消息圆角</span>
+                                <span class="text-sm text-gray-600 dark:text-gray-400">{{ t('appearance.messageRadius') }}</span>
                                 <span class="flex items-center gap-1">
                                     <EditableNumber :value="settings.message.cornerRadius" unit="px" :min="0" :max="24"
                                         @update:value="settings.message.cornerRadius = $event" />
                                     <span v-if="settings.message.cornerRadius === DEFAULT_MESSAGE.cornerRadius"
-                                        class="text-xs font-normal text-gray-400">(默认)</span>
+                                        class="text-xs font-normal text-gray-400">{{ t('appearance.defaultSuffix') }}</span>
                                 </span>
                             </div>
                             <input type="range" min="0" max="24" step="1" v-model.number="settings.message.cornerRadius"
                                 class="w-full accent-blue-500" />
-                            <p class="mt-1 text-xs text-gray-400">消息气泡圆角半径</p>
+                            <p class="mt-1 text-xs text-gray-400">{{ t('appearance.messageRadiusDesc') }}</p>
                         </div>
 
                         <!-- 4 角对称 -->
                         <div class="px-4 py-2">
-                            <ChatTypeToggle label="4 角对称" v-model="settings.message.cornerRadiusSymmetrical" />
-                            <p class="mt-1 text-xs text-gray-400">关闭时朝向头像的一侧使用小圆角,开启后四个角统一使用「消息圆角」</p>
+                            <ChatTypeToggle :label="t('appearance.cornerRadiusSymmetrical')" v-model="settings.message.cornerRadiusSymmetrical" />
+                            <p class="mt-1 text-xs text-gray-400">{{ t('appearance.cornerRadiusSymmetricalDesc') }}</p>
                         </div>
 
                         <!-- 字体大小 -->
                         <div class="px-4 py-3">
                             <div class="flex items-center justify-between mb-2">
-                                <span class="text-sm text-gray-600 dark:text-gray-400">字体大小</span>
+                                <span class="text-sm text-gray-600 dark:text-gray-400">{{ t('appearance.fontSize') }}</span>
                                 <span class="flex items-center gap-1">
                                     <EditableNumber :value="settings.message.fontSize" unit="px" :min="11" :max="20"
                                         @update:value="settings.message.fontSize = $event" />
                                     <span v-if="settings.message.fontSize === DEFAULT_MESSAGE.fontSize"
-                                        class="text-xs font-normal text-gray-400">(默认)</span>
+                                        class="text-xs font-normal text-gray-400">{{ t('appearance.defaultSuffix') }}</span>
                                 </span>
                             </div>
                             <input type="range" min="11" max="20" step="1" v-model.number="settings.message.fontSize"
                                 class="w-full accent-blue-500" />
-                            <p class="mt-1 text-xs text-gray-400">控制消息内文字大小</p>
+                            <p class="mt-1 text-xs text-gray-400">{{ t('appearance.fontSizeDesc') }}</p>
                         </div>
 
                         <!-- 消息整体比例缩放 -->
                         <div class="px-4 py-3">
                             <div class="flex items-center justify-between mb-2">
-                                <span class="text-sm text-gray-600 dark:text-gray-400">消息整体比例缩放</span>
+                                <span class="text-sm text-gray-600 dark:text-gray-400">{{ t('appearance.messageScale') }}</span>
                                 <EditableNumber :value="Math.round(settings.message.scale * 100)" unit="%" :min="80"
                                     :max="120" @update:value="settings.message.scale = $event / 100" />
                             </div>
                             <input type="range" min="80" max="120" step="1"
                                 :value="Math.round(settings.message.scale * 100)" @input="onScaleInput"
                                 class="w-full accent-blue-500" />
-                            <p class="mt-1 text-xs text-gray-400">整体缩放消息气泡大小（含间距与文字）</p>
+                            <p class="mt-1 text-xs text-gray-400">{{ t('appearance.messageScaleDesc') }}</p>
                         </div>
 
                         <!-- 贴纸大小 -->
                         <div class="px-4 py-3">
                             <div class="flex items-center justify-between mb-2">
-                                <span class="text-sm text-gray-600 dark:text-gray-400">贴纸大小</span>
+                                <span class="text-sm text-gray-600 dark:text-gray-400">{{ t('appearance.stickerSize') }}</span>
                                 <span class="flex items-center gap-1">
                                     <EditableNumber :value="settings.sticker.size" unit="px" :min="96" :max="320"
                                         :step="4" @update:value="settings.sticker.size = $event" />
                                     <span v-if="settings.sticker.size === DEFAULT_MESSAGE.stickerSize"
-                                        class="text-xs font-normal text-gray-400">(默认)</span>
+                                        class="text-xs font-normal text-gray-400">{{ t('appearance.defaultSuffix') }}</span>
                                 </span>
                             </div>
                             <input type="range" min="96" max="320" step="4" v-model.number="settings.sticker.size"
@@ -137,14 +138,14 @@
 
                         <!-- 隐藏贴纸发送时间 -->
                         <div class="px-4 py-2">
-                            <ChatTypeToggle label="隐藏贴纸右下角发送时间" v-model="settings.sticker.hideTimestamp" />
-                            <p class="mt-1 text-xs text-gray-400">开启后贴纸右下角的时间小胶囊不再显示</p>
+                            <ChatTypeToggle :label="t('appearance.hideStickerTimestamp')" v-model="settings.sticker.hideTimestamp" />
+                            <p class="mt-1 text-xs text-gray-400">{{ t('appearance.hideStickerTimestampDesc') }}</p>
                         </div>
 
                         <!-- 点击 bot 命令添加到输入框 -->
                         <div class="px-4 py-2">
-                            <ChatTypeToggle label="点击机器人命令添加到输入框" v-model="settings.message.botCommandInsert" />
-                            <p class="mt-1 text-xs text-gray-400">点击 /start 等命令时添加到输入框最前面（空格分隔），而非直接发送</p>
+                            <ChatTypeToggle :label="t('appearance.botCommandInsert')" v-model="settings.message.botCommandInsert" />
+                            <p class="mt-1 text-xs text-gray-400">{{ t('appearance.botCommandInsertDesc') }}</p>
                         </div>
 
                         <!-- 对话壁纸入口 -->
@@ -155,8 +156,8 @@
                                 <WallpaperIcon class="w-5 h-5" />
                             </div>
                             <div class="min-w-0 flex-1">
-                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100">对话壁纸</p>
-                                <p class="text-xs text-gray-400">纯色、图案和已安装的图片壁纸</p>
+                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('appearance.chatWallpaper') }}</p>
+                                <p class="text-xs text-gray-400">{{ t('appearance.chatWallpaperDesc') }}</p>
                             </div>
                             <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                         </router-link>
@@ -166,10 +167,10 @@
                     <div class="mt-4">
                         <div class="flex items-center gap-3 mb-3">
                             <h4 class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                                翻译显示</h4>
+                                {{ t('appearance.translateSection') }}</h4>
                             <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                         </div>
-                        <p class="text-xs text-gray-400 mb-3">设置在消息右键菜单中点击「翻译」后，译文以何种方式显示。</p>
+                        <p class="text-xs text-gray-400 mb-3">{{ t('appearance.translateDesc') }}</p>
 
                         <div class="space-y-3">
                             <!-- 弹窗翻译 -->
@@ -184,8 +185,8 @@
                                         <LanguageIcon class="w-5 h-5" />
                                     </div>
                                     <div>
-                                        <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">弹窗显示</h4>
-                                        <p class="text-xs text-gray-400 mt-0.5">译文在独立弹窗中展示，可切换目标语言</p>
+                                        <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('appearance.translatePopup') }}</h4>
+                                        <p class="text-xs text-gray-400 mt-0.5">{{ t('appearance.translatePopupDesc') }}</p>
                                     </div>
                                 </div>
                                 <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0"
@@ -207,8 +208,8 @@
                                         <MessageSquareTextIcon class="w-5 h-5" />
                                     </div>
                                     <div>
-                                        <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">在原消息中显示</h4>
-                                        <p class="text-xs text-gray-400 mt-0.5">译文直接显示在消息气泡内，可随时移除</p>
+                                        <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('appearance.translateInline') }}</h4>
+                                        <p class="text-xs text-gray-400 mt-0.5">{{ t('appearance.translateInlineDesc') }}</p>
                                     </div>
                                 </div>
                                 <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0"
@@ -224,7 +225,7 @@
                 <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
                     <div class="flex items-center gap-3 mb-1">
                         <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            分组文件夹样式</h3>
+                            {{ t('appearance.folderStyle') }}</h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
 
@@ -232,7 +233,7 @@
                     <div class="mb-6 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
                         <div
                             class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">预览</span>
+                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('appearance.preview') }}</span>
                             <span class="text-xs text-gray-400 dark:text-gray-500">{{ styleLabel }}</span>
                         </div>
                         <div class="bg-white dark:bg-gray-900 p-4">
@@ -282,19 +283,19 @@
                         <div
                             class="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-800">
                             <div class="px-4 py-2">
-                                <ChatTypeToggle label="显示未读消息计数器" v-model="settings.showFolderUnread" />
+                                <ChatTypeToggle :label="t('appearance.showFolderUnread')" v-model="settings.showFolderUnread" />
                             </div>
                             <!-- 未读计数方式（仅在显示未读计数器时可用）：开启=消息数量，关闭=对话数量 -->
                             <div v-if="settings.showFolderUnread" class="px-4 py-2">
-                                <ChatTypeToggle label="显示未读消息数量"
+                                <ChatTypeToggle :label="t('appearance.showUnreadMessages')"
                                     :modelValue="settings.chatList.unreadCountMode === 'messages'"
                                     @update:modelValue="(v: boolean) => settings.chatList.unreadCountMode = v ? 'messages' : 'chats'" />
                             </div>
                             <div class="px-4 py-2">
-                                <ChatTypeToggle label="显示分组图标" v-model="settings.showFolderIcons" />
+                                <ChatTypeToggle :label="t('appearance.showFolderIcons')" v-model="settings.showFolderIcons" />
                             </div>
                         </div>
-                        <p class="mt-2 text-xs text-gray-400">控制聊天列表顶部分组栏中是否显示未读计数与分组图标。</p>
+                        <p class="mt-2 text-xs text-gray-400">{{ t('appearance.folderOptionsDesc') }}</p>
                     </div>
                 </div>
 
@@ -302,7 +303,7 @@
                 <div class="mb-8">
                     <div class="flex items-center gap-3 mb-1">
                         <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            聊天列表</h3>
+                            {{ t('appearance.chatList') }}</h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
 
@@ -310,8 +311,8 @@
                     <div class="mb-6 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
                         <div
                             class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">预览</span>
-                            <span class="text-xs text-gray-400 dark:text-gray-500">聊天列表</span>
+                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('appearance.preview') }}</span>
+                            <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('appearance.chatList') }}</span>
                         </div>
                         <div class="bg-white dark:bg-gray-900 p-4">
                             <div class="flex items-center p-2 rounded-lg">
@@ -336,14 +337,14 @@
                                             <span v-if="settings.chatList.showSenderMiniAvatar"
                                                 class="shrink-0 text-xs text-gray-400 dark:text-gray-500">{{
                                                     userName }}：</span>
-                                            <span class="min-w-0 truncate text-xs text-gray-500">消息预览</span>
+                                            <span class="min-w-0 truncate text-xs text-gray-500">{{ t('appearance.previewMessage') }}</span>
                                         </div>
                                         <span v-if="!showPreviewLeftBadge"
                                             class="shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-blue-500 text-white text-[11px] font-semibold leading-5 text-center">3</span>
                                     </div>
                                 </div>
                             </div>
-                            <p class="mt-2 text-xs text-gray-400">头像圆角与发送者迷你头像效果预览。</p>
+                            <p class="mt-2 text-xs text-gray-400">{{ t('appearance.previewChatListDesc') }}</p>
                         </div>
                     </div>
 
@@ -353,13 +354,13 @@
                         <!-- 头像圆角 -->
                         <div class="px-4 py-3">
                             <div class="flex items-center justify-between mb-2">
-                                <span class="text-sm text-gray-600 dark:text-gray-400">头像圆角角度</span>
+                                <span class="text-sm text-gray-600 dark:text-gray-400">{{ t('appearance.avatarRadius') }}</span>
                                 <EditableNumber :value="settings.chatList.avatarCornerRadius" :min="0" :max="100"
                                     :step="5" @update:value="settings.chatList.avatarCornerRadius = $event" />
                             </div>
                             <input type="range" min="0" max="100" step="5"
                                 v-model.number="settings.chatList.avatarCornerRadius" class="w-full accent-blue-500" />
-                            <p class="mt-1 text-xs text-gray-400">0 = 方形，100 = 圆形 (包括消息旁边的头像)</p>
+                            <p class="mt-1 text-xs text-gray-400">{{ t('appearance.avatarRadiusDesc') }}</p>
                         </div>
 
                         <!-- 话题模式头像跟随圆角 -->
@@ -370,45 +371,45 @@
                                     :style="{ borderRadius: (settings.chatList.forumAvatarFollowsRadius ? settings.chatList.avatarCornerRadius : 25) * 0.5 + '%' }">
                                     T
                                 </span>
-                                <ChatTypeToggle label="话题模式头像跟随圆角" v-model="settings.chatList.forumAvatarFollowsRadius"
+                                <ChatTypeToggle :label="t('appearance.forumAvatarFollowsRadius')" v-model="settings.chatList.forumAvatarFollowsRadius"
                                     class="flex-1" />
                             </div>
-                            <p class="mt-1 text-xs text-gray-400">开启后话题模式群组头像使用上方圆角角度；关闭则按正方形小圆角显示</p>
+                            <p class="mt-1 text-xs text-gray-400">{{ t('appearance.forumAvatarFollowsRadiusDesc') }}</p>
                         </div>
 
                         <!-- 发送者迷你头像 -->
                         <div class="px-4 py-2">
-                            <ChatTypeToggle label="最后消息前显示发送者迷你头像" v-model="settings.chatList.showSenderMiniAvatar" />
+                            <ChatTypeToggle :label="t('appearance.senderMiniAvatar')" v-model="settings.chatList.showSenderMiniAvatar" />
                         </div>
 
                         <!-- 未读角标显示位置 -->
                         <div class="px-4 py-2">
-                            <ChatTypeToggle label="未读消息图标显示在左边" v-model="settings.chatList.badgeOnLeft" />
+                            <ChatTypeToggle :label="t('appearance.badgeOnLeft')" v-model="settings.chatList.badgeOnLeft" />
                             <!-- 子选项：随主开关展开/收起，仅对静音消息生效 -->
                             <div v-if="settings.chatList.badgeOnLeft"
                                 class="mt-2 ml-7 border-l-2 border-gray-200 dark:border-gray-700 pl-3">
-                                <ChatTypeToggle label="只对静音消息生效" v-model="settings.chatList.badgeOnLeftMutedOnly" />
+                                <ChatTypeToggle :label="t('appearance.badgeOnLeftMutedOnly')" v-model="settings.chatList.badgeOnLeftMutedOnly" />
                             </div>
                         </div>
 
                         <!-- 归档位置 -->
                         <div class="px-4 py-3">
-                            <span class="text-sm text-gray-600 dark:text-gray-400 block mb-2">归档位置</span>
+                            <span class="text-sm text-gray-600 dark:text-gray-400 block mb-2">{{ t('appearance.archivePosition') }}</span>
                             <div class="grid grid-cols-3 gap-2">
                                 <button type="button" @click="settings.chatList.archivePosition = 'top'"
                                     class="px-2 py-1.5 text-xs rounded-md border transition-colors"
                                     :class="settings.chatList.archivePosition === 'top' ? 'border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'">
-                                    全部对话
+                                    {{ t('appearance.archiveTop') }}
                                 </button>
                                 <button type="button" @click="settings.chatList.archivePosition = 'sidebar'"
                                     class="px-2 py-1.5 text-xs rounded-md border transition-colors"
                                     :class="settings.chatList.archivePosition === 'sidebar' ? 'border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'">
-                                    侧边栏导航
+                                    {{ t('appearance.archiveSidebar') }}
                                 </button>
                                 <button type="button" @click="settings.chatList.archivePosition = 'hidden'"
                                     class="px-2 py-1.5 text-xs rounded-md border transition-colors"
                                     :class="settings.chatList.archivePosition === 'hidden' ? 'border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'">
-                                    隐藏
+                                    {{ t('appearance.archiveHidden') }}
                                 </button>
                             </div>
                         </div>
@@ -419,16 +420,16 @@
                 <div class="mb-8">
                     <div class="flex items-center gap-3 mb-1">
                         <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            加载指示器样式</h3>
+                            {{ t('appearance.loaderStyle') }}</h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
-                    <p class="text-xs text-gray-400 mt-2">为聊天列表、图片/视频加载等选择你喜欢的加载进度条样式。</p>
+                    <p class="text-xs text-gray-400 mt-2">{{ t('appearance.loaderStyleDesc') }}</p>
 
                     <!-- 实时预览：网格展示各 loader + 点击选择 -->
                     <div class="mb-4 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
                         <div
                             class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">预览</span>
+                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('appearance.preview') }}</span>
                             <span class="text-xs text-gray-400 dark:text-gray-500">{{ loaderLabel }}</span>
                         </div>
                         <div class="bg-white dark:bg-gray-900 p-4">
@@ -441,7 +442,7 @@
                                     <span class="text-xs text-gray-500 dark:text-gray-400">{{ opt.label }}</span>
                                 </button>
                             </div>
-                            <p class="mt-3 text-xs text-gray-400">选中项会以 55% 进度显示；下载时进度会随 <code>updateFile</code> 实时更新。
+                            <p class="mt-3 text-xs text-gray-400">{{ t('appearance.loaderSelectedHint', { file: 'updateFile' }) }}
                             </p>
                         </div>
                     </div>
@@ -451,18 +452,18 @@
                 <section class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
                     <div class="flex items-center gap-3 mb-1">
                         <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            导航栏头像位置</h3>
+                            {{ t('appearance.headerAvatar') }}</h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
-                    <p class="text-xs text-gray-400 mt-2">选择对话中头像和名称的显示位置。</p>
+                    <p class="text-xs text-gray-400 mt-2">{{ t('appearance.headerAvatarDesc') }}</p>
 
                     <!-- 预览：模拟窗口内部布局 -->
                     <div class="mb-6 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
                         <div
                             class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">预览</span>
+                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('appearance.preview') }}</span>
                             <span class="text-xs text-gray-400 dark:text-gray-500">{{ settings.chatHeaderAvatarPosition
-                                === 'titlebar' ? '标题栏模式' : '默认模式' }}</span>
+                                === 'titlebar' ? t('appearance.titlebarMode') : t('appearance.defaultMode') }}</span>
                         </div>
                         <!-- 窗口模拟（四周有间距，像真实窗口嵌在卡片内） -->
                         <div class="p-4">
@@ -578,8 +579,8 @@
                                 <LayoutListIcon class="w-5 h-5" />
                             </div>
                             <div class="text-left min-w-0">
-                                <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">导航栏</h4>
-                                <p class="text-xs text-gray-400 mt-0.5 truncate">头像在侧边导航栏</p>
+                                <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('appearance.navSidebar') }}</h4>
+                                <p class="text-xs text-gray-400 mt-0.5 truncate">{{ t('appearance.navSidebarDesc') }}</p>
                             </div>
                         </button>
                         <button type="button" @click="settings.chatHeaderAvatarPosition = 'titlebar'"
@@ -591,8 +592,8 @@
                                 <PanelTopIcon class="w-5 h-5" />
                             </div>
                             <div class="text-left min-w-0">
-                                <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">标题栏</h4>
-                                <p class="text-xs text-gray-400 mt-0.5 truncate">头像在窗口标题栏</p>
+                                <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('appearance.titlebar') }}</h4>
+                                <p class="text-xs text-gray-400 mt-0.5 truncate">{{ t('appearance.titlebarDesc') }}</p>
                             </div>
                         </button>
                     </div>
@@ -623,8 +624,9 @@ import LoaderIndicator from '../../components/common/LoaderIndicator';
 import SlidingTabBar from '../../components/common/SlidingTabBar.vue';
 import TitleBarEmojiStatus from '../../components/common/TitleBarEmojiStatus.vue';
 import stickerPreview from '../../assets/sticker.jpg';
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 
-import { td } from "../../utils/tdLang";
 const router = useRouter();
 
 /** 返回设置列表 */
@@ -637,28 +639,28 @@ const DEFAULT_MESSAGE = { cornerRadius: 18, fontSize: 14, stickerSize: 160 };
 
 /** 加载指示器可选样式（与 loader tag 对应） */
 const loaderOptions = [
-    { value: 'ring2', label: '圆环' },
-    { value: 'squircle', label: '方圆' },
-    { value: 'square', label: '方框' },
-    { value: 'reuleaux', label: '三角圆' },
-    { value: 'infinity', label: '无限' },
-    { value: 'trefoil', label: '三叶' },
+    { value: 'ring2', label: t('appearance.loaderRing') },
+    { value: 'squircle', label: t('appearance.loaderSquircle') },
+    { value: 'square', label: t('appearance.loaderSquare') },
+    { value: 'reuleaux', label: t('appearance.loaderReuleaux') },
+    { value: 'infinity', label: t('appearance.loaderInfinity') },
+    { value: 'trefoil', label: t('appearance.loaderTrefoil') },
 ] as const;
 
 const loaderLabel = computed(() => {
     const labels: Record<string, string> = {
-        ring2: '圆环 (默认)', squircle: '方圆', square: '方框',
-        reuleaux: '三角圆', infinity: '无限', trefoil: '三叶',
+        ring2: t('appearance.loaderRingDefault'), squircle: t('appearance.loaderSquircle'), square: t('appearance.loaderSquare'),
+        reuleaux: t('appearance.loaderReuleaux'), infinity: t('appearance.loaderInfinity'), trefoil: t('appearance.loaderTrefoil'),
     };
-    return labels[settings.loadingStyle] || '圆环 (默认)';
+    return labels[settings.loadingStyle] || t('appearance.loaderRingDefault');
 });
 
 /** 预览分组数据（全部对话默认使用对话图标） */
 const folders: { id: string; name: string; unread: number; icon: Component }[] = [
-    { id: 'all', name: '全部', unread: 5, icon: MessageCircleIcon },
-    { id: 'private', name: '个人', unread: 2, icon: UserIcon },
-    { id: 'groups', name: td('lng_notification_groups', '群组'), unread: 8, icon: UsersIcon },
-    { id: 'channels', name: td('lng_notification_channels', '频道'), unread: 3, icon: MegaphoneIcon },
+    { id: 'all', name: t('appearance.folderAll'), unread: 5, icon: MessageCircleIcon },
+    { id: 'private', name: t('appearance.folderPrivate'), unread: 2, icon: UserIcon },
+    { id: 'groups', name: t('lng_notification_groups'), unread: 8, icon: UsersIcon },
+    { id: 'channels', name: t('lng_notification_channels'), unread: 3, icon: MegaphoneIcon },
 ];
 
 /** 预览中当前选中的分组 */
@@ -677,9 +679,9 @@ onMounted(() => {
 /** 预览使用的当前用户名称 */
 const userName = computed(() => {
     const u = userProfile.value;
-    if (!u) return '我';
+    if (!u) return t('appearance.me');
     const full = [u.first_name, u.last_name].filter(Boolean).join(' ').trim();
-    return full || '我';
+    return full || t('appearance.me');
 });
 
 /** 预览使用的当前用户头像 */
@@ -712,13 +714,17 @@ const showPreviewLeftBadge = computed(
 
 /** 样式选择选项（集成在预览内） */
 const styleOptions = [
-    { value: 'tabs', label: td('lng_sr_chat_hashtag', '标签') },
-    { value: 'pills', label: '胶囊' },
-    { value: 'text', label: '文本' },
+    { value: 'tabs', label: t('lng_sr_chat_hashtag') },
+    { value: 'pills', label: t('appearance.stylePills') },
+    { value: 'text', label: t('appearance.styleText') },
 ] as const;
 
 const styleLabel = computed(() => {
-    const labels = { tabs: '标签样式', pills: '胶囊样式', text: '文本样式' } as const;
+    const labels = {
+        tabs: t('appearance.styleTabsLabel'),
+        pills: t('appearance.stylePillsLabel'),
+        text: t('appearance.styleTextLabel'),
+    } as const;
     return labels[settings.folderStyle];
 });
 

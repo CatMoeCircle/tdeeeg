@@ -69,6 +69,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { ref, computed, nextTick, watch } from "vue";
 import { XIcon, SearchIcon, BookmarkIcon } from "lucide-vue-next";
 import Avatar from "../chat/avatar.vue";
@@ -79,7 +81,6 @@ import { useChatStore } from "../../store/chat";
 import { useUserStore } from "../../store/user";
 import type { chat } from "tdlib-types";
 
-import { td } from "../../utils/tdLang";
 const props = defineProps<{
     visible: boolean;
     /** 源对话 id */
@@ -127,12 +128,12 @@ const chatTitle = (chat: chat) => {
 };
 
 function chatTypeLabel(chat: chat): string {
-    if (isSaved(chat)) return td('lng_media_auto_private_chats', '私聊');
-    const t = (chat as any).type?._;
-    if (t === "chatTypePrivate") return td('lng_media_auto_private_chats', '私聊');
-    if (t === "chatTypeBasicGroup") return td('lng_notification_groups', '群组');
-    if (t === "chatTypeSupergroup") {
-        return (chat as any).type?.is_channel ? td('lng_notification_channels', '频道') : td('lng_notification_groups', '群组');
+    if (isSaved(chat)) return t('lng_media_auto_private_chats');
+    const typeKey = (chat as any).type?._;
+    if (typeKey === "chatTypePrivate") return t('lng_media_auto_private_chats');
+    if (typeKey === "chatTypeBasicGroup") return t('lng_notification_groups');
+    if (typeKey === "chatTypeSupergroup") {
+        return (chat as any).type?.is_channel ? t('lng_notification_channels') : t('lng_notification_groups');
     }
     return "";
 }

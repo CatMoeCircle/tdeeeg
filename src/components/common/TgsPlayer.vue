@@ -1,8 +1,8 @@
 <template>
     <div class="tgs-player" :class="className" :style="rootStyle">
         <LottiePlayer ref="innerRef" class="tgs-lottie-root" :src="src ?? undefined" :data="data ?? undefined"
-            :loop="loop" :autoplay="autoplay" :speed="speed" :fitz-modifier="fitzModifier" @load="onLoad"
-            @error="onError" @complete="onComplete" />
+            :loop="loop" :autoplay="autoplay" :speed="speed" :fitz-modifier="fitzModifier"
+            :report-frames="reportFrames" @load="onLoad" @error="onError" @complete="onComplete" />
     </div>
 </template>
 
@@ -12,12 +12,14 @@ export type TgsPlayerInstance = {
     pause(): void;
     stop(): void;
     seek(frame: number): void;
+    setDirection(direction: 1 | -1): void;
+    setLoop(loop: boolean | number): void;
     getProperties(): unknown;
 };
 </script>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onUnmounted, ref } from 'vue';
 import { LottiePlayer } from 'tlottie/vue';
 import 'tlottie/vue/style.css';
 import type { FitzModifier } from 'tlottie';
@@ -42,22 +44,27 @@ const props = withDefaults(defineProps<{
     fitzModifier?: FitzModifier;
     /** 额外 class（叠加在 .tgs-player 上） */
     class?: string;
+    /** 开启后转发底层 frame 事件（约 10Hz），用于按帧暂停/倒放 */
+    reportFrames?: boolean;
 }>(), {
     src: null,
     data: null,
     loop: true,
     autoplay: true,
     speed: 1,
+    reportFrames: false,
 });
 
 const emit = defineEmits<{
     (e: 'load', payload: unknown): void;
     (e: 'error', payload: unknown): void;
     (e: 'complete', payload: unknown): void;
+    (e: 'frame', payload: { current: number; total: number }): void;
 }>();
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const innerRef = ref<any>(null);
+let frameListener: ((payload: any) => void) | null = null;
 
 function engine() {
     return innerRef.value?.tlottie?.() ?? null;
@@ -73,10 +80,27 @@ const className = computed(() => props.class || undefined);
 
 function onLoad(payload: unknown) {
     emit('load', payload);
+    if (!props.reportFrames) return;
+    const eng = engine() as { on?: (e: string, cb: (p: any) => void) => void; off?: (e: string, cb: (p: any) => void) => void } | null;
+    if (!eng?.on) return;
+    frameListener = (p: any) => {
+        const frames = p?.frames ?? p;
+        if (frames && typeof frames.current === 'number') {
+            emit('frame', { current: frames.current, total: frames.total ?? 0 });
+        }
+    };
+    eng.on('frame', frameListener);
 }
 function onError(payload: unknown) {
+    detachFrameListener();
     console.error('[TgsPlayer] error:', payload, { src: props.src, hasData: !!props.data });
     emit('error', payload);
+}
+
+function detachFrameListener() {
+    const eng = engine() as { off?: (e: string, cb: (p: any) => void) => void } | null;
+    if (eng?.off && frameListener) eng.off('frame', frameListener);
+    frameListener = null;
 }
 function onComplete(payload: unknown) {
     emit('complete', payload);
@@ -95,9 +119,19 @@ defineExpose({
     seek(frame: number) {
         engine()?.seek(frame);
     },
+    setDirection(direction: 1 | -1) {
+        (engine() as { setDirection?: (d: 1 | -1) => void } | null)?.setDirection?.(direction);
+    },
+    setLoop(loop: boolean | number) {
+        (engine() as { setLoop?: (l: boolean | number) => void } | null)?.setLoop?.(loop);
+    },
     getProperties() {
         return engine();
     },
+});
+
+onUnmounted(() => {
+    detachFrameListener();
 });
 </script>
 

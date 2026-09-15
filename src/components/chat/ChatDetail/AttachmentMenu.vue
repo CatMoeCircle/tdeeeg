@@ -36,6 +36,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import type { chat, ChatMemberStatus, user } from 'tdlib-types';
 import { MessagePlugin } from 'tdesign-vue-next';
@@ -59,7 +61,6 @@ import { getFileSize, useAttachmentStore } from '../../../store/attachment';
 import { classifyAttachment } from '../../../utils/attachmentSend';
 import { isInAlbum } from '../../../utils/attachmentHelpers';
 
-import { td } from "../../../utils/tdLang";
 type AttachAction =
     | 'photo'
     | 'file'
@@ -163,7 +164,7 @@ async function handleAttachMusic() {
         multiple: true,
         title: '选择音乐',
         filters: [{
-            name: td('lng_all_music', '音乐'),
+            name: t('lng_all_music'),
             extensions: ['mp3', 'm4a', 'aac', 'ogg', 'opus', 'flac', 'wav', 'wma', 'amr'],
         }],
     });
@@ -227,13 +228,13 @@ const attachItems = computed<AttachItem[]>(() => [
     },
     {
         key: 'file',
-        label: td('lng_in_dlg_file', '文件'),
+        label: t('lng_in_dlg_file'),
         icon: FileIcon,
         hidden: !documentRights.value,
     },
     {
         key: 'music',
-        label: td('lng_all_music', '音乐'),
+        label: t('lng_all_music'),
         icon: MusicIcon,
         hidden: !audioRights.value,
     },
@@ -246,13 +247,13 @@ const attachItems = computed<AttachItem[]>(() => [
     },
     {
         key: 'poll',
-        label: td('lng_in_dlg_poll', '投票'),
+        label: t('lng_in_dlg_poll'),
         icon: BarChart2Icon,
         hidden: !pollRights.value,
     },
     {
         key: 'contact',
-        label: td('lng_contacts_header', '联系人'),
+        label: t('lng_contacts_header'),
         icon: UserIcon,
         hidden: !messageRights.value,
     },

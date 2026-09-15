@@ -4,7 +4,7 @@
             <button type="button" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" @click="goBack">
                 <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
             </button>
-            <h2 class="text-lg font-semibold">数据和存储</h2>
+            <h2 class="text-lg font-semibold">{{ t('lng_settings_data_storage') }}</h2>
         </div>
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
             <div class="max-w-2xl">
@@ -12,7 +12,8 @@
                 <!-- ===== 自动下载区域 ===== -->
                 <div class="space-y-6">
                     <div class="flex items-center gap-3 mb-1">
-                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">自动下载
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{
+                            t('lng_media_auto_settings') }}
                         </h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
@@ -20,8 +21,8 @@
                     <!-- 自动下载总开关 -->
                     <div class="flex items-center justify-between py-3 px-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
                         <div>
-                            <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100">启用自动下载</h4>
-                            <p class="text-xs text-gray-400 mt-0.5">关闭后将不会自动下载任何媒体文件</p>
+                            <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ t('download.enableAuto') }}</h4>
+                            <p class="text-xs text-gray-400 mt-0.5">{{ t('download.enableAutoDesc') }}</p>
                         </div>
                         <ToggleSwitch :modelValue="settings.autoDownload.enabled"
                             @update:modelValue="settings.autoDownload.enabled = $event" />
@@ -30,21 +31,22 @@
                     <template v-if="settings.autoDownload.enabled">
 
                         <!-- ===== 图片（折叠） ===== -->
-                        <CollapsibleSection :open="openSections.photos" :title="td('lng_in_dlg_photo', '图片')" description="视频封面、图片、贴纸、音频封面等"
-                            @toggle="openSections.photos = !openSections.photos">
+                        <CollapsibleSection :open="openSections.photos" :title="t('lng_in_dlg_photo')"
+                            :description="t('download.photoDesc')" @toggle="openSections.photos = !openSections.photos">
                             <ChatTypeToggle v-for="cat in categories" :key="'photo-' + cat.key" :label="cat.label"
                                 :modelValue="settings.autoDownload.photos[cat.key]"
                                 @update:modelValue="settings.autoDownload.photos[cat.key] = $event" />
                         </CollapsibleSection>
 
                         <!-- ===== 视频（折叠） ===== -->
-                        <CollapsibleSection :open="openSections.videos" :title="td('lng_in_dlg_video', '视频')" description="自动下载小于指定体积的视频"
-                            @toggle="openSections.videos = !openSections.videos">
+                        <CollapsibleSection :open="openSections.videos" :title="t('lng_in_dlg_video')"
+                            :description="t('download.videoDesc')" @toggle="openSections.videos = !openSections.videos">
                             <ChatTypeToggle v-for="cat in categories" :key="'video-' + cat.key" :label="cat.label"
                                 :modelValue="settings.autoDownload.videos[cat.key]"
                                 @update:modelValue="settings.autoDownload.videos[cat.key] = $event" />
                             <div class="flex items-center justify-between py-2 mt-1">
-                                <span class="text-sm text-gray-600 dark:text-gray-400">最大体积</span>
+                                <span class="text-sm text-gray-600 dark:text-gray-400">{{ t('lng_media_size_limit')
+                                    }}</span>
                                 <div class="flex items-center gap-2">
                                     <input type="range" min="1" max="500" step="1"
                                         v-model.number="settings.autoDownload.videos.maxSize"
@@ -56,13 +58,14 @@
                         </CollapsibleSection>
 
                         <!-- ===== 文件（折叠） ===== -->
-                        <CollapsibleSection :open="openSections.files" :title="td('lng_in_dlg_file', '文件')" description="自动下载小于指定体积的文档文件"
-                            @toggle="openSections.files = !openSections.files">
+                        <CollapsibleSection :open="openSections.files" :title="t('lng_in_dlg_file')"
+                            :description="t('download.fileDesc')" @toggle="openSections.files = !openSections.files">
                             <ChatTypeToggle v-for="cat in categories" :key="'file-' + cat.key" :label="cat.label"
                                 :modelValue="settings.autoDownload.files[cat.key]"
                                 @update:modelValue="settings.autoDownload.files[cat.key] = $event" />
                             <div class="flex items-center justify-between py-2 mt-1">
-                                <span class="text-sm text-gray-600 dark:text-gray-400">最大体积</span>
+                                <span class="text-sm text-gray-600 dark:text-gray-400">{{ t('lng_media_size_limit')
+                                    }}</span>
                                 <div class="flex items-center gap-2">
                                     <input type="range" min="1" max="500" step="1"
                                         v-model.number="settings.autoDownload.files.maxSize"
@@ -76,21 +79,22 @@
                     </template>
 
                     <div v-else class="pb-4 text-xs text-gray-400 text-center">
-                        自动下载已关闭，需要手动点击下载按钮来获取媒体文件。
+                        {{ t('download.autoDisabledHint') }}
                     </div>
                 </div>
 
                 <!-- ===== 存储管理区域 ===== -->
                 <div class="mt-10 pt-6 border-t border-gray-200 dark:border-gray-700">
                     <div class="flex items-center gap-3 mb-1">
-                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">存储管理
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{
+                            t('lng_settings_manage_local_storage') }}
                         </h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
 
                     <!-- 数据存放位置选择 -->
                     <div class="mb-8 mt-6">
-                        <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">数据存放位置</h4>
+                        <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('download.dataLocation') }}</h4>
 
                         <div class="space-y-3">
                             <!-- AppData 模式 -->
@@ -104,10 +108,9 @@
                                         <AppWindowIcon class="w-5 h-5" />
                                     </div>
                                     <div>
-                                        <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">系统数据目录
-                                            （AppData）</h4>
-                                        <p class="text-xs text-gray-400 mt-0.5">数据保存在系统用户目录，卸载/移动应用后数据不受影响
-                                        </p>
+                                        <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{
+                                            t('download.appdataTitle') }}</h4>
+                                        <p class="text-xs text-gray-400 mt-0.5">{{ t('download.appdataDesc') }}</p>
                                         <p class="text-[11px] text-gray-300 dark:text-gray-600 mt-1 break-all">{{
                                             dataInfo.appdata_dir }}</p>
                                     </div>
@@ -129,9 +132,9 @@
                                         <FolderOpenIcon class="w-5 h-5" />
                                     </div>
                                     <div>
-                                        <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">应用自带目录（便携）
-                                        </h4>
-                                        <p class="text-xs text-gray-400 mt-0.5">数据保存在应用目录内，随应用一起移动</p>
+                                        <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{
+                                            t('download.portableTitle') }}</h4>
+                                        <p class="text-xs text-gray-400 mt-0.5">{{ t('download.portableDesc') }}</p>
                                         <p class="text-[11px] text-gray-300 dark:text-gray-600 mt-1 break-all">{{
                                             dataInfo.portable_dir }}</p>
                                     </div>
@@ -144,33 +147,33 @@
                         </div>
 
                         <p class="text-xs text-amber-500 dark:text-amber-400 mt-3">
-                            切换存储位置需要关闭 TDLib 并移动数据，完成后应用将自动重启。
+                            {{ t('download.switchHint') }}
                         </p>
                     </div>
 
                     <!-- 数据统计 -->
                     <div class="mb-6">
-                        <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">数据统计</h4>
+                        <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('download.stats') }}</h4>
 
                         <div class="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                             <div
                                 class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                                <span class="text-sm text-gray-600 dark:text-gray-300">当前数据目录</span>
+                                <span class="text-sm text-gray-600 dark:text-gray-300">{{ t('download.currentDir') }}</span>
                                 <span class="text-xs text-gray-400 font-mono break-all max-w-[60%] text-right">{{
                                     dataInfo.current_dir }}</span>
                             </div>
                             <div
                                 class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                                <span class="text-sm text-gray-600 dark:text-gray-300">TDLib 数据库</span>
+                                <span class="text-sm text-gray-600 dark:text-gray-300">{{ t('download.tdlibDb') }}</span>
                                 <span class="text-xs text-gray-500">{{ formatSize(dataInfo.tdlib_size) }}</span>
                             </div>
                             <div
                                 class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                                <span class="text-sm text-gray-600 dark:text-gray-300">下载记录</span>
+                                <span class="text-sm text-gray-600 dark:text-gray-300">{{ t('download.downloads') }}</span>
                                 <span class="text-xs text-gray-500">{{ formatSize(dataInfo.downloads_size) }}</span>
                             </div>
                             <div class="flex items-center justify-between px-4 py-3">
-                                <span class="text-sm font-medium text-gray-700 dark:text-gray-200">总计</span>
+                                <span class="text-sm font-medium text-gray-700 dark:text-gray-200">{{ t('download.total') }}</span>
                                 <span class="text-sm font-medium text-gray-700 dark:text-gray-200">{{
                                     formatSize(dataInfo.total_size) }}</span>
                             </div>
@@ -197,10 +200,10 @@
                     <div
                         class="w-105 max-w-[92vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden p-5 flex flex-col items-center">
                         <FolderSyncIcon class="w-10 h-10 text-blue-500 animate-pulse mb-3" />
-                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">正在迁移数据</h3>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">{{ t('download.migratingTitle') }}</h3>
                         <p class="text-xs text-gray-500 dark:text-gray-400 text-center">{{ progressMessage }}</p>
                         <p class="mt-3 text-[11px] text-gray-400 text-center">
-                            迁移过程中会关闭 TDLib 并移动数据，完成后应用将自动重启。
+                            {{ t('download.migratingHint') }}
                         </p>
                     </div>
                 </div>
@@ -210,6 +213,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { invoke } from '@tauri-apps/api/core';
@@ -223,7 +228,6 @@ import CollapsibleSection from '../../components/settings/CollapsibleSection.vue
 import ChatTypeToggle from '../../components/settings/ChatTypeToggle.vue';
 import EditableNumber from '../../components/settings/EditableNumber.vue';
 
-import { td } from "../../utils/tdLang";
 const router = useRouter();
 
 /** 返回设置列表 */
@@ -249,10 +253,10 @@ interface MigrationProgress {
 }
 
 const categories: { key: keyof AutoDownloadByType; label: string }[] = [
-    { key: 'contacts', label: td('lng_contacts_header', '联系人') },
-    { key: 'privateChats', label: td('lng_media_auto_private_chats', '私聊') },
-    { key: 'channels', label: td('lng_notification_channels', '频道') },
-    { key: 'groups', label: td('lng_notification_groups', '群组') },
+    { key: 'contacts', label: t('lng_contacts_header') },
+    { key: 'privateChats', label: t('lng_media_auto_private_chats') },
+    { key: 'channels', label: t('lng_media_auto_in_channels') },
+    { key: 'groups', label: t('lng_media_auto_in_groups') },
 ];
 
 const openSections = reactive({
@@ -296,25 +300,23 @@ async function loadDataInfo() {
 }
 
 const buttonLabel = computed(() => {
-    if (migrating.value) return '正在迁移…';
+    if (migrating.value) return t('download.migratingButton');
     return dataMode.value === 'appdata'
-        ? '迁移到应用自带目录'
-        : '迁移回系统数据目录（AppData）';
+        ? t('download.migrateToPortable')
+        : t('download.migrateToAppdata');
 });
 
 async function startMigration() {
     const targetMode = dataMode.value === 'appdata' ? 'portable' : 'appdata';
-    const from = dataMode.value === 'appdata' ? '系统数据目录' : '应用自带目录';
+    const from = dataMode.value === 'appdata' ? t('download.fromAppdata') : t('download.fromPortable');
 
     // 迁移前确认（轻量，使用原生 confirm）
-    const ok = window.confirm(
-        `将从此位置迁移数据：\n${from}\n\n迁移过程中会关闭 TDLib 并移动全部数据，完成后应用将自动重启。是否继续？`
-    );
+    const ok = window.confirm(t('download.migrateConfirm', { from }));
 
     if (!ok) return;
 
     migrating.value = true;
-    progressMessage.value = '准备迁移…';
+    progressMessage.value = t('download.preparing');
 
     try {
         await invoke('migrate_data_dir', { mode: targetMode });
@@ -323,7 +325,7 @@ async function startMigration() {
         console.error('migrate_data_dir failed:', e);
         migrating.value = false;
         MessagePlugin.error({
-            content: String(e || '迁移失败'),
+            content: String(e || t('download.migrateFailed')),
             placement: 'top-right',
         });
         await loadDataInfo();
@@ -334,10 +336,10 @@ onMounted(async () => {
     await loadDataInfo();
     unlistenFn = await listen<MigrationProgress>('data-migration-progress', (event) => {
         const p = event.payload;
-        progressMessage.value = p.message || '处理中…';
+        progressMessage.value = p.message || t('download.processing');
         // 出错时后端也会立即重启；此处仅用于 UI 反馈
         if (p.stage === 'error') {
-            progressMessage.value = p.message || '迁移出错';
+            progressMessage.value = p.message || t('download.migrateError');
         }
     });
 });

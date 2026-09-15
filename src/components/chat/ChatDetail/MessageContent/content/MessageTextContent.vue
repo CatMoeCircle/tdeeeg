@@ -131,6 +131,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { computed, reactive, ref } from 'vue';
 import type { formattedText, textEntity, linkPreview as LinkPreview } from 'tdlib-types';
 import { resolveInternalLink as resolveInternalLinkUtil } from '../../../../../utils/openInternalLink';
@@ -149,7 +151,6 @@ import { settings } from '../../../../../store/settings';
 import MessageLinkPreview from './MessageLinkPreview.vue';
 import MessageStatus from './MessageStatus.vue';
 import type { MessageSendingState } from 'tdlib-types';
-import { td } from "../../../../../utils/tdLang";
 // 组件为多根节点（MessageLinkPreview / p / MessageLinkPreview），关闭自动继承，
 // 转为手动把透传属性（如居中、文字色 class）绑定到文本 <p> 上。
 defineOptions({ inheritAttrs: false });
@@ -480,7 +481,7 @@ function handleSegmentContextMenu(e: MouseEvent, segment: Segment) {
         e.stopPropagation();
         openContextMenu(e.clientX, e.clientY, [{
             key: 'copy-hashtag',
-            label: td('lng_mac_menu_copy', '复制'),
+            label: t('lng_mac_menu_copy'),
             onClick: () => copyToClipboard(segment.text),
         }], e.currentTarget as HTMLElement | null);
         return;

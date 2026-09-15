@@ -32,7 +32,7 @@
                                 <path d="M4 5h16M4 12h16M4 19h10" />
                             </svg>
                         </span>
-                        <button type="button" aria-label="移除附件" :title="td('lng_settings_channel_remove', '移除')"
+                        <button type="button" aria-label="移除附件" :title="t('lng_settings_channel_remove')"
                             class="no-drag shrink-0 flex h-5 w-5 items-center justify-center rounded-full text-gray-400 hover:text-red-500 transition-colors"
                             @click.stop="attachmentStore.remove(it.id)">
                             <XIcon class="h-4 w-4" />
@@ -65,7 +65,7 @@
                                 <path d="M4 5h16M4 12h16M4 19h10" />
                             </svg>
                         </span>
-                        <button type="button" aria-label="移除附件" :title="td('lng_settings_channel_remove', '移除')"
+                        <button type="button" aria-label="移除附件" :title="t('lng_settings_channel_remove')"
                             class="no-drag absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-black/50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
                             @click.stop="attachmentStore.remove(it.id)">
                             <XIcon class="w-3 h-3" />
@@ -112,6 +112,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { computed, ref, watch } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
@@ -120,7 +122,6 @@ import { VueDraggable } from 'vue-draggable-plus';
 import { useAttachmentStore } from '../../../store/attachment';
 import type { AttachmentItem, AttachmentKind } from '../../../store/attachment';
 
-import { td } from "../../../utils/tdLang";
 const attachmentStore = useAttachmentStore();
 
 /** 是否为卡片样式附件（文档 / 视频 / 音频）：图标 + 文件名 + 大小 + 删除，而非方形缩略图 */
@@ -180,7 +181,7 @@ async function pickCover() {
             multiple: false,
             title: '选择封面图片',
             filters: [{
-                name: td('lng_in_dlg_photo', '图片'),
+                name: t('lng_in_dlg_photo'),
                 extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp'],
             }],
         });

@@ -62,7 +62,7 @@
                 <div
                     class="w-105 max-w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xl dark:border-white/10 dark:bg-[#1d1d1d]">
                     <div class="relative px-6 pb-5 pt-5">
-                        <button type="button" :aria-label="td('lng_close', '关闭')"
+                        <button type="button" :aria-label="t('lng_close')"
                             class="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10"
                             @click="closeDetails">
                             <XIcon class="h-5 w-5" />
@@ -93,6 +93,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { GiftIcon, StarIcon, XIcon } from 'lucide-vue-next';
@@ -104,7 +106,6 @@ import Avatar from '../../../avatar.vue';
 import MessageStickerContent from './MessageStickerContent.vue';
 import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 
-import { td } from "../../../../../utils/tdLang";
 interface GiveawayChannel {
     id: number;
     title: string;

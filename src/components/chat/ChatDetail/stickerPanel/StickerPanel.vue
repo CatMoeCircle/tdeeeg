@@ -52,6 +52,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Smile, Clapperboard } from 'lucide-vue-next';
 import EmojiDrawer from './EmojiDrawer.vue';
@@ -59,7 +61,6 @@ import GifDrawer from './GifDrawer.vue';
 import StickerDrawer from './StickerDrawer.vue';
 import { stickerPanelState, closeStickerPanel, type StickerPanelTab } from './types';
 
-import { td } from "../../../../utils/tdLang";
 const props = defineProps<{
     /** 面板锚点元素（输入框容器），用于定位面板 */
     anchor?: HTMLElement | null;
@@ -73,9 +74,9 @@ const emit = defineEmits<{
 }>();
 
 const tabs = [
-    { id: 'emoji' as StickerPanelTab, label: td('lng_stickers_installed_tab', '表情'), icon: Smile },
+    { id: 'emoji' as StickerPanelTab, label: t('lng_stickers_installed_tab'), icon: Smile },
     { id: 'gif' as StickerPanelTab, label: 'GIF', icon: Clapperboard },
-    { id: 'sticker' as StickerPanelTab, label: td('lng_in_dlg_sticker', '贴纸'), icon: Smile },
+    { id: 'sticker' as StickerPanelTab, label: t('lng_in_dlg_sticker'), icon: Smile },
 ];
 
 const state = stickerPanelState.value;

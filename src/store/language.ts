@@ -78,14 +78,14 @@ export const useLanguageStore = defineStore("language", () => {
     let unlisten: UnlistenFn | null = null;
     let applying = false;
 
-    /** 将内置应用文案注册进 vue-i18n（幂等；仅应用自有 key，不含 td.*） */
+    /** 将内置应用文案注册进 vue-i18n（幂等；仅应用自有 key，不含官方 lng_） */
     function ensureBuiltinMessages(): void {
         for (const [locale, messages] of Object.entries(BUILTIN_MESSAGES)) {
             if (!(i18n.global.availableLocales as string[]).includes(locale)) {
                 i18n.global.setLocaleMessage(locale as any, messages as any);
             }
         }
-        // 官方英文保底：en.td.* 来自打包的 td-en.json
+        // 官方英文保底：来自打包的 td-en.json
         ensureBuiltinTdEnglish();
     }
 

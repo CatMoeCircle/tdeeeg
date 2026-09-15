@@ -4,6 +4,7 @@ import { tdlibSend, isFileReady } from '../utils/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { isThumbnailImgRenderable } from '../utils/thumbnail';
 import { listAlbumCoverFiles } from '../utils/profileMedia';
+import { fetchItunesCoverForAudio } from '../utils/itunesCover';
 import type { message, SearchMessagesFilter$Input, photo, file } from 'tdlib-types';
 
 /** 共享媒体网格项 */
@@ -290,10 +291,11 @@ export function useSharedMediaCell(
                 }
             }
 
-            // 音乐专辑封面（内嵌优先，失败再试外部备选）
+            // 音乐专辑封面（仅内嵌封面；空则 iTunes Search）
             if (it.contentType === 'messageAudio' && it.message?.content._ === 'messageAudio') {
+                const audio = it.message.content.audio;
                 const { downloadFileUrl } = await import('../utils/profileMedia');
-                for (const coverFile of listAlbumCoverFiles(it.message.content.audio)) {
+                for (const coverFile of listAlbumCoverFiles(audio)) {
                     try {
                         const url = await downloadFileUrl(coverFile, `shared_music_cover_${it.messageId}_${coverFile.id}.jpg`, 'music_cover');
                         if (url) {
@@ -302,6 +304,12 @@ export function useSharedMediaCell(
                             return;
                         }
                     } catch { /* 尝试下一个候选 */ }
+                }
+                const itunes = await fetchItunesCoverForAudio(audio);
+                if (itunes) {
+                    visibleSrc.value = itunes;
+                    isBlurred.value = false;
+                    return;
                 }
             }
 

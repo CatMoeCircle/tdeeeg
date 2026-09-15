@@ -10,11 +10,14 @@ import type {
   chatNotificationSettings,
   message,
   draftMessage,
+  basicGroup,
+  supergroup,
+  userStatus,
 } from "tdlib-types";
 import { tdlibSend } from "./tdlib";
 import type { Chat } from "../store/chat";
+import i18n from "../i18n";
 
-import { td } from "../utils/tdLang";
 /**
  * TDLib update 事件 payload 的松散类型。
  * 部分更新类型（如 updateNewUser / updateUserAccentColor / updateChatAccentColor 等）未在
@@ -35,6 +38,9 @@ interface TdlibUpdate {
   unread_count?: number;
   notification_settings?: chatNotificationSettings;
   view_as_topics?: boolean;
+  status?: userStatus;
+  basic_group?: basicGroup;
+  supergroup?: supergroup;
 }
 
 /** 从 ChatType 中取出私聊/密聊对应的 user_id（其他类型无该字段） */
@@ -49,10 +55,14 @@ function getChatUserId(type?: ChatType): number | undefined {
 /** 全局发送者缓存（响应式，加载完成后界面自动更新） */
 const users = reactive(new Map<number, user>());
 const chats = reactive(new Map<number, chat>());
+const basicGroups = reactive(new Map<number, basicGroup>());
+const supergroups = reactive(new Map<number, supergroup>());
 
 /** 进行中的请求，避免重复请求同一对象 */
 const pendingUsers = new Map<number, Promise<void>>();
 const pendingChats = new Map<number, Promise<void>>();
+const pendingBasicGroups = new Map<number, Promise<void>>();
+const pendingSupergroups = new Map<number, Promise<void>>();
 
 /** 防止重复注册事件监听器 */
 let initialized = false;
@@ -77,6 +87,19 @@ export async function initSenderInfo(): Promise<void> {
       if (u && typeof u.id === "number") {
         users.set(u.id, u);
       }
+    }
+    // 上线状态变更：就地更新缓存用户，驱动列表「最后上线」刷新
+    else if (type_ === "updateUserStatus" && typeof update.user_id === "number") {
+      const u = users.get(update.user_id);
+      if (u && update.status) {
+        u.status = update.status;
+      }
+    }
+    // 基础群 / 超级群（含频道）成员数等信息
+    else if (type_ === "updateBasicGroup" && update.basic_group) {
+      basicGroups.set(update.basic_group.id, update.basic_group);
+    } else if (type_ === "updateSupergroup" && update.supergroup) {
+      supergroups.set(update.supergroup.id, update.supergroup);
     }
     // updateUserAccentColor / updateUserProfileAccentColor：名称/头像主题色变更
     else if (
@@ -191,6 +214,44 @@ export async function ensureUser(userId: number): Promise<void> {
   return p;
 }
 
+/** 确保基础群数据已加载（有缓存则直接返回） */
+export async function ensureBasicGroup(basicGroupId: number): Promise<void> {
+  if (basicGroups.has(basicGroupId)) return;
+  const existing = pendingBasicGroups.get(basicGroupId);
+  if (existing) return existing;
+  const p = tdlibSend({ _: "getBasicGroup", basic_group_id: basicGroupId })
+    .then((g: basicGroup) => {
+      basicGroups.set(basicGroupId, g);
+    })
+    .catch(() => { /* 忽略 */ })
+    .finally(() => pendingBasicGroups.delete(basicGroupId));
+  pendingBasicGroups.set(basicGroupId, p);
+  return p;
+}
+
+/** 确保超级群/频道数据已加载（有缓存则直接返回） */
+export async function ensureSupergroup(supergroupId: number): Promise<void> {
+  if (supergroups.has(supergroupId)) return;
+  const existing = pendingSupergroups.get(supergroupId);
+  if (existing) return existing;
+  const p = tdlibSend({ _: "getSupergroup", supergroup_id: supergroupId })
+    .then((g: supergroup) => {
+      supergroups.set(supergroupId, g);
+    })
+    .catch(() => { /* 忽略 */ })
+    .finally(() => pendingSupergroups.delete(supergroupId));
+  pendingSupergroups.set(supergroupId, p);
+  return p;
+}
+
+export function getReactiveBasicGroup(basicGroupId: number): basicGroup | undefined {
+  return basicGroups.get(basicGroupId);
+}
+
+export function getReactiveSupergroup(supergroupId: number): supergroup | undefined {
+  return supergroups.get(supergroupId);
+}
+
 /** 确保聊天数据已加载（有缓存则直接返回） */
 export async function ensureChat(chatId: number): Promise<void> {
   if (chats.has(chatId)) return;
@@ -261,7 +322,7 @@ export function getSenderName(senderId?: MessageSender): string {
     const u = users.get(senderId.user_id);
     if (!u) return "";
     if (u.type?._ === "userTypeDeleted") return DELETED_ACCOUNT_LABEL;
-    return `${u.first_name} ${u.last_name}`.trim() || td('lng_credits_box_history_entry_anonymous', '未知用户');
+    return `${u.first_name} ${u.last_name}`.trim() || i18n.global.t('lng_credits_box_history_entry_anonymous');
   } else if (senderId._ === "messageSenderChat") {
     const c = chats.get(senderId.chat_id);
     return c?.title || "";

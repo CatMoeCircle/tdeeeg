@@ -6,7 +6,7 @@
                 <div @keydown.esc.stop="close"
                     class="w-105 max-w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-800">
                     <div class="relative px-6 pb-2 pt-5">
-                        <button type="button" :aria-label="td('lng_close', '关闭')"
+                        <button type="button" :aria-label="t('lng_close')"
                             class="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
                             @click="close">
                             <XIcon class="h-5 w-5" />
@@ -44,10 +44,11 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { ref, watch, nextTick } from 'vue';
 import { XIcon, Link2 } from 'lucide-vue-next';
 
-import { td } from "../../../utils/tdLang";
 const props = defineProps<{
     modelValue: boolean;
     /** 预填的初始 URL（例如选中的文本本身就是一个链接） */

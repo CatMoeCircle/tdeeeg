@@ -12,7 +12,7 @@
                     </div>
                     <button type="button"
                         class="audio-cover-button absolute inset-0 flex items-center justify-center bg-black/20 text-white transition-colors hover:bg-black/30"
-                        :aria-label="isGloballyPlaying ? td('lng_mac_menu_player_pause', '暂停') : '播放'" @click="togglePlayback">
+                        :aria-label="isGloballyPlaying ? t('lng_mac_menu_player_pause') : '播放'" @click="togglePlayback">
                         <PauseIcon v-if="isGloballyPlaying" class="h-6 w-6 fill-current" />
                         <PlayIcon v-else class="ml-0.5 h-6 w-6 fill-current" />
                     </button>
@@ -44,6 +44,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { computed, onMounted, ref, watch } from 'vue';
 import type { audio, pageBlockCaption, thumbnail } from 'tdlib-types';
 import { MusicIcon, PauseIcon, PlayIcon } from 'lucide-vue-next';
@@ -51,12 +53,12 @@ import { tdlibSend, isFileReady } from '../../../../../utils/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { isThumbnailImgRenderable } from '../../../../../utils/thumbnail';
+import { fetchItunesCoverForAudio } from '../../../../../utils/itunesCover';
 import { useAudioPlayerStore } from '../../../../../store/audioPlayer';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import RichMediaDownload from './RichMediaDownload.vue';
 import RichCaption from './RichCaption.vue';
 
-import { td } from "../../../../../utils/tdLang";
 const props = defineProps<{
     audio?: audio | null;
     caption?: pageBlockCaption | null;
@@ -141,7 +143,7 @@ function formatDuration(seconds: number) {
     return `${minutes}:${String(safeSeconds % 60).padStart(2, '0')}`;
 }
 
-/** 加载专辑封面：minithumbnail → 内嵌缩略图 → 外部封面（只取可渲染为图片的静态位图） */
+/** 加载专辑封面：minithumbnail → 内嵌缩略图 → iTunes Search（不再下载 external_album_covers） */
 async function loadCover() {
     const a = props.audio;
     if (!a) return;
@@ -154,24 +156,14 @@ async function loadCover() {
     const imgRenderable = (t: thumbnail | undefined): t is thumbnail =>
         !!t && isThumbnailImgRenderable(t.format) && !!t.file.local?.can_be_downloaded;
 
-    // 优先使用内嵌封面 thumbnail；否则从最高清外部封面开始尝试
     const primary = imgRenderable(a.album_cover_thumbnail) ? a.album_cover_thumbnail : undefined;
-    const external = (a.external_album_covers ?? [])
-        .filter(imgRenderable)
-        .sort((x, y) => x.width * x.height - y.width * y.height);
 
-    const candidates: thumbnail[] = primary
-        ? [primary, ...external.reverse()]
-        : [...external.reverse()];
-
-    for (const thumbnail of candidates) {
-        if (!thumbnail) continue;
-        const file = thumbnail.file;
+    if (primary) {
+        const file = primary.file;
         if (isFileReady(file)) {
             if (props.audio?.audio?.id === audioFileId) coverSrc.value = convertFileSrc(file.local.path);
             return;
         }
-        if (!file.local.can_be_downloaded) continue;
         try {
             const downloaded = await tdlibSend({
                 _: 'downloadFile',
@@ -187,6 +179,10 @@ async function loadCover() {
             }
         } catch (_) { }
     }
+
+    // 内嵌封面为空/下载失败 → iTunes Search；无结果则保持当前（minithumbnail 或空）
+    const itunes = await fetchItunesCoverForAudio(a);
+    if (itunes && props.audio?.audio?.id === audioFileId) coverSrc.value = itunes;
 }
 
 /** 立即设置 base64 封面预览（不下载），供离屏富文本音频显示占位。 */

@@ -5,7 +5,7 @@
             <button type="button" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" @click="goBack">
                 <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
             </button>
-            <h2 class="text-lg font-semibold">设备</h2>
+            <h2 class="text-lg font-semibold">{{ t('lng_settings_sessions_title') }}</h2>
         </div>
 
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
@@ -13,7 +13,8 @@
                 <!-- 区域1：当前设备 -->
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <div class="flex items-center gap-3 mb-1">
-                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">当前设备</h3>
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{
+                            t('lng_sessions_header') }}</h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
                     <div class="mt-5 space-y-3">
@@ -24,39 +25,49 @@
                                 <SmartphoneIcon class="w-5 h-5" />
                             </div>
                             <div class="min-w-0 flex-1">
-                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ currentDevice?.device_model || '未知设备' }}</p>
+                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{
+                                    currentDevice?.device_model || t('devices.unknownDevice') }}</p>
                                 <dl class="mt-2 space-y-1 text-xs">
                                     <div class="flex items-center gap-2">
-                                        <dt class="text-gray-400 w-20 shrink-0">显示的客户端</dt>
-                                        <dd class="text-gray-700 dark:text-gray-200 min-w-0 truncate">{{ clientLabel(currentDevice) }}</dd>
+                                        <dt class="text-gray-400 w-20 shrink-0">{{ t('lng_sessions_application')
+                                            }}</dt>
+                                        <dd class="text-gray-700 dark:text-gray-200 min-w-0 truncate">{{
+                                            clientLabel(currentDevice) }}</dd>
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <dt class="text-gray-400 w-20 shrink-0">地区</dt>
-                                        <dd class="text-gray-700 dark:text-gray-200 min-w-0 truncate">{{ regionLabel(currentDevice) }}</dd>
+                                        <dt class="text-gray-400 w-20 shrink-0">{{ t('lng_sessions_location')
+                                            }}</dt>
+                                        <dd class="text-gray-700 dark:text-gray-200 min-w-0 truncate">{{
+                                            regionLabel(currentDevice) }}</dd>
                                     </div>
                                 </dl>
                             </div>
-                            <span class="text-[10px] text-teal-600 dark:text-teal-400 shrink-0">当前</span>
+                            <span class="text-[10px] text-teal-600 dark:text-teal-400 shrink-0">{{ t('devices.currentBadge')
+                            }}</span>
                         </div>
                     </div>
 
                     <button type="button" @click="terminateOthers"
                         class="mt-3 w-full py-1.5 rounded-lg border border-red-200 dark:border-red-500/30 text-red-500 text-xs font-medium hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors">
-                        终止所有其它会话
+                        {{ t('lng_sessions_terminate_all') }}
                     </button>
-                    <p class="text-xs text-gray-400 mt-2 leading-relaxed">退出所有其它会话，只保留目前使用的。</p>
+                    <p class="text-xs text-gray-400 mt-2 leading-relaxed">{{ t('lng_sessions_terminate_all_about')
+                    }}</p>
                     </div>
                 </section>
 
                 <!-- 区域2：活跃会话 -->
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <div class="flex items-center gap-3 mb-1">
-                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">活跃会话</h3>
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{
+                            t('lng_settings_show_sessions') }}</h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
                     <div class="mt-5 space-y-3">
-                    <div v-if="loading" class="text-sm text-gray-400 py-8 text-center">正在加载会话…</div>
-                    <div v-else-if="otherSessions.length === 0" class="text-sm text-gray-400 py-8 text-center">没有其它活跃会话</div>
+                    <div v-if="loading" class="text-sm text-gray-400 py-8 text-center">{{ t('devices.loadingSessions')
+                    }}</div>
+                    <div v-else-if="otherSessions.length === 0" class="text-sm text-gray-400 py-8 text-center">{{
+                        t('devices.noOtherSessions') }}</div>
                     <div v-else
                         class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 divide-y divide-gray-100 dark:divide-gray-800 overflow-hidden">
                         <div v-for="s in otherSessions" :key="s.id" class="flex items-center gap-3 px-4 py-3">
@@ -65,22 +76,26 @@
                                 <component :is="deviceIcon(s)" class="w-4.5 h-4.5" />
                             </div>
                             <div class="min-w-0 flex-1">
-                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ s.device_model || clientLabel(s) }}</p>
-                                <p class="text-xs text-gray-400 mt-0.5 truncate">{{ clientLabel(s) }} · {{ regionLabel(s) }}</p>
+                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{
+                                    s.device_model || clientLabel(s) }}</p>
+                                <p class="text-xs text-gray-400 mt-0.5 truncate">{{ clientLabel(s) }} · {{ regionLabel(s)
+                                }}</p>
                                 <p class="text-xs text-gray-400 mt-0.5">{{ lastActiveText(s) }}</p>
                             </div>
                             <button type="button" @click="terminateOne(s)"
-                                class="shrink-0 text-xs text-red-500 hover:text-red-600 font-medium">终止</button>
+                                class="shrink-0 text-xs text-red-500 hover:text-red-600 font-medium">{{
+                                    t('lng_settings_reset_button') }}</button>
                         </div>
                     </div>
-                    <p class="text-xs text-gray-400 mt-2 leading-relaxed">Telegram 官方客户端支持iPhone,iPad, Android, macOS, Windows, Linux 系统平台。</p>
+                    <p class="text-xs text-gray-400 mt-2 leading-relaxed">{{ t('lng_sessions_about_apps') }}</p>
                     </div>
                 </section>
 
                 <!-- 区域3：自动终止旧会话 -->
                 <section>
                     <div class="flex items-center gap-3 mb-1">
-                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">自动终止旧会话</h3>
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{
+                            t('lng_settings_terminate_title') }}</h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
                     <div class="mt-5 space-y-3">
@@ -88,7 +103,8 @@
                         class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                         <TimerResetIcon class="w-5 h-5 text-gray-400 shrink-0" />
                         <div class="min-w-0 flex-1">
-                            <p class="text-sm text-gray-800 dark:text-gray-100">不活跃时间</p>
+                            <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lng_settings_terminate_if')
+                            }}</p>
                             <p class="text-xs text-gray-400 mt-0.5">{{ ttlText }}</p>
                         </div>
                         <ChevronRightIcon class="w-4 h-4 text-gray-400" />
@@ -99,35 +115,25 @@
         </div>
 
         <!-- 自动终止旧会话弹窗 -->
-        <ModalDialog v-model="ttlVisible" title="自动终止旧会话">
-            <div class="space-y-1.5">
-                <p class="text-xs text-gray-400 mb-2">不活跃超过以下时间后，会话将被自动终止</p>
-                <button v-for="opt in ttlOptions" :key="opt.days" type="button" @click="saveTtl(opt.days)"
-                    class="w-full flex items-center justify-between rounded-xl border px-4 py-2.5 text-sm text-left transition-colors"
-                    :class="ttlDays === opt.days
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-gray-900 dark:text-gray-100'
-                        : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800'">
-                    <span>{{ opt.label }}</span>
-                    <CheckIcon v-if="ttlDays === opt.days" class="w-4 h-4 text-blue-500" />
-                </button>
-            </div>
-        </ModalDialog>
+        <SessionTtlDialog v-model="ttlVisible" :current-days="ttlDays" @changed="onTtlChanged" />
     </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import {
-    ChevronLeft as ChevronLeftIcon, Check as CheckIcon, ChevronRight as ChevronRightIcon,
+    ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon,
     Globe as GlobeIcon, Laptop as LaptopIcon, Smartphone as SmartphoneIcon,
     Tablet as TabletIcon, TimerReset as TimerResetIcon,
 } from 'lucide-vue-next';
 import { MessagePlugin } from 'tdesign-vue-next';
-import ModalDialog from '../../components/settings/ModalDialog.vue';
+import SessionTtlDialog, { ttlOptions } from '../../components/settings/SessionTtlDialog.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import type { session, sessions } from 'tdlib-types';
 
+const { t } = useI18n();
 const router = useRouter();
 
 function goBack() {
@@ -139,16 +145,10 @@ const sessionsList = ref<session[]>([]);
 const ttlDays = ref(365);
 const ttlVisible = ref(false);
 
-const ttlOptions = [
-    { days: 30, label: '1 个月' },
-    { days: 90, label: '3 个月' },
-    { days: 180, label: '6 个月' },
-    { days: 365, label: '12 个月' },
-];
-
 const ttlText = computed(() => {
     const opt = ttlOptions.find((o) => o.days === ttlDays.value);
-    return opt ? `不活跃 ${opt.label} 后自动终止` : `不活跃 ${ttlDays.value} 天后自动终止`;
+    if (opt) return t('devices.ttlSummary', { duration: t(opt.labelKey) });
+    return t('devices.ttlSummaryDays', { days: ttlDays.value });
 });
 
 const currentDevice = computed(() => sessionsList.value.find((s) => s.is_current) ?? sessionsList.value[0]);
@@ -162,25 +162,25 @@ async function loadSessions() {
         ttlDays.value = res?.inactive_session_ttl_days ?? 365;
     } catch (e) {
         console.error('load sessions failed:', e);
-        MessagePlugin.error('加载会话失败');
+        MessagePlugin.error(t('devices.loadFailed'));
     } finally {
         loading.value = false;
     }
 }
 
 function clientLabel(s?: session): string {
-    if (!s) return '未知';
+    if (!s) return t('devices.unknown');
     const name = s.application_name?.trim() || 'Telegram';
     const ver = s.application_version?.trim();
     return ver ? `${name} ${ver}` : name;
 }
 
 function regionLabel(s?: session): string {
-    if (!s) return '未知';
+    if (!s) return t('devices.unknown');
     const loc = s.location?.trim();
     const ip = s.ip_address?.trim();
     if (loc && ip) return `${loc} · ${ip}`;
-    return loc || ip || '未知';
+    return loc || ip || t('devices.unknown');
 }
 
 function deviceTypeKey(s?: session): string {
@@ -204,51 +204,44 @@ function deviceIcon(s: session) {
 
 function lastActiveText(s: session): string {
     const diffMin = Math.floor((Date.now() - s.last_active_date * 1000) / 60000);
-    if (diffMin < 1) return '刚刚活跃';
-    if (diffMin < 60) return `${diffMin} 分钟前活跃`;
+    if (diffMin < 1) return t('devices.justNow');
+    if (diffMin < 60) return t('devices.minutesAgo', { count: diffMin });
     const diffH = Math.floor(diffMin / 60);
-    if (diffH < 24) return `${diffH} 小时前活跃`;
+    if (diffH < 24) return t('devices.hoursAgo', { count: diffH });
     const diffD = Math.floor(diffH / 24);
-    if (diffD === 1) return '昨天活跃';
-    if (diffD < 30) return `${diffD} 天前活跃`;
+    if (diffD === 1) return t('devices.yesterday');
+    if (diffD < 30) return t('devices.daysAgo', { count: diffD });
     const diffM = Math.floor(diffD / 30);
-    if (diffM < 12) return `${diffM} 个月前活跃`;
-    return `${Math.floor(diffM / 12)} 年前活跃`;
+    if (diffM < 12) return t('devices.monthsAgo', { count: diffM });
+    return t('devices.yearsAgo', { count: Math.floor(diffM / 12) });
 }
 
 async function terminateOne(s: session) {
-    const ok = window.confirm(`确定要终止会话「${s.device_model || clientLabel(s)}」吗？`);
+    const ok = window.confirm(t('devices.terminateOneConfirm', { name: s.device_model || clientLabel(s) }));
     if (!ok) return;
     try {
         await tdlibSend({ _: 'terminateSession', session_id: s.id });
-        MessagePlugin.success('会话已终止');
+        MessagePlugin.success(t('devices.sessionTerminated'));
         loadSessions();
     } catch (e: any) {
-        MessagePlugin.error(e?.message || '操作失败');
+        MessagePlugin.error(e?.message || t('devices.operationFailed'));
     }
 }
 
 async function terminateOthers() {
-    const ok = window.confirm(`确定要终止所有其它会话吗？\n\n将退出所有其它会话，只保留目前使用的。`);
+    const ok = window.confirm(t('lng_settings_reset_sure'));
     if (!ok) return;
     try {
         await tdlibSend({ _: 'terminateAllOtherSessions' });
-        MessagePlugin.success('已终止所有其它会话');
+        MessagePlugin.success(t('devices.allOtherTerminated'));
         loadSessions();
     } catch (e: any) {
-        MessagePlugin.error(e?.message || '操作失败');
+        MessagePlugin.error(e?.message || t('devices.operationFailed'));
     }
 }
 
-async function saveTtl(days: number) {
-    try {
-        await tdlibSend({ _: 'setInactiveSessionTtl', inactive_session_ttl_days: days });
-        ttlDays.value = days;
-        MessagePlugin.success('自动终止时间已更新');
-        ttlVisible.value = false;
-    } catch (e: any) {
-        MessagePlugin.error(e?.message || '操作失败');
-    }
+function onTtlChanged(days: number) {
+    ttlDays.value = days;
 }
 
 onMounted(loadSessions);

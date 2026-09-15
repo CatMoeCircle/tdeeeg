@@ -6,7 +6,7 @@
             <!-- 返回按钮（叠层模式） -->
             <button v-if="showBack" type="button" @click="emit('back')"
                 class="w-9 h-9 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-300 bg-gray-100/70 dark:bg-white/10 hover:bg-gray-200/80 dark:hover:bg-white/20 active:scale-95 transition-[background-color,transform] duration-150 shrink-0 -ml-1"
-                :aria-label="td('lng_menu_back', '返回')">
+                :aria-label="t('lng_menu_back')">
                 <ArrowLeftIcon class="w-5 h-5" />
             </button>
             <!-- 点击头像/标题区域打开对话信息叠层 -->
@@ -66,7 +66,7 @@
             <slot name="actions" />
                 <button type="button" @click="emit('search')"
                     class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-200/80 dark:hover:bg-white/20 hover:text-blue-500 active:scale-95 transition-[background-color,color,transform] duration-150"
-                    :aria-label="td('lng_dlg_filter', '搜索')">
+                    :aria-label="t('lng_dlg_filter')">
                     <SearchIcon class="w-5 h-5" />
                 </button>
                 <button type="button"
@@ -96,7 +96,6 @@ import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
 import { getChatProfileAccentColorId, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
 import { updateActiveChatTitleBar, clearActiveChatTitleBar } from '../../../store/activeChatTitleBar';
 
-import { td } from "../../../utils/tdLang";
 const props = defineProps<{
     chat: chat | undefined;
     topic?: forumTopic | undefined;
@@ -224,7 +223,7 @@ watch([() => props.chat, () => userProfile.value?.id], async ([newChat]) => {
         }
 
         if (newChat.type._ === 'chatTypeBasicGroup') {
-            status.value = td('lng_notification_groups', '群组');
+            status.value = t('lng_notification_groups');
             const group = await tdlibSend({
                 _: 'getBasicGroup',
                 basic_group_id: newChat.type.basic_group_id
@@ -232,12 +231,12 @@ watch([() => props.chat, () => userProfile.value?.id], async ([newChat]) => {
             if (!isCurrentRequest()) return;
             status.value = group.member_count > 0
                 ? `${formatCount(group.member_count)} 位成员`
-                : td('lng_notification_groups', '群组');
+                : t('lng_notification_groups');
             return;
         }
 
         if (newChat.type._ === 'chatTypeSupergroup') {
-            const fallback = newChat.type.is_channel ? td('lng_notification_channels', '频道') : '超级群组';
+            const fallback = newChat.type.is_channel ? t('lng_notification_channels') : '超级群组';
             status.value = fallback;
             const [group, fullInfo] = await Promise.all([
                 tdlibSend({
@@ -253,7 +252,7 @@ watch([() => props.chat, () => userProfile.value?.id], async ([newChat]) => {
 
             const memberCount = fullInfo?.member_count || group?.member_count || 0;
             status.value = memberCount > 0
-                ? `${formatCount(memberCount)} 位${newChat.type.is_channel ? '订阅者' : td('lng_profile_participants_section', '成员')}`
+                ? `${formatCount(memberCount)} 位${newChat.type.is_channel ? '订阅者' : t('lng_profile_participants_section')}`
                 : fallback;
             updateVerificationState(group?.verification_status);
         }

@@ -59,7 +59,7 @@
             </div>
             <button type="button"
                 class="audio-cover-button absolute inset-0 flex items-center justify-center bg-black/20 text-white transition-colors hover:bg-black/30"
-                :aria-label="isGloballyPlaying ? td('lng_mac_menu_player_pause', '暂停') : '播放'" @click="togglePlayback">
+                :aria-label="isGloballyPlaying ? t('lng_mac_menu_player_pause') : '播放'" @click="togglePlayback">
                 <PauseIcon v-if="isGloballyPlaying" class="h-6 w-6 fill-current" />
                 <PlayIcon v-else class="ml-0.5 h-6 w-6 fill-current" />
             </button>
@@ -131,6 +131,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { messageDocument, messageAudio, textEntity, thumbnail } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles, reactiveDownloadingFiles } from '../../../../../utils/tdlib';
@@ -154,10 +156,10 @@ import { getChatCategory } from '../../../../../utils/autoDownload';
 import { useAudioPlayerStore } from '../../../../../store/audioPlayer';
 import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
 import { isThumbnailImgRenderable, thumbnailToImgSrc } from '../../../../../utils/thumbnail';
+import { fetchItunesCoverForAudio } from '../../../../../utils/itunesCover';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 
-import { td } from "../../../../../utils/tdLang";
 const props = defineProps<{
     content: messageDocument | messageAudio;
     chatId?: number;
@@ -395,7 +397,7 @@ function handleCaptionSegmentContextMenu(e: MouseEvent, segment: CaptionSegment)
     e.stopPropagation();
     openContextMenu(e.clientX, e.clientY, [{
         key: 'copy-hashtag',
-        label: td('lng_mac_menu_copy', '复制'),
+        label: t('lng_mac_menu_copy'),
         onClick: () => copyToClipboard(segment.text),
     }], e.currentTarget as HTMLElement | null);
 }
@@ -502,7 +504,7 @@ async function loadDocumentThumb() {
     } catch (_) { /* 静默 */ }
 }
 
-/** 只下载专辑封面，不为显示封面而下载整首音乐。 */
+/** 只下载内嵌专辑封面，不为显示封面而下载整首音乐；空封面走 iTunes Search。 */
 async function loadAudioCover() {
 
     if (props.content._ !== 'messageAudio') return;
@@ -518,30 +520,16 @@ async function loadAudioCover() {
     const imgRenderable = (t: thumbnail | undefined): t is thumbnail =>
         !!t && isThumbnailImgRenderable(t.format) && !!t.file.local?.can_be_downloaded;
 
-    // 优先使用内嵌封面 thumbnail；album_cover_thumbnail 不可用时回退到外部封面列表。
     const primary = imgRenderable(audio.album_cover_thumbnail) ? audio.album_cover_thumbnail : undefined;
 
-    // external_album_covers 通常按分辨率升序排列，取 at(-1) 即最高清那个；
-    // 若最高清无法下载则依次回退到较低分辨率的封面。
-    const external = (audio.external_album_covers ?? [])
-        .filter(imgRenderable)
-        .sort((a, b) => (a.width * a.height) - (b.width * b.height));
-
-    // 尝试顺序：有内嵌封面则内嵌优先；否则从最高清外部封面开始。
-    const candidates: thumbnail[] = primary
-        ? [primary, ...external.reverse()]
-        : [...external.reverse()];
-
-    for (const thumbnail of candidates) {
-        if (!thumbnail) continue;
-        const file = thumbnail.file;
+    if (primary) {
+        const file = primary.file;
         if (isFileReady(file)) {
             if (props.content._ === 'messageAudio' && props.content.audio.audio.id === audioFileId) {
                 coverSrc.value = convertFileSrc(file.local.path);
             }
             return;
         }
-        if (!file.local.can_be_downloaded) continue;
         try {
             const downloaded = await tdlibSend({
                 _: 'downloadFile',
@@ -558,6 +546,12 @@ async function loadAudioCover() {
                 return;
             }
         } catch (_) { }
+    }
+
+    // 内嵌封面为空/下载失败 → iTunes Search；无结果则保持当前（minithumbnail 或空）
+    const itunes = await fetchItunesCoverForAudio(audio);
+    if (itunes && props.content._ === 'messageAudio' && props.content.audio.audio.id === audioFileId) {
+        coverSrc.value = itunes;
     }
 }
 

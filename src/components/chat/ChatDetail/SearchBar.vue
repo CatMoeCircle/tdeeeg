@@ -21,7 +21,7 @@
             <div class="relative flex-1">
                 <SearchIcon
                     class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
-                <input ref="inputEl" v-model="query" type="text" :placeholder="td('lng_dlg_filter', '搜索')"
+                <input ref="inputEl" v-model="query" type="text" :placeholder="t('lng_dlg_filter')"
                     class="w-full h-9 pl-9 pr-10 rounded-full bg-gray-100 dark:bg-gray-800 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                     @keydown.enter="onEnter" @keydown.esc="emit('close')" />
                 <!-- 收起/展开结果面板箭头 -->
@@ -105,6 +105,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { SearchIcon, XIcon, ChevronUpIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, UserIcon, CheckIcon } from 'lucide-vue-next';
 import type { message, chat, MessageSender, MessageSender$Input, chatMember } from 'tdlib-types';
@@ -116,7 +118,6 @@ import {
 import { formatDateLabel } from './composables/dateLabel';
 import Avatar from '../avatar.vue';
 
-import { td } from "../../../utils/tdLang";
 const props = defineProps<{
     chatId?: number | null;
     topicId?: number | null;
@@ -330,19 +331,19 @@ function previewText(msg: message): string {
     const text = getMessagePlainText(msg).trim();
     if (text) return text;
     switch (msg.content._) {
-        case 'messagePhoto': return td('lng_in_dlg_photo', '图片');
-        case 'messageVideo': return td('lng_in_dlg_video', '视频');
+        case 'messagePhoto': return t('lng_in_dlg_photo');
+        case 'messageVideo': return t('lng_in_dlg_video');
         case 'messageAnimation': return '动画';
         case 'messageAudio': return '音频';
         case 'messageVoiceNote': return '语音';
-        case 'messageVideoNote': return td('lng_media_type_rounds', '视频消息');
-        case 'messageDocument': return td('lng_in_dlg_file', '文件');
-        case 'messageSticker': return td('lng_in_dlg_sticker', '贴纸');
-        case 'messageLocation': return td('lng_maps_point', '位置');
-        case 'messageContact': return td('lng_contacts_header', '联系人');
-        case 'messagePoll': return td('lng_in_dlg_poll', '投票');
-        case 'messageCall': return msg.content.is_video ? '视频通话' : td('lng_settings_notifications_calls_title', '语音通话');
-        default: return td('lng_contact_send_message', '消息');
+        case 'messageVideoNote': return t('lng_media_type_rounds');
+        case 'messageDocument': return t('lng_in_dlg_file');
+        case 'messageSticker': return t('lng_in_dlg_sticker');
+        case 'messageLocation': return t('lng_maps_point');
+        case 'messageContact': return t('lng_contacts_header');
+        case 'messagePoll': return t('lng_in_dlg_poll');
+        case 'messageCall': return msg.content.is_video ? '视频通话' : t('lng_settings_notifications_calls_title');
+        default: return t('lng_contact_send_message');
     }
 }
 
