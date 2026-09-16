@@ -154,6 +154,7 @@ const hasCustomDefault = ref(false);
 const thumbnailSources = ref<Record<string, string>>({});
 const coverSources = ref<Record<string, string>>({});
 let unlisten: UnlistenFn | undefined;
+let unlistenFile: UnlistenFn | undefined;
 const colors = computed(() => [
     { key: 'solid:16777215', value: 16777215, css: '#ffffff', label: t('wallpaper.colorWhite') },
     { key: 'solid:16119285', value: 16119285, css: '#f5f5f5', label: t('wallpaper.colorFog') },
@@ -385,6 +386,9 @@ onMounted(async () => {
             }
             return;
         }
+    });
+    // updateFile 走独立 IPC（tdlib-update-file），用于刷新壁纸缩略图/封面
+    unlistenFile = await listen<Update>('tdlib-update-file', (event) => {
         if (event.payload._ !== 'updateFile') return;
         const updatedFile = event.payload.file as file;
         const item = backgrounds.value.find((background) => background.document?.thumbnail?.file.id === updatedFile.id || background.document?.document.id === updatedFile.id);
@@ -400,5 +404,5 @@ onMounted(async () => {
     });
     await loadBackgrounds();
 });
-onUnmounted(() => { unlisten?.(); });
+onUnmounted(() => { unlisten?.(); unlistenFile?.(); });
 </script>

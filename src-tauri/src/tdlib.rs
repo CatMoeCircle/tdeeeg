@@ -11,6 +11,7 @@ use std::os::windows::ffi::OsStrExt;
 use std::path::PathBuf;
 use std::ptr;
 use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{Emitter, Manager, State};
@@ -1025,6 +1026,8 @@ struct AppStateRef {
 }
 
 /// 启动账户的后台接收线程。
+/// `updateFile` 会从主接收循环转发到独立 worker 线程，并以独立 IPC（`tdlib-update-file`）推给前端，
+/// 避免高频下载/上传进度拖慢主更新管道。
 fn spawn_receive_loop(
     app_handle: tauri::AppHandle,
     state: Arc<AppStateRef>,
@@ -1040,6 +1043,31 @@ fn spawn_receive_loop(
     let chat_store = client.chat_store.clone();
     let connection_state = client.connection_state.clone();
     let options = client.options.clone();
+
+    // updateFile 专用通道 + 处理线程（下载/上传 store 更新、头像路径、独立 IPC）
+    let (file_tx, file_rx) = mpsc::channel::<serde_json::Value>();
+    {
+        let app_handle = app_handle.clone();
+        let state = Arc::clone(&state);
+        let client = Arc::clone(&client);
+        let session_id = session_id;
+        std::thread::Builder::new()
+            .name(format!("tdlib-update-file-{session_id}"))
+            .spawn(move || {
+                while let Ok(event) = file_rx.recv() {
+                    handle_update_file(&event, &state, &app_handle);
+                    maybe_update_avatar(&event, &state, &app_handle, &client);
+                    // 仅活动账户把 updateFile 以独立 IPC 推给前端
+                    if state.active.load(Ordering::SeqCst) == session_id {
+                        if let Err(e) = app_handle.emit("tdlib-update-file", &event) {
+                            eprintln!("Failed to emit updateFile event: {}", e);
+                        }
+                    }
+                }
+                // 发送端被 drop（接收循环因 closed 退出）→ 本线程结束
+            })
+            .expect("failed to spawn tdlib updateFile worker thread");
+    }
 
     std::thread::spawn(move || {
         loop {
@@ -1215,6 +1243,15 @@ fn spawn_receive_loop(
                 // 将 @type 转换为 _ 发送给前端
                 rename_json_key(&mut event, "@type", "_");
 
+                // updateFile 高频事件：转发到专用线程处理并走独立 IPC，
+                // 不进入主更新管道（不缓存 chat、不广播 tdlib-update）。
+                if event.get("_").and_then(|v| v.as_str()) == Some("updateFile") {
+                    if file_tx.send(event).is_err() {
+                        // worker 已随客户端关闭退出，丢弃即可
+                    }
+                    continue;
+                }
+
                 // 缓存 updateConnectionState
                 if event.get("_").and_then(|v| v.as_str()) == Some("updateConnectionState") {
                     if let Some(state_val) = event.get("state") {
@@ -1274,11 +1311,6 @@ fn spawn_receive_loop(
                     );
                 }
 
-                // 处理下载管理器的 updateFile 事件（全局下载任务）
-                if event.get("_").and_then(|v| v.as_str()) == Some("updateFile") {
-                    handle_update_file(&event, &state, &app_handle);
-                }
-
                 // 自己信息/头像变化时，更新账户列表
                 if event.get("_").and_then(|v| v.as_str()) == Some("updateUser") {
                     if let Some(uid) = event
@@ -1299,10 +1331,6 @@ fn spawn_receive_loop(
                             );
                         }
                     }
-                }
-                // 头像文件下载完成
-                if event.get("_").and_then(|v| v.as_str()) == Some("updateFile") {
-                    maybe_update_avatar(&event, &state, &app_handle, &client);
                 }
 
                 // 如果是请求响应，发送到对应的 channel（不再广播）

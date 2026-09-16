@@ -147,25 +147,33 @@ function buildUpdatePreview(payload: Record<string, unknown>): string {
 
 let logUpdatesInitialized = false;
 
+/** 缓存一条 update 到 recentUpdates（供设置页开发者选项展示） */
+function cacheUpdate(payload: Record<string, unknown>, channel: string): void {
+    if (!logUpdates.value) return;
+    console.log(`[${channel}]`, payload);
+    updateSeq += 1;
+    const entry: CachedUpdate = {
+        seq: updateSeq,
+        t: Date.now(),
+        type: typeof payload._ === "string" ? payload._ : "unknown",
+        payload,
+        preview: buildUpdatePreview(payload),
+    };
+    const next = [entry, ...recentUpdates.value];
+    if (next.length > MAX_CACHED_UPDATES) next.length = MAX_CACHED_UPDATES;
+    recentUpdates.value = next;
+}
+
 /** 初始化 update 事件监听（惰性建立一次监听，具体是否缓存/打印由 logUpdates 控制） */
 export async function initDebugUpdateListener(): Promise<void> {
     if (logUpdatesInitialized) return;
     logUpdatesInitialized = true;
     await listen("tdlib-update", (event) => {
-        if (!logUpdates.value) return;
-        const payload = (event.payload ?? {}) as Record<string, unknown>;
-        console.log("[tdlib-update]", payload);
-        updateSeq += 1;
-        const entry: CachedUpdate = {
-            seq: updateSeq,
-            t: Date.now(),
-            type: typeof payload._ === "string" ? payload._ : "unknown",
-            payload,
-            preview: buildUpdatePreview(payload),
-        };
-        const next = [entry, ...recentUpdates.value];
-        if (next.length > MAX_CACHED_UPDATES) next.length = MAX_CACHED_UPDATES;
-        recentUpdates.value = next;
+        cacheUpdate((event.payload ?? {}) as Record<string, unknown>, "tdlib-update");
+    });
+    // updateFile 走独立 IPC，调试日志同样捕获
+    await listen("tdlib-update-file", (event) => {
+        cacheUpdate((event.payload ?? {}) as Record<string, unknown>, "tdlib-update-file");
     });
 }
 
