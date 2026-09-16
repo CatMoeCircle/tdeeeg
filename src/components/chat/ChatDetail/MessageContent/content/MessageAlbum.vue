@@ -6,7 +6,8 @@
                 :class="{ 'bg-black': item.isVideo }" :style="item.style" @click="openViewer(item.index)"
                 @contextmenu.prevent.stop="onTileContextMenu($event, item.index)">
                 <img v-if="item.thumbSrc" :src="item.thumbSrc"
-                    class="absolute inset-0 w-full h-full object-cover blur-sm scale-105" />
+                    class="absolute inset-0 w-full h-full object-cover"
+                    :class="item.thumbIsBlur ? 'blur-sm scale-105' : ''" />
                 <img v-if="item.mediaSrc && !item.isVideo && !item.isGif" :src="item.mediaSrc"
                     class="absolute inset-0 w-full h-full object-cover" />
                 <video v-if="item.mediaSrc && item.isGif" :src="item.mediaSrc" autoplay loop muted playsinline
@@ -70,6 +71,7 @@ import { openMediaViewer } from '../../../../../store/mediaViewer';
 import { useDownloadStore } from '../../../../../store/downloads';
 import { settings } from '../../../../../store/settings';
 import { getChatCategory, shouldAutoDownloadPhotos } from '../../../../../utils/autoDownload';
+import { pickSmallPhotoSize, pickBigPhotoSize, pickBigPhotoDimensions } from '../../../../../utils/photoSizes';
 import { isThumbnailImgRenderable } from '../../../../../utils/thumbnail';
 import { useChatStore } from '../../../../../store/chat';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
@@ -164,17 +166,17 @@ function openViewer(idx: number) {
 interface LayoutItem {
     msgId: number; index: number; isVideo: boolean; isGif: boolean; duration: number;
     aspect: number; style: string; thumbSrc: string | null; mediaSrc: string | null;
+    /** thumbSrc 是否为 minithumbnail（需模糊）；Small 就绪后为 false */
+    thumbIsBlur: boolean;
 }
+
+/** 记录各消息当前 thumb 是否仍是 minithumbnail */
+const thumbIsMini = reactive<Record<number, boolean>>({});
 
 function getMediaSize(msg: message): MediaGroupSize {
     const c = msg.content;
     if (c._ === 'messagePhoto') {
-        const sizes = [...c.photo.sizes].sort((a, b) => a.width * a.height - b.width * b.height);
-        if (sizes.length > 0) {
-            const largest = sizes[sizes.length - 1];
-            return { width: largest.width, height: largest.height };
-        }
-        return { width: 1, height: 1 };
+        return pickBigPhotoDimensions(c.photo);
     }
     if (c._ === 'messageVideo') {
         const { width, height } = c.video;
@@ -216,13 +218,17 @@ function rebuildLayout() {
             let mini: string | undefined;
             if (msg.content._ === 'messagePhoto') mini = msg.content.photo.minithumbnail?.data;
             else if (msg.content._ === 'messageAnimation') mini = msg.content.animation.minithumbnail?.data;
-            if (mini) thumbCache[msg.id] = `data:image/jpeg;base64,${mini}`;
+            if (mini) {
+                thumbCache[msg.id] = `data:image/jpeg;base64,${mini}`;
+                thumbIsMini[msg.id] = true;
+            }
         }
         const isGif = msg.content._ === 'messageAnimation';
         result.push({
             msgId: msg.id, index: mi, isVideo: isVideos[mi], isGif, duration: durations[mi], aspect: aspects[mi],
             style: `top:${item.y / layout.height * 100}%;left:${item.x / layout.width * 100}%;width:${item.width / layout.width * 100}%;height:${item.height / layout.height * 100}%;`,
             thumbSrc: thumbCache[msg.id] || null, mediaSrc: mediaCache[msg.id] || null,
+            thumbIsBlur: thumbIsMini[msg.id] !== false && !!thumbCache[msg.id]?.startsWith('data:'),
         });
     }
     layoutItems.value = result;
@@ -305,49 +311,49 @@ async function loadPhoto(msg: message): Promise<boolean> {
     const downloadStore = useDownloadStore();
     let c = false;
     const photo = msg.content.photo;
-    if (photo.minithumbnail?.data && !thumbCache[msg.id]) { thumbCache[msg.id] = `data:image/jpeg;base64,${photo.minithumbnail.data}`; c = true; }
-    const smallest = photo.sizes.reduce((a, b) => a.width * a.height < b.width * b.height ? a : b);
-    if (smallest?.photo) {
-        const f = smallest.photo;
-        if (isFileReady(f) && !thumbCache[msg.id]) { thumbCache[msg.id] = convertFileSrc(f.local.path); c = true; }
-        // 相册照片缩略图跟随「图片」自动下载设置；关闭时仅用 minithumbnail 占位
-        else if (f.local.can_be_downloaded && !downloadingFiles.has(f.id) && shouldAutoDownloadPhotos(props.chatId)) {
+    if (photo.minithumbnail?.data && !thumbCache[msg.id]) {
+        thumbCache[msg.id] = `data:image/jpeg;base64,${photo.minithumbnail.data}`;
+        thumbIsMini[msg.id] = true;
+        c = true;
+    }
+    // Small：始终下载清晰渐进占位（不受 autoDownload 管控）
+    const small = pickSmallPhotoSize(photo);
+    if (small) {
+        const f = small;
+        if (isFileReady(f)) {
+            if (!mediaCache[msg.id]) {
+                thumbCache[msg.id] = convertFileSrc(f.local.path);
+                thumbIsMini[msg.id] = false;
+                c = true;
+            }
+        } else if (f.local.can_be_downloaded && !downloadingFiles.has(f.id)) {
             try {
-                // 相册缩略图：最低档优先级
                 await safeDownloadFile(f.id, true, DL_PRIORITY.THUMBNAIL);
                 const r = await tdlibSend({ _: 'getFile', file_id: f.id });
-                if (isFileReady(r)) { thumbCache[msg.id] = convertFileSrc(r.local.path); c = true; }
+                if (isFileReady(r) && !mediaCache[msg.id]) {
+                    thumbCache[msg.id] = convertFileSrc(r.local.path);
+                    thumbIsMini[msg.id] = false;
+                    c = true;
+                }
             } catch (_) { }
         }
     }
-    const largest = photo.sizes.reduce((a, b) => a.width * a.height > b.width * b.height ? a : b);
-    const ff = largest?.photo;
+    // Big：受「图片」自动下载管控，用于气泡/查看器正式展示
+    const big = pickBigPhotoSize(photo);
+    const ff = big;
     if (ff && !mediaCache[msg.id]) {
         if (isFileReady(ff)) { mediaCache[msg.id] = convertFileSrc(ff.local.path); c = true; }
-        else if (ff.local.can_be_downloaded && !downloadingFiles.has(ff.id)) {
-            // 检查自动下载设置
-            let shouldAuto = true;
-            if (props.chatId && settings.autoDownload.enabled) {
-                const cs = useChatStore();
-                const chatData = cs.chats[props.chatId] as any;
-                if (chatData) {
-                    const category = getChatCategory(chatData);
-                    const cfg = settings.autoDownload.photos;
-                    shouldAuto = cfg.enabled && cfg[category];
-                }
-            }
-            if (shouldAuto) {
-                // 自动下载的图片注册到下载管理器（独立隐藏分类：isAutoPhoto）
-                const fileName = `photo_${msg.id || ff.id}.jpg`;
-                const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
-                await downloadStore.registerDownload(ff.id, fileName, chatTitle, 0, 'photo', thumbCache[msg.id], props.chatId, msg.id, undefined, true);
-                try {
-                    // 自动下载（非用户点击）：默认档优先级
-                    await safeDownloadFile(ff.id, true, DL_PRIORITY.DEFAULT);
-                    const r = await tdlibSend({ _: 'getFile', file_id: ff.id });
-                    if (isFileReady(r)) { mediaCache[msg.id] = convertFileSrc(r.local.path); c = true; }
-                } catch (_) { }
-            }
+        else if (ff.local.can_be_downloaded && !downloadingFiles.has(ff.id) && shouldAutoDownloadPhotos(props.chatId)) {
+            // 自动下载的图片注册到下载管理器（独立隐藏分类：isAutoPhoto）
+            const fileName = `photo_${msg.id || ff.id}.jpg`;
+            const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
+            await downloadStore.registerDownload(ff.id, fileName, chatTitle, 0, 'photo', thumbCache[msg.id], props.chatId, msg.id, undefined, true);
+            try {
+                // 自动下载（非用户点击）：默认档优先级
+                await safeDownloadFile(ff.id, true, DL_PRIORITY.DEFAULT);
+                const r = await tdlibSend({ _: 'getFile', file_id: ff.id });
+                if (isFileReady(r)) { mediaCache[msg.id] = convertFileSrc(r.local.path); c = true; }
+            } catch (_) { }
         }
     }
     return c;

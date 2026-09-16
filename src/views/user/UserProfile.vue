@@ -1555,8 +1555,13 @@ watch(sharedMediaItems, (items) => {
       void loadSharedMediaThumb(item);
       continue;
     }
-    // 照片缩略图：跟随「图片」自动下载设置
-    if (item.photo && allowPhotos) {
+    // 照片 Small / 视频封面：资料页网格始终用 Small，不受 autoDownload 管控
+    if (item.photo || item.thumbFile) {
+      void loadSharedMediaThumb(item);
+      continue;
+    }
+    // 链接高清封面：跟随「图片」自动下载设置
+    if (item.linkCoverFile && allowPhotos) {
       void loadSharedMediaThumb(item);
     }
   }
@@ -1747,8 +1752,7 @@ async function loadSharedMediaThumb(item: { messageId: number; photo?: any; cont
   }
 
   if (!item.photo?.sizes?.length) return;
-  // 照片缩略图：跟随「图片」自动下载设置
-  if (!shouldAutoDownloadPhotos(sharedMediaChatId.value)) return;
+  // 照片 Small：资料页网格始终下载（不受 autoDownload 管控）
   const sorted = item.photo.sizes
     .filter((s: any) => s.photo)
     .slice()

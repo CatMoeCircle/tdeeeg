@@ -23,9 +23,10 @@
                 class="relative overflow-hidden bg-gray-200 dark:bg-gray-700 cursor-pointer group"
                 :class="[borderRadiusClass, { 'msg-spoiler-media': hasSpoiler }]" :style="photoSizeStyle"
                 @click="mediaSrc ? openViewer() : undefined">
-                <!-- Minithumbnail preview -->
+                <!-- 渐进占位：minithumbnail 高斯模糊 → Small 清晰图；Big 就绪后被 mediaSrc 取代 -->
                 <img v-if="thumbSrc && !mediaSrc" :src="thumbSrc"
-                    class="absolute inset-0 w-full h-full object-cover blur-sm scale-105" />
+                    class="absolute inset-0 w-full h-full object-cover"
+                    :class="thumbIsBlur ? 'blur-sm scale-105' : ''" />
                 <!-- Full image (object-cover fills area) -->
                 <img v-if="mediaSrc" ref="photoImgEl" :src="mediaSrc" class="w-full h-full object-cover select-none"
                     :class="{ 'opacity-0': !imageLoaded }" @load="onImageLoad" @error="onImageError" />
@@ -238,7 +239,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
-import type { MessageContent, messageForwardInfo, MessageSendingState, chatPhotoInfo, profilePhoto, messageReplyToMessage, message } from 'tdlib-types';
+import type { MessageContent, messageForwardInfo, MessageSendingState, chatPhotoInfo, profilePhoto, messageReplyToMessage, message, photo as TdPhoto } from 'tdlib-types';
 import MessageReply from './MessageReply.vue';
 import { tdlibSend, isFileReady, downloadingFiles, safeDownloadFile } from '../../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -255,7 +256,8 @@ import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import { openMediaViewer, isMediaViewerActive } from '../../../../../store/mediaViewer';
 import { settings } from '../../../../../store/settings';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
-import { getChatCategory } from '../../../../../utils/autoDownload';
+import { getChatCategory, shouldAutoDownloadPhotos } from '../../../../../utils/autoDownload';
+import { pickSmallPhotoSize, pickBigPhotoSize } from '../../../../../utils/photoSizes';
 import { isThumbnailImgRenderable, isThumbnailVideoRenderable } from '../../../../../utils/thumbnail';
 import { fitMediaSize, mediaSizeStyle } from '../../../../../utils/fitMediaSize';
 import {
@@ -319,6 +321,8 @@ const mediaSrc = ref<string | undefined>(undefined);
 const isDownloading = ref(false);
 const mediaLoaded = ref(false);
 const thumbSrc = ref<string | undefined>(undefined);
+/** thumbSrc 是否为 minithumber（需高斯模糊）；Small 就绪后为 false（清晰占位） */
+const thumbIsBlur = ref(true);
 
 /** 组件根元素（用于视口门控：进入视口才懒加载下载） */
 const rootEl = ref<HTMLElement | null>(null);
@@ -728,10 +732,10 @@ function getFileProgress(fileId: number): number {
     return typeof item.progress === 'number' ? Math.min(1, Math.max(0, item.progress)) : 0;
 }
 
-/** 当前图片主文件的下载进度（用于加载时按进度显示） */
+/** 当前图片主文件（Big）的下载进度（用于加载时按进度显示） */
 const photoProgress = computed(() => {
     if (props.content._ !== 'messagePhoto') return 0;
-    const f = props.content.photo.sizes[props.content.photo.sizes.length - 1]?.photo;
+    const f = pickBigPhotoSize(props.content.photo);
     return f ? getFileProgress(f.id) : 0;
 });
 
@@ -781,55 +785,86 @@ function setMediaPreview() {
 // ---- Photo ----
 const canDownload = computed(() => {
     if (props.content._ !== 'messagePhoto') return false;
-    const f = props.content.photo.sizes[props.content.photo.sizes.length - 1]?.photo;
+    const f = pickBigPhotoSize(props.content.photo);
     return canDownloadFile(f) && !isFileReady(f);
 });
+
+/** Small 始终下载作清晰渐进占位（不受 autoDownload 管控）；就绪后替换模糊 minithumbnail */
+async function ensureSmallPhotoThumb(photo: TdPhoto) {
+    const small = pickSmallPhotoSize(photo);
+    if (!small) return;
+    if (isFileReady(small)) {
+        if (!mediaSrc.value) {
+            thumbSrc.value = convertFileSrc(small.local.path);
+            thumbIsBlur.value = false;
+        }
+        return;
+    }
+    if (!small.local?.can_be_downloaded || downloadingFiles.has(small.id)) return;
+    downloadingFiles.add(small.id);
+    try {
+        await tdlibSend({
+            _: 'downloadFile',
+            file_id: small.id,
+            priority: DL_PRIORITY.THUMBNAIL,
+            offset: 0,
+            limit: 0,
+            synchronous: true,
+        });
+        const updated = await tdlibSend({ _: 'getFile', file_id: small.id });
+        // Big 已就绪则不必再占位
+        if (!mediaSrc.value && isFileReady(updated)) {
+            thumbSrc.value = convertFileSrc(updated.local.path);
+            thumbIsBlur.value = false;
+        }
+    } catch (_) {
+        /* Small 失败则保持 minithumbnail 模糊占位 */
+    } finally {
+        downloadingFiles.delete(small.id);
+    }
+}
 
 async function loadPhotoThumb() {
     if (props.content._ !== 'messagePhoto') return;
     const photo = props.content.photo;
+    // 1) minithumbnail：内嵌零流量高斯模糊占位
     if (photo.minithumbnail?.data) {
         thumbSrc.value = `data:image/jpeg;base64,${photo.minithumbnail.data}`;
+        thumbIsBlur.value = true;
     }
-    // 如果已下载完成，直接显示
-    const f = photo.sizes[photo.sizes.length - 1]?.photo;
-    if (f && isFileReady(f)) {
-        mediaSrc.value = convertFileSrc(f.local.path);
+
+    const big = pickBigPhotoSize(photo);
+
+    // 2) Small：始终下载清晰渐进占位（异步，不阻塞 Big 判断）
+    void ensureSmallPhotoThumb(photo);
+
+    // 3) Big：已就绪 → 气泡正式展示
+    if (big && isFileReady(big)) {
+        mediaSrc.value = convertFileSrc(big.local.path);
         mediaLoaded.value = true;
         checkPhotoLoaded();
         return;
     }
-    // 根据自动下载设置决定是否自动下载图片
-    if (f && props.chatId && settings.autoDownload.enabled) {
-        const cs = useChatStore();
-        const chatData = cs.chats[props.chatId] as any;
-        if (chatData) {
-            const category = getChatCategory(chatData);
-            const cfg = settings.autoDownload.photos;
-            const shouldAutoDl = cfg.enabled && cfg[category];
-            if (shouldAutoDl && canDownloadFile(f) && !downloadingFiles.has(f.id)) {
-                isDownloading.value = true;
-                downloadingFiles.add(f.id);
-                // 自动下载的图片注册到下载管理器（独立隐藏分类：isAutoPhoto）
-                const fileName = `photo_${props.messageId || f.id}.jpg`;
-                await registerWithStore(f.id, fileName, 'photo', thumbSrc.value, true);
-                try {
-                    // downloadFile (synchronous) 直接返回下载完成的 file 对象，
-                    // 无需再额外 getFile（避免每次图片多一次 RPC 往返）。
-                    // 自动下载（非用户点击）：默认档优先级。
-                    const updated = await tdlibSend({ _: 'downloadFile', file_id: f.id, priority: DL_PRIORITY.DEFAULT, offset: 0, limit: 0, synchronous: true });
-                    if (isFileReady(updated)) {
-                        finishPhotoDownload(f.id, updated.local.path);
-                    } else {
-                        // 兜底：下载可能在后台进行中（未随本次请求完成），
-                        // 轮询 getFile 直到就绪后展示，避免"进度 100% 却不显示图片"。
-                        pollPhotoDownload(f.id);
-                    }
-                } catch (_) {
-                    if (!photosUpdating.get(f.id)) {
-                        downloadingFiles.delete(f.id);
-                        isDownloading.value = false;
-                    }
+
+    // 4) Big：按「图片」自动下载设置决定是否自动下载
+    if (big && props.chatId && shouldAutoDownloadPhotos(props.chatId)) {
+        if (canDownloadFile(big) && !downloadingFiles.has(big.id)) {
+            isDownloading.value = true;
+            downloadingFiles.add(big.id);
+            const fileName = `photo_${props.messageId || big.id}.jpg`;
+            await registerWithStore(big.id, fileName, 'photo', thumbSrc.value, true);
+            try {
+                // 自动下载（非用户点击）：默认档优先级
+                const updated = await tdlibSend({ _: 'downloadFile', file_id: big.id, priority: DL_PRIORITY.DEFAULT, offset: 0, limit: 0, synchronous: true });
+                if (isFileReady(updated)) {
+                    finishPhotoDownload(big.id, updated.local.path);
+                } else {
+                    pollPhotoDownload(big.id);
+                }
+            } catch (_) {
+                if (!photosUpdating.get(big.id)) {
+                    downloadingFiles.delete(big.id);
+                    isDownloading.value = false;
                 }
             }
         }
@@ -838,7 +873,7 @@ async function loadPhotoThumb() {
 
 async function handlePhotoDownload() {
     if (props.content._ !== 'messagePhoto') return;
-    const f = props.content.photo.sizes[props.content.photo.sizes.length - 1]?.photo;
+    const f = pickBigPhotoSize(props.content.photo);
     if (!f) return;
     if (isFileReady(f)) {
         mediaSrc.value = convertFileSrc(f.local.path);

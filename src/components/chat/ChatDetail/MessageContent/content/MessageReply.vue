@@ -33,8 +33,10 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { ref, computed, onMounted } from 'vue';
 import type { message, MessageContent, messageReplyToMessage } from 'tdlib-types';
-import { tdlibSend, isFileReady } from '../../../../../utils/tdlib';
+import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
+import { pickSmallPhotoSize } from '../../../../../utils/photoSizes';
 import { isThumbnailImgRenderable } from '../../../../../utils/thumbnail';
 import { useColors, rgbToCss } from '../../../../../store/colors';
 import { getSenderAccentColorId } from '../../../../../utils/senderInfo';
@@ -231,12 +233,21 @@ function getMediaInfo(content: MessageContent, _msg: message): { mediaType: stri
 
     if (content._ === 'messagePhoto') {
         mediaType = '照片';
-        // 尝试获取缩略图
-        const sizes = content.photo.sizes;
-        if (sizes.length > 0) {
-            const smallest = sizes.reduce((a, b) => a.width * a.height < b.width * b.height ? a : b);
-            if (isFileReady(smallest.photo)) {
-                thumbSrc = convertFileSrc(smallest.photo.local.path);
+        // 引用回复缩略图用 Small（最小尺寸）；未就绪时拉取 Small（不受 autoDownload 管控）
+        const small = pickSmallPhotoSize(content.photo);
+        if (small) {
+            if (isFileReady(small)) {
+                thumbSrc = convertFileSrc(small.local.path);
+            } else if (small.local?.can_be_downloaded && !downloadingFiles.has(small.id)) {
+                downloadingFiles.add(small.id);
+                void tdlibSend({
+                    _: 'downloadFile',
+                    file_id: small.id,
+                    priority: DL_PRIORITY.THUMBNAIL,
+                    offset: 0,
+                    limit: 0,
+                    synchronous: false,
+                }).finally(() => downloadingFiles.delete(small.id));
             }
         }
     } else if (content._ === 'messageVideo') {
