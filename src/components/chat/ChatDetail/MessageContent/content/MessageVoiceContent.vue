@@ -4,34 +4,42 @@
         <div class="p-2 bg-blue-100 dark:bg-blue-900 rounded-full">
             <MicIcon class="w-4 h-4 text-blue-500" />
         </div>
-        <div class="flex flex-col">
+        <div class="flex min-w-0 flex-col">
             <span class="text-xs">语音 ({{ duration }}s)</span>
             <audio v-if="mediaSrc" :src="mediaSrc" controls class="h-8 w-40 mt-1"></audio>
+            <RichMediaDownload v-else-if="noteFile" :file="noteFile" :file-name="`voice_${noteFile.id}`"
+                file-type="audio" :chat-id="chatId" :message-id="messageId" class="mt-1 self-start" />
             <MessageTextContent v-if="content.caption?.text" :formattedText="content.caption" :chatId="chatId"
                 class="mt-1" />
         </div>
     </div>
 
     <!-- Video Note -->
-    <div v-else-if="content._ === 'messageVideoNote'" ref="rootEl" class="w-32 h-32">
+    <div v-else-if="content._ === 'messageVideoNote'" ref="rootEl" class="relative w-32 h-32">
         <video v-if="mediaSrc" :src="mediaSrc" controls class="w-full h-full rounded-lg object-cover"></video>
-        <img v-else-if="previewSrc" :src="previewSrc" class="w-full h-full rounded-lg object-cover opacity-60" />
-        <div v-else class="w-full h-full bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-            <VideoIcon class="w-6 h-6 text-gray-500" />
-        </div>
+        <template v-else>
+            <img v-if="previewSrc" :src="previewSrc" class="w-full h-full rounded-lg object-cover opacity-60" />
+            <div v-else class="w-full h-full bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                <VideoIcon class="w-6 h-6 text-gray-500" />
+            </div>
+            <RichMediaDownload v-if="noteFile" :file="noteFile" :file-name="`video_note_${noteFile.id}.mp4`"
+                file-type="video" :chat-id="chatId" :message-id="messageId" overlay />
+        </template>
     </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
-import type { messageVoiceNote, messageVideoNote } from 'tdlib-types';
+import type { messageVoiceNote, messageVideoNote, file } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { MicIcon, VideoIcon } from 'lucide-vue-next';
 import MessageTextContent from './MessageTextContent.vue';
+import RichMediaDownload from '../rich/RichMediaDownload.vue';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import { shouldAutoDownloadFiles, shouldAutoDownloadVideos } from '../../../../../utils/autoDownload';
+import { useDownloadStore } from '../../../../../store/downloads';
 
 const props = defineProps<{
     content: messageVoiceNote | messageVideoNote;
@@ -39,6 +47,7 @@ const props = defineProps<{
     messageId?: number;
 }>();
 
+const downloadStore = useDownloadStore();
 const rootEl = ref<HTMLElement | null>(null);
 const mediaSrc = ref<string | undefined>(undefined);
 const previewSrc = ref<string | undefined>(undefined);
@@ -50,12 +59,14 @@ const duration = computed(() => {
     return 0;
 });
 
-const getFile = () => {
+const noteFile = computed<file | undefined>(() => {
     const c = props.content;
     if (c._ === 'messageVoiceNote') return c.voice_note.voice;
     if (c._ === 'messageVideoNote') return c.video_note.video;
     return undefined;
-};
+});
+
+const getFile = () => noteFile.value;
 
 /**
  * 设置视频留言 base64 缩略图预览（不下载），供离屏消息显示占位。
@@ -114,6 +125,29 @@ const downloadFile = async (fileId: number) => {
         isDownloading.value = false;
     }
 };
+
+/** 手动下载完成后（RichMediaDownload / 全局下载）拉起本地路径 */
+async function applyReadyFile(fileId: number) {
+    try {
+        const info = await tdlibSend({ _: 'getFile', file_id: fileId }) as file;
+        if (isFileReady(info) && noteFile.value?.id === fileId) {
+            mediaSrc.value = convertFileSrc(info.local.path);
+        }
+    } catch { /* ignore */ }
+}
+
+watch(
+    () => {
+        const f = noteFile.value;
+        if (!f?.id) return false;
+        return downloadStore.getDownloadInfo(f.id)?.is_completed === true || isFileReady(f);
+    },
+    (ready) => {
+        if (ready && noteFile.value?.id && !mediaSrc.value) {
+            void applyReadyFile(noteFile.value.id);
+        }
+    },
+);
 
 // 视口门控：挂载时只设置 base64 预览，进入视口才下载语音/视频留言文件。
 const { start: startViewportLoad, entered: noteEntered } = useViewportLoad(rootEl, () => {

@@ -1,11 +1,14 @@
 <template>
-    <div ref="rootEl" class="rich-image" :style="wrapperStyle">
+    <div ref="rootEl" class="rich-image relative" :style="wrapperStyle">
         <div v-if="!src" class="animate-pulse bg-gray-200 dark:bg-gray-700" :style="placeholderStyle"></div>
         <video v-else-if="isVideoThumb" :src="src" :alt="alt" autoplay loop muted playsinline
             class="block max-w-full h-auto" :style="imgStyle" :class="{ 'cursor-pointer': clickable }"
             @click="clickable ? onOpen() : undefined" preload="metadata" />
         <img v-else :src="src" :alt="alt" class="block max-w-full h-auto" :style="imgStyle"
             :class="{ 'cursor-pointer': clickable }" @click="clickable ? onOpen() : undefined" loading="lazy" />
+        <!-- 未下载：手动下载按钮（自动下载关闭时） -->
+        <RichMediaDownload v-if="!src && showDownload" :file="file" :file-name="`rich_image_${file.id}`"
+            file-type="photo" :chat-id="chatId" overlay />
     </div>
 </template>
 
@@ -18,6 +21,8 @@ import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { isThumbnailVideoRenderable } from '../../../../../utils/thumbnail';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import { shouldAutoDownloadPhotos } from '../../../../../utils/autoDownload';
+import { useDownloadStore } from '../../../../../store/downloads';
+import RichMediaDownload from './RichMediaDownload.vue';
 
 const props = withDefaults(defineProps<{
     file: file;
@@ -38,9 +43,13 @@ const props = withDefaults(defineProps<{
     clickable: false,
 });
 
+const downloadStore = useDownloadStore();
 const rootEl = ref<HTMLElement | null>(null);
 const src = ref('');
 const downloading = ref(false);
+
+/** 未就绪且可下载时显示手动下载按钮 */
+const showDownload = computed(() => !!props.file?.id && !!props.file?.local?.can_be_downloaded);
 
 /** 是否为 MPEG4/WEBM 动态缩略图（用 <video> 渲染） */
 const isVideoThumb = computed(() => isThumbnailVideoRenderable(props.format) && !!src.value);
@@ -98,6 +107,13 @@ watch(() => props.file?.id, () => {
     src.value = '';
     if (imgEntered.value) load();
 });
+// 手动下载完成后刷新
+watch(
+    () => props.file?.id ? downloadStore.getDownloadInfo(props.file.id)?.is_completed : false,
+    (done) => {
+        if (done) void load();
+    },
+);
 
 onMounted(() => {
     startViewportLoad();

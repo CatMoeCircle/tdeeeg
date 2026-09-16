@@ -8,12 +8,15 @@
             <ImageIcon class="h-6 w-6 text-gray-400" />
         </div>
         <!-- 视频：播放标识（动态缩略图已在播放时不显示） -->
-        <span v-if="plan.kind === 'video' && !(src && plan.fileIsVideo)"
+        <span v-if="plan.kind === 'video' && !src"
             class="absolute inset-0 flex items-center justify-center bg-black/10">
             <span class="flex h-10 w-10 items-center justify-center rounded-full bg-black/50">
                 <PlayIcon class="h-5 w-5 text-white" fill="currentColor" />
             </span>
         </span>
+        <!-- 未下载：手动下载按钮（自动下载关闭时的主要入口） -->
+        <RichMediaDownload v-if="!src && plan.file" :file="plan.file" :file-name="`link_preview_${plan.file.id}`"
+            file-type="photo" :chat-id="chatId" overlay />
     </div>
 
     <!-- 小图媒体（右侧缩略图） -->
@@ -23,10 +26,12 @@
         <video v-else-if="src && plan.fileIsVideo" :src="src" autoplay loop muted playsinline
             class="h-full w-full object-cover" />
         <img v-else-if="placeholder" :src="placeholder" alt="" class="h-full w-full object-cover" />
-        <span v-if="plan.kind === 'video' && !(src && plan.fileIsVideo)"
+        <span v-if="plan.kind === 'video' && !src"
             class="absolute inset-0 flex items-center justify-center bg-black/20">
             <PlayIcon class="h-4 w-4 text-white" fill="currentColor" />
         </span>
+        <RichMediaDownload v-if="!src && plan.file" :file="plan.file" :file-name="`link_preview_${plan.file.id}`"
+            file-type="photo" :chat-id="chatId" overlay small />
     </div>
 </template>
 
@@ -40,6 +45,10 @@ import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { isThumbnailImgRenderable, isThumbnailVideoRenderable } from '../../../../../utils/thumbnail';
 import { mediaFitStyle, fitMediaSize } from '../../../../../utils/fitMediaSize';
 import { shouldAutoDownloadPhotos } from '../../../../../utils/autoDownload';
+import { useDownloadStore } from '../../../../../store/downloads';
+import RichMediaDownload from '../rich/RichMediaDownload.vue';
+
+const downloadStore = useDownloadStore();
 
 const props = defineProps<{
     preview: linkPreview;
@@ -267,6 +276,15 @@ async function load() {
 }
 
 watch(plan, () => { void load(); }, { immediate: true });
+// 手动下载完成后刷新本地路径
+watch(
+    () => plan.value?.file?.id
+        ? downloadStore.getDownloadInfo(plan.value.file.id)?.is_completed
+        : false,
+    (done) => {
+        if (done) void load();
+    },
+);
 onUnmounted(stopPoll);
 
 /** 大图布局：按媒体宽高比等比缩放，最大 432×432；窄气泡下随宽度收缩 */
