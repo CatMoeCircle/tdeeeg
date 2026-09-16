@@ -150,7 +150,11 @@
                                             <div class="flex-1 min-w-0">
                                                 <div class="flex justify-between items-baseline mb-1">
                                                     <h3
-                                                        class="text-sm font-semibold text-gray-900 flex items-center gap-1 min-w-0">
+                                                        class="text-sm font-semibold flex items-center gap-1 min-w-0"
+                                                        :class="isSecretChat(chat) ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-900 dark:text-gray-100'">
+                                                        <!-- 秘密聊天：名称左侧锁图标 -->
+                                                        <span v-if="isSecretChat(chat)"
+                                                            class="tgico tgico-secret shrink-0 text-[13px] leading-none" />
                                                         <span class="truncate">
                                                             <GlobalEmojiText :text="getChatTitle(chat)" />
                                                         </span>
@@ -776,6 +780,8 @@ watch(forumMode, () => {
 });
 
 const isSavedMessages = (chat: Chat) => isSavedMessagesChat(chat, userProfile.value?.id);
+/** 是否为秘密聊天（列表标题显示绿色 + 锁图标） */
+const isSecretChat = (chat: Chat) => chat.type?._ === 'chatTypeSecret';
 /** 检测是否为占位对话（chat 对象尚未到达，仅有 id，title 为 '…'），此时渲染骨架屏 */
 const isPlaceholderChat = (chat: Chat): boolean => chat.title === '…';
 const getChatTitle = (chat: Chat) => {

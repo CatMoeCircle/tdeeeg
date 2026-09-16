@@ -487,6 +487,20 @@
             </div>
         </div>
 
+        <!-- ===== 秘密聊天状态：等待加密 / 已取消（替代输入框） ===== -->
+        <div v-else-if="isSecretChat && secretChatNoticeText"
+            class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-transparent dark:from-gray-900/80 via-transparent dark:via-gray-900/60 to-transparent">
+            <div aria-hidden="true"
+                class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
+            </div>
+            <div class="relative z-10 flex items-center justify-center p-5">
+                <div
+                    class="min-h-12 max-w-[90%] px-5 py-3 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg flex items-center justify-center text-sm font-medium text-gray-500 dark:text-gray-400 text-center">
+                    {{ secretChatNoticeText }}
+                </div>
+            </div>
+        </div>
+
         <!-- ===== 只读 ===== -->
         <div v-else-if="showChannelActions"
             class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-transparent dark:from-gray-900/80 via-transparent dark:via-gray-900/60 to-transparent">
@@ -859,23 +873,39 @@ function openOverlay() {
 
 /**
  * 点击聊天顶部头像/标题：
- * - 私聊 / 密聊 → 直接跳转到对应用户的个人资料页
- * - 群组 / 频道 → 直接跳转到资料页（复用 UserProfile，以「频道/群组」模式展示，原叠层跳转页已移除）
+ * - 私聊 → 用户个人资料页（user-profile）
+ * - 秘密聊天 → 当前 secret chat 资料页（chat-profile，含自动删除/加密密钥等）
+ * - 群组 / 频道 → 聊天资料页（chat-profile）
  */
 function handleTopClick() {
+    const c = chat.value;
+    if (!c) return;
+    const t = c.type;
+
+    // 秘密聊天：必须用 secret chat id 进 chat-profile，不能落到普通用户资料
+    if (t?._ === 'chatTypeSecret') {
+        closeOverlay();
+        router.push({
+            name: 'chat-profile',
+            params: { id: String(c.id) },
+        });
+        return;
+    }
+
+    // 私聊 → 对应用户资料页
     if (overlayUserId.value !== undefined) {
         openOverlayUserProfile();
-    } else if (chat.value) {
-        const t = chat.value.type;
-        // 话题/普通群组/频道（超级群组或基本群组）均复用资料页（chat-profile）展示
-        if (t?._ === 'chatTypeSupergroup' || t?._ === 'chatTypeBasicGroup') {
-            router.push({
-                name: 'chat-profile',
-                params: { id: String(chat.value.id) },
-            });
-        } else {
-            openOverlay();
-        }
+        return;
+    }
+
+    // 话题/普通群组/频道（超级群组或基本群组）均复用资料页（chat-profile）展示
+    if (t?._ === 'chatTypeSupergroup' || t?._ === 'chatTypeBasicGroup') {
+        router.push({
+            name: 'chat-profile',
+            params: { id: String(c.id) },
+        });
+    } else {
+        openOverlay();
     }
 }
 
@@ -2070,6 +2100,14 @@ const handleUpdate = async (update: Update) => {
             break;
         }
 
+        case 'updateSecretChat': {
+            const currentChat = chat.value;
+            if (currentChat?.type?._ !== 'chatTypeSecret') break;
+            if (update.secret_chat.id !== currentChat.type.secret_chat_id) break;
+            applySecretChatState(update.secret_chat.state);
+            break;
+        }
+
         default:
             break;
     }
@@ -2126,6 +2164,46 @@ function flashMessage(messageId: number) {
 /** 检查加载代数是否已过期（聊天已切换），过期则中止后续操作 */
 function isGenerationValid(gen: number): boolean {
     return gen === loadGeneration;
+}
+
+/** 是否秘密聊天 */
+const isSecretChat = computed(() => chat.value?.type?._ === 'chatTypeSecret');
+/** 秘密聊天握手状态：pending / ready / closed；非密聊或未知为 undefined */
+const secretChatState = ref<'pending' | 'ready' | 'closed' | undefined>(undefined);
+/** 底部提示文案（仅 Pending / Closed） */
+const secretChatNoticeText = computed(() => {
+    if (!isSecretChat.value) return '';
+    if (secretChatState.value === 'pending') return t('secretChat.waitingEncryption');
+    if (secretChatState.value === 'closed') return t('secretChat.closedNotice');
+    return '';
+});
+
+function applySecretChatState(state: { _: string }) {
+    if (state._ === 'secretChatStateReady') secretChatState.value = 'ready';
+    else if (state._ === 'secretChatStateClosed') secretChatState.value = 'closed';
+    else secretChatState.value = 'pending';
+}
+
+/** 读取秘密聊天当前 state（打开/切换聊天时） */
+async function loadSecretChatState(currentChat: chat) {
+    if (currentChat.type._ !== 'chatTypeSecret') {
+        secretChatState.value = undefined;
+        return;
+    }
+    const secretChatId = currentChat.type.secret_chat_id;
+    try {
+        const sc = await tdlibSend({
+            _: 'getSecretChat',
+            secret_chat_id: secretChatId,
+        }) as { state: { _: string } };
+        if (chat.value?.type?._ !== 'chatTypeSecret'
+            || chat.value.type.secret_chat_id !== secretChatId) return;
+        applySecretChatState(sc.state);
+    } catch (e) {
+        console.error('Failed to load secret chat state', e);
+        // 未知时先按可用处理，避免误锁输入；后续 updateSecretChat 会纠正
+        if (secretChatState.value === undefined) secretChatState.value = 'ready';
+    }
 }
 
 // 监听 chatId 变化，加载聊天信息和消息
@@ -2208,6 +2286,8 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
         const chatData = await chatPromise;
         if (!isGenerationValid(gen)) return;
         chat.value = chatData;
+        // 秘密聊天：读取握手状态（Pending/Ready/Closed），驱动底部提示与输入框
+        void loadSecretChatState(chatData);
 
         // 话题模式：加载当前话题信息（用于头部显示话题名称/图标）
         if (topicId.value) {
@@ -3205,6 +3285,7 @@ function resetState() {
     linkedChatId.value = 0;
     isJoinPending.value = false;
     joinRequestSent.value = false;
+    secretChatState.value = undefined;
     pinnedBarVisible.value = false;
     availableSenders.value = [];
     sendersLoading.value = false;
@@ -4308,9 +4389,15 @@ watch(
     { immediate: true },
 );
 
-const canSend = computed(() =>
-    canSendChat(chat.value, currentMemberStatus.value, groupCaches())
-);
+const canSend = computed(() => {
+    const base = canSendChat(chat.value, currentMemberStatus.value, groupCaches());
+    if (!base) return false;
+    // 秘密聊天：Pending（握手未完成）/ Closed（已取消）禁用输入，底部显示对应提示
+    if (isSecretChat.value) {
+        return secretChatState.value !== 'pending' && secretChatState.value !== 'closed';
+    }
+    return true;
+});
 
 const showMembershipAction = computed(() =>
     showMembershipActionOf(chat.value, currentMemberStatus.value)

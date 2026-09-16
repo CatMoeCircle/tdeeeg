@@ -186,8 +186,11 @@ export const useUserProfileStore = defineStore("userProfile", () => {
   }
 
   /** 获取某个聊天的共享媒体计数（照片/文件/链接/音乐/语音/GIF） */
-  async function fetchSharedMediaCountsForChat(chatId: number): Promise<SharedMediaCounts> {
-    const counts = await fetchSharedMediaCounts(chatId);
+  async function fetchSharedMediaCountsForChat(
+    chatId: number,
+    opts: { returnLocal?: boolean } = {},
+  ): Promise<SharedMediaCounts> {
+    const counts = await fetchSharedMediaCounts(chatId, opts);
     sharedMediaCounts.set(chatId, counts);
     return counts;
   }
@@ -324,6 +327,7 @@ export const useUserProfileStore = defineStore("userProfile", () => {
     refreshProfile,
     fetchUser,
     fetchFullInfo,
+    fetchCommonGroups,
     fetchPhotos,
     fetchSharedMediaCountsForChat,
     initUserProfileUpdates,

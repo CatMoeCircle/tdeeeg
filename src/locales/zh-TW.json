@@ -381,7 +381,7 @@
   "dev": {
     "title": "開發者選項",
     "sendTdlib": "發送 TDLib 方法",
-    "sendTdlibDesc": "貼上 JSON 請求（如 {\"_\":\"getMe\"}），或直接輸入方法名（如 getMe），結果會列印到主控台。除錯時請謹慎操作。",
+    "sendTdlibDesc": "貼上 JSON 請求（如 {'{'}\"_\":\"getMe\"{'}'}），或直接輸入方法名（如 getMe），結果會列印到主控台。除錯時請謹慎操作。",
     "sending": "發送中…",
     "logs": "日誌",
     "logUpdates": "主控台列印 Update",
@@ -465,5 +465,17 @@
     "setFailed": "設定頭像失敗",
     "deleted": "頭像已刪除",
     "deleteFailed": "刪除頭像失敗"
+  },
+  "secretChat": {
+    "label": "秘密聊天",
+    "autoDeleteTitle": "自動刪除訊息",
+    "encryptionKeyTitle": "加密金鑰",
+    "encryptionKeySubtitle": "檢視端對端加密金鑰的可視化圖片",
+    "encryptionKeyDesc": "這是您與「{name}」私密對話加密金鑰的可視化圖片。",
+    "encryptionKeyHint": "如果這張圖片看起來和「{name}」裝置上的圖片完全一致，端對端加密則是安全的。",
+    "encryptionKeyLearnMore": "了解更多請前往 telegram.org",
+    "encryptionKeyUnavailable": "暫時無法取得加密金鑰",
+    "waitingEncryption": "等待加密…",
+    "closedNotice": "加密對話已取消"
   }
 }

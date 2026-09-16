@@ -140,6 +140,8 @@ const loading = ref(false);
 const loadingMore = ref(false);
 const hasMore = ref(false);
 let fromMessageId = 0;
+/** searchSecretMessages 翻页 offset（空串为首页） */
+const secretOffset = ref('');
 
 const activeIndex = ref(-1);
 const showSenderPanel = ref(false);
@@ -192,10 +194,39 @@ async function doSearch(more = false) {
         loading.value = true;
         results.value = [];
         fromMessageId = 0;
+        secretOffset.value = '';
         activeIndex.value = -1;
     }
 
     try {
+        // 秘密聊天：非空 query 必须走 searchSecretMessages（searchChatMessages 不支持）
+        const isSecret = props.chat?.type?._ === 'chatTypeSecret';
+        if (isSecret && q) {
+            const res = await tdlibSend({
+                _: 'searchSecretMessages',
+                chat_id: props.chatId,
+                query: q,
+                offset: secretOffset.value,
+                limit: 100,
+            }) as { messages: message[]; next_offset: string };
+
+            if (seq !== searchSeq) return;
+
+            const msgs = res.messages ?? [];
+            await Promise.all(msgs.map(m => ensureSenderLoaded(m.sender_id)));
+            if (seq !== searchSeq) return;
+
+            if (more) {
+                results.value = [...results.value, ...msgs];
+            } else {
+                results.value = msgs;
+            }
+            secretOffset.value = res.next_offset || '';
+            // searchSecretMessages 由 TDLib 决定返回条数；无 next_offset 视为到底
+            hasMore.value = msgs.length > 0 && !!res.next_offset;
+            return;
+        }
+
         const res = await tdlibSend({
             _: 'searchChatMessages',
             chat_id: props.chatId,

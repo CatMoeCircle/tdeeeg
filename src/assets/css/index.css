@@ -50,6 +50,10 @@
   background-clip: text;
   color: transparent;
 }
+/* 秘密聊天锁图标（tgico U+E9E2，纯色，颜色由使用处控制） */
+.tgico-secret::before {
+  content: "\e9e2";
+}
 /* 故事点赞：未点赞 U+EA47 / 已点赞 U+EA48 */
 .tgico-favorite::before {
   content: "\ea47";

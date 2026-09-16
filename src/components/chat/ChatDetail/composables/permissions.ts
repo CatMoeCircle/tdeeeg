@@ -82,7 +82,8 @@ export function canSend(
 ): boolean {
     if (!currentChat) return false;
     const c = currentChat;
-    if (c.type._ === 'chatTypePrivate') return true;
+    // 私聊 / 秘密聊天基线可发送；秘密聊天的 Pending/Closed 由 ChatDetail 按 secretChat.state 单独禁用
+    if (c.type._ === 'chatTypePrivate' || c.type._ === 'chatTypeSecret') return true;
 
     if (c.type._ === 'chatTypeSupergroup' || c.type._ === 'chatTypeBasicGroup') {
         if (!memberStatus || !isMemberStatus(memberStatus)) return false;

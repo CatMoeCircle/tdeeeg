@@ -389,7 +389,7 @@
   "dev": {
     "title": "Developer options",
     "sendTdlib": "Send TDLib method",
-    "sendTdlibDesc": "Paste a JSON request (e.g. {\"_\":\"getMe\"}) or type a method name (e.g. getMe). Results print to the console. Use with care.",
+    "sendTdlibDesc": "Paste a JSON request (e.g. {'{'}\"_\":\"getMe\"{'}'}) or type a method name (e.g. getMe). Results print to the console. Use with care.",
     "sending": "Sending…",
     "logs": "Logs",
     "logUpdates": "Print updates to console",
@@ -473,5 +473,17 @@
     "setFailed": "Failed to set profile photo",
     "deleted": "Profile photo deleted",
     "deleteFailed": "Failed to delete profile photo"
+  },
+  "secretChat": {
+    "label": "Secret Chat",
+    "autoDeleteTitle": "Auto-Delete Messages",
+    "encryptionKeyTitle": "Encryption Key",
+    "encryptionKeySubtitle": "View the visualization of the end-to-end encryption key",
+    "encryptionKeyDesc": "This is the visual representation of the encryption key of your secret chat with {name}.",
+    "encryptionKeyHint": "If it is identical to the image on {name}'s device, the end-to-end encryption is secure.",
+    "encryptionKeyLearnMore": "Learn more at telegram.org",
+    "encryptionKeyUnavailable": "Encryption key is not available yet",
+    "waitingEncryption": "Waiting for encryption…",
+    "closedNotice": "This secret chat was cancelled"
   }
 }

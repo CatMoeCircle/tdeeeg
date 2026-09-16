@@ -34,7 +34,9 @@
                 <Avatar v-else :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" :square="isForumChat"
                     :accentColorId="headerAccentColorId" :deletedAccount="isDeletedChat(props.chat as any)" />
                 <div class="flex flex-col min-w-0">
-                    <h2 class="flex font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight truncate">
+                    <h2 class="flex items-center font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight truncate">
+                        <!-- 秘密聊天：名称左侧锁图标（不改标题颜色） -->
+                        <span v-if="isSecretChat" class="tgico tgico-secret shrink-0 text-[15px] leading-none mr-1" />
                         <GlobalEmojiText :text="headerTitle" /><span v-if="verificationState"
                             class="text-blue-500 ml-1 shrink-0">
                             <component :is="verificationState" />
@@ -128,6 +130,9 @@ const chatTitle = computed(() => {
 const isForumChat = computed(() =>
     !!props.chat && props.chat.type?._ === 'chatTypeSupergroup' && !!(props.chat).view_as_topics
 );
+
+/** 秘密聊天：标题左侧显示锁图标（不改颜色） */
+const isSecretChat = computed(() => props.chat?.type?._ === 'chatTypeSecret');
 
 /** 头部头像的无头像背景色（私聊取用户 profile accent，群组取 chat profile accent） */
 const headerAccentColorId = computed(() => getChatProfileAccentColorId(props.chat));

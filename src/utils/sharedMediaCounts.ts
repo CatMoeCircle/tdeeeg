@@ -43,10 +43,15 @@ const FILTERS: FilterDef[] = [
  * Fetch shared media counts for a chat.
  *
  * @param chatId The chat ID to count messages in
+ * @param opts.returnLocal Prefer local DB only (needed for secret chats; no server count)
  * @returns SharedMediaCounts with count for each media type
  */
-export async function fetchSharedMediaCounts(chatId: number): Promise<SharedMediaCounts> {
+export async function fetchSharedMediaCounts(
+  chatId: number,
+  opts: { returnLocal?: boolean } = {},
+): Promise<SharedMediaCounts> {
   const results = { ...EMPTY_COUNTS };
+  const returnLocal = !!opts.returnLocal;
 
   const tasks = FILTERS.map(async (def) => {
     try {
@@ -54,7 +59,7 @@ export async function fetchSharedMediaCounts(chatId: number): Promise<SharedMedi
         _: 'getChatMessageCount',
         chat_id: chatId,
         filter: def.filter as any,
-        return_local: false,
+        return_local: returnLocal,
       } as any);
       // getChatMessageCount returns a Count type: { _: 'count', count: number }
       results[def.key] = (res as any)?.count ?? 0;

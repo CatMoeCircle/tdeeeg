@@ -70,44 +70,44 @@ export function buildProfileTabs(ctx: ProfileTabContext): ProfileTab[] {
     if (ctx.isSelf) {
       // Self-profile
       if (ctx.hasPostedStories) {
-        tabs.push({ key: 'stories', label: '动态', count: -1, visible: true });
+        tabs.push({ key: 'stories', label: i18n.global.t('lng_media_type_stories'), count: -1, visible: true });
       }
       if (ctx.giftCount > 0) {
-        tabs.push({ key: 'gifts', label: i18n.global.t('lng_sr_message_column_gift'), count: ctx.giftCount, visible: true });
+        tabs.push({ key: 'gifts', label: i18n.global.t('lng_media_type_gifts'), count: ctx.giftCount, visible: true });
       }
       if (ctx.hasArchivedStories) {
-        tabs.push({ key: 'archived', label: '归档动态', count: -1, visible: true });
+        tabs.push({ key: 'archived', label: i18n.global.t('lng_mediaview_archive_story'), count: -1, visible: true });
       }
     } else {
       // Other user's profile
       if (ctx.isBot && ctx.hasTopics) {
-        tabs.push({ key: 'topics', label: '话题', count: -1, visible: true });
+        tabs.push({ key: 'topics', label: i18n.global.t('lng_sr_chat_topic'), count: -1, visible: true });
       }
       if (ctx.hasPostedStories) {
-        tabs.push({ key: 'stories', label: '动态', count: -1, visible: true });
+        tabs.push({ key: 'stories', label: i18n.global.t('lng_media_type_stories'), count: -1, visible: true });
       }
       if (ctx.giftCount > 0) {
-        tabs.push({ key: 'gifts', label: i18n.global.t('lng_sr_message_column_gift'), count: ctx.giftCount, visible: true });
+        tabs.push({ key: 'gifts', label: i18n.global.t('lng_media_type_gifts'), count: ctx.giftCount, visible: true });
       }
 
       // Shared media tabs
       pushSharedMediaTabs(tabs, ctx);
 
       if (ctx.commonGroupCount > 0) {
-        tabs.push({ key: 'groups', label: '共同群组', count: ctx.commonGroupCount, visible: true });
+        tabs.push({ key: 'groups', label: i18n.global.t('lng_new_contact_common_groups'), count: ctx.commonGroupCount, visible: true });
       }
     }
   } else {
     // ── Chat profile tabs (supergroup / basic group) ───────────────────────
     if (ctx.chatType?._ === 'chatTypeSupergroup') {
       if (ctx.hasPostedStories) {
-        tabs.push({ key: 'stories', label: '动态', count: -1, visible: true });
+        tabs.push({ key: 'stories', label: i18n.global.t('lng_media_type_stories'), count: -1, visible: true });
       }
       if (ctx.giftCount > 0) {
-        tabs.push({ key: 'gifts', label: i18n.global.t('lng_sr_message_column_gift'), count: ctx.giftCount, visible: true });
+        tabs.push({ key: 'gifts', label: i18n.global.t('lng_media_type_gifts'), count: ctx.giftCount, visible: true });
       }
       if (ctx.hasForumTabs && !ctx.isChannel) {
-        tabs.push({ key: 'topics', label: '话题', count: -1, visible: true });
+        tabs.push({ key: 'topics', label: i18n.global.t('lng_sr_chat_topic'), count: -1, visible: true });
       }
       if (!ctx.isChannel) {
         tabs.push({ key: 'members', label: i18n.global.t('lng_profile_participants_section'), count: ctx.memberCount, visible: true });
@@ -115,6 +115,12 @@ export function buildProfileTabs(ctx: ProfileTabContext): ProfileTab[] {
       pushSharedMediaTabs(tabs, ctx);
     } else if (ctx.chatType?._ === 'chatTypeBasicGroup') {
       tabs.push({ key: 'members', label: i18n.global.t('lng_profile_participants_section'), count: ctx.memberCount, visible: true });
+      pushSharedMediaTabs(tabs, ctx);
+    } else if (ctx.chatType?._ === 'chatTypeSecret') {
+      // 秘密聊天：共同群组 + 共享媒体；媒体计数/列表一律基于当前 secret chat，不与普通私聊混用
+      if (ctx.commonGroupCount > 0) {
+        tabs.push({ key: 'groups', label: i18n.global.t('lng_new_contact_common_groups'), count: ctx.commonGroupCount, visible: true });
+      }
       pushSharedMediaTabs(tabs, ctx);
     }
   }
@@ -125,19 +131,19 @@ export function buildProfileTabs(ctx: ProfileTabContext): ProfileTab[] {
 /** Push shared media tabs with count > 0 */
 function pushSharedMediaTabs(tabs: ProfileTab[], ctx: ProfileTabContext): void {
   if (ctx.mediaCount > 0) {
-    tabs.push({ key: 'media', label: '媒体', count: ctx.mediaCount, visible: true });
+    tabs.push({ key: 'media', label: i18n.global.t('lng_media_type_media'), count: ctx.mediaCount, visible: true });
   }
   if (ctx.fileCount > 0) {
-    tabs.push({ key: 'files', label: i18n.global.t('lng_in_dlg_file'), count: ctx.fileCount, visible: true });
+    tabs.push({ key: 'files', label: i18n.global.t('lng_media_type_files'), count: ctx.fileCount, visible: true });
   }
   if (ctx.linkCount > 0) {
-    tabs.push({ key: 'links', label: i18n.global.t('lng_link_header_short'), count: ctx.linkCount, visible: true });
+    tabs.push({ key: 'links', label: i18n.global.t('lng_all_links'), count: ctx.linkCount, visible: true });
   }
   if (ctx.musicCount > 0) {
     tabs.push({ key: 'music', label: i18n.global.t('lng_all_music'), count: ctx.musicCount, visible: true });
   }
   if (ctx.voiceCount > 0) {
-    tabs.push({ key: 'voice', label: '语音', count: ctx.voiceCount, visible: true });
+    tabs.push({ key: 'voice', label: i18n.global.t('lng_all_voice'), count: ctx.voiceCount, visible: true });
   }
   if (ctx.gifCount > 0) {
     tabs.push({ key: 'gifs', label: 'GIF', count: ctx.gifCount, visible: true });
