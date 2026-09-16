@@ -9,11 +9,12 @@
     </button>
     <Teleport to="body">
       <div v-if="pickerOpen" class="fixed inset-0 z-200" @mousedown="onBackdrop">
-        <div class="fixed w-70 h-80 rounded-2xl bg-white dark:bg-gray-900 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden"
+        <div
+          class="fixed w-70 h-80 rounded-2xl bg-white dark:bg-gray-900 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden"
           :style="panelStyle" @mousedown.stop>
-          <EmojiDrawer :is-premium="true" :show-default-emoji-status="true"
-            :emoji-status-gift-statuses="giftStatuses" :emoji-status-recent-statuses="recentStatuses"
-            @pick-default-status="setDefaultStatus" @pick-custom-emoji="setCustomStatus" />
+          <EmojiDrawer :is-premium="true" :show-default-emoji-status="true" :emoji-status-gift-statuses="giftStatuses"
+            :emoji-status-recent-statuses="recentStatuses" @pick-default-status="setDefaultStatus"
+            @pick-custom-emoji="setCustomStatus" />
         </div>
       </div>
     </Teleport>
@@ -92,6 +93,6 @@ async function setCustomStatus(emojiId: string) {
 
 .tgico-emoji-status::before {
   content: "\ea2a";
-  color: #FF5288C1;
+  color: #3390ec;
 }
 </style>

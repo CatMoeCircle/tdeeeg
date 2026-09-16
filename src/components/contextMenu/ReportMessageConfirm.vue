@@ -11,7 +11,7 @@
                         class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
                         <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
                             <FlagIcon class="w-4 h-4 text-red-500" />
-                            举报消息
+                            {{ dialogTitle }}
                         </h3>
                         <button type="button"
                             class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
@@ -100,6 +100,17 @@ const canSubmit = computed(() => {
     return false;
 });
 
+const dialogTitle = computed(() => {
+    const req = request.value;
+    if (req?.title) return req.title;
+    return req?.msg ? '举报消息' : '举报';
+});
+
+function messageIds(): number[] {
+    const msg = request.value?.msg;
+    return msg ? [msg.id] : [];
+}
+
 // 打开弹窗时重置状态并获取举报选项
 watch(visible, async (v) => {
     if (!v) return;
@@ -122,7 +133,7 @@ watch(visible, async (v) => {
         const result = await tdlibSend({
             _: 'reportChat',
             chat_id: req.chatId,
-            message_ids: [req.msg.id],
+            message_ids: messageIds(),
         } as any) as any;
 
         if (result._ === 'reportChatResultOptionRequired') {
@@ -155,7 +166,7 @@ async function submit() {
             const result = await tdlibSend({
                 _: 'reportChat',
                 chat_id: request.value!.chatId,
-                message_ids: [request.value!.msg.id],
+                message_ids: messageIds(),
                 option_id: selectedOption.value,
             } as any) as any;
 
@@ -178,7 +189,7 @@ async function submit() {
             await tdlibSend({
                 _: 'reportChat',
                 chat_id: request.value!.chatId,
-                message_ids: [request.value!.msg.id],
+                message_ids: messageIds(),
                 option_id: pendingOptionId.value,
                 text: commentText.value.trim(),
             } as any);

@@ -66,7 +66,7 @@
               <!-- 通话 -->
               <button type="button"
                 class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-500/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
-                @click="startCall(false)">
+                @click="startCall()">
                 <PhoneCall class="w-5 h-5 shrink-0" />
                 <span class="text-[11px] leading-tight text-center px-0.5 wrap-break-word max-w-full">{{
                   t('lng_profile_action_short_call') }}</span>
@@ -118,16 +118,16 @@
             <h1 class="mt-3 text-2xl font-bold flex items-center gap-1.5 max-w-full">
               <span class="truncate">
                 <GlobalEmojiText
-                  :text="isSecretChat && secretChatUser ? `${secretChatUser.first_name} ${secretChatUser.last_name}`.trim() || '秘密聊天' : chatTitle" />
+                  :text="isSecretChat && secretChatUser ? `${secretChatUser.first_name} ${secretChatUser.last_name}`.trim() || t('secretChat.label') : chatTitle" />
               </span>
-              <VerifiedFilledIcon v-if="isChatVerified" class="text-blue-500 text-lg" title="已验证"
+              <VerifiedFilledIcon v-if="isChatVerified" class="text-blue-500 text-lg" title="Verified"
                 :fill-color='["currentColor", "transparent"]' :stroke-color='["currentColor", "#0052d9"]'
                 :stroke-width="1.5" />
             </h1>
 
             <!-- 副标题 -->
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {{ isSecretChat ? '秘密聊天' : chatMemberCountText }}
+              {{ isSecretChat ? t('secretChat.label') : chatMemberCountText }}
             </p>
 
             <!-- 操作按钮区（等大方块，单排，灰色半透明） -->
@@ -143,7 +143,7 @@
                 </button>
                 <button type="button"
                   class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-500/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
-                  @click="startCall(false)">
+                  @click="startCall()">
                   <PhoneCall class="w-5 h-5 shrink-0" />
                   <span class="text-[11px] leading-tight text-center px-0.5 wrap-break-word max-w-full">{{
                     t('lng_profile_action_short_call') }}</span>
@@ -156,7 +156,8 @@
                   @click="isChatJoined ? openChatChannel() : joinChat()">
                   <MessageSquareText class="w-5 h-5 shrink-0" />
                   <span class="text-[11px] leading-tight text-center px-0.5 wrap-break-word max-w-full">
-                    {{ isChatJoined ? (isChatChannel ? t('lng_profile_action_short_channel') : '打开') :
+                    {{ isChatJoined ? (isChatChannel ? t('lng_profile_action_short_channel') :
+                      t('lng_profile_view_channel')) :
                       t('lng_profile_action_short_join') }}
                   </span>
                 </button>
@@ -203,7 +204,7 @@
               </button>
 
               <!-- 更多 -->
-              <button type="button"
+              <button v-if="hasChatMoreOptions" type="button"
                 class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-500/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
                 @click="openChatMoreMenu($event)">
                 <MoreHorizontal class="w-5 h-5 shrink-0" />
@@ -605,7 +606,7 @@
                 @click="openStory(s)">
                 <img v-if="storyUrlOf(s)" :src="storyUrlOf(s)" class="w-full h-full object-cover" />
                 <div v-else class="w-full h-full flex items-center justify-center text-xs text-gray-400">
-                  动态
+                  {{ t('lng_media_type_stories') }}
                 </div>
                 <span v-if="formatStoryDuration(s)"
                   class="absolute bottom-1 right-1 text-[10px] leading-none bg-black/55 text-white px-1 py-0.5 rounded">
@@ -619,7 +620,9 @@
           <div v-else-if="activeTab === 'gifts' && !chatMode && giftsList.length > 0"
             class="py-6 text-center text-sm text-gray-400">
             <div class="flex items-center justify-between mb-2">
-              <span class="px-2 py-0.5 rounded-lg bg-teal-600 text-white text-xs font-medium">礼物</span>
+              <span class="px-2 py-0.5 rounded-lg bg-teal-600 text-white text-xs font-medium">{{
+                t('lng_media_type_gifts')
+              }}</span>
             </div>
             <div class="grid grid-cols-4 gap-1.5">
               <div v-for="(gift, i) in giftsList" :key="gift.received_gift_id || i"
@@ -659,7 +662,7 @@
           <!-- 共享媒体区（照片/视频） -->
           <div v-else-if="activeTab === 'media'" class="py-4">
             <div v-if="sharedMediaLoading" class="text-center text-sm text-gray-400 py-6">{{ t('lng_contacts_loading')
-              }}</div>
+            }}</div>
             <div v-else-if="sharedMediaItems.length > 0" class="grid grid-cols-5 gap-1">
               <div v-for="item in sharedMediaItems" :key="item.messageId" :data-shared-media-id="item.messageId"
                 class="aspect-square overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800 relative cursor-pointer"
@@ -667,7 +670,8 @@
                 @contextmenu.stop="showSharedMediaContextMenu($event, item)">
                 <!-- minithumbnail 模糊垫底，直到高清图解码完成 -->
                 <img v-if="sharedMediaMiniSrc(item) && !isSharedMediaThumbDecoded(item.messageId)"
-                  :src="sharedMediaMiniSrc(item)" class="absolute inset-0 w-full h-full object-cover scale-110 blur-sm" />
+                  :src="sharedMediaMiniSrc(item)"
+                  class="absolute inset-0 w-full h-full object-cover scale-110 blur-sm" />
                 <!-- 高清缩略图：解码完成后再淡入，覆盖在迷你图之上 -->
                 <img v-if="sharedMediaUrl(item.messageId)" :src="sharedMediaUrl(item.messageId)"
                   class="absolute inset-0 w-full h-full object-cover transition-opacity duration-200"
@@ -695,7 +699,7 @@
           <!-- 共享文件区 -->
           <div v-else-if="activeTab === 'files'" class="py-4">
             <div v-if="sharedMediaLoading" class="text-center text-sm text-gray-400 py-6">{{ t('lng_contacts_loading')
-              }}</div>
+            }}</div>
             <div v-else-if="sharedMediaItems.length > 0" class="space-y-1">
               <div v-for="item in sharedMediaItems" :key="item.messageId"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
@@ -724,7 +728,7 @@
           <!-- 共享链接区：日期分组 + 头像/标题/描述/URL -->
           <div v-else-if="activeTab === 'links'" class="py-2">
             <div v-if="sharedMediaLoading" class="text-center text-sm text-gray-400 py-6">{{ t('lng_contacts_loading')
-              }}</div>
+            }}</div>
             <div v-else-if="sharedMediaItems.length > 0" class="space-y-4">
               <div v-for="group in linkGroups" :key="group.date || group.label">
                 <!-- 日期标题 -->
@@ -745,8 +749,8 @@
                         class="absolute inset-0 w-full h-full object-cover transition-opacity duration-200"
                         :class="isSharedMediaThumbDecoded(item.messageId) ? 'opacity-100' : 'opacity-0'"
                         @load="markSharedMediaThumbDecoded(item.messageId)" />
-                      <span
-                        v-if="!item.linkMiniSrc && !sharedMediaUrl(item.messageId)">{{ (item.linkTitle || item.url ||
+                      <span v-if="!item.linkMiniSrc && !sharedMediaUrl(item.messageId)">{{ (item.linkTitle || item.url
+                        ||
                         'L').trim().charAt(0).toUpperCase() }}</span>
                     </div>
                     <!-- 文案 -->
@@ -780,7 +784,7 @@
           <!-- 共享音乐区 -->
           <div v-else-if="activeTab === 'music'" class="py-4">
             <div v-if="sharedMediaLoading" class="text-center text-sm text-gray-400 py-6">{{ t('lng_contacts_loading')
-              }}</div>
+            }}</div>
             <div v-else-if="sharedMediaItems.length > 0" class="space-y-1">
               <div v-for="(item, idx) in sharedMediaItems" :key="item.messageId" :data-shared-media-id="item.messageId"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
@@ -798,7 +802,7 @@
                 </div>
                 <div class="min-w-0 flex-1">
                   <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                    {{ item.audioTitle || item.fileName || '未知音乐' }}
+                    {{ item.audioTitle || item.fileName || '' }}
                   </p>
                   <p class="text-xs text-gray-400 mt-0.5 truncate">
                     {{ item.performer || '' }}<template v-if="item.performer && item.audioDuration"> ·
@@ -817,7 +821,7 @@
           <!-- 共享语音区 -->
           <div v-else-if="activeTab === 'voice'" class="py-4">
             <div v-if="sharedMediaLoading" class="text-center text-sm text-gray-400 py-6">{{ t('lng_contacts_loading')
-              }}</div>
+            }}</div>
             <div v-else-if="sharedMediaItems.length > 0" class="space-y-1">
               <div v-for="item in sharedMediaItems" :key="item.messageId"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
@@ -828,7 +832,7 @@
                   <Mic class="w-5 h-5 text-gray-400" />
                 </div>
                 <div class="min-w-0 flex-1">
-                  <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">语音消息</p>
+                  <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ t('lng_all_voice') }}</p>
                   <p class="text-xs text-gray-400 mt-0.5">{{ item.fileSize ? `${(item.fileSize / 1024).toFixed(1)} KB` :
                     '' }}
                   </p>
@@ -844,7 +848,7 @@
           <!-- GIF 区 -->
           <div v-else-if="activeTab === 'gifs'" class="py-4">
             <div v-if="sharedMediaLoading" class="text-center text-sm text-gray-400 py-6">{{ t('lng_contacts_loading')
-              }}</div>
+            }}</div>
             <div v-else-if="sharedMediaItems.length > 0" class="grid grid-cols-5 gap-1">
               <div v-for="item in sharedMediaItems" :key="item.messageId" :data-shared-media-id="item.messageId"
                 class="aspect-square overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800 relative cursor-pointer"
@@ -852,7 +856,8 @@
                 @contextmenu.stop="showSharedMediaContextMenu($event, item)">
                 <!-- minithumbnail 模糊垫底，直到高清图/动图解码完成 -->
                 <img v-if="sharedMediaMiniSrc(item) && !isSharedMediaThumbDecoded(item.messageId)"
-                  :src="sharedMediaMiniSrc(item)" class="absolute inset-0 w-full h-full object-cover scale-110 blur-sm" />
+                  :src="sharedMediaMiniSrc(item)"
+                  class="absolute inset-0 w-full h-full object-cover scale-110 blur-sm" />
                 <!-- 高清静态图：解码完成后再淡入 -->
                 <img v-if="sharedMediaUrl(item.messageId) && !isVideoThumb(item)" :src="sharedMediaUrl(item.messageId)"
                   class="absolute inset-0 w-full h-full object-cover transition-opacity duration-200"
@@ -861,9 +866,8 @@
                 <!-- MPEG4/WEBM 动图预览：首帧就绪后再淡入 -->
                 <video v-else-if="sharedMediaUrl(item.messageId)" :src="sharedMediaUrl(item.messageId)"
                   class="absolute inset-0 w-full h-full object-cover transition-opacity duration-200"
-                  :class="isSharedMediaThumbDecoded(item.messageId) ? 'opacity-100' : 'opacity-0'"
-                  autoplay muted loop playsinline
-                  @loadeddata="markSharedMediaThumbDecoded(item.messageId)" />
+                  :class="isSharedMediaThumbDecoded(item.messageId) ? 'opacity-100' : 'opacity-0'" autoplay muted loop
+                  playsinline @loadeddata="markSharedMediaThumbDecoded(item.messageId)" />
                 <div v-if="!sharedMediaMiniSrc(item) && !sharedMediaUrl(item.messageId)"
                   class="absolute inset-0 flex items-center justify-center text-xs text-gray-400">
                   <Film class="w-6 h-6" />
@@ -879,28 +883,28 @@
 
         <!-- ===== 加载 / 错误状态（用户模式） ===== -->
         <div v-if="!chatMode && isLoading" class="flex items-center justify-center py-16 text-gray-400 text-sm">
-          正在加载资料…
+          {{ t('lng_contacts_loading') }}
         </div>
         <div v-else-if="!chatMode && hasError"
           class="flex flex-col items-center justify-center py-16 text-gray-400 text-sm">
-          <p>无法加载该用户的资料</p>
+          <p>{{ t('lng_attach_failed') }}</p>
           <button type="button" class="mt-3 px-4 py-2 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200"
             @click="retry">
-            重试
+            {{ t('lng_bot_download_retry') }}
           </button>
         </div>
 
         <!-- ===== 加载 / 错误状态（频道/群组模式） ===== -->
         <div v-if="chatMode && (chatLoading || (!chatObj && !chatError))"
           class="flex items-center justify-center py-16 text-gray-400 text-sm">
-          正在加载资料…
+          {{ t('lng_contacts_loading') }}
         </div>
         <div v-else-if="chatMode && chatError"
           class="flex flex-col items-center justify-center py-16 text-gray-400 text-sm">
-          <p>无法加载该频道/群组的资料</p>
+          <p>{{ t('lng_attach_failed') }}</p>
           <button type="button" class="mt-3 px-4 py-2 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200"
             @click="retry">
-            重试
+            {{ t('lng_bot_download_retry') }}
           </button>
         </div>
 
@@ -919,7 +923,8 @@
           <div
             class="w-90 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
             <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-              <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">自动删除设置</h3>
+              <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">{{ t('lng_manage_messages_ttl_menu') }}
+              </h3>
               <button type="button"
                 class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
                 @click="closeAutoDelete">
@@ -927,7 +932,8 @@
               </button>
             </div>
             <div class="px-4 py-3">
-              <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">选择在此对话中消息被自动删除的时间：</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('lng_ttl_edit_about', { user: userName }) }}
+              </p>
               <div class="space-y-1">
                 <button v-for="opt in autoDeleteOptions" :key="opt.value" type="button"
                   class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -948,7 +954,7 @@
           <div
             class="w-90 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
             <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-              <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">编辑联系人</h3>
+              <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">{{ t('lng_info_edit_contact') }}</h3>
               <button type="button"
                 class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
                 @click="closeEditContact">
@@ -957,32 +963,36 @@
             </div>
             <div class="px-4 py-4 space-y-3">
               <div>
-                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">名字</label>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t("lng_signup_firstname")
+                }}</label>
                 <input v-model="contactFirstName" type="text" maxlength="64"
                   class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  placeholder="名字" />
+                  :placeholder="t('lng_settings_name_label')" />
               </div>
               <div>
-                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">姓氏</label>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('lng_signup_lastname')
+                }}</label>
                 <input v-model="contactLastName" type="text" maxlength="64"
                   class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  placeholder="姓氏" />
+                  :placeholder="t('lng_signup_lastname')" />
               </div>
               <div>
-                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">备注</label>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('lng_contact_add_notes')
+                }}</label>
                 <textarea v-model="contactNote" rows="3"
                   class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
-                  placeholder="备注（可选）"></textarea>
+                  :placeholder="t('lng_contact_add_notes')"></textarea>
               </div>
+              <p class="text-xs text-gray-500">{{ t('lng_contact_add_notes_about') }}</p>
             </div>
             <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
               <button type="button" @click="closeEditContact"
                 class="px-4 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
-                取消
+                {{ t('lng_cancel') }}
               </button>
               <button type="button" @click="saveContact"
                 class="px-4 py-1.5 rounded-lg text-sm bg-blue-500 text-white hover:bg-blue-600">
-                保存
+                {{ t('lng_settings_save') }}
               </button>
             </div>
           </div>
@@ -1008,7 +1018,7 @@
             <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
               <button type="button" @click="cancelConfirmDialog"
                 class="px-4 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
-                取消
+                {{ t('lng_cancel') }}
               </button>
               <button type="button" @click="confirmDialog.onConfirm"
                 class="px-4 py-1.5 rounded-lg text-sm bg-red-500 text-white hover:bg-red-600">
@@ -1021,15 +1031,15 @@
 
       <!-- 用户模式未找到 -->
       <div v-else-if="!chatMode" class="flex items-center justify-center py-16 text-gray-400 text-sm">
-        未找到该用户
+        {{ t('lng_attach_failed') }}
       </div>
       <!-- 频道/群组模式加载/错误占位 -->
       <div v-else-if="chatMode && chatError"
         class="flex flex-col items-center justify-center py-16 text-gray-400 text-sm">
-        <p>无法加载该频道/群组的资料</p>
+        <p>{{ t('lng_attach_failed') }}</p>
         <button type="button" class="mt-3 px-4 py-2 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200"
           @click="retry">
-          重试
+          {{ t('lng_bot_download_retry') }}
         </button>
       </div>
     </div>
@@ -1103,7 +1113,7 @@ import {
   ArrowLeft, Copy, Clock, MapPin, Gift, Bot, Play, Pause,
   Music, ChevronDown, Megaphone, ExternalLink, Send, Bell, BellOff,
   MoreHorizontal, TimerReset, Ban, UserPlus, UserMinus, X as XIcon,
-  Eye, LogOut, MessageSquareText, PhoneCall, Video, Flag,
+  Eye, LogOut, MessageSquareText, PhoneCall, Flag,
   Search, Users, Hash, FileText, Link, Mic, Film, KeyRound,
   Info as InfoIcon, Phone as PhoneIcon, AtSign as AtSignIcon,
   Calendar as CalendarIcon, IdCard as IdCardIcon,
@@ -1202,7 +1212,7 @@ const chatMemberCountText = computed(() => {
     ? (supergroupFull.value?.member_count || supergroupObj.value?.member_count || basicGroupObj.value?.member_count || 0)
     : 0;
   if (count <= 0) return isChatChannel.value ? t('lng_notification_channels') : t('lng_notification_groups');
-  const unit = isChatChannel.value ? '订阅者' : t('lng_profile_participants_section');
+  const unit = isChatChannel.value ? t('lng_profile_subscribers_section') : t('lng_profile_participants_section');
   return `${count.toLocaleString()} ${unit}`;
 });
 
@@ -1384,13 +1394,13 @@ async function loadEmojiStatusOptions() {
       options.push({ key: `${title}-${emojiId}`, emojiId, title, status });
       requestCustomEmoji(emojiId);
     };
-    for (const id of defaultIds) addOption(id, '默认状态');
+    for (const id of defaultIds) addOption(id, t('lng_media_type_gifts'));
     for (const status of giftStatuses) {
       const id = status.type._ === 'emojiStatusTypeUpgradedGift'
         ? String(status.type.model_custom_emoji_id) : undefined;
-      if (id) addOption(id, '升级礼物状态', status);
+      if (id) addOption(id, t('lng_gift_upgrade_title'), status);
     }
-    for (const id of installedIds) addOption(id, '已安装 emoji');
+    for (const id of installedIds) addOption(id, t('lng_emoji_added'));
     emojiStatusOptions.value = options;
   } finally {
     if (requestId === emojiStatusRequestId) emojiStatusLoading.value = false;
@@ -1428,7 +1438,7 @@ function onEmojiStatusPicked(emojiId: string) {
   void setEmojiStatus({
     key: `selected-${emojiId}`,
     emojiId,
-    title: giftStatus ? '升级礼物状态' : '自定义 emoji',
+    title: giftStatus ? t('lng_gift_upgrade_title') : t('lng_feature_custom_emoji_pack'),
     status: giftStatus,
   });
 }
@@ -1893,7 +1903,7 @@ function showSharedMediaContextMenu(e: MouseEvent, item: { messageId: number; ch
   const menuItems: ContextMenuItem[] = [
     {
       key: 'jump-to-message',
-      label: '在聊天中查看',
+      label: t('lng_downloads_view_in_chat'),
       icon: Eye,
       onClick: () => { jumpToMessage(item.chatId, item.messageId); },
     },
@@ -1901,7 +1911,7 @@ function showSharedMediaContextMenu(e: MouseEvent, item: { messageId: number; ch
   if (item.url) {
     menuItems.push({
       key: 'open-link',
-      label: '打开链接',
+      label: t('lng_view_button_external_link'),
       icon: ExternalLink,
       onClick: () => { openSharedLink(item.url); },
     });
@@ -1949,8 +1959,8 @@ async function playSharedMusic(clickedIndex: number) {
     return {
       messageId: msg.id,
       chatId: msg.chat_id,
-      title: audio.title || audio.file_name || '未知音乐',
-      performer: audio.performer || '未知艺术家',
+      title: audio.title || audio.file_name || t('lng_media_music_title'),
+      performer: audio.performer || t('lng_sr_message_column_artist'),
       duration: audio.duration,
       fileId: file.id,
       filePath,
@@ -2080,21 +2090,21 @@ const businessOpenNow = computed(() => {
   const bi = businessInfo.value;
   if (!bi) return null;
   if (bi.next_close_in && bi.next_close_in > 0 && bi.next_open_in === 0) {
-    return { open: true, text: '正在营业' };
+    return { open: true, text: t('lng_info_work_open') };
   }
   if (bi.next_open_in && bi.next_open_in > 0) {
-    return { open: false, text: '此时不营业', next: formatBusinessNext(bi.next_open_in) };
+    return { open: false, text: t('lng_info_work_closed'), next: formatBusinessNext(bi.next_open_in) };
   }
   return null;
 });
-/** 将秒数格式化为「N小时后营业 / N分钟后营业」 */
+/** 将秒数格式化为「N hours / N minutes」倒计时 */
 function formatBusinessNext(seconds: number): string {
   if (!seconds || seconds <= 0) return '';
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  if (h >= 1) return `${h}小时后营业`;
-  if (m >= 1) return `${m}分钟后营业`;
-  return '即将营业';
+  if (h >= 1) return `Opens in ${h}h`;
+  if (m >= 1) return `Opens in ${m}m`;
+  return 'Opens soon';
 }
 
 // 电话号码展示：优先用 getPhoneNumberInfoSync 的本地化格式，并标注匿名号
@@ -2118,7 +2128,7 @@ const botDescription = computed(() => botInfo.value?.short_description || botInf
 
 const profileAudio = computed<TdAudio | undefined>(() => fullInfo.value?.first_profile_audio);
 const profileAudioTitle = computed(() => profileAudio.value?.title || profileAudio.value?.file_name || t('lng_all_music'));
-const profileAudioPerformer = computed(() => profileAudio.value?.performer || '未知艺术家');
+const profileAudioPerformer = computed(() => profileAudio.value?.performer || t('lng_sr_message_column_artist'));
 /** 高清封面 URL（下载完成后替换低清过渡图） */
 const profileMusicCoverHd = ref<string | undefined>(undefined);
 /** 高清封面是否正在下载（仅此时对低清图加模糊过渡） */
@@ -2325,7 +2335,7 @@ const displayArchivedStories = computed<story[]>(() =>
 function formatStoryDuration(s: story): string {
   const c = s.content;
   if (!c) return '';
-  if (c._ === 'storyContentLive') return '直播';
+  if (c._ === 'storyContentLive') return t('lng_profile_action_short_live_stream');
   if (c._ === 'storyContentVideo' && c.video?.duration) {
     const d = Math.round(c.video.duration);
     const m = Math.floor(d / 60);
@@ -2628,14 +2638,12 @@ async function openPrivateChat() {
   router.push({ name: "chat-detail", params: { id: String(cid) } });
 }
 
-/** 语音/视频通话 */
-async function startCall(video: boolean) {
+/** 通话（暂未接入 VoIP） */
+async function startCall() {
   const cid = await getPrivateChatId();
   if (!cid) return;
-  // 跳转到聊天页面（通话功能需要在聊天页面触发）
   router.push({ name: 'chat-detail', params: { id: String(cid) } });
-  // TODO: 通过 VoIP 服务发起通话
-  MessagePlugin.info(video ? '视频通话功能开发中' : '语音通话功能开发中');
+  MessagePlugin.info('Calls are not supported yet');
 }
 
 /** 搜索聊天中的消息 */
@@ -2651,10 +2659,10 @@ async function joinChat() {
   if (!cid) return;
   try {
     await tdlibSend({ _: 'joinChat', chat_id: cid });
-    MessagePlugin.success('已加入');
+    MessagePlugin.success(isChatChannel.value ? t('lng_action_you_joined') : t('lng_you_joined_group'));
     loadData();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || '加入失败');
+    MessagePlugin.error(e?.message || 'Failed to join');
   }
 }
 
@@ -2676,9 +2684,8 @@ async function toggleNotifications() {
       },
     });
     isPrivateChatMuted.value = !isPrivateChatMuted.value;
-    MessagePlugin.success(isPrivateChatMuted.value ? '已关闭通知' : '已开启通知');
   } catch (e: any) {
-    MessagePlugin.error(e?.message || '操作失败');
+    MessagePlugin.error(e?.message || 'Failed to update notifications');
   }
 }
 
@@ -2687,22 +2694,22 @@ function openMoreMenu(e: MouseEvent) {
   const isContact = !!user.value?.is_contact;
   const menuItems: ContextMenuItem[] = [
     {
-      key: 'video-call',
-      label: '视频通话',
-      icon: Video,
-      onClick: () => { startCall(true); },
+      key: 'call',
+      label: t('lng_menu_calls'),
+      icon: PhoneCall,
+      onClick: () => { startCall(); },
     },
     { key: 'divider-0', label: '', divider: true },
     {
       key: 'auto-delete',
-      label: '自动删除设置',
+      label: t('lng_manage_messages_ttl_menu'),
       icon: TimerReset,
       onClick: () => { openAutoDelete(); },
     },
     { key: 'divider-1', label: '', divider: true },
     {
       key: 'block',
-      label: fullInfo.value?.block_list ? '解除拉黑' : '拉黑',
+      label: fullInfo.value?.block_list ? t('lng_profile_unblock_user') : t('lng_profile_block_user'),
       icon: Ban,
       danger: !fullInfo.value?.block_list,
       onClick: () => { onToggleBlock(); },
@@ -2714,13 +2721,13 @@ function openMoreMenu(e: MouseEvent) {
       { key: 'divider-2', label: '', divider: true },
       {
         key: 'edit-contact',
-        label: '编辑联系人',
+        label: t('lng_info_edit_contact'),
         icon: UserPlus,
         onClick: () => { openEditContact(); },
       },
       {
         key: 'delete-contact',
-        label: '删除联系人',
+        label: t('lng_info_delete_contact'),
         icon: UserMinus,
         danger: true,
         onClick: () => { onDeleteContact(); },
@@ -2770,9 +2777,8 @@ async function chatToggleNotifications() {
       },
     });
     chatNotificationMuted.value = !chatNotificationMuted.value;
-    MessagePlugin.success(chatNotificationMuted.value ? '已关闭通知' : '已开启通知');
   } catch (e: any) {
-    MessagePlugin.error(e?.message || '操作失败');
+    MessagePlugin.error(e?.message || 'Failed to update notifications');
   }
 }
 
@@ -2789,68 +2795,65 @@ async function reportCurrentChat() {
   if (!cid) return;
   try {
     await confirmReportMessage({ chatId: cid });
-    MessagePlugin.success('已举报');
+    MessagePlugin.success(t('lng_report_thanks'));
   } catch (e: any) {
     if (e?.message !== 'canceled') {
       console.error('reportChat failed:', e);
-      MessagePlugin.error(e?.message || '举报失败');
+      MessagePlugin.error(e?.message || 'Failed to report');
     }
   }
 }
 
-/** 取消订阅/退出频道或群组（带二级确认） */
+/** 退出频道/群组（带二级确认） */
 function unsubscribeChat() {
-  const title = chatTitle.value || '该频道';
+  const title = chatTitle.value;
   showConfirm(
-    '取消订阅',
-    `确定要取消订阅「${title}」吗？取消后将不再接收其消息。`,
-    '取消订阅',
+    t('lng_profile_leave_channel'),
+    `Leave “${title}”? You will no longer receive its messages.`,
+    t('lng_profile_leave_channel'),
     async () => {
       const cid = chatId.value;
       if (!cid) return;
       try {
         await tdlibSend({ _: 'leaveChat', chat_id: cid });
-        MessagePlugin.success('已取消订阅');
         cancelConfirmDialog();
         router.push('/home/chats');
       } catch (e: any) {
-        MessagePlugin.error(e?.message || '操作失败');
+        MessagePlugin.error(e?.message || 'Failed to leave');
       }
     },
   );
 }
+
+/** 频道/群组是否还有「更多」可选项（无则隐藏入口） */
+const hasChatMoreOptions = computed(() => {
+  if (isSecretChat.value) return true;
+  return isChatJoined.value;
+});
 
 /** 频道/群组/秘密聊天「更多」选项菜单 */
 function openChatMoreMenu(e: MouseEvent) {
   const menuItems: ContextMenuItem[] = [];
 
   if (isSecretChat.value) {
-    // 秘密聊天：删除聊天
     menuItems.push({
       key: 'delete-chat',
-      label: '删除聊天',
+      label: t('lng_profile_delete_conversation'),
       icon: Ban,
       danger: true,
       onClick: () => { /* TODO: 删除秘密聊天 */ },
     });
-  } else {
-    // 已加入/订阅时显示取消订阅（带二级提示）
-    if (isChatJoined.value) {
-      menuItems.push({ key: 'divider-chat', label: '', divider: true });
-      menuItems.push({
-        key: 'unsubscribe',
-        label: '取消订阅',
-        icon: LogOut,
-        danger: true,
-        onClick: () => { unsubscribeChat(); },
-      });
-    }
+  } else if (isChatJoined.value) {
+    menuItems.push({
+      key: 'unsubscribe',
+      label: t('lng_profile_leave_channel'),
+      icon: LogOut,
+      danger: true,
+      onClick: () => { unsubscribeChat(); },
+    });
   }
 
-  if (menuItems.length === 0) {
-    MessagePlugin.info('暂无可用的更多选项');
-    return;
-  }
+  if (menuItems.length === 0) return;
   openContextMenu(e.clientX, e.clientY, menuItems, e.currentTarget as HTMLElement);
 }
 
@@ -2861,9 +2864,9 @@ const autoDeleteVisible = ref(false);
 const autoDeleteTime = ref<number>(0);
 const autoDeleteOptions = [
   { value: 0, label: t('lng_close') },
-  { value: 86400, label: '1 天后' },
-  { value: 7 * 86400, label: '7 天后' },
-  { value: 31 * 86400, label: '31 天后' },
+  { value: 86400, label: t('lng_manage_messages_ttl_after1') },
+  { value: 7 * 86400, label: t('lng_manage_messages_ttl_after2') },
+  { value: 31 * 86400, label: t('lng_manage_messages_ttl_after3') },
 ];
 
 /** 资料页自动删除目标 chat：聊天模式用当前 chat，用户模式取/建私聊 */
@@ -2919,10 +2922,9 @@ async function applyAutoDelete(seconds: number) {
     });
     autoDeleteTime.value = seconds;
     if (chatObj.value) chatObj.value.message_auto_delete_time = seconds;
-    MessagePlugin.success('已更新自动删除设置');
     autoDeleteVisible.value = false;
   } catch (e: any) {
-    MessagePlugin.error(e?.message || '设置失败');
+    MessagePlugin.error(e?.message || 'Failed to update auto-delete settings');
   }
 }
 
@@ -2982,11 +2984,10 @@ async function saveContact() {
       },
       share_phone_number: false,
     });
-    MessagePlugin.success('联系人已保存');
     editContactVisible.value = false;
     loadData();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || '保存失败');
+    MessagePlugin.error(e?.message || 'Failed to save contact');
   }
 }
 
@@ -3025,9 +3026,9 @@ async function onToggleBlock() {
   const isBlocked = !!fullInfo.value?.block_list;
   if (!isBlocked) {
     showConfirm(
-      '拉黑',
-      `确定要拉黑「${userName.value}」吗？拉黑后将无法收到对方的任何消息。`,
-      '拉黑',
+      t('lng_profile_block_user'),
+      t('lng_blocked_list_confirm_text', { name: userName.value }),
+      t('lng_blocked_list_confirm_ok'),
       async () => {
         try {
           await tdlibSend({
@@ -3035,19 +3036,18 @@ async function onToggleBlock() {
             sender_id: { _: 'messageSenderUser', user_id: userId.value },
             block_list: { _: 'blockListMain' },
           });
-          MessagePlugin.success('已拉黑');
           cancelConfirmDialog();
           loadData();
         } catch (e: any) {
-          MessagePlugin.error(e?.message || '操作失败');
+          MessagePlugin.error(e?.message || 'Failed to block');
         }
       },
     );
   } else {
     showConfirm(
-      '解除拉黑',
-      `确定要解除对「${userName.value}」的拉黑吗？`,
-      '解除拉黑',
+      t('lng_profile_unblock_user'),
+      `Unblock “${userName.value}”?`,
+      t('lng_blocked_list_unblock'),
       async () => {
         try {
           await tdlibSend({
@@ -3055,11 +3055,10 @@ async function onToggleBlock() {
             sender_id: { _: 'messageSenderUser', user_id: userId.value },
             block_list: null as unknown as BlockList$Input,
           });
-          MessagePlugin.success('已解除拉黑');
           cancelConfirmDialog();
           loadData();
         } catch (e: any) {
-          MessagePlugin.error(e?.message || '操作失败');
+          MessagePlugin.error(e?.message || 'Failed to unblock');
         }
       },
     );
@@ -3069,8 +3068,8 @@ async function onToggleBlock() {
 /** 删除联系人（带二级确认） */
 function onDeleteContact() {
   showConfirm(
-    '删除联系人',
-    `确定要将「${userName.value}」从联系人中删除吗？`,
+    t('lng_info_delete_contact'),
+    `Remove “${userName.value}” from your contacts?`,
     t('lng_selected_delete'),
     async () => {
       try {
@@ -3078,11 +3077,10 @@ function onDeleteContact() {
           _: 'removeContacts',
           user_ids: [userId.value],
         });
-        MessagePlugin.success('已删除联系人');
         cancelConfirmDialog();
         loadData();
       } catch (e: any) {
-        MessagePlugin.error(e?.message || '操作失败');
+        MessagePlugin.error(e?.message || 'Failed to delete contact');
       }
     },
   );

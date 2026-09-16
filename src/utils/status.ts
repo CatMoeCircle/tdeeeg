@@ -18,74 +18,77 @@ function isYesterday(a: Date, b: Date) {
   return isSameDay(a, yesterday);
 }
 
+/** 紧凑日期：同年省略年，同月省略年月（如「3月5日」） */
+function formatStatusDate(lastDate: Date, nowDate: Date): string {
+  const sameYear = lastDate.getFullYear() === nowDate.getFullYear();
+  const sameMonth = sameYear && lastDate.getMonth() === nowDate.getMonth();
+
+  const options: Intl.DateTimeFormatOptions = { day: "numeric" };
+  if (!sameMonth) options.month = "numeric";
+  if (!sameYear) options.year = "numeric";
+
+  return lastDate.toLocaleDateString(undefined, options);
+}
+
 /**
  * 格式化用户在线状态
- * @param lastSeen unix seconds 时间戳（秒）
- * @param isOnline 是否当前在线
  */
 export default function formatStatus(userStatus?: UserStatus): string {
-  if (!userStatus) return "很久没上线";
+  const t = i18n.global.t;
+
+  if (!userStatus) return t("lng_status_offline");
 
   switch (userStatus._) {
     case "userStatusOnline":
-      return i18n.global.t('lng_status_online');
+      return t("lng_status_online");
 
     case "userStatusOffline": {
       const lastSeen = userStatus.was_online;
-      console.log("Last seen timestamp:", lastSeen);
-
-      if (!lastSeen) return "很久没上线";
+      if (!lastSeen) return t("lng_status_offline");
 
       const nowMs = Date.now();
       const lastMs = lastSeen * 1000;
-      const diffMs = nowMs - lastMs;
-      const diffMinutes = diffMs / 60000;
+      const diffMinutes = (nowMs - lastMs) / 60000;
 
-      if (diffMinutes <= MINUTES_RECENT) return "近期在线";
+      if (diffMinutes <= MINUTES_RECENT) return t("lng_status_lastseen_now");
+
+      if (diffMinutes < 60) {
+        return t("lng_status_lastseen_minutes", {
+          count: Math.max(1, Math.floor(diffMinutes)),
+        });
+      }
 
       const lastDate = new Date(lastMs);
       const nowDate = new Date(nowMs);
+      const time = formatTime(lastSeen);
 
-      // 今天：只显示时间，如 "19:00 在线"
       if (isSameDay(lastDate, nowDate)) {
-        return `${formatTime(lastSeen)} 在线`;
+        return t("lng_status_lastseen_hours", {
+          count: Math.max(1, Math.floor(diffMinutes / 60)),
+        });
       }
 
-      // 昨天：显示 "昨天 18:00 在线"
       if (isYesterday(lastDate, nowDate)) {
-        return `昨天 ${formatTime(lastSeen)} 在线`;
+        return t("lng_status_lastseen_yesterday", { time });
       }
 
-      // 其他日期：按规则显示日期，年/月可省略
-      const parts: string[] = [];
-
-      const sameYear = lastDate.getFullYear() === nowDate.getFullYear();
-      const sameMonth = sameYear && lastDate.getMonth() === nowDate.getMonth();
-
-      if (!sameYear) {
-        parts.push(`${lastDate.getFullYear()}年`);
-      }
-
-      if (!sameMonth) {
-        parts.push(`${lastDate.getMonth() + 1}月`);
-      }
-
-      parts.push(`${lastDate.getDate()}日`);
-
-      return `${parts.join("")} ${formatTime(lastSeen)} 在线`;
+      return t("lng_status_lastseen_date_time", {
+        date: formatStatusDate(lastDate, nowDate),
+        time,
+      });
     }
 
     case "userStatusRecently":
-      return "近期在线";
+      return t("lng_status_recently");
 
     case "userStatusLastWeek":
-      return "近期一周在线";
+      return t("lng_status_last_week");
 
     case "userStatusLastMonth":
-      return "近期一个月在线";
+      return t("lng_status_last_month");
 
     case "userStatusEmpty":
     default:
-      return "很久没上线";
+      return t("lng_status_offline");
   }
 }

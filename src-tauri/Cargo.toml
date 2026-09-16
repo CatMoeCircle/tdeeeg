@@ -45,6 +45,6 @@ tauri-plugin-notification = "2"
 notify-rust = "4"
 
 [target.'cfg(windows)'.dependencies]
-tauri-plugin-updater = "2"
+tauri-plugin-updater = "2.11.0"
 tauri-plugin-single-instance = "2"
 tauri-winrt-notification = "0.7"

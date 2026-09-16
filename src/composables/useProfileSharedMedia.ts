@@ -5,7 +5,96 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { isThumbnailImgRenderable } from '../utils/thumbnail';
 import { listAlbumCoverFiles } from '../utils/profileMedia';
 import { fetchItunesCoverForAudio } from '../utils/itunesCover';
-import type { message, SearchMessagesFilter$Input, photo, file } from 'tdlib-types';
+import type { message, SearchMessagesFilter$Input, photo, file, LinkPreviewType, formattedText } from 'tdlib-types';
+
+/** 仅从 textEntityTypeUrl / textEntityTypeTextUrl 实体提取第一个 URL */
+function extractUrlFromFormattedText(ft?: formattedText): string | undefined {
+    if (!ft?.entities?.length) return undefined;
+    for (const e of ft.entities) {
+        if (e.type._ === 'textEntityTypeTextUrl' && e.type.url) {
+            return e.type.url;
+        }
+        if (e.type._ === 'textEntityTypeUrl') {
+            const u = ft.text.slice(e.offset, e.offset + e.length);
+            if (u) return u;
+        }
+    }
+    return undefined;
+}
+
+/** 从 formattedText 中去掉 URL 实体后的纯文本（作描述用） */
+function stripUrlEntities(ft?: formattedText): string {
+    if (!ft?.text) return '';
+    if (!ft.entities?.length) return ft.text.trim();
+    let out = ft.text;
+    // 从后往前删，避免 offset 偏移
+    const urlEntities = ft.entities
+        .filter((e) => e.type._ === 'textEntityTypeUrl' || e.type._ === 'textEntityTypeTextUrl')
+        .sort((a, b) => b.offset - a.offset);
+    for (const e of urlEntities) {
+        out = out.slice(0, e.offset) + out.slice(e.offset + e.length);
+    }
+    return out.replace(/\s+/g, ' ').trim();
+}
+
+/** 从 linkPreview.type 中提取 minithumbnail 与可下载的封面文件 */
+function extractLinkPreviewCover(type: LinkPreviewType): { mini?: string; file?: file } {
+    let mini: { data?: string } | undefined;
+    let coverFile: file | undefined;
+
+    /** chatPhoto / photo → 取最大尺寸 file（高清封面） */
+    const fileFromSizes = (p?: { sizes?: Array<{ photo?: file; width?: number; height?: number }> }) => {
+        const sizes = (p?.sizes || []).filter((s) => s.photo);
+        if (!sizes.length) return undefined;
+        const sorted = sizes.slice().sort((a, b) => (a.width || 0) * (a.height || 0) - (b.width || 0) * (b.height || 0));
+        return sorted[sorted.length - 1]?.photo;
+    };
+
+    switch (type._) {
+        case 'linkPreviewTypePhoto':
+        case 'linkPreviewTypeArticle':
+        case 'linkPreviewTypeApp':
+        case 'linkPreviewTypeWebApp':
+        case 'linkPreviewTypeChat':
+        case 'linkPreviewTypeDirectMessagesChat':
+        case 'linkPreviewTypeUser':
+        case 'linkPreviewTypeChannelBoost':
+        case 'linkPreviewTypeSupergroupBoost':
+        case 'linkPreviewTypeVideoChat':
+            mini = type.photo?.minithumbnail;
+            coverFile = fileFromSizes(type.photo);
+            break;
+        case 'linkPreviewTypeVideo':
+            mini = type.video?.minithumbnail || type.cover?.minithumbnail;
+            coverFile = type.cover ? fileFromSizes(type.cover) : undefined;
+            break;
+        case 'linkPreviewTypeAnimation':
+            mini = type.animation?.minithumbnail;
+            coverFile = type.animation?.thumbnail
+                && isThumbnailImgRenderable(type.animation.thumbnail.format)
+                ? type.animation.thumbnail.file
+                : undefined;
+            break;
+        case 'linkPreviewTypeEmbeddedVideoPlayer':
+            mini = type.video?.minithumbnail || type.thumbnail?.minithumbnail;
+            coverFile = type.thumbnail ? fileFromSizes(type.thumbnail) : undefined;
+            break;
+        case 'linkPreviewTypeEmbeddedAnimationPlayer':
+            mini = type.animation?.minithumbnail || type.thumbnail?.minithumbnail;
+            coverFile = type.thumbnail ? fileFromSizes(type.thumbnail) : undefined;
+            break;
+        case 'linkPreviewTypeEmbeddedAudioPlayer':
+            mini = type.thumbnail?.minithumbnail;
+            coverFile = type.thumbnail ? fileFromSizes(type.thumbnail) : undefined;
+            break;
+        default:
+            break;
+    }
+    return {
+        mini: mini?.data ? `data:image/jpeg;base64,${mini.data}` : undefined,
+        file: coverFile,
+    };
+}
 
 /** 共享媒体网格项 */
 export interface SharedMediaItem {
@@ -27,12 +116,28 @@ export interface SharedMediaItem {
     message?: message;
     /** 原始 photo 对象（用于打开查看器） */
     photo?: photo;
+    /** 待下载的缩略图文件（视频封面 / GIF thumbnail） */
+    thumbFile?: file;
+    /** thumbnail 格式（mpeg4/webm 需用 video 展示） */
+    thumbFormat?: string;
     /** 文件名（文档类） */
     fileName?: string;
     /** 文件大小（字节） */
     fileSize?: number;
     /** 链接 URL（链接类） */
     url?: string;
+    /** 链接标题（linkPreview.title） */
+    linkTitle?: string;
+    /** 链接描述（linkPreview.description / 消息正文） */
+    linkDescription?: string;
+    /** 站点名（linkPreview.site_name） */
+    linkSiteName?: string;
+    /** 链接预览缩略图（minithumbnail base64） */
+    linkMiniSrc?: string;
+    /** 链接预览可下载的高清封面文件 */
+    linkCoverFile?: file;
+    /** 消息时间戳（秒） */
+    date?: number;
     /** MIME 类型 */
     mimeType?: string;
     /** 音频标题（来自 messageAudio.title） */
@@ -52,6 +157,7 @@ function messageToItem(msg: message): SharedMediaItem | null {
         contentType: c._,
         isVideo: false,
         message: msg,
+        date: msg.date,
     };
 
     if (c._ === 'messagePhoto') {
@@ -85,6 +191,8 @@ function messageToItem(msg: message): SharedMediaItem | null {
             isVideo: true,
             duration: v.duration,
             photo: cover,
+            thumbFile,
+            thumbFormat: v.thumbnail?.format?._,
             miniSrc: mini,
             src: thumbFile && isFileReady(thumbFile) ? convertFileSrc(thumbFile.local.path) : undefined,
             loaded: false,
@@ -102,12 +210,20 @@ function messageToItem(msg: message): SharedMediaItem | null {
         };
     }
     if (c._ === 'messageText') {
-        // 提取 URL
-        const text = c.text?.text || '';
-        const urlMatch = text.match(/https?:\/\/[^\s]+/);
+        // 仅从 textEntityTypeUrl / textEntityTypeTextUrl 提取第一个 URL
+        const entityUrl = extractUrlFromFormattedText(c.text);
+        const preview = c.link_preview;
+        const previewDesc = preview?.description?.text?.trim() || '';
+        const captionDesc = stripUrlEntities(c.text);
+        const cover = preview ? extractLinkPreviewCover(preview.type) : {};
         return {
             ...base,
-            url: urlMatch?.[0],
+            url: entityUrl,
+            linkTitle: preview?.title || '',
+            linkDescription: previewDesc || captionDesc,
+            linkSiteName: preview?.site_name || '',
+            linkMiniSrc: cover.mini,
+            linkCoverFile: cover.file,
             miniSrc: undefined,
             src: undefined,
             loaded: false,
@@ -116,6 +232,9 @@ function messageToItem(msg: message): SharedMediaItem | null {
     if (c._ === 'messageAudio') {
         // 已就绪的高清封面可直接用；未就绪时仍先展示 minithumbnail
         const readyCover = listAlbumCoverFiles(c.audio).find((f) => isFileReady(f));
+        // 说明文字中的链接（仅 URL 实体）
+        const entityUrl = extractUrlFromFormattedText(c.caption);
+        const captionDesc = stripUrlEntities(c.caption);
         return {
             ...base,
             fileName: c.audio.file_name || c.audio.title,
@@ -124,6 +243,12 @@ function messageToItem(msg: message): SharedMediaItem | null {
             audioTitle: c.audio.title || c.audio.file_name || '未知音乐',
             performer: c.audio.performer || '未知艺术家',
             audioDuration: c.audio.duration,
+            url: entityUrl,
+            linkTitle: c.audio.title || c.audio.file_name || '',
+            linkDescription: captionDesc || c.audio.performer || '',
+            linkMiniSrc: c.audio.album_cover_minithumbnail?.data
+                ? `data:image/jpeg;base64,${c.audio.album_cover_minithumbnail.data}`
+                : undefined,
             miniSrc: c.audio.album_cover_minithumbnail?.data ? `data:image/jpeg;base64,${c.audio.album_cover_minithumbnail.data}` : undefined,
             src: readyCover?.local?.path ? convertFileSrc(readyCover.local.path) : undefined,
             loaded: false,
@@ -140,12 +265,18 @@ function messageToItem(msg: message): SharedMediaItem | null {
     }
     if (c._ === 'messageAnimation') {
         const anim = c.animation;
-        const thumbFile = anim.thumbnail && isThumbnailImgRenderable(anim.thumbnail.format) ? anim.thumbnail.file : undefined;
+        // GIF thumbnail：静态图可直接 <img>；MPEG4/WEBM 需用 <video>，一并下载
+        const thumb = anim.thumbnail;
+        const thumbFile = thumb?.file;
+        const thumbFormat = thumb?.format?._;
+        const imgOk = thumb && isThumbnailImgRenderable(thumb.format);
         return {
             ...base,
             isVideo: true,
+            thumbFile,
+            thumbFormat,
             miniSrc: anim.minithumbnail?.data ? `data:image/jpeg;base64,${anim.minithumbnail.data}` : undefined,
-            src: thumbFile && isFileReady(thumbFile) ? convertFileSrc(thumbFile.local.path) : undefined,
+            src: thumbFile && isFileReady(thumbFile) && imgOk ? convertFileSrc(thumbFile.local.path) : undefined,
             loaded: false,
         };
     }
@@ -240,6 +371,7 @@ export function useProfileSharedMedia(
 /**
  * 单个共享媒体格子的懒加载 Hook。
  * 元素进入视口后才下载高清缩略图，未进入时用 base64 minithumbnail 模糊占位。
+ * 照片 Small 尺寸始终下载作清晰网格图；音乐封面不受图片自动下载限制。
  */
 export function useSharedMediaCell(
     elRef: Ref<HTMLElement | null>,
@@ -291,7 +423,7 @@ export function useSharedMediaCell(
                 }
             }
 
-            // 音乐专辑封面（仅内嵌封面；空则 iTunes Search）
+            // 音乐专辑封面（例外：不受图片自动下载限制；仅内嵌封面；空则 iTunes Search）
             if (it.contentType === 'messageAudio' && it.message?.content._ === 'messageAudio') {
                 const audio = it.message.content.audio;
                 const { downloadFileUrl } = await import('../utils/profileMedia');

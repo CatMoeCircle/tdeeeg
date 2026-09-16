@@ -2,9 +2,9 @@ import { ref } from "vue";
 import type { message } from "tdlib-types";
 
 /**
- * 「举报消息」弹窗的全局状态。
- * 参照 pinMessage.ts 的 Promise 模式：调用方 confirmReportMessage 传入待举报消息，
- * 由挂载在 ChatDetail 的 ReportMessageConfirm.vue 监听 visible 渲染；
+ * 「举报消息 / 举报会话」弹窗的全局状态。
+ * 参照 pinMessage.ts 的 Promise 模式：调用方 confirmReportMessage 传入待举报消息（或仅 chatId），
+ * 由挂载在 ChatDetail / UserProfile 的 ReportMessageConfirm.vue 监听 visible 渲染；
  * 用户选择原因后通过 resolve 回传结果，取消则 reject。
  */
 
@@ -16,12 +16,14 @@ export interface ReportMessageResult {
     comment: string;
 }
 
-/** 当前待举报消息 */
+/** 当前待举报请求 */
 export interface ReportMessageRequest {
     /** 源对话 id */
     chatId: number;
-    /** 待举报的消息 */
-    msg: message;
+    /** 待举报的消息；为空则按会话举报 */
+    msg?: message;
+    /** 弹窗标题（默认按是否有消息显示「举报消息 / 举报」） */
+    title?: string;
 }
 
 export const visible = ref(false);

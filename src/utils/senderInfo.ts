@@ -12,7 +12,7 @@ import type {
   draftMessage,
   basicGroup,
   supergroup,
-  userStatus,
+  UserStatus,
 } from "tdlib-types";
 import { tdlibSend } from "./tdlib";
 import type { Chat } from "../store/chat";
@@ -38,7 +38,7 @@ interface TdlibUpdate {
   unread_count?: number;
   notification_settings?: chatNotificationSettings;
   view_as_topics?: boolean;
-  status?: userStatus;
+  status?: UserStatus;
   basic_group?: basicGroup;
   supergroup?: supergroup;
 }
