@@ -1,6 +1,6 @@
 <template>
     <MessageLinkPreview v-if="linkPreview?.show_above_text" :preview="linkPreview" :accentColorId="accentColorId"
-        @open="openLink" />
+        :chatId="chatId" @open="openLink" />
     <!-- overflow:hidden 使 <p> 建立 BFC，包含内嵌时间（float:right）以免溢出气泡 -->
     <p v-bind="$attrs" class="whitespace-pre-wrap msg-selectable-text overflow-hidden"
         :style="{ fontSize: 'var(--msg-font-size, 14px)', lineHeight: '1.4' }">
@@ -127,7 +127,7 @@
         </span>
     </p>
     <MessageLinkPreview v-if="linkPreview && !linkPreview.show_above_text" :preview="linkPreview"
-        :accentColorId="accentColorId" @open="openLink" />
+        :accentColorId="accentColorId" :chatId="chatId" @open="openLink" />
 </template>
 
 <script setup lang="ts">
@@ -157,6 +157,8 @@ defineOptions({ inheritAttrs: false });
 const props = defineProps<{
     formattedText: formattedText;
     linkPreview?: LinkPreview;
+    /** 来源对话，用于链接预览图自动下载判断 */
+    chatId?: number;
     /** 发送者 accent_color_id，用于引用标记竖线配色 */
     accentColorId?: number;
     /** 是否在文本末尾内嵌时间（float 右对齐，跟随文本末行；参考网页版 time-seal）。仅普通文本消息开启，caption 场景勿传 */

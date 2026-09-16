@@ -3,7 +3,8 @@
         :style="containerStyle" @wheel="onWheel">
         <template v-if="mode === 'grid'">
             <div v-for="item in items" :key="item.key" class="absolute overflow-hidden" :style="item.style">
-                <RichImage v-if="item.file" :file="item.file" :format="item.format" :alt="item.alt" fill />
+                <RichImage v-if="item.file" :file="item.file" :format="item.format" :alt="item.alt" fill
+                    :chatId="chatId" />
                 <div v-else class="absolute inset-0 flex items-center justify-center text-gray-400">
                     图片不可用
                 </div>
@@ -14,7 +15,7 @@
         </template>
         <template v-else>
             <RichImage v-if="currentItem.file" :file="currentItem.file" :format="currentItem.format"
-                :alt="currentItem.alt" fill />
+                :alt="currentItem.alt" fill :chatId="chatId" />
             <div v-else class="absolute inset-0 flex items-center justify-center text-gray-400">
                 图片不可用
             </div>
@@ -53,6 +54,8 @@ import { layoutMediaGroup } from '../../../../../utils/mediaGroupLayout';
 const props = withDefaults(defineProps<{
     blocks: PageBlock[];
     mode?: 'grid' | 'slideshow';
+    /** 来源对话，用于图片自动下载判断 */
+    chatId?: number;
 }>(), {
     mode: 'grid',
 });

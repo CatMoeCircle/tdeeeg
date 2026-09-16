@@ -39,6 +39,7 @@ import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/t
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { isThumbnailImgRenderable, isThumbnailVideoRenderable } from '../../../../../utils/thumbnail';
 import { mediaFitStyle, fitMediaSize } from '../../../../../utils/fitMediaSize';
+import { shouldAutoDownloadPhotos } from '../../../../../utils/autoDownload';
 
 const props = defineProps<{
     preview: linkPreview;
@@ -46,6 +47,8 @@ const props = defineProps<{
     large?: boolean;
     /** true = 完整展示图片（object-contain 居中，不裁剪），适合贴纸等需整体可见的预览 */
     contain?: boolean;
+    /** 来源对话，用于按「图片」自动下载设置决定是否拉取高清预览图 */
+    chatId?: number;
 }>();
 
 /** 从 linkPreview.type 提取出的可展示媒体（照片 / 视频封面 / 动画缩略图） */
@@ -245,6 +248,8 @@ async function load() {
         if (seq === loadSeq) src.value = convertFileSrc(f.local.path);
         return;
     }
+    // 链接预览图跟随「图片」自动下载设置；关闭时仅用 minithumbnail 占位
+    if (!shouldAutoDownloadPhotos(props.chatId)) return;
     if (!f.local.can_be_downloaded) return;
     // 已在下载中（其它组件发起）则直接轮询，避免重复发起
     if (!downloadingFiles.has(f.id)) {

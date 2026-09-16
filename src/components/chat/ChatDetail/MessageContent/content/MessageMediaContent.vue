@@ -12,7 +12,7 @@
         <!-- Caption above media -->
         <div v-if="showCaptionAbove && captionText" class="caption-text px-2 pt-2 pb-1"
             :class="isSelf ? 'text-white/90' : 'text-gray-800 dark:text-gray-200'">
-            <MessageTextContent :formattedText="captionFormatted" />
+            <MessageTextContent :formattedText="captionFormatted" :chatId="chatId" />
         </div>
 
         <!-- Media element -->
@@ -220,7 +220,7 @@
         <!-- Caption below -->
         <div v-if="!showCaptionAbove && captionText" class="caption-text px-2 pb-2 pt-1"
             :class="isSelf ? 'text-gray-900' : 'text-gray-800 dark:text-gray-200'">
-            <MessageTextContent :formattedText="captionFormatted" />
+            <MessageTextContent :formattedText="captionFormatted" :chatId="chatId" />
         </div>
 
         <!-- Reactions slot（caption 与时间之间） -->

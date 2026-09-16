@@ -983,6 +983,7 @@ import { MessagePlugin } from "tdesign-vue-next";
 import { buildProfileTabs, type ProfileTab, type ProfileTabKey } from "../../utils/profileTabs";
 import SlidingTabBar from "../../components/common/SlidingTabBar.vue";
 import { settings } from "../../store/settings";
+import { shouldAutoDownloadPhotos } from "../../utils/autoDownload";
 import { folderTabClass } from "../../utils/folderPillsTabClass";
 import type { SharedMediaCounts } from "../../utils/sharedMediaCounts";
 import { useProfileSharedMedia } from "../../composables/useProfileSharedMedia";
@@ -1541,6 +1542,7 @@ watch(activeTab, (tab) => {
 
 /** 新增共享媒体项后，自动开始懒加载缩略图 / 音乐封面 */
 watch(sharedMediaItems, (items) => {
+  const allowPhotos = shouldAutoDownloadPhotos(sharedMediaChatId.value);
   for (const item of items) {
     if (sharedMediaUrlCache.value[item.messageId]) continue;
     // 构建时已就绪的高清图直接写入缓存，避免再发起一次下载
@@ -1548,7 +1550,13 @@ watch(sharedMediaItems, (items) => {
       sharedMediaUrlCache.value = { ...sharedMediaUrlCache.value, [item.messageId]: item.src };
       continue;
     }
-    if (item.photo || item.contentType === 'messageAudio') {
+    // 音乐封面：例外，始终下载（空封面由 iTunes Search 兜底）
+    if (item.contentType === 'messageAudio') {
+      void loadSharedMediaThumb(item);
+      continue;
+    }
+    // 照片缩略图：跟随「图片」自动下载设置
+    if (item.photo && allowPhotos) {
       void loadSharedMediaThumb(item);
     }
   }
@@ -1739,6 +1747,8 @@ async function loadSharedMediaThumb(item: { messageId: number; photo?: any; cont
   }
 
   if (!item.photo?.sizes?.length) return;
+  // 照片缩略图：跟随「图片」自动下载设置
+  if (!shouldAutoDownloadPhotos(sharedMediaChatId.value)) return;
   const sorted = item.photo.sizes
     .filter((s: any) => s.photo)
     .slice()

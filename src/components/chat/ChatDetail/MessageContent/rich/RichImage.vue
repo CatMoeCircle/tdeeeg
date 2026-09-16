@@ -17,6 +17,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { isThumbnailVideoRenderable } from '../../../../../utils/thumbnail';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
+import { shouldAutoDownloadPhotos } from '../../../../../utils/autoDownload';
 
 const props = withDefaults(defineProps<{
     file: file;
@@ -28,6 +29,8 @@ const props = withDefaults(defineProps<{
     /** Fill the parent media tile. */
     fill?: boolean;
     clickable?: boolean;
+    /** 来源对话，用于按「图片」自动下载设置决定是否拉取富文本图片 */
+    chatId?: number;
 }>(), {
     alt: '',
     square: false,
@@ -63,6 +66,8 @@ async function load() {
         src.value = convertFileSrc(f.local.path);
         return;
     }
+    // 富文本图片跟随「图片」自动下载设置
+    if (!shouldAutoDownloadPhotos(props.chatId)) return;
     if (downloading.value) return;
     downloading.value = true;
     try {

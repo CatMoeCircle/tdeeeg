@@ -46,7 +46,7 @@
         </div>
         <div v-if="captionText" class="px-2 pt-1.5 pb-2"
             :class="isSelf ? 'text-gray-900' : 'text-gray-800 dark:text-gray-200'">
-            <MessageTextContent :formattedText="captionFormatted" />
+            <MessageTextContent :formattedText="captionFormatted" :chatId="chatId" />
         </div>
         <!-- Reactions slot（caption 与时间之间） -->
         <slot name="reactions" />
@@ -69,7 +69,7 @@ import { layoutMediaGroup, type MediaGroupSize } from '../../../../../utils/medi
 import { openMediaViewer } from '../../../../../store/mediaViewer';
 import { useDownloadStore } from '../../../../../store/downloads';
 import { settings } from '../../../../../store/settings';
-import { getChatCategory } from '../../../../../utils/autoDownload';
+import { getChatCategory, shouldAutoDownloadPhotos } from '../../../../../utils/autoDownload';
 import { isThumbnailImgRenderable } from '../../../../../utils/thumbnail';
 import { useChatStore } from '../../../../../store/chat';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
@@ -310,7 +310,8 @@ async function loadPhoto(msg: message): Promise<boolean> {
     if (smallest?.photo) {
         const f = smallest.photo;
         if (isFileReady(f) && !thumbCache[msg.id]) { thumbCache[msg.id] = convertFileSrc(f.local.path); c = true; }
-        else if (f.local.can_be_downloaded && !downloadingFiles.has(f.id)) {
+        // 相册照片缩略图跟随「图片」自动下载设置；关闭时仅用 minithumbnail 占位
+        else if (f.local.can_be_downloaded && !downloadingFiles.has(f.id) && shouldAutoDownloadPhotos(props.chatId)) {
             try {
                 // 相册缩略图：最低档优先级
                 await safeDownloadFile(f.id, true, DL_PRIORITY.THUMBNAIL);
@@ -484,14 +485,7 @@ async function loadAnimation(msg: message): Promise<boolean> {
  * 当前对话是否应自动下载图片（用于视频封面等辅助资源的下载遵循图片设置）。
  */
 function shouldAutoDownloadPhoto(): boolean {
-    if (!settings.autoDownload.enabled) return false;
-    if (!props.chatId) return true;
-    const cs = useChatStore();
-    const chatData = cs.chats[props.chatId] as any;
-    if (!chatData) return true;
-    const category = getChatCategory(chatData);
-    const cfg = settings.autoDownload.photos;
-    return cfg.enabled && cfg[category];
+    return shouldAutoDownloadPhotos(props.chatId);
 }
 
 // ---- Computed display helpers ----

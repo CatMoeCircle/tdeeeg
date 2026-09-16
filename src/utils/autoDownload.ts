@@ -1,5 +1,12 @@
 import { settings } from '../store/settings';
+import { useChatStore } from '../store/chat';
 import type { chat, message } from 'tdlib-types';
+
+/** 按 chatId 从会话缓存解析 chat 对象（供自动下载判断使用） */
+function resolveChatById(chatId?: number): chat | undefined {
+    if (!chatId) return undefined;
+    return useChatStore().chats[chatId] as unknown as chat | undefined;
+}
 
 /**
  * 对话类型分类
@@ -89,4 +96,47 @@ export function shouldAutoDownloadAudio(
     if (!cfg.enabled || !cfg[category]) return false;
     const sizeMB = (sizeBytes || 0) / (1024 * 1024);
     return sizeMB <= cfg.maxSize;
+}
+
+/**
+ * 是否应自动下载图片（含链接预览图、富文本图、相册/共享媒体缩略图等）。
+ * 无 chatId 或会话未入缓存时沿用宽松策略：允许（与消息媒体组件一致）。
+ */
+export function shouldAutoDownloadPhotos(chatId?: number): boolean {
+    if (!settings.autoDownload.enabled) return false;
+    if (!chatId) return true;
+    const chatData = resolveChatById(chatId);
+    if (!chatData) return true;
+    const cfg = settings.autoDownload.photos;
+    return cfg.enabled && cfg[getChatCategory(chatData)];
+}
+
+/**
+ * 是否应自动下载视频（含视频留言）。
+ * @param sizeBytes 文件体积（字节）；传 0 时不校验体积上限。
+ */
+export function shouldAutoDownloadVideos(chatId?: number, sizeBytes = 0): boolean {
+    if (!settings.autoDownload.enabled) return false;
+    if (!chatId) return true;
+    const chatData = resolveChatById(chatId);
+    if (!chatData) return true;
+    const cfg = settings.autoDownload.videos;
+    if (!cfg.enabled || !cfg[getChatCategory(chatData)]) return false;
+    if (!sizeBytes) return true;
+    return sizeBytes / (1024 * 1024) <= cfg.maxSize;
+}
+
+/**
+ * 是否应自动下载文件类内容（含语音留言、文档）。
+ * @param sizeBytes 文件体积（字节）；传 0 时不校验体积上限。
+ */
+export function shouldAutoDownloadFiles(chatId?: number, sizeBytes = 0): boolean {
+    if (!settings.autoDownload.enabled) return false;
+    if (!chatId) return true;
+    const chatData = resolveChatById(chatId);
+    if (!chatData) return true;
+    const cfg = settings.autoDownload.files;
+    if (!cfg.enabled || !cfg[getChatCategory(chatData)]) return false;
+    if (!sizeBytes) return true;
+    return sizeBytes / (1024 * 1024) <= cfg.maxSize;
 }

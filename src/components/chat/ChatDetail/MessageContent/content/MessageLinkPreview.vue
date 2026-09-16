@@ -6,7 +6,7 @@
         @keydown.space.prevent="emit('open', preview.url)">
         <div class="w-0.5 shrink-0 rounded-full" :style="accentBarStyle"></div>
         <div class="min-w-0 flex-1">
-            <LinkPreviewMedia :preview="preview" large contain />
+            <LinkPreviewMedia :preview="preview" large contain :chatId="chatId" />
             <div v-if="preview.site_name || preview.title || preview.author || preview.description?.text"
                 class="space-y-0.5 px-2.5 py-2">
                 <div v-if="preview.site_name" class="truncate text-xs font-semibold" :style="accentTextStyle">
@@ -27,7 +27,7 @@
         @click="emit('open', preview.url)" @keydown.enter.prevent="emit('open', preview.url)"
         @keydown.space.prevent="emit('open', preview.url)">
         <!-- 大图媒体：位于描述上方 -->
-        <LinkPreviewMedia v-if="showLarge && mediaAbove" :preview="preview" large />
+        <LinkPreviewMedia v-if="showLarge && mediaAbove" :preview="preview" large :chatId="chatId" />
 
         <div class="flex gap-2 px-2.5 pt-2.5 pb-2">
             <div class="w-0.5 shrink-0 rounded-full" :style="accentBarStyle"></div>
@@ -49,11 +49,11 @@
             </div>
 
             <!-- 小图媒体：右侧缩略图 -->
-            <LinkPreviewMedia v-if="!showLarge" :preview="preview" />
+            <LinkPreviewMedia v-if="!showLarge" :preview="preview" :chatId="chatId" />
         </div>
 
         <!-- 大图媒体：位于描述下方 -->
-        <LinkPreviewMedia v-if="showLarge && !mediaAbove" :preview="preview" large />
+        <LinkPreviewMedia v-if="showLarge && !mediaAbove" :preview="preview" large :chatId="chatId" />
 
         <button type="button"
             class="block w-[calc(100%-1.25rem)] mx-2.5 border-t border-black/10 py-2 text-center text-sm font-medium transition-colors hover:opacity-80 dark:border-white/10"
@@ -74,6 +74,8 @@ import { useColors, rgbToCss } from '../../../../../store/colors';
 const props = defineProps<{
     preview: linkPreview;
     accentColorId?: number;
+    /** 来源对话，用于预览图自动下载判断 */
+    chatId?: number;
 }>();
 
 const emit = defineEmits<{

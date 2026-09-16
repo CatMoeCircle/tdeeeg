@@ -106,7 +106,7 @@ interface Settings {
   autoDownload: {
     /** 自动下载总开关 */
     enabled: boolean;
-    /** 图片（包括视频封面、贴纸、音频封面） — 默认全部启用 */
+    /** 图片（含视频封面、链接预览图、富文本图；不含贴纸/emoji/头像/音频封面） — 默认全部启用 */
     photos: AutoDownloadPhotosConfig;
     /** 视频 */
     videos: AutoDownloadVideosConfig;

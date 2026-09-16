@@ -18,7 +18,8 @@
 
         <!-- Text messages -->
         <MessageTextContent v-if="content._ === 'messageText'" :formattedText="content.text"
-            :linkPreview="content.link_preview" :accentColorId="accentColorId" :showInlineTime="inlineTime"
+            :linkPreview="content.link_preview" :chatId="chatId" :accentColorId="accentColorId"
+            :showInlineTime="inlineTime"
             :timeDate="date" :timeIsOutgoing="isSelf" :timeSendingState="sendingState" :timeIsRead="isRead"
             :timeViewCount="viewCount" :timeAuthorSignature="authorSignature"
             :timeColorClass="isSelf ? 'text-gray-600/70 dark:text-gray-400/70' : 'text-gray-400 dark:text-gray-500'">

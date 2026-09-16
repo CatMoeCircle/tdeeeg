@@ -7,7 +7,8 @@
         <div class="flex flex-col">
             <span class="text-xs">语音 ({{ duration }}s)</span>
             <audio v-if="mediaSrc" :src="mediaSrc" controls class="h-8 w-40 mt-1"></audio>
-            <MessageTextContent v-if="content.caption?.text" :formattedText="content.caption" class="mt-1" />
+            <MessageTextContent v-if="content.caption?.text" :formattedText="content.caption" :chatId="chatId"
+                class="mt-1" />
         </div>
     </div>
 
@@ -30,9 +31,12 @@ import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { MicIcon, VideoIcon } from 'lucide-vue-next';
 import MessageTextContent from './MessageTextContent.vue';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
+import { shouldAutoDownloadFiles, shouldAutoDownloadVideos } from '../../../../../utils/autoDownload';
 
 const props = defineProps<{
     content: messageVoiceNote | messageVideoNote;
+    chatId?: number;
+    messageId?: number;
 }>();
 
 const rootEl = ref<HTMLElement | null>(null);
@@ -63,6 +67,17 @@ function setNotePreview() {
     previewSrc.value = min?.data ? `data:image/jpeg;base64,${min.data}` : undefined;
 }
 
+/** 当前消息是否允许自动下载：语音跟「文件」，视频留言跟「视频」（均含体积上限） */
+function canAutoDownload(): boolean {
+    const c = props.content;
+    const f = getFile();
+    if (!f) return false;
+    if (c._ === 'messageVoiceNote') {
+        return shouldAutoDownloadFiles(props.chatId, f.size || 0);
+    }
+    return shouldAutoDownloadVideos(props.chatId, f.size || 0);
+}
+
 const loadMedia = async () => {
     const f = getFile();
     if (!f) return;
@@ -70,6 +85,7 @@ const loadMedia = async () => {
     if (isFileReady(f)) {
         mediaSrc.value = convertFileSrc(f.local.path);
     } else if (f.local.can_be_downloaded && !f.local.is_downloading_active) {
+        if (!canAutoDownload()) return;
         downloadFile(f.id);
     }
 };

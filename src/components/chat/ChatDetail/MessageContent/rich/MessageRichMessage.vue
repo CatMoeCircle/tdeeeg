@@ -101,7 +101,7 @@
             <figure v-else-if="block._ === 'pageBlockPhoto'" class="my-1.5">
                 <SpoilerPhoto :has-spoiler="block.has_spoiler">
                     <RichImage v-if="photoFile(block.photo)?.photo" :file="photoFile(block.photo)!.photo" :alt="''"
-                        square />
+                        square :chatId="chatId" />
                     <div v-else
                         class="h-32 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center text-gray-400">
                         图片不可用</div>
@@ -113,7 +113,7 @@
             <figure v-else-if="block._ === 'pageBlockVideo'" class="my-1.5">
                 <div class="overflow-hidden rounded-lg bg-black/5 dark:bg-white/10 relative">
                     <RichImage v-if="block.video?.thumbnail?.file" :file="block.video?.thumbnail?.file"
-                        :format="block.video?.thumbnail?.format" :alt="''" square />
+                        :format="block.video?.thumbnail?.format" :alt="''" square :chatId="chatId" />
                     <div v-else class="h-32 flex items-center justify-center text-gray-400">视频不可用</div>
                     <span class="absolute inset-0 flex items-center justify-center pointer-events-none">
                         <PlayIcon class="w-8 h-8 text-white drop-shadow" />
@@ -129,7 +129,7 @@
             <figure v-else-if="block._ === 'pageBlockAnimation'" class="my-1.5">
                 <div class="overflow-hidden rounded-lg bg-black/5 dark:bg-white/10 relative">
                     <RichImage v-if="block.animation?.thumbnail?.file" :file="block.animation?.thumbnail?.file"
-                        :format="block.animation?.thumbnail?.format" :alt="''" square />
+                        :format="block.animation?.thumbnail?.format" :alt="''" square :chatId="chatId" />
                     <div v-else class="h-32 flex items-center justify-center text-gray-400">动画不可用</div>
                     <RichMediaDownload v-if="block.animation?.animation" :file="block.animation.animation"
                         :file-name="block.animation.file_name" file-type="animation" :chat-id="chatId"
@@ -217,11 +217,11 @@
 
             <!-- 拼贴 / 轮播 -->
             <div v-else-if="block._ === 'pageBlockCollage'" class="my-1.5 space-y-1">
-                <RichMediaCollection :blocks="block.blocks" mode="grid" />
+                <RichMediaCollection :blocks="block.blocks" mode="grid" :chatId="chatId" />
                 <RichCaption v-if="block.caption" :caption="block.caption" />
             </div>
             <figure v-else-if="block._ === 'pageBlockSlideshow'" class="my-1.5">
-                <RichMediaCollection :blocks="block.blocks" mode="slideshow" />
+                <RichMediaCollection :blocks="block.blocks" mode="slideshow" :chatId="chatId" />
                 <RichCaption v-if="block.caption" :caption="block.caption" />
             </figure>
 

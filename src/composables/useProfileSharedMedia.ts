@@ -5,6 +5,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { isThumbnailImgRenderable } from '../utils/thumbnail';
 import { listAlbumCoverFiles } from '../utils/profileMedia';
 import { fetchItunesCoverForAudio } from '../utils/itunesCover';
+import { shouldAutoDownloadPhotos } from '../utils/autoDownload';
 import type { message, SearchMessagesFilter$Input, photo, file } from 'tdlib-types';
 
 /** 共享媒体网格项 */
@@ -244,10 +245,16 @@ export function useProfileSharedMedia(
 export function useSharedMediaCell(
     elRef: Ref<HTMLElement | null>,
     item: Ref<SharedMediaItem>,
+    chatId?: Ref<number | undefined> | number,
 ) {
     const visibleSrc = ref<string | undefined>(item.value.miniSrc);
     const isLoaded = ref(false);
     const isBlurred = ref(!!item.value.miniSrc && !item.value.src);
+
+    function resolveChatId(): number | undefined {
+        if (typeof chatId === 'number') return chatId;
+        return chatId?.value;
+    }
 
     function start() {
         const el = elRef.value;
@@ -257,9 +264,10 @@ export function useSharedMediaCell(
             if (isLoaded.value) return;
             isLoaded.value = true;
             const it = item.value;
+            const allowPhotos = shouldAutoDownloadPhotos(resolveChatId());
 
-            // 照片：取最小尺寸文件下载
-            if (it.photo) {
+            // 照片：取最小尺寸文件下载（跟随「图片」自动下载设置）
+            if (it.photo && allowPhotos) {
                 const smallest = pickSmallestPhotoFile(it.photo);
                 if (smallest) {
                     try {
@@ -275,8 +283,8 @@ export function useSharedMediaCell(
                 // 下载失败但有 minithumbnail，保持模糊显示
             }
 
-            // 视频缩略图/封面
-            if (it.isVideo && it.photo) {
+            // 视频缩略图/封面（跟随「图片」自动下载设置）
+            if (it.isVideo && it.photo && allowPhotos) {
                 const smallest = pickSmallestPhotoFile(it.photo);
                 if (smallest) {
                     try {
