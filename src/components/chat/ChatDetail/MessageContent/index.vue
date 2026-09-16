@@ -98,7 +98,8 @@
             :content="content" :chatId="chatId" :messageId="messageId" />
 
         <!-- Other types -->
-        <MessageOtherContent v-else :content="content" :chat-id="chatId" :message-id="messageId" />
+        <MessageOtherContent v-else :content="content" :chat-id="chatId" :message-id="messageId" :message="message"
+            :topic-id="topicId" :sender-name="senderName" />
     </template>
 </template>
 

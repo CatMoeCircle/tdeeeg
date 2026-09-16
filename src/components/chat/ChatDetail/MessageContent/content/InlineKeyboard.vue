@@ -1,8 +1,12 @@
 <template>
     <div v-if="rows.length" class="flex w-full flex-col gap-1 px-0.5 pb-0.5">
         <div v-for="(row, ri) in rows" :key="ri" class="flex gap-1">
-            <button v-for="(button, bi) in row" :key="bi" type="button"
-                :class="[baseButtonClass, buttonColorClass(button.style)]" :disabled="pendingKey === buttonKey(ri, bi)"
+            <button v-for="(button, bi) in row" :key="bi" type="button" class="relative"
+                :class="[
+                    baseButtonClass,
+                    buttonColorClass(button.style),
+                    button.type._ === 'inlineKeyboardButtonTypeBuy' ? 'pr-5' : '',
+                ]" :disabled="pendingKey === buttonKey(ri, bi)"
                 @click.stop="handleClick(button, ri, bi)">
                 <CustomEmojiInline v-if="String(button.icon_custom_emoji_id || 0) !== '0'"
                     :emojiId="String(button.icon_custom_emoji_id)" :size="18"
@@ -10,6 +14,9 @@
                 <span class="min-w-0 whitespace-pre-wrap wrap-break-word text-center">
                     <GlobalEmojiText :text="button.text" />
                 </span>
+                <!-- 购买按钮：右上角信用卡图标（tgico U+E94C） -->
+                <span v-if="button.type._ === 'inlineKeyboardButtonTypeBuy'"
+                    class="tgico tgico-card absolute top-1 right-1.5 text-[12px] leading-none opacity-80 pointer-events-none" />
             </button>
         </div>
     </div>

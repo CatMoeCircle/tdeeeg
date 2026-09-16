@@ -42,10 +42,8 @@
         </div>
 
         <!-- Invoice -->
-        <div v-else-if="content._ === 'messageInvoice'" class="text-sm">
-            <p class="font-medium">{{ content.product_info.title }}</p>
-            <p class="text-xs text-gray-500">{{ content.product_info.description.text }}</p>
-        </div>
+        <MessageInvoiceContent v-else-if="content._ === 'messageInvoice'" :content="content" :chat-id="chatId"
+            :message-id="messageId" :message="message" :topic-id="topicId" :sender-name="senderName" />
 
         <!-- Call -->
         <div v-else-if="content._ === 'messageCall'" class="flex items-center gap-2 text-sm">
@@ -65,15 +63,19 @@
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed } from 'vue';
-import type { MessageContent } from 'tdlib-types';
+import type { MessageContent, message } from 'tdlib-types';
 import { MapPinIcon, PhoneIcon, VideoIcon } from 'lucide-vue-next';
 import MessagePollContent from './MessagePollContent.vue';
+import MessageInvoiceContent from './MessageInvoiceContent.vue';
 // GlobalEmojiInline removed - using global Apple Color Emoji font
 
 const props = defineProps<{
     content: MessageContent;
     chatId?: number;
     messageId?: number;
+    message?: message;
+    topicId?: number;
+    senderName?: string;
 }>();
 
 const locationText = computed(() => {

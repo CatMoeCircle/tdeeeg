@@ -57,6 +57,10 @@
 .tgico-favorite-filled::before {
   content: "\ea48";
 }
+/* 购买按钮信用卡图标（字符 U+E94C） */
+.tgico-card::before {
+  content: "\e94c";
+}
 
 /* ===== Telegram 官方图标字体 tgico ===== */
 
