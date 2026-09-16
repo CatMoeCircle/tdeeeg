@@ -1,15 +1,13 @@
 <template>
-    <div ref="rootEl" class="min-w-57.5 max-w-[320px] select-text">
+    <div ref="rootEl" class="w-57.5 max-w-full select-text">
         <!-- 1. 居中 图标 + 标题 + 奖品 + 获奖说明 -->
         <div class="flex flex-col items-center">
             <MessageStickerContent v-if="stickerContent" :content="stickerContent" :size="112" class="shrink-0" />
             <!-- 无纪念贴纸时，播放本地 party.tgs 抽奖动画（只播一次，点击可重播） -->
-            <TgsPlayer v-else-if="partyTgsData" ref="partyPlayerRef" :data="partyTgsData"
-                :loop="false" :autoplay="true" :size="112"
-                class="h-28 w-28 shrink-0 cursor-pointer"
-                @click="onPartyClick" @load="onPartyLoad" />
-            <h3 class="mt-3 text-base font-bold text-gray-900 dark:text-white">获奖者已选出</h3>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ winnersText }}</p>
+            <TgsPlayer v-else-if="partyTgsData" ref="partyPlayerRef" :data="partyTgsData" :loop="false" :autoplay="true"
+                :size="112" class="h-28 w-28 shrink-0 cursor-pointer" @click="onPartyClick" @load="onPartyLoad" />
+            <h3 class="mt-3 text-base font-bold text-gray-900 dark:text-white">{{ t('lng_prizes_results_title') }}</h3>
+            <p class="mt-1 text-center text-sm text-gray-500 dark:text-gray-400 break-words" v-html="winnersText"></p>
             <p v-if="prizeDescription" class="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{{
                 prizeDescription }}</p>
         </div>
@@ -17,7 +15,8 @@
         <!-- 获奖者 -->
         <div class="mt-3">
             <div class="px-3 py-2.5 text-center">
-                <div class="text-base font-medium text-gray-500 dark:text-gray-400">获奖者</div>
+                <div class="text-base font-medium text-gray-500 dark:text-gray-400">{{ t('lng_prizes_results_winners')
+                }}</div>
                 <div v-if="winners.length" class="mt-2 space-y-1.5">
                     <div v-for="w in winners" :key="w.id"
                         class="mx-auto flex w-fit items-center gap-1.5 rounded-full pr-3" :style="winnerRowStyle(w)">
@@ -35,7 +34,7 @@
         <!-- 所有获奖者已收到礼物 -->
         <div class="mt-2">
             <div class="px-3 py-2.5 text-center">
-                <div class="text-base font-medium text-gray-500 dark:text-gray-400">所有获奖者都已收到 {{ prizeText }}</div>
+                <div class="text-base font-medium text-gray-500 dark:text-gray-400 break-words">{{ prizeText }}</div>
             </div>
         </div>
 
@@ -44,13 +43,15 @@
             <button type="button"
                 class="mx-auto block w-[calc(100%-10px)] rounded-[5px] px-6 py-1.5 text-center text-sm font-medium shadow-sm transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-current/30"
                 :style="learnMoreStyle">
-                了解更多
+                {{ t('lng_prizes_how_works') }}
             </button>
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { computed, ref, watch, onMounted, nextTick } from 'vue';
 import type { message, messageGiveaway, messageGiveawayWinners, messageSticker, profilePhoto, sticker, user } from 'tdlib-types';
 import { tdlibSend } from '../../../../../utils/tdlib';
@@ -155,19 +156,18 @@ const prizeDescription = computed(() => props.content.prize_description?.trim() 
 const prizeText = computed(() => {
     const prize = props.content.prize;
     if (prize._ === 'giveawayPrizeStars') {
-        return `${formatCount(prize.star_count)} 星星`;
+        return t('lng_prizes_credits_results_all', { count: formatCount(prize.star_count) });
     }
     return `Telegram Premium ${prize.month_count} 个月`;
 });
 
 /** 获奖人数与奖品说明 */
 const winnersText = computed(() => {
-    const prize = props.content.prize;
     const count = props.content.winner_count;
-    if (prize._ === 'giveawayPrizeStars') {
-        return `Telegram 已随机选出 ${count} 位获奖者`;
-    }
-    return `Telegram 已随机选出 ${count} 位获奖者获`;
+    const link = `<a class="font-medium text-[#168acd] dark:text-sky-400 hover:underline">${t('lng_prizes_results_link')}</a>`;
+    const raw = t('lng_prizes_results_about', { count, link });
+    // 解析 TDLib markdown **bold** → <b>bold</b>
+    return raw.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 });
 
 

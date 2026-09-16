@@ -55,7 +55,7 @@
             <button v-if="canVote" type="button" :disabled="!canSubmitVote"
                 class="mt-2 w-full rounded-lg bg-blue-500 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-600 active:opacity-80 disabled:cursor-default disabled:opacity-40"
                 @click="onVote">
-                {{ voting || beingChosen ? '投票中…' : t('lng_in_dlg_poll') }}
+                {{ t('lng_polls_submit_votes') }}
             </button>
             <!-- 不可投票原因 -->
             <p v-else-if="restrictionText" class="mt-1.5 text-xs leading-4 text-gray-400 dark:text-gray-500">
@@ -240,7 +240,7 @@ const restrictionText = computed(() => {
 
 const totalVotesText = computed(() => {
     const n = poll.value.total_voter_count;
-    return n === 0 ? '暂无投票' : `${n} 人投票`;
+    return n === 0 ? t('lng_polls_votes_none') : t('lng_polls_votes_count', { count: n });
 });
 
 // ==================== 头像数据（pollOption.recent_voter_ids） ====================

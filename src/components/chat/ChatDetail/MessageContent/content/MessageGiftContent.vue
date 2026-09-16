@@ -23,7 +23,7 @@
             <button type="button"
                 class="mt-4 rounded-full bg-white/50 backdrop-blur-sm px-6 py-1.5 text-sm font-medium text-gray-900 hover:bg-white/70 focus:outline-none focus:ring-2 focus:ring-black/20 dark:bg-white/15 dark:text-white dark:hover:bg-white/25 dark:focus:ring-white/20"
                 @click="openDetails">
-                查看
+                {{ t('lng_action_suggested_birtday_button') }}
             </button>
         </div>
     </div>
@@ -65,20 +65,22 @@
                                         <Avatar :photo="party?.photo" :title="partyName"
                                             :accent-color-id="party?.accentColorId" />
                                     </div>
-                                    <span class="truncate font-medium"><GlobalEmojiText :text="partyName" /></span>
+                                    <span class="truncate font-medium">
+                                        <GlobalEmojiText :text="partyName" />
+                                    </span>
                                 </div>
                             </div>
                             <div class="flex min-h-12 border-b border-gray-200 dark:border-gray-600">
                                 <div
                                     class="flex w-20 shrink-0 items-center bg-gray-50 px-3 text-gray-700 dark:bg-gray-700/60 dark:text-gray-200">
-                                    时间</div>
+                                    {{ t('lng_gift_link_label_date') }}</div>
                                 <div class="flex flex-1 items-center px-3 text-gray-800 dark:text-gray-100">{{
                                     formattedDate }}</div>
                             </div>
                             <div class="flex min-h-12">
                                 <div
                                     class="flex w-20 shrink-0 items-center bg-gray-50 px-3 text-gray-700 dark:bg-gray-700/60 dark:text-gray-200">
-                                    价值</div>
+                                    {{ t('lng_gift_link_label_value') }}</div>
                                 <div class="flex flex-1 items-center gap-2 px-3 text-gray-800 dark:text-gray-100">
                                     <span class="text-xl leading-none">⭐</span>
                                     <span>{{ content.gift.star_count }}</span>
@@ -96,7 +98,7 @@
                         <button type="button"
                             class="w-full rounded-lg bg-[#2e9cd3] py-2.5 text-base font-medium text-white hover:bg-[#278cc0] focus:outline-none focus:ring-2 focus:ring-sky-400/60"
                             @click="closeDetails">
-                            确定
+                            {{ t('lng_box_ok') }}
                         </button>
                     </div>
                 </div>
@@ -153,32 +155,45 @@ const senderName = computed(() => sender.value?.name || '匿名用户');
 const receiverName = computed(() => receiver.value?.name || '收礼人');
 const party = computed(() => isOutgoing.value ? receiver.value : sender.value);
 const partyName = computed(() => isOutgoing.value ? receiverName.value : senderName.value);
-const partyLabel = computed(() => isOutgoing.value ? '送给' : '来自');
+const partyLabel = computed(() => isOutgoing.value ? t('lng_gift_link_label_to') : t('lng_credits_box_history_entry_peer_in'));
 
+const starCost = computed(() => t('lng_action_gift_for_stars', { count: props.content.gift.star_count }));
 const notificationText = computed(() => {
-    const value = `${props.content.gift.star_count} 星币`;
-    if (isOutgoing.value) return `您赠送给 ${receiverName.value} 一份 ${value}的礼品`;
-    if (isIncoming.value) return `${senderName.value} 赠送了您一份 ${value}的礼品`;
-    return `${senderName.value} 赠送给 ${receiverName.value} 一份 ${value}的礼品`;
+    if (isOutgoing.value) return t('lng_action_gift_received_me', { user: receiverName.value, cost: starCost.value });
+    if (isIncoming.value) {
+        if (!props.content.sender_id || props.content.sender_id._ !== 'messageSenderUser') {
+            return t('lng_action_gift_received_anonymous', { cost: starCost.value });
+        }
+        return t('lng_action_gift_received', { user: senderName.value, cost: starCost.value });
+    }
+    return t('lng_action_gift_sent_channel', { user: senderName.value, name: receiverName.value, cost: starCost.value });
 });
 
 const cardTitle = computed(() => isOutgoing.value
-    ? `礼物送给 ${receiverName.value}`
-    : `礼物来自 ${senderName.value}`,
+    ? t('lng_action_gift_sent_subtitle', { user: receiverName.value })
+    : t('lng_action_gift_got_subtitle', { user: senderName.value }),
 );
 const profileText = computed(() => {
-    if (!isIncoming.value) return `价值 ${props.content.gift.star_count} 星币`;
-    return props.content.is_saved ? '这份礼物已在您的个人资料上显示' : '这份礼物未在您的个人资料上显示';
+    if (!isIncoming.value) return starCost.value;
+    return props.content.is_saved
+        ? t('lng_action_gift_displayed_self', { name: partyName.value })
+        : starCost.value;
 });
-const dialogTitle = computed(() => isOutgoing.value ? '已送出礼物' : isIncoming.value ? '收到礼物' : '频道礼物');
+const dialogTitle = computed(() => isOutgoing.value
+    ? t('lng_action_gift_sent_subtitle', { user: receiverName.value })
+    : isIncoming.value
+        ? t('lng_action_gift_got_subtitle', { user: senderName.value })
+        : t('lng_action_gift_sent_subtitle', { user: receiverName.value }));
 const dialogDescription = computed(() => {
-    if (isIncoming.value) return `您收到了一份价值 ${props.content.gift.star_count} 星币的礼物。`;
-    if (isOutgoing.value) return `您送出了一份价值 ${props.content.gift.star_count} 星币的礼物。`;
-    return `${receiverName.value} 收到了一份价值 ${props.content.gift.star_count} 星币的礼物。`;
+    if (isIncoming.value) return t('lng_action_gift_received', { user: senderName.value, cost: starCost.value });
+    if (isOutgoing.value) return t('lng_action_gift_received_me', { user: receiverName.value, cost: starCost.value });
+    return t('lng_action_gift_sent_channel', { user: senderName.value, name: receiverName.value, cost: starCost.value });
 });
 const visibilityText = computed(() => {
-    if (!isIncoming.value) return props.content.is_private ? '这是一份私密礼物。' : '这份礼物对其他人可见。';
-    return props.content.is_saved ? '这份礼物已在您的个人资料上显示。' : '这份礼物未在您的个人资料上显示。';
+    if (!isIncoming.value) return starCost.value;
+    return props.content.is_saved
+        ? t('lng_action_gift_displayed_self', { name: partyName.value })
+        : starCost.value;
 });
 const formattedDate = computed(() => {
     if (!props.date) return '未知';

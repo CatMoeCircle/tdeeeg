@@ -144,12 +144,12 @@ const serviceText = computed(() => {
             const parts: string[] = [];
             const appendGroup = (ids: number[], done: boolean) => {
                 if (ids.length === 0) return;
-                const action = done ? '标记为已完成' : '标记为未完成';
+                const key = done ? 'lng_action_todo_marked_done' : 'lng_action_todo_marked_not_done';
                 const labels = ids.map(id => names.get(id)).filter((n): n is string => !!n);
                 if (labels.length === ids.length) {
-                    parts.push(`${sender.value} 将「${labels.join('、')}」${action}`);
+                    parts.push(t(key, { from: sender.value, tasks: labels.join(', ') }));
                 } else {
-                    parts.push(`${sender.value} 将 ${ids.length} 个任务${action}`);
+                    parts.push(t(key, { from: sender.value, tasks: `${ids.length} tasks` }));
                 }
             };
             appendGroup(c.marked_as_done_task_ids, true);
