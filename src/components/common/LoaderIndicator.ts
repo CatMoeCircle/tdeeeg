@@ -48,6 +48,30 @@ export function registerLoaderStyle(style: LoaderStyle): void {
     }
 }
 
+/**
+ * 按实际渲染尺寸缩放描边：各页面 size 不同时保持同一视觉粗细比例。
+ * 未覆盖 size 时直接沿用该样式默认 stroke；覆盖后按 size/默认size 等比缩放，
+ * 并夹在合理区间（极小尺寸不过粗，放大时不超过样式默认粗细）。
+ */
+function resolveStroke(style: LoaderStyle, sizePx: number): string {
+    const cfg = STYLE_MAP[style] || STYLE_MAP.ring2;
+    const defaultSize = Number(cfg.size) || 40;
+    const defaultStroke = Number(cfg.stroke) || 2;
+    const scaled = defaultStroke * (sizePx / defaultSize);
+    // 小尺寸保底，避免细环糊死；上限锁在该样式默认值，避免大尺寸反而更粗
+    const minStroke = sizePx <= 14 ? 1.25 : sizePx <= 22 ? 1.5 : 2;
+    const stroke = Math.max(minStroke, Math.min(defaultStroke, scaled));
+    // 0.5 步进，渲染更干净
+    return String(Math.round(stroke * 2) / 2);
+}
+
+/** 解析 size：优先调用方覆盖值，否则用样式默认 */
+function resolveSize(style: LoaderStyle, sizeProp?: string): number {
+    const cfg = STYLE_MAP[style] || STYLE_MAP.ring2;
+    const n = Number(sizeProp);
+    return Number.isFinite(n) && n > 0 ? n : Number(cfg.size) || 40;
+}
+
 export const LoaderIndicator = defineComponent({
     name: 'LoaderIndicator',
     props: {
@@ -59,9 +83,9 @@ export const LoaderIndicator = defineComponent({
         progress: { type: Number as PropType<number | undefined>, default: undefined },
         /** 颜色，默认白色 */
         color: { type: String, default: '#ffffff' },
-        /** 覆盖默认尺寸（px），如 "24" */
+        /** 覆盖默认尺寸（px），如 "24"；未传 stroke 时会按比例自动缩放描边 */
         size: { type: String, default: undefined },
-        /** 覆盖默认描边宽度（如缩小尺寸时需要更细的 stroke，避免过粗） */
+        /** 显式覆盖描边宽度；省略时按 size 自动等比缩放，避免小尺寸过粗 */
         stroke: { type: String, default: undefined },
         /** 指定使用某一种加载样式（默认取 settings.loadingStyle） */
         force: { type: String as PropType<LoaderStyle | undefined>, default: undefined },
@@ -109,10 +133,12 @@ export const LoaderIndicator = defineComponent({
                 ? String(Math.min(1, Math.max(0.01, props.progress as number)))
                 : cfg.indeterminate;
 
+            const sizePx = resolveSize(style, props.size);
+
             return h(tag, {
-                size: props.size || cfg.size,
-                // 指定 stroke 时优先，否则用该样式默认值
-                stroke: props.stroke || cfg.stroke,
+                size: String(sizePx),
+                // 显式 stroke 优先；否则按 size 相对默认尺寸自动缩放
+                stroke: props.stroke || resolveStroke(style, sizePx),
                 'bg-opacity': cfg.bgOpacity,
                 speed: cfg.speed,
                 color: props.color,
