@@ -618,7 +618,7 @@ async function handleDownload(fileId: number) {
         const chatTitle = props.chatId ? getChatTitleById(props.chatId) : '';
         const thumbUrl = getThumbnailDataUrl();
         const fileType = getFileType();
-        await downloadStore.registerDownload(fileId, fileName, chatTitle, totalSize, fileType, thumbUrl, props.chatId, props.messageId);
+        await downloadStore.registerDownload(fileId, fileName, chatTitle, totalSize, fileType, thumbUrl, props.chatId, props.messageId, undefined, undefined, undefined, undefined, undefined, undefined, (fileInfo as any)?.remote?.id || undefined);
     } catch (_) { /* ignore */ }
 
     try {

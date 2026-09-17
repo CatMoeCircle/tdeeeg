@@ -20,7 +20,7 @@
 import { computed, ref, watch, onMounted } from 'vue';
 import type { messageAnimatedEmoji, messageSticker } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
-import { useDownloadStore } from '../../../../../store/downloads';
+import { useDownloadStore, remoteIdOf } from '../../../../../store/downloads';
 import { settings } from '../../../../../store/settings';
 import { useLottiePause } from '../../../../../composables/useLottiePause';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
@@ -103,9 +103,15 @@ const downloadFile = async (fileId: number) => {
     if (downloadingFiles.has(fileId)) return;
     isDownloading.value = true;
     downloadingFiles.add(fileId);
-    // 贴纸：记录为隐藏资源，不需要来源，分类为 sticker
     const ext = format.value === 'tgs' ? 'tgs' : format.value === 'webm' ? 'webm' : 'webp';
-    await useDownloadStore().registerDownload(fileId, `sticker_${fileId}.${ext}`, '', 0, 'sticker', undefined, undefined, undefined, true, false, 'sticker');
+    const st = sticker.value;
+    const stFile = st?.sticker;
+    const setLabel = st?.set_id ? `贴纸集 #${st.set_id}` : undefined;
+    await useDownloadStore().registerDownload(
+        fileId, `sticker_${fileId}.${ext}`, setLabel || '', 0, 'sticker',
+        undefined, undefined, undefined, true, false, 'sticker', false,
+        undefined, setLabel, remoteIdOf(stFile),
+    );
     try {
         const res = await tdlibSend({
             _: "downloadFile",

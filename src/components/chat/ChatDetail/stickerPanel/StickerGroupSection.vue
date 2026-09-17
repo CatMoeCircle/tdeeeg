@@ -12,14 +12,14 @@
         <div v-if="group.lazy" class="grid grid-cols-4 gap-1">
             <!-- 用 covers 占位展示（最多前几个） -->
             <StickerMediaItem v-for="s in group.stickers.slice(0, 8)" :key="s.id" :item="s" kind="sticker"
-                :size="cellSize" :skin-tone="skinTone" @pick="onPick" @contextmenu="onItemContextMenu" />
+                :size="cellSize" :skin-tone="skinTone" :source-label="group.title" @pick="onPick" @contextmenu="onItemContextMenu" />
             <!-- 骨架占位（不显示进度条） -->
             <div v-for="i in placeholderCount" :key="`ph-${i}`" class="sp-skeleton aspect-square rounded" />
         </div>
         <!-- 已加载：完整网格 -->
         <div v-else class="grid grid-cols-4 gap-1">
             <StickerMediaItem v-for="s in group.stickers" :key="s.id" :item="s" kind="sticker" :size="cellSize"
-                :skin-tone="skinTone" @pick="onPick" @contextmenu="onItemContextMenu" />
+                :skin-tone="skinTone" :source-label="group.title" @pick="onPick" @contextmenu="onItemContextMenu" />
         </div>
     </div>
 </template>

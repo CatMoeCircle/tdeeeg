@@ -4,7 +4,8 @@ import { tdlibSend, safeDownloadFile, isFileReady } from '../utils/tdlib';
 import { DL_PRIORITY } from '../utils/downloadPriority';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { message, thumbnail, audio, file, chat } from 'tdlib-types';
-import { useDownloadStore } from './downloads';
+import { useDownloadStore, remoteIdOf } from './downloads';
+import { DL_TAG } from '../utils/downloadTags';
 import { useChatStore } from './chat';
 import { isThumbnailImgRenderable } from '../utils/thumbnail';
 import { shouldAutoDownloadAudio } from '../utils/autoDownload';
@@ -133,13 +134,21 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         chatId: number,
         messageId: number,
         totalSize: number,
+        remoteId?: string,
+        extraTags?: string[],
+        sourceLabel?: string,
     ) {
         if (streamingRegisteredFiles.has(fileId)) return;
         streamingRegisteredFiles.add(fileId);
+        const rid = remoteId || undefined;
         await useDownloadStore().registerDownload(
             fileId, title || `audio_${fileId}.mp3`,
-            getChatTitle(chatId), totalSize, 'audio',
-            undefined, chatId, messageId, false, false, undefined, true,
+            sourceLabel || getChatTitle(chatId), totalSize, 'audio',
+            undefined, chatId || undefined, messageId || undefined,
+            false, false, undefined, true,
+            extraTags?.length ? extraTags : undefined,
+            sourceLabel,
+            rid,
         );
     }
 
@@ -240,7 +249,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
                 track.ready = true;
                 if (src.streaming && !streamingRegisteredFiles.has(track.fileId)) {
                     // 流式播放本质也是一次下载：注册到下载管理器，让进度可见（updateFile 驱动）。
-                    await registerStreamingDownload(track.fileId, track.title || `audio_${track.fileId}.mp3`, track.chatId, track.messageId, info.size || track.sizeBytes || 0);
+                    await registerStreamingDownload(track.fileId, track.title || `audio_${track.fileId}.mp3`, track.chatId, track.messageId, info.size || track.sizeBytes || 0, remoteIdOf(info), undefined, track.source === 'profile' ? '资料页' : undefined);
                 }
             } else {
                 // 无法流式：遵守自动下载大小限制，超过上限则不自动下载，
@@ -253,7 +262,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
                 try {
                     // 音乐播放触发下载：记录到正常下载列表，保留来源对话与消息。
                     // 用户主动播放 → 高优先级下载。
-                    await useDownloadStore().registerDownload(track.fileId, track.title || `audio_${track.fileId}.mp3`, getChatTitle(track.chatId), 0, 'audio', undefined, track.chatId, track.messageId, false);
+                    await useDownloadStore().registerDownload(track.fileId, track.title || `audio_${track.fileId}.mp3`, getChatTitle(track.chatId), 0, 'audio', undefined, track.chatId, track.messageId, false, false, undefined, false, track.source === 'profile' ? [DL_TAG.PROFILE] : undefined, track.source === 'profile' ? '资料页' : undefined);
                     await safeDownloadFile(track.fileId, true, DL_PRIORITY.USER_PLAYING);
                     track.ready = true;
                     // 重新获取文件路径（仅在完全下载完成时才使用，避免指向残缺/未完成文件）
@@ -272,7 +281,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
             }
         } else if (track.streaming && !streamingRegisteredFiles.has(track.fileId)) {
             // 由 loadChatAudio 预置的流式曲目（ready + streaming）：首次实际播放时注册进度。
-            await registerStreamingDownload(track.fileId, track.title || `audio_${track.fileId}.mp3`, track.chatId, track.messageId, track.sizeBytes || 0);
+            await registerStreamingDownload(track.fileId, track.title || `audio_${track.fileId}.mp3`, track.chatId, track.messageId, track.sizeBytes || 0, undefined, track.source === 'profile' ? [DL_TAG.PROFILE] : undefined, track.source === 'profile' ? '资料页' : undefined);
         }
 
         // 文件就绪后再切换当前曲目，确保 audioSrc 能拿到有效路径
@@ -566,13 +575,14 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
             await registerStreamingDownload(
                 file.id, audio.title || audio.file_name || `audio_${file.id}.mp3`,
                 msg.chat_id, msg.id, file.size || 0,
+                remoteIdOf(file),
             );
             return { filePath: src.url, streaming: true };
         }
 
         // 无法流式：完整下载（用户显式点击播放不受自动下载大小上限限制）
         try {
-            await useDownloadStore().registerDownload(file.id, audio.title || audio.file_name || `audio_${file.id}.mp3`, getChatTitle(msg.chat_id), 0, 'audio', undefined, msg.chat_id, msg.id, false);
+            await useDownloadStore().registerDownload(file.id, audio.title || audio.file_name || `audio_${file.id}.mp3`, getChatTitle(msg.chat_id), 0, 'audio', undefined, msg.chat_id, msg.id, false, false, undefined, false, undefined, undefined, remoteIdOf(file));
             await safeDownloadFile(file.id, true, DL_PRIORITY.USER_PLAYING);
         } catch (e) {
             console.error('Failed to download audio:', e);
@@ -694,7 +704,22 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
                 const file = a.audio;
                 if (!isFileReady(file)) {
                     try {
-                        // 用户主动播放资料音乐：高优先级下载（无来源对话，走 downloadFile）
+                        // 资料音乐：注册到下载管理器（资料页标签 + 来源）
+                        const userTitle = getChatTitle(userId) || `用户 #${userId}`;
+                        await useDownloadStore().registerDownload(
+                            file.id,
+                            a.title || a.file_name || `audio_${file.id}.mp3`,
+                            userTitle,
+                            file.size || 0,
+                            'audio',
+                            undefined,
+                            undefined,
+                            undefined,
+                            false, false, undefined, false,
+                            [DL_TAG.PROFILE],
+                            '资料页',
+                            remoteIdOf(file),
+                        );
                         await safeDownloadFile(file.id, true, DL_PRIORITY.USER_ACTIVE);
                     } catch (e) {
                         console.error('Failed to download profile audio:', e);

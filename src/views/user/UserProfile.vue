@@ -1991,7 +1991,7 @@ async function loadSharedMediaThumb(item: {
     const audio = item.message.content.audio;
     for (const coverFile of listAlbumCoverFiles(audio)) {
       try {
-        const url = await downloadFileUrl(coverFile, `shared_music_cover_${item.messageId}_${coverFile.id}.jpg`, 'music_cover');
+        const url = await downloadFileUrl(coverFile, `shared_music_cover_${item.messageId}_${coverFile.id}.jpg`, 'music_cover', { tags: ['音乐封面', '缩略图'], sourceLabel: userName.value || undefined });
         if (url) {
           sharedMediaUrlCache.value = { ...sharedMediaUrlCache.value, [item.messageId]: url };
           return;
@@ -2158,7 +2158,7 @@ async function loadProfileMusicCover() {
   try {
     for (const coverFile of listAlbumCoverFiles(profileAudio.value)) {
       if (token !== profileMusicCoverLoadToken) return;
-      const url = await downloadFileUrl(coverFile, `profile_music_cover_${coverFile.id}.jpg`, 'music_cover');
+      const url = await downloadFileUrl(coverFile, `profile_music_cover_${coverFile.id}.jpg`, 'music_cover', { tags: ['音乐封面', '缩略图', '资料页'], sourceLabel: '资料页' });
       if (url) {
         if (token === profileMusicCoverLoadToken) profileMusicCoverHd.value = url;
         return;
@@ -2218,7 +2218,10 @@ async function loadPhotoUrls() {
     const p = photosList.value[i];
     const biggest = pickLargestPhotoFile(p);
     if (!biggest) continue;
-    const url = await downloadFileUrl(biggest, `profile_photo_${i}.jpg`, 'avatar');
+    const url = await downloadFileUrl(biggest, `profile_photo_${i}.jpg`, 'avatar', {
+      tags: ['用户头像', '高清头像'],
+      sourceLabel: userName.value || undefined,
+    });
     if (url) urls[i] = url;
   }
   photoUrls.value = urls;
@@ -2279,7 +2282,7 @@ async function loadStoryUrls() {
     const file = pickStoryCoverFile(s);
     if (!file) continue;
     try {
-      const url = await downloadFileUrl(file, `story_${s.id}.jpg`, 'story_cover');
+      const url = await downloadFileUrl(file, `story_${s.id}.jpg`, 'story_cover', { tags: ['动态封面', '缩略图', '动态'], sourceLabel: userName.value || undefined });
       if (url) urls[s.id] = url;
     } catch (e) {
       // 单条封面拉取失败不影响其他动态
@@ -2535,7 +2538,7 @@ async function loadChatStories() {
     const file = pickStoryCoverFile(s);
     if (!file) continue;
     try {
-      const url = await downloadFileUrl(file, `chat_story_${s.id}.jpg`, 'story_cover');
+      const url = await downloadFileUrl(file, `chat_story_${s.id}.jpg`, 'story_cover', { tags: ['动态封面', '缩略图', '动态'], sourceLabel: chatTitle.value || undefined });
       if (url) urls[s.id] = url;
     } catch { /* 忽略单条失败 */ }
   }

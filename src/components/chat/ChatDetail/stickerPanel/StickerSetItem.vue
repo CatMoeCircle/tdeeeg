@@ -13,6 +13,7 @@
         kind="sticker"
         :size="52"
         :skin-tone="skinTone"
+        :source-label="set.title"
         @pick="onPick"
       />
       <!-- 未加载时显示骨架占位 -->

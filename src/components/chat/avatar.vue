@@ -20,7 +20,8 @@ import type { chatPhotoInfo, profilePhoto } from "tdlib-types";
 import { tdlibSend, isFileReady, downloadingFiles } from '../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { DL_PRIORITY } from '../../utils/downloadPriority';
-import { useDownloadStore } from '../../store/downloads';
+import { useDownloadStore, remoteIdOf } from '../../store/downloads';
+import { DL_TAG } from '../../utils/downloadTags';
 import { useColors } from '../../store/colors';
 import { useViewportLoad } from '../../composables/useViewportLoad';
 
@@ -202,7 +203,13 @@ async function downloadCurrentPhoto(photo: chatPhotoInfo | profilePhoto) {
     // 头像：记录为隐藏资源，不需要来源（chat_id/message_id 留空），分类为 avatar
     const fileName = `${props.title || t('lng_mediaview_profile_photo')}_${f.id}.jpg`;
     try {
-        await useDownloadStore().registerDownload(f.id, fileName, '', 0, 'avatar', undefined, undefined, undefined, true, false, 'avatar');
+        await useDownloadStore().registerDownload(
+            f.id, fileName, props.title || '', 0, 'avatar', undefined,
+            undefined, undefined, true, false, 'avatar', false,
+            [DL_TAG.AVATAR],
+            props.title || undefined,
+            remoteIdOf(f),
+        );
         const file = await tdlibSend({
             _: "downloadFile",
             file_id: f.id,

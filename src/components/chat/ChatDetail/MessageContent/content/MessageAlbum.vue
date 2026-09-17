@@ -68,7 +68,8 @@ import MessageStatus from './MessageStatus.vue';
 import MessageTextContent from './MessageTextContent.vue';
 import { layoutMediaGroup, type MediaGroupSize } from '../../../../../utils/mediaGroupLayout';
 import { openMediaViewer } from '../../../../../store/mediaViewer';
-import { useDownloadStore } from '../../../../../store/downloads';
+import { useDownloadStore, remoteIdOf } from '../../../../../store/downloads';
+import { DL_TAG } from '../../../../../utils/downloadTags';
 import { settings } from '../../../../../store/settings';
 import { getChatCategory, shouldAutoDownloadPhotos } from '../../../../../utils/autoDownload';
 import { pickSmallPhotoSize, pickBigPhotoSize, pickBigPhotoDimensions } from '../../../../../utils/photoSizes';
@@ -364,7 +365,7 @@ async function loadPhoto(msg: message, seq: number): Promise<boolean> {
             // 自动下载的图片注册到下载管理器（独立隐藏分类：isAutoPhoto）
             const fileName = `photo_${msg.id || ff.id}.jpg`;
             const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
-            await downloadStore.registerDownload(ff.id, fileName, chatTitle, 0, 'photo', thumbCache[msg.id], props.chatId, msg.id, undefined, true);
+            await downloadStore.registerDownload(ff.id, fileName, chatTitle, 0, 'photo', thumbCache[msg.id], props.chatId, msg.id, undefined, true, undefined, false, undefined, undefined, remoteIdOf(ff));
             if (seq !== albumLoadSeq) return false;
             try {
                 // 自动下载（非用户点击）：默认档优先级
@@ -407,7 +408,7 @@ async function loadVideo(msg: message, seq: number): Promise<boolean> {
                     // 自动下载的视频注册到下载管理器（正常显示，不隐藏）
                     const fileName = v.file_name || `video_${msg.id || v.video.id}.mp4`;
                     const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
-                    await downloadStore.registerDownload(v.video.id, fileName, chatTitle, v.video.size, 'video', undefined, props.chatId, msg.id, false, false);
+                    await downloadStore.registerDownload(v.video.id, fileName, chatTitle, v.video.size, 'video', undefined, props.chatId, msg.id, false, false, undefined, false, [DL_TAG.AUTO], undefined, remoteIdOf(v.video));
                     if (seq !== albumLoadSeq) return false;
                     try {
                         downloadingFiles.add(v.video.id);
@@ -443,7 +444,7 @@ async function loadVideo(msg: message, seq: number): Promise<boolean> {
         // 视频封面（缩略图）属于辅助资源：注册为隐藏的通用下载项（分类 video_cover），不占用下载管理器的可见列表。
         if (thumbFile.id && !downloadingFiles.has(thumbFile.id)) {
             const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
-            await downloadStore.registerDownload(thumbFile.id, `video_cover_${thumbFile.id}.jpg`, chatTitle, 0, 'photo', undefined, undefined, undefined, true, false, 'video_cover');
+            await downloadStore.registerDownload(thumbFile.id, `video_cover_${thumbFile.id}.jpg`, chatTitle, 0, 'photo', undefined, undefined, undefined, true, false, 'video_cover', false, [DL_TAG.VIDEO_COVER, DL_TAG.THUMB], undefined, remoteIdOf(thumbFile));
         }
         if (seq !== albumLoadSeq) return false;
         try {
@@ -513,7 +514,7 @@ async function loadAnimation(msg: message, seq: number): Promise<boolean> {
         // GIF 缩略图属于辅助资源：注册为隐藏的通用下载项，不占用下载管理器可见列表
         if (thumbFile.id && !downloadingFiles.has(thumbFile.id)) {
             const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
-            await downloadStore.registerDownload(thumbFile.id, `gif_cover_${thumbFile.id}.jpg`, chatTitle, 0, 'photo', undefined, undefined, undefined, true, false, 'video_cover');
+            await downloadStore.registerDownload(thumbFile.id, `gif_cover_${thumbFile.id}.jpg`, chatTitle, 0, 'photo', undefined, undefined, undefined, true, false, 'video_cover', false, [DL_TAG.VIDEO_COVER, DL_TAG.THUMB], undefined, remoteIdOf(thumbFile));
         }
         if (seq !== albumLoadSeq) return false;
         try {

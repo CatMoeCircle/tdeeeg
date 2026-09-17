@@ -8,6 +8,15 @@ pub type DownloadFileType = String;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DownloadItem {
+    /// 稳定主键：file.remote.id（跨重启/跨会话不变）。
+    /// 本地未上传或 remote.id 为空时，回退为 `session:<file_id>` / `legacy:<file_id>`。
+    pub remote_id: String,
+    /// 当前 TDLib 会话内的 file.id（重启后会变），用于 pause/cancel/download 等 TDLib 调用。
+    #[serde(default)]
+    pub session_file_id: Option<i32>,
+    /// 兼容字段：当前会话 file_id；无会话时为 0。前端 TDLib 相关操作仍可读取此字段。
+    #[serde(default)]
+    #[allow(dead_code)]
     pub file_id: i32,
     pub file_name: String,
     pub chat_title: String,
@@ -34,42 +43,29 @@ pub struct DownloadItem {
     /// 通用资源标记（贴纸/emoji/头像等），默认隐藏且不计入红点
     #[serde(default)]
     pub is_generic: bool,
-    /// 通用资源的细分类别（仅当 is_generic 为 true 时有意义），
-    /// 用于在下载管理器中区分展示具体是哪类隐藏资源：
-    /// - "emoji"        自定义表情（缩略图/完整贴纸）
-    /// - "video_cover"  视频封面（缩略图）
-    /// - "avatar"       用户/群组头像、个人资料大图、贴纸等
-    /// - "story_cover"  动态封面
-    /// - "sticker"      贴纸
-    /// - "gift"         礼物贴纸
-    /// - "music_cover"  音乐封面
-    /// - "other"        其他
+    /// 通用资源的细分类别（遗留字段，标签系统 tags 优先）
     #[serde(default)]
     pub hidden_category: Option<String>,
-    /// 自动下载图片标记（频道/群组中自动下载的图片），默认隐藏且不计入红点，
-    /// 由独立的「显示自动下载图片」开关控制（与通用资源分开）。
     #[serde(default)]
     pub is_auto_photo: bool,
-    /// 视频是否为流式传输（边下边播，tdstream://）来源，用于在下载管理器中
-    /// 展示「流式传输」标签。
     #[serde(default)]
     pub is_streaming: bool,
+    /// 多标签：视频/图片/缩略图/自动下载/流式传输/用户头像/…
+    #[serde(default)]
+    pub tags: Vec<String>,
+    /// 来源补充展示：用户 / 贴纸集 / emoji 集 / 资料页 等
+    #[serde(default)]
+    pub source_label: Option<String>,
     /// 在下载管理器中已手动关闭/移除
     #[serde(default)]
     pub dismissed: bool,
-    /// 是否为上传任务（发送中的文件/图片/音乐/视频）。上传记录仅保存在内存，
-    /// 不持久化到磁盘；用于下载管理器中独立「上传」区域的进度展示。
     #[serde(default)]
     pub is_upload: bool,
-    /// 下载记录时间戳（Unix 毫秒）：注册下载时记录创建时间，下载完成时刷新为
-    /// 完成时间。用于下载管理器「最近下载排前」的排序。
-    /// file_id 只反映文件在 Telegram 服务器上的创建顺序，不能反映用户下载的时间，
-    /// 故不能作为历史记录排序依据。
     #[serde(default)]
     pub created_at: i64,
 }
 
-/// 当前 Unix 毫秒时间戳（用于记录下载记录创建/完成时间）。
+/// 当前 Unix 毫秒时间戳
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -77,22 +73,88 @@ fn now_ms() -> i64 {
         .unwrap_or(0)
 }
 
+/// 稳定主键派生：优先 remote.id；为空则回退 session 键
+pub fn derive_remote_id(remote_id: Option<&str>, session_file_id: i32) -> String {
+    match remote_id {
+        Some(r) if !r.is_empty() => r.to_string(),
+        _ => format!("session:{}", session_file_id),
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct PersistedData {
-    items: HashMap<i32, DownloadItem>,
+    items: HashMap<String, DownloadItem>,
     #[serde(default)]
     show_hidden: bool,
     #[serde(default)]
     show_auto_photos: bool,
 }
 
+/// 旧版持久化格式（以 i32 file_id 为键），用于迁移
+#[derive(Debug, Clone, Deserialize)]
+struct PersistedDataV1 {
+    items: HashMap<i32, DownloadItemV1>,
+    #[serde(default)]
+    show_hidden: bool,
+    #[serde(default)]
+    show_auto_photos: bool,
+}
+
+/// 旧版 DownloadItem（无 remote_id/tags，file_id 即主键）
+#[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
+struct DownloadItemV1 {
+    file_id: i32,
+    file_name: String,
+    chat_title: String,
+    #[serde(default)]
+    chat_id: Option<i64>,
+    #[serde(default)]
+    message_id: Option<i64>,
+    #[serde(default)]
+    total_size: i64,
+    #[serde(default)]
+    downloaded_size: i64,
+    #[serde(default)]
+    progress: f64,
+    #[serde(default)]
+    is_paused: bool,
+    #[serde(default)]
+    is_completed: bool,
+    #[serde(default)]
+    local_path: Option<String>,
+    #[serde(default)]
+    thumbnail_data_url: Option<String>,
+    #[serde(default)]
+    file_type: String,
+    #[serde(default)]
+    is_generic: bool,
+    #[serde(default)]
+    hidden_category: Option<String>,
+    #[serde(default)]
+    is_auto_photo: bool,
+    #[serde(default)]
+    is_streaming: bool,
+    #[serde(default)]
+    dismissed: bool,
+    #[serde(default)]
+    is_upload: bool,
+    #[serde(default)]
+    created_at: i64,
+}
+
 pub struct DownloadStore {
-    items: HashMap<i32, DownloadItem>,
+    /// key = remote_id（稳定主键）
+    items: HashMap<String, DownloadItem>,
+    /// 当前会话 file.id → remote_id，供 updateFile 进度回写
+    session_map: HashMap<i32, String>,
     storage_path: PathBuf,
     show_hidden: bool,
     show_auto_photos: bool,
-    /// 上传任务集合（仅内存，不持久化）。key 为文件 id。
-    uploads: HashMap<i32, DownloadItem>,
+    /// 上传任务：key = remote_id（内存态）
+    uploads: HashMap<String, DownloadItem>,
+    /// 上传会话映射
+    upload_session_map: HashMap<i32, String>,
 }
 
 #[allow(dead_code)]
@@ -104,10 +166,12 @@ impl DownloadStore {
 
         let mut store = Self {
             items: HashMap::new(),
+            session_map: HashMap::new(),
             storage_path,
             show_hidden: false,
             show_auto_photos: false,
             uploads: HashMap::new(),
+            upload_session_map: HashMap::new(),
         };
         store.load_from_disk();
         store
@@ -119,15 +183,74 @@ impl DownloadStore {
         if !self.storage_path.exists() {
             return;
         }
-        match fs::read_to_string(&self.storage_path) {
-            Ok(content) => {
-                if let Ok(data) = serde_json::from_str::<PersistedData>(&content) {
-                    self.items = data.items;
-                    self.show_hidden = data.show_hidden;
-                    self.show_auto_photos = data.show_auto_photos;
-                }
+        let Ok(content) = fs::read_to_string(&self.storage_path) else {
+            return;
+        };
+
+        // 新格式：remote_id 字符串键
+        if let Ok(data) = serde_json::from_str::<PersistedData>(&content) {
+            // 若 items 的 value 已含非空 remote_id，或 key 形如 session:/legacy:/含字母，则视为新格式
+            let looks_new = data.items.is_empty()
+                || data
+                    .items
+                    .values()
+                    .any(|it| !it.remote_id.is_empty())
+                || data.items.keys().any(|k| k.contains(':') || !k.chars().all(|c| c.is_ascii_digit()));
+            if looks_new {
+                self.items = data.items;
+                self.show_hidden = data.show_hidden;
+                self.show_auto_photos = data.show_auto_photos;
+                self.rebuild_session_map();
+                return;
             }
-            Err(e) => eprintln!("Failed to load downloads.json: {}", e),
+        }
+
+        // 旧格式迁移：i32 file_id 键
+        if let Ok(old) = serde_json::from_str::<PersistedDataV1>(&content) {
+            self.show_hidden = old.show_hidden;
+            self.show_auto_photos = old.show_auto_photos;
+            for (fid, o) in old.items {
+                let remote_id = format!("legacy:{}", fid);
+                let item = DownloadItem {
+                    remote_id: remote_id.clone(),
+                    session_file_id: Some(fid),
+                    file_id: fid,
+                    file_name: o.file_name,
+                    chat_title: o.chat_title,
+                    chat_id: o.chat_id,
+                    message_id: o.message_id,
+                    total_size: o.total_size,
+                    downloaded_size: o.downloaded_size,
+                    progress: o.progress,
+                    is_paused: o.is_paused,
+                    is_completed: o.is_completed,
+                    local_path: o.local_path,
+                    thumbnail_data_url: o.thumbnail_data_url,
+                    file_type: o.file_type,
+                    is_generic: o.is_generic,
+                    hidden_category: o.hidden_category,
+                    is_auto_photo: o.is_auto_photo,
+                    is_streaming: o.is_streaming,
+                    tags: Vec::new(),
+                    source_label: None,
+                    dismissed: o.dismissed,
+                    is_upload: o.is_upload,
+                    created_at: o.created_at,
+                };
+                self.items.insert(remote_id, item);
+            }
+            self.save_to_disk();
+        }
+    }
+
+    fn rebuild_session_map(&mut self) {
+        self.session_map.clear();
+        for (key, item) in &self.items {
+            if let Some(sid) = item.session_file_id {
+                self.session_map.insert(sid, key.clone());
+            } else if item.file_id != 0 {
+                self.session_map.insert(item.file_id, key.clone());
+            }
         }
     }
 
@@ -142,6 +265,39 @@ impl DownloadStore {
         }
     }
 
+    /// 解析查找键：优先 session_map，其次直接把入参当 remote_id
+    fn resolve_key(&self, id: &str) -> String {
+        if let Ok(sid) = id.parse::<i32>() {
+            if let Some(k) = self.session_map.get(&sid) {
+                return k.clone();
+            }
+            if let Some(k) = self.upload_session_map.get(&sid) {
+                return k.clone();
+            }
+        }
+        id.to_string()
+    }
+
+    /// updateFile 时：根据 session file.id + remote.id 绑定/解析条目键
+    pub fn bind_session_key(&mut self, session_file_id: i32, remote_id: Option<&str>) -> String {
+        let key = derive_remote_id(remote_id, session_file_id);
+        // 若该 session 已映射到别的键（例如 remote.id 后补），保持已有键优先
+        if let Some(existing) = self.session_map.get(&session_file_id) {
+            return existing.clone();
+        }
+        if self.items.contains_key(&key) {
+            if let Some(item) = self.items.get_mut(&key) {
+                item.session_file_id = Some(session_file_id);
+                item.file_id = session_file_id;
+                if item.remote_id.is_empty() {
+                    item.remote_id = key.clone();
+                }
+            }
+        }
+        self.session_map.insert(session_file_id, key.clone());
+        key
+    }
+
     // ==================== 查询 ====================
 
     pub fn get_all_items(&self) -> Vec<DownloadItem> {
@@ -154,11 +310,11 @@ impl DownloadStore {
         items
     }
 
-    pub fn get_item(&self, file_id: i32) -> Option<DownloadItem> {
-        self.items.get(&file_id).cloned()
+    pub fn get_item(&self, key: &str) -> Option<DownloadItem> {
+        let k = self.resolve_key(key);
+        self.items.get(&k).cloned()
     }
 
-    /// 非通用资源且非自动下载图片的活跃（进行中/暂停 + 未完成 + 未关闭）下载项
     pub fn get_active_items(&self) -> Vec<DownloadItem> {
         self.items
             .values()
@@ -169,12 +325,10 @@ impl DownloadStore {
             .collect()
     }
 
-    /// 活跃下载数量（排除通用资源）
     pub fn get_active_count(&self) -> usize {
         self.get_active_items().len()
     }
 
-    /// 可见的下载项（根据 show_hidden / show_auto_photos 开关过滤）
     pub fn get_visible_items(&self) -> Vec<DownloadItem> {
         let mut items: Vec<DownloadItem> = self
             .items
@@ -194,7 +348,6 @@ impl DownloadStore {
         items
     }
 
-    /// 已完成且可见的项
     pub fn get_completed_items(&self) -> Vec<DownloadItem> {
         self.get_visible_items()
             .into_iter()
@@ -202,7 +355,6 @@ impl DownloadStore {
             .collect()
     }
 
-    /// 进行中或暂停的可见项
     pub fn get_pending_items(&self) -> Vec<DownloadItem> {
         self.get_visible_items()
             .into_iter()
@@ -210,7 +362,6 @@ impl DownloadStore {
             .collect()
     }
 
-    /// 是否有隐藏（通用资源或自动下载图片）的未完成下载
     pub fn has_hidden_active(&self) -> bool {
         self.items.values().any(|item| {
             (item.is_generic || item.is_auto_photo) && !item.is_completed && !item.dismissed
@@ -219,20 +370,12 @@ impl DownloadStore {
 
     // ==================== 写入操作 ====================
 
-    /// 注册一个下载项
-    /// - `is_generic` 标记是否为隐藏/通用资源（头像、贴纸、表情等），默认不计入红点，
-    ///   需在下载管理器中开启"显示隐藏资源"才会展示。
-    /// - `hidden_category` 仅当 `is_generic` 为 true 时有意义，用于区分具体隐藏资源类别
-    ///   （"emoji" / "video_cover" / "avatar" / "story_cover" / "sticker" / "other"）。
-    /// - `is_auto_photo` 标记是否为自动下载图片（频道/群组中自动下载的图片），
-    ///   默认隐藏且不计入红点，由独立的"显示自动下载图片"开关控制。
-    ///
-    /// 若已有条目是由 `updateFile` 自动兜底创建的（`file_type == "other"` 且无类别信息），
-    /// 则以本次显式注册的类别/隐藏标记为准进行覆盖，保证自动下载的视频能正常显示、
-    /// 自动下载的图片按独立开关隐藏。
+    /// 注册下载项。主键为 remote_id（file.remote.id）；session_file_id 仅作本会话 TDLib 操作。
+    #[allow(clippy::too_many_arguments)]
     pub fn register_download(
         &mut self,
-        file_id: i32,
+        remote_id: Option<String>,
+        session_file_id: i32,
         file_name: String,
         chat_title: String,
         total_size: i64,
@@ -244,61 +387,138 @@ impl DownloadStore {
         hidden_category: Option<String>,
         is_auto_photo: bool,
         is_streaming: bool,
-    ) {
-        if let Some(existing) = self.items.get(&file_id) {
-            if !existing.dismissed {
-                // 兜底条目（other/generic）被显式注册覆盖，否则保留已有分类
-                let is_fallback = existing.file_type == "other" && existing.is_generic;
-                let file_type = if is_fallback {
-                    file_type
-                } else {
-                    existing.file_type.clone()
-                };
-                let is_generic = if is_fallback {
-                    is_generic
-                } else {
-                    existing.is_generic
-                };
-                let hidden_category = if is_fallback {
-                    hidden_category
-                } else {
-                    existing.hidden_category.clone()
-                };
-                let is_auto_photo = if is_fallback {
-                    is_auto_photo
-                } else {
-                    existing.is_auto_photo
-                };
-                // 更新已有记录中可能缺失的信息
-                let updated = DownloadItem {
-                    file_name: if existing.file_name.starts_with("文件 #") {
-                        file_name
-                    } else {
-                        existing.file_name.clone()
-                    },
-                    chat_title: if existing.chat_title.is_empty() {
-                        chat_title
-                    } else {
-                        existing.chat_title.clone()
-                    },
-                    thumbnail_data_url: existing.thumbnail_data_url.clone().or(thumbnail_data_url),
+        tags: Option<Vec<String>>,
+        source_label: Option<String>,
+    ) -> String {
+        let rid = derive_remote_id(remote_id.as_deref(), session_file_id);
+        // 会话键冲突：同一 session 曾指向 legacy 键时，尽量迁到带 remote_id 的键
+        if let Some(old_key) = self.session_map.get(&session_file_id).cloned() {
+            if old_key != rid && !old_key.starts_with("legacy:") && !old_key.starts_with("session:") {
+                // 已有稳定键，沿用
+                let use_key = old_key;
+                self.merge_register(
+                    &use_key,
+                    session_file_id,
+                    file_name,
+                    chat_title,
+                    total_size,
                     file_type,
+                    thumbnail_data_url,
+                    chat_id,
+                    message_id,
                     is_generic,
                     hidden_category,
                     is_auto_photo,
                     is_streaming,
-                    // 旧数据缺少 created_at（0）时补上当前时间戳，保证升级后历史记录也能参与时间排序
-                    created_at: if existing.created_at > 0 { existing.created_at } else { now_ms() },
-                    ..existing.clone()
-                };
-                self.items.insert(file_id, updated);
+                    tags,
+                    source_label,
+                );
+                return use_key;
+            } else if old_key != rid {
+                // 旧键为 session:/legacy: → 迁移数据到新 remote_id
+                if let Some(mut item) = self.items.remove(&old_key) {
+                    item.remote_id = rid.clone();
+                    item.session_file_id = Some(session_file_id);
+                    item.file_id = session_file_id;
+                    self.items.insert(rid.clone(), item);
+                }
+            }
+        }
+
+        self.merge_register(
+            &rid,
+            session_file_id,
+            file_name,
+            chat_title,
+            total_size,
+            file_type,
+            thumbnail_data_url,
+            chat_id,
+            message_id,
+            is_generic,
+            hidden_category,
+            is_auto_photo,
+            is_streaming,
+            tags,
+            source_label,
+        );
+        self.session_map.insert(session_file_id, rid.clone());
+        rid
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn merge_register(
+        &mut self,
+        key: &str,
+        session_file_id: i32,
+        file_name: String,
+        chat_title: String,
+        total_size: i64,
+        file_type: String,
+        thumbnail_data_url: Option<String>,
+        chat_id: Option<i64>,
+        message_id: Option<i64>,
+        is_generic: bool,
+        hidden_category: Option<String>,
+        is_auto_photo: bool,
+        is_streaming: bool,
+        tags: Option<Vec<String>>,
+        source_label: Option<String>,
+    ) {
+        if let Some(existing) = self.items.get(key) {
+            if !existing.dismissed {
+                let is_fallback = existing.file_type == "other" && existing.is_generic;
+                let mut updated = existing.clone();
+                if is_fallback {
+                    updated.file_type = file_type;
+                    updated.is_generic = is_generic;
+                    updated.hidden_category = hidden_category;
+                    updated.is_auto_photo = is_auto_photo;
+                    if tags.as_ref().map(|t| !t.is_empty()).unwrap_or(false) {
+                        updated.tags = tags.unwrap_or_default();
+                    }
+                } else if tags.as_ref().map(|t| !t.is_empty()).unwrap_or(false) {
+                    // 合并标签（去重保序）
+                    let mut merged = updated.tags.clone();
+                    for t in tags.unwrap_or_default() {
+                        if !merged.contains(&t) {
+                            merged.push(t);
+                        }
+                    }
+                    updated.tags = merged;
+                }
+                if updated.file_name.starts_with("文件 #") && !file_name.is_empty() {
+                    updated.file_name = file_name;
+                }
+                if updated.chat_title.is_empty() && !chat_title.is_empty() {
+                    updated.chat_title = chat_title;
+                }
+                if updated.thumbnail_data_url.is_none() {
+                    updated.thumbnail_data_url = thumbnail_data_url;
+                }
+                if source_label.is_some() {
+                    updated.source_label = source_label;
+                }
+                if updated.total_size == 0 && total_size > 0 {
+                    updated.total_size = total_size;
+                }
+                updated.is_streaming = updated.is_streaming || is_streaming;
+                updated.session_file_id = Some(session_file_id);
+                updated.file_id = session_file_id;
+                updated.remote_id = key.to_string();
+                if updated.created_at == 0 {
+                    updated.created_at = now_ms();
+                }
+                self.items.insert(key.to_string(), updated);
                 self.save_to_disk();
                 return;
             }
         }
 
         let item = DownloadItem {
-            file_id,
+            remote_id: key.to_string(),
+            session_file_id: Some(session_file_id),
+            file_id: session_file_id,
             file_name,
             chat_title,
             chat_id,
@@ -315,25 +535,28 @@ impl DownloadStore {
             hidden_category,
             is_auto_photo,
             is_streaming,
+            tags: tags.unwrap_or_default(),
+            source_label,
             dismissed: false,
             is_upload: false,
             created_at: now_ms(),
         };
-        self.items.insert(file_id, item);
+        self.items.insert(key.to_string(), item);
         self.save_to_disk();
     }
 
-    /// 更新文件下载进度（由 updateFile 事件处理调用）
+    /// 更新下载进度。`id` 可为 remote_id 或 session file_id。
     pub fn update_progress(
         &mut self,
-        file_id: i32,
+        id: &str,
         downloaded_size: i64,
         total_size: i64,
         is_downloading_active: bool,
         is_downloading_completed: bool,
         local_path: Option<String>,
     ) {
-        if let Some(item) = self.items.get_mut(&file_id) {
+        let key = self.resolve_key(id);
+        if let Some(item) = self.items.get_mut(&key) {
             let total = if total_size > 0 {
                 total_size
             } else {
@@ -349,7 +572,6 @@ impl DownloadStore {
             item.is_paused = !is_downloading_active && !is_downloading_completed;
             item.is_completed = is_downloading_completed;
             if is_downloading_completed {
-                // 完成时刷新时间戳，使「已完成」历史按最近下载完成的时间排序
                 item.created_at = now_ms();
                 if let Some(path) = local_path {
                     if !path.is_empty() {
@@ -361,9 +583,9 @@ impl DownloadStore {
         }
     }
 
-    /// 暂停/恢复下载（仅更新本地状态，TDLib 调用由调用方处理）
-    pub fn set_paused(&mut self, file_id: i32, paused: bool) -> bool {
-        if let Some(item) = self.items.get_mut(&file_id) {
+    pub fn set_paused(&mut self, id: &str, paused: bool) -> bool {
+        let key = self.resolve_key(id);
+        if let Some(item) = self.items.get_mut(&key) {
             item.is_paused = paused;
             self.save_to_disk();
             true
@@ -372,9 +594,9 @@ impl DownloadStore {
         }
     }
 
-    /// 标记已关闭
-    pub fn dismiss_item(&mut self, file_id: i32) -> bool {
-        if let Some(item) = self.items.get_mut(&file_id) {
+    pub fn dismiss_item(&mut self, id: &str) -> bool {
+        let key = self.resolve_key(id);
+        if let Some(item) = self.items.get_mut(&key) {
             item.dismissed = true;
             self.save_to_disk();
             true
@@ -383,7 +605,6 @@ impl DownloadStore {
         }
     }
 
-    /// 清除所有已完成/已关闭的项
     pub fn clear_completed(&mut self) {
         self.items
             .retain(|_, item| !item.is_completed && !item.dismissed);
@@ -399,7 +620,6 @@ impl DownloadStore {
         self.save_to_disk();
     }
 
-    /// 是否显示自动下载图片（独立的隐藏开关）
     pub fn get_show_auto_photos(&self) -> bool {
         self.show_auto_photos
     }
@@ -409,29 +629,21 @@ impl DownloadStore {
         self.save_to_disk();
     }
 
-    // ==================== 上传任务（仅内存，不持久化） ====================
+    // ==================== 上传任务（仅内存） ====================
 
-    /// 按来源本地路径查找是否已有一条上传记录（用于去重）。
-    /// 同一源文件可能被 TDLib 以多个 file_id 上传（如原始文件 + 缩略图/封面），
-    /// 通过 local_path 去重，避免同一文件在「上传」区出现多次。
-    fn find_upload_by_path(&self, local_path: &str) -> Option<i32> {
-        for (fid, item) in &self.uploads {
+    fn find_upload_by_path(&self, local_path: &str) -> Option<String> {
+        for (key, item) in &self.uploads {
             if item.local_path.as_deref() == Some(local_path) {
-                return Some(*fid);
+                return Some(key.clone());
             }
         }
         None
     }
 
-    /// 注册一个上传任务（由 updateFile 事件处理调用），提供文件名与类型，
-    /// 供下载管理器「上传」区域展示。
-    ///
-    /// 以 file_id 为键；若该 file_id 已存在则补充缺失信息。
-    /// `local_path` 用于去重：当同一源文件以不同 file_id 触发上传时，
-    /// 把已有记录的 file_id 迁移到当前 file_id，避免重复展示。
     pub fn register_upload(
         &mut self,
-        file_id: i32,
+        remote_id: Option<String>,
+        session_file_id: i32,
         file_name: String,
         file_type: String,
         chat_title: String,
@@ -439,14 +651,19 @@ impl DownloadStore {
         thumbnail_data_url: Option<String>,
         local_path: Option<String>,
     ) {
-        // 先按 local_path 去重：同一源文件已存在未完成记录时，迁移 file_id
+        let rid = derive_remote_id(remote_id.as_deref(), session_file_id);
+
         if let Some(local) = local_path.as_deref() {
             if !local.is_empty() {
-                if let Some(existing_fid) = self.find_upload_by_path(local) {
-                    if existing_fid != file_id {
-                        if let Some(mut existing) = self.uploads.remove(&existing_fid) {
-                            existing.file_id = file_id;
-                            self.uploads.insert(file_id, existing);
+                if let Some(existing_key) = self.find_upload_by_path(local) {
+                    if existing_key != rid {
+                        if let Some(mut existing) = self.uploads.remove(&existing_key) {
+                            existing.remote_id = rid.clone();
+                            existing.session_file_id = Some(session_file_id);
+                            existing.file_id = session_file_id;
+                            self.uploads.insert(rid.clone(), existing);
+                            self.upload_session_map
+                                .insert(session_file_id, rid.clone());
                             return;
                         }
                     }
@@ -454,14 +671,11 @@ impl DownloadStore {
             }
         }
 
-        if let Some(existing) = self.uploads.get_mut(&file_id) {
+        if let Some(existing) = self.uploads.get_mut(&rid) {
             let is_fallback = existing.file_type == "other";
-            let name = if existing.file_name.is_empty() {
-                file_name
-            } else {
-                existing.file_name.clone()
-            };
-            existing.file_name = name;
+            if existing.file_name.is_empty() {
+                existing.file_name = file_name;
+            }
             if is_fallback {
                 existing.file_type = file_type;
             }
@@ -477,13 +691,29 @@ impl DownloadStore {
             if existing.local_path.is_none() {
                 existing.local_path = local_path;
             }
+            existing.session_file_id = Some(session_file_id);
+            existing.file_id = session_file_id;
+            self.upload_session_map
+                .insert(session_file_id, rid.clone());
             return;
         }
 
+        // 上传标签：上传 + 资源类型
+        let mut tags = vec!["上传".to_string()];
+        match file_type.as_str() {
+            "photo" => tags.push("图片".to_string()),
+            "video" => tags.push("视频".to_string()),
+            "audio" => tags.push("音乐".to_string()),
+            "document" => tags.push("文件".to_string()),
+            _ => {}
+        }
+
         self.uploads.insert(
-            file_id,
+            rid.clone(),
             DownloadItem {
-                file_id,
+                remote_id: rid.clone(),
+                session_file_id: Some(session_file_id),
+                file_id: session_file_id,
                 file_name,
                 chat_title,
                 chat_id: None,
@@ -500,24 +730,34 @@ impl DownloadStore {
                 hidden_category: None,
                 is_auto_photo: false,
                 is_streaming: false,
+                tags,
+                source_label: None,
                 dismissed: false,
                 is_upload: true,
                 created_at: now_ms(),
             },
         );
+        self.upload_session_map
+            .insert(session_file_id, rid.clone());
     }
 
-    /// 更新上传进度（由 updateFile 事件处理调用）。
-    /// 返回更新后的条目供调用方 emit 给前端；若该任务未注册则返回 None。
     pub fn update_upload_progress(
         &mut self,
-        file_id: i32,
+        id: &str,
         uploaded_size: i64,
         total_size: i64,
         is_uploading_active: bool,
         is_uploading_completed: bool,
     ) -> Option<DownloadItem> {
-        let item = self.uploads.get_mut(&file_id)?;
+        let key = if self.uploads.contains_key(id) {
+            id.to_string()
+        } else {
+            self.upload_session_map
+                .get(&id.parse::<i32>().ok()?)
+                .cloned()
+                .unwrap_or_else(|| id.to_string())
+        };
+        let item = self.uploads.get_mut(&key)?;
         let total = if total_size > 0 {
             total_size
         } else {
@@ -535,20 +775,42 @@ impl DownloadStore {
         Some(item.clone())
     }
 
-    /// 全部上传任务（进行中 + 已完成），按文件 id 倒序
     pub fn get_uploads(&self) -> Vec<DownloadItem> {
         let mut items: Vec<DownloadItem> = self.uploads.values().cloned().collect();
         items.sort_by(|a, b| b.file_id.cmp(&a.file_id));
         items
     }
 
-    /// 获取某个上传任务的展示信息
-    pub fn get_upload(&self, file_id: i32) -> Option<DownloadItem> {
-        self.uploads.get(&file_id).cloned()
+    pub fn get_upload(&self, id: &str) -> Option<DownloadItem> {
+        let key = if self.uploads.contains_key(id) {
+            id.to_string()
+        } else {
+            self.upload_session_map
+                .get(&id.parse::<i32>().ok()?)
+                .cloned()
+                .unwrap_or_else(|| id.to_string())
+        };
+        self.uploads.get(&key).cloned()
     }
 
-    /// 手动关闭/移除一个上传任务（保留直到用户手动关闭）
-    pub fn dismiss_upload(&mut self, file_id: i32) -> bool {
-        self.uploads.remove(&file_id).is_some()
+    pub fn dismiss_upload(&mut self, id: &str) -> bool {
+        let key = if self.uploads.contains_key(id) {
+            id.to_string()
+        } else {
+            match id.parse::<i32>() {
+                Ok(sid) => match self.upload_session_map.get(&sid) {
+                    Some(k) => k.clone(),
+                    None => id.to_string(),
+                },
+                Err(_) => id.to_string(),
+            }
+        };
+        if let Some(item) = self.uploads.remove(&key) {
+            if let Some(sid) = item.session_file_id {
+                self.upload_session_map.remove(&sid);
+            }
+            return true;
+        }
+        self.uploads.remove(id).is_some()
     }
 }

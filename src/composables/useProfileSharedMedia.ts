@@ -421,7 +421,7 @@ export function useSharedMediaCell(
             if (smallest) {
                 try {
                     const { downloadFileUrl } = await import('../utils/profileMedia');
-                    const url = await downloadFileUrl(smallest, `shared_video_${it.messageId}_${smallest.id}.jpg`, 'avatar');
+                    const url = await downloadFileUrl(smallest, `shared_video_${it.messageId}_${smallest.id}.jpg`, 'avatar', { tags: ['视频封面', '缩略图'] });
                     if (url) {
                         visibleSrc.value = url;
                         isBlurred.value = false;
@@ -437,7 +437,7 @@ export function useSharedMediaCell(
             const { downloadFileUrl } = await import('../utils/profileMedia');
             for (const coverFile of listAlbumCoverFiles(audio)) {
                 try {
-                    const url = await downloadFileUrl(coverFile, `shared_music_cover_${it.messageId}_${coverFile.id}.jpg`, 'music_cover');
+                    const url = await downloadFileUrl(coverFile, `shared_music_cover_${it.messageId}_${coverFile.id}.jpg`, 'music_cover', { tags: ['音乐封面', '缩略图'] });
                     if (url) {
                         visibleSrc.value = url;
                         isBlurred.value = false;

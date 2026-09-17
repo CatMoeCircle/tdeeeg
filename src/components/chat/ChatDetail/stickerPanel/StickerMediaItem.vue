@@ -36,6 +36,8 @@ const props = withDefaults(defineProps<{
     skinTone?: number;
     /** 无障碍文本 */
     alt?: string;
+    /** 来源贴纸集/emoji 集标题，写入下载记录 */
+    sourceLabel?: string;
 }>(), {
     size: 72,
     skinTone: 0,
@@ -53,7 +55,10 @@ const playerRef = ref<TgsPlayerInstance | null>(null);
 const videoRef = ref<HTMLVideoElement | null>(null);
 
 /** 统一媒体源解析（下载 + TGS 字节 + 肤色修饰符） */
-const media = useStickerMedia(() => props.item, props.kind, { skinTone: computed(() => props.skinTone) });
+const media = useStickerMedia(() => props.item, props.kind, {
+    skinTone: computed(() => props.skinTone),
+    sourceLabel: computed(() => props.sourceLabel || ''),
+});
 
 /** 顶层解包，便于模板自动解包 */
 const format = media.format;

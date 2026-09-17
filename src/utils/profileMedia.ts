@@ -2,7 +2,8 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import type { audio, file, thumbnail } from "tdlib-types";
 import { tdlibSend, isFileReady, downloadingFiles } from "./tdlib";
 import { DL_PRIORITY } from "./downloadPriority";
-import { useDownloadStore } from "../store/downloads";
+import { useDownloadStore, remoteIdOf } from "../store/downloads";
+import { DL_TAG } from "./downloadTags";
 import { isThumbnailImgRenderable } from "./thumbnail";
 
 /**
@@ -44,21 +45,19 @@ async function waitForFileReady(
 /**
  * 下载一个文件并返回其本地 asset URL（用于个人资料页的大图 / 照片墙 / 礼物贴纸等）。
  *
- * 已下载则直接返回；否则同步触发下载后返回。下载失败或不可下载时返回 undefined。
- *
- * @param hiddenCategory 隐藏资源的细分类别（"avatar" / "story_cover" 等），
- *   用于在下载管理器中区分展示具体隐藏资源类型。调用方按用途显式传入。
+ * @param hiddenCategory 隐藏资源的细分类别（"avatar" / "story_cover" 等）
+ * @param extra 额外标签 / 来源展示
  */
 export async function downloadFileUrl(
   f: file | undefined,
   fileName?: string,
-  hiddenCategory?: string
+  hiddenCategory?: string,
+  extra?: { tags?: string[]; sourceLabel?: string; chatTitle?: string },
 ): Promise<string | undefined> {
   if (!f || !f.id) return undefined;
   if (isFileReady(f)) return convertFileSrc(f.local.path);
   const fileId = f.id;
 
-  // 已在下载中：等待完成，而不是直接放弃（此前会导致高清封面永远升不上去）
   if (downloadingFiles.has(fileId)) {
     return waitForFileReady(fileId);
   }
@@ -66,7 +65,23 @@ export async function downloadFileUrl(
   try {
     const ext = f.expected_size ? ".jpg" : ".bin";
     const name = fileName || `profile_${fileId}${ext}`;
-    await useDownloadStore().registerDownload(fileId, name, "", 0, "avatar", undefined, undefined, undefined, true, false, hiddenCategory ?? "avatar");
+    const tags = [...(extra?.tags ?? [])];
+    // 大图头像：高清头像
+    if (hiddenCategory === "avatar" && f.id && !tags.includes(DL_TAG.HD_AVATAR) && fileName?.includes("big")) {
+      tags.push(DL_TAG.HD_AVATAR);
+    }
+    await useDownloadStore().registerDownload(
+      fileId, name,
+      extra?.chatTitle || extra?.sourceLabel || "",
+      0,
+      hiddenCategory === "music_cover" || hiddenCategory === "story_cover" ? "photo" : "avatar",
+      undefined, undefined, undefined, true, false,
+      hiddenCategory ?? "avatar",
+      false,
+      tags.length ? tags : undefined,
+      extra?.sourceLabel,
+      remoteIdOf(f),
+    );
     const res = await tdlibSend({
       _: "downloadFile",
       file_id: fileId,
@@ -76,7 +91,6 @@ export async function downloadFileUrl(
       synchronous: true,
     });
     if (isFileReady(res)) return convertFileSrc(res.local.path);
-    // 原 file / download 返回对象可能未写回 local.path，再 getFile 兜底
     const info = (await tdlibSend({ _: "getFile", file_id: fileId })) as file;
     if (isFileReady(info)) return convertFileSrc(info.local.path!);
   } catch (e) {

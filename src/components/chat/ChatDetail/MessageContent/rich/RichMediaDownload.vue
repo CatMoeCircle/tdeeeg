@@ -27,7 +27,7 @@ import type { file } from 'tdlib-types';
 import { DownloadIcon } from 'lucide-vue-next';
 import { tdlibSend, isFileReady, downloadingFiles, reactiveDownloadingFiles } from '../../../../../utils/tdlib';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
-import { useDownloadStore, type DownloadFileType } from '../../../../../store/downloads';
+import { useDownloadStore, remoteIdOf, type DownloadFileType } from '../../../../../store/downloads';
 import { useChatStore } from '../../../../../store/chat';
 import LoaderIndicator from '../../../../common/LoaderIndicator';
 
@@ -141,6 +141,9 @@ async function startDownload() {
             undefined,
             props.chatId,
             props.messageId,
+            undefined, undefined, undefined, undefined,
+            undefined, undefined,
+            remoteIdOf(props.file),
         );
 
         // 用户手动点击下载：走 addFileToDownloads（持久化下载列表）

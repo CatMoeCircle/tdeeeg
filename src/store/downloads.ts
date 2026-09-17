@@ -3,65 +3,85 @@ import { ref, computed } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { DL_PRIORITY } from "../utils/downloadPriority";
-import i18n from "../i18n";
+import {
+    DL_TAG,
+    FILTER_KEY,
+    DEFAULT_FILTER_KEYS,
+    FILTER_OPTIONS,
+    buildDownloadTags,
+    resolveItemTags,
+    isGenericItem,
+    isAutoPhotoItem,
+    isAutoVideoItem,
+    isIncompleteStreaming,
+    isItemVisibleByFilter,
+    tagChipClass,
+} from "../utils/downloadTags";
+
+export { DL_TAG, FILTER_KEY, FILTER_OPTIONS, resolveItemTags, tagChipClass };
+export {
+    isGenericItem,
+    isAutoPhotoItem,
+    isAutoVideoItem,
+    isIncompleteStreaming,
+};
 
 /** 文件类型分类（与 Rust 端 DownloadFileType 对应） */
 export type DownloadFileType =
-    | "document"   // 普通文件
-    | "photo"      // 图片
-    | "video"      // 视频
-    | "audio"      // 音乐
-    | "voice"      // 语音
-    | "animation"  // GIF
-    | "sticker"    // 贴纸
-    | "avatar"     // 用户/群组头像
-    | "other";     // 其他（缩略图缓存等）
+    | "document"
+    | "photo"
+    | "video"
+    | "audio"
+    | "voice"
+    | "animation"
+    | "sticker"
+    | "avatar"
+    | "other";
+
+/**
+ * 从 TDLib file 对象取稳定主键。
+ * 优先 file.remote.id（跨重启不变）；无远程 id 时回退 session:<file_id>。
+ */
+export function remoteIdOf(file: { id?: number; remote?: { id?: string } } | null | undefined): string {
+    const rid = file?.remote?.id;
+    if (rid && rid.length > 0) return rid;
+    if (typeof file?.id === "number") return `session:${file.id}`;
+    return "";
+}
 
 /** Rust 端 DownloadItem 的序列化结构 */
 export interface DownloadItem {
+    /** 稳定主键：file.remote.id（跨重启不变）；无远程 id 时为 session:<id> / legacy:<id> */
+    remote_id: string;
+    /** 当前 TDLib 会话 file.id（重启后会变），pause/cancel 等操作使用 */
+    session_file_id?: number;
+    /** 兼容字段：当前会话 file_id */
     file_id: number;
     file_name: string;
-    /** 来源对话标题 */
     chat_title: string;
-    /** 来源对话 ID */
     chat_id?: number;
     message_id?: number;
     total_size: number;
     downloaded_size: number;
-    progress: number; // 0~1
+    progress: number;
     is_paused: boolean;
     is_completed: boolean;
     local_path?: string;
-    /** 缩略图 base64（minithumbnail 或缩略图文件） */
     thumbnail_data_url?: string;
-    /** 文件类型分类 */
     file_type: DownloadFileType;
-    /** 通用资源标记（贴纸/emoji/头像等），默认隐藏且不计入红点 */
     is_generic: boolean;
-    /** 通用资源的细分类别（仅当 is_generic 为 true 时有意义）：
-     * - "emoji"        自定义表情（缩略图/完整贴纸）
-     * - "video_cover"  视频封面（缩略图）
-     * - "avatar"       用户/群组头像、个人资料大图等
-     * - "story_cover"  动态封面
-     * - "sticker"      贴纸
-     * - "gift"         礼物贴纸
-     * - "music_cover"  音乐封面
-     * - "other"        其他 */
     hidden_category?: string;
-    /** 自动下载图片标记（频道/群组中自动下载的图片），默认隐藏，由独立开关控制 */
     is_auto_photo: boolean;
-    /** 视频是否为流式传输（边下边播，tdstream://）来源，用于展示「流式传输」标签 */
     is_streaming: boolean;
-    /** 在下载管理器中已手动关闭/移除 */
+    /** 多标签 */
+    tags?: string[];
+    /** 来源补充（用户 / 贴纸集 / emoji 集 / 资料页…） */
+    source_label?: string;
     dismissed: boolean;
-    /** 是否为上传任务（发送中的文件/图片/音乐/视频），在下载管理器「上传」区展示 */
     is_upload?: boolean;
-    /** 下载记录时间戳（Unix 毫秒）：注册时记录创建时间，完成时刷新为完成时间，
-     * 用于「最近下载排前」的排序（file_id 不能反映下载时间） */
     created_at?: number;
 }
 
-/** 通用资源分类标识类型 */
 export type HiddenCategory =
     | "emoji"
     | "video_cover"
@@ -72,9 +92,30 @@ export type HiddenCategory =
     | "music_cover"
     | "other";
 
-/**
- * 根据 fileType 推断隐藏资源的默认分类（供 registerDownload 未显式指定分类时使用）。
- */
+const HIDDEN_CATEGORY_LABELS: Record<HiddenCategory, string> = {
+    emoji: "emoji",
+    video_cover: "视频封面",
+    avatar: "用户头像",
+    story_cover: "动态封面",
+    sticker: "贴纸",
+    gift: "礼物",
+    music_cover: "音乐封面",
+    other: "通用",
+};
+
+/** 遗留：隐藏分类标签（有 tags 时优先用 tags） */
+export function hiddenCategoryLabel(item: Pick<DownloadItem, "is_generic" | "hidden_category" | "tags">): string {
+    const tags = resolveItemTags(item as never);
+    if (tags.length > 0) {
+        // 取第一个非资源类型标签作为分类展示，否则取第一个
+        const preferred = tags.find((t) => t !== DL_TAG.IMAGE && t !== DL_TAG.VIDEO && t !== DL_TAG.MUSIC) ?? tags[0];
+        return preferred;
+    }
+    const cat = item.hidden_category as HiddenCategory | undefined;
+    if (cat && HIDDEN_CATEGORY_LABELS[cat]) return HIDDEN_CATEGORY_LABELS[cat];
+    return HIDDEN_CATEGORY_LABELS.other;
+}
+
 function inferHiddenCategory(fileType: DownloadFileType): HiddenCategory {
     switch (fileType) {
         case "avatar": return "avatar";
@@ -83,154 +124,185 @@ function inferHiddenCategory(fileType: DownloadFileType): HiddenCategory {
     }
 }
 
-/** 各隐藏分类对应的中文显示标签 */
-const HIDDEN_CATEGORY_LABELS: Record<HiddenCategory, string> = {
-    emoji: i18n.global.t('lng_stickers_installed_tab'),
-    video_cover: "视频封面",
-    avatar: i18n.global.t('lng_mediaview_profile_photo'),
-    story_cover: "动态封面",
-    sticker: i18n.global.t('lng_in_dlg_sticker'),
-    gift: i18n.global.t('lng_sr_message_column_gift'),
-    music_cover: "音乐封面",
-    other: "通用",
-};
-
-/**
- * 获取下载项的隐藏分类标签文本。仅对 is_generic 的项有意义，
- * 未匹配到已知分类时回退为"通用"。
- */
-export function hiddenCategoryLabel(item: Pick<DownloadItem, "is_generic" | "hidden_category">): string {
-    const cat = item.hidden_category as HiddenCategory | undefined;
-    if (cat && HIDDEN_CATEGORY_LABELS[cat]) return HIDDEN_CATEGORY_LABELS[cat];
-    return HIDDEN_CATEGORY_LABELS.other;
-}
-
 export const useDownloadStore = defineStore("downloads", () => {
-    const items = ref<Record<number, DownloadItem>>({});
-    const showHidden = ref(false);
-    /** 是否显示自动下载图片（独立开关） */
-    const showAutoPhotos = ref(false);
+    /** 条目：key = remote_id（稳定主键） */
+    const items = ref<Record<string, DownloadItem>>({});
+    /** 会话 file.id → remote_id，供 UI 按 file.id 查询进度 */
+    const sessionIdMap = ref<Record<number, string>>({});
 
-    /** 非通用资源且非自动下载图片的活跃（进行中/暂停 + 未完成 + 未关闭）下载项 */
+    /** 标签过滤器已启用集合（默认隐藏通用资源与自动下载图片） */
+    const filterKeys = ref<Set<string>>(new Set(DEFAULT_FILTER_KEYS));
+
+    function setFilterKey(key: string, enabled: boolean) {
+        const next = new Set(filterKeys.value);
+        if (enabled) next.add(key);
+        else next.delete(key);
+        filterKeys.value = next;
+        try {
+            localStorage.setItem("tdgram_dl_filters", JSON.stringify([...next]));
+        } catch { /* ignore */ }
+    }
+
+    function resetFilters() {
+        filterKeys.value = new Set(DEFAULT_FILTER_KEYS);
+        try { localStorage.removeItem("tdgram_dl_filters"); } catch { /* ignore */ }
+    }
+
+    function loadFilters() {
+        try {
+            const raw = localStorage.getItem("tdgram_dl_filters");
+            if (raw) {
+                const arr = JSON.parse(raw) as string[];
+                if (Array.isArray(arr)) filterKeys.value = new Set(arr);
+            }
+        } catch { /* ignore */ }
+    }
+
+    /** 按会话 file.id 或 remote_id 解析 store 键 */
+    function resolveKey(id: number | string): string {
+        if (typeof id === "string") return id;
+        return sessionIdMap.value[id] || `session:${id}`;
+    }
+
+    function getItemByKey(id: number | string): DownloadItem | undefined {
+        return items.value[resolveKey(id)];
+    }
+
+    /** 全部未 dismiss 条目 */
+    const allItems = computed(() => Object.values(items.value));
+
+    /** 过滤后可见项 */
+    const visibleItems = computed(() =>
+        allItems.value
+            .filter((item) => !item.dismissed && isItemVisibleByFilter(item as never, filterKeys.value))
+            .sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0) || (b.file_id ?? 0) - (a.file_id ?? 0))
+    );
+
+    /** 活跃下载（红点）：排除默认隐藏的通用资源与自动下载图片 */
     const activeItems = computed(() =>
-        Object.values(items.value).filter(
-            (item) => !item.is_generic && !item.is_auto_photo && !item.is_completed && !item.dismissed
+        allItems.value.filter(
+            (item) =>
+                !item.is_completed &&
+                !item.dismissed &&
+                !isGenericItem(item as never) &&
+                !isAutoPhotoItem(item as never)
         )
     );
 
-    /** 活跃下载数量（排除通用资源与自动下载图片） */
     const activeCount = computed(() => activeItems.value.length);
 
-    /** 正在下载（未暂停）的活跃下载数量（排除通用资源、自动下载图片与暂停项） */
     const activeDownloadingCount = computed(() =>
         activeItems.value.filter((item) => !item.is_paused).length
     );
 
-    /** 可见的下载项（根据 showHidden / showAutoPhotos 开关过滤） */
-    const visibleItems = computed(() =>
-        Object.values(items.value)
-            .filter((item) => !item.dismissed
-                && (showHidden.value || !item.is_generic)
-                && (showAutoPhotos.value || !item.is_auto_photo))
-            .sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0) || b.file_id - a.file_id)
-    );
-
-    /** 已完成且可见的项 */
     const completedItems = computed(() =>
         visibleItems.value.filter((item) => item.is_completed)
     );
 
-    /** 进行中或暂停的可见项 */
     const pendingItems = computed(() =>
         visibleItems.value.filter((item) => !item.is_completed)
     );
 
-    /** 正在下载（未暂停、未完成）的可见项 */
+    /** 正在下载：未完成、未暂停、且不是「未完成流式传输」 */
     const downloadingItems = computed(() =>
-        visibleItems.value.filter((item) => !item.is_completed && !item.is_paused)
+        visibleItems.value.filter(
+            (item) => !item.is_completed && !item.is_paused && !isIncompleteStreaming(item as never)
+        )
     );
 
-    /** 已暂停（未完成）的可见项 */
+    /** 已暂停：未完成、已暂停、且不是流式传输未完成项 */
     const pausedItems = computed(() =>
-        visibleItems.value.filter((item) => !item.is_completed && item.is_paused)
+        visibleItems.value.filter(
+            (item) => !item.is_completed && item.is_paused && !isIncompleteStreaming(item as never)
+        )
     );
 
-    /** 是否有隐藏（通用资源或自动下载图片）的未完成下载 */
+    /** 流式传输中（未完成）：独立可折叠分区，不进已暂停 */
+    const streamingItems = computed(() =>
+        visibleItems.value.filter((item) => isIncompleteStreaming(item as never))
+    );
+
+    /** 默认隐藏中仍有活跃任务（过滤器未打开时提示用） */
     const hasHiddenActive = computed(() =>
-        Object.values(items.value).some(
-            (item) => (item.is_generic || item.is_auto_photo) && !item.is_completed && !item.dismissed
+        allItems.value.some(
+            (item) =>
+                !item.is_completed &&
+                !item.dismissed &&
+                (isGenericItem(item as never) || isAutoPhotoItem(item as never)) &&
+                !isItemVisibleByFilter(item as never, filterKeys.value)
         )
     );
 
-    /** 是否有自动下载图片的未完成下载 */
-    const hasHiddenAutoPhotos = computed(() =>
-        Object.values(items.value).some(
-            (item) => item.is_auto_photo && !item.is_completed && !item.dismissed
-        )
-    );
+    const hiddenStats = computed(() => {
+        let generics = 0;
+        let autoPhotos = 0;
+        let active = 0;
+        for (const i of allItems.value) {
+            if (i.dismissed || i.is_completed) continue;
+            if (isItemVisibleByFilter(i as never, filterKeys.value)) continue;
+            const g = isGenericItem(i as never);
+            const ap = isAutoPhotoItem(i as never);
+            if (g) generics++;
+            if (ap) autoPhotos++;
+            if (g || ap) active++;
+        }
+        return { generics, autoPhotos, active };
+    });
 
-    /** 初始化：从 Rust 加载历史记录 + 监听实时更新 */
+    const hiddenGenericsCount = computed(() => hiddenStats.value.generics);
+    const hiddenAutoPhotosCount = computed(() => hiddenStats.value.autoPhotos);
+    const hiddenActiveCount = computed(() => hiddenStats.value.active);
+    const hasHiddenAutoPhotos = computed(() => hiddenStats.value.autoPhotos > 0);
+
     let unlistenProgress: (() => void) | null = null;
-
-    /**
-     * 进度更新节流缓冲。
-     *
-     * Rust 端在下载期间会按 TDLib updateFile 事件高频推送进度，若每个事件都
-     * 直接写回响应式 items（replacing 整个对象），会触发所有依赖 items 的
-     * computed（activeItems/visibleItems/pendingItems/...）全量重算 + 全量重渲染，
-     * 多个文件并行下载时每 tick 都触发一轮，导致 UI 卡顿。
-     *
-     * 解决：将高频更新先合并到一个普通 Map（非响应式）缓冲，用 rAF / 定时
-     * 批量地把缓存的最新对象一次性写回 items。每个节拍内即使收到 N 个进度
-     * 事件，也只触发一轮响应式更新；且多个文件合并进同一轮。
-     */
-    let pendingUpdates = new Map<number, DownloadItem>();
+    let pendingUpdates = new Map<string, DownloadItem>();
     let throttleTimer: ReturnType<typeof setTimeout> | null = null;
 
-    /**
-     * 就地合并一个进度更新到现有响应式条目（不替换对象引用）。
-     *
-     * 相比「整体替换 `items.value[fileId] = item`」，这样做的好处是 Vue 的依赖追踪
-     * 是属性级的：列表型 computed（activeItems/visibleItems/pendingItems）只读取
-     * `is_generic`/`is_completed`/`dismissed` 这些低频字段，并不读取高频变化的
-     * `progress`/`downloaded_size`。就地 patch 时，纯进度变化不会触发这些 key 的
-     * setter，也就不会牵连列表 computed 重算 —— 即使下载管理页面未打开，只要
-     * 不替换引用，活跃/列表 computed 也不会被高频进度牵扯。
-     */
-    function applyItem(fileId: number, item: DownloadItem) {
-        const existing = items.value[fileId];
+    function indexSession(item: DownloadItem) {
+        const key = item.remote_id || resolveKey(item.session_file_id ?? item.file_id);
+        if (item.session_file_id != null) sessionIdMap.value[item.session_file_id] = key;
+        if (item.file_id) sessionIdMap.value[item.file_id] = key;
+        return key;
+    }
+
+    function applyItem(payload: DownloadItem) {
+        const key = indexSession(payload);
+        const existing = items.value[key];
         if (!existing) {
-            items.value[fileId] = item;
+            items.value[key] = { ...payload, remote_id: key };
             return;
         }
-        // 就地覆盖字段。同值赋值不会触发 setter 副作用（Vue 会跳过相同值）。
-        existing.downloaded_size = item.downloaded_size;
-        existing.total_size = item.total_size;
-        existing.progress = item.progress;
-        existing.is_paused = item.is_paused;
-        existing.is_completed = item.is_completed;
-        if (item.local_path !== undefined) existing.local_path = item.local_path;
-        if (item.file_name !== undefined && item.file_name !== existing.file_name) {
-            existing.file_name = item.file_name;
+        existing.downloaded_size = payload.downloaded_size;
+        existing.total_size = payload.total_size;
+        existing.progress = payload.progress;
+        existing.is_paused = payload.is_paused;
+        existing.is_completed = payload.is_completed;
+        if (payload.local_path !== undefined) existing.local_path = payload.local_path;
+        if (payload.file_name !== undefined && payload.file_name !== existing.file_name) {
+            existing.file_name = payload.file_name;
         }
-        if (item.chat_title !== undefined && item.chat_title !== existing.chat_title) {
-            existing.chat_title = item.chat_title;
+        if (payload.chat_title !== undefined && payload.chat_title !== existing.chat_title) {
+            existing.chat_title = payload.chat_title;
         }
-        if (typeof item.file_type === "string") existing.file_type = item.file_type;
-        if (typeof item.chat_id === "number") existing.chat_id = item.chat_id;
-        if (typeof item.message_id === "number") existing.message_id = item.message_id;
-        if (item.thumbnail_data_url !== undefined) existing.thumbnail_data_url = item.thumbnail_data_url;
-        if (item.is_generic !== undefined) existing.is_generic = item.is_generic;
-        if (typeof item.hidden_category === "string" && item.hidden_category !== existing.hidden_category) {
-            existing.hidden_category = item.hidden_category;
+        if (typeof payload.file_type === "string") existing.file_type = payload.file_type;
+        if (typeof payload.chat_id === "number") existing.chat_id = payload.chat_id;
+        if (typeof payload.message_id === "number") existing.message_id = payload.message_id;
+        if (payload.thumbnail_data_url !== undefined) existing.thumbnail_data_url = payload.thumbnail_data_url;
+        if (payload.is_generic !== undefined) existing.is_generic = payload.is_generic;
+        if (typeof payload.hidden_category === "string" && payload.hidden_category !== existing.hidden_category) {
+            existing.hidden_category = payload.hidden_category;
         }
-        if (item.is_auto_photo !== undefined) existing.is_auto_photo = item.is_auto_photo;
-        if (item.is_streaming !== undefined) existing.is_streaming = item.is_streaming;
-        if (item.dismissed !== undefined) existing.dismissed = item.dismissed;
-        // 完成时 Rust 端会刷新 created_at，这里同步以让已完成列表按最近下载完成时间重排
-        if (typeof item.created_at === "number" && item.created_at !== existing.created_at) {
-            existing.created_at = item.created_at;
+        if (payload.is_auto_photo !== undefined) existing.is_auto_photo = payload.is_auto_photo;
+        if (payload.is_streaming !== undefined) existing.is_streaming = payload.is_streaming;
+        if (payload.tags && payload.tags.length) existing.tags = payload.tags;
+        if (payload.source_label !== undefined) existing.source_label = payload.source_label;
+        if (payload.dismissed !== undefined) existing.dismissed = payload.dismissed;
+        if (payload.session_file_id != null) existing.session_file_id = payload.session_file_id;
+        if (payload.file_id) existing.file_id = payload.file_id;
+        if (typeof payload.created_at === "number" && payload.created_at !== existing.created_at) {
+            existing.created_at = payload.created_at;
         }
+        if (!existing.remote_id) existing.remote_id = key;
     }
 
     function flushPendingUpdates() {
@@ -238,58 +310,44 @@ export const useDownloadStore = defineStore("downloads", () => {
         if (pendingUpdates.size > 0) {
             const batch = pendingUpdates;
             pendingUpdates = new Map();
-            for (const [fileId, item] of batch) {
-                applyItem(fileId, item);
+            for (const [, item] of batch) {
+                applyItem(item);
             }
         }
     }
 
-    /** 将进度更新写入缓冲区，并在下一个刷新帧统一批量写回（节流） */
     function scheduleUpdate(item: DownloadItem) {
-        pendingUpdates.set(item.file_id, item);
+        const key = item.remote_id || resolveKey(item.session_file_id ?? item.file_id);
+        pendingUpdates.set(key, item);
         if (throttleTimer === null) {
-            // 用 setTimeout(0) 把同一宏任务/微任务批次内的多次更新合并为一次 flush，
-            // 即「每帧至多一次响应式写入」。进度条本身带 transition，视觉上平滑无感。
             throttleTimer = setTimeout(flushPendingUpdates, 0);
         }
     }
 
     async function init() {
-        // 1. 从 Rust 加载持久化的下载记录
+        loadFilters();
         await refreshFromRust();
-        // 同步显示自动下载图片开关
-        try {
-            showAutoPhotos.value = await invoke("get_show_auto_photos_downloads");
-        } catch (e) {
-            console.warn("Failed to get show_auto_photos from Rust:", e);
-        }
-        // 2. 监听 Rust 发来的实时进度更新
         if (!unlistenProgress) {
             unlistenProgress = await listen<DownloadItem>("download-progress-update", (event) => {
                 const item = event.payload;
-                if (item && item.file_id) {
-                    scheduleUpdate(item);
-                }
+                if (item) scheduleUpdate(item);
             });
         }
     }
 
-    /** 从 Rust 端重新拉取全量下载记录 */
     async function refreshFromRust() {
         try {
             const rustItems: DownloadItem[] = await invoke("get_downloads");
-            const map: Record<number, DownloadItem> = {};
+            const map: Record<string, DownloadItem> = {};
+            const sidMap: Record<number, string> = {};
             for (const item of rustItems) {
-                map[item.file_id] = item;
+                const key = item.remote_id || `session:${item.session_file_id ?? item.file_id}`;
+                map[key] = { ...item, remote_id: key };
+                if (item.session_file_id != null) sidMap[item.session_file_id] = key;
+                if (item.file_id) sidMap[item.file_id] = key;
             }
             items.value = map;
-
-            // 同步 showHidden 状态
-            try {
-                showHidden.value = await invoke("get_show_hidden_downloads");
-            } catch (e) {
-                console.warn("Failed to get show_hidden from Rust:", e);
-            }
+            sessionIdMap.value = sidMap;
         } catch (e) {
             console.error("Failed to load downloads from Rust:", e);
         }
@@ -308,10 +366,10 @@ export const useDownloadStore = defineStore("downloads", () => {
     }
 
     /**
-     * 注册一个下载项（由组件在发起下载前调用）
-     * @param hiddenCategory 通用资源的细分类别（仅当 isGeneric 为 true 时有意义）：
-     *   "emoji" / "video_cover" / "avatar" / "story_cover" / "sticker" / "other"，
-     *   用于在下载管理器中区分展示具体隐藏资源类型。缺省时按 fileType 推断。
+     * 注册下载项。
+     * @param remoteId file.remote.id（稳定主键）；缺省时用 session:<fileId>
+     * @param tags 标签；缺省时按 fileType/hiddenCategory 等推断
+     * @param sourceLabel 来源补充展示（用户 / 贴纸集 / emoji 集…）
      */
     async function registerDownload(
         fileId: number,
@@ -322,20 +380,28 @@ export const useDownloadStore = defineStore("downloads", () => {
         thumbnailDataUrl?: string,
         chatId?: number,
         messageId?: number,
-        /** 显式指定是否为隐藏/通用资源（头像、贴纸、表情等），默认按文件类型推断 */
         isGeneric?: boolean,
-        /** 是否为自动下载图片（频道/群组中自动下载的图片，默认隐藏、独立开关控制） */
         isAutoPhoto?: boolean,
-        /** 通用资源的细分类别（见函数注释） */
         hiddenCategory?: string,
-        /** 是否为流式传输（边下边播，tdstream://）的视频 */
         isStreaming?: boolean,
+        tags?: string[],
+        sourceLabel?: string,
+        remoteId?: string,
     ) {
         const generic = isGeneric ?? (fileType === "sticker" || fileType === "avatar" || fileType === "other");
-        // 若未显式指定分类，则按 fileType 推断一个合理的默认值
         const category = hiddenCategory ?? (generic ? inferHiddenCategory(fileType) : undefined);
+        const rid = remoteId && remoteId.length > 0 ? remoteId : `session:${fileId}`;
+        const finalTags = buildDownloadTags({
+            fileType,
+            hiddenCategory: category,
+            isGeneric: generic,
+            isAutoPhoto,
+            isStreaming,
+            extraTags: tags,
+        });
         try {
             await invoke("register_download", {
+                remoteId: rid,
                 fileId,
                 fileName,
                 chatTitle,
@@ -348,9 +414,12 @@ export const useDownloadStore = defineStore("downloads", () => {
                 hiddenCategory: category ?? null,
                 isAutoPhoto: isAutoPhoto ?? false,
                 isStreaming: isStreaming ?? false,
+                tags: finalTags,
+                sourceLabel: sourceLabel || null,
             });
-            // 注册成功后，立即将本地状态置为进行中
-            items.value[fileId] = {
+            const item: DownloadItem = {
+                remote_id: rid,
+                session_file_id: fileId,
                 file_id: fileId,
                 file_name: fileName,
                 chat_title: chatTitle,
@@ -365,28 +434,31 @@ export const useDownloadStore = defineStore("downloads", () => {
                 hidden_category: category,
                 is_auto_photo: isAutoPhoto ?? false,
                 is_streaming: isStreaming ?? false,
+                tags: finalTags,
+                source_label: sourceLabel,
                 dismissed: false,
                 chat_id: chatId,
                 message_id: messageId,
                 local_path: undefined,
                 created_at: Date.now(),
             };
+            items.value[rid] = item;
+            sessionIdMap.value[fileId] = rid;
         } catch (e) {
             console.error("registerDownload failed:", e);
         }
     }
 
-    /** 获取指定文件的最新下载进度（0~1），-1 表示未找到 */
-    function getProgress(fileId: number): number {
-        const item = items.value[fileId];
+    function getProgress(fileId: number | string): number {
+        const item = getItemByKey(fileId);
         if (!item) return -1;
         if (item.is_completed) return 1;
         return item.progress;
     }
 
-    /** 将本地已完成下载的文件标记为完成 */
-    function markCompleted(fileId: number, localPath: string) {
-        const item = items.value[fileId];
+    function markCompleted(fileId: number | string, localPath: string) {
+        const key = resolveKey(fileId);
+        const item = items.value[key];
         if (!item) return;
         item.local_path = localPath;
         item.is_completed = true;
@@ -395,89 +467,85 @@ export const useDownloadStore = defineStore("downloads", () => {
         item.created_at = Date.now();
     }
 
-    /** 获取指定文件的下载状态 */
-    function getDownloadInfo(fileId: number): DownloadItem | undefined {
-        return items.value[fileId];
+    function getDownloadInfo(fileId: number | string): DownloadItem | undefined {
+        return getItemByKey(fileId);
     }
 
-    /** 暂停/恢复下载 */
-    async function togglePause(fileId: number) {
-        const item = items.value[fileId];
+    /** 条目当前会话 TDLib file.id */
+    function sessionFileId(item: DownloadItem): number {
+        return item.session_file_id ?? item.file_id;
+    }
+
+    async function togglePause(fileId: number | string) {
+        const item = getItemByKey(fileId);
         if (!item) return;
+        const sid = sessionFileId(item);
         try {
             if (!item.is_paused) {
-                // 暂停
                 await invoke("tdlib_send", {
-                    request: { _: "toggleDownloadIsPaused", file_id: fileId, is_paused: true },
+                    request: { _: "toggleDownloadIsPaused", file_id: sid, is_paused: true },
                 });
-                items.value[fileId] = { ...items.value[fileId], is_paused: true };
+                item.is_paused = true;
             } else {
-                // 恢复：清除暂停态 + 主动重新发起 downloadFile，
-                // 让 TDLib 真正恢复下载并持续发出 updateFile 进度事件，
-                // 否则列表会一直停留在「暂停/原封不动」的状态。
                 await invoke("tdlib_send", {
-                    request: { _: "toggleDownloadIsPaused", file_id: fileId, is_paused: false },
+                    request: { _: "toggleDownloadIsPaused", file_id: sid, is_paused: false },
                 });
                 await invoke("tdlib_send", {
-                    request: { _: "downloadFile", file_id: fileId, priority: DL_PRIORITY.USER_ACTIVE, offset: 0, limit: 0, synchronous: false },
+                    request: { _: "downloadFile", file_id: sid, priority: DL_PRIORITY.USER_ACTIVE, offset: 0, limit: 0, synchronous: false },
                 });
-                items.value[fileId] = { ...items.value[fileId], is_paused: false };
+                item.is_paused = false;
             }
         } catch (e) {
             console.error("toggleDownloadIsPaused failed:", e);
         }
     }
 
-    /** 取消下载 */
-    async function cancelDownload(fileId: number) {
+    async function cancelDownload(fileId: number | string) {
+        const item = getItemByKey(fileId);
+        if (!item) return;
+        const sid = sessionFileId(item);
         try {
             await invoke("tdlib_send", {
-                request: { _: "cancelDownloadFile", file_id: fileId },
+                request: { _: "cancelDownloadFile", file_id: sid },
             });
-            await dismissItem(fileId);
+            await dismissItem(item.remote_id || sid);
         } catch (e) {
             console.error("cancelDownloadFile failed:", e);
         }
     }
 
-    /** 取消所有进行中/暂停的下载（含隐藏的通用资源与自动下载图片） */
     async function cancelAllDownloads() {
-        const pending = Object.values(items.value).filter(
-            (item) => !item.is_completed && !item.dismissed
-        );
-        // 逐个取消并非发 dismiss，避免并发写入 items 时出现竞态与顺序问题
+        const pending = allItems.value.filter((item) => !item.is_completed && !item.dismissed);
         for (const item of pending) {
             try {
                 await invoke("tdlib_send", {
-                    request: { _: "cancelDownloadFile", file_id: item.file_id },
+                    request: { _: "cancelDownloadFile", file_id: sessionFileId(item) },
                 });
-                await dismissItem(item.file_id);
+                await dismissItem(item.remote_id || sessionFileId(item));
             } catch (e) {
-                console.error("cancelDownloadFile failed for", item.file_id, e);
+                console.error("cancelDownloadFile failed for", item.remote_id, e);
             }
         }
     }
 
-    /** 标记已关闭（从下载管理器中移除） */
-    async function dismissItem(fileId: number) {
+    async function dismissItem(fileId: number | string) {
+        const key = resolveKey(fileId);
         try {
-            await invoke("dismiss_download", { fileId });
-            if (items.value[fileId]) {
-                items.value[fileId] = { ...items.value[fileId], dismissed: true };
+            await invoke("dismiss_download", { key: String(key) });
+            if (items.value[key]) {
+                items.value[key] = { ...items.value[key], dismissed: true };
             }
         } catch (e) {
             console.error("dismiss_download failed:", e);
         }
     }
 
-    /** 清除所有已完成/已关闭的项 */
     async function clearCompleted() {
         try {
             await invoke("clear_completed_downloads");
             for (const key of Object.keys(items.value)) {
-                const id = Number(key);
-                if (items.value[id]?.is_completed || items.value[id]?.dismissed) {
-                    delete items.value[id];
+                if (items.value[key]?.is_completed || items.value[key]?.dismissed) {
+                    delete items.value[key];
                 }
             }
         } catch (e) {
@@ -485,29 +553,20 @@ export const useDownloadStore = defineStore("downloads", () => {
         }
     }
 
-    /** 切换显示隐藏资源 */
+    /** 兼容旧 API：切换通用资源显示（映射到标签过滤器） */
     async function toggleShowHidden() {
-        const newValue = !showHidden.value;
-        try {
-            await invoke("set_show_hidden_downloads", { value: newValue });
-            showHidden.value = newValue;
-        } catch (e) {
-            console.error("set_show_hidden_downloads failed:", e);
-        }
+        setFilterKey(FILTER_KEY.GENERIC, !filterKeys.value.has(FILTER_KEY.GENERIC));
     }
 
-    /** 切换显示自动下载图片 */
+    /** 兼容旧 API：切换自动下载图片显示 */
     async function toggleShowAutoPhotos() {
-        const newValue = !showAutoPhotos.value;
-        try {
-            await invoke("set_show_auto_photos_downloads", { value: newValue });
-            showAutoPhotos.value = newValue;
-        } catch (e) {
-            console.error("set_show_auto_photos_downloads failed:", e);
-        }
+        setFilterKey(FILTER_KEY.AUTO_IMAGE, !filterKeys.value.has(FILTER_KEY.AUTO_IMAGE));
     }
 
-    // ─── 下载面板（左下角悬浮窗）开关 ─────────────────────────────
+    const showHidden = computed(() => filterKeys.value.has(FILTER_KEY.GENERIC));
+    const showAutoPhotos = computed(() => filterKeys.value.has(FILTER_KEY.AUTO_IMAGE));
+
+    // ─── 下载面板开关 ─────────────────────────────
     const isPanelOpen = ref(false);
     function openPanel() { isPanelOpen.value = true; }
     function closePanel() { isPanelOpen.value = false; }
@@ -515,6 +574,10 @@ export const useDownloadStore = defineStore("downloads", () => {
 
     return {
         items,
+        sessionIdMap,
+        filterKeys,
+        setFilterKey,
+        resetFilters,
         activeItems,
         activeCount,
         activeDownloadingCount,
@@ -523,10 +586,14 @@ export const useDownloadStore = defineStore("downloads", () => {
         pendingItems,
         downloadingItems,
         pausedItems,
+        streamingItems,
         showHidden,
         showAutoPhotos,
         hasHiddenActive,
         hasHiddenAutoPhotos,
+        hiddenGenericsCount,
+        hiddenAutoPhotosCount,
+        hiddenActiveCount,
         isPanelOpen,
         openPanel,
         closePanel,
@@ -545,5 +612,7 @@ export const useDownloadStore = defineStore("downloads", () => {
         clearCompleted,
         toggleShowHidden,
         toggleShowAutoPhotos,
+        resolveKey,
+        sessionFileId,
     };
 });

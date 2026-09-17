@@ -387,7 +387,7 @@ const { t } = useI18n();
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { isMediaViewerActive } from '../../../../store/mediaViewer';
 import { pauseAudioForVideo, onVideoStopped } from '../../../../store/videoPlayback';
-import { useDownloadStore } from '../../../../store/downloads';
+import { useDownloadStore, remoteIdOf } from '../../../../store/downloads';
 import { useChatStore } from '../../../../store/chat';
 import { openContextMenu } from '../../../../store/contextMenu';
 import type { ContextMenuItem } from '../../../../components/contextMenu/types';
@@ -556,7 +556,7 @@ async function handleViewerVideoDownload() {
     try {
         const fileName = c.video.file_name || `video_${messageId || fileId}.mp4`;
         const chatTitle = chatId ? useChatStore().chats[chatId]?.title || `对话 #${chatId}` : '';
-        useDownloadStore().registerDownload(fileId, fileName, chatTitle, 0, 'video', undefined, chatId, messageId, false, false);
+        useDownloadStore().registerDownload(fileId, fileName, chatTitle, 0, 'video', undefined, chatId, messageId, false, false, undefined, false, undefined, undefined, remoteIdOf(f));
         await tdlibSend({
             _: 'addFileToDownloads',
             file_id: fileId,
@@ -1230,6 +1230,33 @@ function selectQuality(q: MediaViewerVideoQuality) {
     }
     activeQualitySrc.value = q.src;
     qualityMenuVisible.value = false;
+
+    // 其他画质视频：注册到下载管理器（视频 + 分辨率 + 流式传输）
+    const c = currentItem.value?.message?.content;
+    if (c && c._ === 'messageVideo' && q.id !== 'main' && q.src.includes('tdstream')) {
+        const alt = c.alternative_videos?.find((a) => a.id === q.id);
+        const altFile = (alt?.video as any) as { id?: number; size?: number; remote?: { id?: string } } | undefined;
+        if (altFile?.id) {
+            const chatId = currentItem.value?.chatId;
+            const messageId = currentItem.value?.messageId;
+            const chatTitle = chatId ? useChatStore().chats[chatId]?.title || `对话 #${chatId}` : '';
+            useDownloadStore().registerDownload(
+                altFile.id,
+                `${q.label}_video_${altFile.id}.mp4`,
+                chatTitle,
+                altFile.size || 0,
+                'video',
+                undefined,
+                chatId,
+                messageId,
+                false, false, undefined, true,
+                [q.label],
+                undefined,
+                remoteIdOf(altFile),
+            );
+        }
+    }
+
     // 记录当前进度与播放状态，重载视频后恢复
     const targetTime = videoRef.value ? videoRef.value.currentTime : 0;
     const wasPlaying = isVideoPlaying.value;

@@ -1634,6 +1634,11 @@ fn handle_update_file(
     let Some(file_id) = file.get("id").and_then(|v| v.as_i64()) else {
         return;
     };
+    // 稳定主键：file.remote.id（跨重启不变）；会话内 file.id 仅作 TDLib 操作句柄
+    let remote_id = file
+        .pointer("/remote/id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
 
     // 下载进度
     {
@@ -1661,8 +1666,9 @@ fn handle_update_file(
             .map(|s| s.to_string());
 
         let mut dl_store = state.download_store.lock().unwrap();
+        let store_key = dl_store.bind_session_key(file_id as i32, remote_id.as_deref());
         dl_store.update_progress(
-            file_id as i32,
+            &store_key,
             downloaded_size,
             effective_total,
             is_dl_active,
@@ -1670,7 +1676,7 @@ fn handle_update_file(
             local_path.clone(),
         );
 
-        let item = dl_store.get_item(file_id as i32).unwrap_or_else(|| {
+        let item = dl_store.get_item(&store_key).unwrap_or_else(|| {
             let name = file
                 .pointer("/local/path")
                 .and_then(|v| v.as_str())
@@ -1682,7 +1688,10 @@ fn handle_update_file(
                         .to_string()
                 })
                 .unwrap_or_default();
+            let rid = crate::download_store::derive_remote_id(remote_id.as_deref(), file_id as i32);
             DownloadItem {
+                remote_id: rid,
+                session_file_id: Some(file_id as i32),
                 file_id: file_id as i32,
                 file_name: name,
                 chat_title: String::new(),
@@ -1704,6 +1713,8 @@ fn handle_update_file(
                 hidden_category: None,
                 is_auto_photo: false,
                 is_streaming: false,
+                tags: Vec::new(),
+                source_label: None,
                 dismissed: false,
                 is_upload: false,
                 created_at: std::time::SystemTime::now()
@@ -1752,7 +1763,9 @@ fn handle_update_file(
                     (display, t)
                 })
                 .unwrap_or_else(|| (format!("文件 #{}", file_id), "other".to_string()));
+            let rid = crate::download_store::derive_remote_id(remote_id.as_deref(), file_id as i32);
             ul_store.register_upload(
+                Some(rid),
                 file_id as i32,
                 name,
                 file_type,
@@ -1762,7 +1775,7 @@ fn handle_update_file(
                 local_path,
             );
             if let Some(item) = ul_store.update_upload_progress(
-                file_id as i32,
+                remote_id.as_deref().unwrap_or(&file_id.to_string()),
                 uploaded_size,
                 effective_total,
                 is_up_active,
@@ -1945,6 +1958,7 @@ pub fn get_download_active_count(state: State<AppState>) -> Result<usize, String
 #[tauri::command]
 pub fn register_download(
     state: State<AppState>,
+    remote_id: Option<String>,
     file_id: i32,
     file_name: String,
     chat_title: String,
@@ -1957,9 +1971,12 @@ pub fn register_download(
     hidden_category: Option<String>,
     is_auto_photo: bool,
     is_streaming: bool,
+    tags: Option<Vec<String>>,
+    source_label: Option<String>,
 ) -> Result<(), String> {
     let mut store = state.download_store.lock().map_err(|e| e.to_string())?;
     store.register_download(
+        remote_id,
         file_id,
         file_name,
         chat_title,
@@ -1972,14 +1989,17 @@ pub fn register_download(
         hidden_category,
         is_auto_photo,
         is_streaming,
+        tags,
+        source_label,
     );
     Ok(())
 }
 
+/// `key` 可为 remote_id（稳定主键）或当前会话 file_id
 #[tauri::command]
-pub fn dismiss_download(state: State<AppState>, file_id: i32) -> Result<(), String> {
+pub fn dismiss_download(state: State<AppState>, key: String) -> Result<(), String> {
     let mut store = state.download_store.lock().map_err(|e| e.to_string())?;
-    store.dismiss_item(file_id);
+    store.dismiss_item(&key);
     Ok(())
 }
 
@@ -2027,9 +2047,9 @@ pub fn get_uploads(
 }
 
 #[tauri::command]
-pub fn dismiss_upload(state: State<AppState>, file_id: i32) -> Result<(), String> {
+pub fn dismiss_upload(state: State<AppState>, key: String) -> Result<(), String> {
     let mut store = state.download_store.lock().map_err(|e| e.to_string())?;
-    store.dismiss_upload(file_id);
+    store.dismiss_upload(&key);
     Ok(())
 }
 

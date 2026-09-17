@@ -55,7 +55,6 @@ declare module 'vue' {
     LatexFormula: typeof import('./components/chat/ChatDetail/MessageContent/rich/LatexFormula.vue')['default']
     LinkInputDialog: typeof import('./components/chat/ChatDetail/LinkInputDialog.vue')['default']
     LinkPreviewMedia: typeof import('./components/chat/ChatDetail/MessageContent/content/LinkPreviewMedia.vue')['default']
-    LiquidGlass: typeof import('./components/LiquidGlass/LiquidGlass.vue')['default']
     MediaViewer: typeof import('./components/chat/ChatDetail/MessageContent/MediaViewer.vue')['default']
     MessageAlbum: typeof import('./components/chat/ChatDetail/MessageContent/content/MessageAlbum.vue')['default']
     MessageChecklistContent: typeof import('./components/chat/ChatDetail/MessageContent/content/MessageChecklistContent.vue')['default']

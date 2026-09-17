@@ -1,22 +1,18 @@
 <template>
     <div class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
-        :class="{ 'cursor-pointer': canOpenInPlayer, 'cursor-default': !canOpenInPlayer }" @click="onRowClick"
+        :class="rowClass" @click="onRowClick"
         @contextmenu.prevent="emit('itemContextMenu', $event, item)">
-        <!-- 文件图标 / 缩略图 -->
         <div class="w-11 h-11 rounded-lg overflow-hidden shrink-0 relative">
-            <!-- 图片/视频缩略图 -->
             <img v-if="item.thumbnail_data_url && (item.file_type === 'photo' || item.file_type === 'video')"
                 :src="item.thumbnail_data_url" class="w-full h-full object-cover bg-gray-100 dark:bg-gray-700" />
-            <!-- 下载完成后的完整文件 -->
             <img v-else-if="item.local_path && item.file_type === 'photo'" :src="toAssetUrl(item.local_path)"
                 class="w-full h-full object-cover bg-gray-100 dark:bg-gray-700" />
-            <!-- 通用图标 -->
-            <div v-else class="w-full h-full flex items-center justify-center bg-green-100 dark:bg-green-900"
+            <div v-else class="w-full h-full flex items-center justify-center"
                 :class="iconBgClass(item)">
                 <component :is="fileIcon(item)" class="w-5 h-5" :class="iconColorClass(item)" />
             </div>
-            <!-- 暂停覆盖层 -->
-            <div v-if="item.is_paused" class="absolute inset-0 bg-black/30 flex items-center justify-center">
+            <div v-if="item.is_paused && !isStreamingIncomplete"
+                class="absolute inset-0 bg-black/30 flex items-center justify-center">
                 <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
                     <rect x="6" y="4" width="4" height="16" rx="1" />
                     <rect x="14" y="4" width="4" height="16" rx="1" />
@@ -26,30 +22,15 @@
 
         <div class="flex-1 min-w-0">
             <div class="flex items-center min-w-0 text-sm font-medium text-gray-900 dark:text-gray-100">
-                <!-- 文件名本身可截断显示省略号 -->
                 <span class="truncate">{{ item.file_name }}</span>
-                <!-- 上传中状态标签 -->
-                <span v-if="isUpload && !item.is_completed"
-                    class="ml-1.5 shrink-0 align-middle inline-block text-[10px] leading-4 text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 px-1.5 rounded whitespace-nowrap">上传中</span>
-                <!-- 已上传标签 -->
-                <span v-else-if="isUpload && item.is_completed"
-                    class="ml-1.5 shrink-0 align-middle inline-block text-[10px] leading-4 text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 px-1.5 rounded whitespace-nowrap">已上传</span>
-                <!-- 已暂停状态标签 -->
-                <span v-if="item.is_paused"
-                    class="ml-1.5 shrink-0 align-middle inline-block text-[10px] leading-4 text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/40 px-1.5 rounded whitespace-nowrap">已暂停</span>
-                <!-- 通用资源标签（表情/头像/视频封面/贴纸等隐藏资源），始终完整显示 -->
-                <span v-if="item.is_generic"
-                    class="ml-1.5 shrink-0 align-middle inline-block text-[10px] leading-4 text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 px-1.5 rounded whitespace-nowrap">{{
-                        categoryLabel }}</span>
-                <!-- 自动下载图片标签 -->
-                <span v-else-if="item.is_auto_photo"
-                    class="ml-1.5 shrink-0 align-middle inline-block text-[10px] leading-4 text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40 px-1.5 rounded whitespace-nowrap">自动下载</span>
-                <!-- 流式传输标签（边下边播 tdstream://）：视频与音乐均适用 -->
-                <span v-if="item.is_streaming"
-                    class="ml-1.5 shrink-0 align-middle inline-block text-[10px] leading-4 text-teal-600 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/40 px-1.5 rounded whitespace-nowrap">流式传输</span>
             </div>
-            <div class="flex items-center text-xs text-gray-400 min-w-0">
-                <span class="truncate">{{ item.chat_title || '未知来源' }}</span>
+            <div class="flex flex-wrap items-center gap-1 mt-1">
+                <span v-for="tag in displayTags" :key="tag"
+                    class="shrink-0 inline-block text-[10px] leading-4 px-1.5 rounded whitespace-nowrap"
+                    :class="tagClass(tag)">{{ tag }}</span>
+            </div>
+            <div class="flex items-center text-xs text-gray-400 min-w-0 mt-0.5">
+                <span class="truncate">{{ sourceLine }}</span>
                 <span class="mx-1 shrink-0">·</span>
                 <template v-if="isUpload && item.file_type === 'photo'">图片</template>
                 <template v-else-if="isUpload && item.file_type === 'video'">视频</template>
@@ -58,29 +39,21 @@
                     <span class="shrink-0">{{ formatSize(item.total_size) }}</span>
                 </template>
                 <template v-else>
-                    <span class="shrink-0">{{ formatSize(item.downloaded_size) }} / {{ formatSize(item.total_size)
-                        }}</span>
+                    <span class="shrink-0">{{ formatSize(item.downloaded_size) }} / {{ formatSize(item.total_size) }}</span>
                 </template>
             </div>
-            <!-- 进行中进度条（上传用绿色）。
-                用 transform: scaleX 驱动宽度：只触发合成层变换，不走布局/样式重算，
-                相比每次更新 :style.width + transition-all 大幅降低 setAttribute 与重绘开销。 -->
             <div v-if="!item.is_completed"
                 class="mt-1.5 w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                 <div class="h-full rounded-full transition-transform duration-200 ease-linear origin-left"
-                    :class="item.is_paused ? 'bg-yellow-400' : isUpload ? 'bg-emerald-500' : 'bg-blue-500'"
-                    :style="{ transform: `scaleX(${Math.min(1, item.progress)})` }">
+                    :class="progressBarClass"
+                    :style="{ transform: 'scaleX(' + Math.min(1, item.progress) + ')' }">
                 </div>
             </div>
         </div>
 
-        <!-- 进行中百分比 -->
-        <span v-if="!item.is_completed" class="text-xs text-gray-400 shrink-0 w-10 text-right">{{ (item.progress *
-            100).toFixed(0) }}%</span>
+        <span v-if="!item.is_completed" class="text-xs text-gray-400 shrink-0 w-10 text-right">{{ percentText }}</span>
 
-        <!-- 操作按钮 -->
         <div class="flex gap-1 shrink-0">
-            <!-- 上传任务：完成前只提供「从列表移除」按钮 -->
             <template v-if="isUpload">
                 <button type="button" @click.stop="emit('dismiss', item.file_id)"
                     class="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
@@ -91,7 +64,6 @@
                     </svg>
                 </button>
             </template>
-            <!-- 进行中：暂停/继续 + 取消 -->
             <template v-else-if="!item.is_completed">
                 <button type="button" @click.stop="emit('togglePause', item.file_id)"
                     class="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
@@ -114,7 +86,6 @@
                     </svg>
                 </button>
             </template>
-            <!-- 已完成：移除 -->
             <template v-else>
                 <button type="button" @click.stop="emit('dismiss', item.file_id)"
                     class="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
@@ -130,20 +101,19 @@
 </template>
 
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n';
-const { t } = useI18n();
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import {
-    FileIcon, ImageIcon, VideoIcon, MusicIcon, MicIcon,
-} from 'lucide-vue-next';
+import { FileIcon, ImageIcon, VideoIcon, MusicIcon, MicIcon } from "lucide-vue-next";
 import type { Component } from "vue";
-import { hiddenCategoryLabel, type DownloadFileType, type DownloadItem } from "../../store/downloads";
+import type { DownloadFileType, DownloadItem } from "../../store/downloads";
+import { resolveItemTags, tagChipClass, DL_TAG, isIncompleteStreaming } from "../../utils/downloadTags";
+
+const { t } = useI18n();
 
 const props = defineProps<{
     item: DownloadItem;
     canOpenInPlayer: boolean;
-    /** 是否为上传任务（发送中的文件），用于调整进度条/按钮展示 */
     isUpload?: boolean;
 }>();
 
@@ -155,8 +125,38 @@ const emit = defineEmits<{
     (e: "itemContextMenu", event: MouseEvent, item: DownloadItem): void;
 }>();
 
-/** 隐藏资源分类标签（emoji/视频封面/头像/动态封面/贴纸/通用） */
-const categoryLabel = computed(() => hiddenCategoryLabel(props.item));
+const displayTags = computed(() => resolveItemTags(props.item as never));
+const isStreamingIncomplete = computed(() => isIncompleteStreaming(props.item as never));
+
+const rowClass = computed(() => ({
+    "cursor-pointer": props.canOpenInPlayer,
+    "cursor-default": !props.canOpenInPlayer,
+}));
+
+const progressBarClass = computed(() => {
+    if (isStreamingIncomplete.value) return "bg-teal-500";
+    if (props.item.is_paused) return "bg-yellow-400";
+    return props.isUpload ? "bg-emerald-500" : "bg-blue-500";
+});
+
+const percentText = computed(() => {
+    return ((props.item.progress || 0) * 100).toFixed(0) + "%";
+});
+
+const sourceLine = computed(() => {
+    const src = props.item.source_label || props.item.chat_title;
+    if (src && src.length > 0) return src;
+    if (props.item.chat_id) return "对话 #" + props.item.chat_id;
+    const tags = displayTags.value;
+    if (tags.includes(DL_TAG.STICKER)) return "贴纸";
+    if (tags.includes(DL_TAG.EMOJI)) return "emoji";
+    if (tags.includes(DL_TAG.AVATAR)) return "用户头像";
+    return "未知来源";
+});
+
+function tagClass(tag: string): string {
+    return tagChipClass(tag);
+}
 
 function onRowClick() {
     if (props.canOpenInPlayer) emit("openInPlayer", props.item);
@@ -198,7 +198,11 @@ function iconColorClass(item: { file_type: DownloadFileType }): string {
 }
 
 function toAssetUrl(localPath: string): string {
-    try { return convertFileSrc(localPath); } catch { return localPath; }
+    try {
+        return convertFileSrc(localPath);
+    } catch {
+        return localPath;
+    }
 }
 
 function fileIcon(item: { file_type: DownloadFileType }): Component {

@@ -159,7 +159,7 @@
                     </div>
                     <div class="sp-emoji-shelf">
                         <StickerMediaItem v-for="s in installedStamps(set)" :key="s.id" :item="s" kind="sticker"
-                            :size="26" :skin-tone="skinTone" @pick="onPickCustom" />
+                            :size="26" :skin-tone="skinTone" :source-label="setEmojiTitle(set)" @pick="onPickCustom" />
                     </div>
                 </div>
 
@@ -179,7 +179,7 @@
                     </button>
                     <div class="sp-emoji-shelf">
                         <StickerMediaItem v-for="s in trendingDisplayStamps(set)" :key="s.id" :item="s" kind="sticker"
-                            :size="26" :skin-tone="skinTone" @pick="onPickCustom" />
+                            :size="26" :skin-tone="skinTone" :source-label="set.title || setEmojiTitle(set)" @pick="onPickCustom" />
                         <button v-if="trendingCanExpand(set)" type="button"
                             class="sp-trending-more-cnt flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/10"
                             :title="`展开剩余 ${trendingMore(set)} 个`"

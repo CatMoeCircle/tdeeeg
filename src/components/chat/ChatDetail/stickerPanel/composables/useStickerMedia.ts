@@ -5,7 +5,8 @@ import { telegramFitzToFitzModifier } from '../../../../../utils/tlottieFitz';
 import type { FitzModifier } from 'tlottie';
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
-import { useDownloadStore } from '../../../../../store/downloads';
+import { useDownloadStore, remoteIdOf } from '../../../../../store/downloads';
+import { DL_TAG } from '../../../../../utils/downloadTags';
 
 export type MediaKind = 'sticker' | 'animation';
 export type MediaFormat = 'tgs' | 'webm' | 'webp' | 'mpeg4' | 'other';
@@ -59,7 +60,7 @@ function extFor(format: MediaFormat): string {
 export function useStickerMedia(
   getObj: () => sticker | animation | undefined,
   kind: MediaKind,
-  options: { skinTone?: MaybeRef<number> } = {}
+  options: { skinTone?: MaybeRef<number>; sourceLabel?: MaybeRef<string> } = {}
 ) {
   const ready = ref(false);
   const downloading = ref(false);
@@ -113,12 +114,19 @@ export function useStickerMedia(
     downloadingFiles.add(f.id);
 
     try {
+      const isSticker = kind === 'sticker';
+      const setLabel = toValue(options.sourceLabel) || undefined;
+      // 贴纸：记录贴纸集；emoji 分类由调用方通过 sourceLabel 传入
       await useDownloadStore().registerDownload(
         f.id,
         `${kind}_${f.id}.${extFor(format.value)}`,
-        '', 0, kind === 'sticker' ? 'sticker' : 'animation',
+        setLabel || '', 0, isSticker ? 'sticker' : 'animation',
         undefined, undefined, undefined, true, false,
-        kind === 'sticker' ? 'sticker' : 'animation',
+        isSticker ? 'sticker' : 'animation',
+        false,
+        undefined,
+        setLabel,
+        remoteIdOf(f as any),
       );
     } catch { /* 忽略注册失败 */ }
 

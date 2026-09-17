@@ -39,8 +39,8 @@
                         <path d="m21 15-5-5L5 21" />
                     </svg>
                 </div>
-                <!-- Download button overlay -->
-                <div v-if="!mediaSrc && !isDownloading && canDownload"
+                <!-- Download button：未就绪且不在下载中 -->
+                <div v-if="photoShowDownload"
                     class="absolute inset-0 flex items-center justify-center cursor-pointer"
                     @click.stop="handlePhotoDownload">
                     <div
@@ -53,9 +53,9 @@
                         </svg>
                     </div>
                 </div>
-                <!-- Loading spinner（下载中有进度，否则转圈） -->
-                <div v-if="isDownloading" class="absolute inset-0 flex items-center justify-center bg-black/30">
-                    <LoaderIndicator :progress="photoProgress > 0 ? photoProgress : undefined" size="40"
+                <!-- Loading spinner：下载中 -->
+                <div v-if="photoShowLoader" class="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <LoaderIndicator :progress="photoProgress > 0 && photoProgress < 1 ? photoProgress : undefined" size="40"
                         color="#ffffff" />
                 </div>
                 <!-- 剧透覆盖层（粒子特效：点击 ripple 波纹揭示媒体） -->
@@ -72,7 +72,7 @@
                     class="absolute inset-0 w-full h-full object-cover" />
                 <video v-else-if="videoThumbSrc && videoThumbIsVideo && !videoHasFrame" :src="videoThumbSrc" autoplay
                     loop muted playsinline class="absolute inset-0 w-full h-full object-cover" />
-                <div v-else-if="!videoDownloaded" class="absolute inset-0 flex items-center justify-center">
+                <div v-else-if="!videoShowMedia" class="absolute inset-0 flex items-center justify-center">
                     <VideoIcon class="w-8 h-8 text-gray-400" />
                 </div>
 
@@ -80,16 +80,17 @@
                 <SpoilerMedia v-if="hasSpoiler" :has-spoiler="true" overlay />
 
                 <!-- Video element：首帧就绪前 opacity-0，封面可见；循环播放, 由 IntersectionObserver 控制播放/暂停 -->
-                <video v-if="videoDownloaded" ref="videoElRef" :src="mediaSrc"
+                <video v-if="videoShowMedia" ref="videoElRef" :src="mediaSrc"
                     class="absolute inset-0 w-full h-full object-cover transition-opacity duration-200"
-                    :class="videoHasFrame ? 'opacity-100' : 'opacity-0'" :muted="videoMuted" loop playsinline
+                    :class="videoHasFrame ? 'opacity-100' : 'opacity-0'"
+                    :muted="videoMuted" loop playsinline
                     :data-video-msg-id="messageId" :poster="videoThumbSrc && !videoThumbIsVideo ? videoThumbSrc : undefined"
                     @timeupdate="onInlineVideoTime" @loadedmetadata="onInlineVideoLoaded" @ended="onInlineVideoEnded"
                     @waiting="onVideoWaiting" @playing="onVideoPlaying" @canplay="onVideoPlaying"
                     @error="onVideoError" />
 
                 <!-- 缓冲指示：首帧前不盖黑底（封面可见）；首帧后仅轻度压暗 -->
-                <div v-if="videoDownloaded && videoBuffering"
+                <div v-if="videoShowMedia && videoBuffering"
                     class="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"
                     :class="videoHasFrame ? 'bg-black/20' : ''">
                     <LoaderIndicator size="36" color="#ffffff" />
@@ -101,10 +102,11 @@
                     <div class="h-full bg-blue-500 transition-all" :style="{ width: videoProgress * 100 + '%' }"></div>
                 </div>
 
-                <!-- Download button overlay (arrow down icon) -->
-                <div v-if="!videoDownloaded" class="absolute inset-0 flex items-center justify-center cursor-pointer"
+                <!-- Download button：未就绪且不在下载中 -->
+                <div v-if="videoShowDownload"
+                    class="absolute inset-0 flex items-center justify-center cursor-pointer"
                     @click.stop="handleVideoDownload(true)">
-                    <div v-if="!videoDownloading"
+                    <div
                         class="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center group-hover:bg-black/70 transition-colors">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                             class="w-6 h-6 text-white ml-0.5">
@@ -113,20 +115,22 @@
                             <line x1="12" y1="15" x2="12" y2="3" />
                         </svg>
                     </div>
-                    <div v-if="videoDownloading" class="relative">
-                        <LoaderIndicator :progress="videoProgress > 0 && videoProgress < 1 ? videoProgress : undefined"
-                            size="40" color="#ffffff" />
-                    </div>
+                </div>
+                <!-- Loading：下载中（未进入可播状态） -->
+                <div v-if="videoShowLoader"
+                    class="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none">
+                    <LoaderIndicator :progress="videoProgress > 0 && videoProgress < 1 ? videoProgress : undefined"
+                        size="40" color="#ffffff" />
                 </div>
 
                 <!-- Remaining time (top-right) -->
-                <span v-if="videoDownloaded && inlineVideoDuration > 0"
+                <span v-if="videoShowMedia && inlineVideoDuration > 0"
                     class="absolute top-1.5 right-1.5 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded leading-none select-none">
                     -{{ formatDuration(Math.max(0, inlineVideoDuration - inlineVideoCurrent)) }}
                 </span>
 
                 <!-- Mute/unmute toggle (top-left) -->
-                <button v-if="videoDownloaded"
+                <button v-if="videoShowMedia"
                     class="absolute top-1.5 left-1.5 w-6 h-6 flex items-center justify-center bg-black/60 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity"
                     @click.stop="toggleMute">
                     <svg v-if="!videoMuted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -142,13 +146,13 @@
                 </button>
 
                 <!-- Duration badge (bottom-left, pre-download) -->
-                <span v-if="!videoDownloaded"
+                <span v-if="!videoShowMedia"
                     class="absolute bottom-1.5 left-1.5 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded leading-none select-none">
                     {{ formatDuration(videoDuration) }}
                 </span>
 
                 <!-- Inline progress bar (bottom edge) -->
-                <div v-if="videoDownloaded && inlineVideoDuration > 0"
+                <div v-if="videoShowMedia && inlineVideoDuration > 0"
                     class="absolute bottom-0 left-0 right-0 h-0.5 bg-white/30">
                     <div class="h-full bg-white transition-all duration-300"
                         :style="{ width: (inlineVideoCurrent / inlineVideoDuration) * 100 + '%' }"></div>
@@ -174,8 +178,8 @@
                     GIF
                 </span>
 
-                <!-- Download button overlay -->
-                <div v-if="!mediaSrc && !animDownloading && animCanDownload"
+                <!-- Download button：未就绪且不在下载中 -->
+                <div v-if="animShowDownload"
                     class="absolute inset-0 flex items-center justify-center cursor-pointer"
                     @click.stop="handleAnimDownload">
                     <div
@@ -188,8 +192,8 @@
                         </svg>
                     </div>
                 </div>
-                <div v-if="animDownloading" class="absolute inset-0 flex items-center justify-center bg-black/30">
-                    <LoaderIndicator :progress="animProgress > 0 ? animProgress : undefined" size="40"
+                <div v-if="animShowLoader" class="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <LoaderIndicator :progress="animProgress > 0 && animProgress < 1 ? animProgress : undefined" size="40"
                         color="#ffffff" />
                 </div>
             </div>
@@ -243,9 +247,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
-import type { MessageContent, messageForwardInfo, MessageSendingState, chatPhotoInfo, profilePhoto, messageReplyToMessage, message, photo as TdPhoto } from 'tdlib-types';
+import type { MessageContent, messageForwardInfo, MessageSendingState, chatPhotoInfo, profilePhoto, messageReplyToMessage, message } from 'tdlib-types';
 import MessageReply from './MessageReply.vue';
-import { tdlibSend, isFileReady, downloadingFiles, safeDownloadFile } from '../../../../../utils/tdlib';
+import { tdlibSend, isFileReady, downloadingFiles, isFileBusy, isFileDownloading, enqueuePendingDownload, takePendingDownload, releasePendingDownloadOwner } from '../../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { VideoIcon } from 'lucide-vue-next';
 import ForwardBanner from './ForwardBanner.vue';
@@ -253,10 +257,12 @@ import MessageTextContent from './MessageTextContent.vue';
 import SpoilerMedia from '../spoiler/SpoilerMedia.vue';
 import MessageStatus from './MessageStatus.vue';
 import LoaderIndicator from '../../../../common/LoaderIndicator';
-import { useDownloadStore, type DownloadFileType } from '../../../../../store/downloads';
+import { useDownloadStore, type DownloadFileType, remoteIdOf } from '../../../../../store/downloads';
+import { DL_TAG } from '../../../../../utils/downloadTags';
 import { useUploadStore } from '../../../../../store/upload';
 import { useChatStore } from '../../../../../store/chat';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
+import { enqueueViewportLoad } from '../../../../../utils/viewportLoadGate';
 import { openMediaViewer, isMediaViewerActive } from '../../../../../store/mediaViewer';
 import { settings } from '../../../../../store/settings';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
@@ -354,6 +360,161 @@ const isVideo = computed(() => props.content._ === 'messageVideo');
 const animThumbSrc = ref<string | undefined>(undefined);
 /** GIF 缩略图是否为 MPEG4/WEBM 动态图（需用 <video> 渲染） */
 const animThumbIsVideo = ref(false);
+
+// ---- 就绪态（只信消息内嵌 content，不 getFile）----
+/** 本组件下载意图 owner：卸载时释放 pending，不暂停已发起的 TDLib 下载 */
+const downloadOwner = Symbol('msg-media');
+
+const photoBigFile = computed(() =>
+    props.content._ === 'messagePhoto' ? pickBigPhotoSize(props.content.photo) : undefined);
+const photoSmallFile = computed(() =>
+    props.content._ === 'messagePhoto' ? pickSmallPhotoSize(props.content.photo) : undefined);
+/** Big 就绪时的本地路径（空串表示未就绪） */
+const photoBigPath = computed(() => {
+    const f = photoBigFile.value;
+    return f && isFileReady(f) ? f.local.path : '';
+});
+const photoSmallPath = computed(() => {
+    const f = photoSmallFile.value;
+    return f && isFileReady(f) ? f.local.path : '';
+});
+
+const videoFile = computed(() =>
+    props.content._ === 'messageVideo' ? props.content.video.video : undefined);
+const videoCoverFile = computed(() =>
+    props.content._ === 'messageVideo' ? props.content.video.thumbnail?.file : undefined);
+const videoFilePath = computed(() => {
+    const f = videoFile.value;
+    return f && isFileReady(f) ? f.local.path : '';
+});
+const videoCoverPath = computed(() => {
+    if (props.content._ !== 'messageVideo') return '';
+    const th = props.content.video.thumbnail;
+    const f = th?.file;
+    if (!f || !isFileReady(f)) return '';
+    // 高清封面必须可渲染；TGS 等不可直接显示时视为「无高清」，才允许 mini 兜底
+    if (!isThumbnailVideoRenderable(th?.format) && !isThumbnailImgRenderable(th?.format)) return '';
+    return f.local.path;
+});
+const videoCoverIsAnim = computed(() => {
+    if (props.content._ !== 'messageVideo') return false;
+    return isThumbnailVideoRenderable(props.content.video.thumbnail?.format);
+});
+
+const animFile = computed(() =>
+    props.content._ === 'messageAnimation' ? props.content.animation.animation : undefined);
+const animCoverFile = computed(() =>
+    props.content._ === 'messageAnimation' ? props.content.animation.thumbnail?.file : undefined);
+const animFilePath = computed(() => {
+    const f = animFile.value;
+    return f && isFileReady(f) ? f.local.path : '';
+});
+const animCoverPath = computed(() => {
+    if (props.content._ !== 'messageAnimation') return '';
+    const th = props.content.animation.thumbnail;
+    const f = th?.file;
+    if (!f || !isFileReady(f)) return '';
+    if (!isThumbnailVideoRenderable(th?.format) && !isThumbnailImgRenderable(th?.format)) return '';
+    return f.local.path;
+});
+const animCoverIsAnim = computed(() => {
+    if (props.content._ !== 'messageAnimation') return false;
+    return isThumbnailVideoRenderable(props.content.animation.thumbnail?.format);
+});
+
+/** 主文件是否忙碌（排队中或已向 TDLib 发起） */
+const photoBusy = computed(() => {
+    const id = photoBigFile.value?.id;
+    if (!id) return false;
+    return isDownloading.value || isFileBusy(id) || isFileDownloading(id);
+});
+const videoBusy = computed(() => {
+    const id = videoFile.value?.id;
+    if (!id) return false;
+    return videoDownloading.value || isFileBusy(id) || isFileDownloading(id);
+});
+const animBusy = computed(() => {
+    const id = animFile.value?.id;
+    if (!id) return false;
+    return animDownloading.value || isFileBusy(id) || isFileDownloading(id);
+});
+
+/** 可展示主媒体 */
+const photoShowMedia = computed(() => !!mediaSrc.value || !!photoBigPath.value);
+const videoShowMedia = computed(() => !!videoFilePath.value || videoDownloaded.value || !!mediaSrc.value);
+const animShowMedia = computed(() => !!animFilePath.value || !!mediaSrc.value);
+
+/** 下载中 → 加载指示器 */
+const photoShowLoader = computed(() =>
+    props.content._ === 'messagePhoto' && !photoShowMedia.value && photoBusy.value);
+const videoShowLoader = computed(() =>
+    props.content._ === 'messageVideo' && !videoShowMedia.value && videoBusy.value);
+const animShowLoader = computed(() =>
+    props.content._ === 'messageAnimation' && !animShowMedia.value && animBusy.value);
+
+/** 未就绪且未在下载 → 下载按钮 */
+const photoShowDownload = computed(() => {
+    if (props.content._ !== 'messagePhoto') return false;
+    if (photoShowMedia.value || photoBigPath.value) return false;
+    if (photoShowLoader.value) return false;
+    return !!photoBigFile.value && photoBigFile.value.local?.can_be_downloaded === true;
+});
+const videoShowDownload = computed(() => {
+    if (props.content._ !== 'messageVideo') return false;
+    if (videoShowMedia.value) return false;
+    if (videoShowLoader.value) return false;
+    return !!videoFile.value && videoFile.value.local?.can_be_downloaded === true;
+});
+const animShowDownload = computed(() => {
+    if (props.content._ !== 'messageAnimation') return false;
+    if (animShowMedia.value) return false;
+    if (animShowLoader.value) return false;
+    return !!animFile.value && animFile.value.local?.can_be_downloaded === true;
+});
+
+/** content 内 file.id 是否已就绪（用于排队出发前二次确认） */
+function isFileReadyInContent(fileId: number): boolean {
+    const c = props.content;
+    if (c._ === 'messagePhoto') {
+        const big = pickBigPhotoSize(c.photo);
+        const small = pickSmallPhotoSize(c.photo);
+        return !!((big && big.id === fileId && isFileReady(big)) || (small && small.id === fileId && isFileReady(small)));
+    }
+    if (c._ === 'messageVideo') {
+        const v = c.video.video;
+        const cover = c.video.thumbnail?.file;
+        return !!((v && v.id === fileId && isFileReady(v)) || (cover && cover.id === fileId && isFileReady(cover)));
+    }
+    if (c._ === 'messageAnimation') {
+        const a = c.animation.animation;
+        const cover = c.animation.thumbnail?.file;
+        return !!((a && a.id === fileId && isFileReady(a)) || (cover && cover.id === fileId && isFileReady(cover)));
+    }
+    return false;
+}
+
+/**
+ * 将 download 任务入队。并发闸门只作用于「发起下载」，不作用于资源展示。
+ * - 已 active：直接返回 active（UI 显示加载）
+ * - 已 pending：去重
+ * - 真正发起前再次确认 content 就绪 / pending 未被取消
+ */
+function startQueuedDownload(fileId: number, starter: () => Promise<void>): 'active' | 'queued' {
+    if (downloadingFiles.has(fileId) || isFileDownloading(fileId)) return 'active';
+    enqueuePendingDownload(fileId, downloadOwner);
+    enqueueViewportLoad(async () => {
+        if (!takePendingDownload(fileId, downloadOwner)) return;
+        if (isFileReadyInContent(fileId)) return;
+        if (downloadingFiles.has(fileId)) return;
+        downloadingFiles.add(fileId);
+        try {
+            await starter();
+        } catch {
+            downloadingFiles.delete(fileId);
+        }
+    }, 'chat');
+    return 'queued';
+}
 
 // ---- 上传进度（发送中的图片/视频）----
 /** 是否正在上传（发送中） */
@@ -457,24 +618,53 @@ onMounted(() => {
             }
         }
     }, { threshold: VIDEO_IO_THRESHOLDS });
+    // 挂载后立刻绑定已就绪视频：content 快照就绪时 videoDownloaded 在 setup 阶段
+    // 已为 true，此时 videoElRef/observer 尚未就绪，仅靠 watch 会漏绑导致永不播放
+    void nextTick(() => observeVideoEl());
 });
 
 onUnmounted(() => {
     if (videoObserver) videoObserver.disconnect();
+    // 停掉本组件的轮询
     stopAnimDownloadPolling();
     stopPhotoDownloadPolling();
     stopVideoCoverPolling();
     stopAnimThumbPolling();
+    stopVideoDownloadPolling();
+    // 待下载且尚未发起：从等待列表移除（取消排队）
+    // 已向 TDLib 发起的下载：不在此暂停/取消，由 TDLib 继续
+    releasePendingDownloadOwner(downloadOwner);
     if (props.messageId) reportVideoVisibility(props.messageId, null);
 });
+
+/**
+ * 将 <video> 交给 IntersectionObserver。
+ * 就绪视频可能在 DOM 挂载前已把 videoDownloaded 置 true，必须在
+ * onMounted / videoElRef 出现后补绑，否则自动播放永远不会触发。
+ * 同时强制 muted：浏览器自动播放策略要求静音，否则 play() 被拒绝。
+ */
+function observeVideoEl() {
+    const el = videoElRef.value;
+    if (!el || !videoObserver) return;
+    if (!videoShowMedia.value && !videoDownloaded.value) return;
+    // 自动播放策略要求静音；全局默认 muted=true，用户取消静音后再由 watch 同步
+    el.muted = globalVideoMuted.value !== false;
+    try {
+        videoObserver.observe(el);
+    } catch { /* 重复 observe 无害 */ }
+}
+
+// 就绪 / DOM 就位后补绑观察器（覆盖「挂载时已就绪」与「下载完成后出现 video」）
+watch([videoShowMedia, videoDownloaded, videoElRef], () => {
+    void nextTick(() => observeVideoEl());
+}, { immediate: true, flush: 'post' });
 
 // 当视频下载完成后，将 videoElRef 加入观察
 // IntersectionObserver 会在 observe() 时自动触发初始回调，
 // 根据视频是否在视口中决定播放或暂停
 watch(videoDownloaded, (downloaded) => {
-    if (downloaded && videoElRef.value && videoObserver) {
-        videoElRef.value.muted = videoMuted.value;
-        videoObserver.observe(videoElRef.value);
+    if (downloaded) {
+        void nextTick(() => observeVideoEl());
     }
 }, { flush: 'post' });
 
@@ -652,41 +842,42 @@ function openViewer() {
 }
 
 // ---- Media Loading ----
+// 展示与下载解耦：
+// - 就绪资源：直接从消息 content 上屏，不经过视口/下载并发闸门
+// - 下载：视口触发 + 排队；并发只闸「是否发起下载」
+// - 自动下载设置只决定「要不要下」，不阻止「已就绪则展示」
 
 /**
- * 视口门控：组件挂载时立即设置 base64 缩略图预览，但真正的下载（loadMedia）
- * 延迟到组件进入用户视口后才触发。未进入视口的离屏消息只显示 base64。
+ * 视口门控仅用于触发下载排队，不负责资源展示判断。
  */
 const { start: startViewportLoad, entered: mediaViewportEntered } = useViewportLoad(rootEl, () => {
-    return loadMedia();
+    return requestAutoDownloads();
 });
 
 onMounted(() => {
+    // 先迷你占位，再立刻套用 content 内已就绪资源（不进下载队列）
     setMediaPreview();
+    applyMediaFromContent();
     startViewportLoad();
 });
 
 /**
- * 加载代次：内容原地替换时自增。所有 await / 轮询回调写回 UI 前必须比对代次，
- * 丢弃过期结果，避免旧内容的缩略图/大图串到新消息上（与 LinkPreviewMedia 同模式）。
+ * 加载代次：内容原地替换时自增。异步回调写回 UI 前比对代次。
  */
 let mediaLoadSeq = 0;
 
 /**
- * 内容被原地替换（TDLib updateMessageContent 会替换 msg.content 但 id 不变，
- * 组件不重挂载）时，重置本次预览/媒体状态并重新加载，避免显示成上一个内容的
- * 缩略图/大图（串图）。base64 minithumbnail 内联在新内容里始终正确，因此优先
- * 先展示它，再按当前内容走下载/懒加载。
+ * 内容被原地替换时重置状态，并重新套用就绪资源 / 排队下载。
  */
 function resetMediaForContent() {
     mediaLoadSeq++;
-    // 停掉旧内容遗留的所有下载轮询，避免异步结果污染新内容
     stopAnimDownloadPolling();
     stopPhotoDownloadPolling();
     stopVideoCoverPolling();
     stopAnimThumbPolling();
     stopVideoDownloadPolling();
-    // 重置全部预览/媒体状态
+    // 释放旧内容可能仍挂着的 pending（避免串到新内容）
+    releasePendingDownloadOwner(downloadOwner);
     thumbSrc.value = undefined;
     mediaSrc.value = undefined;
     videoThumbSrc.value = undefined;
@@ -709,15 +900,137 @@ function resetMediaForContent() {
         videoObserver?.unobserve(videoElRef.value);
         videoElRef.value.pause();
     }
-    // 先展示新内容自带的 base64 缩略图（内联，始终正确）
     setMediaPreview();
-    // 已进入视口则立即加载新内容；否则保持 base64 占位，由视口门控触发
-    if (mediaViewportEntered.value) void loadMedia();
+    applyMediaFromContent();
+    if (mediaViewportEntered.value) void requestAutoDownloads();
 }
 
 watch(() => props.content, () => {
     resetMediaForContent();
 });
+
+// content 内嵌 File 就绪路径变化时立刻上屏（覆盖 updateFile 快照回写）
+// 缩略图优先级：高清 Small / 封面 > minithumbnail；高清可用时绝不保留 mini
+watch(photoBigPath, (path) => {
+    if (!path) return;
+    mediaSrc.value = convertFileSrc(path);
+    mediaLoaded.value = true;
+    checkPhotoLoaded();
+}, { immediate: true });
+
+watch(photoSmallPath, (path) => {
+    // 高清 Small 可用 → 覆盖 mini（含 blur 状态）
+    if (!path) return;
+    if (mediaSrc.value || photoBigPath.value) return;
+    thumbSrc.value = convertFileSrc(path);
+    thumbIsBlur.value = false;
+}, { immediate: true });
+
+watch([videoFilePath, videoCoverPath, videoCoverIsAnim], ([vPath, cPath, cIsAnim]) => {
+    if (vPath) {
+        mediaSrc.value = convertFileSrc(vPath);
+        videoDownloaded.value = true;
+        videoDownloading.value = false;
+        videoBuffering.value = false;
+    }
+    // 高清封面可用 → 覆盖 mini
+    if (cPath) {
+        videoThumbSrc.value = convertFileSrc(cPath);
+        videoThumbIsVideo.value = !!cIsAnim;
+    }
+}, { immediate: true });
+
+watch([animFilePath, animCoverPath, animCoverIsAnim], ([aPath, cPath, cIsAnim]) => {
+    if (aPath) {
+        mediaSrc.value = convertFileSrc(aPath);
+        animDownloading.value = false;
+    }
+    if (cPath) {
+        animThumbSrc.value = convertFileSrc(cPath);
+        animThumbIsVideo.value = !!cIsAnim;
+    }
+}, { immediate: true });
+
+/** 当前缩略图 src 是否为 minithumbnail（base64） */
+function isMiniThumbSrc(src: string | undefined): boolean {
+    return !!src && src.startsWith('data:');
+}
+
+/**
+ * 缩略图上屏：高清可用则用高清，mini 仅作无高清时的兜底。
+ * 高清一旦可用，必须覆盖已显示的 mini。
+ */
+function applyThumbnailFromContent() {
+    const c = props.content;
+
+    if (c._ === 'messagePhoto') {
+        // Big 就绪走 mediaSrc；此处只处理缩略图层
+        if (photoSmallPath.value && !photoBigPath.value) {
+            thumbSrc.value = convertFileSrc(photoSmallPath.value);
+            thumbIsBlur.value = false;
+            return;
+        }
+        // 无高清 Small：才允许 mini
+        if (!photoSmallPath.value) {
+            const min = c.photo.minithumbnail;
+            if (min?.data && (!thumbSrc.value || isMiniThumbSrc(thumbSrc.value))) {
+                thumbSrc.value = `data:image/jpeg;base64,${min.data}`;
+                thumbIsBlur.value = true;
+            }
+        }
+        return;
+    }
+
+    if (c._ === 'messageVideo') {
+        if (videoCoverPath.value) {
+            videoThumbSrc.value = convertFileSrc(videoCoverPath.value);
+            videoThumbIsVideo.value = videoCoverIsAnim.value;
+            return;
+        }
+        if (!videoCoverPath.value) {
+            const min = c.video.minithumbnail;
+            if (min?.data && (!videoThumbSrc.value || isMiniThumbSrc(videoThumbSrc.value))) {
+                videoThumbSrc.value = `data:image/jpeg;base64,${min.data}`;
+                videoThumbIsVideo.value = false;
+            }
+        }
+        return;
+    }
+
+    if (c._ === 'messageAnimation') {
+        if (animCoverPath.value) {
+            animThumbSrc.value = convertFileSrc(animCoverPath.value);
+            animThumbIsVideo.value = animCoverIsAnim.value;
+            return;
+        }
+        if (!animCoverPath.value) {
+            const min = c.animation.minithumbnail;
+            if (min?.data && (!animThumbSrc.value || isMiniThumbSrc(animThumbSrc.value))) {
+                animThumbSrc.value = `data:image/jpeg;base64,${min.data}`;
+                animThumbIsVideo.value = false;
+            }
+        }
+    }
+}
+
+/** 将 content 中已就绪的资源立刻应用到 UI（不触发下载） */
+function applyMediaFromContent() {
+    const bigPath = photoBigPath.value;
+    if (bigPath) {
+        mediaSrc.value = convertFileSrc(bigPath);
+        mediaLoaded.value = true;
+        checkPhotoLoaded();
+    }
+    if (videoFilePath.value) {
+        mediaSrc.value = convertFileSrc(videoFilePath.value);
+        videoDownloaded.value = true;
+    }
+    if (animFilePath.value) {
+        mediaSrc.value = convertFileSrc(animFilePath.value);
+    }
+    // 缩略图：高清优先，mini 兜底
+    applyThumbnailFromContent();
+}
 
 // ---- Download store integration ---
 const downloadStore = useDownloadStore();
@@ -735,16 +1048,41 @@ function canDownloadFile(f: any): boolean {
     return f && f.local && f.local.can_be_downloaded;
 }
 
-/** 注册到下载管理器 */
-async function registerWithStore(fileId: number, fileName: string, fileType: DownloadFileType, thumbUrl?: string, isAutoPhoto?: boolean, isStreaming?: boolean) {
+/** 注册到下载管理器（主键用 file.remote.id，标签按上下文推断/附加） */
+async function registerWithStore(
+    fileId: number,
+    fileName: string,
+    fileType: DownloadFileType,
+    thumbUrl?: string,
+    opts?: {
+        isAutoPhoto?: boolean;
+        isStreaming?: boolean;
+        isAutoDownload?: boolean;
+        quality?: string;
+        tags?: string[];
+        sourceLabel?: string;
+        remoteId?: string;
+        isGeneric?: boolean;
+        hiddenCategory?: string;
+    },
+) {
     const totalSize = 0; // 由 updateFile 事件更新
     const chatTitle = props.chatId ? getChatTitle(props.chatId) : '';
-    await downloadStore.registerDownload(fileId, fileName, chatTitle, totalSize, fileType, thumbUrl, props.chatId, props.messageId, undefined, isAutoPhoto, undefined, isStreaming);
+    const extra = [...(opts?.tags ?? [])];
+    if (opts?.isAutoDownload && !extra.includes(DL_TAG.AUTO)) extra.push(DL_TAG.AUTO);
+    await downloadStore.registerDownload(
+        fileId, fileName, chatTitle, totalSize, fileType, thumbUrl,
+        props.chatId, props.messageId,
+        opts?.isGeneric, opts?.isAutoPhoto, opts?.hiddenCategory, opts?.isStreaming,
+        extra.length ? extra : undefined,
+        opts?.sourceLabel,
+        opts?.remoteId,
+    );
 }
 
 /** 从下载 store 获取指定 file 的下载进度 0~1（无记录或未下载返回 0） */
 function getFileProgress(fileId: number): number {
-    const item = downloadStore.items[fileId];
+    const item = downloadStore.getDownloadInfo(fileId);
     if (!item) return 0;
     return typeof item.progress === 'number' ? Math.min(1, Math.max(0, item.progress)) : 0;
 }
@@ -763,703 +1101,401 @@ const animProgress = computed(() => {
     return f ? getFileProgress(f.id) : 0;
 });
 
-const loadMedia = async () => {
-    const c = props.content;
-    if (c._ === 'messageVideo') { await loadVideoThumb(); return; }
-    if (c._ === 'messagePhoto') { await loadPhotoThumb(); return; }
-    if (c._ === 'messageAnimation') { await loadAnimThumb(); return; }
-};
-
 /**
- * 设置 base64 缩略图预览（不触发下载）。用于离屏消息的占位展示：
- * - 图片：photo.minithumbnail.data
- * - 视频：video.minithumbnail.data（无下载 cover 时）
- * - GIF：animation.minithumbnail.data
- * 进入视口后会走 loadMedia 再尝试下载真实文件。
+ * 占位缩略图：高清可用则直接用高清；mini 仅在无高清时兜底。
+ * 绝不在高清已可用时写入/保留 mini。
  */
 function setMediaPreview() {
+    applyThumbnailFromContent();
+}
+
+/**
+ * 视口触发：只负责「按设置决定要不要下载并入队」。
+ * 已就绪资源不走这里，展示由 applyMediaFromContent / path watch 完成。
+ */
+async function requestAutoDownloads() {
     const c = props.content;
+    const seq = mediaLoadSeq;
+
     if (c._ === 'messagePhoto') {
-        const min = c.photo.minithumbnail;
-        if (min?.data) {
-            thumbSrc.value = `data:image/jpeg;base64,${min.data}`;
+        const small = photoSmallFile.value;
+        const big = photoBigFile.value;
+        const autoPhoto = shouldAutoDownloadPhotos(props.chatId);
+        // Small：本地已就绪由 watch 展示；未就绪且允许自动下载图片时入队作渐进占位
+        if (small && !isFileReady(small) && autoPhoto && canDownloadFile(small)) {
+            startQueuedDownload(small.id, async () => {
+                try {
+                    await tdlibSend({
+                        _: 'downloadFile',
+                        file_id: small.id,
+                        priority: DL_PRIORITY.THUMBNAIL,
+                        offset: 0,
+                        limit: 0,
+                        synchronous: false,
+                    });
+                } finally {
+                    downloadingFiles.delete(small.id);
+                }
+            });
         }
-    } else if (c._ === 'messageVideo') {
-        const min = c.video.minithumbnail;
-        if (min?.data) {
-            videoThumbSrc.value = `data:image/jpeg;base64,${min.data}`;
-            videoThumbIsVideo.value = false;
+        // Big：已就绪直接展示（watch），未就绪才按自动下载设置入队
+        if (big && !isFileReady(big) && autoPhoto && canDownloadFile(big)) {
+            if (seq !== mediaLoadSeq) return;
+            isDownloading.value = true;
+            const fileName = `photo_${props.messageId || big.id}.jpg`;
+            await registerWithStore(big.id, fileName, 'photo', thumbSrc.value, {
+                isAutoPhoto: true,
+                isAutoDownload: true,
+                remoteId: remoteIdOf(big),
+            });
+            startQueuedDownload(big.id, async () => {
+                try {
+                    await tdlibSend({
+                        _: 'downloadFile',
+                        file_id: big.id,
+                        priority: DL_PRIORITY.DEFAULT,
+                        offset: 0,
+                        limit: 0,
+                        synchronous: false,
+                    });
+                } catch {
+                    downloadingFiles.delete(big.id);
+                    if (seq === mediaLoadSeq) isDownloading.value = false;
+                }
+            });
         }
-    } else if (c._ === 'messageAnimation') {
-        const min = c.animation.minithumbnail;
-        if (min?.data) {
-            animThumbSrc.value = `data:image/jpeg;base64,${min.data}`;
-            animThumbIsVideo.value = false;
+        return;
+    }
+
+    if (c._ === 'messageVideo') {
+        const f = videoFile.value;
+        const cover = videoCoverFile.value;
+        // 封面：已就绪由 watch 直接替换 mini；未就绪且允许自动下载图片时才入队
+        if (cover && !isFileReady(cover) && shouldAutoDownloadPhoto() && canDownloadFile(cover)
+            && cover.id && !downloadingFiles.has(cover.id)) {
+            const isVideoThumb = videoCoverIsAnim.value;
+            const coverName = `video_cover_${cover.id}.${isVideoThumb ? 'mp4' : 'jpg'}`;
+            try {
+                await downloadStore.registerDownload(
+                    cover.id, coverName, props.chatId ? getChatTitle(props.chatId) : '', 0,
+                    isVideoThumb ? 'video' : 'photo', undefined,
+                    undefined, undefined, true, false, 'video_cover', false,
+                    [DL_TAG.VIDEO_COVER, DL_TAG.THUMB],
+                    undefined,
+                    remoteIdOf(cover),
+                );
+            } catch { /* 注册失败仍可下载 */ }
+            startQueuedDownload(cover.id, async () => {
+                try {
+                    await tdlibSend({
+                        _: 'downloadFile',
+                        file_id: cover.id,
+                        priority: DL_PRIORITY.THUMBNAIL,
+                        offset: 0,
+                        limit: 0,
+                        synchronous: false,
+                    });
+                } finally {
+                    // 封面下载发起后释放 active 标记，避免挡住后续判断；完成靠 store/content
+                    downloadingFiles.delete(cover.id);
+                }
+            });
+        }
+        // 视频本体：已就绪直接展示；否则仅按「视频自动下载」设置入队
+        if (f && !isFileReady(f) && props.chatId && settings.autoDownload.enabled) {
+            const cs = useChatStore();
+            const chatData = cs.chats[props.chatId] as any;
+            if (chatData) {
+                const category = getChatCategory(chatData);
+                const cfg = settings.autoDownload.videos;
+                const shouldAutoDl = cfg.enabled && cfg[category];
+                const sizeMB = (f.size || 0) / (1024 * 1024);
+                if (shouldAutoDl && sizeMB <= cfg.maxSize) {
+                    if (seq !== mediaLoadSeq) return;
+                    await handleVideoDownload(false);
+                }
+            }
+        }
+        return;
+    }
+
+    if (c._ === 'messageAnimation') {
+        const f = animFile.value;
+        const cover = animCoverFile.value;
+        if (cover && !isFileReady(cover) && shouldAutoDownloadPhoto() && canDownloadFile(cover) && cover.id) {
+            const isVideoThumb = animCoverIsAnim.value;
+            const thumbName = `gif_cover_${cover.id}.${isVideoThumb ? 'mp4' : 'jpg'}`;
+            try {
+                await downloadStore.registerDownload(
+                    cover.id, thumbName, props.chatId ? getChatTitle(props.chatId) : '', 0,
+                    isVideoThumb ? 'video' : 'photo', undefined,
+                    undefined, undefined, true, false, 'video_cover', false,
+                    [DL_TAG.VIDEO_COVER, DL_TAG.THUMB],
+                    undefined,
+                    remoteIdOf(cover),
+                );
+            } catch { /* ignore */ }
+            startQueuedDownload(cover.id, async () => {
+                try {
+                    await tdlibSend({
+                        _: 'downloadFile',
+                        file_id: cover.id,
+                        priority: DL_PRIORITY.THUMBNAIL,
+                        offset: 0,
+                        limit: 0,
+                        synchronous: false,
+                    });
+                } finally {
+                    downloadingFiles.delete(cover.id);
+                }
+            });
+        }
+        if (f && !isFileReady(f) && props.chatId && settings.autoDownload.enabled) {
+            const cs = useChatStore();
+            const chatData = cs.chats[props.chatId] as any;
+            if (chatData) {
+                const category = getChatCategory(chatData);
+                const cfg = settings.autoDownload.videos;
+                const sizeMB = (f.size || 0) / (1024 * 1024);
+                if (cfg.enabled && cfg[category] && sizeMB <= cfg.maxSize) {
+                    if (seq !== mediaLoadSeq) return;
+                    await handleAnimAutoDownload();
+                }
+            }
         }
     }
 }
 
 // ---- Photo ----
-const canDownload = computed(() => {
-    if (props.content._ !== 'messagePhoto') return false;
-    const f = pickBigPhotoSize(props.content.photo);
-    return canDownloadFile(f) && !isFileReady(f);
-});
-
-/** Small 始终下载作清晰渐进占位（不受 autoDownload 管控）；就绪后替换模糊 minithumbnail */
-async function ensureSmallPhotoThumb(photo: TdPhoto) {
-    const seq = mediaLoadSeq;
-    const small = pickSmallPhotoSize(photo);
-    if (!small) return;
-    if (isFileReady(small)) {
-        if (seq !== mediaLoadSeq) return;
-        if (!mediaSrc.value) {
-            thumbSrc.value = convertFileSrc(small.local.path);
-            thumbIsBlur.value = false;
-        }
-        return;
-    }
-    if (!small.local?.can_be_downloaded || downloadingFiles.has(small.id)) return;
-    downloadingFiles.add(small.id);
-    try {
-        await tdlibSend({
-            _: 'downloadFile',
-            file_id: small.id,
-            priority: DL_PRIORITY.THUMBNAIL,
-            offset: 0,
-            limit: 0,
-            synchronous: true,
-        });
-        const updated = await tdlibSend({ _: 'getFile', file_id: small.id });
-        if (seq !== mediaLoadSeq) return;
-        // Big 已就绪则不必再占位
-        if (!mediaSrc.value && isFileReady(updated)) {
-            thumbSrc.value = convertFileSrc(updated.local.path);
-            thumbIsBlur.value = false;
-        }
-    } catch (_) {
-        /* Small 失败则保持 minithumbnail 模糊占位 */
-    } finally {
-        downloadingFiles.delete(small.id);
-    }
-}
-
-async function loadPhotoThumb() {
-    if (props.content._ !== 'messagePhoto') return;
-    const seq = mediaLoadSeq;
-    const photo = props.content.photo;
-    // 1) minithumbnail：内嵌零流量高斯模糊占位
-    if (photo.minithumbnail?.data) {
-        thumbSrc.value = `data:image/jpeg;base64,${photo.minithumbnail.data}`;
-        thumbIsBlur.value = true;
-    }
-
-    const big = pickBigPhotoSize(photo);
-
-    // 2) Small：始终下载清晰渐进占位（异步，不阻塞 Big 判断）
-    void ensureSmallPhotoThumb(photo);
-
-    // 3) Big：已就绪 → 气泡正式展示
-    if (big && isFileReady(big)) {
-        if (seq !== mediaLoadSeq) return;
-        mediaSrc.value = convertFileSrc(big.local.path);
-        mediaLoaded.value = true;
-        checkPhotoLoaded();
-        return;
-    }
-
-    // 4) Big：按「图片」自动下载设置决定是否自动下载
-    if (big && props.chatId && shouldAutoDownloadPhotos(props.chatId)) {
-        if (canDownloadFile(big) && !downloadingFiles.has(big.id)) {
-            isDownloading.value = true;
-            downloadingFiles.add(big.id);
-            const fileName = `photo_${props.messageId || big.id}.jpg`;
-            await registerWithStore(big.id, fileName, 'photo', thumbSrc.value, true);
-            if (seq !== mediaLoadSeq) {
-                downloadingFiles.delete(big.id);
-                return;
-            }
-            try {
-                // 自动下载（非用户点击）：默认档优先级
-                const updated = await tdlibSend({ _: 'downloadFile', file_id: big.id, priority: DL_PRIORITY.DEFAULT, offset: 0, limit: 0, synchronous: true });
-                if (seq !== mediaLoadSeq) {
-                    downloadingFiles.delete(big.id);
-                    return;
-                }
-                if (isFileReady(updated)) {
-                    finishPhotoDownload(big.id, updated.local.path);
-                } else {
-                    pollPhotoDownload(big.id);
-                }
-            } catch (_) {
-                if (seq !== mediaLoadSeq) {
-                    downloadingFiles.delete(big.id);
-                    return;
-                }
-                if (!photosUpdating.get(big.id)) {
-                    downloadingFiles.delete(big.id);
-                    isDownloading.value = false;
-                }
-            }
-        }
-    }
-}
 
 async function handlePhotoDownload() {
     if (props.content._ !== 'messagePhoto') return;
-    const f = pickBigPhotoSize(props.content.photo);
+    const f = photoBigFile.value;
     if (!f) return;
-    if (isFileReady(f)) {
-        mediaSrc.value = convertFileSrc(f.local.path);
-        mediaLoaded.value = true;
+    // 已就绪：直接展示，不进下载队列
+    if (photoBigPath.value || isFileReady(f)) {
+        const path = photoBigPath.value || f.local.path;
+        if (path) {
+            mediaSrc.value = convertFileSrc(path);
+            mediaLoaded.value = true;
+            checkPhotoLoaded();
+        }
         return;
     }
-    if (!canDownloadFile(f) || downloadingFiles.has(f.id)) return;
+    if (!canDownloadFile(f)) return;
+    if (downloadingFiles.has(f.id) || isFileDownloading(f.id)) {
+        isDownloading.value = true;
+        return;
+    }
     isDownloading.value = true;
-    // 用户手动点击下载：走 addFileToDownloads（持久化下载列表）
-    downloadingFiles.add(f.id);
     const fileName = `photo_${props.messageId || f.id}.jpg`;
-    await registerWithStore(f.id, fileName, 'photo', thumbSrc.value);
-    try {
-        await tdlibSend({
-            _: 'addFileToDownloads',
-            file_id: f.id,
-            chat_id: props.chatId,
-            message_id: props.messageId,
-            priority: DL_PRIORITY.USER_ACTIVE,
-        });
-        // synchronous 语义不适用于 addFileToDownloads，下载在后台进行；
-        // 轮询直到就绪后展示图片，避免"进度 100% 却不显示图片"。
-        pollPhotoDownload(f.id);
-    } catch (_) {
-        if (!photosUpdating.get(f.id)) {
+    await registerWithStore(f.id, fileName, 'photo', thumbSrc.value, { remoteId: remoteIdOf(f) });
+    startQueuedDownload(f.id, async () => {
+        try {
+            await tdlibSend({
+                _: 'addFileToDownloads',
+                file_id: f.id,
+                chat_id: props.chatId,
+                message_id: props.messageId,
+                priority: DL_PRIORITY.USER_ACTIVE,
+            });
+        } catch {
             downloadingFiles.delete(f.id);
             isDownloading.value = false;
         }
-    }
+    });
 }
 
-/** 轮询图片下载是否完成 */
-const photosUpdating = new Map<number, boolean>();
-let photoDownloadPollTimer: ReturnType<typeof setInterval> | null = null;
-
-function stopPhotoDownloadPolling() {
-    if (photoDownloadPollTimer) {
-        clearInterval(photoDownloadPollTimer);
-        photoDownloadPollTimer = null;
-    }
-    photosUpdating.clear();
-}
-
+// 下载完成态：优先信 content 路径 watch + download store，不再用 getFile 主动刷新展示。
 function finishPhotoDownload(fileId: number, path: string) {
-    stopPhotoDownloadPolling();
     downloadingFiles.delete(fileId);
     isDownloading.value = false;
     mediaSrc.value = convertFileSrc(path);
     mediaLoaded.value = true;
+    checkPhotoLoaded();
     void downloadStore.markCompleted(fileId, path);
 }
 
-function pollPhotoDownload(fileId: number) {
-    const seq = mediaLoadSeq;
-    stopPhotoDownloadPolling();
-    photosUpdating.set(fileId, true);
-    photoDownloadPollTimer = setInterval(async () => {
-        if (seq !== mediaLoadSeq) {
-            stopPhotoDownloadPolling();
-            return;
-        }
-        try {
-            const info = await tdlibSend({ _: 'getFile', file_id: fileId });
-            if (seq !== mediaLoadSeq) {
-                stopPhotoDownloadPolling();
-                return;
-            }
-            if (isFileReady(info)) {
-                finishPhotoDownload(fileId, info.local.path);
-            }
-        } catch (_) {
-            stopPhotoDownloadPolling();
-        }
-    }, 400);
-}
-
-// ---- Animation (GIF) ----
-const animDownloading = ref(false);
-const animCanDownload = computed(() => {
-    if (props.content._ !== 'messageAnimation') return false;
-    const f = props.content.animation.animation;
-    return canDownloadFile(f) && !isFileReady(f);
-});
-
-async function loadAnimThumb() {
-    if (props.content._ !== 'messageAnimation') return;
-    const seq = mediaLoadSeq;
-    const c = props.content;
-    // GIF 迷你预览图优先占位：只要存在 minithumbnail，就先显示它，
-    // 之后不论封面是本地已就绪还是需要下载，都以此为起点（先迷你 → 后封面）。
-    if (c.animation.minithumbnail?.data && !animThumbSrc.value) {
-        animThumbSrc.value = `data:image/jpeg;base64,${c.animation.minithumbnail.data}`;
-        animThumbIsVideo.value = false;
-    }
-    const f = c.animation.animation;
-    if (f && isFileReady(f)) {
-        if (seq !== mediaLoadSeq) return;
-        mediaSrc.value = convertFileSrc(f.local.path);
-        return;
-    }
-    // GIF 自动下载跟随「视频」自动下载设置（分类 + maxSize）
-    if (props.chatId && settings.autoDownload.enabled && f) {
-        const cs = useChatStore();
-        const chatData = cs.chats[props.chatId] as any;
-        if (chatData) {
-            const category = getChatCategory(chatData);
-            const cfg = settings.autoDownload.videos;
-            if (cfg.enabled && cfg[category]) {
-                const sizeMB = (f.size || 0) / (1024 * 1024);
-                if (sizeMB <= cfg.maxSize) {
-                    await handleAnimAutoDownload();
-                    return;
-                }
-            }
-        }
-    }
-    if (seq !== mediaLoadSeq) return;
-    // 不满足自动下载条件，仅加载缩略图（缩略图跟随「图片自动下载」设置）。
-    // GIF 缩略图可能是静态位图（JPEG）或 MPEG4/WEBM 动态图，需区分渲染方式。
-    await loadAnimThumbnail();
-}
-
-/**
- * 自动下载 GIF（非用户点击）：与视频自动下载一致，走 downloadFile（默认优先级），
- * 不持久化到下载列表。
- */
-async function handleAnimAutoDownload() {
-    if (props.content._ !== 'messageAnimation') return;
-    const seq = mediaLoadSeq;
-    const f = props.content.animation.animation;
-    if (!f) return;
-    if (isFileReady(f)) {
-        if (seq !== mediaLoadSeq) return;
-        mediaSrc.value = convertFileSrc(f.local.path);
-        return;
-    }
-    if (!canDownloadFile(f) || downloadingFiles.has(f.id)) return;
-    downloadingFiles.add(f.id);
-    animDownloading.value = true;
-    try {
-        const updated = await tdlibSend({
-            _: 'downloadFile',
-            file_id: f.id,
-            priority: DL_PRIORITY.DEFAULT,
-            offset: 0,
-            limit: 0,
-            synchronous: true,
-        });
-        if (seq !== mediaLoadSeq) {
-            downloadingFiles.delete(f.id);
-            return;
-        }
-        if (isFileReady(updated)) {
-            finishAnimDownload(f.id, updated.local.path);
-        } else {
-            // 兜底：下载可能在后台进行中（未随本次请求完成），轮询直到就绪
-            pollAnimDownload(f.id);
-        }
-    } catch (_) {
-        downloadingFiles.delete(f.id);
-        if (seq !== mediaLoadSeq) return;
-        animDownloading.value = false;
-        // 自动下载失败时回退到仅显示缩略图
-        await loadAnimThumbnail();
-    }
-}
-
-/** 下载 GIF 缩略图（静态位图→<img>，MPEG4/WEBM→<video>），并替换 minithumbnail 占位 */
-async function loadAnimThumbnail() {
-    if (props.content._ !== 'messageAnimation') return;
-    const seq = mediaLoadSeq;
-    const c = props.content;
-    const anim = c.animation;
-    // 缩略图跟随「图片自动下载」设置：图片自动下载关闭时不下缩略图，用 minithumbnail base64 兜底
-    if (!shouldAutoDownloadPhoto()) {
-        if (anim.minithumbnail?.data && !animThumbSrc.value) {
-            animThumbSrc.value = `data:image/jpeg;base64,${anim.minithumbnail.data}`;
-            animThumbIsVideo.value = false;
-        }
-        return;
-    }
-    const thumb = anim.thumbnail;
-    if (!thumb) return;
-    const isVideoThumb = isThumbnailVideoRenderable(thumb.format);
-    const isImgThumb = isThumbnailImgRenderable(thumb.format);
-    if (!isVideoThumb && !isImgThumb) return; // 无法直接显示的缩略图回退到 minithumbnail
-    const file = thumb.file;
-    // 缩略图本地已就绪 → 直接用缩略图替换 minithumbnail
-    if (isFileReady(file)) {
-        if (seq !== mediaLoadSeq) return;
-        animThumbSrc.value = convertFileSrc(file.local.path);
-        animThumbIsVideo.value = isVideoThumb;
-        return;
-    }
-    // GIF 缩略图属于辅助资源：注册为隐藏的通用下载项，不占用下载管理器可见列表
-    if (file.id && file.local?.can_be_downloaded && !downloadingFiles.has(file.id)) {
-        const thumbName = `gif_cover_${file.id}.${isVideoThumb ? 'mp4' : 'jpg'}`;
-        await downloadStore.registerDownload(
-            file.id, thumbName, props.chatId ? getChatTitle(props.chatId) : '', 0,
-            isVideoThumb ? 'video' : 'photo', undefined,
-            undefined, undefined, true, false, 'video_cover',
-        );
-    }
-    if (seq !== mediaLoadSeq) return;
-    if (!file.id || !file.local?.can_be_downloaded) return;
-    await safeDownloadFile(file.id, false, DL_PRIORITY.THUMBNAIL);
-    if (seq !== mediaLoadSeq) return;
-    pollAnimThumbDownload(file.id, isVideoThumb);
-}
-
-/** 轮询 GIF 缩略图下载，就绪后用缩略图替换 minithumbnail */
-let animThumbPollTimer: ReturnType<typeof setInterval> | null = null;
-function stopAnimThumbPolling() {
-    if (animThumbPollTimer) {
-        clearInterval(animThumbPollTimer);
-        animThumbPollTimer = null;
-    }
-}
-function pollAnimThumbDownload(fileId: number, isVideoThumb: boolean) {
-    const seq = mediaLoadSeq;
-    stopAnimThumbPolling();
-    animThumbPollTimer = setInterval(async () => {
-        if (seq !== mediaLoadSeq) {
-            stopAnimThumbPolling();
-            return;
-        }
-        try {
-            const info = await tdlibSend({ _: 'getFile', file_id: fileId });
-            if (seq !== mediaLoadSeq) {
-                stopAnimThumbPolling();
-                return;
-            }
-            if (isFileReady(info)) {
-                stopAnimThumbPolling();
-                animThumbSrc.value = convertFileSrc(info.local.path);
-                animThumbIsVideo.value = isVideoThumb;
-            }
-        } catch (_) {
-            stopAnimThumbPolling();
-        }
-    }, 400);
-}
-
-async function handleAnimDownload() {
-    if (props.content._ !== 'messageAnimation') return;
-    const f = props.content.animation.animation;
-    if (!f) return;
-    if (isFileReady(f)) {
-        mediaSrc.value = convertFileSrc(f.local.path);
-        return;
-    }
-    if (!canDownloadFile(f) || downloadingFiles.has(f.id)) return;
-    animDownloading.value = true;
-    downloadingFiles.add(f.id);
-    const fileName = `animation_${props.messageId || f.id}.gif`;
-    await registerWithStore(f.id, fileName, 'animation');
-    try {
-        // 用户手动点击下载 GIF：走 addFileToDownloads（持久化下载列表）
-        await tdlibSend({
-            _: 'addFileToDownloads',
-            file_id: f.id,
-            chat_id: props.chatId,
-            message_id: props.messageId,
-            priority: DL_PRIORITY.USER_ACTIVE,
-        });
-        pollAnimDownload(f.id);
-    } catch (_) {
-        downloadingFiles.delete(f.id);
-        animDownloading.value = false;
-    }
-}
-
-let animDownloadPollTimer: ReturnType<typeof setInterval> | null = null;
-
-function stopAnimDownloadPolling() {
-    if (animDownloadPollTimer) {
-        clearInterval(animDownloadPollTimer);
-        animDownloadPollTimer = null;
-    }
-}
-
 function finishAnimDownload(fileId: number, path: string) {
-    stopAnimDownloadPolling();
     downloadingFiles.delete(fileId);
     animDownloading.value = false;
     mediaSrc.value = convertFileSrc(path);
     void downloadStore.markCompleted(fileId, path);
 }
 
-function pollAnimDownload(fileId: number) {
-    const seq = mediaLoadSeq;
-    stopAnimDownloadPolling();
-    animDownloadPollTimer = setInterval(async () => {
-        if (seq !== mediaLoadSeq) {
-            stopAnimDownloadPolling();
-            downloadingFiles.delete(fileId);
-            animDownloading.value = false;
-            return;
-        }
-        try {
-            const info = await tdlibSend({ _: 'getFile', file_id: fileId });
-            if (seq !== mediaLoadSeq) {
-                stopAnimDownloadPolling();
-                downloadingFiles.delete(fileId);
-                animDownloading.value = false;
-                return;
-            }
-            if (isFileReady(info)) {
-                finishAnimDownload(fileId, info.local.path);
-            }
-        } catch (_) {
-            stopAnimDownloadPolling();
-            downloadingFiles.delete(fileId);
-            animDownloading.value = false;
-        }
-    }, 500);
+function finishVideoDownload(fileId: number, path: string) {
+    downloadingFiles.delete(fileId);
+    videoDownloading.value = false;
+    videoDownloaded.value = true;
+    videoHasFrame.value = false;
+    videoBuffering.value = false;
+    mediaSrc.value = convertFileSrc(path);
+    void downloadStore.markCompleted(fileId, path);
 }
 
-async function loadVideoThumb() {
-    if (props.content._ !== 'messageVideo') return;
-    const seq = mediaLoadSeq;
-    const c = props.content;
-    // 迷你预览图优先占位：只要存在 minithumbnail，就先显示它，
-    // 之后不论封面是本地已就绪还是需要下载，都以此为起点（先迷你 → 后封面）。
-    if (c.video.minithumbnail?.data) {
-        videoThumbSrc.value = `data:image/jpeg;base64,${c.video.minithumbnail.data}`;
-        videoThumbIsVideo.value = false;
-    }
-    if (isFileReady(c.video.video)) {
-        mediaSrc.value = convertFileSrc(c.video.video.local.path);
-        videoDownloaded.value = true;
-        videoHasFrame.value = false;
-        return;
-    }
-    // 检查自动下载设置：如果视频体积 <= maxSize，自动下载
-    if (props.chatId && settings.autoDownload.enabled) {
-        const cs = useChatStore();
-        const chatData = cs.chats[props.chatId] as any;
-        if (chatData) {
-            const category = getChatCategory(chatData);
-            const cfg = settings.autoDownload.videos;
-            const shouldAutoDl = cfg.enabled && cfg[category];
-            if (shouldAutoDl) {
-                const sizeMB = c.video.video.size / (1024 * 1024);
-                if (sizeMB <= cfg.maxSize) {
-                    await handleVideoDownload(false);
-                    return;
-                }
-            }
-        }
-    }
-    if (seq !== mediaLoadSeq) return;
-    // 否则只下载封面缩略图（按格式分类：静态位图→<img>，MPEG4/WEBM→<video>）。
-    // 封面跟随「图片自动下载」设置：图片自动下载关闭时不下封面，改用 minithumbnail base64。
-    const thumb = c.video.thumbnail;
-    const canAutoPhoto = shouldAutoDownloadPhoto();
-    if (!canAutoPhoto) {
-        // 图片自动下载关闭：使用 64px minithumbnail base64 作为低清兜底（若存在）
-        if (c.video.minithumbnail?.data) {
-            videoThumbSrc.value = `data:image/jpeg;base64,${c.video.minithumbnail.data}`;
-            videoThumbIsVideo.value = false;
-        }
-        return;
-    }
-    if (!thumb) return;
-    const isVideoThumb = isThumbnailVideoRenderable(thumb.format);
-    const isImgThumb = isThumbnailImgRenderable(thumb.format);
-    if (!isVideoThumb && !isImgThumb) return; // TGS 等无法直接显示的缩略图回退到图标
-    const file = thumb.file;
-    // 无论封面是否已就绪，迷你预览图（上一步设置）都会先显示；
-    // 封面本地已就绪 → 直接用封面替换迷你图（无下载）：
-    if (isFileReady(file)) {
-        if (seq !== mediaLoadSeq) return;
-        videoThumbSrc.value = convertFileSrc(file.local.path);
-        videoThumbIsVideo.value = isVideoThumb;
-        return;
-    }
-    // 视频封面（缩略图）属于辅助资源：注册为隐藏的通用下载项（分类 video_cover），不占用下载管理器的
-    // 可见列表（“显示隐藏的通用资源”下可见），也不计入下载红点。
-    if (file.id && file.local?.can_be_downloaded && !downloadingFiles.has(file.id)) {
-        const coverName = `video_cover_${file.id}.${isVideoThumb ? 'mp4' : 'jpg'}`;
-        await downloadStore.registerDownload(
-            file.id, coverName, props.chatId ? getChatTitle(props.chatId) : '', 0,
-            isVideoThumb ? 'video' : 'photo', undefined,
-            undefined, undefined, true, false, 'video_cover',
-        );
-    }
-    if (seq !== mediaLoadSeq) return;
-    // 可靠下载封面：非同步发起 + 轮询直到就绪（封面 size 常为 0，
-    // 同步 downloadFile + 单次 getFile 会立即返回未就绪导致封面永远不显示）。
-    // 下载期间迷你预览图保持显示，封面就绪后才由 pollVideoCoverDownload 替换。
-    if (!file.id || !file.local?.can_be_downloaded) return;
-    await safeDownloadFile(file.id, false, DL_PRIORITY.THUMBNAIL);
-    if (seq !== mediaLoadSeq) return;
-    pollVideoCoverDownload(file.id, isVideoThumb);
-}
-
-/** 轮询视频封面下载，就绪后用封面替换迷你预览图 */
-let videoCoverPollTimer: ReturnType<typeof setInterval> | null = null;
-function stopVideoCoverPolling() {
-    if (videoCoverPollTimer) {
-        clearInterval(videoCoverPollTimer);
-        videoCoverPollTimer = null;
-    }
-}
-function pollVideoCoverDownload(fileId: number, isVideoThumb: boolean) {
-    const seq = mediaLoadSeq;
-    stopVideoCoverPolling();
-    videoCoverPollTimer = setInterval(async () => {
-        if (seq !== mediaLoadSeq) {
-            stopVideoCoverPolling();
-            return;
-        }
-        try {
-            const info = await tdlibSend({ _: 'getFile', file_id: fileId });
-            if (seq !== mediaLoadSeq) {
-                stopVideoCoverPolling();
-                return;
-            }
-            if (isFileReady(info)) {
-                stopVideoCoverPolling();
-                videoThumbSrc.value = convertFileSrc(info.local.path);
-                videoThumbIsVideo.value = isVideoThumb;
-            }
-        } catch (_) {
-            stopVideoCoverPolling();
-        }
-    }, 400);
-}
+// ---- Animation (GIF) ----
+const animDownloading = ref(false);
 
 /**
- * 当前对话是否应自动下载图片（用于视频封面等辅助资源的下载遵循图片设置）。
+ * 自动下载 GIF：只决定是否入队，不阻断已就绪展示。
  */
-function shouldAutoDownloadPhoto(): boolean {
-    if (!settings.autoDownload.enabled) return false;
-    if (!props.chatId) return true;
-    const cs = useChatStore();
-    const chatData = cs.chats[props.chatId] as any;
-    if (!chatData) return true;
-    const category = getChatCategory(chatData);
-    const cfg = settings.autoDownload.photos;
-    return cfg.enabled && cfg[category];
+async function handleAnimAutoDownload() {
+    if (props.content._ !== 'messageAnimation') return;
+    const f = animFile.value;
+    if (!f) return;
+    if (animFilePath.value || isFileReady(f)) {
+        const path = animFilePath.value || f.local.path;
+        if (path) mediaSrc.value = convertFileSrc(path);
+        return;
+    }
+    if (!canDownloadFile(f)) return;
+    if (downloadingFiles.has(f.id) || isFileDownloading(f.id)) {
+        animDownloading.value = true;
+        return;
+    }
+    animDownloading.value = true;
+    await registerWithStore(f.id, `animation_${props.messageId || f.id}.gif`, 'animation', undefined, {
+        isAutoPhoto: true,
+        isAutoDownload: true,
+        remoteId: remoteIdOf(f),
+    });
+    startQueuedDownload(f.id, async () => {
+        try {
+            await tdlibSend({
+                _: 'downloadFile',
+                file_id: f.id,
+                priority: DL_PRIORITY.DEFAULT,
+                offset: 0,
+                limit: 0,
+                synchronous: false,
+            });
+        } catch {
+            downloadingFiles.delete(f.id);
+            animDownloading.value = false;
+        }
+    });
 }
 
-async function handleVideoDownload(isUserAction = false) {
-    if (props.content._ !== 'messageVideo') return;
-    const seq = mediaLoadSeq;
-    const video = props.content.video;
-    const videoFile = video.video;
-    const fileId = videoFile.id;
-    videoFileId.value = fileId;
-    if (isFileReady(videoFile)) {
-        if (seq !== mediaLoadSeq) return;
-        mediaSrc.value = convertFileSrc(videoFile.local.path);
-        videoDownloaded.value = true;
-        videoHasFrame.value = false;
+async function handleAnimDownload() {
+    if (props.content._ !== 'messageAnimation') return;
+    const f = animFile.value;
+    if (!f) return;
+    if (animFilePath.value || isFileReady(f)) {
+        const path = animFilePath.value || f.local.path;
+        if (path) mediaSrc.value = convertFileSrc(path);
         return;
     }
-    if (video.supports_streaming && videoFile.size > 0) {
-        // 断网时不要发起 tdstream：否则 video 永远加载不出来，界面卡在加载态
-        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-            return;
-        }
-        // 流式播放（边下边播）本质也是一次下载：注册到下载管理器，
-        // 让它在下载列表中可见（进度由 TDLib updateFile → updateFile 事件驱动）。
-        // 用 downloadingFiles 去重，避免自动下载路径被重复触发时重复注册。
-        if (!downloadingFiles.has(fileId)) {
-            downloadingFiles.add(fileId);
-            const sFileName = video.file_name || `video_${props.messageId || fileId}.mp4`;
-            await registerWithStore(fileId, sFileName, 'video', videoThumbIsVideo.value ? undefined : videoThumbSrc.value, false, true);
-        }
-        if (seq !== mediaLoadSeq) return;
-        const streamUrl = convertFileSrc(String(fileId), 'tdstream');
-        mediaSrc.value = `${streamUrl}?mime=${video.mime_type}`;
-        videoDownloaded.value = true;
-        // 边下边播：初始置为缓冲中，等 video 触发 canplay/playing 后清除（见 onVideoPlaying）
-        videoBuffering.value = true;
-        videoHasFrame.value = false;
+    if (!canDownloadFile(f)) return;
+    if (downloadingFiles.has(f.id) || isFileDownloading(f.id)) {
+        animDownloading.value = true;
         return;
     }
-    if (downloadingFiles.has(fileId)) return;
-    // 注册到下载管理器
-    const fileName = video.file_name || `video_${props.messageId || fileId}.mp4`;
-    await registerWithStore(fileId, fileName, 'video', videoThumbIsVideo.value ? undefined : videoThumbSrc.value);
-    if (seq !== mediaLoadSeq) return;
-    videoDownloading.value = true;
-    videoProgress.value = 0;
-    downloadingFiles.add(fileId);
-    try {
-        if (isUserAction) {
-            // 用户手动点击下载视频：走 addFileToDownloads（持久化下载列表）
+    animDownloading.value = true;
+    const fileName = `animation_${props.messageId || f.id}.gif`;
+    await registerWithStore(f.id, fileName, 'animation', undefined, { remoteId: remoteIdOf(f) });
+    startQueuedDownload(f.id, async () => {
+        try {
             await tdlibSend({
                 _: 'addFileToDownloads',
-                file_id: fileId,
+                file_id: f.id,
                 chat_id: props.chatId,
                 message_id: props.messageId,
                 priority: DL_PRIORITY.USER_ACTIVE,
             });
-        } else {
-            // 自动下载：downloadFile（默认档优先级）
-            await tdlibSend({ _: 'downloadFile', file_id: fileId, priority: DL_PRIORITY.DEFAULT, offset: 0, limit: 0, synchronous: false });
+        } catch {
+            downloadingFiles.delete(f.id);
+            animDownloading.value = false;
         }
-        if (seq !== mediaLoadSeq) {
-            downloadingFiles.delete(fileId);
-            return;
-        }
-        // 轮询下载进度
-        pollVideoDownload(fileId);
-    } catch (_) {
-        downloadingFiles.delete(fileId);
-        if (seq !== mediaLoadSeq) return;
-        videoDownloading.value = false;
-    }
+    });
 }
 
-/** 轮询文件下载进度 */
-let downloadPollTimer: ReturnType<typeof setInterval> | null = null;
-function stopVideoDownloadPolling() {
-    if (downloadPollTimer) {
-        clearInterval(downloadPollTimer);
-        downloadPollTimer = null;
-    }
-}
-function pollVideoDownload(fileId: number) {
-    const seq = mediaLoadSeq;
-    stopVideoDownloadPolling();
-    downloadPollTimer = setInterval(async () => {
-        if (seq !== mediaLoadSeq) {
-            stopVideoDownloadPolling();
-            return;
-        }
-        try {
-            const info = await tdlibSend({ _: 'getFile', file_id: fileId }) as any;
-            if (seq !== mediaLoadSeq) {
-                stopVideoDownloadPolling();
-                return;
-            }
-            const total = info.size || 1;
-            const downloaded = info.local?.downloaded_size || 0;
-            videoProgress.value = downloaded / total;
-            if (info.local?.is_downloading_completed && info.local?.path) {
-                stopVideoDownloadPolling();
-                videoDownloading.value = false;
-                videoDownloaded.value = true;
-                videoHasFrame.value = false;
-                mediaSrc.value = convertFileSrc(info.local.path);
-            }
-        } catch (_) {
-            stopVideoDownloadPolling();
+// ---- Video ----
+
+/**
+ * @param isUserAction 用户点击下载；false = 自动下载入队
+ */
+async function handleVideoDownload(isUserAction = false) {
+    if (props.content._ !== 'messageVideo') return;
+    const video = props.content.video;
+    const videoFileObj = videoFile.value;
+    if (!videoFileObj) return;
+    const fileId = videoFileObj.id;
+    videoFileId.value = fileId;
+
+    // 已就绪：直接展示，不进队列
+    if (videoFilePath.value || isFileReady(videoFileObj)) {
+        const path = videoFilePath.value || videoFileObj.local.path;
+        if (path) {
+            mediaSrc.value = convertFileSrc(path);
+            videoDownloaded.value = true;
+            videoHasFrame.value = false;
             videoDownloading.value = false;
         }
-    }, 500);
+        return;
+    }
+
+    // 流式：边下边播（仍属「已发起下载」，展示不经过并发闸门之外的等待）
+    if (video.supports_streaming && videoFileObj.size > 0) {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            return;
+        }
+        if (!downloadingFiles.has(fileId)) {
+            downloadingFiles.add(fileId);
+            const sFileName = video.file_name || `video_${props.messageId || fileId}.mp4`;
+            await registerWithStore(fileId, sFileName, 'video', videoThumbIsVideo.value ? undefined : videoThumbSrc.value, {
+                isStreaming: true,
+                isAutoDownload: !isUserAction,
+                remoteId: remoteIdOf(videoFileObj),
+            });
+        }
+        const streamUrl = convertFileSrc(String(fileId), 'tdstream');
+        mediaSrc.value = `${streamUrl}?mime=${video.mime_type}`;
+        videoDownloaded.value = true;
+        videoBuffering.value = true;
+        videoHasFrame.value = false;
+        videoDownloading.value = false;
+        return;
+    }
+
+    if (!canDownloadFile(videoFileObj)) return;
+    if (downloadingFiles.has(fileId) || isFileDownloading(fileId)) {
+        videoDownloading.value = true;
+        return;
+    }
+
+    const fileName = video.file_name || `video_${props.messageId || fileId}.mp4`;
+    await registerWithStore(fileId, fileName, 'video', videoThumbIsVideo.value ? undefined : videoThumbSrc.value, {
+        isAutoDownload: !isUserAction,
+        remoteId: remoteIdOf(videoFileObj),
+    });
+    videoDownloading.value = true;
+    videoProgress.value = 0;
+
+    startQueuedDownload(fileId, async () => {
+        try {
+            if (isUserAction) {
+                await tdlibSend({
+                    _: 'addFileToDownloads',
+                    file_id: fileId,
+                    chat_id: props.chatId,
+                    message_id: props.messageId,
+                    priority: DL_PRIORITY.USER_ACTIVE,
+                });
+            } else {
+                await tdlibSend({
+                    _: 'downloadFile',
+                    file_id: fileId,
+                    priority: DL_PRIORITY.DEFAULT,
+                    offset: 0,
+                    limit: 0,
+                    synchronous: false,
+                });
+            }
+        } catch {
+            downloadingFiles.delete(fileId);
+            if (mediaLoadSeq >= 0) videoDownloading.value = false;
+        }
+    });
 }
 
 function toggleMute() {
@@ -1475,7 +1511,6 @@ function onInlineVideoLoaded() {
 function onInlineVideoEnded() {
     if (videoElRef.value) {
         videoElRef.value.currentTime = 0;
-        // play() 可能被随后的 pause()（切聊天/滚出视口）打断，AbortError 为预期竞态
         void videoElRef.value.play().catch(() => { });
     }
 }
@@ -1491,8 +1526,8 @@ function onVideoPlaying() {
 }
 
 /**
- * 视频加载失败（常见：断网时 tdstream 边下边播）。
- * 若本地文件未就绪，回退到封面 + 下载按钮，避免一直黑屏转圈。
+ * 视频加载失败：若 content 显示本地已就绪则回退本地路径；
+ * 否则丢掉失败的流式源，回到封面 + 下载按钮。
  */
 function onVideoError() {
     videoBuffering.value = false;
@@ -1500,12 +1535,12 @@ function onVideoError() {
     const c = props.content;
     if (c._ !== 'messageVideo') return;
     const f = c.video.video;
-    const localPath = f?.local?.is_downloading_completed && f.local.path ? f.local.path : '';
+    const localPath = f && isFileReady(f) ? f.local.path : '';
     if (localPath) {
         mediaSrc.value = convertFileSrc(localPath);
+        videoDownloaded.value = true;
         return;
     }
-    // 流式源失败且无本地文件：丢掉失败源，回到封面 + 下载 UI
     const src = mediaSrc.value || '';
     if (src.includes('tdstream') || !localPath) {
         mediaSrc.value = undefined;
@@ -1521,18 +1556,22 @@ function formatDuration(seconds: number): string {
     return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-// ─── 统一跟随下载 store 的 updateFile 进度与完成态 ─────────────────────────
-// 说明：photoProgress / animProgress 已是响应式 computed，进度会随
-// updateFile → download-progress-update → store 就地更新而实时刷新到 LoaderIndicator；
-// 这里额外监听 store 条目的「完成」，以清理各 loading 态并落位 mediaSrc，
-// 解决「手动下载图片完成后仍一直转圈」「下载完成但 loading 不清除」的问题。
+// ─── 跟随下载 store 完成态（content watch 之外的补充路径） ─────────────────
+// 展示主路径是消息内嵌 File 的就绪 watch；store 完成事件用于：
+// 下载已注册但 updateFile 快照尚未回写时，尽快落位 mediaSrc。
 
-/** 当前内容待下载的主文件 id（photo/anim/video） */
 const trackingFileId = computed<number>(() => {
     const c = props.content;
-    if (c._ === 'messagePhoto') return c.photo.sizes[c.photo.sizes.length - 1]?.photo?.id ?? 0;
-    if (c._ === 'messageAnimation') return c.animation.animation?.id ?? 0;
-    if (c._ === 'messageVideo') return c.video.video?.id ?? 0;
+    if (c._ === 'messagePhoto') return photoBigFile.value?.id ?? 0;
+    if (c._ === 'messageAnimation') return animFile.value?.id ?? 0;
+    if (c._ === 'messageVideo') return videoFile.value?.id ?? 0;
+    return 0;
+});
+
+const trackingCoverId = computed<number>(() => {
+    const c = props.content;
+    if (c._ === 'messageVideo') return videoCoverFile.value?.id ?? 0;
+    if (c._ === 'messageAnimation') return animCoverFile.value?.id ?? 0;
     return 0;
 });
 
@@ -1547,34 +1586,112 @@ watch(trackingFileId, (fileId) => {
     stopTrackDownload = watch(
         () => downloadStore.getDownloadInfo(fileId),
         (info) => {
-            if (!info) return;
-            if (info.is_completed && info.local_path) {
-                // 下载完成：清理所有 loading 态并设置本地源
-                isDownloading.value = false;
-                animDownloading.value = false;
-                videoDownloading.value = false;
-                videoBuffering.value = false;
-                videoHasFrame.value = false;
-                stopAnimDownloadPolling();
-                if (downloadPollTimer) { clearInterval(downloadPollTimer); downloadPollTimer = null; }
-                downloadingFiles.delete(fileId);
-                const path = info.local_path;
-                const c = props.content;
-                if (c._ === 'messagePhoto') {
-                    if (!mediaSrc.value) mediaSrc.value = convertFileSrc(path);
-                    mediaLoaded.value = true;
-                } else if (c._ === 'messageAnimation') {
-                    if (!mediaSrc.value) mediaSrc.value = convertFileSrc(path);
-                } else if (c._ === 'messageVideo') {
-                    mediaSrc.value = convertFileSrc(path);
-                    videoDownloaded.value = true;
-                    videoHasFrame.value = false;
-                }
+            if (!info?.is_completed || !info.local_path) return;
+            const path = info.local_path;
+            const c = props.content;
+            if (c._ === 'messagePhoto') {
+                if (!mediaSrc.value) finishPhotoDownload(fileId, path);
+            } else if (c._ === 'messageAnimation') {
+                if (!mediaSrc.value) finishAnimDownload(fileId, path);
+            } else if (c._ === 'messageVideo') {
+                if (!videoFilePath.value) finishVideoDownload(fileId, path);
             }
         },
         { immediate: true }
     );
 }, { immediate: true });
+
+// 封面/缩略图 store 完成 → 用高清覆盖 mini（content 已就绪时以 content 路径为准）
+watch([trackingCoverId, () => props.content._], ([coverId]) => {
+    if (!coverId) return;
+    const apply = () => {
+        const info = downloadStore.getDownloadInfo(coverId);
+        if (!info?.is_completed || !info.local_path) return;
+        const c = props.content;
+        if (c._ === 'messageVideo') {
+            const th = c.video.thumbnail;
+            if (!th) return;
+            const renderable = isThumbnailVideoRenderable(th.format) || isThumbnailImgRenderable(th.format);
+            if (!renderable) return; // 高清不可渲染 → 保留 mini 兜底
+            if (videoCoverPath.value) {
+                videoThumbSrc.value = convertFileSrc(videoCoverPath.value);
+                videoThumbIsVideo.value = videoCoverIsAnim.value;
+            } else {
+                videoThumbSrc.value = convertFileSrc(info.local_path);
+                videoThumbIsVideo.value = isThumbnailVideoRenderable(th.format);
+            }
+        } else if (c._ === 'messageAnimation') {
+            const th = c.animation.thumbnail;
+            if (!th) return;
+            const renderable = isThumbnailVideoRenderable(th.format) || isThumbnailImgRenderable(th.format);
+            if (!renderable) return;
+            if (animCoverPath.value) {
+                animThumbSrc.value = convertFileSrc(animCoverPath.value);
+                animThumbIsVideo.value = animCoverIsAnim.value;
+            } else {
+                animThumbSrc.value = convertFileSrc(info.local_path);
+                animThumbIsVideo.value = isThumbnailVideoRenderable(th.format);
+            }
+        }
+    };
+    apply();
+    const stop = watch(() => downloadStore.getDownloadInfo(coverId), (info) => {
+        if (info?.is_completed && info.local_path) {
+            apply();
+            stop();
+        }
+    });
+}, { immediate: true });
+
+/** 路径就绪时清掉 active 标记，避免 downloadingFiles 卡住后续判断 */
+watch(photoBigPath, (path) => {
+    if (!path) return;
+    if (photoBigFile.value) downloadingFiles.delete(photoBigFile.value.id);
+    isDownloading.value = false;
+});
+watch(animFilePath, (path) => {
+    if (!path) return;
+    if (animFile.value) downloadingFiles.delete(animFile.value.id);
+    animDownloading.value = false;
+});
+watch(videoFilePath, (path) => {
+    if (!path) return;
+    if (videoFile.value) downloadingFiles.delete(videoFile.value.id);
+    videoDownloading.value = false;
+});
+
+/** 视频进度跟随 download store（不再 getFile 轮询） */
+watch(() => {
+    const id = videoFile.value?.id;
+    return id ? downloadStore.getDownloadInfo(id) : undefined;
+}, (info) => {
+    if (!info) return;
+    if (typeof info.progress === 'number' && info.progress > 0 && info.progress < 1) {
+        videoProgress.value = info.progress;
+    }
+});
+
+/**
+ * 当前对话是否应自动下载图片（封面等辅助资源遵循图片设置）。
+ * 只决定「要不要下载」，不阻止已就绪资源展示。
+ */
+function shouldAutoDownloadPhoto(): boolean {
+    if (!settings.autoDownload.enabled) return false;
+    if (!props.chatId) return true;
+    const cs = useChatStore();
+    const chatData = cs.chats[props.chatId] as any;
+    if (!chatData) return true;
+    const category = getChatCategory(chatData);
+    const cfg = settings.autoDownload.photos;
+    return cfg.enabled && cfg[category];
+}
+
+/** 轮询已移除：完成态由 content watch + download store 驱动；保留 stop 空实现以兼容重置逻辑 */
+function stopPhotoDownloadPolling() { /* no-op */ }
+function stopAnimDownloadPolling() { /* no-op */ }
+function stopAnimThumbPolling() { /* no-op */ }
+function stopVideoCoverPolling() { /* no-op */ }
+function stopVideoDownloadPolling() { /* no-op */ }
 
 onUnmounted(() => {
     stopTrackingDownload();

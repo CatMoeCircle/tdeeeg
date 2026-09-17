@@ -24,8 +24,8 @@ export function isFileReady(file: { local: { is_downloading_completed: boolean; 
 }
 
 /**
- * 全局文件下载去重集合。
- * 所有组件在发起 downloadFile 前先检查此集合，避免对同一文件发起重复下载。
+ * 全局文件下载去重集合：已向 TDLib 发起下载（active）。
+ * 组件卸载时**不要**因卸载而移除——TDLib 下载继续，由完成事件/快照回写收尾。
  */
 export const downloadingFiles = new Set<number>();
 
@@ -35,19 +35,111 @@ export const downloadingFiles = new Set<number>();
  */
 export const reactiveDownloadingFiles = ref<Set<number>>(new Set());
 
+/**
+ * 待下载队列（pending）：已请求、尚未向 TDLib 发起。
+ * 组件卸载 / 不再需要时按 owner 释放；无 owner 时整项取消，不发起下载。
+ */
+export const pendingDownloadFiles = new Set<number>();
+export const reactivePendingDownloadFiles = ref<Set<number>>(new Set());
+
+/** fileId → 仍需要该下载的 owner 集合 */
+const pendingDownloadOwners = new Map<number, Set<symbol>>();
+
+function syncDownloadingReactive() {
+  reactiveDownloadingFiles.value = new Set(downloadingFiles);
+}
+
+function syncPendingReactive() {
+  reactivePendingDownloadFiles.value = new Set(pendingDownloadFiles);
+}
+
 function addDownloading(fileId: number) {
   downloadingFiles.add(fileId);
-  reactiveDownloadingFiles.value = new Set(downloadingFiles);
+  syncDownloadingReactive();
 }
 
 function deleteDownloading(fileId: number) {
   downloadingFiles.delete(fileId);
-  reactiveDownloadingFiles.value = new Set(downloadingFiles);
+  syncDownloadingReactive();
 }
 
 /** 检查指定 file_id 是否正在下载中（响应式） */
 export function isFileDownloading(fileId: number): boolean {
   return reactiveDownloadingFiles.value.has(fileId);
+}
+
+/** 是否仍在待下载队列中 */
+export function isPendingDownload(fileId: number): boolean {
+  return pendingDownloadFiles.has(fileId);
+}
+
+/** 是否处于下载中或排队中（UI 忙碌态） */
+export function isFileBusy(fileId: number): boolean {
+  return downloadingFiles.has(fileId) || pendingDownloadFiles.has(fileId);
+}
+
+/**
+ * 将 fileId 登记到待下载队列。
+ * @returns true 表示本 owner 新登记；false 表示已在队列或本 owner 已登记过
+ */
+export function enqueuePendingDownload(fileId: number, owner: symbol): boolean {
+  if (downloadingFiles.has(fileId)) return false;
+  let owners = pendingDownloadOwners.get(fileId);
+  if (!owners) {
+    owners = new Set();
+    pendingDownloadOwners.set(fileId, owners);
+  }
+  if (owners.has(owner)) return false;
+  owners.add(owner);
+  pendingDownloadFiles.add(fileId);
+  syncPendingReactive();
+  return true;
+}
+
+/**
+ * 释放某 owner 的全部待下载意图。
+ * - 仍有其他 owner：保留排队
+ * - 已无 owner：从等待列表移除（取消，不发起 TDLib 下载）
+ * - 已进入 active 的下载：**不**取消、不暂停
+ * @returns 被完全取消的 fileId 列表
+ */
+export function releasePendingDownloadOwner(owner: symbol): number[] {
+  const cancelled: number[] = [];
+  for (const [fileId, owners] of pendingDownloadOwners) {
+    if (!owners.delete(owner)) continue;
+    if (owners.size === 0) {
+      pendingDownloadOwners.delete(fileId);
+      pendingDownloadFiles.delete(fileId);
+      cancelled.push(fileId);
+    }
+  }
+  syncPendingReactive();
+  return cancelled;
+}
+
+/**
+ * 领取 pending 并准备真正发起下载。
+ * @returns false 表示排队已被取消（组件卸载等），不应再发起
+ */
+export function takePendingDownload(fileId: number, owner?: symbol): boolean {
+  const owners = pendingDownloadOwners.get(fileId);
+  if (!pendingDownloadFiles.has(fileId) && !owners) return false;
+  if (owners && owner && !owners.has(owner)) {
+    // 其他 owner 仍需要时，不能被无关调用偷走
+    if (owners.size > 0) return false;
+  }
+  pendingDownloadOwners.delete(fileId);
+  pendingDownloadFiles.delete(fileId);
+  syncPendingReactive();
+  return true;
+}
+
+/** 供调试：当前 active / pending 数量 */
+export function getDownloadQueueStats() {
+  return {
+    active: downloadingFiles.size,
+    pending: pendingDownloadFiles.size,
+  };
 }
 
 /**
