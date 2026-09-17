@@ -1,6 +1,6 @@
 import { ref, shallowRef } from "vue";
-import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { onTdlibUpdate } from "./tdlibBus";
 
 /**
  * 调试模式状态（进入方式：在设置里连点版本号 5 次）。
@@ -168,13 +168,13 @@ function cacheUpdate(payload: Record<string, unknown>, channel: string): void {
 export async function initDebugUpdateListener(): Promise<void> {
     if (logUpdatesInitialized) return;
     logUpdatesInitialized = true;
-    await listen("tdlib-update", (event) => {
-        cacheUpdate((event.payload ?? {}) as Record<string, unknown>, "tdlib-update");
-    });
-    // updateFile 走独立 IPC，调试日志同样捕获
-    await listen("tdlib-update-file", (event) => {
-        cacheUpdate((event.payload ?? {}) as Record<string, unknown>, "tdlib-update-file");
-    });
+    // 订阅全部分类通道（总线已按类分发，这里只关心调试缓存）
+    const channels = ['auth', 'connection', 'option', 'language', 'colors', 'user', 'chat', 'message', 'other', 'file'] as const;
+    for (const ch of channels) {
+        onTdlibUpdate(ch, (update) => {
+            cacheUpdate((update ?? {}) as Record<string, unknown>, `tdlib-${ch}`);
+        });
+    }
 }
 
 /** 切换是否在控制台打印 update */

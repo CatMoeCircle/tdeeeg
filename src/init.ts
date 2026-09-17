@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { MessagePlugin } from 'tdesign-vue-next';
 import { tdlibSend } from "./utils/tdlib";
+import { initTdlibBus } from "./store/tdlibBus";
 import { useDownloadStore } from "./store/downloads";
 import { useUploadStore } from "./store/upload";
 import { useConnectionStore } from "./store/connectionState";
@@ -14,7 +15,6 @@ import { initColors, watchSystemColorScheme } from "./store/colors";
 import { initNativeNotifications } from "./store/notifications";
 import { settings } from "./store/settings";
 import { initDefaultBackgroundSync } from "./utils/wallpaper";
-// import type { Update } from "tdlib-types";
 
 /**
  * 初始化 TDLib 及各模块的事件监听。
@@ -22,10 +22,16 @@ import { initDefaultBackgroundSync } from "./utils/wallpaper";
  * 且应在 app.mount 之前完成，从而让应用先达到稳定授权态再渲染 UI，
  * 避免启动时闪现登录页。
  *
+ * 链路：TDLib → Rust UpdateManager（分类/批处理）→ 少量 Tauri events
+ *      → tdlibBus（每通道一个 listen）→ Store handler → Vue
+ *
  * 注意：这里的各 store.init() 仅注册事件监听/拉取缓存，
  * 均不依赖 DOM，可在挂载前安全执行。
  */
 export async function initTdlib() {
+    // 0. 先初始化总线：对每条分类通道只 listen 一次
+    await initTdlibBus();
+
     const downloadStore = useDownloadStore();
     const uploadStore = useUploadStore();
     const connectionStore = useConnectionStore();
@@ -34,37 +40,30 @@ export async function initTdlib() {
     const accountsStore = useAccountsStore();
     const languageStore = useLanguageStore();
 
-    // 初始化下载管理器的 updateFile 监听
+    // 初始化下载管理器（tdlib-update-file → 总线 file 通道）
     await downloadStore.init();
     // 初始化上传任务（发送文件）进度监听
     await uploadStore.init();
-    // 初始化连接状态监听（updateConnectionState）
+    // 初始化连接状态监听（connection 通道）
     connectionStore.init();
-    // 初始化 TDLib options 缓存监听
+    // 初始化 TDLib options 缓存监听（option 通道）
     optionsStore.init();
-    // 初始化发送者缓存监听（复用 update 中携带的用户/对话数据，避免重复 getUser/getChat）
+    // 初始化发送者缓存监听（user + chat 通道）
     await initSenderInfo();
-    // 初始化当前用户信息监听（导航栏头像/名称实时刷新）
+    // 初始化当前用户信息监听（user 通道）
     await userStore.initUpdates();
     // 初始化多账户管理
     await accountsStore.init();
-    // 初始化 Telegram 色彩主题系统（updateAccentColors / updateProfileAccentColors）
+    // 初始化 Telegram 色彩主题系统（colors 通道）
     await initColors();
     // 跟随系统明暗模式，供 accent 色选择对应明暗色板
     watchSystemColorScheme();
     // 初始化系统原生通知（Windows Toast / 通知中心）
     await initNativeNotifications();
-    // 默认壁纸与 TDLib 同步（updateDefaultBackground + 启动时从已安装列表恢复）
+    // 默认壁纸与 TDLib 同步（other 通道的 updateDefaultBackground）
     await initDefaultBackgroundSync();
-    // 语言系统：恢复 UI 语言、监听 updateLanguagePackStrings、同步 TDLib language_pack_id
+    // 语言系统：恢复 UI 语言、监听 language 通道、同步 TDLib language_pack_id
     await languageStore.init();
-
-    // if (import.meta.env.DEV) {
-    //     await listen<Update>("tdlib-update", (event) => {
-    //         const update = event.payload;
-    //         console.log("Received update:", update);
-    //     });
-    // }
 
     // 将前端保存的代理设置同步到 Rust，使 TDLib 客户端创建后能立即应用
     try {

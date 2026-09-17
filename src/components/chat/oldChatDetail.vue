@@ -84,7 +84,7 @@ import { useRoute } from 'vue-router';
 import { useUserStore } from '../../store/user';
 import { storeToRefs } from 'pinia';
 import { tdlibSend } from '../../utils/tdlib';
-import { listen } from "@tauri-apps/api/event";
+import { onTdlibUpdates } from "../../store/tdlibBus";
 import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup } from 'tdlib-types';
 
 const route = useRoute();
@@ -129,11 +129,13 @@ onMounted(async () => {
     if (!userProfile.value) {
         await userStore.fetchUser();
     }
-    // 监听 TDLib 更新
-    unlisten = await listen<Update>("tdlib-update", (event) => {
-        const update = event.payload;
-        handleUpdate(update);
-    });
+    // 订阅总线多通道（兼容旧组件；新逻辑请用 ChatDetail/index.vue）
+    unlisten = onTdlibUpdates(
+        ["message", "chat", "user", "file", "other"],
+        (update) => {
+            handleUpdate(update as unknown as Update);
+        },
+    );
 });
 
 onUnmounted(() => {

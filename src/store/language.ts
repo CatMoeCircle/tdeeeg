@@ -1,9 +1,8 @@
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { Update } from "tdlib-types";
 import i18n from "../i18n";
 import { settings } from "./settings";
+import { onTdlibUpdate } from "./tdlibBus";
 import {
     BUILTIN_LANGUAGES,
     LOCALIZATION_TARGET,
@@ -75,7 +74,7 @@ export const useLanguageStore = defineStore("language", () => {
         return b?.nativeName ?? currentCode.value;
     });
 
-    let unlisten: UnlistenFn | null = null;
+    let unlisten: (() => void) | null = null;
     let applying = false;
 
     /** 将内置应用文案注册进 vue-i18n（幂等；仅应用自有 key，不含官方 lng_） */
@@ -219,7 +218,7 @@ export const useLanguageStore = defineStore("language", () => {
 
     /** 处理 updateLanguagePackStrings：合并增量并刷新当前 locale */
     async function handleLanguagePackStringsUpdate(
-        update: Extract<Update, { _: "updateLanguagePackStrings" }>
+        update: { language_pack_id?: string; localization_target?: string; strings?: any[] } & Record<string, unknown>
     ): Promise<void> {
         const { language_pack_id: packId, strings } = update;
         if (!packId) return;
@@ -285,11 +284,11 @@ export const useLanguageStore = defineStore("language", () => {
         if (packId !== "en") applyPackToI18n(packId);
         applyVueLocale(code);
 
-        // 监听 TDLib 语言包更新
+        // 订阅总线 language 通道
         if (!unlisten) {
-            unlisten = await listen<Update>("tdlib-update", (event) => {
-                if (event.payload._ === "updateLanguagePackStrings") {
-                    void handleLanguagePackStringsUpdate(event.payload);
+            unlisten = onTdlibUpdate("language", (update) => {
+                if (update._ === "updateLanguagePackStrings") {
+                    void handleLanguagePackStringsUpdate(update as any);
                 }
             });
         }

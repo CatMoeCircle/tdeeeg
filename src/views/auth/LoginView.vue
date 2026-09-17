@@ -7,9 +7,9 @@ import { useI18n } from 'vue-i18n';
 import i18n from "../../i18n";
 import { tdlibSend } from "../../utils/tdlib";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { onTdlibUpdate } from "../../store/tdlibBus";
 import { MessagePlugin } from 'tdesign-vue-next';
-import type { AuthorizationState, Update, countryInfo } from "tdlib-types";
+import type { AuthorizationState, countryInfo } from "tdlib-types";
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import LoginProxyMenu from "./LoginProxyMenu.vue";
 import LoginSystemMenu from "./LoginSystemMenu.vue";
@@ -362,10 +362,9 @@ onMounted(async () => {
         console.warn("开启窗口阴影失败:", e);
     }
 
-    qrlinkupdate = await listen<Update>("tdlib-update", async (event) => {
-        const update = event.payload;
+    qrlinkupdate = onTdlibUpdate("auth", (update) => {
         if (update._ !== "updateAuthorizationState") return;
-        AuthState(update.authorization_state);
+        AuthState((update as any).authorization_state);
     });
     tdlibSend({
         _: "getCountries",

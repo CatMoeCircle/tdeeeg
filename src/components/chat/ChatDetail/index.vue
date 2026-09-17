@@ -617,7 +617,7 @@ import { useUserStore } from '../../../store/user';
 import { useAudioPlayerStore } from '../../../store/audioPlayer';
 import { clearActiveChatTitleBar } from '../../../store/activeChatTitleBar';
 import { storeToRefs } from 'pinia';
-import { listen } from "@tauri-apps/api/event";
+import { onTdlibUpdates } from "../../../store/tdlibBus";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { copyFile } from "@tauri-apps/plugin-fs";
 import { save, open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -1748,9 +1748,8 @@ interface MemberInfo {
 const memberStatus = ref<Record<number, MemberInfo>>({});
 /** 进行中的 getChatMember 请求去重 */
 const pendingMemberStatus = new Set<number>();
-let unlisten: (() => void) | null = null;
-/** updateFile 走独立 IPC（tdlib-update-file），与主更新管道分离 */
-let unlistenFile: (() => void) | null = null;
+/** 总线多通道订阅取消函数 */
+let unsubscribeUpdates: (() => void) | null = null;
 
 /** 单调递增的加载代数，用于防止异步返回时的竞态条件 */
 let loadGeneration = 0;
@@ -1867,13 +1866,14 @@ onMounted(async () => {
     if (!userProfile.value) {
         await userStore.fetchUser();
     }
-    unlisten = await listen<Update>("tdlib-update", (event) => {
-        handleUpdate(event.payload);
-    });
-    // updateFile 高频事件：独立线程 + 独立 IPC，不走主 tdlib-update
-    unlistenFile = await listen<Update>("tdlib-update-file", (event) => {
-        handleUpdate(event.payload);
-    });
+    // 订阅总线：消息/对话/用户/文件/稀有类型，按类分发到 handleUpdate
+    // 替代原先单条 tdlib-update 全量监听 + 前端 if 过滤
+    unsubscribeUpdates = onTdlibUpdates(
+        ["message", "chat", "user", "file", "other"],
+        (update) => {
+            handleUpdate(update as unknown as Update);
+        },
+    );
 
     // 同聊天内链接跳转：resolveInternalLink 检测到目标消息在当前聊天时，
     // 分发此事件而非 router.push，避免路由变更导致 ChatDetail 重建/缓存恢复。
@@ -1882,8 +1882,10 @@ onMounted(async () => {
 
 onUnmounted(() => {
     window.removeEventListener('tdgram:jump-to-message-in-chat', onSameChatJump);
-    if (unlisten) unlisten();
-    if (unlistenFile) unlistenFile();
+    if (unsubscribeUpdates) {
+        unsubscribeUpdates();
+        unsubscribeUpdates = null;
+    }
     if (bubbleWidthObserver) bubbleWidthObserver.disconnect();
     if (measureBubbleRaf) {
         cancelAnimationFrame(measureBubbleRaf);

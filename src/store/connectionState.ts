@@ -1,8 +1,7 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
-import type { Update } from "tdlib-types";
+import { onTdlibUpdate, type TdlibUpdate } from "./tdlibBus";
 
 export type ConnectionStateType =
     | "connectionStateReady"
@@ -21,7 +20,7 @@ export const useConnectionStore = defineStore("connection", () => {
     /** 连接状态的显示文本（国际化 key） */
     const connectionLabel = ref("");
 
-    let unlisten: (() => void) | null = null;
+    let unsubscribe: (() => void) | null = null;
 
     /** 根据连接状态类型更新响应式状态 */
     function applyState(state: ConnectionStateType) {
@@ -51,7 +50,7 @@ export const useConnectionStore = defineStore("connection", () => {
     }
 
     async function init() {
-        if (unlisten) return;
+        if (unsubscribe) return;
 
         // 1. 优先从 Rust 缓存中加载状态（避免事件未到达时的空白期）
         try {
@@ -63,20 +62,19 @@ export const useConnectionStore = defineStore("connection", () => {
             console.warn("[ConnectionStore] Failed to get cached connection state:", e);
         }
 
-        // 2. 监听实时 updateConnectionState 事件
-        unlisten = await listen<Update>("tdlib-update", (event) => {
-            const update = event.payload;
+        // 2. 订阅总线 connection 通道（Rust 已分类，无需 if 过滤其他类型）
+        unsubscribe = onTdlibUpdate("connection", (update: TdlibUpdate) => {
             if (update._ === "updateConnectionState") {
-                const state = update.state?._ as ConnectionStateType;
+                const state = (update as any).state?._ as ConnectionStateType;
                 applyState(state);
             }
         });
     }
 
     function destroy() {
-        if (unlisten) {
-            unlisten();
-            unlisten = null;
+        if (unsubscribe) {
+            unsubscribe();
+            unsubscribe = null;
         }
     }
 

@@ -1,6 +1,7 @@
 use crate::accounts::AccountsStore;
 use crate::chat_store::ChatStore;
 use crate::download_store::{DownloadItem, DownloadStore};
+use crate::update_manager::{classify, UpdateManager};
 use libloading::{Library, Symbol};
 use serde_json::json;
 use std::collections::HashMap;
@@ -1044,6 +1045,9 @@ fn spawn_receive_loop(
     let connection_state = client.connection_state.clone();
     let options = client.options.clone();
 
+    // UpdateManager：分类 + 批处理，收敛为少量 Tauri 事件（仅活动账户入队）
+    let update_mgr = Arc::new(UpdateManager::new());
+
     // updateFile 专用通道 + 处理线程（下载/上传 store 更新、头像路径、独立 IPC）
     let (file_tx, file_rx) = mpsc::channel::<serde_json::Value>();
     {
@@ -1072,8 +1076,12 @@ fn spawn_receive_loop(
     std::thread::spawn(move || {
         loop {
             unsafe {
-                let res_ptr = receive_fn(client.client, 1.0); // 1 秒超时
+                // 50ms 超时：与 UpdateManager 批处理窗口对齐，保证低流量时
+                // 单条 update 也不会在缓冲里挂满 1 秒才下发
+                let res_ptr = receive_fn(client.client, 0.05);
                 if res_ptr.is_null() {
+                    // 空闲时也冲刷到期批次，避免低流量场景下批一直挂着
+                    update_mgr.flush_due(&app_handle);
                     continue;
                 }
                 let c_str = CStr::from_ptr(res_ptr);
@@ -1341,16 +1349,27 @@ fn spawn_receive_loop(
                             obj.remove("@extra");
                         }
                         let _ = sender.send(event);
+                        // 响应也可能让批处理到期，顺带冲刷
+                        update_mgr.flush_due(&app_handle);
                         continue;
                     }
                 }
 
-                // 仅活动账户把事件广播到前端
+                // 仅活动账户：分类入队，由 UpdateManager 批处理/立即下发
+                // 替代原先「每条 update 都 emit("tdlib-update")」导致的
+                // N 个前端 listener × 全量反序列化 × if 过滤
                 if is_active {
-                    if let Err(e) = app_handle.emit("tdlib-update", &event) {
-                        eprintln!("Failed to emit event: {}", e);
-                    }
+                    let type_name = event
+                        .get("_")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let category = classify(&type_name);
+                    update_mgr.push(&app_handle, category, event);
                 }
+
+                // 每轮接收后冲刷到期批次（约 50ms 窗口）
+                update_mgr.flush_due(&app_handle);
             }
         }
     });

@@ -1,7 +1,7 @@
-﻿import { reactive, ref } from 'vue';
-import { listen } from '@tauri-apps/api/event';
+import { reactive, ref } from 'vue';
 import type { accentColor, profileAccentColor, Update, Updates } from 'tdlib-types';
 import { tdlibSend } from '../utils/tdlib';
+import { onTdlibUpdate } from './tdlibBus';
 
 /**
  * Telegram 色彩主题系统
@@ -89,23 +89,22 @@ export async function initColors(): Promise<void> {
     if (initialized) return;
     initialized = true;
 
-    // 监听主题色彩更新
-    await listen<Update>('tdlib-update', (event) => {
-        const update = event.payload;
+    // 订阅总线 colors 通道（updateAccentColors / updateProfileAccentColors）
+    onTdlibUpdate("colors", (update) => {
         if (!update || typeof update !== 'object') return;
         if (update._ === 'updateAccentColors') {
-            if (Array.isArray(update.colors)) {
-                for (const c of update.colors) accentColors.set(c.id, c);
+            if (Array.isArray((update as any).colors)) {
+                for (const c of (update as any).colors) accentColors.set(c.id, c);
             }
-            if (Array.isArray(update.available_accent_color_ids)) {
-                availableIds.value = update.available_accent_color_ids;
+            if (Array.isArray((update as any).available_accent_color_ids)) {
+                availableIds.value = (update as any).available_accent_color_ids;
             }
         } else if (update._ === 'updateProfileAccentColors') {
-            if (Array.isArray(update.colors)) {
-                for (const c of update.colors) profileAccentColors.set(c.id, c);
+            if (Array.isArray((update as any).colors)) {
+                for (const c of (update as any).colors) profileAccentColors.set(c.id, c);
             }
-            if (Array.isArray(update.available_accent_color_ids)) {
-                profileAvailableIds.value = update.available_accent_color_ids;
+            if (Array.isArray((update as any).available_accent_color_ids)) {
+                profileAvailableIds.value = (update as any).available_accent_color_ids;
             }
         }
     });

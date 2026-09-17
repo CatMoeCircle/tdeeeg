@@ -122,7 +122,7 @@
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { onTdlibUpdate } from '../../store/tdlibBus';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useRouter } from 'vue-router';
@@ -140,7 +140,7 @@ import {
     restoreDefaultWallpaperFromTdlib,
     initDefaultBackgroundSync,
 } from '../../utils/wallpaper';
-import type { background, backgrounds, file, Update } from 'tdlib-types';
+import type { background, backgrounds, file } from 'tdlib-types';
 
 const router = useRouter();
 const loading = ref(true);
@@ -153,8 +153,8 @@ const selectedLabel = ref(t('wallpaper.followTelegram'));
 const hasCustomDefault = ref(false);
 const thumbnailSources = ref<Record<string, string>>({});
 const coverSources = ref<Record<string, string>>({});
-let unlisten: UnlistenFn | undefined;
-let unlistenFile: UnlistenFn | undefined;
+let unlisten: (() => void) | undefined;
+let unlistenFile: (() => void) | undefined;
 const colors = computed(() => [
     { key: 'solid:16777215', value: 16777215, css: '#ffffff', label: t('wallpaper.colorWhite') },
     { key: 'solid:16119285', value: 16119285, css: '#f5f5f5', label: t('wallpaper.colorFog') },
@@ -363,10 +363,10 @@ onMounted(async () => {
     await initDefaultBackgroundSync();
     // 先从 TDLib 恢复默认壁纸（覆盖失效的本地路径），再拉列表
     await restoreDefaultWallpaperFromTdlib(forDarkTheme.value);
-    unlisten = await listen<Update>('tdlib-update', (event) => {
-        if (event.payload._ === 'updateDefaultBackground') {
-            const bg = (event.payload as any).background as background | null | undefined;
-            if (!(event.payload as any).for_dark_theme) {
+    unlisten = onTdlibUpdate('other', (update) => {
+        if (update._ === 'updateDefaultBackground') {
+            const bg = (update as any).background as background | null | undefined;
+            if (!(update as any).for_dark_theme) {
                 void applyBackgroundToSettings(bg ?? null);
                 if (bg) {
                     hasCustomDefault.value = true;
@@ -388,9 +388,9 @@ onMounted(async () => {
         }
     });
     // updateFile 走独立 IPC（tdlib-update-file），用于刷新壁纸缩略图/封面
-    unlistenFile = await listen<Update>('tdlib-update-file', (event) => {
-        if (event.payload._ !== 'updateFile') return;
-        const updatedFile = event.payload.file as file;
+    unlistenFile = onTdlibUpdate('file', (update) => {
+        if (update._ !== 'updateFile') return;
+        const updatedFile = (update as any).file as file;
         const item = backgrounds.value.find((background) => background.document?.thumbnail?.file.id === updatedFile.id || background.document?.document.id === updatedFile.id);
         if (!item?.document) return;
         if (item.document.thumbnail?.file.id === updatedFile.id) {

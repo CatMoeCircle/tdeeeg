@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref, shallowRef, computed } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { onTdlibUpdate } from "./tdlibBus";
 import type {
   message,
   chatPosition,
@@ -150,15 +151,13 @@ export const useChatStore = defineStore("chat", () => {
       chatLists.value = event.payload;
     });
 
-    // 直接监听原始 TDLib 的 updateChatPosition：当对话在某分组被置顶/取消置顶时，
-    // 及时把该分组 position 的 order/is_pinned 合并进本地 chat.positions。
-    // 该事件 Rust 也会处理并 emit chat-update，但这里兜底一次，避免事件链路上
+    // 订阅总线 chat 通道：对话在分组置顶/取消置顶时，及时合并 position。
+    // 该事件 Rust 也会处理并 emit chat-update，这里兜底一次，避免事件链路上
     // 位置信息丢失导致部分分组置顶不显示（多来源保真，维持「最终 chat」一致）。
-    await listen<any>("tdlib-update", (event) => {
-      const u = event.payload;
+    onTdlibUpdate("chat", (u) => {
       if (!u || u._ !== "updateChatPosition") return;
-      const chatId = u.chat_id as number | undefined;
-      const position = u.position as chatPosition | undefined;
+      const chatId = (u as any).chat_id as number | undefined;
+      const position = (u as any).position as chatPosition | undefined;
       if (typeof chatId !== "number" || !position || !position.list) return;
       mergePositionIntoChat(chatId, position);
     });

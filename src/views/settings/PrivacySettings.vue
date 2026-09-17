@@ -175,7 +175,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { computed, onActivated, onMounted, onUnmounted, reactive, ref } from 'vue';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { onTdlibUpdate } from '../../store/tdlibBus';
 import { useRouter } from 'vue-router';
 import {
     ChevronLeft as ChevronLeftIcon, Ban as BanIcon,
@@ -538,17 +538,17 @@ async function saveIgnoreSensitive(v: boolean) {
 // =====================================================================
 // 初始化
 // =====================================================================
-let unlistenPrivacy: UnlistenFn | null = null;
+let unlistenPrivacy: (() => void) | null = null;
 
 /** 其他客户端改了隐私规则时，直接用 update 载荷刷新本地缓存（与 Unigram 一致） */
 async function subscribePrivacyUpdates() {
     unlistenPrivacy?.();
-    unlistenPrivacy = await listen<Record<string, any>>('tdlib-update', (event) => {
-        const payload = event.payload;
+    // updateUserPrivacySettingRules 由 Rust 分到 user 通道
+    unlistenPrivacy = onTdlibUpdate('user', (payload) => {
         if (payload?._ !== 'updateUserPrivacySettingRules') return;
-        const key = privacyKeyForSettingType(payload.setting?._);
+        const key = privacyKeyForSettingType((payload as any).setting?._);
         if (!key) return;
-        privacyRules[key] = decodeUserPrivacyRules(payload.rules);
+        privacyRules[key] = decodeUserPrivacyRules((payload as any).rules);
     });
 }
 

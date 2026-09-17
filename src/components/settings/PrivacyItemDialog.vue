@@ -264,7 +264,7 @@ export interface PrivacyItemDef {
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { onTdlibUpdate } from '../../store/tdlibBus';
 import { Check as CheckIcon } from 'lucide-vue-next';
 import { MessagePlugin, Slider as TSlider } from 'tdesign-vue-next';
 import { useI18n } from 'vue-i18n';
@@ -1048,13 +1048,12 @@ async function applyRemotePrivacyUpdate(settingType: string, rules: userPrivacyS
     takePrivacySnapshot();
 }
 
-let unlistenPrivacy: UnlistenFn | null = null;
+let unlistenPrivacy: (() => void) | null = null;
 
 onMounted(async () => {
-    unlistenPrivacy = await listen<Record<string, any>>('tdlib-update', (event) => {
-        const payload = event.payload;
+    unlistenPrivacy = onTdlibUpdate('user', (payload) => {
         if (payload?._ !== 'updateUserPrivacySettingRules') return;
-        void applyRemotePrivacyUpdate(payload.setting?._, payload.rules);
+        void applyRemotePrivacyUpdate((payload as any).setting?._, (payload as any).rules);
     });
 });
 

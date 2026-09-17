@@ -140,14 +140,10 @@ export async function initDefaultBackgroundSync(): Promise<void> {
   if (syncListenerInstalled) return;
   syncListenerInstalled = true;
 
-  const { listen } = await import('@tauri-apps/api/event');
-  await listen<{ _: string; for_dark_theme?: boolean; background?: background | null }>(
-    'tdlib-update',
-    async (event) => {
-      const update = event.payload;
-      if (update._ !== 'updateDefaultBackground') return;
-      if (update.for_dark_theme) return;
-      await applyBackgroundToSettings(update.background ?? null);
-    },
-  );
+  const { onTdlibUpdate } = await import('../store/tdlibBus');
+  onTdlibUpdate('other', async (update) => {
+    if (update._ !== 'updateDefaultBackground') return;
+    if ((update as any).for_dark_theme) return;
+    await applyBackgroundToSettings(((update as any).background as background | null) ?? null);
+  });
 }

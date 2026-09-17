@@ -1,6 +1,5 @@
 import { defineStore } from "pinia";
 import { reactive, ref } from "vue";
-import { listen } from "@tauri-apps/api/event";
 import type {
   user,
   userFullInfo,
@@ -13,6 +12,7 @@ import type {
 import { tdlibSend } from "../utils/tdlib";
 import { ensureUser, ensureChat } from "../utils/senderInfo";
 import { useUserStore } from "./user";
+import { onTdlibUpdate } from "./tdlibBus";
 import { fetchSharedMediaCounts, type SharedMediaCounts } from "../utils/sharedMediaCounts";
 
 /**
@@ -250,8 +250,7 @@ export const useUserProfileStore = defineStore("userProfile", () => {
   async function initUserProfileUpdates(): Promise<void> {
     if (updatesInitialized) return;
     updatesInitialized = true;
-    await listen<TdlibUpdatePayload>("tdlib-update", (event) => {
-      const update = event.payload;
+    onTdlibUpdate("user", (update) => {
       if (!update || typeof update !== "object") return;
       const type_ = (update as any)._;
       // 用户基础数据变更 → 刷新 user 缓存
@@ -335,8 +334,3 @@ export const useUserProfileStore = defineStore("userProfile", () => {
   };
 });
 
-/** TDLib update 事件的松散类型（扩展自 senderInfo 的 TdlibUpdate） */
-interface TdlibUpdatePayload {
-  _?: string;
-  [key: string]: unknown;
-}

@@ -1,15 +1,14 @@
 import { defineStore } from "pinia";
 import { ref, watch } from "vue";
-import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import type {
-    Update,
     optionValueBoolean,
     optionValueEmpty,
     OptionValue,
 } from "tdlib-types";
 import { tdlibSend } from "../utils/tdlib";
 import { useConnectionStore } from "./connectionState";
+import { onTdlibUpdate } from "./tdlibBus";
 
 /** Rust get_cached_option 对 online 返回的可能值类型 */
 type OnlineOptionValue = optionValueBoolean | optionValueEmpty;
@@ -124,11 +123,10 @@ export const useOptionsStore = defineStore("options", () => {
             console.warn("[OptionsStore] Failed to get cached online option:", e);
         }
 
-        // 2. 监听实时 updateOption 事件
-        unlisten = await listen<Update>("tdlib-update", (event) => {
-            const update = event.payload;
-            if (update._ === "updateOption" && update.name === "online") {
-                const value = update.value;
+        // 2. 订阅总线 option 通道
+        unlisten = onTdlibUpdate("option", (update) => {
+            if (update._ === "updateOption" && (update as any).name === "online") {
+                const value = (update as any).value;
                 if (isOnlineOptionValue(value)) {
                     applyOnlineOption(value);
                 }

@@ -7,6 +7,7 @@ mod media_stream;
 mod notifications;
 mod tdlib;
 mod toast_identity;
+mod update_manager;
 
 use tauri::{
     menu::{Menu, MenuItem},

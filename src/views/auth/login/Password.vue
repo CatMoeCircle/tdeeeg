@@ -2,17 +2,16 @@
 import { ref, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { tdlibSend } from "../../../utils/tdlib";
-import { listen } from "@tauri-apps/api/event";
 import { MessagePlugin } from 'tdesign-vue-next';
 import { useI18n } from 'vue-i18n';
-import type { Update } from "tdlib-types";
 import { invoke } from "@tauri-apps/api/core";
+import { onTdlibUpdate } from "../../../store/tdlibBus";
 
 const router = useRouter();
 const password = ref("");
 const loading = ref(false);
 const { t } = useI18n();
-let unlisten: () => void;
+let unlisten: (() => void) | undefined;
 
 const submitPassword = async () => {
     if (!password.value) return;
@@ -38,10 +37,9 @@ onMounted(async () => {
         console.warn("设置 Mica 失败:", e);
     }
 
-    unlisten = await listen<Update>("tdlib-update", (event) => {
-        const update = event.payload;
+    unlisten = onTdlibUpdate("auth", (update) => {
         if (update._ === "updateAuthorizationState") {
-            switch (update.authorization_state._) {
+            switch ((update as any).authorization_state._) {
                 case "authorizationStateReady":
                     router.push("/home");
                     break;

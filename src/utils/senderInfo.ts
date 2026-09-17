@@ -1,5 +1,5 @@
 import { reactive } from "vue";
-import { listen } from "@tauri-apps/api/event";
+import { onTdlibUpdate, type TdlibUpdate } from "../store/tdlibBus";
 import type {
   MessageSender,
   user,
@@ -7,41 +7,12 @@ import type {
   chatPhotoInfo,
   profilePhoto,
   ChatType,
-  chatNotificationSettings,
-  message,
-  draftMessage,
   basicGroup,
   supergroup,
-  UserStatus,
 } from "tdlib-types";
 import { tdlibSend } from "./tdlib";
 import type { Chat } from "../store/chat";
 import i18n from "../i18n";
-
-/**
- * TDLib update 事件 payload 的松散类型。
- * 部分更新类型（如 updateNewUser / updateUserAccentColor / updateChatAccentColor 等）未在
- * tdlib-types 中定义，这里按实际使用到的字段按需声明。
- */
-interface TdlibUpdate {
-  _?: string;
-  user?: user;
-  chat?: chat;
-  user_id?: number;
-  chat_id?: number;
-  accent_color_id?: number;
-  profile_accent_color_id?: number;
-  title?: string;
-  photo?: chatPhotoInfo;
-  last_message?: message | null;
-  draft_message?: draftMessage | null;
-  unread_count?: number;
-  notification_settings?: chatNotificationSettings;
-  view_as_topics?: boolean;
-  status?: UserStatus;
-  basic_group?: basicGroup;
-  supergroup?: supergroup;
-}
 
 /** 从 ChatType 中取出私聊/密聊对应的 user_id（其他类型无该字段） */
 function getChatUserId(type?: ChatType): number | undefined {
@@ -76,83 +47,86 @@ export async function initSenderInfo(): Promise<void> {
   if (initialized) return;
   initialized = true;
 
-  await listen<TdlibUpdate>("tdlib-update", (event) => {
-    const update = event.payload;
-    if (!update || typeof update !== "object") return;
+  // 用户/群组 → user 通道；对话标题/头像等 → chat 通道
+  const handleUserLike = (update: TdlibUpdate) => {
     const type_ = update._;
 
     // 用户数据：updateNewUser（新用户）/ updateUser（用户信息变更）
     if (type_ === "updateNewUser" || type_ === "updateUser") {
-      const u = update.user;
+      const u = (update as any).user;
       if (u && typeof u.id === "number") {
         users.set(u.id, u);
       }
     }
     // 上线状态变更：就地更新缓存用户，驱动列表「最后上线」刷新
-    else if (type_ === "updateUserStatus" && typeof update.user_id === "number") {
-      const u = users.get(update.user_id);
-      if (u && update.status) {
-        u.status = update.status;
+    else if (type_ === "updateUserStatus" && typeof (update as any).user_id === "number") {
+      const u = users.get((update as any).user_id);
+      if (u && (update as any).status) {
+        u.status = (update as any).status;
       }
     }
     // 基础群 / 超级群（含频道）成员数等信息
-    else if (type_ === "updateBasicGroup" && update.basic_group) {
-      basicGroups.set(update.basic_group.id, update.basic_group);
-    } else if (type_ === "updateSupergroup" && update.supergroup) {
-      supergroups.set(update.supergroup.id, update.supergroup);
+    else if (type_ === "updateBasicGroup" && (update as any).basic_group) {
+      basicGroups.set((update as any).basic_group.id, (update as any).basic_group);
+    } else if (type_ === "updateSupergroup" && (update as any).supergroup) {
+      supergroups.set((update as any).supergroup.id, (update as any).supergroup);
     }
     // updateUserAccentColor / updateUserProfileAccentColor：名称/头像主题色变更
     else if (
       type_ === "updateUserAccentColor" &&
-      typeof update.user_id === "number"
+      typeof (update as any).user_id === "number"
     ) {
-      const u = users.get(update.user_id);
-      if (u && typeof update.accent_color_id === "number") {
-        u.accent_color_id = update.accent_color_id;
+      const u = users.get((update as any).user_id);
+      if (u && typeof (update as any).accent_color_id === "number") {
+        u.accent_color_id = (update as any).accent_color_id;
       }
     }
     // updateUserProfileAccentColor：头像渐变主题色变更
     else if (
       type_ === "updateUserProfileAccentColor" &&
-      typeof update.user_id === "number"
+      typeof (update as any).user_id === "number"
     ) {
-      const u = users.get(update.user_id);
-      if (u && typeof update.profile_accent_color_id === "number") {
-        u.profile_accent_color_id = update.profile_accent_color_id;
+      const u = users.get((update as any).user_id);
+      if (u && typeof (update as any).profile_accent_color_id === "number") {
+        u.profile_accent_color_id = (update as any).profile_accent_color_id;
       }
     }
+  };
+
+  const handleChatLike = (update: TdlibUpdate) => {
+    const type_ = update._;
     // 对话数据：新增对话 / 对话信息变更
-    else if (type_ === "updateNewChat") {
-      const c = update.chat;
+    if (type_ === "updateNewChat") {
+      const c = (update as any).chat;
       if (c && typeof c.id === "number") {
         chats.set(c.id, c);
       }
     } else if (type_ === "updateChatTitle") {
-      if (typeof update.chat_id === "number") {
-        const c = chats.get(update.chat_id);
-        if (c && typeof update.title === "string") {
-          c.title = update.title;
+      if (typeof (update as any).chat_id === "number") {
+        const c = chats.get((update as any).chat_id);
+        if (c && typeof (update as any).title === "string") {
+          c.title = (update as any).title;
         }
       }
     } else if (
       (type_ === "updateChatAccentColor" ||
         type_ === "updateChatAccentColors") &&
-      typeof update.chat_id === "number"
+      typeof (update as any).chat_id === "number"
     ) {
-      const c = chats.get(update.chat_id);
+      const c = chats.get((update as any).chat_id);
       if (c) {
-        if (typeof update.accent_color_id === "number") {
-          c.accent_color_id = update.accent_color_id;
+        if (typeof (update as any).accent_color_id === "number") {
+          c.accent_color_id = (update as any).accent_color_id;
         }
-        if (typeof update.profile_accent_color_id === "number") {
-          c.profile_accent_color_id = update.profile_accent_color_id;
+        if (typeof (update as any).profile_accent_color_id === "number") {
+          c.profile_accent_color_id = (update as any).profile_accent_color_id;
         }
       }
     } else if (type_ === "updateChatPhoto") {
-      if (typeof update.chat_id === "number") {
-        const c = chats.get(update.chat_id);
+      if (typeof (update as any).chat_id === "number") {
+        const c = chats.get((update as any).chat_id);
         if (c) {
-          c.photo = update.photo;
+          c.photo = (update as any).photo;
         }
       }
     } else if (
@@ -167,34 +141,37 @@ export async function initSenderInfo(): Promise<void> {
       type_ === "updateChatAddedToList"
     ) {
       // 仅当该对话已在缓存中且此更新携带了对应字段时才合并
-      if (typeof update.chat_id !== "number") return;
-      const c = chats.get(update.chat_id);
+      if (typeof (update as any).chat_id !== "number") return;
+      const c = chats.get((update as any).chat_id);
       if (!c) return;
       if (
         type_ === "updateChatLastMessage" &&
-        update.last_message !== undefined
+        (update as any).last_message !== undefined
       ) {
-        c.last_message = update.last_message ?? undefined;
+        c.last_message = (update as any).last_message ?? undefined;
       } else if (type_ === "updateChatDraftMessage") {
-        c.draft_message = update.draft_message ?? undefined;
+        c.draft_message = (update as any).draft_message ?? undefined;
       } else if (
         type_ === "updateChatReadInbox" &&
-        typeof update.unread_count === "number"
+        typeof (update as any).unread_count === "number"
       ) {
-        c.unread_count = update.unread_count;
+        c.unread_count = (update as any).unread_count;
       } else if (
         type_ === "updateChatNotificationSettings" &&
-        update.notification_settings
+        (update as any).notification_settings
       ) {
-        c.notification_settings = update.notification_settings;
+        c.notification_settings = (update as any).notification_settings;
       } else if (
         type_ === "updateChatViewAsTopics" &&
-        typeof update.view_as_topics === "boolean"
+        typeof (update as any).view_as_topics === "boolean"
       ) {
-        c.view_as_topics = update.view_as_topics;
+        c.view_as_topics = (update as any).view_as_topics;
       }
     }
-  });
+  };
+
+  onTdlibUpdate("user", handleUserLike);
+  onTdlibUpdate("chat", handleChatLike);
 }
 
 /** 确保用户数据已加载（有缓存则直接返回） */
