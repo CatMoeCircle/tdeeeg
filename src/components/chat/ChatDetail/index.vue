@@ -731,6 +731,8 @@ interface DraftEntry {
     customEmojis: { id: string; alt: string }[];
 }
 const draftCache = new Map<string, DraftEntry>();
+/** 上次同步到 TDLib 的草稿文本（按 chat(+topic)），用于「无变化则跳过保存」 */
+const lastSyncedDraftText = new Map<string, string>();
 const DRAFT_CACHE_MAX = 50;
 
 function draftCacheKey(id: number, tid?: number | null) {
@@ -801,6 +803,10 @@ function syncTdlibDraft(cid: number, tid?: number | null, text?: string) {
 
 /**
  * 保存输入框草稿到本地缓存 + TDLib。
+ * 跳过条件：
+ * - 从未在该聊天输入过且输入框为空（不写空草稿，也不无故 clear）
+ * - 输入框为空（仅当此前已同步过草稿时才通知 TDLib 清除）
+ * - 与上次已同步草稿内容相同（无变化不重复保存）
  * @param targetChatId 目标聊天（切换时必须传「旧」chatId）；缺省用当前 chatId
  * @param targetTopicId 目标话题（配合 targetChatId）；缺省用当前 topicId
  */
@@ -811,24 +817,39 @@ function saveDraft(targetChatId?: number, targetTopicId?: number | null) {
     const text = messageInput.value;
     const emojis = pendingCustomEmoji.value;
     const key = draftCacheKey(cid, tid);
+    const hasContent = !!text.trim() || emojis.length > 0;
+    const prevText = lastSyncedDraftText.get(key);
 
-    if (!text && emojis.length === 0) {
+    // 输入框为空：不保存草稿。仅当该聊天此前已有同步过的草稿时才 clear，
+    // 避免从未输入过的聊天在离开时也发 setChatDraftMessage。
+    if (!hasContent) {
         draftCache.delete(key);
-        syncTdlibDraft(cid, tid, '');
+        if (prevText !== undefined) {
+            lastSyncedDraftText.delete(key);
+            syncTdlibDraft(cid, tid, '');
+        }
         return;
     }
+
     draftCache.set(key, { text, customEmojis: [...emojis] });
     while (draftCache.size > DRAFT_CACHE_MAX) {
         const oldest = draftCache.keys().next().value;
         if (oldest === undefined) break;
         draftCache.delete(oldest);
     }
+
+    // 草稿与上次已同步内容相同：跳过 TDLib 写入
+    if (prevText === text) return;
+
+    lastSyncedDraftText.set(key, text);
     syncTdlibDraft(cid, tid, text);
 }
 
 /** 仅写入本地缓存（恢复远端草稿时用，避免回写 TDLib 造成无意义更新） */
 function putLocalDraft(cid: number, tid: number | null | undefined, entry: DraftEntry) {
-    draftCache.set(draftCacheKey(cid, tid), entry);
+    const key = draftCacheKey(cid, tid);
+    draftCache.set(key, entry);
+    lastSyncedDraftText.set(key, entry.text);
 }
 
 /**
@@ -840,10 +861,15 @@ function restoreDraft(
     tid?: number | null,
     remoteDraft?: { content?: { _?: string; text?: { text?: string } } } | null,
 ) {
-    const entry = draftCache.get(draftCacheKey(chatIdNum, tid));
+    const key = draftCacheKey(chatIdNum, tid);
+    const entry = draftCache.get(key);
     if (entry) {
         messageInput.value = entry.text;
         pendingCustomEmoji.value = [...entry.customEmojis];
+        // 标记为已同步内容，避免未改动离开时重复写 TDLib
+        if (!lastSyncedDraftText.has(key)) {
+            lastSyncedDraftText.set(key, entry.text);
+        }
         return;
     }
     const remoteText = remoteDraft?.content?._ === 'draftMessageContentText'
@@ -3166,7 +3192,9 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
         pendingCustomEmoji.value = [];
         // 发送成功后清除本地草稿与 TDLib 草稿，并清除回复状态
         if (chatId.value !== undefined) {
-            draftCache.delete(draftCacheKey(chatId.value, topicId.value));
+            const dKey = draftCacheKey(chatId.value, topicId.value);
+            draftCache.delete(dKey);
+            lastSyncedDraftText.delete(dKey);
             if (localDraftTimer !== null) {
                 window.clearTimeout(localDraftTimer);
                 localDraftTimer = null;
