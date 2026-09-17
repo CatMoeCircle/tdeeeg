@@ -321,7 +321,8 @@
               <AtSignIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
               <div class="min-w-0 flex-1">
                 <p class="text-sm font-bold text-gray-900 dark:text-gray-100 select-all wrap-break-word leading-snug">
-                  <CopyableText :text="secretChatUser.usernames.active_usernames[0]" @click.stop />
+                  <CopyableText :text="secretChatUser.usernames.active_usernames[0]"
+                    :copy-as="'@' + secretChatUser.usernames.active_usernames[0]" @click.stop />
                 </p>
                 <p class="mt-0.5 text-xs text-gray-400">{{ t('lng_info_username_label') }}</p>
               </div>
@@ -358,7 +359,7 @@
             <AtSignIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
             <div class="min-w-0 flex-1">
               <p class="text-sm font-bold text-gray-900 dark:text-gray-100 select-all wrap-break-word leading-snug">
-                <CopyableText :text="chatUsername" @click.stop />
+                <CopyableText :text="chatUsername" :copy-as="'@' + chatUsername" @click.stop />
               </p>
               <p class="mt-0.5 text-xs text-gray-400">{{ t('lng_info_username_label') }}</p>
             </div>
@@ -449,7 +450,7 @@
                 <!-- 主用户名：黑色，不省略 -->
                 <p v-if="primaryUsername"
                   class="text-sm font-bold text-gray-900 dark:text-gray-100 select-all wrap-break-word leading-snug">
-                  <CopyableText :text="primaryUsername" @click.stop />
+                  <CopyableText :text="primaryUsername" :copy-as="'@' + primaryUsername" @click.stop />
                 </p>
                 <!-- 附加用户名：蓝色高亮，逐个可点击复制 -->
                 <p v-if="additionalUsernames.length" class="mt-0.5 text-xs wrap-break-word leading-relaxed">

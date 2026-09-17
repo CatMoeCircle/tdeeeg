@@ -23,13 +23,16 @@ import { MessagePlugin } from 'tdesign-vue-next';
  */
 const props = withDefaults(
   defineProps<{
-    /** 要复制的内容；不传时复制插槽文本 */
+    /** 要展示的内容；不传时展示插槽文本 */
     text?: string;
+    /** 实际复制的内容；省略时与 text 相同（用于展示不含 @、复制需带 @ 等） */
+    copyAs?: string;
     /** 是否禁用复制 */
     disabled?: boolean;
   }>(),
   {
     text: '',
+    copyAs: undefined,
     disabled: false,
   },
 );
@@ -39,16 +42,16 @@ const el = ref<HTMLElement | null>(null);
 /** 展示/用于提示的文本（text 属性优先） */
 const displayText = computed(() => props.text.trim());
 
-/** 实际复制的内容：优先 text 属性，否则取插槽文本 */
-function copyText(): string {
-  return props.text.trim() || el.value?.textContent?.trim() || '';
+/** 实际复制的内容：copyAs > text > 插槽文本 */
+function resolveCopyValue(): string {
+  return props.copyAs?.trim() || props.text.trim() || el.value?.textContent?.trim() || '';
 }
 
 async function handleCopy(e?: Event) {
   if (props.disabled) return;
   // 阻止冒泡，避免嵌套可复制文本时触发外层重复复制
   e?.stopPropagation();
-  const value = copyText();
+  const value = resolveCopyValue();
   if (!value) return;
   try {
     await navigator.clipboard.writeText(value);
