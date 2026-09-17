@@ -94,7 +94,7 @@ const loadMedia = async () => {
     if (isFileReady(f)) {
         await loadSticker(f.local.path);
     } else if (f.local.can_be_downloaded && !f.local.is_downloading_active) {
-        downloadFile(f.id);
+        await downloadFile(f.id);
     }
 };
 
@@ -176,7 +176,7 @@ onMounted(() => {
 
 // 视口门控：进入视口才下载真实贴纸文件；未进入显示 emoji 占位。
 const { start: startViewportLoad, entered: stickerEntered } = useViewportLoad(rootEl, () => {
-    loadMedia();
+    return loadMedia();
 });
 watch(() => props.content, () => {
     mediaSrc.value = undefined;

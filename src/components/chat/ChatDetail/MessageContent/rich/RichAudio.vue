@@ -194,7 +194,7 @@ function setCoverPreview() {
 
 // 视口门控：进入视口才下载专辑封面；未进入只显示 base64 预览。
 const { start: startViewportLoad, entered: audioEntered } = useViewportLoad(rootEl, () => {
-    loadCover();
+    return loadCover();
 });
 watch(() => props.audio?.audio?.id, () => {
     setCoverPreview();

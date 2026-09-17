@@ -301,7 +301,7 @@ loadAlbumFn = async (msgs) => {
 // 视口门控：进入视口触发下载；未进入只显示 setAlbumPreview 的 base64。
 // entered 同时供 watch 判断是否应触发下载。
 const { start: startViewportLoad, entered: albumEntered } = useViewportLoad(rootEl, () => {
-    runAlbumLoad();
+    return runAlbumLoad();
 });
 watch(() => props.messages, (msgs) => {
     albumLoadSeq++;

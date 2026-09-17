@@ -226,7 +226,7 @@ const { start: startViewportLoad, entered } = useViewportLoad(
     rootEl,
     () => {
         const photo = pendingPhoto;
-        if (photo && !isFileReady(photo.small)) void downloadCurrentPhoto(photo);
+        if (photo && !isFileReady(photo.small)) return downloadCurrentPhoto(photo);
     }
 );
 

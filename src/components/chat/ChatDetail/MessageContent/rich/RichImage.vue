@@ -101,7 +101,7 @@ function onOpen() {
 
 // 视口门控：进入视口才下载富文本图片；未进入显示骨架占位。
 const { start: startViewportLoad, entered: imgEntered } = useViewportLoad(rootEl, () => {
-    load();
+    return load();
 });
 watch(() => props.file?.id, () => {
     src.value = '';

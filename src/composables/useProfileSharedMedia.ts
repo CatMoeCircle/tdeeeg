@@ -1,5 +1,6 @@
 import { onUnmounted, ref, type Ref } from 'vue';
-import { onVisibleOnce, unobserveVisibleOnce } from './useSharedIntersectionObserver';
+import { onVisibilityChange, unobserveVisibility } from './useSharedIntersectionObserver';
+import { enqueueViewportLoad, DEFAULT_DWELL_MS } from '../utils/viewportLoadGate';
 import { tdlibSend, isFileReady } from '../utils/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { isThumbnailImgRenderable } from '../utils/thumbnail';
@@ -370,7 +371,7 @@ export function useProfileSharedMedia(
 
 /**
  * 单个共享媒体格子的懒加载 Hook。
- * 元素进入视口后才下载高清缩略图，未进入时用 base64 minithumbnail 模糊占位。
+ * 元素进入视口并停留后才下载高清缩略图，未进入时用 base64 minithumbnail 模糊占位。
  * 照片 Small 尺寸始终下载作清晰网格图；音乐封面不受图片自动下载限制。
  */
 export function useSharedMediaCell(
@@ -381,75 +382,108 @@ export function useSharedMediaCell(
     const isLoaded = ref(false);
     const isBlurred = ref(!!item.value.miniSrc && !item.value.src);
 
+    let dwellTimer: ReturnType<typeof setTimeout> | null = null;
+    let inView = false;
+    let loadScheduled = false;
+
+    function clearDwell() {
+        if (dwellTimer !== null) {
+            clearTimeout(dwellTimer);
+            dwellTimer = null;
+        }
+    }
+
+    async function doLoad() {
+        if (isLoaded.value) return;
+        isLoaded.value = true;
+        const it = item.value;
+
+        // 照片：Small（最小尺寸）始终下载，作清晰网格占位（不受 autoDownload 管控）
+        if (it.photo) {
+            const smallest = pickSmallestPhotoFile(it.photo);
+            if (smallest) {
+                try {
+                    const { downloadFileUrl } = await import('../utils/profileMedia');
+                    const url = await downloadFileUrl(smallest, `shared_media_${it.messageId}_${smallest.id}.jpg`, 'avatar');
+                    if (url) {
+                        visibleSrc.value = url;
+                        isBlurred.value = false;
+                        return;
+                    }
+                } catch { /* 忽略下载失败 */ }
+            }
+            // 下载失败但有 minithumbnail，保持模糊显示
+        }
+
+        // 视频缩略图/封面：Small 级缩略始终下载
+        if (it.isVideo && it.photo) {
+            const smallest = pickSmallestPhotoFile(it.photo);
+            if (smallest) {
+                try {
+                    const { downloadFileUrl } = await import('../utils/profileMedia');
+                    const url = await downloadFileUrl(smallest, `shared_video_${it.messageId}_${smallest.id}.jpg`, 'avatar');
+                    if (url) {
+                        visibleSrc.value = url;
+                        isBlurred.value = false;
+                        return;
+                    }
+                } catch { /* 忽略 */ }
+            }
+        }
+
+        // 音乐专辑封面（例外：不受图片自动下载限制；仅内嵌封面；空则 iTunes Search）
+        if (it.contentType === 'messageAudio' && it.message?.content._ === 'messageAudio') {
+            const audio = it.message.content.audio;
+            const { downloadFileUrl } = await import('../utils/profileMedia');
+            for (const coverFile of listAlbumCoverFiles(audio)) {
+                try {
+                    const url = await downloadFileUrl(coverFile, `shared_music_cover_${it.messageId}_${coverFile.id}.jpg`, 'music_cover');
+                    if (url) {
+                        visibleSrc.value = url;
+                        isBlurred.value = false;
+                        return;
+                    }
+                } catch { /* 尝试下一个候选 */ }
+            }
+            const itunes = await fetchItunesCoverForAudio(audio);
+            if (itunes) {
+                visibleSrc.value = itunes;
+                isBlurred.value = false;
+                return;
+            }
+        }
+
+        // 如果没有 minithumbnail 也没有高清图，保持无图状态
+    }
+
     function start() {
         const el = elRef.value;
         if (!el) return;
 
-        onVisibleOnce(el, async () => {
-            if (isLoaded.value) return;
-            isLoaded.value = true;
-            const it = item.value;
-
-            // 照片：Small（最小尺寸）始终下载，作清晰网格占位（不受 autoDownload 管控）
-            if (it.photo) {
-                const smallest = pickSmallestPhotoFile(it.photo);
-                if (smallest) {
-                    try {
-                        const { downloadFileUrl } = await import('../utils/profileMedia');
-                        const url = await downloadFileUrl(smallest, `shared_media_${it.messageId}_${smallest.id}.jpg`, 'avatar');
-                        if (url) {
-                            visibleSrc.value = url;
-                            isBlurred.value = false;
-                            return;
-                        }
-                    } catch { /* 忽略下载失败 */ }
-                }
-                // 下载失败但有 minithumbnail，保持模糊显示
+        onVisibilityChange(
+            el,
+            () => {
+                inView = true;
+                if (loadScheduled || isLoaded.value) return;
+                clearDwell();
+                dwellTimer = setTimeout(() => {
+                    dwellTimer = null;
+                    if (!inView || loadScheduled || isLoaded.value) return;
+                    loadScheduled = true;
+                    enqueueViewportLoad(doLoad, 'profile');
+                }, DEFAULT_DWELL_MS);
+            },
+            () => {
+                inView = false;
+                clearDwell();
             }
-
-            // 视频缩略图/封面：Small 级缩略始终下载
-            if (it.isVideo && it.photo) {
-                const smallest = pickSmallestPhotoFile(it.photo);
-                if (smallest) {
-                    try {
-                        const { downloadFileUrl } = await import('../utils/profileMedia');
-                        const url = await downloadFileUrl(smallest, `shared_video_${it.messageId}_${smallest.id}.jpg`, 'avatar');
-                        if (url) {
-                            visibleSrc.value = url;
-                            isBlurred.value = false;
-                            return;
-                        }
-                    } catch { /* 忽略 */ }
-                }
-            }
-
-            // 音乐专辑封面（例外：不受图片自动下载限制；仅内嵌封面；空则 iTunes Search）
-            if (it.contentType === 'messageAudio' && it.message?.content._ === 'messageAudio') {
-                const audio = it.message.content.audio;
-                const { downloadFileUrl } = await import('../utils/profileMedia');
-                for (const coverFile of listAlbumCoverFiles(audio)) {
-                    try {
-                        const url = await downloadFileUrl(coverFile, `shared_music_cover_${it.messageId}_${coverFile.id}.jpg`, 'music_cover');
-                        if (url) {
-                            visibleSrc.value = url;
-                            isBlurred.value = false;
-                            return;
-                        }
-                    } catch { /* 尝试下一个候选 */ }
-                }
-                const itunes = await fetchItunesCoverForAudio(audio);
-                if (itunes) {
-                    visibleSrc.value = itunes;
-                    isBlurred.value = false;
-                    return;
-                }
-            }
-
-            // 如果没有 minithumbnail 也没有高清图，保持无图状态
-        });
+        );
     }
 
-    onUnmounted(() => unobserveVisibleOnce(elRef.value));
+    onUnmounted(() => {
+        clearDwell();
+        unobserveVisibility(elRef.value);
+    });
 
     return { visibleSrc, isLoaded, isBlurred, start };
 }

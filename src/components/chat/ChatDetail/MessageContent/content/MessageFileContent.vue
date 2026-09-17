@@ -782,10 +782,8 @@ function setFilePreview() {
 }
 
 // 视口门控：进入视口才触发下载/加载；未进入只显示 base64 预览与下载按钮。
-const { start: startViewportLoad, entered: fileEntered } = useViewportLoad(rootEl, () => {
-    loadMedia();
-    loadAudioCover();
-    loadDocumentThumb();
+const { start: startViewportLoad, entered: fileEntered } = useViewportLoad(rootEl, async () => {
+    await Promise.all([loadMedia(), loadAudioCover(), loadDocumentThumb()]);
 });
 watch(() => props.content, () => {
     fileMediaLoadSeq++;

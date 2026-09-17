@@ -100,7 +100,7 @@ const loadMedia = async () => {
         mediaSrc.value = convertFileSrc(f.local.path);
     } else if (f.local.can_be_downloaded && !f.local.is_downloading_active) {
         if (!canAutoDownload()) return;
-        downloadFile(f.id);
+        await downloadFile(f.id);
     }
 };
 
@@ -158,7 +158,7 @@ watch(
 
 // 视口门控：挂载时只设置 base64 预览，进入视口才下载语音/视频留言文件。
 const { start: startViewportLoad, entered: noteEntered } = useViewportLoad(rootEl, () => {
-    loadMedia();
+    return loadMedia();
 });
 watch(() => props.content, () => {
     noteLoadSeq++;

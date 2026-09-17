@@ -267,7 +267,7 @@ function onMediaClick() {
 
 // 进入视口后再拉高清图（与气泡图片策略一致）
 const { start: startViewport } = useViewportLoad(rootEl, () => {
-    void loadMedia();
+    return loadMedia();
 });
 
 watch(

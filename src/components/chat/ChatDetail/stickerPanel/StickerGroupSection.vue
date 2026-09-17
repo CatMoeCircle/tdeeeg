@@ -29,7 +29,8 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import StickerMediaItem from './StickerMediaItem.vue';
 import type { StickerGroup } from './composables/useStickerPicker';
 import { useLocalEmojiPrefs } from './composables/useLocalEmojiPrefs';
-import { onVisibleOnce, unobserve } from './composables/useStickerVisibility';
+import { onVisibilityChange, unobserve } from './composables/useStickerVisibility';
+import { enqueueViewportLoad, DEFAULT_DWELL_MS } from '../../../../utils/viewportLoadGate';
 import type { sticker, animation } from 'tdlib-types';
 
 const props = withDefaults(defineProps<{
@@ -57,19 +58,43 @@ const placeholderCount = computed(() =>
 
 /** 本分组根元素，用于可视区门控 */
 const sectionEl = ref<HTMLElement | null>(null);
+let inView = false;
+let dwellTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearDwell() {
+    if (dwellTimer !== null) {
+        clearTimeout(dwellTimer);
+        dwellTimer = null;
+    }
+}
 
 onMounted(() => {
-    // 懒加载分组：仅当分组滚动进入（放大的）可视区才拉取完整 set。
-    // 之前「创建即拉取」会在通过顶部选择器平滑跳转时，把沿途所有未加载的
-    // 贴纸包一并拉取；改为进入可视区才拉取，路过即不加载。
+    // 懒加载分组：进入视口并停留后才拉取完整 set，且走贴纸池限流，
+    // 与聊天消息下载隔离，互不阻塞。
     if (props.group.lazy && props.loadSet) {
-        onVisibleOnce(sectionEl.value, () => {
-            if (props.group.lazy) props.loadSet!(props.group.setId);
-        });
+        onVisibilityChange(
+            sectionEl.value,
+            () => {
+                inView = true;
+                clearDwell();
+                dwellTimer = setTimeout(() => {
+                    dwellTimer = null;
+                    if (!inView || !props.group.lazy || !props.loadSet) return;
+                    const setId = props.group.setId;
+                    const loadSet = props.loadSet;
+                    enqueueViewportLoad(() => loadSet(setId), 'sticker');
+                }, DEFAULT_DWELL_MS);
+            },
+            () => {
+                inView = false;
+                clearDwell();
+            },
+        );
     }
 });
 
 onBeforeUnmount(() => {
+    clearDwell();
     unobserve(sectionEl.value);
 });
 

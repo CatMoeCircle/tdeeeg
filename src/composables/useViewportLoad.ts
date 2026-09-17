@@ -1,65 +1,114 @@
 import { onUnmounted, ref, type Ref } from 'vue';
-import { onVisibleOnce, onVisibilityChange, unobserveVisibleOnce } from './useSharedIntersectionObserver';
+import { onVisibilityChange, unobserveVisibility } from './useSharedIntersectionObserver';
+import {
+    enqueueViewportLoad,
+    DEFAULT_DWELL_MS,
+    type ViewportLoadScope,
+} from '../utils/viewportLoadGate';
 
 /**
- * 视口门控加载：元素进入视口后才触发 load，未进入视口时保持不加载。
+ * 视口门控加载：元素进入视口并**停留**后才触发 load，未进入视口时保持不加载。
  *
  * 用于懒加载媒体下载——避免消息一加载进 DOM 就立即下载，而是等用户真正
  * 看到这条消息才下载；未看到时用 base64 缩略图占位。
  *
  * 特性：
- * - 基于**模块级共享 IntersectionObserver**（见 useSharedIntersectionObserver），
- *   避免每个调用方各建一个 observer —— 大量自定义 emoji/媒体同时存在时，
- *   每实例一个 observer 会令浏览器每帧 computeIntersections 极慢而丢帧。
- *   共享观察器用 root:null + 较大 rootMargin 近似覆盖内层滚动容器的裁剪。
- * - load 仅在元素首次真正进入视口时调用一次（once=true 默认）。
+ * - 基于**模块级共享 IntersectionObserver**（见 useSharedIntersectionObserver）。
+ * - **停留防抖**：进入视口后需连续可见 dwellMs（默认 500ms）才触发；期间离开
+ *   视口则取消。防止快速滚动/惯性划过时对整屏消息同时发起下载。
+ * - **按界面分池并发闸门**：load 通过 enqueueViewportLoad(scope) 排队执行，
+ *   每个界面池（chat/sticker/profile）独立限流，互不阻塞。load 返回 Promise
+ *   时占住槽位直到完成。
+ * - load 仅触发一次（once=true 默认）。
  * - 暴露 entered（是否已触发加载）供组件据此决定是否展示下载驱动内容。
  *
  * 用法：
  *   const elRef = ref<HTMLElement | null>(null);
- *   const { start, entered } = useViewportLoad(elRef, () => { loadMedia(); });
+ *   const { start, entered } = useViewportLoad(elRef, () => loadMedia());
  *   onMounted(start);
  */
 export function useViewportLoad(
     elRef: Ref<HTMLElement | null>,
-    load: () => void,
-    options: { once?: boolean; threshold?: number; rootMargin?: string } = {}
+    load: () => void | Promise<void>,
+    options: {
+        once?: boolean;
+        threshold?: number;
+        rootMargin?: string;
+        dwellMs?: number;
+        /** 界面分池，默认 chat */
+        scope?: ViewportLoadScope;
+    } = {}
 ) {
-    const { once = true } = options;
+    const { once = true, dwellMs = DEFAULT_DWELL_MS, scope = 'chat' } = options;
     const entered = ref(false);
     const inView = ref(false);
     let loaded = false;
+    let dwellTimer: ReturnType<typeof setTimeout> | null = null;
+    let observedEl: Element | null = null;
+
+    function clearDwell() {
+        if (dwellTimer !== null) {
+            clearTimeout(dwellTimer);
+            dwellTimer = null;
+        }
+    }
+
+    function fireLoad() {
+        if (loaded) return;
+        loaded = true;
+        entered.value = true;
+        enqueueViewportLoad(load, scope);
+        // once 模式加载后不再需要持续可见性回调
+        if (once && observedEl) {
+            unobserveVisibility(observedEl);
+            observedEl = null;
+        }
+    }
 
     function start() {
         const el = elRef.value;
         if (!el) return;
+        observedEl = el;
 
-        // 持续更新可视态（供 inView 使用）
-        onVisibilityChange(el, () => { inView.value = true; }, () => { inView.value = false; });
-
-        // once 模式：首次进入视口触发后卸载观察
-        if (once) {
-            onVisibleOnce(el, () => {
-                entered.value = true;
-                loaded = true;
-                load();
-            });
-        } else {
-            // 非 once（罕见）：每次从不可见→可见都触发 load
-            onVisibilityChange(el, () => {
-                if (!loaded) {
-                    entered.value = true;
-                    loaded = true;
-                    load();
+        onVisibilityChange(
+            el,
+            () => {
+                inView.value = true;
+                if (loaded) return;
+                clearDwell();
+                if (dwellMs <= 0) {
+                    fireLoad();
+                    return;
                 }
-            }, () => {});
-        }
+                dwellTimer = setTimeout(() => {
+                    dwellTimer = null;
+                    // 停留结束时必须仍在视口内才真正加载
+                    if (inView.value) fireLoad();
+                }, dwellMs);
+            },
+            () => {
+                inView.value = false;
+                // 停留期间离开：取消本次加载
+                clearDwell();
+            }
+        );
     }
 
     function stop() {
-        unobserveVisibleOnce(elRef.value);
+        clearDwell();
+        if (observedEl) {
+            unobserveVisibility(observedEl);
+            observedEl = null;
+        }
     }
 
-    onUnmounted(() => unobserveVisibleOnce(elRef.value));
+    onUnmounted(() => {
+        clearDwell();
+        if (observedEl) {
+            unobserveVisibility(observedEl);
+            observedEl = null;
+        }
+    });
+
     return { start, stop, entered, inView };
 }

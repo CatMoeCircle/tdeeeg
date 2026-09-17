@@ -23,6 +23,7 @@ import TgsPlayer, { type TgsPlayerInstance } from '../../../common/TgsPlayer.vue
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useStickerMedia } from './composables/useStickerMedia';
 import { onVisibilityChange, unobserve, isProgrammaticScroll, isUserScrolling, deferLoadWhileScrolling, isWindowActive, onWindowActiveChange } from './composables/useStickerVisibility';
+import { enqueueViewportLoad, DEFAULT_DWELL_MS } from '../../../../utils/viewportLoadGate';
 
 const props = withDefaults(defineProps<{
     /** 贴纸或动画对象（可为 null 直到加载完成） */
@@ -85,6 +86,27 @@ const thumbSrc = computed(() => {
 let downloadStarted = false;
 /** 当前是否处于（放大的）可视区 —— 用于「窗口范围内才播放」的门控 */
 let inView = false;
+/** 停留防抖计时器：进入视口后须停留 DEFAULT_DWELL_MS 才入队下载 */
+let dwellTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearDwell() {
+    if (dwellTimer !== null) {
+        clearTimeout(dwellTimer);
+        dwellTimer = null;
+    }
+}
+
+/** 停留结束后仍在视口才排入贴纸池下载（与聊天池隔离，互不阻塞） */
+function scheduleDownload() {
+    if (downloadStarted) return;
+    clearDwell();
+    dwellTimer = setTimeout(() => {
+        dwellTimer = null;
+        if (!inView || downloadStarted) return;
+        downloadStarted = true;
+        enqueueViewportLoad(() => media.download(), 'sticker');
+    }, DEFAULT_DWELL_MS);
+}
 
 /**
  * 播放门控（共享观察器 + 窗口激活状态）：
@@ -132,20 +154,17 @@ onMounted(() => {
                     // 程序化跳转途中：暂不下载（避免沿途把路过的 emoji 全拉下来），
                     // 等跳转结束若仍在可视区再补下。
                     deferLoadWhileScrolling(() => {
-                        if (inView && !downloadStarted) {
-                            downloadStarted = true;
-                            media.download();
-                        }
+                        if (inView && !downloadStarted) scheduleDownload();
                     });
                 } else {
-                    downloadStarted = true;
-                    media.download();
+                    scheduleDownload();
                 }
             }
             applyPlayback();
         },
         () => {
             inView = false;
+            clearDwell();
             // 离开可视区：暂停 TGS 与 GIF/video，省掉离屏渲染
             playerRef.value?.pause();
             videoRef.value?.pause();
@@ -160,6 +179,7 @@ watch(src, () => syncPlayback());
 
 // 清理：卸载后解除观察与窗口订阅，避免残留回调
 onUnmounted(() => {
+    clearDwell();
     unsubscribeWindow?.();
     unsubscribeWindow = null;
     unobserve(rootEl.value);

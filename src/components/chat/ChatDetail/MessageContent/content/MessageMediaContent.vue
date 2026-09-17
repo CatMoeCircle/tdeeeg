@@ -652,7 +652,7 @@ function openViewer() {
  * 延迟到组件进入用户视口后才触发。未进入视口的离屏消息只显示 base64。
  */
 const { start: startViewportLoad, entered: mediaViewportEntered } = useViewportLoad(rootEl, () => {
-    void loadMedia();
+    return loadMedia();
 });
 
 onMounted(() => {

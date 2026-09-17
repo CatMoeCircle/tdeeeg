@@ -223,7 +223,8 @@ import { SearchIcon, XIcon, ClockIcon } from 'lucide-vue-next';
 import StickerMediaItem from './StickerMediaItem.vue';
 import { useEmojiPicker, type EmojiSearchResult } from './composables/useEmojiPicker';
 import { useLocalEmojiPrefs } from './composables/useLocalEmojiPrefs';
-import { onVisibleOnce, unobserve, setProgrammaticScroll, beginUserScroll, endUserScroll } from './composables/useStickerVisibility';
+import { onVisibilityChange, unobserve, setProgrammaticScroll, beginUserScroll, endUserScroll } from './composables/useStickerVisibility';
+import { enqueueViewportLoad, DEFAULT_DWELL_MS } from '../../../../utils/viewportLoadGate';
 import { stickerPanelState } from './types';
 import { tdlibSend } from '../../../../utils/tdlib';
 import type { sticker, animation, stickerSetInfo, emojiStatus } from 'tdlib-types';
@@ -491,21 +492,46 @@ watch(recentStatusEmojiIds, (ids) => {
 const customSetEls = new Map<string, HTMLElement>();
 /** 已注册过「可视区懒加载」的 set id（避免重复观察） */
 const observedSetIds = new Set<string>();
+/** 各 set 区块的停留/在视口状态 */
+const setDwellTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const setInView = new Map<string, boolean>();
+
+function clearSetDwell(setId: string) {
+    const t = setDwellTimers.get(setId);
+    if (t !== undefined) {
+        clearTimeout(t);
+        setDwellTimers.delete(setId);
+    }
+}
 
 function registerCustomSetSection(setId: string, el: unknown) {
     if (!el) { customSetEls.delete(setId); return; }
     customSetEls.set(setId, el as HTMLElement);
 }
 
-/** 为尚未完整加载的 set 区块注册一次性可视区观察，进入可视区才 loadSet */
+/** 为尚未完整加载的 set 区块注册可视区观察：停留后经贴纸池限流 loadSet */
 function observeCustomSet(setId: string) {
     if (isCustomLoaded(setId) || observedSetIds.has(setId)) return;
     const el = customSetEls.get(setId);
     if (!el) return;
     observedSetIds.add(setId);
-    onVisibleOnce(el, () => {
-        customData.loadSet(setId);
-    });
+    onVisibilityChange(
+        el,
+        () => {
+            setInView.set(setId, true);
+            if (isCustomLoaded(setId)) return;
+            clearSetDwell(setId);
+            setDwellTimers.set(setId, setTimeout(() => {
+                setDwellTimers.delete(setId);
+                if (!setInView.get(setId) || isCustomLoaded(setId)) return;
+                enqueueViewportLoad(async () => { await customData.loadSet(setId); }, 'sticker');
+            }, DEFAULT_DWELL_MS));
+        },
+        () => {
+            setInView.set(setId, false);
+            clearSetDwell(setId);
+        },
+    );
 }
 
 watch(installedSets, async () => {
@@ -517,6 +543,9 @@ watch(installedSets, async () => {
 }, { deep: true });
 
 onBeforeUnmount(() => {
+    for (const t of setDwellTimers.values()) clearTimeout(t);
+    setDwellTimers.clear();
+    setInView.clear();
     for (const el of customSetEls.values()) unobserve(el);
     customSetEls.clear();
     observedSetIds.clear();
