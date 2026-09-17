@@ -11,12 +11,12 @@
  * @returns 用于日期分隔条的展示文本
  */
 export function formatDateLabel(timestamp: number): string {
-    const d = new Date(timestamp * 1000);
-    const now = new Date();
-    if (d.getFullYear() !== now.getFullYear()) {
-        return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
-    }
-    return `${d.getMonth() + 1}月${d.getDate()}日`;
+  const d = new Date(timestamp * 1000);
+  const now = new Date();
+  if (d.getFullYear() !== now.getFullYear()) {
+    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+  }
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
 /**
@@ -27,11 +27,11 @@ export function formatDateLabel(timestamp: number): string {
  * @returns 同一天返回 `true`，否则返回 `false`
  */
 export function isSameCalendarDay(a: number, b: number): boolean {
-    const da = new Date(a * 1000);
-    const db = new Date(b * 1000);
-    return (
-        da.getFullYear() === db.getFullYear()
-        && da.getMonth() === db.getMonth()
-        && da.getDate() === db.getDate()
-    );
+  const da = new Date(a * 1000);
+  const db = new Date(b * 1000);
+  return (
+    da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate()
+  );
 }

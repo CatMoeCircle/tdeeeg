@@ -1,8 +1,10 @@
 <template>
     <!-- 默认壁纸由 HomeView 底层统一绘制；此处仅在聊天有专属背景时叠一层 -->
-    <div class="h-full relative overflow-hidden chat-wallpaper-root" :style="hasChatSpecificBackground ? chatBackgroundStyle : undefined">
+    <div class="h-full relative overflow-hidden chat-wallpaper-root"
+        :style="hasChatSpecificBackground ? chatBackgroundStyle : undefined">
         <template v-if="hasChatSpecificBackground">
-            <div class="absolute inset-0 pointer-events-none chat-wallpaper-layer" :style="chatWallpaperLayerStyle"></div>
+            <div class="absolute inset-0 pointer-events-none chat-wallpaper-layer" :style="chatWallpaperLayerStyle">
+            </div>
             <div class="absolute inset-0 pointer-events-none bg-white chat-wallpaper-overlay"
                 :style="{ opacity: settings.chatWallpaperOverlayOpacity / 100 }"></div>
         </template>
@@ -81,15 +83,14 @@
                                 </div>
                                 <div class="flex min-w-0 max-w-[70%] flex-col"
                                     :class="isSelfAlbum(item) ? 'items-end' : 'items-start'">
-                                    <div class="w-min max-w-full overflow-hidden"
-                                        :class="isAlbumBubbleless(item)
-                                            ? ''
-                                            : [
-                                                'shadow-sm',
-                                                isSelfAlbum(item)
-                                                    ? 'text-gray-900'
-                                                    : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'
-                                            ]"
+                                    <div class="w-min max-w-full overflow-hidden" :class="isAlbumBubbleless(item)
+                                        ? ''
+                                        : [
+                                            'shadow-sm',
+                                            isSelfAlbum(item)
+                                                ? 'text-gray-900'
+                                                : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'
+                                        ]"
                                         :style="getInlineKeyboard(item.messages[0]) ? { ...albumStyle(item), width: '100%' } : albumStyle(item)">
                                         <p v-if="showSenderDisplayName(item.messages[0])"
                                             class="msg-sender-name text-xs font-semibold px-2 pt-2 pb-0.5 flex items-center gap-1.5"
@@ -163,8 +164,8 @@
                                     <CheckIcon v-if="isMsgSelected(item.msg.id)" class="w-3.5 h-3.5 text-white" />
                                 </div>
                                 <MessageContent :content="item.msg.content" :date="item.msg.date"
-                                    :senderName="getDisplaySenderName(item.msg)"
-                                    :senderUserId="senderUserIdOf(item.msg)" :messageList="messages"
+                                    :senderName="getServiceSenderName(item.msg)"
+                                    :senderUserId="senderUserIdOf(item.msg)" :messageList="messages" :chatId="chatId"
                                     @jumpToMessage="handleReplyJumpToMessage" />
                             </div>
                             <div v-else class="flex" :class="[
@@ -435,7 +436,9 @@
                         <PencilIcon class="w-4 h-4 shrink-0 mt-0.5 text-orange-500" />
                         <div class="min-w-0 flex-1">
                             <p class="text-xs font-semibold text-orange-500">编辑</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ editTargetInfo.text || '（无文本内容）' }}</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ editTargetInfo.text ||
+                                '（无文本内容）' }}
+                            </p>
                         </div>
                         <button type="button" aria-label="取消编辑"
                             class="w-6 h-6 shrink-0 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400"
@@ -456,7 +459,9 @@
                         </div>
                         <div class="min-w-0 flex-1">
                             <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
-                                {{ editMediaReplacement ? editMediaReplacement.name : (editMediaPreviewSrc ? '已附带媒体' : '无媒体预览') }}
+                                {{ editMediaReplacement ? editMediaReplacement.name : (editMediaPreviewSrc ? '已附带媒体' :
+                                '无媒体预览')
+                                }}
                             </p>
                             <p v-if="editMediaReplacement" class="text-[11px] text-orange-500">已选择新媒体，发送时将替换</p>
                         </div>
@@ -468,15 +473,15 @@
                     </div>
                 </div>
             </Transition>
-            <MessageInput ref="messageInputRef" class="relative z-10" v-model="messageInput" :reply-target="replyTargetInfo"
-                :edit-target="editTargetInfo" :edit-entities="editSeedEntitiesForInput" :chat="chat" :users="users" :supergroups="supergroups"
-                :basic-groups="basicGroups" :my-id="myId" :member-status="currentMemberStatus" :is-premium="isMePremium"
-                :custom-emojis="pendingCustomEmoji" :current-sender-id="chat?.message_sender_id"
-                :available-senders="availableSenders" :senders-loading="sendersLoading" @clear-reply="clearReply"
-                @clear-edit="cancelEdit" @send="handleSend" @attach="handleAttach" @attach-file="handleAttachFile"
-                @attach-music="handleAttachMusic" @attach-poll="handleAttachPoll"
-                @attach-checklist="handleAttachChecklist" @attach-contact="handleAttachContact"
-                @change-sender="handleChangeSender" @sticker="openStickerPanel" />
+            <MessageInput ref="messageInputRef" class="relative z-10" v-model="messageInput"
+                :reply-target="replyTargetInfo" :edit-target="editTargetInfo" :edit-entities="editSeedEntitiesForInput"
+                :chat="chat" :users="users" :supergroups="supergroups" :basic-groups="basicGroups" :my-id="myId"
+                :member-status="currentMemberStatus" :is-premium="isMePremium" :custom-emojis="pendingCustomEmoji"
+                :current-sender-id="chat?.message_sender_id" :available-senders="availableSenders"
+                :senders-loading="sendersLoading" @clear-reply="clearReply" @clear-edit="cancelEdit" @send="handleSend"
+                @attach="handleAttach" @attach-file="handleAttachFile" @attach-music="handleAttachMusic"
+                @attach-poll="handleAttachPoll" @attach-checklist="handleAttachChecklist"
+                @attach-contact="handleAttachContact" @change-sender="handleChangeSender" @sticker="openStickerPanel" />
 
             <!-- 表情包面板（emoji/GIF/贴纸 三合一） -->
             <StickerPanel :anchor="inputAnchorEl" @pick-emoji="insertEmojiIntoInput"
@@ -670,6 +675,7 @@ import {
     getDisplaySenderPhoto as computeDisplaySenderPhoto,
     getDisplaySenderProfileAccentId as computeDisplaySenderProfileAccentId,
     getDisplaySenderDeleted as computeDisplaySenderDeleted,
+    getSenderName as computeSenderName,
     getForwardName as computeForwardName,
     getForwardPhoto as computeForwardPhoto,
     getForwardProfileAccentId as computeForwardProfileAccentId,
@@ -4283,6 +4289,13 @@ const isSavedForwardedMessage = (msg: message): boolean =>
 
 const getDisplaySenderName = (msg: message): string =>
     computeDisplaySenderName(msg, senderDeps());
+
+/**
+ * 服务消息的操作者名称：直接用真实名称（"你" 只用于气泡上方的发送者名称行）。
+ * 即使是自己触发的置顶/加入/清单等操作，服务消息里也显示自己的名称，不做特殊处理。
+ */
+const getServiceSenderName = (msg: message): string =>
+    computeSenderName(msg, senderCaches());
 
 const showSenderDisplayName = (msg: message): boolean =>
     computeShowSenderDisplayName(msg, senderDeps());

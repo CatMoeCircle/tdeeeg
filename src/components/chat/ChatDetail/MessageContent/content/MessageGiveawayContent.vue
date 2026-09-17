@@ -2,15 +2,18 @@
     <div class="min-w-57.5 max-w-[320px] select-text">
         <!-- 1. 居中 图标 + 标题 + 奖品 + 获奖说明 -->
         <div class="flex flex-col items-center">
-            <MessageStickerContent v-if="stickerContent" :content="stickerContent" :size="112" class="shrink-0" />
-            <div v-else class="flex h-28 w-28 shrink-0 items-center justify-center rounded-full" :style="iconStyle">
-                <GiftIcon v-if="isPremium" class="h-14 w-14 text-white" />
-                <StarIcon v-else class="h-14 w-14 fill-current text-white" />
+            <div class="relative shrink-0">
+                <MessageStickerContent v-if="stickerContent" :content="stickerContent" :size="112" />
+                <div v-else class="flex h-28 w-28 items-center justify-center rounded-full" :style="iconStyle">
+                    <GiftIcon v-if="isPremium" class="h-14 w-14 text-white" />
+                    <StarIcon v-else class="h-14 w-14 fill-current text-white" />
+                </div>
+                <div
+                    class="absolute bottom-0 left-1/2 z-10 -translate-x-1/2 translate-y-1/6 rounded-full bg-[#3390ec] px-2 py-0.5 text-xs font-semibold text-white shadow-sm">
+                    {{ winnerCountBadge }}</div>
             </div>
-            <h3 class="mt-3 text-base font-bold text-gray-900 dark:text-white">抽奖活动</h3>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                <GlobalEmojiText :text="winnersText" />
-            </p>
+            <h3 class="mt-3 text-base font-bold text-gray-900 dark:text-white">{{ t('lng_prizes_title') }}</h3>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400" v-html="winnersText"></p>
             <p v-if="prizeDescription" class="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
                 <GlobalEmojiText :text="prizeDescription" />
             </p>
@@ -19,7 +22,8 @@
         <!-- 参与者 -->
         <div class="mt-3">
             <div class="px-3 py-2.5 text-center">
-                <div class="text-base font-medium text-gray-500 dark:text-gray-400">参与者</div>
+                <div class="text-base font-medium text-gray-500 dark:text-gray-400">{{ t('lng_prizes_participants') }}
+                </div>
                 <div class="text-sm text-gray-500 dark:text-gray-400">{{ participantsText }}</div>
                 <div v-if="channels.length" class="mt-2 space-y-1.5">
                     <div v-for="ch in channels" :key="ch.id"
@@ -39,7 +43,7 @@
         <!-- 活动时间 -->
         <div class="mt-2">
             <div class="px-3 py-2.5 text-center">
-                <div class="text-base font-medium text-gray-500 dark:text-gray-400">抽奖活动结束时间</div>
+                <div class="text-base font-medium text-gray-500 dark:text-gray-400">{{ t('lng_prizes_date') }}</div>
                 <div class="mt-1 text-sm text-gray-800 dark:text-gray-100">{{ dateText }}</div>
             </div>
         </div>
@@ -49,7 +53,7 @@
             <button type="button"
                 class="mx-auto block w-[calc(100%-10px)] rounded-[5px] px-6 py-1.5 text-center text-sm font-medium shadow-sm transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-current/30"
                 :style="learnMoreStyle" @click="openDetails">
-                了解更多
+                {{ t('lng_prizes_how_works') }}
             </button>
         </div>
     </div>
@@ -83,7 +87,7 @@
                         <button type="button"
                             class="mt-5 block w-full rounded-lg bg-sky-500/10 py-2 text-center text-sm font-medium text-sky-600 hover:bg-sky-500/20 focus:outline-none focus:ring-2 focus:ring-sky-400/40 active:bg-sky-500/25 dark:bg-sky-400/10 dark:text-sky-300 dark:hover:bg-sky-400/20"
                             @click="closeDetails">
-                            关闭
+                            {{ t('lng_close') }}
                         </button>
                     </div>
                 </div>
@@ -134,6 +138,9 @@ const formatCount = (count: number) => numberFormatter.format(count);
 /** 是否为 Telegram Premium 抽奖（否则为 Stars 抽奖） */
 const isPremium = computed(() => props.content.prize._ === 'giveawayPrizePremium');
 
+/** 礼物图标下方的获奖数量角标，如 "x1" */
+const winnerCountBadge = computed(() => t('lng_prizes_badge', { amount: formatCount(props.content.winner_count) }));
+
 /** 图标渐变：Premium 用紫罗兰礼物，Stars 用琥珀星星 */
 const iconStyle = computed(() => ({
     background: isPremium.value
@@ -163,18 +170,20 @@ const stickerContent = computed<messageSticker | null>(() => {
 /** 附加奖品描述（prize_description） */
 const prizeDescription = computed(() => props.content.parameters.prize_description?.trim() || '');
 
-/** 获奖人数说明 */
+/** 获奖人数说明（TDLib markdown → HTML） */
 const winnersText = computed(() => {
     const prize = props.content.prize;
-    const count = props.content.winner_count;
+    let raw: string;
     if (prize._ === 'giveawayPrizeStars') {
-        return `${formatCount(prize.star_count)} Stars 将会分发给 ${count} 位获奖者`;
+        raw = t('lng_prizes_credits_about_single', { amount: `${formatCount(prize.star_count)} Stars` });
+    } else {
+        raw = t('lng_prizes_about', { count: props.content.winner_count, duration: `${prize.month_count} months` });
     }
-    return `${count} 位获奖者将获得 Telegram Premium ${prize.month_count} 个月`;
+    return raw.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 });
 
 /** 参与者（参与资格说明） */
-const participantsText = computed(() => `频道所有成员:`);
+const participantsText = computed(() => t('lng_prizes_participants_all', { channel: mainChannel.value?.title || '' }));
 
 /** 活动时间（开奖时间） */
 const selectionDate = computed(() => props.content.parameters.winners_selection_date || props.date || 0);
@@ -182,13 +191,9 @@ const selectionDate = computed(() => props.content.parameters.winners_selection_
 const dateText = computed(() => {
     if (!selectionDate.value) return '未知';
     const d = new Date(selectionDate.value * 1000);
-    const now = new Date();
-    const sameYear = d.getFullYear() === now.getFullYear();
-    const datePart = sameYear
-        ? `${d.getMonth() + 1}月${d.getDate()}日`
-        : `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
-    const timePart = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    return `${datePart} ${timePart} 开奖`;
+    const dateStr = d.toLocaleDateString();
+    const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return t('lng_mediaview_date_time', { date: dateStr, time: timeStr });
 });
 
 /** 抽奖状态标题（弹窗用） */

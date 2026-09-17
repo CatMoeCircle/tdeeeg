@@ -8,7 +8,7 @@
     <MessageGiftContent v-else-if="content._ === 'messageGift'" :content="content" :date="date" />
 
     <MessageServiceContent v-else-if="isServiceContent(content)" :content="content" :senderName="senderName"
-        :messageList="messageList" @jump="onServiceJump" />
+        :messageList="messageList" :chatId="chatId" @jump="onServiceJump" />
 
     <template v-else>
         <!-- Reply preview（媒体消息的回复预览由 MessageMediaContent 在媒体宽度容器内渲染，避免撑宽 w-fit 气泡） -->
@@ -19,9 +19,8 @@
         <!-- Text messages -->
         <MessageTextContent v-if="content._ === 'messageText'" :formattedText="content.text"
             :linkPreview="content.link_preview" :chatId="chatId" :accentColorId="accentColorId"
-            :showInlineTime="inlineTime"
-            :timeDate="date" :timeIsOutgoing="isSelf" :timeSendingState="sendingState" :timeIsRead="isRead"
-            :timeViewCount="viewCount" :timeAuthorSignature="authorSignature"
+            :showInlineTime="inlineTime" :timeDate="date" :timeIsOutgoing="isSelf" :timeSendingState="sendingState"
+            :timeIsRead="isRead" :timeViewCount="viewCount" :timeAuthorSignature="authorSignature"
             :timeColorClass="isSelf ? 'text-gray-600/70 dark:text-gray-400/70' : 'text-gray-400 dark:text-gray-500'">
             <slot />
         </MessageTextContent>
@@ -53,20 +52,18 @@
              ReactionsBar 贴纸下方：自己靠右、他人靠左 -->
         <div v-else-if="isStickerLikeContent" class="flex items-end gap-1.5 pb-2">
             <!-- 贴纸 + 回应：自己消息在右，他人在左 -->
-            <div class="flex flex-col gap-0.5 min-w-0"
-                :class="isSelf ? 'items-end order-2' : 'items-start order-1'">
+            <div class="flex flex-col gap-0.5 min-w-0" :class="isSelf ? 'items-end order-2' : 'items-start order-1'">
                 <div class="relative inline-block align-bottom">
                     <MessageStickerContent :content="stickerContent" />
                     <span v-if="date && !settings.sticker.hideTimestamp"
                         class="absolute right-1.5 bottom-1.5 z-10 bg-black/60 text-white px-1.5 py-0.5 rounded-md leading-none select-none pointer-events-none flex items-center">
-                        <MessageStatus :date="date" :isOutgoing="!!isSelf"
-                            :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount"
-                            :authorSignature="authorSignature" overMedia />
+                        <MessageStatus :date="date" :isOutgoing="!!isSelf" :sendingState="sendingState" :isRead="isRead"
+                            :viewCount="viewCount" :authorSignature="authorSignature" overMedia />
                     </span>
                 </div>
                 <!-- ReactionsBar：贴纸下方，自己靠右、他人靠左 -->
-                <ReactionsBar v-if="hasReactions && onToggleReaction" class="w-full" :msg="message!"
-                    :isSelf="!!isSelf" @toggle-reaction="onToggleReaction" />
+                <ReactionsBar v-if="hasReactions && onToggleReaction" class="w-full" :msg="message!" :isSelf="!!isSelf"
+                    @toggle-reaction="onToggleReaction" />
             </div>
             <!-- 回复预览：自己消息在左，他人在右 -->
             <div v-if="replyTo" class="w-40 shrink-0 self-end" :class="isSelf ? 'order-1' : 'order-2'">

@@ -9,8 +9,9 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
-import { computed, watch } from 'vue';
+import { computed, watch, ref } from 'vue';
 import type { MessageContent, message } from 'tdlib-types';
+import { tdlibSend } from '../../../../../utils/tdlib';
 import { ensureUser, getUserDisplayName } from '../../../../../utils/senderInfo';
 
 const props = defineProps<{
@@ -21,6 +22,8 @@ const props = defineProps<{
     senderUserId?: number;
     /** 当前消息列表（用于按 checklist_message_id 查找清单消息，展示任务文本） */
     messageList?: message[];
+    /** 对话 id（置顶提示需按 message_id 拉取被置顶消息以判断其类型） */
+    chatId?: number;
 }>();
 
 const emit = defineEmits<{
@@ -75,12 +78,114 @@ function memberRemovedText(userId: number): string {
     const name = getUserDisplayName(userId);
     if (!name) return '有成员离开了群组';
     // 成员自行退出：此时消息发送者即该成员本人
-    if (props.senderUserId === userId) return `${name} 退出了群组`;
+    if (props.senderUserId === userId) return t('lng_action_user_left', { from: name });
     // 被其他成员/管理员移出：优先带出操作者
     const actor = props.senderName?.trim();
-    if (actor) return `${actor} 将 ${name} 移出了群组`;
-    return `${name} 被移出了群组`;
+    if (actor) return t('lng_action_kick_user', { from: actor, user: name });
+    return t('lng_action_kick_user', { from: '', user: name });
 }
+
+/** 置顶服务消息（messagePinMessage）文案，异步解析被置顶消息类型后填充 */
+const pinText = ref('');
+
+/** 被置顶消息的媒体描述（对应 lng_action_pinned_media_* 键），无法归类返回 null */
+function pinnedMediaInfo(content: MessageContent): { key: string; params?: Record<string, string> } | null {
+    switch (content._) {
+        case 'messagePhoto':
+            return { key: 'lng_action_pinned_media_photo' };
+        case 'messageVideo':
+            return { key: 'lng_action_pinned_media_video' };
+        case 'messageAnimation':
+            return { key: 'lng_action_pinned_media_gif' };
+        case 'messageSticker':
+            return { key: 'lng_action_pinned_media_sticker' };
+        case 'messageAnimatedEmoji':
+            return { key: 'lng_action_pinned_media_emoji_sticker', params: { emoji: content.emoji } };
+        case 'messageVoiceNote':
+            return { key: 'lng_action_pinned_media_voice' };
+        case 'messageVideoNote':
+            return { key: 'lng_action_pinned_media_video_message' };
+        case 'messageAudio':
+            return { key: 'lng_action_pinned_media_audio' };
+        case 'messageDocument':
+            return { key: 'lng_action_pinned_media_file' };
+        case 'messageLocation':
+            return { key: 'lng_action_pinned_media_location' };
+        case 'messageContact':
+            return { key: 'lng_action_pinned_media_contact' };
+        case 'messageGame':
+            return { key: 'lng_action_pinned_media_game', params: { game: pinnedTextPreview(content.game.title) } };
+        case 'messageStory':
+            return { key: 'lng_action_pinned_media_story' };
+        default:
+            return null;
+    }
+}
+
+/** 置顶预览的字符上限（与 Telegram Desktop 的 kPinnedMessageTextLimit 一致） */
+const PINNED_TEXT_PREVIEW_LIMIT = 16;
+
+/**
+ * 被置顶内容的开头预览：去换行后按上限截断并在末尾补省略号，
+ * 与其他客户端一样只保留很短的预览；emoji（代理对）不会被切一半。
+ */
+function pinnedTextPreview(text: string): string {
+    const oneLine = text.replace(/\s+/g, ' ').trim();
+    let cutAt = 0;
+    for (let limit = PINNED_TEXT_PREVIEW_LIMIT; limit > 0 && cutAt < oneLine.length; limit--) {
+        const code = oneLine.charCodeAt(cutAt);
+        cutAt += code >= 0xd800 && code <= 0xdbff && cutAt + 1 < oneLine.length ? 2 : 1;
+    }
+    return cutAt < oneLine.length ? `${oneLine.slice(0, cutAt)}…` : oneLine;
+}
+
+/** 解析 messagePinMessage：按被置顶消息类型生成「{from} 置顶了 …」文案 */
+async function resolvePinText(messageId: number) {
+    const from = sender.value;
+    const chatId = props.chatId;
+    if (!messageId || !chatId) {
+        pinText.value = t('lng_action_pinned_message', { from, text: '' });
+        return;
+    }
+
+    // 优先在本列表查找被置顶消息，找不到再通过 TDLib 拉取
+    let pinned: message | undefined = props.messageList?.find(m => m.id === messageId);
+    if (!pinned) {
+        try {
+            pinned = await tdlibSend({ _: 'getMessage', chat_id: chatId, message_id: messageId }) as any;
+        } catch {
+            pinned = undefined;
+        }
+    }
+    if (!pinned) {
+        pinText.value = t('lng_action_pinned_message', { from, text: '' });
+        return;
+    }
+
+    // 文本消息 → 「{from} 置顶了 "{开头文字}"」；媒体消息 → 「{from} 置顶了 {媒体}」
+    const c = pinned.content;
+    if (c._ === 'messageText') {
+        pinText.value = t('lng_action_pinned_message', { from, text: pinnedTextPreview(c.text.text) });
+        return;
+    }
+    const info = pinnedMediaInfo(c);
+    if (info) {
+        const media = info.params ? t(info.key, info.params) : t(info.key);
+        pinText.value = t('lng_action_pinned_media', { from, media });
+    } else {
+        pinText.value = t('lng_action_pinned_message', { from, text: '' });
+    }
+}
+
+// 置顶服务消息：按被置顶消息 id 异步解析文案
+watch(
+    () => props.content,
+    (c) => {
+        if (c._ === 'messagePinMessage') void resolvePinText(c.message_id);
+        else pinText.value = '';
+    },
+    { immediate: true },
+);
 
 const serviceText = computed(() => {
     const c = props.content;
@@ -98,17 +203,17 @@ const serviceText = computed(() => {
         case 'messageChatAddMembers':
             return `${c.member_user_ids.length} 位成员已加入群组`;
         case 'messageChatJoinByLink':
-            return `${sender.value} 通过邀请链接加入了群组`;
+            return t('lng_action_user_joined_by_link', { from: sender.value });
         case 'messageChatJoinByRequest':
-            return `${sender.value} 通过申请加入了群组`;
+            return t('lng_action_user_joined_by_request', { from: sender.value });
         case 'messageChatDeleteMember':
             return memberRemovedText(c.user_id);
         case 'messageChatUpgradeTo':
-            return `群组已升级为超级群组`;
+            return t('lng_action_group_migrate');
         case 'messageChatUpgradeFrom':
-            return `群组由基本群组升级而来`;
+            return t('lng_action_group_migrate');
         case 'messagePinMessage':
-            return `已置顶一条消息`;
+            return pinText.value;
         case 'messageScreenshotTaken':
             return `对方截取了屏幕`;
         case 'messageChatSetMessageAutoDeleteTime':

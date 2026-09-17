@@ -15,7 +15,8 @@
                 </div>
                 <!-- 消息预览 -->
                 <div class="flex-1 min-w-0 flex items-center gap-2">
-                    <span class="text-xs font-medium text-blue-500 dark:text-blue-400 shrink-0">顶置消息</span>
+                    <span class="text-xs font-medium text-blue-500 dark:text-blue-400 shrink-0">{{
+                        t('lng_pinned_message') }}</span>
                     <span class="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-300">
                         <GlobalEmojiText :text="getMessagePreview(currentPinned)" :size="14" />
                     </span>
@@ -37,11 +38,11 @@
             <!-- 顶置消息列表（展开态） -->
             <div v-else-if="expanded" class="px-2 py-2">
                 <div class="flex items-center justify-between px-2 mb-1">
-                    <span class="text-xs font-semibold text-gray-500 dark:text-gray-400">顶置消息 ({{ pinnedMessages.length
-                    }})</span>
+                    <span class="text-xs font-semibold text-gray-500 dark:text-gray-400">{{
+                        t('lng_pinned_messages_title', { count: pinnedMessages.length }) }}</span>
                     <button @click="expanded = false"
                         class="text-xs text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                        收起
+                        {{ t('lng_polls_votes_collapse') }}
                     </button>
                 </div>
                 <div class="max-h-80 overflow-y-auto custom-scrollbar">
@@ -202,7 +203,7 @@ function getMessagePreview(msg: message): string {
         case 'messageGame':
             return '[游戏]';
         case 'messagePinMessage':
-            return '顶置了一条消息';
+            return t('lng_action_pinned_message', { from: '', text: '' });
         default:
             return '[消息]';
     }
