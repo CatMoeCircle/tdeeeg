@@ -145,7 +145,7 @@
                     </div>
                 </div>
 
-                <!-- 已安装自定义 emoji 包（自己的） -->
+                <!-- 已安装自定义 emoji 包（自己的）：完整展开 -->
                 <div v-if="installedSets.length > 0" class="sp-emoji-divider">
                     <p class="sp-emoji-block-title">我的表情包</p>
                 </div>
@@ -163,23 +163,32 @@
                     </div>
                 </div>
 
-                <!-- 推荐自定义 emoji 包（热门，折叠预览：前几排 + 数量 + 添加按钮） -->
+                <!-- 推荐自定义 emoji 包（热门）：默认折叠预览，可手动展开 -->
                 <div v-if="trendingSets.length > 0" class="sp-emoji-divider">
                     <p class="sp-emoji-block-title">推荐表情包</p>
                 </div>
                 <div v-for="set in trendingSets" :key="set.id" class="sp-emoji-section sp-emoji-trending"
                     :data-emoji-block="`trending_${set.id}`">
+                    <button type="button" class="sp-cat-head w-full text-left"
+                        @click="toggleTrendingExpand(String(set.id))">
+                        <span class="sp-emoji-block-title flex-1 min-w-0 truncate">{{ set.title }}</span>
+                        <span class="text-[10px] text-gray-400 shrink-0 ml-1">{{ set.size }} 个表情</span>
+                        <ChevronDownIcon v-if="trendingTotal(set) > PREVIEW_COUNT || isTrendingExpanded(String(set.id))"
+                            class="w-3.5 h-3.5 shrink-0 ml-1 transition-transform"
+                            :class="isTrendingExpanded(String(set.id)) ? 'rotate-180' : ''" />
+                    </button>
                     <div class="sp-emoji-shelf">
-                        <StickerMediaItem v-for="s in previewStamps(set)" :key="s.id" :item="s" kind="sticker"
+                        <StickerMediaItem v-for="s in trendingDisplayStamps(set)" :key="s.id" :item="s" kind="sticker"
                             :size="26" :skin-tone="skinTone" @pick="onPickCustom" />
-                        <div v-if="previewMore(set) > 0" class="sp-trending-more-cnt flex items-center justify-center">
-                            +{{ previewMore(set) }}
-                        </div>
+                        <button v-if="trendingCanExpand(set)" type="button"
+                            class="sp-trending-more-cnt flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/10"
+                            :title="`展开剩余 ${trendingMore(set)} 个`"
+                            @click="toggleTrendingExpand(String(set.id))">
+                            +{{ trendingMore(set) }}
+                        </button>
                     </div>
-                    <!-- 底部：数量 + 包名 + 添加按钮 -->
-                    <div class="flex items-center justify-between px-1 pt-1.5">
-                        <span class="text-[11px] text-gray-400 truncate min-w-0">{{ set.title }} · {{ set.size }}
-                            个表情</span>
+                    <!-- 底部：添加按钮 -->
+                    <div class="flex items-center justify-end px-1 pt-1.5">
                         <button type="button" :disabled="isSetInstalled(set.id)"
                             class="sp-add-btn shrink-0 ml-2 px-2.5 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50"
                             :class="isSetInstalled(set.id) ? 'bg-black/5 dark:bg-white/10 text-gray-400 cursor-default' : 'bg-blue-500/15 text-blue-500 hover:bg-blue-500/25'"
@@ -218,7 +227,7 @@
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { SearchIcon, XIcon, ClockIcon } from 'lucide-vue-next';
+import { SearchIcon, XIcon, ClockIcon, ChevronDownIcon } from 'lucide-vue-next';
 // GlobalEmojiInline removed - using global Apple Color Emoji font
 import StickerMediaItem from './StickerMediaItem.vue';
 import { useEmojiPicker, type EmojiSearchResult } from './composables/useEmojiPicker';
@@ -432,7 +441,17 @@ function setEmojiTitle(set: stickerSetInfo): string {
     return set.title || '表情包';
 }
 
-/** 已安装自定义包展示的贴纸：已完整加载则用完整列表，否则用 covers 占位 + 滚入时自动加载 */
+/** 折叠预览条数：两排 × 8 列 */
+const PREVIEW_COUNT = 16;
+
+/** 推荐包展开状态（默认收起） */
+const expandedTrending = ref<Set<string>>(new Set());
+
+function isTrendingExpanded(setId: string | number): boolean {
+    return expandedTrending.value.has(String(setId));
+}
+
+/** 已安装自定义包的源贴纸：已完整加载则用完整列表，否则用 covers 占位 */
 function installedStamps(set: stickerSetInfo): sticker[] {
     const loaded = customData.loadedSets.value[set.id];
     if (loaded && loaded.length > 0) return loaded;
@@ -444,15 +463,38 @@ function isCustomLoaded(setId: string): boolean {
     return !!customData.loadedSets.value[setId];
 }
 
-/** 推荐包折叠预览：只取前两排（8 列 ≈ 16 个）的 covers */
-const TRENDING_PREVIEW_COUNT = 16;
-function previewStamps(set: stickerSetInfo): sticker[] {
+/** 推荐包源贴纸：优先用已加载完整列表，否则用 covers */
+function trendingStamps(set: stickerSetInfo): sticker[] {
+    const loaded = customData.loadedSets.value[set.id];
+    if (loaded && loaded.length > 0) return loaded;
     const covers = (set as any).covers ?? [];
-    return covers.slice(0, TRENDING_PREVIEW_COUNT) as sticker[];
+    return covers as sticker[];
 }
-/** 推荐包剩余数量（预览之外还有多少） */
-function previewMore(set: stickerSetInfo): number {
-    return Math.max(0, (set.size ?? 0) - TRENDING_PREVIEW_COUNT);
+function trendingDisplayStamps(set: stickerSetInfo): sticker[] {
+    const list = trendingStamps(set);
+    if (isTrendingExpanded(set.id)) return list;
+    return list.slice(0, PREVIEW_COUNT);
+}
+function trendingTotal(set: stickerSetInfo): number {
+    return Math.max(set.size ?? 0, trendingStamps(set).length);
+}
+function trendingCanExpand(set: stickerSetInfo): boolean {
+    return !isTrendingExpanded(set.id) && trendingTotal(set) > PREVIEW_COUNT;
+}
+function trendingMore(set: stickerSetInfo): number {
+    return Math.max(0, trendingTotal(set) - PREVIEW_COUNT);
+}
+function toggleTrendingExpand(setId: string | number) {
+    const key = String(setId);
+    const next = new Set(expandedTrending.value);
+    if (next.has(key)) {
+        next.delete(key);
+    } else {
+        next.add(key);
+        // 展开时拉取完整 set（covers 不够时）
+        if (!customData.loadedSets.value[key]) void customData.loadSet(key);
+    }
+    expandedTrending.value = next;
 }
 
 async function loadGiftStickers(ids: string[]) {
@@ -661,16 +703,17 @@ defineExpose({ activate: picker.activate, deactivate: picker.deactivate });
     color: rgba(128, 128, 128, 0.9);
 }
 
-/* 内置分类折叠标题条：点击展开，可点整行 */
+/* 已安装/推荐包折叠标题条：点击展开/收起 */
 .sp-cat-head {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     cursor: pointer;
-    padding: 6px 4px;
-    margin: 2px 0;
-    border-radius: 8px;
-    border: 1px solid rgba(128, 128, 128, 0.14);
+    padding: 4px 4px 2px;
+    margin: 0;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
     transition: background 0.1s ease;
 }
 
