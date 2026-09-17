@@ -7,17 +7,21 @@
                 <!-- Video card -->
                 <div ref="videoContainerRef" class="video-card relative flex flex-col overflow-hidden bg-black/70"
                     :style="playerStyle" @click.stop @mousemove="onVideoMouseMove" @mouseleave="onVideoMouseLeave">
-                    <!-- Video element -->
-                    <video ref="videoRef" :src="effectiveVideoSrc" preload="auto" playsinline loop
-                        class="w-full h-full object-contain" @timeupdate="onVideoTimeUpdate"
-                        @loadedmetadata="onVideoLoaded" @ended="onVideoEnded" @click="toggleVideoPlay" />
+                    <!-- 封面垫底：正式可播前一直可见，避免黑屏；断网时不再只剩黑色加载层 -->
+                    <img v-if="isVideo && currentThumb && !videoHasFrame" :src="currentThumb"
+                        class="absolute inset-0 w-full h-full object-contain pointer-events-none" />
 
-                    <!-- 视频未下载（未自动下载）：显示缩略图 + 手动下载按钮 -->
+                    <!-- Video element：首帧就绪前透明，封面透出 -->
+                    <video ref="videoRef" :src="effectiveVideoSrc" preload="auto" playsinline loop
+                        class="absolute inset-0 w-full h-full object-contain transition-opacity duration-200"
+                        :class="videoHasFrame ? 'opacity-100' : 'opacity-0'" :poster="currentThumb || undefined"
+                        @timeupdate="onVideoTimeUpdate" @loadedmetadata="onVideoLoaded" @canplay="onVideoFrameReady"
+                        @playing="onVideoFrameReady" @waiting="onVideoWaiting" @error="onVideoError"
+                        @ended="onVideoEnded" @click="toggleVideoPlay" />
+
+                    <!-- 视频未下载（未自动下载）：封面 + 手动下载按钮 -->
                     <div v-if="isVideo && currentCanDownload"
-                        class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60" @click.stop>
-                        <!-- 缩略图预览 -->
-                        <img v-if="currentThumb" :src="currentThumb"
-                            class="absolute inset-0 w-full h-full object-contain opacity-40 pointer-events-none" />
+                        class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/35" @click.stop>
                         <button @click="close"
                             class="absolute top-3 left-3 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/70 transition-colors">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5">
@@ -38,15 +42,17 @@
                         <LoaderIndicator v-else
                             :progress="videoDownloadProgress > 0 ? videoDownloadProgress : undefined" size="52"
                             color="#ffffff" />
-                        <span v-if="!videoDownloading" class="relative z-10 mt-3 text-sm text-white/90">尚未下载，点击下载</span>
+                        <span v-if="!videoDownloading" class="relative z-10 mt-3 text-sm text-white/90">
+                            {{ videoLoadFailed || navigatorOffline ? '网络不可用，点击下载视频' : '尚未下载，点击下载' }}
+                        </span>
                         <span v-else class="relative z-10 mt-3 text-sm text-white/90">
                             {{ videoDownloadProgress > 0 ? `下载中 ${Math.round(videoDownloadProgress * 100)}%` : '下载中…' }}
                         </span>
                     </div>
 
-                    <!-- 视频加载中：关闭按钮 + 加载指示器 + 下载进度（此时无控制条） -->
-                    <div v-if="isVideo && !videoLoaded && !currentCanDownload"
-                        class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 cursor-pointer"
+                    <!-- 视频加载中：仅中心指示器，不盖黑色遮罩（封面可见） -->
+                    <div v-if="isVideo && effectiveVideoSrc && !videoHasFrame && !currentCanDownload && !videoLoadFailed"
+                        class="absolute inset-0 z-20 flex flex-col items-center justify-center cursor-pointer"
                         @click="close" title="点击关闭">
                         <button @click.stop="close"
                             class="absolute top-3 left-3 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/70 transition-colors">
@@ -54,15 +60,39 @@
                                 <path d="M18 6L6 18M6 6l12 12" />
                             </svg>
                         </button>
-                        <LoaderIndicator :progress="imageProgress > 0 ? imageProgress : undefined" size="52"
+                        <LoaderIndicator
+                            :progress="imageProgress > 0 && imageProgress < 1 ? imageProgress : undefined" size="52"
                             color="#ffffff" />
-                        <span class="mt-3 text-sm text-white/80">
-                            {{ imageProgress > 0 ? `下载中 ${Math.round(imageProgress * 100)}%` : '加载中…' }}
+                        <span class="mt-3 text-sm text-white/80 drop-shadow">
+                            {{ imageProgress > 0 && imageProgress < 1 ? `下载中 ${Math.round(imageProgress * 100)}%` : '加载中…' }}
                         </span>
-                        <div v-if="imageProgress > 0" class="mt-3 w-52 h-1.5 bg-white/20 rounded-full overflow-hidden">
+                        <div v-if="imageProgress > 0 && imageProgress < 1"
+                            class="mt-3 w-52 h-1.5 bg-white/20 rounded-full overflow-hidden">
                             <div class="h-full bg-white transition-all duration-300"
                                 :style="{ width: imageProgress * 100 + '%' }"></div>
                         </div>
+                    </div>
+
+                    <!-- 加载失败且无法下载：封面 + 提示，可重试 -->
+                    <div v-if="isVideo && videoLoadFailed && !currentCanDownload && !videoDownloading"
+                        class="absolute inset-0 z-20 flex flex-col items-center justify-center">
+                        <button @click.stop="close"
+                            class="absolute top-3 left-3 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/70 transition-colors">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5">
+                                <path d="M18 6L6 18M6 6l12 12" />
+                            </svg>
+                        </button>
+                        <span class="text-sm text-white/85 mb-3">{{ navigatorOffline ? '网络不可用，视频暂时无法播放' : '视频加载失败' }}</span>
+                        <button @click.stop="retryVideoLoad"
+                            class="relative z-10 h-9 px-4 rounded-full bg-white/15 hover:bg-white/25 border border-white/30 text-sm text-white transition-colors">
+                            重试
+                        </button>
+                    </div>
+
+                    <!-- 播放中再次缓冲：轻度指示，不黑屏 -->
+                    <div v-if="isVideo && videoHasFrame && videoBuffering"
+                        class="absolute inset-0 z-20 flex items-center justify-center bg-black/20 pointer-events-none">
+                        <LoaderIndicator size="40" color="#ffffff" />
                     </div>
 
                     <!-- Prev/Next arrows (hidden with UI control, only in video mode) -->
@@ -448,6 +478,12 @@ const videoVolume = ref(settings.player.mediaVolume);
 const videoCurrent = ref(0);
 const videoDuration = ref(0);
 const videoLoaded = ref(false);
+/** 视频已渲染首帧（canplay/playing）——此前显示封面，不黑屏 */
+const videoHasFrame = ref(false);
+/** 视频加载失败（断网 / 流式源不可用等） */
+const videoLoadFailed = ref(false);
+/** 播放中缓冲（仅首帧后显示轻度指示） */
+const videoBuffering = ref(false);
 // Progress bar computed (videoProgressPct) placeholder for future UI
 
 // 播放倍速
@@ -483,12 +519,25 @@ const videoSrcOverride = ref('');
 const videoDownloading = ref(false);
 /** 手动下载进度（0~1） */
 const videoDownloadProgress = ref(0);
-/** 当前视频是否可手动下载（未就绪但能下载） */
+/** 浏览器是否离线 */
+const navigatorOffline = computed(() => typeof navigator !== 'undefined' && navigator.onLine === false);
+/**
+ * 当前视频是否可手动下载。
+ * - 本地文件已就绪 / 查看器内已下完 → false
+ * - 无可用 src（断网时不生成 tdstream）或加载失败 → true（回落到下载 UI）
+ * - 流式源正常加载中 → false（继续边下边播，不打断）
+ */
 const currentCanDownload = computed(() => {
-    if (!isVideo.value || currentMediaSrc.value) return false;
+    if (!isVideo.value) return false;
+    if (videoSrcOverride.value) return false;
     const c = currentItem.value?.message?.content;
     if (!c || c._ !== 'messageVideo') return false;
-    return !!c.video.video?.local?.can_be_downloaded;
+    const f = c.video.video;
+    if (!f?.local?.can_be_downloaded) return false;
+    if (f.local?.is_downloading_completed && f.local.path) return false;
+    if (videoLoadFailed.value) return true;
+    if (!effectiveVideoSrc.value) return true;
+    return false;
 });
 /** 当前视频有效 src：优先手动下载完成后的本地文件，其次 media 项 src */
 const effectiveVideoSrc = computed(() => videoSrcOverride.value || currentMediaSrc.value);
@@ -527,6 +576,9 @@ async function handleViewerVideoDownload() {
                     videoDownloading.value = false;
                     videoSrcOverride.value = convertFileSrc(info.local.path);
                     videoLoaded.value = false;
+                    videoHasFrame.value = false;
+                    videoLoadFailed.value = false;
+                    videoBuffering.value = false;
                     isVideoPlaying.value = false;
                     videoCurrent.value = 0;
                 }
@@ -617,6 +669,10 @@ const currentMediaSrc = computed(() => {
         } else if (c._ === 'messageVideo') {
             localPath = getFile(c.video.video);
             if (!localPath && c.video.supports_streaming && c.video.video.size > 0) {
+                // 断网时不生成 tdstream，避免查看器一直卡在「加载中」黑屏
+                if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+                    return '';
+                }
                 return `${convertFileSrc(String(c.video.video.id), 'tdstream')}?mime=${c.video.mime_type}`;
             }
         } else if (c._ === 'messageAnimation') {
@@ -637,7 +693,10 @@ const currentThumb = computed(() => {
     const c = currentContent.value;
     if (c) {
         if (c._ === 'messagePhoto' && c.photo.minithumbnail?.data) return `data:image/jpeg;base64,${c.photo.minithumbnail.data}`;
-        if (c._ === 'messageVideo') return `data:image/jpeg;base64,${c.video.minithumbnail?.data || c.cover?.minithumbnail?.data || ''}`;
+        if (c._ === 'messageVideo') {
+            const d = c.video.minithumbnail?.data || '';
+            if (d) return `data:image/jpeg;base64,${d}`;
+        }
         if (c._ === 'messageAnimation' && c.animation.minithumbnail?.data) return `data:image/jpeg;base64,${c.animation.minithumbnail.data}`;
     }
     return currentItem.value?.thumb || '';
@@ -717,6 +776,9 @@ watch(() => props.visible, (v) => {
         isVideoPlaying.value = false;
         videoMuted.value = false;
         videoLoaded.value = false;
+        videoHasFrame.value = false;
+        videoLoadFailed.value = false;
+        videoBuffering.value = false;
         videoCurrent.value = 0;
         videoDuration.value = 0;
         playbackRate.value = 1;
@@ -741,6 +803,9 @@ watch(currentIndex, () => {
     isVideoPlaying.value = false;
     videoMuted.value = false;
     videoLoaded.value = false;
+    videoHasFrame.value = false;
+    videoLoadFailed.value = false;
+    videoBuffering.value = false;
     videoCurrent.value = 0;
     videoDuration.value = 0;
     playbackRate.value = 1;
@@ -1069,6 +1134,7 @@ function onVideoLoaded() {
     if (videoRef.value) {
         videoDuration.value = videoRef.value.duration;
         videoLoaded.value = true;
+        videoLoadFailed.value = false;
         videoRef.value.volume = videoVolume.value;
         videoRef.value.muted = videoMuted.value;
         // 应用当前倍速
@@ -1091,6 +1157,42 @@ function onVideoLoaded() {
         // Show UI and start idle timer
         uiVisible.value = true;
         startIdleTimer();
+    }
+}
+
+/** 首帧就绪（canplay/playing）：揭开封面，结束加载态 */
+function onVideoFrameReady() {
+    videoHasFrame.value = true;
+    videoBuffering.value = false;
+    videoLoadFailed.value = false;
+}
+
+/** 播放中再次缓冲：仅在已出帧后显示轻度指示 */
+function onVideoWaiting() {
+    if (videoHasFrame.value) videoBuffering.value = true;
+}
+
+/** 视频加载失败（断网时流式源最常见）：标记失败，回落下载/重试 UI，不黑屏死等 */
+function onVideoError() {
+    videoBuffering.value = false;
+    videoHasFrame.value = false;
+    videoLoadFailed.value = true;
+}
+
+/** 重试加载（失败态下的手动恢复） */
+function retryVideoLoad() {
+    videoLoadFailed.value = false;
+    videoHasFrame.value = false;
+    videoBuffering.value = false;
+    videoLoaded.value = false;
+    const el = videoRef.value;
+    if (!el) return;
+    const src = effectiveVideoSrc.value;
+    el.removeAttribute('src');
+    el.load();
+    if (src) {
+        el.src = src;
+        el.load();
     }
 }
 
@@ -1135,6 +1237,9 @@ function selectQuality(q: MediaViewerVideoQuality) {
         videoRef.value.src = q.src;
         videoRef.value.load();
         videoLoaded.value = false;
+        videoHasFrame.value = false;
+        videoLoadFailed.value = false;
+        videoBuffering.value = false;
         videoRef.value.onloadedmetadata = () => {
             if (videoRef.value && targetTime > 0) {
                 videoRef.value.currentTime = targetTime;

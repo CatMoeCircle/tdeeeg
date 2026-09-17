@@ -67,10 +67,10 @@
                 class="relative overflow-hidden bg-black cursor-pointer group select-none"
                 :class="[borderRadiusClass, { 'msg-spoiler-media': hasSpoiler }]" :style="videoSizeStyle"
                 @click="openViewer">
-                <!-- Thumbnail: 静态位图用 <img>，MPEG4/WEBM 动态图用 <video>，Lottie/无可显示时回退图标 -->
-                <img v-if="videoThumbSrc && !videoThumbIsVideo && !videoDownloaded" :src="videoThumbSrc"
+                <!-- Thumbnail: 正式可播前一直垫底，避免黑屏；静态位图用 <img>，MPEG4/WEBM 动态图用 <video> -->
+                <img v-if="videoThumbSrc && !videoThumbIsVideo && !videoHasFrame" :src="videoThumbSrc"
                     class="absolute inset-0 w-full h-full object-cover" />
-                <video v-else-if="videoThumbSrc && videoThumbIsVideo && !videoDownloaded" :src="videoThumbSrc" autoplay
+                <video v-else-if="videoThumbSrc && videoThumbIsVideo && !videoHasFrame" :src="videoThumbSrc" autoplay
                     loop muted playsinline class="absolute inset-0 w-full h-full object-cover" />
                 <div v-else-if="!videoDownloaded" class="absolute inset-0 flex items-center justify-center">
                     <VideoIcon class="w-8 h-8 text-gray-400" />
@@ -79,15 +79,19 @@
                 <!-- 剧透覆盖层（粒子特效：点击 ripple 波纹揭示媒体） -->
                 <SpoilerMedia v-if="hasSpoiler" :has-spoiler="true" overlay />
 
-                <!-- Video element (循环播放, 由 IntersectionObserver 控制播放/暂停) -->
-                <video v-if="videoDownloaded" ref="videoElRef" :src="mediaSrc" class="w-full h-full object-cover"
-                    :muted="videoMuted" loop playsinline :data-video-msg-id="messageId" @timeupdate="onInlineVideoTime"
-                    @loadedmetadata="onInlineVideoLoaded" @ended="onInlineVideoEnded" @waiting="onVideoWaiting"
-                    @playing="onVideoPlaying" @canplay="onVideoPlaying" />
+                <!-- Video element：首帧就绪前 opacity-0，封面可见；循环播放, 由 IntersectionObserver 控制播放/暂停 -->
+                <video v-if="videoDownloaded" ref="videoElRef" :src="mediaSrc"
+                    class="absolute inset-0 w-full h-full object-cover transition-opacity duration-200"
+                    :class="videoHasFrame ? 'opacity-100' : 'opacity-0'" :muted="videoMuted" loop playsinline
+                    :data-video-msg-id="messageId" :poster="videoThumbSrc && !videoThumbIsVideo ? videoThumbSrc : undefined"
+                    @timeupdate="onInlineVideoTime" @loadedmetadata="onInlineVideoLoaded" @ended="onInlineVideoEnded"
+                    @waiting="onVideoWaiting" @playing="onVideoPlaying" @canplay="onVideoPlaying"
+                    @error="onVideoError" />
 
-                <!-- 边下边播（流式 tdstream://）缓冲加载指示：video 元素 waiting/playing 驱动 -->
+                <!-- 缓冲指示：首帧前不盖黑底（封面可见）；首帧后仅轻度压暗 -->
                 <div v-if="videoDownloaded && videoBuffering"
-                    class="absolute inset-0 flex items-center justify-center bg-black/40">
+                    class="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"
+                    :class="videoHasFrame ? 'bg-black/20' : ''">
                     <LoaderIndicator size="36" color="#ffffff" />
                 </div>
 
@@ -337,6 +341,8 @@ const videoThumbSrc = ref<string | undefined>(undefined);
 const videoThumbIsVideo = ref(false);
 /** 边下边播（流式 tdstream://）时的缓冲状态，用于显示加载转圈 */
 const videoBuffering = ref(false);
+/** 视频已渲染首帧（canplay/playing）——此前一直显示封面，不黑屏 */
+const videoHasFrame = ref(false);
 const videoFileId = ref<number>(0);
 const videoElRef = ref<HTMLVideoElement | null>(null);
 const inlineVideoCurrent = ref(0);
@@ -685,6 +691,7 @@ function resetMediaForContent() {
     mediaSrc.value = undefined;
     videoThumbSrc.value = undefined;
     videoThumbIsVideo.value = false;
+    videoHasFrame.value = false;
     animThumbSrc.value = undefined;
     animThumbIsVideo.value = false;
     videoDownloaded.value = false;
@@ -1232,6 +1239,7 @@ async function loadVideoThumb() {
     if (isFileReady(c.video.video)) {
         mediaSrc.value = convertFileSrc(c.video.video.local.path);
         videoDownloaded.value = true;
+        videoHasFrame.value = false;
         return;
     }
     // 检查自动下载设置：如果视频体积 <= maxSize，自动下载
@@ -1355,9 +1363,14 @@ async function handleVideoDownload(isUserAction = false) {
         if (seq !== mediaLoadSeq) return;
         mediaSrc.value = convertFileSrc(videoFile.local.path);
         videoDownloaded.value = true;
+        videoHasFrame.value = false;
         return;
     }
     if (video.supports_streaming && videoFile.size > 0) {
+        // 断网时不要发起 tdstream：否则 video 永远加载不出来，界面卡在加载态
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            return;
+        }
         // 流式播放（边下边播）本质也是一次下载：注册到下载管理器，
         // 让它在下载列表中可见（进度由 TDLib updateFile → updateFile 事件驱动）。
         // 用 downloadingFiles 去重，避免自动下载路径被重复触发时重复注册。
@@ -1372,6 +1385,7 @@ async function handleVideoDownload(isUserAction = false) {
         videoDownloaded.value = true;
         // 边下边播：初始置为缓冲中，等 video 触发 canplay/playing 后清除（见 onVideoPlaying）
         videoBuffering.value = true;
+        videoHasFrame.value = false;
         return;
     }
     if (downloadingFiles.has(fileId)) return;
@@ -1438,6 +1452,7 @@ function pollVideoDownload(fileId: number) {
                 stopVideoDownloadPolling();
                 videoDownloading.value = false;
                 videoDownloaded.value = true;
+                videoHasFrame.value = false;
                 mediaSrc.value = convertFileSrc(info.local.path);
             }
         } catch (_) {
@@ -1469,9 +1484,35 @@ function onInlineVideoEnded() {
 function onVideoWaiting() {
     videoBuffering.value = true;
 }
-/** 视频可继续播放 → 隐藏加载转圈 */
+/** 视频可继续播放 / 首帧就绪 → 隐藏加载转圈并揭开封面 */
 function onVideoPlaying() {
     videoBuffering.value = false;
+    videoHasFrame.value = true;
+}
+
+/**
+ * 视频加载失败（常见：断网时 tdstream 边下边播）。
+ * 若本地文件未就绪，回退到封面 + 下载按钮，避免一直黑屏转圈。
+ */
+function onVideoError() {
+    videoBuffering.value = false;
+    videoHasFrame.value = false;
+    const c = props.content;
+    if (c._ !== 'messageVideo') return;
+    const f = c.video.video;
+    const localPath = f?.local?.is_downloading_completed && f.local.path ? f.local.path : '';
+    if (localPath) {
+        mediaSrc.value = convertFileSrc(localPath);
+        return;
+    }
+    // 流式源失败且无本地文件：丢掉失败源，回到封面 + 下载 UI
+    const src = mediaSrc.value || '';
+    if (src.includes('tdstream') || !localPath) {
+        mediaSrc.value = undefined;
+        videoDownloaded.value = false;
+        videoDownloading.value = false;
+        if (f?.id) downloadingFiles.delete(f.id);
+    }
 }
 
 function formatDuration(seconds: number): string {
@@ -1513,6 +1554,7 @@ watch(trackingFileId, (fileId) => {
                 animDownloading.value = false;
                 videoDownloading.value = false;
                 videoBuffering.value = false;
+                videoHasFrame.value = false;
                 stopAnimDownloadPolling();
                 if (downloadPollTimer) { clearInterval(downloadPollTimer); downloadPollTimer = null; }
                 downloadingFiles.delete(fileId);
@@ -1526,6 +1568,7 @@ watch(trackingFileId, (fileId) => {
                 } else if (c._ === 'messageVideo') {
                     mediaSrc.value = convertFileSrc(path);
                     videoDownloaded.value = true;
+                    videoHasFrame.value = false;
                 }
             }
         },
