@@ -62,7 +62,7 @@
                     <div class="relative inline-block align-bottom">
                         <MessageStickerContent :content="stickerContent" />
                         <span v-if="date && !settings.sticker.hideTimestamp"
-                            class="absolute right-1 bottom-3 translate-y-1/2 rounded-md bg-black/55 px-1.5 py-0.4 text-white shadow-sm">
+                            class="absolute right-1.5 bottom-1.5 z-10 bg-black/60 text-white px-1.5 py-0.5 rounded-md leading-none select-none pointer-events-none flex items-center">
                             <MessageStatus :date="date" :isOutgoing="true" :sendingState="sendingState" :isRead="isRead"
                                 :viewCount="viewCount" :authorSignature="authorSignature" overMedia />
                         </span>
@@ -73,7 +73,7 @@
                     <div class="relative inline-block align-bottom">
                         <MessageStickerContent :content="stickerContent" />
                         <span v-if="date && !settings.sticker.hideTimestamp"
-                            class="absolute right-1 bottom-3 translate-y-1/2 rounded-md bg-black/55 px-1.5 py-0.4 text-white shadow-sm">
+                            class="absolute right-1.5 bottom-1.5 z-10 bg-black/60 text-white px-1.5 py-0.5 rounded-md leading-none select-none pointer-events-none flex items-center">
                             <MessageStatus :date="date" :isOutgoing="false" :sendingState="sendingState"
                                 :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature" overMedia />
                         </span>

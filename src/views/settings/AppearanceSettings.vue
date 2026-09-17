@@ -60,7 +60,7 @@
                                     <div class="relative self-end overflow-hidden" :style="previewStickerWrapStyle">
                                         <img :src="stickerPreview" alt="" class="w-full h-full object-cover" />
                                         <span v-if="!settings.sticker.hideTimestamp"
-                                            class="absolute right-1 bottom-1 translate-y-1/2 rounded-md bg-black/55 px-1.5 py-0.5 text-white text-[10px] leading-none shadow-sm my-2.5 mx-1">12:00</span>
+                                            class="absolute right-1.5 bottom-1.5 bg-black/60 text-white px-1.5 py-0.5 rounded-md leading-none select-none pointer-events-none flex items-center text-[10px]">12:00</span>
                                     </div>
                                 </div>
                             </div>
