@@ -106,6 +106,12 @@ const thumbCache = reactive<Record<number, string>>({});
 const mediaCache = reactive<Record<number, string>>({});
 
 /**
+ * 加载代次：消息内容引用变化 / 相册重组时自增。
+ * 旧内容在途的 downloadFile/getFile 完成后必须比对代次再写缓存，否则旧缩略图会串到新内容。
+ */
+let albumLoadSeq = 0;
+
+/**
  * 记录上一次构建时每条消息的对象引用，用于检测「同一 msg.id 的内容被原地替换」。
  * TDLib 的 updateMessageContent 会原地替换 msg.content（引用变化但 id 不变），
  * 组件不会重挂载，而 thumbCache/mediaCache 又带 !cache[id] 守卫永不刷新，导致
@@ -279,13 +285,16 @@ function runAlbumLoad() {
 }
 
 loadAlbumFn = async (msgs) => {
+    const seq = albumLoadSeq;
     const changed = await limitConcurrency(msgs, 4, async (msg) => {
+        if (seq !== albumLoadSeq) return false;
         const c = msg.content;
-        if (c._ === 'messagePhoto') return await loadPhoto(msg);
-        if (c._ === 'messageVideo') return await loadVideo(msg);
-        if (c._ === 'messageAnimation') return await loadAnimation(msg);
+        if (c._ === 'messagePhoto') return await loadPhoto(msg, seq);
+        if (c._ === 'messageVideo') return await loadVideo(msg, seq);
+        if (c._ === 'messageAnimation') return await loadAnimation(msg, seq);
         return false;
     });
+    if (seq !== albumLoadSeq) return;
     if (changed) rebuildLayout();
 };
 
@@ -295,6 +304,7 @@ const { start: startViewportLoad, entered: albumEntered } = useViewportLoad(root
     runAlbumLoad();
 });
 watch(() => props.messages, (msgs) => {
+    albumLoadSeq++;
     // 内容被原地替换（updateMessageContent）时作废旧缩略图/大图缓存，避免串图
     invalidateAlbumCaches(msgs);
     setAlbumPreview();
@@ -306,8 +316,9 @@ onMounted(() => {
     startViewportLoad();
 });
 
-async function loadPhoto(msg: message): Promise<boolean> {
+async function loadPhoto(msg: message, seq: number): Promise<boolean> {
     if (msg.content._ !== 'messagePhoto') return false;
+    if (seq !== albumLoadSeq) return false;
     const downloadStore = useDownloadStore();
     let c = false;
     const photo = msg.content.photo;
@@ -321,6 +332,7 @@ async function loadPhoto(msg: message): Promise<boolean> {
     if (small) {
         const f = small;
         if (isFileReady(f)) {
+            if (seq !== albumLoadSeq) return false;
             if (!mediaCache[msg.id]) {
                 thumbCache[msg.id] = convertFileSrc(f.local.path);
                 thumbIsMini[msg.id] = false;
@@ -330,6 +342,7 @@ async function loadPhoto(msg: message): Promise<boolean> {
             try {
                 await safeDownloadFile(f.id, true, DL_PRIORITY.THUMBNAIL);
                 const r = await tdlibSend({ _: 'getFile', file_id: f.id });
+                if (seq !== albumLoadSeq) return false;
                 if (isFileReady(r) && !mediaCache[msg.id]) {
                     thumbCache[msg.id] = convertFileSrc(r.local.path);
                     thumbIsMini[msg.id] = false;
@@ -338,20 +351,26 @@ async function loadPhoto(msg: message): Promise<boolean> {
             } catch (_) { }
         }
     }
+    if (seq !== albumLoadSeq) return false;
     // Big：受「图片」自动下载管控，用于气泡/查看器正式展示
     const big = pickBigPhotoSize(photo);
     const ff = big;
     if (ff && !mediaCache[msg.id]) {
-        if (isFileReady(ff)) { mediaCache[msg.id] = convertFileSrc(ff.local.path); c = true; }
+        if (isFileReady(ff)) {
+            if (seq !== albumLoadSeq) return false;
+            mediaCache[msg.id] = convertFileSrc(ff.local.path); c = true;
+        }
         else if (ff.local.can_be_downloaded && !downloadingFiles.has(ff.id) && shouldAutoDownloadPhotos(props.chatId)) {
             // 自动下载的图片注册到下载管理器（独立隐藏分类：isAutoPhoto）
             const fileName = `photo_${msg.id || ff.id}.jpg`;
             const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
             await downloadStore.registerDownload(ff.id, fileName, chatTitle, 0, 'photo', thumbCache[msg.id], props.chatId, msg.id, undefined, true);
+            if (seq !== albumLoadSeq) return false;
             try {
                 // 自动下载（非用户点击）：默认档优先级
                 await safeDownloadFile(ff.id, true, DL_PRIORITY.DEFAULT);
                 const r = await tdlibSend({ _: 'getFile', file_id: ff.id });
+                if (seq !== albumLoadSeq) return false;
                 if (isFileReady(r)) { mediaCache[msg.id] = convertFileSrc(r.local.path); c = true; }
             } catch (_) { }
         }
@@ -364,12 +383,16 @@ async function loadPhoto(msg: message): Promise<boolean> {
  * 仅当自动下载总开关开启、该对话类型对应的视频开关开启，且视频体积不超过 maxSize 时，
  * 才允许自动流式加载；否则一律不自动下载，交由用户手动点击下载按钮。
  */
-async function loadVideo(msg: message): Promise<boolean> {
+async function loadVideo(msg: message, seq: number): Promise<boolean> {
     if (msg.content._ !== 'messageVideo') return false;
+    if (seq !== albumLoadSeq) return false;
     const downloadStore = useDownloadStore();
     let c = false;
     const v = msg.content.video;
-    if (isFileReady(v.video) && !mediaCache[msg.id]) { mediaCache[msg.id] = convertFileSrc(v.video.local.path); return true; }
+    if (isFileReady(v.video) && !mediaCache[msg.id]) {
+        if (seq !== albumLoadSeq) return false;
+        mediaCache[msg.id] = convertFileSrc(v.video.local.path); return true;
+    }
     // 检查自动下载设置
     if (props.chatId && settings.autoDownload.enabled) {
         const cs = useChatStore();
@@ -385,9 +408,11 @@ async function loadVideo(msg: message): Promise<boolean> {
                     const fileName = v.file_name || `video_${msg.id || v.video.id}.mp4`;
                     const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
                     await downloadStore.registerDownload(v.video.id, fileName, chatTitle, v.video.size, 'video', undefined, props.chatId, msg.id, false, false);
+                    if (seq !== albumLoadSeq) return false;
                     try {
                         downloadingFiles.add(v.video.id);
                         const r = await tdlibSend({ _: 'downloadFile', file_id: v.video.id, priority: DL_PRIORITY.DEFAULT, offset: 0, limit: 0, synchronous: true });
+                        if (seq !== albumLoadSeq) return false;
                         if (isFileReady(r)) { mediaCache[msg.id] = convertFileSrc(r.local.path); return true; }
                     } catch (_) { } finally {
                         downloadingFiles.delete(v.video.id);
@@ -396,6 +421,7 @@ async function loadVideo(msg: message): Promise<boolean> {
             }
         }
     }
+    if (seq !== albumLoadSeq) return false;
     // 不满足自动下载条件，仅加载封面缩略图（相册用 <img> 渲染，仅取静态位图格式；
     // MPEG4/WEBM 动态缩略图无法在 <img> 中显示，跳过以免出现破碎图）。
     // 封面跟随「图片自动下载」设置：图片自动下载关闭时不下封面，改用 minithumbnail base64。
@@ -409,15 +435,20 @@ async function loadVideo(msg: message): Promise<boolean> {
     const thumb = v.thumbnail;
     if (!thumb || !isThumbnailImgRenderable(thumb.format)) return false;
     const thumbFile = thumb.file;
-    if (isFileReady(thumbFile) && !thumbCache[msg.id]) { thumbCache[msg.id] = convertFileSrc(thumbFile.local.path); c = true; }
+    if (isFileReady(thumbFile) && !thumbCache[msg.id]) {
+        if (seq !== albumLoadSeq) return false;
+        thumbCache[msg.id] = convertFileSrc(thumbFile.local.path); c = true;
+    }
     else if (thumbFile.local.can_be_downloaded) {
         // 视频封面（缩略图）属于辅助资源：注册为隐藏的通用下载项（分类 video_cover），不占用下载管理器的可见列表。
         if (thumbFile.id && !downloadingFiles.has(thumbFile.id)) {
             const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
             await downloadStore.registerDownload(thumbFile.id, `video_cover_${thumbFile.id}.jpg`, chatTitle, 0, 'photo', undefined, undefined, undefined, true, false, 'video_cover');
         }
+        if (seq !== albumLoadSeq) return false;
         try {
             const r = await tdlibSend({ _: 'downloadFile', file_id: thumbFile.id, priority: DL_PRIORITY.THUMBNAIL, offset: 0, limit: 0, synchronous: true });
+            if (seq !== albumLoadSeq) return false;
             if (isFileReady(r)) { thumbCache[msg.id] = convertFileSrc(r.local.path); c = true; }
         } catch (_) { }
     }
@@ -428,13 +459,15 @@ async function loadVideo(msg: message): Promise<boolean> {
  * 相册内 GIF（messageAnimation）：自动下载遵循「视频」自动下载设置（分类 + maxSize）。
  * 下载成功后 mediaCache 存本地路径（用 <video> 渲染）。不满足自动下载条件时仅加载缩略图。
  */
-async function loadAnimation(msg: message): Promise<boolean> {
+async function loadAnimation(msg: message, seq: number): Promise<boolean> {
     if (msg.content._ !== 'messageAnimation') return false;
+    if (seq !== albumLoadSeq) return false;
     const downloadStore = useDownloadStore();
     let c = false;
     const anim = msg.content.animation;
     // minithumbnail base64 已由 setAlbumPreview/rebuildLayout 注入占位
     if (isFileReady(anim.animation) && !mediaCache[msg.id]) {
+        if (seq !== albumLoadSeq) return false;
         mediaCache[msg.id] = convertFileSrc(anim.animation.local.path);
         return true;
     }
@@ -451,6 +484,7 @@ async function loadAnimation(msg: message): Promise<boolean> {
                     try {
                         downloadingFiles.add(anim.animation.id);
                         const r = await tdlibSend({ _: 'downloadFile', file_id: anim.animation.id, priority: DL_PRIORITY.DEFAULT, offset: 0, limit: 0, synchronous: true });
+                        if (seq !== albumLoadSeq) return false;
                         if (isFileReady(r)) { mediaCache[msg.id] = convertFileSrc(r.local.path); return true; }
                     } catch (_) { } finally {
                         downloadingFiles.delete(anim.animation.id);
@@ -459,6 +493,7 @@ async function loadAnimation(msg: message): Promise<boolean> {
             }
         }
     }
+    if (seq !== albumLoadSeq) return false;
     // 不满足自动下载条件，仅加载缩略图（相册用 <img> 渲染，仅取静态位图格式）
     if (!shouldAutoDownloadPhoto()) {
         if (anim.minithumbnail?.data && !thumbCache[msg.id]) {
@@ -471,6 +506,7 @@ async function loadAnimation(msg: message): Promise<boolean> {
     if (!thumb || !isThumbnailImgRenderable(thumb.format)) return false;
     const thumbFile = thumb.file;
     if (isFileReady(thumbFile) && !thumbCache[msg.id]) {
+        if (seq !== albumLoadSeq) return false;
         thumbCache[msg.id] = convertFileSrc(thumbFile.local.path);
         c = true;
     } else if (thumbFile.local.can_be_downloaded) {
@@ -479,8 +515,10 @@ async function loadAnimation(msg: message): Promise<boolean> {
             const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
             await downloadStore.registerDownload(thumbFile.id, `gif_cover_${thumbFile.id}.jpg`, chatTitle, 0, 'photo', undefined, undefined, undefined, true, false, 'video_cover');
         }
+        if (seq !== albumLoadSeq) return false;
         try {
             const r = await tdlibSend({ _: 'downloadFile', file_id: thumbFile.id, priority: DL_PRIORITY.THUMBNAIL, offset: 0, limit: 0, synchronous: true });
+            if (seq !== albumLoadSeq) return false;
             if (isFileReady(r)) { thumbCache[msg.id] = convertFileSrc(r.local.path); c = true; }
         } catch (_) { }
     }
@@ -495,11 +533,6 @@ function shouldAutoDownloadPhoto(): boolean {
 }
 
 // ---- Computed display helpers ----
-const borderRadiusClass = computed(() => {
-    if (props.isSelf) return 'rounded-lg rounded-tr-none';
-    return 'rounded-lg rounded-tl-none';
-});
-
 const lastMsg = computed(() => props.messages[props.messages.length - 1]);
 
 // 相册描述显示规则：
@@ -521,6 +554,14 @@ const captionFormatted = computed(() => {
     if (captionedMessages.value.length !== 1) return { _: 'formattedText' as const, text: '', entities: [] };
     return (captionedMessages.value[0].content as any).caption || { _: 'formattedText' as const, text: '', entities: [] };
 });
+
+const borderRadiusClass = computed(() => {
+    // 无可见 caption：相册在气泡外，四角圆角
+    if (!captionText.value) return 'rounded-lg';
+    if (props.isSelf) return 'rounded-lg rounded-tr-none';
+    return 'rounded-lg rounded-tl-none';
+});
+
 const lastDate = computed(() => lastMsg.value?.date || 0);
 const lastSendingState = computed(() => lastMsg.value?.sending_state);
 const lastViewCount = computed(() => lastMsg.value?.interaction_info?.view_count);

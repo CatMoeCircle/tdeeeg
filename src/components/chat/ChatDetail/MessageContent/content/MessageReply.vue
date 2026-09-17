@@ -31,7 +31,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import type { message, MessageContent, messageReplyToMessage } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -141,7 +141,24 @@ onMounted(async () => {
     await loadReplyData();
 });
 
+/** 加载代次：replyTo 变化 / 重复加载时自增，丢弃过期异步结果，避免缩略图串到别的回复 */
+let replyLoadSeq = 0;
+
+/** replyTo 目标变化时重新加载（组件可能不重挂载，仅 onMounted 会漏更新并串图） */
+watch(
+    () => [props.replyTo?.chat_id, props.replyTo?.message_id] as const,
+    ([chatId, msgId], [prevChatId, prevMsgId]) => {
+        if (chatId === prevChatId && msgId === prevMsgId) return;
+        void loadReplyData();
+    },
+);
+
 async function loadReplyData() {
+    const seq = ++replyLoadSeq;
+    replyData.value = null;
+    status.value = 'loading';
+    replyAccentColorId.value = undefined;
+
     const rt = props.replyTo;
     if (!rt.chat_id || !rt.message_id) {
         status.value = 'deleted';
@@ -166,12 +183,15 @@ async function loadReplyData() {
                 message_id: targetMsgId,
             }) as any;
         } catch (e) {
+            if (seq !== replyLoadSeq) return;
             // 获取失败（如 MESSAGE_NOT_FOUND）通常意味着被回复消息已不存在/被删除
             console.warn('获取被回复消息失败', targetChatId, targetMsgId, e);
             status.value = 'deleted';
             return;
         }
     }
+
+    if (seq !== replyLoadSeq) return;
 
     if (!foundMsg) {
         // 查不到（本地列表与 TDLib 均无）→ 视为已被删除
@@ -189,6 +209,7 @@ async function loadReplyData() {
     if (foundMsg.sender_id._ === 'messageSenderUser') {
         try {
             const u = await tdlibSend({ _: 'getUser', user_id: foundMsg.sender_id.user_id }) as any;
+            if (seq !== replyLoadSeq) return;
             // 若本地缓存未命中，用接口返回的 accent_color_id 补充被回复方主题色
             if (replyAccentColorId.value === undefined && typeof u?.accent_color_id === 'number') {
                 replyAccentColorId.value = u.accent_color_id;
@@ -200,12 +221,15 @@ async function loadReplyData() {
     } else if (foundMsg.sender_id._ === 'messageSenderChat') {
         try {
             const c = await tdlibSend({ _: 'getChat', chat_id: foundMsg.sender_id.chat_id }) as any;
+            if (seq !== replyLoadSeq) return;
             if (replyAccentColorId.value === undefined && typeof c?.accent_color_id === 'number') {
                 replyAccentColorId.value = c.accent_color_id;
             }
             senderName = c.title || t('lng_notification_groups');
         } catch (_) { }
     }
+
+    if (seq !== replyLoadSeq) return;
 
     // 提取文本内容和媒体类型
     const content = foundMsg.content;

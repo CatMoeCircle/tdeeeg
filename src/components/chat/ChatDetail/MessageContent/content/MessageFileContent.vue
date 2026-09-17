@@ -468,12 +468,16 @@ const loadMedia = async () => {
     }
 };
 
+/** 加载代次：content 替换时自增，丢弃过期异步封面/缩略图结果，避免串图 */
+let fileMediaLoadSeq = 0;
+
 /**
  * 加载文档消息缩略图（用于图标块预览）。
  * 仅展示缩略图本身，不会因此下载整份文档。
  */
 async function loadDocumentThumb() {
     if (props.content._ !== 'messageDocument') return;
+    const seq = fileMediaLoadSeq;
     const thumb = props.content.document.thumbnail;
     // 内嵌 minithumbnail 优先作为占位
     if (props.content.document.minithumbnail?.data) {
@@ -484,6 +488,7 @@ async function loadDocumentThumb() {
     const file = thumb.file;
     // 已就绪直接显示
     if (file.local?.path && isFileReady(file)) {
+        if (seq !== fileMediaLoadSeq) return;
         docThumbSrc.value = thumbnailToImgSrc(thumb) ?? docThumbSrc.value;
         return;
     }
@@ -498,6 +503,7 @@ async function loadDocumentThumb() {
             limit: 0,
             synchronous: true,
         });
+        if (seq !== fileMediaLoadSeq) return;
         if (isFileReady(downloaded) && downloaded.local?.path) {
             docThumbSrc.value = thumbnailToImgSrc(thumb) ?? docThumbSrc.value;
         }
@@ -508,6 +514,7 @@ async function loadDocumentThumb() {
 async function loadAudioCover() {
 
     if (props.content._ !== 'messageAudio') return;
+    const seq = fileMediaLoadSeq;
     const audio = props.content.audio;
     const audioFileId = audio.audio.id;
 
@@ -525,6 +532,7 @@ async function loadAudioCover() {
     if (primary) {
         const file = primary.file;
         if (isFileReady(file)) {
+            if (seq !== fileMediaLoadSeq) return;
             if (props.content._ === 'messageAudio' && props.content.audio.audio.id === audioFileId) {
                 coverSrc.value = convertFileSrc(file.local.path);
             }
@@ -539,6 +547,7 @@ async function loadAudioCover() {
                 limit: 0,
                 synchronous: true,
             });
+            if (seq !== fileMediaLoadSeq) return;
             if (isFileReady(downloaded)) {
                 if (props.content._ === 'messageAudio' && props.content.audio.audio.id === audioFileId) {
                     coverSrc.value = convertFileSrc(downloaded.local.path);
@@ -550,6 +559,7 @@ async function loadAudioCover() {
 
     // 内嵌封面为空/下载失败 → iTunes Search；无结果则保持当前（minithumbnail 或空）
     const itunes = await fetchItunesCoverForAudio(audio);
+    if (seq !== fileMediaLoadSeq) return;
     if (itunes && props.content._ === 'messageAudio' && props.content.audio.audio.id === audioFileId) {
         coverSrc.value = itunes;
     }
@@ -778,6 +788,7 @@ const { start: startViewportLoad, entered: fileEntered } = useViewportLoad(rootE
     loadDocumentThumb();
 });
 watch(() => props.content, () => {
+    fileMediaLoadSeq++;
     mediaSrc.value = undefined;
     coverSrc.value = undefined;
     docThumbSrc.value = undefined;

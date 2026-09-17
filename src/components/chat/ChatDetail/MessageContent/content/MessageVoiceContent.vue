@@ -68,6 +68,9 @@ const noteFile = computed<file | undefined>(() => {
 
 const getFile = () => noteFile.value;
 
+/** 加载代次：content 替换时自增，丢弃过期下载结果，避免视频留言缩略图串图 */
+let noteLoadSeq = 0;
+
 /**
  * 设置视频留言 base64 缩略图预览（不下载），供离屏消息显示占位。
  * 语音留言无缩略图 base64，保持仅时长文本。
@@ -102,6 +105,7 @@ const loadMedia = async () => {
 };
 
 const downloadFile = async (fileId: number) => {
+    const seq = noteLoadSeq;
     if (isDownloading.value) return;
     if (downloadingFiles.has(fileId)) return;
     isDownloading.value = true;
@@ -115,6 +119,7 @@ const downloadFile = async (fileId: number) => {
             limit: 0,
             synchronous: true
         });
+        if (seq !== noteLoadSeq) return;
         if (isFileReady(res)) {
             mediaSrc.value = convertFileSrc(res.local.path);
         }
@@ -122,14 +127,16 @@ const downloadFile = async (fileId: number) => {
         console.error("Download failed", e);
     } finally {
         downloadingFiles.delete(fileId);
-        isDownloading.value = false;
+        if (seq === noteLoadSeq) isDownloading.value = false;
     }
 };
 
 /** 手动下载完成后（RichMediaDownload / 全局下载）拉起本地路径 */
 async function applyReadyFile(fileId: number) {
+    const seq = noteLoadSeq;
     try {
         const info = await tdlibSend({ _: 'getFile', file_id: fileId }) as file;
+        if (seq !== noteLoadSeq) return;
         if (isFileReady(info) && noteFile.value?.id === fileId) {
             mediaSrc.value = convertFileSrc(info.local.path);
         }
@@ -154,7 +161,9 @@ const { start: startViewportLoad, entered: noteEntered } = useViewportLoad(rootE
     loadMedia();
 });
 watch(() => props.content, () => {
+    noteLoadSeq++;
     mediaSrc.value = undefined;
+    isDownloading.value = false;
     setNotePreview();
     if (noteEntered.value) loadMedia();
 }, { immediate: true });

@@ -531,14 +531,16 @@ const hasSpoiler = computed(() => {
 const captionBelow = computed(() => !!captionText.value && !showCaptionAbove.value);
 
 const borderRadiusClass = computed(() => {
-    const first = props.isFirstInGroup;
-    const last = props.isLastInGroup;
-    const hasForward = !!props.forwardInfo;
     const hasCap = !!captionText.value;
+    // 无 caption 的媒体在气泡外独立显示：始终四角圆角，不参与组内连体切角
+    if (!hasCap) return 'rounded-lg';
+    const hasForward = !!props.forwardInfo;
     if (hasForward || hasCap) {
         if (showCaptionAbove.value && captionText.value) return 'rounded-b-lg';
         if (!showCaptionAbove.value && captionText.value) return 'rounded-t-lg';
     }
+    const first = props.isFirstInGroup;
+    const last = props.isLastInGroup;
     if (props.isSelf) {
         if (first && last) return 'rounded-lg';
         if (first) return 'rounded-tr-none rounded-br-sm rounded-l-lg';
@@ -659,17 +661,25 @@ onMounted(() => {
 });
 
 /**
+ * 加载代次：内容原地替换时自增。所有 await / 轮询回调写回 UI 前必须比对代次，
+ * 丢弃过期结果，避免旧内容的缩略图/大图串到新消息上（与 LinkPreviewMedia 同模式）。
+ */
+let mediaLoadSeq = 0;
+
+/**
  * 内容被原地替换（TDLib updateMessageContent 会替换 msg.content 但 id 不变，
  * 组件不重挂载）时，重置本次预览/媒体状态并重新加载，避免显示成上一个内容的
  * 缩略图/大图（串图）。base64 minithumbnail 内联在新内容里始终正确，因此优先
  * 先展示它，再按当前内容走下载/懒加载。
  */
 function resetMediaForContent() {
+    mediaLoadSeq++;
     // 停掉旧内容遗留的所有下载轮询，避免异步结果污染新内容
     stopAnimDownloadPolling();
     stopPhotoDownloadPolling();
     stopVideoCoverPolling();
     stopAnimThumbPolling();
+    stopVideoDownloadPolling();
     // 重置全部预览/媒体状态
     thumbSrc.value = undefined;
     mediaSrc.value = undefined;
@@ -791,9 +801,11 @@ const canDownload = computed(() => {
 
 /** Small 始终下载作清晰渐进占位（不受 autoDownload 管控）；就绪后替换模糊 minithumbnail */
 async function ensureSmallPhotoThumb(photo: TdPhoto) {
+    const seq = mediaLoadSeq;
     const small = pickSmallPhotoSize(photo);
     if (!small) return;
     if (isFileReady(small)) {
+        if (seq !== mediaLoadSeq) return;
         if (!mediaSrc.value) {
             thumbSrc.value = convertFileSrc(small.local.path);
             thumbIsBlur.value = false;
@@ -812,6 +824,7 @@ async function ensureSmallPhotoThumb(photo: TdPhoto) {
             synchronous: true,
         });
         const updated = await tdlibSend({ _: 'getFile', file_id: small.id });
+        if (seq !== mediaLoadSeq) return;
         // Big 已就绪则不必再占位
         if (!mediaSrc.value && isFileReady(updated)) {
             thumbSrc.value = convertFileSrc(updated.local.path);
@@ -826,6 +839,7 @@ async function ensureSmallPhotoThumb(photo: TdPhoto) {
 
 async function loadPhotoThumb() {
     if (props.content._ !== 'messagePhoto') return;
+    const seq = mediaLoadSeq;
     const photo = props.content.photo;
     // 1) minithumbnail：内嵌零流量高斯模糊占位
     if (photo.minithumbnail?.data) {
@@ -840,6 +854,7 @@ async function loadPhotoThumb() {
 
     // 3) Big：已就绪 → 气泡正式展示
     if (big && isFileReady(big)) {
+        if (seq !== mediaLoadSeq) return;
         mediaSrc.value = convertFileSrc(big.local.path);
         mediaLoaded.value = true;
         checkPhotoLoaded();
@@ -853,15 +868,27 @@ async function loadPhotoThumb() {
             downloadingFiles.add(big.id);
             const fileName = `photo_${props.messageId || big.id}.jpg`;
             await registerWithStore(big.id, fileName, 'photo', thumbSrc.value, true);
+            if (seq !== mediaLoadSeq) {
+                downloadingFiles.delete(big.id);
+                return;
+            }
             try {
                 // 自动下载（非用户点击）：默认档优先级
                 const updated = await tdlibSend({ _: 'downloadFile', file_id: big.id, priority: DL_PRIORITY.DEFAULT, offset: 0, limit: 0, synchronous: true });
+                if (seq !== mediaLoadSeq) {
+                    downloadingFiles.delete(big.id);
+                    return;
+                }
                 if (isFileReady(updated)) {
                     finishPhotoDownload(big.id, updated.local.path);
                 } else {
                     pollPhotoDownload(big.id);
                 }
             } catch (_) {
+                if (seq !== mediaLoadSeq) {
+                    downloadingFiles.delete(big.id);
+                    return;
+                }
                 if (!photosUpdating.get(big.id)) {
                     downloadingFiles.delete(big.id);
                     isDownloading.value = false;
@@ -927,11 +954,20 @@ function finishPhotoDownload(fileId: number, path: string) {
 }
 
 function pollPhotoDownload(fileId: number) {
+    const seq = mediaLoadSeq;
     stopPhotoDownloadPolling();
     photosUpdating.set(fileId, true);
     photoDownloadPollTimer = setInterval(async () => {
+        if (seq !== mediaLoadSeq) {
+            stopPhotoDownloadPolling();
+            return;
+        }
         try {
             const info = await tdlibSend({ _: 'getFile', file_id: fileId });
+            if (seq !== mediaLoadSeq) {
+                stopPhotoDownloadPolling();
+                return;
+            }
             if (isFileReady(info)) {
                 finishPhotoDownload(fileId, info.local.path);
             }
@@ -951,6 +987,7 @@ const animCanDownload = computed(() => {
 
 async function loadAnimThumb() {
     if (props.content._ !== 'messageAnimation') return;
+    const seq = mediaLoadSeq;
     const c = props.content;
     // GIF 迷你预览图优先占位：只要存在 minithumbnail，就先显示它，
     // 之后不论封面是本地已就绪还是需要下载，都以此为起点（先迷你 → 后封面）。
@@ -960,6 +997,7 @@ async function loadAnimThumb() {
     }
     const f = c.animation.animation;
     if (f && isFileReady(f)) {
+        if (seq !== mediaLoadSeq) return;
         mediaSrc.value = convertFileSrc(f.local.path);
         return;
     }
@@ -979,6 +1017,7 @@ async function loadAnimThumb() {
             }
         }
     }
+    if (seq !== mediaLoadSeq) return;
     // 不满足自动下载条件，仅加载缩略图（缩略图跟随「图片自动下载」设置）。
     // GIF 缩略图可能是静态位图（JPEG）或 MPEG4/WEBM 动态图，需区分渲染方式。
     await loadAnimThumbnail();
@@ -990,9 +1029,11 @@ async function loadAnimThumb() {
  */
 async function handleAnimAutoDownload() {
     if (props.content._ !== 'messageAnimation') return;
+    const seq = mediaLoadSeq;
     const f = props.content.animation.animation;
     if (!f) return;
     if (isFileReady(f)) {
+        if (seq !== mediaLoadSeq) return;
         mediaSrc.value = convertFileSrc(f.local.path);
         return;
     }
@@ -1008,6 +1049,10 @@ async function handleAnimAutoDownload() {
             limit: 0,
             synchronous: true,
         });
+        if (seq !== mediaLoadSeq) {
+            downloadingFiles.delete(f.id);
+            return;
+        }
         if (isFileReady(updated)) {
             finishAnimDownload(f.id, updated.local.path);
         } else {
@@ -1016,6 +1061,7 @@ async function handleAnimAutoDownload() {
         }
     } catch (_) {
         downloadingFiles.delete(f.id);
+        if (seq !== mediaLoadSeq) return;
         animDownloading.value = false;
         // 自动下载失败时回退到仅显示缩略图
         await loadAnimThumbnail();
@@ -1025,6 +1071,7 @@ async function handleAnimAutoDownload() {
 /** 下载 GIF 缩略图（静态位图→<img>，MPEG4/WEBM→<video>），并替换 minithumbnail 占位 */
 async function loadAnimThumbnail() {
     if (props.content._ !== 'messageAnimation') return;
+    const seq = mediaLoadSeq;
     const c = props.content;
     const anim = c.animation;
     // 缩略图跟随「图片自动下载」设置：图片自动下载关闭时不下缩略图，用 minithumbnail base64 兜底
@@ -1043,6 +1090,7 @@ async function loadAnimThumbnail() {
     const file = thumb.file;
     // 缩略图本地已就绪 → 直接用缩略图替换 minithumbnail
     if (isFileReady(file)) {
+        if (seq !== mediaLoadSeq) return;
         animThumbSrc.value = convertFileSrc(file.local.path);
         animThumbIsVideo.value = isVideoThumb;
         return;
@@ -1056,8 +1104,10 @@ async function loadAnimThumbnail() {
             undefined, undefined, true, false, 'video_cover',
         );
     }
+    if (seq !== mediaLoadSeq) return;
     if (!file.id || !file.local?.can_be_downloaded) return;
     await safeDownloadFile(file.id, false, DL_PRIORITY.THUMBNAIL);
+    if (seq !== mediaLoadSeq) return;
     pollAnimThumbDownload(file.id, isVideoThumb);
 }
 
@@ -1070,10 +1120,19 @@ function stopAnimThumbPolling() {
     }
 }
 function pollAnimThumbDownload(fileId: number, isVideoThumb: boolean) {
+    const seq = mediaLoadSeq;
     stopAnimThumbPolling();
     animThumbPollTimer = setInterval(async () => {
+        if (seq !== mediaLoadSeq) {
+            stopAnimThumbPolling();
+            return;
+        }
         try {
             const info = await tdlibSend({ _: 'getFile', file_id: fileId });
+            if (seq !== mediaLoadSeq) {
+                stopAnimThumbPolling();
+                return;
+            }
             if (isFileReady(info)) {
                 stopAnimThumbPolling();
                 animThumbSrc.value = convertFileSrc(info.local.path);
@@ -1132,10 +1191,23 @@ function finishAnimDownload(fileId: number, path: string) {
 }
 
 function pollAnimDownload(fileId: number) {
+    const seq = mediaLoadSeq;
     stopAnimDownloadPolling();
     animDownloadPollTimer = setInterval(async () => {
+        if (seq !== mediaLoadSeq) {
+            stopAnimDownloadPolling();
+            downloadingFiles.delete(fileId);
+            animDownloading.value = false;
+            return;
+        }
         try {
             const info = await tdlibSend({ _: 'getFile', file_id: fileId });
+            if (seq !== mediaLoadSeq) {
+                stopAnimDownloadPolling();
+                downloadingFiles.delete(fileId);
+                animDownloading.value = false;
+                return;
+            }
             if (isFileReady(info)) {
                 finishAnimDownload(fileId, info.local.path);
             }
@@ -1149,6 +1221,7 @@ function pollAnimDownload(fileId: number) {
 
 async function loadVideoThumb() {
     if (props.content._ !== 'messageVideo') return;
+    const seq = mediaLoadSeq;
     const c = props.content;
     // 迷你预览图优先占位：只要存在 minithumbnail，就先显示它，
     // 之后不论封面是本地已就绪还是需要下载，都以此为起点（先迷你 → 后封面）。
@@ -1178,6 +1251,7 @@ async function loadVideoThumb() {
             }
         }
     }
+    if (seq !== mediaLoadSeq) return;
     // 否则只下载封面缩略图（按格式分类：静态位图→<img>，MPEG4/WEBM→<video>）。
     // 封面跟随「图片自动下载」设置：图片自动下载关闭时不下封面，改用 minithumbnail base64。
     const thumb = c.video.thumbnail;
@@ -1198,6 +1272,7 @@ async function loadVideoThumb() {
     // 无论封面是否已就绪，迷你预览图（上一步设置）都会先显示；
     // 封面本地已就绪 → 直接用封面替换迷你图（无下载）：
     if (isFileReady(file)) {
+        if (seq !== mediaLoadSeq) return;
         videoThumbSrc.value = convertFileSrc(file.local.path);
         videoThumbIsVideo.value = isVideoThumb;
         return;
@@ -1212,11 +1287,13 @@ async function loadVideoThumb() {
             undefined, undefined, true, false, 'video_cover',
         );
     }
+    if (seq !== mediaLoadSeq) return;
     // 可靠下载封面：非同步发起 + 轮询直到就绪（封面 size 常为 0，
     // 同步 downloadFile + 单次 getFile 会立即返回未就绪导致封面永远不显示）。
     // 下载期间迷你预览图保持显示，封面就绪后才由 pollVideoCoverDownload 替换。
     if (!file.id || !file.local?.can_be_downloaded) return;
     await safeDownloadFile(file.id, false, DL_PRIORITY.THUMBNAIL);
+    if (seq !== mediaLoadSeq) return;
     pollVideoCoverDownload(file.id, isVideoThumb);
 }
 
@@ -1229,10 +1306,19 @@ function stopVideoCoverPolling() {
     }
 }
 function pollVideoCoverDownload(fileId: number, isVideoThumb: boolean) {
+    const seq = mediaLoadSeq;
     stopVideoCoverPolling();
     videoCoverPollTimer = setInterval(async () => {
+        if (seq !== mediaLoadSeq) {
+            stopVideoCoverPolling();
+            return;
+        }
         try {
             const info = await tdlibSend({ _: 'getFile', file_id: fileId });
+            if (seq !== mediaLoadSeq) {
+                stopVideoCoverPolling();
+                return;
+            }
             if (isFileReady(info)) {
                 stopVideoCoverPolling();
                 videoThumbSrc.value = convertFileSrc(info.local.path);
@@ -1260,11 +1346,13 @@ function shouldAutoDownloadPhoto(): boolean {
 
 async function handleVideoDownload(isUserAction = false) {
     if (props.content._ !== 'messageVideo') return;
+    const seq = mediaLoadSeq;
     const video = props.content.video;
     const videoFile = video.video;
     const fileId = videoFile.id;
     videoFileId.value = fileId;
     if (isFileReady(videoFile)) {
+        if (seq !== mediaLoadSeq) return;
         mediaSrc.value = convertFileSrc(videoFile.local.path);
         videoDownloaded.value = true;
         return;
@@ -1278,6 +1366,7 @@ async function handleVideoDownload(isUserAction = false) {
             const sFileName = video.file_name || `video_${props.messageId || fileId}.mp4`;
             await registerWithStore(fileId, sFileName, 'video', videoThumbIsVideo.value ? undefined : videoThumbSrc.value, false, true);
         }
+        if (seq !== mediaLoadSeq) return;
         const streamUrl = convertFileSrc(String(fileId), 'tdstream');
         mediaSrc.value = `${streamUrl}?mime=${video.mime_type}`;
         videoDownloaded.value = true;
@@ -1289,6 +1378,7 @@ async function handleVideoDownload(isUserAction = false) {
     // 注册到下载管理器
     const fileName = video.file_name || `video_${props.messageId || fileId}.mp4`;
     await registerWithStore(fileId, fileName, 'video', videoThumbIsVideo.value ? undefined : videoThumbSrc.value);
+    if (seq !== mediaLoadSeq) return;
     videoDownloading.value = true;
     videoProgress.value = 0;
     downloadingFiles.add(fileId);
@@ -1306,38 +1396,55 @@ async function handleVideoDownload(isUserAction = false) {
             // 自动下载：downloadFile（默认档优先级）
             await tdlibSend({ _: 'downloadFile', file_id: fileId, priority: DL_PRIORITY.DEFAULT, offset: 0, limit: 0, synchronous: false });
         }
+        if (seq !== mediaLoadSeq) {
+            downloadingFiles.delete(fileId);
+            return;
+        }
         // 轮询下载进度
         pollVideoDownload(fileId);
     } catch (_) {
         downloadingFiles.delete(fileId);
+        if (seq !== mediaLoadSeq) return;
         videoDownloading.value = false;
     }
 }
 
 /** 轮询文件下载进度 */
 let downloadPollTimer: ReturnType<typeof setInterval> | null = null;
+function stopVideoDownloadPolling() {
+    if (downloadPollTimer) {
+        clearInterval(downloadPollTimer);
+        downloadPollTimer = null;
+    }
+}
 function pollVideoDownload(fileId: number) {
+    const seq = mediaLoadSeq;
+    stopVideoDownloadPolling();
     downloadPollTimer = setInterval(async () => {
+        if (seq !== mediaLoadSeq) {
+            stopVideoDownloadPolling();
+            return;
+        }
         try {
             const info = await tdlibSend({ _: 'getFile', file_id: fileId }) as any;
+            if (seq !== mediaLoadSeq) {
+                stopVideoDownloadPolling();
+                return;
+            }
             const total = info.size || 1;
             const downloaded = info.local?.downloaded_size || 0;
             videoProgress.value = downloaded / total;
             if (info.local?.is_downloading_completed && info.local?.path) {
-                if (downloadPollTimer) { clearInterval(downloadPollTimer); downloadPollTimer = null; }
+                stopVideoDownloadPolling();
                 videoDownloading.value = false;
                 videoDownloaded.value = true;
                 mediaSrc.value = convertFileSrc(info.local.path);
             }
         } catch (_) {
-            if (downloadPollTimer) { clearInterval(downloadPollTimer); downloadPollTimer = null; }
+            stopVideoDownloadPolling();
             videoDownloading.value = false;
         }
     }, 500);
-    // 轮询结束后从去重集合中移除
-    if (!downloadPollTimer) {
-        downloadingFiles.delete(videoFileId.value);
-    }
 }
 
 function toggleMute() {

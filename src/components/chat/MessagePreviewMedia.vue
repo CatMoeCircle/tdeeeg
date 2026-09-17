@@ -52,6 +52,9 @@ function thumb(src: string, isVideo: boolean, msg: message): ThumbData {
 
 const thumbs = ref<ThumbData[]>([]);
 
+/** 加载代次：message/chatId 变化时自增，丢弃过期异步结果，避免会话列表缩略图串到别的会话 */
+let loadSeq = 0;
+
 /** 相册缩略图缓存：key = `${chatId}:${mediaAlbumId}`，null 表示该相册已查过且无可用缩略图 */
 const albumThumbsCache = new Map<string, ThumbData[] | null>();
 /** 正在进行的相册抓取，避免同一相册并发重复请求 */
@@ -166,16 +169,22 @@ async function fetchAlbumThumbs(msg: message, chatId: number): Promise<ThumbData
 }
 
 async function load() {
+    const seq = ++loadSeq;
     const msg = props.message;
     if (!msg || !isPreviewMedia(msg)) {
         thumbs.value = [];
         return;
     }
     if (isAlbum(msg) && props.chatId) {
-        thumbs.value = await fetchAlbumThumbs(msg, props.chatId);
+        // 先清空，避免 await 期间仍显示上一条消息/上一个相册的缩略图
+        thumbs.value = [];
+        const albumThumbs = await fetchAlbumThumbs(msg, props.chatId);
+        if (seq !== loadSeq) return;
+        thumbs.value = albumThumbs;
         return;
     }
     const t = messageThumb(msg);
+    if (seq !== loadSeq) return;
     thumbs.value = t ? [t] : [];
 }
 
