@@ -1,7 +1,7 @@
 <template>
     <div class="flex flex-col h-full border-r border-gray-200 pt-4">
         <!-- Search Bar (forum mode 时向上滑动隐藏) -->
-        <Transition name="slide-up">
+        <Transition :name="suppressChromeAnim ? 'slide-up-locked' : 'slide-up'">
             <div v-if="!forumMode" class="py-1 px-3 overflow-hidden max-h-14">
                 <div class="relative">
                     <input type="text" :placeholder="t('lng_dlg_filter')"
@@ -11,7 +11,7 @@
             </div>
         </Transition>
         <!-- Folder Tabs (forum mode 时向上滑动隐藏) -->
-        <Transition name="slide-up">
+        <Transition :name="suppressChromeAnim ? 'slide-up-locked' : 'slide-up'">
             <SlidingTabBar v-if="!forumMode && tabs.length > 1" :tabs="tabs" :active-id="activeTab"
                 :variant="settings.folderStyle" :tab-class="folderTabClass"
                 @select="switchToTab" class="px-2 max-h-12">
@@ -31,7 +31,7 @@
         </Transition>
 
         <!-- 音乐播放器入口（聊天打开时由 ChatDetail 接管，此处隐藏） -->
-        <Transition name="slide-up">
+        <Transition :name="suppressChromeAnim ? 'slide-up-locked' : 'slide-up'">
             <div v-if="!isChatOpen && !forumMode" class="overflow-hidden max-h-12">
                 <MusicPlayerEntry compact />
             </div>
@@ -768,6 +768,22 @@ let forumNextOffsetForumTopicId = 0;
 let forumHasMore = true;
 
 /**
+ * forum 切换瞬间抑制顶部 chrome 的 slide-up：搜索栏/分组页签/播放器同时
+ * 播 max-height 折叠会与话题面板滑入、列表宽度突变叠加，是切换卡顿主因之一。
+ * 抑制期用无过渡变体，只保留话题面板的滑入滑出。
+ */
+const suppressChromeAnim = ref(false);
+let suppressChromeTimer = 0;
+function armChromeAnimSuppress() {
+    suppressChromeAnim.value = true;
+    if (suppressChromeTimer) window.clearTimeout(suppressChromeTimer);
+    suppressChromeTimer = window.setTimeout(() => {
+        suppressChromeAnim.value = false;
+        suppressChromeTimer = 0;
+    }, 350);
+}
+
+/**
  * 论坛模式：进入时只渲染单页头像列；退出时下一帧把原生横滚位置
  * 瞬时对齐回当前 tab，避免从 scrollLeft=0 平滑横移造成错位。
  */
@@ -858,12 +874,16 @@ async function loadForumTopics(chatIdNum: number, loadMore: boolean) {
 }
 
 // 话题列表变化时异步加载各话题最后消息发送者信息（用户/频道，缓存去重）
+// 只在整表替换时触发；deep 会在 50 条复杂 TDLib 对象上做深比较，forum 切换时雪上加霜
 watch(forumTopics, (topics) => {
     topics.forEach(t => ensureSenderLoaded(t.last_message?.sender_id));
-}, { deep: true });
+});
 
 /** 退出论坛模式 */
 const exitForumMode = () => {
+    // 列表重挂时锁掉 FLIP/leave；顶部 chrome 不抑制——返回时搜索栏/分组页签应滑入
+    reorderAnimName.value = 'chat-list-locked';
+    lastReorderAnimAt = performance.now();
     forumMode.value = false;
     forumChatId.value = null;
     forumChatTitle.value = '';
@@ -885,6 +905,11 @@ const selectTopic = (topicId: number) => {
 /** 选择对话：论坛群组展开内联话题列表，普通对话进入聊天详情 */
 /** 进入论坛模式：选中论坛群组，展开内联话题列表 */
 const enterForumMode = (chat: Chat) => {
+    // 切 forum 时整列聊天项会从 TransitionGroup 卸载/重挂，先锁动画
+    // 避免几十条 leave/enter 与话题面板滑入叠加造成卡顿
+    reorderAnimName.value = 'chat-list-locked';
+    lastReorderAnimAt = performance.now();
+    armChromeAnimSuppress();
     selectedChatId.value = chat.id;
     forumMode.value = true;
     forumChatId.value = chat.id;
@@ -1355,13 +1380,16 @@ function getTopicPreview(topic: forumTopic): formattedText {
 
 /* Each page takes full width of the container */
 
-/* Forum topic panel slide animation */
+/* Forum topic panel slide animation
+   只过渡 transform/opacity：走合成器，避免 all 把布局属性也插值导致每帧 reflow */
 .topic-slide-enter-active {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform, opacity;
 }
 
 .topic-slide-leave-active {
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform, opacity;
 }
 
 .topic-slide-enter-from {
@@ -1394,10 +1422,17 @@ function getTopicPreview(topic: forumTopic): formattedText {
 }
 
 /* Slide-up transition for search bar, tabs, music player */
-/* 统一为与宽度收缩 / 话题滑入一致的时序 (0.3s, cubic-bezier(0.4,0,0.2,1)) */
+/* 统一为与宽度收缩 / 话题滑入一致的时序 (0.3s, cubic-bezier(0.4,0,0.2,1))
+   显式列出属性，不用 all：all 会把继承/布局属性一并插值，在 forum 切换
+   （同时多个 slide-up + 宽度突变）时造成明显卡顿 */
 .slide-up-enter-active,
 .slide-up-leave-active {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition:
+        opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        margin 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        padding 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
 }
 
@@ -1420,6 +1455,12 @@ function getTopicPreview(topic: forumTopic): formattedText {
     padding-top: 0;
     padding-bottom: 0;
     border: none;
+}
+
+/* forum 切换瞬间：顶部 chrome 直接显隐，不播折叠动画 */
+.slide-up-locked-enter-active,
+.slide-up-locked-leave-active {
+    transition: none !important;
 }
 
 /* Forum 头像列切换时淡入，避免硬切换生硬 */

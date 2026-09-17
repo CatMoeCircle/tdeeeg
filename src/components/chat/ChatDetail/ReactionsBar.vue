@@ -3,7 +3,7 @@
         :class="isSelf ? 'justify-end' : 'justify-start'">
         <!-- 已有 reaction 按钮 -->
         <button v-for="reaction in visibleReactions" :key="getReactionKey(reaction)" type="button"
-            class="reaction-btn inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs border transition-all duration-150 select-none"
+            class="reaction-btn inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs border transition-colors duration-150 select-none"
             :class="reaction.is_chosen
                 ? 'bg-blue-100 dark:bg-blue-900/50 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300'
                 : 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'"

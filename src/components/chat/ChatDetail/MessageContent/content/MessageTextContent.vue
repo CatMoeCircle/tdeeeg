@@ -133,7 +133,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
-import { computed, reactive, ref } from 'vue';
+import { computed, onUnmounted, reactive, ref } from 'vue';
 import type { formattedText, textEntity, linkPreview as LinkPreview } from 'tdlib-types';
 import { resolveInternalLink as resolveInternalLinkUtil } from '../../../../../utils/openInternalLink';
 import { useRouter } from 'vue-router';
@@ -381,11 +381,35 @@ function toggleExpand(gi: number) {
 /** 缓存每个可折叠引用的实际内容高度，用于平滑 max-height 动画 */
 const contentHeights = reactive<Record<number, number>>({});
 
+/** 待测量队列：渲染路径中不直接读 scrollHeight，统一在 rAF 里批量读，避免强制同步布局 */
+const pendingMeasure = new Map<number, HTMLElement>();
+let measureRaf = 0;
+
+function flushMeasures() {
+    measureRaf = 0;
+    for (const [gi, el] of pendingMeasure) {
+        if (el.isConnected && !contentHeights[gi]) {
+            contentHeights[gi] = el.scrollHeight;
+        }
+    }
+    pendingMeasure.clear();
+}
+
 function measureContent(gi: number, el: HTMLElement | null) {
-    if (el && !contentHeights[gi]) {
-        contentHeights[gi] = el.scrollHeight;
+    if (!el || contentHeights[gi]) return;
+    pendingMeasure.set(gi, el);
+    if (!measureRaf) {
+        measureRaf = requestAnimationFrame(flushMeasures);
     }
 }
+
+onUnmounted(() => {
+    if (measureRaf) {
+        cancelAnimationFrame(measureRaf);
+        measureRaf = 0;
+    }
+    pendingMeasure.clear();
+});
 
 function getEntityHref(entity: textEntity, text: string): string | undefined {
     switch (entity.type._) {

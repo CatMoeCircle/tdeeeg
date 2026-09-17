@@ -54,18 +54,11 @@ function getOnceObserver(): IntersectionObserver {
 
 /**
  * 监听元素首次进入（放大的）视口后执行一次回调并解除该回调。
- * 若元素当前已处于可视区，则同步触发一次。
+ * 仅依赖 IntersectionObserver 的异步首次回调——注册时不做 getBoundingClientRect，
+ * 避免大量元素挂载时同步强制布局（实测该路径是 INP/强制重排的最大来源）。
  */
 export function onVisibleOnce(el: Element | null | undefined, cb: () => void) {
   if (!el) {
-    cb();
-    return;
-  }
-  // 先同步判定当前是否已在可视区（含 rootMargin 缓冲），避免等待异步首次回调
-  const rect = el.getBoundingClientRect();
-  const vh = window.innerHeight;
-  const scope = 300;
-  if (rect.bottom >= -scope && rect.top <= vh + scope && rect.width > 0 && rect.height > 0) {
     cb();
     return;
   }
@@ -102,10 +95,9 @@ function getVisibilityObserver(): IntersectionObserver {
           const e = visibilityMap.get(entry.target);
           if (!e) continue;
           const isIntersecting = entry.isIntersecting;
+          // 仅在可见性「边沿」触发回调；持续相交时不重复 enter，避免无意义重入
           if (isIntersecting && !e.visible) {
             e.visible = true;
-            for (const enter of e.enters) enter();
-          } else if (isIntersecting && e.visible) {
             for (const enter of e.enters) enter();
           } else if (!isIntersecting && e.visible) {
             e.visible = false;
@@ -121,7 +113,9 @@ function getVisibilityObserver(): IntersectionObserver {
 
 /**
  * 持续监听元素可见性变化：进入可视区调 enter，离开调 leave。
- * 若元素当前已处于可视区，立即补发一次 enter（同步当前状态，供播放门控启动）。
+ * 注册时不做 getBoundingClientRect——大量元素同时挂载时同步读布局会造成
+ * 严重强制重排（性能追踪中该路径单独占 600ms+）。首次状态交给
+ * IntersectionObserver 的初始回调（observe 后一帧内即会派发）。
  */
 export function onVisibilityChange(
   el: Element | null | undefined,
@@ -129,24 +123,20 @@ export function onVisibilityChange(
   leave: () => void,
 ) {
   if (!el) return;
-  const rect = el.getBoundingClientRect();
-  const vh = window.innerHeight;
-  const scope = 300;
-  const currentlyVisible =
-    rect.bottom >= -scope && rect.top <= vh + scope && rect.width > 0 && rect.height > 0;
 
   let e = visibilityMap.get(el);
   if (!e) {
-    e = { enters: new Set(), leaves: new Set(), visible: currentlyVisible };
+    // 初始默认不可见：不读布局。IO 首次回调（observe 后一帧内）会纠正状态。
+    e = { enters: new Set(), leaves: new Set(), visible: false };
     visibilityMap.set(el, e);
     getVisibilityObserver().observe(el);
   }
   e.enters.add(enter);
   e.leaves.add(leave);
-  // 同步当前可见状态（用保存的 visible 位，而非重复计算）
   if (e.visible) {
     enter();
   } else {
+    // 尚未确认可见：先按离屏处理，避免 Lottie/视频在 IO 纠正前误播
     leave();
   }
 }

@@ -1775,13 +1775,15 @@ const { accentTextColor, accentColorStyle, isDark } = useColors();
 const bubbleWidths = ref<Record<number, number>>({});
 
 /** 重新测量所有消息气泡的宽度 */
+let measureBubbleRaf = 0;
 function measureBubbleWidths() {
     const container = messagesContainer.value;
     if (!container) return;
     const next: Record<number, number> = {};
+    // 只读 offsetWidth（比 getBoundingClientRect 少一层转换），且一次遍历
     container.querySelectorAll<HTMLElement>('[data-bubble-msg-id]').forEach((el) => {
         const id = Number(el.dataset.bubbleMsgId || '0');
-        if (id > 0) next[id] = Math.round(el.getBoundingClientRect().width);
+        if (id > 0) next[id] = Math.round(el.offsetWidth);
     });
     // 仅在实际变化时更新，避免触发不必要的重渲染
     const cur = bubbleWidths.value;
@@ -1794,14 +1796,23 @@ function measureBubbleWidths() {
     if (changed) bubbleWidths.value = next;
 }
 
+/** rAF 合帧：短时间多次 messagesVersion 变化只测一次，避免连续强制重排 */
+function scheduleMeasureBubbleWidths() {
+    if (measureBubbleRaf) return;
+    measureBubbleRaf = requestAnimationFrame(() => {
+        measureBubbleRaf = 0;
+        measureBubbleWidths();
+    });
+}
+
 // 消息变化（新增/删除/内容编辑等）后重新测量宽度。
 // 不用 deep watch：messages 已是 shallowRef，深监听会把每次深层字段写入
-// 变成整表 O(n) 遍历 + DOM 扫描。
+// 变成整表 O(n) 遍历 + DOM 扫描。测量本身经 rAF 合帧，避免与本轮 patch 抢同一帧。
 watch(
     messagesVersion,
     async () => {
         await nextTick();
-        measureBubbleWidths();
+        scheduleMeasureBubbleWidths();
     },
     { immediate: true }
 );
@@ -1812,7 +1823,7 @@ watch(messagesContainer, (el) => {
     if (bubbleWidthObserver) bubbleWidthObserver.disconnect();
     bubbleWidthObserver = null;
     if (el) {
-        bubbleWidthObserver = new ResizeObserver(() => measureBubbleWidths());
+        bubbleWidthObserver = new ResizeObserver(() => scheduleMeasureBubbleWidths());
         bubbleWidthObserver.observe(el);
     }
 });
@@ -1874,6 +1885,10 @@ onUnmounted(() => {
     if (unlisten) unlisten();
     if (unlistenFile) unlistenFile();
     if (bubbleWidthObserver) bubbleWidthObserver.disconnect();
+    if (measureBubbleRaf) {
+        cancelAnimationFrame(measureBubbleRaf);
+        measureBubbleRaf = 0;
+    }
     if (readVisibilityTimer !== null) window.clearTimeout(readVisibilityTimer);
     if (chatLoadRetryTimer !== null) window.clearTimeout(chatLoadRetryTimer);
     if (localDraftTimer !== null) {
@@ -2838,20 +2853,30 @@ async function markVisibleMessagesAsRead() {
     const container = messagesContainer.value;
     if (!currentChatId || !container) return;
 
+    // 一次建 Map，避免循环内 O(n) find（大量未读频道会退化成 O(n²)）
+    const msgById = new Map<number, message>();
+    for (const m of messages.value) msgById.set(m.id, m);
+
     const containerRect = container.getBoundingClientRect();
     const visibleUnreadIds = new Set<number>();
     const renderedMessages = container.querySelectorAll<HTMLElement>('[data-msg-id]');
 
+    // 先只读几何信息（不写 DOM），避免读写交错触发多次强制重排
+    const visibleIds: number[] = [];
     for (const element of renderedMessages) {
         const rect = element.getBoundingClientRect();
         if (rect.bottom <= containerRect.top || rect.top >= containerRect.bottom) continue;
-
         const messageId = Number(element.dataset.msgId);
-        const renderedMessage = messages.value.find(message => message.id === messageId);
+        if (messageId > 0) visibleIds.push(messageId);
+    }
+
+    for (const messageId of visibleIds) {
+        const renderedMessage = msgById.get(messageId);
         if (!renderedMessage) continue;
 
-        const visibleMessages = renderedMessage.media_album_id && renderedMessage.media_album_id !== '0'
-            ? messages.value.filter(message => message.media_album_id === renderedMessage.media_album_id)
+        const albumId = renderedMessage.media_album_id;
+        const visibleMessages = albumId && albumId !== '0'
+            ? messages.value.filter(message => message.media_album_id === albumId)
             : [renderedMessage];
         for (const message of visibleMessages) {
             if (!message.is_outgoing && message.id > lastReportedReadMessageId) {
