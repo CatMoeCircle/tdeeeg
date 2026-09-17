@@ -1,6 +1,6 @@
 import type { message } from 'tdlib-types';
 import type { AccentColorStyle } from '../../../../store/colors';
-import { isStandaloneMessage } from './messageType';
+import { isStandaloneMessage, isBubblelessMediaMessage, albumHasVisibleCaption } from './messageType';
 
 /**
  * 消息气泡样式计算（纯函数，无任何响应式依赖）。
@@ -172,8 +172,8 @@ export function bubbleStyle(
             cornerRadiusSymmetrical: deps.settings.cornerRadiusSymmetrical,
         }),
     };
-    // 独立消息（贴纸 / 动画表情）不渲染消息气泡，不叠加背景
-    if (deps.isSelf(item.msg) && !isStandaloneMessage(item.msg)) {
+    // 独立消息（贴纸 / 动画表情）与无 caption 纯媒体：不渲染消息气泡，不叠加背景
+    if (deps.isSelf(item.msg) && !isStandaloneMessage(item.msg) && !isBubblelessMediaMessage(item.msg)) {
         Object.assign(style, selfBubbleStyle(item.msg, deps));
     }
     return style;
@@ -194,7 +194,8 @@ export function albumStyle(
         zoom: String(deps.settings.scale),
         borderRadius: deps.settings.cornerRadius + 'px',
     };
-    if (deps.isSelf(item.messages[0])) {
+    // 无可见 caption 的相册：媒体在气泡外，不叠加 self 背景
+    if (deps.isSelf(item.messages[0]) && albumHasVisibleCaption(item.messages)) {
         Object.assign(style, selfAlbumStyle(item, deps));
     }
     return style;

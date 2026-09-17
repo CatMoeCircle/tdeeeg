@@ -1,5 +1,6 @@
 <template>
-    <div class="reactions-bar flex flex-wrap gap-1 mt-1" :class="{ 'justify-end': isSelf }">
+    <div class="reactions-bar flex flex-wrap gap-1 mt-1"
+        :class="isSelf ? 'justify-end' : 'justify-start'">
         <!-- 已有 reaction 按钮 -->
         <button v-for="reaction in visibleReactions" :key="getReactionKey(reaction)" type="button"
             class="reaction-btn inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs border transition-all duration-150 select-none"
@@ -38,7 +39,7 @@ import {
 const props = defineProps<{
     /** 消息对象 */
     msg: message;
-    /** 是否为自己的消息（影响对齐方向） */
+    /** 是否为自己的消息（自己靠右对齐，他人靠左） */
     isSelf?: boolean;
 }>();
 

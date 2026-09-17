@@ -81,8 +81,15 @@
                                 </div>
                                 <div class="flex min-w-0 max-w-[70%] flex-col"
                                     :class="isSelfAlbum(item) ? 'items-end' : 'items-start'">
-                                    <div class="w-min max-w-full overflow-hidden shadow-sm"
-                                        :class="isSelfAlbum(item) ? 'text-gray-900' : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'"
+                                    <div class="w-min max-w-full overflow-hidden"
+                                        :class="isAlbumBubbleless(item)
+                                            ? ''
+                                            : [
+                                                'shadow-sm',
+                                                isSelfAlbum(item)
+                                                    ? 'text-gray-900'
+                                                    : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'
+                                            ]"
                                         :style="getInlineKeyboard(item.messages[0]) ? { ...albumStyle(item), width: '100%' } : albumStyle(item)">
                                         <p v-if="showSenderDisplayName(item.messages[0])"
                                             class="msg-sender-name text-xs font-semibold px-2 pt-2 pb-0.5 flex items-center gap-1.5"
@@ -117,16 +124,16 @@
                                             @message-context-menu="onAlbumMessageContextMenu">
                                             <!-- 相册有 caption 时：回应放在 caption 与时间之间（气泡内 named slot） -->
                                             <template
-                                                v-if="hasReactions(item.messages[0]) && hasMediaCaption(item.messages[0])"
+                                                v-if="hasReactions(item.messages[0]) && albumHasVisibleCaption(item.messages)"
                                                 #reactions>
                                                 <ReactionsBar class="pl-2" :msg="item.messages[0]"
                                                     :isSelf="isSelfAlbum(item)"
                                                     @toggle-reaction="(type: ReactionType) => toggleReaction(chatId!, item.messages[0], type)" />
                                             </template>
                                         </MessageAlbum>
-                                        <!-- 相册无 caption 时：回应放在气泡外面 -->
-                                        <ReactionsBar
-                                            v-if="hasReactions(item.messages[0]) && !hasMediaCaption(item.messages[0])"
+                                        <!-- 相册无 caption 时：回应放在气泡外面，自己靠右、他人靠左 -->
+                                        <ReactionsBar class="w-full"
+                                            v-if="hasReactions(item.messages[0]) && !albumHasVisibleCaption(item.messages)"
                                             :msg="item.messages[0]" :isSelf="isSelfAlbum(item)"
                                             @toggle-reaction="(type: ReactionType) => toggleReaction(chatId!, item.messages[0], type)" />
                                     </div>
@@ -185,15 +192,20 @@
                                     :class="isSelf(item.msg) ? 'items-end' : 'items-start'">
                                     <div :data-bubble-msg-id="item.msg.id" :class="[
                                         isMediaMessage(item.msg)
-                                            ? 'w-fit max-w-full min-w-0 overflow-hidden shadow-sm'
+                                            ? [
+                                                'w-fit max-w-full min-w-0 overflow-hidden',
+                                                isBubblelessMedia(item.msg) ? '' : 'shadow-sm'
+                                            ]
                                             : isStandaloneMessage(item.msg)
                                                 ? 'relative max-w-full'
                                                 : 'px-2 py-1.5 shadow-sm max-w-full min-w-30',
-                                        !isStandaloneMessage(item.msg) && isSelf(item.msg)
-                                            ? 'text-gray-900'
-                                            : !isStandaloneMessage(item.msg)
-                                                ? 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'
-                                                : ''
+                                        !isStandaloneMessage(item.msg) && isBubblelessMedia(item.msg)
+                                            ? ''
+                                            : !isStandaloneMessage(item.msg) && isSelf(item.msg)
+                                                ? 'text-gray-900'
+                                                : !isStandaloneMessage(item.msg)
+                                                    ? 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'
+                                                    : ''
                                     ]"
                                         :style="getInlineKeyboard(item.msg) ? { ...bubbleStyle(item), width: '100%' } : bubbleStyle(item)">
                                         <p v-if="showSenderDisplayName(item.msg) && item.isFirstInGroup"
@@ -260,8 +272,8 @@
                                         <InlineTranslation v-if="getInlineTranslation(chatId ?? 0, item.msg.id)"
                                             :chat-id="chatId ?? 0" :message-id="item.msg.id"
                                             :text="getMessageFormattedText(item.msg)" />
-                                        <!-- 纯媒体（无 caption）：回应放在气泡外面 -->
-                                        <ReactionsBar
+                                        <!-- 纯媒体（无 caption）：回应放在气泡外面，自己靠右、他人靠左 -->
+                                        <ReactionsBar class="w-full"
                                             v-if="isMediaMessage(item.msg) && !hasMediaCaption(item.msg) && hasReactions(item.msg)"
                                             :msg="item.msg" :isSelf="isSelf(item.msg)"
                                             @toggle-reaction="(type: ReactionType) => toggleReaction(chatId!, item.msg, type)" />
@@ -645,7 +657,7 @@ import { getViewerState, closeMediaViewer, isMediaViewerActive, openMediaViewer 
 
 import { getSenderAccentColorId, getSenderProfileAccentColorId, getChatProfileAccentColorId, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
 import { useColors } from '../../../store/colors';
-import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage } from './composables/messageType';
+import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage, isBubblelessMediaMessage, albumHasVisibleCaption } from './composables/messageType';
 import { buildDisplayItems } from './composables/messageItems';
 import type { DisplayItem, AlbumDisplayItem } from './composables/messageItems';
 import {
@@ -3397,6 +3409,16 @@ const isMessageRead = (msg: message) =>
 function hasMediaCaption(msg: message): boolean {
     const c = msg.content;
     return ('caption' in c) && !!(c as any).caption?.text;
+}
+
+/** 单条媒体无 caption → 气泡外渲染（不套白/绿气泡底） */
+function isBubblelessMedia(msg: message): boolean {
+    return isBubblelessMediaMessage(msg);
+}
+
+/** 相册无可见 caption → 气泡外渲染 */
+function isAlbumBubbleless(item: { messages: message[] }): boolean {
+    return !albumHasVisibleCaption(item.messages);
 }
 
 /** 当前右键菜单对应的消息（供获取完成后判断是否需要打开菜单） */

@@ -50,43 +50,29 @@
 
         <!-- Stickers / animated emoji are rendered without a message bubble.
              回复预览显示在贴纸旁边（小宽度），而非贴纸上方。
-             ReactionsBar 放在贴纸下方（气泡外） -->
-        <div v-else-if="isStickerLikeContent" class="flex flex-col items-center gap-0.5 pb-2">
-            <div class="flex items-end gap-1.5">
-                <!-- 自己消息：贴纸在右，回复在左 -->
-                <template v-if="isSelf">
-                    <div v-if="replyTo" class="w-40 shrink-0">
-                        <MessageReply :replyTo="replyTo" :isSelf="true" :chatId="chatId" :messageList="messageList"
-                            :accentColorId="accentColorId" @jump="onJumpToMessage" />
-                    </div>
-                    <div class="relative inline-block align-bottom">
-                        <MessageStickerContent :content="stickerContent" />
-                        <span v-if="date && !settings.sticker.hideTimestamp"
-                            class="absolute right-1.5 bottom-1.5 z-10 bg-black/60 text-white px-1.5 py-0.5 rounded-md leading-none select-none pointer-events-none flex items-center">
-                            <MessageStatus :date="date" :isOutgoing="true" :sendingState="sendingState" :isRead="isRead"
-                                :viewCount="viewCount" :authorSignature="authorSignature" overMedia />
-                        </span>
-                    </div>
-                </template>
-                <!-- 他人消息：贴纸在左，回复在右 -->
-                <template v-else>
-                    <div class="relative inline-block align-bottom">
-                        <MessageStickerContent :content="stickerContent" />
-                        <span v-if="date && !settings.sticker.hideTimestamp"
-                            class="absolute right-1.5 bottom-1.5 z-10 bg-black/60 text-white px-1.5 py-0.5 rounded-md leading-none select-none pointer-events-none flex items-center">
-                            <MessageStatus :date="date" :isOutgoing="false" :sendingState="sendingState"
-                                :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature" overMedia />
-                        </span>
-                    </div>
-                    <div v-if="replyTo" class="w-40 shrink-0">
-                        <MessageReply :replyTo="replyTo" :isSelf="false" :chatId="chatId" :messageList="messageList"
-                            :accentColorId="accentColorId" @jump="onJumpToMessage" />
-                    </div>
-                </template>
+             ReactionsBar 贴纸下方：自己靠右、他人靠左 -->
+        <div v-else-if="isStickerLikeContent" class="flex items-end gap-1.5 pb-2">
+            <!-- 贴纸 + 回应：自己消息在右，他人在左 -->
+            <div class="flex flex-col gap-0.5 min-w-0"
+                :class="isSelf ? 'items-end order-2' : 'items-start order-1'">
+                <div class="relative inline-block align-bottom">
+                    <MessageStickerContent :content="stickerContent" />
+                    <span v-if="date && !settings.sticker.hideTimestamp"
+                        class="absolute right-1.5 bottom-1.5 z-10 bg-black/60 text-white px-1.5 py-0.5 rounded-md leading-none select-none pointer-events-none flex items-center">
+                        <MessageStatus :date="date" :isOutgoing="!!isSelf"
+                            :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount"
+                            :authorSignature="authorSignature" overMedia />
+                    </span>
+                </div>
+                <!-- ReactionsBar：贴纸下方，自己靠右、他人靠左 -->
+                <ReactionsBar v-if="hasReactions && onToggleReaction" class="w-full" :msg="message!"
+                    :isSelf="!!isSelf" @toggle-reaction="onToggleReaction" />
             </div>
-            <!-- ReactionsBar（气泡外，贴纸下方） -->
-            <ReactionsBar v-if="hasReactions && onToggleReaction" :msg="message!" :isSelf="isSelfReaction ?? false"
-                @toggle-reaction="onToggleReaction" />
+            <!-- 回复预览：自己消息在左，他人在右 -->
+            <div v-if="replyTo" class="w-40 shrink-0 self-end" :class="isSelf ? 'order-1' : 'order-2'">
+                <MessageReply :replyTo="replyTo" :isSelf="!!isSelf" :chatId="chatId" :messageList="messageList"
+                    :accentColorId="accentColorId" @jump="onJumpToMessage" />
+            </div>
         </div>
 
         <!-- Voice / Video notes -->

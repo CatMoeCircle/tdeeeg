@@ -94,6 +94,35 @@ export function isMediaMessage(msg: message): boolean {
 }
 
 /**
+ * 判断媒体消息是否带非空 caption（介绍文本）。
+ */
+export function hasMediaCaption(msg: message): boolean {
+  const c = msg.content;
+  return ("caption" in c) && !!(c as { caption?: { text?: string } }).caption?.text;
+}
+
+/**
+ * 判断单条媒体是否应「气泡外」渲染（无气泡背景，媒体直接贴在消息流上）。
+ * 仅当媒体类型且没有 caption 时成立——有 caption 时媒体与介绍同属一个气泡。
+ */
+export function isBubblelessMediaMessage(msg: message): boolean {
+  return isMediaMessage(msg) && !hasMediaCaption(msg);
+}
+
+/**
+ * 相册可见 caption 规则：仅当相册中【恰好一条】媒体带非空 caption 时才显示。
+ * 0 条 → 无气泡；≥2 条 → 描述归属不明，也不显示 caption（同样无气泡）。
+ */
+export function albumHasVisibleCaption(messages: readonly message[]): boolean {
+  let count = 0;
+  for (const m of messages) {
+    if (hasMediaCaption(m)) count++;
+    if (count > 1) return false;
+  }
+  return count === 1;
+}
+
+/**
  * 判断消息是否可参与相册分组（仅图片与视频）。
  *
  * @param msg - 待判断的 TDLib 消息对象
