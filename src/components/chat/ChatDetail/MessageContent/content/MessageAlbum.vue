@@ -150,7 +150,9 @@ function setAlbumPreview() {
         const c = msg.content;
         const min = c._ === 'messagePhoto'
             ? c.photo.minithumbnail
-            : c._ === 'messageVideo' ? c.video.minithumbnail : undefined;
+            : c._ === 'messageVideo'
+                ? (c.cover?.minithumbnail || c.video.minithumbnail)
+                : undefined;
         if (min?.data && !thumbCache[msg.id]) {
             thumbCache[msg.id] = `data:image/jpeg;base64,${min.data}`;
         }
@@ -200,6 +202,17 @@ function applyAlbumReadyFromContent(msgs: message[] = props.messages): boolean {
             if (cover && isFileReady(cover) && cover.local.path
                 && isThumbnailImgRenderable(th?.format)) {
                 const src = convertFileSrc(cover.local.path);
+                if (thumbCache[msg.id] !== src || thumbIsMini[msg.id] !== false) {
+                    thumbCache[msg.id] = src;
+                    thumbIsMini[msg.id] = false;
+                    changed = true;
+                }
+            }
+            // 新版顶层 cover.photo：Small 就绪时作为清晰封面
+            const coverSmall = pickSmallPhotoSize(c.cover);
+            if (coverSmall && isFileReady(coverSmall) && coverSmall.local.path
+                && !(cover && isFileReady(cover) && isThumbnailImgRenderable(th?.format))) {
+                const src = convertFileSrc(coverSmall.local.path);
                 if (thumbCache[msg.id] !== src || thumbIsMini[msg.id] !== false) {
                     thumbCache[msg.id] = src;
                     thumbIsMini[msg.id] = false;
@@ -512,26 +525,47 @@ async function loadVideo(msg: message, seq: number): Promise<boolean> {
         c = true;
         return c;
     }
-    // 封面不可渲染或未就绪时：图片自动下载关闭则仅 mini 兜底
-    if (!shouldAutoDownloadPhoto()) {
-        if (v.minithumbnail?.data && !thumbCache[msg.id]) {
-            thumbCache[msg.id] = `data:image/jpeg;base64,${v.minithumbnail.data}`;
-            c = true;
-        }
-        return c;
+    // 新版顶层 cover.photo（mini → Small 同步下载，不占并发、不受 autoDownload 限制）
+    const coverPhoto = msg.content._ === 'messageVideo' ? msg.content.cover : undefined;
+    const coverMini = coverPhoto?.minithumbnail?.data;
+    if (coverMini && !thumbCache[msg.id]) {
+        thumbCache[msg.id] = `data:image/jpeg;base64,${coverMini}`;
+        thumbIsMini[msg.id] = true;
+        c = true;
     }
-    if (!thumb || !isThumbnailImgRenderable(thumb.format)) return false;
-    if (thumbFile?.local?.can_be_downloaded && thumbFile.id && !downloadingFiles.has(thumbFile.id)) {
-        const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
-        await downloadStore.registerDownload(thumbFile.id, `video_cover_${thumbFile.id}.jpg`, chatTitle, 0, 'photo', undefined, undefined, undefined, true, false, 'video_cover', false, [DL_TAG.VIDEO_COVER, DL_TAG.THUMB], undefined, remoteIdOf(thumbFile));
-    }
-    if (seq !== albumLoadSeq) return false;
-    if (thumbFile?.id && thumbFile.local?.can_be_downloaded) {
+    const coverSmall = pickSmallPhotoSize(coverPhoto);
+    if (coverSmall && coverSmall.local?.can_be_downloaded && !downloadingFiles.has(coverSmall.id)) {
         try {
-            const r = await tdlibSend({ _: 'downloadFile', file_id: thumbFile.id, priority: DL_PRIORITY.THUMBNAIL, offset: 0, limit: 0, synchronous: true });
+            const r = await tdlibSend({
+                _: 'downloadFile', file_id: coverSmall.id,
+                priority: DL_PRIORITY.THUMBNAIL, offset: 0, limit: 0, synchronous: true,
+            });
+            if (seq !== albumLoadSeq) return false;
+            if (isFileReady(r)) {
+                thumbCache[msg.id] = convertFileSrc(r.local.path);
+                thumbIsMini[msg.id] = false;
+                c = true;
+                return c;
+            }
+        } catch (_) { /* ignore */ }
+    }
+    // 旧字段 video.thumbnail：同步下载，不占并发
+    if (thumb && isThumbnailImgRenderable(thumb.format)
+        && thumbFile?.local?.can_be_downloaded && thumbFile.id && !downloadingFiles.has(thumbFile.id)) {
+        try {
+            const r = await tdlibSend({
+                _: 'downloadFile', file_id: thumbFile.id,
+                priority: DL_PRIORITY.THUMBNAIL, offset: 0, limit: 0, synchronous: true,
+            });
             if (seq !== albumLoadSeq) return false;
             if (isFileReady(r)) { thumbCache[msg.id] = convertFileSrc(r.local.path); thumbIsMini[msg.id] = false; c = true; }
         } catch (_) { }
+    }
+    // 封面仍不可用时：mini 兜底
+    if (!thumbCache[msg.id] && v.minithumbnail?.data) {
+        thumbCache[msg.id] = `data:image/jpeg;base64,${v.minithumbnail.data}`;
+        thumbIsMini[msg.id] = true;
+        c = true;
     }
     return c;
 }

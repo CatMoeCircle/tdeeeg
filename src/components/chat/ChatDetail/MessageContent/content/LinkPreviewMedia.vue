@@ -278,8 +278,8 @@ async function load() {
 watch(plan, () => { void load(); }, { immediate: true });
 // 手动下载完成后刷新本地路径
 watch(
-    () => plan.value?.file?.id
-        ? downloadStore.getDownloadInfo(plan.value.file.id)?.is_completed
+    () => plan.value?.file
+        ? downloadStore.getDownloadInfoForFile(plan.value.file)?.is_completed
         : false,
     (done) => {
         if (done) void load();

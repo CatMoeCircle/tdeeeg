@@ -187,7 +187,13 @@ const isDownloadingOrGlobally = computed(() => {
     // 播放按钮触发的流式/完整下载只会写入 download store（registerStreamingDownload /
     // registerDownload），不会更新 reactiveDownloadingFiles；这里同步检测 store 中的进行中项，
     // 使下载按钮能立即切换为进度指示，无需用户再点一次下载。
-    const info = downloadStore.getDownloadInfo(fileId);
+    // 按 content File（含 remote.id）查询，避免 session file.id 复用串到其他文件。
+    const contentFile = props.content._ === 'messageAudio'
+        ? props.content.audio.audio
+        : props.content._ === 'messageDocument'
+            ? props.content.document.document
+            : undefined;
+    const info = downloadStore.getDownloadInfoForFile(contentFile);
     return !!(info && !info.is_completed && !info.dismissed);
 });
 
@@ -639,16 +645,19 @@ async function handleDownload(fileId: number) {
 
 /** 通过下载 store 的 updateFile 事件持续跟踪进度 */
 let unsubFileWatch: (() => void) | null = null;
-watch(currentFileId, (fileId) => {
+watch(currentFileId, () => {
     if (unsubFileWatch) { unsubFileWatch(); unsubFileWatch = null; }
-    if (!fileId) return;
+    if (!currentFileId.value) return;
+    const contentFile = () => props.content._ === 'messageAudio'
+        ? props.content.audio.audio
+        : props.content._ === 'messageDocument'
+            ? props.content.document.document
+            : undefined;
     unsubFileWatch = watch(
         () => {
-            const info = downloadStore.getDownloadInfo(fileId);
+            // 按 File 对象 + remote.id 查询：session file.id 可能被其他文件复用
+            const info = downloadStore.getDownloadInfoForFile(contentFile());
             if (!info) return undefined;
-            // 逐个读取字段以建立嵌套依赖：下载 store 对条目做「就地更新」
-            // （不替换对象引用），因此必须显式读取字段才能触发本 watch，
-            // 否则下载完成（is_completed + local_path 更新）后仍不会刷新。
             return {
                 progress: info.progress,
                 downloaded_size: info.downloaded_size,
@@ -664,7 +673,7 @@ watch(currentFileId, (fileId) => {
             downloadTotalSize.value = info.total_size;
 
             if (info.is_completed && info.local_path) {
-                downloadingFiles.delete(fileId);
+                downloadingFiles.delete(currentFileId.value);
                 isDownloading.value = false;
                 downloadReadyLocal.value = true;
                 mediaSrc.value = convertFileSrc(info.local_path);

@@ -168,6 +168,40 @@ export const useDownloadStore = defineStore("downloads", () => {
         return items.value[resolveKey(id)];
     }
 
+    /**
+     * 按 TDLib File 对象查询下载条目。
+     *
+     * file.id 只在当前 TDLib 会话内有效，重启后会变，且不同文件可能复用同一 id。
+     * 因此必须优先用 file.remote.id（跨重启稳定）查找；按 session id 回退时，
+     * 仅当映射到的条目 remote_id 与当前 file 一致才接受，否则视为 id 复用冲突。
+     */
+    function getDownloadInfoForFile(
+        file: { id?: number; remote?: { id?: string } } | null | undefined,
+    ): DownloadItem | undefined {
+        if (!file) return undefined;
+        const remoteId = file.remote?.id;
+        if (remoteId && remoteId.length > 0) {
+            const byRemote = items.value[remoteId];
+            if (byRemote) return byRemote;
+            if (typeof file.id !== "number") return undefined;
+            const mapped = items.value[sessionIdMap.value[file.id] || `session:${file.id}`];
+            if (!mapped) return undefined;
+            // session 映射指向其他 remote → file.id 被复用，不得当作本文件
+            if (mapped.remote_id && mapped.remote_id !== remoteId) return undefined;
+            return mapped.remote_id === remoteId ? mapped : undefined;
+        }
+        if (typeof file.id === "number") return getItemByKey(file.id);
+        return undefined;
+    }
+
+    /** 读取某 File 的已完成本地路径；remote_id 不匹配时返回空串，避免串媒体 */
+    function getCompletedPathForFile(
+        file: { id?: number; remote?: { id?: string } } | null | undefined,
+    ): string {
+        const info = getDownloadInfoForFile(file);
+        return info?.is_completed && info.local_path ? info.local_path : "";
+    }
+
     /** 全部未 dismiss 条目 */
     const allItems = computed(() => Object.values(items.value));
 
@@ -464,8 +498,12 @@ export const useDownloadStore = defineStore("downloads", () => {
         return item.progress;
     }
 
-    function markCompleted(fileId: number | string, localPath: string) {
-        const key = resolveKey(fileId);
+    /**
+     * @param remoteId 可选：file.remote.id。优先按其写入，避免 session file.id
+     *   被其他文件复用时把完成路径写到错误条目。
+     */
+    function markCompleted(fileId: number | string, localPath: string, remoteId?: string) {
+        const key = remoteId && remoteId.length > 0 ? remoteId : resolveKey(fileId);
         const item = items.value[key];
         if (!item) return;
         // 替换引用，保证依赖 getDownloadInfo 的 watch 能收到完成事件
@@ -617,6 +655,8 @@ export const useDownloadStore = defineStore("downloads", () => {
         getProgress,
         markCompleted,
         getDownloadInfo,
+        getDownloadInfoForFile,
+        getCompletedPathForFile,
         togglePause,
         cancelDownload,
         cancelAllDownloads,

@@ -256,7 +256,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import type { MessageContent, messageForwardInfo, MessageSendingState, chatPhotoInfo, profilePhoto, messageReplyToMessage, message } from 'tdlib-types';
 import MessageReply from './MessageReply.vue';
-import { tdlibSend, isFileReady, downloadingFiles, isFileBusy, isFileDownloading, enqueuePendingDownload, takePendingDownload, releasePendingDownloadOwner } from '../../../../../utils/tdlib';
+import { tdlibSend, isFileReady, downloadingFiles, isFileBusy, isFileDownloading, enqueuePendingDownload, takePendingDownload, releasePendingDownloadOwner, safeDownloadFile } from '../../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { VideoIcon } from 'lucide-vue-next';
 import ForwardBanner from './ForwardBanner.vue';
@@ -390,6 +390,16 @@ const videoFile = computed(() =>
     props.content._ === 'messageVideo' ? props.content.video.video : undefined);
 const videoCoverFile = computed(() =>
     props.content._ === 'messageVideo' ? props.content.video.thumbnail?.file : undefined);
+/**
+ * 新版 TDLib messageVideo 顶层 cover（photo）：
+ * 含 minithumbnail + 多档 sizes；旧 video.thumbnail 为空时用它作封面。
+ */
+const videoCoverPhoto = computed(() =>
+    props.content._ === 'messageVideo' ? props.content.cover : undefined);
+/** cover photo 最低质量档（渐进清晰占位） */
+const videoCoverSmallFile = computed(() => pickSmallPhotoSize(videoCoverPhoto.value));
+/** cover photo 最高一档（无传统 thumbnail 时的高清封面） */
+const videoCoverBigFile = computed(() => pickBigPhotoSize(videoCoverPhoto.value));
 const videoFilePath = computed(() => {
     const f = videoFile.value;
     return f && isFileReady(f) ? f.local.path : '';
@@ -398,10 +408,17 @@ const videoCoverPath = computed(() => {
     if (props.content._ !== 'messageVideo') return '';
     const th = props.content.video.thumbnail;
     const f = th?.file;
-    if (!f || !isFileReady(f)) return '';
-    // 高清封面必须可渲染；TGS 等不可直接显示时视为「无高清」，才允许 mini 兜底
-    if (!isThumbnailVideoRenderable(th?.format) && !isThumbnailImgRenderable(th?.format)) return '';
-    return f.local.path;
+    if (f && isFileReady(f) && f.local.path) {
+        // 高清封面必须可渲染；TGS 等不可直接显示时走 cover photo / mini 兜底
+        if (isThumbnailVideoRenderable(th?.format) || isThumbnailImgRenderable(th?.format)) {
+            return f.local.path;
+        }
+    }
+    const coverSmall = videoCoverSmallFile.value;
+    if (coverSmall && isFileReady(coverSmall) && coverSmall.local.path) return coverSmall.local.path;
+    const coverBig = videoCoverBigFile.value;
+    if (coverBig && isFileReady(coverBig) && coverBig.local.path) return coverBig.local.path;
+    return '';
 });
 const videoCoverIsAnim = computed(() => {
     if (props.content._ !== 'messageVideo') return false;
@@ -505,12 +522,8 @@ function isFileReadyInContent(fileId: number): boolean {
     return false;
 }
 
-/**
- * 将 download 任务入队。并发闸门只作用于「发起下载」，不作用于资源展示。
- * - 已 active：直接返回 active（UI 显示加载）
- * - 已 pending：去重
- * - 真正发起前再次确认 content 就绪 / pending 未被取消
- */
+/** 将 download 任务入队。并发闸门只作用于「发起下载」，不作用于资源展示。
+ * 仅用于视频本体 / 图片 Big 等主媒体；缩略图与 Small 不走此路径。 */
 function startQueuedDownload(fileId: number, starter: () => Promise<void>): 'active' | 'queued' {
     if (downloadingFiles.has(fileId) || isFileDownloading(fileId)) return 'active';
     enqueuePendingDownload(fileId, downloadOwner);
@@ -526,6 +539,34 @@ function startQueuedDownload(fileId: number, starter: () => Promise<void>): 'act
         }
     }, 'chat');
     return 'queued';
+}
+
+/**
+ * 缩略图 / 图片最低质量档（Small）同步下载。
+ * - `downloadFile` + `synchronous: true`
+ * - 不进入视口并发闸门，不注册下载管理器
+ * - 不受 autoDownload 开关限制（Telegram 客户端对封面/缩略图的一致策略）
+ */
+async function downloadAuxFileSync(
+    file: { id?: number; remote?: { id?: string }; local?: { path?: string; is_downloading_completed?: boolean; can_be_downloaded?: boolean } } | undefined | null,
+): Promise<string> {
+    if (!file?.id) return '';
+    if (isFileReady(file as never) && file.local?.path) return file.local.path;
+    if (file.local?.can_be_downloaded === false) return '';
+    if (!downloadingFiles.has(file.id) && !isFileDownloading(file.id)) {
+        try {
+            await safeDownloadFile(file.id, true, DL_PRIORITY.THUMBNAIL);
+        } catch { /* 失败时继续读 getFile / content 快照 */ }
+    }
+    const expectedRemote = file.remote?.id;
+    try {
+        const r = await tdlibSend({ _: 'getFile', file_id: file.id });
+        // session file.id 可能被其他文件复用：remote.id 不一致时丢弃，避免串图
+        if (expectedRemote && r?.remote?.id && r.remote.id !== expectedRemote) return '';
+        if (isFileReady(r) && r.local.path) return r.local.path;
+    } catch { /* ignore */ }
+    if (isFileReady(file as never) && file.local?.path) return file.local.path;
+    return '';
 }
 
 // ---- 上传进度（发送中的图片/视频）----
@@ -861,15 +902,28 @@ function openViewer() {
 
 /**
  * 视口门控仅用于触发下载排队，不负责资源展示判断。
+ * 主媒体（视频本体 / 图片 Big）：视口 + 停留 + 并发闸门。
  */
 const { start: startViewportLoad, entered: mediaViewportEntered } = useViewportLoad(rootEl, () => {
     return requestAutoDownloads();
 });
 
+/**
+ * 缩略图 / Small：同样要求视口 + 停留（默认 500ms），
+ * 但 enqueue=false，不占 chat 并发槽。
+ */
+const { start: startAuxViewportLoad, entered: auxViewportEntered } = useViewportLoad(
+    rootEl,
+    () => prefetchAuxThumbs(),
+    { enqueue: false },
+);
+
 onMounted(() => {
     // 先迷你占位，再立刻套用 content 内已就绪资源（不进下载队列）
     setMediaPreview();
     applyMediaFromContent();
+    // 封面 / Small：进入视口并停留后再同步拉取
+    startAuxViewportLoad();
     startViewportLoad();
 });
 
@@ -914,6 +968,8 @@ function resetMediaForContent() {
     }
     setMediaPreview();
     applyMediaFromContent();
+    // 已触发过视口加载的实例：内容原地替换后立刻补拉缩略图
+    if (auxViewportEntered.value) void prefetchAuxThumbs();
     if (mediaViewportEntered.value) void requestAutoDownloads();
 }
 
@@ -996,19 +1052,18 @@ function applyThumbnailFromContent() {
     }
 
     if (c._ === 'messageVideo') {
-        // 视频本体已就绪：直接用 <video>，不把 mini 写成展示层。
-        // 高清封面仅作 video.poster；无高清时也不用 mini 盖住就绪视频。
+        // 优先级：video.thumbnail 高清封面 → cover.photo Small → cover/photo minithumbnail
         if (videoCoverPath.value) {
             videoThumbSrc.value = convertFileSrc(videoCoverPath.value);
-            videoThumbIsVideo.value = videoCoverIsAnim.value;
+            videoThumbIsVideo.value = videoCoverIsAnim.value && !!videoCoverFile.value && isFileReady(videoCoverFile.value);
             return;
         }
         const videoReady = !!videoFilePath.value || !!mediaSrc.value || videoDownloaded.value;
         if (!videoReady) {
-            // 视频不可用 → 才允许 mini 兜底
-            const min = c.video.minithumbnail;
-            if (min?.data && (!videoThumbSrc.value || isMiniThumbSrc(videoThumbSrc.value))) {
-                videoThumbSrc.value = `data:image/jpeg;base64,${min.data}`;
+            const coverMini = c.cover?.minithumbnail?.data;
+            const mini = coverMini || c.video.minithumbnail?.data;
+            if (mini && (!videoThumbSrc.value || isMiniThumbSrc(videoThumbSrc.value))) {
+                videoThumbSrc.value = `data:image/jpeg;base64,${mini}`;
                 videoThumbIsVideo.value = false;
             }
         }
@@ -1100,24 +1155,47 @@ async function registerWithStore(
 }
 
 /** 从下载 store 获取指定 file 的下载进度 0~1（无记录或未下载返回 0） */
-function getFileProgress(fileId: number): number {
-    const item = downloadStore.getDownloadInfo(fileId);
+function getFileProgress(file: { id?: number; remote?: { id?: string } } | undefined): number {
+    const item = downloadStore.getDownloadInfoForFile(file);
     if (!item) return 0;
     return typeof item.progress === 'number' ? Math.min(1, Math.max(0, item.progress)) : 0;
+}
+
+/** 当前内容主媒体 File（photo Big / video / animation） */
+function contentMainFile() {
+    const c = props.content;
+    if (c._ === 'messagePhoto') return photoBigFile.value;
+    if (c._ === 'messageVideo') return videoFile.value;
+    if (c._ === 'messageAnimation') return animFile.value;
+    return undefined;
+}
+
+/** 当前内容封面/缩略图 File */
+function contentCoverFile() {
+    const c = props.content;
+    if (c._ === 'messageVideo') return videoCoverFile.value;
+    if (c._ === 'messageAnimation') return animCoverFile.value;
+    return undefined;
+}
+
+/**
+ * 读取下载 store 中「属于本 content 文件」的完成路径。
+ * remote_id 不匹配（session file.id 被其他文件复用）时返回空串，避免媒体乱串。
+ */
+function storeDonePath(file: { id?: number; remote?: { id?: string } } | undefined): string {
+    return downloadStore.getCompletedPathForFile(file);
 }
 
 /** 当前图片主文件（Big）的下载进度（用于加载时按进度显示） */
 const photoProgress = computed(() => {
     if (props.content._ !== 'messagePhoto') return 0;
-    const f = pickBigPhotoSize(props.content.photo);
-    return f ? getFileProgress(f.id) : 0;
+    return getFileProgress(photoBigFile.value);
 });
 
 /** 当前 GIF 主文件的下载进度 */
 const animProgress = computed(() => {
     if (props.content._ !== 'messageAnimation') return 0;
-    const f = props.content.animation.animation;
-    return f ? getFileProgress(f.id) : 0;
+    return getFileProgress(animFile.value);
 });
 
 /**
@@ -1137,26 +1215,9 @@ async function requestAutoDownloads() {
     const seq = mediaLoadSeq;
 
     if (c._ === 'messagePhoto') {
-        const small = photoSmallFile.value;
         const big = photoBigFile.value;
         const autoPhoto = shouldAutoDownloadPhotos(props.chatId);
-        // Small：本地已就绪由 watch 展示；未就绪且允许自动下载图片时入队作渐进占位
-        if (small && !isFileReady(small) && autoPhoto && canDownloadFile(small)) {
-            startQueuedDownload(small.id, async () => {
-                try {
-                    await tdlibSend({
-                        _: 'downloadFile',
-                        file_id: small.id,
-                        priority: DL_PRIORITY.THUMBNAIL,
-                        offset: 0,
-                        limit: 0,
-                        synchronous: false,
-                    });
-                } finally {
-                    downloadingFiles.delete(small.id);
-                }
-            });
-        }
+        // Small 已由 prefetchAuxThumbs 同步拉取；此处只处理 Big
         // Big：已就绪直接展示（watch），未就绪才按自动下载设置入队
         if (big && !isFileReady(big) && autoPhoto && canDownloadFile(big)) {
             if (seq !== mediaLoadSeq) return;
@@ -1188,39 +1249,7 @@ async function requestAutoDownloads() {
 
     if (c._ === 'messageVideo') {
         const f = videoFile.value;
-        const cover = videoCoverFile.value;
-        // 封面：已就绪由 watch 直接替换 mini；未就绪且允许自动下载图片时才入队
-        if (cover && !isFileReady(cover) && shouldAutoDownloadPhoto() && canDownloadFile(cover)
-            && cover.id && !downloadingFiles.has(cover.id)) {
-            const isVideoThumb = videoCoverIsAnim.value;
-            const coverName = `video_cover_${cover.id}.${isVideoThumb ? 'mp4' : 'jpg'}`;
-            try {
-                await downloadStore.registerDownload(
-                    cover.id, coverName, props.chatId ? getChatTitle(props.chatId) : '', 0,
-                    isVideoThumb ? 'video' : 'photo', undefined,
-                    undefined, undefined, true, false, 'video_cover', false,
-                    [DL_TAG.VIDEO_COVER, DL_TAG.THUMB],
-                    undefined,
-                    remoteIdOf(cover),
-                );
-            } catch { /* 注册失败仍可下载 */ }
-            startQueuedDownload(cover.id, async () => {
-                try {
-                    await tdlibSend({
-                        _: 'downloadFile',
-                        file_id: cover.id,
-                        priority: DL_PRIORITY.THUMBNAIL,
-                        offset: 0,
-                        limit: 0,
-                        synchronous: false,
-                    });
-                } finally {
-                    // 封面下载发起后释放 active 标记，避免挡住后续判断；完成靠 store/content
-                    downloadingFiles.delete(cover.id);
-                }
-            });
-        }
-        // 视频本体：已就绪在加载时已直接使用；此处只处理「未就绪且允许自动下载」
+        // 封面已由 prefetchAuxThumbs 处理；此处只负责视频本体
         if (f && isFileReady(f) && f.local.path) {
             mediaSrc.value = convertFileSrc(f.local.path);
             videoDownloaded.value = true;
@@ -1246,35 +1275,7 @@ async function requestAutoDownloads() {
 
     if (c._ === 'messageAnimation') {
         const f = animFile.value;
-        const cover = animCoverFile.value;
-        if (cover && !isFileReady(cover) && shouldAutoDownloadPhoto() && canDownloadFile(cover) && cover.id) {
-            const isVideoThumb = animCoverIsAnim.value;
-            const thumbName = `gif_cover_${cover.id}.${isVideoThumb ? 'mp4' : 'jpg'}`;
-            try {
-                await downloadStore.registerDownload(
-                    cover.id, thumbName, props.chatId ? getChatTitle(props.chatId) : '', 0,
-                    isVideoThumb ? 'video' : 'photo', undefined,
-                    undefined, undefined, true, false, 'video_cover', false,
-                    [DL_TAG.VIDEO_COVER, DL_TAG.THUMB],
-                    undefined,
-                    remoteIdOf(cover),
-                );
-            } catch { /* ignore */ }
-            startQueuedDownload(cover.id, async () => {
-                try {
-                    await tdlibSend({
-                        _: 'downloadFile',
-                        file_id: cover.id,
-                        priority: DL_PRIORITY.THUMBNAIL,
-                        offset: 0,
-                        limit: 0,
-                        synchronous: false,
-                    });
-                } finally {
-                    downloadingFiles.delete(cover.id);
-                }
-            });
-        }
+        // GIF 封面已由 prefetchAuxThumbs 处理
         if (f && !isFileReady(f) && props.chatId && settings.autoDownload.enabled) {
             const cs = useChatStore();
             const chatData = cs.chats[props.chatId] as any;
@@ -1288,6 +1289,122 @@ async function requestAutoDownloads() {
                 }
             }
         }
+    }
+}
+
+/**
+ * 缩略图 / 图片 Small 预取：挂载与 content 变化时立刻执行。
+ * 不进视口并发闸门；主媒体（视频本体 / 图片 Big）仍走 requestAutoDownloads。
+ */
+async function prefetchAuxThumbs() {
+    const seq = mediaLoadSeq;
+    const c = props.content;
+    if (c._ === 'messageVideo') {
+        await downloadVideoCoverAux(seq);
+        return;
+    }
+    if (c._ === 'messageAnimation') {
+        await downloadAnimCoverAux(seq);
+        return;
+    }
+    if (c._ === 'messagePhoto') {
+        const small = photoSmallFile.value;
+        if (small && !isFileReady(small) && canDownloadFile(small)) {
+            const path = await downloadAuxFileSync(small);
+            if (seq !== mediaLoadSeq) return;
+            if (path && !photoBigPath.value) {
+                thumbSrc.value = convertFileSrc(path);
+                thumbIsBlur.value = false;
+            }
+        } else if (small && isFileReady(small) && small.local.path && !photoBigPath.value) {
+            thumbSrc.value = convertFileSrc(small.local.path);
+            thumbIsBlur.value = false;
+        }
+    }
+}
+
+/**
+ * 视频封面：传统 video.thumbnail + 新版 cover.photo（mini → Small 同步下载）。
+ * 全程 downloadFile synchronous，不走视口并发，不受 autoDownload 限制。
+ */
+async function downloadVideoCoverAux(seq: number) {
+    const c = props.content;
+    if (c._ !== 'messageVideo') return;
+    const thFormat = c.video.thumbnail?.format;
+    const thImgOk = isThumbnailImgRenderable(thFormat);
+    const thVideoOk = isThumbnailVideoRenderable(thFormat);
+    const thFile = videoCoverFile.value;
+
+    // A. 传统 video.thumbnail
+    if (thFile && (thImgOk || thVideoOk || videoCoverIsAnim.value)) {
+        if (!isFileReady(thFile) && canDownloadFile(thFile)) {
+            const path = await downloadAuxFileSync(thFile);
+            if (seq !== mediaLoadSeq) return;
+            if (path) {
+                videoThumbSrc.value = convertFileSrc(path);
+                videoThumbIsVideo.value = thVideoOk || videoCoverIsAnim.value;
+                return;
+            }
+        } else if (isFileReady(thFile) && thFile.local.path) {
+            videoThumbSrc.value = convertFileSrc(thFile.local.path);
+            videoThumbIsVideo.value = thVideoOk || videoCoverIsAnim.value;
+            return;
+        }
+    }
+
+    // B. 新版 cover.photo：mini 占位 → 同步下最低质量 Small
+    const coverMini = c.cover?.minithumbnail?.data;
+    if (coverMini && (!videoThumbSrc.value || isMiniThumbSrc(videoThumbSrc.value))) {
+        videoThumbSrc.value = `data:image/jpeg;base64,${coverMini}`;
+        videoThumbIsVideo.value = false;
+    }
+
+    const coverSmall = videoCoverSmallFile.value;
+    if (!coverSmall) {
+        const vMini = c.video.minithumbnail?.data;
+        if (vMini && (!videoThumbSrc.value || isMiniThumbSrc(videoThumbSrc.value))) {
+            videoThumbSrc.value = `data:image/jpeg;base64,${vMini}`;
+            videoThumbIsVideo.value = false;
+        }
+        return;
+    }
+
+    if (!isFileReady(coverSmall) && canDownloadFile(coverSmall)) {
+        const path = await downloadAuxFileSync(coverSmall);
+        if (seq !== mediaLoadSeq) return;
+        if (path) {
+            videoThumbSrc.value = convertFileSrc(path);
+            videoThumbIsVideo.value = false;
+        }
+    } else if (isFileReady(coverSmall) && coverSmall.local.path
+        && (!videoThumbSrc.value || isMiniThumbSrc(videoThumbSrc.value))) {
+        videoThumbSrc.value = convertFileSrc(coverSmall.local.path);
+        videoThumbIsVideo.value = false;
+    }
+}
+
+/** GIF 封面：同步 downloadFile，不占并发 */
+async function downloadAnimCoverAux(seq: number) {
+    const c = props.content;
+    if (c._ !== 'messageAnimation') return;
+    const cover = animCoverFile.value;
+    if (cover && !isFileReady(cover) && canDownloadFile(cover)) {
+        const path = await downloadAuxFileSync(cover);
+        if (seq !== mediaLoadSeq) return;
+        if (path) {
+            animThumbSrc.value = convertFileSrc(path);
+            animThumbIsVideo.value = animCoverIsAnim.value;
+            return;
+        }
+    } else if (cover && isFileReady(cover) && cover.local.path) {
+        animThumbSrc.value = convertFileSrc(cover.local.path);
+        animThumbIsVideo.value = animCoverIsAnim.value;
+        return;
+    }
+    const min = c.animation.minithumbnail;
+    if (min?.data && (!animThumbSrc.value || isMiniThumbSrc(animThumbSrc.value))) {
+        animThumbSrc.value = `data:image/jpeg;base64,${min.data}`;
+        animThumbIsVideo.value = false;
     }
 }
 
@@ -1338,14 +1455,14 @@ function finishPhotoDownload(fileId: number, path: string) {
     mediaSrc.value = convertFileSrc(path);
     mediaLoaded.value = true;
     checkPhotoLoaded();
-    void downloadStore.markCompleted(fileId, path);
+    void downloadStore.markCompleted(fileId, path, remoteIdOf(photoBigFile.value));
 }
 
 function finishAnimDownload(fileId: number, path: string) {
     downloadingFiles.delete(fileId);
     animDownloading.value = false;
     mediaSrc.value = convertFileSrc(path);
-    void downloadStore.markCompleted(fileId, path);
+    void downloadStore.markCompleted(fileId, path, remoteIdOf(animFile.value));
 }
 
 function finishVideoDownload(fileId: number, path: string) {
@@ -1355,7 +1472,7 @@ function finishVideoDownload(fileId: number, path: string) {
     videoHasFrame.value = false;
     videoBuffering.value = false;
     mediaSrc.value = convertFileSrc(path);
-    void downloadStore.markCompleted(fileId, path);
+    void downloadStore.markCompleted(fileId, path, remoteIdOf(videoFile.value));
 }
 
 // ---- Animation (GIF) ----
@@ -1625,28 +1742,25 @@ function stopTrackingDownload() {
     if (stopTrackDownload) { stopTrackDownload(); stopTrackDownload = null; }
 }
 
-watch(trackingFileId, (fileId) => {
+watch(trackingFileId, () => {
     stopTrackingDownload();
-    if (!fileId) return;
-    // 监听原始值而非对象引用：store 曾就地 patch is_completed 时，
-    // watch(() => getDownloadInfo(id)) 会因同引用不触发，导致气泡一直转圈。
-    const readDonePath = () => {
-        const info = downloadStore.getDownloadInfo(fileId);
-        return info?.is_completed && info.local_path ? info.local_path : '';
-    };
+    if (!trackingFileId.value) return;
+    // 按 content 内 File（含 remote.id）读取完成路径：
+    // session file.id 可能被贴纸等其他文件复用，仅凭 id 查 store 会串媒体。
+    const readDonePath = () => storeDonePath(contentMainFile());
     stopTrackDownload = watch(
         readDonePath,
         (path) => {
             if (!path) return;
             const c = props.content;
             if (c._ === 'messagePhoto') {
-                if (!mediaSrc.value) finishPhotoDownload(fileId, path);
+                if (!mediaSrc.value) finishPhotoDownload(photoBigFile.value?.id ?? 0, path);
                 else clearPhotoBusy();
             } else if (c._ === 'messageAnimation') {
-                if (!mediaSrc.value) finishAnimDownload(fileId, path);
+                if (!mediaSrc.value) finishAnimDownload(animFile.value?.id ?? 0, path);
                 else clearAnimBusy();
             } else if (c._ === 'messageVideo') {
-                if (!videoFilePath.value) finishVideoDownload(fileId, path);
+                if (!videoFilePath.value) finishVideoDownload(videoFile.value?.id ?? 0, path);
                 else clearVideoBusy();
             }
         },
@@ -1655,12 +1769,9 @@ watch(trackingFileId, (fileId) => {
 }, { immediate: true });
 
 // 封面/缩略图 store 完成 → 用高清覆盖 mini（content 已就绪时以 content 路径为准）
-watch([trackingCoverId, () => props.content._], ([coverId]) => {
-    if (!coverId) return;
-    const readCoverPath = () => {
-        const info = downloadStore.getDownloadInfo(coverId);
-        return info?.is_completed && info.local_path ? info.local_path : '';
-    };
+watch([trackingCoverId, () => props.content._], () => {
+    if (!trackingCoverId.value) return;
+    const readCoverPath = () => storeDonePath(contentCoverFile());
     const applyPath = (path: string) => {
         if (!path) return;
         const c = props.content;
@@ -1723,19 +1834,23 @@ watch(videoFilePath, (path) => {
     if (path) clearVideoBusy();
 });
 
-/** 视频进度跟随 download store（读字段建立依赖，兼容就地 patch） */
+/** 视频进度跟随 download store（按 content File + remote_id 校验，防 session id 复用串路径） */
 watch(() => {
-    const id = videoFile.value?.id;
-    if (!id) return null;
-    const info = downloadStore.getDownloadInfo(id);
+    const f = videoFile.value;
+    if (!f?.id && !f?.remote?.id) return null;
+    const info = downloadStore.getDownloadInfoForFile(f);
     if (!info) return null;
     return {
         progress: info.progress,
         is_completed: info.is_completed,
         local_path: info.local_path,
+        remote_id: info.remote_id,
+        expected_remote: remoteIdOf(f),
     };
 }, (info) => {
     if (!info) return;
+    // remote_id 必须匹配本消息 content 中的 File，否则视为其他文件的进度
+    if (info.expected_remote && info.remote_id && info.remote_id !== info.expected_remote) return;
     if (typeof info.progress === 'number' && info.progress > 0 && info.progress < 1) {
         videoProgress.value = info.progress;
     }

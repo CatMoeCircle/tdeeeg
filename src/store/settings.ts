@@ -182,7 +182,7 @@ const defaultSettings: Settings = {
   chatWallpaperFullScreen: false,
   chatWallpaperOverlayOpacity: 0,
   chatWallpaperBlur: 0,
-  folderStyle: "tabs",
+  folderStyle: "soft",
   loadingStyle: "ring2",
   showFolderUnread: true,
   showFolderIcons: true,

@@ -609,7 +609,10 @@ impl DownloadStore {
         );
     }
 
-    /// updateFile 时：绑定 session → 条目键（在指定账户下）
+    /// updateFile 时：绑定 session → 条目键（在指定账户下）。
+    ///
+    /// TDLib file.id 仅会话内有效，可能被不同文件复用。有 remote.id 时必须以其
+    /// 为准重绑 session_map；否则沿用旧绑定会把进度/路径写到错误条目（媒体乱串）。
     pub fn bind_session_key(
         &mut self,
         account_id: i64,
@@ -617,27 +620,36 @@ impl DownloadStore {
         remote_id: Option<&str>,
     ) -> String {
         let key = derive_remote_id(remote_id, session_file_id);
-        if let Some(existing) = self
-            .data(account_id)
-            .session_map
-            .get(&session_file_id)
-            .cloned()
-        {
-            return existing;
-        }
-        {
-            let d = self.data_mut(account_id);
-            if d.items.contains_key(&key) {
-                if let Some(item) = d.items.get_mut(&key) {
-                    item.session_file_id = Some(session_file_id);
-                    item.file_id = session_file_id;
-                    if item.remote_id.is_empty() {
-                        item.remote_id = key.clone();
-                    }
+        let has_remote = remote_id.map(|r| !r.is_empty()).unwrap_or(false);
+        let d = self.data_mut(account_id);
+
+        if has_remote {
+            if d.session_map.get(&session_file_id) != Some(&key) {
+                d.session_map.insert(session_file_id, key.clone());
+            }
+            if let Some(item) = d.items.get_mut(&key) {
+                item.session_file_id = Some(session_file_id);
+                item.file_id = session_file_id;
+                if item.remote_id.is_empty() {
+                    item.remote_id = key.clone();
                 }
             }
-            d.session_map.insert(session_file_id, key.clone());
+            return key;
         }
+
+        if let Some(existing) = d.session_map.get(&session_file_id).cloned() {
+            return existing;
+        }
+        if d.items.contains_key(&key) {
+            if let Some(item) = d.items.get_mut(&key) {
+                item.session_file_id = Some(session_file_id);
+                item.file_id = session_file_id;
+                if item.remote_id.is_empty() {
+                    item.remote_id = key.clone();
+                }
+            }
+        }
+        d.session_map.insert(session_file_id, key.clone());
         key
     }
 

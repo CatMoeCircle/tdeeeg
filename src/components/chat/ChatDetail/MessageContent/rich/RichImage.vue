@@ -109,7 +109,7 @@ watch(() => props.file?.id, () => {
 });
 // 手动下载完成后刷新
 watch(
-    () => props.file?.id ? downloadStore.getDownloadInfo(props.file.id)?.is_completed : false,
+    () => props.file ? downloadStore.getDownloadInfoForFile(props.file)?.is_completed : false,
     (done) => {
         if (done) void load();
     },

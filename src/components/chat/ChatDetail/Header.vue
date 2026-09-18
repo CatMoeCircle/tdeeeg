@@ -3,69 +3,70 @@
         <div
             class="flex items-center w-full min-w-0 h-full px-2 sm:px-3 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg transition-[background-color,box-shadow] duration-200">
             <div class="flex items-center gap-3 min-w-0 flex-1" v-if="chat">
-            <!-- 返回按钮（叠层模式） -->
-            <button v-if="showBack" type="button" @click="emit('back')"
-                class="w-9 h-9 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-300 bg-gray-100/70 dark:bg-white/10 hover:bg-gray-200/80 dark:hover:bg-white/20 active:scale-95 transition-[background-color,transform] duration-150 shrink-0 -ml-1"
-                :aria-label="t('lng_menu_back')">
-                <ArrowLeftIcon class="w-5 h-5" />
-            </button>
-            <!-- 点击头像/标题区域打开对话信息叠层 -->
-            <button type="button" @click="emit('openInfo')"
-                class="flex items-center gap-3 min-w-0 text-left flex-1 cursor-pointer rounded-full hover:opacity-80 active:scale-[0.99] transition-[opacity,transform] duration-150">
-                <template v-if="isTopicMode">
-                    <!-- 话题图标：General 用主题色 #，自定义 emoji 用 emoji，否则首字母色块 -->
-                    <div v-if="topic!.info.is_general"
-                        class="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-white text-xl font-bold"
-                        :style="{ backgroundColor: topicIconColor(topic!.info.icon.color) }">#</div>
-                    <CustomEmojiInline v-else-if="topicCustomEmojiId" :emojiId="topicCustomEmojiId" :size="40"
-                        class="shrink-0" />
-                    <div v-else
-                        class="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-white text-lg font-bold"
-                        :style="{ backgroundColor: topicIconColor(topic!.info.icon.color) }">
-                        {{ topicNameInitial(topic!.info.name) }}
-                    </div>
-                </template>
-                <template v-else-if="isSavedMessages">
-                    <div
-                        class="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center shrink-0">
-                        <BookmarkIcon class="w-5 h-5 fill-current" />
-                    </div>
-                </template>
-                <Avatar v-else :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" :square="isForumChat"
-                    :accentColorId="headerAccentColorId" :deletedAccount="isDeletedChat(props.chat as any)" />
-                <div class="flex flex-col min-w-0">
-                    <h2 class="flex items-center font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight truncate">
-                        <!-- 秘密聊天：名称左侧锁图标（不改标题颜色） -->
-                        <span v-if="isSecretChat" class="tgico tgico-secret shrink-0 text-[15px] leading-none mr-1" />
-                        <GlobalEmojiText :text="headerTitle" /><span v-if="verificationState"
-                            class="text-blue-500 ml-1 shrink-0">
-                            <component :is="verificationState" />
+                <!-- 返回按钮（叠层模式） -->
+                <button v-if="showBack" type="button" @click="emit('back')"
+                    class="w-9 h-9 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-300 bg-gray-100/70 dark:bg-white/10 hover:bg-gray-200/80 dark:hover:bg-white/20 active:scale-95 transition-[background-color,transform] duration-150 shrink-0 -ml-1"
+                    :aria-label="t('lng_menu_back')">
+                    <ArrowLeftIcon class="w-5 h-5" />
+                </button>
+                <!-- 点击头像/标题区域打开对话信息叠层 -->
+                <button type="button" @click="emit('openInfo')"
+                    class="flex items-center gap-3 min-w-0 text-left flex-1 cursor-pointer rounded-full hover:opacity-80 active:scale-[0.99] transition-[opacity,transform] duration-150">
+                    <template v-if="isTopicMode">
+                        <!-- 话题图标：General 用主题色 #，自定义 emoji 用 emoji，否则首字母色块 -->
+                        <div v-if="topic!.info.is_general"
+                            class="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-white text-xl font-bold"
+                            :style="{ backgroundColor: topicIconColor(topic!.info.icon.color) }">#</div>
+                        <CustomEmojiInline v-else-if="topicCustomEmojiId" :emojiId="topicCustomEmojiId" :size="40"
+                            class="shrink-0" />
+                        <div v-else
+                            class="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-white text-lg font-bold"
+                            :style="{ backgroundColor: topicIconColor(topic!.info.icon.color) }">
+                            {{ topicNameInitial(topic!.info.name) }}
+                        </div>
+                    </template>
+                    <template v-else-if="isSavedMessages">
+                        <div
+                            class="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center shrink-0">
+                            <BookmarkIcon class="w-5 h-5 fill-current" />
+                        </div>
+                    </template>
+                    <Avatar v-else :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" :square="isForumChat"
+                        :accentColorId="headerAccentColorId" :deletedAccount="isDeletedChat(props.chat as any)" />
+                    <div class="flex flex-col min-w-0">
+                        <h2
+                            class="flex items-center font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight truncate">
+                            <!-- 秘密聊天：名称左侧锁图标（不改标题颜色） -->
+                            <span v-if="isSecretChat"
+                                class="tgico tgico-secret shrink-0 text-[15px] leading-none mr-1" />
+                            <GlobalEmojiText :text="headerTitle" /><span v-if="verificationState"
+                                class="text-blue-500 ml-1 shrink-0">
+                                <component :is="verificationState" />
+                            </span>
+                        </h2>
+                        <span class="text-xs text-gray-400 truncate">
+                            <template v-if="isTopicMode">
+                                <GlobalEmojiText :text="props.chat?.title || ''" />
+                            </template>
+                            <template v-else-if="showConnectionStatus">
+                                {{ displayStatus }}<span class="animated-dots"><span class="dot-1">.</span><span
+                                        class="dot-2">.</span><span class="dot-3">.</span></span>
+                            </template>
+                            <template v-else>{{ displayStatus }}</template>
                         </span>
-                    </h2>
-                    <span class="text-xs text-gray-400 truncate">
-                        <template v-if="isTopicMode">
-                            在
-                            <GlobalEmojiText :text="props.chat?.title || ''" />
-                        </template>
-                        <template v-else-if="showConnectionStatus">
-                            {{ displayStatus }}<span class="animated-dots"><span class="dot-1">.</span><span
-                                    class="dot-2">.</span><span class="dot-3">.</span></span>
-                        </template>
-                        <template v-else>{{ displayStatus }}</template>
-                    </span>
-                </div>
-            </button>
-        </div>
-            <div v-else class="flex items-center gap-3 flex-1 min-w-0">
-            <div class="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
-            <div class="flex flex-col w-48">
-                <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2 animate-pulse"></div>
-                <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2 animate-pulse"></div>
+                    </div>
+                </button>
             </div>
+            <div v-else class="flex items-center gap-3 flex-1 min-w-0">
+                <div class="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
+                <div class="flex flex-col w-48">
+                    <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2 animate-pulse"></div>
+                    <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2 animate-pulse"></div>
+                </div>
             </div>
 
             <div class="flex items-center gap-1 text-gray-500 dark:text-gray-300 shrink-0">
-            <slot name="actions" />
+                <slot name="actions" />
                 <button type="button" @click="emit('search')"
                     class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-200/80 dark:hover:bg-white/20 hover:text-blue-500 active:scale-95 transition-[background-color,color,transform] duration-150"
                     :aria-label="t('lng_dlg_filter')">

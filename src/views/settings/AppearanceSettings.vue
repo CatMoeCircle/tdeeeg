@@ -714,10 +714,10 @@ const showPreviewLeftBadge = computed(
 
 /** 样式选择选项（集成在预览内） */
 const styleOptions = [
+    { value: 'soft', label: t('appearance.styleSoft') },
     { value: 'tabs', label: t('lng_sr_chat_hashtag') },
     { value: 'pills', label: t('appearance.stylePills') },
     { value: 'text', label: t('appearance.styleText') },
-    { value: 'soft', label: t('appearance.styleSoft') },
 ] as const;
 
 const styleLabel = computed(() => {

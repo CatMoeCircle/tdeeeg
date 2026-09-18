@@ -161,7 +161,8 @@ watch(
     () => {
         const f = noteFile.value;
         if (!f?.id) return false;
-        return downloadStore.getDownloadInfo(f.id)?.is_completed === true || isFileReady(f);
+        // 按 File + remote.id 查询完成态，避免 session id 复用误判就绪
+        return downloadStore.getDownloadInfoForFile(f)?.is_completed === true || isFileReady(f);
     },
     (ready) => {
         if (ready && noteFile.value?.id && !mediaSrc.value) {

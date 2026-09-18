@@ -67,7 +67,8 @@ const isDownloading = computed(() => state.downloading || reactiveDownloadingFil
 const ready = computed(() => {
     if (!fileId.value) return false;
     if (isFileReady(props.file)) return true;
-    const info = downloadStore.getDownloadInfo(fileId.value);
+    // 按 File + remote.id 校验，防止 session file.id 复用时误判就绪
+    const info = downloadStore.getDownloadInfoForFile(props.file);
     return !!info?.is_completed;
 });
 
@@ -92,7 +93,7 @@ function trackProgress() {
     state.downloading = true;
     unsubWatch = watch(
         () => {
-            const info = downloadStore.getDownloadInfo(fileId.value);
+            const info = downloadStore.getDownloadInfoForFile(props.file);
             if (!info) return null;
             // 读字段建立依赖：store 可能就地 patch，只 watch 对象引用会漏掉完成事件
             return {

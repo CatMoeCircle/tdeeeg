@@ -16,9 +16,9 @@ import {
  * - 基于**模块级共享 IntersectionObserver**（见 useSharedIntersectionObserver）。
  * - **停留防抖**：进入视口后需连续可见 dwellMs（默认 500ms）才触发；期间离开
  *   视口则取消。防止快速滚动/惯性划过时对整屏消息同时发起下载。
- * - **按界面分池并发闸门**：load 通过 enqueueViewportLoad(scope) 排队执行，
- *   每个界面池（chat/sticker/profile）独立限流，互不阻塞。load 返回 Promise
- *   时占住槽位直到完成。
+ * - **按界面分池并发闸门**：enqueue=true（默认）时 load 通过 enqueueViewportLoad(scope)
+ *   排队执行；enqueue=false 时停留结束后直接调用 load，不占并发槽（用于缩略图等
+ *   极轻量同步下载）。
  * - load 仅触发一次（once=true 默认）。
  * - 暴露 entered（是否已触发加载）供组件据此决定是否展示下载驱动内容。
  *
@@ -37,9 +37,11 @@ export function useViewportLoad(
         dwellMs?: number;
         /** 界面分池，默认 chat */
         scope?: ViewportLoadScope;
+        /** false：停留结束后直接执行 load，不进并发队列（缩略图/Small） */
+        enqueue?: boolean;
     } = {}
 ) {
-    const { once = true, dwellMs = DEFAULT_DWELL_MS, scope = 'chat' } = options;
+    const { once = true, dwellMs = DEFAULT_DWELL_MS, scope = 'chat', enqueue = true } = options;
     const entered = ref(false);
     const inView = ref(false);
     let loaded = false;
@@ -57,7 +59,11 @@ export function useViewportLoad(
         if (loaded) return;
         loaded = true;
         entered.value = true;
-        enqueueViewportLoad(load, scope);
+        if (enqueue) {
+            enqueueViewportLoad(load, scope);
+        } else {
+            void load();
+        }
         // once 模式加载后不再需要持续可见性回调
         if (once && observedEl) {
             unobserveVisibility(observedEl);
