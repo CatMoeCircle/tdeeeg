@@ -1,14 +1,13 @@
 <template>
     <div class="flex flex-col h-full ">
         <div class="p-4 border-b border-gray-200 dark:border-gray-800">
-            <h2 class="text-lg font-semibold">联系人</h2>
+            <h2 class="text-lg font-semibold">{{ t('lng_menu_contacts') }}</h2>
         </div>
         <!-- 音乐播放器入口（聊天打开时由 ChatDetail 接管） -->
         <MusicPlayerEntry v-if="!isChatOpen" compact />
         <div class="flex-1 overflow-y-auto custom-scrollbar p-2" v-smooth-wheel>
             <div v-for="user in Contacts ?? []" :key="user.id">
-                <div
-                    class="flex items-center p-2 hover:shadow-(--box-shadow) hover:bg-gray-200/50 rounded-xl cursor-pointer transition-colors"
+                <div class="flex items-center p-2 hover:shadow-(--box-shadow) hover:bg-gray-200/50 rounded-xl cursor-pointer transition-colors"
                     @click="openProfile(user.id)">
 
                     <div class="w-13 h-13 mr-3">
@@ -16,11 +15,13 @@
                             :accentColorId="user.profile_accent_color_id" />
                     </div>
                     <div class="flex-1 min-w-0">
-                        <h3 class="text-sm font-semibold text-gray-900"><GlobalEmojiText :text="user.first_name + ' ' + user.last_name" /></h3>
+                        <h3 class="text-sm font-semibold text-gray-900">
+                            <GlobalEmojiText :text="user.first_name + ' ' + user.last_name" />
+                        </h3>
                         <p v-if="user.status._ === 'userStatusOnline'" class="text-xs text-blue-500">
                             在线</p>
                         <p v-else class="text-xs text-gray-400">{{ formatStatus(user.status)
-                        }}</p>
+                            }}</p>
                     </div>
                     <div class="flex items-center">
                         <t-tooltip content="互为联系人" placement="bottom">
@@ -40,6 +41,8 @@ import { ArrowLeftRightIcon } from 'lucide-vue-next';
 import { onMounted, ref } from "vue"
 import { useRoute, useRouter } from 'vue-router';
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 

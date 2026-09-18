@@ -269,7 +269,7 @@ function onInput(e: Event) {
 }
 
 const inputPlaceholder = computed(() =>
-    props.editTarget ? `${props.editTarget.label || '编辑消息'}...` : (attachmentStore.items.length > 0 ? '描述' : (props.placeholder || '输入消息...')));
+    props.editTarget ? `${props.editTarget.label || '编辑消息'}...` : (attachmentStore.items.length > 0 ? '描述' : (props.placeholder || t('lng_message_ph'))));
 
 /** 是否显示身份选择器（有多个可用发送身份时） */
 const showSenderSelector = computed(() => {

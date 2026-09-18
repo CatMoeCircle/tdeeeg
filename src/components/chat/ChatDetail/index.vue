@@ -466,7 +466,7 @@
                         <div class="min-w-0 flex-1">
                             <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
                                 {{ editMediaReplacement ? editMediaReplacement.name : (editMediaPreviewSrc ? '已附带媒体' :
-                                '无媒体预览')
+                                    '无媒体预览')
                                 }}
                             </p>
                             <p v-if="editMediaReplacement" class="text-[11px] text-orange-500">已选择新媒体，发送时将替换</p>
@@ -4108,7 +4108,7 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
     if (!isService && canReplyMessage(msg, cid)) {
         items.push({
             key: 'reply',
-            label: t('lng_in_reply_to'),
+            label: t('lng_context_reply_msg'),
             icon: ReplyIcon,
             onClick: () => startReply(msg),
         });
@@ -4141,7 +4141,7 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
     if (!isService) {
         items.push({
             key: 'multi-select',
-            label: '多选',
+            label: t('lng_context_select_msg'),
             icon: CheckSquareIcon,
             onClick: () => enterSelectionMode(msg),
         });
@@ -4150,7 +4150,7 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
     // —— 复制文本 / 媒体描述 ——
     items.push({
         key: 'copy-text',
-        label: isMediaMessage(msg) ? '复制描述' : '复制文本',
+        label: isMediaMessage(msg) ? '复制描述' : t('lng_context_copy_text'),
         icon: CopyPlusIcon,
         disabled: !canCopyMessage(msg, cid),
         onClick: () => copyMessageText(msg),
@@ -4172,13 +4172,13 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
         items.push({ key: 'divider-file', label: '', divider: true });
         items.push({
             key: 'reveal-in-dir',
-            label: '打开目录',
+            label: t('lng_context_show_in_folder'),
             icon: FolderOpenIcon,
             onClick: () => handleRevealInDir(mediaFile.local.path),
         });
         items.push({
             key: 'save-as',
-            label: '另存为',
+            label: t('lng_context_save_image'),
             icon: DownloadIcon,
             onClick: () => handleMessageSaveAs(mediaFile, getMessageFileName(msg, mediaFile)),
         });
@@ -4198,7 +4198,7 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
     // —— 复制链接 ——
     items.push({
         key: 'copy-link',
-        label: '复制链接',
+        label: t('lng_context_copy_link'),
         icon: LinkIcon,
         disabled: !canGetMessageLink(msg, cid),
         onClick: () => copyMessageLink(cid!, msg),
@@ -4248,7 +4248,7 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
     if (!isService && canReportMessage(msg, cid)) {
         items.push({
             key: 'report',
-            label: '举报',
+            label: t('lng_context_report_msg'),
             icon: FlagIcon,
             danger: true,
             onClick: () => handleReportMessage(msg),
