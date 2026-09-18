@@ -288,99 +288,91 @@
           </div>
         </div>
 
-        <!-- ===== 第二部分（频道/群组/秘密聊天模式）：介绍 / 用户名 / ID ===== -->
-        <div v-if="chatMode" class="px-4 mt-4 space-y-2">
-          <!-- 秘密聊天：显示用户信息（bio/手机号/用户名） -->
-          <template v-if="isSecretChat && secretChatUser">
-            <!-- 个人简介 -->
-            <div v-if="secretChatFullInfo?.bio?.text"
-              class="flex items-start gap-3 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5">
-              <InfoIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
-              <div class="min-w-0 flex-1">
-                <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
-                  <GlobalEmojiText :text="secretChatFullInfo.bio.text" />
-                </p>
-                <p class="text-xs text-gray-400 mt-0.5">{{ t('lng_info_bio_label') }}</p>
+        <!-- ===== 个人信息列表卡片（频道/群组/秘密聊天）— 合并为单卡片 ===== -->
+        <div v-if="chatMode" class="px-4 mt-4">
+          <div
+            class="rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md divide-y divide-gray-100 dark:divide-gray-800 overflow-hidden">
+            <!-- 秘密聊天：用户 bio / 手机号 / 用户名 / ID -->
+            <template v-if="isSecretChat && secretChatUser">
+              <div v-if="secretChatFullInfo?.bio?.text" class="flex items-start gap-3 p-3.5">
+                <InfoIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
+                    <GlobalEmojiText :text="secretChatFullInfo.bio.text" />
+                  </p>
+                  <p class="text-xs text-gray-400 mt-0.5">{{ t('lng_info_bio_label') }}</p>
+                </div>
               </div>
-            </div>
-            <!-- 手机号码 -->
-            <div v-if="secretChatUser.phone_number"
-              class="flex items-center gap-3 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5">
-              <PhoneIcon class="w-5 h-5 text-gray-400 shrink-0" />
-              <div class="min-w-0 flex-1">
-                <p class="text-sm text-gray-800 dark:text-gray-100 select-all">
-                  <CopyableText :text="secretChatUser.phone_number" @click.stop />
-                </p>
-                <p class="text-xs text-gray-400">{{ t('lng_info_mobile_label') }}</p>
+              <div v-if="secretChatUser.phone_number" class="flex items-center gap-3 p-3.5">
+                <PhoneIcon class="w-5 h-5 text-gray-400 shrink-0" />
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm text-gray-800 dark:text-gray-100 select-all">
+                    <CopyableText :text="secretChatUser.phone_number" @click.stop />
+                  </p>
+                  <p class="text-xs text-gray-400">{{ t('lng_info_mobile_label') }}</p>
+                </div>
               </div>
-            </div>
-            <!-- 用户名 -->
-            <div v-if="secretChatUser.usernames?.active_usernames?.length"
-              class="flex items-start gap-3 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-              @click="secretChatUser.usernames?.active_usernames?.[0] && copyText('@' + secretChatUser.usernames.active_usernames[0])">
-              <AtSignIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
-              <div class="min-w-0 flex-1">
-                <p class="text-sm font-bold text-gray-900 dark:text-gray-100 select-all wrap-break-word leading-snug">
-                  <CopyableText :text="secretChatUser.usernames.active_usernames[0]"
-                    :copy-as="'@' + secretChatUser.usernames.active_usernames[0]" @click.stop />
-                </p>
-                <p class="mt-0.5 text-xs text-gray-400">{{ t('lng_info_username_label') }}</p>
+              <div v-if="secretChatUser.usernames?.active_usernames?.length"
+                class="flex items-start gap-3 p-3.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                @click="secretChatUser.usernames?.active_usernames?.[0] && copyText('@' + secretChatUser.usernames.active_usernames[0])">
+                <AtSignIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-bold text-gray-900 dark:text-gray-100 select-all wrap-break-word leading-snug">
+                    <CopyableText :text="secretChatUser.usernames.active_usernames[0]"
+                      :copy-as="'@' + secretChatUser.usernames.active_usernames[0]" @click.stop />
+                  </p>
+                  <p class="mt-0.5 text-xs text-gray-400">{{ t('lng_info_username_label') }}</p>
+                </div>
               </div>
-            </div>
-            <!-- ID -->
-            <div
-              class="flex items-center gap-3 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5">
-              <IdCardIcon class="w-5 h-5 text-gray-400 shrink-0" />
-              <div class="min-w-0 flex-1">
-                <p class="text-sm text-gray-800 dark:text-gray-100 select-all">
-                  <CopyableText :text="String(secretChatUser.id)" @click.stop />
-                </p>
-                <p class="text-xs text-gray-400">ID</p>
+              <div class="flex items-center gap-3 p-3.5">
+                <IdCardIcon class="w-5 h-5 text-gray-400 shrink-0" />
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm text-gray-800 dark:text-gray-100 select-all">
+                    <CopyableText :text="String(secretChatUser.id)" @click.stop />
+                  </p>
+                  <p class="text-xs text-gray-400">ID</p>
+                </div>
               </div>
-            </div>
-          </template>
+            </template>
 
-          <!-- 频道/群组：介绍 -->
-          <div v-else-if="chatDescription"
-            class="flex items-start gap-3 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5">
-            <InfoIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
-            <div class="min-w-0 flex-1">
-              <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
-                <GlobalEmojiText :text="chatDescription" />
-              </p>
-              <p class="text-xs text-gray-400 mt-0.5">{{ t('lng_info_bio_label') }}</p>
-            </div>
-          </div>
-
-          <!-- 频道/群组用户名 -->
-          <div v-if="chatUsername"
-            class="flex items-start gap-3 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-            @click="chatUsername && copyText('@' + chatUsername)">
-            <AtSignIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
-            <div class="min-w-0 flex-1">
-              <p class="text-sm font-bold text-gray-900 dark:text-gray-100 select-all wrap-break-word leading-snug">
-                <CopyableText :text="chatUsername" :copy-as="'@' + chatUsername" @click.stop />
-              </p>
-              <p class="mt-0.5 text-xs text-gray-400">{{ t('lng_info_username_label') }}</p>
-            </div>
-          </div>
-
-          <!-- 频道/群组 ID -->
-          <div v-if="!isSecretChat"
-            class="flex items-center gap-3 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3.5">
-            <IdCardIcon class="w-5 h-5 text-gray-400 shrink-0" />
-            <div class="min-w-0 flex-1">
-              <p class="text-sm text-gray-800 dark:text-gray-100 select-all">
-                <CopyableText :text="String(chatId)" @click.stop />
-              </p>
-              <p class="text-xs text-gray-400">ID</p>
-            </div>
-            <button type="button"
-              class="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-              @click="copyChatId">
-              <Copy class="w-3.5 h-3.5" />
-              {{ t('lng_chat_link_copy') }}
-            </button>
+            <!-- 频道/群组：介绍 / 用户名 / ID -->
+            <template v-else>
+              <div v-if="chatDescription" class="flex items-start gap-3 p-3.5">
+                <InfoIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
+                    <GlobalEmojiText :text="chatDescription" />
+                  </p>
+                  <p class="text-xs text-gray-400 mt-0.5">{{ t('lng_info_bio_label') }}</p>
+                </div>
+              </div>
+              <div v-if="chatUsername"
+                class="flex items-start gap-3 p-3.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                @click="chatUsername && copyText('@' + chatUsername)">
+                <AtSignIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-bold text-gray-900 dark:text-gray-100 select-all wrap-break-word leading-snug">
+                    <CopyableText :text="chatUsername" :copy-as="'@' + chatUsername" @click.stop />
+                  </p>
+                  <p class="mt-0.5 text-xs text-gray-400">{{ t('lng_info_username_label') }}</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-3 p-3.5">
+                <IdCardIcon class="w-5 h-5 text-gray-400 shrink-0" />
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm text-gray-800 dark:text-gray-100 select-all">
+                    <CopyableText :text="String(chatId)" @click.stop />
+                  </p>
+                  <p class="text-xs text-gray-400">ID</p>
+                </div>
+                <button type="button"
+                  class="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                  @click="copyChatId">
+                  <Copy class="w-3.5 h-3.5" />
+                  {{ t('lng_chat_link_copy') }}
+                </button>
+              </div>
+            </template>
           </div>
         </div>
 
@@ -415,7 +407,7 @@
           </div>
         </div>
 
-        <!-- ===== 第三部分：个人信息列表卡片（仅用户模式） — 合并为单卡片 ===== -->
+        <!-- ===== 个人信息列表卡片（用户模式）— 合并为单卡片 ===== -->
         <div v-if="!chatMode" class="px-4 mt-4">
           <div
             class="rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md divide-y divide-gray-100 dark:divide-gray-800 overflow-hidden">
@@ -560,15 +552,20 @@
         <div v-if="hasBottomContent" ref="profileTabsEl" class="px-4 mt-5 sticky top-0 z-10 py-2 scroll-mt-0">
           <SlidingTabBar :active-id="activeTab" :tabs="profileTabItems" :variant="settings.folderStyle"
             :tab-class="(id, active) => folderTabClass(settings.folderStyle, id, active)"
-            :show-indicator="settings.folderStyle === 'tabs'" @select="onProfileTabSelect">
+            :container-class="folderTabContainerClass(settings.folderStyle)"
+            :show-indicator="settings.folderStyle === 'tabs' || settings.folderStyle === 'soft'"
+            @select="onProfileTabSelect">
             <template #default="{ tab, active }">
               <span class="inline-flex items-center gap-1.5 whitespace-nowrap">
                 <component :is="tabIcon(tab.key)" class="w-3.5 h-3.5" />
                 {{ tab.label }}
                 <span v-if="tab.count > 0"
-                  class="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none" :class="active && settings.folderStyle === 'pills'
+                  class="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none"
+                  :class="active && settings.folderStyle === 'pills'
                     ? 'bg-white/20 text-white'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'">
+                    : settings.folderStyle === 'soft'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'">
                   {{ tab.count > 999 ? `${Math.floor(tab.count / 1000)}k` : tab.count }}
                 </span>
               </span>
@@ -1100,7 +1097,7 @@ import { buildProfileTabs, type ProfileTab, type ProfileTabKey } from "../../uti
 import SlidingTabBar from "../../components/common/SlidingTabBar.vue";
 import { settings } from "../../store/settings";
 import { shouldAutoDownloadPhotos } from "../../utils/autoDownload";
-import { folderTabClass } from "../../utils/folderPillsTabClass";
+import { folderTabClass, folderTabContainerClass } from "../../utils/folderPillsTabClass";
 import type { SharedMediaCounts } from "../../utils/sharedMediaCounts";
 import { useProfileSharedMedia } from "../../composables/useProfileSharedMedia";
 import { onVisibilityChange, unobserveVisibility } from "../../composables/useSharedIntersectionObserver";

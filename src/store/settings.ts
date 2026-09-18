@@ -44,7 +44,7 @@ interface Settings {
   chatWallpaperOverlayOpacity: number;
   /** 默认图片壁纸的模糊半径（0-24px） */
   chatWallpaperBlur: number;
-  folderStyle: "tabs" | "pills" | "text";
+  folderStyle: "tabs" | "pills" | "text" | "soft";
   /** 加载指示器样式（ldrs loader 名，ring2 为默认） */
   loadingStyle: "ring2" | "squircle" | "square" | "reuleaux" | "infinity" | "trefoil";
   /** 是否在分组栏选项卡中显示未读消息计数器 */

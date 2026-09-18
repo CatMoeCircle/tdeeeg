@@ -42,8 +42,8 @@
                         <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">
                             {{ t('lng_settings_information') }}</h3>
                         <p class="text-xs text-gray-500">{{ t('lng_settings_name_label') }}, {{ t('lng_settings_upload')
-                            }},
-                            {{ t('lng_settings_username') }}</p>
+                        }},
+                            {{ t('lng_username_title') }}</p>
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                 </router-link>
@@ -57,7 +57,7 @@
                     </div>
                     <div class="flex-1">
                         <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('lng_edit_channel_color')
-                            }}
+                        }}
                         </h3>
                         <p class="text-xs text-gray-500">{{ t('lng_settings_section_chat_settings') }}, {{
                             t('lng_settings_section_background') }}</p>
@@ -91,7 +91,7 @@
                         <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">
                             {{ t('lng_settings_section_privacy') }}</h3>
                         <p class="text-xs text-gray-500">{{ t('lng_settings_password_title') }},
-                            {{ t('lng_settings_blocked_users') }}, {{t('lng_settings_privacy_title')}}</p>
+                            {{ t('lng_settings_blocked_users') }}, {{ t('lng_settings_privacy_title') }}</p>
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                 </router-link>
@@ -149,7 +149,7 @@
                     </div>
                     <div class="flex-1">
                         <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t("lng_settings_language")
-                        }}</h3>
+                            }}</h3>
                         <p class="text-xs text-gray-500">{{ t('lng_language_name') }}</p>
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
@@ -164,7 +164,7 @@
                     </div>
                     <div class="flex-1">
                         <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('lng_settings_advanced')
-                            }}
+                        }}
                         </h3>
                         <p class="text-xs text-gray-500">{{ t('settingsList.systemSubtitle') }}</p>
                     </div>
@@ -180,7 +180,8 @@
                         <SendIcon class="w-5 h-5" />
                     </div>
                     <div class="flex-1">
-                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('settingsList.officialGroup') }}</h3>
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{
+                            t('settingsList.officialGroup') }}</h3>
                         <p class="text-xs text-gray-500">@xiaoqvan_chat</p>
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
@@ -194,7 +195,8 @@
                         <TerminalSquareIcon class="w-5 h-5" />
                     </div>
                     <div class="flex-1">
-                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('settingsList.devOptions') }}</h3>
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('settingsList.devOptions')
+                            }}</h3>
                         <p class="text-xs text-gray-500">{{ t('settingsList.devOptionsDesc') }}</p>
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />

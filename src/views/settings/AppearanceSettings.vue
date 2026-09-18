@@ -255,7 +255,7 @@
                                     <!-- 全部对话默认显示对话图标；其余分组在激活时显示图标（宽度+透明度平滑过渡） -->
                                     <template #default="{ tab, active }">
                                         <span class="folder-col folder-col-right"
-                                            :class="{ open: settings.showFolderIcons && (tab.id === 'all' || active) }">
+                                            :class="{ open: settings.showFolderIcons && (tab.id === 'all' || active || settings.folderStyle === 'soft') }">
                                             <span class="inline-flex items-center">
                                                 <component :is="tab.icon" class="w-3.5 h-3.5 shrink-0" />
                                             </span>
@@ -263,9 +263,9 @@
                                         <span>
                                             <GlobalEmojiText :text="tab.name" />
                                         </span>
-                                        <!-- 未读计数器：激活分组旁显示（宽度+透明度平滑过渡） -->
+                                        <!-- 未读计数器：soft 样式全部标签显示蓝色角标，其余变体仅激活时显示 -->
                                         <span class="folder-col folder-col-left"
-                                            :class="{ open: settings.showFolderUnread && active }">
+                                            :class="{ open: settings.showFolderUnread && (active || settings.folderStyle === 'soft') }">
                                             <span
                                                 class="min-w-4 h-4 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold leading-4 text-center inline-flex items-center justify-center">
                                                 {{ settings.chatList.unreadCountMode === 'messages' ? '99+' :
@@ -717,6 +717,7 @@ const styleOptions = [
     { value: 'tabs', label: t('lng_sr_chat_hashtag') },
     { value: 'pills', label: t('appearance.stylePills') },
     { value: 'text', label: t('appearance.styleText') },
+    { value: 'soft', label: t('appearance.styleSoft') },
 ] as const;
 
 const styleLabel = computed(() => {
@@ -724,6 +725,7 @@ const styleLabel = computed(() => {
         tabs: t('appearance.styleTabsLabel'),
         pills: t('appearance.stylePillsLabel'),
         text: t('appearance.styleTextLabel'),
+        soft: t('appearance.styleSoftLabel'),
     } as const;
     return labels[settings.folderStyle];
 });
@@ -732,6 +734,8 @@ const tabContainerClass = computed(() => {
     switch (settings.folderStyle) {
         case 'tabs':
             return 'border-b border-gray-200 dark:border-gray-700';
+        case 'soft':
+            return 'w-fit max-w-[calc(100%-1rem)] mx-2 rounded-full bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shadow-sm px-1.5 py-1';
         case 'pills':
             return '';
         default:
@@ -751,6 +755,11 @@ function folderClass(_id: string, active: boolean) {
             return active
                 ? `${base} bg-blue-500 text-white rounded-full shadow-sm shadow-blue-500/50`
                 : `${base} bg-white/70 dark:bg-gray-800/70 backdrop-blur-md text-gray-600 dark:text-gray-300 rounded-full`;
+        case 'soft':
+            // 浅蓝胶囊底由滑动指示器绘制；水平略紧，高度恢复正常
+            return active
+                ? 'px-2.5 py-1.5 text-xs font-medium relative z-10 text-blue-600 dark:text-blue-400 rounded-full'
+                : 'px-2.5 py-1.5 text-xs font-medium relative z-10 text-gray-500 dark:text-gray-400 rounded-full';
         default:
             return active
                 ? `${base} text-blue-600 font-bold`

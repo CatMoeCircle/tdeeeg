@@ -1,29 +1,35 @@
 <template>
-    <div class="flex flex-col h-full border-r border-gray-200 pt-4">
+    <div class="flex flex-col h-full border-r border-gray-200"
+        :class="settings.folderStyle === 'soft' ? 'pt-1.5' : 'pt-4'">
         <!-- Search Bar (forum mode 时向上滑动隐藏) -->
         <Transition :name="suppressChromeAnim ? 'slide-up-locked' : 'slide-up'">
-            <div v-if="!forumMode" class="py-1 px-3 overflow-hidden max-h-14">
+            <div v-if="!forumMode" class="overflow-hidden" :class="settings.folderStyle === 'soft'
+                ? 'px-2 pt-0.5 pb-2 max-h-14'
+                : 'px-3 py-1 max-h-14'">
                 <div class="relative">
                     <input type="text" :placeholder="t('lng_dlg_filter')"
-                        class="w-full pl-7 pr-3.5 py-1.5 bg-white/60 shadow-(--box-shadow) rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    <SearchIcon class="w-3.5 h-3.5 absolute left-2.5 top-2 text-gray-400" />
+                        class="w-full text-xs focus:outline-none shadow-xs" :class="settings.folderStyle === 'soft'
+                            ? 'pl-8 pr-4 py-2 rounded-full bg-white/90 dark:bg-gray-800/90 backdrop-blur-md focus:shadow-(--box-shadow)'
+                            : 'pl-7 pr-3.5 py-1.5 rounded-md bg-white/60'" />
+                    <SearchIcon class="w-3.5 h-3.5 absolute left-2.5 text-gray-400"
+                        :class="settings.folderStyle === 'soft' ? 'top-2.5' : 'top-2'" />
                 </div>
             </div>
         </Transition>
         <!-- Folder Tabs (forum mode 时向上滑动隐藏) -->
         <Transition :name="suppressChromeAnim ? 'slide-up-locked' : 'slide-up'">
             <SlidingTabBar v-if="!forumMode && tabs.length > 1" :tabs="tabs" :active-id="activeTab"
-                :variant="settings.folderStyle" :tab-class="folderTabClass"
-                @select="switchToTab" class="px-2 max-h-12">
+                :variant="settings.folderStyle" :tab-class="folderTabClass" :container-class="folderContainerClass"
+                @select="switchToTab" :class="settings.folderStyle === 'soft' ? 'max-h-14' : 'px-2 max-h-14'">
                 <template #default="{ tab, active }">
                     <!-- 分组图标（全部对话默认对话图标） -->
                     <component :is="folderIcon(tab)" v-if="settings.showFolderIcons" class="w-3 h-3 shrink-0" />
                     <FormattedTextInline v-if="tab.formattedName" :formattedText="tab.formattedName" :size="12" />
                     <span v-else>{{ tab.name }}</span>
-                    <!-- 未读消息计数：未选中的分组显示为灰色 -->
+                    <!-- 未读消息计数：soft 样式未选中也显示蓝色角标，其余变体未选中为灰色 -->
                     <span v-if="settings.showFolderUnread && tabUnread(tab.id) > 0"
                         class="min-w-3.5 h-3.5 px-1 rounded-full text-white text-[9px] font-bold leading-3.5 text-center shrink-0"
-                        :class="active ? 'bg-blue-500' : 'bg-gray-400'">
+                        :class="(active || settings.folderStyle === 'soft') ? 'bg-blue-500' : 'bg-gray-400'">
                         {{ formatUnreadCount(tabUnread(tab.id)) }}
                     </span>
                 </template>
@@ -149,8 +155,7 @@
                                             </div>
                                             <div class="flex-1 min-w-0">
                                                 <div class="flex justify-between items-baseline mb-1">
-                                                    <h3
-                                                        class="text-sm font-semibold flex items-center gap-1 min-w-0"
+                                                    <h3 class="text-sm font-semibold flex items-center gap-1 min-w-0"
                                                         :class="isSecretChat(chat) ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-900 dark:text-gray-100'">
                                                         <!-- 秘密聊天：名称左侧锁图标 -->
                                                         <span v-if="isSecretChat(chat)"
@@ -288,7 +293,7 @@
                                         </h3>
                                         <span class="text-xs text-gray-400 ml-1 shrink-0">{{
                                             formatTime(topic.last_message?.date)
-                                            }}</span>
+                                        }}</span>
                                     </div>
                                     <!-- 第二排：发送人（迷你头像）+ 消息，复用对话列表的发送人标记 -->
                                     <div class="flex items-center gap-2">
@@ -402,7 +407,7 @@ import {
 import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
 import FormattedTextInline from './FormattedTextInline.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
-import { folderTabClass as sharedFolderTabClass } from '../../utils/folderPillsTabClass';
+import { folderTabClass as sharedFolderTabClass, folderTabContainerClass } from '../../utils/folderPillsTabClass';
 import MessagePreviewMedia from './MessagePreviewMedia.vue';
 import CustomEmojiInline from '../common/CustomEmojiInline.vue';
 import SlidingTabBar from '../common/SlidingTabBar.vue';
@@ -422,7 +427,6 @@ const chatStore = useChatStore();
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
 
-const swipeContainer = ref<HTMLElement | null>(null);
 const swipeTrackEl = ref<HTMLElement | null>(null);
 
 // ---- Native horizontal scroll (folder tabs) ----
@@ -582,6 +586,9 @@ const folderIcon = (tab: { id: string; iconName?: string }): Component => {
 function folderTabClass(id: string, active: boolean): string {
     return sharedFolderTabClass(settings.folderStyle, id, active);
 }
+
+/** 分组栏容器附加类（soft 变体需要白色圆角浮层） */
+const folderContainerClass = computed(() => folderTabContainerClass(settings.folderStyle));
 
 /**
  * 分组未读计数：

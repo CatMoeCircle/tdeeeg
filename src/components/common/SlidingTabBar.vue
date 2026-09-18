@@ -7,6 +7,7 @@
  *   - 标签的横向滚动布局
  *   - 激活标签的追踪（v 选中态）
  *   - tabs 样式下滑动小蓝条（先移动后定宽的自然过渡，避免宽度抖动）
+ *   - soft 样式下滑动浅蓝胶囊底（同 left/width 过渡）
  *   - 激活标签滚动进可视区
  *   - 容器尺寸变化时重算滑动条
  *
@@ -34,13 +35,13 @@ const props = withDefaults(defineProps<{
     tabs: TabItem[];
     /** 当前激活标签 id（v-model:active-id） */
     activeId: string;
-    /** 样式变体：tabs=底部滑动条，pills=胶囊，text=纯文本 */
-    variant?: 'tabs' | 'pills' | 'text';
+    /** 样式变体：tabs=底部滑动条，pills=胶囊，text=纯文本，soft=完全圆角浮层内滑动浅蓝胶囊 */
+    variant?: 'tabs' | 'pills' | 'text' | 'soft';
     /** 每个标签按钮的类（需根据 active 决定），由调用方传入以复用现有样式 */
     tabClass?: (id: string, active: boolean) => string;
     /** 容器额外类（覆盖默认的变体布局类） */
     containerClass?: string;
-    /** 是否显示 tabs 样式的滑动小蓝条 */
+    /** 是否显示滑动指示器（tabs 小蓝条 / soft 浅蓝胶囊底） */
     showIndicator?: boolean;
 }>(), {
     variant: 'tabs',
@@ -55,14 +56,20 @@ const emit = defineEmits<{
 }>();
 
 const isTabs = computed(() => props.variant === 'tabs');
+const isSoft = computed(() => props.variant === 'soft');
+/** 需要滑动指示器的变体 */
+const hasSlidingIndicator = computed(() => isTabs.value || isSoft.value);
 
 /** 容器布局类：变体基础布局 + 调用方附加类 */
 const containerClass = computed(() => {
-    const base = props.variant === 'pills' ? 'flex gap-2' : (props.variant === 'text' ? 'flex gap-3' : 'flex gap-2');
+    const base = props.variant === 'text'
+        ? 'flex gap-3'
+        // soft：宽度随内容；左右外边距与完全圆角浮层由 containerClass 附加
+        : props.variant === 'soft' ? 'flex gap-0.5 items-center w-fit max-w-[calc(100%-1rem)]' : 'flex gap-2';
     return props.containerClass ? `${base} ${props.containerClass}` : base;
 });
 
-// ---- 滑动小蓝条 ----
+// ---- 滑动指示器（tabs 小蓝条 / soft 浅蓝胶囊底） ----
 const tabRefs = ref<HTMLElement[]>([]);
 const indicatorStyle = ref<Record<string, string>>({});
 
@@ -72,9 +79,9 @@ function setTabRef(el: any) {
     if (el) tabRefs.value.push(el as HTMLElement);
 }
 
-/** 计算滑动条位置/宽度 */
+/** 计算滑动指示器位置/宽度（先移动后定宽，避免宽度抖动） */
 function updateIndicator() {
-    if (!isTabs.value) return;
+    if (!hasSlidingIndicator.value) return;
     const el = tabRefs.value?.find(t => t.dataset.tabId === props.activeId)
         || tabRefs.value?.[0];
     if (!el || !container.value) return;
@@ -139,14 +146,23 @@ watch(() => props.tabs, () => {
         scrollActiveIntoView();
     });
 });
+
+// 样式变体变化：重算指示器（soft ↔ tabs）
+watch(() => props.variant, () => {
+    nextTick(updateIndicator);
+});
 </script>
 
 <template>
     <div ref="container" v-smooth-wheel="'horizontal'"
-        class="sliding-tabbar relative overflow-x-auto no-scrollbar scrollbar-none shrink-0" :class="containerClass">
-        <!-- tabs 样式的滑动小蓝条：left 先滑动，width 延迟展开 -->
-        <span v-if="isTabs && showIndicator && tabs.length > 1" ref="indicator"
-            class="pointer-events-none absolute bottom-0 h-0.5 rounded-full bg-blue-500" :style="indicatorStyle"></span>
+        class="sliding-tabbar relative overflow-x-auto no-scrollbar scrollbar-none shrink-0"
+        :class="containerClass">
+        <!-- 滑动指示器：tabs=底部小蓝条；soft=浅蓝胶囊底（文字浮在其上） -->
+        <span v-if="hasSlidingIndicator && showIndicator && tabs.length > 1" ref="indicator"
+            class="pointer-events-none absolute rounded-full" :class="isSoft
+                ? 'inset-y-1 bg-blue-50 dark:bg-blue-500/20'
+                : 'bottom-0 h-0.5 bg-blue-500'"
+            :style="indicatorStyle"></span>
 
         <button v-for="tab in tabs" :key="tab.id" type="button" :ref="setTabRef" :data-tab-id="tab.id"
             @click="onTabClick(tab.id)" class="whitespace-nowrap inline-flex items-center transition-colors shrink-0"

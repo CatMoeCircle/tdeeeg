@@ -216,9 +216,11 @@
     "me": "Me",
     "stylePills": "Pills",
     "styleText": "Text",
+    "styleSoft": "Telegram",
     "styleTabsLabel": "Tabs style",
     "stylePillsLabel": "Pills style",
-    "styleTextLabel": "Text style"
+    "styleTextLabel": "Text style",
+    "styleSoftLabel": "Telegram style"
   },
   "notificationSettings": {
     "previewSection": "Preview",

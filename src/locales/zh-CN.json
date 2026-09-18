@@ -224,9 +224,11 @@
     "me": "我",
     "stylePills": "胶囊",
     "styleText": "文本",
+    "styleSoft": "Telegram",
     "styleTabsLabel": "标签样式",
     "stylePillsLabel": "胶囊样式",
-    "styleTextLabel": "文本样式"
+    "styleTextLabel": "文本样式",
+    "styleSoftLabel": "Telegram"
   },
   "notificationSettings": {
     "previewSection": "显示效果",
