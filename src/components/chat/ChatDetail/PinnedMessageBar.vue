@@ -6,19 +6,19 @@
         <template v-if="pinnedMessages.length > 0">
             <!-- 单条顶置消息（折叠态） -->
             <div v-if="!expanded && currentPinned" @click="jumpToMessage(currentPinned.id)"
-                class="flex items-center gap-2.5 px-4 py-2.5 cursor-pointer hover:bg-gray-100/60 dark:hover:bg-gray-700/60 transition-colors select-none group"
+                class="flex items-center gap-2.5 px-4 py-1.5 cursor-pointer hover:bg-gray-100/60 dark:hover:bg-gray-700/60 transition-colors select-none group"
                 :class="hasPlayer ? 'rounded-none border-b border-gray-100/50 dark:border-gray-700/30' : 'rounded-xl'">
                 <!-- 图钉图标 -->
                 <div class="shrink-0 w-7 h-7 flex items-center justify-center">
                     <PinIcon v-if="currentPinned.is_pinned" class="w-4 h-4 text-blue-500 rotate-45" />
                     <PinIcon v-else class="w-4 h-4 text-gray-400 rotate-45" />
                 </div>
-                <!-- 消息预览 -->
-                <div class="flex-1 min-w-0 flex items-center gap-2">
-                    <span class="text-xs font-medium text-blue-500 dark:text-blue-400 shrink-0">{{
+                <!-- 消息预览：标题与正文分两行 -->
+                <div class="flex-1 min-w-0 flex flex-col gap-0.5 leading-tight">
+                    <span class="text-xs font-medium text-blue-500 dark:text-blue-400 leading-tight">{{
                         t('lng_pinned_message') }}</span>
-                    <span class="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-300">
-                        <GlobalEmojiText :text="getMessagePreview(currentPinned)" :size="14" />
+                    <span class="min-w-0 truncate text-xs text-gray-700 dark:text-gray-300 leading-tight">
+                        <GlobalEmojiText :text="getMessagePreview(currentPinned)" :size="12" />
                     </span>
                 </div>
                 <!-- 展开按钮 -->

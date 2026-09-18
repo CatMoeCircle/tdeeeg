@@ -43,7 +43,7 @@
             <div class="mt-auto flex flex-col">
                 <template v-for="item in messageItems" :key="item.key">
                     <!-- Date separator -->
-                    <div v-if="item.type === 'date'" class="flex justify-center my-2">
+                    <div v-if="item.type === 'date'" class="flex justify-center my-2" :data-sticky-key="item.key">
                         <span
                             class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2.5 py-1 rounded-full leading-none select-none">
                             {{ item.text }}
@@ -384,11 +384,26 @@
             @update:visible="forwardPickerVisible = $event" @done="onForwardDone" />
 
         <!-- ===== 顶置消息栏 + 音乐播放器（合并同一卡片） ===== -->
+        <!-- PinnedMessageBar 必须始终挂载：visibleChange 是 showTopCard 的唯一来源，
+             用 v-if(showTopCard) 包住会导致永远不渲染 -->
         <div class="absolute inset-x-0 z-10 flex justify-center pointer-events-none"
-            :class="showTopCard ? 'top-17.5' : 'hidden'">
-            <div class="w-full px-3 pointer-events-auto">
-                <PinnedMessageBar :chatId="chatId" @jumpToMessage="jumpToPinnedMessage"
-                    @visibleChange="onPinnedVisibleChange" />
+            :class="showTopCard || stickyDateDisplay ? 'top-17.5' : 'hidden'">
+            <div class="w-full px-3 relative">
+                <div class="pointer-events-auto">
+                    <PinnedMessageBar :chatId="chatId" @jumpToMessage="jumpToPinnedMessage"
+                        @visibleChange="onPinnedVisibleChange" />
+                </div>
+                <!-- 吸顶日期：绝对定位挂在顶栏正下方，不占布局空间；向下滚隐藏、向上滚显示 -->
+                <Transition name="mi-fade">
+                    <div v-if="stickyDateDisplay"
+                        class="absolute inset-x-3 flex justify-center pointer-events-none"
+                        :class="showTopCard ? 'top-full mt-1' : 'top-1'">
+                        <span
+                            class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100/90 dark:bg-gray-800/90 backdrop-blur-sm px-2.5 py-1 rounded-full leading-none select-none shadow-sm">
+                            {{ stickyDateDisplay }}
+                        </span>
+                    </div>
+                </Transition>
             </div>
         </div>
 
@@ -671,6 +686,7 @@ import { useColors } from '../../../store/colors';
 import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage, isBubblelessMediaMessage, albumHasVisibleCaption } from './composables/messageType';
 import { buildDisplayItems } from './composables/messageItems';
 import type { DisplayItem, AlbumDisplayItem } from './composables/messageItems';
+import { formatDateLabel } from './composables/dateLabel';
 import {
     bubbleStyle as computeBubbleStyle, albumStyle as computeAlbumStyle,
     messagesStyleCss,
@@ -2227,6 +2243,16 @@ let lastReportedReadMessageId = 0;
 
 // ==================== Pinned Messages ====================
 const pinnedBarVisible = ref(false);
+/** 滚动时吸在顶栏底部的日期文案（不占布局空间的浮层）；须在 resetState 之前声明 */
+const stickyDateText = ref<string | null>(null);
+/** 向下滚动时隐藏吸顶日期，向上滚动时重新显示 */
+const stickyDateHidden = ref(false);
+/** 上一次 scrollTop，用于判断滚动方向 */
+let lastStickyScrollTop = 0;
+/** 实际展示的吸顶日期：有日期且未因向下滚动隐藏时才显示 */
+const stickyDateDisplay = computed(() =>
+    stickyDateHidden.value ? null : stickyDateText.value,
+);
 
 function onPinnedVisibleChange(visible: boolean) {
     pinnedBarVisible.value = visible;
@@ -2712,6 +2738,10 @@ async function loadHistoryOlder(loadChatId: number, gen: number): Promise<boolea
 
         if (el) {
             el.scrollTop = el.scrollHeight - prevHeight + prevTop;
+            // 顶部插入会改变日期分隔/首条消息相对顶缘的位置；scrollTop 修正后重算吸顶
+            // 同步 lastStickyScrollTop，避免程序化修正被当成用户向下滚动
+            lastStickyScrollTop = el.scrollTop;
+            updateStickyDate(el);
         }
         return true;
     } finally {
@@ -3091,6 +3121,8 @@ const scrollToBottom = () => {
     nextTick(() => {
         if (messagesContainer.value) {
             messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+            lastStickyScrollTop = messagesContainer.value.scrollTop;
+            stickyDateHidden.value = true;
         }
     });
 };
@@ -3112,6 +3144,7 @@ function scrollToMessageImmediate(messageId: number): boolean {
     const desired = el.scrollTop + delta - el.clientHeight * 0.45 + msgRect.height / 2;
     const max = Math.max(0, el.scrollHeight - el.clientHeight);
     el.scrollTop = Math.max(0, Math.min(Math.round(desired), max));
+    lastStickyScrollTop = el.scrollTop;
     return true;
 }
 
@@ -3120,7 +3153,11 @@ function scrollToBottomImmediate() {
     showScrollButton.value = false;
     newMessageCount.value = 0;
     const el = messagesContainer.value;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el) {
+        el.scrollTop = el.scrollHeight;
+        lastStickyScrollTop = el.scrollTop;
+        stickyDateHidden.value = true;
+    }
 }
 
 /** 滚动到指定消息元素，将其放在视口约 45% 位置（基于 getBoundingClientRect，避免 offsetTop 偏差） */
@@ -3254,10 +3291,22 @@ const onScroll = async (e: Event) => {
     // 首屏「定位/补齐但尚未露出」阶段：忽略滚动事件，
     // 避免程序化 scrollTop 触发加载，或把中间态写入上次浏览位置缓存。
     if (!listRevealed.value) return;
+
+    const el = e.currentTarget as HTMLElement;
+    // 滚动方向：向下（scrollTop 增大）隐藏吸顶日期，向上（减小）重新显示
+    const nextTop = el.scrollTop;
+    if (nextTop > lastStickyScrollTop + 1) {
+        stickyDateHidden.value = true;
+    } else if (nextTop < lastStickyScrollTop - 1) {
+        stickyDateHidden.value = false;
+    }
+    lastStickyScrollTop = nextTop;
+    // 吸顶日期需在跳底抑制窗口内也更新（程序化滚动同样会改变日期相对顶缘的位置）
+    updateStickyDate(el);
+
     // 程序化跳底后的短暂窗口：避免 onScroll 与 scrollToBottom/load 互相打架
     if (Date.now() < scrollLoadSuppressedUntil) return;
 
-    const el = e.currentTarget as HTMLElement;
     const H = el.scrollHeight;
     const C = el.clientHeight;
     const T = el.scrollTop;
@@ -3561,6 +3610,9 @@ function resetState() {
     joinRequestSent.value = false;
     secretChatState.value = undefined;
     pinnedBarVisible.value = false;
+    stickyDateText.value = null;
+    stickyDateHidden.value = false;
+    lastStickyScrollTop = 0;
     availableSenders.value = [];
     sendersLoading.value = false;
     historyMode.value = 'normal';
@@ -4653,6 +4705,72 @@ const topPaddingClass = computed(() => {
     return 'pt-16';
 });
 
+// ==================== Sticky Date ====================
+/**
+ * 根据 messageItems 推导的日期区块起点 + 滚动位置，更新吸顶日期。
+ *
+ * 不依赖「日期分隔是否已渲染」：
+ * - 有日期分隔时用分隔节点；分隔尚未挂载时用该日第一条消息兜底；
+ * - 首日通常没有分隔条，直接用第一条消息作为区块起点。
+ * 起点 top 越过内容区顶缘后显示该日吸顶日期；起点仍可见时隐藏（由内联分隔展示日期）。
+ */
+function updateStickyDate(el?: HTMLElement | null) {
+    const container = el ?? messagesContainer.value;
+    if (!container || !listRevealed.value) {
+        stickyDateText.value = null;
+        return;
+    }
+    const paddingTop = parseFloat(getComputedStyle(container).paddingTop) || 0;
+    const threshold = container.getBoundingClientRect().top + paddingTop;
+    const items = messageItems.value;
+
+    type Section = { text: string; el: Element | null };
+    const sections: Section[] = [];
+    let currentDateText: string | null = null;
+    /** 日期分隔条已出现但 DOM 尚未挂载时，用该日第一条已渲染消息兜底起点 */
+    let pendingSectionText: string | null = null;
+
+    for (const item of items) {
+        if (item.type === 'date') {
+            currentDateText = item.text;
+            const sep = container.querySelector<HTMLElement>(`[data-sticky-key="${item.key}"]`);
+            if (sep) {
+                sections.push({ text: item.text, el: sep });
+                pendingSectionText = null;
+            } else {
+                pendingSectionText = item.text;
+            }
+        } else if (item.type === 'single' || item.type === 'album') {
+            const msg = item.type === 'single' ? item.msg : item.messages[0];
+            const msgEl = container.querySelector(`[data-msg-id="${msg.id}"]`);
+            if (pendingSectionText) {
+                // 分隔未挂载：等该日第一条能定位到的消息出现再记区块
+                if (msgEl) {
+                    sections.push({ text: pendingSectionText, el: msgEl });
+                    pendingSectionText = null;
+                }
+            } else if (sections.length === 0) {
+                // 首日通常无分隔条：用第一条能定位到的消息作为区块起点
+                currentDateText = currentDateText ?? formatDateLabel(msg.date);
+                if (msgEl) {
+                    sections.push({ text: currentDateText, el: msgEl });
+                }
+            }
+        }
+    }
+
+    let active: string | null = null;
+    for (const s of sections) {
+        if (!s.el) continue;
+        if (s.el.getBoundingClientRect().top < threshold) {
+            active = s.text;
+        } else {
+            break;
+        }
+    }
+    stickyDateText.value = active;
+}
+
 /**
  * 顶置消息跳转：复用统一的 jumpToMessage，
  * 保证目标消息加载进列表、填补与当前列表的断层，再定位 + 高亮。
@@ -4673,6 +4791,16 @@ const messageItems = computed<DisplayItem[]>(() =>
         isSavedForwardedMessage,
         shouldReserveAvatarColumn,
     })
+);
+
+// 列表结构 / 顶栏高度 / 露出后 DOM 变化时重算吸顶日期
+// 用 flush:'post' 确保 DOM（日期分隔、消息节点）已更新后再测量
+watch(
+    () => [messageItems.value, showTopCard.value, listRevealed.value] as const,
+    () => {
+        void nextTick(() => updateStickyDate());
+    },
+    { flush: 'post' },
 );
 
 // ==================== Album Helpers ====================
