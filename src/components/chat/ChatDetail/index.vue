@@ -9,9 +9,12 @@
                 :style="{ opacity: settings.chatWallpaperOverlayOpacity / 100 }"></div>
         </template>
         <!-- ===== Messages Area (底层，穿透 header/footer) ===== -->
-        <!-- Skeleton -->
+        <!--
+          骨架屏作为遮罩叠在列表上：消息容器在首屏数据到达后即挂载（可测量/可滚动），
+          但在 listRevealed 前保持 opacity:0，避免「先露出一批再跳到已读/未读锚点」的闪跳。
+        -->
         <div v-if="showSkeleton"
-            class="absolute inset-0 z-10 overflow-y-auto px-4 custom-scrollbar flex flex-col messages-scroll"
+            class="absolute inset-0 z-20 overflow-y-auto px-4 custom-scrollbar flex flex-col messages-scroll"
             :class="topPaddingClass">
             <div class="flex-1"></div>
             <div v-for="n in 8" :key="n" class="flex mb-4" :class="n % 3 === 0 ? 'justify-end' : 'justify-start'">
@@ -23,13 +26,16 @@
             </div>
         </div>
 
-        <!-- Messages -->
-        <div v-else ref="messagesContainer"
+        <!-- Messages：始终挂载，定位完成前不可见 -->
+        <div ref="messagesContainer"
             class="absolute inset-0 z-10 overflow-y-auto px-4 custom-scrollbar flex flex-col messages-scroll pb-15"
-            :class="topPaddingClass" :style="messagesStyle" @scroll.passive="onScroll">
+            :class="topPaddingClass" :style="messagesContainerStyle" @scroll.passive="onScroll">
 
-            <!-- 顶部加载更多指示器 -->
-            <div v-if="isLoadingMore" class="text-center text-gray-400 text-sm py-3 shrink-0">
+            <!-- 顶部加载更多指示器：仅向更旧方向加载时显示。
+                 向更新方向/跳底加载若也在这里插节点，会反复改变 scrollHeight，
+                 在贴底时造成 ±几十像素的“莫名其妙跳动”。 -->
+            <div v-if="isLoadingMore && loadingDirection === 'older'"
+                class="text-center text-gray-400 text-sm py-3 shrink-0">
                 加载中...
             </div>
 
@@ -1713,10 +1719,18 @@ watch(pendingHashtag, (tag) => {
 });
 
 const isLoadingMore = ref(false);
+/** 当前边缘加载方向：'older' 时才显示顶部指示器，避免底部加载引起布局跳动 */
+const loadingDirection = ref<'older' | 'newer' | 'bottom' | null>(null);
+/** 程序化滚动/跳底后短暂抑制 onScroll 触发历史加载 */
+let scrollLoadSuppressedUntil = 0;
+/** loadHistoryNewer 连续失败计数，防止网络错误导致指示器死循环 */
+let newerFetchFailStreak = 0;
 const isHistoryExhausted = ref(false);
 /** 普通模式下向下滚动加载“更新”消息是否已到边界（已加载到最新消息） */
 const isNewerExhausted = ref(false);
 const isReady = ref(false);           // 标记初始加载和定位已完成
+/** 列表是否已对用户可见：首屏必须「先定位再露出」，否则会看到无意义的跳动 */
+const listRevealed = ref(false);
 const unreadBoundaryMessageId = ref<number | null>(null);
 
 const newMessageIds = ref<Set<number>>(new Set());
@@ -1967,16 +1981,43 @@ const handleUpdate = async (update: Update) => {
                 msg.sender_id._ === 'messageSenderUser' &&
                 msg.sender_id.user_id === myId.value;
 
-            // 追加到末尾（最新消息）
-            appendMessages([msg]);
             await fetchSenders([msg]);
             void fetchMemberStatuses([msg]);
+
+            const currentNewestId = messages.value[messages.value.length - 1]?.id ?? 0;
+            const isNewerThanWindow = currentNewestId <= 0 || msg.id > currentNewestId;
+
+            // 窗口未连到真实底部（跳转/未读锚点中间态）时，禁止把消息 append 进带 gap 的列表，
+            // 否则会出现 id 跳变（消息中断）。
+            if (!windowReachesLatest.value) {
+                if (senderIsMe) {
+                    // 自己发送：切到真实底部连续窗口，保证发送结果可见且列表连续
+                    if (chat.value?.last_message && msg.id >= (chat.value.last_message.id || 0)) {
+                        chat.value.last_message = msg;
+                    }
+                    void handleScrollToBottom();
+                    break;
+                }
+                if (isNewerThanWindow) {
+                    showScrollButton.value = true;
+                    newMessageCount.value++;
+                }
+                break;
+            }
+
+            if (!messages.value.find(m => m.id === msg.id)) {
+                appendMessages([msg]);
+            }
 
             const atBottom = isAtBottom();
             newMessageIds.value.add(msg.id);
             if (senderIsMe || atBottom) {
                 showScrollButton.value = false;
                 newMessageCount.value = 0;
+                if (chat.value?.last_message && msg.id >= (chat.value.last_message.id || 0)) {
+                    chat.value.last_message = msg;
+                }
+                windowReachesLatest.value = true;
                 scrollToBottom();
             } else {
                 showScrollButton.value = true;
@@ -2192,11 +2233,37 @@ function onPinnedVisibleChange(visible: boolean) {
 }
 
 type HistoryMode = 'normal' | 'jump';
+type HistoryFetch = message[] | null;
+
+/**
+ * 历史切片参数（对齐 Unigram Constants.HistoryOffset/HistoryLimit）：
+ * TDLib 约定：offset 为负时 limit 必须严格大于 -offset，否则请求非法。
+ * 因此「向更新方向」永远用 limit = HISTORY_NEWER_OFFSET + 1，绝不能 limit === -offset。
+ */
+const HISTORY_SLICE_LIMIT = 40;
+const HISTORY_SLICE_OFFSET = -20;
+const HISTORY_OLDER_LIMIT = 30;
+const HISTORY_NEWER_OFFSET = 30;
+const HISTORY_NEWER_LIMIT = HISTORY_NEWER_OFFSET + 1;
+const HISTORY_BOTTOM_LIMIT = 60;
+/** 距顶/底预取阈值（px），避免滚到边才请求导致空白 */
+const SCROLL_PREFETCH_PX = 220;
 
 /** 当前历史加载模式：普通模式只从顶部向更旧方向扩展，跳转模式允许两端扩展 */
 const historyMode = ref<HistoryMode>('normal');
 const jumpOlderExhausted = ref(false);
 const jumpNewerExhausted = ref(false);
+/** 当前消息窗口是否已连到聊天真实最新消息；未连上时 updateNewMessage 不得 append 进列表 */
+const windowReachesLatest = ref(false);
+
+/** 标记“更旧方向”已到边界：跳转模式用 jumpOlderExhausted，普通模式用 isHistoryExhausted */
+function markOlderExhausted() {
+    if (historyMode.value === 'jump') {
+        jumpOlderExhausted.value = true;
+    } else {
+        isHistoryExhausted.value = true;
+    }
+}
 
 /** 标记“更新方向”已到边界：跳转模式用 jumpNewerExhausted，普通模式用 isNewerExhausted */
 function markNewerExhausted() {
@@ -2205,6 +2272,26 @@ function markNewerExhausted() {
     } else {
         isNewerExhausted.value = true;
     }
+}
+
+function isOlderExhausted(): boolean {
+    return historyMode.value === 'jump' ? jumpOlderExhausted.value : isHistoryExhausted.value;
+}
+
+function isNewerDirectionExhausted(): boolean {
+    return historyMode.value === 'jump' ? jumpNewerExhausted.value : isNewerExhausted.value;
+}
+
+/** 依据当前列表末端与 chat.last_message，判断窗口是否已贴到真实最新 */
+function refreshWindowReachesLatest() {
+    const lastId = chat.value?.last_message?.id ?? 0;
+    const newestId = messagesMaxId();
+    if (lastId <= 0 || newestId <= 0) {
+        // 无 last_message 时，若更新方向已耗尽也可视为贴底
+        windowReachesLatest.value = isNewerDirectionExhausted();
+        return;
+    }
+    windowReachesLatest.value = newestId >= lastId;
 }
 
 /** 高亮闪烁的消息 ID，用于顶置消息跳转动画 */
@@ -2339,9 +2426,9 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
             ? tdlibSend({ _: 'getForumTopic', chat_id: currentId, forum_topic_id: topicId.value }) as Promise<forumTopic>
             : Promise.resolve(undefined);
 
-        // 有上次浏览位置时，围绕该位置先拉一个小窗口（前 5 后 5），无需等待 getChat
-        const earlyMessages: Promise<message[]> | null = cachedPos > 0 && !requestedMessageId
-            ? fetchMessages(currentId, cachedPos, 10, -5, gen)
+        // 有上次浏览位置时，围绕该位置先拉一个对称切片，无需等待 getChat
+        const earlyMessages: Promise<HistoryFetch> | null = cachedPos > 0 && !requestedMessageId
+            ? fetchMessages(currentId, cachedPos, HISTORY_SLICE_LIMIT, HISTORY_SLICE_OFFSET, gen)
             : null;
 
         const chatData = await chatPromise;
@@ -2375,34 +2462,51 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
             if (!isGenerationValid(gen)) return;
             if (jumped) {
                 unreadBoundaryMessageId.value = null;
-                isReady.value = true;
                 chatLoadRetryCount = 0;
-                scheduleVisibleMessagesRead();
+                refreshWindowReachesLatest();
                 restoreDraft(currentId, topicId.value, chatData.draft_message);
                 void tdlibSend({ _: 'openChat', chat_id: currentId });
+                // 先补齐视口再校准锚点，最后才露出列表（避免看到中间态再跳）
+                await ensureViewportFilled(gen);
+                if (!isGenerationValid(gen) || chatId.value !== currentId) return;
+                await nextTick();
+                scrollToMessageImmediate(requestedMessageId);
+                flashMessage(requestedMessageId);
+                listRevealed.value = true;
+                isReady.value = true;
+                scheduleVisibleMessagesRead();
                 void autoOpenMediaFromQuery(gen);
+                setTimeout(() => {
+                    if (isGenerationValid(gen) && chatId.value === currentId) {
+                        scrollToMessage(requestedMessageId);
+                    }
+                }, 250);
                 return;
             }
         }
 
-        // 首屏消息（10 条）与群组/通知信息并行加载：
-        //   - 有上次位置 → 复用提前发起的 earlyMessages
-        //   - 否则有未读 → 围绕最后已读位置拉未读分隔线附近窗口
-        //   - 否则 → 从最新消息向历史拉
+        // 首屏消息与群组/通知信息并行加载：
+        //   - 有上次位置 → 复用提前发起的 earlyMessages（对称切片）
+        //   - 否则有未读 → 围绕最后已读位置拉窗口（offset 合法且非对称过小）
+        //   - 否则 → from_message_id=0 从最新消息向历史拉
         const firstBatchPromise = earlyMessages ?? fetchMessages(
             currentId,
             lastReadId,
-            10,
-            lastReadId > 0 ? -5 : 0,
+            HISTORY_SLICE_LIMIT,
+            lastReadId > 0 ? HISTORY_SLICE_OFFSET : 0,
             gen
         );
-        const [firstBatch] = await Promise.all([
+        const [firstBatchResult] = await Promise.all([
             firstBatchPromise,
             fetchGroupInfo(chatData, gen),
             syncNotificationMuteState(chatData, currentId),
             fetchAvailableSenders(currentId, gen),
         ]);
         if (!isGenerationValid(gen)) return;
+        if (firstBatchResult == null) {
+            throw new Error(`Chat ${currentId} history fetch failed`);
+        }
+        const firstBatch = firstBatchResult;
         if (firstBatch.length === 0 && chatData.last_message) {
             throw new Error(`Chat ${currentId} returned empty history despite having a last message`);
         }
@@ -2419,43 +2523,54 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
             ? firstBatch.find(message => message.media_album_id === unreadAlbumId)?.id || firstUnreadMessage.id
             : firstUnreadMessage?.id || null;
 
-        // 渲染首屏，骨架屏随即消失
+        // 写入首屏数据（此时列表仍 opacity:0 + 骨架遮罩，用户看不到中间态）
         applyMessages(firstBatch);
-        await nextTick();
-
-        // 定位：上次浏览位置优先 → 未读分隔线 → 底部
-        const unreadBoundary = unreadBoundaryMessageId.value;
-        if (cachedPos > 0 && firstBatch.some(m => m.id === cachedPos)) {
-            scrollToMessage(cachedPos);
-        } else if (unreadBoundary != null && unreadBoundary > 0) {
-            scrollToMessage(unreadBoundary);
+        // from_message_id=0 或已包含 last_message → 窗口贴真实底部
+        if (lastReadId === 0 && !earlyMessages) {
+            windowReachesLatest.value = firstBatch.length > 0;
         } else {
-            scrollToBottom();
+            const lastMessageId = chatData.last_message?.id ?? 0;
+            const newestInBatch = firstBatch[firstBatch.length - 1]?.id ?? 0;
+            windowReachesLatest.value = lastMessageId > 0 && newestInBatch >= lastMessageId;
         }
-
-        isReady.value = true;
         chatLoadRetryCount = 0;
         restoreDraft(currentId, topicId.value, chatData.draft_message);
         void tdlibSend({ _: 'openChat', chat_id: currentId });
 
-        // 定位后向更旧方向补齐历史，直到足够滚动（渐进，不阻塞首屏）
-        for (let i = 0; i < 4 && messages.value.length < 80 && !isHistoryExhausted.value; i++) {
-            if (!isGenerationValid(gen)) return;
-            const ok = await loadHistoryOlder(currentId, gen);
-            if (!ok) break;
-        }
-
-        // 补齐后仍未撑满视口，继续向更旧方向拉
-        await nextTick();
-        const container = messagesContainer.value;
-        if (container && container.scrollHeight <= container.clientHeight + 2) {
-            if (messages.value.length > 0 && !isHistoryExhausted.value) {
-                const oldest = messages.value[0];
-                const more = await fetchMessages(currentId, oldest.id, 50, 0, gen);
-                if (more.length > 0) {
-                    applyMessages(mergeMessages(messages.value, more), 'older');
-                }
+        // 1) 先按锚点定位（可见前） 2) 补视口 3) 再校准 4) 最后 listRevealed
+        const resolveAnchorId = (): number => {
+            const unreadBoundary = unreadBoundaryMessageId.value;
+            if (cachedPos > 0 && messages.value.some(m => m.id === cachedPos)) return cachedPos;
+            if (unreadBoundary != null && unreadBoundary > 0 && messages.value.some(m => m.id === unreadBoundary)) {
+                return unreadBoundary;
             }
+            return 0;
+        };
+
+        await nextTick();
+        const anchorId = resolveAnchorId();
+        if (anchorId > 0) scrollToMessageImmediate(anchorId);
+        else scrollToBottomImmediate();
+
+        await ensureViewportFilled(gen);
+        if (!isGenerationValid(gen) || chatId.value !== currentId) return;
+
+        await nextTick();
+        const anchorAfterFill = resolveAnchorId();
+        if (anchorAfterFill > 0) scrollToMessageImmediate(anchorAfterFill);
+        else scrollToBottomImmediate();
+
+        // 定位与补齐都完成后才露出，避免「先显示再跳到已读/未读」
+        listRevealed.value = true;
+        isReady.value = true;
+
+        // 媒体布局后再校准一次（此时用户已可见，只做小幅纠偏）
+        if (anchorAfterFill > 0) {
+            setTimeout(() => {
+                if (isGenerationValid(gen) && chatId.value === currentId) {
+                    scrollToMessage(anchorAfterFill);
+                }
+            }, 250);
         }
 
         scheduleVisibleMessagesRead();
@@ -2464,11 +2579,13 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
         if (chatId.value === currentId && chatLoadRetryCount < 2) {
             chatLoadRetryCount++;
             isReady.value = false;
+            // 重试期间保持骨架；若最终失败会在下面露出已有内容
             chatLoadRetryTimer = window.setTimeout(() => {
                 chatLoadRetryTimer = null;
                 if (chatId.value === currentId) chatLoadRetryToken.value++;
             }, chatLoadRetryCount * 300);
         } else {
+            listRevealed.value = true;
             isReady.value = true;
         }
     } finally {
@@ -2483,9 +2600,18 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
 // ==================== Data Fetching ====================
 /**
  * 从 TDLib 加载消息，返回 旧→新 顺序。
+ * 返回约定（Unigram 风格，区分失败与边界）：
+ * - `message[]`：请求成功（可能为空；空 = 该方向历史边界）
+ * - `null`：请求失败 / 代数过期，调用方不得标记 exhausted
  * 注意：fromMessageId 会被 TDLib 包含在返回结果中，调用方需自行去重。
+ * offset 为负时，limit 必须严格大于 -offset。
  */
-async function fetchMessages(chatIdNum: number, fromMessageId: number, limit: number, offset = 0, generation?: number): Promise<message[]> {
+async function fetchMessages(chatIdNum: number, fromMessageId: number, limit: number, offset = 0, generation?: number): Promise<HistoryFetch> {
+    // 客户端侧兜底：非法 TDLib 参数直接视为错误，避免服务端拒绝后被当成「边界」
+    if (offset < 0 && limit <= -offset) {
+        console.error(`fetchMessages: invalid TDLib params limit=${limit} offset=${offset} (limit must be > -offset)`);
+        return null;
+    }
     try {
         // 话题模式使用 getForumTopicHistory
         const tid = topicId.value;
@@ -2505,7 +2631,7 @@ async function fetchMessages(chatIdNum: number, fromMessageId: number, limit: nu
             only_local: false
         });
         // 如果生成代数已过期（聊天已切换），丢弃结果
-        if (generation !== undefined && !isGenerationValid(generation)) return [];
+        if (generation !== undefined && !isGenerationValid(generation)) return null;
         const msgs: message[] = (result.messages || []).filter((m: any): m is message => !!m);
         if (msgs.length > 0) {
             await fetchSenders(msgs);
@@ -2517,85 +2643,63 @@ async function fetchMessages(chatIdNum: number, fromMessageId: number, limit: nu
         return [];
     } catch (e) {
         console.error("fetchMessages error:", e);
-        return [];
+        return null;
     }
-}
-
-/** 合并消息并去重（oldest-first 顺序），返回新数组。
- *  过滤掉 chat_id 不属于当前聊天的消息，防止跨对话污染。 */
-function mergeMessages(existing: message[], incoming: message[]): message[] {
-    const cid = chatId.value;
-    const safe = cid != null ? incoming.filter(m => m.chat_id === cid) : incoming;
-    if (existing.length === 0) return safe;
-    if (safe.length === 0) return existing;
-    const existingIds = new Set(existing.map(m => m.id));
-    const unique = safe.filter(m => !existingIds.has(m.id));
-    if (unique.length === 0) return existing;
-    // incoming 已是最旧→最新，incoming 比 existing 更旧，prepend
-    return [...unique, ...existing];
 }
 
 /**
- * 跳转时只加载目标附近的一个窗口，不补齐与当前列表之间的 gap。
+ * 跳转切片：围绕目标加载连续窗口（对齐 Unigram LoadMessageSlice）。
+ * offset=-K, limit=2K+1 → 目标前后大致各 K 条；limit 必须 > -offset。
  */
 async function loadJumpWindow(chatIdNum: number, targetMessageId: number, gen: number): Promise<message[]> {
-    const LIMIT = 30;
-    const [olderBatch, newerBatch] = await Promise.all([
-        fetchMessages(chatIdNum, targetMessageId, LIMIT, 0, gen),
-        fetchMessages(chatIdNum, targetMessageId, LIMIT, -LIMIT, gen),
-    ]);
-
-    if (!isGenerationValid(gen)) return [];
-
-    const seen = new Set<number>();
-    const combined: message[] = [];
-    for (const msg of [...olderBatch, ...newerBatch]) {
-        if (seen.has(msg.id)) continue;
-        seen.add(msg.id);
-        combined.push(msg);
+    const sliced = await fetchMessages(
+        chatIdNum,
+        targetMessageId,
+        HISTORY_SLICE_LIMIT,
+        HISTORY_SLICE_OFFSET,
+        gen,
+    );
+    if (!isGenerationValid(gen) || sliced == null) return [];
+    if (sliced.length === 0) {
+        // 目标可能被删或无权限：退回向旧方向拉一页，至少让跳转不彻底失败
+        const fallback = await fetchMessages(chatIdNum, targetMessageId, HISTORY_OLDER_LIMIT, 0, gen);
+        if (!isGenerationValid(gen) || fallback == null) return [];
+        return [...fallback].sort((a, b) => a.id - b.id);
     }
-    combined.sort((a, b) => a.id - b.id);
-    return combined;
+    return [...sliced].sort((a, b) => a.id - b.id);
 }
 
 /**
  * 普通历史加载：只向更旧方向扩展当前列表顶部。
- * 跳转模式下仍然复用同一套边缘加载，但不再引入任何额外上下文。
+ * 仅在请求成功且确认无更旧消息时标记 exhausted；失败返回 false 但不焊死边界。
  */
 async function loadHistoryOlder(loadChatId: number, gen: number): Promise<boolean> {
     if (isLoadingMore.value) return false;
 
-    const oldestId = messages.value[0]?.id;
+    const oldestId = messages.value.length > 0
+        ? messages.value.reduce((min, m) => (m.id < min ? m.id : min), messages.value[0].id)
+        : 0;
     if (!oldestId) {
-        if (historyMode.value === 'normal') {
-            isHistoryExhausted.value = true;
-        } else {
-            jumpOlderExhausted.value = true;
-        }
+        markOlderExhausted();
         return false;
     }
 
     isLoadingMore.value = true;
+    loadingDirection.value = 'older';
     try {
-        const older = await fetchMessages(loadChatId, oldestId, 30, 0, gen);
+        const older = await fetchMessages(loadChatId, oldestId, HISTORY_OLDER_LIMIT, 0, gen);
         if (!isGenerationValid(gen) || chatId.value !== loadChatId) return false;
+        if (older == null) return false;
         if (older.length === 0) {
-            if (historyMode.value === 'normal') {
-                isHistoryExhausted.value = true;
-            } else {
-                jumpOlderExhausted.value = true;
-            }
+            markOlderExhausted();
             return false;
         }
 
         const existingIds = new Set(messages.value.map(m => m.id));
         const unique = older.filter(m => !existingIds.has(m.id));
         if (unique.length === 0) {
-            if (historyMode.value === 'normal') {
-                isHistoryExhausted.value = true;
-            } else {
-                jumpOlderExhausted.value = true;
-            }
+            // 成功返回但无新消息：已到更旧边界
+            markOlderExhausted();
             return false;
         }
 
@@ -2612,46 +2716,110 @@ async function loadHistoryOlder(loadChatId: number, gen: number): Promise<boolea
         return true;
     } finally {
         isLoadingMore.value = false;
+        loadingDirection.value = null;
     }
 }
 
 /**
  * 向更“新”的方向扩展当前列表底部。
- * 跳转模式与普通模式共用：普通模式在向下滚到底部且有更多未加载消息时也会调用；
- * 真正贴底后的新增消息仍依赖 TDLib updateNewMessage 事件追加。
+ * TDLib：from=newestId, offset=-K, limit=K+1 → 比 newestId 更新的至多 K 条 + newestId。
+ * newestId 取列表最大 id（不信任数组顺序）。成功且无更新消息 / 已有全部返回结果时标记 exhausted。
  */
 async function loadHistoryNewer(loadChatId: number, gen: number): Promise<boolean> {
     if (isLoadingMore.value) return false;
 
-    const newestId = messages.value[messages.value.length - 1]?.id;
+    const newestId = messagesMaxId();
     if (!newestId) {
         markNewerExhausted();
+        windowReachesLatest.value = true;
         return false;
     }
 
     isLoadingMore.value = true;
+    loadingDirection.value = 'newer';
     try {
-        const newer = await fetchMessages(loadChatId, newestId, 30, -30, gen);
+        const newer = await fetchMessages(loadChatId, newestId, HISTORY_NEWER_LIMIT, -HISTORY_NEWER_OFFSET, gen);
         if (!isGenerationValid(gen) || chatId.value !== loadChatId) return false;
+        if (newer == null) {
+            newerFetchFailStreak++;
+            // 连续失败：停止空转，避免“加载中”指示器无限开关造成跳动
+            if (newerFetchFailStreak >= 3) {
+                markNewerExhausted();
+                refreshWindowReachesLatest();
+            }
+            return false;
+        }
+        newerFetchFailStreak = 0;
 
-        const filtered = newer.filter(m => m.id !== newestId);
+        const filtered = newer.filter(m => m.id > newestId);
         if (filtered.length === 0) {
             markNewerExhausted();
+            windowReachesLatest.value = true;
             return false;
         }
 
         const existingIds = new Set(messages.value.map(m => m.id));
         const unique = filtered.filter(m => !existingIds.has(m.id));
         if (unique.length === 0) {
+            // 返回的“更新”消息列表里都已有：说明已覆盖到该切片，视为更新方向边界
             markNewerExhausted();
+            refreshWindowReachesLatest();
             return false;
         }
 
         appendMessages(unique);
+        refreshWindowReachesLatest();
         await nextTick();
         return true;
     } finally {
         isLoadingMore.value = false;
+        loadingDirection.value = null;
+    }
+}
+
+/**
+ * 视口补齐：加载切片后若内容撑不满（或两端仍很薄），双向继续拉，
+ * 避免跳转/未读锚点后出现空白与「无法触发 onScroll」的死局。
+ */
+async function ensureViewportFilled(gen: number, maxRounds = 8): Promise<void> {
+    for (let round = 0; round < maxRounds; round++) {
+        // 列表尚未露出时也要允许补齐（isReady 可能仍为 false）
+        if (!isGenerationValid(gen) || !chatId.value) return;
+        if (messages.value.length === 0) return;
+        const cid = chatId.value;
+        await nextTick();
+
+        const el = messagesContainer.value;
+        if (!el) return;
+
+        const overflow = el.scrollHeight > el.clientHeight + 2;
+        const comfortable = el.scrollHeight >= el.clientHeight * 1.6 && messages.value.length >= 30;
+        if (comfortable) return;
+
+        const olderDone = isOlderExhausted();
+        const newerDone = isNewerDirectionExhausted();
+        if (olderDone && newerDone) return;
+        if (overflow && olderDone && newerDone) return;
+
+        let progressed = false;
+
+        // 内容不足或已贴顶 → 向更旧方向扩
+        if (!olderDone && (!overflow || el.scrollTop <= SCROLL_PREFETCH_PX)) {
+            if (await loadHistoryOlder(cid, gen)) progressed = true;
+        }
+
+        if (!isGenerationValid(gen) || chatId.value !== cid) return;
+        await nextTick();
+        const el2 = messagesContainer.value;
+        if (!el2) return;
+
+        const stillShort = el2.scrollHeight <= el2.clientHeight + 2;
+        const atBottomish = el2.scrollTop + el2.clientHeight >= el2.scrollHeight - SCROLL_PREFETCH_PX;
+        if (!isNewerDirectionExhausted() && (stillShort || atBottomish || !overflow)) {
+            if (await loadHistoryNewer(cid, gen)) progressed = true;
+        }
+
+        if (!progressed) return;
     }
 }
 
@@ -2927,33 +3095,45 @@ const scrollToBottom = () => {
     });
 };
 
-/** 滚动到指定消息元素，将其放在视口约 45% 位置 */
+/** 同步滚动到指定消息（调用方需已 await nextTick，DOM 已更新） */
+function scrollToMessageImmediate(messageId: number): boolean {
+    const el = messagesContainer.value;
+    if (!el) return false;
+    const target = messages.value.find(message => message.id === messageId);
+    const renderedMessageId = target?.media_album_id && target.media_album_id !== '0'
+        ? messages.value.find(message => message.media_album_id === target.media_album_id)?.id || messageId
+        : messageId;
+    const msgEl = el.querySelector(`[data-msg-id="${renderedMessageId}"]`) as HTMLElement | null;
+    if (!msgEl) return false;
+
+    const containerRect = el.getBoundingClientRect();
+    const msgRect = msgEl.getBoundingClientRect();
+    const delta = msgRect.top - containerRect.top;
+    const desired = el.scrollTop + delta - el.clientHeight * 0.45 + msgRect.height / 2;
+    const max = Math.max(0, el.scrollHeight - el.clientHeight);
+    el.scrollTop = Math.max(0, Math.min(Math.round(desired), max));
+    return true;
+}
+
+/** 同步滚到底部（调用方需已 await nextTick） */
+function scrollToBottomImmediate() {
+    showScrollButton.value = false;
+    newMessageCount.value = 0;
+    const el = messagesContainer.value;
+    if (el) el.scrollTop = el.scrollHeight;
+}
+
+/** 滚动到指定消息元素，将其放在视口约 45% 位置（基于 getBoundingClientRect，避免 offsetTop 偏差） */
 const scrollToMessage = (messageId: number) => {
     nextTick(() => {
-        const el = messagesContainer.value;
-        if (!el) return;
-        const target = messages.value.find(message => message.id === messageId);
-        const renderedMessageId = target?.media_album_id && target.media_album_id !== '0'
-            ? messages.value.find(message => message.media_album_id === target.media_album_id)?.id || messageId
-            : messageId;
-        const msgEl = el.querySelector(`[data-msg-id="${renderedMessageId}"]`) as HTMLElement | null;
-        if (!msgEl) return;
-
-        const containerHeight = el.clientHeight;
-        const targetOffset = msgEl.offsetTop;
-        const targetHeight = msgEl.clientHeight;
-        let desired = Math.round(targetOffset - containerHeight * 0.45 + targetHeight / 2);
-        desired = Math.max(0, Math.min(desired, el.scrollHeight - containerHeight));
-        el.scrollTop = desired;
+        if (scrollToMessageImmediate(messageId)) return;
+        // 布局尚未稳定时再校准一次
+        requestAnimationFrame(() => scrollToMessageImmediate(messageId));
     });
 };
 
 /**
- * 按 id 范围从 TDLib 加载消息（oldest-first）。
- * 从 toId 方向下探，自动跨多页直至覆盖到 fromId 或到达历史边界，用于填补跳转断层。
- */
-/**
- * 统一跳转函数：只加载目标附近窗口并定位，不补齐中间 gap。
+ * 统一跳转函数：加载目标为中心的连续切片并定位；随后补齐视口，避免空白与无法继续加载。
  */
 async function jumpToMessageInternal(messageId: number, gen: number): Promise<boolean> {
     const currentChatId = chatId.value;
@@ -2971,15 +3151,31 @@ async function jumpToMessageInternal(messageId: number, gen: number): Promise<bo
     isHistoryExhausted.value = false;
     isNewerExhausted.value = false;
 
-    await nextTick();
-    scrollToMessage(messageId);
-    flashMessage(messageId);
+    const lastMessageId = chat.value?.last_message?.id ?? 0;
+    windowReachesLatest.value = lastMessageId > 0
+        && windowMessages.some(m => m.id === lastMessageId);
 
-    setTimeout(() => {
-        if (isGenerationValid(gen) && chatId.value === currentChatId) {
-            scrollToMessage(messageId);
-        }
-    }, 200);
+    // 会话内跳转（列表已露出）：定位 + 后台补视口
+    // 首屏带 message 打开：只写入数据并定位，由 watch 负责补视口后统一 reveal
+    if (listRevealed.value) {
+        isReady.value = true;
+        await nextTick();
+        scrollToMessageImmediate(messageId);
+        flashMessage(messageId);
+        void ensureViewportFilled(gen).then(() => {
+            if (isGenerationValid(gen) && chatId.value === currentChatId) {
+                scrollToMessage(messageId);
+            }
+        });
+        setTimeout(() => {
+            if (isGenerationValid(gen) && chatId.value === currentChatId) {
+                scrollToMessage(messageId);
+            }
+        }, 300);
+    } else {
+        await nextTick();
+        scrollToMessageImmediate(messageId);
+    }
 
     return true;
 }
@@ -3055,6 +3251,12 @@ function captureBrowsePosition(el: HTMLElement, id: number, tid?: number | null)
 }
 
 const onScroll = async (e: Event) => {
+    // 首屏「定位/补齐但尚未露出」阶段：忽略滚动事件，
+    // 避免程序化 scrollTop 触发加载，或把中间态写入上次浏览位置缓存。
+    if (!listRevealed.value) return;
+    // 程序化跳底后的短暂窗口：避免 onScroll 与 scrollToBottom/load 互相打架
+    if (Date.now() < scrollLoadSuppressedUntil) return;
+
     const el = e.currentTarget as HTMLElement;
     const H = el.scrollHeight;
     const C = el.clientHeight;
@@ -3063,7 +3265,7 @@ const onScroll = async (e: Event) => {
     // 记录当前浏览位置（用户手动滚动时持续更新顶部可见消息）
     if (chatId.value !== undefined) {
         // 已贴底时清空缓存位置（下次进入直接到底部，能自动看到新消息）
-        if (T + C >= H - 100) {
+        if (T + C >= H - SCROLL_PREFETCH_PX) {
             clearLastBrowsePosition(chatId.value, topicId.value);
         } else {
             captureBrowsePosition(el, chatId.value, topicId.value);
@@ -3071,44 +3273,39 @@ const onScroll = async (e: Event) => {
     }
 
     // 底部检测
-    const atBottom = T + C >= H - 100;
+    const atBottom = T + C >= H - SCROLL_PREFETCH_PX;
     showScrollButton.value = !atBottom;
     if (atBottom && newMessageCount.value > 0) {
         newMessageCount.value = 0;
     }
     scheduleVisibleMessagesRead();
 
-    // 内容未溢出时忽略
-    if (H <= C + 2) return;
-
-    if (isLoadingMore.value || !chatId.value || !isReady.value) return;
+    if (!chatId.value || !isReady.value) return;
     const scrollGen = loadGeneration;
     const loadChat = chatId.value;
 
-    const atTop = T <= 30;
-    const nearBottom = T + C >= H - 100;
-
-    if (historyMode.value === 'jump') {
-        if (!jumpOlderExhausted.value && atTop) {
-            await loadHistoryOlder(loadChat, scrollGen);
-            return;
-        }
-        if (!jumpNewerExhausted.value && nearBottom) {
-            await loadHistoryNewer(loadChat, scrollGen);
-            return;
+    // 内容未溢出：不能靠滚动触发加载，交给视口补齐（跳转/未读锚点后常见）
+    if (H <= C + 2) {
+        if (!isLoadingMore.value && messages.value.length > 0) {
+            void ensureViewportFilled(scrollGen);
         }
         return;
     }
 
+    if (isLoadingMore.value) return;
+
+    // 距边预取，降低高速滚动空白
+    const atTop = T <= SCROLL_PREFETCH_PX;
+    const nearBottom = T + C >= H - SCROLL_PREFETCH_PX;
+
+    // jump / normal 共用同一套两端扩展；exhausted 标志按模式读取
     if (messages.value.length === 0) return;
 
-    // 向上滚到顶部 → 加载更旧消息
-    if (atTop && !isHistoryExhausted.value) {
+    if (atTop && !isOlderExhausted()) {
         await loadHistoryOlder(loadChat, scrollGen);
         return;
     }
-    // 向下滚到底部 → 加载更新消息（普通模式同样需要，否则未读较多的频道/聊天滚几十条就到头）
-    if (nearBottom && !isNewerExhausted.value) {
+    if (nearBottom && !isNewerDirectionExhausted()) {
         await loadHistoryNewer(loadChat, scrollGen);
     }
 };
@@ -3349,6 +3546,10 @@ function resetState() {
     isHistoryExhausted.value = false;
     isNewerExhausted.value = false;
     isReady.value = false;
+    listRevealed.value = false;
+    newerFetchFailStreak = 0;
+    scrollLoadSuppressedUntil = 0;
+    loadingDirection.value = null;
     unreadBoundaryMessageId.value = null;
     showScrollButton.value = false;
     newMessageCount.value = 0;
@@ -3365,6 +3566,7 @@ function resetState() {
     historyMode.value = 'normal';
     jumpOlderExhausted.value = false;
     jumpNewerExhausted.value = false;
+    windowReachesLatest.value = false;
     // 清空回复、编辑与多选状态
     clearReply();
     editingMsg.value = null;
@@ -3386,20 +3588,42 @@ function freezeMsg(m: message): message {
 }
 
 /**
- * 中央写入 messages 的入口：整体替换数组并累加版本号。
- * 写入前过滤不属于当前聊天的消息，并对超长列表按 keep 端裁剪。
+ * 中央写入 messages 的入口：过滤、按 id 去重并排序，再整体替换。
+ * 排序是必须的：若数组末端不是真正的最大 id，loadHistoryNewer 会反复拉回
+ * 列表中已有的消息（unique 为空），又因未标记 exhausted 而形成死循环。
  */
 function applyMessages(next: message[], keep: 'older' | 'newer' = 'newer') {
     const cid = chatId.value;
     const safe = cid != null ? next.filter(m => m.chat_id === cid) : next;
-    let list = safe.map(freezeMsg);
+    const seen = new Set<number>();
+    const dedup: message[] = [];
+    for (const m of safe) {
+        if (seen.has(m.id)) continue;
+        seen.add(m.id);
+        dedup.push(m);
+    }
+    dedup.sort((a, b) => a.id - b.id);
+    let list = dedup.map(freezeMsg);
     if (list.length > MAX_MESSAGE_WINDOW) {
         list = keep === 'older'
             ? list.slice(0, MAX_MESSAGE_WINDOW)
             : list.slice(list.length - MAX_MESSAGE_WINDOW);
+        // 裁掉更新端后窗口可能不再贴底
+        if (keep === 'older') {
+            refreshWindowReachesLatest();
+        }
     }
     messages.value = list;
     messagesVersion.value++;
+}
+
+/** 列表中已加载的最大消息 id（不依赖数组顺序） */
+function messagesMaxId(): number {
+    let max = 0;
+    for (const m of messages.value) {
+        if (m.id > max) max = m.id;
+    }
+    return max;
 }
 
 /** 末尾追加消息（新消息 / 向更新方向加载），超出窗口时裁掉最旧一端 */
@@ -4413,7 +4637,13 @@ const shouldReserveAvatarColumn = (msg: message) => {
     return isSavedForwardedMessage(msg) || showAvatarColumn.value;
 };
 
-const showSkeleton = computed(() => messages.value.length === 0 && !isReady.value);
+const showSkeleton = computed(() => !listRevealed.value);
+
+/** 消息容器样式：定位完成前 opacity:0，保证仍可测量 scrollHeight / 滚动定位 */
+const messagesContainerStyle = computed<Record<string, string>>(() => {
+    const base = messagesStyle.value;
+    return listRevealed.value ? base : { ...base, opacity: '0' };
+});
 
 /** 动态顶部间距：同时考虑顶置栏和音乐播放器入口 */
 const showTopCard = computed(() => pinnedBarVisible.value || player.showEntry);
@@ -4633,16 +4863,21 @@ function refreshKeyboardLock(messageId: number) {
 }
 
 /**
- * “跳到底部”按钮：先加载真正的底部（最新消息）再滚动过去。
- * 列表与真正的聊天底部之间可能存在断层（gap）——普通模式打开有未读的频道时，
- * 初始窗口只覆盖锚点后约 30 条更新消息；跳转模式则只有目标附近一个窗口。
- * 若仅设置 scrollTop=scrollHeight，只会落在已加载窗口的底部，到不了真正的最新消息，
- * 且下方未加载的消息不会被标记已读（未读数残留）。
- * 因此统一先以 from_message_id=0 拉取最新消息补上缺口，跳转模式再退出跳转，然后滚到底部。
+ * “跳到底部”按钮：先拿到真正底部的连续历史，再滚动过去。
+ * 列表与真实底部之间可能存在 gap（跳转窗口 / 未读锚点切片）。
+ * 不能只 append 最新页——那会在中间留下巨大空洞。
+ * 策略（对齐 Unigram ScrollToBottom + LoadMessageSlice）：
+ * 1) from_message_id=0 拉最新一页；
+ * 2) 若与当前列表连通/重叠 → 合并去重；
+ * 3) 若有中等 gap → 从当前末端向更新方向分页桥接；
+ * 4) gap 过大或桥接失败 → 整表替换为底部连续窗口（向上滚再加载更旧）。
+ * 使用 function 声明以便 updateNewMessage 在 TDZ 外安全引用。
  */
-const handleScrollToBottom = async () => {
+async function handleScrollToBottom() {
     showScrollButton.value = false;
     newMessageCount.value = 0;
+    // 抑制滚动加载，避免贴底后 loadHistoryNewer 与“加载中”指示器形成高度抖动
+    scrollLoadSuppressedUntil = Date.now() + 600;
 
     const gen = loadGeneration;
     const loadChat = chatId.value;
@@ -4651,38 +4886,106 @@ const handleScrollToBottom = async () => {
         return;
     }
     isLoadingMore.value = true;
-    let foundGap = false;
+    loadingDirection.value = 'bottom';
     try {
-        // 从最新消息（from_message_id=0）开始加载真正的底部
-        const newest = await fetchMessages(loadChat, 0, 60, 0, gen);
+        const newest = await fetchMessages(loadChat, 0, HISTORY_BOTTOM_LIMIT, 0, gen);
         if (!isGenerationValid(gen) || chatId.value !== loadChat) return;
-        if (newest.length > 0) {
-            const existingIds = new Set(messages.value.map(m => m.id));
-            const unique = newest.filter(m => !existingIds.has(m.id));
-            if (unique.length > 0) {
-                // newest 已是 旧→新 且比现有列表更新，追加到末尾
-                appendMessages(unique);
-                foundGap = true;
+        if (newest == null || newest.length === 0) {
+            // 拉取失败时至少滚到当前窗口底部
+            if (historyMode.value === 'jump') {
+                historyMode.value = 'normal';
+                jumpOlderExhausted.value = false;
+                jumpNewerExhausted.value = false;
+            }
+            refreshWindowReachesLatest();
+            return;
+        }
+
+        const currentNewestId = messagesMaxId();
+        const batchOldestId = newest.reduce((min, m) => (m.id < min ? m.id : min), newest[0].id);
+        const batchNewestId = newest.reduce((max, m) => (m.id > max ? m.id : max), newest[0].id);
+
+        const mergeIntoList = (batch: message[]) => {
+            if (batch.length === 0) return;
+            const ids = new Set(messages.value.map(m => m.id));
+            const unique = batch.filter(m => !ids.has(m.id));
+            if (unique.length > 0) appendMessages(unique);
+        };
+
+        if (messages.value.length === 0 || currentNewestId <= 0) {
+            applyMessages(newest);
+        } else if (currentNewestId >= batchNewestId) {
+            // 已在底部，合并可能存在的中间更新消息即可
+            mergeIntoList(newest);
+        } else if (batchOldestId <= currentNewestId + 1) {
+            // 重叠或已连通
+            mergeIntoList(newest);
+        } else {
+            // 存在 gap：从当前末端向更新方向分页桥接
+            const BRIDGE_MAX_PAGES = 4;
+            let newestId = currentNewestId;
+            let bridged = false;
+            for (let i = 0; i < BRIDGE_MAX_PAGES && newestId < batchNewestId; i++) {
+                if (!isGenerationValid(gen) || chatId.value !== loadChat) return;
+                const page = await fetchMessages(
+                    loadChat,
+                    newestId,
+                    HISTORY_NEWER_LIMIT,
+                    -HISTORY_NEWER_OFFSET,
+                    gen,
+                );
+                if (page == null) break;
+                const newerOnly = page.filter(m => m.id > newestId);
+                if (newerOnly.length === 0) break;
+                mergeIntoList(newerOnly);
+                newestId = newerOnly.reduce((max, m) => (m.id > max ? m.id : max), newestId);
+                if (newestId >= batchOldestId - 1) {
+                    bridged = true;
+                    break;
+                }
+            }
+
+            const afterNewestId = messagesMaxId();
+            if (bridged && afterNewestId >= batchOldestId - 1) {
+                mergeIntoList(newest);
+            } else if (afterNewestId < batchOldestId - 1) {
+                // 桥接失败 / gap 过大：替换为底部连续窗口（用户意图是到最新）
+                applyMessages(newest);
+            } else {
+                mergeIntoList(newest);
             }
         }
-        // 已具备真正底部
-        if (historyMode.value === 'jump') {
-            // 退出跳转模式，避免在断层处反复向下加载
-            historyMode.value = 'normal';
-            jumpOlderExhausted.value = false;
-            jumpNewerExhausted.value = false;
-        }
-        // 若本次补上了缺口，则允许后续向下滚动继续加载其余未加载消息
+
+        // 已拿到 from_message_id=0 的底部切片
+        historyMode.value = 'normal';
+        jumpOlderExhausted.value = false;
+        jumpNewerExhausted.value = false;
         isHistoryExhausted.value = false;
-        if (foundGap) isNewerExhausted.value = false;
+        windowReachesLatest.value = true;
+        // 已贴真实底部：更新方向历史视为耗尽，禁止 loadHistoryNewer 空转
+        isNewerExhausted.value = true;
+        newerFetchFailStreak = 0;
+        if (chat.value?.last_message) {
+            const lastId = chat.value.last_message.id || 0;
+            const inList = messages.value.find(m => m.id === batchNewestId);
+            if (inList) chat.value.last_message = inList;
+            else if (lastId > 0) {
+                const last = messages.value.find(m => m.id === lastId);
+                if (last) chat.value.last_message = last;
+            }
+        }
     } finally {
         isLoadingMore.value = false;
+        loadingDirection.value = null;
     }
     await nextTick();
-    scrollToBottom();
+    scrollToBottomImmediate();
     // 媒体懒加载后二次校准
-    setTimeout(scrollToBottom, 200);
-};
+    setTimeout(() => {
+        scrollToBottomImmediate();
+        scrollLoadSuppressedUntil = Date.now() + 300;
+    }, 200);
+}
 </script>
 <style scoped>
 .chat-wallpaper-layer,

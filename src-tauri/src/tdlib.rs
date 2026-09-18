@@ -188,7 +188,7 @@ impl AppState {
                 system_language_code: "en".into(),
             })),
             proxy_config: Arc::new(Mutex::new(ProxyConfig::default())),
-            download_store: Arc::new(Mutex::new(DownloadStore::new(data_dir.clone()))),
+            download_store: Arc::new(Mutex::new(DownloadStore::new(data_dir.clone(), active))),
             stream_locks: Mutex::new(HashMap::new()),
             data_dir,
             accounts: Arc::new(Mutex::new(accounts)),
@@ -488,6 +488,9 @@ pub fn add_account(
         id
     };
     state.active.store(id, Ordering::SeqCst);
+    if let Ok(mut dl) = state.download_store.lock() {
+        dl.set_active_account(id);
+    }
     create_client(&app_handle, state.inner(), id)?;
     Ok(id)
 }
@@ -500,6 +503,10 @@ pub fn switch_account(state: State<AppState>, session_id: i64) -> Result<(), Str
         accounts.set_active(session_id)?;
     }
     state.active.store(session_id, Ordering::SeqCst);
+    // 下载记录按账户独立存储：切换后加载该账户的 downloads.json
+    if let Ok(mut dl) = state.download_store.lock() {
+        dl.set_active_account(session_id);
+    }
     Ok(())
 }
 
@@ -531,13 +538,16 @@ pub async fn logout_account(
         }
     }
 
-    // 删除本地数据目录
+    // 删除本地数据目录（含该账户独立的 downloads/downloads.json）
     let dir = state
         .data_dir
         .join("TDLib")
         .join("accounts")
         .join(session_id.to_string());
     let _ = std::fs::remove_dir_all(&dir);
+    if let Ok(mut dl) = state.download_store.lock() {
+        dl.drop_account(session_id);
+    }
 
     // 从清单移除（内部会自动处理活动账户切换）
     let new_active = {
@@ -1059,9 +1069,9 @@ fn spawn_receive_loop(
             .name(format!("tdlib-update-file-{session_id}"))
             .spawn(move || {
                 while let Ok(event) = file_rx.recv() {
-                    handle_update_file(&event, &state, &app_handle);
+                    // 进度写入发起下载的账户独立 store；仅活动账户推前端事件
+                    handle_update_file(&event, &state, &app_handle, session_id);
                     maybe_update_avatar(&event, &state, &app_handle, &client);
-                    // 仅活动账户把 updateFile 以独立 IPC 推给前端
                     if state.active.load(Ordering::SeqCst) == session_id {
                         if let Err(e) = app_handle.emit("tdlib-update-file", &event) {
                             eprintln!("Failed to emit updateFile event: {}", e);
@@ -1622,11 +1632,14 @@ fn build_accounts_payload_ref(state: &AppStateRef) -> Vec<serde_json::Value> {
         .collect()
 }
 
-/// 处理 updateFile 的下载/上传进度（全局下载任务，不区分账户）。
+/// 处理 updateFile 的下载/上传进度。
+/// `session_id`：发起该文件操作的 TDLib 账户；数据写入该账户独立的 downloads.json。
+/// 仅当该账户是活动账户时，进度事件才会推给前端（后台账户静默记账）。
 fn handle_update_file(
     event: &serde_json::Value,
     state: &AppStateRef,
     app_handle: &tauri::AppHandle,
+    session_id: i64,
 ) {
     let Some(file) = event.get("file") else {
         return;
@@ -1634,11 +1647,11 @@ fn handle_update_file(
     let Some(file_id) = file.get("id").and_then(|v| v.as_i64()) else {
         return;
     };
-    // 稳定主键：file.remote.id（跨重启不变）；会话内 file.id 仅作 TDLib 操作句柄
     let remote_id = file
         .pointer("/remote/id")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
+    let is_active_account = state.active.load(Ordering::SeqCst) == session_id;
 
     // 下载进度
     {
@@ -1666,8 +1679,9 @@ fn handle_update_file(
             .map(|s| s.to_string());
 
         let mut dl_store = state.download_store.lock().unwrap();
-        let store_key = dl_store.bind_session_key(file_id as i32, remote_id.as_deref());
+        let store_key = dl_store.bind_session_key(session_id, file_id as i32, remote_id.as_deref());
         dl_store.update_progress(
+            Some(session_id),
             &store_key,
             downloaded_size,
             effective_total,
@@ -1676,63 +1690,70 @@ fn handle_update_file(
             local_path.clone(),
         );
 
-        let item = dl_store.get_item(&store_key).unwrap_or_else(|| {
-            let name = file
-                .pointer("/local/path")
-                .and_then(|v| v.as_str())
-                .map(|s| {
-                    std::path::Path::new(s)
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("")
-                        .to_string()
-                })
-                .unwrap_or_default();
-            let rid = crate::download_store::derive_remote_id(remote_id.as_deref(), file_id as i32);
-            DownloadItem {
-                remote_id: rid,
-                session_file_id: Some(file_id as i32),
-                file_id: file_id as i32,
-                file_name: name,
-                chat_title: String::new(),
-                chat_id: None,
-                message_id: None,
-                total_size: effective_total,
-                downloaded_size,
-                progress: if effective_total > 0 {
-                    downloaded_size as f64 / effective_total as f64
-                } else {
-                    0.0
-                },
-                is_paused: !is_dl_active && !is_dl_completed,
-                is_completed: is_dl_completed,
-                local_path,
-                thumbnail_data_url: None,
-                file_type: "other".to_string(),
-                is_generic: true,
-                hidden_category: None,
-                is_auto_photo: false,
-                is_streaming: false,
-                tags: Vec::new(),
-                source_label: None,
-                dismissed: false,
-                is_upload: false,
-                created_at: std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_millis() as i64)
-                    .unwrap_or(0),
-            }
-        });
+        if !is_active_account {
+            return;
+        }
+
+        let item = dl_store
+            .get_item_for(session_id, &store_key)
+            .unwrap_or_else(|| {
+                let name = file
+                    .pointer("/local/path")
+                    .and_then(|v| v.as_str())
+                    .map(|s| {
+                        std::path::Path::new(s)
+                            .file_name()
+                            .and_then(|n| n.to_str())
+                            .unwrap_or("")
+                            .to_string()
+                    })
+                    .unwrap_or_default();
+                let rid =
+                    crate::download_store::derive_remote_id(remote_id.as_deref(), file_id as i32);
+                DownloadItem {
+                    remote_id: rid,
+                    session_file_id: Some(file_id as i32),
+                    file_id: file_id as i32,
+                    file_name: name,
+                    chat_title: String::new(),
+                    chat_id: None,
+                    message_id: None,
+                    total_size: effective_total,
+                    downloaded_size,
+                    progress: if effective_total > 0 {
+                        downloaded_size as f64 / effective_total as f64
+                    } else {
+                        0.0
+                    },
+                    is_paused: !is_dl_active && !is_dl_completed,
+                    is_completed: is_dl_completed,
+                    local_path,
+                    thumbnail_data_url: None,
+                    file_type: "other".to_string(),
+                    is_generic: true,
+                    hidden_category: None,
+                    is_auto_photo: false,
+                    is_streaming: false,
+                    tags: Vec::new(),
+                    source_label: None,
+                    dismissed: false,
+                    is_upload: false,
+                    created_at: std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_millis() as i64)
+                        .unwrap_or(0),
+                }
+            });
         let _ = app_handle.emit("download-progress-update", &item);
     }
 
-    // 上传进度
+    // 上传进度（同样按账户隔离；仅活动账户推送前端）
     {
         let is_up_active = file
             .pointer("/remote/is_uploading_active")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
-        if is_up_active {
+        if is_up_active && is_active_account {
             let uploaded_size = file
                 .pointer("/remote/uploaded_size")
                 .and_then(|v| v.as_i64())
@@ -1763,8 +1784,10 @@ fn handle_update_file(
                     (display, t)
                 })
                 .unwrap_or_else(|| (format!("文件 #{}", file_id), "other".to_string()));
-            let rid = crate::download_store::derive_remote_id(remote_id.as_deref(), file_id as i32);
+            let rid =
+                crate::download_store::derive_remote_id(remote_id.as_deref(), file_id as i32);
             ul_store.register_upload(
+                Some(session_id),
                 Some(rid),
                 file_id as i32,
                 name,
@@ -1775,6 +1798,7 @@ fn handle_update_file(
                 local_path,
             );
             if let Some(item) = ul_store.update_upload_progress(
+                Some(session_id),
                 remote_id.as_deref().unwrap_or(&file_id.to_string()),
                 uploaded_size,
                 effective_total,
@@ -1809,6 +1833,9 @@ pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Resul
         (accounts.active(), accounts.ids())
     };
     state.active.store(active_id, Ordering::SeqCst);
+    if let Ok(mut dl) = state.download_store.lock() {
+        dl.set_active_account(active_id);
+    }
 
     for id in ids {
         if let Err(e) = create_client(&app_handle, state.inner(), id) {
@@ -1975,7 +2002,9 @@ pub fn register_download(
     source_label: Option<String>,
 ) -> Result<(), String> {
     let mut store = state.download_store.lock().map_err(|e| e.to_string())?;
+    // 写入当前活动账户的独立 downloads.json
     store.register_download(
+        None,
         remote_id,
         file_id,
         file_name,
@@ -1999,14 +2028,14 @@ pub fn register_download(
 #[tauri::command]
 pub fn dismiss_download(state: State<AppState>, key: String) -> Result<(), String> {
     let mut store = state.download_store.lock().map_err(|e| e.to_string())?;
-    store.dismiss_item(&key);
+    store.dismiss_item(None, &key);
     Ok(())
 }
 
 #[tauri::command]
 pub fn clear_completed_downloads(state: State<AppState>) -> Result<(), String> {
     let mut store = state.download_store.lock().map_err(|e| e.to_string())?;
-    store.clear_completed();
+    store.clear_completed(None);
     Ok(())
 }
 
@@ -2049,7 +2078,7 @@ pub fn get_uploads(
 #[tauri::command]
 pub fn dismiss_upload(state: State<AppState>, key: String) -> Result<(), String> {
     let mut store = state.download_store.lock().map_err(|e| e.to_string())?;
-    store.dismiss_upload(&key);
+    store.dismiss_upload(None, &key);
     Ok(())
 }
 

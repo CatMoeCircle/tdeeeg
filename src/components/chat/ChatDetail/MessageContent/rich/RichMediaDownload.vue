@@ -91,7 +91,16 @@ function trackProgress() {
     if (unsubWatch) return;
     state.downloading = true;
     unsubWatch = watch(
-        () => downloadStore.getDownloadInfo(fileId.value),
+        () => {
+            const info = downloadStore.getDownloadInfo(fileId.value);
+            if (!info) return null;
+            // 读字段建立依赖：store 可能就地 patch，只 watch 对象引用会漏掉完成事件
+            return {
+                progress: info.progress,
+                is_completed: info.is_completed,
+                local_path: info.local_path,
+            };
+        },
         (info) => {
             if (!info) return;
             state.progress = info.progress;

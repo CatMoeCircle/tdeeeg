@@ -1628,18 +1628,26 @@ function stopTrackingDownload() {
 watch(trackingFileId, (fileId) => {
     stopTrackingDownload();
     if (!fileId) return;
+    // 监听原始值而非对象引用：store 曾就地 patch is_completed 时，
+    // watch(() => getDownloadInfo(id)) 会因同引用不触发，导致气泡一直转圈。
+    const readDonePath = () => {
+        const info = downloadStore.getDownloadInfo(fileId);
+        return info?.is_completed && info.local_path ? info.local_path : '';
+    };
     stopTrackDownload = watch(
-        () => downloadStore.getDownloadInfo(fileId),
-        (info) => {
-            if (!info?.is_completed || !info.local_path) return;
-            const path = info.local_path;
+        readDonePath,
+        (path) => {
+            if (!path) return;
             const c = props.content;
             if (c._ === 'messagePhoto') {
                 if (!mediaSrc.value) finishPhotoDownload(fileId, path);
+                else clearPhotoBusy();
             } else if (c._ === 'messageAnimation') {
                 if (!mediaSrc.value) finishAnimDownload(fileId, path);
+                else clearAnimBusy();
             } else if (c._ === 'messageVideo') {
                 if (!videoFilePath.value) finishVideoDownload(fileId, path);
+                else clearVideoBusy();
             }
         },
         { immediate: true }
@@ -1649,20 +1657,23 @@ watch(trackingFileId, (fileId) => {
 // 封面/缩略图 store 完成 → 用高清覆盖 mini（content 已就绪时以 content 路径为准）
 watch([trackingCoverId, () => props.content._], ([coverId]) => {
     if (!coverId) return;
-    const apply = () => {
+    const readCoverPath = () => {
         const info = downloadStore.getDownloadInfo(coverId);
-        if (!info?.is_completed || !info.local_path) return;
+        return info?.is_completed && info.local_path ? info.local_path : '';
+    };
+    const applyPath = (path: string) => {
+        if (!path) return;
         const c = props.content;
         if (c._ === 'messageVideo') {
             const th = c.video.thumbnail;
             if (!th) return;
             const renderable = isThumbnailVideoRenderable(th.format) || isThumbnailImgRenderable(th.format);
-            if (!renderable) return; // 高清不可渲染 → 保留 mini 兜底
+            if (!renderable) return;
             if (videoCoverPath.value) {
                 videoThumbSrc.value = convertFileSrc(videoCoverPath.value);
                 videoThumbIsVideo.value = videoCoverIsAnim.value;
             } else {
-                videoThumbSrc.value = convertFileSrc(info.local_path);
+                videoThumbSrc.value = convertFileSrc(path);
                 videoThumbIsVideo.value = isThumbnailVideoRenderable(th.format);
             }
         } else if (c._ === 'messageAnimation') {
@@ -1674,45 +1685,62 @@ watch([trackingCoverId, () => props.content._], ([coverId]) => {
                 animThumbSrc.value = convertFileSrc(animCoverPath.value);
                 animThumbIsVideo.value = animCoverIsAnim.value;
             } else {
-                animThumbSrc.value = convertFileSrc(info.local_path);
+                animThumbSrc.value = convertFileSrc(path);
                 animThumbIsVideo.value = isThumbnailVideoRenderable(th.format);
             }
         }
     };
-    apply();
-    const stop = watch(() => downloadStore.getDownloadInfo(coverId), (info) => {
-        if (info?.is_completed && info.local_path) {
-            apply();
+    applyPath(readCoverPath());
+    const stop = watch(readCoverPath, (path) => {
+        if (path) {
+            applyPath(path);
             stop();
         }
     });
 }, { immediate: true });
 
-/** 路径就绪时清掉 active 标记，避免 downloadingFiles 卡住后续判断 */
-watch(photoBigPath, (path) => {
-    if (!path) return;
-    if (photoBigFile.value) downloadingFiles.delete(photoBigFile.value.id);
+/** 路径就绪 / store 完成后清理忙碌态，避免下载已结束气泡仍显示等待 */
+function clearPhotoBusy() {
     isDownloading.value = false;
+    if (photoBigFile.value) downloadingFiles.delete(photoBigFile.value.id);
+}
+function clearAnimBusy() {
+    animDownloading.value = false;
+    if (animFile.value) downloadingFiles.delete(animFile.value.id);
+}
+function clearVideoBusy() {
+    videoDownloading.value = false;
+    if (videoFile.value) downloadingFiles.delete(videoFile.value.id);
+}
+
+watch(photoBigPath, (path) => {
+    if (path) clearPhotoBusy();
 });
 watch(animFilePath, (path) => {
-    if (!path) return;
-    if (animFile.value) downloadingFiles.delete(animFile.value.id);
-    animDownloading.value = false;
+    if (path) clearAnimBusy();
 });
 watch(videoFilePath, (path) => {
-    if (!path) return;
-    if (videoFile.value) downloadingFiles.delete(videoFile.value.id);
-    videoDownloading.value = false;
+    if (path) clearVideoBusy();
 });
 
-/** 视频进度跟随 download store（不再 getFile 轮询） */
+/** 视频进度跟随 download store（读字段建立依赖，兼容就地 patch） */
 watch(() => {
     const id = videoFile.value?.id;
-    return id ? downloadStore.getDownloadInfo(id) : undefined;
+    if (!id) return null;
+    const info = downloadStore.getDownloadInfo(id);
+    if (!info) return null;
+    return {
+        progress: info.progress,
+        is_completed: info.is_completed,
+        local_path: info.local_path,
+    };
 }, (info) => {
     if (!info) return;
     if (typeof info.progress === 'number' && info.progress > 0 && info.progress < 1) {
         videoProgress.value = info.progress;
+    }
+    if (info.is_completed && info.local_path && !videoFilePath.value) {
+        finishVideoDownload(videoFile.value?.id || 0, info.local_path);
     }
 });
 

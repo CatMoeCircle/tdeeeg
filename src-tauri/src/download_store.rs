@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// 文件类型分类（与前端 DownloadFileType 对应）
 pub type DownloadFileType = String;
@@ -14,9 +14,8 @@ pub struct DownloadItem {
     /// 当前 TDLib 会话内的 file.id（重启后会变），用于 pause/cancel/download 等 TDLib 调用。
     #[serde(default)]
     pub session_file_id: Option<i32>,
-    /// 兼容字段：当前会话 file_id；无会话时为 0。前端 TDLib 相关操作仍可读取此字段。
+    /// 兼容字段：当前会话 file_id
     #[serde(default)]
-    #[allow(dead_code)]
     pub file_id: i32,
     pub file_name: String,
     pub chat_title: String,
@@ -29,7 +28,7 @@ pub struct DownloadItem {
     #[serde(default)]
     pub downloaded_size: i64,
     #[serde(default)]
-    pub progress: f64, // 0~1
+    pub progress: f64,
     #[serde(default)]
     pub is_paused: bool,
     #[serde(default)]
@@ -40,23 +39,18 @@ pub struct DownloadItem {
     pub thumbnail_data_url: Option<String>,
     #[serde(default)]
     pub file_type: DownloadFileType,
-    /// 通用资源标记（贴纸/emoji/头像等），默认隐藏且不计入红点
     #[serde(default)]
     pub is_generic: bool,
-    /// 通用资源的细分类别（遗留字段，标签系统 tags 优先）
     #[serde(default)]
     pub hidden_category: Option<String>,
     #[serde(default)]
     pub is_auto_photo: bool,
     #[serde(default)]
     pub is_streaming: bool,
-    /// 多标签：视频/图片/缩略图/自动下载/流式传输/用户头像/…
     #[serde(default)]
     pub tags: Vec<String>,
-    /// 来源补充展示：用户 / 贴纸集 / emoji 集 / 资料页 等
     #[serde(default)]
     pub source_label: Option<String>,
-    /// 在下载管理器中已手动关闭/移除
     #[serde(default)]
     pub dismissed: bool,
     #[serde(default)]
@@ -65,7 +59,6 @@ pub struct DownloadItem {
     pub created_at: i64,
 }
 
-/// 当前 Unix 毫秒时间戳
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -73,7 +66,6 @@ fn now_ms() -> i64 {
         .unwrap_or(0)
 }
 
-/// 稳定主键派生：优先 remote.id；为空则回退 session 键
 pub fn derive_remote_id(remote_id: Option<&str>, session_file_id: i32) -> String {
     match remote_id {
         Some(r) if !r.is_empty() => r.to_string(),
@@ -90,7 +82,6 @@ struct PersistedData {
     show_auto_photos: bool,
 }
 
-/// 旧版持久化格式（以 i32 file_id 为键），用于迁移
 #[derive(Debug, Clone, Deserialize)]
 struct PersistedDataV1 {
     items: HashMap<i32, DownloadItemV1>,
@@ -100,7 +91,6 @@ struct PersistedDataV1 {
     show_auto_photos: bool,
 }
 
-/// 旧版 DownloadItem（无 remote_id/tags，file_id 即主键）
 #[derive(Debug, Clone, Deserialize)]
 #[allow(dead_code)]
 struct DownloadItemV1 {
@@ -143,104 +133,98 @@ struct DownloadItemV1 {
     created_at: i64,
 }
 
-pub struct DownloadStore {
-    /// key = remote_id（稳定主键）
+/// 单账户的下载/上传数据（独立持久化）
+#[derive(Default)]
+struct AccountDownloadData {
     items: HashMap<String, DownloadItem>,
-    /// 当前会话 file.id → remote_id，供 updateFile 进度回写
     session_map: HashMap<i32, String>,
-    storage_path: PathBuf,
     show_hidden: bool,
     show_auto_photos: bool,
-    /// 上传任务：key = remote_id（内存态）
     uploads: HashMap<String, DownloadItem>,
-    /// 上传会话映射
     upload_session_map: HashMap<i32, String>,
 }
 
-#[allow(dead_code)]
-impl DownloadStore {
-    pub fn new(data_dir: PathBuf) -> Self {
-        let storage_dir = data_dir.join("downloads");
-        fs::create_dir_all(&storage_dir).ok();
-        let storage_path = storage_dir.join("downloads.json");
+/// 账户独立 downloads.json 路径：
+/// `data_dir/TDLib/accounts/<account_id>/downloads/downloads.json`
+/// （与 TDLib 账户目录同树，登出删除账户目录时一并清理）
+pub fn account_downloads_json(data_dir: &Path, account_id: i64) -> PathBuf {
+    data_dir
+        .join("TDLib")
+        .join("accounts")
+        .join(account_id.to_string())
+        .join("downloads")
+        .join("downloads.json")
+}
 
-        let mut store = Self {
-            items: HashMap::new(),
-            session_map: HashMap::new(),
-            storage_path,
-            show_hidden: false,
-            show_auto_photos: false,
-            uploads: HashMap::new(),
-            upload_session_map: HashMap::new(),
-        };
-        store.load_from_disk();
-        store
-    }
+/// 旧版全局路径（迁移用）：`data_dir/downloads/downloads.json`
+fn legacy_downloads_json(data_dir: &Path) -> PathBuf {
+    data_dir.join("downloads").join("downloads.json")
+}
 
-    // ==================== 持久化 ====================
-
-    fn load_from_disk(&mut self) {
-        if !self.storage_path.exists() {
-            return;
+impl AccountDownloadData {
+    fn load_from_path(&mut self, path: &Path) -> bool {
+        if !path.exists() {
+            return false;
         }
-        let Ok(content) = fs::read_to_string(&self.storage_path) else {
-            return;
+        let Ok(content) = fs::read_to_string(path) else {
+            return false;
         };
 
-        // 新格式：remote_id 字符串键
         if let Ok(data) = serde_json::from_str::<PersistedData>(&content) {
-            // 若 items 的 value 已含非空 remote_id，或 key 形如 session:/legacy:/含字母，则视为新格式
             let looks_new = data.items.is_empty()
+                || data.items.values().any(|it| !it.remote_id.is_empty())
                 || data
                     .items
-                    .values()
-                    .any(|it| !it.remote_id.is_empty())
-                || data.items.keys().any(|k| k.contains(':') || !k.chars().all(|c| c.is_ascii_digit()));
+                    .keys()
+                    .any(|k| k.contains(':') || !k.chars().all(|c| c.is_ascii_digit()));
             if looks_new {
                 self.items = data.items;
                 self.show_hidden = data.show_hidden;
                 self.show_auto_photos = data.show_auto_photos;
                 self.rebuild_session_map();
-                return;
+                return true;
             }
         }
 
-        // 旧格式迁移：i32 file_id 键
         if let Ok(old) = serde_json::from_str::<PersistedDataV1>(&content) {
             self.show_hidden = old.show_hidden;
             self.show_auto_photos = old.show_auto_photos;
             for (fid, o) in old.items {
                 let remote_id = format!("legacy:{}", fid);
-                let item = DownloadItem {
-                    remote_id: remote_id.clone(),
-                    session_file_id: Some(fid),
-                    file_id: fid,
-                    file_name: o.file_name,
-                    chat_title: o.chat_title,
-                    chat_id: o.chat_id,
-                    message_id: o.message_id,
-                    total_size: o.total_size,
-                    downloaded_size: o.downloaded_size,
-                    progress: o.progress,
-                    is_paused: o.is_paused,
-                    is_completed: o.is_completed,
-                    local_path: o.local_path,
-                    thumbnail_data_url: o.thumbnail_data_url,
-                    file_type: o.file_type,
-                    is_generic: o.is_generic,
-                    hidden_category: o.hidden_category,
-                    is_auto_photo: o.is_auto_photo,
-                    is_streaming: o.is_streaming,
-                    tags: Vec::new(),
-                    source_label: None,
-                    dismissed: o.dismissed,
-                    is_upload: o.is_upload,
-                    created_at: o.created_at,
-                };
-                self.items.insert(remote_id, item);
+                self.items.insert(
+                    remote_id.clone(),
+                    DownloadItem {
+                        remote_id,
+                        session_file_id: Some(fid),
+                        file_id: fid,
+                        file_name: o.file_name,
+                        chat_title: o.chat_title,
+                        chat_id: o.chat_id,
+                        message_id: o.message_id,
+                        total_size: o.total_size,
+                        downloaded_size: o.downloaded_size,
+                        progress: o.progress,
+                        is_paused: o.is_paused,
+                        is_completed: o.is_completed,
+                        local_path: o.local_path,
+                        thumbnail_data_url: o.thumbnail_data_url,
+                        file_type: o.file_type,
+                        is_generic: o.is_generic,
+                        hidden_category: o.hidden_category,
+                        is_auto_photo: o.is_auto_photo,
+                        is_streaming: o.is_streaming,
+                        tags: Vec::new(),
+                        source_label: None,
+                        dismissed: o.dismissed,
+                        is_upload: o.is_upload,
+                        created_at: o.created_at,
+                    },
+                );
             }
-            self.save_to_disk();
+            self.rebuild_session_map();
+            return true;
         }
+        false
     }
 
     fn rebuild_session_map(&mut self) {
@@ -254,18 +238,20 @@ impl DownloadStore {
         }
     }
 
-    fn save_to_disk(&self) {
+    fn save_to_path(&self, path: &Path) {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).ok();
+        }
         let data = PersistedData {
             items: self.items.clone(),
             show_hidden: self.show_hidden,
             show_auto_photos: self.show_auto_photos,
         };
         if let Ok(content) = serde_json::to_string_pretty(&data) {
-            fs::write(&self.storage_path, content).ok();
+            fs::write(path, content).ok();
         }
     }
 
-    /// 解析查找键：优先 session_map，其次直接把入参当 remote_id
     fn resolve_key(&self, id: &str) -> String {
         if let Ok(sid) = id.parse::<i32>() {
             if let Some(k) = self.session_map.get(&sid) {
@@ -278,30 +264,101 @@ impl DownloadStore {
         id.to_string()
     }
 
-    /// updateFile 时：根据 session file.id + remote.id 绑定/解析条目键
-    pub fn bind_session_key(&mut self, session_file_id: i32, remote_id: Option<&str>) -> String {
-        let key = derive_remote_id(remote_id, session_file_id);
-        // 若该 session 已映射到别的键（例如 remote.id 后补），保持已有键优先
-        if let Some(existing) = self.session_map.get(&session_file_id) {
-            return existing.clone();
-        }
-        if self.items.contains_key(&key) {
-            if let Some(item) = self.items.get_mut(&key) {
-                item.session_file_id = Some(session_file_id);
-                item.file_id = session_file_id;
-                if item.remote_id.is_empty() {
-                    item.remote_id = key.clone();
-                }
+    fn find_upload_by_path(&self, local_path: &str) -> Option<String> {
+        for (key, item) in &self.uploads {
+            if item.local_path.as_deref() == Some(local_path) {
+                return Some(key.clone());
             }
         }
-        self.session_map.insert(session_file_id, key.clone());
-        key
+        None
+    }
+}
+
+/// 多账户下载存储：每个账户一份独立 downloads.json。
+pub struct DownloadStore {
+    data_dir: PathBuf,
+    active_account: i64,
+    accounts: HashMap<i64, AccountDownloadData>,
+    /// 旧全局 json 是否已迁移到某个账户
+    legacy_migrated: bool,
+}
+
+#[allow(dead_code)]
+impl DownloadStore {
+    pub fn new(data_dir: PathBuf, active_account: i64) -> Self {
+        let mut store = Self {
+            data_dir,
+            active_account,
+            accounts: HashMap::new(),
+            legacy_migrated: false,
+        };
+        store.ensure_loaded(store.active_account);
+        store
+    }
+
+    /// 切换活动账户（命令层在 switch_account 时调用）
+    pub fn set_active_account(&mut self, account_id: i64) {
+        self.active_account = account_id;
+        self.ensure_loaded(account_id);
+    }
+
+    pub fn active_account(&self) -> i64 {
+        self.active_account
+    }
+
+    fn path_for(&self, account_id: i64) -> PathBuf {
+        account_downloads_json(&self.data_dir, account_id)
+    }
+
+    /// 懒加载账户数据；首次遇到旧全局 json 时迁入活动账户
+    fn ensure_loaded(&mut self, account_id: i64) {
+        if self.accounts.contains_key(&account_id) {
+            return;
+        }
+        let path = self.path_for(account_id);
+        let mut data = AccountDownloadData::default();
+        let loaded = data.load_from_path(&path);
+
+        if !loaded && !self.legacy_migrated {
+            let legacy = legacy_downloads_json(&self.data_dir);
+            if legacy.exists() && data.load_from_path(&legacy) {
+                data.save_to_path(&path);
+                // 旧文件改名备份，避免再次误迁移
+                let _ = fs::rename(&legacy, legacy.with_extension("json.migrated"));
+                self.legacy_migrated = true;
+            }
+        }
+
+        self.accounts.insert(account_id, data);
+    }
+
+    fn data_mut(&mut self, account_id: i64) -> &mut AccountDownloadData {
+        self.ensure_loaded(account_id);
+        self.accounts.get_mut(&account_id).expect("account download data loaded")
+    }
+
+    fn data(&mut self, account_id: i64) -> &mut AccountDownloadData {
+        self.data_mut(account_id)
+    }
+
+    fn save(&mut self, account_id: i64) {
+        let path = self.path_for(account_id);
+        if let Some(d) = self.accounts.get(&account_id) {
+            d.save_to_path(&path);
+        }
     }
 
     // ==================== 查询 ====================
 
     pub fn get_all_items(&self) -> Vec<DownloadItem> {
-        let mut items: Vec<DownloadItem> = self.items.values().cloned().collect();
+        self.get_all_items_for(self.active_account)
+    }
+
+    pub fn get_all_items_for(&self, account_id: i64) -> Vec<DownloadItem> {
+        let Some(d) = self.accounts.get(&account_id) else {
+            return Vec::new();
+        };
+        let mut items: Vec<DownloadItem> = d.items.values().cloned().collect();
         items.sort_by(|a, b| {
             b.created_at
                 .cmp(&a.created_at)
@@ -311,12 +368,24 @@ impl DownloadStore {
     }
 
     pub fn get_item(&self, key: &str) -> Option<DownloadItem> {
-        let k = self.resolve_key(key);
-        self.items.get(&k).cloned()
+        self.get_item_for(self.active_account, key)
+    }
+
+    pub fn get_item_for(&self, account_id: i64, key: &str) -> Option<DownloadItem> {
+        let d = self.accounts.get(&account_id)?;
+        let k = d.resolve_key(key);
+        d.items.get(&k).cloned()
     }
 
     pub fn get_active_items(&self) -> Vec<DownloadItem> {
-        self.items
+        self.get_active_items_for(self.active_account)
+    }
+
+    pub fn get_active_items_for(&self, account_id: i64) -> Vec<DownloadItem> {
+        let Some(d) = self.accounts.get(&account_id) else {
+            return Vec::new();
+        };
+        d.items
             .values()
             .filter(|item| {
                 !item.is_generic && !item.is_auto_photo && !item.is_completed && !item.dismissed
@@ -330,13 +399,20 @@ impl DownloadStore {
     }
 
     pub fn get_visible_items(&self) -> Vec<DownloadItem> {
-        let mut items: Vec<DownloadItem> = self
+        self.get_visible_items_for(self.active_account)
+    }
+
+    pub fn get_visible_items_for(&self, account_id: i64) -> Vec<DownloadItem> {
+        let Some(d) = self.accounts.get(&account_id) else {
+            return Vec::new();
+        };
+        let mut items: Vec<DownloadItem> = d
             .items
             .values()
             .filter(|item| {
                 !item.dismissed
-                    && (self.show_hidden || !item.is_generic)
-                    && (self.show_auto_photos || !item.is_auto_photo)
+                    && (d.show_hidden || !item.is_generic)
+                    && (d.show_auto_photos || !item.is_auto_photo)
             })
             .cloned()
             .collect();
@@ -348,32 +424,21 @@ impl DownloadStore {
         items
     }
 
-    pub fn get_completed_items(&self) -> Vec<DownloadItem> {
-        self.get_visible_items()
-            .into_iter()
-            .filter(|item| item.is_completed)
-            .collect()
-    }
-
-    pub fn get_pending_items(&self) -> Vec<DownloadItem> {
-        self.get_visible_items()
-            .into_iter()
-            .filter(|item| !item.is_completed)
-            .collect()
-    }
-
     pub fn has_hidden_active(&self) -> bool {
-        self.items.values().any(|item| {
+        let Some(d) = self.accounts.get(&self.active_account) else {
+            return false;
+        };
+        d.items.values().any(|item| {
             (item.is_generic || item.is_auto_photo) && !item.is_completed && !item.dismissed
         })
     }
 
-    // ==================== 写入操作 ====================
+    // ==================== 写入 ====================
 
-    /// 注册下载项。主键为 remote_id（file.remote.id）；session_file_id 仅作本会话 TDLib 操作。
     #[allow(clippy::too_many_arguments)]
     pub fn register_download(
         &mut self,
+        account_id: Option<i64>,
         remote_id: Option<String>,
         session_file_id: i32,
         file_name: String,
@@ -390,43 +455,37 @@ impl DownloadStore {
         tags: Option<Vec<String>>,
         source_label: Option<String>,
     ) -> String {
+        let acct = account_id.unwrap_or(self.active_account);
         let rid = derive_remote_id(remote_id.as_deref(), session_file_id);
-        // 会话键冲突：同一 session 曾指向 legacy 键时，尽量迁到带 remote_id 的键
-        if let Some(old_key) = self.session_map.get(&session_file_id).cloned() {
-            if old_key != rid && !old_key.starts_with("legacy:") && !old_key.starts_with("session:") {
-                // 已有稳定键，沿用
-                let use_key = old_key;
-                self.merge_register(
-                    &use_key,
-                    session_file_id,
-                    file_name,
-                    chat_title,
-                    total_size,
-                    file_type,
-                    thumbnail_data_url,
-                    chat_id,
-                    message_id,
-                    is_generic,
-                    hidden_category,
-                    is_auto_photo,
-                    is_streaming,
-                    tags,
-                    source_label,
-                );
-                return use_key;
+
+        // 若该会话曾指向 session:/legacy: 键，尽量迁到 remote_id 键
+        let existing_key = self
+            .data(acct)
+            .session_map
+            .get(&session_file_id)
+            .cloned();
+        let use_key = if let Some(old_key) = existing_key {
+            if old_key != rid && !old_key.starts_with("legacy:") && !old_key.starts_with("session:")
+            {
+                old_key
             } else if old_key != rid {
-                // 旧键为 session:/legacy: → 迁移数据到新 remote_id
-                if let Some(mut item) = self.items.remove(&old_key) {
+                if let Some(mut item) = self.data_mut(acct).items.remove(&old_key) {
                     item.remote_id = rid.clone();
                     item.session_file_id = Some(session_file_id);
                     item.file_id = session_file_id;
-                    self.items.insert(rid.clone(), item);
+                    self.data_mut(acct).items.insert(rid.clone(), item);
                 }
+                rid
+            } else {
+                rid
             }
-        }
+        } else {
+            rid
+        };
 
         self.merge_register(
-            &rid,
+            acct,
+            &use_key,
             session_file_id,
             file_name,
             chat_title,
@@ -442,13 +501,18 @@ impl DownloadStore {
             tags,
             source_label,
         );
-        self.session_map.insert(session_file_id, rid.clone());
-        rid
+        self.data_mut(acct)
+            .session_map
+            .insert(session_file_id, use_key.clone());
+        self.save(acct);
+        use_key
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)]
     fn merge_register(
         &mut self,
+        account_id: i64,
         key: &str,
         session_file_id: i32,
         file_name: String,
@@ -465,7 +529,8 @@ impl DownloadStore {
         tags: Option<Vec<String>>,
         source_label: Option<String>,
     ) {
-        if let Some(existing) = self.items.get(key) {
+        let d = self.data_mut(account_id);
+        if let Some(existing) = d.items.get(key) {
             if !existing.dismissed {
                 let is_fallback = existing.file_type == "other" && existing.is_generic;
                 let mut updated = existing.clone();
@@ -478,7 +543,6 @@ impl DownloadStore {
                         updated.tags = tags.unwrap_or_default();
                     }
                 } else if tags.as_ref().map(|t| !t.is_empty()).unwrap_or(false) {
-                    // 合并标签（去重保序）
                     let mut merged = updated.tags.clone();
                     for t in tags.unwrap_or_default() {
                         if !merged.contains(&t) {
@@ -509,45 +573,77 @@ impl DownloadStore {
                 if updated.created_at == 0 {
                     updated.created_at = now_ms();
                 }
-                self.items.insert(key.to_string(), updated);
-                self.save_to_disk();
+                d.items.insert(key.to_string(), updated);
                 return;
             }
         }
 
-        let item = DownloadItem {
-            remote_id: key.to_string(),
-            session_file_id: Some(session_file_id),
-            file_id: session_file_id,
-            file_name,
-            chat_title,
-            chat_id,
-            message_id,
-            total_size,
-            downloaded_size: 0,
-            progress: 0.0,
-            is_paused: false,
-            is_completed: false,
-            local_path: None,
-            thumbnail_data_url,
-            file_type,
-            is_generic,
-            hidden_category,
-            is_auto_photo,
-            is_streaming,
-            tags: tags.unwrap_or_default(),
-            source_label,
-            dismissed: false,
-            is_upload: false,
-            created_at: now_ms(),
-        };
-        self.items.insert(key.to_string(), item);
-        self.save_to_disk();
+        d.items.insert(
+            key.to_string(),
+            DownloadItem {
+                remote_id: key.to_string(),
+                session_file_id: Some(session_file_id),
+                file_id: session_file_id,
+                file_name,
+                chat_title,
+                chat_id,
+                message_id,
+                total_size,
+                downloaded_size: 0,
+                progress: 0.0,
+                is_paused: false,
+                is_completed: false,
+                local_path: None,
+                thumbnail_data_url,
+                file_type,
+                is_generic,
+                hidden_category,
+                is_auto_photo,
+                is_streaming,
+                tags: tags.unwrap_or_default(),
+                source_label,
+                dismissed: false,
+                is_upload: false,
+                created_at: now_ms(),
+            },
+        );
     }
 
-    /// 更新下载进度。`id` 可为 remote_id 或 session file_id。
+    /// updateFile 时：绑定 session → 条目键（在指定账户下）
+    pub fn bind_session_key(
+        &mut self,
+        account_id: i64,
+        session_file_id: i32,
+        remote_id: Option<&str>,
+    ) -> String {
+        let key = derive_remote_id(remote_id, session_file_id);
+        if let Some(existing) = self
+            .data(account_id)
+            .session_map
+            .get(&session_file_id)
+            .cloned()
+        {
+            return existing;
+        }
+        {
+            let d = self.data_mut(account_id);
+            if d.items.contains_key(&key) {
+                if let Some(item) = d.items.get_mut(&key) {
+                    item.session_file_id = Some(session_file_id);
+                    item.file_id = session_file_id;
+                    if item.remote_id.is_empty() {
+                        item.remote_id = key.clone();
+                    }
+                }
+            }
+            d.session_map.insert(session_file_id, key.clone());
+        }
+        key
+    }
+
     pub fn update_progress(
         &mut self,
+        account_id: Option<i64>,
         id: &str,
         downloaded_size: i64,
         total_size: i64,
@@ -555,8 +651,10 @@ impl DownloadStore {
         is_downloading_completed: bool,
         local_path: Option<String>,
     ) {
-        let key = self.resolve_key(id);
-        if let Some(item) = self.items.get_mut(&key) {
+        let acct = account_id.unwrap_or(self.active_account);
+        let key = self.data(acct).resolve_key(id);
+        let d = self.data_mut(acct);
+        if let Some(item) = d.items.get_mut(&key) {
             let total = if total_size > 0 {
                 total_size
             } else {
@@ -579,69 +677,76 @@ impl DownloadStore {
                     }
                 }
             }
-            self.save_to_disk();
         }
+        self.save(acct);
     }
 
-    pub fn set_paused(&mut self, id: &str, paused: bool) -> bool {
-        let key = self.resolve_key(id);
-        if let Some(item) = self.items.get_mut(&key) {
+    pub fn set_paused(&mut self, account_id: Option<i64>, id: &str, paused: bool) -> bool {
+        let acct = account_id.unwrap_or(self.active_account);
+        let key = self.data(acct).resolve_key(id);
+        let d = self.data_mut(acct);
+        if let Some(item) = d.items.get_mut(&key) {
             item.is_paused = paused;
-            self.save_to_disk();
+            self.save(acct);
             true
         } else {
             false
         }
     }
 
-    pub fn dismiss_item(&mut self, id: &str) -> bool {
-        let key = self.resolve_key(id);
-        if let Some(item) = self.items.get_mut(&key) {
+    pub fn dismiss_item(&mut self, account_id: Option<i64>, id: &str) -> bool {
+        let acct = account_id.unwrap_or(self.active_account);
+        let key = self.data(acct).resolve_key(id);
+        let d = self.data_mut(acct);
+        if let Some(item) = d.items.get_mut(&key) {
             item.dismissed = true;
-            self.save_to_disk();
+            self.save(acct);
             true
         } else {
             false
         }
     }
 
-    pub fn clear_completed(&mut self) {
-        self.items
+    pub fn clear_completed(&mut self, account_id: Option<i64>) {
+        let acct = account_id.unwrap_or(self.active_account);
+        self.data_mut(acct)
+            .items
             .retain(|_, item| !item.is_completed && !item.dismissed);
-        self.save_to_disk();
+        self.save(acct);
     }
 
     pub fn get_show_hidden(&self) -> bool {
-        self.show_hidden
+        self.accounts
+            .get(&self.active_account)
+            .map(|d| d.show_hidden)
+            .unwrap_or(false)
     }
 
     pub fn set_show_hidden(&mut self, value: bool) {
-        self.show_hidden = value;
-        self.save_to_disk();
+        let acct = self.active_account;
+        self.data_mut(acct).show_hidden = value;
+        self.save(acct);
     }
 
     pub fn get_show_auto_photos(&self) -> bool {
-        self.show_auto_photos
+        self.accounts
+            .get(&self.active_account)
+            .map(|d| d.show_auto_photos)
+            .unwrap_or(false)
     }
 
     pub fn set_show_auto_photos(&mut self, value: bool) {
-        self.show_auto_photos = value;
-        self.save_to_disk();
+        let acct = self.active_account;
+        self.data_mut(acct).show_auto_photos = value;
+        self.save(acct);
     }
 
-    // ==================== 上传任务（仅内存） ====================
+    // ==================== 上传（仅内存，按账户隔离） ====================
 
-    fn find_upload_by_path(&self, local_path: &str) -> Option<String> {
-        for (key, item) in &self.uploads {
-            if item.local_path.as_deref() == Some(local_path) {
-                return Some(key.clone());
-            }
-        }
-        None
-    }
-
+    #[allow(clippy::too_many_arguments)]
     pub fn register_upload(
         &mut self,
+        account_id: Option<i64>,
         remote_id: Option<String>,
         session_file_id: i32,
         file_name: String,
@@ -651,18 +756,21 @@ impl DownloadStore {
         thumbnail_data_url: Option<String>,
         local_path: Option<String>,
     ) {
+        let acct = account_id.unwrap_or(self.active_account);
         let rid = derive_remote_id(remote_id.as_deref(), session_file_id);
 
         if let Some(local) = local_path.as_deref() {
             if !local.is_empty() {
-                if let Some(existing_key) = self.find_upload_by_path(local) {
+                if let Some(existing_key) = self.data(acct).find_upload_by_path(local) {
                     if existing_key != rid {
-                        if let Some(mut existing) = self.uploads.remove(&existing_key) {
+                        if let Some(mut existing) = self.data_mut(acct).uploads.remove(&existing_key)
+                        {
                             existing.remote_id = rid.clone();
                             existing.session_file_id = Some(session_file_id);
                             existing.file_id = session_file_id;
-                            self.uploads.insert(rid.clone(), existing);
-                            self.upload_session_map
+                            self.data_mut(acct).uploads.insert(rid.clone(), existing);
+                            self.data_mut(acct)
+                                .upload_session_map
                                 .insert(session_file_id, rid.clone());
                             return;
                         }
@@ -671,93 +779,96 @@ impl DownloadStore {
             }
         }
 
-        if let Some(existing) = self.uploads.get_mut(&rid) {
-            let is_fallback = existing.file_type == "other";
-            if existing.file_name.is_empty() {
-                existing.file_name = file_name;
+        {
+            let d = self.data_mut(acct);
+            if let Some(existing) = d.uploads.get_mut(&rid) {
+                let is_fallback = existing.file_type == "other";
+                if existing.file_name.is_empty() {
+                    existing.file_name = file_name;
+                }
+                if is_fallback {
+                    existing.file_type = file_type;
+                }
+                if existing.chat_title.is_empty() {
+                    existing.chat_title = chat_title;
+                }
+                if existing.total_size == 0 {
+                    existing.total_size = total_size;
+                }
+                if existing.thumbnail_data_url.is_none() {
+                    existing.thumbnail_data_url = thumbnail_data_url;
+                }
+                if existing.local_path.is_none() {
+                    existing.local_path = local_path;
+                }
+                existing.session_file_id = Some(session_file_id);
+                existing.file_id = session_file_id;
+                d.upload_session_map.insert(session_file_id, rid);
+                return;
             }
-            if is_fallback {
-                existing.file_type = file_type;
-            }
-            if existing.chat_title.is_empty() {
-                existing.chat_title = chat_title;
-            }
-            if existing.total_size == 0 {
-                existing.total_size = total_size;
-            }
-            if existing.thumbnail_data_url.is_none() {
-                existing.thumbnail_data_url = thumbnail_data_url;
-            }
-            if existing.local_path.is_none() {
-                existing.local_path = local_path;
-            }
-            existing.session_file_id = Some(session_file_id);
-            existing.file_id = session_file_id;
-            self.upload_session_map
-                .insert(session_file_id, rid.clone());
-            return;
-        }
 
-        // 上传标签：上传 + 资源类型
-        let mut tags = vec!["上传".to_string()];
-        match file_type.as_str() {
-            "photo" => tags.push("图片".to_string()),
-            "video" => tags.push("视频".to_string()),
-            "audio" => tags.push("音乐".to_string()),
-            "document" => tags.push("文件".to_string()),
-            _ => {}
-        }
+            let mut tags = vec!["上传".to_string()];
+            match file_type.as_str() {
+                "photo" => tags.push("图片".to_string()),
+                "video" => tags.push("视频".to_string()),
+                "audio" => tags.push("音乐".to_string()),
+                "document" => tags.push("文件".to_string()),
+                _ => {}
+            }
 
-        self.uploads.insert(
-            rid.clone(),
-            DownloadItem {
-                remote_id: rid.clone(),
-                session_file_id: Some(session_file_id),
-                file_id: session_file_id,
-                file_name,
-                chat_title,
-                chat_id: None,
-                message_id: None,
-                total_size,
-                downloaded_size: 0,
-                progress: 0.0,
-                is_paused: false,
-                is_completed: false,
-                local_path,
-                thumbnail_data_url,
-                file_type,
-                is_generic: false,
-                hidden_category: None,
-                is_auto_photo: false,
-                is_streaming: false,
-                tags,
-                source_label: None,
-                dismissed: false,
-                is_upload: true,
-                created_at: now_ms(),
-            },
-        );
-        self.upload_session_map
-            .insert(session_file_id, rid.clone());
+            d.uploads.insert(
+                rid.clone(),
+                DownloadItem {
+                    remote_id: rid.clone(),
+                    session_file_id: Some(session_file_id),
+                    file_id: session_file_id,
+                    file_name,
+                    chat_title,
+                    chat_id: None,
+                    message_id: None,
+                    total_size,
+                    downloaded_size: 0,
+                    progress: 0.0,
+                    is_paused: false,
+                    is_completed: false,
+                    local_path,
+                    thumbnail_data_url,
+                    file_type,
+                    is_generic: false,
+                    hidden_category: None,
+                    is_auto_photo: false,
+                    is_streaming: false,
+                    tags,
+                    source_label: None,
+                    dismissed: false,
+                    is_upload: true,
+                    created_at: now_ms(),
+                },
+            );
+            d.upload_session_map.insert(session_file_id, rid);
+        }
     }
 
     pub fn update_upload_progress(
         &mut self,
+        account_id: Option<i64>,
         id: &str,
         uploaded_size: i64,
         total_size: i64,
         is_uploading_active: bool,
         is_uploading_completed: bool,
     ) -> Option<DownloadItem> {
-        let key = if self.uploads.contains_key(id) {
+        let acct = account_id.unwrap_or(self.active_account);
+        let d = self.data_mut(acct);
+        let key = if d.uploads.contains_key(id) {
             id.to_string()
         } else {
-            self.upload_session_map
+            d.upload_session_map
                 .get(&id.parse::<i32>().ok()?)
                 .cloned()
                 .unwrap_or_else(|| id.to_string())
         };
-        let item = self.uploads.get_mut(&key)?;
+        let item = d.uploads.get_mut(&key)?;
         let total = if total_size > 0 {
             total_size
         } else {
@@ -776,41 +887,44 @@ impl DownloadStore {
     }
 
     pub fn get_uploads(&self) -> Vec<DownloadItem> {
-        let mut items: Vec<DownloadItem> = self.uploads.values().cloned().collect();
+        self.get_uploads_for(self.active_account)
+    }
+
+    pub fn get_uploads_for(&self, account_id: i64) -> Vec<DownloadItem> {
+        let Some(d) = self.accounts.get(&account_id) else {
+            return Vec::new();
+        };
+        let mut items: Vec<DownloadItem> = d.uploads.values().cloned().collect();
         items.sort_by(|a, b| b.file_id.cmp(&a.file_id));
         items
     }
 
-    pub fn get_upload(&self, id: &str) -> Option<DownloadItem> {
-        let key = if self.uploads.contains_key(id) {
-            id.to_string()
-        } else {
-            self.upload_session_map
-                .get(&id.parse::<i32>().ok()?)
-                .cloned()
-                .unwrap_or_else(|| id.to_string())
-        };
-        self.uploads.get(&key).cloned()
-    }
-
-    pub fn dismiss_upload(&mut self, id: &str) -> bool {
-        let key = if self.uploads.contains_key(id) {
+    pub fn dismiss_upload(&mut self, account_id: Option<i64>, id: &str) -> bool {
+        let acct = account_id.unwrap_or(self.active_account);
+        let d = self.data_mut(acct);
+        let key = if d.uploads.contains_key(id) {
             id.to_string()
         } else {
             match id.parse::<i32>() {
-                Ok(sid) => match self.upload_session_map.get(&sid) {
-                    Some(k) => k.clone(),
-                    None => id.to_string(),
-                },
+                Ok(sid) => d
+                    .upload_session_map
+                    .get(&sid)
+                    .cloned()
+                    .unwrap_or_else(|| id.to_string()),
                 Err(_) => id.to_string(),
             }
         };
-        if let Some(item) = self.uploads.remove(&key) {
+        if let Some(item) = d.uploads.remove(&key) {
             if let Some(sid) = item.session_file_id {
-                self.upload_session_map.remove(&sid);
+                d.upload_session_map.remove(&sid);
             }
             return true;
         }
-        self.uploads.remove(id).is_some()
+        d.uploads.remove(id).is_some()
+    }
+
+    /// 账户登出：丢弃内存缓存（磁盘已随账户目录删除）
+    pub fn drop_account(&mut self, account_id: i64) {
+        self.accounts.remove(&account_id);
     }
 }

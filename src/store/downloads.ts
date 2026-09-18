@@ -272,6 +272,7 @@ export const useDownloadStore = defineStore("downloads", () => {
             items.value[key] = { ...payload, remote_id: key };
             return;
         }
+        const completedBefore = !!existing.is_completed && !!existing.local_path;
         existing.downloaded_size = payload.downloaded_size;
         existing.total_size = payload.total_size;
         existing.progress = payload.progress;
@@ -303,6 +304,13 @@ export const useDownloadStore = defineStore("downloads", () => {
             existing.created_at = payload.created_at;
         }
         if (!existing.remote_id) existing.remote_id = key;
+        // 「下载完成」里程碑：替换条目引用。
+        // 否则 watch(() => getDownloadInfo(id)) 因 Object.is 同引用永不回调，
+        // 消息气泡会一直停在等待态（下载管理器却已显示完成）。
+        const completedNow = !!existing.is_completed && !!existing.local_path;
+        if (completedNow && !completedBefore) {
+            items.value[key] = { ...existing };
+        }
     }
 
     function flushPendingUpdates() {
@@ -460,11 +468,15 @@ export const useDownloadStore = defineStore("downloads", () => {
         const key = resolveKey(fileId);
         const item = items.value[key];
         if (!item) return;
-        item.local_path = localPath;
-        item.is_completed = true;
-        item.progress = 1;
-        item.downloaded_size = item.total_size;
-        item.created_at = Date.now();
+        // 替换引用，保证依赖 getDownloadInfo 的 watch 能收到完成事件
+        items.value[key] = {
+            ...item,
+            local_path: localPath,
+            is_completed: true,
+            progress: 1,
+            downloaded_size: item.total_size,
+            created_at: Date.now(),
+        };
     }
 
     function getDownloadInfo(fileId: number | string): DownloadItem | undefined {
