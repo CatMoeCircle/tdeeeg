@@ -96,13 +96,27 @@ const loadMedia = async () => {
     const f = getFile();
     if (!f) return;
 
-    if (isFileReady(f)) {
+    // 就绪资源直接使用（加载时判断，不依赖视口）
+    if (isFileReady(f) && f.local.path) {
         mediaSrc.value = convertFileSrc(f.local.path);
-    } else if (f.local.can_be_downloaded && !f.local.is_downloading_active) {
+        return;
+    }
+    // 未就绪：仅在允许自动下载时发起下载
+    if (f.local.can_be_downloaded && !f.local.is_downloading_active) {
         if (!canAutoDownload()) return;
         await downloadFile(f.id);
     }
 };
+
+/** 加载时立刻套用 content 内已就绪的语音/视频留言文件 */
+function applyNoteReadyFromContent() {
+    const f = getFile();
+    if (f && isFileReady(f) && f.local.path) {
+        mediaSrc.value = convertFileSrc(f.local.path);
+        return true;
+    }
+    return false;
+}
 
 const downloadFile = async (fileId: number) => {
     const seq = noteLoadSeq;
@@ -156,7 +170,7 @@ watch(
     },
 );
 
-// 视口门控：挂载时只设置 base64 预览，进入视口才下载语音/视频留言文件。
+// 视口门控仅用于触发下载；就绪文件在加载时直接使用
 const { start: startViewportLoad, entered: noteEntered } = useViewportLoad(rootEl, () => {
     return loadMedia();
 });
@@ -165,9 +179,13 @@ watch(() => props.content, () => {
     mediaSrc.value = undefined;
     isDownloading.value = false;
     setNotePreview();
-    if (noteEntered.value) loadMedia();
+    // 就绪资源加载时直接使用，不经过视口
+    applyNoteReadyFromContent();
+    // 未就绪且已在视口时才走下载
+    if (noteEntered.value) void loadMedia();
 }, { immediate: true });
 onMounted(() => {
+    applyNoteReadyFromContent();
     startViewportLoad();
 });
 </script>

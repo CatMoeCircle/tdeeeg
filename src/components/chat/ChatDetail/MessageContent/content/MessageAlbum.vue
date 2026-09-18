@@ -157,6 +157,80 @@ function setAlbumPreview() {
     }
 }
 
+/**
+ * 加载时立刻套用 content 内已就绪资源（高清封面 / Small / 视频 / GIF），
+ * 不经过视口、不触发下载。高清可用时覆盖 mini。
+ * 视口门控只负责「未就绪时是否发起下载」。
+ */
+function applyAlbumReadyFromContent(msgs: message[] = props.messages): boolean {
+    if (!msgs?.length) return false;
+    let changed = false;
+    for (const msg of msgs) {
+        const c = msg.content;
+        if (c._ === 'messagePhoto') {
+            const small = pickSmallPhotoSize(c.photo);
+            const big = pickBigPhotoSize(c.photo);
+            if (big && isFileReady(big) && big.local.path) {
+                if (mediaCache[msg.id] !== convertFileSrc(big.local.path)) {
+                    mediaCache[msg.id] = convertFileSrc(big.local.path);
+                    changed = true;
+                }
+            }
+            // Small：Big 未就绪时作清晰占位；高清优先于 mini
+            if (small && isFileReady(small) && small.local.path && !mediaCache[msg.id]) {
+                const src = convertFileSrc(small.local.path);
+                if (thumbCache[msg.id] !== src || thumbIsMini[msg.id] !== false) {
+                    thumbCache[msg.id] = src;
+                    thumbIsMini[msg.id] = false;
+                    changed = true;
+                }
+            }
+        } else if (c._ === 'messageVideo') {
+            const v = c.video.video;
+            const th = c.video.thumbnail;
+            const cover = th?.file;
+            if (v && isFileReady(v) && v.local.path) {
+                const src = convertFileSrc(v.local.path);
+                if (mediaCache[msg.id] !== src) {
+                    mediaCache[msg.id] = src;
+                    changed = true;
+                }
+            }
+            // 高清封面可用 → 直接用，不保留 mini（与是否打开图片自动下载无关）
+            if (cover && isFileReady(cover) && cover.local.path
+                && isThumbnailImgRenderable(th?.format)) {
+                const src = convertFileSrc(cover.local.path);
+                if (thumbCache[msg.id] !== src || thumbIsMini[msg.id] !== false) {
+                    thumbCache[msg.id] = src;
+                    thumbIsMini[msg.id] = false;
+                    changed = true;
+                }
+            }
+        } else if (c._ === 'messageAnimation') {
+            const a = c.animation.animation;
+            const th = c.animation.thumbnail;
+            const cover = th?.file;
+            if (a && isFileReady(a) && a.local.path) {
+                const src = convertFileSrc(a.local.path);
+                if (mediaCache[msg.id] !== src) {
+                    mediaCache[msg.id] = src;
+                    changed = true;
+                }
+            }
+            if (cover && isFileReady(cover) && cover.local.path
+                && isThumbnailImgRenderable(th?.format)) {
+                const src = convertFileSrc(cover.local.path);
+                if (thumbCache[msg.id] !== src || thumbIsMini[msg.id] !== false) {
+                    thumbCache[msg.id] = src;
+                    thumbIsMini[msg.id] = false;
+                    changed = true;
+                }
+            }
+        }
+    }
+    return changed;
+}
+
 function openViewer(idx: number) {
     const msg = props.messages[idx];
     if (msg) {
@@ -309,11 +383,15 @@ watch(() => props.messages, (msgs) => {
     // 内容被原地替换（updateMessageContent）时作废旧缩略图/大图缓存，避免串图
     invalidateAlbumCaches(msgs);
     setAlbumPreview();
+    // 就绪资源在加载时直接使用，不经过视口
+    applyAlbumReadyFromContent(msgs);
     rebuildLayout();
-    // 仅当相册已进入视口时才下载（否则保持 base64 占位）
+    // 视口只闸「下载」：未就绪且已在视口才入队下载
     if (albumEntered.value) runAlbumLoad();
 }, { immediate: true, deep: true });
 onMounted(() => {
+    setAlbumPreview();
+    if (applyAlbumReadyFromContent()) rebuildLayout();
     startViewportLoad();
 });
 
@@ -423,9 +501,18 @@ async function loadVideo(msg: message, seq: number): Promise<boolean> {
         }
     }
     if (seq !== albumLoadSeq) return false;
-    // 不满足自动下载条件，仅加载封面缩略图（相册用 <img> 渲染，仅取静态位图格式；
-    // MPEG4/WEBM 动态缩略图无法在 <img> 中显示，跳过以免出现破碎图）。
-    // 封面跟随「图片自动下载」设置：图片自动下载关闭时不下封面，改用 minithumbnail base64。
+    // 视频本体未就绪时：高清封面若本地可用则直接用（与图片自动下载开关无关）
+    const thumb = v.thumbnail;
+    const thumbFile = thumb?.file;
+    if (thumbFile && isFileReady(thumbFile) && thumbFile.local.path
+        && isThumbnailImgRenderable(thumb.format)) {
+        if (seq !== albumLoadSeq) return false;
+        thumbCache[msg.id] = convertFileSrc(thumbFile.local.path);
+        thumbIsMini[msg.id] = false;
+        c = true;
+        return c;
+    }
+    // 封面不可渲染或未就绪时：图片自动下载关闭则仅 mini 兜底
     if (!shouldAutoDownloadPhoto()) {
         if (v.minithumbnail?.data && !thumbCache[msg.id]) {
             thumbCache[msg.id] = `data:image/jpeg;base64,${v.minithumbnail.data}`;
@@ -433,24 +520,17 @@ async function loadVideo(msg: message, seq: number): Promise<boolean> {
         }
         return c;
     }
-    const thumb = v.thumbnail;
     if (!thumb || !isThumbnailImgRenderable(thumb.format)) return false;
-    const thumbFile = thumb.file;
-    if (isFileReady(thumbFile) && !thumbCache[msg.id]) {
-        if (seq !== albumLoadSeq) return false;
-        thumbCache[msg.id] = convertFileSrc(thumbFile.local.path); c = true;
+    if (thumbFile?.local?.can_be_downloaded && thumbFile.id && !downloadingFiles.has(thumbFile.id)) {
+        const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
+        await downloadStore.registerDownload(thumbFile.id, `video_cover_${thumbFile.id}.jpg`, chatTitle, 0, 'photo', undefined, undefined, undefined, true, false, 'video_cover', false, [DL_TAG.VIDEO_COVER, DL_TAG.THUMB], undefined, remoteIdOf(thumbFile));
     }
-    else if (thumbFile.local.can_be_downloaded) {
-        // 视频封面（缩略图）属于辅助资源：注册为隐藏的通用下载项（分类 video_cover），不占用下载管理器的可见列表。
-        if (thumbFile.id && !downloadingFiles.has(thumbFile.id)) {
-            const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
-            await downloadStore.registerDownload(thumbFile.id, `video_cover_${thumbFile.id}.jpg`, chatTitle, 0, 'photo', undefined, undefined, undefined, true, false, 'video_cover', false, [DL_TAG.VIDEO_COVER, DL_TAG.THUMB], undefined, remoteIdOf(thumbFile));
-        }
-        if (seq !== albumLoadSeq) return false;
+    if (seq !== albumLoadSeq) return false;
+    if (thumbFile?.id && thumbFile.local?.can_be_downloaded) {
         try {
             const r = await tdlibSend({ _: 'downloadFile', file_id: thumbFile.id, priority: DL_PRIORITY.THUMBNAIL, offset: 0, limit: 0, synchronous: true });
             if (seq !== albumLoadSeq) return false;
-            if (isFileReady(r)) { thumbCache[msg.id] = convertFileSrc(r.local.path); c = true; }
+            if (isFileReady(r)) { thumbCache[msg.id] = convertFileSrc(r.local.path); thumbIsMini[msg.id] = false; c = true; }
         } catch (_) { }
     }
     return c;
@@ -495,6 +575,16 @@ async function loadAnimation(msg: message, seq: number): Promise<boolean> {
         }
     }
     if (seq !== albumLoadSeq) return false;
+    // GIF 封面本地已就绪 → 直接用高清，不保留 mini
+    const thumb = anim.thumbnail;
+    const thumbFile = thumb?.file;
+    if (thumbFile && isFileReady(thumbFile) && thumbFile.local.path
+        && isThumbnailImgRenderable(thumb.format)) {
+        thumbCache[msg.id] = convertFileSrc(thumbFile.local.path);
+        thumbIsMini[msg.id] = false;
+        c = true;
+        return c;
+    }
     // 不满足自动下载条件，仅加载缩略图（相册用 <img> 渲染，仅取静态位图格式）
     if (!shouldAutoDownloadPhoto()) {
         if (anim.minithumbnail?.data && !thumbCache[msg.id]) {
@@ -503,24 +593,17 @@ async function loadAnimation(msg: message, seq: number): Promise<boolean> {
         }
         return c;
     }
-    const thumb = anim.thumbnail;
     if (!thumb || !isThumbnailImgRenderable(thumb.format)) return false;
-    const thumbFile = thumb.file;
-    if (isFileReady(thumbFile) && !thumbCache[msg.id]) {
-        if (seq !== albumLoadSeq) return false;
-        thumbCache[msg.id] = convertFileSrc(thumbFile.local.path);
-        c = true;
-    } else if (thumbFile.local.can_be_downloaded) {
-        // GIF 缩略图属于辅助资源：注册为隐藏的通用下载项，不占用下载管理器可见列表
-        if (thumbFile.id && !downloadingFiles.has(thumbFile.id)) {
-            const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
-            await downloadStore.registerDownload(thumbFile.id, `gif_cover_${thumbFile.id}.jpg`, chatTitle, 0, 'photo', undefined, undefined, undefined, true, false, 'video_cover', false, [DL_TAG.VIDEO_COVER, DL_TAG.THUMB], undefined, remoteIdOf(thumbFile));
-        }
-        if (seq !== albumLoadSeq) return false;
+    if (thumbFile?.local?.can_be_downloaded && thumbFile.id && !downloadingFiles.has(thumbFile.id)) {
+        const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
+        await downloadStore.registerDownload(thumbFile.id, `gif_cover_${thumbFile.id}.jpg`, chatTitle, 0, 'photo', undefined, undefined, undefined, true, false, 'video_cover', false, [DL_TAG.VIDEO_COVER, DL_TAG.THUMB], undefined, remoteIdOf(thumbFile));
+    }
+    if (seq !== albumLoadSeq) return false;
+    if (thumbFile?.id && thumbFile.local?.can_be_downloaded) {
         try {
             const r = await tdlibSend({ _: 'downloadFile', file_id: thumbFile.id, priority: DL_PRIORITY.THUMBNAIL, offset: 0, limit: 0, synchronous: true });
             if (seq !== albumLoadSeq) return false;
-            if (isFileReady(r)) { thumbCache[msg.id] = convertFileSrc(r.local.path); c = true; }
+            if (isFileReady(r)) { thumbCache[msg.id] = convertFileSrc(r.local.path); thumbIsMini[msg.id] = false; c = true; }
         } catch (_) { }
     }
     return c;

@@ -67,10 +67,14 @@
                 class="relative overflow-hidden bg-black cursor-pointer group select-none"
                 :class="[borderRadiusClass, { 'msg-spoiler-media': hasSpoiler }]" :style="videoSizeStyle"
                 @click="openViewer">
-                <!-- Thumbnail: 正式可播前一直垫底，避免黑屏；静态位图用 <img>，MPEG4/WEBM 动态图用 <video> -->
-                <img v-if="videoThumbSrc && !videoThumbIsVideo && !videoHasFrame" :src="videoThumbSrc"
-                    class="absolute inset-0 w-full h-full object-cover" />
-                <video v-else-if="videoThumbSrc && videoThumbIsVideo && !videoHasFrame" :src="videoThumbSrc" autoplay
+                <!--
+                  视频本体就绪（videoShowMedia）→ 直接渲染 <video>，不用 mini/封面盖住。
+                  仅当视频不可用时才用封面/mini 占位；高清封面优先，mini 兜底。
+                -->
+                <img v-if="!videoShowMedia && videoThumbSrc && !videoThumbIsVideo" :src="videoThumbSrc"
+                    class="absolute inset-0 w-full h-full object-cover"
+                    :class="isMiniThumbSrc(videoThumbSrc) ? 'blur-sm scale-105' : ''" />
+                <video v-else-if="!videoShowMedia && videoThumbSrc && videoThumbIsVideo" :src="videoThumbSrc" autoplay
                     loop muted playsinline class="absolute inset-0 w-full h-full object-cover" />
                 <div v-else-if="!videoShowMedia" class="absolute inset-0 flex items-center justify-center">
                     <VideoIcon class="w-8 h-8 text-gray-400" />
@@ -79,20 +83,23 @@
                 <!-- 剧透覆盖层（粒子特效：点击 ripple 波纹揭示媒体） -->
                 <SpoilerMedia v-if="hasSpoiler" :has-spoiler="true" overlay />
 
-                <!-- Video element：首帧就绪前 opacity-0，封面可见；循环播放, 由 IntersectionObserver 控制播放/暂停 -->
+                <!--
+                  就绪视频：加载时直接使用本地/流式源。preload 拉元数据与首帧，
+                  poster 只用高清封面（绝不用 mini）。播放仍由 IO 控制（同屏只播一个）。
+                -->
                 <video v-if="videoShowMedia" ref="videoElRef" :src="mediaSrc"
-                    class="absolute inset-0 w-full h-full object-cover transition-opacity duration-200"
-                    :class="videoHasFrame ? 'opacity-100' : 'opacity-0'"
-                    :muted="videoMuted" loop playsinline
-                    :data-video-msg-id="messageId" :poster="videoThumbSrc && !videoThumbIsVideo ? videoThumbSrc : undefined"
-                    @timeupdate="onInlineVideoTime" @loadedmetadata="onInlineVideoLoaded" @ended="onInlineVideoEnded"
-                    @waiting="onVideoWaiting" @playing="onVideoPlaying" @canplay="onVideoPlaying"
+                    class="absolute inset-0 w-full h-full object-cover"
+                    :muted="videoMuted" loop playsinline preload="metadata"
+                    :poster="videoPosterSrc"
+                    :data-video-msg-id="messageId"
+                    @timeupdate="onInlineVideoTime" @loadedmetadata="onInlineVideoLoaded"
+                    @loadeddata="onVideoFirstFrame" @ended="onInlineVideoEnded"
+                    @waiting="onVideoWaiting" @playing="onVideoPlaying" @canplay="onVideoFirstFrame"
                     @error="onVideoError" />
 
-                <!-- 缓冲指示：首帧前不盖黑底（封面可见）；首帧后仅轻度压暗 -->
+                <!-- 缓冲指示：仅就绪视频在缓冲时显示 -->
                 <div v-if="videoShowMedia && videoBuffering"
-                    class="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"
-                    :class="videoHasFrame ? 'bg-black/20' : ''">
+                    class="absolute inset-0 z-10 flex items-center justify-center pointer-events-none bg-black/20">
                     <LoaderIndicator size="36" color="#ffffff" />
                 </div>
 
@@ -399,6 +406,11 @@ const videoCoverPath = computed(() => {
 const videoCoverIsAnim = computed(() => {
     if (props.content._ !== 'messageVideo') return false;
     return isThumbnailVideoRenderable(props.content.video.thumbnail?.format);
+});
+/** 就绪视频的 poster：只用高清封面，绝不用 mini */
+const videoPosterSrc = computed(() => {
+    if (!videoCoverPath.value) return undefined;
+    return convertFileSrc(videoCoverPath.value);
 });
 
 const animFile = computed(() =>
@@ -932,8 +944,10 @@ watch([videoFilePath, videoCoverPath, videoCoverIsAnim], ([vPath, cPath, cIsAnim
         videoDownloaded.value = true;
         videoDownloading.value = false;
         videoBuffering.value = false;
+        // 就绪视频直接用本体；preload 拉首帧，不依赖 mini/封面
+        tryMarkVideoFrameReady();
     }
-    // 高清封面可用 → 覆盖 mini
+    // 高清封面：视频不可用时作占位；可用时仅作 poster（模板已按 videoShowMedia 分支）
     if (cPath) {
         videoThumbSrc.value = convertFileSrc(cPath);
         videoThumbIsVideo.value = !!cIsAnim;
@@ -982,12 +996,16 @@ function applyThumbnailFromContent() {
     }
 
     if (c._ === 'messageVideo') {
+        // 视频本体已就绪：直接用 <video>，不把 mini 写成展示层。
+        // 高清封面仅作 video.poster；无高清时也不用 mini 盖住就绪视频。
         if (videoCoverPath.value) {
             videoThumbSrc.value = convertFileSrc(videoCoverPath.value);
             videoThumbIsVideo.value = videoCoverIsAnim.value;
             return;
         }
-        if (!videoCoverPath.value) {
+        const videoReady = !!videoFilePath.value || !!mediaSrc.value || videoDownloaded.value;
+        if (!videoReady) {
+            // 视频不可用 → 才允许 mini 兜底
             const min = c.video.minithumbnail;
             if (min?.data && (!videoThumbSrc.value || isMiniThumbSrc(videoThumbSrc.value))) {
                 videoThumbSrc.value = `data:image/jpeg;base64,${min.data}`;
@@ -1024,6 +1042,7 @@ function applyMediaFromContent() {
     if (videoFilePath.value) {
         mediaSrc.value = convertFileSrc(videoFilePath.value);
         videoDownloaded.value = true;
+        tryMarkVideoFrameReady();
     }
     if (animFilePath.value) {
         mediaSrc.value = convertFileSrc(animFilePath.value);
@@ -1201,7 +1220,13 @@ async function requestAutoDownloads() {
                 }
             });
         }
-        // 视频本体：已就绪直接展示；否则仅按「视频自动下载」设置入队
+        // 视频本体：已就绪在加载时已直接使用；此处只处理「未就绪且允许自动下载」
+        if (f && isFileReady(f) && f.local.path) {
+            mediaSrc.value = convertFileSrc(f.local.path);
+            videoDownloaded.value = true;
+            videoDownloading.value = false;
+            return;
+        }
         if (f && !isFileReady(f) && props.chatId && settings.autoDownload.enabled) {
             const cs = useChatStore();
             const chatData = cs.chats[props.chatId] as any;
@@ -1515,14 +1540,34 @@ function onInlineVideoEnded() {
     }
 }
 
-/** 视频进入缓冲（边下边播在拉取数据时触发）→ 显示加载转圈 */
+/** 视频进入缓冲 → 显示加载转圈 */
 function onVideoWaiting() {
     videoBuffering.value = true;
 }
-/** 视频可继续播放 / 首帧就绪 → 隐藏加载转圈并揭开封面 */
+
+/** 视频首帧就绪（loadeddata/canplay）→ 可见；就绪视频不依赖封面层 */
+function onVideoFirstFrame() {
+    videoHasFrame.value = true;
+    videoBuffering.value = false;
+}
+
+/** 视频可继续播放 */
 function onVideoPlaying() {
     videoBuffering.value = false;
     videoHasFrame.value = true;
+}
+
+/** 就绪视频 src 落位后：preload 已在拉首帧；若浏览器已解出数据则立刻标记可见 */
+function tryMarkVideoFrameReady() {
+    void nextTick(() => {
+        const el = videoElRef.value;
+        if (!el) return;
+        // HAVE_CURRENT_DATA(2) 及以上：已有帧可画
+        if (el.readyState >= 2) {
+            videoHasFrame.value = true;
+            videoBuffering.value = false;
+        }
+    });
 }
 
 /**
