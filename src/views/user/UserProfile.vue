@@ -500,13 +500,14 @@
                     :class="{ 'rotate-180': hoursExpanded }" />
                 </span>
               </button>
-              <!-- 展开的详细时段 -->
+              <!-- 展开的详细时段：日期左、时间右 -->
               <div v-if="hoursExpanded && businessHours.length"
                 class="px-3.5 py-2 pb-3.5 border-t border-gray-100 dark:border-gray-800">
-                <p v-for="(line, i) in businessHours" :key="i"
-                  class="text-xs text-gray-600 dark:text-gray-400 pl-7 leading-relaxed">
-                  {{ line }}
-                </p>
+                <div v-for="(row, i) in businessHours" :key="i"
+                  class="flex items-baseline justify-between gap-3 pl-7 leading-relaxed">
+                  <span class="text-xs text-gray-600 dark:text-gray-400 shrink-0">{{ row.day }}</span>
+                  <span class="text-xs text-gray-500 dark:text-gray-400 text-right">{{ row.time }}</span>
+                </div>
               </div>
             </div>
 
@@ -2095,14 +2096,15 @@ const businessOpenNow = computed(() => {
   }
   return null;
 });
-/** 将秒数格式化为「N hours / N minutes」倒计时 */
+/** 将秒数格式化为官方「opens in …」倒计时 */
 function formatBusinessNext(seconds: number): string {
   if (!seconds || seconds <= 0) return '';
-  const h = Math.floor(seconds / 3600);
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  if (h >= 1) return `Opens in ${h}h`;
-  if (m >= 1) return `Opens in ${m}m`;
-  return 'Opens soon';
+  if (d >= 1) return tdPlural('lng_info_hours_opens_in_days', d);
+  if (h >= 1) return tdPlural('lng_info_hours_opens_in_hours', h);
+  return tdPlural('lng_info_hours_opens_in_minutes', Math.max(m, 1));
 }
 
 // 电话号码展示：优先用 getPhoneNumberInfoSync 的本地化格式，并标注匿名号

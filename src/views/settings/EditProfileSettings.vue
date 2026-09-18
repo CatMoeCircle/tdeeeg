@@ -204,8 +204,11 @@
                             <ClockIcon class="w-5 h-5 text-gray-400 shrink-0" />
                             <div class="min-w-0 flex-1">
                                 <p v-if="businessHoursLines.length"
-                                    class="text-sm text-gray-800 dark:text-gray-100 truncate">{{
-                                        businessHoursLines[0] }}</p>
+                                    class="text-sm text-gray-800 dark:text-gray-100 flex items-baseline justify-between gap-3">
+                                    <span class="shrink-0">{{ businessHoursLines[0].day }}</span>
+                                    <span class="text-right text-gray-500 dark:text-gray-400 min-w-0">{{
+                                        businessHoursLines[0].time }}</span>
+                                </p>
                                 <p v-else class="text-sm text-gray-400 truncate">{{ t('lng_settings_empty_bio') }}</p>
                                 <p class="text-xs text-gray-400 mt-0.5">{{
                                     t('lng_hours_about') }}</p>
@@ -308,7 +311,7 @@ import { useUserStore } from '../../store/user';
 import { useUserProfileStore } from '../../store/userProfile';
 import { tdlibSend } from '../../utils/tdlib';
 import { ensureChat, getReactiveChat, getReactiveUser, ensureUser } from '../../utils/senderInfo';
-import { formatBusinessHours } from '../../utils/businessHours';
+import { formatBusinessHoursPreview } from '../../utils/businessHours';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { useI18n } from 'vue-i18n';
 
@@ -577,7 +580,10 @@ async function onPersonalChatChanged() {
 // =====================================================================
 const businessHoursVisible = ref(false);
 
-const businessHoursLines = computed(() => formatBusinessHours(fullInfo.value?.business_info?.opening_hours));
+const businessHoursLines = computed(() => {
+    const preview = formatBusinessHoursPreview(fullInfo.value?.business_info?.opening_hours);
+    return preview ? [preview] : [];
+});
 
 function openBusinessHoursPopup() {
     if (!user.value?.is_premium) {
