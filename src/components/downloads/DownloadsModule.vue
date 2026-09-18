@@ -89,11 +89,12 @@
                     </div>
                 </div>
 
-                <!-- 标签过滤器 -->
-                <div class="px-3 py-2 border-b border-gray-200 dark:border-gray-800 shrink-0 overflow-x-auto scrollbar-none">
+                <!-- 标签过滤器：禁用选中；滚轮/触控板横向滚动（无滚动条） -->
+                <div class="px-3 py-2 border-b border-gray-200 dark:border-gray-800 shrink-0 overflow-x-auto scrollbar-none select-none"
+                    v-smooth-wheel="'horizontal'">
                     <div class="flex items-center gap-1.5 w-max">
                         <button v-for="opt in FILTER_OPTIONS" :key="opt.key" type="button"
-                            class="shrink-0 text-[11px] leading-5 px-2 rounded-full border transition-colors"
+                            class="shrink-0 select-none text-[11px] leading-5 px-2 rounded-full border transition-colors"
                             :class="store.filterKeys.has(opt.key)
                                 ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 border-blue-300 dark:border-blue-700'
                                 : 'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700'"
