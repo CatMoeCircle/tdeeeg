@@ -183,16 +183,18 @@ const isDownloadingOrGlobally = computed(() => {
             ? props.content.document.document.id
             : 0;
     if (fileId <= 0) return false;
-    if (reactiveDownloadingFiles.value.has(fileId)) return true;
-    // 播放按钮触发的流式/完整下载只会写入 download store（registerStreamingDownload /
-    // registerDownload），不会更新 reactiveDownloadingFiles；这里同步检测 store 中的进行中项，
-    // 使下载按钮能立即切换为进度指示，无需用户再点一次下载。
-    // 按 content File（含 remote.id）查询，避免 session file.id 复用串到其他文件。
     const contentFile = props.content._ === 'messageAudio'
         ? props.content.audio.audio
         : props.content._ === 'messageDocument'
             ? props.content.document.document
             : undefined;
+    // 内容快照已就绪 → 不再视为下载中（防止 store 状态过期导致一直转圈）
+    if (contentFile && isFileReady(contentFile)) return false;
+    if (reactiveDownloadingFiles.value.has(fileId)) return true;
+    // 播放按钮触发的流式/完整下载只会写入 download store（registerStreamingDownload /
+    // registerDownload），不会更新 reactiveDownloadingFiles；这里同步检测 store 中的进行中项，
+    // 使下载按钮能立即切换为进度指示，无需用户再点一次下载。
+    // 按 content File（含 remote.id）查询，避免 session file.id 复用串到其他文件。
     const info = downloadStore.getDownloadInfoForFile(contentFile);
     return !!(info && !info.is_completed && !info.dismissed);
 });
@@ -256,6 +258,20 @@ const fileReady = computed(() => {
  * 这里在下拉完成时（或初次加载已就绪时）置为 true，驱动按钮/加载态消失。
  */
 const downloadReadyLocal = ref(false);
+
+// content 内 File 已就绪时对账下载 store，避免下载按钮/进度条因 store 状态过期一直显示「正在下载」
+watch(() => props.content, () => {
+    const f = props.content._ === 'messageAudio'
+        ? props.content.audio.audio
+        : props.content._ === 'messageDocument'
+            ? props.content.document.document
+            : undefined;
+    if (f && isFileReady(f)) {
+        downloadStore.reconcileFromFile(f as never);
+        downloadReadyLocal.value = true;
+        isDownloading.value = false;
+    }
+}, { immediate: true, deep: true });
 
 type CaptionSegment = {
     text: string;

@@ -6,7 +6,6 @@ import type { FitzModifier } from 'tlottie';
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { useDownloadStore, remoteIdOf } from '../../../../../store/downloads';
-import { DL_TAG } from '../../../../../utils/downloadTags';
 
 export type MediaKind = 'sticker' | 'animation';
 export type MediaFormat = 'tgs' | 'webm' | 'webp' | 'mpeg4' | 'other';

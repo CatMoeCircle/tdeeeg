@@ -556,7 +556,7 @@ async function handleViewerVideoDownload() {
     try {
         const fileName = c.video.file_name || `video_${messageId || fileId}.mp4`;
         const chatTitle = chatId ? useChatStore().chats[chatId]?.title || `对话 #${chatId}` : '';
-        useDownloadStore().registerDownload(fileId, fileName, chatTitle, 0, 'video', undefined, chatId, messageId, false, false, undefined, false, undefined, undefined, remoteIdOf(f));
+        useDownloadStore().registerDownload(fileId, fileName, chatTitle, 0, 'video', undefined, chatId, messageId, false, false, undefined, false, undefined, undefined, remoteIdOf(c.video.video));
         await tdlibSend({
             _: 'addFileToDownloads',
             file_id: fileId,
@@ -574,6 +574,7 @@ async function handleViewerVideoDownload() {
                     clearInterval(timer);
                     downloadingFiles.delete(fileId);
                     videoDownloading.value = false;
+                    useDownloadStore().markCompleted(fileId, info.local.path, remoteIdOf(c.video.video));
                     videoSrcOverride.value = convertFileSrc(info.local.path);
                     videoLoaded.value = false;
                     videoHasFrame.value = false;

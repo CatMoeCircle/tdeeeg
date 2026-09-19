@@ -34,7 +34,6 @@ declare module 'vue' {
     CopyableText: typeof import('./components/common/CopyableText.vue')['default']
     CustomEmojiInline: typeof import('./components/common/CustomEmojiInline.vue')['default']
     DeleteMessageConfirm: typeof import('./components/contextMenu/DeleteMessageConfirm.vue')['default']
-    DownloadLoaderOverlay: typeof import('./components/common/DownloadLoaderOverlay.vue')['default']
     DownloadRow: typeof import('./components/downloads/DownloadRow.vue')['default']
     DownloadsModule: typeof import('./components/downloads/DownloadsModule.vue')['default']
     EditableNumber: typeof import('./components/settings/EditableNumber.vue')['default']

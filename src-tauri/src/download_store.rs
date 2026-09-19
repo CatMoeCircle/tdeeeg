@@ -388,7 +388,11 @@ impl DownloadStore {
         d.items
             .values()
             .filter(|item| {
-                !item.is_generic && !item.is_auto_photo && !item.is_completed && !item.dismissed
+                !item.is_generic
+                    && !item.is_auto_photo
+                    && !item.is_completed
+                    && !item.dismissed
+                    && !item.is_streaming
             })
             .cloned()
             .collect()

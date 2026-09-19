@@ -126,12 +126,15 @@ export const useUploadStore = defineStore("uploads", () => {
 
     /** 手动关闭一个上传任务记录 */
     async function dismiss(fileId: number | string) {
-        const key = typeof fileId === 'string' ? fileId : (Object.values(items.value).find(i => i.file_id === fileId || i.remote_id === fileId)?.remote_id || String(fileId));
-        delete items.value[key];
-        // 同时清理按 file_id 索引的条目
-        if (typeof fileId === 'number' && items.value[fileId]) delete items.value[fileId];
+        // items 以数值 file_id 为键；key 供 Rust 端按 remote_id/file_id 字符串清理
+        const key = typeof fileId === 'string'
+            ? fileId
+            : (Object.values(items.value).find(i => i.file_id === fileId)?.remote_id || String(fileId));
+        const numericKey = Number(key);
+        if (Number.isFinite(numericKey)) delete items.value[numericKey];
+        if (typeof fileId === 'number') delete items.value[fileId];
         for (const [k, v] of Object.entries(items.value)) {
-            if (v.file_id === fileId || v.remote_id === key) delete items.value[k];
+            if (v.file_id === fileId || v.remote_id === key) delete items.value[Number(k)];
         }
         try {
             await invoke("dismiss_upload", { key: String(key) });

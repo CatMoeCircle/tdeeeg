@@ -38,6 +38,9 @@
                 <template v-else-if="item.is_completed">
                     <span class="shrink-0">{{ formatSize(item.total_size) }}</span>
                 </template>
+                <template v-else-if="isStreamingIncomplete">
+                    <span class="shrink-0 text-teal-600 dark:text-teal-400">流式传输中 · {{ formatSize(item.downloaded_size) }} / {{ formatSize(item.total_size) }}</span>
+                </template>
                 <template v-else>
                     <span class="shrink-0">{{ formatSize(item.downloaded_size) }} / {{ formatSize(item.total_size) }}</span>
                 </template>

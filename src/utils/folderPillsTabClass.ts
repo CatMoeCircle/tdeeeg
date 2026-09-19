@@ -37,5 +37,9 @@ export function folderTabContainerClass(folderStyle: FolderStyle): string {
         // mx-2：浮层左右留白；max-w 扣除边距；内边距与其他样式一致
         return 'w-fit max-w-[calc(100%-1rem)] mx-2 rounded-full bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shadow-(--box-shadow) px-1.5 py-1';
     }
-    return folderStyle === 'tabs' ? 'border-b border-gray-200 dark:border-gray-700' : '';
+    // tabs：底线随页签内容收缩，分组少时不拉满整行；分组多时受 max-w-full 约束并横向滚动
+    if (folderStyle === 'tabs') {
+        return 'border-b border-gray-200 dark:border-gray-700 w-fit max-w-full';
+    }
+    return '';
 }

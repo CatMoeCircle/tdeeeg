@@ -212,19 +212,24 @@ export const useDownloadStore = defineStore("downloads", () => {
             .sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0) || (b.file_id ?? 0) - (a.file_id ?? 0))
     );
 
-    /** 活跃下载（红点）：排除默认隐藏的通用资源与自动下载图片 */
+    /**
+     * 活跃下载（红点）：排除默认隐藏的通用资源、自动下载图片，
+     * 以及未完成的流式传输（流式项只在面板独立分区展示，不计入角标）。
+     */
     const activeItems = computed(() =>
         allItems.value.filter(
             (item) =>
                 !item.is_completed &&
                 !item.dismissed &&
                 !isGenericItem(item as never) &&
-                !isAutoPhotoItem(item as never)
+                !isAutoPhotoItem(item as never) &&
+                !isIncompleteStreaming(item as never)
         )
     );
 
     const activeCount = computed(() => activeItems.value.length);
 
+    /** 角标数字：仅统计真实「正在下载」，不含流式传输 */
     const activeDownloadingCount = computed(() =>
         activeItems.value.filter((item) => !item.is_paused).length
     );
@@ -459,32 +464,65 @@ export const useDownloadStore = defineStore("downloads", () => {
                 tags: finalTags,
                 sourceLabel: sourceLabel || null,
             });
-            const item: DownloadItem = {
-                remote_id: rid,
-                session_file_id: fileId,
-                file_id: fileId,
-                file_name: fileName,
-                chat_title: chatTitle,
-                total_size: totalSize,
-                downloaded_size: 0,
-                progress: 0,
-                is_paused: false,
-                is_completed: false,
-                file_type: fileType,
-                thumbnail_data_url: thumbnailDataUrl,
-                is_generic: generic,
-                hidden_category: category,
-                is_auto_photo: isAutoPhoto ?? false,
-                is_streaming: isStreaming ?? false,
-                tags: finalTags,
-                source_label: sourceLabel,
-                dismissed: false,
-                chat_id: chatId,
-                message_id: messageId,
-                local_path: undefined,
-                created_at: Date.now(),
-            };
-            items.value[rid] = item;
+            // 重复注册（组件重挂载/列表复用）不得把已完成/进行中状态清零：
+            // TDLib 对已完成文件不会再推 updateFile，一旦重置就会永远停在「正在下载」。
+            const existing = items.value[rid];
+            if (existing) {
+                items.value[rid] = {
+                    ...existing,
+                    remote_id: rid,
+                    session_file_id: fileId,
+                    file_id: fileId,
+                    file_name: fileName || existing.file_name,
+                    chat_title: chatTitle || existing.chat_title,
+                    total_size: totalSize || existing.total_size,
+                    file_type: (fileType || existing.file_type) as DownloadFileType,
+                    thumbnail_data_url:
+                        thumbnailDataUrl !== undefined ? thumbnailDataUrl : existing.thumbnail_data_url,
+                    is_generic: generic,
+                    hidden_category: category ?? existing.hidden_category,
+                    is_auto_photo: isAutoPhoto ?? existing.is_auto_photo,
+                    is_streaming: existing.is_streaming || (isStreaming ?? false),
+                    tags: finalTags.length ? finalTags : existing.tags,
+                    source_label: sourceLabel ?? existing.source_label,
+                    chat_id: chatId || existing.chat_id,
+                    message_id: messageId || existing.message_id,
+                    // 保留进度/完成态/本地路径，不因重复注册回退
+                    downloaded_size: existing.downloaded_size,
+                    progress: existing.progress,
+                    is_paused: existing.is_paused,
+                    is_completed: existing.is_completed,
+                    local_path: existing.local_path,
+                    dismissed: existing.dismissed,
+                    created_at: existing.created_at || Date.now(),
+                };
+            } else {
+                items.value[rid] = {
+                    remote_id: rid,
+                    session_file_id: fileId,
+                    file_id: fileId,
+                    file_name: fileName,
+                    chat_title: chatTitle,
+                    total_size: totalSize,
+                    downloaded_size: 0,
+                    progress: 0,
+                    is_paused: false,
+                    is_completed: false,
+                    file_type: fileType,
+                    thumbnail_data_url: thumbnailDataUrl,
+                    is_generic: generic,
+                    hidden_category: category,
+                    is_auto_photo: isAutoPhoto ?? false,
+                    is_streaming: isStreaming ?? false,
+                    tags: finalTags,
+                    source_label: sourceLabel,
+                    dismissed: false,
+                    chat_id: chatId,
+                    message_id: messageId,
+                    local_path: undefined,
+                    created_at: Date.now(),
+                };
+            }
             sessionIdMap.value[fileId] = rid;
         } catch (e) {
             console.error("registerDownload failed:", e);
@@ -515,6 +553,23 @@ export const useDownloadStore = defineStore("downloads", () => {
             downloaded_size: item.total_size,
             created_at: Date.now(),
         };
+    }
+
+    /**
+     * 内容快照 / TDLib File 已就绪时，把 store 中同文件的未完成条目对账为已完成。
+     * 用于修复「本地文件已下载完成，但下载管理器/气泡仍显示正在下载」。
+     */
+    function reconcileFromFile(
+        file: { id?: number; local?: { path?: string; is_downloading_completed?: boolean } } | null | undefined,
+    ): boolean {
+        if (!file) return false;
+        const path = file.local?.path;
+        const ready = !!(file.local?.is_downloading_completed && path);
+        if (!ready || !path) return false;
+        const info = getDownloadInfoForFile(file);
+        if (!info || info.is_completed) return false;
+        markCompleted(info.session_file_id ?? info.file_id ?? file.id ?? 0, path, info.remote_id || remoteIdOf(file));
+        return true;
     }
 
     function getDownloadInfo(fileId: number | string): DownloadItem | undefined {
@@ -654,6 +709,7 @@ export const useDownloadStore = defineStore("downloads", () => {
         registerDownload,
         getProgress,
         markCompleted,
+        reconcileFromFile,
         getDownloadInfo,
         getDownloadInfoForFile,
         getCompletedPathForFile,

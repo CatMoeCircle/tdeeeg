@@ -173,6 +173,7 @@ function applyAlbumReadyFromContent(msgs: message[] = props.messages): boolean {
             const small = pickSmallPhotoSize(c.photo);
             const big = pickBigPhotoSize(c.photo);
             if (big && isFileReady(big) && big.local.path) {
+                reconcileAlbumStore(big);
                 if (mediaCache[msg.id] !== convertFileSrc(big.local.path)) {
                     mediaCache[msg.id] = convertFileSrc(big.local.path);
                     changed = true;
@@ -180,6 +181,7 @@ function applyAlbumReadyFromContent(msgs: message[] = props.messages): boolean {
             }
             // Small：Big 未就绪时作清晰占位；高清优先于 mini
             if (small && isFileReady(small) && small.local.path && !mediaCache[msg.id]) {
+                reconcileAlbumStore(small);
                 const src = convertFileSrc(small.local.path);
                 if (thumbCache[msg.id] !== src || thumbIsMini[msg.id] !== false) {
                     thumbCache[msg.id] = src;
@@ -192,6 +194,7 @@ function applyAlbumReadyFromContent(msgs: message[] = props.messages): boolean {
             const th = c.video.thumbnail;
             const cover = th?.file;
             if (v && isFileReady(v) && v.local.path) {
+                reconcileAlbumStore(v);
                 const src = convertFileSrc(v.local.path);
                 if (mediaCache[msg.id] !== src) {
                     mediaCache[msg.id] = src;
@@ -408,6 +411,16 @@ onMounted(() => {
     startViewportLoad();
 });
 
+/**
+ * 下载完成后按 TDLib 返回结果对账 store，并把本地路径写入相册缓存。
+ * 异步下载时立即返回 false；完成态由 updateFile → 消息快照 deep watch → applyAlbumReadyFromContent 上屏。
+ */
+function reconcileAlbumStore(file: { id?: number; remote?: { id?: string }; local?: { path?: string; is_downloading_completed?: boolean } } | undefined | null) {
+    if (!file) return;
+    const downloadStore = useDownloadStore();
+    downloadStore.reconcileFromFile(file as never);
+}
+
 async function loadPhoto(msg: message, seq: number): Promise<boolean> {
     if (msg.content._ !== 'messagePhoto') return false;
     if (seq !== albumLoadSeq) return false;
@@ -425,6 +438,7 @@ async function loadPhoto(msg: message, seq: number): Promise<boolean> {
         const f = small;
         if (isFileReady(f)) {
             if (seq !== albumLoadSeq) return false;
+            reconcileAlbumStore(f);
             if (!mediaCache[msg.id]) {
                 thumbCache[msg.id] = convertFileSrc(f.local.path);
                 thumbIsMini[msg.id] = false;
@@ -432,6 +446,7 @@ async function loadPhoto(msg: message, seq: number): Promise<boolean> {
             }
         } else if (f.local.can_be_downloaded && !downloadingFiles.has(f.id)) {
             try {
+                // 缩略图 Small：允许同步拉取（体积小，用于渐进占位）
                 await safeDownloadFile(f.id, true, DL_PRIORITY.THUMBNAIL);
                 const r = await tdlibSend({ _: 'getFile', file_id: f.id });
                 if (seq !== albumLoadSeq) return false;
@@ -450,6 +465,7 @@ async function loadPhoto(msg: message, seq: number): Promise<boolean> {
     if (ff && !mediaCache[msg.id]) {
         if (isFileReady(ff)) {
             if (seq !== albumLoadSeq) return false;
+            reconcileAlbumStore(ff);
             mediaCache[msg.id] = convertFileSrc(ff.local.path); c = true;
         }
         else if (ff.local.can_be_downloaded && !downloadingFiles.has(ff.id) && shouldAutoDownloadPhotos(props.chatId)) {
@@ -459,11 +475,8 @@ async function loadPhoto(msg: message, seq: number): Promise<boolean> {
             await downloadStore.registerDownload(ff.id, fileName, chatTitle, 0, 'photo', thumbCache[msg.id], props.chatId, msg.id, undefined, true, undefined, false, undefined, undefined, remoteIdOf(ff));
             if (seq !== albumLoadSeq) return false;
             try {
-                // 自动下载（非用户点击）：默认档优先级
-                await safeDownloadFile(ff.id, true, DL_PRIORITY.DEFAULT);
-                const r = await tdlibSend({ _: 'getFile', file_id: ff.id });
-                if (seq !== albumLoadSeq) return false;
-                if (isFileReady(r)) { mediaCache[msg.id] = convertFileSrc(r.local.path); c = true; }
+                // 正常图片 Big：异步下载，不阻塞相册加载/ UI
+                await safeDownloadFile(ff.id, false, DL_PRIORITY.DEFAULT);
             } catch (_) { }
         }
     }
@@ -483,6 +496,7 @@ async function loadVideo(msg: message, seq: number): Promise<boolean> {
     const v = msg.content.video;
     if (isFileReady(v.video) && !mediaCache[msg.id]) {
         if (seq !== albumLoadSeq) return false;
+        reconcileAlbumStore(v.video);
         mediaCache[msg.id] = convertFileSrc(v.video.local.path); return true;
     }
     // 检查自动下载设置
@@ -502,10 +516,16 @@ async function loadVideo(msg: message, seq: number): Promise<boolean> {
                     await downloadStore.registerDownload(v.video.id, fileName, chatTitle, v.video.size, 'video', undefined, props.chatId, msg.id, false, false, undefined, false, [DL_TAG.AUTO], undefined, remoteIdOf(v.video));
                     if (seq !== albumLoadSeq) return false;
                     try {
+                        // 视频本体：异步下载，不阻塞相册；完成态由 updateFile/消息快照驱动
                         downloadingFiles.add(v.video.id);
-                        const r = await tdlibSend({ _: 'downloadFile', file_id: v.video.id, priority: DL_PRIORITY.DEFAULT, offset: 0, limit: 0, synchronous: true });
-                        if (seq !== albumLoadSeq) return false;
-                        if (isFileReady(r)) { mediaCache[msg.id] = convertFileSrc(r.local.path); return true; }
+                        await tdlibSend({
+                            _: 'downloadFile',
+                            file_id: v.video.id,
+                            priority: DL_PRIORITY.DEFAULT,
+                            offset: 0,
+                            limit: 0,
+                            synchronous: false,
+                        });
                     } catch (_) { } finally {
                         downloadingFiles.delete(v.video.id);
                     }
@@ -583,6 +603,7 @@ async function loadAnimation(msg: message, seq: number): Promise<boolean> {
     // minithumbnail base64 已由 setAlbumPreview/rebuildLayout 注入占位
     if (isFileReady(anim.animation) && !mediaCache[msg.id]) {
         if (seq !== albumLoadSeq) return false;
+        reconcileAlbumStore(anim.animation);
         mediaCache[msg.id] = convertFileSrc(anim.animation.local.path);
         return true;
     }
@@ -597,10 +618,16 @@ async function loadAnimation(msg: message, seq: number): Promise<boolean> {
                 const sizeMB = (anim.animation.size || 0) / (1024 * 1024);
                 if (sizeMB <= cfg.maxSize && anim.animation.local.can_be_downloaded && !downloadingFiles.has(anim.animation.id)) {
                     try {
+                        // GIF/动图：异步下载，不阻塞相册
                         downloadingFiles.add(anim.animation.id);
-                        const r = await tdlibSend({ _: 'downloadFile', file_id: anim.animation.id, priority: DL_PRIORITY.DEFAULT, offset: 0, limit: 0, synchronous: true });
-                        if (seq !== albumLoadSeq) return false;
-                        if (isFileReady(r)) { mediaCache[msg.id] = convertFileSrc(r.local.path); return true; }
+                        await tdlibSend({
+                            _: 'downloadFile',
+                            file_id: anim.animation.id,
+                            priority: DL_PRIORITY.DEFAULT,
+                            offset: 0,
+                            limit: 0,
+                            synchronous: false,
+                        });
                     } catch (_) { } finally {
                         downloadingFiles.delete(anim.animation.id);
                     }

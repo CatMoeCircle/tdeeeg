@@ -329,6 +329,10 @@ const emit = defineEmits<{
     jumpToMessage: [messageId: number];
 }>();
 
+// 下载/上传 store：提前初始化，供 content 就绪 watch 立即对账完成态
+const downloadStore = useDownloadStore();
+const uploadStore = useUploadStore();
+
 /** 点击回复预览：向上冒泡跳转到被回复消息 */
 function onReplyJump(messageId: number) {
     emit('jumpToMessage', messageId);
@@ -522,10 +526,36 @@ function isFileReadyInContent(fileId: number): boolean {
     return false;
 }
 
-/** 将 download 任务入队。并发闸门只作用于「发起下载」，不作用于资源展示。
- * 仅用于视频本体 / 图片 Big 等主媒体；缩略图与 Small 不走此路径。 */
-function startQueuedDownload(fileId: number, starter: () => Promise<void>): 'active' | 'queued' {
+/**
+ * 将 download 任务入队。并发闸门只作用于「发起下载」，不作用于资源展示。
+ * 仅用于视频本体 / 图片 Big 等主媒体；缩略图与 Small 不走此路径。
+ *
+ * @param immediate true = 用户手动下载：不占 chat 并发池，立刻发起；
+ *                  false/缺省 = 自动下载：走视口并发闸门排队。
+ */
+function startQueuedDownload(
+    fileId: number,
+    starter: () => Promise<void>,
+    opts?: { immediate?: boolean },
+): 'active' | 'queued' | 'started' {
     if (downloadingFiles.has(fileId) || isFileDownloading(fileId)) return 'active';
+
+    if (opts?.immediate) {
+        // 用户手动下载：领走可能存在的自动下载排队，立刻发起
+        takePendingDownload(fileId, downloadOwner);
+        if (downloadingFiles.has(fileId) || isFileDownloading(fileId)) return 'active';
+        if (isFileReadyInContent(fileId)) return 'active';
+        downloadingFiles.add(fileId);
+        void (async () => {
+            try {
+                await starter();
+            } catch {
+                downloadingFiles.delete(fileId);
+            }
+        })();
+        return 'started';
+    }
+
     enqueuePendingDownload(fileId, downloadOwner);
     enqueueViewportLoad(async () => {
         if (!takePendingDownload(fileId, downloadOwner)) return;
@@ -984,6 +1014,8 @@ watch(photoBigPath, (path) => {
     mediaSrc.value = convertFileSrc(path);
     mediaLoaded.value = true;
     checkPhotoLoaded();
+    clearPhotoBusy();
+    reconcileDownloadStoreFromContent();
 }, { immediate: true });
 
 watch(photoSmallPath, (path) => {
@@ -1002,6 +1034,8 @@ watch([videoFilePath, videoCoverPath, videoCoverIsAnim], ([vPath, cPath, cIsAnim
         videoBuffering.value = false;
         // 就绪视频直接用本体；preload 拉首帧，不依赖 mini/封面
         tryMarkVideoFrameReady();
+        clearVideoBusy();
+        reconcileDownloadStoreFromContent();
     }
     // 高清封面：视频不可用时作占位；可用时仅作 poster（模板已按 videoShowMedia 分支）
     if (cPath) {
@@ -1014,6 +1048,8 @@ watch([animFilePath, animCoverPath, animCoverIsAnim], ([aPath, cPath, cIsAnim]) 
     if (aPath) {
         mediaSrc.value = convertFileSrc(aPath);
         animDownloading.value = false;
+        clearAnimBusy();
+        reconcileDownloadStoreFromContent();
     }
     if (cPath) {
         animThumbSrc.value = convertFileSrc(cPath);
@@ -1093,23 +1129,33 @@ function applyMediaFromContent() {
         mediaSrc.value = convertFileSrc(bigPath);
         mediaLoaded.value = true;
         checkPhotoLoaded();
+        clearPhotoBusy();
     }
     if (videoFilePath.value) {
         mediaSrc.value = convertFileSrc(videoFilePath.value);
         videoDownloaded.value = true;
+        videoDownloading.value = false;
         tryMarkVideoFrameReady();
+        clearVideoBusy();
     }
     if (animFilePath.value) {
         mediaSrc.value = convertFileSrc(animFilePath.value);
+        animDownloading.value = false;
+        clearAnimBusy();
     }
     // 缩略图：高清优先，mini 兜底
     applyThumbnailFromContent();
+    // content 已就绪但 store 仍显示未完成时，对账为已完成，避免气泡/下载管理器卡在「正在下载」
+    reconcileDownloadStoreFromContent();
+}
+
+/** 用 content 内已就绪的 File 对账下载 store（完成态丢失/被重置时的修复路径） */
+function reconcileDownloadStoreFromContent() {
+    downloadStore.reconcileFromFile(contentMainFile() as never);
+    downloadStore.reconcileFromFile(contentCoverFile() as never);
 }
 
 // ---- Download store integration ---
-const downloadStore = useDownloadStore();
-const uploadStore = useUploadStore();
-
 function getChatTitle(id: number): string {
     try {
         const cs = useChatStore();
@@ -1432,6 +1478,7 @@ async function handlePhotoDownload() {
     isDownloading.value = true;
     const fileName = `photo_${props.messageId || f.id}.jpg`;
     await registerWithStore(f.id, fileName, 'photo', thumbSrc.value, { remoteId: remoteIdOf(f) });
+    // 用户手动下载：不计入并发闸门，立刻发起
     startQueuedDownload(f.id, async () => {
         try {
             await tdlibSend({
@@ -1445,7 +1492,7 @@ async function handlePhotoDownload() {
             downloadingFiles.delete(f.id);
             isDownloading.value = false;
         }
-    });
+    }, { immediate: true });
 }
 
 // 下载完成态：优先信 content 路径 watch + download store，不再用 getFile 主动刷新展示。
@@ -1535,6 +1582,7 @@ async function handleAnimDownload() {
     animDownloading.value = true;
     const fileName = `animation_${props.messageId || f.id}.gif`;
     await registerWithStore(f.id, fileName, 'animation', undefined, { remoteId: remoteIdOf(f) });
+    // 用户手动下载：不计入并发闸门，立刻发起
     startQueuedDownload(f.id, async () => {
         try {
             await tdlibSend({
@@ -1548,7 +1596,7 @@ async function handleAnimDownload() {
             downloadingFiles.delete(f.id);
             animDownloading.value = false;
         }
-    });
+    }, { immediate: true });
 }
 
 // ---- Video ----
@@ -1613,6 +1661,7 @@ async function handleVideoDownload(isUserAction = false) {
     videoDownloading.value = true;
     videoProgress.value = 0;
 
+    // 用户手动下载：不计入并发闸门，立刻发起；自动下载仍走 chat 池排队
     startQueuedDownload(fileId, async () => {
         try {
             if (isUserAction) {
@@ -1637,7 +1686,7 @@ async function handleVideoDownload(isUserAction = false) {
             downloadingFiles.delete(fileId);
             if (mediaLoadSeq >= 0) videoDownloading.value = false;
         }
-    });
+    }, { immediate: isUserAction });
 }
 
 function toggleMute() {
@@ -1858,21 +1907,6 @@ watch(() => {
         finishVideoDownload(videoFile.value?.id || 0, info.local_path);
     }
 });
-
-/**
- * 当前对话是否应自动下载图片（封面等辅助资源遵循图片设置）。
- * 只决定「要不要下载」，不阻止已就绪资源展示。
- */
-function shouldAutoDownloadPhoto(): boolean {
-    if (!settings.autoDownload.enabled) return false;
-    if (!props.chatId) return true;
-    const cs = useChatStore();
-    const chatData = cs.chats[props.chatId] as any;
-    if (!chatData) return true;
-    const category = getChatCategory(chatData);
-    const cfg = settings.autoDownload.photos;
-    return cfg.enabled && cfg[category];
-}
 
 /** 轮询已移除：完成态由 content watch + download store 驱动；保留 stop 空实现以兼容重置逻辑 */
 function stopPhotoDownloadPolling() { /* no-op */ }
