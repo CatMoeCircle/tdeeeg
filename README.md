@@ -1,147 +1,155 @@
 # tdeeeg
 
-> ⚠️ **本项目功能尚未完善，处于积极开发阶段。** 多数核心功能已实现但可能存在不稳定或bug显示不按预期的部分，欢迎试用并提交 Issue。
+English | [简体中文](README.zh-CN.md)
 
-基于 [Tauri 2](https://v2.tauri.app/) + [Vue 3](https://vuejs.org/) + [TDLib](https://core.telegram.org/tdlib) 构建的 Telegram 桌面客户端，由 AI Agent 工具完成全部开发工作，可能出现任何的不稳定现象和ui风格不统一问题。
+> ⚠️ **This project is still under active development.** Most core features are implemented, but some parts may be unstable or not behave as expected. Feel free to try it out and open an issue.
 
-macOS
-当前维护者暂无 macOS 设备，因此无法对 macOS 版本进行测试与打包。框架Tauri理论上兼容 macOS，但尚未实际验证。欢迎拥有 macOS 环境的开发者尝试构建，并协助完善相关支持。
+A Telegram desktop client built with [Tauri 2](https://v2.tauri.app/) + [Vue 3](https://vuejs.org/) + [TDLib](https://core.telegram.org/tdlib), developed entirely by AI agents. Expect occasional instability and inconsistent UI styling.
 
-Linux
-Linux 端目前尚未适配，也未进行可用性验证，主要受限于维护精力，暂未推进。欢迎有兴趣的开发者协助适配并提交 PR。
+![Screenshot](screenshot/screenshot1.jpg)
 
-关于贡献
-本项目本身即为纯 AI 开发项目，因此同样欢迎借助 AI 工具完成的提交。欢迎通过 PR 一起完善应用。提交时建议附上测试环境、构建步骤与验证结果，以便后续维护与合并。
+## Platform notes
 
-## 技术栈
+### macOS
 
-| 层级 | 技术 |
-|------|------|
-| 桌面框架 | Tauri 2 (Rust) |
-| 前端框架 | Vue 3 + TypeScript + Vite |
-| Telegram 协议 | TDLib (通过 Rust FFI) |
+The current maintainer does not have a macOS device, so the macOS build is neither tested nor packaged. Tauri should theoretically support macOS, but this has not been verified in practice. Developers with a macOS environment are welcome to try building it and help improve macOS support.
 
-## 推荐 IDE
+### Linux
+
+The Linux build has not been adapted or verified yet, mainly due to limited maintainer bandwidth. Contributors interested in Linux support are welcome to help and submit a PR.
+
+## Contributing
+
+This project is developed entirely with AI tools, so contributions made with the help of AI tools are equally welcome. PRs that improve the app are appreciated. Please include the test environment, build steps, and verification results in your PR description to ease review and merging.
+
+## Tech stack
+
+| Layer | Technology |
+|------|------------|
+| Desktop framework | Tauri 2 (Rust) |
+| Frontend framework | Vue 3 + TypeScript + Vite |
+| Telegram protocol | TDLib (via Rust FFI) |
+
+## Recommended IDE
 
 - [VS Code](https://code.visualstudio.com/) + [Vue - Official](https://marketplace.visualstudio.com/items?itemName=Vue.volar) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
 
-## 当前完成的功能进度
+## Feature status
 
-### 核心聊天
-- [x] 登录流程 (手机号 + 验证码 + 两步验证密码)
-- [x] 聊天列表 (分组、排序、搜索、归档)
-- [x] 消息发送与接收 (文本、图片、视频、文件、音频、贴纸)
-- [x] 消息右键菜单 (回复、转发、复制、删除、置顶)
-- [x] 消息实体渲染(加粗、斜体、链接、代码块、引用、自定义 Emoji)
-- [x] 表情管理器 (贴纸,emoji,gif)
-- [x] 相册消息
-- [x] 富文本消息 (`messageRichMessage`)
-- [x] 转发选择器
-- [x] 消息多选操作
-- [x] 消息翻译
-- [x] 身份选择器
-- [x] 消息回应
-- [x] 消息搜索
-- [x] 消息编辑
-- [x] 草稿消息同步
-- [ ] 全部翻译按钮
-- [ ] 语音/视频通话
-- [ ] 更多消息类型支持 (投票、位置分享等)
+### Core chat
+- [x] Login flow (phone number + code + 2FA password)
+- [x] Chat list (folders, sorting, search, archive)
+- [x] Sending and receiving messages (text, image, video, file, audio, sticker)
+- [x] Message context menu (reply, forward, copy, delete, pin)
+- [x] Message entity rendering (bold, italic, links, code blocks, quotes, custom emoji)
+- [x] Sticker manager (stickers, emoji, GIF)
+- [x] Album messages
+- [x] Rich text messages (`messageRichMessage`)
+- [x] Forward picker
+- [x] Multi-select message actions
+- [x] Message translation
+- [x] Sender identity picker
+- [x] Message reactions
+- [x] Message search
+- [x] Message editing
+- [x] Draft sync
+- [ ] Translate-all button
+- [ ] Voice / video calls
+- [ ] More message types (polls, location sharing, etc.)
 
-### 媒体与文件
-- [x] 全局媒体查看器 (图片/视频/相册浏览)
-- [x] 视频边下边播 (流式传输)
-- [x] 自动下载设置 (按对话类型、文件大小控制)
-- [x] 下载管理器 (Rust 持久化，实时进度)
-- [x] GIF/贴纸动画 (TGS Lottie + WebP/WebM)
-- [x] 故事
-- [x] 故事播放器
+### Media & files
+- [x] Global media viewer (image / video / album browsing)
+- [x] Streaming video playback (play while downloading)
+- [x] Auto-download settings (per chat type and file size)
+- [x] Download manager (Rust persistence, live progress)
+- [x] GIF / sticker animation (TGS Lottie + WebP/WebM)
+- [x] Stories
+- [x] Story player
 
+### Social & interaction
+- [x] Profile page (work in progress)
+- [x] Contacts list
+- [x] Channel / group / topic mode (list)
+- [x] Gift showcase
+- [x] Premium status modification
+- [ ] Topic mode (tabs)
+- [ ] Group / channel management (create, edit, member management)
+- [ ] Gift purchase and sending
+- [ ] Telegram Premium feature showcase
+- [ ] Global search box
 
-### 社交与互动
-- [x] 个人资料页 (并未完善)
-- [x] 联系人列表
-- [x] 频道/群组/话题模式(List)
-- [x] 礼物展示
-- [x] Premium 状态修改
-- [ ] 话题模式(Tabs)
-- [ ] 群组/频道管理操作 (创建、编辑、成员管理)
-- [ ] 礼物购买与赠送
-- [ ] Telegram Premium 功能展示
-- [ ] 全局搜索框
+### Settings
+- [x] Profile editing
+- [x] Privacy settings
+- [x] Auto-download settings
+- [x] Storage location
+- [x] Proxy settings
+- [x] Active sessions
+- [x] Custom API ID / API HASH
+- [x] Multi-account support
+- [x] Notification settings
+- [ ] Chat folder management
+- [ ] Theme customization
+- [x] Multi-language support
 
-### 设置
-- [x] 个人资料编辑
-- [x] 隐私设置编辑
-- [x] 自动下载设置
-- [x] 存储位置修改
-- [x] 代理设置
-- [x] 登录设备查看
-- [x] 自定义 API ID/API HASH
-- [x] 多账号支持
-- [x] 通知设置
-- [ ] 分组文件夹管理
-- [ ] 主题自定义
-- [x] 国际化多语言支持语言
-
-## 开发环境准备
+## Development setup
 
 ### 1. TDLib
 
-需要将编译好的 TDLib 动态库放入 `src-tauri/bin` 目录：
+Place the compiled TDLib dynamic library into the `src-tauri/bin` directory:
 
-| 平台 | 文件 |
+| Platform | File |
 |------|------|
 | Windows | `tdjson.dll` |
 | macOS | `libtdjson.dylib` |
 | Linux | `libtdjson.so` |
 
-当前推荐 TDLib 版本 1.8.66
+Recommended TDLib version: 1.8.66
 
-### 2. 环境变量
+### 2. Environment variables
 
-在项目 `src-tauri` 目录创建 `.env` 文件，填入你的 Telegram API 凭据：
+Create a `.env` file in the `src-tauri` directory with your Telegram API credentials:
 
 ```env
 TG_API_ID=123456
 TG_API_HASH=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-可在 [my.telegram.org](https://my.telegram.org/) 申请获取。
+Get them at [my.telegram.org](https://my.telegram.org/).
 
-### 3. 安装依赖
+### 3. Install dependencies
 
-支持 npm、pnpm 或 bun (推荐)：
+npm, pnpm, or bun (recommended) all work:
 
 ```bash
 bun install
 ```
 
-## 构建与调试
+## Build & debug
 
-### 开发模式
+### Development mode
 
 ```bash
 bun run tauri dev
 ```
 
-### 构建生产包
+### Production build
 
 ```bash
 bun run tauri build
 ```
 
-### 仅前端构建检查 (不编译 Rust)
+### Frontend-only build check (no Rust)
 
 ```bash
-# TypeScript 类型检查
+# TypeScript type check
 bunx vue-tsc --noEmit
 
-# Vite 构建
+# Vite build
 bunx vite build
 ```
 
-### Rust 编译检查
+### Rust compile check
 
 ```bash
 cd src-tauri && cargo check
@@ -149,57 +157,58 @@ cd src-tauri && cargo check
 
 ---
 
-## 项目结构
+## Project structure
 
 ```
 src/
-├── assets/              # 静态资源 (CSS、贴纸动画)
-├── components/          # UI 组件
-│   ├── audio/           # 音乐播放器
-│   ├── chat/            # 聊天相关 (ChatDetail、消息内容、头像)
-│   ├── common/          # 通用组件
-│   ├── contextMenu/     # 右键菜单系统
-│   ├── downloads/       # 下载管理器
-│   ├── layout/          # 布局组件
-│   └── settings/        # 设置小组件
-├── composables/         # Vue 组合式函数
-├── directives/          # 自定义指令 (平滑滚轮、右键菜单)
-├── locales/             # 国际化翻译文件
-├── router/              # 路由配置
-├── store/               # Pinia 状态管理
-├── types/               # TypeScript 类型定义
-├── utils/               # 工具函数
-└── views/               # 路由页面 (auth/home/settings/user)
+├── assets/              # Static assets (CSS, sticker animations)
+├── components/          # UI components
+│   ├── audio/           # Music player
+│   ├── chat/            # Chat-related (ChatDetail, message content, avatars)
+│   ├── common/          # Shared components
+│   ├── contextMenu/     # Context menu system
+│   ├── downloads/       # Download manager
+│   ├── layout/          # Layout components
+│   └── settings/        # Settings widgets
+├── composables/         # Vue composables
+├── directives/          # Custom directives (smooth scroll, context menu)
+├── locales/             # i18n translation files
+├── router/              # Router configuration
+├── store/               # Pinia state management
+├── types/               # TypeScript type definitions
+├── utils/               # Utility functions
+└── views/               # Route pages (auth/home/settings/user)
 src-tauri/
 ├── src/
-│   ├── lib.rs           # Tauri 插件初始化
-│   ├── main.rs          # 应用入口
-│   ├── tdlib.rs         # TDLib FFI 封装
-│   ├── chat_store.rs    # 聊天数据缓存 (Rust 端)
-│   ├── download_store.rs# 下载持久化
-│   └── media_stream.rs  # 视频流式传输
-└── bin/                 # TDLib 动态库
+│   ├── lib.rs           # Tauri plugin initialization
+│   ├── main.rs          # App entry point
+│   ├── tdlib.rs         # TDLib FFI wrapper
+│   ├── chat_store.rs    # Chat data cache (Rust side)
+│   ├── download_store.rs# Download persistence
+│   └── media_stream.rs  # Video streaming
+└── bin/                 # TDLib dynamic libraries
 ```
 
 ---
 
-## 开发说明
+## Development notes
 
-本项目全程使用 AI Agent 辅助开发，主要工具：
+This project is developed end-to-end with AI agent tooling, mainly:
 
 - **GitHub Copilot**
 - **Codex**
-- **Claude Cli**
+- **Claude CLI**
 
-开发流程：
-1. 明确功能需求与技术方案
-2. AI 辅助生成代码
-3. `vue-tsc --noEmit` 类型检查
-4. `cargo check` Rust 编译检查
-5. `bun run tauri dev` 运行验证
+Workflow:
+
+1. Clarify feature requirements and technical approach
+2. Generate code with AI assistance
+3. Type check with `vue-tsc --noEmit`
+4. Compile check with `cargo check`
+5. Verify with `bun run tauri dev`
 
 ---
 
 ## License
 
-NU General Public License v3.0
+This project is released under the [GNU General Public License v3.0](LICENSE). See the [LICENSE](LICENSE) file for the full text.
