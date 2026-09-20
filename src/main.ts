@@ -20,6 +20,7 @@ import { useLanguageStore } from "./store/language";
 import { initTlottie } from "./utils/tlottiePreload";
 import { installCrashGuard, showBootstrapFailure } from "./utils/crashGuard";
 import { restoreDefaultWallpaperFromTdlib } from "./utils/wallpaper";
+import { applyTdlibSystemParams } from "./utils/tdlibParams";
 
 // 尽早安装全局错误/白屏诊断（不依赖 Vue mount）
 installCrashGuard();
@@ -92,10 +93,11 @@ async function bootstrap() {
         // 等待 router 就绪，确保后续 push 基于已解析的路由表执行
         await router.isReady();
 
-        // 设置 TDLib 参数（连接正式/测试数据中心，使用自定义或默认 API 凭据），须在 init_tdlib 之前调用。
-        // 用户可在「系统设置」中修改 use_test_dc / api_id / api_hash（持久化到 settings.system）。
+        // 设置 TDLib 参数（连接正式/测试 DC，自定义或内置 API），须在 init_tdlib 之前调用。
+        // 用户在登录设置 / 系统设置里改的 use_test_dc / api_id / api_hash 存于 settings.system；
+        // 冷启动必须先写回后端全局 config，并 persist 到活动账户，
+        // 否则关闭客户端后重建会退回编译期内置 API。
         step = "set_tdlib_parameters";
-        const sys = settings.system;
         const langCode = settings.language?.code || "zh-CN";
         // 内置 locale → tdesktop 语言包 ID 映射；未知 code 原样作为 pack id
         const BUILTIN_PACK: Record<string, string> = {
@@ -110,11 +112,8 @@ async function bootstrap() {
                 : langCode.startsWith("en")
                     ? "en"
                     : langCode;
+        await applyTdlibSystemParams({ persist: true });
         await invoke("set_tdlib_parameters", {
-            useTestDc: sys.useTestDc,
-            ...(sys.customApiCreds && sys.apiId && sys.apiHash
-                ? { apiId: Number(sys.apiId), apiHash: sys.apiHash }
-                : {}),
             languagePackId,
             localizationTarget: "tdesktop",
             systemLanguageCode,

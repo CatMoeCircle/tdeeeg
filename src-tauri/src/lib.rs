@@ -246,6 +246,7 @@ pub fn run() {
             tdlib::set_tdlib_parameters,
             tdlib::set_proxy_config,
             tdlib::restart_tdlib,
+            tdlib::force_reinit_active,
             tdlib::logout_tdlib,
             tdlib::get_chat_list,
             tdlib::get_chat_lists,

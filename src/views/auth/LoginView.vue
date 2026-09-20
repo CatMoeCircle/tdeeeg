@@ -4,17 +4,16 @@ import { useRouter } from "vue-router";
 import QRCodeStyling from "qr-code-styling";
 import { AsYouType, parsePhoneNumberFromString } from "libphonenumber-js";
 import { useI18n } from 'vue-i18n';
-import i18n from "../../i18n";
 import { tdlibSend } from "../../utils/tdlib";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { onTdlibUpdate } from "../../store/tdlibBus";
 import { MessagePlugin } from 'tdesign-vue-next';
 import type { AuthorizationState, countryInfo } from "tdlib-types";
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
-import LoginProxyMenu from "./LoginProxyMenu.vue";
-import LoginSystemMenu from "./LoginSystemMenu.vue";
-import LoginLanguageMenu from "./LoginLanguageMenu.vue";
+import LoginSettingsMenu from "./LoginSettingsMenu.vue";
 import { useAccountsStore } from "../../store/accounts";
+import { preparePhoneLoginAfterQr } from "../../utils/tdlibParams";
+import { setPendingPhoneLogin, takePendingPhoneLogin } from "../../utils/authPending";
 
 
 
@@ -25,10 +24,11 @@ const Countries = ref<Array<countryInfo>>([]);
 const phoneNumber = ref("");
 const selectedCountry = ref("");
 const isAutoSwitching = ref(false);
+/** 「下一步」提交锁：点击后到授权态推进/失败前禁止重复点击 */
+const loginPending = ref(false);
+let loginPendingTimer: ReturnType<typeof setTimeout> | null = null;
 let qrCode: QRCodeStyling | null = null;
 const { t } = useI18n();
-/** 用户点击手机登录时，若正在二维码状态，先重置再发请求 */
-const pendingPhoneLogin = ref<string | null>(null);
 
 // 多账户：显示已登录账户列表，方便用户切换回去
 const accountsStore = useAccountsStore();
@@ -56,43 +56,55 @@ function switchToAccount(id: number) {
 }
 
 /**
- * 国家显示名：
- * - 中文 locale 下，对 native 名称本身为汉字（中文可读）的常见地区使用其本地名（name），
- *   其余统一用英文名（english_name），避免显示用户看不懂的外语本地名。
- * - 非中文 locale 统一用英文名（english_name），保证通用可读。
+ * 国家显示名 / 国旗：只使用 TDLib getCountries 返回字段。
+ * name = 官方本地名，english_name = 英文名，flag_emoji = 官方国旗。
+ * 不做 Intl / 硬编码表二次改写，避免与 TDLib 数据不一致。
  */
-const isChineseLocale = computed(() => i18n.global.locale.value.startsWith("zh"));
 function displayName(c: countryInfo): string {
-    // native name 为汉字的地区（中国、香港、澳门、台湾、新加坡、日本），中文用户可直接识别
-    const zhReadable = new Set(["CN", "HK", "MO", "TW", "SG", "JP"]);
-    if (isChineseLocale.value && zhReadable.has(c.country_code)) {
-        return c.name || c.english_name;
-    }
-    return c.english_name || c.name;
+    return c.english_name || c.name || c.country_code;
+}
+
+function countryFlag(c: countryInfo | undefined | null): string {
+    return c?.flag_emoji || "";
+}
+
+/** 选中国家的展示名（valueDisplay 用，国旗单独渲染） */
+function selectedCountryLabel(code: string): string {
+    if (!code) return "";
+    const c = Countries.value.find((x) => x.country_code === code);
+    if (!c) return code;
+    return displayName(c);
 }
 
 /** 常用国家/地区置顶（按区号），便于快速选择 */
 const COUNTRY_PRIORITY: Record<string, number> = { CN: 0, HK: 1, MO: 2, TW: 3, US: 4, JP: 5, SG: 6 };
-/** 按优先级 + 英文名排序后的国家列表 */
+/** 按优先级 + TDLib 英文名排序后的国家列表 */
 const sortedCountries = computed(() => {
     return [...Countries.value].sort((a, b) => {
         const pa = COUNTRY_PRIORITY[a.country_code];
         const pb = COUNTRY_PRIORITY[b.country_code];
         if (pa !== undefined || pb !== undefined) return (pa ?? 99) - (pb ?? 99);
-        return displayName(a).localeCompare(displayName(b));
+        return (a.english_name || a.name).localeCompare(b.english_name || b.name);
     });
 });
 
-/** 自定义过滤：支持按国家名（中/英）、区号搜索 */
+/** 当前选中国家的国旗（valueDisplay 用） */
+const selectedCountryFlag = computed(() => {
+    const c = Countries.value.find((x) => x.country_code === selectedCountry.value);
+    return countryFlag(c);
+});
+
+/** 自定义过滤：只匹配 TDLib 返回的国家名 / 区号 / ISO 码 */
 function countryFilter(search: string, option: any): boolean {
     if (!search) return true;
     const kw = search.trim().toLowerCase();
-    const c: countryInfo = sortedCountries.value.find(x => x.country_code === option?.value) as countryInfo;
+    const c = sortedCountries.value.find(x => x.country_code === option?.value);
     if (!c) return false;
     return (
         c.english_name.toLowerCase().includes(kw) ||
         c.name.toLowerCase().includes(kw) ||
-        c.calling_codes.some(code => code.toLowerCase().includes(kw)) ||
+        c.calling_codes.some(code => code.toLowerCase().includes(kw.replace(/^\+/, ""))) ||
+        c.calling_codes.some(code => ("+" + code).toLowerCase().includes(kw)) ||
         c.country_code.toLowerCase().includes(kw)
     );
 }
@@ -230,7 +242,44 @@ const initOrUpdateQrCode = (link: string) => {
     }
 };
 
+/** 解锁「下一步」，并清掉安全超时 */
+function unlockLogin() {
+    loginPending.value = false;
+    if (loginPendingTimer) {
+        clearTimeout(loginPendingTimer);
+        loginPendingTimer = null;
+    }
+}
+
+/** 加锁「下一步」；超时兜底，避免 TDLib 无响应时按钮永久卡死 */
+function lockLogin(timeoutMs = 20000) {
+    loginPending.value = true;
+    if (loginPendingTimer) clearTimeout(loginPendingTimer);
+    loginPendingTimer = setTimeout(() => {
+        loginPendingTimer = null;
+        if (loginPending.value) {
+            loginPending.value = false;
+        }
+    }, timeoutMs);
+}
+
+/**
+ * 参考 Unigram AuthorizationViewModel.SendExecute 的错误映射。
+ */
+function mapPhoneLoginError(error: any): string {
+    const raw = String(error?.message || "");
+    const upper = raw.toUpperCase();
+    if (upper.includes("PHONE_NUMBER_INVALID")) return t("login.invalidPhoneNumber");
+    if (upper.includes("PHONE_NUMBER_FLOOD") || upper.includes("PHONE_FLOOD")) return t("login.phoneNumberFlood");
+    if (upper.includes("PHONE_NUMBER_BANNED")) return t("login.phoneNumberBanned");
+    if (upper.includes("PHONE_CODE_EMPTY") || upper.includes("PHONE_CODE_INVALID")) return t("login.invalidCode");
+    if (upper.includes("PHONE_CODE_EXPIRED")) return t("login.codeExpired");
+    if (upper.includes("FLOOD_WAIT")) return t("login.floodWait");
+    return raw || t("login.phoneLoginError");
+}
+
 const login = async () => {
+    if (loginPending.value) return;
     if (!phoneNumber.value) return;
 
     // 去掉格式化产生的非数字字符，得到含区号的完整号码，并补上 +（E.164）
@@ -238,16 +287,17 @@ const login = async () => {
     if (!cleanNum) return;
     const rawPhone = '+' + cleanNum;
 
+    lockLogin();
+
     // 检查当前授权状态
     try {
         const state = await tdlibSend({ _: "getAuthorizationState" });
         if (state._ === 'authorizationStateWaitOtherDeviceConfirmation') {
-            // 正在二维码等待状态，需要先重置 TDLib 才能切到手机号登录
+            // Unigram：WaitOtherDeviceConfirmation 下不能直接 setAuthenticationPhoneNumber。
+            // 流程：按 settings.system 重建活动客户端 → WaitPhoneNumber 时发出排队手机号
             clearQrCode();
-            pendingPhoneLogin.value = rawPhone;
-            await invoke("init_tdlib", { force: true });
-            // TDLib 重启后 auth state 会重新走初始化流程，
-            // 事件监听会在 WaitPhoneNumber 时处理 pendingPhoneLogin
+            setPendingPhoneLogin(rawPhone);
+            await preparePhoneLoginAfterQr();
             return;
         }
 
@@ -264,9 +314,11 @@ const login = async () => {
                 authentication_tokens: []
             }
         });
+        // 发送成功后保持锁定，等待 updateAuthorizationState 推进到下一步
     } catch (e) {
         console.error(e);
-        MessagePlugin.error({ content: "Error setting phone number", placement: "top-right" });
+        unlockLogin();
+        MessagePlugin.error({ content: mapPhoneLoginError(e), placement: "top-right" });
     }
 };
 
@@ -289,55 +341,86 @@ const AuthState = async (State: AuthorizationState) => {
         case "authorizationStateReady":
             router.push("/home");
             break;
-        case "authorizationStateWaitPhoneNumber":
-            // 如果有待处理的手机号登录（从二维码切换过来）
-            if (pendingPhoneLogin.value) {
-                const phone = pendingPhoneLogin.value;
-                pendingPhoneLogin.value = null;
-                try {
-                    await tdlibSend({
-                        _: "setAuthenticationPhoneNumber",
-                        phone_number: phone,
-                        settings: {
-                            _: "phoneNumberAuthenticationSettings",
-                            allow_flash_call: false,
-                            allow_missed_call: false,
-                            is_current_phone_number: false,
-                            allow_sms_retriever_api: false,
-                            authentication_tokens: []
-                        }
-                    });
-                } catch (e) {
-                    console.error(e);
-                    MessagePlugin.error({ content: "Error setting phone number", placement: "top-right" });
-                }
-                return;
-            }
-            // 无待处理手机号，自动触发二维码（同时显示两种登录方式）
-            await tdlibSend({ _: "requestQrCodeAuthentication" });
+        case "authorizationStateClosing":
+        case "authorizationStateLoggingOut":
+        case "authorizationStateClosed":
+            // 登录方式切换中（Unigram：logOut → Closing/Closed → 重建）。
+            // 保持按钮锁定，等待下一授权态，不要当成错误
             break;
         case "authorizationStateWaitTdlibParameters":
+            // 客户端重建/冷启动的中间态：Rust 接收线程会自动 setTdlibParameters，
+            // 不是用户可见错误，也不要在这里解锁打断「下一步」流程
+            break;
+        case "authorizationStateWaitPhoneNumber":
+            // Unigram ContinueOnLogOut：WaitPhoneNumber 时发出排队的手机号登录
+            {
+                const phone = takePendingPhoneLogin();
+                if (phone) {
+                    try {
+                        await tdlibSend({
+                            _: "setAuthenticationPhoneNumber",
+                            phone_number: phone,
+                            settings: {
+                                _: "phoneNumberAuthenticationSettings",
+                                allow_flash_call: false,
+                                allow_missed_call: false,
+                                is_current_phone_number: false,
+                                allow_sms_retriever_api: false,
+                                authentication_tokens: []
+                            }
+                        });
+                        // 保持锁定，等 updateAuthorizationState → WaitCode
+                    } catch (e) {
+                        console.error(e);
+                        unlockLogin();
+                        MessagePlugin.error({ content: mapPhoneLoginError(e), placement: "top-right" });
+                    }
+                    return;
+                }
+            }
+            // 无排队手机号：提交中不要自动拉二维码（会抢走手机号流程）
+            if (loginPending.value) break;
+            unlockLogin();
+            if (!qrlink.value) {
+                try {
+                    const cur = await tdlibSend({ _: "getAuthorizationState" });
+                    if (cur._ === "authorizationStateWaitPhoneNumber") {
+                        await tdlibSend({ _: "requestQrCodeAuthentication" });
+                    }
+                } catch (e) {
+                    console.warn("requestQrCodeAuthentication:", e);
+                }
+            }
+            break;
+        case "authorizationStateWaitTdlibParameters":
+            unlockLogin();
             MessagePlugin.error({ content: t('login.tdlibParametersError'), placement: "top-right", offset: [0, 20] });
             break
         case "authorizationStateWaitPremiumPurchase":
+            unlockLogin();
             MessagePlugin.warning({ content: t('login.PremiumWarning'), placement: "top-right", offset: [0, 20] });
             break;
         case "authorizationStateWaitEmailAddress":
+            unlockLogin();
             MessagePlugin.warning({ content: t('login.SetEmailTips'), placement: "top-right", offset: [0, 20] });
             break
         case "authorizationStateWaitEmailCode":
+            unlockLogin();
             MessagePlugin.warning({ content: t('login.CheckEmailTips'), placement: "top-right", offset: [0, 20] });
             break
         case "authorizationStateWaitCode":
+            // 已进入验证码页，本页按钮随路由离开失效
             router.push("/loginCode");
             break
         case "authorizationStateWaitRegistration":
+            unlockLogin();
             MessagePlugin.warning({ content: t('login.RegisterTips'), placement: "top-right", offset: [0, 20] });
             break;
         case "authorizationStateWaitPassword":
             router.push("/loginPaws");
             break;
         default:
+            unlockLogin();
             console.log(State);
             MessagePlugin.error({ content: t('login.UnknownStateError'), placement: "top-right", offset: [0, 20] });
             break;
@@ -371,7 +454,8 @@ onMounted(async () => {
     }).then((res) => {
         console.log("获取国家列表成功:", res);
         if (res._ === "countries") {
-            Countries.value = res.countries;
+            // TDLib 要求 is_hidden 国家不进入选择列表
+            Countries.value = res.countries.filter((c) => !c.is_hidden);
         }
     }).catch((err) => {
         console.error("获取国家列表失败:", err);
@@ -396,8 +480,8 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-    // 清理待处理的手机号登录
-    pendingPhoneLogin.value = null;
+    // 清理待处理的手机号登录（模块级排队在重建后由 AuthState 消费，这里不强制清空）
+    unlockLogin();
 
     // 清理二维码 DOM
     if (qrCodeContainer.value) qrCodeContainer.value.innerHTML = "";
@@ -420,47 +504,67 @@ onUnmounted(() => {
 
 <template>
     <div class="flex justify-center items-center h-full select-none relative">
-        <!-- 右上角 语言 / API/测试DC / 代理设置按钮 -->
+        <!-- 右上角统一设置：语言 / API / 代理 -->
         <div class="absolute top-4 right-4 z-20 flex items-center gap-2">
-            <LoginLanguageMenu />
-            <LoginSystemMenu />
-            <LoginProxyMenu />
+            <LoginSettingsMenu />
         </div>
 
         <div class="flex w-200 items-center justify-between">
             <!-- Left Side: Phone Login -->
             <div class="flex-1 flex flex-col items-center text-center px-8">
-                <h1 class="text-xl font-bold mb-4 text-gray-900">{{ t('login.title') }}</h1>
-                <p class="text-gray-500 mb-10 text-base">
+                <h1 class="text-xl font-bold mb-2 text-gray-900 dark:text-gray-100">{{ t('login.title') }}</h1>
+                <p class="text-gray-500 dark:text-gray-400 mb-6 text-sm">
                     {{ t('login.descLine1') }}<br />{{ t('login.descLine2') }}
                 </p>
 
-                <div class="w-full max-w-xs mb-8">
-                    <div class="mb-4">
+                <div class="w-full max-w-xs mb-6 space-y-2">
+                    <div>
                         <t-select v-model="selectedCountry" :placeholder="t('login.selectCountry')" filterable
-                            :filter="countryFilter" class="country-select">
+                            :filter="countryFilter" class="country-select" :disabled="loginPending"
+                            :popup-props="{
+                                overlayClassName: 'country-select-popup',
+                                overlayInnerStyle: {
+                                    borderRadius: '0.625rem',
+                                    maxHeight: 'min(240px, 40vh)',
+                                    overflowY: 'auto',
+                                    overflowX: 'hidden',
+                                }
+                            }">
+                            <template #valueDisplay>
+                                <span class="flex items-center gap-1.5 min-w-0">
+                                    <span class="country-flag emoji-font">{{ selectedCountryFlag }}</span>
+                                    <span class="truncate text-sm text-gray-800 dark:text-gray-100">{{ selectedCountryLabel(selectedCountry) }}</span>
+                                </span>
+                            </template>
                             <t-option v-for="country in sortedCountries" :key="country.country_code"
                                 :value="country.country_code"
-                                :label="`${country.flag_emoji} +${country.calling_codes[0]} ${displayName(country)}`">
-                                <span class="flex items-center gap-2">
-                                    <span class="w-6 text-left shrink-0">{{ country.flag_emoji || '🏳️' }}</span>
-                                    <span class="flex-1 min-w-0 truncate">{{ displayName(country) }}</span>
-                                    <span class="text-gray-400 text-xs shrink-0">+{{ country.calling_codes[0] }}</span>
+                                :label="`${countryFlag(country)} +${country.calling_codes[0]} ${displayName(country)}`">
+                                <span class="flex items-center gap-1.5 w-full min-w-0">
+                                    <span class="country-flag emoji-font">{{ countryFlag(country) }}</span>
+                                    <span class="flex-1 min-w-0 truncate text-sm text-gray-800 dark:text-gray-100">{{
+                                        displayName(country) }}</span>
+                                    <span class="text-gray-400 text-xs shrink-0 tabular-nums">+{{
+                                        country.calling_codes[0] }}</span>
                                 </span>
                             </t-option>
                         </t-select>
                     </div>
                     <div
-                        class="flex items-center border border-gray-300 rounded-xl px-4 py-3 focus-within:border-[#3390ec] transition-colors">
+                        class="flex items-center border rounded-[0.625rem] h-10 px-3 transition-colors"
+                        :class="loginPending
+                            ? 'border-gray-200 dark:border-gray-700 opacity-60'
+                            : 'border-gray-300 dark:border-gray-600 focus-within:border-[#3390ec]'">
                         <input type="tel" inputmode="tel" :placeholder="t('login.phonePlaceholder')"
-                            v-model="phoneNumber" @input="onPhoneInput"
-                            class="flex-1 text-base outline-none bg-transparent placeholder-gray-400 text-black" />
+                            v-model="phoneNumber" @input="onPhoneInput" :disabled="loginPending"
+                            class="flex-1 text-sm outline-none bg-transparent placeholder-gray-400 text-gray-800 dark:text-gray-100 disabled:cursor-not-allowed" />
                     </div>
-                </div>
 
-                <t-button variant="outline" class="placement-top-right" @click="login">
-                    {{ t('login.next') }}
-                </t-button>
+                    <!-- 下一步：与输入框同宽同高同圆角；提交中禁用防重复点击 -->
+                    <t-button block class="login-next-btn" theme="primary" :loading="loginPending"
+                        :disabled="loginPending || !phoneNumber.trim()" @click="login">
+                        {{ t('login.next') }}
+                    </t-button>
+                </div>
 
                 <!-- 已登录账户切换 -->
                 <div v-if="loggedAccounts.length > 0" class="w-full max-w-xs mt-8">

@@ -36,7 +36,8 @@
                         <div v-else-if="step === 'auth'" class="px-6 py-5 flex flex-col items-center text-center">
                             <div class="w-24 h-24 flex items-center justify-center overflow-hidden mb-2">
                                 <TgsPlayer v-if="monkeyData" ref="playerRef" :data="monkeyData" :loop="false"
-                                    :autoplay="false" :size="96" @load="onPlayerLoad" @complete="onPlayerComplete" />
+                                    :autoplay="false" :report-frames="true" :force-render="true" :size="96"
+                                    @load="onPlayerLoad" @complete="onPlayerComplete" />
                             </div>
                             <h4 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-1.5">
                                 {{ t('lng_settings_cloud_password_check_subtitle') }}
@@ -73,7 +74,8 @@
                             class="px-6 py-5 flex flex-col items-center text-center">
                             <div class="w-24 h-24 flex items-center justify-center overflow-hidden mb-2">
                                 <TgsPlayer v-if="monkeyData" ref="playerRef" :data="monkeyData" :loop="false"
-                                    :autoplay="false" :size="96" @load="onPlayerLoad" @complete="onPlayerComplete" />
+                                    :autoplay="false" :report-frames="true" :force-render="true" :size="96"
+                                    @load="onPlayerLoad" @complete="onPlayerComplete" />
                             </div>
                             <h4 class="text-lg font-bold text-gray-900 dark:text-gray-100 mb-1.5">
                                 {{ step === 'change-password'

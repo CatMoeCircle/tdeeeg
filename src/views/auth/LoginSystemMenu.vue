@@ -1,5 +1,62 @@
 <template>
-    <div class="relative">
+    <!-- 嵌入模式：仅表单内容 -->
+    <div v-if="embedded" class="p-4 space-y-4">
+        <p class="text-xs text-gray-400">更改后需重建 TDLib 客户端才会生效，可能需重新登录。</p>
+
+        <div
+            class="flex items-start gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
+            <InfoIcon class="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+            <p class="text-xs text-blue-600 dark:text-blue-400 leading-5">这些设置仅影响当前正在登录的新账户，已有账户不受影响。</p>
+        </div>
+
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-900 dark:text-gray-100">使用测试数据中心</p>
+                <p class="text-xs text-gray-400 mt-0.5">连接到 Telegram 测试服务器</p>
+            </div>
+            <button type="button" @click="useTestDc = !useTestDc"
+                class="w-11 h-6 rounded-full transition-colors relative shrink-0"
+                :class="useTestDc ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'">
+                <div class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+                    :class="useTestDc ? 'translate-x-5' : ''" />
+            </button>
+        </div>
+
+        <div class="border-t border-gray-100 dark:border-gray-700 pt-4">
+            <div class="flex items-center justify-between mb-3">
+                <div>
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">自定义 API ID / Hash</p>
+                    <p class="text-xs text-gray-400 mt-0.5">关闭则使用内置默认凭据</p>
+                </div>
+                <button type="button" @click="customApiCreds = !customApiCreds"
+                    class="w-11 h-6 rounded-full transition-colors relative shrink-0"
+                    :class="customApiCreds ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'">
+                    <div class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+                        :class="customApiCreds ? 'translate-x-5' : ''" />
+                </button>
+            </div>
+
+            <template v-if="customApiCreds">
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API ID</label>
+                <input v-model="apiId" type="text" inputmode="numeric" placeholder="例如 12345" spellcheck="false"
+                    class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none mb-3" />
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API Hash</label>
+                <input v-model="apiHash" type="text" placeholder="32 位十六进制字符串" spellcheck="false"
+                    class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+            </template>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-1">
+            <button type="button" @click="apply"
+                class="px-4 py-1.5 rounded-lg text-sm font-medium text-white transition-colors"
+                :class="applying ? 'bg-blue-400 cursor-wait' : 'bg-blue-500 hover:bg-blue-600'" :disabled="applying">
+                {{ applying ? '正在重建…' : '应用并重启' }}
+            </button>
+        </div>
+    </div>
+
+    <!-- 独立模式：右上角按钮 + 弹窗 -->
+    <div v-else class="relative">
         <!-- 右上角 API/测试DC 按钮 -->
         <button type="button" @click="toggle"
             class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors" :class="visible
@@ -29,7 +86,8 @@
                     <div class="p-4 space-y-4">
                         <p class="text-xs text-gray-400">更改后需重建 TDLib 客户端才会生效，可能需重新登录。</p>
 
-                        <div class="flex items-start gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
+                        <div
+                            class="flex items-start gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
                             <InfoIcon class="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
                             <p class="text-xs text-blue-600 dark:text-blue-400 leading-5">这些设置仅影响当前正在登录的新账户，已有账户不受影响。</p>
                         </div>
@@ -43,7 +101,8 @@
                             <button type="button" @click="useTestDc = !useTestDc"
                                 class="w-11 h-6 rounded-full transition-colors relative shrink-0"
                                 :class="useTestDc ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'">
-                                <div class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+                                <div
+                                    class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform"
                                     :class="useTestDc ? 'translate-x-5' : ''" />
                             </button>
                         </div>
@@ -58,7 +117,8 @@
                                 <button type="button" @click="customApiCreds = !customApiCreds"
                                     class="w-11 h-6 rounded-full transition-colors relative shrink-0"
                                     :class="customApiCreds ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'">
-                                    <div class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+                                    <div
+                                        class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform"
                                         :class="customApiCreds ? 'translate-x-5' : ''" />
                                 </button>
                             </div>
@@ -97,10 +157,12 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, computed } from "vue";
-import { invoke } from "@tauri-apps/api/core";
 import { MessagePlugin } from "tdesign-vue-next";
 import { Settings as SettingsIcon, X as XIcon, Info as InfoIcon } from 'lucide-vue-next';
 import { settings } from "../../store/settings";
+import { reinitTdlibWithSystemParams } from "../../utils/tdlibParams";
+
+withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
 
 const visible = ref(false);
 
@@ -135,8 +197,6 @@ function toggle() {
 /** 应用参数并重建 TDLib 客户端 */
 async function apply() {
     if (applying.value) return;
-    let apiIdNum: number | undefined;
-    let apiHashStr: string | undefined;
     if (customApiCreds.value) {
         if (!apiId.value.trim() || !apiHash.value.trim()) {
             MessagePlugin.warning('请输入 API ID 和 API Hash');
@@ -147,20 +207,20 @@ async function apply() {
             MessagePlugin.warning('API ID 必须为正整数');
             return;
         }
-        apiIdNum = id;
-        apiHashStr = apiHash.value.trim();
     }
 
     applying.value = true;
     try {
+        // 先把表单写入 settings，再统一走 applyTdlibSystemParams
+        settings.system.useTestDc = useTestDc.value;
+        settings.system.customApiCreds = customApiCreds.value;
+        settings.system.apiId = apiId.value.trim();
+        settings.system.apiHash = apiHash.value.trim();
+
         // 通知 LoginView 清空二维码（如果正在显示）
         window.dispatchEvent(new CustomEvent('login-menu-clear-qr'));
-        await invoke('set_tdlib_parameters', {
-            useTestDc: useTestDc.value,
-            ...(apiIdNum !== undefined && apiHashStr ? { apiId: apiIdNum, apiHash: apiHashStr } : {}),
-            persist: true,
-        });
-        await invoke('restart_tdlib');
+        // 写回 settings.system 的凭据 → 后端 config/账户，并 force 重建客户端
+        await reinitTdlibWithSystemParams();
         MessagePlugin.success('已应用，正在重新连接…');
         window.location.reload();
     } catch (e: any) {

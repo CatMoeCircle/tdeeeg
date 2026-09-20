@@ -1,144 +1,193 @@
 import { onUnmounted, ref, watch, type Ref } from 'vue';
 import type { TgsPlayerInstance } from '../components/common/TgsPlayer.vue';
 
-/** AuthorizationStateWaitPassword：空密码停在第 1 帧，有密码最多到第 40 帧 */
+/**
+ * Unigram 帧标记（文件内无 markers，为其手工约定）：
+ *   Close=40 捂眼；CloseToPeek=56 从指缝偷看
+ * 登录页实际语义（与直觉一致）：
+ *   隐藏密码 / 有密码未揭示 → 40 捂眼
+ *   显示密码 → 56 偷看
+ */
 export const MONKEY_EMPTY_FRAME = 1;
 export const MONKEY_FILLED_FRAME = 40;
+/** 捂眼（隐藏密码、默认有密码时） */
+export const MONKEY_CLOSE_FRAME = 40;
+/** 偷看（显示密码时） */
+export const MONKEY_PEEK_FRAME = 56;
+
+/** 该 TGS 的帧率（lottie json `fr`） */
+const NATIVE_FPS = 60;
 
 type EngineLike = {
     frames?: { current: number; total: number };
     play?: () => void;
     pause?: () => void;
+    stop?: () => void;
     seek?: (frame: number) => void;
     setDirection?: (d: 1 | -1) => void;
     setLoop?: (l: boolean | number) => void;
+    setSpeed?: (s: number) => void;
+    on?: (e: string, cb: (p: any) => void) => void;
+    off?: (e: string, cb: (p: any) => void) => void;
 };
 
 /**
- * 控制密码页猴子动画：空密码=第1帧；输入时正向播到第40帧；清空时从40倒放回第1帧。
- * 有密码后再增删字符不重播（按「是否为空」二值触发）。
- * 用 rAF 轮询当前帧，比 10Hz frame 事件更贴，避免到点后生硬 seek。
+ * 按 tlottie 官方方式控制密码猴：
+ * 1. seek(起点) → setDirection → setLoop(false) → play()
+ * 2. 用「原生帧率预算时长」+ frame 事件，在目标帧 pause + seek
+ * 3. 绝不快速连发 seek 当动画（worker 异步渲染，会闪/跳）
+ *
+ * 前置：TgsPlayer 需 `report-frames` + `force-render`（见 Password.vue）
  */
 export function usePasswordMonkey(password: Ref<string>) {
     const playerRef = ref<TgsPlayerInstance | null>(null);
     let loaded = false;
     let animating = false;
     let suppressWatch = false;
+    let targetFrame = MONKEY_EMPTY_FRAME;
     let direction: 1 | -1 = 1;
-    let targetFrame = MONKEY_FILLED_FRAME;
-    let rafId = 0;
+    let stopTimer: ReturnType<typeof setTimeout> | null = null;
+    let frameHandler: ((p: any) => void) | null = null;
+    let boundEngine: EngineLike | null = null;
 
     function engine(): EngineLike | null {
         return (playerRef.value?.getProperties?.() as EngineLike | null) ?? null;
     }
 
-    function currentFrame(): number | null {
+    function readFrame(): number | null {
         const cur = engine()?.frames?.current;
-        return typeof cur === 'number' ? cur : null;
+        return typeof cur === 'number' && Number.isFinite(cur) ? cur : null;
     }
 
-    function stopRaf() {
-        if (rafId) {
-            cancelAnimationFrame(rafId);
-            rafId = 0;
+    function clearStopTimer() {
+        if (stopTimer) {
+            clearTimeout(stopTimer);
+            stopTimer = null;
         }
     }
 
-    function finishAt(frame: number) {
+    function unbindFrame() {
+        if (boundEngine && frameHandler) {
+            try { boundEngine.off?.('frame', frameHandler); } catch { /* ignore */ }
+        }
+        frameHandler = null;
+        boundEngine = null;
+    }
+
+    /** 精确停在某一帧（官方：pause 后再 seek） */
+    function hardStopAt(frame: number) {
         animating = false;
-        stopRaf();
+        clearStopTimer();
+        unbindFrame();
         const p = playerRef.value;
         if (!p) return;
-        p.pause();
-        p.seek(frame);
+        try { p.pause(); } catch { /* ignore */ }
+        try { p.seek(Math.round(frame)); } catch { /* ignore */ }
     }
 
-    function tick() {
-        if (!animating) return;
-        const cur = currentFrame();
-        if (cur != null) {
-            const done = direction === 1 ? cur >= MONKEY_FILLED_FRAME : cur <= MONKEY_EMPTY_FRAME;
-            if (done) {
-                finishAt(targetFrame);
-                return;
+    function bindFrameWatch() {
+        const eng = engine();
+        if (!eng?.on) return;
+        unbindFrame();
+        boundEngine = eng;
+        frameHandler = (payload: any) => {
+            if (!animating) return;
+            const cur = payload?.frames?.current ?? eng.frames?.current;
+            if (typeof cur !== 'number') return;
+            // 已越过目标（正放 >= target / 倒放 <= target）→ 精确落点
+            if (direction === 1 && cur >= targetFrame - 0.5) {
+                hardStopAt(targetFrame);
+            } else if (direction === -1 && cur <= targetFrame + 0.5) {
+                hardStopAt(targetFrame);
             }
-        }
-        rafId = requestAnimationFrame(tick);
+        };
+        eng.on('frame', frameHandler);
     }
 
-    function playTo(target: number, dir: 1 | -1) {
+    /**
+     * 用底层 play 播到 target（输入 1→40、偷看 40↔56）。
+     * 超时按原生 60fps 计算，防止 reportFrames 丢失时播完整段（op=73）。
+     */
+    function playTo(target: number) {
         const p = playerRef.value;
         if (!p) return;
-        stopRaf();
+        clearStopTimer();
+        unbindFrame();
 
-        const cur = currentFrame();
-        // 已在目标附近：直接停住，避免多余起播
-        if (cur != null) {
-            if (dir === 1 && cur >= target) {
-                finishAt(target);
-                return;
-            }
-            if (dir === -1 && cur <= target) {
-                finishAt(target);
-                return;
-            }
+        const cur = readFrame();
+        const from = cur ?? (target >= MONKEY_FILLED_FRAME ? MONKEY_EMPTY_FRAME : MONKEY_FILLED_FRAME);
+        if (Math.abs(from - target) < 0.5) {
+            hardStopAt(target);
+            return;
         }
 
-        animating = true;
-        direction = dir;
+        direction = target >= from ? 1 : -1;
         targetFrame = target;
-        p.setLoop(false);
-        p.setDirection(dir);
+        animating = true;
 
-        // 方向反了才 seek 到起点；同向则从当前帧接着播，衔接更顺
-        if (cur == null) {
-            p.seek(dir === 1 ? MONKEY_EMPTY_FRAME : MONKEY_FILLED_FRAME);
-        } else if (dir === 1 && cur > MONKEY_FILLED_FRAME) {
-            p.seek(MONKEY_FILLED_FRAME);
-        } else if (dir === -1 && cur < MONKEY_EMPTY_FRAME) {
-            p.seek(MONKEY_EMPTY_FRAME);
+        try {
+            p.setLoop(false);
+            p.setDirection(direction);
+            // 官方用法：先 seek 到起点再 play，避免从错误帧播到片尾再纠正
+            p.seek(from);
+            p.play();
+        } catch (e) {
+            console.warn('[usePasswordMonkey] play failed, hard seek', e);
+            hardStopAt(target);
+            return;
         }
 
-        p.play();
-        rafId = requestAnimationFrame(tick);
+        bindFrameWatch();
+
+        // 原生帧率预算：|Δframe|/fps 秒后强制落点（+80ms 裕量）
+        const durationMs = Math.max(80, (Math.abs(target - from) / NATIVE_FPS) * 1000 + 80);
+        stopTimer = setTimeout(() => {
+            if (animating) hardStopAt(targetFrame);
+        }, durationMs);
     }
 
     function onPlayerLoad() {
         loaded = true;
-        finishAt(password.value ? MONKEY_FILLED_FRAME : MONKEY_EMPTY_FRAME);
+        // 页首：不整段 intro，直接停在空态（0/1 帧视觉几乎相同）
+        hardStopAt(password.value ? MONKEY_FILLED_FRAME : MONKEY_EMPTY_FRAME);
     }
 
     watch(password, (val, old) => {
         if (!loaded || !playerRef.value || suppressWatch) return;
         if (!val && old) {
-            playTo(MONKEY_EMPTY_FRAME, -1);
+            playTo(MONKEY_EMPTY_FRAME);
         } else if (val && !old) {
-            playTo(MONKEY_FILLED_FRAME, 1);
+            playTo(MONKEY_FILLED_FRAME);
         }
     }, { flush: 'sync' });
 
     onUnmounted(() => {
         animating = false;
-        stopRaf();
+        clearStopTimer();
+        unbindFrame();
         loaded = false;
     });
 
     return {
         playerRef,
         onPlayerLoad,
-        /** 兜底：底层 complete 时也停在目标帧 */
         onPlayerComplete() {
-            if (animating) finishAt(targetFrame);
+            // 整段播完（例如超时前已到 op）→ 落到目标帧
+            if (animating) hardStopAt(targetFrame);
         },
-        /** 程序化清空：不触发倒放动画 */
         resetToEmpty() {
             suppressWatch = true;
             password.value = '';
-            finishAt(MONKEY_EMPTY_FRAME);
+            hardStopAt(MONKEY_EMPTY_FRAME);
             suppressWatch = false;
         },
         resetToFilled() {
-            finishAt(MONKEY_FILLED_FRAME);
+            hardStopAt(MONKEY_FILLED_FRAME);
         },
+        /** Unigram Close/CloseToPeek：用 play 过渡，而不是瞬时 seek */
+        seekMarker(frame: number) {
+            playTo(frame);
+        },
+        animateTo: playTo,
     };
 }

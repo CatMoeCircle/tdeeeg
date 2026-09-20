@@ -10,6 +10,176 @@
   font-display: swap;
 }
 
+/* 全局字体栈：系统 UI + Apple Color Emoji（国旗/表情正确渲染） */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    "Apple Color Emoji",
+    "Segoe UI Emoji",
+    "Noto Color Emoji",
+    sans-serif;
+}
+
+/* 国旗 / emoji 专用字体（国家选择器等） */
+.emoji-font {
+  font-family:
+    "Apple Color Emoji",
+    "Segoe UI Emoji",
+    "Noto Color Emoji",
+    "Twemoji Mozilla",
+    sans-serif !important;
+  font-style: normal;
+  font-weight: normal;
+  line-height: 1;
+}
+
+/*
+ * 登录页国家选择器：与下方手机号输入同一套紧凑规格
+ * 高度 ~40px / 圆角 10px / 字号 14px / 水平内边距 12px
+ */
+.country-select {
+  width: 100%;
+}
+.country-select .t-select__wrap,
+.country-select.t-select__wrap {
+  width: 100%;
+}
+.country-select .t-input {
+  border-radius: 0.625rem !important;
+  border-color: #d1d5db !important;
+  background: transparent;
+  min-height: 2.5rem !important;
+  height: 2.5rem !important;
+  padding: 0 0.75rem !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.country-select .t-input:hover {
+  border-color: #9ca3af !important;
+}
+.country-select .t-input.t-is-focused,
+.country-select .t-input.t-input--focused,
+.country-select .t-input:focus-within {
+  border-color: #3390ec !important;
+  box-shadow: none !important;
+}
+.country-select .t-input__inner {
+  font-size: 0.875rem;
+  line-height: 1.25;
+}
+/* 选中值 / 下拉项中的国旗 */
+.country-select .country-flag,
+.country-select-popup .country-flag {
+  font-family:
+    "Apple Color Emoji",
+    "Segoe UI Emoji",
+    "Noto Color Emoji",
+    sans-serif !important;
+  font-size: 1rem;
+  line-height: 1;
+  width: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/*
+ * 国家下拉面板：
+ * - 滚动必须落在 TDesign 的 .t-popup__content 上（官方默认 overflow-y:auto）
+ * - 不要对 content 使用 overflow:hidden，会裁切列表且把高度撑到文档，触发页面滚动条
+ * - 密度与输入框对齐：圆角 10px、选项单行紧凑
+ */
+.country-select-popup {
+  max-width: min(100vw - 2rem, 20rem);
+}
+.country-select-popup.t-popup {
+  max-height: none !important;
+  overflow: visible !important;
+}
+.country-select-popup .t-popup__content {
+  margin: 0 !important;
+  padding: 0.25rem !important;
+  border-radius: 0.625rem !important;
+  max-height: min(240px, 40vh) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior: contain;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.12),
+    0 1px 4px rgba(0, 0, 0, 0.06) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #fff;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+.country-select-popup .t-popup__content::-webkit-scrollbar {
+  width: 6px;
+}
+.country-select-popup .t-popup__content::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+.dark .country-select-popup .t-popup__content,
+.country-select-popup .t-popup__content.t-is-dark {
+  background: #1f2937;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.country-select-popup .t-select__dropdown,
+.country-select-popup .t-select__dropdown-inner,
+.country-select-popup .t-select__list {
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  box-shadow: none !important;
+  border: none !important;
+  list-style: none;
+}
+.country-select-popup .t-select-option,
+.country-select-popup .t-option {
+  padding: 0.375rem 0.5rem !important;
+  min-height: 2rem !important;
+  height: auto !important;
+  line-height: 1.25;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+}
+.country-select-popup .t-select-option:hover,
+.country-select-popup .t-option:hover {
+  background: rgba(51, 144, 236, 0.08) !important;
+}
+.country-select-popup .t-select-option.t-is-selected,
+.country-select-popup .t-option.t-is-selected {
+  background: rgba(51, 144, 236, 0.12) !important;
+  color: #3390ec !important;
+}
+
+/* 登录页「下一步」：与国家/手机号输入同一套紧凑规格 */
+.login-next-btn.t-button {
+  width: 100%;
+  height: 2.5rem !important;
+  min-height: 2.5rem !important;
+  border-radius: 0.625rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 500;
+  margin-top: 0.25rem;
+  box-shadow: none !important;
+}
+.login-next-btn.t-button .t-button__text {
+  font-size: 0.875rem;
+}
+
 /* ===== Telegram 官方图标字体 tgico ===== */
 @font-face {
   font-family: "tgico";

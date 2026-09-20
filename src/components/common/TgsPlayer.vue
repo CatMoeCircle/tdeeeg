@@ -1,8 +1,9 @@
 <template>
     <div class="tgs-player" :class="className" :style="rootStyle">
         <LottiePlayer ref="innerRef" class="tgs-lottie-root" :src="src ?? undefined" :data="data ?? undefined"
-            :loop="loop" :autoplay="autoplay" :speed="speed" :fitz-modifier="fitzModifier"
-            :report-frames="reportFrames" @load="onLoad" @error="onError" @complete="onComplete" />
+            :loop="loop" :autoplay="autoplay" :speed="speed" :direction="direction ?? undefined"
+            :fitz-modifier="fitzModifier" :report-frames="reportFrames" :force-render="forceRender"
+            :initial-frame="initialFrame ?? undefined" @load="onLoad" @error="onError" @complete="onComplete" />
     </div>
 </template>
 
@@ -40,19 +41,36 @@ const props = withDefaults(defineProps<{
     loop?: boolean | number;
     autoplay?: boolean;
     speed?: number;
+    /** 播放方向（tlottie direction）：1 正放 / -1 倒放 */
+    direction?: 1 | -1 | null;
     /** Telegram Fitzpatrick 肤色（parse-time，改值会重建实例） */
     fitzModifier?: FitzModifier;
     /** 额外 class（叠加在 .tgs-player 上） */
     class?: string;
-    /** 开启后转发底层 frame 事件（约 10Hz），用于按帧暂停/倒放 */
+    /**
+     * 开启后转发底层 frame 事件（约 10Hz），用于按帧暂停/倒放。
+     * 官方 README：默认关闭；密码猴等需要停在指定帧时必须打开。
+     */
     reportFrames?: boolean;
+    /**
+     * 官方 README：离屏仍继续渲染，避免 IntersectionObserver 自动暂停导致 seek/play 无画面。
+     */
+    forceRender?: boolean;
+    /**
+     * 加载后 seek 到该帧并暂停（页首动画用）。
+     */
+    initialFrame?: number | null;
 }>(), {
     src: null,
     data: null,
+    size: undefined,
     loop: true,
     autoplay: true,
     speed: 1,
+    direction: null,
     reportFrames: false,
+    forceRender: false,
+    initialFrame: null,
 });
 
 const emit = defineEmits<{
@@ -80,6 +98,13 @@ const className = computed(() => props.class || undefined);
 
 function onLoad(payload: unknown) {
     emit('load', payload);
+    // 页首动画：load 后先落到 initialFrame 再交给业务逻辑
+    if (props.initialFrame != null) {
+        try {
+            engine()?.pause?.();
+            engine()?.seek?.(props.initialFrame);
+        } catch { /* ignore */ }
+    }
     if (!props.reportFrames) return;
     const eng = engine() as { on?: (e: string, cb: (p: any) => void) => void; off?: (e: string, cb: (p: any) => void) => void } | null;
     if (!eng?.on) return;

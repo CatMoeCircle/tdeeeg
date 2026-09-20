@@ -12,13 +12,24 @@ declare module "@tauri-apps/api/core" {
     args: {
       apiId?: number;
       apiHash?: string;
+      /** true=写入自定义凭据；false=回落编译期内置凭据 */
+      useCustomApi?: boolean;
       useTestDc?: boolean;
       persist?: boolean;
+      languagePackId?: string;
+      localizationTarget?: string;
+      systemLanguageCode?: string;
     }
   ): Promise<void>;
 
-  export function invoke(cmd: "restart_tdlib"): Promise<void>;
+  /** force=true 时关闭已有客户端并按当前参数重建（含自定义 API） */
+  export function invoke(cmd: "init_tdlib", args?: { force?: boolean }): Promise<void>;
 
+  export function invoke(cmd: "restart_tdlib"): Promise<void>;
+  export function invoke(cmd: "force_reinit_active"): Promise<{
+    session_id: number;
+    auth: { _: string } & Record<string, unknown>;
+  }>;
   export function invoke(cmd: "logout_tdlib"): Promise<void>;
 
   export function invoke(

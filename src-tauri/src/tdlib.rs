@@ -260,12 +260,27 @@ pub fn account_files_dir(data_dir: &std::path::Path, id: i64) -> PathBuf {
         .join("tdlib_files")
 }
 
+fn builtin_api_id() -> i32 {
+    env!("TG_API_ID")
+        .parse()
+        .expect("TG_API_ID must be a number")
+}
+
+fn builtin_api_hash() -> String {
+    env!("TG_API_HASH").to_string()
+}
+
 // --- TDLib 自定义启动参数 ---
+/// 更新全局 TDLib 连接参数。
+/// - `use_custom_api = Some(true)` + api_id/api_hash：写入自定义凭据
+/// - `use_custom_api = Some(false)`：显式回落到编译期内置凭据（避免 config 残留）
+/// - `persist = true`：同步写入活动账户记录，供重建客户端 / 冷启动时优先读取
 #[tauri::command]
 pub fn set_tdlib_parameters(
     state: State<AppState>,
     api_id: Option<i32>,
     api_hash: Option<String>,
+    use_custom_api: Option<bool>,
     use_test_dc: Option<bool>,
     persist: Option<bool>,
     language_pack_id: Option<String>,
@@ -277,16 +292,22 @@ pub fn set_tdlib_parameters(
     let has_language = language_pack_id.is_some()
         || localization_target.is_some()
         || system_language_code.is_some();
+    let has_api_mode = use_custom_api.is_some();
 
     if api_id.is_some() != api_hash.is_some() {
         return Err("api_id and api_hash must be provided together".to_string());
     }
+    if use_custom_api == Some(true) && !has_creds {
+        return Err("use_custom_api=true requires api_id and api_hash".to_string());
+    }
 
-    if !has_creds && !has_test_dc && !has_language {
+    if !has_creds && !has_test_dc && !has_language && !has_api_mode {
         return Err("No parameters provided to update".to_string());
     }
 
     let should_persist = persist.unwrap_or(false);
+    // 最终是否使用自定义凭据（persist 与 setTdlibParameters 选择逻辑共用）
+    let mut effective_custom = has_creds;
 
     // 更新全局 config
     {
@@ -294,7 +315,11 @@ pub fn set_tdlib_parameters(
         if let Some(test_dc) = use_test_dc {
             config.use_test_dc = test_dc;
         }
-        if let (Some(id), Some(hash)) = (api_id.as_ref(), api_hash.as_ref()) {
+        if use_custom_api == Some(false) {
+            config.api_id = builtin_api_id();
+            config.api_hash = builtin_api_hash();
+            effective_custom = false;
+        } else if let (Some(id), Some(hash)) = (api_id.as_ref(), api_hash.as_ref()) {
             if *id <= 0 {
                 return Err("Invalid api_id: must be greater than 0".to_string());
             }
@@ -303,6 +328,7 @@ pub fn set_tdlib_parameters(
             }
             config.api_id = *id;
             config.api_hash = hash.clone();
+            effective_custom = true;
         }
         if let Some(pack) = language_pack_id {
             let pack = pack.trim();
@@ -325,17 +351,17 @@ pub fn set_tdlib_parameters(
     }
 
     // persist=true 时将凭据持久化到活动账户的记录中。
-    // 内置凭据（无自定义 api_id/api_hash）不保存 api_id/hash 到磁盘，防止泄露。
+    // 内置凭据不保存 api_id/hash 到磁盘，防止泄露。
     if should_persist {
         let active_id = state.active.load(Ordering::SeqCst);
         let cfg = state.config.lock().map_err(|e| e.to_string())?;
         if let Ok(mut accounts) = state.accounts.lock() {
             accounts.set_tdlib_params(
                 active_id,
-                api_id,
-                api_hash.as_deref(),
+                if effective_custom { Some(cfg.api_id) } else { None },
+                if effective_custom { Some(cfg.api_hash.as_str()) } else { None },
                 cfg.use_test_dc,
-                has_creds,
+                effective_custom,
             );
         }
     }
@@ -389,15 +415,170 @@ async fn shutdown_all_clients(state: &AppState) -> Result<(), String> {
 }
 
 /// 用当前已保存的参数（use_test_dc / api_id / api_hash）重建活动账户的客户端。
+///
+/// 对齐 Unigram：从二维码授权态切手机号时，先 logOut/close 释放当前会话，
+/// 再 TryInitialize/create。客户端可能已因 logOut 进入 Closed（接收线程退出），
+/// 此时 shutdown 会失败或超时——短超时后强制移除再重建。
 #[tauri::command]
 pub async fn restart_tdlib(
     app_handle: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let session_id = state.active.load(Ordering::SeqCst);
-    shutdown_client(state.inner(), session_id, "close").await?;
+
+    let exists = {
+        let clients = state.clients.lock().map_err(|e| e.to_string())?;
+        clients.contains_key(&session_id)
+    };
+
+    if exists {
+        // 尽快 close；已 Closed / 通道异常时不要等满 30s
+        let sh_ok = shared(state.inner()).is_ok();
+        if sh_ok {
+            let shutdown = shutdown_client(state.inner(), session_id, "close");
+            match tokio::time::timeout(Duration::from_secs(5), shutdown).await {
+                Ok(Ok(())) => {}
+                _ => {
+                    if let Ok(mut clients) = state.clients.lock() {
+                        clients.remove(&session_id);
+                    }
+                }
+            }
+        } else {
+            if let Ok(mut clients) = state.clients.lock() {
+                clients.remove(&session_id);
+            }
+        }
+    }
+
     create_client(&app_handle, state.inner(), session_id)?;
     Ok(())
+}
+
+/// 写一行诊断日志到应用数据目录，便于无 stdout 时排查。
+fn log_reinit(msg: &str) {
+    let dir = dirs_log_dir();
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        eprintln!("[force_reinit] mkdir log fail: {e}");
+        return;
+    }
+    let path = dir.join("force_reinit.log");
+    let line = format!("[{}] {}\n", chrono_like_now(), msg);
+    let _ = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
+    eprintln!("{}", msg);
+}
+
+fn dirs_log_dir() -> PathBuf {
+    std::env::var_os("APPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("com.catmoecircle.tdeeeg")
+}
+
+fn chrono_like_now() -> String {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs().to_string())
+        .unwrap_or_else(|_| "?".into())
+}
+
+/// 强制销毁并重建活动账户客户端（登录态切换用）。
+///
+/// TDLib AuthManager 会把二维码 `login_token` 持久化到账户数据库；
+/// 仅 close+create 会从库里恢复出**同一个** WaitOtherDeviceConfirmation。
+/// Unigram 用 logOut 清本地数据；这里在重建前删除该账户 tdlib_db
+/// （仅用于尚未完成登录的会话切换），确保新客户端回到 WaitPhoneNumber。
+#[tauri::command]
+pub async fn force_reinit_active(
+    app_handle: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    let session_id = state.active.load(Ordering::SeqCst);
+    log_reinit(&format!("start session={session_id}"));
+
+    // 1) 从 map 摘掉旧 client，并尝试 destroy/logOut 释放数据库文件锁
+    let old = {
+        let mut clients = state.clients.lock().map_err(|e| e.to_string())?;
+        clients.remove(&session_id)
+    };
+    if let Some(old) = &old {
+        log_reinit(&format!("old client ptr={:?}", old.client));
+        if let Ok(sh) = shared(state.inner()) {
+            if !old.client.is_null() {
+                // destroy：关闭并销毁本地数据（含 binlog），比 logOut 更彻底
+                let req = json!({ "@type": "destroy" });
+                if let Ok(c_str) = CString::new(req.to_string()) {
+                    unsafe { (sh.send_fn)(old.client, c_str.as_ptr()) };
+                }
+            }
+        }
+    } else {
+        log_reinit("old client was not in map");
+    }
+
+    // 2) 等接收线程退出（Arc 在线程内持有，必须等它结束才会真正 destroy）
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    drop(old);
+
+    // 3) 反复尝试删除 tdlib_db，直到文件锁释放
+    let db_dir = account_db_dir(&state.data_dir, session_id);
+    let files_dir = account_files_dir(&state.data_dir, session_id);
+    let mut cleared = false;
+    for attempt in 0..25 {
+        {
+            // 确保 map 里没有残留
+            if let Ok(mut clients) = state.clients.lock() {
+                clients.remove(&session_id);
+            }
+        }
+        if !db_dir.exists() {
+            cleared = true;
+            log_reinit(&format!("db_dir already gone (attempt {attempt})"));
+            break;
+        }
+        match std::fs::remove_dir_all(&db_dir) {
+            Ok(_) => {
+                cleared = true;
+                log_reinit(&format!("cleared db_dir attempt={attempt} {}", db_dir.display()));
+                break;
+            }
+            Err(e) => {
+                if attempt == 0 || attempt % 5 == 0 {
+                    log_reinit(&format!("clear db_dir attempt={attempt} fail: {e}"));
+                }
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
+        }
+    }
+    if !cleared {
+        log_reinit("WARNING: db_dir not cleared, new client may restore QR token or fail to lock");
+    }
+    let _ = std::fs::create_dir_all(&db_dir);
+    let _ = std::fs::create_dir_all(&files_dir);
+
+    // 4) 重建
+    create_client(&app_handle, state.inner(), session_id)?;
+    {
+        let clients = state.clients.lock().map_err(|e| e.to_string())?;
+        if let Some(c) = clients.get(&session_id) {
+            log_reinit(&format!("new client ptr={:?}", c.client));
+        } else {
+            log_reinit("ERROR: new client missing from map");
+        }
+    }
+
+    // 5) 等接收线程跑完 setTdlibParameters，再查授权态
+    tokio::time::sleep(Duration::from_millis(2000)).await;
+    let auth = send_request(state.inner(), json!({ "_": "getAuthorizationState" })).await?;
+    log_reinit(&format!("auth after reinit: {}", auth));
+    Ok(json!({
+        "session_id": session_id,
+        "auth": auth,
+    }))
 }
 
 /// 退出当前账户登录：logOut（销毁本地数据），然后重建该账户客户端进入待登录状态。
@@ -1116,6 +1297,17 @@ fn spawn_receive_loop(
                                     let _ = tx.send(());
                                 }
                             }
+                            // Closed 后接收线程退出：让仍在 await 的 tdlib_send 立即失败，
+                            // 避免前端 logOut 等请求永久挂起
+                            if let Ok(mut map) = state.pending_requests.lock() {
+                                for (_, tx) in map.drain() {
+                                    let _ = tx.send(json!({
+                                        "_": "error",
+                                        "code": 500,
+                                        "message": "TDLib client closed"
+                                    }));
+                                }
+                            }
                             break;
                         }
                     }
@@ -1176,32 +1368,28 @@ fn spawn_receive_loop(
                                 }
 
                                 if state_type == "authorizationStateWaitTdlibParameters" {
-                                    // 优先使用该账户自身保存的凭据，fallback 到全局 config。
-                                    // 内置凭据时 api_id/api_hash 为 None，需从全局 config 补全。
-                                    // use_test_dc 也可能为 None（旧账户），同样 fallback。
+                                    // 凭据优先级（必须与「用户已配置自定义 API」保持一致）：
+                                    // 1) 账户记录中的自定义 api_id/api_hash（persist 写入）
+                                    // 2) 全局 config（bootstrap / set_tdlib_parameters 写入，含 settings.system）
+                                    // 3) 编译期内置凭据（config 默认值）
                                     let (api_id, api_hash, use_test_dc, language_pack_id, localization_target, system_language_code) = {
+                                        let cfg = state.config.lock().unwrap();
                                         let accounts = state.accounts.lock().unwrap();
-                                        if let Some((acct_id, acct_hash, test_dc)) = accounts.get_tdlib_params(session_id) {
-                                            let cfg = state.config.lock().unwrap();
-                                            (
-                                                acct_id.unwrap_or(cfg.api_id),
-                                                acct_hash.unwrap_or_else(|| cfg.api_hash.clone()),
-                                                test_dc.unwrap_or(cfg.use_test_dc),
-                                                cfg.language_pack_id.clone(),
-                                                cfg.localization_target.clone(),
-                                                cfg.system_language_code.clone(),
-                                            )
-                                        } else {
-                                            let cfg = state.config.lock().unwrap();
-                                            (
-                                                cfg.api_id,
-                                                cfg.api_hash.clone(),
-                                                cfg.use_test_dc,
-                                                cfg.language_pack_id.clone(),
-                                                cfg.localization_target.clone(),
-                                                cfg.system_language_code.clone(),
-                                            )
-                                        }
+                                        let acct = accounts.get_tdlib_params(session_id);
+                                        let (acct_id, acct_hash, test_dc) = match acct {
+                                            Some((id, hash, dc)) => (id, hash, dc),
+                                            None => (None, None, None),
+                                        };
+                                        let api_id = acct_id.unwrap_or(cfg.api_id);
+                                        let api_hash = acct_hash.unwrap_or_else(|| cfg.api_hash.clone());
+                                        (
+                                            api_id,
+                                            api_hash,
+                                            test_dc.unwrap_or(cfg.use_test_dc),
+                                            cfg.language_pack_id.clone(),
+                                            cfg.localization_target.clone(),
+                                            cfg.system_language_code.clone(),
+                                        )
                                     };
                                     let db_dir = tdlib_db_dir.to_string_lossy().to_string();
                                     let files_dir = tdlib_files_dir.to_string_lossy().to_string();
@@ -1824,12 +2012,35 @@ fn handle_update_file(
 
 /// 初始化 TDLib：迁移旧数据（单账户 → 账户 0），并为所有已登记账户创建
 /// 客户端实例（全部常驻，后台接收消息）。
+///
+/// `force = true`：先关闭已有客户端再重建。用于登录页切换登录方式、
+/// 应用自定义 API/测试 DC 后——重建时 setTdlibParameters 必须使用
+/// 当前全局 config 与账户记录中的凭据（含自定义 api_id/api_hash）。
 #[tauri::command]
-pub fn init_tdlib(app_handle: tauri::AppHandle, state: State<AppState>) -> Result<(), String> {
-    {
+pub async fn init_tdlib(
+    app_handle: tauri::AppHandle,
+    state: State<'_, AppState>,
+    force: Option<bool>,
+) -> Result<(), String> {
+    let force = force.unwrap_or(false);
+
+    let existing: Vec<i64> = {
         let clients = state.clients.lock().map_err(|e| e.to_string())?;
-        if !clients.is_empty() {
-            return Ok(()); // 已初始化
+        clients.keys().cloned().collect()
+    };
+
+    if !existing.is_empty() && !force {
+        return Ok(()); // 已初始化
+    }
+
+    if force {
+        for id in existing {
+            // close 优先；失败时直接移除，避免客户端残留在 map 里导致无法重建
+            if shutdown_client(state.inner(), id, "close").await.is_err() {
+                if let Ok(mut clients) = state.clients.lock() {
+                    clients.remove(&id);
+                }
+            }
         }
     }
 

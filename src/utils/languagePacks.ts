@@ -446,6 +446,42 @@ export interface LanguageOption {
     tdlibPackId: string;
     /** 翻译进度（0-100），TDLib-only 语言展示用 */
     translatedPercent?: number;
+    /** TDLib 官方语言包 */
+    isOfficial?: boolean;
+    /** TDLib beta 语言包 */
+    isBeta?: boolean;
+}
+
+/**
+ * 判断语言是否与系统/浏览器语言匹配（登录页「推荐」标记用）。
+ * 匹配规则：精确 code/packId、同语种前缀（en-* / zh-* 等）。
+ */
+export function matchesSystemLanguage(opt: {
+    code: string;
+    tdlibPackId: string;
+    englishName?: string;
+}): boolean {
+    const prefs = [navigator.language, ...(navigator.languages || [])]
+        .filter(Boolean)
+        .map((l) => l.toLowerCase().replace(/_/g, "-"));
+    if (!prefs.length) return false;
+
+    const code = opt.code.toLowerCase();
+    const pack = opt.tdlibPackId.toLowerCase();
+    const codeBase = code.split("-")[0];
+    const packBase = pack.split("-")[0];
+
+    for (const p of prefs) {
+        if (!p) continue;
+        const base = p.split("-")[0];
+        if (code === p || pack === p) return true;
+        // zh-hans / zh-cn / zh-hant / zh 等互认
+        if (base === "zh" && (codeBase === "zh" || packBase === "zh")) return true;
+        // 同语种前缀：en ↔ en-raw / en-us
+        if (base && (codeBase === base || packBase === base || pack.startsWith(base))) return true;
+        if (base && code.startsWith(base)) return true;
+    }
+    return false;
 }
 
 /** 由语言包列表 + 内置表构建可选语言列表 */
@@ -480,6 +516,8 @@ export function buildLanguageOptions(
             builtin: false,
             tdlibPackId: p.id,
             translatedPercent: percent,
+            isOfficial: !!p.is_official,
+            isBeta: !!p.is_beta,
         });
     }
 
