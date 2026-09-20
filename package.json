@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:compile": "tauri build --no-bundle",
+    "tauri:bundle:default": "tauri bundle --config src-tauri/tauri.conf.json --no-sign",
+    "tauri:bundle:webview": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/bundle-webview.ps1 -Mode WebviewOnly",
+    "tauri:build:all": "tauri build --no-bundle && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/bundle-webview.ps1 -Mode All"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",

@@ -182,7 +182,7 @@
                     <div class="flex-1">
                         <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{
                             t('settingsList.officialGroup') }}</h3>
-                        <p class="text-xs text-gray-500">@xiaoqvan_chat</p>
+                        <p class="text-xs text-gray-500">@CatMoeCircle_Group</p>
                     </div>
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                 </div>
@@ -248,7 +248,7 @@ function openMyProfile() {
 }
 
 /** TDEEEG 官方群组用户名 */
-const OFFICIAL_GROUP_USERNAME = 'xiaoqvan_chat';
+const OFFICIAL_GROUP_USERNAME = 'CatMoeCircle_Group';
 
 /** 跳转到官方群组：与「消息中点击 @ 用户名」完全一致的逻辑（t.me 链接 → resolveInternalLink） */
 async function openOfficialGroup() {

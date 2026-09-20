@@ -5,15 +5,17 @@ fn main() {
     // 设置 WebView2 启动参数
     #[cfg(target_os = "windows")]
     {
+        // 开发环境下开启 WebView2 远程调试端口，方便用 Chrome DevTools 连接
+        #[cfg(debug_assertions)]
+        const EXTRA_ARGS: &[&str] = &["--remote-debugging-port=9222"];
+        #[cfg(not(debug_assertions))]
+        const EXTRA_ARGS: &[&str] = &[];
+
         let mut args = vec![
             "--disable-features=ElasticOverscroll",
             "--enable-features=msWebView2EnableDraggableRegions",
         ];
-        // 开发环境下开启 WebView2 远程调试端口，方便用 Chrome DevTools 连接
-        #[cfg(debug_assertions)]
-        {
-            args.push("--remote-debugging-port=9222");
-        }
+        args.extend(EXTRA_ARGS);
         let joined = args.join(" ");
         // SAFETY: 在 main 入口、多线程启动前设置环境变量，安全。
         unsafe {

@@ -2,6 +2,7 @@ import { tempDir } from '@tauri-apps/api/path';
 import { readFile, writeFile } from '@tauri-apps/plugin-fs';
 import { tdlibSend, isFileReady, safeDownloadFile } from './tdlib';
 import { settings, type ChatWallpaperVisual } from '../store/settings';
+import { onTdlibUpdate } from '../store/tdlibBus';
 import { DL_PRIORITY } from './downloadPriority';
 import type { background, file } from 'tdlib-types';
 
@@ -140,7 +141,6 @@ export async function initDefaultBackgroundSync(): Promise<void> {
   if (syncListenerInstalled) return;
   syncListenerInstalled = true;
 
-  const { onTdlibUpdate } = await import('../store/tdlibBus');
   onTdlibUpdate('other', async (update) => {
     if (update._ !== 'updateDefaultBackground') return;
     if ((update as any).for_dark_theme) return;

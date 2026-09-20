@@ -136,7 +136,11 @@ bun run tauri dev
 ### Production build
 
 ```bash
+# Default package (downloads WebView2 at install time)
 bun run tauri build
+
+# Compile once, then emit default + offline-WebView2 packages
+bun run tauri:build:all
 ```
 
 ### Frontend-only build check (no Rust)

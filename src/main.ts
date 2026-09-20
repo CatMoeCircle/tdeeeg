@@ -16,6 +16,7 @@ import { initTdlib, waitForAuthorization } from "./init";
 import { registerLoaderStyle, type LoaderStyle } from "./components/common/LoaderIndicator";
 import { settings } from "./store/settings";
 import { debugMode } from "./store/debug";
+import { useLanguageStore } from "./store/language";
 import { initTlottie } from "./utils/tlottiePreload";
 import { installCrashGuard, showBootstrapFailure } from "./utils/crashGuard";
 import { restoreDefaultWallpaperFromTdlib } from "./utils/wallpaper";
@@ -140,7 +141,6 @@ async function bootstrap() {
             void restoreDefaultWallpaperFromTdlib();
             // 授权就绪后再同步一次 language_pack_id（登录前 setOption 可能尚未生效）
             try {
-                const { useLanguageStore } = await import("./store/language");
                 const langStore = useLanguageStore();
                 void langStore.setLanguage(langStore.currentCode, { silent: true });
             } catch (e) {

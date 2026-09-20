@@ -136,7 +136,11 @@ bun run tauri dev
 ### 构建生产包
 
 ```bash
+# 默认包（安装时在线获取 WebView2）
 bun run tauri build
+
+# 编译一次，同时产出默认包 + 内置 WebView2 离线安装器的包
+bun run tauri:build:all
 ```
 
 ### 仅前端构建检查 (不编译 Rust)

@@ -167,7 +167,8 @@ jobs:
           }
         shell: pwsh
 
-      - name: Build and release
+      - name: Build and release (default)
+        id: tauri_build
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -181,3 +182,21 @@ jobs:
           releaseBody: "${{ steps.changelog_read.outputs.body }}"
           releaseDraft: false
           prerelease: ${{ steps.release_type.outputs.prerelease }}
+
+      # 复用上一步已编译产物；应用名仍为 tdeeeg，仅安装包文件名加 -webview 后缀
+      # webview 变体 createUpdaterArtifacts=false，无需 updater 签名
+      - name: Bundle webview (offline WebView2) variant
+        run: bun run tauri:bundle:webview
+        env:
+          TG_API_ID: ${{ secrets.TG_API_ID }}
+          TG_API_HASH: ${{ secrets.TG_API_HASH }}
+
+      - name: Upload webview artifacts to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          files: |
+            src-tauri/target/release/bundle/nsis/*webview*
+            src-tauri/target/release/bundle/msi/*webview*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
