@@ -397,7 +397,7 @@
     "copyFailed": "複製失敗",
     "contextMenu": "右鍵選單",
     "showCopyJson": "顯示「複製原始 JSON」",
-    "showCopyJsonDesc": "在對話列表與訊息右鍵選單中顯示「複製對話/訊息原始 JSON」除錯項",
+    "showCopyJsonDesc": "在對話列表、訊息右鍵與資料頁「更多」中顯示「複製原始 JSON」除錯項（chat / user / userFull / 超級群組 / 基本群組 / 加密對話等）",
     "crashLog": "崩潰日誌",
     "crashLogDesc": "記錄全域錯誤、未處理 Promise、bootstrap 失敗與 #app 被清空事件（localStorage: tdgram-crash-log）",
     "refreshLog": "重新整理日誌",

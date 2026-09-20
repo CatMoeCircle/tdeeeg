@@ -405,7 +405,7 @@
     "copyFailed": "Copy failed",
     "contextMenu": "Context menu",
     "showCopyJson": "Show \"Copy raw JSON\"",
-    "showCopyJsonDesc": "Show \"Copy chat/message raw JSON\" debug items in chat list and message context menus",
+    "showCopyJsonDesc": "Show \"Copy raw JSON\" debug items in chat list, message context menu, and profile \"More\" (chat / user / userFull / supergroup / basic group / secret chat, etc.)",
     "crashLog": "Crash log",
     "crashLogDesc": "Records global errors, unhandled promises, bootstrap failures, and #app cleared events (localStorage: tdgram-crash-log)",
     "refreshLog": "Refresh log",

@@ -1094,6 +1094,12 @@ import { openContextMenu, closeContextMenu } from "../../store/contextMenu";
 import { confirmReportMessage } from "../../store/reportMessage";
 import type { ContextMenuItem } from "../../components/contextMenu/types";
 import { MessagePlugin } from "tdesign-vue-next";
+import { showCopyJsonInMenus } from "../../store/debug";
+import {
+  buildChatJsonChildren,
+  buildCopyJsonParentItem,
+  makeCopyJsonItem,
+} from "../../components/contextMenu/copyJsonActions";
 import { buildProfileTabs, type ProfileTab, type ProfileTabKey } from "../../utils/profileTabs";
 import SlidingTabBar from "../../components/common/SlidingTabBar.vue";
 import { settings } from "../../store/settings";
@@ -2737,6 +2743,35 @@ function openMoreMenu(e: MouseEvent) {
       },
     );
   }
+  // 复制原始 JSON（调试，跟随开发者选项开关）：chat / user / userFullInfo
+  if (showCopyJsonInMenus.value) {
+    const uid = userId.value;
+    const children: ContextMenuItem[] = [
+      makeCopyJsonItem({
+        key: 'copy-json-chat',
+        label: '复制 chat JSON',
+        icon: Copy,
+        getData: async () => {
+          const cid = await getPrivateChatId();
+          if (!cid) throw new Error('私聊不可用');
+          return getReactiveChat(cid) ?? tdlibSend({ _: 'getChat', chat_id: cid });
+        },
+      }),
+      makeCopyJsonItem({
+        key: 'copy-json-user',
+        label: '复制 user JSON',
+        icon: Copy,
+        getData: () => user.value ?? getReactiveUser(uid) ?? tdlibSend({ _: 'getUser', user_id: uid }),
+      }),
+      makeCopyJsonItem({
+        key: 'copy-json-user-full',
+        label: '复制 userFullInfo JSON',
+        icon: Copy,
+        getData: () => fullInfo.value ?? tdlibSend({ _: 'getUserFullInfo', user_id: uid }),
+      }),
+    ];
+    menuItems.push(buildCopyJsonParentItem(children, Copy, '复制 JSON'));
+  }
   // 在触发按钮坐标处打开菜单
   openContextMenu(e.clientX, e.clientY, menuItems, e.currentTarget as HTMLElement);
 }
@@ -2828,11 +2863,29 @@ function unsubscribeChat() {
   );
 }
 
-/** 频道/群组是否还有「更多」可选项（无则隐藏入口） */
+/** 频道/群组是否还有「更多」可选项（无则隐藏入口）；开启复制 JSON 调试时始终显示 */
 const hasChatMoreOptions = computed(() => {
+  if (showCopyJsonInMenus.value) return true;
   if (isSecretChat.value) return true;
   return isChatJoined.value;
 });
+
+/** 资料页可复制的 TDLib 对象子菜单（超级群组/基本群组/加密对话/私聊） */
+function buildProfileJsonChildren(): ContextMenuItem[] {
+  const c = chatObj.value;
+  if (c) return buildChatJsonChildren(c, Copy);
+
+  const cid = chatId.value;
+  if (!cid) return [];
+  return [
+    makeCopyJsonItem({
+      key: 'copy-json-chat',
+      label: '复制 chat JSON',
+      icon: Copy,
+      getData: () => getReactiveChat(cid) ?? tdlibSend({ _: 'getChat', chat_id: cid }),
+    }),
+  ];
+}
 
 /** 频道/群组/秘密聊天「更多」选项菜单 */
 function openChatMoreMenu(e: MouseEvent) {
@@ -2854,6 +2907,14 @@ function openChatMoreMenu(e: MouseEvent) {
       danger: true,
       onClick: () => { unsubscribeChat(); },
     });
+  }
+
+  // 复制原始 JSON（调试，跟随开发者选项开关）
+  if (showCopyJsonInMenus.value) {
+    const children = buildProfileJsonChildren();
+    if (children.length > 0) {
+      menuItems.push(buildCopyJsonParentItem(children, Copy, '复制 JSON'));
+    }
   }
 
   if (menuItems.length === 0) return;
