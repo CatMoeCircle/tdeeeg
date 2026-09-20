@@ -8,9 +8,9 @@
                 : 'px-3 py-1 max-h-14'">
                 <div class="relative">
                     <input type="text" :placeholder="t('lng_dlg_filter')"
-                        class="w-full text-xs focus:outline-none shadow-xs" :class="settings.folderStyle === 'soft'
-                            ? 'pl-8 pr-4 py-2 rounded-full bg-white/90 dark:bg-gray-800/90 backdrop-blur-md focus:shadow-(--box-shadow)'
-                            : 'pl-7 pr-3.5 py-1.5 rounded-md bg-white/60'" />
+                        class="w-full text-xs focus:outline-none" :class="settings.folderStyle === 'soft'
+                            ? `pl-8 pr-4 py-2 rounded-full ${UI_GLASS_SURFACE}`
+                            : `pl-7 pr-3.5 py-1.5 rounded-full ${UI_GLASS_SURFACE}`" />
                     <SearchIcon class="w-3.5 h-3.5 absolute left-2.5 text-gray-400"
                         :class="settings.folderStyle === 'soft' ? 'top-2.5' : 'top-2'" />
                 </div>
@@ -393,6 +393,7 @@ import { useChatStore } from '../../store/chat';
 import type { Chat } from '../../store/chat';
 import { useUserStore } from '../../store/user';
 import { showCopyJsonInMenus } from '../../store/debug';
+import { copyTdlibJson } from '../contextMenu/copyJsonActions';
 import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../utils/savedMessages';
 import Avatar from './avatar.vue';
 import type { message, forumTopic, forumTopics, formattedText } from 'tdlib-types';
@@ -407,7 +408,7 @@ import {
 import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
 import FormattedTextInline from './FormattedTextInline.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
-import { folderTabClass as sharedFolderTabClass, folderTabContainerClass } from '../../utils/folderPillsTabClass';
+import { folderTabClass as sharedFolderTabClass, folderTabContainerClass, UI_GLASS_SURFACE } from '../../utils/folderPillsTabClass';
 import MessagePreviewMedia from './MessagePreviewMedia.vue';
 import CustomEmojiInline from '../common/CustomEmojiInline.vue';
 import SlidingTabBar from '../common/SlidingTabBar.vue';
@@ -1158,27 +1159,19 @@ const buildChatContextMenu = (chat: Chat): ContextMenuItem[] => {
         onClick: () => onChatSelect(chat),
     });
 
-    // 复制对话原始 JSON 数据（调试用，由「开发者选项」设置页开关控制）
+    // 复制 chat（调试用，由「开发者选项」开关控制；对话列表只保留这一项）
     if (showCopyJsonInMenus.value) {
         items.push({
             key: 'copy-json',
-            label: '复制对话原始 JSON',
+            label: '复制 chat JSON',
             icon: CopyIcon,
             divider: true,
-            onClick: () => copyChatJson(chat),
+            onClick: () => { void copyTdlibJson(chat, 'chat'); },
         });
     }
 
     return items;
 };
-
-/** 复制对话原始 JSON 到剪贴板（开发调试用） */
-function copyChatJson(chat: Chat) {
-    const json = JSON.stringify(chat, null, 2);
-    navigator.clipboard.writeText(json)
-        .then(() => MessagePlugin.success('对话 JSON 已复制'))
-        .catch(() => MessagePlugin.error('复制失败'));
-}
 
 /** “加到分组/移出分组”子菜单构建（基于 chat store 已加载的分组文件夹） */
 function buildFolderMenu(chat: Chat): ContextMenuItem[] {

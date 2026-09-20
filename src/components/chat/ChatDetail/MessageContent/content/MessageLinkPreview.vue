@@ -22,38 +22,60 @@
         </div>
     </div>
 
-    <!-- 普通链接预览 -->
+    <!-- 普通链接预览：左侧主题条与正文/大图同列；图文与条间距一致（gap-2） -->
     <div v-else class="my-1.5 overflow-hidden rounded-lg bg-black/[0.04] dark:bg-white/[0.08]" role="link" tabindex="0"
         @click="emit('open', preview.url)" @keydown.enter.prevent="emit('open', preview.url)"
         @keydown.space.prevent="emit('open', preview.url)">
-        <!-- 大图媒体：位于描述上方 -->
-        <LinkPreviewMedia v-if="showLarge && mediaAbove" :preview="preview" large :chatId="chatId" />
-
-        <div class="flex gap-2 px-2.5 pt-2.5 pb-2">
+        <div class="flex items-stretch gap-2 px-2.5 pt-2.5 pb-2">
             <div class="w-0.5 shrink-0 rounded-full" :style="accentBarStyle"></div>
 
             <div class="min-w-0 flex-1">
-                <div v-if="preview.site_name" class="truncate text-xs font-semibold" :style="accentTextStyle">
-                    <GlobalEmojiText :text="preview.site_name" />
+                <!-- 大图媒体：位于描述上方（与正文同左边距） -->
+                <LinkPreviewMedia v-if="showLarge && mediaAbove" :preview="preview" large :chatId="chatId" />
+
+                <!-- 文本区：大图模式整宽；小图模式缩略图在右侧 -->
+                <div v-if="showLarge">
+                    <div v-if="preview.site_name" class="truncate text-xs font-semibold"
+                        :class="mediaAbove ? 'mt-2.5' : ''" :style="accentTextStyle">
+                        <GlobalEmojiText :text="preview.site_name" />
+                    </div>
+                    <div v-if="preview.title" class="mt-0.5 text-sm font-semibold leading-5">
+                        <GlobalEmojiText :text="preview.title" />
+                    </div>
+                    <div v-if="preview.author" class="mt-0.5 truncate text-xs opacity-65">
+                        <GlobalEmojiText :text="preview.author" />
+                    </div>
+                    <div v-if="preview.description?.text"
+                        class="preview-description mt-1.5 whitespace-pre-wrap text-sm leading-5">
+                        <FormattedTextInline :formattedText="preview.description" :size="18" />
+                    </div>
                 </div>
-                <div v-if="preview.title" class="mt-0.5 text-sm font-semibold leading-5">
-                    <GlobalEmojiText :text="preview.title" />
+                <div v-else class="flex gap-2">
+                    <div class="min-w-0 flex-1">
+                        <div v-if="preview.site_name" class="truncate text-xs font-semibold" :style="accentTextStyle">
+                            <GlobalEmojiText :text="preview.site_name" />
+                        </div>
+                        <div v-if="preview.title" class="mt-0.5 text-sm font-semibold leading-5">
+                            <GlobalEmojiText :text="preview.title" />
+                        </div>
+                        <div v-if="preview.author" class="mt-0.5 truncate text-xs opacity-65">
+                            <GlobalEmojiText :text="preview.author" />
+                        </div>
+                        <div v-if="preview.description?.text"
+                            class="preview-description mt-1.5 whitespace-pre-wrap text-sm leading-5">
+                            <FormattedTextInline :formattedText="preview.description" :size="18" />
+                        </div>
+                    </div>
+
+                    <!-- 小图媒体：右侧缩略图 -->
+                    <LinkPreviewMedia :preview="preview" :chatId="chatId" />
                 </div>
-                <div v-if="preview.author" class="mt-0.5 truncate text-xs opacity-65">
-                    <GlobalEmojiText :text="preview.author" />
-                </div>
-                <div v-if="preview.description?.text"
-                    class="preview-description mt-1.5 whitespace-pre-wrap text-sm leading-5">
-                    <FormattedTextInline :formattedText="preview.description" :size="18" />
-                </div>
+
+                <!-- 大图媒体：位于描述下方（与正文同左边距） -->
+                <LinkPreviewMedia v-if="showLarge && !mediaAbove" class="mt-2.5" :preview="preview" large
+                    :chatId="chatId" />
             </div>
-
-            <!-- 小图媒体：右侧缩略图 -->
-            <LinkPreviewMedia v-if="!showLarge" :preview="preview" :chatId="chatId" />
         </div>
-
-        <!-- 大图媒体：位于描述下方 -->
-        <LinkPreviewMedia v-if="showLarge && !mediaAbove" :preview="preview" large :chatId="chatId" />
 
         <button type="button"
             class="block w-[calc(100%-1.25rem)] mx-2.5 border-t border-black/10 py-2 text-center text-sm font-medium transition-colors hover:opacity-80 dark:border-white/10"

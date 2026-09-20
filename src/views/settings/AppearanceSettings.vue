@@ -622,6 +622,7 @@ import GlobalEmojiText from '../../components/common/GlobalEmojiText.vue';
 import EditableNumber from '../../components/settings/EditableNumber.vue';
 import LoaderIndicator from '../../components/common/LoaderIndicator';
 import SlidingTabBar from '../../components/common/SlidingTabBar.vue';
+import { UI_GLASS_SURFACE } from '../../utils/folderPillsTabClass';
 import TitleBarEmojiStatus from '../../components/common/TitleBarEmojiStatus.vue';
 import stickerPreview from '../../assets/sticker.jpg';
 import { useI18n } from 'vue-i18n';
@@ -735,7 +736,8 @@ const tabContainerClass = computed(() => {
         case 'tabs':
             return 'border-b border-gray-200 dark:border-gray-700';
         case 'soft':
-            return 'w-fit max-w-[calc(100%-1rem)] mx-2 rounded-full bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shadow-sm px-1.5 py-1';
+            // 与 ChatList 共用通用磨砂玻璃浮层
+            return `w-fit max-w-[calc(100%-1rem)] mx-2 rounded-full ${UI_GLASS_SURFACE} px-1.5 py-1`;
         case 'pills':
             return '';
         default:

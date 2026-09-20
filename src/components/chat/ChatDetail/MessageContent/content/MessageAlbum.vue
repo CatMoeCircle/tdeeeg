@@ -45,7 +45,8 @@
                     :viewCount="lastViewCount" :authorSignature="authorSignature" overMedia />
             </div>
         </div>
-        <div v-if="captionText" class="px-2 pt-1.5 pb-2"
+        <!-- 有描述时时间跟在下方，caption 不保留 pb，避免文本与时间之间出现多余边距 -->
+        <div v-if="captionText" class="px-2 pt-1.5"
             :class="isSelf ? 'text-gray-900' : 'text-gray-800 dark:text-gray-200'">
             <MessageTextContent :formattedText="captionFormatted" :chatId="chatId" />
         </div>

@@ -296,8 +296,8 @@ const largeStyle = computed(() => {
 
 /** contain 模式：完整展示图片（不裁剪），居中；默认 cover 裁剪填充 */
 const largeWrapCls = computed(() => props.contain
-    ? 'relative flex min-h-40 items-center justify-center overflow-hidden bg-gray-200 dark:bg-gray-700'
-    : 'relative overflow-hidden bg-gray-200 dark:bg-gray-700');
+    ? 'relative flex min-h-40 items-center justify-center overflow-hidden rounded-lg bg-gray-200 dark:bg-gray-700'
+    : 'relative overflow-hidden rounded-lg bg-gray-200 dark:bg-gray-700');
 const largeWrapStyle = computed(() => {
     const p = plan.value;
     if (props.contain) {
