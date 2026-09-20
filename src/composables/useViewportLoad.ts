@@ -13,9 +13,10 @@ import {
  * 看到这条消息才下载；未看到时用 base64 缩略图占位。
  *
  * 特性：
- * - 基于**模块级共享 IntersectionObserver**（见 useSharedIntersectionObserver）。
- * - **停留防抖**：进入视口后需连续可见 dwellMs（默认 500ms）才触发；期间离开
- *   视口则取消。防止快速滚动/惯性划过时对整屏消息同时发起下载。
+ * - 基于**模块级共享 IntersectionObserver**（见 useSharedIntersectionObserver），
+ *   rootMargin 在视口外扩约 640px，元素尚未进入视口时即可预取。
+ * - **停留防抖**：进入（放大后的）视口后需连续可见 dwellMs（默认 500ms）才触发；
+ *   期间离开视口则取消。防止快速滚动/惯性划过时对整屏消息同时发起下载。
  * - **按界面分池并发闸门**：enqueue=true（默认）时 load 通过 enqueueViewportLoad(scope)
  *   排队执行；enqueue=false 时停留结束后直接调用 load，不占并发槽（用于缩略图等
  *   极轻量同步下载）。

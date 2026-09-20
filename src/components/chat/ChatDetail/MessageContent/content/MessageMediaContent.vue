@@ -233,9 +233,12 @@
             </div>
         </div>
 
-        <!-- Caption below -->
-        <div v-if="!showCaptionAbove && captionText" class="caption-text px-2 pb-2 pt-1"
-            :class="isSelf ? 'text-gray-900' : 'text-gray-800 dark:text-gray-200'">
+        <!-- Caption below：有时间跟在下方时不保留 pb，避免文本与时间之间出现多余边距 -->
+        <div v-if="!showCaptionAbove && captionText" class="caption-text px-2 pt-1"
+            :class="[
+                isSelf ? 'text-gray-900' : 'text-gray-800 dark:text-gray-200',
+                !(captionBelow && date) && 'pb-2',
+            ]">
             <MessageTextContent :formattedText="captionFormatted" :chatId="chatId" />
         </div>
 
@@ -371,6 +374,8 @@ const isVideo = computed(() => props.content._ === 'messageVideo');
 const animThumbSrc = ref<string | undefined>(undefined);
 /** GIF 缩略图是否为 MPEG4/WEBM 动态图（需用 <video> 渲染） */
 const animThumbIsVideo = ref(false);
+/** GIF 是否在下载中（须在 content 就绪 watch 之前声明，避免 immediate 回调 TDZ） */
+const animDownloading = ref(false);
 
 // ---- 就绪态（只信消息内嵌 content，不 getFile）----
 /** 本组件下载意图 owner：卸载时释放 pending，不暂停已发起的 TDLib 下载 */
@@ -1028,12 +1033,15 @@ watch(photoSmallPath, (path) => {
 
 watch([videoFilePath, videoCoverPath, videoCoverIsAnim], ([vPath, cPath, cIsAnim]) => {
     if (vPath) {
-        mediaSrc.value = convertFileSrc(vPath);
         videoDownloaded.value = true;
         videoDownloading.value = false;
-        videoBuffering.value = false;
-        // 就绪视频直接用本体；preload 拉首帧，不依赖 mini/封面
-        tryMarkVideoFrameReady();
+        // 流式源已在播：不替换 src，避免下载完成瞬间 <video> 重载闪烁
+        if (!shouldKeepStreamSrc(mediaSrc.value)) {
+            mediaSrc.value = convertFileSrc(vPath);
+            videoBuffering.value = false;
+            // 就绪视频直接用本体；preload 拉首帧，不依赖 mini/封面
+            tryMarkVideoFrameReady();
+        }
         clearVideoBusy();
         reconcileDownloadStoreFromContent();
     }
@@ -1060,6 +1068,20 @@ watch([animFilePath, animCoverPath, animCoverIsAnim], ([aPath, cPath, cIsAnim]) 
 /** 当前缩略图 src 是否为 minithumbnail（base64） */
 function isMiniThumbSrc(src: string | undefined): boolean {
     return !!src && src.startsWith('data:');
+}
+
+/** src 是否为 tdstream 流式地址 */
+function isTdstreamSrc(src: string | undefined): boolean {
+    return !!src && src.includes('tdstream');
+}
+
+/**
+ * 流式源已在播时，下载完成不要替换 src。
+ * tdstream 本身会把文件下完；换成 local path 会让 <video> 重载并闪烁。
+ * 只更新 store 完成态 / 清理忙碌标记。
+ */
+function shouldKeepStreamSrc(src: string | undefined): boolean {
+    return isTdstreamSrc(src);
 }
 
 /**
@@ -1132,10 +1154,13 @@ function applyMediaFromContent() {
         clearPhotoBusy();
     }
     if (videoFilePath.value) {
-        mediaSrc.value = convertFileSrc(videoFilePath.value);
         videoDownloaded.value = true;
         videoDownloading.value = false;
-        tryMarkVideoFrameReady();
+        // 流式已在播时不替换 src
+        if (!shouldKeepStreamSrc(mediaSrc.value)) {
+            mediaSrc.value = convertFileSrc(videoFilePath.value);
+            tryMarkVideoFrameReady();
+        }
         clearVideoBusy();
     }
     if (animFilePath.value) {
@@ -1516,14 +1541,16 @@ function finishVideoDownload(fileId: number, path: string) {
     downloadingFiles.delete(fileId);
     videoDownloading.value = false;
     videoDownloaded.value = true;
-    videoHasFrame.value = false;
-    videoBuffering.value = false;
-    mediaSrc.value = convertFileSrc(path);
+    // 流式源已在播：只记账完成态，不替换 <video> 的 src（避免闪烁）
+    if (!shouldKeepStreamSrc(mediaSrc.value)) {
+        videoHasFrame.value = false;
+        videoBuffering.value = false;
+        mediaSrc.value = convertFileSrc(path);
+    }
     void downloadStore.markCompleted(fileId, path, remoteIdOf(videoFile.value));
 }
 
 // ---- Animation (GIF) ----
-const animDownloading = ref(false);
 
 /**
  * 自动下载 GIF：只决定是否入队，不阻断已就绪展示。
@@ -1903,7 +1930,8 @@ watch(() => {
     if (typeof info.progress === 'number' && info.progress > 0 && info.progress < 1) {
         videoProgress.value = info.progress;
     }
-    if (info.is_completed && info.local_path && !videoFilePath.value) {
+    if (info.is_completed && info.local_path) {
+        // 流式源已在播时 finishVideoDownload 不会替换 src，只记账
         finishVideoDownload(videoFile.value?.id || 0, info.local_path);
     }
 });

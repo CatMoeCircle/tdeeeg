@@ -46,7 +46,8 @@ function getOnceObserver(): IntersectionObserver {
           onceObserver?.unobserve(entry.target);
         }
       },
-      { root: null, rootMargin: '300px 0px 300px 0px', threshold: 0.01 },
+      // 预取距离：在视口上下各扩 640px，缩略图/聊天媒体在进入视口前就开始加载
+      { root: null, rootMargin: '640px 0px 640px 0px', threshold: 0.01 },
     );
   }
   return onceObserver;
@@ -105,7 +106,8 @@ function getVisibilityObserver(): IntersectionObserver {
           }
         }
       },
-      { root: null, rootMargin: '300px 0px 300px 0px', threshold: 0.01 },
+      // 与一次性加载一致：视口外扩 640px，聊天/缩略图视口门控提前触发
+      { root: null, rootMargin: '640px 0px 640px 0px', threshold: 0.01 },
     );
   }
   return visibilityObserver;

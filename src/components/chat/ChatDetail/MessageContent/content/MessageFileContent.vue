@@ -260,18 +260,30 @@ const fileReady = computed(() => {
 const downloadReadyLocal = ref(false);
 
 // content 内 File 已就绪时对账下载 store，避免下载按钮/进度条因 store 状态过期一直显示「正在下载」
-watch(() => props.content, () => {
+// 只监视就绪字段，避免 deep: true 在 updateFile 高频写回时反复触发
+watch(() => {
     const f = props.content._ === 'messageAudio'
         ? props.content.audio.audio
         : props.content._ === 'messageDocument'
             ? props.content.document.document
             : undefined;
-    if (f && isFileReady(f)) {
-        downloadStore.reconcileFromFile(f as never);
-        downloadReadyLocal.value = true;
-        isDownloading.value = false;
-    }
-}, { immediate: true, deep: true });
+    if (!f) return null;
+    return {
+        id: f.id,
+        path: f.local?.path || '',
+        done: !!f.local?.is_downloading_completed,
+    };
+}, (snap) => {
+    if (!snap?.done || !snap.path) return;
+    const f = props.content._ === 'messageAudio'
+        ? props.content.audio.audio
+        : props.content._ === 'messageDocument'
+            ? props.content.document.document
+            : undefined;
+    if (f) downloadStore.reconcileFromFile(f as never);
+    downloadReadyLocal.value = true;
+    isDownloading.value = false;
+}, { immediate: true });
 
 type CaptionSegment = {
     text: string;

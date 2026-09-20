@@ -1742,6 +1742,15 @@ fn handle_update_file(
                         .duration_since(std::time::UNIX_EPOCH)
                         .map(|d| d.as_millis() as i64)
                         .unwrap_or(0),
+                    completed_at: if is_dl_completed {
+                        std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_millis() as i64)
+                            .unwrap_or(0)
+                    } else {
+                        0
+                    },
+                    has_tdlib_update: true,
                 }
             });
         let _ = app_handle.emit("download-progress-update", &item);

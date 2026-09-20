@@ -104,7 +104,8 @@
                     </div>
                 </div>
 
-                <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar" v-smooth-wheel>
+                <div ref="listScrollEl" class="flex-1 min-h-0 overflow-y-auto custom-scrollbar" v-smooth-wheel
+                    @scroll="onListScroll">
                     <!-- 正在上传 -->
                     <div v-if="uploadStore.activeItems.length > 0" class="py-2">
                         <div class="px-4 py-1.5 text-xs font-medium text-emerald-500 dark:text-emerald-400 flex items-center gap-1.5">
@@ -185,13 +186,11 @@
                         <DownloadRow v-for="item in displayCompletedItems" :key="item.remote_id || item.file_id"
                             :item="item" :can-open-in-player="canOpenInPlayer(item)" @dismiss="store.dismissItem"
                             @open-in-player="onCompletedClick" @item-context-menu="onItemContextMenu" />
-                        <button v-if="completedHasMore" type="button" @click="loadMoreCompleted"
-                            class="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polyline points="6 9 12 15 18 9" />
-                            </svg>
-                            显示更多（剩余 {{ store.completedItems.length - displayCompletedItems.length }} 项）
-                        </button>
+                        <!-- 触底哨兵：滚动接近底部时自动加载下一页 -->
+                        <div v-if="completedHasMore" ref="completedSentinelEl"
+                            class="h-8 flex items-center justify-center text-[11px] text-gray-400">
+                            加载中…
+                        </div>
                     </div>
 
                     <!-- 空状态 -->
@@ -225,7 +224,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { useDownloadStore, type DownloadItem, FILTER_OPTIONS } from "../../store/downloads";
 import { FILTER_KEY } from "../../utils/downloadTags";
@@ -382,8 +381,52 @@ watch(
     }
 );
 function loadMoreCompleted() {
+    if (!completedHasMore.value) return;
     completedLimit.value += COMPLETED_PAGE_SIZE;
 }
+
+/** 列表滚动容器与已完成区哨兵 */
+const listScrollEl = ref<HTMLElement | null>(null);
+const completedSentinelEl = ref<HTMLElement | null>(null);
+let completedIO: IntersectionObserver | null = null;
+
+/** 滚动接近底部时自动加载已完成列表下一页 */
+function onListScroll() {
+    const el = listScrollEl.value;
+    if (!el || !completedHasMore.value) return;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 120) {
+        loadMoreCompleted();
+    }
+}
+
+function bindCompletedSentinel() {
+    completedIO?.disconnect();
+    completedIO = null;
+    const sentinel = completedSentinelEl.value;
+    const root = listScrollEl.value;
+    if (!sentinel || !root || !completedHasMore.value) return;
+    completedIO = new IntersectionObserver(
+        (entries) => {
+            if (entries.some((e) => e.isIntersecting)) loadMoreCompleted();
+        },
+        { root, rootMargin: '120px 0px', threshold: 0 },
+    );
+    completedIO.observe(sentinel);
+}
+
+watch(
+    () => [completedHasMore.value, displayCompletedItems.value.length, store.isPanelOpen] as const,
+    async () => {
+        await nextTick();
+        bindCompletedSentinel();
+    },
+    { immediate: true },
+);
+
+onUnmounted(() => {
+    completedIO?.disconnect();
+    completedIO = null;
+});
 
 async function revealFile(item: DownloadItem) {
     const localPath = item.local_path;

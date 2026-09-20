@@ -57,6 +57,13 @@ pub struct DownloadItem {
     pub is_upload: bool,
     #[serde(default)]
     pub created_at: i64,
+    /// 完成时间（ms）；已完成列表按此排序
+    #[serde(default)]
+    pub completed_at: i64,
+    /// 是否收到过 TDLib updateFile 进度/完成事件。
+    /// 仅 register 尚未真正开下的条目不进下载列表，避免「空进度」任务。
+    #[serde(default)]
+    pub has_tdlib_update: bool,
 }
 
 fn now_ms() -> i64 {
@@ -218,6 +225,8 @@ impl AccountDownloadData {
                         dismissed: o.dismissed,
                         is_upload: o.is_upload,
                         created_at: o.created_at,
+                        completed_at: if o.is_completed { o.created_at } else { 0 },
+                        has_tdlib_update: o.is_completed || o.downloaded_size > 0,
                     },
                 );
             }
@@ -388,7 +397,9 @@ impl DownloadStore {
         d.items
             .values()
             .filter(|item| {
-                !item.is_generic
+                // 仅展示真正收到过 TDLib update 的任务（register 后未开下的不进列表）
+                item.has_tdlib_update
+                    && !item.is_generic
                     && !item.is_auto_photo
                     && !item.is_completed
                     && !item.dismissed
@@ -414,16 +425,18 @@ impl DownloadStore {
             .items
             .values()
             .filter(|item| {
-                !item.dismissed
+                item.has_tdlib_update
+                    && !item.dismissed
                     && (d.show_hidden || !item.is_generic)
                     && (d.show_auto_photos || !item.is_auto_photo)
             })
             .cloned()
             .collect();
         items.sort_by(|a, b| {
-            b.created_at
-                .cmp(&a.created_at)
-                .then_with(|| b.file_id.cmp(&a.file_id))
+            // 已完成按完成时间倒序，未完成按创建时间
+            let a_key = if a.is_completed { a.completed_at } else { a.created_at };
+            let b_key = if b.is_completed { b.completed_at } else { b.created_at };
+            b_key.cmp(&a_key).then_with(|| b.file_id.cmp(&a.file_id))
         });
         items
     }
@@ -433,7 +446,10 @@ impl DownloadStore {
             return false;
         };
         d.items.values().any(|item| {
-            (item.is_generic || item.is_auto_photo) && !item.is_completed && !item.dismissed
+            item.has_tdlib_update
+                && (item.is_generic || item.is_auto_photo)
+                && !item.is_completed
+                && !item.dismissed
         })
     }
 
@@ -609,6 +625,8 @@ impl DownloadStore {
                 dismissed: false,
                 is_upload: false,
                 created_at: now_ms(),
+                completed_at: 0,
+                has_tdlib_update: false,
             },
         );
     }
@@ -684,9 +702,13 @@ impl DownloadStore {
                 0.0
             };
             item.is_paused = !is_downloading_active && !is_downloading_completed;
+            // 收到 TDLib update 后才允许进入下载列表（避免空进度任务）
+            item.has_tdlib_update = true;
             item.is_completed = is_downloading_completed;
             if is_downloading_completed {
-                item.created_at = now_ms();
+                if item.completed_at == 0 {
+                    item.completed_at = now_ms();
+                }
                 if let Some(path) = local_path {
                     if !path.is_empty() {
                         item.local_path = Some(path);
@@ -859,6 +881,8 @@ impl DownloadStore {
                     dismissed: false,
                     is_upload: true,
                     created_at: now_ms(),
+                    completed_at: 0,
+                    has_tdlib_update: false,
                 },
             );
             d.upload_session_map.insert(session_file_id, rid);

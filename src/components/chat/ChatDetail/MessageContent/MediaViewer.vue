@@ -519,6 +519,15 @@ const videoSrcOverride = ref('');
 const videoDownloading = ref(false);
 /** 手动下载进度（0~1） */
 const videoDownloadProgress = ref(0);
+/**
+ * 当前视频的流式源（sticky）。
+ * 流式播放过程中若 updateFile 把 local path 写回消息，
+ * currentMediaSrc 会从 tdstream 切到本地路径，导致 <video> 重载闪烁。
+ * 这里记住「本条视频已使用的 tdstream」，下载完成后继续用流式源。
+ */
+const stickyStreamSrc = ref('');
+const stickyStreamFileId = ref(0);
+
 /** 浏览器是否离线 */
 const navigatorOffline = computed(() => typeof navigator !== 'undefined' && navigator.onLine === false);
 /**
@@ -668,13 +677,25 @@ const currentMediaSrc = computed(() => {
                 localPath = getFile(largest.photo);
             }
         } else if (c._ === 'messageVideo') {
-            localPath = getFile(c.video.video);
+            const vid = c.video.video;
+            localPath = getFile(vid);
+            // 同一条视频已在用流式源：下载完成后继续用 tdstream，不切换本地路径（避免闪烁）
+            if (
+                stickyStreamSrc.value
+                && stickyStreamFileId.value === vid?.id
+                && stickyStreamSrc.value.includes('tdstream')
+            ) {
+                return stickyStreamSrc.value;
+            }
             if (!localPath && c.video.supports_streaming && c.video.video.size > 0) {
                 // 断网时不生成 tdstream，避免查看器一直卡在「加载中」黑屏
                 if (typeof navigator !== 'undefined' && navigator.onLine === false) {
                     return '';
                 }
-                return `${convertFileSrc(String(c.video.video.id), 'tdstream')}?mime=${c.video.mime_type}`;
+                const streamUrl = `${convertFileSrc(String(c.video.video.id), 'tdstream')}?mime=${c.video.mime_type}`;
+                stickyStreamSrc.value = streamUrl;
+                stickyStreamFileId.value = c.video.video.id;
+                return streamUrl;
             }
         } else if (c._ === 'messageAnimation') {
             localPath = getFile(c.animation.animation);
@@ -786,6 +807,8 @@ watch(() => props.visible, (v) => {
         videoSrcOverride.value = '';
         videoDownloading.value = false;
         videoDownloadProgress.value = 0;
+        stickyStreamSrc.value = '';
+        stickyStreamFileId.value = 0;
         activeQualitySrc.value = currentMediaSrc.value || '';
         speedMenuVisible.value = false;
         qualityMenuVisible.value = false;
@@ -813,6 +836,9 @@ watch(currentIndex, () => {
     videoSrcOverride.value = '';
     videoDownloading.value = false;
     videoDownloadProgress.value = 0;
+    // 切换条目时清掉 sticky 流式源，让新视频按需重新选择 src
+    stickyStreamSrc.value = '';
+    stickyStreamFileId.value = 0;
     activeQualitySrc.value = currentMediaSrc.value || '';
     speedMenuVisible.value = false;
     qualityMenuVisible.value = false;

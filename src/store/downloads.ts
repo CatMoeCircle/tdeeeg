@@ -80,6 +80,22 @@ export interface DownloadItem {
     dismissed: boolean;
     is_upload?: boolean;
     created_at?: number;
+    /** 完成时间（ms）；已完成列表按此排序 */
+    completed_at?: number;
+    /** 是否收到过 TDLib updateFile；未开下的 register 任务不进列表 */
+    has_tdlib_update?: boolean;
+}
+
+/** 条目是否真正开始过（收到 TDLib update 或已有进度/完成） */
+export function hasTdlibUpdate(item: Pick<DownloadItem, "has_tdlib_update" | "is_completed" | "downloaded_size" | "progress">): boolean {
+    if (item.has_tdlib_update) return true;
+    // 遗留数据：有实质进度或已完成视为已开始
+    return !!item.is_completed || (item.downloaded_size ?? 0) > 0 || (item.progress ?? 0) > 0;
+}
+
+/** 取消时：无进度 = 尚未真正开下，应 only_if_pending */
+function isNeverStarted(item: DownloadItem): boolean {
+    return !item.is_completed && !hasTdlibUpdate(item) && (item.downloaded_size ?? 0) <= 0 && !(item.progress > 0);
 }
 
 export type HiddenCategory =
@@ -205,22 +221,28 @@ export const useDownloadStore = defineStore("downloads", () => {
     /** 全部未 dismiss 条目 */
     const allItems = computed(() => Object.values(items.value));
 
-    /** 过滤后可见项 */
+    /** 过滤后可见项（仅展示真正收到 TDLib update 的任务） */
     const visibleItems = computed(() =>
         allItems.value
-            .filter((item) => !item.dismissed && isItemVisibleByFilter(item as never, filterKeys.value))
+            .filter((item) =>
+                !item.dismissed
+                && hasTdlibUpdate(item)
+                && isItemVisibleByFilter(item as never, filterKeys.value)
+            )
             .sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0) || (b.file_id ?? 0) - (a.file_id ?? 0))
     );
 
     /**
      * 活跃下载（红点）：排除默认隐藏的通用资源、自动下载图片，
      * 以及未完成的流式传输（流式项只在面板独立分区展示，不计入角标）。
+     * 同时排除「已注册但尚未收到 update」的空任务。
      */
     const activeItems = computed(() =>
         allItems.value.filter(
             (item) =>
                 !item.is_completed &&
                 !item.dismissed &&
+                hasTdlibUpdate(item) &&
                 !isGenericItem(item as never) &&
                 !isAutoPhotoItem(item as never) &&
                 !isIncompleteStreaming(item as never)
@@ -234,8 +256,15 @@ export const useDownloadStore = defineStore("downloads", () => {
         activeItems.value.filter((item) => !item.is_paused).length
     );
 
+    /** 已完成：按完成时间倒序（缺 completed_at 时回退 created_at） */
     const completedItems = computed(() =>
-        visibleItems.value.filter((item) => item.is_completed)
+        visibleItems.value
+            .filter((item) => item.is_completed)
+            .slice()
+            .sort((a, b) =>
+                ((b.completed_at ?? b.created_at ?? 0) - (a.completed_at ?? a.created_at ?? 0))
+                || ((b.file_id ?? 0) - (a.file_id ?? 0))
+            )
     );
 
     const pendingItems = computed(() =>
@@ -267,6 +296,7 @@ export const useDownloadStore = defineStore("downloads", () => {
             (item) =>
                 !item.is_completed &&
                 !item.dismissed &&
+                hasTdlibUpdate(item) &&
                 (isGenericItem(item as never) || isAutoPhotoItem(item as never)) &&
                 !isItemVisibleByFilter(item as never, filterKeys.value)
         )
@@ -278,6 +308,7 @@ export const useDownloadStore = defineStore("downloads", () => {
         let active = 0;
         for (const i of allItems.value) {
             if (i.dismissed || i.is_completed) continue;
+            if (!hasTdlibUpdate(i)) continue;
             if (isItemVisibleByFilter(i as never, filterKeys.value)) continue;
             const g = isGenericItem(i as never);
             const ap = isAutoPhotoItem(i as never);
@@ -308,48 +339,144 @@ export const useDownloadStore = defineStore("downloads", () => {
         const key = indexSession(payload);
         const existing = items.value[key];
         if (!existing) {
-            items.value[key] = { ...payload, remote_id: key };
+            items.value[key] = {
+                ...payload,
+                remote_id: key,
+                has_tdlib_update: true,
+                completed_at: payload.completed_at
+                    || (payload.is_completed ? (payload.created_at || Date.now()) : undefined),
+            };
             return;
         }
         const completedBefore = !!existing.is_completed && !!existing.local_path;
-        existing.downloaded_size = payload.downloaded_size;
-        existing.total_size = payload.total_size;
-        existing.progress = payload.progress;
-        existing.is_paused = payload.is_paused;
-        existing.is_completed = payload.is_completed;
-        if (payload.local_path !== undefined) existing.local_path = payload.local_path;
+        // 进度/完成事件到达 → 标记为已真正开始，才允许进列表
+        if (!existing.has_tdlib_update) {
+            existing.has_tdlib_update = true;
+        }
+        // 仅在字段真正变化时写入，避免高频 progress tick 触发无意义的响应式更新
+        let dirty = false;
+        if (existing.downloaded_size !== payload.downloaded_size) {
+            existing.downloaded_size = payload.downloaded_size;
+            dirty = true;
+        }
+        if (payload.total_size && existing.total_size !== payload.total_size) {
+            existing.total_size = payload.total_size;
+            dirty = true;
+        }
+        if (existing.progress !== payload.progress) {
+            existing.progress = payload.progress;
+            dirty = true;
+        }
+        if (existing.is_paused !== payload.is_paused) {
+            existing.is_paused = payload.is_paused;
+            dirty = true;
+        }
+        if (payload.is_completed !== undefined && payload.is_completed !== existing.is_completed) {
+            existing.is_completed = payload.is_completed;
+            dirty = true;
+        }
+        if (payload.has_tdlib_update) {
+            existing.has_tdlib_update = true;
+            dirty = true;
+        }
+        if (
+            existing.is_completed
+            && !existing.completed_at
+            && (payload.completed_at || payload.created_at)
+        ) {
+            existing.completed_at = payload.completed_at || payload.created_at;
+            dirty = true;
+        } else if (payload.completed_at && payload.completed_at !== existing.completed_at) {
+            existing.completed_at = payload.completed_at;
+            dirty = true;
+        }
+        if (payload.local_path !== undefined && existing.local_path !== payload.local_path) {
+            existing.local_path = payload.local_path;
+            dirty = true;
+        }
         if (payload.file_name !== undefined && payload.file_name !== existing.file_name) {
             existing.file_name = payload.file_name;
+            dirty = true;
         }
         if (payload.chat_title !== undefined && payload.chat_title !== existing.chat_title) {
             existing.chat_title = payload.chat_title;
+            dirty = true;
         }
-        if (typeof payload.file_type === "string") existing.file_type = payload.file_type;
-        if (typeof payload.chat_id === "number") existing.chat_id = payload.chat_id;
-        if (typeof payload.message_id === "number") existing.message_id = payload.message_id;
-        if (payload.thumbnail_data_url !== undefined) existing.thumbnail_data_url = payload.thumbnail_data_url;
-        if (payload.is_generic !== undefined) existing.is_generic = payload.is_generic;
+        if (typeof payload.file_type === "string" && payload.file_type !== existing.file_type) {
+            existing.file_type = payload.file_type;
+            dirty = true;
+        }
+        if (typeof payload.chat_id === "number" && payload.chat_id !== existing.chat_id) {
+            existing.chat_id = payload.chat_id;
+            dirty = true;
+        }
+        if (typeof payload.message_id === "number" && payload.message_id !== existing.message_id) {
+            existing.message_id = payload.message_id;
+            dirty = true;
+        }
+        if (payload.thumbnail_data_url !== undefined && payload.thumbnail_data_url !== existing.thumbnail_data_url) {
+            existing.thumbnail_data_url = payload.thumbnail_data_url;
+            dirty = true;
+        }
+        if (payload.is_generic !== undefined && payload.is_generic !== existing.is_generic) {
+            existing.is_generic = payload.is_generic;
+            dirty = true;
+        }
         if (typeof payload.hidden_category === "string" && payload.hidden_category !== existing.hidden_category) {
             existing.hidden_category = payload.hidden_category;
+            dirty = true;
         }
-        if (payload.is_auto_photo !== undefined) existing.is_auto_photo = payload.is_auto_photo;
-        if (payload.is_streaming !== undefined) existing.is_streaming = payload.is_streaming;
-        if (payload.tags && payload.tags.length) existing.tags = payload.tags;
-        if (payload.source_label !== undefined) existing.source_label = payload.source_label;
-        if (payload.dismissed !== undefined) existing.dismissed = payload.dismissed;
-        if (payload.session_file_id != null) existing.session_file_id = payload.session_file_id;
-        if (payload.file_id) existing.file_id = payload.file_id;
+        if (payload.is_auto_photo !== undefined && payload.is_auto_photo !== existing.is_auto_photo) {
+            existing.is_auto_photo = payload.is_auto_photo;
+            dirty = true;
+        }
+        // 流式标记只增不清：updateFile 回退条目可能带 is_streaming=false，不得覆盖已注册的 true
+        if (payload.is_streaming && !existing.is_streaming) {
+            existing.is_streaming = true;
+            dirty = true;
+        }
+        if (payload.tags && payload.tags.length) {
+            const prevTags = existing.tags ?? [];
+            const same = payload.tags.length === prevTags.length
+                && payload.tags.every((t, i) => prevTags[i] === t);
+            if (!same) {
+                existing.tags = payload.tags;
+                dirty = true;
+            }
+        }
+        if (payload.source_label !== undefined && payload.source_label !== existing.source_label) {
+            existing.source_label = payload.source_label;
+            dirty = true;
+        }
+        if (payload.dismissed !== undefined && payload.dismissed !== existing.dismissed) {
+            existing.dismissed = payload.dismissed;
+            dirty = true;
+        }
+        if (payload.session_file_id != null && payload.session_file_id !== existing.session_file_id) {
+            existing.session_file_id = payload.session_file_id;
+            dirty = true;
+        }
+        if (payload.file_id && payload.file_id !== existing.file_id) {
+            existing.file_id = payload.file_id;
+            dirty = true;
+        }
         if (typeof payload.created_at === "number" && payload.created_at !== existing.created_at) {
             existing.created_at = payload.created_at;
+            dirty = true;
         }
-        if (!existing.remote_id) existing.remote_id = key;
+        if (!existing.remote_id) {
+            existing.remote_id = key;
+            dirty = true;
+        }
         // 「下载完成」里程碑：替换条目引用。
         // 否则 watch(() => getDownloadInfo(id)) 因 Object.is 同引用永不回调，
         // 消息气泡会一直停在等待态（下载管理器却已显示完成）。
         const completedNow = !!existing.is_completed && !!existing.local_path;
         if (completedNow && !completedBefore) {
             items.value[key] = { ...existing };
+            return;
         }
+        void dirty;
     }
 
     function flushPendingUpdates() {
@@ -468,34 +595,64 @@ export const useDownloadStore = defineStore("downloads", () => {
             // TDLib 对已完成文件不会再推 updateFile，一旦重置就会永远停在「正在下载」。
             const existing = items.value[rid];
             if (existing) {
-                items.value[rid] = {
-                    ...existing,
-                    remote_id: rid,
-                    session_file_id: fileId,
-                    file_id: fileId,
-                    file_name: fileName || existing.file_name,
-                    chat_title: chatTitle || existing.chat_title,
-                    total_size: totalSize || existing.total_size,
-                    file_type: (fileType || existing.file_type) as DownloadFileType,
-                    thumbnail_data_url:
-                        thumbnailDataUrl !== undefined ? thumbnailDataUrl : existing.thumbnail_data_url,
-                    is_generic: generic,
-                    hidden_category: category ?? existing.hidden_category,
-                    is_auto_photo: isAutoPhoto ?? existing.is_auto_photo,
-                    is_streaming: existing.is_streaming || (isStreaming ?? false),
-                    tags: finalTags.length ? finalTags : existing.tags,
-                    source_label: sourceLabel ?? existing.source_label,
-                    chat_id: chatId || existing.chat_id,
-                    message_id: messageId || existing.message_id,
-                    // 保留进度/完成态/本地路径，不因重复注册回退
-                    downloaded_size: existing.downloaded_size,
-                    progress: existing.progress,
-                    is_paused: existing.is_paused,
-                    is_completed: existing.is_completed,
-                    local_path: existing.local_path,
-                    dismissed: existing.dismissed,
-                    created_at: existing.created_at || Date.now(),
-                };
+                // 已完成且路径有效：不整对象替换，避免角标/列表计算无意义重算导致递归更新
+                if (existing.is_completed && existing.local_path) {
+                    if (existing.session_file_id !== fileId || existing.file_id !== fileId) {
+                        // 仅刷新 session 绑定
+                        items.value[rid] = {
+                            ...existing,
+                            session_file_id: fileId,
+                            file_id: fileId,
+                        };
+                    }
+                    sessionIdMap.value[fileId] = rid;
+                    return;
+                }
+                const nextStreaming = existing.is_streaming || (isStreaming ?? false);
+                const nextTags = finalTags.length ? finalTags : (existing.tags ?? []);
+                const prevTags = existing.tags ?? [];
+                const tagsSame = nextTags.length === prevTags.length
+                    && nextTags.every((t, i) => prevTags[i] === t);
+                // 未完成：仅在元数据有变化时替换引用
+                if (
+                    fileName !== existing.file_name
+                    || (chatTitle && chatTitle !== existing.chat_title)
+                    || (totalSize && totalSize !== existing.total_size)
+                    || nextStreaming !== existing.is_streaming
+                    || !tagsSame
+                    || existing.session_file_id !== fileId
+                    || existing.file_id !== fileId
+                    || generic !== existing.is_generic
+                ) {
+                    items.value[rid] = {
+                        ...existing,
+                        remote_id: rid,
+                        session_file_id: fileId,
+                        file_id: fileId,
+                        file_name: fileName || existing.file_name,
+                        chat_title: chatTitle || existing.chat_title,
+                        total_size: totalSize || existing.total_size,
+                        file_type: (fileType || existing.file_type) as DownloadFileType,
+                        thumbnail_data_url:
+                            thumbnailDataUrl !== undefined ? thumbnailDataUrl : existing.thumbnail_data_url,
+                        is_generic: generic,
+                        hidden_category: category ?? existing.hidden_category,
+                        is_auto_photo: isAutoPhoto ?? existing.is_auto_photo,
+                        is_streaming: nextStreaming,
+                        tags: nextTags,
+                        source_label: sourceLabel ?? existing.source_label,
+                        chat_id: chatId || existing.chat_id,
+                        message_id: messageId || existing.message_id,
+                        // 保留进度/完成态/本地路径，不因重复注册回退
+                        downloaded_size: existing.downloaded_size,
+                        progress: existing.progress,
+                        is_paused: existing.is_paused,
+                        is_completed: existing.is_completed,
+                        local_path: existing.local_path,
+                        dismissed: existing.dismissed,
+                        created_at: existing.created_at || Date.now(),
+                    };
+                }
             } else {
                 items.value[rid] = {
                     remote_id: rid,
@@ -521,6 +678,9 @@ export const useDownloadStore = defineStore("downloads", () => {
                     message_id: messageId,
                     local_path: undefined,
                     created_at: Date.now(),
+                    // 尚未收到 TDLib update：不进下载列表/角标，避免空进度任务
+                    has_tdlib_update: false,
+                    completed_at: undefined,
                 };
             }
             sessionIdMap.value[fileId] = rid;
@@ -544,14 +704,18 @@ export const useDownloadStore = defineStore("downloads", () => {
         const key = remoteId && remoteId.length > 0 ? remoteId : resolveKey(fileId);
         const item = items.value[key];
         if (!item) return;
+        // 已是同一完成态：不再替换引用，避免角标计算递归触发更新
+        if (item.is_completed && item.local_path === localPath) return;
+        const now = Date.now();
         // 替换引用，保证依赖 getDownloadInfo 的 watch 能收到完成事件
         items.value[key] = {
             ...item,
             local_path: localPath,
             is_completed: true,
             progress: 1,
-            downloaded_size: item.total_size,
-            created_at: Date.now(),
+            has_tdlib_update: true,
+            completed_at: item.completed_at || now,
+            downloaded_size: item.total_size > 0 ? item.total_size : item.downloaded_size,
         };
     }
 
@@ -609,9 +773,15 @@ export const useDownloadStore = defineStore("downloads", () => {
         const item = getItemByKey(fileId);
         if (!item) return;
         const sid = sessionFileId(item);
+        // 无下载进度 = 尚未真正开下：only_if_pending=true，只取消排队中的请求
+        const onlyIfPending = isNeverStarted(item);
         try {
             await invoke("tdlib_send", {
-                request: { _: "cancelDownloadFile", file_id: sid },
+                request: {
+                    _: "cancelDownloadFile",
+                    file_id: sid,
+                    only_if_pending: onlyIfPending,
+                },
             });
             await dismissItem(item.remote_id || sid);
         } catch (e) {
@@ -620,11 +790,23 @@ export const useDownloadStore = defineStore("downloads", () => {
     }
 
     async function cancelAllDownloads() {
-        const pending = allItems.value.filter((item) => !item.is_completed && !item.dismissed);
+        const pending = allItems.value.filter(
+            (item) => !item.is_completed && !item.dismissed && hasTdlibUpdate(item),
+        );
+        // 未收到 update 的注册项：仅本地 dismiss，不必调 TDLib
+        for (const item of allItems.value) {
+            if (item.is_completed || item.dismissed || hasTdlibUpdate(item)) continue;
+            await dismissItem(item.remote_id || sessionFileId(item));
+        }
         for (const item of pending) {
+            const onlyIfPending = isNeverStarted(item);
             try {
                 await invoke("tdlib_send", {
-                    request: { _: "cancelDownloadFile", file_id: sessionFileId(item) },
+                    request: {
+                        _: "cancelDownloadFile",
+                        file_id: sessionFileId(item),
+                        only_if_pending: onlyIfPending,
+                    },
                 });
                 await dismissItem(item.remote_id || sessionFileId(item));
             } catch (e) {
@@ -713,6 +895,7 @@ export const useDownloadStore = defineStore("downloads", () => {
         getDownloadInfo,
         getDownloadInfoForFile,
         getCompletedPathForFile,
+        hasTdlibUpdate,
         togglePause,
         cancelDownload,
         cancelAllDownloads,
