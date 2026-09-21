@@ -664,6 +664,7 @@ async function handleDownload(fileId: number) {
             message_id: props.messageId,
             priority: DL_PRIORITY.USER_ACTIVE,
         });
+        downloadStore.markInTdlibList(fileId, props.chatId, props.messageId);
     } catch (e) {
         console.error("Download failed", e);
         isDownloading.value = false;

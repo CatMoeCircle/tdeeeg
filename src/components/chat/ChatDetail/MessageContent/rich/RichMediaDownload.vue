@@ -164,6 +164,7 @@ async function startDownload() {
             message_id: props.messageId,
             priority: DL_PRIORITY.USER_ACTIVE,
         });
+        downloadStore.markInTdlibList(fid, props.chatId, props.messageId);
         trackProgress();
     } catch (e) {
         console.error('富文本文件下载失败:', e);

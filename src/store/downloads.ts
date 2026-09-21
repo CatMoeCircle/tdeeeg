@@ -3,6 +3,7 @@ import { ref, computed } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { DL_PRIORITY } from "../utils/downloadPriority";
+import { onTdlibUpdate } from "./tdlibBus";
 import {
     DL_TAG,
     FILTER_KEY,
@@ -84,6 +85,8 @@ export interface DownloadItem {
     completed_at?: number;
     /** 是否收到过 TDLib updateFile；未开下的 register 任务不进列表 */
     has_tdlib_update?: boolean;
+    /** 是否仍在 TDLib 官方下载列表中（addFileToDownloads） */
+    in_tdlib_list?: boolean;
 }
 
 /** 条目是否真正开始过（收到 TDLib update 或已有进度/完成） */
@@ -136,6 +139,59 @@ function inferHiddenCategory(fileType: DownloadFileType): HiddenCategory {
     switch (fileType) {
         case "avatar": return "avatar";
         case "sticker": return "sticker";
+        default: return "other";
+    }
+}
+
+/** TDLib 官方下载列表聚合统计（updateFileDownloads / counts） */
+export interface TdlibDownloadListStats {
+    total_size: number;
+    total_count: number;
+    downloaded_size: number;
+    active_count: number;
+    paused_count: number;
+    completed_count: number;
+}
+
+/** 从 TDLib message 推断下载管理器展示用的文件名 */
+function fileNameFromTdlibMessage(msg: Record<string, unknown> | undefined): string {
+    if (!msg) return "";
+    const content = msg.content as Record<string, unknown> | undefined;
+    if (!content) return "";
+    const msgId = typeof msg.id === "number" ? msg.id : 0;
+    if (content._ === "messageDocument") {
+        const doc = content.document as Record<string, unknown> | undefined;
+        return (doc?.file_name as string) || `文件_${msgId}`;
+    }
+    if (content._ === "messageVideo") {
+        const video = content.video as Record<string, unknown> | undefined;
+        return (video?.file_name as string) || `video_${msgId}.mp4`;
+    }
+    if (content._ === "messageAudio") {
+        const audio = content.audio as Record<string, unknown> | undefined;
+        return (audio?.title as string) || (audio?.file_name as string) || `audio_${msgId}`;
+    }
+    if (content._ === "messagePhoto") return `photo_${msgId}.jpg`;
+    if (content._ === "messageAnimation") return `animation_${msgId}.gif`;
+    if (content._ === "messageVoiceNote") return `voice_${msgId}.ogg`;
+    return "";
+}
+
+function fileTypeFromTdlibMessage(msg: Record<string, unknown> | undefined): DownloadFileType {
+    const content = msg?.content as Record<string, unknown> | undefined;
+    switch (content?._) {
+        case "messagePhoto": return "photo";
+        case "messageVideo": return "video";
+        case "messageAudio": return "audio";
+        case "messageVoiceNote": return "voice";
+        case "messageAnimation": return "animation";
+        case "messageDocument": {
+            const mime = (content.document as Record<string, unknown> | undefined)?.mime_type as string | undefined;
+            if (mime?.startsWith("image/")) return "photo";
+            if (mime?.startsWith("video/")) return "video";
+            if (mime?.startsWith("audio/")) return "audio";
+            return "document";
+        }
         default: return "other";
     }
 }
@@ -325,8 +381,22 @@ export const useDownloadStore = defineStore("downloads", () => {
     const hasHiddenAutoPhotos = computed(() => hiddenStats.value.autoPhotos > 0);
 
     let unlistenProgress: (() => void) | null = null;
+    let unlistenOther: (() => void) | null = null;
+    let unlistenAuth: (() => void) | null = null;
+    let unlistenStats: (() => void) | null = null;
+    let tdlibListLoaded = false;
     let pendingUpdates = new Map<string, DownloadItem>();
     let throttleTimer: ReturnType<typeof setTimeout> | null = null;
+
+    /** TDLib 官方下载列表聚合统计 */
+    const tdlibListStats = ref<TdlibDownloadListStats>({
+        total_size: 0,
+        total_count: 0,
+        downloaded_size: 0,
+        active_count: 0,
+        paused_count: 0,
+        completed_count: 0,
+    });
 
     function indexSession(item: DownloadItem) {
         const key = item.remote_id || resolveKey(item.session_file_id ?? item.file_id);
@@ -460,6 +530,10 @@ export const useDownloadStore = defineStore("downloads", () => {
             existing.file_id = payload.file_id;
             dirty = true;
         }
+        if (payload.in_tdlib_list !== undefined && existing.in_tdlib_list !== payload.in_tdlib_list) {
+            existing.in_tdlib_list = payload.in_tdlib_list;
+            dirty = true;
+        }
         if (typeof payload.created_at === "number" && payload.created_at !== existing.created_at) {
             existing.created_at = payload.created_at;
             dirty = true;
@@ -498,6 +572,229 @@ export const useDownloadStore = defineStore("downloads", () => {
         }
     }
 
+    /**
+     * 应用 TDLib 官方下载列表状态到本地条目。
+     * Rust 端同步会经 download-progress-update 回写；这里兜底处理
+     * other 通道上的原始 update（列表先于 updateFile 到达、调试通道等）。
+     */
+    function applyTdlibDownloadListState(payload: {
+        fileId: number;
+        isPaused?: boolean;
+        completeDate?: number;
+        inTdlibList?: boolean;
+        fileName?: string;
+        chatId?: number;
+        messageId?: number;
+        fileType?: DownloadFileType;
+    }) {
+        const key = sessionIdMap.value[payload.fileId] || `session:${payload.fileId}`;
+        const existing = items.value[key];
+        const completedAt = payload.completeDate && payload.completeDate > 0
+            ? payload.completeDate * 1000
+            : undefined;
+
+        if (!existing) {
+            if (payload.inTdlibList === false) return;
+            items.value[key] = {
+                remote_id: key,
+                session_file_id: payload.fileId,
+                file_id: payload.fileId,
+                file_name: payload.fileName || `文件 #${payload.fileId}`,
+                chat_title: "",
+                chat_id: payload.chatId,
+                message_id: payload.messageId,
+                total_size: 0,
+                downloaded_size: 0,
+                progress: 0,
+                is_paused: !!payload.isPaused,
+                is_completed: false,
+                file_type: payload.fileType || "other",
+                is_generic: true,
+                is_auto_photo: false,
+                is_streaming: false,
+                dismissed: false,
+                created_at: Date.now(),
+                completed_at: completedAt,
+                has_tdlib_update: true,
+                in_tdlib_list: true,
+            };
+            sessionIdMap.value[payload.fileId] = key;
+            return;
+        }
+
+        let dirty = false;
+        if (payload.isPaused !== undefined && existing.is_paused !== payload.isPaused && !existing.is_completed) {
+            existing.is_paused = payload.isPaused;
+            dirty = true;
+        }
+        if (payload.inTdlibList !== undefined && existing.in_tdlib_list !== payload.inTdlibList) {
+            existing.in_tdlib_list = payload.inTdlibList;
+            dirty = true;
+        }
+        if (!existing.has_tdlib_update) {
+            existing.has_tdlib_update = true;
+            dirty = true;
+        }
+        if (completedAt && !existing.completed_at) {
+            existing.completed_at = completedAt;
+            dirty = true;
+        }
+        if (payload.completeDate && payload.completeDate > 0 && existing.local_path) {
+            if (!existing.is_completed) {
+                existing.is_completed = true;
+                existing.is_paused = false;
+                if (existing.total_size > 0) {
+                    existing.downloaded_size = existing.total_size;
+                    existing.progress = 1;
+                }
+                dirty = true;
+            }
+        }
+        if (payload.fileName && (existing.file_name.startsWith("文件 #") || !existing.file_name)) {
+            existing.file_name = payload.fileName;
+            dirty = true;
+        }
+        if (payload.chatId != null && existing.chat_id == null) {
+            existing.chat_id = payload.chatId;
+            dirty = true;
+        }
+        if (payload.messageId != null && existing.message_id == null) {
+            existing.message_id = payload.messageId;
+            dirty = true;
+        }
+        if (payload.fileType && existing.file_type !== payload.fileType) {
+            existing.file_type = payload.fileType;
+            dirty = true;
+        }
+        // 移出 TDLib 列表且无进度：本地 dismiss，避免幽灵任务
+        if (payload.inTdlibList === false && !existing.is_completed) {
+            const neverStarted = (existing.downloaded_size ?? 0) <= 0
+                && !(existing.progress > 0)
+                && !existing.local_path;
+            if (neverStarted) {
+                existing.dismissed = true;
+                dirty = true;
+            }
+        }
+        // 完成里程碑：替换引用，让依赖 getDownloadInfo 的 watch 收到回调
+        const completedNow = !!existing.is_completed && !!existing.local_path;
+        if (completedNow && dirty) {
+            items.value[key] = { ...existing };
+            return;
+        }
+        void dirty;
+    }
+
+    function applyTdlibCounts(counts: Record<string, unknown> | undefined) {
+        if (!counts) return;
+        const num = (k: string) => typeof counts[k] === "number" ? counts[k] as number : 0;
+        tdlibListStats.value = {
+            ...tdlibListStats.value,
+            active_count: num("active_count"),
+            paused_count: num("paused_count"),
+            completed_count: num("completed_count"),
+        };
+    }
+
+    function applyTdlibListTotals(update: Record<string, unknown>) {
+        const num = (k: string) => typeof update[k] === "number" ? update[k] as number : 0;
+        tdlibListStats.value = {
+            ...tdlibListStats.value,
+            total_size: num("total_size"),
+            total_count: num("total_count"),
+            downloaded_size: num("downloaded_size"),
+        };
+    }
+
+    /** 处理 other 通道上的 TDLib download-list update */
+    function handleDownloadListUpdate(update: Record<string, unknown>) {
+        switch (update._) {
+            case "updateFileDownload": {
+                const fileId = update.file_id as number | undefined;
+                if (typeof fileId !== "number") return;
+                applyTdlibDownloadListState({
+                    fileId,
+                    isPaused: !!update.is_paused,
+                    completeDate: typeof update.complete_date === "number" ? update.complete_date : 0,
+                    inTdlibList: true,
+                });
+                applyTdlibCounts(update.counts as Record<string, unknown> | undefined);
+                break;
+            }
+            case "updateFileAddedToDownloads": {
+                const fd = update.file_download as Record<string, unknown> | undefined;
+                if (!fd || typeof fd.file_id !== "number") return;
+                const msg = fd.message as Record<string, unknown> | undefined;
+                applyTdlibDownloadListState({
+                    fileId: fd.file_id,
+                    isPaused: !!fd.is_paused,
+                    completeDate: typeof fd.complete_date === "number" ? fd.complete_date : 0,
+                    inTdlibList: true,
+                    fileName: fileNameFromTdlibMessage(msg) || undefined,
+                    chatId: typeof msg?.chat_id === "number" ? msg.chat_id : undefined,
+                    messageId: typeof msg?.id === "number" ? msg.id : undefined,
+                    fileType: fileNameFromTdlibMessage(msg) ? fileTypeFromTdlibMessage(msg) : undefined,
+                });
+                applyTdlibCounts(update.counts as Record<string, unknown> | undefined);
+                break;
+            }
+            case "updateFileRemovedFromDownloads": {
+                const fileId = update.file_id as number | undefined;
+                if (typeof fileId !== "number") return;
+                applyTdlibDownloadListState({
+                    fileId,
+                    inTdlibList: false,
+                });
+                applyTdlibCounts(update.counts as Record<string, unknown> | undefined);
+                break;
+            }
+            case "updateFileDownloads": {
+                applyTdlibListTotals(update);
+                break;
+            }
+        }
+    }
+
+    /**
+     * 拉取一次 TDLib 下载列表。
+     * TDLib 文档：updateFileAddedToDownloads / updateFileDownload /
+     * updateFileRemovedFromDownloads 仅在下载列表首次加载后才会推送。
+     */
+    async function loadTdlibDownloadList() {
+        if (tdlibListLoaded) return;
+        tdlibListLoaded = true;
+        try {
+            const result = await invoke("tdlib_send", {
+                request: {
+                    _: "searchFileDownloads",
+                    query: "",
+                    limit: 100,
+                    offset: "",
+                },
+            }) as { _?: string; files?: Array<Record<string, unknown>>; total_counts?: Record<string, unknown> } | undefined;
+            if (result?._ !== "foundFileDownloads") return;
+            applyTdlibCounts(result.total_counts);
+            for (const fd of result.files ?? []) {
+                if (typeof fd.file_id !== "number") continue;
+                const msg = fd.message as Record<string, unknown> | undefined;
+                applyTdlibDownloadListState({
+                    fileId: fd.file_id,
+                    isPaused: !!fd.is_paused,
+                    completeDate: typeof fd.complete_date === "number" ? fd.complete_date : 0,
+                    inTdlibList: true,
+                    fileName: fileNameFromTdlibMessage(msg) || undefined,
+                    chatId: typeof msg?.chat_id === "number" ? msg.chat_id : undefined,
+                    messageId: typeof msg?.id === "number" ? msg.id : undefined,
+                    fileType: fileNameFromTdlibMessage(msg) ? fileTypeFromTdlibMessage(msg) : undefined,
+                });
+            }
+        } catch (e) {
+            // 授权未就绪 / 网络错误：下次 auth ready 会再试
+            tdlibListLoaded = false;
+            console.warn("searchFileDownloads failed:", e);
+        }
+    }
+
     async function init() {
         loadFilters();
         await refreshFromRust();
@@ -505,6 +802,27 @@ export const useDownloadStore = defineStore("downloads", () => {
             unlistenProgress = await listen<DownloadItem>("download-progress-update", (event) => {
                 const item = event.payload;
                 if (item) scheduleUpdate(item);
+            });
+        }
+        // TDLib 官方下载列表 update（低频，走 other 通道）
+        if (!unlistenOther) {
+            unlistenOther = onTdlibUpdate("other", (update) => {
+                handleDownloadListUpdate(update as Record<string, unknown>);
+            });
+        }
+        // 授权就绪后加载下载列表，激活 updateFileDownload* 推送
+        if (!unlistenAuth) {
+            unlistenAuth = onTdlibUpdate("auth", (update) => {
+                const st = (update as { authorization_state?: { _?: string } }).authorization_state?._;
+                if (st === "authorizationStateReady") {
+                    void loadTdlibDownloadList();
+                }
+            });
+        }
+        // Rust 侧聚合统计事件（可选增强，与 other 通道并存）
+        if (!unlistenStats) {
+            unlistenStats = await listen<Record<string, unknown>>("tdlib-download-list-stats", (event) => {
+                if (event.payload) applyTdlibListTotals(event.payload);
             });
         }
     }
@@ -537,6 +855,61 @@ export const useDownloadStore = defineStore("downloads", () => {
             unlistenProgress();
             unlistenProgress = null;
         }
+        if (unlistenOther) {
+            unlistenOther();
+            unlistenOther = null;
+        }
+        if (unlistenAuth) {
+            unlistenAuth();
+            unlistenAuth = null;
+        }
+        if (unlistenStats) {
+            unlistenStats();
+            unlistenStats = null;
+        }
+    }
+
+    /**
+     * UI 发起 addFileToDownloads 成功后标记：该文件在 TDLib 官方下载列表中。
+     * cancel 时据此调用 removeFileFromDownloads，避免重启后续传。
+     */
+    function markInTdlibList(fileId: number, chatId?: number, messageId?: number) {
+        const key = sessionIdMap.value[fileId]
+            || items.value[`session:${fileId}`]?.remote_id
+            || `session:${fileId}`;
+        const existing = items.value[key] || items.value[`session:${fileId}`];
+        if (existing) {
+            if (!existing.in_tdlib_list || existing.chat_id == null || existing.message_id == null) {
+                existing.in_tdlib_list = true;
+                if (chatId != null && existing.chat_id == null) existing.chat_id = chatId;
+                if (messageId != null && existing.message_id == null) existing.message_id = messageId;
+            }
+            sessionIdMap.value[fileId] = existing.remote_id || key;
+            return;
+        }
+        items.value[`session:${fileId}`] = {
+            remote_id: `session:${fileId}`,
+            session_file_id: fileId,
+            file_id: fileId,
+            file_name: `文件 #${fileId}`,
+            chat_title: "",
+            chat_id: chatId,
+            message_id: messageId,
+            total_size: 0,
+            downloaded_size: 0,
+            progress: 0,
+            is_paused: false,
+            is_completed: false,
+            file_type: "other",
+            is_generic: false,
+            is_auto_photo: false,
+            is_streaming: false,
+            dismissed: false,
+            created_at: Date.now(),
+            has_tdlib_update: false,
+            in_tdlib_list: true,
+        };
+        sessionIdMap.value[fileId] = `session:${fileId}`;
     }
 
     /**
@@ -681,6 +1054,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                     // 尚未收到 TDLib update：不进下载列表/角标，避免空进度任务
                     has_tdlib_update: false,
                     completed_at: undefined,
+                    in_tdlib_list: false,
                 };
             }
             sessionIdMap.value[fileId] = rid;
@@ -769,6 +1143,27 @@ export const useDownloadStore = defineStore("downloads", () => {
         }
     }
 
+    /**
+     * 将文件从 TDLib 官方下载列表移除。
+     * 用户手动下载走 addFileToDownloads：若只 cancelDownloadFile 不 remove，
+     * TDLib 会在重启后继续续传该文件。
+     */
+    async function removeFromTdlibDownloadList(fileId: number) {
+        if (!fileId) return;
+        try {
+            await invoke("tdlib_send", {
+                request: {
+                    _: "removeFileFromDownloads",
+                    file_id: fileId,
+                    delete_from_cache: false,
+                },
+            });
+        } catch (e) {
+            // 不在列表中 / TDLib 未就绪：忽略
+            console.warn("removeFileFromDownloads failed:", e);
+        }
+    }
+
     async function cancelDownload(fileId: number | string) {
         const item = getItemByKey(fileId);
         if (!item) return;
@@ -783,6 +1178,10 @@ export const useDownloadStore = defineStore("downloads", () => {
                     only_if_pending: onlyIfPending,
                 },
             });
+            // 在 TDLib 下载列表中的任务必须一并移除，否则重启后会自动续传
+            if (item.in_tdlib_list !== false) {
+                await removeFromTdlibDownloadList(sid);
+            }
             await dismissItem(item.remote_id || sid);
         } catch (e) {
             console.error("cancelDownloadFile failed:", e);
@@ -800,18 +1199,35 @@ export const useDownloadStore = defineStore("downloads", () => {
         }
         for (const item of pending) {
             const onlyIfPending = isNeverStarted(item);
+            const sid = sessionFileId(item);
             try {
                 await invoke("tdlib_send", {
                     request: {
                         _: "cancelDownloadFile",
-                        file_id: sessionFileId(item),
+                        file_id: sid,
                         only_if_pending: onlyIfPending,
                     },
                 });
-                await dismissItem(item.remote_id || sessionFileId(item));
+                if (item.in_tdlib_list !== false) {
+                    await removeFromTdlibDownloadList(sid);
+                }
+                await dismissItem(item.remote_id || sid);
             } catch (e) {
                 console.error("cancelDownloadFile failed for", item.remote_id, e);
             }
+        }
+        // 兜底：清空 TDLib 侧活跃下载列表，防止遗漏条目重启后续传
+        try {
+            await invoke("tdlib_send", {
+                request: {
+                    _: "removeAllFilesFromDownloads",
+                    only_active: true,
+                    only_completed: false,
+                    delete_from_cache: false,
+                },
+            });
+        } catch (e) {
+            console.warn("removeAllFilesFromDownloads failed:", e);
         }
     }
 
@@ -863,6 +1279,7 @@ export const useDownloadStore = defineStore("downloads", () => {
         items,
         sessionIdMap,
         filterKeys,
+        tdlibListStats,
         setFilterKey,
         resetFilters,
         activeItems,
@@ -888,7 +1305,9 @@ export const useDownloadStore = defineStore("downloads", () => {
         init,
         destroy,
         refreshFromRust,
+        loadTdlibDownloadList,
         registerDownload,
+        markInTdlibList,
         getProgress,
         markCompleted,
         reconcileFromFile,
@@ -899,6 +1318,7 @@ export const useDownloadStore = defineStore("downloads", () => {
         togglePause,
         cancelDownload,
         cancelAllDownloads,
+        removeFromTdlibDownloadList,
         dismissItem,
         clearCompleted,
         toggleShowHidden,

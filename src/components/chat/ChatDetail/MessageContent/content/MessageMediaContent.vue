@@ -1513,6 +1513,7 @@ async function handlePhotoDownload() {
                 message_id: props.messageId,
                 priority: DL_PRIORITY.USER_ACTIVE,
             });
+            downloadStore.markInTdlibList(f.id, props.chatId, props.messageId);
         } catch {
             downloadingFiles.delete(f.id);
             isDownloading.value = false;
@@ -1619,6 +1620,7 @@ async function handleAnimDownload() {
                 message_id: props.messageId,
                 priority: DL_PRIORITY.USER_ACTIVE,
             });
+            downloadStore.markInTdlibList(f.id, props.chatId, props.messageId);
         } catch {
             downloadingFiles.delete(f.id);
             animDownloading.value = false;
@@ -1699,6 +1701,7 @@ async function handleVideoDownload(isUserAction = false) {
                     message_id: props.messageId,
                     priority: DL_PRIORITY.USER_ACTIVE,
                 });
+                downloadStore.markInTdlibList(fileId, props.chatId, props.messageId);
             } else {
                 await tdlibSend({
                     _: 'downloadFile',

@@ -1,5 +1,6 @@
 use crate::accounts::AccountsStore;
 use crate::chat_store::ChatStore;
+use crate::device_info;
 use crate::download_store::{DownloadItem, DownloadStore};
 use crate::update_manager::{classify, UpdateManager};
 use libloading::{Library, Symbol};
@@ -1253,6 +1254,12 @@ fn spawn_receive_loop(
                     // 进度写入发起下载的账户独立 store；仅活动账户推前端事件
                     handle_update_file(&event, &state, &app_handle, session_id);
                     maybe_update_avatar(&event, &state, &app_handle, &client);
+                    // 只回写 Rust chat 缓存（photo.small/big.local），供下次 get_chat_list 等拉取。
+                    // 不 emit chat-update：前端已自行处理头像上屏，避免双源覆盖/闪烁。
+                    {
+                        let mut store = client.chat_store.lock().unwrap();
+                        let _ = store.apply_file_update(&event);
+                    }
                     if state.active.load(Ordering::SeqCst) == session_id {
                         if let Err(e) = app_handle.emit("tdlib-update-file", &event) {
                             eprintln!("Failed to emit updateFile event: {}", e);
@@ -1405,7 +1412,8 @@ fn spawn_receive_loop(
                                         "api_id": api_id,
                                         "api_hash": api_hash,
                                         "system_language_code": system_language_code,
-                                        "device_model": "Desktop",
+                                        "device_model": device_info::device_model(),
+                                        "system_version": device_info::system_version(),
                                         "application_version": env!("CARGO_PKG_VERSION"),
                                         "enable_storage_optimizer": true,
                                         "@extra": { "request_id": "internal-setTdlibParameters" }
@@ -1448,6 +1456,19 @@ fn spawn_receive_loop(
 
                 // 将 @type 转换为 _ 发送给前端
                 rename_json_key(&mut event, "@type", "_");
+
+                // TDLib 官方下载列表状态（用户手动下载 addFileToDownloads / pause / remove）
+                // 这些更新低频，但必须同步本地 downloads store：否则取消后仍会在重启后续传，
+                // 暂停/完成状态也只停留在 TDLib 侧。
+                if matches!(
+                    event.get("_").and_then(|v| v.as_str()),
+                    Some("updateFileDownload")
+                        | Some("updateFileAddedToDownloads")
+                        | Some("updateFileRemovedFromDownloads")
+                        | Some("updateFileDownloads")
+                ) {
+                    handle_download_list_update(&event, &state, &app_handle, session_id);
+                }
 
                 // updateFile 高频事件：转发到专用线程处理并走独立 IPC，
                 // 不进入主更新管道（不缓存 chat、不广播 tdlib-update）。
@@ -1939,6 +1960,7 @@ fn handle_update_file(
                         0
                     },
                     has_tdlib_update: true,
+                    in_tdlib_list: false,
                 }
             });
         let _ = app_handle.emit("download-progress-update", &item);
@@ -2005,6 +2027,148 @@ fn handle_update_file(
                 let _ = app_handle.emit("upload-progress-update", &item);
             }
         }
+    }
+}
+
+/// 从 fileDownload.message 提取展示用文件名。
+fn extract_download_file_name(message: &serde_json::Value) -> Option<String> {
+    let content = message.get("content")?;
+    if let Some(doc) = content.pointer("/document/file_name").and_then(|v| v.as_str()) {
+        if !doc.is_empty() {
+            return Some(doc.to_string());
+        }
+    }
+    if let Some(v) = content.pointer("/video/file_name").and_then(|v| v.as_str()) {
+        if !v.is_empty() {
+            return Some(v.to_string());
+        }
+    }
+    if let Some(title) = content.pointer("/audio/title").and_then(|v| v.as_str()) {
+        if !title.is_empty() {
+            return Some(title.to_string());
+        }
+    }
+    if let Some(af) = content.pointer("/audio/file_name").and_then(|v| v.as_str()) {
+        if !af.is_empty() {
+            return Some(af.to_string());
+        }
+    }
+    let msg_id = message.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
+    match content.get("_").and_then(|v| v.as_str()) {
+        Some("messagePhoto") => Some(format!("photo_{}.jpg", msg_id)),
+        Some("messageVideo") => Some(format!("video_{}.mp4", msg_id)),
+        Some("messageAnimation") => Some(format!("animation_{}.gif", msg_id)),
+        Some("messageVoiceNote") => Some(format!("voice_{}.ogg", msg_id)),
+        Some("messageAudio") => Some(format!("audio_{}", msg_id)),
+        Some("messageDocument") => Some(format!("文件_{}", msg_id)),
+        _ => None,
+    }
+}
+
+/// 处理 TDLib 官方下载列表 update：
+/// `updateFileDownload` / `updateFileAddedToDownloads` / `updateFileRemovedFromDownloads` / `updateFileDownloads`
+///
+/// 数据写入发起该下载的账户 store；仅活动账户把条目变更推给前端。
+fn handle_download_list_update(
+    event: &serde_json::Value,
+    state: &AppStateRef,
+    app_handle: &tauri::AppHandle,
+    session_id: i64,
+) {
+    let type_name = event.get("_").and_then(|v| v.as_str()).unwrap_or("");
+    let is_active_account = state.active.load(Ordering::SeqCst) == session_id;
+
+    // 聚合统计：低频，仅活动账户透传给前端调试/角标
+    if type_name == "updateFileDownloads" {
+        if is_active_account {
+            let _ = app_handle.emit("tdlib-download-list-stats", event);
+        }
+        return;
+    }
+
+    match type_name {
+        "updateFileDownload" => {
+            let Some(file_id) = event.get("file_id").and_then(|v| v.as_i64()) else {
+                return;
+            };
+            let complete_date = event
+                .get("complete_date")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0);
+            let is_paused = event
+                .get("is_paused")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+
+            let updated = {
+                let mut store = state.download_store.lock().unwrap();
+                store.apply_download_list_state(
+                    Some(session_id),
+                    file_id as i32,
+                    is_paused,
+                    complete_date,
+                    true,
+                    None,
+                    None,
+                    None,
+                )
+            };
+            if is_active_account {
+                if let Some(item) = updated {
+                    let _ = app_handle.emit("download-progress-update", &item);
+                }
+            }
+        }
+        "updateFileAddedToDownloads" => {
+            let Some(fd) = event.get("file_download") else {
+                return;
+            };
+            let Some(file_id) = fd.get("file_id").and_then(|v| v.as_i64()) else {
+                return;
+            };
+            let complete_date = fd.get("complete_date").and_then(|v| v.as_i64()).unwrap_or(0);
+            let is_paused = fd.get("is_paused").and_then(|v| v.as_bool()).unwrap_or(false);
+            let message = fd.get("message");
+            let chat_id = message
+                .and_then(|m| m.get("chat_id"))
+                .and_then(|v| v.as_i64());
+            let message_id = message.and_then(|m| m.get("id")).and_then(|v| v.as_i64());
+            let file_name = message.and_then(extract_download_file_name);
+
+            let updated = {
+                let mut store = state.download_store.lock().unwrap();
+                store.apply_download_list_state(
+                    Some(session_id),
+                    file_id as i32,
+                    is_paused,
+                    complete_date,
+                    true,
+                    file_name,
+                    chat_id,
+                    message_id,
+                )
+            };
+            if is_active_account {
+                if let Some(item) = updated {
+                    let _ = app_handle.emit("download-progress-update", &item);
+                }
+            }
+        }
+        "updateFileRemovedFromDownloads" => {
+            let Some(file_id) = event.get("file_id").and_then(|v| v.as_i64()) else {
+                return;
+            };
+            let updated = {
+                let mut store = state.download_store.lock().unwrap();
+                store.apply_removed_from_downloads(Some(session_id), file_id as i32)
+            };
+            if is_active_account {
+                if let Some(item) = updated {
+                    let _ = app_handle.emit("download-progress-update", &item);
+                }
+            }
+        }
+        _ => {}
     }
 }
 

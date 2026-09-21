@@ -453,4 +453,69 @@ impl ChatStore {
             Some(events)
         }
     }
+
+    /// updateFile 终态：把 `chat.photo.small/big` 中同 `file.id` 的 `local` 就地回写。
+    ///
+    /// TDLib 头像文件下载完成后只广播 `updateFile`，不会重发 `updateChatPhoto`。
+    /// 只更新本进程缓存，不向前端 emit；前端头像上屏自行处理，下次
+    /// `get_chat_list` / 读缓存时才能拿到完整 local.path。
+    pub fn apply_file_update(&mut self, file: &Value) {
+        let Some(fid) = file.get("id").and_then(|v| v.as_i64()) else {
+            return;
+        };
+        // 只接受「本地已下载完成且带路径」的终态，跳过高频进度 tick
+        let completed = file
+            .pointer("/local/is_downloading_completed")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        if !completed {
+            return;
+        }
+        let Some(path) = file.pointer("/local/path").and_then(|v| v.as_str()) else {
+            return;
+        };
+        if path.is_empty() {
+            return;
+        }
+        let Some(local) = file.get("local") else {
+            return;
+        };
+
+        for chat in self.chats.values_mut() {
+            let Some(photo) = chat.photo.as_mut() else {
+                continue;
+            };
+            let Some(photo_obj) = photo.as_object_mut() else {
+                continue;
+            };
+            for key in ["small", "big"] {
+                let Some(node) = photo_obj.get_mut(key) else {
+                    continue;
+                };
+                let Some(obj) = node.as_object_mut() else {
+                    continue;
+                };
+                let Some(id) = obj.get("id").and_then(|v| v.as_i64()) else {
+                    continue;
+                };
+                if id != fid {
+                    continue;
+                }
+                // 已是同一终态则跳过
+                let already_done = obj
+                    .get("local")
+                    .and_then(|l| {
+                        Some(
+                            l.get("is_downloading_completed")?.as_bool()?
+                                && l.get("path")?.as_str()? == path,
+                        )
+                    })
+                    .unwrap_or(false);
+                if already_done {
+                    continue;
+                }
+                obj.insert("local".to_string(), local.clone());
+            }
+        }
+    }
 }

@@ -111,6 +111,24 @@ function buildUpdatePreview(payload: Record<string, unknown>): string {
         local?.is_downloading_completed ? "done" : local?.is_downloading_active ? "downloading" : "",
       ].filter(Boolean).join(" ");
     }
+    case "updateFileDownload": {
+      return pick("file_id", "complete_date", "is_paused").join(" ");
+    }
+    case "updateFileAddedToDownloads": {
+      const fd = p.file_download as Record<string, unknown> | undefined;
+      if (!fd) return pick("counts").join(" ");
+      return [
+        `file=${fd.file_id}`,
+        fd.is_paused ? "paused" : "",
+        fd.complete_date ? "completed" : "",
+      ].filter(Boolean).join(" ");
+    }
+    case "updateFileRemovedFromDownloads": {
+      return pick("file_id").join(" ");
+    }
+    case "updateFileDownloads": {
+      return pick("total_count", "total_size", "downloaded_size").join(" ");
+    }
     case "updateChatReadInbox":
     case "updateChatReadOutbox":
       return pick("chat_id", "last_read_inbox_message_id", "last_read_outbox_message_id", "unread_count").join(" ");

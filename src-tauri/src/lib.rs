@@ -2,6 +2,7 @@
 mod accounts;
 mod chat_store;
 mod data_loc;
+mod device_info;
 mod download_store;
 mod media_stream;
 mod notifications;

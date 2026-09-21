@@ -573,6 +573,7 @@ async function handleViewerVideoDownload() {
             message_id: messageId,
             priority: DL_PRIORITY.USER_ACTIVE,
         });
+        useDownloadStore().markInTdlibList(fileId, chatId, messageId);
         const timer = setInterval(async () => {
             try {
                 const info = await tdlibSend({ _: 'getFile', file_id: fileId }) as any;

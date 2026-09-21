@@ -64,6 +64,10 @@ pub struct DownloadItem {
     /// 仅 register 尚未真正开下的条目不进下载列表，避免「空进度」任务。
     #[serde(default)]
     pub has_tdlib_update: bool,
+    /// 是否仍在 TDLib 官方下载列表中（addFileToDownloads）。
+    /// 用户手动下载走该列表；cancel 时需 removeFileFromDownloads，避免重启后续传。
+    #[serde(default)]
+    pub in_tdlib_list: bool,
 }
 
 fn now_ms() -> i64 {
@@ -227,6 +231,7 @@ impl AccountDownloadData {
                         created_at: o.created_at,
                         completed_at: if o.is_completed { o.created_at } else { 0 },
                         has_tdlib_update: o.is_completed || o.downloaded_size > 0,
+                        in_tdlib_list: false,
                     },
                 );
             }
@@ -627,6 +632,7 @@ impl DownloadStore {
                 created_at: now_ms(),
                 completed_at: 0,
                 has_tdlib_update: false,
+                in_tdlib_list: false,
             },
         );
     }
@@ -730,6 +736,144 @@ impl DownloadStore {
         } else {
             false
         }
+    }
+
+    /// 应用 TDLib 下载列表状态（updateFileDownload / updateFileAddedToDownloads）。
+    ///
+    /// - `is_completed` 仅在已有 `local_path` 时写入完成态；`complete_date` 只记账
+    ///   `completed_at`，本地路径仍由 `updateFile` 回写。
+    /// - 返回更新后的条目，供活动账户推前端。
+    pub fn apply_download_list_state(
+        &mut self,
+        account_id: Option<i64>,
+        session_file_id: i32,
+        is_paused: bool,
+        complete_date: i64,
+        in_tdlib_list: bool,
+        file_name: Option<String>,
+        chat_id: Option<i64>,
+        message_id: Option<i64>,
+    ) -> Option<DownloadItem> {
+        let acct = account_id.unwrap_or(self.active_account);
+        let key = {
+            let d = self.data(acct);
+            d.session_map
+                .get(&session_file_id)
+                .cloned()
+                .unwrap_or_else(|| format!("session:{}", session_file_id))
+        };
+        let completed_at_ms = if complete_date > 0 {
+            complete_date * 1000
+        } else {
+            0
+        };
+        let d = self.data_mut(acct);
+        if let Some(item) = d.items.get_mut(&key) {
+            item.session_file_id = Some(session_file_id);
+            item.file_id = session_file_id;
+            item.is_paused = is_paused;
+            item.has_tdlib_update = true;
+            item.in_tdlib_list = item.in_tdlib_list || in_tdlib_list;
+            if completed_at_ms > 0 {
+                if item.completed_at == 0 {
+                    item.completed_at = completed_at_ms;
+                }
+                // 已有本地路径时视为完成；路径由 updateFile 补齐
+                if item.local_path.as_ref().map(|p| !p.is_empty()).unwrap_or(false) {
+                    item.is_completed = true;
+                    item.is_paused = false;
+                    if item.total_size > 0 {
+                        item.downloaded_size = item.total_size;
+                        item.progress = 1.0;
+                    }
+                }
+            }
+            if let Some(name) = file_name {
+                if !name.is_empty() && (item.file_name.is_empty() || item.file_name.starts_with("文件 #")) {
+                    item.file_name = name;
+                }
+            }
+            if item.chat_id.is_none() {
+                item.chat_id = chat_id;
+            }
+            if item.message_id.is_none() {
+                item.message_id = message_id;
+            }
+            let snapshot = item.clone();
+            self.save(acct);
+            return Some(snapshot);
+        }
+
+        // 本地 store 尚无该文件（重启后 TDLib 列表先到 / UI 未 register）：登记占位条目
+        let file_name = file_name.unwrap_or_else(|| format!("文件 #{}", session_file_id));
+        let item = DownloadItem {
+            remote_id: key.clone(),
+            session_file_id: Some(session_file_id),
+            file_id: session_file_id,
+            file_name,
+            chat_title: String::new(),
+            chat_id,
+            message_id,
+            total_size: 0,
+            downloaded_size: 0,
+            progress: 0.0,
+            is_paused,
+            is_completed: false,
+            local_path: None,
+            thumbnail_data_url: None,
+            file_type: "other".to_string(),
+            is_generic: true,
+            hidden_category: None,
+            is_auto_photo: false,
+            is_streaming: false,
+            tags: Vec::new(),
+            source_label: None,
+            dismissed: false,
+            is_upload: false,
+            created_at: now_ms(),
+            completed_at: completed_at_ms,
+            has_tdlib_update: true,
+            in_tdlib_list,
+        };
+        let snapshot = Some(item.clone());
+        d.items.insert(key.clone(), item);
+        d.session_map.insert(session_file_id, key);
+        self.save(acct);
+        snapshot
+    }
+
+    /// updateFileRemovedFromDownloads：移出 TDLib 下载列表。
+    /// 未完成且无实质进度的条目直接 dismiss，避免列表残留「幽灵任务」。
+    pub fn apply_removed_from_downloads(
+        &mut self,
+        account_id: Option<i64>,
+        session_file_id: i32,
+    ) -> Option<DownloadItem> {
+        let acct = account_id.unwrap_or(self.active_account);
+        let key = {
+            let d = self.data(acct);
+            d.session_map
+                .get(&session_file_id)
+                .cloned()
+                .unwrap_or_else(|| format!("session:{}", session_file_id))
+        };
+        let d = self.data_mut(acct);
+        let item = d.items.get_mut(&key)?;
+        item.in_tdlib_list = false;
+        if !item.is_completed {
+            let never_started = item.downloaded_size <= 0
+                && item.progress <= 0.0
+                && item.local_path.as_ref().map(|p| p.is_empty()).unwrap_or(true);
+            if never_started {
+                item.dismissed = true;
+            } else if item.local_path.as_ref().map(|p| !p.is_empty()).unwrap_or(false) {
+                item.is_completed = true;
+                item.is_paused = false;
+            }
+        }
+        let snapshot = item.clone();
+        self.save(acct);
+        Some(snapshot)
     }
 
     pub fn dismiss_item(&mut self, account_id: Option<i64>, id: &str) -> bool {
@@ -883,6 +1027,7 @@ impl DownloadStore {
                     created_at: now_ms(),
                     completed_at: 0,
                     has_tdlib_update: false,
+                    in_tdlib_list: false,
                 },
             );
             d.upload_session_map.insert(session_file_id, rid);
