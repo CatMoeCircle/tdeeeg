@@ -3,7 +3,7 @@ import type { sticker, animation } from 'tdlib-types';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { telegramFitzToFitzModifier } from '../../../../../utils/tlottieFitz';
 import type { FitzModifier } from 'tlottie';
-import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
+import { tdlibSend, downloadingFiles, localPathIfReady } from '../../../../../utils/tdlib';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { useDownloadStore, remoteIdOf } from '../../../../../store/downloads';
 
@@ -85,8 +85,9 @@ export function useStickerMedia(
   watch(obj, (o) => {
     if (o) {
       file.value = fileOf(kind, o);
-      if (file.value && isFileReady(file.value)) {
-        loadLocal(file.value.local.path);
+      const readyPath = file.value ? localPathIfReady(file.value) : null;
+      if (readyPath) {
+        loadLocal(readyPath);
       }
     }
   });
@@ -103,8 +104,10 @@ export function useStickerMedia(
     if (!f || !o) return;
     format.value = kindFormat(o, kind);
 
-    if (isFileReady(f)) {
-      await loadLocal(f.local.path);
+    // 本地已就绪：直接用 local path，绝不重发 downloadFile
+    const readyPath = localPathIfReady(f);
+    if (readyPath) {
+      await loadLocal(readyPath);
       return;
     }
     if (!f.local.can_be_downloaded || f.local.is_downloading_active) return;
@@ -138,8 +141,9 @@ export function useStickerMedia(
         limit: 0,
         synchronous: true,
       });
-      if (isFileReady(res)) {
-        await loadLocal(res.local.path);
+      const path = localPathIfReady(res) ?? localPathIfReady(file.value);
+      if (path) {
+        await loadLocal(path);
       }
     } catch (e) {
       // 静默回退（空源），不阻塞界面

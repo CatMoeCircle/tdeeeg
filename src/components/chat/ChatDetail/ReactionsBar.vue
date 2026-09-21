@@ -10,13 +10,13 @@
             @click.stop="toggleReaction(reaction.type)" @mouseenter="onReactionHover(reaction)"
             :title="getReactionTooltip(reaction)">
             <!-- Emoji 反应：getEmojiReaction 动态动画（Unigram 同源） -->
-            <ReactionEmojiAnim v-if="isReactionEmoji(reaction.type)" :emoji="reaction.type.emoji" :size="16"
-                :fallback-font="14" />
+            <ReactionEmojiAnim v-if="isReactionEmoji(reaction.type)" :emoji="reaction.type.emoji" :size="18"
+                :fallback-font="16" />
             <!-- 自定义 Emoji 反应 -->
             <CustomEmojiInline v-else-if="isReactionCustomEmoji(reaction.type)" :emojiId="reaction.type.custom_emoji_id"
-                :size="16" :fallbackText="reaction.type.custom_emoji_id" />
+                :size="18" :fallbackText="reaction.type.custom_emoji_id" />
             <!-- 付费反应 -->
-            <PaidReactionIcon v-else-if="isReactionPaid(reaction.type)" :size="16" />
+            <PaidReactionIcon v-else-if="isReactionPaid(reaction.type)" :size="18" />
             <!-- 计数 -->
             <span class="font-medium tabular-nums leading-none">{{ formatCount(reaction.total_count) }}</span>
         </button>

@@ -1,6 +1,7 @@
 import { computed, ref, watch } from 'vue';
 import type { sticker } from 'tdlib-types';
 import { tdlibSend } from '../../../../../utils/tdlib';
+import { enqueueViewportLoad } from '../../../../../utils/viewportLoadGate';
 import { EMOJI_PAYLOAD } from '../data/emojiPayload';
 import { useLocalEmojiPrefs } from './useLocalEmojiPrefs';
 import { useCustomEmojiData } from './useCustomEmojiData';
@@ -64,9 +65,12 @@ export function useEmojiPicker(opts: {
     await loadRecentCustom();
     await customData.ensureInstalledCustomEmoji();
     await customData.ensureTrendingCustomEmoji();
-    // 首次加载已安装的每个 set 的完整内容（保证一打开就有内容）——首包全量
-    for (const set of customData.installedSets.value.slice(0, 1)) {
-      await customData.loadSet(set.id);
+    // 首包阻塞加载（保证一打开就有内容）；后续包后台预加载，滚动到位前应已就绪
+    const sets = customData.installedSets.value;
+    if (sets[0]) await customData.loadSet(sets[0].id);
+    for (const set of sets.slice(1, 8)) {
+      const id = set.id;
+      enqueueViewportLoad(async () => { await customData.loadSet(id); }, 'sticker');
     }
   }
 

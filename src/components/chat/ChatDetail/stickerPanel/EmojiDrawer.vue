@@ -21,7 +21,7 @@
                 class="sp-cat-pill shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-base leading-none transition-colors"
                 :class="activeBlock === 'available_reactions' ? 'bg-blue-500/15 text-blue-500' : 'text-gray-500 hover:bg-black/5 dark:hover:bg-white/10'"
                 @click="scrollToBlock('available_reactions')" title="可用回应">
-                <span :style="{ fontSize: '14px', lineHeight: '1' }">{{ availableNavEmoji }}</span>
+                <span :style="{ fontSize: '18px', lineHeight: '1' }">{{ availableNavEmoji }}</span>
             </button>
 
             <!-- 最近：普通模式为聊天最近；回应模式为可用回应第 17 个起的剩余项（无剩余则不显示） -->
@@ -40,7 +40,7 @@
                     <button type="button"
                         class="sp-cat-pill shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-base leading-none transition-colors hover:bg-black/5 dark:hover:bg-white/10"
                         @click="scrollToBlock(localActiveCatId)" :title="localActiveCatName">
-                        <span :style="{ fontSize: '14px', lineHeight: '1' }">{{ localActiveCatEmoji }}</span>
+                        <span :style="{ fontSize: '18px', lineHeight: '1' }">{{ localActiveCatEmoji }}</span>
                     </button>
                 </template>
                 <!-- 展开态：聚焦本地 emoji 之一时，显示全部本地分类 -->
@@ -49,7 +49,7 @@
                         class="sp-cat-pill shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-base leading-none transition-colors"
                         :class="activeBlock === cat.id ? 'bg-white dark:bg-gray-700 shadow' : 'hover:bg-black/5 dark:hover:bg-white/10'"
                         @click="scrollToBlock(cat.id)" :title="cat.name">
-                        <span :style="{ fontSize: '14px', lineHeight: '1' }">{{ cat.items[0]?.emoji ?? '' }}</span>
+                        <span :style="{ fontSize: '18px', lineHeight: '1' }">{{ cat.items[0]?.emoji ?? '' }}</span>
                     </button>
                 </template>
             </div>
@@ -62,13 +62,13 @@
                 <span class="tgico tgico-collectible text-[20px]" />
             </button>
 
-            <!-- 自定义 emoji 包（自己的） -->
+            <!-- 自定义 emoji 包（自己的）：封面含 TGS 时同样用动画渲染，不再退回首字母 -->
             <button v-for="set in installedSets" :key="`custom_${set.id}`" type="button"
                 class="sp-cat-pill shrink-0 w-8 h-8 flex items-center justify-center transition-colors"
                 :class="activeBlock === `custom_${set.id}` ? 'bg-blue-500/15' : 'text-gray-500 hover:bg-black/5 dark:hover:bg-white/10'"
                 @click="scrollToBlock(`custom_${set.id}`)" :title="set.title">
-                <StickerMediaItem v-if="installedIcon(set) && !isTgsIcon(set)" :item="installedIcon(set)" kind="sticker"
-                    :size="16" :skin-tone="skinTone" />
+                <StickerMediaItem v-if="installedIcon(set)" :item="installedIcon(set)" kind="sticker"
+                    :size="20" :skin-tone="skinTone" />
                 <span v-else class="text-sm">{{ (set.title || t('lng_stickers_installed_tab'))?.[0] ?? '✨' }}</span>
             </button>
         </div>
@@ -113,7 +113,7 @@
                             :disabled="!canPickAvailable(r)"
                             :title="!canPickAvailable(r) ? '需要 Premium' : ''" @click="onPickAvailable(r)">
                             <ReactionEmojiAnim v-if="isReactionEmoji(r.type)" :emoji="r.type.emoji"
-                                :size="GRID_MEDIA_PX" :fallback-font="20" />
+                                :size="GRID_MEDIA_PX" :fallback-font="24" />
                             <CustomEmojiInline v-else-if="isReactionCustomEmoji(r.type)"
                                 :emojiId="r.type.custom_emoji_id" :size="GRID_MEDIA_PX"
                                 :fallbackText="r.type.custom_emoji_id" />
@@ -134,7 +134,7 @@
                                 :disabled="!canPickAvailable(r)"
                                 :title="!canPickAvailable(r) ? '需要 Premium' : ''" @click="onPickAvailable(r)">
                                 <ReactionEmojiAnim v-if="isReactionEmoji(r.type)" :emoji="r.type.emoji"
-                                    :size="GRID_MEDIA_PX" :fallback-font="20" />
+                                    :size="GRID_MEDIA_PX" :fallback-font="24" />
                                 <CustomEmojiInline v-else-if="isReactionCustomEmoji(r.type)"
                                     :emojiId="r.type.custom_emoji_id" :size="GRID_MEDIA_PX"
                                     :fallbackText="r.type.custom_emoji_id" />
@@ -291,7 +291,7 @@ import { prefetchEmojiReactionAnims } from '../../../../store/emojiReactions';
 import { useEmojiPicker, type EmojiSearchResult } from './composables/useEmojiPicker';
 import { useLocalEmojiPrefs } from './composables/useLocalEmojiPrefs';
 import { onVisibilityChange, unobserve, setProgrammaticScroll, beginUserScroll, endUserScroll } from './composables/useStickerVisibility';
-import { enqueueViewportLoad, DEFAULT_DWELL_MS } from '../../../../utils/viewportLoadGate';
+import { enqueueViewportLoad } from '../../../../utils/viewportLoadGate';
 import { stickerPanelState } from './types';
 import { tdlibSend } from '../../../../utils/tdlib';
 import type { sticker, animation, stickerSetInfo, emojiStatus, availableReaction, ReactionType } from 'tdlib-types';
@@ -337,8 +337,8 @@ const leftoverReactions = computed(() => availableList.value.slice(FIXED_REACTIO
  * 网格内视觉尺寸：普通 emoji 与自定义/付费媒体对齐。
  * 回应选择器整体更紧凑，再缩一档。
  */
-const GRID_EMOJI_FONT = computed(() => (props.reactionMode ? '20px' : '22px'));
-const GRID_MEDIA_PX = computed(() => (props.reactionMode ? 22 : 24));
+const GRID_EMOJI_FONT = computed(() => (props.reactionMode ? '24px' : '26px'));
+const GRID_MEDIA_PX = computed(() => (props.reactionMode ? 26 : 28));
 /** 顶部「可用回应」导航图标 */
 const availableNavEmoji = computed(() => {
     const first = fixedReactions.value.find((r) => isReactionEmoji(r.type)) as any;
@@ -431,14 +431,10 @@ const trendingSets = customData.trendingSets;
 function loadCustomSet(setId: string) {
     return customData.loadSet(setId);
 }
-/** 已装自定义包的顶部图标贴纸（covers 第一个；无 covers 返回 undefined） */
+/** 已装自定义包的顶部图标贴纸（covers 第一个；无 covers 返回 undefined）。TGS 同样返回，由 StickerMediaItem 渲染动画。 */
 function installedIcon(set: stickerSetInfo): sticker | undefined {
     const covers = (set as any).covers ?? [];
     return covers[0] as sticker | undefined;
-}
-/** 该图标是否为 TGS（TGS 在胶囊里不下载，改用文字） */
-function isTgsIcon(set: stickerSetInfo): boolean {
-    return installedIcon(set)?.format?._ === 'stickerFormatTgs';
 }
 /** 推荐包是否已被安装（用于 t('lng_stickers_featured_add') 按钮文案切换） */
 function isSetInstalled(setId: string): boolean {
@@ -663,7 +659,7 @@ function registerCustomSetSection(setId: string, el: unknown) {
     customSetEls.set(setId, el as HTMLElement);
 }
 
-/** 为尚未完整加载的 set 区块注册可视区观察：停留后经贴纸池限流 loadSet */
+/** 为尚未完整加载的 set 区块注册可视区观察：进入预取带后短停留即 loadSet */
 function observeCustomSet(setId: string) {
     if (isCustomLoaded(setId) || observedSetIds.has(setId)) return;
     const el = customSetEls.get(setId);
@@ -675,11 +671,12 @@ function observeCustomSet(setId: string) {
             setInView.set(setId, true);
             if (isCustomLoaded(setId)) return;
             clearSetDwell(setId);
+            // 元数据请求很轻：预取带内 80ms 即触发，避免用户看到空区块
             setDwellTimers.set(setId, setTimeout(() => {
                 setDwellTimers.delete(setId);
                 if (!setInView.get(setId) || isCustomLoaded(setId)) return;
                 enqueueViewportLoad(async () => { await customData.loadSet(setId); }, 'sticker');
-            }, DEFAULT_DWELL_MS));
+            }, 80));
         },
         () => {
             setInView.set(setId, false);
@@ -806,7 +803,7 @@ defineExpose({ activate: picker.activate, deactivate: picker.deactivate });
     width: 100%;
     height: 100%;
     line-height: 1;
-    font-size: 22px;
+    font-size: 26px;
 }
 
 /* 自定义包贴纸在格子内略缩进，避免铺满显得过大 */
@@ -857,37 +854,37 @@ defineExpose({ activate: picker.activate, deactivate: picker.deactivate });
     gap: 4px;
 }
 
-/* 回应选择器：收紧网格与区块间距（emoji 已偏小，格子不宜过大） */
+/* 回应选择器：网格与区块间距略紧于贴纸面板，但不至于过小 */
 .sp-emoji-drawer--reaction .sp-emoji-shelf {
-    gap: 2px;
+    gap: 4px;
 }
 
 .sp-emoji-drawer--reaction .sp-emoji-section {
-    margin-bottom: 2px;
+    margin-bottom: 4px;
 }
 
 .sp-emoji-drawer--reaction .sp-emoji-scroll {
-    padding-left: 4px;
-    padding-right: 4px;
-}
-
-.sp-emoji-drawer--reaction .sp-search,
-.sp-emoji-drawer--reaction .sp-cats-row {
     padding-left: 6px;
     padding-right: 6px;
 }
 
+.sp-emoji-drawer--reaction .sp-search,
 .sp-emoji-drawer--reaction .sp-cats-row {
-    padding-top: 4px;
-    padding-bottom: 4px;
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+.sp-emoji-drawer--reaction .sp-cats-row {
+    padding-top: 6px;
+    padding-bottom: 6px;
 }
 
 .sp-emoji-drawer--reaction .sp-emoji-block-title {
-    margin: 2px 0 2px;
+    margin: 4px 0 4px;
 }
 
 .sp-emoji-drawer--reaction .sp-emoji-shelf .sp-media-item {
-    padding: 2px;
+    padding: 3px;
 }
 
 /* 空态占满整行 */

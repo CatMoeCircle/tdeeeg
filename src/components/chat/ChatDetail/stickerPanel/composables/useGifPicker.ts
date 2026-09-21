@@ -89,12 +89,15 @@ export function useGifPicker(opts: {
 
   async function activate() {
     active.value = true;
-    // 首次：已保存 + 第一页热门
+    // 首次：已保存 + 前两页热门（第二页后台预取，滚动前尽量已就绪）
     const saved = await loadSaved();
     await loadPage('', '');
-    // 顶部并排已保存
     if (saved.length) {
       prependSaved(saved);
+    }
+    if (hasMore.value) {
+      const next = offset.value;
+      if (next) void loadPage('', next);
     }
   }
 

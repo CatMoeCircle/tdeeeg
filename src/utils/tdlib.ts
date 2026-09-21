@@ -23,6 +23,54 @@ export function isFileReady(file: { local: { is_downloading_completed: boolean; 
   return file.local.is_downloading_completed && !!file.local.path;
 }
 
+/** 本地已就绪则返回 path，否则 null。就绪时调用方必须直接使用该路径，不要再发 downloadFile。 */
+export function localPathIfReady(
+  file: { local?: { is_downloading_completed?: boolean; path?: string } } | undefined | null,
+): string | null {
+  if (!file?.local) return null;
+  const { is_downloading_completed, path } = file.local;
+  return is_downloading_completed && path ? path : null;
+}
+
+/**
+ * 确保文件落在本地：
+ * - 已就绪 → 直接返回 path，**不**发起 downloadFile
+ * - 下载中 / 不可下载 / 无 id → 返回 null
+ * - 否则按需 downloadFile，完成后返回 path
+ */
+export async function ensureLocalFilePath(
+  file: { id?: number; local?: { is_downloading_completed?: boolean; path?: string; can_be_downloaded?: boolean } } | undefined | null,
+  opts?: {
+    priority?: number;
+    synchronous?: boolean;
+    /** 真正下载前执行（如 registerDownload）；本地已就绪时不会调用 */
+    beforeDownload?: () => Promise<void> | void;
+  },
+): Promise<string | null> {
+  const ready = localPathIfReady(file);
+  if (ready) return ready;
+  const id = file?.id;
+  if (!id || !file?.local?.can_be_downloaded) return null;
+  if (downloadingFiles.has(id)) return null;
+  downloadingFiles.add(id);
+  try {
+    if (opts?.beforeDownload) await opts.beforeDownload();
+    const res = await tdlibSend({
+      _: 'downloadFile',
+      file_id: id,
+      priority: opts?.priority ?? DL_PRIORITY.DEFAULT,
+      offset: 0,
+      limit: 0,
+      synchronous: opts?.synchronous ?? true,
+    } as never) as { local?: { is_downloading_completed?: boolean; path?: string } };
+    return localPathIfReady(res) ?? localPathIfReady(file);
+  } catch {
+    return null;
+  } finally {
+    downloadingFiles.delete(id);
+  }
+}
+
 /**
  * 全局文件下载去重集合：已向 TDLib 发起下载（active）。
  * 组件卸载时**不要**因卸载而移除——TDLib 下载继续，由完成事件/快照回写收尾。

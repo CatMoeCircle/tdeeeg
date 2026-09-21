@@ -1,7 +1,7 @@
 import { ref } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { emojiReaction, sticker } from 'tdlib-types';
-import { tdlibSend, isFileReady, downloadingFiles } from '../utils/tdlib';
+import { tdlibSend, downloadingFiles, localPathIfReady } from '../utils/tdlib';
 import { DL_PRIORITY } from '../utils/downloadPriority';
 import { useDownloadStore, remoteIdOf } from './downloads';
 import { DL_TAG } from '../utils/downloadTags';
@@ -65,8 +65,10 @@ async function downloadAnimSticker(emoji: string, st: sticker) {
     const state = cache.value[emoji];
     if (!state) return;
 
-    if (isFileReady(f)) {
-        applyLocal(state, st, f.local.path!);
+    // 本地已就绪：直接上屏，不发 downloadFile
+    const readyPath = localPathIfReady(f);
+    if (readyPath) {
+        applyLocal(state, st, readyPath);
         return;
     }
     if (!f.local.can_be_downloaded || f.local.is_downloading_active) {
@@ -102,8 +104,9 @@ async function downloadAnimSticker(emoji: string, st: sticker) {
             limit: 0,
             synchronous: true,
         }) as any;
-        if (isFileReady(res) && res.local?.path) {
-            applyLocal(state, st, res.local.path);
+        const path = localPathIfReady(res) ?? localPathIfReady(st.sticker);
+        if (path) {
+            applyLocal(state, st, path);
         }
     } catch (e) {
         console.warn('Failed to download reaction anim:', emoji, e);

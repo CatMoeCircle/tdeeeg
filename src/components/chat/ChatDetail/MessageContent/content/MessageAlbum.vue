@@ -555,7 +555,15 @@ async function loadVideo(msg: message, seq: number): Promise<boolean> {
         c = true;
     }
     const coverSmall = pickSmallPhotoSize(coverPhoto);
-    if (coverSmall && coverSmall.local?.can_be_downloaded && !downloadingFiles.has(coverSmall.id)) {
+    // 本地已就绪：直接使用，不再发 downloadFile
+    if (coverSmall && isFileReady(coverSmall) && coverSmall.local.path) {
+        if (seq !== albumLoadSeq) return false;
+        thumbCache[msg.id] = convertFileSrc(coverSmall.local.path);
+        thumbIsMini[msg.id] = false;
+        c = true;
+        return c;
+    }
+    if (coverSmall && !isFileReady(coverSmall) && coverSmall.local?.can_be_downloaded && !downloadingFiles.has(coverSmall.id)) {
         try {
             const r = await tdlibSend({
                 _: 'downloadFile', file_id: coverSmall.id,
@@ -570,17 +578,25 @@ async function loadVideo(msg: message, seq: number): Promise<boolean> {
             }
         } catch (_) { /* ignore */ }
     }
-    // 旧字段 video.thumbnail：同步下载，不占并发
-    if (thumb && isThumbnailImgRenderable(thumb.format)
-        && thumbFile?.local?.can_be_downloaded && thumbFile.id && !downloadingFiles.has(thumbFile.id)) {
-        try {
-            const r = await tdlibSend({
-                _: 'downloadFile', file_id: thumbFile.id,
-                priority: DL_PRIORITY.THUMBNAIL, offset: 0, limit: 0, synchronous: true,
-            });
+    // 旧字段 video.thumbnail：本地就绪直接用；否则才同步下载
+    if (thumb && isThumbnailImgRenderable(thumb.format) && thumbFile) {
+        if (isFileReady(thumbFile) && thumbFile.local.path) {
             if (seq !== albumLoadSeq) return false;
-            if (isFileReady(r)) { thumbCache[msg.id] = convertFileSrc(r.local.path); thumbIsMini[msg.id] = false; c = true; }
-        } catch (_) { }
+            thumbCache[msg.id] = convertFileSrc(thumbFile.local.path);
+            thumbIsMini[msg.id] = false;
+            c = true;
+            return c;
+        }
+        if (!isFileReady(thumbFile) && thumbFile.local?.can_be_downloaded && thumbFile.id && !downloadingFiles.has(thumbFile.id)) {
+            try {
+                const r = await tdlibSend({
+                    _: 'downloadFile', file_id: thumbFile.id,
+                    priority: DL_PRIORITY.THUMBNAIL, offset: 0, limit: 0, synchronous: true,
+                });
+                if (seq !== albumLoadSeq) return false;
+                if (isFileReady(r)) { thumbCache[msg.id] = convertFileSrc(r.local.path); thumbIsMini[msg.id] = false; c = true; }
+            } catch (_) { }
+        }
     }
     // 封面仍不可用时：mini 兜底
     if (!thumbCache[msg.id] && v.minithumbnail?.data) {
@@ -656,12 +672,18 @@ async function loadAnimation(msg: message, seq: number): Promise<boolean> {
         return c;
     }
     if (!thumb || !isThumbnailImgRenderable(thumb.format)) return false;
-    if (thumbFile?.local?.can_be_downloaded && thumbFile.id && !downloadingFiles.has(thumbFile.id)) {
+    // GIF 封面本地已就绪 → 直接用，不注册/不重下
+    if (thumbFile && isFileReady(thumbFile) && thumbFile.local.path) {
+        if (seq !== albumLoadSeq) return false;
+        thumbCache[msg.id] = convertFileSrc(thumbFile.local.path);
+        thumbIsMini[msg.id] = false;
+        c = true;
+        return c;
+    }
+    if (thumbFile && !isFileReady(thumbFile) && thumbFile.local?.can_be_downloaded && thumbFile.id && !downloadingFiles.has(thumbFile.id)) {
         const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
         await downloadStore.registerDownload(thumbFile.id, `gif_cover_${thumbFile.id}.jpg`, chatTitle, 0, 'photo', undefined, undefined, undefined, true, false, 'video_cover', false, [DL_TAG.VIDEO_COVER, DL_TAG.THUMB], undefined, remoteIdOf(thumbFile));
-    }
-    if (seq !== albumLoadSeq) return false;
-    if (thumbFile?.id && thumbFile.local?.can_be_downloaded) {
+        if (seq !== albumLoadSeq) return false;
         try {
             const r = await tdlibSend({ _: 'downloadFile', file_id: thumbFile.id, priority: DL_PRIORITY.THUMBNAIL, offset: 0, limit: 0, synchronous: true });
             if (seq !== albumLoadSeq) return false;

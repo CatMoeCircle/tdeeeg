@@ -10,8 +10,11 @@
  *   会占住槽位直到 settle；fire-and-forget 的 load 在同步返回后立刻释放。
  */
 
-/** 默认停留时长（ms）：过滤滚轮/惯性快速划过 */
-export const DEFAULT_DWELL_MS = 500;
+/**
+ * 默认停留时长（ms）：过滤滚轮/惯性快速划过。
+ * 预取带已在视口外扩（约一屏），停留只需过滤惯性甩动，不宜过长以免用户先看到空白。
+ */
+export const DEFAULT_DWELL_MS = 200;
 
 /** 每个界面池的视口 load 最大并发数 */
 export const MAX_CONCURRENT_VIEWPORT_LOADS = 3;

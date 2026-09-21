@@ -166,8 +166,8 @@ function getObserver(): IntersectionObserver {
           }
         }
       },
-      // root:null = 窗口视口；rootMargin 扩大可视区域，让稍靠近视口的项提前加载
-      { root: null, rootMargin: '400px 0px 400px 0px', threshold: 0.01 },
+      // root:null = 窗口视口；rootMargin 预加载带：视口外约一屏提前进入加载，避免用户看到空白后才下载
+      { root: null, rootMargin: '800px 0px 800px 0px', threshold: 0.01 },
     );
   }
   return sharedObserver;

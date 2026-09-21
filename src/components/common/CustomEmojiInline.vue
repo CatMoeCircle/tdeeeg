@@ -98,10 +98,10 @@ watch([emojiFormat, () => state.ready], () => {
   registerVideo(emojiFormat.value === 'webm' ? videoRef.value : null);
 }, { flush: 'post' });
 
-// 视口门控：进入视口才拉取/下载自定义 emoji
+// 视口门控：进入预取带才拉取/下载自定义 emoji；本地已就绪时 requestCustomEmoji 直接跳过 downloadFile
 const { start: startViewportLoad } = useViewportLoad(rootEl, () => {
   requestCustomEmoji(props.emojiId);
-});
+}, { dwellMs: 80 });
 
 onMounted(() => {
   setupPause();

@@ -30,7 +30,7 @@ import StickerMediaItem from './StickerMediaItem.vue';
 import type { StickerGroup } from './composables/useStickerPicker';
 import { useLocalEmojiPrefs } from './composables/useLocalEmojiPrefs';
 import { onVisibilityChange, unobserve } from './composables/useStickerVisibility';
-import { enqueueViewportLoad, DEFAULT_DWELL_MS } from '../../../../utils/viewportLoadGate';
+import { enqueueViewportLoad } from '../../../../utils/viewportLoadGate';
 import type { sticker, animation } from 'tdlib-types';
 
 const props = withDefaults(defineProps<{
@@ -69,8 +69,7 @@ function clearDwell() {
 }
 
 onMounted(() => {
-    // 懒加载分组：进入视口并停留后才拉取完整 set，且走贴纸池限流，
-    // 与聊天消息下载隔离，互不阻塞。
+    // 懒加载分组：进入预取带后短停留即拉取完整 set（元数据轻量），走贴纸池限流
     if (props.group.lazy && props.loadSet) {
         onVisibilityChange(
             sectionEl.value,
@@ -83,7 +82,7 @@ onMounted(() => {
                     const setId = props.group.setId;
                     const loadSet = props.loadSet;
                     enqueueViewportLoad(() => loadSet(setId), 'sticker');
-                }, DEFAULT_DWELL_MS);
+                }, 80);
             },
             () => {
                 inView = false;

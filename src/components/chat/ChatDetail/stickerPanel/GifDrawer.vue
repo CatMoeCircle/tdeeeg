@@ -100,7 +100,9 @@ onBeforeUnmount(() => {
 function onScroll() {
     const el = scrollEl.value;
     if (!el) return;
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 60) {
+    // 预取：距底部还有一屏时就开始拉下一页，避免滚到底才出现「加载更多」
+    const preloadPx = Math.max(el.clientHeight * 0.9, 240);
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - preloadPx) {
         loadMoreGifs();
     }
 }

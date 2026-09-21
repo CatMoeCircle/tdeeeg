@@ -338,10 +338,10 @@
                         :disabled="r.needsPremium && !(userProfile?.is_premium)"
                         :title="r.needsPremium ? '需要 Premium' : r.type._ === 'reactionTypePaid' ? t('lng_sr_message_column_paid_reactions') : r.emoji"
                         @click.stop="onCapsuleReactionClick(r)">
-                        <PaidReactionIcon v-if="r.type._ === 'reactionTypePaid'" :size="20" />
-                        <ReactionEmojiAnim v-else-if="!r.customEmojiId" :emoji="r.emoji" :size="22"
-                            :fallback-font="18" />
-                        <CustomEmojiInline v-else :emojiId="r.customEmojiId" :size="20" :fallbackText="r.emoji" />
+                        <PaidReactionIcon v-if="r.type._ === 'reactionTypePaid'" :size="24" />
+                        <ReactionEmojiAnim v-else-if="!r.customEmojiId" :emoji="r.emoji" :size="26"
+                            :fallback-font="22" />
+                        <CustomEmojiInline v-else :emojiId="r.customEmojiId" :size="24" :fallbackText="r.emoji" />
                     </button>
                     <!-- 更多回应按钮 -->
                     <button v-if="reactionCapsuleData.hasMore" type="button"

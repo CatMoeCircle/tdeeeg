@@ -15,18 +15,18 @@
                     <div v-if="loading" class="py-8 text-center text-xs text-gray-400">加载中...</div>
                     <div v-else-if="allReactions.length === 0" class="py-8 text-center text-xs text-gray-400">无可用回应
                     </div>
-                    <div v-else class="grid grid-cols-8 gap-0.5">
+                    <div v-else class="grid grid-cols-8 gap-1">
                         <button v-for="reaction in allReactions" :key="getReactionId(reaction)" type="button"
                             class="flex items-center justify-center rounded-lg aspect-square hover:bg-black/5 dark:hover:bg-white/10 transition-colors duration-100"
                             :class="{ 'opacity-50 cursor-not-allowed': reaction.needs_premium && !isPremium }"
                             :disabled="reaction.needs_premium && !isPremium"
                             :title="reaction.needs_premium ? '需要 Premium' : ''" @click.stop="selectReaction(reaction)">
                             <ReactionEmojiAnim v-if="isReactionEmoji(reaction.type)" :emoji="reaction.type.emoji"
-                                :size="24" :fallback-font="22" />
+                                :size="28" :fallback-font="26" />
                             <CustomEmojiInline v-else-if="isReactionCustomEmoji(reaction.type)"
-                                :emojiId="reaction.type.custom_emoji_id" :size="24"
+                                :emojiId="reaction.type.custom_emoji_id" :size="28"
                                 :fallbackText="reaction.type.custom_emoji_id" />
-                            <PaidReactionIcon v-else :size="24" />
+                            <PaidReactionIcon v-else :size="28" />
                         </button>
                     </div>
                 </div>
@@ -94,8 +94,8 @@ const allReactions = computed(() => {
 });
 
 // ===== 面板尺寸与定位 =====
-const PANEL_WIDTH = 288;
-const PANEL_HEIGHT = 320;
+const PANEL_WIDTH = 320;
+const PANEL_HEIGHT = 360;
 
 /** 计算固定尺寸面板的位置（水平居中锚点，垂直优先在锚点下方，不足则上方） */
 function clampPosition(w: number, h: number): { left: string; top: string } {
@@ -216,7 +216,7 @@ onUnmounted(() => {
 
 <style scoped>
 .rp-available {
-    padding: 6px;
+    padding: 8px;
     overflow-y: auto;
 }
 

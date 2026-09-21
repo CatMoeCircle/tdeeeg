@@ -1,6 +1,7 @@
 import { computed, ref, watch } from 'vue';
 import type { sticker, stickerSet, stickerSetInfo } from 'tdlib-types';
 import { tdlibSend } from '../../../../../utils/tdlib';
+import { enqueueViewportLoad } from '../../../../../utils/viewportLoadGate';
 import i18n from "../../../../../i18n";
 
 /** 一个展示分组：已加载 stickers + 元信息 */
@@ -113,9 +114,13 @@ export function useStickerPicker(opts: {
         loading.value = true;
         try {
             await Promise.all([loadFavorite(), loadRecent(), loadInstalled(), loadGroupSet()]);
-            // 首包全量：加载第一个已安装 set，保证一打开就有内容
+            // 首包阻塞加载；后续包后台预加载，滚动到位前应已就绪
             if (sets.value.length > 0) {
                 await loadSetStickers(sets.value[0].setId);
+            }
+            for (const g of sets.value.slice(1, 8)) {
+                const id = g.setId;
+                enqueueViewportLoad(async () => { await loadSetStickers(id); }, 'sticker');
             }
         } finally {
             loading.value = false;

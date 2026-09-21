@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { tdlibSend, isFileReady, downloadingFiles } from '../utils/tdlib';
+import { tdlibSend, downloadingFiles, localPathIfReady } from '../utils/tdlib';
 import { DL_PRIORITY } from '../utils/downloadPriority';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { sticker, file } from 'tdlib-types';
@@ -58,23 +58,29 @@ async function fetchCustomEmojiStickers(ids: string[]) {
 
       // 尝试加载缩略图（仅静态位图格式可用于 <img>；TGS/WEBM/MPEG4 动态缩略图跳过）
       const thumb = s.thumbnail && isThumbnailImgRenderable(s.thumbnail.format) ? s.thumbnail : undefined;
-      if (thumb && isFileReady(thumb.file)) {
-        state.thumbnailUrl = convertFileSrc(thumb.file.local.path);
-        state.loadingThumbnail = false;
-      } else if (thumb && thumb.file.local.can_be_downloaded && !thumb.file.local.is_downloading_active) {
-        // 下载缩略图
-        downloadThumbnail(s.id, thumb.file.id);
+      if (thumb) {
+        const thumbPath = localPathIfReady(thumb.file);
+        if (thumbPath) {
+          state.thumbnailUrl = convertFileSrc(thumbPath);
+          state.loadingThumbnail = false;
+        } else if (thumb.file.local.can_be_downloaded && !thumb.file.local.is_downloading_active) {
+          // 本地没有才下载缩略图
+          downloadThumbnail(s.id, thumb.file.id);
+        } else {
+          state.loadingThumbnail = false;
+        }
       } else {
         state.loadingThumbnail = false;
       }
 
-      // 检查主文件是否已就绪
-      if (isFileReady(s.sticker)) {
-        state.filePath = convertFileSrc(s.sticker.local.path);
+      // 主文件：本地已就绪直接用，不发 downloadFile
+      const mainPath = localPathIfReady(s.sticker);
+      if (mainPath) {
+        state.filePath = convertFileSrc(mainPath);
         state.ready = true;
         state.loadingFile = false;
       } else if (s.sticker.local.can_be_downloaded && !s.sticker.local.is_downloading_active) {
-        // 下载主文件
+        // 本地没有才下载主文件
         downloadStickerFile(s.id, s.sticker.id);
       } else {
         state.loadingFile = false;
@@ -98,6 +104,16 @@ async function downloadThumbnail(emojiId: string, fileId: number) {
   const state = emojiCache.value[emojiId];
   if (!state) return;
 
+  // 若元数据里文件已就绪，直接用路径，不重发 downloadFile
+  const readyFromSticker = state.sticker?.thumbnail
+    ? localPathIfReady(state.sticker.thumbnail.file)
+    : null;
+  if (readyFromSticker) {
+    state.thumbnailUrl = convertFileSrc(readyFromSticker);
+    state.loadingThumbnail = false;
+    return;
+  }
+
   downloadingFiles.add(fileId);
   // 自定义表情缩略图：emoji + 缩略图，不带图片标签
   const stickerObj = state.sticker;
@@ -118,8 +134,9 @@ async function downloadThumbnail(emojiId: string, fileId: number) {
       limit: 0,
       synchronous: true,
     }) as file;
-    if (isFileReady(result)) {
-      state.thumbnailUrl = convertFileSrc(result.local.path);
+    const path = localPathIfReady(result);
+    if (path) {
+      state.thumbnailUrl = convertFileSrc(path);
     }
   } catch (e) {
     console.error('Failed to download emoji thumbnail:', e);
@@ -133,6 +150,16 @@ async function downloadStickerFile(emojiId: string, fileId: number) {
   if (downloadingFiles.has(fileId)) return;
   const state = emojiCache.value[emojiId];
   if (!state) return;
+
+  // 本地已就绪：直接用路径
+  const readyPath = state.sticker ? localPathIfReady(state.sticker.sticker) : null;
+  if (readyPath) {
+    state.filePath = convertFileSrc(readyPath);
+    state.ready = true;
+    state.loadingFile = false;
+    return;
+  }
+
   state.loadingFile = true;
   downloadingFiles.add(fileId);
   // 自定义表情完整贴纸：emoji 标签 + 来源 emoji 集
@@ -154,8 +181,9 @@ async function downloadStickerFile(emojiId: string, fileId: number) {
       limit: 0,
       synchronous: true,
     }) as file;
-    if (isFileReady(result)) {
-      state.filePath = convertFileSrc(result.local.path);
+    const path = localPathIfReady(result) ?? (state.sticker ? localPathIfReady(state.sticker.sticker) : null);
+    if (path) {
+      state.filePath = convertFileSrc(path);
       state.ready = true;
     }
   } catch (e) {
