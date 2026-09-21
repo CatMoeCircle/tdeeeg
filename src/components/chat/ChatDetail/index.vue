@@ -12,10 +12,12 @@
         <!--
           骨架屏作为遮罩叠在列表上：消息容器在首屏数据到达后即挂载（可测量/可滚动），
           但在 listRevealed 前保持 opacity:0，避免「先露出一批再跳到已读/未读锚点」的闪跳。
+          z-index 必须低于 Header / 置顶栏 / 输入框（均为 z-10 且 DOM 更靠后），
+          否则骨架气泡会盖在顶栏、置顶菜单和输入框上方。
         -->
         <div v-if="showSkeleton"
-            class="absolute inset-0 z-20 overflow-y-auto px-4 custom-scrollbar flex flex-col messages-scroll"
-            :class="topPaddingClass">
+            class="absolute inset-0 z-0 pointer-events-none overflow-hidden px-4 flex flex-col messages-scroll pb-15"
+            :class="topPaddingClass" aria-hidden="true">
             <div class="flex-1"></div>
             <div v-for="n in 8" :key="n" class="flex mb-4" :class="n % 3 === 0 ? 'justify-end' : 'justify-start'">
                 <div v-if="n % 3 !== 0" class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 mr-2 shrink-0"></div>
