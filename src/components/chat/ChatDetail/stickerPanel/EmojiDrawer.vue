@@ -1,5 +1,5 @@
 <template>
-    <div class="sp-emoji-drawer flex h-full flex-col">
+    <div class="sp-emoji-drawer flex h-full flex-col" :class="{ 'sp-emoji-drawer--reaction': reactionMode }">
         <!-- 顶部：搜索框 -->
         <div v-if="!showDefaultEmojiStatus" class="sp-search px-3 pt-2 pb-1">
             <div class="flex items-center gap-2 rounded-lg bg-black/5 dark:bg-white/10 px-3 py-1.5">
@@ -12,26 +12,35 @@
             </div>
         </div>
 
-        <!-- 顶部：单行横向滚动 —— 最近 + 本地胶囊(可展开/收缩) + 自定义包 -->
+        <!-- 顶部：单行横向滚动 -->
         <div ref="catsRowEl"
             class="sp-cats-row flex items-center gap-1 overflow-x-auto no-scrollbar px-3 py-1.5 border-b border-black/5 dark:border-white/10"
             @wheel.prevent="onCatsRowWheel">
-            <!-- 最近 -->
-            <button type="button"
+            <!-- 可用回应（回应选择器）：前 16 个固定列表，排在第一位 -->
+            <button v-if="reactionMode" type="button"
+                class="sp-cat-pill shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-base leading-none transition-colors"
+                :class="activeBlock === 'available_reactions' ? 'bg-blue-500/15 text-blue-500' : 'text-gray-500 hover:bg-black/5 dark:hover:bg-white/10'"
+                @click="scrollToBlock('available_reactions')" title="可用回应">
+                <span :style="{ fontSize: '14px', lineHeight: '1' }">{{ availableNavEmoji }}</span>
+            </button>
+
+            <!-- 最近：普通模式为聊天最近；回应模式为可用回应第 17 个起的剩余项（无剩余则不显示） -->
+            <button v-if="!reactionMode || leftoverReactions.length > 0" type="button"
                 class="sp-cat-pill shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-base leading-none transition-colors"
                 :class="activeBlock === 'recent' ? 'bg-blue-500/15 text-blue-500' : 'text-gray-500 hover:bg-black/5 dark:hover:bg-white/10'"
                 @click="scrollToBlock('recent')" :title="t('lng_recent_title')">
                 <ClockIcon class="w-4 h-4" />
             </button>
 
-            <!-- 本地胶囊（可展开/收缩） -->
-            <div v-if="!showDefaultEmojiStatus" class="sp-emoji-cats flex items-center gap-0.5 rounded-full px-1 py-0.5">
+            <!-- 本地胶囊（可展开/收缩；回应模式下隐藏，由可用回应列表替代） -->
+            <div v-if="!showDefaultEmojiStatus && !reactionMode"
+                class="sp-emoji-cats flex items-center gap-0.5 rounded-full px-1 py-0.5">
                 <!-- 折叠态：未聚焦本地 emoji 时，只显示代表图标 -->
                 <template v-if="!isLocalActive">
                     <button type="button"
                         class="sp-cat-pill shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-base leading-none transition-colors hover:bg-black/5 dark:hover:bg-white/10"
                         @click="scrollToBlock(localActiveCatId)" :title="localActiveCatName">
-                        <span :style="{ fontSize: '20px', lineHeight: '1' }">{{ localActiveCatEmoji }}</span>
+                        <span :style="{ fontSize: '14px', lineHeight: '1' }">{{ localActiveCatEmoji }}</span>
                     </button>
                 </template>
                 <!-- 展开态：聚焦本地 emoji 之一时，显示全部本地分类 -->
@@ -40,13 +49,13 @@
                         class="sp-cat-pill shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-base leading-none transition-colors"
                         :class="activeBlock === cat.id ? 'bg-white dark:bg-gray-700 shadow' : 'hover:bg-black/5 dark:hover:bg-white/10'"
                         @click="scrollToBlock(cat.id)" :title="cat.name">
-                        <span :style="{ fontSize: '20px', lineHeight: '1' }">{{ cat.items[0]?.emoji ?? '' }}</span>
+                        <span :style="{ fontSize: '14px', lineHeight: '1' }">{{ cat.items[0]?.emoji ?? '' }}</span>
                     </button>
                 </template>
             </div>
 
-            <!-- 升级礼物典藏品 -->
-            <button v-if="giftEmojiIds.length > 0" type="button"
+            <!-- 升级礼物典藏品（回应模式下隐藏） -->
+            <button v-if="giftEmojiIds.length > 0 && !reactionMode" type="button"
                 class="sp-cat-pill shrink-0 w-8 h-8 flex items-center justify-center transition-colors"
                 :class="activeBlock === 'gift_status' ? 'bg-blue-500/15' : 'text-gray-500 hover:bg-black/5 dark:hover:bg-white/10'"
                 @click="scrollToBlock('gift_status')" title="典藏品">
@@ -59,7 +68,7 @@
                 :class="activeBlock === `custom_${set.id}` ? 'bg-blue-500/15' : 'text-gray-500 hover:bg-black/5 dark:hover:bg-white/10'"
                 @click="scrollToBlock(`custom_${set.id}`)" :title="set.title">
                 <StickerMediaItem v-if="installedIcon(set) && !isTgsIcon(set)" :item="installedIcon(set)" kind="sticker"
-                    :size="20" :skin-tone="skinTone" />
+                    :size="16" :skin-tone="skinTone" />
                 <span v-else class="text-sm">{{ (set.title || t('lng_stickers_installed_tab'))?.[0] ?? '✨' }}</span>
             </button>
         </div>
@@ -78,10 +87,10 @@
                         @click="onPickResult(r)">
                         <template v-if="r.isCustom">
                             <StickerMediaItem v-if="customStickerOf(r.key)" :item="customStickerOf(r.key)"
-                                kind="sticker" :size="30" :skin-tone="skinTone" />
+                                kind="sticker" :skin-tone="skinTone" />
                             <span v-else class="text-xl">{{ r.display }}</span>
                         </template>
-                        <span v-else :style="{ fontSize: '28px', lineHeight: '1' }">{{ r.display }}</span>
+                        <span v-else class="sp-cell-emoji" :style="{ fontSize: GRID_EMOJI_FONT }">{{ r.display }}</span>
                     </button>
                 </div>
                 <div v-if="!searching && searchResults.length === 0" class="text-center text-sm text-gray-400 py-8">
@@ -91,53 +100,98 @@
 
             <!-- 内容区：全部区块完整展开（不折叠），垂直滚动 -->
             <template v-else>
-                <!-- 最近 -->
-                <div class="sp-emoji-section" data-emoji-block="recent">
-                    <p class="sp-emoji-block-title">最近</p>
-                    <div class="sp-emoji-shelf">
-                        <button v-if="showDefaultEmojiStatus" type="button"
-                            class="sp-emoji-cell flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 w-full aspect-square"
-                            title="默认会员徽章" @click="emit('pickDefaultStatus')">
-                            <span class="tgico tgico-emoji-status text-[28px]" />
-                        </button>
-                        <template v-if="showDefaultEmojiStatus">
-                            <StickerMediaItem v-for="s in recentStatusStickers" :key="s.id" :item="s" kind="sticker"
-                                :size="26" :skin-tone="skinTone" @pick="onPickCustom" />
-                        </template>
-                        <button v-else v-for="em in recentEmoji" :key="em"
-                            class="sp-emoji-cell flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 w-full aspect-square"
-                            @click="onPickLocal(em)">
-                            <span :style="{ fontSize: '28px', lineHeight: '1' }">{{ em }}</span>
-                        </button>
-                        <div v-if="(showDefaultEmojiStatus ? recentStatusStickers.length : recentEmoji.length) === 0"
-                            class="text-center text-sm text-gray-400 py-6 col-span-full">
-                            还没有最近使用
-                        </div>
+                <!-- 可用回应固定区：前 16 个，始终排在第一位 -->
+                <div v-if="reactionMode" class="sp-emoji-section" data-emoji-block="available_reactions">
+                    <p class="sp-emoji-block-title">可用回应</p>
+                    <div v-if="availableList.length === 0" class="text-center text-xs text-gray-400 py-4">
+                        加载中...
                     </div>
-                    <!-- 最近自定义 emoji -->
-                    <div v-if="!showDefaultEmojiStatus && recentCustomStickers.length > 0" class="mt-1">
-                        <p class="sp-emoji-block-title">最近动态表情</p>
-                        <div class="flex flex-wrap gap-0.5">
-                            <StickerMediaItem v-for="s in recentCustomStickers" :key="s.id" :item="s" kind="sticker"
-                                :size="36" :skin-tone="skinTone" @pick="onPickCustom($event)" />
-                        </div>
+                    <div v-else class="sp-emoji-shelf">
+                        <button v-for="r in fixedReactions" :key="availableReactionKey(r)" type="button"
+                            class="sp-emoji-cell flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 w-full aspect-square"
+                            :class="{ 'opacity-50 cursor-not-allowed': !canPickAvailable(r) }"
+                            :disabled="!canPickAvailable(r)"
+                            :title="!canPickAvailable(r) ? '需要 Premium' : ''" @click="onPickAvailable(r)">
+                            <ReactionEmojiAnim v-if="isReactionEmoji(r.type)" :emoji="r.type.emoji"
+                                :size="GRID_MEDIA_PX" :fallback-font="20" />
+                            <CustomEmojiInline v-else-if="isReactionCustomEmoji(r.type)"
+                                :emojiId="r.type.custom_emoji_id" :size="GRID_MEDIA_PX"
+                                :fallbackText="r.type.custom_emoji_id" />
+                            <PaidReactionIcon v-else :size="GRID_MEDIA_PX" />
+                        </button>
                     </div>
                 </div>
 
-                <!-- 8 大分类：完整展开（标题为纯文字，不显示图标） -->
-                <div v-if="!showDefaultEmojiStatus" v-for="cat in categories" :key="cat.id" class="sp-emoji-section" :data-emoji-block="cat.id">
+                <!-- 最近：回应模式下为可用回应第 17 个起的剩余项；普通模式为聊天最近 -->
+                <div v-if="!reactionMode || leftoverReactions.length > 0" class="sp-emoji-section"
+                    data-emoji-block="recent">
+                    <template v-if="reactionMode">
+                        <p class="sp-emoji-block-title">最近</p>
+                        <div class="sp-emoji-shelf">
+                            <button v-for="r in leftoverReactions" :key="availableReactionKey(r)" type="button"
+                                class="sp-emoji-cell flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 w-full aspect-square"
+                                :class="{ 'opacity-50 cursor-not-allowed': !canPickAvailable(r) }"
+                                :disabled="!canPickAvailable(r)"
+                                :title="!canPickAvailable(r) ? '需要 Premium' : ''" @click="onPickAvailable(r)">
+                                <ReactionEmojiAnim v-if="isReactionEmoji(r.type)" :emoji="r.type.emoji"
+                                    :size="GRID_MEDIA_PX" :fallback-font="20" />
+                                <CustomEmojiInline v-else-if="isReactionCustomEmoji(r.type)"
+                                    :emojiId="r.type.custom_emoji_id" :size="GRID_MEDIA_PX"
+                                    :fallbackText="r.type.custom_emoji_id" />
+                                <PaidReactionIcon v-else :size="GRID_MEDIA_PX" />
+                            </button>
+                        </div>
+                    </template>
+                    <template v-else>
+                        <p class="sp-emoji-block-title">最近</p>
+                        <div class="sp-emoji-shelf">
+                            <button v-if="showDefaultEmojiStatus" type="button"
+                                class="sp-emoji-cell flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 w-full aspect-square"
+                                title="默认会员徽章" @click="emit('pickDefaultStatus')">
+                                <span class="tgico tgico-emoji-status text-[28px]" />
+                            </button>
+                            <template v-if="showDefaultEmojiStatus">
+                                <StickerMediaItem v-for="s in recentStatusStickers" :key="s.id" :item="s"
+                                    kind="sticker" :size="26" :skin-tone="skinTone" @pick="onPickCustom" />
+                            </template>
+                            <button v-else v-for="em in recentEmoji" :key="em"
+                                class="sp-emoji-cell flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 w-full aspect-square"
+                                @click="onPickLocal(em)">
+                                <span class="sp-cell-emoji" :style="{ fontSize: GRID_EMOJI_FONT }">{{ em }}</span>
+                            </button>
+                            <div
+                                v-if="(showDefaultEmojiStatus ? recentStatusStickers.length : recentEmoji.length) === 0"
+                                class="text-center text-sm text-gray-400 py-6 col-span-full">
+                                还没有最近使用
+                            </div>
+                        </div>
+                        <!-- 最近自定义 emoji -->
+                        <div v-if="!showDefaultEmojiStatus && recentCustomStickers.length > 0" class="mt-1">
+                            <p class="sp-emoji-block-title">最近动态表情</p>
+                            <div class="flex flex-wrap gap-0.5">
+                                <StickerMediaItem v-for="s in recentCustomStickers" :key="s.id" :item="s"
+                                    kind="sticker" :size="36" :skin-tone="skinTone" @pick="onPickCustom($event)" />
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- 8 大分类：完整展开（回应模式下隐藏——这些并非可用回应） -->
+                <div v-if="!showDefaultEmojiStatus && !reactionMode" v-for="cat in categories" :key="cat.id"
+                    class="sp-emoji-section" :data-emoji-block="cat.id">
                     <p class="sp-emoji-block-title">{{ cat.name }}</p>
                     <div class="sp-emoji-shelf">
                         <button v-for="it in cat.items" :key="it.emoji"
                             class="sp-emoji-cell flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 w-full aspect-square"
                             @click="it.fitzpatrick ? openSkinTone(it.emoji) : onPickLocal(it.emoji)">
-                            <span :style="{ fontSize: '28px', lineHeight: '1' }">{{ it.emoji }}</span>
+                            <span class="sp-cell-emoji" :style="{ fontSize: GRID_EMOJI_FONT }">{{ it.emoji }}</span>
                         </button>
                     </div>
                 </div>
 
                 <!-- 升级礼物状态（典藏品） -->
-                <div v-if="giftEmojiIds.length > 0" class="sp-emoji-section" data-emoji-block="gift_status">
+                <div v-if="giftEmojiIds.length > 0 && !reactionMode" class="sp-emoji-section"
+                    data-emoji-block="gift_status">
                     <p class="sp-emoji-block-title">典藏品</p>
                     <div class="sp-emoji-shelf">
                         <StickerMediaItem v-for="s in giftStickers" :key="s.id" :item="s" kind="sticker"
@@ -230,13 +284,18 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { SearchIcon, XIcon, ClockIcon, ChevronDownIcon } from 'lucide-vue-next';
 // GlobalEmojiInline removed - using global Apple Color Emoji font
 import StickerMediaItem from './StickerMediaItem.vue';
+import CustomEmojiInline from '../../../common/CustomEmojiInline.vue';
+import PaidReactionIcon from '../../../common/PaidReactionIcon.vue';
+import ReactionEmojiAnim from '../../../common/ReactionEmojiAnim.vue';
+import { prefetchEmojiReactionAnims } from '../../../../store/emojiReactions';
 import { useEmojiPicker, type EmojiSearchResult } from './composables/useEmojiPicker';
 import { useLocalEmojiPrefs } from './composables/useLocalEmojiPrefs';
 import { onVisibilityChange, unobserve, setProgrammaticScroll, beginUserScroll, endUserScroll } from './composables/useStickerVisibility';
 import { enqueueViewportLoad, DEFAULT_DWELL_MS } from '../../../../utils/viewportLoadGate';
 import { stickerPanelState } from './types';
 import { tdlibSend } from '../../../../utils/tdlib';
-import type { sticker, animation, stickerSetInfo, emojiStatus } from 'tdlib-types';
+import type { sticker, animation, stickerSetInfo, emojiStatus, availableReaction, ReactionType } from 'tdlib-types';
+import { isReactionEmoji, isReactionCustomEmoji } from '../../../../utils/reactionHelpers';
 
 /** Fitzpatrick 肤色选项 */
 const SKIN_TONES = [
@@ -253,13 +312,66 @@ const props = defineProps<{
     emojiStatusGiftStatuses?: emojiStatus[];
     emojiStatusRecentStatuses?: emojiStatus[];
     showDefaultEmojiStatus?: boolean;
+    /** 回应选择器模式：可用默认回应列表位于「最近」与「自定义 emoji」之间，隐藏 8 大 Unicode 分类 */
+    reactionMode?: boolean;
+    /** 可用回应列表（reactionMode 下展示） */
+    availableReactions?: availableReaction[];
 }>();
 
 const emit = defineEmits<{
     (e: 'pickEmoji', emoji: string): void;
     (e: 'pickCustomEmoji', id: string): void;
     (e: 'pickDefaultStatus'): void;
+    /** 选择了一个可用回应（含 emoji / 自定义 / 付费） */
+    (e: 'pickReaction', type: ReactionType): void;
 }>();
+
+/** 可用回应列表（回应选择器） */
+const availableList = computed(() => props.availableReactions ?? []);
+/** 固定展示：前 16 个，始终排在第一位 */
+const FIXED_REACTION_COUNT = 16;
+const fixedReactions = computed(() => availableList.value.slice(0, FIXED_REACTION_COUNT));
+/** 第 17 个起：归入「最近」区块 */
+const leftoverReactions = computed(() => availableList.value.slice(FIXED_REACTION_COUNT));
+/**
+ * 网格内视觉尺寸：普通 emoji 与自定义/付费媒体对齐。
+ * 回应选择器整体更紧凑，再缩一档。
+ */
+const GRID_EMOJI_FONT = computed(() => (props.reactionMode ? '20px' : '22px'));
+const GRID_MEDIA_PX = computed(() => (props.reactionMode ? 22 : 24));
+/** 顶部「可用回应」导航图标 */
+const availableNavEmoji = computed(() => {
+    const first = fixedReactions.value.find((r) => isReactionEmoji(r.type)) as any;
+    return first?.type?.emoji ?? '👍';
+});
+const isPremium = computed(() => props.isPremium ?? stickerPanelState.value.isPremium);
+
+function availableReactionKey(r: availableReaction): string {
+    if (isReactionEmoji(r.type)) return r.type.emoji;
+    if (isReactionCustomEmoji(r.type)) return `c:${r.type.custom_emoji_id}`;
+    return 'paid';
+}
+
+function canPickAvailable(r: availableReaction): boolean {
+    return !(r.needs_premium && !isPremium.value);
+}
+
+/** 点击可用默认回应：发出完整 ReactionType */
+function onPickAvailable(r: availableReaction) {
+    if (!canPickAvailable(r)) return;
+    if (isReactionEmoji(r.type)) {
+        picker.prefs.addRecent(r.type.emoji);
+    }
+    emit('pickReaction', r.type);
+}
+
+/** 打开/列表变化时预热反应动画（对齐 Unigram getEmojiReaction） */
+watch(availableList, (list) => {
+    if (!props.reactionMode || !list.length) return;
+    prefetchEmojiReactionAnims(
+        list.filter((r) => isReactionEmoji(r.type)).map((r) => (r.type as any).emoji as string),
+    );
+}, { immediate: true });
 
 /** Fitzpatrick 修饰符（U+1F3FB ~ U+1F3FF）对应 type 1..6 */
 const FITZ_TYPE_TO_MODIFIER: Record<number, string> = {
@@ -686,6 +798,23 @@ defineExpose({ activate: picker.activate, deactivate: picker.deactivate });
     transition: background 0.1s ease;
 }
 
+/* 网格内普通 emoji：与媒体项同量级，整体偏小 */
+.sp-cell-emoji {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    line-height: 1;
+    font-size: 22px;
+}
+
+/* 自定义包贴纸在格子内略缩进，避免铺满显得过大 */
+.sp-emoji-shelf .sp-media-item {
+    padding: 4px;
+    box-sizing: border-box;
+}
+
 /* 每个 emoji 分类/区块：垂直堆叠，上下滑动浏览 */
 .sp-emoji-section {
     margin-bottom: 6px;
@@ -726,6 +855,39 @@ defineExpose({ activate: picker.activate, deactivate: picker.deactivate });
     display: grid;
     grid-template-columns: repeat(8, minmax(0, 1fr));
     gap: 4px;
+}
+
+/* 回应选择器：收紧网格与区块间距（emoji 已偏小，格子不宜过大） */
+.sp-emoji-drawer--reaction .sp-emoji-shelf {
+    gap: 2px;
+}
+
+.sp-emoji-drawer--reaction .sp-emoji-section {
+    margin-bottom: 2px;
+}
+
+.sp-emoji-drawer--reaction .sp-emoji-scroll {
+    padding-left: 4px;
+    padding-right: 4px;
+}
+
+.sp-emoji-drawer--reaction .sp-search,
+.sp-emoji-drawer--reaction .sp-cats-row {
+    padding-left: 6px;
+    padding-right: 6px;
+}
+
+.sp-emoji-drawer--reaction .sp-cats-row {
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
+
+.sp-emoji-drawer--reaction .sp-emoji-block-title {
+    margin: 2px 0 2px;
+}
+
+.sp-emoji-drawer--reaction .sp-emoji-shelf .sp-media-item {
+    padding: 2px;
 }
 
 /* 空态占满整行 */

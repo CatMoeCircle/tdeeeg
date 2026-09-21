@@ -5,27 +5,28 @@
                 class="fixed z-10002 flex flex-col overflow-hidden rounded-2xl shadow-lg border border-black/10 dark:border-white/10 bg-white dark:bg-gray-900"
                 :style="pickerStyle" @click.stop>
 
-                <!-- 全 emoji 模式：直接复用贴纸选择器的 Emoji 抽屉（仅无底部 Tab 栏） -->
-                <EmojiDrawer v-if="fullEmoji" :is-premium="isPremium" @pick-emoji="onPickEmoji"
-                    @pick-custom-emoji="onPickCustomEmoji" />
+                <!-- 全 emoji 模式：复用 Emoji 抽屉；可用默认回应列表固定在「最近」与「自定义」之间 -->
+                <EmojiDrawer v-if="fullEmoji" :is-premium="isPremium" :reaction-mode="true"
+                    :available-reactions="allReactions" @pick-emoji="onPickEmoji"
+                    @pick-custom-emoji="onPickCustomEmoji" @pick-reaction="onPickReaction" />
 
                 <!-- 可用回应模式（频道受限）：与贴纸选择器一致的网格列表，去重后遍历展示 -->
                 <div v-else class="rp-available custom-scrollbar">
                     <div v-if="loading" class="py-8 text-center text-xs text-gray-400">加载中...</div>
                     <div v-else-if="allReactions.length === 0" class="py-8 text-center text-xs text-gray-400">无可用回应
                     </div>
-                    <div v-else class="grid grid-cols-8 gap-1">
+                    <div v-else class="grid grid-cols-8 gap-0.5">
                         <button v-for="reaction in allReactions" :key="getReactionId(reaction)" type="button"
                             class="flex items-center justify-center rounded-lg aspect-square hover:bg-black/5 dark:hover:bg-white/10 transition-colors duration-100"
                             :class="{ 'opacity-50 cursor-not-allowed': reaction.needs_premium && !isPremium }"
                             :disabled="reaction.needs_premium && !isPremium"
                             :title="reaction.needs_premium ? '需要 Premium' : ''" @click.stop="selectReaction(reaction)">
-                            <span v-if="isReactionEmoji(reaction.type)" class="leading-none"
-                                :style="{ fontSize: '28px', lineHeight: '1' }">{{ reaction.type.emoji }}</span>
+                            <ReactionEmojiAnim v-if="isReactionEmoji(reaction.type)" :emoji="reaction.type.emoji"
+                                :size="24" :fallback-font="22" />
                             <CustomEmojiInline v-else-if="isReactionCustomEmoji(reaction.type)"
-                                :emojiId="reaction.type.custom_emoji_id" :size="28"
+                                :emojiId="reaction.type.custom_emoji_id" :size="24"
                                 :fallbackText="reaction.type.custom_emoji_id" />
-                            <PaidReactionIcon v-else :size="28" />
+                            <PaidReactionIcon v-else :size="24" />
                         </button>
                     </div>
                 </div>
@@ -38,10 +39,12 @@
 import { ref, computed, watch, onUnmounted } from 'vue';
 import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
 import PaidReactionIcon from '../../common/PaidReactionIcon.vue';
+import ReactionEmojiAnim from '../../common/ReactionEmojiAnim.vue';
 import EmojiDrawer from './stickerPanel/EmojiDrawer.vue';
 import { tdlibSend } from '../../../utils/tdlib';
 import type { message, ReactionType, availableReaction, availableReactions } from 'tdlib-types';
 import { isReactionEmoji, isReactionCustomEmoji } from '../../../utils/reactionHelpers';
+import { prefetchEmojiReactionAnims } from '../../../store/emojiReactions';
 
 const props = defineProps<{
     /** 是否显示 */
@@ -91,8 +94,8 @@ const allReactions = computed(() => {
 });
 
 // ===== 面板尺寸与定位 =====
-const PANEL_WIDTH = 360;
-const PANEL_HEIGHT = 420;
+const PANEL_WIDTH = 288;
+const PANEL_HEIGHT = 320;
 
 /** 计算固定尺寸面板的位置（水平居中锚点，垂直优先在锚点下方，不足则上方） */
 function clampPosition(w: number, h: number): { left: string; top: string } {
@@ -137,6 +140,11 @@ function selectReaction(reaction: availableReaction) {
     emit('select', reaction.type);
 }
 
+/** 全 emoji 模式：从「可用回应」列表选择（完整 ReactionType） */
+function onPickReaction(type: ReactionType) {
+    emit('select', type);
+}
+
 /** 全 emoji 模式：选择了一个普通 emoji */
 function onPickEmoji(emoji: string) {
     emit('select-emoji', emoji);
@@ -147,9 +155,9 @@ function onPickCustomEmoji(id: string) {
     emit('select-custom-emoji', id);
 }
 
-/** 加载可用 reactions（仅受限模式） */
+/** 加载可用 reactions（全量模式也加载，供抽屉内「可用默认回应」列表展示） */
 async function loadAvailableReactions() {
-    if (props.fullEmoji || !props.msg || !props.visible) return;
+    if (!props.msg || !props.visible) return;
     loading.value = true;
     try {
         const result = await tdlibSend({
@@ -159,6 +167,11 @@ async function loadAvailableReactions() {
         }) as availableReactions;
         if (result._ === 'availableReactions') {
             availableData.value = result;
+            prefetchEmojiReactionAnims(
+                allReactions.value
+                    .filter((r) => isReactionEmoji(r.type))
+                    .map((r) => (r.type as any).emoji as string),
+            );
         }
     } catch (e) {
         console.warn('Failed to load available reactions:', e);
@@ -183,7 +196,7 @@ function onKeyDown(e: KeyboardEvent) {
 
 watch(() => props.visible, (v) => {
     if (v) {
-        if (!props.fullEmoji) loadAvailableReactions();
+        loadAvailableReactions();
         // 延迟注册 click-outside，避免捕获触发打开的点击事件
         setTimeout(() => {
             document.addEventListener('click', onClickOutside, true);
@@ -203,7 +216,7 @@ onUnmounted(() => {
 
 <style scoped>
 .rp-available {
-    padding: 8px;
+    padding: 6px;
     overflow-y: auto;
 }
 

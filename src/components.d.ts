@@ -88,6 +88,7 @@ declare module 'vue' {
     PrivacyExceptionBlock: typeof import('./components/settings/PrivacyExceptionBlock.vue')['default']
     PrivacyItemDialog: typeof import('./components/settings/PrivacyItemDialog.vue')['default']
     ProxyLinkConfirm: typeof import('./components/contextMenu/ProxyLinkConfirm.vue')['default']
+    ReactionEmojiAnim: typeof import('./components/common/ReactionEmojiAnim.vue')['default']
     ReactionPicker: typeof import('./components/chat/ChatDetail/ReactionPicker.vue')['default']
     ReactionsBar: typeof import('./components/chat/ChatDetail/ReactionsBar.vue')['default']
     ReportMessageConfirm: typeof import('./components/contextMenu/ReportMessageConfirm.vue')['default']

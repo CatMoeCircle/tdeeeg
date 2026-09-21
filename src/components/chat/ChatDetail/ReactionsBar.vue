@@ -9,8 +9,9 @@
                 : 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'"
             @click.stop="toggleReaction(reaction.type)" @mouseenter="onReactionHover(reaction)"
             :title="getReactionTooltip(reaction)">
-            <!-- Emoji 反应 -->
-            <span v-if="isReactionEmoji(reaction.type)" class="leading-none">{{ reaction.type.emoji }}</span>
+            <!-- Emoji 反应：getEmojiReaction 动态动画（Unigram 同源） -->
+            <ReactionEmojiAnim v-if="isReactionEmoji(reaction.type)" :emoji="reaction.type.emoji" :size="16"
+                :fallback-font="14" />
             <!-- 自定义 Emoji 反应 -->
             <CustomEmojiInline v-else-if="isReactionCustomEmoji(reaction.type)" :emojiId="reaction.type.custom_emoji_id"
                 :size="16" :fallbackText="reaction.type.custom_emoji_id" />
@@ -28,6 +29,7 @@ const { t } = useI18n();
 import { computed } from 'vue';
 import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
 import PaidReactionIcon from '../../common/PaidReactionIcon.vue';
+import ReactionEmojiAnim from '../../common/ReactionEmojiAnim.vue';
 import type { message, messageReaction, ReactionType } from 'tdlib-types';
 import {
     isReactionEmoji,

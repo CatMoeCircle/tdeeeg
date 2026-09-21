@@ -333,14 +333,15 @@
                     :style="reactionCapsuleStyle" @mousedown.stop @click.stop>
                     <button v-for="r in reactionCapsuleData.reactions" :key="r.emoji + (r.customEmojiId ?? '')"
                         type="button"
-                        class="flex items-center justify-center w-9 h-9 rounded-full text-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-100 select-none shrink-0"
+                        class="flex items-center justify-center w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-100 select-none shrink-0"
                         :class="{ 'opacity-50 cursor-not-allowed': r.needsPremium && !(userProfile?.is_premium) }"
                         :disabled="r.needsPremium && !(userProfile?.is_premium)"
                         :title="r.needsPremium ? '需要 Premium' : r.type._ === 'reactionTypePaid' ? t('lng_sr_message_column_paid_reactions') : r.emoji"
                         @click.stop="onCapsuleReactionClick(r)">
-                        <PaidReactionIcon v-if="r.type._ === 'reactionTypePaid'" :size="28" />
-                        <span v-else-if="!r.customEmojiId" class="leading-none">{{ r.emoji }}</span>
-                        <CustomEmojiInline v-else :emojiId="r.customEmojiId" :size="28" :fallbackText="r.emoji" />
+                        <PaidReactionIcon v-if="r.type._ === 'reactionTypePaid'" :size="20" />
+                        <ReactionEmojiAnim v-else-if="!r.customEmojiId" :emoji="r.emoji" :size="22"
+                            :fallback-font="18" />
+                        <CustomEmojiInline v-else :emojiId="r.customEmojiId" :size="20" :fallbackText="r.emoji" />
                     </button>
                     <!-- 更多回应按钮 -->
                     <button v-if="reactionCapsuleData.hasMore" type="button"
@@ -475,16 +476,16 @@
                                 class="w-full h-full object-cover" draggable="false" />
                             <div v-else
                                 class="w-full h-full flex items-center justify-center text-[10px] text-gray-500">
-                                媒体
+                                {{ editResourceLabel }}
                             </div>
                         </div>
                         <div class="min-w-0 flex-1">
                             <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
-                                {{ editMediaReplacement ? editMediaReplacement.name : (editMediaPreviewSrc ? '已附带媒体' :
-                                    '无媒体预览')
+                                {{ editMediaReplacement ? editMediaReplacement.name : (editMediaPreviewSrc ? `已附带${editResourceLabel}` :
+                                    `无${editResourceLabel}预览`)
                                 }}
                             </p>
-                            <p v-if="editMediaReplacement" class="text-[11px] text-orange-500">已选择新媒体，发送时将替换</p>
+                            <p v-if="editMediaReplacement" class="text-[11px] text-orange-500">已选择新{{ editResourceLabel }}，发送时将替换</p>
                         </div>
                         <button type="button"
                             class="shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
@@ -614,6 +615,7 @@ import ChatDetailHeader from './Header.vue';
 import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
 import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
 import PaidReactionIcon from '../../common/PaidReactionIcon.vue';
+import ReactionEmojiAnim from '../../common/ReactionEmojiAnim.vue';
 import MediaViewer from './MessageContent/MediaViewer.vue';
 import DeleteMessageConfirm from '../../contextMenu/DeleteMessageConfirm.vue';
 import TranslateMessageModal from '../../contextMenu/TranslateMessageModal.vue';
@@ -662,7 +664,13 @@ import {
     canGetMessageThread, canRecognizeSpeech, canReportMessage,
     toggleReaction,
 } from '../../contextMenu/messageActions';
-import { classifyAttachment, buildEditMediaContent } from '../../../utils/attachmentSend';
+import {
+    classifyAttachment,
+    buildEditMediaContent,
+    allowedEditReplaceKinds,
+    resolveEditReplaceKind,
+    ATTACHMENT_KIND_LABEL,
+} from '../../../utils/attachmentSend';
 import { isSavedMessagesChat } from '../../../utils/savedMessages';
 import { hasReactions } from '../../../utils/reactionHelpers';
 import { confirmDeleteMessage } from '../../../store/deleteMessage';
@@ -1288,13 +1296,25 @@ function extractEditMediaPreview(msg: message): string | null {
     return null;
 }
 
-/** 当前编辑消息是否有可替换的媒体 */
+/** 当前编辑消息是否有可替换的媒体/文档资源 */
 const editHasMedia = computed(() => {
     const m = editingMsg.value;
     if (!m) return false;
-    const t = m.content._;
-    return t === 'messagePhoto' || t === 'messageVideo' || t === 'messageAnimation'
-        || t === 'messageDocument' || t === 'messageAudio';
+    return allowedEditReplaceKinds(m.content._) !== null;
+});
+
+/** 编辑区资源类型文案（文档/图片/视频…） */
+const editResourceLabel = computed(() => {
+    const m = editingMsg.value;
+    if (!m) return '媒体';
+    switch (m.content._) {
+        case 'messageDocument': return ATTACHMENT_KIND_LABEL.document;
+        case 'messagePhoto': return ATTACHMENT_KIND_LABEL.photo;
+        case 'messageVideo': return ATTACHMENT_KIND_LABEL.video;
+        case 'messageAudio': return ATTACHMENT_KIND_LABEL.audio;
+        case 'messageAnimation': return ATTACHMENT_KIND_LABEL.animation;
+        default: return '媒体';
+    }
 });
 
 /** 编辑区媒体预览：更换后显示新图，否则显示原图 */
@@ -1366,22 +1386,78 @@ function cancelEdit() {
     }
 }
 
-/** 更换编辑中的媒体：打开文件选择器，分类后写入 editMediaReplacement */
+/**
+ * 编辑替换：按原消息类型给出文件选择器与分类策略。
+ * 图片↔视频、文件↔音乐可互换；动画仅 GIF/MPEG4。
+ * 文件/音乐替换不设扩展名筛选（任意文件均可选入）。
+ */
+function editReplaceDialogSpec(contentType: string): {
+    title: string;
+    filterName?: string;
+    extensions?: string[];
+    forceDocument: boolean;
+} | null {
+    const IMAGE = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'heic', 'heif'];
+    const VIDEO = ['mp4', 'mov', 'mkv', 'avi', 'webm', 'm4v', 'mpeg', 'mpg', 'wmv', 'flv', '3gp', 'ogv'];
+    const ANIMATION = ['gif', 'mp4', 'm4v', 'mpeg', 'mpg', 'mp4v'];
+    switch (contentType) {
+        case 'messageDocument':
+            // 文件消息：任意文件；音频→music，其余→document
+            return {
+                title: '选择新的文件或音乐',
+                forceDocument: false,
+            };
+        case 'messagePhoto':
+            // 图片 ↔ 视频
+            return {
+                title: '选择新的图片或视频',
+                filterName: '图片和视频',
+                extensions: [...IMAGE, ...VIDEO],
+                forceDocument: false,
+            };
+        case 'messageVideo':
+            return {
+                title: '选择新的视频或图片',
+                filterName: '视频和图片',
+                extensions: [...VIDEO, ...IMAGE],
+                forceDocument: false,
+            };
+        case 'messageAudio':
+            // 音乐 ↔ 文件
+            return {
+                title: '选择新的音乐或文件',
+                forceDocument: false,
+            };
+        case 'messageAnimation':
+            // 动画仅 GIF 或 MPEG4
+            return {
+                title: '选择新的动图',
+                filterName: 'GIF / MPEG4',
+                extensions: ANIMATION,
+                forceDocument: false,
+            };
+        default:
+            return null;
+    }
+}
+
+/** 更换编辑中的资源：按原消息类型选文件、分类，并解析为合法 kind */
 async function pickEditMediaReplacement() {
     if (!editingMsg.value || !editHasMedia.value) return;
+    const contentType = editingMsg.value.content._;
+    const spec = editReplaceDialogSpec(contentType);
+    if (!spec || !allowedEditReplaceKinds(contentType)) {
+        MessagePlugin.warning('该消息类型不支持更换资源');
+        return;
+    }
     try {
         const selected = await openDialog({
             multiple: false,
-            title: '选择新的媒体文件',
-            filters: [{
-                name: '媒体文件',
-                extensions: [
-                    'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'heic', 'heif',
-                    'mp4', 'mov', 'mkv', 'avi', 'webm', 'm4v', 'mpeg', 'mpg', 'wmv', 'flv', '3gp', 'ogv',
-                    'mp3', 'm4a', 'aac', 'ogg', 'opus', 'flac', 'wav', 'wma', 'amr',
-                    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'zip', 'rar', '7z', 'txt',
-                ],
-            }],
+            title: spec.title,
+            // 文件消息不设扩展名筛选：document 通道接受任意文件
+            ...(spec.extensions && spec.extensions.length > 0
+                ? { filters: [{ name: spec.filterName || '文件', extensions: spec.extensions }] }
+                : {}),
         });
         if (!selected) return;
         const path = Array.isArray(selected) ? selected[0] : selected;
@@ -1396,15 +1472,23 @@ async function pickEditMediaReplacement() {
             path, name, size,
             album: false,
             isPremium: isMePremium.value,
+            // kind 由 resolveEditReplaceKind 按原消息类型映射，这里不强制 document
+            forceDocument: spec.forceDocument,
         });
         if (result.status === 'rejected') {
             MessagePlugin.warning(result.reason);
             return;
         }
+        // 图片↔视频、文件↔音乐：映射为合法提交类型
+        const resolved = resolveEditReplaceKind(contentType, result.kind, name);
+        if (!resolved.ok) {
+            MessagePlugin.warning(resolved.reason);
+            return;
+        }
         editMediaReplacement.value = {
             id: `edit-media-${Date.now()}`,
             path, name, size,
-            kind: result.kind,
+            kind: resolved.kind,
             width: result.width,
             height: result.height,
             duration: result.duration,
@@ -1413,7 +1497,7 @@ async function pickEditMediaReplacement() {
         editMediaPreviewSrc.value = convertFileSrc(path);
     } catch (e) {
         console.error('pick edit media failed:', e);
-        MessagePlugin.error({ content: '选择媒体失败', placement: 'center' });
+        MessagePlugin.error({ content: `选择${editResourceLabel.value}失败`, placement: 'center' });
     }
 }
 
@@ -3381,8 +3465,21 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
             const entities = [...richEntities, ...customEmojiEntities];
             let ok = false;
             if (editMediaReplacement.value) {
-                // 更换媒体：走 editMessageMedia（描述与新媒体一并提交）
-                const content = buildEditMediaContent(editMediaReplacement.value, text, entities);
+                // 更换资源：按 TDLib 语义解析 kind（文件→document；动画仅 GIF/MPEG4；其余同类型）
+                const resolved = resolveEditReplaceKind(
+                    target.content._,
+                    editMediaReplacement.value.kind,
+                    editMediaReplacement.value.name,
+                );
+                if (!resolved.ok) {
+                    MessagePlugin.warning(resolved.reason);
+                    return;
+                }
+                const content = buildEditMediaContent(
+                    { ...editMediaReplacement.value, kind: resolved.kind },
+                    text,
+                    entities,
+                );
                 ok = await editMessageMediaContent(chatId.value, target.id, content);
             } else if (isMedia) {
                 // 仅改描述

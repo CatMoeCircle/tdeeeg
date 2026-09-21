@@ -5,6 +5,88 @@ import type { $Function } from 'tdlib-types';
 import type { inputTextQuote, textEntity$Input } from 'tdlib-types';
 import type { AttachmentItem, AttachmentKind } from '../store/attachment';
 
+/** 替换资源时，各类 AttachmentKind 的中文名（提示文案用） */
+export const ATTACHMENT_KIND_LABEL: Record<AttachmentKind, string> = {
+    photo: '图片',
+    video: '视频',
+    audio: '音频',
+    // TDLib 的 document 是「文件」通道：任意文件均可，不限于 office 文档
+    document: '文件',
+    animation: '动图',
+};
+
+/** MPEG4 动画扩展名（TDLib 动画仅接受 GIF / MPEG4） */
+const ANIMATION_MPEG4_EXTS = ['mp4', 'm4v', 'mpeg', 'mpg', 'mp4v'];
+
+/**
+ * 编辑消息时允许用来替换的资源类型。
+ * TDLib / 客户端约定：
+ * - 图片 ↔ 视频 可互换（相册允许 photo/video 同组）
+ * - 文件 ↔ 音乐 可互换（文件通道接受任意文件；音乐走 inputMessageAudio）
+ * - 动画：仅 GIF 或 MPEG4，固定 inputMessageAnimation
+ * 返回 null 表示该消息类型不支持资源替换。
+ */
+export function allowedEditReplaceKinds(contentType: string): AttachmentKind[] | null {
+    switch (contentType) {
+        case 'messageDocument': return ['document', 'audio'];
+        case 'messagePhoto': return ['photo', 'video'];
+        case 'messageVideo': return ['video', 'photo'];
+        case 'messageAudio': return ['audio', 'document'];
+        case 'messageAnimation': return ['animation'];
+        default: return null;
+    }
+}
+
+/** 校验失败时的提示文案；通过时返回 null */
+export function editReplaceKindError(contentType: string, kind: AttachmentKind): string | null {
+    const allowed = allowedEditReplaceKinds(contentType);
+    if (!allowed) return '该消息类型不支持更换资源';
+    if (allowed.includes(kind)) return null;
+    const expect = allowed.map((k) => ATTACHMENT_KIND_LABEL[k]).join('或');
+    return `资源类型不匹配：只能替换为${expect}，所选文件被识别为${ATTACHMENT_KIND_LABEL[kind]}`;
+}
+
+function extOfName(fileName: string): string {
+    const idx = fileName.lastIndexOf('.');
+    return idx >= 0 ? fileName.slice(idx + 1).toLowerCase() : '';
+}
+
+/**
+ * 将分类结果解析为编辑替换最终提交的 kind。
+ * - 文件 ↔ 音乐：音频文件→audio，其余文件→document
+ * - 图片 ↔ 视频：按文件实际类型 photo/video
+ * - 动画：GIF / MPEG4 → animation，其余拒绝
+ */
+export function resolveEditReplaceKind(
+    contentType: string,
+    classified: AttachmentKind,
+    fileName: string,
+): { ok: true; kind: AttachmentKind } | { ok: false; reason: string } {
+    const allowed = allowedEditReplaceKinds(contentType);
+    if (!allowed) return { ok: false, reason: '该消息类型不支持更换资源' };
+
+    // 文件 ↔ 音乐：音乐文件走 audio，其它一律 document（文件通道）
+    if (contentType === 'messageDocument' || contentType === 'messageAudio') {
+        if (classified === 'audio') return { ok: true, kind: 'audio' };
+        return { ok: true, kind: 'document' };
+    }
+
+    if (contentType === 'messageAnimation') {
+        const ext = extOfName(fileName);
+        if (classified === 'animation' || ext === 'gif' || ANIMATION_MPEG4_EXTS.includes(ext)) {
+            return { ok: true, kind: 'animation' };
+        }
+        return { ok: false, reason: '动画只能替换为 GIF 或 MPEG4 文件' };
+    }
+
+    // 图片 ↔ 视频
+    if (allowed.includes(classified)) {
+        return { ok: true, kind: classified };
+    }
+
+    return { ok: false, reason: editReplaceKindError(contentType, classified) ?? '资源类型不匹配' };
+}
+
 /** 文件大小上限 */
 const BYTES_2GB = 2 * 1024 * 1024 * 1024;
 const BYTES_4GB = 4 * 1024 * 1024 * 1024;
@@ -231,10 +313,11 @@ export function buildEditMediaContent(
     switch (it.kind) {
         case 'photo': return photoContent(it, cap) as unknown as Record<string, unknown>;
         case 'video': return videoContent(it, cap, it.cover) as unknown as Record<string, unknown>;
-        case 'document': return documentContent(it, cap, it.cover) as unknown as Record<string, unknown>;
         case 'audio': return audioContent(it, cap, it.cover) as unknown as Record<string, unknown>;
-        case 'animation':
-        default: return animationContent(it, cap) as unknown as Record<string, unknown>;
+        case 'animation': return animationContent(it, cap) as unknown as Record<string, unknown>;
+        // 未知 kind 不得默认成动画；按文档提交更安全（调用方应已按原消息类型校验）
+        case 'document':
+        default: return documentContent(it, cap, it.cover) as unknown as Record<string, unknown>;
     }
 }
 
