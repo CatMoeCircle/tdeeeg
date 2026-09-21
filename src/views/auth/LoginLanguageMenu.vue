@@ -166,7 +166,7 @@ import { storeToRefs } from 'pinia';
 import { useLanguageStore } from '../../store/language';
 import { loadCachedPack, matchesSystemLanguage, type LanguageOption } from '../../utils/languagePacks';
 
-const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
+withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
 
 const { t } = useI18n();
 const langStore = useLanguageStore();

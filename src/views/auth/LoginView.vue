@@ -392,10 +392,6 @@ const AuthState = async (State: AuthorizationState) => {
                 }
             }
             break;
-        case "authorizationStateWaitTdlibParameters":
-            unlockLogin();
-            MessagePlugin.error({ content: t('login.tdlibParametersError'), placement: "top-right", offset: [0, 20] });
-            break
         case "authorizationStateWaitPremiumPurchase":
             unlockLogin();
             MessagePlugin.warning({ content: t('login.PremiumWarning'), placement: "top-right", offset: [0, 20] });
