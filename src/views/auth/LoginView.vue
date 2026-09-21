@@ -593,7 +593,7 @@ onUnmounted(() => {
 
                         <!-- 下拉账户列表（向上展开，右对齐） -->
                         <Transition name="account-menu">
-                            <div v-if="showAccountDropdown && loggedAccounts.length > 1"
+                            <div v-if="showAccountDropdown"
                                 class="absolute z-10 right-0 bottom-full mb-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg max-h-[50vh] overflow-y-auto custom-scrollbar">
                                 <div v-for="acc in loggedAccounts" :key="acc.id"
                                     @click="switchToAccount(acc.id); showAccountDropdown = false"
