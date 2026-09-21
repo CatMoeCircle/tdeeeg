@@ -406,4 +406,11 @@ body.is-resizing * {
   z-index: auto;
 }
 
+/* 隐藏 Chromium/Edge/WebView2 浏览器原生密码显示按钮（与自定义 RevealButton 冲突） */
+input::-webkit-reveal-button,
+input::-webkit-credentials-button {
+  display: none !important;
+  -webkit-appearance: none;
+}
+
 /* tlottie：canvas 铺满容器；尺寸由外层 / TgsPlayer size 控制 */

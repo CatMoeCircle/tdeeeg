@@ -160,9 +160,10 @@ onUnmounted(() => {
                         :class="shake
                             ? 'border-red-400'
                             : 'border-gray-300 dark:border-gray-600 focus-within:border-[#3390ec]'">
-                        <input ref="inputRef" :type="showPassword ? 'text' : 'password'"
+                        <input ref="inputRef" type="text"
                             :placeholder="passwordHint || t('login.passwordPlaceholder')" v-model="password"
-                            :disabled="loading" autocomplete="current-password"
+                            :disabled="loading" autocomplete="off"
+                            :style="!showPassword ? { WebkitTextSecurity: 'disc' } : undefined"
                             class="flex-1 min-w-0 text-sm outline-none bg-transparent placeholder-gray-400 text-gray-800 dark:text-gray-100"
                             @keyup.enter="submitPassword" />
                         <!-- Unigram RevealButton：显示/隐藏密码 → 动画 Close / CloseToPeek -->
