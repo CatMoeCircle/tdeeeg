@@ -268,10 +268,10 @@ const patternItems = computed(() => {
             const dist = Math.hypot(x, y * 1.35);
             // 跳过正中心（留给 Model.Sticker 主体）
             if (dist < 16) continue;
-            // 圆形衰减：中心最浓，边缘（≈half）趋近 0
+            // 圆形衰减：更陡，中心稍浓后快速淡出到边缘
             const t = Math.min(1, dist / half);
-            const opacity = Math.max(0, (1 - t * t) * 0.95);
-            if (opacity < 0.04) continue;
+            const opacity = Math.max(0, (1 - t) ** 2.2 * 0.55);
+            if (opacity < 0.03) continue;
             items.push({
                 size: symbol,
                 style: {
@@ -300,7 +300,7 @@ const patternItems = computed(() => {
     position: absolute;
     inset: 0;
     overflow: hidden;
-    opacity: 0.55;
+    opacity: 0.4;
 }
 
 .pattern-cell {
