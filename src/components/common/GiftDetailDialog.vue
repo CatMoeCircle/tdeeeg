@@ -248,12 +248,12 @@ const headerHaloStyle = computed(() => {
     };
 });
 
-/** 背景符号图案：与 GiftDisplay 同算法（棋盘格绕中心铺开，越靠边越淡） */
+/** 背景符号图案：棋盘格绕中心铺开，圆形范围内越靠边越透明 */
 const patternItems = computed(() => {
     // 头部可视区域约 360×200，以中心为原点铺棋盘格
-    const half = 180;
-    const cell = 36;
-    const symbol = 28;
+    const half = 170;
+    const cell = 44;
+    const symbol = 30;
     const extent = 5;
     const items: { size: number; style: Record<string, string> }[] = [];
     const cx = half;
@@ -263,12 +263,15 @@ const patternItems = computed(() => {
             // 棋盘交错：放一个空一个，下一行错位
             if (((row + col) & 1) !== 0) continue;
             const x = col * cell;
-            const y = row * cell * 0.9;
-            const dist = Math.hypot(x, y);
+            const y = row * cell * 0.85;
+            // 圆形半径：水平略拉伸以覆盖宽头部
+            const dist = Math.hypot(x, y * 1.35);
             // 跳过正中心（留给 Model.Sticker 主体）
-            if (dist < 12) continue;
-            // 越靠边越透明
-            const opacity = Math.max(0.12, 1 - (dist / half) * 0.75);
+            if (dist < 16) continue;
+            // 圆形衰减：中心最浓，边缘（≈half）趋近 0
+            const t = Math.min(1, dist / half);
+            const opacity = Math.max(0, (1 - t * t) * 0.95);
+            if (opacity < 0.04) continue;
             items.push({
                 size: symbol,
                 style: {
