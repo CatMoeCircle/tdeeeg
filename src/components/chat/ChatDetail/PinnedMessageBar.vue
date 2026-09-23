@@ -1,13 +1,19 @@
 <template>
+    <!-- bare：并入顶部统一卡片时去掉自身圆角/底色，由外层卡片提供贴合样式 -->
     <div v-if="pinnedMessages.length > 0 || player.showEntry"
-        class="rounded-xl bg-white/70 dark:bg-gray-800/70 backdrop-blur-md shadow-lg border border-gray-200/50 dark:border-gray-700/50 overflow-hidden transition-all duration-200"
-        :class="expanded ? 'max-h-96' : hasPlayer ? 'max-h-32' : 'max-h-14'">
+        class="overflow-hidden transition-all duration-200"
+        :class="[
+            bare
+                ? ''
+                : 'rounded-xl bg-white/70 dark:bg-gray-800/70 backdrop-blur-md shadow-lg border border-gray-200/50 dark:border-gray-700/50',
+            expanded ? 'max-h-96' : hasPlayer ? 'max-h-32' : 'max-h-14'
+        ]">
         <!-- 顶置消息部分 -->
         <template v-if="pinnedMessages.length > 0">
             <!-- 单条顶置消息（折叠态） -->
             <div v-if="!expanded && currentPinned" @click="jumpToMessage(currentPinned.id)"
                 class="flex items-center gap-2.5 px-4 py-1.5 cursor-pointer hover:bg-gray-100/60 dark:hover:bg-gray-700/60 transition-colors select-none group"
-                :class="hasPlayer ? 'rounded-none border-b border-gray-100/50 dark:border-gray-700/30' : 'rounded-xl'">
+                :class="hasPlayer ? 'rounded-none border-b border-gray-100/50 dark:border-gray-700/30' : (bare ? '' : 'rounded-xl')">
                 <!-- 图钉图标 -->
                 <div class="shrink-0 w-7 h-7 flex items-center justify-center">
                     <PinIcon v-if="currentPinned.is_pinned" class="w-4 h-4 text-blue-500 rotate-45" />
@@ -68,9 +74,9 @@
             </div>
         </template>
 
-        <!-- 音乐播放器入口（合并到同一卡片） -->
-        <div v-if="player.showEntry" class="border-t border-gray-100/50 dark:border-gray-700/30"
-            :class="{ 'rounded-b-xl': pinnedMessages.length > 0 }">
+        <!-- 音乐播放器入口（合并到同一卡片，与上方置顶贴合） -->
+        <div v-if="player.showEntry"
+            :class="pinnedMessages.length > 0 || expanded ? 'border-t border-gray-100/50 dark:border-gray-700/30' : ''">
             <MusicPlayerEntry bare />
         </div>
     </div>
@@ -89,6 +95,8 @@ import { useAudioPlayerStore } from '../../../store/audioPlayer';
 
 const props = defineProps<{
     chatId: number | undefined;
+    /** 并入顶部统一卡片：去掉自身卡片 chrome，仅保留内容分区 */
+    bare?: boolean;
 }>();
 
 const emit = defineEmits<{

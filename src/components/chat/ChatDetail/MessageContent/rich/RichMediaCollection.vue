@@ -50,6 +50,7 @@ import type { PageBlock, file, ThumbnailFormat } from 'tdlib-types';
 import { ChevronLeftIcon, ChevronRightIcon, PlayIcon } from 'lucide-vue-next';
 import RichImage from './RichImage.vue';
 import { layoutMediaGroup } from '../../../../../utils/mediaGroupLayout';
+import { mediaSizeStyle, MEDIA_MAX } from '../../../../../utils/fitMediaSize';
 
 const props = withDefaults(defineProps<{
     blocks: PageBlock[];
@@ -121,7 +122,7 @@ const items = computed<MediaItem[]>(() => {
 
     const layout = layoutMediaGroup(
         result.map((item) => ({ width: item.width, height: item.height })),
-        340,
+        MEDIA_MAX,
     );
     return result.map((item, index) => {
         const rect = layout.items[index];
@@ -155,19 +156,16 @@ const containerStyle = computed(() => {
     if (props.mode === 'grid') {
         const layout = layoutMediaGroup(
             items.value.map((item) => ({ width: item.width, height: item.height })),
-            340,
+            MEDIA_MAX,
         );
         return {
-            width: '340px',
+            width: `${MEDIA_MAX}px`,
             maxWidth: '100%',
             aspectRatio: `${layout.width} / ${layout.height}`,
         };
     }
+    // 单图轮播：与 messagePhoto/video 一致，432/96 等比约束
     const item = currentItem.value;
-    return {
-        width: '340px',
-        maxWidth: '100%',
-        aspectRatio: `${item.width} / ${item.height}`,
-    };
+    return mediaSizeStyle(item.width, item.height);
 });
 </script>

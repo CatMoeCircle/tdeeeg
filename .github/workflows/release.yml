@@ -167,6 +167,29 @@ jobs:
           }
         shell: pwsh
 
+      - name: Stage TFLite runtime
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri/bin | Out-Null
+          $vendor = "src-tauri/langdetect/vendor/tensorflowlite_c.dll"
+          if (Test-Path $vendor) {
+            Copy-Item $vendor src-tauri/bin/tensorflowlite_c.dll -Force
+            Write-Host "tensorflowlite_c.dll staged from vendor"
+          } elseif (Test-Path src-tauri/bin/tensorflowlite_c.dll) {
+            Write-Host "tensorflowlite_c.dll already in src-tauri/bin"
+          } else {
+            Write-Host "tensorflowlite_c.dll NOT found (vendor or bin)!" -ForegroundColor Red
+            exit 1
+          }
+          if (-not (Test-Path public/language_detector.tflite)) {
+            Write-Host "language_detector.tflite NOT found! (required by include_bytes)" -ForegroundColor Red
+            exit 1
+          }
+          if (-not (Test-Path src-tauri/langdetect/Cargo.toml)) {
+            Write-Host "src-tauri/langdetect crate NOT found!" -ForegroundColor Red
+            exit 1
+          }
+        shell: pwsh
+
       - name: Build and release (default)
         id: tauri_build
         uses: tauri-apps/tauri-action@v1

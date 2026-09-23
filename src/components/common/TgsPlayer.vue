@@ -1,7 +1,7 @@
 <template>
     <div class="tgs-player" :class="className" :style="rootStyle">
         <LottiePlayer ref="innerRef" class="tgs-lottie-root" :src="src ?? undefined" :data="data ?? undefined"
-            :loop="loop" :autoplay="autoplay" :speed="speed" :direction="direction ?? undefined"
+            :loop="effectiveLoop" :autoplay="autoplay" :speed="speed" :direction="direction ?? undefined"
             :fitz-modifier="fitzModifier" :report-frames="reportFrames" :force-render="forceRender"
             :initial-frame="initialFrame ?? undefined" @load="onLoad" @error="onError" @complete="onComplete" />
     </div>
@@ -20,7 +20,7 @@ export type TgsPlayerInstance = {
 </script>
 
 <script setup lang="ts">
-import { computed, onUnmounted, ref } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import { LottiePlayer } from 'tlottie/vue';
 import 'tlottie/vue/style.css';
 import type { FitzModifier } from 'tlottie';
@@ -88,6 +88,20 @@ function engine() {
     return innerRef.value?.tlottie?.() ?? null;
 }
 
+/**
+ * 归一化 loop：tlottie Worker 内 `loop ?? false`，undefined/空串都会变成只播一次。
+ * Vue 对 `boolean | number` 含 Boolean 时会做布尔形态转换，这里再兜一层。
+ */
+const effectiveLoop = computed<boolean | number>(() => {
+    const l = props.loop as boolean | number | '' | null | undefined;
+    if (l === '' || l == null) return true;
+    return l;
+});
+
+function applyLoop() {
+    (engine() as { setLoop?: (l: boolean | number) => void } | null)?.setLoop?.(effectiveLoop.value);
+}
+
 const rootStyle = computed(() =>
     props.size != null
         ? { width: `${props.size}px`, height: `${props.size}px` }
@@ -96,7 +110,11 @@ const rootStyle = computed(() =>
 
 const className = computed(() => props.class || undefined);
 
+watch(effectiveLoop, () => applyLoop());
+
 function onLoad(payload: unknown) {
+    // load 后显式 setLoop：构造时配置偶发未落到 Worker 引擎（默认 false → 只播一次）
+    applyLoop();
     emit('load', payload);
     // 页首动画：load 后先落到 initialFrame 再交给业务逻辑
     if (props.initialFrame != null) {
@@ -129,6 +147,10 @@ function detachFrameListener() {
 }
 function onComplete(payload: unknown) {
     emit('complete', payload);
+    // loop=true 却仍 complete（引擎 loop 未生效）时兜底续播，避免回应动画停在末帧
+    if (effectiveLoop.value === true) {
+        engine()?.play();
+    }
 }
 
 defineExpose({
@@ -148,7 +170,8 @@ defineExpose({
         (engine() as { setDirection?: (d: 1 | -1) => void } | null)?.setDirection?.(direction);
     },
     setLoop(loop: boolean | number) {
-        (engine() as { setLoop?: (l: boolean | number) => void } | null)?.setLoop?.(loop);
+        const l = (loop as boolean | number | '') === '' ? true : loop;
+        (engine() as { setLoop?: (v: boolean | number) => void } | null)?.setLoop?.(l);
     },
     getProperties() {
         return engine();

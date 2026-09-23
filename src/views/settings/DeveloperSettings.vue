@@ -154,6 +154,97 @@
                     </button>
                 </section>
 
+                <!-- 翻译门控 / 语言识别测试 -->
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
+                        {{ t('dev.langTest') }}</h3>
+                    <p class="text-xs text-gray-500 mb-3">{{ t('dev.langTestDesc') }}</p>
+
+                    <textarea v-model="langTestInput" rows="3" spellcheck="false"
+                        :placeholder="t('dev.langTestPh')"
+                        class="w-full bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 ring-blue-500 resize-y"></textarea>
+
+                    <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
+                        <span class="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800">
+                            {{ t('dev.langTestTarget') }}：<span class="font-mono text-gray-700 dark:text-gray-300">{{ langTestTarget }}</span>
+                        </span>
+                        <span class="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800">
+                            {{ t('dev.langTestDoNot') }}：<span class="font-mono text-gray-700 dark:text-gray-300">{{ langTestDoNotLabel }}</span>
+                        </span>
+                    </div>
+
+                    <div class="mt-3 flex items-center gap-2">
+                        <button type="button"
+                            class="px-4 py-2 rounded-lg text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50"
+                            :disabled="langTesting || !langTestInput.trim()" @click="runLangTest">
+                            {{ langTesting ? t('dev.loading') : t('dev.langTestRun') }}
+                        </button>
+                        <button type="button"
+                            class="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700"
+                            @click="clearLangTest">
+                            {{ t('dev.clear') }}
+                        </button>
+                    </div>
+
+                    <!-- 检查结果 -->
+                    <div v-if="langTestResult" class="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                        <div class="px-4 py-3 flex items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-700"
+                            :class="langTestResult.shouldTranslate
+                                ? 'bg-green-50/80 dark:bg-green-900/20'
+                                : 'bg-amber-50/80 dark:bg-amber-900/20'">
+                            <div class="min-w-0">
+                                <p class="text-sm font-semibold"
+                                    :class="langTestResult.shouldTranslate
+                                        ? 'text-green-700 dark:text-green-300'
+                                        : 'text-amber-700 dark:text-amber-300'">
+                                    {{ langTestResult.shouldTranslate ? t('dev.langTestPass') : t('dev.langTestSkip') }}
+                                </p>
+                                <p class="text-[11px] text-gray-500 mt-0.5 font-mono">
+                                    reason={{ langTestResult.reason }}
+                                </p>
+                            </div>
+                            <span class="shrink-0 px-2 py-1 rounded-md text-[11px] font-mono font-semibold"
+                                :class="langTestResult.shouldTranslate
+                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'">
+                                shouldTranslate={{ langTestResult.shouldTranslate }}
+                            </span>
+                        </div>
+
+                        <div class="px-4 py-3 space-y-3">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <p class="text-[11px] text-gray-400 mb-0.5">{{ t('dev.langTestDetected') }}</p>
+                                    <p class="text-sm font-mono text-gray-800 dark:text-gray-200">
+                                        {{ langTestResult.detectedLanguage || '—' }}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p class="text-[11px] text-gray-400 mb-0.5">{{ t('dev.langTestConfidence') }}</p>
+                                    <p class="text-sm font-mono text-gray-800 dark:text-gray-200">
+                                        {{ formatConfidence(langTestResult.confidence) }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div v-if="langTestCandidates.length">
+                                <p class="text-[11px] text-gray-400 mb-1">{{ t('dev.langTestCandidates') }}</p>
+                                <div class="rounded-lg border border-gray-100 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800">
+                                    <div v-for="(c, i) in langTestCandidates" :key="c.language + i"
+                                        class="flex items-center justify-between px-3 py-1.5 text-xs">
+                                        <span class="font-mono text-gray-700 dark:text-gray-300">{{ c.language }}</span>
+                                        <span class="font-mono tabular-nums text-gray-500">{{ formatConfidence(c.confidence) }}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <p v-if="langTestError" class="text-xs font-mono text-red-500 dark:text-red-400 whitespace-pre-wrap break-all">
+                                {{ langTestError }}
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
                 <!-- 显示当前所有 Option 状态 -->
                 <section>
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
@@ -182,7 +273,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, RefreshCw as RefreshCwIcon } from 'lucide-vue-next';
 import { invoke } from '@tauri-apps/api/core';
@@ -193,6 +284,16 @@ import {
     recentUpdates, clearRecentUpdates, type CachedUpdate,
 } from '../../store/debug';
 import { readCrashLog, clearCrashLog } from '../../utils/crashGuard';
+import { settings } from '../../store/settings';
+import { getTranslateTargetLang } from '../../store/translate';
+import { getTranslateLanguageLabel } from '../../utils/translateLanguages';
+import {
+    detectLanguage,
+    detectLanguages,
+    shouldTranslateText,
+    type LanguageDetection,
+    type ShouldTranslateDecision,
+} from '../../utils/languageDetect';
 
 function formatUpdateTime(t: number): string {
     const d = new Date(t);
@@ -311,5 +412,65 @@ async function loadDebugOptions() {
     } finally {
         debugOptionsLoading.value = false;
     }
+}
+
+// ─── 翻译门控 / 语言识别测试 ─────────────────
+
+const langTestInput = ref('');
+const langTesting = ref(false);
+const langTestResult = ref<ShouldTranslateDecision | null>(null);
+const langTestCandidates = ref<LanguageDetection[]>([]);
+const langTestError = ref('');
+
+/** 当前生效目标语言（与全部翻译一致） */
+const langTestTarget = computed(() => {
+    const code = getTranslateTargetLang();
+    return `${getTranslateLanguageLabel(code)} (${code})`;
+});
+
+const langTestDoNotLabel = computed(() => {
+    const list = settings.translate.doNotTranslate || [];
+    if (!list.length) return '—';
+    return list.map((c) => getTranslateLanguageLabel(c) || c).join('、');
+});
+
+function formatConfidence(v: number): string {
+    return `${(v * 100).toFixed(2)}%`;
+}
+
+/** 输入文本 → 语言识别 + 翻译门控检查 */
+async function runLangTest() {
+    const text = langTestInput.value.trim();
+    if (!text) return;
+    langTesting.value = true;
+    langTestResult.value = null;
+    langTestCandidates.value = [];
+    langTestError.value = '';
+    const targetLang = getTranslateTargetLang();
+    const doNot = settings.translate.doNotTranslate || [];
+    try {
+        const [decision, top, candidates] = await Promise.all([
+            shouldTranslateText(text, targetLang, doNot),
+            detectLanguage(text).catch(() => null),
+            detectLanguages(text, 5).catch(() => [] as LanguageDetection[]),
+        ]);
+        langTestResult.value = decision;
+        langTestCandidates.value = candidates.length
+            ? candidates
+            : (top ? [top] : []);
+        console.log('[langTest]', { text, targetLang, doNot, decision, candidates });
+    } catch (e) {
+        langTestError.value = e && typeof e === 'object' ? JSON.stringify(e) : String(e);
+        console.warn('[langTest] failed:', e);
+    } finally {
+        langTesting.value = false;
+    }
+}
+
+function clearLangTest() {
+    langTestInput.value = '';
+    langTestResult.value = null;
+    langTestCandidates.value = [];
+    langTestError.value = '';
 }
 </script>

@@ -652,9 +652,37 @@ impl DownloadStore {
         let d = self.data_mut(account_id);
 
         if has_remote {
-            if d.session_map.get(&session_file_id) != Some(&key) {
-                d.session_map.insert(session_file_id, key.clone());
+            // session:xxx → remote_id 键迁移：remote.id 就绪前条目可能挂在 session 键上，
+            // 不迁移则 update_progress 按 remote 键查不到，进度/完成态被静默丢弃。
+            if let Some(old_key) = d.session_map.get(&session_file_id).cloned() {
+                if old_key != key && (old_key.starts_with("session:") || old_key.starts_with("legacy:")) {
+                    if let Some(mut item) = d.items.remove(&old_key) {
+                        item.remote_id = key.clone();
+                        item.session_file_id = Some(session_file_id);
+                        item.file_id = session_file_id;
+                        // 并入已有 remote 条目时保留较新进度/完成态
+                        let mut merged = false;
+                        if let Some(existing) = d.items.get_mut(&key) {
+                            if item.is_completed && (!existing.is_completed || existing.local_path.is_none()) {
+                                existing.is_completed = item.is_completed;
+                                existing.local_path = item.local_path.clone();
+                                existing.completed_at = item.completed_at;
+                            }
+                            if item.downloaded_size > existing.downloaded_size {
+                                existing.downloaded_size = item.downloaded_size;
+                                existing.progress = item.progress;
+                            }
+                            existing.session_file_id = Some(session_file_id);
+                            existing.file_id = session_file_id;
+                            merged = true;
+                        }
+                        if !merged {
+                            d.items.insert(key.clone(), item);
+                        }
+                    }
+                }
             }
+            d.session_map.insert(session_file_id, key.clone());
             if let Some(item) = d.items.get_mut(&key) {
                 item.session_file_id = Some(session_file_id);
                 item.file_id = session_file_id;
@@ -693,6 +721,56 @@ impl DownloadStore {
     ) {
         let acct = account_id.unwrap_or(self.active_account);
         let key = self.data(acct).resolve_key(id);
+        // 查不到条目时按当前进度补一条，禁止静默丢 updateFile（键分裂/先于 register 到达）
+        if !self.data_mut(acct).items.contains_key(&key) {
+            let session_file_id = key
+                .strip_prefix("session:")
+                .and_then(|s| s.parse::<i32>().ok())
+                .unwrap_or(0);
+            let item = DownloadItem {
+                remote_id: key.clone(),
+                session_file_id: if session_file_id != 0 { Some(session_file_id) } else { None },
+                file_id: session_file_id,
+                file_name: if session_file_id != 0 {
+                    format!("文件 #{}", session_file_id)
+                } else {
+                    format!("文件 #{}", key)
+                },
+                chat_title: String::new(),
+                chat_id: None,
+                message_id: None,
+                total_size,
+                downloaded_size,
+                progress: if total_size > 0 {
+                    downloaded_size as f64 / total_size as f64
+                } else if is_downloading_completed {
+                    1.0
+                } else {
+                    0.0
+                },
+                is_paused: !is_downloading_active && !is_downloading_completed,
+                is_completed: is_downloading_completed,
+                local_path: local_path.clone().filter(|p| !p.is_empty()),
+                thumbnail_data_url: None,
+                file_type: "other".to_string(),
+                is_generic: true,
+                hidden_category: None,
+                is_auto_photo: false,
+                is_streaming: false,
+                tags: Vec::new(),
+                source_label: None,
+                dismissed: false,
+                is_upload: false,
+                created_at: now_ms(),
+                completed_at: if is_downloading_completed { now_ms() } else { 0 },
+                has_tdlib_update: true,
+                in_tdlib_list: false,
+            };
+            self.data_mut(acct).items.insert(key.clone(), item);
+            if session_file_id != 0 {
+                self.data_mut(acct).session_map.insert(session_file_id, key.clone());
+            }
+        }
         let d = self.data_mut(acct);
         if let Some(item) = d.items.get_mut(&key) {
             let total = if total_size > 0 {
@@ -704,6 +782,8 @@ impl DownloadStore {
             item.downloaded_size = downloaded_size;
             item.progress = if total > 0 {
                 downloaded_size as f64 / total as f64
+            } else if is_downloading_completed {
+                1.0
             } else {
                 0.0
             };

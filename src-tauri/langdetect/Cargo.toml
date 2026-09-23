@@ -1,0 +1,16 @@
+[package]
+name = "langdetect"
+version = "0.1.0"
+edition = "2021"
+description = "Language detection with a MediaPipe LangID TFLite model (vendored from F:\\Rust\\langdetect)"
+license = "Apache-2.0"
+
+[lib]
+name = "langdetect"
+path = "src/lib.rs"
+
+[dependencies]
+edgefirst-tflite = { version = "0.10.2", features = ["archive"] }
+edgefirst-tflite-sys = "0.10.2"
+flexbuffers = "25"
+libc = "0.2"

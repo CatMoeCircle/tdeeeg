@@ -46,7 +46,7 @@
                             {{ videoLoadFailed || navigatorOffline ? '网络不可用，点击下载视频' : '尚未下载，点击下载' }}
                         </span>
                         <span v-else class="relative z-10 mt-3 text-sm text-white/90">
-                            {{ videoDownloadProgress > 0 ? `下载中 ${Math.round(videoDownloadProgress * 100)}%` : '下载中…' }}
+                            {{ videoDownloadProgress > 0 ? videoProgressLabel : '下载中…' }}
                         </span>
                     </div>
 
@@ -64,7 +64,7 @@
                             :progress="imageProgress > 0 && imageProgress < 1 ? imageProgress : undefined" size="52"
                             color="#ffffff" />
                         <span class="mt-3 text-sm text-white/80 drop-shadow">
-                            {{ imageProgress > 0 && imageProgress < 1 ? `下载中 ${Math.round(imageProgress * 100)}%` : '加载中…' }}
+                            {{ imageProgress > 0 && imageProgress < 1 ? imageProgressLabel : '加载中…' }}
                         </span>
                         <div v-if="imageProgress > 0 && imageProgress < 1"
                             class="mt-3 w-52 h-1.5 bg-white/20 rounded-full overflow-hidden">
@@ -256,10 +256,11 @@
         <div v-if="visible && isImage" class="fixed inset-0 z-9999 bg-black/70 flex flex-col" @wheel.prevent="onWheel"
             @keydown="onKeydown" @click.self="close" tabindex="0" ref="imageContainerRef">
 
-            <!-- Top bar (close button only) -->
+            <!-- Top bar (close button only) — 与视频模式同款 -->
             <div class="absolute top-0 left-0 right-0 z-10 flex items-center px-4 py-3">
-                <button @click="close" class="w-8 h-8 flex items-center justify-center text-white/80 hover:text-white">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-6 h-6">
+                <button @click="close"
+                    class="w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/70 transition-colors">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5">
                         <path d="M18 6L6 18M6 6l12 12" />
                     </svg>
                 </button>
@@ -287,21 +288,37 @@
                         class="max-w-[80%] max-h-[70%] object-contain opacity-70 blur-[1px]" draggable="false" />
                     <!-- 加载指示器：有进度则按进度显示，否则转圈 -->
                     <div class="mt-6 flex flex-col items-center justify-center gap-3">
-                        <LoaderIndicator :progress="imageProgress > 0 ? imageProgress : undefined" size="42"
-                            color="#ffffff" />
-                        <!-- 待加载文字 / 下载百分比 -->
-                        <span class="text-sm text-white/80">
-                            {{ imageProgress > 0 ? `下载中 ${Math.round(imageProgress * 100)}%` : '待加载…' }}
-                        </span>
-                        <!-- 进度条（下载中显示实际进度） -->
-                        <div v-if="imageProgress > 0" class="w-52 h-1.5 bg-white/20 rounded-full overflow-hidden">
-                            <div class="h-full bg-white transition-all duration-300"
-                                :style="{ width: imageProgress * 100 + '%' }"></div>
-                        </div>
+                        <template v-if="currentImageCanDownload && !imageDownloading && imageProgress <= 0">
+                            <!-- 未开自动下载：手动下载按钮（与视频同款） -->
+                            <button @click.stop="handleImageManualDownload"
+                                class="relative z-10 w-16 h-16 rounded-full bg-white/15 hover:bg-white/25 border border-white/30 flex items-center justify-center transition-colors"
+                                title="下载图片">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    class="w-8 h-8 text-white">
+                                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                                    <polyline points="7 10 12 15 17 10" />
+                                    <line x1="12" y1="15" x2="12" y2="3" />
+                                </svg>
+                            </button>
+                            <span class="text-sm text-white/90">尚未下载，点击下载</span>
+                        </template>
+                        <template v-else>
+                            <LoaderIndicator :progress="imageProgress > 0 ? imageProgress : undefined" size="42"
+                                color="#ffffff" />
+                            <!-- 待加载文字 / 下载进度（百分比 + 字节） -->
+                            <span class="text-sm text-white/80">
+                                {{ imageProgress > 0 ? imageProgressLabel : '待加载…' }}
+                            </span>
+                            <!-- 进度条（下载中显示实际进度） -->
+                            <div v-if="imageProgress > 0" class="w-52 h-1.5 bg-white/20 rounded-full overflow-hidden">
+                                <div class="h-full bg-white transition-all duration-300"
+                                    :style="{ width: imageProgress * 100 + '%' }"></div>
+                            </div>
+                        </template>
                     </div>
-                    <!-- 右上角关闭按钮（加载时也可见） -->
+                    <!-- 左上角关闭按钮（与视频模式同款，加载时也可见） -->
                     <button @click.stop="close"
-                        class="absolute top-3 right-3 z-20 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/70 transition-colors">
+                        class="absolute top-3 left-3 z-20 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/70 transition-colors">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5">
                             <path d="M18 6L6 18M6 6l12 12" />
                         </svg>
@@ -398,10 +415,12 @@ import { copyFile } from '@tauri-apps/plugin-fs';
 import { save } from '@tauri-apps/plugin-dialog';
 import { MessagePlugin } from 'tdesign-vue-next';
 import type { formattedText, message, file as TdFile } from 'tdlib-types';
-import { tdlibSend, downloadingFiles } from '../../../../utils/tdlib';
+import { tdlibSend, downloadingFiles, isFileReady, safeDownloadFile, safeAddFileToDownloads } from '../../../../utils/tdlib';
 import { buildVideoQualities } from '../../../../utils/videoQualities';
 import { DL_PRIORITY } from '../../../../utils/downloadPriority';
 import { settings } from '../../../../store/settings';
+import { pickBigPhotoSize } from '../../../../utils/photoSizes';
+import { shouldAutoDownloadPhotos, shouldAutoDownloadVideos } from '../../../../utils/autoDownload';
 import MessageTextContent from './content/MessageTextContent.vue';
 import LoaderIndicator from '../../../common/LoaderIndicator';
 
@@ -439,6 +458,11 @@ export interface MediaViewerItem {
     type?: 'photo' | 'video' | 'animation';
     /** 缩略图（直接指定） */
     thumb?: string;
+    /**
+     * 调用方已确认就绪的本地路径。
+     * 消息内嵌 File 快照可能滞后于下载 store / 实际磁盘，这里优先展示，避免「已下载却一直加载中」。
+     */
+    readyPath?: string;
 }
 
 const props = defineProps<{
@@ -519,6 +543,12 @@ const videoSrcOverride = ref('');
 const videoDownloading = ref(false);
 /** 手动下载进度（0~1） */
 const videoDownloadProgress = ref(0);
+/** 手动下载字节进度 */
+const videoDownloadBytes = ref<{ cur: number; total: number }>({ cur: 0, total: 0 });
+/** 视频下载进度文案：百分比 + 已下/总字节 */
+const videoProgressLabel = computed(() =>
+    formatDownloadLabel(videoDownloadProgress.value, videoDownloadBytes.value.cur, videoDownloadBytes.value.total)
+);
 /**
  * 当前视频的流式源（sticky）。
  * 流式播放过程中若 updateFile 把 local path 写回消息，
@@ -561,6 +591,7 @@ async function handleViewerVideoDownload() {
     const messageId = currentItem.value?.messageId;
     videoDownloading.value = true;
     videoDownloadProgress.value = 0;
+    videoDownloadBytes.value = { cur: 0, total: c.video.video?.size || c.video.video?.expected_size || 0 };
     downloadingFiles.add(fileId);
     try {
         const fileName = c.video.file_name || `video_${messageId || fileId}.mp4`;
@@ -580,6 +611,7 @@ async function handleViewerVideoDownload() {
                 const total = info?.size || 1;
                 const downloaded = info?.local?.downloaded_size || 0;
                 videoDownloadProgress.value = Math.min(1, downloaded / total);
+                videoDownloadBytes.value = { cur: downloaded, total: info?.size || info?.expected_size || 0 };
                 if (info?.local?.is_downloading_completed && info?.local?.path) {
                     clearInterval(timer);
                     downloadingFiles.delete(fileId);
@@ -664,22 +696,61 @@ const isImage = computed(() => currentMediaType.value === 'photo' || currentMedi
 const isVideo = computed(() => currentMediaType.value === 'video');
 const isAnimation = computed(() => currentMediaType.value === 'animation');
 
-/** 从当前消息的 file 或 message.content 获取 src */
-const currentMediaSrc = computed(() => {
-    const c = currentContent.value;
-    // 优先从 message.content 推导
+/** 下载 store（提前初始化，供 src 解析与进度读取） */
+const downloadStore = useDownloadStore();
+
+/** 本地路径覆盖：getFile / 下载 store 发现已就绪但消息快照未回写时补位 */
+const localPathOverrides = ref<Record<number, string>>({});
+
+/** 解析当前项主媒体 File（photo 取 Big，video/animation 取本体） */
+function resolveMainFile(item: MediaViewerItem | undefined): TdFile | undefined {
+    if (!item) return undefined;
+    const c = item.message?.content;
     if (c) {
-        const getFile = (f: any) => f?.local?.is_downloading_completed ? f.local.path : undefined;
+        if (c._ === 'messagePhoto') return pickBigPhotoSize(c.photo);
+        if (c._ === 'messageVideo') return c.video.video;
+        if (c._ === 'messageAnimation') return c.animation.animation;
+    }
+    return item.file;
+}
+
+/** 文件本地就绪路径（含消息快照） */
+function localPathOf(file: TdFile | undefined): string | undefined {
+    return file && isFileReady(file) ? file.local.path : undefined;
+}
+
+/**
+ * 主媒体 src：
+ * 1. readyPath / localPathOverrides（调用方或 getFile/store 已确认就绪）
+ * 2. 消息内嵌 File 就绪路径（photo 用 Big，就绪失败回退已就绪的最大尺寸）
+ * 3. 下载 store 完成路径（覆盖 updateFile 快照滞后）
+ */
+const currentMediaSrc = computed(() => {
+    const item = currentItem.value;
+    if (!item) return '';
+    const mid = item.messageId;
+    if (mid != null) {
+        const ov = localPathOverrides.value[mid];
+        if (ov) return convertFileSrc(ov);
+    }
+    if (item.readyPath) return convertFileSrc(item.readyPath);
+
+    const c = currentContent.value;
+    if (c) {
         let localPath: string | undefined;
         if (c._ === 'messagePhoto') {
-            const sizes = c.photo.sizes;
-            if (sizes.length > 0) {
-                const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
-                localPath = getFile(largest.photo);
+            const big = pickBigPhotoSize(c.photo);
+            localPath = localPathOf(big);
+            // Big 快照未回写时：退而用任一已就绪尺寸，避免整图空白
+            if (!localPath) {
+                for (const s of [...(c.photo.sizes || [])].sort((a, b) => b.width * b.height - a.width * a.height)) {
+                    localPath = localPathOf(s.photo);
+                    if (localPath) break;
+                }
             }
         } else if (c._ === 'messageVideo') {
             const vid = c.video.video;
-            localPath = getFile(vid);
+            localPath = localPathOf(vid);
             // 同一条视频已在用流式源：下载完成后继续用 tdstream，不切换本地路径（避免闪烁）
             if (
                 stickyStreamSrc.value
@@ -699,14 +770,18 @@ const currentMediaSrc = computed(() => {
                 return streamUrl;
             }
         } else if (c._ === 'messageAnimation') {
-            localPath = getFile(c.animation.animation);
+            localPath = localPathOf(c.animation.animation);
         }
         if (localPath) return convertFileSrc(localPath);
     }
-    // 回退：从 item.file 推导
-    const file = currentItem.value?.file;
-    if (file?.local?.is_downloading_completed && file.local.path) {
-        return convertFileSrc(file.local.path);
+
+    // 下载 store 完成路径（remote.id 校验，防 session file.id 复用串媒体）
+    const mainFile = resolveMainFile(item) || item.file;
+    if (mainFile) {
+        const storePath = downloadStore.getCompletedPathForFile(mainFile);
+        if (storePath) return convertFileSrc(storePath);
+        const localPath = localPathOf(mainFile);
+        if (localPath) return convertFileSrc(localPath);
     }
     return '';
 });
@@ -745,19 +820,21 @@ const currentDate = computed(() => currentItem.value?.message?.date || 0);
 
 /** 本地文件路径（用于打开/另存为） */
 const currentLocalPath = computed(() => {
+    const item = currentItem.value;
+    if (!item) return '';
+    const mid = item.messageId;
+    if (mid != null && localPathOverrides.value[mid]) return localPathOverrides.value[mid];
+    if (item.readyPath) return item.readyPath;
     const c = currentContent.value;
-    if (!c) return '';
-    const getFile = (f: any) => f?.local?.is_downloading_completed ? f.local.path : undefined;
-    if (c._ === 'messagePhoto') {
-        const sizes = c.photo.sizes;
-        if (sizes.length > 0) {
-            const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
-            return getFile(largest.photo) || '';
+    if (c) {
+        if (c._ === 'messagePhoto') {
+            return localPathOf(pickBigPhotoSize(c.photo)) || '';
         }
+        if (c._ === 'messageVideo') return localPathOf(c.video.video) || '';
+        if (c._ === 'messageAnimation') return localPathOf(c.animation.animation) || '';
     }
-    if (c._ === 'messageVideo') return getFile(c.video.video) || '';
-    if (c._ === 'messageAnimation') return getFile(c.animation.animation) || '';
-    return '';
+    const mainFile = resolveMainFile(item) || item.file;
+    return (mainFile && localPathOf(mainFile)) || downloadStore.getCompletedPathForFile(mainFile) || '';
 });
 
 /** 文件名 */
@@ -767,19 +844,281 @@ const currentFileName = computed(() => {
 });
 
 // ---- 图片加载状态 ----
-const downloadStore = useDownloadStore();
 const currentDownload = computed(() => {
-    const cid = currentItem.value?.chatId;
-    const mid = currentItem.value?.messageId;
+    const item = currentItem.value;
+    if (!item) return undefined;
+    const cid = item.chatId;
+    const mid = item.messageId;
+    // 优先按主文件 remote.id / file.id 精确命中
+    const mainFile = resolveMainFile(item) || item.file;
+    if (mainFile) {
+        const byFile = downloadStore.getDownloadInfoForFile(mainFile);
+        if (byFile) return byFile;
+    }
     if (cid === undefined || mid === undefined) return undefined;
     return Object.values(downloadStore.items).find((d) => d.chat_id === cid && d.message_id === mid);
 });
+/** getFile 轮询到的字节进度（下载 store 未注册时的兜底） */
+const liveDownloadBytes = ref<{ cur: number; total: number; progress: number }>({ cur: 0, total: 0, progress: 0 });
 const imageProgress = computed(() => {
     const p = currentDownload.value?.progress;
-    return typeof p === 'number' ? Math.min(1, Math.max(0, p)) : 0;
+    if (typeof p === 'number' && p > 0) return Math.min(1, Math.max(0, p));
+    return Math.min(1, Math.max(0, liveDownloadBytes.value.progress));
 });
+const imageDownloadedBytes = computed(() =>
+    currentDownload.value?.downloaded_size ?? liveDownloadBytes.value.cur
+);
+const imageTotalBytes = computed(() => {
+    const total = currentDownload.value?.total_size || liveDownloadBytes.value.total;
+    if (total > 0) return total;
+    const f = resolveMainFile(currentItem.value) || currentItem.value?.file;
+    return f?.size || f?.expected_size || 0;
+});
+/** 下载进度文案：百分比 + 已下/总字节 */
+const imageProgressLabel = computed(() => formatDownloadLabel(imageProgress.value, imageDownloadedBytes.value, imageTotalBytes.value));
 const isImageLoading = computed(() => isImage.value && !currentMediaSrc.value);
 const hasThumbPreview = computed(() => !!currentThumb.value);
+
+/** 尺寸格式化：1.2MB/3.4MB */
+function formatSize(bytes: number): string {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const k = 1024;
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), units.length - 1);
+    const value = bytes / Math.pow(k, i);
+    return (i === 0 ? Math.round(value) : value.toFixed(1)) + units[i];
+}
+
+function formatDownloadLabel(progress: number, cur: number, total: number): string {
+    const pct = Math.round(progress * 100);
+    if (total > 0) {
+        return `下载中 ${pct}% · ${formatSize(cur)}/${formatSize(total)}`;
+    }
+    if (cur > 0) return `下载中 ${pct}% · ${formatSize(cur)}`;
+    return `下载中 ${pct}%`;
+}
+
+// ---- 未下载媒体：手动下载 / 自动预取 ----
+/** 图片/动画是否正在查看器内手动下载 */
+const imageDownloading = ref(false);
+let liveFilePollTimer: ReturnType<typeof setInterval> | null = null;
+const currentMainFile = computed(() => resolveMainFile(currentItem.value) || currentItem.value?.file);
+/** 当前未就绪媒体是否可手动下载 */
+const currentImageCanDownload = computed(() => {
+    if (!isImage.value || currentMediaSrc.value) return false;
+    if (imageDownloading.value || imageProgress.value > 0) return false;
+    const f = currentMainFile.value;
+    return !!(f?.local?.can_be_downloaded && !f.local.is_downloading_active);
+});
+
+function handleImageManualDownload() {
+    const item = currentItem.value;
+    const f = currentMainFile.value;
+    if (!item || !f?.id || imageDownloading.value) return;
+    const chatId = item.chatId;
+    const messageId = item.messageId;
+    const kind = currentMediaType.value === 'animation' ? 'animation' : 'photo';
+    const fileName = `${kind}_${messageId || f.id}.${kind === 'animation' ? 'gif' : 'jpg'}`;
+    const chatTitle = chatId ? useChatStore().chats[chatId]?.title || `对话 #${chatId}` : '';
+    imageDownloading.value = true;
+    liveDownloadBytes.value = { cur: 0, total: f.size || f.expected_size || 0, progress: 0 };
+    downloadingFiles.add(f.id);
+    void (async () => {
+        try {
+            useDownloadStore().registerDownload(
+                f.id, fileName, chatTitle, f.size || 0,
+                kind === 'animation' ? 'animation' : 'photo',
+                undefined, chatId, messageId, false, false, undefined, false, undefined, undefined, remoteIdOf(f),
+            );
+            await safeAddFileToDownloads(f.id, chatId, messageId);
+            useDownloadStore().markInTdlibList(f.id, chatId, messageId);
+            startLiveFilePoll(f.id);
+        } catch (e) {
+            downloadingFiles.delete(f.id);
+            imageDownloading.value = false;
+            console.error('MediaViewer image download failed:', e);
+            MessagePlugin.error('图片下载失败');
+        }
+    })();
+}
+
+/** 轮询 getFile：补字节进度，并在完成时写入 ready 覆盖 */
+function startLiveFilePoll(fileId: number) {
+    stopLiveFilePoll();
+    liveFilePollTimer = setInterval(async () => {
+        try {
+            const info = await tdlibSend({ _: 'getFile', file_id: fileId }) as TdFile;
+            const total = info?.size || info?.expected_size || 0;
+            const downloaded = info?.local?.downloaded_size || 0;
+            liveDownloadBytes.value = {
+                cur: downloaded,
+                total,
+                progress: total > 0 ? Math.min(1, downloaded / total) : (info?.local?.is_downloading_completed ? 1 : 0),
+            };
+            if (info?.local?.is_downloading_completed && info.local.path) {
+                const mid = currentItem.value?.messageId;
+                if (mid != null) localPathOverrides.value[mid] = info.local.path;
+                useDownloadStore().markCompleted(fileId, info.local.path, remoteIdOf(info));
+                downloadingFiles.delete(fileId);
+                imageDownloading.value = false;
+                videoDownloading.value = false;
+                stopLiveFilePoll();
+            }
+        } catch {
+            stopLiveFilePoll();
+            imageDownloading.value = false;
+        }
+    }, 400);
+}
+
+function stopLiveFilePoll() {
+    if (liveFilePollTimer !== null) {
+        clearInterval(liveFilePollTimer);
+        liveFilePollTimer = null;
+    }
+}
+
+// ---- 自动预取：停留后缓存当前/邻近，满足自动下载条件才下 ----
+const PREFETCH_DWELL_MS = 500;
+let prefetchTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearPrefetchTimer() {
+    if (prefetchTimer !== null) {
+        clearTimeout(prefetchTimer);
+        prefetchTimer = null;
+    }
+}
+
+function scheduleAroundPrefetch() {
+    clearPrefetchTimer();
+    if (!props.visible) return;
+    prefetchTimer = setTimeout(() => {
+        prefetchTimer = null;
+        void prefetchAroundCurrent();
+    }, PREFETCH_DWELL_MS);
+}
+
+/** 该项是否满足自动下载（图片 / 视频 / GIF） */
+function allowsAutoDownload(item: MediaViewerItem): boolean {
+    const c = item.message?.content;
+    const chatId = item.chatId;
+    if (!c) return false;
+    if (c._ === 'messagePhoto') return shouldAutoDownloadPhotos(chatId);
+    if (c._ === 'messageVideo') return shouldAutoDownloadVideos(chatId, c.video.video?.size || 0);
+    if (c._ === 'messageAnimation') return shouldAutoDownloadVideos(chatId, c.animation.animation?.size || 0);
+    return false;
+}
+
+function isItemReady(item: MediaViewerItem): boolean {
+    if (item.readyPath) return true;
+    const mid = item.messageId;
+    if (mid != null && localPathOverrides.value[mid]) return true;
+    const f = resolveMainFile(item);
+    return isFileReady(f);
+}
+
+async function prefetchOne(item: MediaViewerItem | undefined) {
+    if (!item || !props.visible) return;
+    if (isItemReady(item)) return;
+    if (!allowsAutoDownload(item)) return;
+    const f = resolveMainFile(item) || item.file;
+    if (!f?.id || downloadingFiles.has(f.id)) return;
+    if (!f.local?.can_be_downloaded) return;
+    try {
+        await safeDownloadFile(f.id, false, DL_PRIORITY.DEFAULT);
+    } catch {
+        // 预取失败静默；用户可手动下载
+    }
+}
+
+/** 停留后预取：当前项 + 左右邻近（环形） */
+async function prefetchAroundCurrent() {
+    if (!props.visible) return;
+    const items = props.items;
+    const n = items.length;
+    if (n === 0) return;
+    const idx = currentIndex.value;
+    const targets: MediaViewerItem[] = [];
+    const push = (i: number) => {
+        const it = items[((i % n) + n) % n];
+        if (it && !targets.some(t => t.messageId === it.messageId)) targets.push(it);
+    };
+    push(idx);
+    if (n > 1) {
+        push(idx - 1);
+        push(idx + 1);
+    }
+    // 当前项优先，其余并行
+    await prefetchOne(targets[0]);
+    await Promise.all(targets.slice(1).map(t => prefetchOne(t)));
+}
+
+/** 当前未就绪且消息快照滞后时，getFile 一次补全路径 */
+async function refreshCurrentFileOnce() {
+    const item = currentItem.value;
+    if (!item || currentMediaSrc.value) return;
+    const f = resolveMainFile(item) || item.file;
+    if (!f?.id) return;
+    try {
+        const info = await tdlibSend({ _: 'getFile', file_id: f.id }) as TdFile;
+        if (info?.local?.is_downloading_completed && info.local.path) {
+            const mid = item.messageId;
+            if (mid != null) localPathOverrides.value[mid] = info.local.path;
+            downloadStore.markCompleted(f.id, info.local.path, remoteIdOf(info));
+        } else if (info?.local?.is_downloading_active || (info?.local?.downloaded_size || 0) > 0) {
+            liveDownloadBytes.value = {
+                cur: info.local.downloaded_size || 0,
+                total: info.size || info.expected_size || 0,
+                progress: (info.size || info.expected_size || 0) > 0
+                    ? Math.min(1, (info.local.downloaded_size || 0) / (info.size || info.expected_size || 1))
+                    : 0,
+            };
+            startLiveFilePoll(f.id);
+        }
+    } catch {
+        // ignore
+    }
+}
+
+// 记住「当前正在看的那一条」：列表插入/重排时按 messageId 保位，画面不跳
+const displayedMsgId = ref<number | undefined>(undefined);
+
+function itemMsgId(item: MediaViewerItem | undefined): number | undefined {
+    return item?.messageId ?? item?.message?.id;
+}
+
+watch(currentIndex, (i) => {
+    displayedMsgId.value = itemMsgId(props.items[i]);
+}, { immediate: true });
+
+// 邻近媒体插入导致 items 变化：优先按 messageId 找回原图，绝不因 initialIndex 回跳
+watch(() => props.items, (items) => {
+    if (!items?.length) return;
+    const id = displayedMsgId.value;
+    if (id != null) {
+        const idx = items.findIndex(it => itemMsgId(it) === id);
+        if (idx >= 0) {
+            if (idx !== currentIndex.value) currentIndex.value = idx;
+            return;
+        }
+    }
+    if (currentIndex.value >= items.length) {
+        currentIndex.value = Math.max(0, items.length - 1);
+    }
+});
+
+// 切换条目 / 打开：补全滞后快照，并在停留后预取当前与邻近
+watch([currentIndex, () => props.visible], () => {
+    if (!props.visible) return;
+    liveDownloadBytes.value = { cur: 0, total: 0, progress: 0 };
+    void refreshCurrentFileOnce();
+    scheduleAroundPrefetch();
+});
+
+onUnmounted(() => {
+    clearPrefetchTimer();
+    stopLiveFilePoll();
+});
 
 // Video card: fill the full screen
 const playerStyle = computed(() => {
@@ -795,6 +1134,7 @@ watch(() => props.visible, (v) => {
     isMediaViewerActive.value = v;
     if (v) {
         currentIndex.value = props.initialIndex || 0;
+        displayedMsgId.value = itemMsgId(props.items[currentIndex.value]);
         resetZoom();
         isVideoPlaying.value = false;
         videoMuted.value = false;

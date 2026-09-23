@@ -43,6 +43,7 @@ image = { version = "0.25", default-features = false, features = [
 ] }
 tauri-plugin-notification = "2"
 notify-rust = "4"
+langdetect = { path = "langdetect" }
 
 [target.'cfg(windows)'.dependencies]
 tauri-plugin-updater = "2.11.0"

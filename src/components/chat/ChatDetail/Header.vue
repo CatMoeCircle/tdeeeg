@@ -66,6 +66,12 @@
             </div>
 
             <div class="flex items-center gap-1 text-gray-500 dark:text-gray-300 shrink-0">
+                <!-- 话题标签栏位置切换（标题栏第一个按钮）：left → top → bottom → left -->
+                <button v-if="showTopicTagToggle" type="button" @click="emit('toggleTopicTagPosition')"
+                    class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-200/80 dark:hover:bg-white/20 hover:text-blue-500 active:scale-95 transition-[background-color,color,transform] duration-150"
+                    :title="topicTagPositionTitle" :aria-label="topicTagPositionTitle">
+                    <component :is="topicTagPositionIcon" class="w-5 h-5" />
+                </button>
                 <slot name="actions" />
                 <button type="button" @click="emit('search')"
                     class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-200/80 dark:hover:bg-white/20 hover:text-blue-500 active:scale-95 transition-[background-color,color,transform] duration-150"
@@ -83,12 +89,12 @@
 </template>
 
 <script setup lang="ts">
-import { SearchIcon, MoreHorizontalIcon, ArrowLeftIcon, ShieldAlert, BookmarkIcon } from 'lucide-vue-next';
+import { SearchIcon, MoreHorizontalIcon, ArrowLeftIcon, ShieldAlert, BookmarkIcon, PanelLeftIcon, PanelTopIcon, PanelBottomIcon } from 'lucide-vue-next';
 import { VerifiedFilledIcon } from 'tdesign-icons-vue-next';
-import { computed, h, ref, watch } from 'vue';
+import { computed, h, onMounted, onUnmounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useI18n } from 'vue-i18n';
-import type { chat, user, verificationStatus, forumTopic } from "tdlib-types";
+import type { chat, user, verificationStatus, forumTopic, basicGroup, supergroup, supergroupFullInfo } from "tdlib-types";
 import { tdlibSend } from '../../../utils/tdlib';
 import formatStatus from '../../../utils/status';
 import { useUserStore } from '../../../store/user';
@@ -98,23 +104,51 @@ import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
 import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
 import { getChatProfileAccentColorId, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
 import { updateActiveChatTitleBar, clearActiveChatTitleBar } from '../../../store/activeChatTitleBar';
+import { onTdlibUpdates } from '../../../store/tdlibBus';
 
 const props = defineProps<{
     chat: chat | undefined;
     topic?: forumTopic | undefined;
     showBack?: boolean;
+    /** 是否显示话题标签栏位置切换按钮（tag 栏话题模式） */
+    showTopicTagToggle?: boolean;
+    /** 当前话题标签栏位置 */
+    topicTagPosition?: 'left' | 'top' | 'bottom';
 }>();
 
 const emit = defineEmits<{
     back: [];
     openInfo: [];
     search: [];
+    toggleTopicTagPosition: [];
 }>();
+
+/** 位置切换按钮图标：左栏 / 顶部 / 底部 */
+const topicTagPositionIcon = computed(() => {
+    switch (props.topicTagPosition) {
+        case 'top': return PanelTopIcon;
+        case 'bottom': return PanelBottomIcon;
+        default: return PanelLeftIcon;
+    }
+});
+const topicTagPositionTitle = computed(() => {
+    switch (props.topicTagPosition) {
+        case 'top': return '话题标签栏：顶部（点击切换到底部）';
+        case 'bottom': return '话题标签栏：底部（点击切换到左侧）';
+        default: return '话题标签栏：左侧（点击切换到顶部）';
+    }
+});
 
 const status = ref('');
 const verificationState = ref<null | ReturnType<typeof h>>(null);
 const numberFormatter = new Intl.NumberFormat('zh-CN');
 let statusRequestId = 0;
+
+/** 顶栏状态原始数据：TDLib update 后就地刷新并重算文案 */
+const statusUser = ref<user | undefined>(undefined);
+const statusBasic = ref<basicGroup | undefined>(undefined);
+const statusSuper = ref<supergroup | undefined>(undefined);
+const statusSuperFull = ref<supergroupFullInfo | undefined>(undefined);
 
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
@@ -202,84 +236,6 @@ const formatUserStatus = (currentUser: user) => {
     return formatStatus(currentUser.status);
 };
 
-// 对话状态
-watch([() => props.chat, () => userProfile.value?.id], async ([newChat]) => {
-    const requestId = ++statusRequestId;
-    status.value = '';
-    verificationState.value = null;
-    if (!newChat) {
-        clearActiveChatTitleBar();
-        return;
-    }
-
-    if (isSavedMessagesChat(newChat, userProfile.value?.id)) return;
-
-    const isCurrentRequest = () => requestId === statusRequestId && props.chat?.id === newChat.id;
-
-    try {
-        if (newChat.type._ === 'chatTypePrivate' || newChat.type._ === 'chatTypeSecret') {
-            const currentUser = await tdlibSend({
-                _: 'getUser',
-                user_id: newChat.type.user_id
-            });
-            if (!isCurrentRequest()) return;
-            status.value = formatUserStatus(currentUser);
-            updateVerificationState(currentUser.verification_status);
-            return;
-        }
-
-        if (newChat.type._ === 'chatTypeBasicGroup') {
-            status.value = t('lng_notification_groups');
-            const group = await tdlibSend({
-                _: 'getBasicGroup',
-                basic_group_id: newChat.type.basic_group_id
-            });
-            if (!isCurrentRequest()) return;
-            status.value = group.member_count > 0
-                ? `${formatCount(group.member_count)} 位成员`
-                : t('lng_notification_groups');
-            return;
-        }
-
-        if (newChat.type._ === 'chatTypeSupergroup') {
-            const fallback = newChat.type.is_channel ? t('lng_notification_channels') : '超级群组';
-            status.value = fallback;
-            const [group, fullInfo] = await Promise.all([
-                tdlibSend({
-                    _: 'getSupergroup',
-                    supergroup_id: newChat.type.supergroup_id
-                }).catch(() => undefined),
-                tdlibSend({
-                    _: 'getSupergroupFullInfo',
-                    supergroup_id: newChat.type.supergroup_id
-                }).catch(() => undefined)
-            ]);
-            if (!isCurrentRequest()) return;
-
-            const memberCount = fullInfo?.member_count || group?.member_count || 0;
-            status.value = memberCount > 0
-                ? `${formatCount(memberCount)} 位${newChat.type.is_channel ? '订阅者' : t('lng_profile_participants_section')}`
-                : fallback;
-            updateVerificationState(group?.verification_status);
-        }
-    } catch (error) {
-        if (isCurrentRequest()) console.error('Failed to load chat header status:', error);
-    }
-}, { immediate: true });
-
-// 同步当前聊天信息到 TitleBar 活跃聊天存储（titlebar 头像模式用）
-watch(
-    [chatTitle, () => props.chat?.photo, displayStatus],
-    ([title, photo, sText]) => {
-        updateActiveChatTitleBar({
-            title: title || '',
-            photo: photo,
-            statusText: sText || '',
-        });
-    },
-    { immediate: true }
-);
-
 // 更新验证状态图标
 const updateVerificationState = (status?: verificationStatus) => {
     if (!status) {
@@ -300,4 +256,194 @@ const updateVerificationState = (status?: verificationStatus) => {
         verificationState.value = null;
     }
 };
+
+/** 私聊/密聊对方 user_id */
+const peerUserId = computed(() => {
+    const type = props.chat?.type;
+    if (type?._ === 'chatTypePrivate' || type?._ === 'chatTypeSecret') return type.user_id;
+    return undefined;
+});
+const peerBasicGroupId = computed(() => {
+    const type = props.chat?.type;
+    return type?._ === 'chatTypeBasicGroup' ? type.basic_group_id : undefined;
+});
+const peerSupergroupId = computed(() => {
+    const type = props.chat?.type;
+    return type?._ === 'chatTypeSupergroup' ? type.supergroup_id : undefined;
+});
+
+/** 由已缓存的原始数据重算状态文案（update / 相对时间刷新共用） */
+function rebuildStatusText() {
+    const newChat = props.chat;
+    if (!newChat || isSavedMessagesChat(newChat, userProfile.value?.id)) {
+        status.value = '';
+        verificationState.value = null;
+        return;
+    }
+
+    if (newChat.type._ === 'chatTypePrivate' || newChat.type._ === 'chatTypeSecret') {
+        const u = statusUser.value;
+        if (!u) return;
+        status.value = formatUserStatus(u);
+        updateVerificationState(u.verification_status);
+        return;
+    }
+
+    if (newChat.type._ === 'chatTypeBasicGroup') {
+        const count = statusBasic.value?.member_count || 0;
+        status.value = count > 0
+            ? `${formatCount(count)} 位成员`
+            : t('lng_notification_groups');
+        return;
+    }
+
+    if (newChat.type._ === 'chatTypeSupergroup') {
+        const fallback = newChat.type.is_channel ? t('lng_notification_channels') : '超级群组';
+        const memberCount = statusSuperFull.value?.member_count || statusSuper.value?.member_count || 0;
+        status.value = memberCount > 0
+            ? `${formatCount(memberCount)} 位${newChat.type.is_channel ? '订阅者' : t('lng_profile_participants_section')}`
+            : fallback;
+        updateVerificationState(statusSuper.value?.verification_status);
+    }
+}
+
+// 对话状态：切换对话时拉一次，后续由 TDLib update 驱动刷新
+watch([() => props.chat, () => userProfile.value?.id], async ([newChat]) => {
+    const requestId = ++statusRequestId;
+    status.value = '';
+    verificationState.value = null;
+    statusUser.value = undefined;
+    statusBasic.value = undefined;
+    statusSuper.value = undefined;
+    statusSuperFull.value = undefined;
+    if (!newChat) {
+        clearActiveChatTitleBar();
+        return;
+    }
+
+    if (isSavedMessagesChat(newChat, userProfile.value?.id)) return;
+
+    const isCurrentRequest = () => requestId === statusRequestId && props.chat?.id === newChat.id;
+
+    try {
+        if (newChat.type._ === 'chatTypePrivate' || newChat.type._ === 'chatTypeSecret') {
+            const currentUser = await tdlibSend({
+                _: 'getUser',
+                user_id: newChat.type.user_id
+            });
+            if (!isCurrentRequest()) return;
+            statusUser.value = currentUser;
+            rebuildStatusText();
+            return;
+        }
+
+        if (newChat.type._ === 'chatTypeBasicGroup') {
+            status.value = t('lng_notification_groups');
+            const group = await tdlibSend({
+                _: 'getBasicGroup',
+                basic_group_id: newChat.type.basic_group_id
+            });
+            if (!isCurrentRequest()) return;
+            statusBasic.value = group;
+            rebuildStatusText();
+            return;
+        }
+
+        if (newChat.type._ === 'chatTypeSupergroup') {
+            const fallback = newChat.type.is_channel ? t('lng_notification_channels') : '超级群组';
+            status.value = fallback;
+            const [group, fullInfo] = await Promise.all([
+                tdlibSend({
+                    _: 'getSupergroup',
+                    supergroup_id: newChat.type.supergroup_id
+                }).catch(() => undefined),
+                tdlibSend({
+                    _: 'getSupergroupFullInfo',
+                    supergroup_id: newChat.type.supergroup_id
+                }).catch(() => undefined)
+            ]);
+            if (!isCurrentRequest()) return;
+            statusSuper.value = group;
+            statusSuperFull.value = fullInfo;
+            rebuildStatusText();
+        }
+    } catch (error) {
+        if (isCurrentRequest()) console.error('Failed to load chat header status:', error);
+    }
+}, { immediate: true });
+
+// 同步当前聊天信息到 TitleBar 活跃聊天存储（titlebar 头像模式用）
+watch(
+    [chatTitle, () => props.chat?.photo, displayStatus],
+    ([title, photo, sText]) => {
+        updateActiveChatTitleBar({
+            title: title || '',
+            photo: photo,
+            statusText: sText || '',
+        });
+    },
+    { immediate: true }
+);
+
+// TDLib 实时刷新：在线状态 / 成员数 / 认证标识
+let offStatusUpdates: (() => void) | null = null;
+let statusTickTimer: number | null = null;
+
+onMounted(() => {
+    offStatusUpdates = onTdlibUpdates(['user'], (update) => {
+        const type_ = update._;
+        if (type_ === 'updateUserStatus') {
+            const uid = (update as { user_id?: number }).user_id;
+            const next = (update as { status?: user['status'] }).status;
+            if (uid === peerUserId.value && statusUser.value && next) {
+                statusUser.value.status = next;
+                rebuildStatusText();
+            }
+        } else if (type_ === 'updateUser') {
+            const u = (update as { user?: user }).user;
+            if (u && u.id === peerUserId.value) {
+                statusUser.value = u;
+                rebuildStatusText();
+            }
+        } else if (type_ === 'updateBasicGroup') {
+            const g = (update as { basic_group?: basicGroup }).basic_group;
+            if (g && g.id === peerBasicGroupId.value) {
+                statusBasic.value = g;
+                rebuildStatusText();
+            }
+        } else if (type_ === 'updateSupergroup') {
+            const g = (update as { supergroup?: supergroup }).supergroup;
+            if (g && g.id === peerSupergroupId.value) {
+                statusSuper.value = g;
+                rebuildStatusText();
+            }
+        } else if (type_ === 'updateSupergroupFullInfo') {
+            const id = (update as { supergroup_id?: number }).supergroup_id;
+            const info = (update as { supergroup_full_info?: supergroupFullInfo }).supergroup_full_info;
+            if (id === peerSupergroupId.value && info) {
+                statusSuperFull.value = info;
+                rebuildStatusText();
+            }
+        }
+    });
+
+    // 「x 分钟前上线」随本地时钟推进，定时重算相对时间文案
+    statusTickTimer = window.setInterval(() => {
+        const type = props.chat?.type;
+        if (type?._ === 'chatTypePrivate' || type?._ === 'chatTypeSecret') {
+            rebuildStatusText();
+        }
+    }, 60_000);
+});
+
+onUnmounted(() => {
+    if (offStatusUpdates) {
+        offStatusUpdates();
+        offStatusUpdates = null;
+    }
+    if (statusTickTimer !== null) {
+        window.clearInterval(statusTickTimer);
+        statusTickTimer = null;
+    }
+});
 </script>

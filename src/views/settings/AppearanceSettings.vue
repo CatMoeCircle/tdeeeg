@@ -162,64 +162,6 @@
                             <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                         </router-link>
                     </div>
-
-                    <!-- 翻译显示（二级分类） -->
-                    <div class="mt-4">
-                        <div class="flex items-center gap-3 mb-3">
-                            <h4 class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                                {{ t('appearance.translateSection') }}</h4>
-                            <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
-                        </div>
-                        <p class="text-xs text-gray-400 mb-3">{{ t('appearance.translateDesc') }}</p>
-
-                        <div class="space-y-3">
-                            <!-- 弹窗翻译 -->
-                            <div class="flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-colors"
-                                :class="settings.translate.displayMode === 'popup'
-                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'"
-                                @click="settings.translate.displayMode = 'popup'">
-                                <div class="flex items-center">
-                                    <div
-                                        class="w-9 h-9 rounded-full flex items-center justify-center mr-3 bg-blue-100 dark:bg-blue-900/30 text-blue-600">
-                                        <LanguageIcon class="w-5 h-5" />
-                                    </div>
-                                    <div>
-                                        <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('appearance.translatePopup') }}</h4>
-                                        <p class="text-xs text-gray-400 mt-0.5">{{ t('appearance.translatePopupDesc') }}</p>
-                                    </div>
-                                </div>
-                                <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0"
-                                    :class="settings.translate.displayMode === 'popup' ? 'border-blue-500' : 'border-gray-300'">
-                                    <div v-if="settings.translate.displayMode === 'popup'"
-                                        class="w-2 h-2 rounded-full bg-blue-500"></div>
-                                </div>
-                            </div>
-
-                            <!-- 内联翻译 -->
-                            <div class="flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-colors"
-                                :class="settings.translate.displayMode === 'inline'
-                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'"
-                                @click="settings.translate.displayMode = 'inline'">
-                                <div class="flex items-center">
-                                    <div
-                                        class="w-9 h-9 rounded-full flex items-center justify-center mr-3 bg-green-100 dark:bg-green-900/30 text-green-600">
-                                        <MessageSquareTextIcon class="w-5 h-5" />
-                                    </div>
-                                    <div>
-                                        <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('appearance.translateInline') }}</h4>
-                                        <p class="text-xs text-gray-400 mt-0.5">{{ t('appearance.translateInlineDesc') }}</p>
-                                    </div>
-                                </div>
-                                <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0"
-                                    :class="settings.translate.displayMode === 'inline' ? 'border-blue-500' : 'border-gray-300'">
-                                    <div v-if="settings.translate.displayMode === 'inline'"
-                                        class="w-2 h-2 rounded-full bg-blue-500"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
@@ -413,6 +355,8 @@
                                 </button>
                             </div>
                         </div>
+
+
                     </div>
                 </div>
 
@@ -609,7 +553,6 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { useRouter } from 'vue-router';
 import {
     MessageCircleIcon, UserIcon, UsersIcon, MegaphoneIcon,
-    Languages as LanguageIcon, MessageSquareText as MessageSquareTextIcon,
     ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Wallpaper as WallpaperIcon,
     LayoutList as LayoutListIcon, PanelTop as PanelTopIcon,
 } from 'lucide-vue-next';
@@ -636,7 +579,7 @@ function goBack() {
 }
 
 /** 消息显示/贴纸设置默认值（用于显示“(默认)”标记，与 settings.ts 默认值一致） */
-const DEFAULT_MESSAGE = { cornerRadius: 18, fontSize: 14, stickerSize: 160 };
+const DEFAULT_MESSAGE = { cornerRadius: 12, fontSize: 14, stickerSize: 160 };
 
 /** 加载指示器可选样式（与 loader tag 对应） */
 const loaderOptions = [

@@ -44,6 +44,21 @@ body {
 }
 
 /*
+ * TDesign Select 下拉选项：禁止鼠标拖选文字。
+ * 提供方 / 目标语言等下拉只需点击选择，文案不应可被选中。
+ */
+.t-select-option,
+.t-select__option,
+.t-select__dropdown .t-select-option,
+.t-popup .t-select-option,
+.t-select__list .t-select-option,
+.translate-provider-dropdown .t-select-option,
+.translate-provider-dropdown .t-select__option {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/*
  * 登录页国家选择器：与下方手机号输入同一套紧凑规格
  * 高度 ~40px / 圆角 10px / 字号 14px / 水平内边距 12px
  */

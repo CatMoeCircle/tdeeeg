@@ -2,10 +2,10 @@
     <div ref="rootEl" class="rich-image relative" :style="wrapperStyle">
         <div v-if="!src" class="animate-pulse bg-gray-200 dark:bg-gray-700" :style="placeholderStyle"></div>
         <video v-else-if="isVideoThumb" :src="src" :alt="alt" autoplay loop muted playsinline
-            class="block max-w-full h-auto" :style="imgStyle" :class="{ 'cursor-pointer': clickable }"
+            class="block max-w-full" :class="imgClass" :style="imgStyle"
             @click="clickable ? onOpen() : undefined" preload="metadata" />
-        <img v-else :src="src" :alt="alt" class="block max-w-full h-auto" :style="imgStyle"
-            :class="{ 'cursor-pointer': clickable }" @click="clickable ? onOpen() : undefined" loading="lazy" />
+        <img v-else :src="src" :alt="alt" class="block max-w-full" :class="imgClass" :style="imgStyle"
+            @click="clickable ? onOpen() : undefined" loading="lazy" />
         <!-- 未下载：手动下载按钮（自动下载关闭时） -->
         <RichMediaDownload v-if="!src && showDownload" :file="file" :file-name="`rich_image_${file.id}`"
             file-type="photo" :chat-id="chatId" overlay />
@@ -54,19 +54,24 @@ const showDownload = computed(() => !!props.file?.id && !!props.file?.local?.can
 /** 是否为 MPEG4/WEBM 动态缩略图（用 <video> 渲染） */
 const isVideoThumb = computed(() => isThumbnailVideoRenderable(props.format) && !!src.value);
 
+/** fill/square 由样式强制撑满容器；默认保留 h-auto 自然比例 */
+const imgClass = computed(() => (props.fill || props.square ? '' : 'h-auto'));
+
 const wrapperStyle = computed(() => {
     if (props.fill) return { width: '100%', height: '100%' };
-    if (props.square) return { width: '100%' };
+    // square：填满外层 mediaSizeStyle 容器（已限 432/96 并带 aspect-ratio）
+    if (props.square) return { width: '100%', height: '100%' };
     return undefined;
 });
 const imgStyle = computed(() => {
     if (props.fill) return { width: '100%', height: '100%', objectFit: 'cover' as const };
-    if (props.square) return { width: '100%', objectFit: 'cover' as const };
+    if (props.square) return { width: '100%', height: '100%', objectFit: 'cover' as const };
     return undefined;
 });
-const placeholderStyle = computed(() => props.fill
-    ? { width: '100%', height: '100%' }
-    : { width: '100%', aspectRatio: '16 / 9', height: 'auto' });
+const placeholderStyle = computed(() => {
+    if (props.fill || props.square) return { width: '100%', height: '100%' };
+    return { width: '100%', aspectRatio: '16 / 9', height: 'auto' };
+});
 
 async function load() {
     const f = props.file;

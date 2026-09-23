@@ -250,14 +250,40 @@ function applyAlbumReadyFromContent(msgs: message[] = props.messages): boolean {
 
 function openViewer(idx: number) {
     const msg = props.messages[idx];
-    if (msg) {
-        openMediaViewer({
-            messageId: msg.id,
+    if (!msg) return;
+    // 相册：整组兄弟消息一并交给查看器，打开即可左右切换（与消息列表一致）
+    const siblingItems = props.messages.map((m) => {
+        const c = m.content;
+        let thumb = '';
+        if (c._ === 'messagePhoto' && c.photo.minithumbnail?.data) {
+            thumb = `data:image/jpeg;base64,${c.photo.minithumbnail.data}`;
+        } else if (c._ === 'messageVideo') {
+            thumb = `data:image/jpeg;base64,${c.video.minithumbnail?.data || c.cover?.minithumbnail?.data || ''}`;
+        } else if (c._ === 'messageAnimation' && c.animation.minithumbnail?.data) {
+            thumb = `data:image/jpeg;base64,${c.animation.minithumbnail.data}`;
+        }
+        let readyPath: string | undefined;
+        if (c._ === 'messagePhoto') {
+            const big = pickBigPhotoSize(c.photo);
+            if (big && isFileReady(big)) readyPath = big.local.path;
+        } else if (c._ === 'messageVideo') {
+            const f = c.video.video;
+            if (f && isFileReady(f)) readyPath = f.local.path;
+        } else if (c._ === 'messageAnimation') {
+            const f = c.animation.animation;
+            if (f && isFileReady(f)) readyPath = f.local.path;
+        }
+        return {
+            messageId: m.id,
             chatId: props.chatId,
             topicId: props.topicId,
-            message: msg,
-        }, 0);
-    }
+            message: m,
+            thumb,
+            duration: c._ === 'messageVideo' ? c.video.duration : undefined,
+            readyPath,
+        };
+    });
+    openMediaViewer(siblingItems[idx], 0, siblingItems);
 }
 
 // ---- Layout types ----

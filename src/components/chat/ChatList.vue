@@ -934,11 +934,14 @@ const selectChat = async (chat: Chat) => {
         onChatSelect(chat);
         return;
     }
+    // 列表话题模式：view_as_topics === true → 对话列表内嵌话题列表（forumMode）
+    // 标签栏话题模式：view_as_topics === false 的论坛群 → 表现和普通群组一样，
+    //   直接进对话页（话题选择在对话页左侧标签栏），不进 forumMode
     if (isForumChat(chat)) {
         enterForumMode(chat);
         return;
     }
-    // 兜底：view_as_topics 字段缺失（未随数据下发）时，主动 getChat 确认是否为论坛群组
+    // 兜底：view_as_topics 字段缺失（未随数据下发）时，主动 getChat 确认是否为列表话题模式
     if (chat.type?._ === 'chatTypeSupergroup' && chat.view_as_topics === undefined) {
         let timeoutId: number | undefined;
         try {

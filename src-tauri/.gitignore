@@ -8,4 +8,6 @@ TDLib/
 /gen/schemas
 
 *.dll
+# 语言识别运行时需要随包分发（6MB，与 tdjson 同理本地/CI 都要有）
+!langdetect/vendor/tensorflowlite_c.dll
 .env

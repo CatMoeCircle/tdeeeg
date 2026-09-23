@@ -4,6 +4,7 @@ mod chat_store;
 mod data_loc;
 mod device_info;
 mod download_store;
+mod lang_detect;
 mod media_stream;
 mod notifications;
 mod tdlib;
@@ -277,6 +278,9 @@ pub fn run() {
             open_with_dialog,
             copy_image_to_clipboard,
             read_clipboard_image,
+            lang_detect::detect_language,
+            lang_detect::detect_languages,
+            lang_detect::should_translate_text,
             toast_identity::show_system_notification,
             notifications::set_notification_prefs,
             notifications::set_active_chat_for_notifications,

@@ -100,8 +100,10 @@
             <!-- 图片 -->
             <figure v-else-if="block._ === 'pageBlockPhoto'" class="my-1.5">
                 <SpoilerPhoto :has-spoiler="block.has_spoiler">
-                    <RichImage v-if="photoFile(block.photo)?.photo" :file="photoFile(block.photo)!.photo" :alt="''"
-                        square :chatId="chatId" />
+                    <div v-if="photoFile(block.photo)?.photo" class="overflow-hidden"
+                        :style="photoBoxStyle(block.photo)">
+                        <RichImage :file="photoFile(block.photo)!.photo" :alt="''" square :chatId="chatId" />
+                    </div>
                     <div v-else
                         class="h-32 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center text-gray-400">
                         图片不可用</div>
@@ -111,7 +113,8 @@
 
             <!-- 视频 -->
             <figure v-else-if="block._ === 'pageBlockVideo'" class="my-1.5">
-                <div class="overflow-hidden rounded-lg bg-black/5 dark:bg-white/10 relative">
+                <div class="overflow-hidden rounded-lg bg-black/5 dark:bg-white/10 relative"
+                    :style="videoBoxStyle(block.video)">
                     <RichImage v-if="block.video?.thumbnail?.file" :file="block.video?.thumbnail?.file"
                         :format="block.video?.thumbnail?.format" :alt="''" square :chatId="chatId" />
                     <div v-else class="h-32 flex items-center justify-center text-gray-400">视频不可用</div>
@@ -127,7 +130,8 @@
 
             <!-- 动画 -->
             <figure v-else-if="block._ === 'pageBlockAnimation'" class="my-1.5">
-                <div class="overflow-hidden rounded-lg bg-black/5 dark:bg-white/10 relative">
+                <div class="overflow-hidden rounded-lg bg-black/5 dark:bg-white/10 relative"
+                    :style="animationBoxStyle(block.animation)">
                     <RichImage v-if="block.animation?.thumbnail?.file" :file="block.animation?.thumbnail?.file"
                         :format="block.animation?.thumbnail?.format" :alt="''" square :chatId="chatId" />
                     <div v-else class="h-32 flex items-center justify-center text-gray-400">动画不可用</div>
@@ -294,6 +298,7 @@ import { tdlibSend } from '../../../../../utils/tdlib';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { useRouter } from 'vue-router';
 import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
+import { mediaSizeStyle } from '../../../../../utils/fitMediaSize';
 
 defineProps<{
     blocks: PageBlock[];
@@ -308,6 +313,26 @@ const router = useRouter();
 function photoFile(photo?: { sizes?: photoSize[] } | null): photoSize | undefined {
     if (!photo?.sizes?.length) return undefined;
     return photo.sizes[photo.sizes.length - 1];
+}
+
+/** 与 messagePhoto/video 一致：432×432 / 96×96 等比约束，窄窗口随气泡收缩 */
+function blockMediaStyle(width: number, height: number): Record<string, string> {
+    if (!width || !height) return { width: '100%' };
+    return mediaSizeStyle(width, height);
+}
+
+function photoBoxStyle(photo?: { sizes?: photoSize[] } | null): Record<string, string> {
+    if (!photo?.sizes?.length) return { width: '100%' };
+    const largest = photo.sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
+    return blockMediaStyle(largest.width, largest.height);
+}
+
+function videoBoxStyle(video?: { width?: number; height?: number } | null): Record<string, string> {
+    return blockMediaStyle(video?.width || 0, video?.height || 0);
+}
+
+function animationBoxStyle(animation?: { width?: number; height?: number } | null): Record<string, string> {
+    return blockMediaStyle(animation?.width || 0, animation?.height || 0);
 }
 
 function listMarker(item: { label: string; type: string; value: number; has_checkbox: boolean }): string {

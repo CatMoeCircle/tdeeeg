@@ -61,4 +61,29 @@ declare module "@tauri-apps/api/core" {
   ): Promise<void>;
 
   export function invoke(cmd: "read_clipboard_image"): Promise<string>;
+
+  export function invoke(
+    cmd: "detect_language",
+    args: { text: string }
+  ): Promise<{ language: string; confidence: number }>;
+
+  export function invoke(
+    cmd: "detect_languages",
+    args: { text: string; topK?: number }
+  ): Promise<{ language: string; confidence: number }[]>;
+
+  export function invoke(
+    cmd: "should_translate_text",
+    args: {
+      text: string;
+      targetLang: string;
+      doNotTranslate?: string[];
+      minConfidence?: number;
+    }
+  ): Promise<{
+    shouldTranslate: boolean;
+    detectedLanguage: string;
+    confidence: number;
+    reason: string;
+  }>;
 }

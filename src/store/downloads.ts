@@ -384,6 +384,7 @@ export const useDownloadStore = defineStore("downloads", () => {
     let unlistenOther: (() => void) | null = null;
     let unlistenAuth: (() => void) | null = null;
     let unlistenStats: (() => void) | null = null;
+    let unlistenFile: (() => void) | null = null;
     let tdlibListLoaded = false;
     let pendingUpdates = new Map<string, DownloadItem>();
     let throttleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -405,7 +406,39 @@ export const useDownloadStore = defineStore("downloads", () => {
         return key;
     }
 
+    /**
+     * session:<id> → remote_id 键迁移。
+     * TDLib file.id 会话内可能复用；remote.id 就绪后必须把旧条目并入稳定键，
+     * 否则后续 updateFile 按 remote.id 查不到，进度/完成态永远写不进去。
+     */
+    function migrateToRemoteKey(sessionFileId: number, remoteId: string): string {
+        if (!remoteId || remoteId.length === 0) return `session:${sessionFileId}`;
+        const oldKey = sessionIdMap.value[sessionFileId] || `session:${sessionFileId}`;
+        if (oldKey === remoteId) return remoteId;
+        const old = items.value[oldKey];
+        if (old && oldKey !== remoteId) {
+            const merged: DownloadItem = {
+                ...old,
+                remote_id: remoteId,
+                session_file_id: sessionFileId,
+                file_id: sessionFileId,
+                // 保留原 has_tdlib_update：register 迁移不能把「未开下」标成已开始
+                has_tdlib_update: old.has_tdlib_update ?? false,
+            };
+            delete items.value[oldKey];
+            items.value[remoteId] = merged;
+        }
+        sessionIdMap.value[sessionFileId] = remoteId;
+        return remoteId;
+    }
+
     function applyItem(payload: DownloadItem) {
+        // 先做 session→remote 键迁移，避免旧 session 键条目与新 remote 键并存
+        const sid = payload.session_file_id ?? payload.file_id;
+        const rid = payload.remote_id;
+        if (rid && rid.length > 0 && !rid.startsWith("session:") && !rid.startsWith("legacy:") && sid) {
+            migrateToRemoteKey(sid, rid);
+        }
         const key = indexSession(payload);
         const existing = items.value[key];
         if (!existing) {
@@ -706,6 +739,69 @@ export const useDownloadStore = defineStore("downloads", () => {
         };
     }
 
+    /**
+     * 处理 `file` 通道上的原始 updateFile（tdlib-update-file）。
+     * Rust 端 handle_update_file 会再推 download-progress-update，但键不匹配时
+     * 会静默丢进度；这里直接吃 updateFile 兜底，保证下载管理器/气泡不丢事件。
+     */
+    function applyUpdateFile(file: Record<string, unknown> | undefined) {
+        if (!file || typeof file.id !== "number") return;
+        const fileId = file.id;
+        const remote = file.remote as { id?: string } | undefined;
+        const remoteId = remote?.id && remote.id.length > 0 ? remote.id : undefined;
+        const local = file.local as {
+            downloaded_size?: number;
+            is_downloading_active?: boolean;
+            is_downloading_completed?: boolean;
+            path?: string;
+        } | undefined;
+        const downloaded = typeof local?.downloaded_size === "number" ? local.downloaded_size : 0;
+        const size = typeof file.size === "number" ? file.size : 0;
+        const expected = typeof file.expected_size === "number" ? file.expected_size : 0;
+        const total = size > 0 ? size : expected;
+        const completed = !!local?.is_downloading_completed;
+        const active = !!local?.is_downloading_active;
+        const path = local?.path && local.path.length > 0 ? local.path : undefined;
+
+        const key = remoteId
+            ? migrateToRemoteKey(fileId, remoteId)
+            : (sessionIdMap.value[fileId] || `session:${fileId}`);
+        const existing = items.value[key];
+
+        const effectiveTotal = total > 0 ? total : (existing?.total_size ?? 0);
+        const payload: DownloadItem = {
+            remote_id: key,
+            session_file_id: fileId,
+            file_id: fileId,
+            file_name: existing?.file_name || `文件 #${fileId}`,
+            chat_title: existing?.chat_title ?? "",
+            chat_id: existing?.chat_id,
+            message_id: existing?.message_id,
+            total_size: effectiveTotal,
+            downloaded_size: downloaded,
+            progress: effectiveTotal > 0
+                ? Math.min(1, downloaded / effectiveTotal)
+                : (completed ? 1 : 0),
+            is_paused: !active && !completed,
+            is_completed: completed,
+            local_path: path,
+            thumbnail_data_url: existing?.thumbnail_data_url,
+            file_type: existing?.file_type || "other",
+            is_generic: existing?.is_generic ?? true,
+            hidden_category: existing?.hidden_category,
+            is_auto_photo: existing?.is_auto_photo ?? false,
+            is_streaming: existing?.is_streaming ?? false,
+            tags: existing?.tags,
+            source_label: existing?.source_label,
+            dismissed: existing?.dismissed ?? false,
+            created_at: existing?.created_at,
+            completed_at: existing?.completed_at,
+            has_tdlib_update: true,
+            in_tdlib_list: existing?.in_tdlib_list,
+        };
+        scheduleUpdate(payload);
+    }
+
     /** 处理 other 通道上的 TDLib download-list update */
     function handleDownloadListUpdate(update: Record<string, unknown>) {
         switch (update._) {
@@ -810,6 +906,14 @@ export const useDownloadStore = defineStore("downloads", () => {
                 handleDownloadListUpdate(update as Record<string, unknown>);
             });
         }
+        // 原始 updateFile（高频独立通道）：直接写入下载 store，兜底 Rust 侧
+        // download-progress-update 因键不匹配丢事件的情况
+        if (!unlistenFile) {
+            unlistenFile = onTdlibUpdate("file", (update) => {
+                if (update._ !== "updateFile") return;
+                applyUpdateFile(update.file as Record<string, unknown> | undefined);
+            });
+        }
         // 授权就绪后加载下载列表，激活 updateFileDownload* 推送
         if (!unlistenAuth) {
             unlistenAuth = onTdlibUpdate("auth", (update) => {
@@ -866,6 +970,10 @@ export const useDownloadStore = defineStore("downloads", () => {
         if (unlistenStats) {
             unlistenStats();
             unlistenStats = null;
+        }
+        if (unlistenFile) {
+            unlistenFile();
+            unlistenFile = null;
         }
     }
 
@@ -937,7 +1045,9 @@ export const useDownloadStore = defineStore("downloads", () => {
     ) {
         const generic = isGeneric ?? (fileType === "sticker" || fileType === "avatar" || fileType === "other");
         const category = hiddenCategory ?? (generic ? inferHiddenCategory(fileType) : undefined);
-        const rid = remoteId && remoteId.length > 0 ? remoteId : `session:${fileId}`;
+        const rid = remoteId && remoteId.length > 0
+            ? migrateToRemoteKey(fileId, remoteId)
+            : `session:${fileId}`;
         const finalTags = buildDownloadTags({
             fileType,
             hiddenCategory: category,

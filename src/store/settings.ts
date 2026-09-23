@@ -148,13 +148,50 @@ interface Settings {
     /** 故事播放器静音状态，跨会话记忆（默认静音） */
     storyMuted: boolean;
   };
-  /** 翻译显示设置 */
+  /** 翻译设置 */
   translate: {
     /** 翻译结果显示方式：popup=弹窗，inline=在原消息气泡中显示 */
     displayMode: "popup" | "inline";
+    /**
+     * 目标语言码（TDLib translateText.to_language_code）。
+     * 空字符串 = 未单独设置，跟随当前语言包 / 界面语言。
+     */
+    to: string;
+    /** 消息右键菜单是否显示「翻译」 */
+    showTranslateButton: boolean;
+    /** 不翻译的语言码列表（可跳过本族语言） */
+    doNotTranslate: string[];
+    /**
+     * 翻译提供方（覆盖整个翻译体系，可分别覆盖场景）。
+     * - default：全局默认（未单独配置时使用）
+     * - message：右键单条翻译；null = 跟随 default
+     * - chat：聊天全部翻译；null = 跟随 default
+     * 当前默认均为官方 TDLib；third-party / ai 为预留接口，功能未实现。
+     */
+    provider: {
+      default: "tdlib" | "third-party" | "ai";
+      message: "tdlib" | "third-party" | "ai" | null;
+      chat: "tdlib" | "third-party" | "ai" | null;
+    };
+    /** 第三方翻译 API 配置（预留，功能未实现；对整套翻译生效） */
+    thirdParty: {
+      endpoint: string;
+      apiKey: string;
+    };
+    /** AI 翻译配置（预留，功能未实现；对整套翻译生效） */
+    ai: {
+      endpoint: string;
+      apiKey: string;
+      model: string;
+    };
+  };
+  /** 话题标签栏位置：left=左侧图片样式，top/bottom=悬浮分组栏样式 */
+  topicTagBar: {
+    position: "left" | "top" | "bottom";
   };
   /** 导航栏头像位置：default=聊天标题栏左侧（默认），titlebar=窗口标题栏右侧 */
   chatHeaderAvatarPosition: "default" | "titlebar";
+
   /** 系统通知设置 */
   notifications: {
     /** 是否启用系统原生通知弹窗 */
@@ -196,7 +233,7 @@ const defaultSettings: Settings = {
     archivePosition: "sidebar",
   },
   message: {
-    cornerRadius: 18,
+    cornerRadius: 12,
     cornerRadiusSymmetrical: false,
     fontSize: 14,
     scale: 1,
@@ -260,8 +297,31 @@ const defaultSettings: Settings = {
   translate: {
     // 默认使用弹窗方式
     displayMode: "popup",
+    // 空 = 未单独设置，目标语言跟随当前语言包
+    to: "",
+    showTranslateButton: true,
+    doNotTranslate: [],
+    // 提供方：默认官方 TDLib；可分别覆盖右键翻译 / 全部翻译
+    provider: {
+      default: "tdlib",
+      message: null,
+      chat: null,
+    },
+    thirdParty: {
+      endpoint: "",
+      apiKey: "",
+    },
+    ai: {
+      endpoint: "",
+      apiKey: "",
+      model: "",
+    },
   },
   chatHeaderAvatarPosition: "default",
+  topicTagBar: {
+    position: "left",
+  },
+
   notifications: {
     enabled: true,
     showPreview: true,
@@ -307,6 +367,29 @@ try {
   }
 }
 const initialState = mergeSettings(defaultSettings, parsedSettings);
+
+// ─── 翻译设置结构迁移 ─────────────────────────────────────────
+// 旧版 provider 为字符串；新版为 { default, message, chat }
+try {
+  const tp: any = (initialState as any)?.translate;
+  if (tp && typeof tp.provider === "string") {
+    const old = tp.provider as string;
+    const id = old === "third-party" || old === "ai" ? old : "tdlib";
+    tp.provider = { default: id, message: null, chat: null };
+  }
+  if (tp && typeof tp.provider === "object" && tp.provider !== null) {
+    if (!tp.provider.default) tp.provider.default = "tdlib";
+    if (!("message" in tp.provider)) tp.provider.message = null;
+    if (!("chat" in tp.provider)) tp.provider.chat = null;
+  }
+  // 旧版 thirdParty/ai 带 enabled 字段：丢弃，只保留接口配置
+  if (tp?.thirdParty && "enabled" in tp.thirdParty) delete tp.thirdParty.enabled;
+  if (tp?.ai && "enabled" in tp.ai) delete tp.ai.enabled;
+  // 旧版误把 showTranslateBar 当设置：删除（全部翻译栏跟 chat.is_translatable）
+  if (tp && "showTranslateBar" in tp) delete tp.showTranslateBar;
+} catch {
+  // ignore migration errors
+}
 
 export const settings = reactive<Settings>(initialState);
 

@@ -2,8 +2,8 @@
     <div ref="rootEl" class="sp-media-item w-full aspect-square" @click="onClick"
         @contextmenu.prevent.stop="onContextMenu">
         <!-- TGS 动画贴纸（tlottie） -->
-        <TgsPlayer v-if="format === 'tgs' && tgsSrc" ref="playerRef" :src="tgsSrc" :fitz-modifier="fitzModifier" loop
-            :autoplay="false" @error="onError" />
+        <TgsPlayer v-if="format === 'tgs' && tgsSrc" ref="playerRef" :src="tgsSrc" :fitz-modifier="fitzModifier"
+            :loop="true" :autoplay="false" @error="onError" />
         <!-- WEBP / MPEG4 / GIF：<img> 或 <video>（100% 铺满 + object-fit: cover） -->
         <img v-else-if="format === 'webp' && src" :src="src" :alt="alt" draggable="false" :style="imgStyle"
             loading="lazy" />

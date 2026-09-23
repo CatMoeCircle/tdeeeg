@@ -925,6 +925,12 @@ function openViewer() {
             topicId: props.topicId,
             senderName: props.senderName,
             message: props.message,
+            readyPath: mediaSrc.value && !String(mediaSrc.value).includes('tdstream')
+                ? (props.content._ === 'messagePhoto' ? photoBigPath.value
+                    : props.content._ === 'messageVideo' ? videoFilePath.value
+                        : animFilePath.value) || undefined
+                : undefined,
+            file: contentMainFile(),
         }, initialTime);
     }
 }

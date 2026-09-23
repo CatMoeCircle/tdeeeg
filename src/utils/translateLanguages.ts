@@ -13,8 +13,41 @@ export interface TranslateLanguageOption {
     label: string;
 }
 
-/** 默认目标语言：当前未提供语言包功能，固定为简体中文 */
+/** 默认目标语言：简体中文（仅作兑底；优先跟随语言包） */
 export const DEFAULT_TRANSLATE_TARGET = "zh-CN";
+
+/** 语言码 → 中文显示名（未知码原样返回） */
+export function getTranslateLanguageLabel(code: string): string {
+    if (!code) return "";
+    const hit = TRANSLATE_TARGET_LANGUAGES.find((l) => l.code === code);
+    return hit?.label ?? code;
+}
+
+/**
+ * 将界面语言 / TDLib 语言包 code 映射为 TDLib translate 目标语言码。
+ *
+ * 例：
+ * - zh-CN / zh / zh-Hans / zh-hans-raw → zh-CN
+ * - zh-TW / zh-Hant / zh-hant-raw → zh-TW
+ * - en / en-raw / tdesktop → en
+ * - ja-raw → ja
+ */
+export function uiLanguageToTranslateCode(uiCode: string): string {
+    if (!uiCode) return DEFAULT_TRANSLATE_TARGET;
+    let c = uiCode.trim();
+    // TDLib pack id 后缀
+    c = c.replace(/-raw$/i, "").replace(/-tdesktop$/i, "");
+    const lower = c.toLowerCase();
+    if (lower === "zh" || lower.startsWith("zh-hans") || lower === "zh-cn" || lower === "zh_cn") return "zh-CN";
+    if (lower.startsWith("zh-hant") || lower === "zh-tw" || lower === "zh_tw" || lower === "zh-hk") return "zh-TW";
+    if (lower === "en" || lower.startsWith("en-")) return "en";
+    // 语言包 id 可能形如 pt-BR；其余取主语言子标签
+    const known = TRANSLATE_TARGET_LANGUAGES.find((l) => l.code.toLowerCase() === lower);
+    if (known) return known.code;
+    const primary = lower.split(/[-_]/)[0];
+    const hit = TRANSLATE_TARGET_LANGUAGES.find((l) => l.code.toLowerCase() === primary);
+    return hit?.code ?? primary;
+}
 
 /** TDLib translateText 支持的目标语言（下拉选择项） */
 export const TRANSLATE_TARGET_LANGUAGES: TranslateLanguageOption[] = [

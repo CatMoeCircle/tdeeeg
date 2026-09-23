@@ -16,8 +16,8 @@
           否则骨架气泡会盖在顶栏、置顶菜单和输入框上方。
         -->
         <div v-if="showSkeleton"
-            class="absolute inset-0 z-0 pointer-events-none overflow-hidden px-4 flex flex-col messages-scroll pb-15"
-            :class="topPaddingClass" aria-hidden="true">
+            class="absolute inset-0 z-0 pointer-events-none overflow-hidden flex flex-col messages-scroll pb-15"
+            :style="[topPaddingClass, tagBarMessagePadStyle]" aria-hidden="true">
             <div class="flex-1"></div>
             <div v-for="n in 8" :key="n" class="flex mb-4" :class="n % 3 === 0 ? 'justify-end' : 'justify-start'">
                 <div v-if="n % 3 !== 0" class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 mr-2 shrink-0"></div>
@@ -30,8 +30,9 @@
 
         <!-- Messages：始终挂载，定位完成前不可见 -->
         <div ref="messagesContainer"
-            class="absolute inset-0 z-10 overflow-y-auto px-4 custom-scrollbar flex flex-col messages-scroll pb-15"
-            :class="topPaddingClass" :style="messagesContainerStyle" @scroll.passive="onScroll">
+            class="absolute inset-0 z-10 overflow-y-auto custom-scrollbar flex flex-col messages-scroll pb-15"
+            :style="[topPaddingClass, tagBarMessagePadStyle, messagesContainerStyle]"
+            @scroll.passive="onScroll">
 
             <!-- 顶部加载更多指示器：仅向更旧方向加载时显示。
                  向更新方向/跳底加载若也在这里插节点，会反复改变 scrollHeight，
@@ -280,7 +281,8 @@
                                         <!-- 内联翻译：在原消息气泡中显示译文 -->
                                         <InlineTranslation v-if="getInlineTranslation(chatId ?? 0, item.msg.id)"
                                             :chat-id="chatId ?? 0" :message-id="item.msg.id"
-                                            :text="getMessageFormattedText(item.msg)" />
+                                            :text="getMessageFormattedText(item.msg)"
+                                            :compact="getInlineTranslation(chatId ?? 0, item.msg.id)?.source === 'viewport'" />
                                         <!-- 纯媒体（无 caption）：回应放在气泡外面，自己靠右、他人靠左 -->
                                         <ReactionsBar class="w-full"
                                             v-if="isMediaMessage(item.msg) && !hasMediaCaption(item.msg) && hasReactions(item.msg)"
@@ -317,14 +319,61 @@
             </div>
         </div>
         <!-- ===== Header（顶层，磨砂玻璃） ===== -->
-        <div class="absolute top-0 left-0 right-0 z-10">
+        <div class="absolute top-0 left-0 right-0 z-10" :class="topicLayoutAnim ? 'topic-chrome-anim' : ''"
+            :style="tagBarSideInsetStyle">
             <ChatDetailHeader :chat="chat" :topic="topic" :showBack="showBackBtn" @back="handleBack"
-                @openInfo="handleTopClick" @search="searchActive = true" />
+                @openInfo="handleTopClick" @search="searchActive = true"
+                :show-topic-tag-toggle="showTopicPanel" :topic-tag-position="topicTagPosition"
+                @toggle-topic-tag-position="toggleTopicTagPosition" />
         </div>
+
+        <!-- ===== 话题标签栏（话题模式 / 论坛群组） =====
+             right/left：图片样式侧栏；top：悬浮在 Header 与置顶栏中间；bottom：悬浮在输入条上方 -->
+        <!-- ===== 话题标签栏（tag 栏话题模式）
+             位置切换动画由 TopicTagBar 根节点 data-pos 驱动的 CSS keyframes 完成
+             （不用 Vue Transition，避免 out-in 卡死导致元素不再挂载） ===== -->
+        <TopicTagBar v-if="showTopicPanel && chatId !== undefined" :chat-id="chatId" :topic-id="topicId"
+            :position="topicTagPosition" :top-offset="4" :bottom-offset="76" :data-pos="topicTagPosition"
+            @select="onTopicTagSelect" />
 
         <!-- ===== 消息搜索栏（覆盖 Header） ===== -->
         <SearchBar v-if="searchActive && chatId !== undefined" :chat-id="chatId" :topic-id="topicId" :chat="chat"
             :initial-query="hashtagSearchQuery" @close="searchActive = false" @jump="handleReplyJumpToMessage" />
+
+        <!-- ===== 顶置消息栏 + 音乐播放器 + 全部翻译栏（合并同一顶部栈） ===== -->
+        <!-- PinnedMessageBar 必须始终挂载：visibleChange 是 showTopCard 的唯一来源，
+             用 v-if(showTopCard) 包住会导致永远不渲染。
+             全部翻译栏与置顶/播放器贴合为同一圆角卡片（border-t 分区，与播放器一致）。 -->
+        <div class="absolute inset-x-0 z-10 flex justify-center pointer-events-none"
+            :class="[topStackVisible ? '' : 'hidden', topicLayoutAnim ? 'topic-chrome-anim' : '']"
+            :style="[topStackTopStyle, tagBarSideInsetStyle]">
+            <div class="w-full px-3 relative">
+                <div v-if="showTopCard || showChatTranslateBarUi"
+                    class="pointer-events-auto rounded-xl bg-white/70 dark:bg-gray-800/70 backdrop-blur-md shadow-lg border border-gray-200/50 dark:border-gray-700/50 overflow-hidden">
+                    <PinnedMessageBar bare :chatId="chatId" @jumpToMessage="jumpToPinnedMessage"
+                        @visibleChange="onPinnedVisibleChange" />
+                    <!-- 全部翻译栏：贴合在置顶/播放器底部；单独显示时占满整卡 -->
+                    <div v-if="showChatTranslateBarUi"
+                        :class="showTopCard ? 'border-t border-gray-100/50 dark:border-gray-700/30' : ''">
+                        <ChatTranslateBar attached :chat="chat" :is-premium="isMePremium"
+                            :has-automatic-translation="hasAutomaticTranslation"
+                            :sample-text="translateSampleText"
+                            @translating-change="onChatTranslatingChange" @hide="translateBarHidden = true" />
+                    </div>
+                </div>
+                <!-- 吸顶日期：绝对定位挂在顶栏正下方，不占布局空间；向下滚隐藏、向上滚显示 -->
+                <Transition name="mi-fade">
+                    <div v-if="stickyDateDisplay"
+                        class="absolute inset-x-3 flex justify-center pointer-events-none"
+                        :class="topStackHasCard ? 'top-full mt-1' : 'top-1'">
+                        <span
+                            class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100/90 dark:bg-gray-800/90 backdrop-blur-sm px-2.5 py-1 rounded-full leading-none select-none shadow-sm">
+                            {{ stickyDateDisplay }}
+                        </span>
+                    </div>
+                </Transition>
+            </div>
+        </div>
 
         <!-- ===== 胶囊回应选择器（右键菜单上方的独立浮动栏） ===== -->
         <Teleport to="body">
@@ -386,30 +435,6 @@
         <ForwardPicker :visible="forwardPickerVisible" :from-chat-id="chatId ?? 0" :message-ids="forwardMessageIds"
             @update:visible="forwardPickerVisible = $event" @done="onForwardDone" />
 
-        <!-- ===== 顶置消息栏 + 音乐播放器（合并同一卡片） ===== -->
-        <!-- PinnedMessageBar 必须始终挂载：visibleChange 是 showTopCard 的唯一来源，
-             用 v-if(showTopCard) 包住会导致永远不渲染 -->
-        <div class="absolute inset-x-0 z-10 flex justify-center pointer-events-none"
-            :class="showTopCard || stickyDateDisplay ? 'top-17.5' : 'hidden'">
-            <div class="w-full px-3 relative">
-                <div class="pointer-events-auto">
-                    <PinnedMessageBar :chatId="chatId" @jumpToMessage="jumpToPinnedMessage"
-                        @visibleChange="onPinnedVisibleChange" />
-                </div>
-                <!-- 吸顶日期：绝对定位挂在顶栏正下方，不占布局空间；向下滚隐藏、向上滚显示 -->
-                <Transition name="mi-fade">
-                    <div v-if="stickyDateDisplay"
-                        class="absolute inset-x-3 flex justify-center pointer-events-none"
-                        :class="showTopCard ? 'top-full mt-1' : 'top-1'">
-                        <span
-                            class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100/90 dark:bg-gray-800/90 backdrop-blur-sm px-2.5 py-1 rounded-full leading-none select-none shadow-sm">
-                            {{ stickyDateDisplay }}
-                        </span>
-                    </div>
-                </Transition>
-            </div>
-        </div>
-
         <!-- ===== 叠层面板 ===== -->
         <Transition name="overlay-slide">
             <div v-if="showOverlay && chat"
@@ -448,7 +473,8 @@
 
         <!-- ===== Input Area（顶层，磨砂玻璃） ===== -->
         <div v-if="canSend" ref="inputAnchorEl"
-            class="absolute bottom-0 left-0 right-0 z-10 dark:from-gray-900/80 dark:via-gray-900/60 to-transparent">
+            class="absolute bottom-0 left-0 right-0 z-10 dark:from-gray-900/80 dark:via-gray-900/60 to-transparent"
+            :class="topicLayoutAnim ? 'topic-chrome-anim' : ''" :style="tagBarSideInsetStyle">
             <div aria-hidden="true"
                 class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
             </div>
@@ -614,6 +640,7 @@ import ForwardBanner from './MessageContent/content/ForwardBanner.vue';
 import InlineKeyboard from './MessageContent/content/InlineKeyboard.vue';
 import InlineTranslation from './MessageContent/content/InlineTranslation.vue';
 import ChatDetailHeader from './Header.vue';
+import ChatTranslateBar from './ChatTranslateBar.vue';
 import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
 import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
 import PaidReactionIcon from '../../common/PaidReactionIcon.vue';
@@ -624,11 +651,13 @@ import TranslateMessageModal from '../../contextMenu/TranslateMessageModal.vue';
 import PinMessageConfirm from '../../contextMenu/PinMessageConfirm.vue';
 import ReportMessageConfirm from '../../contextMenu/ReportMessageConfirm.vue';
 import PinnedMessageBar from './PinnedMessageBar.vue';
+import TopicTagBar from './TopicTagBar.vue';
 import SearchBar from './SearchBar.vue';
 import ReactionsBar from './ReactionsBar.vue';
 import ReactionPicker from './ReactionPicker.vue';
 
 import { tdlibSend, isFileReady } from '../../../utils/tdlib';
+import { resolveTopicDisplayMode } from '../../../utils/topicDisplayMode';
 import { sendAttachments, sending } from '../../../utils/attachmentSend';
 import { useAttachmentStore } from '../../../store/attachment';
 import type { AttachmentItem } from '../../../store/attachment';
@@ -683,6 +712,12 @@ import {
     showTranslateDialog,
     translateInlineMessage,
     getInlineTranslation,
+    removeInlineTranslation,
+    isChatTranslating,
+    requestViewportTranslation,
+    getTranslateTargetLang,
+    canShowChatTranslateBar,
+    shouldPromptChatTranslatePremium,
 } from '../../../store/translate';
 import { openContextMenu, visible as contextMenuVisible, reactionRow as contextMenuReactionRow, closeContextMenu as closeContextMenuStore } from '../../../store/contextMenu';
 import type { ContextMenuReactionItem, ContextMenuReactionRow } from '../../contextMenu/types';
@@ -936,6 +971,14 @@ const topicId = computed(() => {
     return tid !== undefined && tid !== null && tid !== '' ? Number(tid) : undefined;
 });
 
+// ==================== 话题标签栏 ====================
+/** 论坛群组（话题模式）才显示标签栏 */
+/**
+ * 话题展示模式（按群自身字段判定，非全局设置）：
+ * - list：view_as_topics === true → 话题在对话列表（ChatList forumMode），对话页无标签栏
+ * - tag ：view_as_topics === false 的论坛群 → 对话页左侧标签栏
+ * - none：普通群组
+ */
 // ==================== Overlay State ====================
 const showOverlay = ref(false);
 /** 消息搜索栏是否激活（覆盖 Header） */
@@ -1041,6 +1084,64 @@ function openInNewChat() {
 
 // ==================== State ====================
 const chat = ref<chat | undefined>(undefined);
+
+/**
+ * 话题展示模式（按群自身字段判定，非全局设置）：
+ * - list：view_as_topics === true → 话题在对话列表（ChatList forumMode），对话页无标签栏
+ * - tag ：view_as_topics === false 的论坛群 → 对话页左侧标签栏
+ * - none：普通群组
+ */
+const topicDisplayMode = ref<'none' | 'list' | 'tag'>('none');
+watch(chat, async (c) => {
+    // 切换话题时 chat 会短暂清空再填充；空档不要清成 none，否则标签栏 v-if 闪断重挂
+    if (!c) return;
+    topicDisplayMode.value = await resolveTopicDisplayMode(c);
+}, { immediate: true });
+
+/** 对话页话题标签栏：仅 tag 栏话题模式显示 */
+const showTopicPanel = computed(() =>
+    topicDisplayMode.value === 'tag' && chatId.value !== undefined
+);
+/** 标签栏位置：left / top / bottom（标题栏第一个按钮点击轮换） */
+const topicTagPosition = computed<'left' | 'top' | 'bottom'>(
+    () => settings.topicTagBar?.position ?? 'left'
+);
+function toggleTopicTagPosition() {
+    const order: Array<'left' | 'top' | 'bottom'> = ['left', 'top', 'bottom'];
+    const idx = order.indexOf(topicTagPosition.value);
+    // 仅在切换位置的短暂窗口内启用 chrome 布局过渡，
+    // 避免切换话题时置顶栏闪烁也带动整页展开动画
+    topicLayoutAnim.value = true;
+    settings.topicTagBar.position = order[(idx + 1) % order.length];
+    window.setTimeout(() => {
+        topicLayoutAnim.value = false;
+    }, 320);
+}
+/** 位置切换窗口：Header / 置顶栈 / 输入条做 padding/top 过渡 */
+const topicLayoutAnim = ref(false);
+/** 左侧标签栏宽度（图片样式窄栏 72px）；top/bottom 不占侧边 */
+const TOPIC_PANEL_WIDTH = 72;
+const tagBarSideInsetStyle = computed<Record<string, string>>(() => {
+    // 始终写明确数值（0px / 72px），避免删属性导致 CSS 过渡失效、整页跳动
+    const left = showTopicPanel.value && topicTagPosition.value === 'left';
+    return { paddingLeft: left ? `${TOPIC_PANEL_WIDTH}px` : '0px' };
+});
+const tagBarMessagePadStyle = computed<Record<string, string>>(() => {
+    const left = showTopicPanel.value && topicTagPosition.value === 'left';
+    return {
+        paddingLeft: left ? `${TOPIC_PANEL_WIDTH + 16}px` : '16px',
+        paddingRight: '16px',
+    };
+});
+/** top 模式时顶部栈下移（标签栏悬在 Header 与置顶栏之间） */
+const topicTagTopSpace = computed(() =>
+    showTopicPanel.value && topicTagPosition.value === 'top' ? 46 : 0
+);
+
+function onTopicTagSelect(_topicId: number | null) {
+    // 路由由 TopicTagBar 内部 push
+}
+
 const hasChatSpecificBackground = computed(() => {
     const bg = chat.value?.background?.background;
     if (!bg) return false;
@@ -1841,6 +1942,10 @@ const newMessageCount = ref(0);
 const notificationsMuted = ref(false);
 const isNotificationTogglePending = ref(false);
 const linkedChatId = ref(0);
+/** 超级群 has_automatic_translation（无 Premium / 无 is_translatable 时的替代门槛） */
+const hasAutomaticTranslation = ref(false);
+/** 当前对话的群组信息是否已就绪（用于延迟 Premium 提示） */
+const supergroupFullReady = ref(false);
 const isJoinPending = ref(false);
 const joinRequestSent = ref(false);
 
@@ -2057,12 +2162,23 @@ function collectAllInMemoryMessages(): message[] {
     return out;
 }
 
-/** 依据 updateFile 终态，把同 file.id 的消息内嵌 File 快照就地更新（用于复制 JSON/转发前后一致）。 */
+/**
+ * 依据 updateFile 终态，把同 file.id 的消息内嵌 File 快照写回。
+ * messages 是 markRaw：写回时替换命中 File 引用后，还必须浅拷贝 content 换新引用，
+ * 子组件 computed（photoBigPath / isFileReady 等）才能重算并显示本地路径。
+ */
 function syncEmbeddedFileSnapshot(file: TdFile): void {
     if (!isTerminalFileUpdate(file)) return;
     const all = collectAllInMemoryMessages();
     if (all.length === 0) return;
-    applyTerminalFileToMessages(all, file);
+    const changedIds = applyTerminalFileToMessages(all, file);
+    if (changedIds.length === 0) return;
+    for (const id of changedIds) {
+        const msg = messages.value.find(m => m.id === id);
+        if (!msg) continue;
+        // 嵌套 File 已替换为新对象；再换 content 引用触发 props 更新
+        patchMessage(id, { content: { ...msg.content } } as Partial<message>);
+    }
 }
 
 const handleUpdate = async (update: Update) => {
@@ -2217,11 +2333,19 @@ const handleUpdate = async (update: Update) => {
             break;
         }
 
+        case 'updateChatIsTranslatable': {
+            // 全部翻译栏跟随 chat.is_translatable
+            if (update.chat_id !== chatId.value || !chat.value) return;
+            chat.value.is_translatable = !!update.is_translatable;
+            break;
+        }
+
         case 'updateSupergroupFullInfo': {
             const currentChat = chat.value;
             if (currentChat?.type._ !== 'chatTypeSupergroup') return;
             if (update.supergroup_id !== currentChat.type.supergroup_id) return;
             linkedChatId.value = update.supergroup_full_info.linked_chat_id;
+            maybePromptTranslatePremium();
             break;
         }
 
@@ -2230,6 +2354,10 @@ const handleUpdate = async (update: Update) => {
             if (currentChat?.type._ !== 'chatTypeSupergroup') return;
             if (update.supergroup.id !== currentChat.type.supergroup_id) return;
             supergroups.value[update.supergroup.id] = update.supergroup;
+            // 自动翻译状态在 supergroup.has_automatic_translation 上
+            hasAutomaticTranslation.value = !!update.supergroup.has_automatic_translation;
+            supergroupFullReady.value = true;
+            maybePromptTranslatePremium();
             break;
         }
 
@@ -2277,16 +2405,34 @@ const handleUpdate = async (update: Update) => {
             break;
         }
         case 'updateChatPhoto': {
-            // 频道/群组换头像：updateChatPhoto 携带新的 photo，回填本地缓存
+            // 换头像：同步当前 chat（Header 头像）与本地缓存（消息来源头像）
+            if (update.chat_id === chatId.value && chat.value) {
+                chat.value.photo = update.photo;
+            }
             if (typeof update.chat_id === 'number' && chats.value[update.chat_id]) {
                 chats.value[update.chat_id].photo = update.photo;
             }
             break;
         }
         case 'updateChatTitle': {
-            // 频道/群组改名：回填本地缓存，刷新消息来源显示名
+            // 改名：同步当前 chat（Header 标题）与本地缓存（消息来源显示名）
+            if (update.chat_id === chatId.value && chat.value) {
+                chat.value.title = update.title;
+            }
             if (typeof update.chat_id === 'number' && chats.value[update.chat_id]) {
                 chats.value[update.chat_id].title = update.title;
+            }
+            break;
+        }
+        case 'updateChatAccentColors': {
+            // 主题色变更：同步当前 chat（Header 无头像背景）与本地缓存
+            if (update.chat_id === chatId.value && chat.value) {
+                chat.value.accent_color_id = update.accent_color_id;
+                chat.value.profile_accent_color_id = update.profile_accent_color_id;
+            }
+            if (typeof update.chat_id === 'number' && chats.value[update.chat_id]) {
+                chats.value[update.chat_id].accent_color_id = update.accent_color_id;
+                chats.value[update.chat_id].profile_accent_color_id = update.profile_accent_color_id;
             }
             break;
         }
@@ -3073,22 +3219,33 @@ async function fetchGroupInfo(chatData: chat, gen: number) {
         const sg = await tdlibSend({ _: 'getSupergroup', supergroup_id: chatData.type.supergroup_id });
         if (!isGenerationValid(gen)) return;
         supergroups.value[chatData.type.supergroup_id] = sg;
-        if (chatData.type.is_channel || sg.is_broadcast_group) {
-            try {
-                const fullInfo = await tdlibSend({
-                    _: 'getSupergroupFullInfo',
-                    supergroup_id: chatData.type.supergroup_id
-                });
-                if (!isGenerationValid(gen)) return;
-                linkedChatId.value = fullInfo.linked_chat_id;
-            } catch (e) {
-                console.error('Failed to load linked chat:', e);
-            }
+        // 自动翻译字段在 supergroup 上（TDLib has_automatic_translation）
+        hasAutomaticTranslation.value = !!sg.has_automatic_translation;
+        supergroupFullReady.value = true;
+        maybePromptTranslatePremium();
+        // fullInfo：关联频道等
+        try {
+            const fullInfo = await tdlibSend({
+                _: 'getSupergroupFullInfo',
+                supergroup_id: chatData.type.supergroup_id
+            });
+            if (!isGenerationValid(gen)) return;
+            linkedChatId.value = fullInfo.linked_chat_id;
+        } catch (e) {
+            console.error('Failed to load supergroup full info:', e);
         }
     } else if (chatData.type._ === 'chatTypeBasicGroup') {
         const bg = await tdlibSend({ _: 'getBasicGroup', basic_group_id: chatData.type.basic_group_id });
         if (!isGenerationValid(gen)) return;
         basicGroups.value[chatData.type.basic_group_id] = bg;
+        hasAutomaticTranslation.value = false;
+        supergroupFullReady.value = true;
+        maybePromptTranslatePremium();
+    } else {
+        // 私聊等：无自动翻译
+        hasAutomaticTranslation.value = false;
+        supergroupFullReady.value = true;
+        maybePromptTranslatePremium();
     }
 }
 
@@ -3391,7 +3548,14 @@ const onScroll = async (e: Event) => {
     updateStickyDate(el);
 
     // 程序化跳底后的短暂窗口：避免 onScroll 与 scrollToBottom/load 互相打架
-    if (Date.now() < scrollLoadSuppressedUntil) return;
+    if (Date.now() < scrollLoadSuppressedUntil) {
+        // 即使在抑制窗口内，也要推进视口翻译（全部翻译模式）
+        if (chatTranslateOn.value) scheduleViewportTranslate();
+        return;
+    }
+
+    // 全部翻译：滚动时按需翻译新进入视口的消息
+    if (chatTranslateOn.value) scheduleViewportTranslate();
 
     const H = el.scrollHeight;
     const C = el.clientHeight;
@@ -3987,16 +4151,136 @@ function openTranslateFor(msg: message) {
     const ft = getMessageFormattedText(msg);
     if (!ft || !ft.text.trim()) return;
     const cid = chatId.value ?? 0;
+    const targetLang = getTranslateTargetLang() || DEFAULT_TRANSLATE_TARGET;
     // 相册消息不提供内联展示槽位，回退到弹窗
     const isAlbumMember = !!msg.media_album_id && msg.media_album_id !== '0';
     if (settings.translate.displayMode === 'inline' && !isAlbumMember) {
         // 内联：在原消息气泡中显示译文
-        void translateInlineMessage(cid, msg.id, ft, DEFAULT_TRANSLATE_TARGET);
+        void translateInlineMessage(
+            cid,
+            msg.id,
+            ft,
+            targetLang,
+            'manual',
+            getMessagePlainText(msg),
+        );
     } else {
         // 弹窗：默认行为
         openTranslateDialogFor(msg);
     }
 }
+
+/** 移除该消息的翻译（右键「显示原文」） */
+function removeTranslateFor(msg: message) {
+    const cid = chatId.value ?? 0;
+    removeInlineTranslation(cid, msg.id);
+}
+
+// ==================== 聊天「全部翻译」（仅视口内） ====================
+
+/** 本会话是否隐藏了翻译栏（用户点了 X） */
+const translateBarHidden = ref(false);
+
+/** 是否开启全部翻译 */
+const chatTranslateOn = computed(() => isChatTranslating(chatId.value));
+
+/** 全部翻译栏可见性（Premium+is_translatable / 自动翻译 / 非官方提供方 + padding 同步） */
+function chatTranslateBarVisible(): boolean {
+    return !translateBarHidden.value
+        && canShowChatTranslateBar({
+            chat: chat.value,
+            isPremium: isMePremium.value,
+            hasAutomaticTranslation: hasAutomaticTranslation.value,
+        });
+}
+
+/** 进入群组时的 Premium 提示（每个会话只弹一次） */
+let translatePremiumPromptedChatId: number | null = null;
+function maybePromptTranslatePremium() {
+    const c = chat.value;
+    if (!c) return;
+    const cid = c.id;
+    // 超级群需等 getSupergroup 回来，避免误把「未加载」当成「未开自动翻译」
+    if (c.type?._ === 'chatTypeSupergroup' && !supergroupFullReady.value) return;
+    if (translatePremiumPromptedChatId === cid) return;
+    const input = {
+        chat: c,
+        isPremium: isMePremium.value,
+        hasAutomaticTranslation: hasAutomaticTranslation.value,
+    };
+    if (!shouldPromptChatTranslatePremium(input)) return;
+    if (canShowChatTranslateBar(input)) return;
+    translatePremiumPromptedChatId = cid;
+    MessagePlugin.warning({
+        content: t('translate.premiumHint'),
+        duration: 5000,
+        placement: 'top-right',
+    });
+}
+
+let viewportTranslateTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * 扫描消息容器，**仅对视口内**可见消息发起翻译。
+ * 全部翻译开启后由滚动 / 新消息 / 状态切换触发，避免整段历史一次性请求。
+ */
+function translateViewportMessages() {
+    if (!chatTranslateOn.value) return;
+    const container = messagesContainer.value;
+    const cid = chatId.value;
+    if (!container || cid == null) return;
+    const cRect = container.getBoundingClientRect();
+    const nodes = container.querySelectorAll<HTMLElement>('[data-msg-id]');
+    for (const node of nodes) {
+        const id = Number(node.getAttribute('data-msg-id'));
+        if (!id) continue;
+        const msg = messages.value.find((m) => m.id === id);
+        if (!msg) continue;
+        const r = node.getBoundingClientRect();
+        // 完全在视口外：跳过
+        if (r.bottom < cRect.top - 4 || r.top > cRect.bottom + 4) continue;
+        const ft = getMessageFormattedText(msg);
+        if (!ft || !ft.text.trim()) continue;
+        void requestViewportTranslation(cid, msg, ft, getMessagePlainText(msg));
+    }
+}
+
+function scheduleViewportTranslate(delay = 160) {
+    if (viewportTranslateTimer) clearTimeout(viewportTranslateTimer);
+    viewportTranslateTimer = setTimeout(() => {
+        viewportTranslateTimer = null;
+        translateViewportMessages();
+    }, delay);
+}
+
+function onChatTranslatingChange(on: boolean) {
+    if (on) {
+        // 等 DOM 布局后再扫视口
+        void nextTick(() => scheduleViewportTranslate(0));
+    }
+}
+
+// 切换对话：重置提示状态；若该对话曾开启全部翻译，进入后翻译当前视口
+watch(chatId, () => {
+    translateBarHidden.value = false;
+    translatePremiumPromptedChatId = null;
+    hasAutomaticTranslation.value = false;
+    supergroupFullReady.value = false;
+    if (chatTranslateOn.value) {
+        void nextTick(() => scheduleViewportTranslate(200));
+    }
+}, { immediate: false });
+
+// chat / Premium / 自动翻译就绪后评估是否弹提示
+watch(
+    () => [chat.value?.id, chat.value?.is_translatable, isMePremium.value, hasAutomaticTranslation.value, supergroupFullReady.value] as const,
+    () => { maybePromptTranslatePremium(); },
+);
+
+// 新消息到达且贴底时：若开启全部翻译，翻译新进入视口的消息
+watch(() => messages.value.length, () => {
+    if (chatTranslateOn.value) scheduleViewportTranslate(240);
+});
 
 // ==================== 媒体文件「打开目录 / 另存为」 ====================
 
@@ -4337,13 +4621,25 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
 
     // —— 翻译 ——
     const msgFormattedText = getMessageFormattedText(msg);
-    if (!isService && msgFormattedText && msgFormattedText.text.trim().length > 0) {
-        items.push({
-            key: 'translate',
-            label: t('lng_ai_compose_tab_translate'),
-            icon: LanguagesIcon,
-            onClick: () => openTranslateFor(msg),
-        });
+    const msgHasTranslatable = !isService && msgFormattedText && msgFormattedText.text.trim().length > 0;
+    if (msgHasTranslatable && settings.translate.showTranslateButton) {
+        const existing = getInlineTranslation(cid ?? 0, msg.id);
+        if (existing) {
+            // 已有译文：显示原文
+            items.push({
+                key: 'translate-original',
+                label: t('lng_translate_show_original'),
+                icon: LanguagesIcon,
+                onClick: () => removeTranslateFor(msg),
+            });
+        } else {
+            items.push({
+                key: 'translate',
+                label: t('lng_context_translate'),
+                icon: LanguagesIcon,
+                onClick: () => openTranslateFor(msg),
+            });
+        }
     }
 
     // —— 复制链接 ——
@@ -4796,12 +5092,45 @@ const messagesContainerStyle = computed<Record<string, string>>(() => {
     return listRevealed.value ? base : { ...base, opacity: '0' };
 });
 
-/** 动态顶部间距：同时考虑顶置栏和音乐播放器入口 */
+/** 动态顶部间距：Header + 置顶/音乐卡片 + 全部翻译栏 */
 const showTopCard = computed(() => pinnedBarVisible.value || player.showEntry);
+/** 全部翻译栏是否可见（Premium+is_translatable / has_automatic_translation / 非官方提供方） */
+const translateBarVisible = computed(() => chatTranslateBarVisible());
+/** 顶部栈是否渲染（置顶/音乐 或 翻译栏 或 吸顶日期） */
+const topStackHasCard = computed(() => showTopCard.value || translateBarVisible.value);
+const showChatTranslateBarUi = computed(() => !translateBarHidden.value && translateBarVisible.value);
+const topStackVisible = computed(() => topStackHasCard.value || !!stickyDateDisplay.value);
+
+/**
+ * 用于语言检测的样本文本：最近几条有正文的非自己消息。
+ * ChatTranslateBar「不翻译该语言」据此识别源语言并写入排除列表。
+ */
+const translateSampleText = computed(() => {
+    const list = messages.value;
+    for (let i = list.length - 1; i >= 0; i--) {
+        const m = list[i];
+        if (m.is_outgoing) continue;
+        const text = getMessagePlainText(m).trim();
+        if (text.length >= 2) return text.slice(0, 400);
+    }
+    return '';
+});
+
+/**
+ * 顶部栈 top：置顶/播放器/全部翻译均并入同一圆角卡片，统一贴 Header 下方稍留缝；
+ * 仅吸顶日期时紧贴 Header 底边。
+ */
+const topStackTopStyle = computed(() => ({
+    top: `${((showTopCard.value || showChatTranslateBarUi.value) ? 70 : 64) + topicTagTopSpace.value}px`,
+}));
 
 const topPaddingClass = computed(() => {
-    if (showTopCard.value) return 'pt-33';
-    return 'pt-16';
+    // Header h-16=64px；话题顶部标签栏；顶置/播放器卡片约 +68px
+    // 全部翻译与卡片贴合：有置顶/播放器时仅 +36（无额外间隙）；单独成卡时约 +44（含描边）
+    let px = 64 + topicTagTopSpace.value;
+    if (showTopCard.value) px += 68;
+    if (translateBarVisible.value) px += showTopCard.value ? 36 : 44;
+    return { paddingTop: `${px}px` };
 });
 
 // ==================== Sticky Date ====================
@@ -5220,6 +5549,8 @@ async function handleScrollToBottom() {
     z-index: 0;
 }
 
+/* 话题标签栏（左侧 list / tag）由 TopicTagBar 自身定位 */
+
 /* 新消息淡入上弹动画 */
 @keyframes message-pop-in {
     from {
@@ -5363,5 +5694,38 @@ async function handleScrollToBottom() {
 .messages-scroll [data-bubble-msg-id] {
     word-break: break-word;
     line-height: 1.4;
+}
+
+/* 话题标签栏位置切换/出现动画（非 scoped）
+   按 data-pos / animClass 方向：左←左向，上←上向，下←下向 */
+@keyframes tag-in-left {
+    from { transform: translateX(-100%); opacity: 0; }
+    to   { transform: translateX(0); opacity: 1; }
+}
+@keyframes tag-in-top {
+    from { transform: translateY(-100%); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+}
+@keyframes tag-in-bottom {
+    from { transform: translateY(100%); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+}
+
+.tag-anim-left {
+    animation: tag-in-left 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+.tag-anim-top {
+    animation: tag-in-top 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+.tag-anim-bottom {
+    animation: tag-in-bottom 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* 标签栏位置切换时，Header / 置顶栈 / 输入条的 inset 与 top 平滑过渡，避免闪跳 */
+.topic-chrome-anim {
+    transition: padding 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+        top 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+        left 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+        right 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 </style>

@@ -5,8 +5,10 @@
                 <!-- 账户菜单浮层（左下角，跟随导航栏头像位置） -->
                 <div
                     class="absolute left-3 top-10 w-80 max-w-[calc(100vw-2rem)] max-h-[calc(100vh-3.5rem)] flex flex-col rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
-                    <!-- 当前用户信息 -->
-                    <div class="flex items-center gap-3 px-4 py-4 border-b border-gray-100 dark:border-gray-700">
+                    <!-- 当前用户信息：点击跳转个人主页 -->
+                    <div
+                        class="flex items-center gap-3 px-4 py-4 border-b border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                        @click="openMyProfile">
                         <div class="w-12 h-12 shrink-0">
                             <Avatar v-if="userProfile" :photo="userProfile.profile_photo"
                                 :title="userProfile.first_name + ' ' + userProfile.last_name"
@@ -161,6 +163,7 @@ import Avatar from './chat/avatar.vue';
 import { useUserStore } from '../store/user';
 import { useAccountsStore, type AccountInfo } from '../store/accounts';
 import { storeToRefs } from 'pinia';
+import { useRouter } from 'vue-router';
 
 const visible = defineModel<boolean>('visible', { default: false });
 const emit = defineEmits<{ (e: 'close'): void }>();
@@ -169,6 +172,7 @@ const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
 const accountsStore = useAccountsStore();
 const { accounts } = storeToRefs(accountsStore);
+const router = useRouter();
 
 const showAdd = ref(false);
 const adding = ref(false);
@@ -211,6 +215,13 @@ function accountSubtitle(acc: AccountInfo): string {
 function close() {
     visible.value = false;
     emit('close');
+}
+
+/** 点击当前用户信息栏 → 打开自己的个人主页 */
+function openMyProfile() {
+    if (!userProfile.value) return;
+    close();
+    router.push({ name: 'user-profile', params: { id: String(userProfile.value.id) } });
 }
 
 function onSelect(acc: AccountInfo) {

@@ -155,6 +155,20 @@
                     <ChevronRightIcon class="w-4 h-4 text-gray-400" />
                 </router-link>
 
+                <router-link to="/home/settings/translate"
+                    class="flex items-center px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    active-class="bg-blue-50 dark:bg-gray-800 text-blue-600">
+                    <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center mr-3">
+                        <LanguagesIcon class="w-5 h-5" />
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{
+                            t('translateSettings.title') }}</h3>
+                        <p class="text-xs text-gray-500">{{ t('translateSettings.listSubtitle') }}</p>
+                    </div>
+                    <ChevronRightIcon class="w-4 h-4 text-gray-400" />
+                </router-link>
+
                 <!-- 系统设置（测试数据中心、自定义 API ID/Hash） -->
                 <router-link to="/home/settings/system"
                     class="flex items-center px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -220,7 +234,7 @@
 </template>
 
 <script setup lang="ts">
-import { PaletteIcon, ChevronRightIcon, GlobeIcon, DatabaseIcon, NetworkIcon, SendIcon, TerminalSquare as TerminalSquareIcon, Settings as SettingsIcon, UserCog as UserCogIcon, Shield as ShieldIcon, Laptop as LaptopIcon, Bell as BellIcon } from 'lucide-vue-next';
+import { PaletteIcon, ChevronRightIcon, GlobeIcon, DatabaseIcon, NetworkIcon, SendIcon, TerminalSquare as TerminalSquareIcon, Settings as SettingsIcon, UserCog as UserCogIcon, Shield as ShieldIcon, Laptop as LaptopIcon, Bell as BellIcon, Languages as LanguagesIcon } from 'lucide-vue-next';
 import avatar from './avatar.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 import { useUserStore } from '../../store/user';
