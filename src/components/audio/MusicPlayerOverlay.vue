@@ -113,8 +113,8 @@
                                 player.playlist.length }})</span>
                         </div>
                         <div class="pb-2">
-                            <div v-for="(track, idx) in player.playlist" :key="track.messageId"
-                                @click="player.playTrack(idx)"
+                            <div v-for="(track, idx) in player.playlist" :key="track.messageId || track.fileId"
+                                @click="player.playTrack(idx)" @contextmenu.prevent.stop="onTrackContextMenu($event, track, idx)"
                                 class="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                                 :class="{ 'bg-blue-50 dark:bg-blue-900/20': idx === player.currentIndex }">
                                 <div
@@ -151,16 +151,132 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import {
     PlayIcon, PauseIcon, SkipBackIcon, SkipForwardIcon,
     XIcon, MusicIcon, Volume2Icon, Volume1Icon, VolumeXIcon,
     RepeatIcon, Repeat1Icon, ShuffleIcon, ListOrderedIcon,
+    EyeIcon, FolderOpenIcon, DownloadIcon, BookmarkPlusIcon, Trash2Icon,
 } from 'lucide-vue-next';
-import { useAudioPlayerStore } from '../../store/audioPlayer';
+import { MessagePlugin } from 'tdesign-vue-next';
+import { revealItemInDir } from '@tauri-apps/plugin-opener';
+import { save } from '@tauri-apps/plugin-dialog';
+import { copyFile } from '@tauri-apps/plugin-fs';
+import { useAudioPlayerStore, type AudioTrack } from '../../store/audioPlayer';
+import { useUserStore } from '../../store/user';
+import { openContextMenu } from '../../store/contextMenu';
+import type { ContextMenuItem } from '../contextMenu/types';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 
 const player = useAudioPlayerStore();
+const userStore = useUserStore();
+const router = useRouter();
 const previousVolume = ref(1);
+
+/** 当前用户 id（判断是否为「自己个人资料」的歌曲） */
+const myUserId = computed(() => userStore.userProfile?.id);
+
+/** 曲目右键菜单：跳转消息 / 打开文件夹 / 另存为 / 保存到我的资料（自己的资料歌曲则为移除） */
+function onTrackContextMenu(e: MouseEvent, track: AudioTrack, idx: number) {
+    const items: ContextMenuItem[] = [];
+
+    // 跳转消息（对话/群资料来源，有消息快照）
+    if (track.source !== 'profile' && track.messageSnapshot && track.chatId && track.messageId) {
+        items.push({
+            key: 'jump-to-message',
+            label: '跳转消息',
+            icon: EyeIcon,
+            onClick: () => {
+                player.toggleOverlay();
+                router.push({
+                    name: 'chat-detail',
+                    params: { id: String(track.chatId) },
+                    query: { message: String(track.messageId) },
+                });
+            },
+        });
+    }
+
+    // 打开文件夹 / 另存为（需本地已下载文件）
+    const localPath = track.localPath;
+    if (localPath) {
+        items.push({
+            key: 'reveal-in-dir',
+            label: '打开文件夹',
+            icon: FolderOpenIcon,
+            onClick: async () => {
+                try {
+                    await revealItemInDir([localPath]);
+                } catch (err) {
+                    console.error('revealItemInDir failed:', err);
+                    MessagePlugin.error('打开文件夹失败');
+                }
+            },
+        });
+        items.push({
+            key: 'save-as',
+            label: '另存为',
+            icon: DownloadIcon,
+            onClick: async () => {
+                try {
+                    const fileName = track.title || `audio_${track.fileId}.mp3`;
+                    const dest = await save({ title: '另存为', defaultPath: fileName });
+                    if (!dest) return;
+                    await copyFile(localPath, dest);
+                    MessagePlugin.success('已另存为');
+                } catch (err) {
+                    console.error('saveAs failed:', err);
+                    MessagePlugin.error('另存为失败');
+                }
+            },
+        });
+    }
+
+    // 自己个人资料的歌曲 → 从我的资料移除；否则 → 保存到我的资料
+    const isOwnProfileTrack =
+        track.source === 'profile' && !!myUserId.value && track.profileUserId === myUserId.value;
+
+    items.push({ key: 'divider-profile', label: '', divider: true });
+    if (isOwnProfileTrack) {
+        items.push({
+            key: 'remove-profile-audio',
+            label: '从我的资料移除',
+            icon: Trash2Icon,
+            danger: true,
+            onClick: async () => {
+                const ok = await player.removeTrackFromMyProfile(track);
+                if (ok) {
+                    player.removeTrackAt(idx);
+                    MessagePlugin.success('已从我的资料移除');
+                } else {
+                    MessagePlugin.error('移除失败');
+                }
+            },
+        });
+    } else {
+        items.push({
+            key: 'save-to-profile',
+            label: '保存到我的资料',
+            icon: BookmarkPlusIcon,
+            onClick: async () => {
+                const ok = await player.saveTrackToMyProfile(track);
+                MessagePlugin.success(ok ? '已保存到我的资料' : '保存失败（需先下载完成）');
+            },
+        });
+    }
+
+    // 从播放列表移除（仅移出当前列表，不影响资料/消息）
+    items.push({
+        key: 'remove-from-list',
+        label: '从列表移除',
+        icon: XIcon,
+        onClick: () => {
+            player.removeTrackAt(idx);
+        },
+    });
+
+    openContextMenu(e.clientX, e.clientY, items, e.currentTarget as HTMLElement);
+}
 
 /** 拖拽中即时显示的进度 (0~1)，拖动时优先使用本地值，松手后回退到 store */
 const dragRatio = ref<number | null>(null);

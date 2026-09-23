@@ -203,18 +203,22 @@ const audioSrc = computed(() => {
     return track?.filePath || '';
 });
 
-// 监听音频源变化 → 加载并播放
-watch(audioSrc, (newSrc, oldSrc) => {
-    if (!newSrc || !audioRef.value) return;
+/** 装载并按需播放当前源 */
+function loadAndPlay(src: string) {
     const audio = audioRef.value;
-    // 只在源真正变化时才 reload，避免重复触发
-    if (newSrc !== oldSrc) {
-        audio.src = newSrc;
-        audio.load();
-        if (player.isPlaying) {
-            audio.play().catch(() => { });
-        }
+    if (!audio || !src) return;
+    audio.src = src;
+    audio.load();
+    if (player.isPlaying) {
+        audio.play().catch(() => { });
     }
+}
+
+// 源变化或播放纪元变化 → 加载并播放。
+// playEpoch 保证「同一 index 再次 playTrack」（列表循环绕回同一首 / 单曲列表循环）也会强制重载。
+watch([audioSrc, () => player.playEpoch], ([newSrc]) => {
+    if (!newSrc || !audioRef.value) return;
+    loadAndPlay(newSrc);
 });
 
 // 监听播放状态
