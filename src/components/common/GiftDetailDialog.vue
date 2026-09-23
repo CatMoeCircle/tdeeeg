@@ -8,8 +8,10 @@
                     <!-- NFT 头部：渐变底 + 符号图案 + 标题 -->
                     <div v-if="isUpgraded" class="relative shrink-0 overflow-hidden px-5 pb-3.5 pt-3 text-center"
                         :style="headerBackdropStyle">
-                        <div v-if="headerColors" class="gift-halo pointer-events-none absolute" :style="headerHaloStyle" />
-                        <div v-if="symbolStickerMsg" class="gift-pattern pointer-events-none absolute inset-0">
+                        <!-- 光晕层（与 GiftDisplay 一致：backdrop 内 200×200 居中） -->
+                        <div v-if="headerColors" class="gift-halo pointer-events-none" :style="headerHaloStyle" />
+                        <!-- 背景符号图案（Symbol.Sticker，半透明棋盘格绕中心铺开） -->
+                        <div v-if="symbolStickerMsg" class="gift-pattern pointer-events-none">
                             <div v-for="(item, i) in patternItems" :key="i" class="pattern-cell" :style="item.style">
                                 <MessageStickerContent :content="symbolStickerMsg" :size="item.size" />
                             </div>
@@ -235,29 +237,38 @@ const headerHaloStyle = computed(() => {
     if (!headerColors.value) return {};
     const c = headerColors.value.center;
     const e = headerColors.value.edge;
+    // 与 GiftDisplay._halo 一致：200×200 居中径向渐变，不要铺满（避免盖住图案层）
     return {
-        inset: '0',
-        background: `radial-gradient(rgb(${c.join(',')}) 0%, rgb(${e.join(',')}) 55%)`,
+        width: '200px',
+        height: '200px',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        background: `radial-gradient(rgb(${c.join(',')}) 0%, rgb(${e.join(',')}) 50%)`,
     };
 });
 
-/** 符号图案：绕中心棋盘格铺开，边缘更淡 */
+/** 背景符号图案：与 GiftDisplay 同算法（棋盘格绕中心铺开，越靠边越淡） */
 const patternItems = computed(() => {
-    const width = 360;
-    const height = 220;
-    const cx = width / 2;
-    const cy = height * 0.42;
-    const cell = 32;
-    const symbol = 24;
+    // 头部可视区域约 360×200，以中心为原点铺棋盘格
+    const half = 180;
+    const cell = 36;
+    const symbol = 28;
+    const extent = 5;
     const items: { size: number; style: Record<string, string> }[] = [];
-    for (let row = -4; row <= 4; row++) {
-        for (let col = -8; col <= 8; col++) {
+    const cx = half;
+    const cy = 100;
+    for (let row = -extent; row <= extent; row++) {
+        for (let col = -extent; col <= extent; col++) {
+            // 棋盘交错：放一个空一个，下一行错位
             if (((row + col) & 1) !== 0) continue;
             const x = col * cell;
-            const y = row * cell;
-            const dist = Math.hypot(x, y * 1.4);
-            if (dist < 8) continue;
-            const opacity = Math.max(0.06, 1 - (dist / 160) * 0.85);
+            const y = row * cell * 0.9;
+            const dist = Math.hypot(x, y);
+            // 跳过正中心（留给 Model.Sticker 主体）
+            if (dist < 12) continue;
+            // 越靠边越透明
+            const opacity = Math.max(0.12, 1 - (dist / half) * 0.75);
             items.push({
                 size: symbol,
                 style: {
@@ -275,14 +286,18 @@ const patternItems = computed(() => {
 </script>
 
 <style scoped>
+/* 光晕：absolute 200×200 居中（尺寸由 headerHaloStyle 内联给出） */
 .gift-halo {
     position: absolute;
     pointer-events: none;
 }
 
+/* 背景图案层：铺满头部、裁剪溢出；整体半透明 */
 .gift-pattern {
+    position: absolute;
+    inset: 0;
     overflow: hidden;
-    opacity: 0.35;
+    opacity: 0.55;
 }
 
 .pattern-cell {
