@@ -5,7 +5,8 @@
     <MessageGiveawayWinnersContent v-else-if="content._ === 'messageGiveawayWinners'" :content="content"
         :messageList="messageList" />
 
-    <MessageGiftContent v-else-if="content._ === 'messageGift'" :content="content" :date="date" />
+    <MessageGiftContent v-else-if="content._ === 'messageGift' || content._ === 'messageUpgradedGift'"
+        :content="content" :date="date" :is-self="isSelf" />
 
     <MessageServiceContent v-else-if="isServiceContent(content)" :content="content" :senderName="senderName"
         :messageList="messageList" :chatId="chatId" @jump="onServiceJump" />

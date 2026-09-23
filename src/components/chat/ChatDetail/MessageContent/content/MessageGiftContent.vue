@@ -17,8 +17,9 @@
             <p class="mt-1 text-sm text-gray-700 dark:text-gray-300">
                 <GlobalEmojiText :text="profileText" />
             </p>
-            <p v-if="content.text.text" class="mt-2 line-clamp-2 text-sm text-gray-600 dark:text-gray-300">
-                “{{ content.text.text }}”
+            <!-- 礼物说明：支持自定义 emoji -->
+            <p v-if="giftText?.text" class="mt-2 line-clamp-2 text-sm text-gray-600 dark:text-gray-300">
+                <FormattedTextInline :formattedText="giftText" :size="18" />
             </p>
             <button type="button"
                 class="mt-4 rounded-full bg-white/50 backdrop-blur-sm px-6 py-1.5 text-sm font-medium text-gray-900 hover:bg-white/70 focus:outline-none focus:ring-2 focus:ring-black/20 dark:bg-white/15 dark:text-white dark:hover:bg-white/25 dark:focus:ring-white/20"
@@ -28,140 +29,108 @@
         </div>
     </div>
 
-    <Teleport to="body">
-        <Transition name="gift-dialog">
-            <div v-if="detailsOpen"
-                class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
-                role="dialog" aria-modal="true" aria-labelledby="gift-dialog-title" @mousedown.self="closeDetails">
-                <div
-                    class="w-120 max-w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-800">
-                    <div class="relative px-6 pb-5 pt-5 text-center">
-                        <button type="button" :aria-label="t('lng_close')"
-                            class="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-                            @click="closeDetails">
-                            <XIcon class="h-5 w-5" />
-                        </button>
-
-                        <div class="mx-auto flex h-36 items-center justify-center">
-                            <MessageStickerContent :content="stickerContent" :size="144" />
-                        </div>
-                        <h2 id="gift-dialog-title" class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
-                            <GlobalEmojiText :text="dialogTitle" />
-                        </h2>
-                        <p class="mx-auto mt-1 max-w-sm text-sm text-gray-600 dark:text-gray-300">
-                            <GlobalEmojiText :text="dialogDescription" />
-                        </p>
-
-                        <div
-                            class="mt-5 overflow-hidden rounded-lg border border-gray-200 text-left text-sm dark:border-gray-600">
-                            <div class="flex min-h-12 border-b border-gray-200 dark:border-gray-600">
-                                <div
-                                    class="flex w-20 shrink-0 items-center bg-gray-50 px-3 text-gray-700 dark:bg-gray-700/60 dark:text-gray-200">
-                                    {{ partyLabel }}
-                                </div>
-                                <div
-                                    class="flex min-w-0 flex-1 items-center gap-2 px-3 text-[#168acd] dark:text-sky-400">
-                                    <div class="flex h-7 w-7 shrink-0 overflow-hidden rounded-full">
-                                        <Avatar :photo="party?.photo" :title="partyName"
-                                            :accent-color-id="party?.accentColorId" />
-                                    </div>
-                                    <span class="truncate font-medium">
-                                        <GlobalEmojiText :text="partyName" />
-                                    </span>
-                                </div>
-                            </div>
-                            <div class="flex min-h-12 border-b border-gray-200 dark:border-gray-600">
-                                <div
-                                    class="flex w-20 shrink-0 items-center bg-gray-50 px-3 text-gray-700 dark:bg-gray-700/60 dark:text-gray-200">
-                                    {{ t('lng_gift_link_label_date') }}</div>
-                                <div class="flex flex-1 items-center px-3 text-gray-800 dark:text-gray-100">{{
-                                    formattedDate }}</div>
-                            </div>
-                            <div class="flex min-h-12">
-                                <div
-                                    class="flex w-20 shrink-0 items-center bg-gray-50 px-3 text-gray-700 dark:bg-gray-700/60 dark:text-gray-200">
-                                    {{ t('lng_gift_link_label_value') }}</div>
-                                <div class="flex flex-1 items-center gap-2 px-3 text-gray-800 dark:text-gray-100">
-                                    <span class="text-xl leading-none">⭐</span>
-                                    <span>{{ content.gift.star_count }}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <p v-if="content.text.text"
-                            class="mt-4 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:bg-gray-700/60 dark:text-gray-300">
-                            “{{ content.text.text }}”
-                        </p>
-                        <p class="mt-4 text-sm text-gray-500 dark:text-gray-400">{{ visibilityText }}</p>
-                    </div>
-                    <div class="border-t border-gray-200 bg-gray-50 px-7 py-5 dark:border-gray-700 dark:bg-gray-900/40">
-                        <button type="button"
-                            class="w-full rounded-lg bg-[#2e9cd3] py-2.5 text-base font-medium text-white hover:bg-[#278cc0] focus:outline-none focus:ring-2 focus:ring-sky-400/60"
-                            @click="closeDetails">
-                            {{ t('lng_box_ok') }}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </Transition>
-    </Teleport>
+    <GiftDetailDialog :open="detailsOpen" :data="detailData" @close="closeDetails" />
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { XIcon } from 'lucide-vue-next';
-import type { chat, chatPhotoInfo, messageGift, messageSticker, profilePhoto, user, MessageSender } from 'tdlib-types';
-import { tdlibSend } from '../../../../../utils/tdlib';
+import type {
+    formattedText,
+    gift,
+    messageGift,
+    messageSticker,
+    messageUpgradedGift,
+    sticker,
+} from 'tdlib-types';
 import { useUserStore } from '../../../../../store/user';
-import Avatar from '../../../avatar.vue';
 import MessageStickerContent from './MessageStickerContent.vue';
 import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
+import FormattedTextInline from '../../../FormattedTextInline.vue';
+import GiftDetailDialog from '../../../../common/GiftDetailDialog.vue';
+import { buildGiftDetailData, resolveGiftParty, type GiftDetailData, type GiftDetailParty } from '../../../../../utils/giftDetail';
 
-type GiftParty = {
-    name: string;
-    photo?: chatPhotoInfo | profilePhoto;
-    accentColorId?: number;
-};
+type GiftMessageContent = messageGift | messageUpgradedGift;
 
 const props = defineProps<{
-    content: messageGift;
+    content: GiftMessageContent;
     date?: number;
+    isSelf?: boolean;
 }>();
 
 const userStore = useUserStore();
 const detailsOpen = ref(false);
-const sender = ref<GiftParty>();
-const receiver = ref<GiftParty>();
+const detailData = ref<GiftDetailData | null>(null);
+const sender = ref<GiftDetailParty>();
+const receiver = ref<GiftDetailParty>();
+
+const isUpgradedMsg = computed(() => props.content._ === 'messageUpgradedGift');
+
+const regularGift = computed<gift | null>(() => {
+    if (isUpgradedMsg.value) return null;
+    return (props.content as messageGift).gift ?? null;
+});
+
+const upgradedGiftData = computed(() => {
+    if (!isUpgradedMsg.value) return null;
+    return (props.content as messageUpgradedGift).gift ?? null;
+});
+
+const mainSticker = computed<sticker | null>(() => {
+    if (isUpgradedMsg.value) return upgradedGiftData.value?.model?.sticker ?? null;
+    return regularGift.value?.sticker ?? null;
+});
 
 const stickerContent = computed<messageSticker>(() => ({
     _: 'messageSticker',
-    sticker: props.content.gift.sticker,
+    sticker: mainSticker.value!,
     is_premium: false,
 }));
 
+const giftText = computed<formattedText | null>(() => {
+    if (isUpgradedMsg.value) {
+        return (props.content as messageUpgradedGift).gift?.original_details?.text ?? null;
+    }
+    return (props.content as messageGift).text ?? null;
+});
+
 const currentUserId = computed(() => userStore.userProfile?.id);
-const isIncoming = computed(() =>
-    props.content.receiver_id._ === 'messageSenderUser'
-    && props.content.receiver_id.user_id === currentUserId.value,
-);
-const isOutgoing = computed(() =>
-    props.content.sender_id?._ === 'messageSenderUser'
-    && props.content.sender_id.user_id === currentUserId.value,
-);
+
+function senderIdOf(c: GiftMessageContent) {
+    return c.sender_id;
+}
+function receiverIdOf(c: GiftMessageContent) {
+    return c.receiver_id;
+}
+
+const isIncoming = computed(() => {
+    const rid = receiverIdOf(props.content);
+    return rid?._ === 'messageSenderUser' && rid.user_id === currentUserId.value;
+});
+const isOutgoing = computed(() => {
+    const sid = senderIdOf(props.content);
+    return sid?._ === 'messageSenderUser' && sid.user_id === currentUserId.value;
+});
 
 const senderName = computed(() => sender.value?.name || '匿名用户');
 const receiverName = computed(() => receiver.value?.name || '收礼人');
-const party = computed(() => isOutgoing.value ? receiver.value : sender.value);
 const partyName = computed(() => isOutgoing.value ? receiverName.value : senderName.value);
-const partyLabel = computed(() => isOutgoing.value ? t('lng_gift_link_label_to') : t('lng_credits_box_history_entry_peer_in'));
 
-const starCost = computed(() => t('lng_action_gift_for_stars', { count: props.content.gift.star_count }));
+const starCount = computed(() => regularGift.value?.star_count ?? 0);
+const starCost = computed(() => t('lng_action_gift_for_stars', { count: starCount.value }));
+
 const notificationText = computed(() => {
+    if (isUpgradedMsg.value) {
+        const ug = upgradedGiftData.value;
+        const collectible = t('lng_gift_unique_number', { index: ug?.number ?? 0 });
+        if (isOutgoing.value) return t('lng_action_gift_unique_sent');
+        return t('lng_action_gift_unique_received', { user: senderName.value }) || collectible;
+    }
     if (isOutgoing.value) return t('lng_action_gift_received_me', { user: receiverName.value, cost: starCost.value });
     if (isIncoming.value) {
-        if (!props.content.sender_id || props.content.sender_id._ !== 'messageSenderUser') {
+        const sid = senderIdOf(props.content);
+        if (!sid || sid._ !== 'messageSenderUser') {
             return t('lng_action_gift_received_anonymous', { cost: starCost.value });
         }
         return t('lng_action_gift_received', { user: senderName.value, cost: starCost.value });
@@ -169,68 +138,44 @@ const notificationText = computed(() => {
     return t('lng_action_gift_sent_channel', { user: senderName.value, name: receiverName.value, cost: starCost.value });
 });
 
-const cardTitle = computed(() => isOutgoing.value
-    ? t('lng_action_gift_sent_subtitle', { user: receiverName.value })
-    : t('lng_action_gift_got_subtitle', { user: senderName.value }),
-);
-const profileText = computed(() => {
-    if (!isIncoming.value) return starCost.value;
-    return props.content.is_saved
-        ? t('lng_action_gift_displayed_self', { name: partyName.value })
-        : starCost.value;
-});
-const dialogTitle = computed(() => isOutgoing.value
-    ? t('lng_action_gift_sent_subtitle', { user: receiverName.value })
-    : isIncoming.value
-        ? t('lng_action_gift_got_subtitle', { user: senderName.value })
-        : t('lng_action_gift_sent_subtitle', { user: receiverName.value }));
-const dialogDescription = computed(() => {
-    if (isIncoming.value) return t('lng_action_gift_received', { user: senderName.value, cost: starCost.value });
-    if (isOutgoing.value) return t('lng_action_gift_received_me', { user: receiverName.value, cost: starCost.value });
-    return t('lng_action_gift_sent_channel', { user: senderName.value, name: receiverName.value, cost: starCost.value });
-});
-const visibilityText = computed(() => {
-    if (!isIncoming.value) return starCost.value;
-    return props.content.is_saved
-        ? t('lng_action_gift_displayed_self', { name: partyName.value })
-        : starCost.value;
-});
-const formattedDate = computed(() => {
-    if (!props.date) return '未知';
-    return new Intl.DateTimeFormat('zh-CN', {
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', hour12: false,
-    }).format(new Date(props.date * 1000));
-});
-
-function displayUserName(value: user): string {
-    return `${value.first_name} ${value.last_name}`.trim() || '已删除账号';
-}
-
-async function resolveParty(id?: MessageSender): Promise<GiftParty | undefined> {
-    if (!id) return undefined;
-    try {
-        if (id._ === 'messageSenderUser') {
-            const value = await tdlibSend({ _: 'getUser', user_id: id.user_id }) as user;
-            return { name: displayUserName(value), photo: value.profile_photo, accentColorId: value.accent_color_id };
-        }
-        const value = await tdlibSend({ _: 'getChat', chat_id: id.chat_id }) as chat;
-        return { name: value.title, photo: value.photo, accentColorId: value.accent_color_id };
-    } catch {
-        return undefined;
+const cardTitle = computed(() => {
+    if (isUpgradedMsg.value) {
+        return upgradedGiftData.value?.title || t('lng_sr_message_column_gift');
     }
-}
+    return isOutgoing.value
+        ? t('lng_action_gift_sent_subtitle', { user: receiverName.value })
+        : t('lng_action_gift_got_subtitle', { user: senderName.value });
+});
+
+const profileText = computed(() => {
+    if (isUpgradedMsg.value) {
+        return t('lng_gift_unique_number', { index: upgradedGiftData.value?.number ?? 0 });
+    }
+    if (!isIncoming.value) return starCost.value;
+    return (props.content as messageGift).is_saved
+        ? t('lng_action_gift_displayed_self', { name: partyName.value })
+        : starCost.value;
+});
 
 async function loadParties() {
     if (!userStore.userProfile) await userStore.fetchUser();
-    [sender.value, receiver.value] = await Promise.all([
-        resolveParty(props.content.sender_id),
-        resolveParty(props.content.receiver_id),
+    const [s, r] = await Promise.all([
+        resolveGiftParty(senderIdOf(props.content)),
+        resolveGiftParty(receiverIdOf(props.content)),
     ]);
+    sender.value = s;
+    receiver.value = r;
 }
 
-function openDetails() {
+async function openDetails() {
     detailsOpen.value = true;
+    detailData.value = await buildGiftDetailData(
+        isUpgradedMsg.value
+            ? { type: 'messageUpgradedGift', value: props.content as messageUpgradedGift, date: props.date }
+            : { type: 'messageGift', value: props.content as messageGift, date: props.date },
+        (key: string, params?: Record<string, unknown>) => t(key, params as Record<string, unknown>),
+        { isSelf: isOutgoing.value || !!props.isSelf },
+    );
 }
 
 function closeDetails() {
@@ -241,19 +186,10 @@ function onKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape' && detailsOpen.value) closeDetails();
 }
 
-watch(() => props.content, loadParties, { immediate: true });
+watch(() => props.content, async () => {
+    await loadParties();
+    if (detailsOpen.value) await openDetails();
+}, { immediate: true });
 onMounted(() => window.addEventListener('keydown', onKeydown));
 onUnmounted(() => window.removeEventListener('keydown', onKeydown));
 </script>
-
-<style scoped>
-.gift-dialog-enter-active,
-.gift-dialog-leave-active {
-    transition: opacity 0.16s ease;
-}
-
-.gift-dialog-enter-from,
-.gift-dialog-leave-to {
-    opacity: 0;
-}
-</style>

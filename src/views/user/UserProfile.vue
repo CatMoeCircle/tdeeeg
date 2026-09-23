@@ -625,7 +625,8 @@
             </div>
             <div class="grid grid-cols-4 gap-1.5">
               <div v-for="(gift, i) in giftsList" :key="gift.received_gift_id || i"
-                class="flex items-center justify-center" :title="giftText(gift)">
+                class="flex items-center justify-center cursor-pointer" :title="giftText(gift)"
+                @click="openGiftDetail(gift)">
                 <GiftDisplay :gift="gift" :size="profileGiftCellSize" :show-sender-avatar="!gift.is_private" />
               </div>
             </div>
@@ -1060,6 +1061,9 @@
       :partner-name="secretChatPartnerName" />
 
     <ReportMessageConfirm />
+
+    <!-- 礼物详情弹窗（普通 / NFT 共用） -->
+    <GiftDetailDialog :open="giftDetailOpen" :data="giftDetailData" @close="closeGiftDetail" />
   </div>
 </template>
 
@@ -1074,6 +1078,8 @@ import CustomEmojiInline from "../../components/common/CustomEmojiInline.vue";
 import GlobalEmojiText from "../../components/common/GlobalEmojiText.vue";
 import EmojiDrawer from "../../components/chat/ChatDetail/stickerPanel/EmojiDrawer.vue";
 import GiftDisplay from "../../components/common/GiftDisplay.vue";
+import GiftDetailDialog from "../../components/common/GiftDetailDialog.vue";
+import { buildGiftDetailData, type GiftDetailData } from "../../utils/giftDetail";
 import MediaViewer from "../../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
 import type { MediaViewerItem } from "../../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
 import { useUserProfileStore } from "../../store/userProfile";
@@ -1948,9 +1954,10 @@ async function playSharedMusic(clickedIndex: number) {
 
   // 逐条播放（audioPlayer.playMessageAudio 内部会处理下载/流式/去重），
   // 但为了获得完整的列表体验，我们用 setPlaylist 替换整个播放列表。
-  // 先为每条消息构建 AudioTrack，filePath 稍后由 playTrack 按需准备。
+  // 对话/群资料：必须传递消息快照 + audio，播放器从 audio 取封面与曲目信息。
   const { convertFileSrc } = await import('@tauri-apps/api/core');
   const { isFileReady } = await import('../../utils/tdlib');
+  const { trackMetaFromAudio } = await import('../../store/audioPlayer');
 
   const tracks = musicItems.map((item): AudioTrack | undefined => {
     const msg = item.message!;
@@ -1958,21 +1965,28 @@ async function playSharedMusic(clickedIndex: number) {
     const audio = msg.content.audio;
     const file = audio.audio;
     let filePath = '';
+    let localPath: string | undefined;
     if (isFileReady(file) && file.local?.path) {
       filePath = convertFileSrc(file.local.path);
+      localPath = file.local.path;
     }
+    const meta = trackMetaFromAudio(audio, t('lng_media_music_title'), t('lng_sr_message_column_artist'));
     return {
       messageId: msg.id,
       chatId: msg.chat_id,
-      title: audio.title || audio.file_name || t('lng_media_music_title'),
-      performer: audio.performer || t('lng_sr_message_column_artist'),
-      duration: audio.duration,
+      title: meta.title,
+      performer: meta.performer,
+      duration: meta.duration,
       fileId: file.id,
       filePath,
+      localPath,
       sizeBytes: file.size || 0,
       mimeType: audio.mime_type || 'audio/mpeg',
       ready: !!filePath,
       source: 'message',
+      // 消息快照 + audio：封面/曲目信息与右键「跳转消息」都依赖
+      messageSnapshot: msg,
+      audio,
     };
   }).filter((track): track is AudioTrack => !!track);
 
@@ -2278,6 +2292,22 @@ const profileGiftCellSize = 112;
 function giftText(gift: receivedGift): string {
   const title = gift.gift._ === 'sentGiftUpgraded' ? gift.gift.gift.title : undefined;
   return title || gift.text?.text || t('lng_sr_message_column_gift');
+}
+
+// 礼物详情弹窗（普通 / NFT 共用 GiftDetailDialog）
+const giftDetailOpen = ref(false);
+const giftDetailData = ref<GiftDetailData | null>(null);
+
+async function openGiftDetail(gift: receivedGift) {
+  giftDetailData.value = await buildGiftDetailData(
+    { type: 'receivedGift', value: gift },
+    (key: string, params?: Record<string, unknown>) => t(key, params as Record<string, unknown>),
+  );
+  giftDetailOpen.value = true;
+}
+
+function closeGiftDetail() {
+  giftDetailOpen.value = false;
 }
 
 // ===== 动态 URL =====
