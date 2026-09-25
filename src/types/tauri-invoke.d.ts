@@ -50,7 +50,9 @@ declare module "@tauri-apps/api/core" {
     cmd: "set_proxy_config",
     args: {
       mode: string;
-      proxy_type?: string;
+      /** custom 模式下启用的代理 ID（TDLib getProxies）；Tauri 2 参数名为 camelCase */
+      proxyId?: number | null;
+      proxyType?: string;
       server?: string;
       port?: string;
       username?: string;

@@ -898,9 +898,8 @@ pub fn set_proxy_config(
             .lock()
             .map_err(|e| format!("Failed to lock proxy config: {e}"))?;
         cfg.mode = mode;
-        if proxy_id.is_some() {
-            cfg.proxy_id = proxy_id;
-        }
+        // 始终写入（含 None）：切换模式时清空旧 custom 代理 id，避免残留 id 被误启用
+        cfg.proxy_id = proxy_id;
         if let Some(v) = proxy_type {
             cfg.proxy_type = v;
         }

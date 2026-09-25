@@ -410,16 +410,16 @@ async function setMode(mode: "auto" | "system" | "disabled") {
             MessagePlugin.error(e?.message || "禁用代理失败");
             return;
         }
-    } else {
-        try {
-            await invoke("set_proxy_config", {
-                mode,
-                proxy_id: settings.proxy.selectedProxyId ?? undefined,
-            });
-        } catch (e: any) {
-            MessagePlugin.error(e?.message || "应用代理失败");
-            return;
-        }
+    }
+    // 所有模式（含 disabled）都同步到 Rust，避免重建客户端时恢复旧代理配置
+    try {
+        await invoke("set_proxy_config", {
+            mode,
+            proxyId: settings.proxy.selectedProxyId,
+        });
+    } catch (e: any) {
+        MessagePlugin.error(e?.message || "应用代理失败");
+        return;
     }
     MessagePlugin.success(mode === "disabled" ? "代理已禁用" : "代理已设置");
 }
@@ -439,7 +439,7 @@ async function useProxy(p: addedProxy) {
     try {
         await invoke("set_proxy_config", {
             mode: "custom",
-            proxy_id: p.id,
+            proxyId: p.id,
         });
     } catch (e: any) {
         MessagePlugin.error(e?.message || "应用代理失败");
@@ -511,7 +511,7 @@ async function submitAdd() {
         // 添加后立即选用
         settings.proxy.mode = "custom";
         settings.proxy.selectedProxyId = added.id;
-        await invoke("set_proxy_config", { mode: "custom", proxy_id: added.id });
+        await invoke("set_proxy_config", { mode: "custom", proxyId: added.id });
         await refreshProxies();
         closeAddDialog();
         MessagePlugin.success("代理已添加并启用");

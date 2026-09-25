@@ -322,9 +322,9 @@ async function selectMode(mode: "auto" | "disabled" | "system" | "custom") {
             MessagePlugin.error(e?.message || t('proxy.disableFailed'));
             return;
         }
-    } else {
-        await applyMode();
     }
+    // 所有模式（含 disabled）都同步到 Rust，避免重建客户端时恢复旧代理配置
+    await applyMode();
     MessagePlugin.success(mode === "disabled" ? t('proxy.disabled') : t('proxy.modeSwitched'));
 }
 
@@ -333,7 +333,7 @@ async function applyMode() {
     try {
         await invoke("set_proxy_config", {
             mode: settings.proxy.mode,
-            proxy_id: settings.proxy.selectedProxyId ?? undefined,
+            proxyId: settings.proxy.selectedProxyId,
         });
     } catch (e: any) {
         MessagePlugin.error(e?.message || t('proxy.applyFailed'));

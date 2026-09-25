@@ -162,7 +162,7 @@ async function applyMode() {
     try {
         await invoke("set_proxy_config", {
             mode: settings.proxy.mode,
-            proxy_id: settings.proxy.selectedProxyId ?? undefined,
+            proxyId: settings.proxy.selectedProxyId,
         });
     } catch (e: any) {
         MessagePlugin.error(e?.message || t('proxy.applyFailed'));
