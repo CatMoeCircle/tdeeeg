@@ -1,0 +1,36 @@
+name: 新功能请求
+description: 提出官方客户端没有的新功能 / Suggest a new feature that is not in official Telegram clients
+title: "[Feature]: "
+labels: ["type: feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提出一个**官方客户端也没有**的新功能。如果官方客户端已有该功能，请改用 **缺失的 Telegram 功能** 模板。
+  - type: textarea
+    id: problem
+    attributes:
+      label: 问题 / 动机
+      description: 这个功能解决什么问题，或让什么操作更方便？
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 期望的方案
+      description: 你希望实现什么？请说明预期行为，必要时可附示意图。
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 备选方案
+      description: 你考虑过的其他方案或临时变通方法。
+    validations:
+      required: false
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充信息
+    validations:
+      required: false

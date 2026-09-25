@@ -1,0 +1,37 @@
+name: 缺失的 Telegram 功能
+description: 官方客户端已有、本项目尚未实现 / A feature exists in official Telegram clients but not in this app
+title: "[Parity]: "
+labels: ["type: parity"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        记录**官方 Telegram 客户端已有、本项目尚未实现**的功能。如果是官方也没有的新想法，请改用 **新功能请求** 模板。
+  - type: input
+    id: feature-name
+    attributes:
+      label: 功能名称
+      description: 功能的简短名称，例如「聊天文件夹」「自动清除定时器」
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: 功能说明
+      description: 描述该功能在官方客户端中的表现（注明是手机端 / 桌面端 / 网页端）。
+    validations:
+      required: true
+  - type: input
+    id: reference
+    attributes:
+      label: 参考链接
+      description: Telegram 官方文档、博客或截图链接（可选）。
+    validations:
+      required: false
+  - type: textarea
+    id: notes
+    attributes:
+      label: 补充信息
+      description: API 支持情况、TDLib 支持情况或其他值得注意的点。
+    validations:
+      required: false

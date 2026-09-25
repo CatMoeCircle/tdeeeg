@@ -1,0 +1,37 @@
+name: Missing Telegram Feature
+description: A feature exists in official Telegram clients but not in this app
+title: "[Parity]: "
+labels: ["type: parity"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Track a feature that official Telegram clients already have but this app does not.
+  - type: input
+    id: feature-name
+    attributes:
+      label: Feature name
+      description: Short name of the feature, e.g. "Chat folders", "Auto-delete timer"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What the feature does
+      description: Describe the behavior in the official client (which client: mobile / desktop / web).
+    validations:
+      required: true
+  - type: input
+    id: reference
+    attributes:
+      label: Reference link
+      description: Link to Telegram docs, blog post, or screenshots showing the feature (optional).
+    validations:
+      required: false
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context
+      description: API availability, TDLib support, or anything else worth noting.
+    validations:
+      required: false

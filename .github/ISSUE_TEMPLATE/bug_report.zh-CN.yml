@@ -1,0 +1,59 @@
+name: BUG 反馈
+description: 报告 Bug 或异常行为 / Report a bug or unexpected behavior
+title: "[Bug]: "
+labels: ["type: bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你花时间提交 BUG 反馈！
+        Thanks for taking the time to report a bug!
+  - type: input
+    id: app-version
+    attributes:
+      label: 应用版本
+      description: 例如 0.3.1（可在应用内查看，或填写你安装的 Release 版本）
+      placeholder: 0.3.1
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options:
+        - Windows
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 发生了什么？你期望的结果是什么？
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 能稳定触发问题的最少步骤。
+      placeholder: |
+        1. 打开 ...
+        2. 点击 ...
+        3. 出现错误
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 截图
+      description: 截图（如有）。
+    validations:
+      required: false
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充信息
+      description: 其他有帮助的信息（TDLib 版本等）。
+    validations:
+      required: false

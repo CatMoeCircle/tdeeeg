@@ -1,0 +1,36 @@
+name: Feature Request
+description: Suggest a new feature that is not in official Telegram clients
+title: "[Feature]: "
+labels: ["type: feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Suggest something new. If the feature already exists in official Telegram clients, please use the **Missing Telegram Feature** template instead.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What problem would this feature solve, or what would it make easier?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like to happen? Include expected behavior and, if useful, a mockup.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other solutions or workarounds you have thought about.
+    validations:
+      required: false
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+    validations:
+      required: false
