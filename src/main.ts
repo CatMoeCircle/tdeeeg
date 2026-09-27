@@ -10,7 +10,7 @@ import "./assets/css/index.css";
 import "tdesign-vue-next/es/style/index.css";
 import i18n from "./i18n";
 import vContextMenu from "./directives/contextMenu";
-import vSmoothWheel from "./directives/smoothWheel";
+import vSmoothWheel, { installGlobalSmoothWheel } from "./directives/smoothWheel";
 import { closeContextMenu } from "./store/contextMenu";
 import { initTdlib, waitForAuthorization } from "./init";
 import { registerLoaderStyle, type LoaderStyle } from "./components/common/LoaderIndicator";
@@ -49,6 +49,29 @@ window.addEventListener("contextmenu", (e) => {
     e.preventDefault();
 });
 
+// 全局 user-select:none 下，点击不可选区域时浏览器不会自动取消已有文本选区。
+// 在 mousedown 捕获阶段：目标仍可选中则交给浏览器（开始/扩展选择）；否则手动清掉选区。
+// 用捕获阶段，避免子组件 @mousedown.stop 挡住清除。
+window.addEventListener(
+    "mousedown",
+    (e) => {
+        const sel = window.getSelection?.();
+        if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
+        const target = e.target as HTMLElement | null;
+        if (!target?.closest) return;
+        // 消息正文 / select-all|text|auto / 表单 / 可编辑区：保持原生选择行为
+        if (
+            target.closest(
+                "input, textarea, select, [contenteditable=''], [contenteditable='true'], .msg-selectable-text, .select-all, .select-text, .select-auto",
+            )
+        ) {
+            return;
+        }
+        sel.removeAllRanges();
+    },
+    true,
+);
+
 // 屏蔽开发者工具快捷键：F12，以及 Ctrl/Cmd+Shift+I / J / C（打开 DevTools / 元素审查）。
 // 开发模式（调试模式 debugMode 开启）下不屏蔽，便于直接按 F12 打开控制台。
 // 用户也可通过「开发者选项 → 打开开发者工具」按钮主动打开（Rust open_devtools）。
@@ -80,7 +103,9 @@ app.use(router);
 app.use(i18n);
 // 注册 v-context-menu 指令
 app.directive("context-menu", vContextMenu);
-// 注册 v-smooth-wheel（滚轮平滑滚动）指令
+// 全局滚轮平滑滚动（滚动缓冲）：覆盖所有可滚容器，无需逐处挂指令
+installGlobalSmoothWheel();
+// 注册 v-smooth-wheel（仅用于显式指定横/竖向，可选）
 app.directive("smooth-wheel", vSmoothWheel);
 
 // 应用启动流程：
