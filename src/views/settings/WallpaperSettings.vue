@@ -1,7 +1,7 @@
 <template>
     <div class="h-full flex flex-col bg-white dark:bg-gray-900">
         <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3 shrink-0">
-            <button type="button" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" @click="goBack"
+            <button type="button" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" @click="goBack"
                 :aria-label="t('lng_menu_back')">
                 <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
             </button>
@@ -16,27 +16,27 @@
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
                     <p class="text-xs text-gray-400 mt-2">{{ t('wallpaper.defaultDesc') }}</p>
-                    <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                        <div class="h-32 relative overflow-hidden">
-                            <div class="absolute inset-0" :style="previewBackgroundStyle"></div>
-                            <div class="absolute inset-0 bg-white"
-                                :style="{ opacity: settings.chatWallpaperOverlayOpacity / 100 }"></div>
-                            <div class="absolute inset-0 bg-black/5"></div>
-                            <div
-                                class="absolute left-4 bottom-4 z-10 rounded-2xl rounded-bl-md bg-white/90 dark:bg-gray-800/90 px-3 py-2 text-xs text-gray-700 dark:text-gray-200 shadow-sm">
-                                {{ t('wallpaper.previewIncoming') }}</div>
-                            <div
-                                class="absolute right-4 bottom-4 z-10 rounded-2xl rounded-br-md bg-blue-500/90 px-3 py-2 text-xs text-white shadow-sm">
-                                {{ t('wallpaper.previewOutgoing') }}</div>
-                        </div>
-                        <div class="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 flex items-center justify-between gap-3">
-                            <span class="text-xs text-gray-500 dark:text-gray-400">{{ selectedLabel }}</span><button
-                                type="button"
-                                class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50"
-                                :disabled="saving || !hasCustomDefault" @click="resetDefault">{{
-                                    t('wallpaper.resetDefault') }}</button>
-                        </div>
-                    </div>
+                    <PreviewCard class="mt-5" :show-header="false" body-class="h-32 relative overflow-hidden">
+                        <div class="absolute inset-0" :style="previewBackgroundStyle"></div>
+                        <div class="absolute inset-0 bg-white"
+                            :style="{ opacity: settings.chatWallpaperOverlayOpacity / 100 }"></div>
+                        <div class="absolute inset-0 bg-black/5"></div>
+                        <div
+                            class="absolute left-4 bottom-4 z-10 rounded-2xl rounded-bl-md bg-white/90 dark:bg-gray-800/90 px-3 py-2 text-xs text-gray-700 dark:text-gray-200 shadow-sm">
+                            {{ t('wallpaper.previewIncoming') }}</div>
+                        <div
+                            class="absolute right-4 bottom-4 z-10 rounded-2xl rounded-br-md bg-blue-500/90 px-3 py-2 text-xs text-white shadow-sm">
+                            {{ t('wallpaper.previewOutgoing') }}</div>
+                        <template #footer>
+                            <div class="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 flex items-center justify-between gap-3">
+                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ selectedLabel }}</span><button
+                                    type="button"
+                                    class="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50"
+                                    :disabled="saving || !hasCustomDefault" @click="resetDefault">{{
+                                        t('wallpaper.resetDefault') }}</button>
+                            </div>
+                        </template>
+                    </PreviewCard>
                     <div
                         class="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 space-y-4">
                         <div>
@@ -131,6 +131,7 @@ import { MessagePlugin } from 'tdesign-vue-next';
 import { tdlibSend, isFileReady, safeDownloadFile } from '../../utils/tdlib';
 import { isThumbnailImgRenderable } from '../../utils/thumbnail';
 import { settings } from '../../store/settings';
+import PreviewCard from '../../components/settings/PreviewCard.vue';
 import { DL_PRIORITY } from '../../utils/downloadPriority';
 import {
     ensureJpegWallpaper,

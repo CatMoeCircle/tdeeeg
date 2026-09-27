@@ -4,6 +4,7 @@ import { tdlibSend, isFileReady, safeDownloadFile } from './tdlib';
 import { settings, type ChatWallpaperVisual } from '../store/settings';
 import { onTdlibUpdate } from '../store/tdlibBus';
 import { DL_PRIORITY } from './downloadPriority';
+import i18n from '../i18n';
 import type { background, file } from 'tdlib-types';
 
 /** RGB 整数转 CSS 颜色（Telegram 为 0xRRGGBB） */
@@ -36,18 +37,18 @@ export async function ensureJpegWallpaper(path: string): Promise<string> {
     img.src = objectUrl;
     await new Promise<void>((resolve, reject) => {
       img.onload = () => resolve();
-      img.onerror = () => reject(new Error('图片加载失败'));
+      img.onerror = () => reject(new Error(i18n.global.t('lng_stickers_create_open_failed')));
     });
 
     const canvas = document.createElement('canvas');
     canvas.width = img.naturalWidth;
     canvas.height = img.naturalHeight;
     const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('无法处理图片');
+    if (!ctx) throw new Error(i18n.global.t('wallpaper.processImageFailed'));
     ctx.drawImage(img, 0, 0);
 
     const jpegBlob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.92));
-    if (!jpegBlob) throw new Error('图片转换为 JPEG 失败');
+    if (!jpegBlob) throw new Error(i18n.global.t('wallpaper.jpegConvertFailed'));
 
     const dir = await tempDir();
     const outPath = `${dir.replace(/[\\/]+$/, '')}\\tdgram_wallpaper_${Date.now()}.jpg`;
@@ -71,7 +72,7 @@ export async function waitForFileSettled(fileId: number, timeoutMs = 90_000): Pr
     if (!uploading && hasLocalPath) return f;
     await new Promise((r) => setTimeout(r, 200));
   }
-  throw new Error('壁纸上传超时，请检查网络后重试');
+  throw new Error(i18n.global.t('wallpaper.uploadTimeout'));
 }
 
 /** 解析 background 的高清本地路径；必要时先下载 */
