@@ -31,7 +31,7 @@ const emit = defineEmits<{
 }>();
 
 /** 发送者名称（未解析到时兜底） */
-const sender = computed(() => props.senderName?.trim() || '有人');
+const sender = computed(() => props.senderName?.trim() || t('service.someone'));
 
 /** 离开的成员可能已不在群内，主动发 getUser 拉取；用户缓存就绪后文案自动更新 */
 watch(
@@ -76,13 +76,13 @@ function findTaskNames(checklistMessageId: number): Map<number, string> {
  */
 function memberRemovedText(userId: number): string {
     const name = getUserDisplayName(userId);
-    if (!name) return '有成员离开了群组';
+    if (!name) return t('lng_action_user_left', { from: t('service.someone') });
     // 成员自行退出：此时消息发送者即该成员本人
     if (props.senderUserId === userId) return t('lng_action_user_left', { from: name });
     // 被其他成员/管理员移出：优先带出操作者
     const actor = props.senderName?.trim();
     if (actor) return t('lng_action_kick_user', { from: actor, user: name });
-    return t('lng_action_kick_user', { from: '', user: name });
+    return t('lng_action_kick_user', { from: t('service.someone'), user: name });
 }
 
 /** 置顶服务消息（messagePinMessage）文案，异步解析被置顶消息类型后填充 */
@@ -187,21 +187,38 @@ watch(
     { immediate: true },
 );
 
+/** 用官方 and_one / and_last 把名称列表拼成 "A, B and C" */
+function joinNames(names: string[], oneKey: string, lastKey: string): string {
+    if (names.length === 0) return '';
+    if (names.length === 1) return names[0];
+    let acc = names[0];
+    for (let i = 1; i < names.length; i++) {
+        const isLast = i === names.length - 1;
+        // add_users 系列用 {accumulated}/{user}，todo 系列用 {tasks}/{task}；两套都传，未用到的参数被忽略
+        acc = t(isLast ? lastKey : oneKey, { accumulated: acc, user: names[i], tasks: acc, task: names[i] });
+    }
+    return acc;
+}
+
 const serviceText = computed(() => {
     const c = props.content;
     switch (c._) {
         case 'messageBasicGroupChatCreate':
-            return `群组「${c.title}」已创建`;
+            return t('lng_action_created_chat', { from: sender.value, title: c.title });
         case 'messageSupergroupChatCreate':
-            return `超级群组「${c.title}」已创建`;
+            return t('lng_action_created_channel');
         case 'messageChatChangeTitle':
-            return `群组名称已更改为「${c.title}」`;
+            return t('lng_action_changed_title', { from: sender.value, title: c.title });
         case 'messageChatChangePhoto':
-            return `群组头像已更新`;
+            return t('lng_action_changed_photo', { from: sender.value });
         case 'messageChatDeletePhoto':
-            return `群组头像已删除`;
-        case 'messageChatAddMembers':
-            return `${c.member_user_ids.length} 位成员已加入群组`;
+            return t('lng_action_removed_photo', { from: sender.value });
+        case 'messageChatAddMembers': {
+            const names = c.member_user_ids.map(id => getUserDisplayName(id) || t('service.someone'));
+            if (names.length === 1) return t('lng_action_add_user', { from: sender.value, user: names[0] });
+            const users = joinNames(names, 'lng_action_add_users_and_one', 'lng_action_add_users_and_last');
+            return t('lng_action_add_users_many', { from: sender.value, users });
+        }
         case 'messageChatJoinByLink':
             return t('lng_action_user_joined_by_link', { from: sender.value });
         case 'messageChatJoinByRequest':
@@ -215,35 +232,37 @@ const serviceText = computed(() => {
         case 'messagePinMessage':
             return pinText.value;
         case 'messageScreenshotTaken':
-            return `对方截取了屏幕`;
+            return t('lng_action_took_screenshot', { from: sender.value });
         case 'messageChatSetMessageAutoDeleteTime':
-            return `自动删除消息时间已设置为 ${c.message_auto_delete_time} 秒`;
+            return c.message_auto_delete_time > 0
+                ? t('lng_action_ttl_changed', { from: sender.value, duration: t('lng_duration_seconds', { count: c.message_auto_delete_time }) })
+                : t('lng_action_ttl_removed', { from: sender.value });
         case 'messageForumTopicCreated':
-            return `主题「${c.name}」已创建`;
+            return t('lng_action_topic_created', { topic: c.name });
         case 'messageForumTopicEdited':
-            return `主题信息已更新`;
+            return t('service.topicEdited');
         case 'messageForumTopicIsClosedToggled':
-            return c.is_closed ? '主题已关闭' : '主题已重新开启';
+            return c.is_closed ? t('lng_action_topic_closed_inside') : t('lng_action_topic_reopened_inside');
         case 'messageCustomServiceAction':
             return c.text;
         case 'messageContactRegistered':
-            return `对方已注册 Telegram`;
+            return t('lng_action_user_registered', { from: sender.value });
         case 'messageCall':
-            return c.is_video ? '视频通话' : t('lng_settings_notifications_calls_title');
+            return c.is_video ? t('service.videoCall') : t('lng_settings_notifications_calls_title');
         case 'messageGameScore':
-            return `游戏得分已更新`;
+            return t('lng_action_game_score_no_game', { from: sender.value, count: c.score });
         case 'messagePaymentSuccessful':
-            return `支付成功`;
+            return t('service.paymentSuccessful');
         case 'messageGiftedPremium':
-            return `赠送了 Telegram Premium`;
+            return t('service.giftedPremium');
         case 'messageGiveaway':
-            return `抽奖活动`;
+            return t('lng_prizes_results_link');
         case 'messageGiveawayCompleted':
-            return `抽奖活动已结束`;
+            return t('lng_prizes_end_title');
         case 'messagePollOptionAdded':
-            return `${sender.value} 添加了选项：${c.text.text || ''}`;
+            return t('lng_action_poll_added_answer', { from: sender.value, option: c.text.text || '' });
         case 'messagePollOptionDeleted':
-            return `${sender.value} 删除了选项：${c.text.text || ''}`;
+            return t('lng_action_poll_deleted_answer', { from: sender.value, option: c.text.text || '' });
         case 'messageChecklistTasksDone': {
             const names = findTaskNames(c.checklist_message_id);
             const parts: string[] = [];
@@ -252,25 +271,30 @@ const serviceText = computed(() => {
                 const key = done ? 'lng_action_todo_marked_done' : 'lng_action_todo_marked_not_done';
                 const labels = ids.map(id => names.get(id)).filter((n): n is string => !!n);
                 if (labels.length === ids.length) {
-                    parts.push(t(key, { from: sender.value, tasks: labels.join(', ') }));
+                    const tasks = joinNames(labels, 'lng_action_todo_tasks_and_one', 'lng_action_todo_tasks_and_last');
+                    parts.push(t(key, { from: sender.value, tasks }));
                 } else {
-                    parts.push(t(key, { from: sender.value, tasks: `${ids.length} tasks` }));
+                    parts.push(t(key, { from: sender.value, tasks: t('lng_action_todo_tasks_fallback', { count: ids.length }) }));
                 }
             };
             appendGroup(c.marked_as_done_task_ids, true);
             appendGroup(c.marked_as_not_done_task_ids, false);
-            return parts.length ? parts.join('，') : `${sender.value} 更新了任务清单`;
+            if (parts.length === 0) return t('service.checklistUpdated', { from: sender.value });
+            if (parts.length === 1) return parts[0];
+            return t('lng_action_todo_tasks_and_one', { tasks: parts[0], task: parts[1] });
         }
         case 'messageChecklistTasksAdded': {
             const labels = c.tasks.map(t => t.text.text || `#${t.id}`).filter(Boolean);
-            if (labels.length === 0) return `${sender.value} 向任务清单添加了新任务`;
-            if (labels.length <= 3) return `${sender.value} 添加了任务「${labels.join('、')}」`;
-            return `${sender.value} 添加了 ${labels.length} 个任务`;
+            if (labels.length === 0) {
+                return t('lng_action_todo_added', { from: sender.value, tasks: t('lng_action_todo_tasks_fallback', { count: c.tasks.length }) });
+            }
+            const tasks = joinNames(labels, 'lng_action_todo_tasks_and_one', 'lng_action_todo_tasks_and_last');
+            return t('lng_action_todo_added', { from: sender.value, tasks });
         }
         case 'messageProximityAlertTriggered':
-            return `距离提醒已触发`;
+            return t('service.proximityAlert');
         default:
-            return `[系统消息: ${c._}]`;
+            return t('service.unknownService', { type: c._ });
     }
 });
 </script>

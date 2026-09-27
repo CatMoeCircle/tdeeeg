@@ -113,8 +113,8 @@ const isOutgoing = computed(() => {
     return sid?._ === 'messageSenderUser' && sid.user_id === currentUserId.value;
 });
 
-const senderName = computed(() => sender.value?.name || '匿名用户');
-const receiverName = computed(() => receiver.value?.name || '收礼人');
+const senderName = computed(() => sender.value?.name || t('content.anonymousUser'));
+const receiverName = computed(() => receiver.value?.name || t('content.recipient'));
 const partyName = computed(() => isOutgoing.value ? receiverName.value : senderName.value);
 
 const starCount = computed(() => regularGift.value?.star_count ?? 0);

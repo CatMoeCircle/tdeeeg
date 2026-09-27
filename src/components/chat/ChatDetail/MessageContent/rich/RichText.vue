@@ -73,6 +73,9 @@ import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
 import SpoilerSpan from '../spoiler/SpoilerSpan.vue';
 import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
 import { resolveInternalLink as resolveInternalLinkUtil } from '../../../../../utils/openInternalLink';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     text?: RichText;
@@ -95,49 +98,49 @@ type RichNode = {
 };
 
 /** 将 TDLib RichText 转成便于模板渲染的节点树；href/mention 等直接携带 */
-function normalize(t: RichText): RichNode {
-    switch (t._) {
-        case 'richTextBold': return { type: 'bold', text: t.text };
-        case 'richTextItalic': return { type: 'italic', text: t.text };
-        case 'richTextUnderline': return { type: 'underline', text: t.text };
-        case 'richTextStrikethrough': return { type: 'strikethrough', text: t.text };
-        case 'richTextSpoiler': return { type: 'spoiler', text: t.text };
-        case 'richTextSubscript': return { type: 'subscript', text: t.text };
-        case 'richTextSuperscript': return { type: 'superscript', text: t.text };
-        case 'richTextMarked': return { type: 'marked', text: t.text };
-        case 'richTextFixed': return { type: 'fixed', text: t.text };
-        case 'richTextUrl': return { type: 'url', text: t.text, href: t.url };
-        case 'richTextEmailAddress': return { type: 'email', text: t.text, href: `mailto:${t.email_address}` };
-        case 'richTextPhoneNumber': return { type: 'phone', text: t.text, href: `tel:${t.phone_number}` };
-        case 'richTextMention': return { type: 'mention', text: t.text, href: `https://t.me/${t.username.replace(/^@/, '')}` };
-        case 'richTextHashtag': return { type: 'hashtag', text: t.text };
-        case 'richTextCashtag': return { type: 'cashtag', text: t.text };
-        case 'richTextBankCardNumber': return { type: 'bankCard', text: t.text };
-        case 'richTextBotCommand': return { type: 'botCommand', text: t.text };
-        case 'richTextMentionName': return { type: 'mentionName', text: t.text, userId: t.user_id };
-        case 'richTextCustomEmoji': return { type: 'customEmoji', emojiId: String(t.custom_emoji_id), textStr: t.alternative_text ?? '' };
-        case 'richTextMathematicalExpression': return { type: 'mathematicalExpression', textStr: t.expression ?? '' };
-        case 'richTextReferenceLink': return { type: 'refLink', text: t.text, href: t.url };
-        case 'richTextAnchorLink': return { type: 'anchorLink', text: t.text, href: t.url };
+function normalize(rt: RichText): RichNode {
+    switch (rt._) {
+        case 'richTextBold': return { type: 'bold', text: rt.text };
+        case 'richTextItalic': return { type: 'italic', text: rt.text };
+        case 'richTextUnderline': return { type: 'underline', text: rt.text };
+        case 'richTextStrikethrough': return { type: 'strikethrough', text: rt.text };
+        case 'richTextSpoiler': return { type: 'spoiler', text: rt.text };
+        case 'richTextSubscript': return { type: 'subscript', text: rt.text };
+        case 'richTextSuperscript': return { type: 'superscript', text: rt.text };
+        case 'richTextMarked': return { type: 'marked', text: rt.text };
+        case 'richTextFixed': return { type: 'fixed', text: rt.text };
+        case 'richTextUrl': return { type: 'url', text: rt.text, href: rt.url };
+        case 'richTextEmailAddress': return { type: 'email', text: rt.text, href: `mailto:${rt.email_address}` };
+        case 'richTextPhoneNumber': return { type: 'phone', text: rt.text, href: `tel:${rt.phone_number}` };
+        case 'richTextMention': return { type: 'mention', text: rt.text, href: `https://t.me/${rt.username.replace(/^@/, '')}` };
+        case 'richTextHashtag': return { type: 'hashtag', text: rt.text };
+        case 'richTextCashtag': return { type: 'cashtag', text: rt.text };
+        case 'richTextBankCardNumber': return { type: 'bankCard', text: rt.text };
+        case 'richTextBotCommand': return { type: 'botCommand', text: rt.text };
+        case 'richTextMentionName': return { type: 'mentionName', text: rt.text, userId: rt.user_id };
+        case 'richTextCustomEmoji': return { type: 'customEmoji', emojiId: String(rt.custom_emoji_id), textStr: rt.alternative_text ?? '' };
+        case 'richTextMathematicalExpression': return { type: 'mathematicalExpression', textStr: rt.expression ?? '' };
+        case 'richTextReferenceLink': return { type: 'refLink', text: rt.text, href: rt.url };
+        case 'richTextAnchorLink': return { type: 'anchorLink', text: rt.text, href: rt.url };
         case 'richTextAnchor': return { type: 'anchor', textStr: '' };
-        case 'richTexts': return { type: 'texts', children: t.texts, textStr: '' };
-        case 'richTextReference': return { type: 'reference', text: t.text };
-        case 'richTextDiff': return { type: 'diff', text: t.text };
-        case 'richTextIcon': return { type: 'icon', textStr: '[图片]' };
-        case 'richTextDateTime': return { type: 'dateTime', text: t.text };
+        case 'richTexts': return { type: 'texts', children: rt.texts, textStr: '' };
+        case 'richTextReference': return { type: 'reference', text: rt.text };
+        case 'richTextDiff': return { type: 'diff', text: rt.text };
+        case 'richTextIcon': return { type: 'icon', textStr: t('content.richTextImage') };
+        case 'richTextDateTime': return { type: 'dateTime', text: rt.text };
         case 'richTextPlain':
-        default: return { type: 'plain', textStr: t.text ?? '' };
+        default: return { type: 'plain', textStr: rt.text ?? '' };
     }
 }
 
 const nodes = computed<RichNode[]>(() => {
-    const t = props.text;
-    if (!t) return [];
+    const rt = props.text;
+    if (!rt) return [];
     // richTexts 是一个数组，拆分成多个节点
-    if (t._ === 'richTexts') {
-        return t.texts.map((child) => normalize(child));
+    if (rt._ === 'richTexts') {
+        return rt.texts.map((child) => normalize(child));
     }
-    return [normalize(t)];
+    return [normalize(rt)];
 });
 
 /** 递归文本提取（用于复制等场景，当前仅为 plain 节点时的 fallback 判断） */
@@ -160,22 +163,22 @@ function handleClick(_event: MouseEvent, node: RichNode) {
     }
 }
 
-function copyPlainText(t?: RichText): void {
-    if (!t) return;
-    const text = extractText(t);
+function copyPlainText(rt?: RichText): void {
+    if (!rt) return;
+    const text = extractText(rt);
     if (!text) return;
     navigator.clipboard.writeText(text).catch(() => { });
 }
 
-function extractText(t?: RichText): string {
-    if (!t) return '';
-    switch (t._) {
-        case 'richTextPlain': return t.text ?? '';
-        case 'richTexts': return t.texts.map(extractText).join('');
-        case 'richTextCustomEmoji': return t.alternative_text ?? '';
-        case 'richTextMathematicalExpression': return t.expression ?? '';
+function extractText(rt?: RichText): string {
+    if (!rt) return '';
+    switch (rt._) {
+        case 'richTextPlain': return rt.text ?? '';
+        case 'richTexts': return rt.texts.map(extractText).join('');
+        case 'richTextCustomEmoji': return rt.alternative_text ?? '';
+        case 'richTextMathematicalExpression': return rt.expression ?? '';
         default:
-            if ('text' in t && t.text) return extractText(t.text as RichText);
+            if ('text' in rt && rt.text) return extractText(rt.text as RichText);
             return '';
     }
 }

@@ -12,7 +12,7 @@
         <!-- Caption above media -->
         <div v-if="showCaptionAbove && captionText" class="caption-text px-2 pt-2 pb-1"
             :class="isSelf ? 'text-white/90' : 'text-gray-800 dark:text-gray-200'">
-            <MessageTextContent :formattedText="captionFormatted" :chatId="chatId" />
+            <MessageTextContent :formattedText="captionFormatted" :chatId="chatId" :messageId="messageId" />
         </div>
 
         <!-- Media element -->
@@ -209,7 +209,8 @@
             <div v-if="!captionBelow && date"
                 class="absolute right-1.5 bottom-1.5 bg-black/60 text-white px-1.5 py-0.5 rounded-md leading-none select-none pointer-events-none flex items-center">
                 <MessageStatus :date="date" :isOutgoing="isSelf" :sendingState="sendingState" :isRead="isRead"
-                    :viewCount="viewCount" :authorSignature="authorSignature" overMedia />
+                    :viewCount="viewCount" :authorSignature="authorSignature" overMedia
+                    :isTranslated="isShowingTranslation" />
             </div>
 
             <!-- 上传进度覆盖层（发送中的图片/视频/动画） -->
@@ -219,7 +220,7 @@
                     :progress="mediaUploadProgress > 0 && mediaUploadProgress < 1 ? mediaUploadProgress : undefined"
                     size="40" color="#ffffff" />
                 <span class="mt-2 text-xs text-white leading-none">
-                    上传中 {{ Math.min(100, Math.round(mediaUploadProgress * 100)) }}%
+                    {{ t('content.uploadingPercent', { percent: Math.min(100, Math.round(mediaUploadProgress * 100)) }) }}
                 </span>
                 <span class="mt-1 text-[10px] text-white/80 leading-none">
                     {{ formatSize(uploadCurrentSize) }} / {{ formatSize(uploadTotalSize) }}
@@ -239,17 +240,20 @@
                 isSelf ? 'text-gray-900' : 'text-gray-800 dark:text-gray-200',
                 !(captionBelow && date) && 'pb-2',
             ]">
-            <MessageTextContent :formattedText="captionFormatted" :chatId="chatId" />
+            <MessageTextContent :formattedText="captionFormatted" :chatId="chatId" :messageId="messageId" />
         </div>
 
         <!-- Reactions slot（caption 与时间之间） -->
         <slot name="reactions" />
 
+        <!-- Translation slot（回应与时间之间，与普通消息一致：译文在时间上方） -->
+        <slot name="translation" />
+
         <!-- Time & status below -->
         <span v-if="captionBelow && date" class="block text-right px-2 pb-1"
             :class="isSelf ? 'text-gray-700/70' : 'text-gray-400'">
             <MessageStatus :date="date" :isOutgoing="isSelf" :sendingState="sendingState" :isRead="isRead"
-                :viewCount="viewCount" :authorSignature="authorSignature" />
+                :viewCount="viewCount" :authorSignature="authorSignature" :isTranslated="isShowingTranslation" />
         </span>
 
     </div>
@@ -257,6 +261,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { MessageContent, messageForwardInfo, MessageSendingState, chatPhotoInfo, profilePhoto, messageReplyToMessage, message } from 'tdlib-types';
 import MessageReply from './MessageReply.vue';
 import { tdlibSend, isFileReady, downloadingFiles, isFileBusy, isFileDownloading, enqueuePendingDownload, takePendingDownload, releasePendingDownloadOwner, safeDownloadFile } from '../../../../../utils/tdlib';
@@ -275,6 +280,7 @@ import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import { enqueueViewportLoad } from '../../../../../utils/viewportLoadGate';
 import { openMediaViewer, isMediaViewerActive } from '../../../../../store/mediaViewer';
 import { settings } from '../../../../../store/settings';
+import { getInlineTranslation, isTranslateReplaceDisplay } from '../../../../../store/translate';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { getChatCategory, shouldAutoDownloadPhotos } from '../../../../../utils/autoDownload';
 import { pickSmallPhotoSize, pickBigPhotoSize } from '../../../../../utils/photoSizes';
@@ -289,6 +295,7 @@ import {
     pauseAudioForVideo,
 } from '../../../../../store/videoPlayback';
 
+const { t } = useI18n();
 
 const props = defineProps<{
     content: MessageContent & { _: 'messagePhoto' | 'messageVideo' | 'messageAnimation' };
@@ -368,6 +375,17 @@ const videoElRef = ref<HTMLVideoElement | null>(null);
 const inlineVideoCurrent = ref(0);
 const inlineVideoDuration = ref(0);
 const isVideo = computed(() => props.content._ === 'messageVideo');
+
+/** 已出帧后的瞬时错误静默重试（不掀封面、不塌卡） */
+let inlineErrorRetries = 0;
+let inlineRetryTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearInlineRetryTimer() {
+    if (inlineRetryTimer !== null) {
+        clearTimeout(inlineRetryTimer);
+        inlineRetryTimer = null;
+    }
+}
 
 // Animation (GIF) state
 /** GIF 缩略图：静态位图路径（<img>）或动态图路径（<video>） */
@@ -794,6 +812,13 @@ const captionText = computed(() => {
     return '';
 });
 
+/** caption 已原位显示为译文（replace 模式）→ 时间旁标注「已翻译」 */
+const isShowingTranslation = computed(() => {
+    if (!isTranslateReplaceDisplay()) return false;
+    if (props.messageId == null || props.chatId == null) return false;
+    return !!getInlineTranslation(props.chatId, props.messageId)?.translatedText;
+});
+
 const captionFormatted = computed(() => {
     const c = props.content;
     if ('caption' in c && c.caption) return c.caption;
@@ -975,6 +1000,8 @@ let mediaLoadSeq = 0;
 
 /**
  * 内容被原地替换时重置状态，并重新套用就绪资源 / 排队下载。
+ * 流式源（tdstream）生效中则原样保留：下载完成快照回写 / 内容编辑
+ * 不应打断正在播放的视频，否则会换源重载、进度归零。
  */
 function resetMediaForContent() {
     mediaLoadSeq++;
@@ -985,14 +1012,17 @@ function resetMediaForContent() {
     stopVideoDownloadPolling();
     // 释放旧内容可能仍挂着的 pending（避免串到新内容）
     releasePendingDownloadOwner(downloadOwner);
+    const keepStreamSrc = isTdstreamSrc(mediaSrc.value);
+    const preservedSrc = keepStreamSrc ? mediaSrc.value : undefined;
     thumbSrc.value = undefined;
-    mediaSrc.value = undefined;
+    mediaSrc.value = preservedSrc;
     videoThumbSrc.value = undefined;
     videoThumbIsVideo.value = false;
-    videoHasFrame.value = false;
+    if (!keepStreamSrc) videoHasFrame.value = false;
     animThumbSrc.value = undefined;
     animThumbIsVideo.value = false;
-    videoDownloaded.value = false;
+    // 保留流式源 = 下载仍在进行且视频可播，不许状态塌回「未就绪」
+    videoDownloaded.value = keepStreamSrc;
     videoDownloading.value = false;
     videoProgress.value = 0;
     videoBuffering.value = false;
@@ -1001,11 +1031,15 @@ function resetMediaForContent() {
     mediaLoaded.value = false;
     imageLoaded.value = false;
     imageError.value = false;
-    inlineVideoCurrent.value = 0;
-    inlineVideoDuration.value = 0;
-    if (videoElRef.value) {
-        videoObserver?.unobserve(videoElRef.value);
-        videoElRef.value.pause();
+    inlineErrorRetries = 0;
+    clearInlineRetryTimer();
+    if (!keepStreamSrc) {
+        inlineVideoCurrent.value = 0;
+        inlineVideoDuration.value = 0;
+        if (videoElRef.value) {
+            videoObserver?.unobserve(videoElRef.value);
+            videoElRef.value.pause();
+        }
     }
     setMediaPreview();
     applyMediaFromContent();
@@ -1190,8 +1224,8 @@ function reconcileDownloadStoreFromContent() {
 function getChatTitle(id: number): string {
     try {
         const cs = useChatStore();
-        return cs.chats[id]?.title || `对话 #${id}`;
-    } catch { return `对话 #${id}`; }
+        return cs.chats[id]?.title || t('content.chatFallback', { id });
+    } catch { return t('content.chatFallback', { id }); }
 }
 
 /** 检查文件是否可下载（有 remote 数据） */
@@ -1679,6 +1713,8 @@ async function handleVideoDownload(isUserAction = false) {
         videoBuffering.value = true;
         videoHasFrame.value = false;
         videoDownloading.value = false;
+        inlineErrorRetries = 0;
+        clearInlineRetryTimer();
         return;
     }
 
@@ -1751,12 +1787,16 @@ function onVideoWaiting() {
 function onVideoFirstFrame() {
     videoHasFrame.value = true;
     videoBuffering.value = false;
+    inlineErrorRetries = 0;
+    clearInlineRetryTimer();
 }
 
 /** 视频可继续播放 */
 function onVideoPlaying() {
     videoBuffering.value = false;
     videoHasFrame.value = true;
+    inlineErrorRetries = 0;
+    clearInlineRetryTimer();
 }
 
 /** 就绪视频 src 落位后：preload 已在拉首帧；若浏览器已解出数据则立刻标记可见 */
@@ -1773,16 +1813,47 @@ function tryMarkVideoFrameReady() {
 }
 
 /**
- * 视频加载失败：若 content 显示本地已就绪则回退本地路径；
- * 否则丢掉失败的流式源，回到封面 + 下载按钮。
+ * 已出帧后的瞬时错误：静默重载流式源并恢复进度。
+ * 缓冲/恢复交给 <video> 自身，不掀封面、不塌回图片、不弹下载按钮。
+ */
+function scheduleInlineVideoRetry() {
+    if (inlineRetryTimer !== null) return;
+    inlineRetryTimer = setTimeout(() => {
+        inlineRetryTimer = null;
+        const el = videoElRef.value;
+        const src = mediaSrc.value;
+        if (!el || !src) {
+            videoBuffering.value = false;
+            return;
+        }
+        const t = inlineVideoCurrent.value;
+        const restore = () => {
+            if (videoElRef.value !== el || mediaSrc.value !== src) return;
+            if (t > 0) { try { el.currentTime = t; } catch { /* 忽略越界 seek */ } }
+            void el.play().catch(() => { });
+        };
+        el.addEventListener('loadedmetadata', restore, { once: true });
+        el.load();
+    }, 500);
+}
+
+/**
+ * 视频加载失败：已渲染首帧时仅做有限次静默重试（保持卡片与控件）；
+ * 从未出帧才回退——本地已就绪则换本地路径，否则丢掉失败的流式源，回到封面 + 下载按钮。
  */
 function onVideoError() {
-    videoBuffering.value = false;
-    videoHasFrame.value = false;
     const c = props.content;
     if (c._ !== 'messageVideo') return;
     const f = c.video.video;
     const localPath = f && isFileReady(f) ? f.local.path : '';
+    if (videoHasFrame.value && mediaSrc.value && inlineErrorRetries < 3) {
+        inlineErrorRetries++;
+        videoBuffering.value = true;
+        scheduleInlineVideoRetry();
+        return;
+    }
+    videoBuffering.value = false;
+    videoHasFrame.value = false;
     if (localPath) {
         mediaSrc.value = convertFileSrc(localPath);
         videoDownloaded.value = true;
@@ -1954,6 +2025,7 @@ function stopVideoDownloadPolling() { /* no-op */ }
 
 onUnmounted(() => {
     stopTrackingDownload();
+    clearInlineRetryTimer();
 });
 </script>
 

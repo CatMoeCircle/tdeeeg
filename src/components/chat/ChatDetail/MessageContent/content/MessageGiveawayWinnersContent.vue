@@ -26,8 +26,8 @@
                         <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ w.name }}</span>
                     </div>
                 </div>
-                <p v-else-if="winnersLoading" class="mt-1 text-sm text-gray-500 dark:text-gray-400">加载中...</p>
-                <p v-else class="mt-1 text-sm text-gray-500 dark:text-gray-400">暂无获奖者</p>
+                <p v-else-if="winnersLoading" class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('lng_profile_loading') }}</p>
+                <p v-else class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('content.noWinners') }}</p>
             </div>
         </div>
 
@@ -158,7 +158,7 @@ const prizeText = computed(() => {
     if (prize._ === 'giveawayPrizeStars') {
         return t('lng_prizes_credits_results_all', { count: formatCount(prize.star_count) });
     }
-    return `Telegram Premium ${prize.month_count} 个月`;
+    return t('content.premiumMonths', { count: prize.month_count });
 });
 
 /** 获奖人数与奖品说明 */
@@ -172,7 +172,7 @@ const winnersText = computed(() => {
 
 
 function displayUserName(value: user): string {
-    return `${value.first_name} ${value.last_name}`.trim() || `用户 #${value.id}`;
+    return `${value.first_name} ${value.last_name}`.trim() || t('content.userFallback', { id: value.id });
 }
 
 async function resolveWinner(id: number): Promise<WinnerUser | undefined> {

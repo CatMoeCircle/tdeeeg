@@ -109,7 +109,7 @@
             <span class="truncate">{{ totalVotesText }}</span>
             <button v-if="hasVoted && poll.allows_revoting && canVote && showResults" type="button"
                 class="shrink-0 font-medium text-blue-500 hover:underline" @click="startRevote">
-                重新投票
+                {{ t('content.revote') }}
             </button>
         </div>
     </div>
@@ -229,11 +229,11 @@ const canSubmitVote = computed(() => canVote.value && !voting.value && !beingCho
 /** 不可投票原因文案 */
 const restrictionText = computed(() => {
     switch (poll.value.vote_restriction_reason?._) {
-        case 'pollVoteRestrictionReasonClosed': return '投票已结束';
-        case 'pollVoteRestrictionReasonCountryRestricted': return '你所在的国家/地区无法参与该投票';
-        case 'pollVoteRestrictionReasonMembershipRequired': return '加入该群组/频道满一天后才能投票';
-        case 'pollVoteRestrictionReasonScheduled': return '定时消息发送后才能投票';
-        case 'pollVoteRestrictionReasonYetUnsent': return '消息发送后才能投票';
+        case 'pollVoteRestrictionReasonClosed': return t('lng_polls_add_option_closed');
+        case 'pollVoteRestrictionReasonCountryRestricted': return t('lng_polls_vote_restricted_countries');
+        case 'pollVoteRestrictionReasonMembershipRequired': return t('lng_polls_vote_restricted_subscribers_recent');
+        case 'pollVoteRestrictionReasonScheduled': return t('content.pollScheduled');
+        case 'pollVoteRestrictionReasonYetUnsent': return t('content.pollYetUnsent');
         default: return '';
     }
 });
@@ -308,7 +308,7 @@ async function onVote() {
         // 服务端会通过 updateMessageContent 推送最新结果，等待其更新即可
         isRevoting.value = false;
     } catch {
-        MessagePlugin.error('投票失败，请重试');
+        MessagePlugin.error(t('content.voteFailed'));
     } finally {
         voting.value = false;
     }

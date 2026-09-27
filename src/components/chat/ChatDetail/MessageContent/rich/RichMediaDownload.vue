@@ -3,7 +3,7 @@
     <button v-if="overlay && showButton" type="button" :class="[
         'absolute z-10 flex items-center justify-center rounded-full bg-black/50 text-white shadow-md transition-colors hover:bg-black/70 active:scale-95',
         small ? 'bottom-1 -right-1 h-5 w-5' : 'bottom-1.5 right-1.5 h-8 w-8',
-    ]" :aria-label="isDownloading ? '正在下载' : '下载文件'" :title="isDownloading ? '正在下载' : '下载文件'"
+    ]" :aria-label="isDownloading ? t('content.downloadingLabel') : t('content.downloadFile')" :title="isDownloading ? t('content.downloadingLabel') : t('content.downloadFile')"
         @click.stop="startDownload">
         <LoaderIndicator v-if="isDownloading" :progress="progress > 0 && progress < 1 ? progress : undefined"
             :size="small ? '10' : '16'" color="#ffffff" />
@@ -13,7 +13,7 @@
     <!-- 行内下载按钮（音频/语音右侧小按钮） -->
     <button v-else-if="!overlay && showButton" type="button"
         class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-600 transition-colors hover:bg-gray-300 active:scale-95 dark:bg-white/10 dark:text-gray-300 dark:hover:bg-white/20"
-        :aria-label="isDownloading ? '正在下载' : '下载文件'" :title="isDownloading ? '正在下载' : '下载文件'"
+        :aria-label="isDownloading ? t('content.downloadingLabel') : t('content.downloadFile')" :title="isDownloading ? t('content.downloadingLabel') : t('content.downloadFile')"
         @click.stop="startDownload">
         <LoaderIndicator v-if="isDownloading" :progress="progress > 0 && progress < 1 ? progress : undefined" size="14"
             color="#3b82f6" />
@@ -23,6 +23,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { file } from 'tdlib-types';
 import { DownloadIcon } from 'lucide-vue-next';
 import { tdlibSend, isFileReady, downloadingFiles, reactiveDownloadingFiles } from '../../../../../utils/tdlib';
@@ -30,6 +31,8 @@ import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { useDownloadStore, remoteIdOf, type DownloadFileType } from '../../../../../store/downloads';
 import { useChatStore } from '../../../../../store/chat';
 import LoaderIndicator from '../../../../common/LoaderIndicator';
+
+const { t } = useI18n();
 
 const props = withDefaults(defineProps<{
     /** 要下载的文件（audio.audio / video.video / animation.animation / voice_note.voice） */
@@ -144,7 +147,7 @@ async function startDownload() {
         const chatTitle = props.chatId ? getChatTitle(props.chatId) : '';
         await downloadStore.registerDownload(
             fid,
-            props.fileName || `文件 #${fid}`,
+            props.fileName || t('content.fileFallback', { id: fid }),
             chatTitle,
             totalSize,
             props.fileType,
@@ -177,9 +180,9 @@ async function startDownload() {
 function getChatTitle(id: number): string {
     try {
         const chatStore = useChatStore();
-        return chatStore.chats[id]?.title || `对话 #${id}`;
+        return chatStore.chats[id]?.title || t('content.chatFallback', { id });
     } catch {
-        return `对话 #${id}`;
+        return t('content.chatFallback', { id });
     }
 }
 

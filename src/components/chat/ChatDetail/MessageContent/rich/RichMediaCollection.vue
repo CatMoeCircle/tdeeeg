@@ -6,7 +6,7 @@
                 <RichImage v-if="item.file" :file="item.file" :format="item.format" :alt="item.alt" fill
                     :chatId="chatId" />
                 <div v-else class="absolute inset-0 flex items-center justify-center text-gray-400">
-                    图片不可用
+                    {{ t('content.imageUnavailable') }}
                 </div>
                 <span v-if="item.isVideo" class="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <PlayIcon class="w-7 h-7 text-white drop-shadow" />
@@ -17,7 +17,7 @@
             <RichImage v-if="currentItem.file" :file="currentItem.file" :format="currentItem.format"
                 :alt="currentItem.alt" fill :chatId="chatId" />
             <div v-else class="absolute inset-0 flex items-center justify-center text-gray-400">
-                图片不可用
+                {{ t('content.imageUnavailable') }}
             </div>
             <span v-if="currentItem.isVideo"
                 class="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -25,12 +25,12 @@
             </span>
             <button v-if="items.length > 1" type="button"
                 class="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 transition-opacity opacity-0 group-hover:opacity-100"
-                aria-label="上一张" @click.stop="currentIndex = (currentIndex - 1 + items.length) % items.length">
+                :aria-label="t('content.prevImage')" @click.stop="currentIndex = (currentIndex - 1 + items.length) % items.length">
                 <ChevronLeftIcon class="w-5 h-5" />
             </button>
             <button v-if="items.length > 1" type="button"
                 class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 transition-opacity opacity-0 group-hover:opacity-100"
-                aria-label="下一张" @click.stop="currentIndex = (currentIndex + 1) % items.length">
+                :aria-label="t('content.nextImage')" @click.stop="currentIndex = (currentIndex + 1) % items.length">
                 <ChevronRightIcon class="w-5 h-5" />
             </button>
             <div v-if="items.length > 1"
@@ -38,7 +38,7 @@
                 <button v-for="(item, i) in items" :key="item.key" type="button"
                     class="w-1.5 h-1.5 rounded-full transition-colors"
                     :class="i === currentIndex ? 'bg-white' : 'bg-white/40 hover:bg-white/70'"
-                    :aria-label="`第 ${i + 1} 张`" @click.stop="currentIndex = i" />
+                    :aria-label="t('content.imageN', { n: i + 1 })" @click.stop="currentIndex = i" />
             </div>
         </template>
     </div>
@@ -46,11 +46,14 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { PageBlock, file, ThumbnailFormat } from 'tdlib-types';
 import { ChevronLeftIcon, ChevronRightIcon, PlayIcon } from 'lucide-vue-next';
 import RichImage from './RichImage.vue';
 import { layoutMediaGroup } from '../../../../../utils/mediaGroupLayout';
 import { mediaSizeStyle, MEDIA_MAX } from '../../../../../utils/fitMediaSize';
+
+const { t } = useI18n();
 
 const props = withDefaults(defineProps<{
     blocks: PageBlock[];

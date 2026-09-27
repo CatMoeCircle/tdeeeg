@@ -12,7 +12,7 @@
                     </div>
                     <button type="button"
                         class="audio-cover-button absolute inset-0 flex items-center justify-center bg-black/20 text-white transition-colors hover:bg-black/30"
-                        :aria-label="isGloballyPlaying ? t('lng_mac_menu_player_pause') : '播放'" @click="togglePlayback">
+                        :aria-label="isGloballyPlaying ? t('lng_mac_menu_player_pause') : t('content.play')" @click="togglePlayback">
                         <PauseIcon v-if="isGloballyPlaying" class="h-6 w-6 fill-current" />
                         <PlayIcon v-else class="ml-0.5 h-6 w-6 fill-current" />
                     </button>
@@ -28,11 +28,11 @@
                     :class="isCurrentTrack ? 'text-blue-600 dark:text-blue-400' : ''">
                     {{ audioTitle }}
                 </span>
-                <span class="truncate text-xs text-gray-500 dark:text-gray-400">{{ audio?.performer || '未知艺术家'
+                <span class="truncate text-xs text-gray-500 dark:text-gray-400">{{ audio?.performer || t('content.unknownArtist')
                     }}</span>
                 <input class="audio-progress mt-1.5 w-full" type="range" min="0" :max="displayDuration || 1" step="0.1"
                     :value="displayTime" :style="audioProgressStyle" :disabled="!isCurrentTrack || displayDuration <= 0"
-                    aria-label="音乐播放进度" @input="seekAudio" />
+                    :aria-label="t('content.musicProgress')" @input="seekAudio" />
                 <div class="mt-0.5 flex justify-between text-[10px] leading-none text-gray-400 dark:text-gray-500">
                     <span>{{ formatDuration(displayTime) }}</span>
                     <span>{{ formatDuration(displayDuration) }}</span>
@@ -73,10 +73,10 @@ const coverSrc = ref<string | undefined>(undefined);
 
 const audioTitle = computed(() => {
     const a = props.audio;
-    if (!a) return '音频';
+    if (!a) return t('content.audioFallback');
     const parts = [a.performer, a.title].filter(Boolean);
     if (parts.length) return parts.join(' - ');
-    return a.file_name || '音频';
+    return a.file_name || t('content.audioFallback');
 });
 
 /** 当前消息是否为全局播放器中正在播放的曲目 */

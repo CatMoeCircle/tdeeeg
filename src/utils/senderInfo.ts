@@ -281,14 +281,47 @@ export async function ensureViaBotLoaded(viaBotUserId?: number): Promise<void> {
   }
 }
 
-/** 已注销账户的显示名称 */
-export const DELETED_ACCOUNT_LABEL = "已注销账户";
+/**
+ * 已注销账户的显示名称（跟随当前语言）。
+ * 官方 key：lng_deleted。
+ */
+export function getDeletedAccountLabel(): string {
+  return i18n.global.t("lng_deleted");
+}
+
+/**
+ * 兼容旧字符串引用（ChatDetail 等）。
+ * 渲染/拼接时经 toString 惰性取当前语言文案；逻辑判断请用 isDeletedUser / getDeletedAccountLabel。
+ */
+export const DELETED_ACCOUNT_LABEL = {
+  toString: () => getDeletedAccountLabel(),
+  valueOf: () => getDeletedAccountLabel(),
+  [Symbol.toPrimitive]: () => getDeletedAccountLabel(),
+} as unknown as string;
+
+/**
+ * 是否按已注销/未知账户处理：
+ * userTypeDeleted（已注销）或 userTypeUnknown（无任何资料，TDLib 要求按已注销处理）。
+ * 空名或未加载不按此处理。
+ */
+export function isDeletedUser(u?: user | null): boolean {
+  if (!u) return false;
+  const t = u.type?._;
+  return t === "userTypeDeleted" || t === "userTypeUnknown";
+}
+
+/** 按 user_id 判断是否已注销/未知（userTypeDeleted | userTypeUnknown） */
+export function isDeletedUserId(userId?: number | null): boolean {
+  if (!userId) return false;
+  const u = users.get(userId);
+  return isDeletedUser(u);
+}
 
 /** 按用户 id 取显示名（用于非消息发送者的 user_id，如“被移出群组的成员”）；未缓存返回空串 */
 export function getUserDisplayName(userId: number): string {
   const u = users.get(userId);
   if (!u) return "";
-  if (u.type?._ === "userTypeDeleted") return DELETED_ACCOUNT_LABEL;
+  if (isDeletedUser(u)) return getDeletedAccountLabel();
   return `${u.first_name} ${u.last_name}`.trim();
 }
 
@@ -298,7 +331,7 @@ export function getSenderName(senderId?: MessageSender): string {
   if (senderId._ === "messageSenderUser") {
     const u = users.get(senderId.user_id);
     if (!u) return "";
-    if (u.type?._ === "userTypeDeleted") return DELETED_ACCOUNT_LABEL;
+    if (isDeletedUser(u)) return getDeletedAccountLabel();
     return `${u.first_name} ${u.last_name}`.trim() || i18n.global.t('lng_credits_box_history_entry_anonymous');
   } else if (senderId._ === "messageSenderChat") {
     const c = chats.get(senderId.chat_id);
@@ -310,7 +343,7 @@ export function getSenderName(senderId?: MessageSender): string {
 /** 对话显示名称：已注销账户的私聊/密聊对话显示「已注销账户」，否则返回对话标题 */
 export function getChatTitle(chat?: Chat): string {
   if (!chat) return "";
-  if (isDeletedChat(chat)) return DELETED_ACCOUNT_LABEL;
+  if (isDeletedChat(chat)) return getDeletedAccountLabel();
   return chat.title || "";
 }
 
@@ -331,7 +364,7 @@ export function getSenderPhoto(
 export function isDeletedSender(senderId?: MessageSender): boolean {
   if (!senderId) return false;
   if (senderId._ === "messageSenderUser") {
-    return users.get(senderId.user_id)?.type?._ === "userTypeDeleted";
+    return isDeletedUser(users.get(senderId.user_id));
   }
   return false;
 }
@@ -340,7 +373,7 @@ export function isDeletedSender(senderId?: MessageSender): boolean {
 export function isDeletedChat(chat: Chat | undefined): boolean {
   if (!chat) return false;
   const uid = getChatUserId(chat.type);
-  if (uid) return users.get(uid)?.type?._ === "userTypeDeleted";
+  if (uid) return isDeletedUser(users.get(uid));
   return false;
 }
 
@@ -432,8 +465,28 @@ export function isChatMuted(chat: Chat): boolean {
   return (chat.notification_settings?.mute_for ?? 0) > 0;
 }
 
-/** 是否已顶置（positions 中存在 is_pinned） */
-export function isChatPinned(chat: Chat): boolean {
+/** 将 chatPosition.list 归一为列表 key（与 store/chat.ts getListKeyOf 对齐） */
+function chatListKey(list: unknown): string {
+  const l = list as { _?: string; chat_folder_id?: number } | null | undefined;
+  if (!l) return "";
+  if (l._ === "chatListMain") return "chatListMain";
+  if (l._ === "chatListArchive") return "chatListArchive";
+  if (l._ === "chatListFolder") return `chat_folder_id${l.chat_folder_id}`;
+  return "";
+}
+
+/**
+ * 是否已顶置。与 Unigram chat.GetPosition(chatList).IsPinned 对齐：
+ * 只看指定列表的 position，避免「在其他分组置顶」误显示到当前分组。
+ * listKey 为 'chatListMain' | 'chatListArchive' | 'chat_folder_id{N}'；
+ * 不传则退化为任意列表（兼容无列表上下文的调用）。
+ */
+export function isChatPinned(chat: Chat, listKey?: string): boolean {
+  if (listKey) {
+    return !!chat.positions?.some(
+      (p) => chatListKey(p.list) === listKey && p.is_pinned === true
+    );
+  }
   return !!chat.positions?.some((p) => p.is_pinned === true);
 }
 

@@ -16,6 +16,7 @@ import type {
     user,
 } from 'tdlib-types';
 import { tdlibSend } from './tdlib';
+import i18n from '../i18n';
 
 export type GiftDetailParty = {
     name: string;
@@ -98,7 +99,7 @@ export function formatGiftDate(ts: number | undefined): string {
 }
 
 export function displayGiftPartyName(value: user): string {
-    return `${value.first_name} ${value.last_name}`.trim() || '已删除账号';
+    return `${value.first_name} ${value.last_name}`.trim() || i18n.global.t('lng_deleted');
 }
 
 export async function resolveGiftParty(id?: MessageSender): Promise<GiftDetailParty | undefined> {

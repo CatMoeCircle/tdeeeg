@@ -10,7 +10,7 @@
             <RichMediaDownload v-else-if="noteFile" :file="noteFile" :file-name="`voice_${noteFile.id}`"
                 file-type="audio" :chat-id="chatId" :message-id="messageId" class="mt-1 self-start" />
             <MessageTextContent v-if="content.caption?.text" :formattedText="content.caption" :chatId="chatId"
-                class="mt-1" />
+                :messageId="messageId" class="mt-1" />
         </div>
     </div>
 

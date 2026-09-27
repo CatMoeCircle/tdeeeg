@@ -106,7 +106,7 @@
                     </div>
                     <div v-else
                         class="h-32 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center text-gray-400">
-                        图片不可用</div>
+                        {{ t('content.imageUnavailable') }}</div>
                 </SpoilerPhoto>
                 <RichCaption v-if="block.caption" :caption="block.caption" />
             </figure>
@@ -117,7 +117,7 @@
                     :style="videoBoxStyle(block.video)">
                     <RichImage v-if="block.video?.thumbnail?.file" :file="block.video?.thumbnail?.file"
                         :format="block.video?.thumbnail?.format" :alt="''" square :chatId="chatId" />
-                    <div v-else class="h-32 flex items-center justify-center text-gray-400">视频不可用</div>
+                    <div v-else class="h-32 flex items-center justify-center text-gray-400">{{ t('content.videoUnavailable') }}</div>
                     <span class="absolute inset-0 flex items-center justify-center pointer-events-none">
                         <PlayIcon class="w-8 h-8 text-white drop-shadow" />
                     </span>
@@ -134,7 +134,7 @@
                     :style="animationBoxStyle(block.animation)">
                     <RichImage v-if="block.animation?.thumbnail?.file" :file="block.animation?.thumbnail?.file"
                         :format="block.animation?.thumbnail?.format" :alt="''" square :chatId="chatId" />
-                    <div v-else class="h-32 flex items-center justify-center text-gray-400">动画不可用</div>
+                    <div v-else class="h-32 flex items-center justify-center text-gray-400">{{ t('content.animationUnavailable') }}</div>
                     <RichMediaDownload v-if="block.animation?.animation" :file="block.animation.animation"
                         :file-name="block.animation.file_name" file-type="animation" :chat-id="chatId"
                         :message-id="messageId" overlay />
@@ -153,8 +153,8 @@
                     <span v-if="block.voice_note" class="text-xs text-gray-500">{{
                         formatDuration(block.voice_note.duration)
                         }}</span>
-                    <span v-else class="text-xs text-gray-400">语音不可用</span>
-                    <RichMediaDownload v-if="block.voice_note?.voice" :file="block.voice_note.voice" file-name="语音"
+                    <span v-else class="text-xs text-gray-400">{{ t('content.voiceUnavailable') }}</span>
+                    <RichMediaDownload v-if="block.voice_note?.voice" :file="block.voice_note.voice" :file-name="t('lng_in_dlg_audio')"
                         file-type="voice" :chat-id="chatId" :message-id="messageId" />
                 </div>
                 <RichCaption v-if="block.caption" :caption="block.caption" />
@@ -277,13 +277,14 @@
                 <MessageRichMessage :blocks="(block as any).blocks" :is-rtl="isRtl" :chat-id="chatId"
                     :message-id="messageId" />
             </div>
-            <div v-else class="my-0.5 opacity-60">[不支持的内容]</div>
+            <div v-else class="my-0.5 opacity-60">{{ t('content.unsupportedContent') }}</div>
         </template>
     </div>
 </template>
 
 <script setup lang="ts">
 import type { PageBlock, photoSize, pageBlockTableCell, PageBlockHorizontalAlignment, PageBlockVerticalAlignment } from 'tdlib-types';
+import { useI18n } from 'vue-i18n';
 import RichText from './RichText.vue';
 import RichImage from './RichImage.vue';
 import SpoilerPhoto from '../spoiler/SpoilerPhoto.vue';
@@ -295,6 +296,8 @@ import LatexFormula from './LatexFormula.vue';
 import Avatar from '../../../avatar.vue';
 import { MicIcon, PlayIcon } from 'lucide-vue-next';
 import { tdlibSend } from '../../../../../utils/tdlib';
+
+const { t } = useI18n();
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { useRouter } from 'vue-router';
 import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';

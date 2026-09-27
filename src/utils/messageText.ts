@@ -41,9 +41,9 @@ export function getMessagePlainText(msg: message): string {
         case "messagePoll":
             return c.poll.question.text ?? "";
         case "messagePollOptionAdded":
-            return "添加了选项：" + (c.text.text ?? "");
+            return i18n.global.t("preview.pollOptionAdded", { option: c.text.text ?? "" });
         case "messagePollOptionDeleted":
-            return "删除了选项：" + (c.text.text ?? "");
+            return i18n.global.t("preview.pollOptionDeleted", { option: c.text.text ?? "" });
         case "messageLocation":
             return i18n.global.t('lng_maps_point');
         case "messageVenue":
@@ -55,7 +55,9 @@ export function getMessagePlainText(msg: message): string {
         case "messageDice":
             return (c.emoji ?? "") + " " + (c.value ?? "") + "🎲";
         case "messageCall":
-            return c.is_video ? "视频通话" : i18n.global.t('lng_settings_notifications_calls_title');
+            return c.is_video
+                ? i18n.global.t("lng_view_button_voice_chat")
+                : i18n.global.t('lng_settings_notifications_calls_title');
         default:
             return "";
     }

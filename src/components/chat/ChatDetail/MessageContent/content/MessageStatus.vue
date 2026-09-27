@@ -14,6 +14,9 @@
         <!-- Time -->
         <span>{{ formatTime(date) }}</span>
 
+        <!-- 已翻译：译文原位顶替时在时间旁标注 -->
+        <LanguagesIcon v-if="isTranslated" :class="translatedIconClass" />
+
         <!-- Sending status for outgoing messages -->
         <span v-if="isOutgoing" class="flex items-center">
             <!-- Pending (sending) -->
@@ -39,6 +42,7 @@ import type { MessageSendingState } from 'tdlib-types';
 import formatTime from '../../../../../utils/formatTime';
 import {
     EyeIcon,
+    Languages as LanguagesIcon,
     ClockFading as ClockFadingIcon,
     Info as InfoIcon,
     CheckCheck as CheckCheckIcon,
@@ -60,6 +64,8 @@ const props = defineProps<{
     authorSignature?: string;
     /** Whether this is rendered over media (lighter background capsule) */
     overMedia?: boolean;
+    /** 正文已显示为译文（replace 模式原位顶替） */
+    isTranslated?: boolean;
 }>();
 
 const containerClass = computed(() => {
@@ -73,4 +79,5 @@ const containerClass = computed(() => {
 // overMedia 时与 10px 时间文字对齐，避免对勾把胶囊撑高
 const statusIconClass = computed(() => (props.overMedia ? 'w-2.5 h-2.5' : 'w-3.5 h-3.5'));
 const eyeIconClass = computed(() => (props.overMedia ? 'w-2.5 h-2.5' : 'w-3 h-3'));
+const translatedIconClass = computed(() => (props.overMedia ? 'w-2.5 h-2.5' : 'w-3 h-3'));
 </script>

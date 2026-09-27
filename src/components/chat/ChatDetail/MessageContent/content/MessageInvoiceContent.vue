@@ -90,17 +90,11 @@ const amountText = computed(() =>
 
 /** 图片左上角角标：「¥490 账单」 */
 const badgeText = computed(() => {
-    const testKey = 'lng_payments_invoice_label_test';
-    const key = 'lng_payments_invoice_label';
-    const raw = props.content.is_test ? t(testKey) : t(key);
-    // 语言包未命中时 vue-i18n 会回传 key 本身，这里兜底中文
-    const label = !raw || raw === key || raw === testKey
-        ? (props.content.is_test ? '测试账单' : '账单')
-        : raw;
-    return `${amountText.value} ${label}`;
+    const key = props.content.is_test ? 'lng_payments_invoice_label_test' : 'lng_payments_invoice_label';
+    return `${amountText.value} ${t(key)}`;
 });
 
-const payCtaText = computed(() => `支付 ${amountText.value}`);
+const payCtaText = computed(() => t('lng_payments_pay_amount', { amount: amountText.value }));
 
 interface MediaPlan {
     kind: 'photo' | 'video';

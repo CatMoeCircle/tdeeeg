@@ -31,7 +31,7 @@
                         <!-- 下载按钮 -->
                         <button v-if="!videoDownloading" @click.stop="handleViewerVideoDownload"
                             class="relative z-10 w-16 h-16 rounded-full bg-white/15 hover:bg-white/25 border border-white/30 flex items-center justify-center transition-colors"
-                            title="下载视频">
+                            :title="t('lng_media_download')">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                                 class="w-8 h-8 text-white">
                                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
@@ -43,19 +43,19 @@
                             :progress="videoDownloadProgress > 0 ? videoDownloadProgress : undefined" size="52"
                             color="#ffffff" />
                         <span v-if="!videoDownloading" class="relative z-10 mt-3 text-sm text-white/90">
-                            {{ videoLoadFailed || navigatorOffline ? '网络不可用，点击下载视频' : '尚未下载，点击下载' }}
+                            {{ videoLoadFailed || navigatorOffline ? t('mediaViewer.offlineClickDownload') : t('mediaViewer.notDownloadedClick') }}
                         </span>
                         <span v-else class="relative z-10 mt-3 text-sm text-white/90">
-                            {{ videoDownloadProgress > 0 ? videoProgressLabel : '下载中…' }}
+                            {{ videoDownloadProgress > 0 ? videoProgressLabel : t('lng_sr_message_downloading') }}
                         </span>
                     </div>
 
-                    <!-- 视频加载中：仅中心指示器，不盖黑色遮罩（封面可见） -->
+                    <!-- 视频加载中：仅中心指示器，不盖黑色遮罩（封面可见）。
+                         整层 pointer-events-none：不拦截控制条/视频点击，仅关闭按钮可点 -->
                     <div v-if="isVideo && effectiveVideoSrc && !videoHasFrame && !currentCanDownload && !videoLoadFailed"
-                        class="absolute inset-0 z-20 flex flex-col items-center justify-center cursor-pointer"
-                        @click="close" title="点击关闭">
+                        class="absolute inset-0 z-20 flex flex-col items-center justify-center pointer-events-none">
                         <button @click.stop="close"
-                            class="absolute top-3 left-3 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/70 transition-colors">
+                            class="pointer-events-auto absolute top-3 left-3 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/70 transition-colors">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5">
                                 <path d="M18 6L6 18M6 6l12 12" />
                             </svg>
@@ -64,7 +64,7 @@
                             :progress="imageProgress > 0 && imageProgress < 1 ? imageProgress : undefined" size="52"
                             color="#ffffff" />
                         <span class="mt-3 text-sm text-white/80 drop-shadow">
-                            {{ imageProgress > 0 && imageProgress < 1 ? imageProgressLabel : '加载中…' }}
+                            {{ imageProgress > 0 && imageProgress < 1 ? imageProgressLabel : t('lng_context_seen_loading') }}
                         </span>
                         <div v-if="imageProgress > 0 && imageProgress < 1"
                             class="mt-3 w-52 h-1.5 bg-white/20 rounded-full overflow-hidden">
@@ -82,10 +82,10 @@
                                 <path d="M18 6L6 18M6 6l12 12" />
                             </svg>
                         </button>
-                        <span class="text-sm text-white/85 mb-3">{{ navigatorOffline ? '网络不可用，视频暂时无法播放' : '视频加载失败' }}</span>
+                        <span class="text-sm text-white/85 mb-3">{{ navigatorOffline ? t('mediaViewer.offlineVideo') : t('mediaViewer.videoLoadFailed') }}</span>
                         <button @click.stop="retryVideoLoad"
                             class="relative z-10 h-9 px-4 rounded-full bg-white/15 hover:bg-white/25 border border-white/30 text-sm text-white transition-colors">
-                            重试
+                            {{ t('lng_bot_download_retry') }}
                         </button>
                     </div>
 
@@ -111,9 +111,10 @@
                         </svg>
                     </button>
 
-                    <!-- UI overlay (close button + controls + caption) -->
+                    <!-- UI overlay (close button + controls + caption)
+                         加载期即显示：控制条不再等待 loadedmetadata，避免加载中无任何操作手段 -->
                     <Transition name="fade-ui">
-                        <div v-if="videoLoaded && uiVisible" class="absolute inset-0 z-10">
+                        <div v-if="uiVisible" class="absolute inset-0 z-10">
                             <!-- Close button (top-left) -->
                             <button @click="close"
                                 class="absolute top-3 left-3 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/70 transition-colors">
@@ -281,7 +282,7 @@
                     @dblclick="toggleZoom" />
 
                 <!-- 加载中：预览缩略图 + 待加载提示 + 进度（点击可关闭查看器） -->
-                <div v-if="isImageLoading" @click="close" title="点击关闭"
+                <div v-if="isImageLoading" @click="close" :title="t('lng_close')"
                     class="absolute inset-0 flex flex-col items-center justify-center bg-black/40 cursor-pointer">
                     <!-- 缩略图预览（若有） -->
                     <img v-if="hasThumbPreview" :src="currentThumb"
@@ -292,7 +293,7 @@
                             <!-- 未开自动下载：手动下载按钮（与视频同款） -->
                             <button @click.stop="handleImageManualDownload"
                                 class="relative z-10 w-16 h-16 rounded-full bg-white/15 hover:bg-white/25 border border-white/30 flex items-center justify-center transition-colors"
-                                title="下载图片">
+                                :title="t('lng_media_download')">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                                     class="w-8 h-8 text-white">
                                     <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
@@ -300,14 +301,14 @@
                                     <line x1="12" y1="15" x2="12" y2="3" />
                                 </svg>
                             </button>
-                            <span class="text-sm text-white/90">尚未下载，点击下载</span>
+                            <span class="text-sm text-white/90">{{ t('mediaViewer.notDownloadedClick') }}</span>
                         </template>
                         <template v-else>
                             <LoaderIndicator :progress="imageProgress > 0 ? imageProgress : undefined" size="42"
                                 color="#ffffff" />
                             <!-- 待加载文字 / 下载进度（百分比 + 字节） -->
                             <span class="text-sm text-white/80">
-                                {{ imageProgress > 0 ? imageProgressLabel : '待加载…' }}
+                                {{ imageProgress > 0 ? imageProgressLabel : t('lng_context_seen_loading') }}
                             </span>
                             <!-- 进度条（下载中显示实际进度） -->
                             <div v-if="imageProgress > 0" class="w-52 h-1.5 bg-white/20 rounded-full overflow-hidden">
@@ -414,12 +415,13 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { copyFile } from '@tauri-apps/plugin-fs';
 import { save } from '@tauri-apps/plugin-dialog';
 import { MessagePlugin } from 'tdesign-vue-next';
-import type { formattedText, message, file as TdFile } from 'tdlib-types';
+import type { formattedText, message, messageVideo, file as TdFile } from 'tdlib-types';
 import { tdlibSend, downloadingFiles, isFileReady, safeDownloadFile, safeAddFileToDownloads } from '../../../../utils/tdlib';
 import { buildVideoQualities } from '../../../../utils/videoQualities';
 import { DL_PRIORITY } from '../../../../utils/downloadPriority';
 import { settings } from '../../../../store/settings';
-import { pickBigPhotoSize } from '../../../../utils/photoSizes';
+import { pickBigPhotoSize, pickSmallPhotoSize } from '../../../../utils/photoSizes';
+import { isThumbnailImgRenderable, isThumbnailVideoRenderable } from '../../../../utils/thumbnail';
 import { shouldAutoDownloadPhotos, shouldAutoDownloadVideos } from '../../../../utils/autoDownload';
 import MessageTextContent from './content/MessageTextContent.vue';
 import LoaderIndicator from '../../../common/LoaderIndicator';
@@ -501,7 +503,6 @@ const videoMuted = ref(false);
 const videoVolume = ref(settings.player.mediaVolume);
 const videoCurrent = ref(0);
 const videoDuration = ref(0);
-const videoLoaded = ref(false);
 /** 视频已渲染首帧（canplay/playing）——此前显示封面，不黑屏 */
 const videoHasFrame = ref(false);
 /** 视频加载失败（断网 / 流式源不可用等） */
@@ -595,7 +596,7 @@ async function handleViewerVideoDownload() {
     downloadingFiles.add(fileId);
     try {
         const fileName = c.video.file_name || `video_${messageId || fileId}.mp4`;
-        const chatTitle = chatId ? useChatStore().chats[chatId]?.title || `对话 #${chatId}` : '';
+        const chatTitle = chatId ? useChatStore().chats[chatId]?.title || t('download.row.chatFallback', { id: chatId }) : '';
         useDownloadStore().registerDownload(fileId, fileName, chatTitle, 0, 'video', undefined, chatId, messageId, false, false, undefined, false, undefined, undefined, remoteIdOf(c.video.video));
         await tdlibSend({
             _: 'addFileToDownloads',
@@ -617,11 +618,14 @@ async function handleViewerVideoDownload() {
                     downloadingFiles.delete(fileId);
                     videoDownloading.value = false;
                     useDownloadStore().markCompleted(fileId, info.local.path, remoteIdOf(c.video.video));
-                    videoSrcOverride.value = convertFileSrc(info.local.path);
-                    videoLoaded.value = false;
-                    videoHasFrame.value = false;
                     videoLoadFailed.value = false;
-                    videoBuffering.value = false;
+                    if (stickyStreamSrc.value && stickyStreamFileId.value === fileId) {
+                        // 流式源仍在播放：下载完成后 tdstream 直接读本地文件，
+                        // 不换源、不掀封面、不重置控制条（换源会让 <video> 重载闪回封面）
+                        return;
+                    }
+                    videoSrcOverride.value = convertFileSrc(info.local.path);
+                    videoBuffering.value = true;
                     isVideoPlaying.value = false;
                     videoCurrent.value = 0;
                 }
@@ -635,7 +639,7 @@ async function handleViewerVideoDownload() {
         downloadingFiles.delete(fileId);
         videoDownloading.value = false;
         console.error('MediaViewer video download failed:', e);
-        MessagePlugin.error('视频下载失败');
+        MessagePlugin.error(t('mediaViewer.videoDownloadFailed'));
     }
 }
 
@@ -786,13 +790,34 @@ const currentMediaSrc = computed(() => {
     return '';
 });
 
+/**
+ * 视频已下载的低清预览封面路径（video.thumbnail → cover.photo Small → Big）。
+ * 与消息卡片的 videoCoverPath 同优先级：能用真实预览文件时绝不用 base64 mini。
+ */
+function readyVideoPreviewPath(c: messageVideo): string {
+    const th = c.video.thumbnail;
+    const thFile = th?.file;
+    if (thFile && isFileReady(thFile) && thFile.local.path
+        && (isThumbnailVideoRenderable(th.format) || isThumbnailImgRenderable(th.format))) {
+        return thFile.local.path;
+    }
+    const small = pickSmallPhotoSize(c.cover);
+    if (small && isFileReady(small) && small.local.path) return small.local.path;
+    const big = pickBigPhotoSize(c.cover);
+    if (big && isFileReady(big) && big.local.path) return big.local.path;
+    return '';
+}
+
 /** 缩略图 */
 const currentThumb = computed(() => {
     const c = currentContent.value;
     if (c) {
         if (c._ === 'messagePhoto' && c.photo.minithumbnail?.data) return `data:image/jpeg;base64,${c.photo.minithumbnail.data}`;
         if (c._ === 'messageVideo') {
-            const d = c.video.minithumbnail?.data || '';
+            // 已就绪的低清预览文件优先；仅在预览未下载时回退 base64 mini
+            const previewPath = readyVideoPreviewPath(c);
+            if (previewPath) return convertFileSrc(previewPath);
+            const d = c.video.minithumbnail?.data || c.cover?.minithumbnail?.data || '';
             if (d) return `data:image/jpeg;base64,${d}`;
         }
         if (c._ === 'messageAnimation' && c.animation.minithumbnail?.data) return `data:image/jpeg;base64,${c.animation.minithumbnail.data}`;
@@ -891,11 +916,12 @@ function formatSize(bytes: number): string {
 
 function formatDownloadLabel(progress: number, cur: number, total: number): string {
     const pct = Math.round(progress * 100);
+    const percent = String(pct);
     if (total > 0) {
-        return `下载中 ${pct}% · ${formatSize(cur)}/${formatSize(total)}`;
+        return t('mediaViewer.downloadProgressFull', { percent, current: formatSize(cur), total: formatSize(total) });
     }
-    if (cur > 0) return `下载中 ${pct}% · ${formatSize(cur)}`;
-    return `下载中 ${pct}%`;
+    if (cur > 0) return t('mediaViewer.downloadProgressPartial', { percent, current: formatSize(cur) });
+    return t('mediaViewer.downloadProgress', { percent });
 }
 
 // ---- 未下载媒体：手动下载 / 自动预取 ----
@@ -919,7 +945,7 @@ function handleImageManualDownload() {
     const messageId = item.messageId;
     const kind = currentMediaType.value === 'animation' ? 'animation' : 'photo';
     const fileName = `${kind}_${messageId || f.id}.${kind === 'animation' ? 'gif' : 'jpg'}`;
-    const chatTitle = chatId ? useChatStore().chats[chatId]?.title || `对话 #${chatId}` : '';
+    const chatTitle = chatId ? useChatStore().chats[chatId]?.title || t('download.row.chatFallback', { id: chatId }) : '';
     imageDownloading.value = true;
     liveDownloadBytes.value = { cur: 0, total: f.size || f.expected_size || 0, progress: 0 };
     downloadingFiles.add(f.id);
@@ -937,7 +963,7 @@ function handleImageManualDownload() {
             downloadingFiles.delete(f.id);
             imageDownloading.value = false;
             console.error('MediaViewer image download failed:', e);
-            MessagePlugin.error('图片下载失败');
+            MessagePlugin.error(t('mediaViewer.imageDownloadFailed'));
         }
     })();
 }
@@ -1091,6 +1117,13 @@ watch(currentIndex, (i) => {
     displayedMsgId.value = itemMsgId(props.items[i]);
 }, { immediate: true });
 
+/**
+ * 最近一次「真正切换条目」时完成状态重置的消息 id。
+ * items 分页/插入会让同一条消息的下标变化（重新编号），
+ * 这种情况绝不能触发全量重置——否则正在播放的视频会被封面盖回、控制条消失。
+ */
+let lastResetMsgId: number | undefined = displayedMsgId.value;
+
 // 邻近媒体插入导致 items 变化：优先按 messageId 找回原图，绝不因 initialIndex 回跳
 watch(() => props.items, (items) => {
     if (!items?.length) return;
@@ -1118,6 +1151,7 @@ watch([currentIndex, () => props.visible], () => {
 onUnmounted(() => {
     clearPrefetchTimer();
     stopLiveFilePoll();
+    clearVideoRetryTimer();
 });
 
 // Video card: fill the full screen
@@ -1135,13 +1169,15 @@ watch(() => props.visible, (v) => {
     if (v) {
         currentIndex.value = props.initialIndex || 0;
         displayedMsgId.value = itemMsgId(props.items[currentIndex.value]);
+        lastResetMsgId = displayedMsgId.value;
         resetZoom();
         isVideoPlaying.value = false;
         videoMuted.value = false;
-        videoLoaded.value = false;
         videoHasFrame.value = false;
         videoLoadFailed.value = false;
         videoBuffering.value = false;
+        videoErrorRetries = 0;
+        clearVideoRetryTimer();
         videoCurrent.value = 0;
         videoDuration.value = 0;
         playbackRate.value = 1;
@@ -1163,14 +1199,19 @@ watch(() => props.visible, (v) => {
 });
 
 watch(currentIndex, () => {
+    const newId = itemMsgId(props.items[currentIndex.value]);
+    // 仅下标重排（仍是同一条消息）：不打断播放，不掀封面，不拆控制条
+    if (newId != null && newId === lastResetMsgId) return;
+    lastResetMsgId = newId;
     resetZoom();
     rotation.value = 0;
     isVideoPlaying.value = false;
     videoMuted.value = false;
-    videoLoaded.value = false;
     videoHasFrame.value = false;
     videoLoadFailed.value = false;
     videoBuffering.value = false;
+    videoErrorRetries = 0;
+    clearVideoRetryTimer();
     videoCurrent.value = 0;
     videoDuration.value = 0;
     playbackRate.value = 1;
@@ -1222,7 +1263,7 @@ async function handleOpenWith() {
         await invoke('open_with_dialog', { path: p });
     } catch (e) {
         console.error('open_with_dialog failed:', e);
-        MessagePlugin.error('打开文件失败');
+        MessagePlugin.error(t('mediaViewer.openFileFailed'));
     }
 }
 
@@ -1234,15 +1275,15 @@ async function handleSaveAs() {
         // 优先使用 tdlib 提供的文件名称
         const defaultName = currentFileName.value || 'media';
         const dest = await save({
-            title: '另存为',
+            title: t('lng_mediaview_save_as'),
             defaultPath: defaultName,
         });
         if (!dest) return; // 用户取消
         await copyFile(p, dest);
-        MessagePlugin.success('已另存为');
+        MessagePlugin.success(t('mediaViewer.savedAs'));
     } catch (e) {
         console.error('saveAs failed:', e);
-        MessagePlugin.error('另存为失败');
+        MessagePlugin.error(t('mediaViewer.saveAsFailed'));
     }
 }
 
@@ -1253,7 +1294,7 @@ async function handleCopyImage() {
     if (lp) {
         try {
             await invoke('copy_image_to_clipboard', { path: lp });
-            MessagePlugin.success('已复制到剪贴板');
+            MessagePlugin.success(t('lng_text_copied'));
             return;
         } catch (e) {
             console.error('native copy image failed:', e);
@@ -1263,7 +1304,7 @@ async function handleCopyImage() {
     // 回退路径：用已加载的图片元素转 PNG（异步剪贴板 API 仅支持 image/png）
     const img = imageRef.value;
     if (!img || !img.naturalWidth) {
-        MessagePlugin.error('复制失败');
+        MessagePlugin.error(t('context.copyFailed'));
         return;
     }
     try {
@@ -1278,10 +1319,10 @@ async function handleCopyImage() {
         );
         if (!blob) throw new Error('toBlob returned null');
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-        MessagePlugin.success('已复制到剪贴板');
+        MessagePlugin.success(t('lng_text_copied'));
     } catch (e) {
         console.error('copy image failed:', e);
-        MessagePlugin.error('复制失败');
+        MessagePlugin.error(t('context.copyFailed'));
     }
 }
 
@@ -1333,7 +1374,7 @@ function onContextMenu(e: MouseEvent) {
     if (hasLocalFile.value) {
         items.push({
             key: 'save-as',
-            label: '另存为',
+            label: t('lng_mediaview_save_as'),
             icon: DownloadIcon,
             onClick: handleSaveAs,
         });
@@ -1343,7 +1384,7 @@ function onContextMenu(e: MouseEvent) {
     if (hasLocalFile.value) {
         items.push({
             key: 'open-with',
-            label: '使用其他应用打开',
+            label: t('lng_media_open_with'),
             icon: FolderOpenIcon,
             onClick: handleOpenWith,
         });
@@ -1501,7 +1542,6 @@ function onVideoTimeUpdate() {
 function onVideoLoaded() {
     if (videoRef.value) {
         videoDuration.value = videoRef.value.duration;
-        videoLoaded.value = true;
         videoLoadFailed.value = false;
         videoRef.value.volume = videoVolume.value;
         videoRef.value.muted = videoMuted.value;
@@ -1533,6 +1573,9 @@ function onVideoFrameReady() {
     videoHasFrame.value = true;
     videoBuffering.value = false;
     videoLoadFailed.value = false;
+    // 恢复成功：清零瞬时错误重试计数
+    videoErrorRetries = 0;
+    clearVideoRetryTimer();
 }
 
 /** 播放中再次缓冲：仅在已出帧后显示轻度指示 */
@@ -1540,8 +1583,52 @@ function onVideoWaiting() {
     if (videoHasFrame.value) videoBuffering.value = true;
 }
 
-/** 视频加载失败（断网时流式源最常见）：标记失败，回落下载/重试 UI，不黑屏死等 */
+/**
+ * 已出帧后的瞬时错误（流式分段失败/seek 抖动）：静默重载并恢复进度，
+ * 不掀封面、不弹下载遮罩——缓冲/恢复交给 <video> 自身逻辑。
+ */
+let videoErrorRetries = 0;
+let videoRetryTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearVideoRetryTimer() {
+    if (videoRetryTimer !== null) {
+        clearTimeout(videoRetryTimer);
+        videoRetryTimer = null;
+    }
+}
+
+function scheduleVideoErrorRetry() {
+    if (videoRetryTimer !== null) return;
+    videoRetryTimer = setTimeout(() => {
+        videoRetryTimer = null;
+        const el = videoRef.value;
+        if (!props.visible || !el) return;
+        const t = videoCurrent.value;
+        const wasPlaying = isVideoPlaying.value;
+        const restore = () => {
+            const e2 = videoRef.value;
+            if (!e2) return;
+            if (t > 0) { try { e2.currentTime = t; } catch { /* 忽略越界 seek */ } }
+            if (wasPlaying) {
+                e2.play().then(() => { isVideoPlaying.value = true; }).catch(() => { isVideoPlaying.value = false; });
+            } else {
+                videoBuffering.value = false;
+            }
+        };
+        el.addEventListener('loadedmetadata', restore, { once: true });
+        el.load();
+    }, 600);
+}
+
+/** 视频加载失败：断网时流式源最常见。
+ *  已出帧 → 只做有限次静默重试；从未出帧 → 回落下载/重试 UI，不黑屏死等。 */
 function onVideoError() {
+    if (videoHasFrame.value && effectiveVideoSrc.value && videoErrorRetries < 3) {
+        videoErrorRetries++;
+        videoBuffering.value = true;
+        scheduleVideoErrorRetry();
+        return;
+    }
     videoBuffering.value = false;
     videoHasFrame.value = false;
     videoLoadFailed.value = true;
@@ -1552,7 +1639,7 @@ function retryVideoLoad() {
     videoLoadFailed.value = false;
     videoHasFrame.value = false;
     videoBuffering.value = false;
-    videoLoaded.value = false;
+    videoErrorRetries = 0;
     const el = videoRef.value;
     if (!el) return;
     const src = effectiveVideoSrc.value;
@@ -1607,7 +1694,7 @@ function selectQuality(q: MediaViewerVideoQuality) {
         if (altFile?.id) {
             const chatId = currentItem.value?.chatId;
             const messageId = currentItem.value?.messageId;
-            const chatTitle = chatId ? useChatStore().chats[chatId]?.title || `对话 #${chatId}` : '';
+            const chatTitle = chatId ? useChatStore().chats[chatId]?.title || t('download.row.chatFallback', { id: chatId }) : '';
             useDownloadStore().registerDownload(
                 altFile.id,
                 `${q.label}_video_${altFile.id}.mp4`,
@@ -1631,7 +1718,6 @@ function selectQuality(q: MediaViewerVideoQuality) {
     if (videoRef.value) {
         videoRef.value.src = q.src;
         videoRef.value.load();
-        videoLoaded.value = false;
         videoHasFrame.value = false;
         videoLoadFailed.value = false;
         videoBuffering.value = false;
@@ -1639,7 +1725,6 @@ function selectQuality(q: MediaViewerVideoQuality) {
             if (videoRef.value && targetTime > 0) {
                 videoRef.value.currentTime = targetTime;
             }
-            videoLoaded.value = true;
             if (wasPlaying) {
                 videoRef.value?.play().then(() => { isVideoPlaying.value = true; }).catch(() => { isVideoPlaying.value = false; });
             }

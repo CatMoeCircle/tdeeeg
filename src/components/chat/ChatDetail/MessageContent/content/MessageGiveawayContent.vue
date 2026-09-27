@@ -82,7 +82,7 @@
                             <p>
                                 <GlobalEmojiText :text="selectionText" />
                             </p>
-                            <p>您在此抽奖活动中没有中奖。</p>
+                            <p>{{ t('lng_prizes_you_didnt') }}</p>
                         </div>
                         <button type="button"
                             class="mt-5 block w-full rounded-lg bg-sky-500/10 py-2 text-center text-sm font-medium text-sky-600 hover:bg-sky-500/20 focus:outline-none focus:ring-2 focus:ring-sky-400/40 active:bg-sky-500/25 dark:bg-sky-400/10 dark:text-sky-300 dark:hover:bg-sky-400/20"
@@ -189,7 +189,7 @@ const participantsText = computed(() => t('lng_prizes_participants_all', { chann
 const selectionDate = computed(() => props.content.parameters.winners_selection_date || props.date || 0);
 
 const dateText = computed(() => {
-    if (!selectionDate.value) return '未知';
+    if (!selectionDate.value) return t('content.unknown');
     const d = new Date(selectionDate.value * 1000);
     const dateStr = d.toLocaleDateString();
     const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -198,41 +198,44 @@ const dateText = computed(() => {
 
 /** 抽奖状态标题（弹窗用） */
 const dialogTitle = computed(() => {
-    if (!selectionDate.value) return '抽奖活动';
-    return selectionDate.value * 1000 <= Date.now() ? '抽奖活动已结束' : '抽奖活动进行中';
+    if (!selectionDate.value) return t('lng_prizes_results_link');
+    return selectionDate.value * 1000 <= Date.now() ? t('lng_prizes_end_title') : t('content.giveawayIn');
 });
 
 /** 主频道（发起抽奖的频道，即参与频道列表第一个） */
 const mainChannel = computed(() => channels.value[0]);
 
-const additionalCount = computed(() => props.content.parameters.additional_chat_ids?.length ?? 0);
-
-/** 奖品英文名（弹窗文案用） */
-const prizeNameEn = computed(() => {
-    const prize = props.content.prize;
-    if (prize._ === 'giveawayPrizeStars') return `${formatCount(prize.star_count)} Stars`;
-    return `Telegram Premium ${prize.month_count} 个月`;
-});
-
 /** 弹窗：赞助方说明 */
 const sponsorText = computed(() => {
-    const name = mainChannel.value?.title?.trim() || '本频道';
-    return `This giveaway was sponsored by the admins of ${name} who acquired ${prizeNameEn.value} for its followers.`;
+    const name = mainChannel.value?.title?.trim() || t('content.thisChannel');
+    const prize = props.content.prize;
+    const admins = prize._ === 'giveawayPrizeStars'
+        ? t('lng_prizes_credits_admins', { channel: name, amount: t('lng_prizes_credits_admins_amount', { count: formatCount(prize.star_count) }) })
+        : t('lng_prizes_admins', {
+            channel: name,
+            count: prize.month_count,
+            duration: t('lng_months', { count: prize.month_count }),
+        });
+    const raw = selectionDate.value * 1000 <= Date.now()
+        ? t('lng_prizes_end_text', { admins })
+        : t('lng_prizes_how_text', { admins });
+    return raw.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 });
 
 /** 弹窗：开奖机制说明 */
 const selectionText = computed(() => {
     const count = props.content.winner_count;
-    const main = mainChannel.value?.title?.trim() || '本频道';
-    const additional = additionalCount.value;
-    const date = selectionDate.value ? formatSelectionDate(selectionDate.value) : '开奖时间';
-    const joined = additional > 0 ? `和 ${additional} 其他频道` : '';
-    return `在${date}, Telegram将随机选择${count}位成员,已订阅${main}频道${joined}。`;
+    const main = mainChannel.value?.title?.trim() || t('content.thisChannel');
+    const winners = t('lng_prizes_winners_all_of_one', { count, channel: main });
+    const date = selectionDate.value ? formatSelectionDate(selectionDate.value) : t('content.selectionDate');
+    return selectionDate.value * 1000 <= Date.now()
+        ? t('lng_prizes_end_when_finish', { date, winners })
+        : t('lng_prizes_how_when_finish', { date, winners });
 });
 
 function formatSelectionDate(ts: number): string {
     const d = new Date(ts * 1000);
-    return `${d.getMonth() + 1}月${d.getDate()}`;
+    return d.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
 }
 
 async function resolveChannel(chatId: number): Promise<GiveawayChannel | undefined> {
@@ -248,7 +251,7 @@ async function resolveChannel(chatId: number): Promise<GiveawayChannel | undefin
 
     return {
         id: chatId,
-        title: chat.title?.trim() || `频道 #${chatId}`,
+        title: chat.title?.trim() || t('content.channelFallback', { id: chatId }),
         photo: chat.photo,
         accentColorId: chat.accent_color_id,
     };

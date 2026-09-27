@@ -9,11 +9,11 @@
     <div class="flex min-w-0 justify-start overflow-hidden text-left select-none" :class="rootClass">
         <!-- 整体交互单元：标签 + 头像 + 来源名 (+ 原始作者) -->
         <span class="inline-flex min-w-0 max-w-full flex-col rounded-md px-1.5 py-0.5 transition-colors"
-            :style="textStyle" :title="navigable ? '跳转到来源' : undefined"
+            :style="textStyle" :title="navigable ? t('content.jumpToSource') : undefined"
             :class="navigable ? 'cursor-pointer hover:bg-black/5 dark:hover:bg-white/10 active:bg-black/10 dark:active:bg-white/15' : 'cursor-default'"
             @click.stop="openSource">
             <!-- 第一行：「转发的消息」标签 -->
-            <span class="shrink-0 text-[11px] font-medium leading-none opacity-70">转发的消息</span>
+            <span class="shrink-0 text-[11px] font-medium leading-none opacity-70">{{ t('content.forwardedMessage') }}</span>
 
             <!-- 第二行：头像 + 来源名 (+ 原始作者) -->
             <span class="mt-1 flex min-w-0 items-center text-xs font-semibold">
@@ -39,9 +39,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import Avatar from '../../../avatar.vue';
 import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 import type { chatPhotoInfo, profilePhoto } from 'tdlib-types';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     /** 来源显示名（peer title / 用户姓名） */

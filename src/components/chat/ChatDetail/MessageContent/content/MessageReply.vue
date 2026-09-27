@@ -40,6 +40,7 @@ import { pickSmallPhotoSize } from '../../../../../utils/photoSizes';
 import { isThumbnailImgRenderable } from '../../../../../utils/thumbnail';
 import { useColors, rgbToCss } from '../../../../../store/colors';
 import { getSenderAccentColorId } from '../../../../../utils/senderInfo';
+import { messageContentTypeLabel } from '../../../../../utils/messagePreview';
 import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 
 const props = defineProps<{
@@ -77,14 +78,14 @@ const status = ref<ReplyStatus>('loading');
 /** 顶部名称/占位文案：已删除显示「消息已被删除」，获取中显示「消息正在获取中」 */
 const titleText = computed(() => {
     if (status.value === 'found' && replyData.value) return replyData.value.senderName;
-    if (status.value === 'deleted') return '消息已被删除';
-    return '消息正在获取中';
+    if (status.value === 'deleted') return t('lng_deleted_message');
+    return t('preview.loadingMessage');
 });
 
 /** 次级说明文字：删除/获取中时给出补充说明 */
 const subText = computed(() => {
-    if (status.value === 'deleted') return '该消息已被删除';
-    if (status.value === 'loading') return '正在获取消息内容…';
+    if (status.value === 'deleted') return t('lng_deleted_message');
+    if (status.value === 'loading') return t('preview.loadingMessageContent');
     return '';
 });
 
@@ -205,7 +206,7 @@ async function loadReplyData() {
     replyAccentColorId.value = getSenderAccentColorId(foundMsg.sender_id);
 
     // 提取发送者名称
-    let senderName = '未知';
+    let senderName = t('preview.unknown');
     if (foundMsg.sender_id._ === 'messageSenderUser') {
         try {
             const u = await tdlibSend({ _: 'getUser', user_id: foundMsg.sender_id.user_id }) as any;
@@ -214,9 +215,9 @@ async function loadReplyData() {
             if (replyAccentColorId.value === undefined && typeof u?.accent_color_id === 'number') {
                 replyAccentColorId.value = u.accent_color_id;
             }
-            senderName = u.type?._ === 'userTypeDeleted'
-                ? '已注销账户'
-                : `${u.first_name || ''} ${u.last_name || ''}`.trim() || '用户';
+            senderName = (u.type?._ === 'userTypeDeleted' || u.type?._ === 'userTypeUnknown')
+                ? t('lng_deleted')
+                : `${u.first_name || ''} ${u.last_name || ''}`.trim() || t('preview.user');
         } catch (_) { }
     } else if (foundMsg.sender_id._ === 'messageSenderChat') {
         try {
@@ -256,7 +257,7 @@ function getMediaInfo(content: MessageContent, _msg: message): { mediaType: stri
     let thumbSrc: string | null = null;
 
     if (content._ === 'messagePhoto') {
-        mediaType = '照片';
+        mediaType = messageContentTypeLabel('messagePhoto');
         // 引用回复缩略图用 Small（最小尺寸）；未就绪时拉取 Small（不受 autoDownload 管控）
         const small = pickSmallPhotoSize(content.photo);
         if (small) {
@@ -275,13 +276,13 @@ function getMediaInfo(content: MessageContent, _msg: message): { mediaType: stri
             }
         }
     } else if (content._ === 'messageVideo') {
-        mediaType = t('lng_in_dlg_video');
+        mediaType = messageContentTypeLabel('messageVideo');
         const thumb = content.video.thumbnail;
         if (thumb && isThumbnailImgRenderable(thumb.format) && isFileReady(thumb.file)) {
             thumbSrc = convertFileSrc(thumb.file.local.path);
         }
     } else if (content._ === 'messageAnimation') {
-        mediaType = 'GIF';
+        mediaType = messageContentTypeLabel('messageAnimation');
         // 回复框用 <img> 渲染，仅取静态位图缩略图（GIF/JPEG/PNG/WEBP）；
         // MPEG4/WEBM 动态缩略图无法在 <img> 中显示，回退无图。
         const thumb = content.animation.thumbnail;
@@ -289,13 +290,13 @@ function getMediaInfo(content: MessageContent, _msg: message): { mediaType: stri
             thumbSrc = convertFileSrc(thumb.file.local.path);
         }
     } else if (content._ === 'messageDocument') {
-        mediaType = t('lng_in_dlg_file');
+        mediaType = messageContentTypeLabel('messageDocument');
     } else if (content._ === 'messageAudio') {
-        mediaType = t('lng_all_music');
+        mediaType = messageContentTypeLabel('messageAudio');
     } else if (content._ === 'messageVoiceNote') {
-        mediaType = '语音';
+        mediaType = messageContentTypeLabel('messageVoiceNote');
     } else if (content._ === 'messageSticker') {
-        mediaType = t('lng_in_dlg_sticker');
+        mediaType = messageContentTypeLabel('messageSticker');
         const stickerThumb = content.sticker.thumbnail;
         if (stickerThumb && isThumbnailImgRenderable(stickerThumb.format) && isFileReady(stickerThumb.file)) {
             thumbSrc = convertFileSrc(stickerThumb.file.local.path);

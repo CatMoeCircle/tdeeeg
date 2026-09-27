@@ -1,9 +1,13 @@
 <template>
     <MessageLinkPreview v-if="linkPreview?.show_above_text" :preview="linkPreview" :accentColorId="accentColorId"
         :chatId="chatId" @open="openLink" />
-    <!-- overflow:hidden 使 <p> 建立 BFC，包含内嵌时间（float:right）以免溢出气泡 -->
-    <p v-bind="$attrs" class="whitespace-pre-wrap msg-selectable-text overflow-hidden"
-        :style="{ fontSize: 'var(--msg-font-size, 14px)', lineHeight: '1.4' }">
+    <!-- 相对定位容器：承载 replace 模式扫光覆盖层。
+         flow-root 建立独立格式化上下文，防止 p 的外边距塌陷穿透，
+         保证真实正文与覆盖层副本始终对齐（如语音 caption 的 mt-1） -->
+    <div class="relative flow-root min-w-0">
+        <!-- overflow:hidden 使 <p> 建立 BFC，包含内嵌时间（float:right）以免溢出气泡 -->
+        <p v-bind="$attrs" class="whitespace-pre-wrap msg-selectable-text overflow-hidden"
+            :style="{ fontSize: 'var(--msg-font-size, 14px)', lineHeight: '1.4' }">
         <template v-for="(group, gi) in renderGroups" :key="gi">
             <!-- Blockquote group: 用容器包裹，加引用竖线 -->
             <span v-if="group.type === 'blockquote'"
@@ -123,9 +127,130 @@
         <span v-if="showInlineTime" class="msg-noselect float-right ml-1.5 pt-1 select-none pointer-events-none"
             :class="timeColorClass">
             <MessageStatus :date="timeDate!" :isOutgoing="timeIsOutgoing === true" :sendingState="timeSendingState"
-                :isRead="timeIsRead" :viewCount="timeViewCount" :authorSignature="timeAuthorSignature" />
+                :isRead="timeIsRead" :viewCount="timeViewCount" :authorSignature="timeAuthorSignature"
+                :isTranslated="isShowingTranslation" />
         </span>
     </p>
+
+    <!-- replace 模式扫光层：与正文同构的副本（不含回应/时间），仅翻译进行中挂载。
+         渐变光带经 background-clip:text 只落在字形上（对齐 Unigram 的逐行裁剪扫光）；
+         原文保持可见，结果到达后本层卸载、正文经 displayFormattedText 原位换成译文 -->
+    <p v-if="shimmering" v-bind="$attrs" aria-hidden="true"
+        class="replace-shimmer-overlay whitespace-pre-wrap msg-selectable-text overflow-hidden"
+        :style="{ fontSize: 'var(--msg-font-size, 14px)', lineHeight: '1.4' }">
+        <template v-for="(group, gi) in renderGroups" :key="'shimmer-' + gi">
+            <!-- Blockquote group: 用容器包裹，加引用竖线 -->
+            <span v-if="group.type === 'blockquote'"
+                class="relative block border-l-2 pl-2 my-0.5 text-gray-600 dark:text-gray-400"
+                :style="quoteBorderStyle">
+                <!-- 可折叠引用：默认折叠，点击展开（4行+底部渐变） -->
+                <span v-if="group.isExpandable" :ref="(el) => measureContent(gi, el as HTMLElement | null)"
+                    class="block overflow-hidden transition-[max-height] duration-300 ease-in-out"
+                    :class="{ 'mask-fade-bottom': !isExpanded(gi) }"
+                    :style="{ maxHeight: isExpanded(gi) ? (contentHeights[gi] ?? 9999) + 'px' : '5rem' }">
+                    <template v-for="(segment, si) in group.segments" :key="si">
+                        <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId"
+                            :size="emojiSize" :fallback-text="segment.text" />
+                        <a v-else-if="segment.href" :href="segment.href"
+                            class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
+                            :class="[segment.className, loadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
+                            @click.prevent.stop="handleSegmentClick($event, segment)"
+                            @contextmenu="handleSegmentContextMenu($event, segment)">{{ segment.text }}</a>
+                        <span v-else
+                            :class="[segment.className, (segment.copyable || segment.isHashtag) ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
+                            @click="(segment.copyable || segment.isCommand || segment.isHashtag) ? handleSegmentClick($event, segment) : undefined"
+                            @contextmenu="segment.isHashtag ? handleSegmentContextMenu($event, segment) : undefined">
+                            <SpoilerSpan v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template v-else>{{
+                                segment.text }}</template>
+                        </span>
+                    </template>
+                </span>
+                <!-- 普通引用：全部显示 -->
+                <template v-else>
+                    <template v-for="(segment, si) in group.segments" :key="si">
+                        <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId"
+                            :size="emojiSize" :fallback-text="segment.text" />
+                        <a v-else-if="segment.href" :href="segment.href"
+                            class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
+                            :class="[segment.className, loadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
+                            @click.prevent.stop="handleSegmentClick($event, segment)"
+                            @contextmenu="handleSegmentContextMenu($event, segment)">{{ segment.text }}</a>
+                        <span v-else
+                            :class="[segment.className, (segment.copyable || segment.isHashtag) ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
+                            @click="(segment.copyable || segment.isCommand || segment.isHashtag) ? handleSegmentClick($event, segment) : undefined"
+                            @contextmenu="segment.isHashtag ? handleSegmentContextMenu($event, segment) : undefined">
+                            <SpoilerSpan v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template v-else>{{
+                                segment.text }}</template>
+                        </span>
+                    </template>
+                </template>
+                <!-- 右下角折叠/展开三角图标 -->
+                <button v-if="group.isExpandable" type="button"
+                    class="absolute bottom-0.5 right-0.5 flex items-center justify-center w-4 h-4 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+                    @click.stop="toggleExpand(gi)">
+                    <svg class="w-3.5 h-3.5 transition-transform duration-200" :class="{ 'rotate-180': isExpanded(gi) }"
+                        viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none"
+                            stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                </button>
+            </span>
+            <!-- Code block group：头部（accent 竖条 + 语言名 + 复制按钮）+ 代码区；用 span + block 展示，避免 <pre> 在 <p> 内闭合破坏布局 -->
+            <span v-else-if="group.type === 'code'"
+                class="relative my-1 block overflow-hidden rounded-lg border border-black/10 dark:border-white/10">
+                <!-- 头部：accent 竖条后显示语言名，右侧复制按钮（还原 TG 效果） -->
+                <span
+                    class="flex items-center gap-1.5 border-b border-black/10 bg-black/3 pr-1 dark:border-white/10 dark:bg-white/5">
+                    <span class="w-0.5 shrink-0 self-stretch rounded-full" :style="accentBarStyle"></span>
+                    <span class="min-w-0 flex-1 truncate py-1 text-xs font-semibold" :style="accentTextStyle">{{
+                        group.codeLanguage
+                        }}</span>
+                    <button type="button"
+                        class="msg-noselect flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                        @click.stop="copyCodeBlock(group)">
+                        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                        复制
+                    </button>
+                </span>
+                <!-- 代码区：仅内容横向滚动，头部保持固定；代码文本不可点击（复制由头部按钮统一处理） -->
+                <span class="block overflow-x-auto p-2.5 text-[13px] leading-5 whitespace-pre-wrap">
+                    <template v-for="(segment, si) in group.segments" :key="si">
+                        <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId"
+                            :size="emojiSize" :fallback-text="segment.text" />
+                        <a v-else-if="segment.href" :href="segment.href"
+                            class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
+                            :class="[segment.className]" @click.prevent.stop="handleSegmentClick($event, segment)">{{
+                                segment.text }}</a>
+                        <span v-else class="font-mono" :class="[segment.className]">{{ segment.text }}</span>
+                    </template>
+                </span>
+            </span>
+            <!-- Normal group -->
+            <template v-else>
+                <template v-for="(segment, si) in group.segments" :key="si">
+                    <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId" :size="emojiSize"
+                        :fallback-text="segment.text" />
+                    <a v-else-if="segment.href" :href="segment.href"
+                        class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
+                        :class="[segment.className, loadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
+                        @click.prevent.stop="handleSegmentClick($event, segment)"
+                        @contextmenu="handleSegmentContextMenu($event, segment)">{{ segment.text }}</a>
+                    <span v-else
+                        :class="[segment.className, (segment.copyable || segment.isHashtag) ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
+                        @click="(segment.copyable || segment.isCommand || segment.isHashtag) ? handleSegmentClick($event, segment) : undefined"
+                        @contextmenu="segment.isHashtag ? handleSegmentContextMenu($event, segment) : undefined">
+                        <SpoilerSpan v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template v-else>{{
+                            segment.text }}</template>
+                    </span>
+                </template>
+            </template>
+        </template>
+    </p>
+    </div>
     <MessageLinkPreview v-if="linkPreview && !linkPreview.show_above_text" :preview="linkPreview"
         :accentColorId="accentColorId" :chatId="chatId" @open="openLink" />
 </template>
@@ -148,6 +273,7 @@ import { requestHashtagSearch } from '../../../../../store/hashtagSearch';
 import { openUsernameMenu } from '../../../../../store/usernameMenu';
 import { openContextMenu } from '../../../../../store/contextMenu';
 import { settings } from '../../../../../store/settings';
+import { getInlineTranslation, isTranslateReplaceDisplay } from '../../../../../store/translate';
 import MessageLinkPreview from './MessageLinkPreview.vue';
 import MessageStatus from './MessageStatus.vue';
 import type { MessageSendingState } from 'tdlib-types';
@@ -159,6 +285,11 @@ const props = defineProps<{
     linkPreview?: LinkPreview;
     /** 来源对话，用于链接预览图自动下载判断 */
     chatId?: number;
+    /**
+     * 来源消息 id：replace 显示模式读取该消息的翻译状态做原位替换/扫光。
+     * 不传（如相册 caption、媒体查看器）则不参与原位替换。
+     */
+    messageId?: number;
     /** 发送者 accent_color_id，用于引用标记竖线配色 */
     accentColorId?: number;
     /** 是否在文本末尾内嵌时间（float 右对齐，跟随文本末行；参考网页版 time-seal）。仅普通文本消息开启，caption 场景勿传 */
@@ -241,11 +372,35 @@ type RenderGroup = {
     codeLanguage?: string;
 };
 
+// ==================== replace 显示模式：译文原位顶替 + 翻译中扫光 ====================
+
+/** replace 模式下本条消息的翻译状态（非原位替换展示模式 / 无消息 id / 无状态 → null） */
+const replaceTranslation = computed(() => {
+    if (!isTranslateReplaceDisplay()) return null;
+    if (props.messageId == null || props.chatId == null) return null;
+    return getInlineTranslation(props.chatId, props.messageId);
+});
+
+/** 实际渲染的文本：replace 模式且已有译文时原位顶替原文；其余情况为原文 */
+const displayFormattedText = computed<formattedText>(() => {
+    const st = replaceTranslation.value;
+    if (st?.translatedText) {
+        return { _: 'formattedText', text: st.translatedText, entities: st.translatedEntities ?? [] };
+    }
+    return props.formattedText;
+});
+
+/** 翻译进行中：原文保持可见，覆盖层播放扫光；结果到达后卸载覆盖层并换成译文 */
+const shimmering = computed(() => replaceTranslation.value?.translating === true);
+
+/** 正文已原位显示为译文（时间旁标注「已翻译」图标） */
+const isShowingTranslation = computed(() => !!replaceTranslation.value?.translatedText);
+
 const segments = computed<Segment[]>(() => {
-    const text = props.formattedText.text;
+    const text = displayFormattedText.value.text;
     if (!text) return [];
 
-    const entities = (props.formattedText.entities ?? [])
+    const entities = (displayFormattedText.value.entities ?? [])
         .map(entity => ({
             entity,
             start: Math.max(0, Math.min(text.length, entity.offset)),
@@ -547,5 +702,49 @@ async function resolveInternalLink(href: string) {
 .mask-fade-bottom {
     -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
     mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+}
+
+/* ==================== replace 模式翻译扫光 ====================
+   覆盖层是正文的同构副本：文字颜色全部透明，露出根节点被
+   background-clip:text 裁剪到字形上的渐变光带——光只扫在文字上，
+   气泡空白处不闪（对齐 Unigram FormattedTextBlock.ShowHideSkeleton）。
+   原文在下层保持可见；翻译结果到达后覆盖层卸载，正文原位换成译文。 */
+.replace-shimmer-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    user-select: none;
+    color: transparent;
+    background-image: linear-gradient(
+        100deg,
+        transparent 40%,
+        rgba(255, 255, 255, 0.7) 50%,
+        transparent 60%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: replace-text-sweep 1s linear infinite;
+}
+
+/* 副本内所有文字（含链接/标签等自带颜色的元素及子组件内部）都透出光带 */
+.replace-shimmer-overlay :deep(*) {
+    color: transparent !important;
+}
+
+/* 由左向右扫过整段文字后循环（150% → -50% 保证光带完整进出） */
+@keyframes replace-text-sweep {
+    from {
+        background-position: 150% 0;
+    }
+    to {
+        background-position: -50% 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .replace-shimmer-overlay {
+        animation: none;
+    }
 }
 </style>

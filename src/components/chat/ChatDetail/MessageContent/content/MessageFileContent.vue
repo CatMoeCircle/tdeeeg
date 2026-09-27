@@ -17,12 +17,12 @@
                 <span class="truncate text-xs text-gray-500">
                     <template v-if="uploading">
                         {{ formatSize(uploadCurrentSize) + ' / ' + formatSize(uploadTotalSize) }}
-                        <span class="text-emerald-500 ml-1">上传中...</span>
+                        <span class="text-emerald-500 ml-1">{{ t('content.uploading') }}</span>
                     </template>
                     <template v-else>
                         {{ downloadProgress > 0 && downloadProgress < 1 ? formatSize(downloadCurrentSize) + ' / ' +
                             formatSize(downloadTotalSize) : formatSize(content.document.document.size) }} <span
-                            v-if="isDownloading" class="text-blue-500 ml-1">下载中...</span>
+                            v-if="isDownloading" class="text-blue-500 ml-1">{{ t('content.downloading') }}</span>
 </template>
 </span>
 </div>
@@ -59,7 +59,7 @@
             </div>
             <button type="button"
                 class="audio-cover-button absolute inset-0 flex items-center justify-center bg-black/20 text-white transition-colors hover:bg-black/30"
-                :aria-label="isGloballyPlaying ? t('lng_mac_menu_player_pause') : '播放'" @click="togglePlayback">
+                :aria-label="isGloballyPlaying ? t('lng_mac_menu_player_pause') : t('content.play')" @click="togglePlayback">
                 <PauseIcon v-if="isGloballyPlaying" class="h-6 w-6 fill-current" />
                 <PlayIcon v-else class="ml-0.5 h-6 w-6 fill-current" />
             </button>
@@ -88,15 +88,15 @@
         </span>
         <span class="truncate text-xs text-gray-500 dark:text-gray-400">
             <template v-if="uploading">
-                上传中 {{ formatSize(uploadCurrentSize) }} / {{ formatSize(uploadTotalSize) }}
+                {{ t('content.uploading') }} {{ formatSize(uploadCurrentSize) }} / {{ formatSize(uploadTotalSize) }}
             </template>
             <template v-else>
-                {{ content.audio.performer || '未知艺术家' }}
+                {{ content.audio.performer || t('content.unknownArtist') }}
             </template>
         </span>
         <input class="audio-progress mt-1.5 w-full" type="range" min="0" :max="displayDuration || 1" step="0.1"
             :value="displayTime" :style="audioProgressStyle" :disabled="!isCurrentTrack || displayDuration <= 0"
-            aria-label="音乐播放进度" @input="seekAudio" />
+            :aria-label="t('content.musicProgress')" @input="seekAudio" />
         <div class="mt-0.5 flex justify-between text-[10px] leading-none text-gray-400 dark:text-gray-500">
             <span>{{ formatDuration(displayTime) }}</span>
             <span>{{ formatDuration(displayDuration) }}</span>
@@ -105,28 +105,49 @@
     <!-- 音乐已自带进度条（audio-progress 滑块展示下载/播放进度），不再额外绘制底部细进度条 -->
 </div>
 
-<p v-if="captionSegments.length" class="mt-2 whitespace-pre-wrap"
-    :style="{ fontSize: 'var(--msg-font-size, 14px)', lineHeight: '1.4' }">
-    <template v-for="(segment, index) in captionSegments" :key="index">
-        <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId" :size="22"
-            :fallback-text="segment.text" />
-        <a v-else-if="segment.href" :href="segment.href"
-            class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
-            :class="[segment.className, captionLoadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
-            @click.prevent.stop="handleCaptionSegmentClick($event, segment)">{{ segment.text
-            }}</a>
-        <span v-else
-            :class="[segment.className, (segment.copyable || segment.isHashtag) ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
-            @click="(segment.copyable || segment.isCommand || segment.isHashtag) ? handleCaptionSegmentClick($event, segment) : undefined"
-            @contextmenu="segment.isHashtag ? handleCaptionSegmentContextMenu($event, segment) : undefined">
-            <SpoilerSpan v-if="segment.isSpoiler">
-                {{ segment.text }}
-            </SpoilerSpan><template v-else>
-                {{ segment.text }}
+    <!-- 相对定位容器：承载 replace 模式扫光覆盖层（flow-root 防外边距塌陷，保证两层对齐） -->
+    <div v-if="captionSegments.length" class="relative flow-root mt-2">
+        <p class="whitespace-pre-wrap"
+            :style="{ fontSize: 'var(--msg-font-size, 14px)', lineHeight: '1.4' }">
+            <template v-for="(segment, index) in captionSegments" :key="index">
+                <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId" :size="22"
+                    :fallback-text="segment.text" />
+                <a v-else-if="segment.href" :href="segment.href"
+                    class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
+                    :class="[segment.className, captionLoadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
+                    @click.prevent.stop="handleCaptionSegmentClick($event, segment)">{{ segment.text
+                    }}</a>
+                <span v-else
+                    :class="[segment.className, (segment.copyable || segment.isHashtag) ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
+                    @click="(segment.copyable || segment.isCommand || segment.isHashtag) ? handleCaptionSegmentClick($event, segment) : undefined"
+                    @contextmenu="segment.isHashtag ? handleCaptionSegmentContextMenu($event, segment) : undefined">
+                    <SpoilerSpan v-if="segment.isSpoiler">
+                        {{ segment.text }}
+                    </SpoilerSpan><template v-else>
+                        {{ segment.text }}
+                    </template>
+                </span>
             </template>
-        </span>
-    </template>
-</p>
+        </p>
+        <!-- replace 模式扫光层：与 caption 同构的副本，仅翻译进行中挂载；光带只落在字形上 -->
+        <p v-if="shimmering" aria-hidden="true" class="replace-shimmer-overlay whitespace-pre-wrap"
+            :style="{ fontSize: 'var(--msg-font-size, 14px)', lineHeight: '1.4' }">
+            <template v-for="(segment, index) in captionSegments" :key="'shimmer-' + index">
+                <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId" :size="22"
+                    :fallback-text="segment.text" />
+                <a v-else-if="segment.href" :href="segment.href"
+                    class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
+                    :class="segment.className">{{ segment.text }}</a>
+                <span v-else :class="segment.className">
+                    <SpoilerSpan v-if="segment.isSpoiler">
+                        {{ segment.text }}
+                    </SpoilerSpan><template v-else>
+                        {{ segment.text }}
+                    </template>
+                </span>
+            </template>
+        </p>
+    </div>
 </div>
 </template>
 
@@ -134,7 +155,7 @@
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import type { messageDocument, messageAudio, textEntity, thumbnail } from 'tdlib-types';
+import type { messageDocument, messageAudio, formattedText, textEntity, thumbnail } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles, reactiveDownloadingFiles } from '../../../../../utils/tdlib';
 import { resolveInternalLink } from '../../../../../utils/openInternalLink';
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -149,6 +170,7 @@ import { useDownloadStore, type DownloadFileType } from '../../../../../store/do
 import { useUploadStore } from '../../../../../store/upload';
 import { useChatStore } from '../../../../../store/chat';
 import { settings } from '../../../../../store/settings';
+import { getInlineTranslation, isTranslateReplaceDisplay } from '../../../../../store/translate';
 import { requestInsertCommand } from '../../../../../store/commandInsert';
 import { requestHashtagSearch } from '../../../../../store/hashtagSearch';
 import { openContextMenu } from '../../../../../store/contextMenu';
@@ -200,7 +222,7 @@ const isDownloadingOrGlobally = computed(() => {
 });
 
 /** 下载按钮的 aria-label */
-const dlLabel = computed(() => isDownloadingOrGlobally.value ? '正在下载' : '下载音乐');
+const dlLabel = computed(() => isDownloadingOrGlobally.value ? t('content.downloadingLabel') : t('content.downloadMusic'));
 const currentFileId = ref<number>(0);
 const router = useRouter();
 const captionLoadingLinks = ref<Set<string>>(new Set());
@@ -301,11 +323,32 @@ type CaptionSegment = {
     isSpoiler?: boolean;
 };
 
+// ==================== replace 显示模式：译文原位顶替 + 翻译中扫光 ====================
+
+/** replace 模式下本条消息的翻译状态（非原位替换展示模式 / 无消息 id / 无状态 → null） */
+const replaceTranslation = computed(() => {
+    if (!isTranslateReplaceDisplay()) return null;
+    if (props.messageId == null || props.chatId == null) return null;
+    return getInlineTranslation(props.chatId, props.messageId);
+});
+
+/** 实际渲染的 caption：replace 模式且已有译文时原位顶替原文 */
+const displayCaption = computed<formattedText | undefined>(() => {
+    const st = replaceTranslation.value;
+    if (st?.translatedText) {
+        return { _: 'formattedText', text: st.translatedText, entities: st.translatedEntities ?? [] };
+    }
+    return props.content.caption;
+});
+
+/** 翻译进行中：原文保持可见，覆盖层播放扫光；结果到达后卸载覆盖层并换成译文 */
+const shimmering = computed(() => replaceTranslation.value?.translating === true);
+
 const captionSegments = computed<CaptionSegment[]>(() => {
-    const text = props.content.caption?.text ?? '';
+    const text = displayCaption.value?.text ?? '';
     if (!text) return [];
 
-    const entities = (props.content.caption.entities ?? [])
+    const entities = (displayCaption.value?.entities ?? [])
         .map(entity => ({
             entity,
             start: Math.max(0, Math.min(text.length, entity.offset)),
@@ -395,7 +438,7 @@ function isCopyableEntity(entity: textEntity): boolean {
 async function copyToClipboard(text: string) {
     try {
         await navigator.clipboard.writeText(text);
-        await MessagePlugin.success({ content: '已复制', placement: 'top-right' });
+        await MessagePlugin.success({ content: t('content.copied'), placement: 'top-right' });
     } catch (e) {
         console.error('Copy failed:', e);
     }
@@ -603,8 +646,8 @@ async function loadAudioCover() {
 function getChatTitleById(id: number): string {
     try {
         const chatStore = useChatStore();
-        return chatStore.chats[id]?.title || `对话 #${id}`;
-    } catch { return `对话 #${id}`; }
+        return chatStore.chats[id]?.title || t('content.chatFallback', { id });
+    } catch { return t('content.chatFallback', { id }); }
 }
 
 /** 获取缩略图 data URL */
@@ -646,7 +689,7 @@ async function handleDownload(fileId: number) {
             ? props.content.document.file_name
             : props.content._ === 'messageAudio'
                 ? (props.content.audio.title || props.content.audio.file_name)
-                : `文件 #${fileId}`;
+                : t('content.fileFallback', { id: fileId });
         const totalSize = fileInfo.size || fileInfo.expected_size || 0;
         downloadTotalSize.value = totalSize;
         const chatTitle = props.chatId ? getChatTitleById(props.chatId) : '';
@@ -926,6 +969,45 @@ onUnmounted(() => {
     .audio-cover-button,
     .audio-progress {
         transition: none;
+    }
+
+    .replace-shimmer-overlay {
+        animation: none;
+    }
+}
+
+/* ==================== replace 模式翻译扫光 ====================
+   覆盖层是 caption 的同构副本：文字颜色全部透明，露出根节点被
+   background-clip:text 裁剪到字形上的渐变光带——光只扫在文字上。
+   原文在下层保持可见；翻译结果到达后覆盖层卸载，caption 原位换成译文。 */
+.replace-shimmer-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    user-select: none;
+    color: transparent;
+    background-image: linear-gradient(
+        100deg,
+        transparent 40%,
+        rgba(255, 255, 255, 0.7) 50%,
+        transparent 60%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: replace-text-sweep 1s linear infinite;
+}
+
+.replace-shimmer-overlay :deep(*) {
+    color: transparent !important;
+}
+
+@keyframes replace-text-sweep {
+    from {
+        background-position: 150% 0;
+    }
+    to {
+        background-position: -50% 0;
     }
 }
 </style>

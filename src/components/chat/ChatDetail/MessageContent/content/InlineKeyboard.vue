@@ -27,6 +27,7 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { MessagePlugin } from 'tdesign-vue-next';
+import { useI18n } from 'vue-i18n';
 import type { inlineKeyboardButton, LoginUrlInfo, ButtonStyle } from 'tdlib-types';
 import { tdlibSend } from '../../../../../utils/tdlib';
 import { confirmExternalLink } from '../../../../../store/externalLink';
@@ -42,6 +43,7 @@ const props = defineProps<{
 }>();
 
 const router = useRouter();
+const { t } = useI18n();
 const pendingKey = ref<string | null>(null);
 
 /**
@@ -96,16 +98,16 @@ async function handleClick(button: inlineKeyboardButton, ri: number, bi: number)
             await sendCallback(key, { _: 'callbackQueryPayloadData', data: button.type.data });
             break;
         case 'inlineKeyboardButtonTypeCallbackWithPassword':
-            await MessagePlugin.error({ content: '暂不支持密码回调按钮', placement: 'top-right' });
+            await MessagePlugin.error({ content: t('content.notSupportedPasswordCallback'), placement: 'top-right' });
             break;
         case 'inlineKeyboardButtonTypeCallbackGame':
-            await MessagePlugin.error({ content: '暂不支持游戏回调按钮', placement: 'top-right' });
+            await MessagePlugin.error({ content: t('content.notSupportedGameCallback'), placement: 'top-right' });
             break;
         case 'inlineKeyboardButtonTypeSwitchInline':
-            await MessagePlugin.error({ content: '暂不支持切换内联查询按钮', placement: 'top-right' });
+            await MessagePlugin.error({ content: t('content.notSupportedSwitchInline'), placement: 'top-right' });
             break;
         case 'inlineKeyboardButtonTypeBuy':
-            await MessagePlugin.error({ content: '暂不支持购买按钮', placement: 'top-right' });
+            await MessagePlugin.error({ content: t('content.notSupportedBuy'), placement: 'top-right' });
             break;
         case 'inlineKeyboardButtonTypeUser':
             await openUserButton(button.type.user_id);
@@ -221,7 +223,7 @@ async function openUserButton(userId: number) {
 async function copyButtonText(text: string) {
     try {
         await navigator.clipboard.writeText(text);
-        await MessagePlugin.success({ content: '已复制', placement: 'top-right' });
+        await MessagePlugin.success({ content: t('content.copied'), placement: 'top-right' });
     } catch (e) {
         console.error('Copy inline keyboard button text failed:', e);
     }
