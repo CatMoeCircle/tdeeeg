@@ -17,14 +17,11 @@ use std::os::raw::c_char;
 use std::ptr;
 use std::slice;
 
-use edgefirst_tflite_sys::{
-    TfLiteOpaqueContext, TfLiteOpaqueNode, TfLiteOperator, TfLiteStatus,
-};
+use edgefirst_tflite_sys::{TfLiteContext, TfLiteNode, TfLiteStatus};
 
 use crate::error::{Error, Result};
 use crate::ops::{
-    add_operator, context_from_user_data, ffi, ffi_status, int_array, report_error, OpContext,
-    KTFLITE_BUILTIN_CUSTOM, KTFLITE_OK,
+    node_tensor, report_error, resize_tensor, take_text, tensor_dims, KTFLITE_OK,
 };
 use crate::text;
 
@@ -33,8 +30,6 @@ const DEFAULT_MAX_SPLITS: usize = 128;
 
 /// Name the model's operator code declares.
 const OP_NAME: &str = "NGramHash";
-/// Version the model's operator code declares.
-const OP_VERSION: i32 = 1;
 
 /// The op's configuration, serialised into the model as a FlexBuffer.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -111,13 +106,17 @@ fn int_vector(map: &flexbuffers::MapReader<&[u8]>, key: &str) -> Result<Vec<i32>
     Ok(vector.iter().map(|element| element.as_i64() as i32).collect())
 }
 
-unsafe extern "C" fn init(
-    user_data: *mut c_void,
-    context: *mut TfLiteOpaqueContext,
+/// Per-node state created by `init`, freed by `free_op`.
+fn params(node: *mut TfLiteNode) -> Option<&'static NgramHashParams> {
+    let node_ref = unsafe { node.as_ref() }?;
+    unsafe { (node_ref.user_data as *const NgramHashParams).as_ref() }
+}
+
+pub(crate) unsafe extern "C" fn init(
+    _context: *mut TfLiteContext,
     buffer: *const c_char,
     length: usize,
 ) -> *mut c_void {
-    let sys = unsafe { context_from_user_data(user_data) }.sys();
     let bytes = if buffer.is_null() || length == 0 {
         &[][..]
     } else {
@@ -125,80 +124,69 @@ unsafe extern "C" fn init(
     };
     match NgramHashParams::from_custom_options(bytes) {
         Ok(params) => Box::into_raw(Box::new(params)).cast::<c_void>(),
-        Err(error) => {
-            unsafe { report_error(sys, context, &error.to_string()) };
+        Err(_) => {
+            // `prepare`/`invoke` treat a null `user_data` as "not initialised"
+            // and report the failure where a context is available.
             ptr::null_mut()
         }
     }
 }
 
-unsafe extern "C" fn prepare(
-    user_data: *mut c_void,
-    context: *mut TfLiteOpaqueContext,
-    node: *mut TfLiteOpaqueNode,
-) -> TfLiteStatus {
-    let sys = unsafe { context_from_user_data(user_data) }.sys();
-
-    let get_user_data = ffi_status!(sys, context, TfLiteOpaqueNodeGetUserData);
-    let params = unsafe { get_user_data(node) } as *const NgramHashParams;
-    if params.is_null() {
-        unsafe { report_error(sys, context, "NGramHash: op was not initialised") };
-        return 1;
+pub(crate) unsafe extern "C" fn free_op(
+    _context: *mut TfLiteContext,
+    data: *mut c_void,
+) {
+    if !data.is_null() {
+        drop(unsafe { Box::from_raw(data as *mut NgramHashParams) });
     }
-    let params = unsafe { &*params };
+}
 
-    let get_output = ffi_status!(sys, context, TfLiteOpaqueNodeGetOutput);
-    let output = unsafe { get_output(context, node, 0) };
+pub(crate) unsafe extern "C" fn prepare(
+    context: *mut TfLiteContext,
+    node: *mut TfLiteNode,
+) -> TfLiteStatus {
+    let Some(params) = params(node) else {
+        unsafe { report_error(context, "NGramHash: op was not initialised") };
+        return 1;
+    };
+
+    let output = unsafe { node_tensor(context, node, 0, false) };
     if output.is_null() {
-        unsafe { report_error(sys, context, "NGramHash: missing output tensor") };
+        unsafe { report_error(context, "NGramHash: missing output tensor") };
         return 1;
     }
 
     // [1, num_ngrams, max_splits] — the inner stride has to be the tensor's own
-    // last dimension, because `Invoke` writes straight into this buffer.
-    let dims = unsafe { int_array(&[1, params.ngram_count() as i32, params.max_splits as i32]) };
-    if dims.is_null() {
-        unsafe { report_error(sys, context, "NGramHash: cannot allocate output shape") };
+    // last dimension, because `invoke` writes straight into this buffer.
+    let dims = [1, params.ngram_count() as i32, params.max_splits as i32];
+    if !unsafe { resize_tensor(context, output, &dims) } {
+        unsafe { report_error(context, "NGramHash: cannot resize the output tensor") };
         return 1;
     }
-
-    let resize = ffi_status!(sys, context, TfLiteOpaqueContextResizeTensor);
-    let status = unsafe { resize(context, output, dims) };
-    if status != KTFLITE_OK {
-        unsafe { report_error(sys, context, "NGramHash: cannot resize the output tensor") };
-    }
-    status
+    KTFLITE_OK
 }
 
-unsafe extern "C" fn invoke(
-    user_data: *mut c_void,
-    context: *mut TfLiteOpaqueContext,
-    node: *mut TfLiteOpaqueNode,
+pub(crate) unsafe extern "C" fn invoke(
+    context: *mut TfLiteContext,
+    node: *mut TfLiteNode,
 ) -> TfLiteStatus {
-    let context_ref = unsafe { context_from_user_data(user_data) };
-    let sys = context_ref.sys();
-
-    let get_user_data = ffi_status!(sys, context, TfLiteOpaqueNodeGetUserData);
-    let params = unsafe { get_user_data(node) } as *const NgramHashParams;
-    if params.is_null() {
-        unsafe { report_error(sys, context, "NGramHash: op was not initialised") };
+    let Some(params) = params(node) else {
+        unsafe { report_error(context, "NGramHash: op was not initialised") };
         return 1;
-    }
-    let params = unsafe { &*params };
+    };
 
-    let get_output = ffi_status!(sys, context, TfLiteOpaqueNodeGetOutput);
-    let output = unsafe { get_output(context, node, 0) };
-    if output.is_null() {
-        unsafe { report_error(sys, context, "NGramHash: missing output tensor") };
+    let output = unsafe { node_tensor(context, node, 0, false) };
+    let Some(output_ref) = (unsafe { output.as_ref() }) else {
+        unsafe { report_error(context, "NGramHash: missing output tensor") };
         return 1;
-    }
+    };
 
-    // The text comes from the host through the operator's user data; see
-    // `OpContext` for why it does not travel through the string input tensor.
-    let Some(raw) = context_ref.take_text() else {
+    // The text comes from the host through a thread-local; see
+    // `ops::PENDING_TEXT` for why it does not travel through the string input
+    // tensor.
+    let Some(raw) = take_text() else {
         unsafe {
             report_error(
-                sys,
                 context,
                 "NGramHash: no input text was supplied for this inference",
             )
@@ -212,22 +200,18 @@ unsafe extern "C" fn invoke(
         text::tokenize(&raw, params.max_splits, true)
     };
 
-    let dim = ffi_status!(sys, context, TfLiteOpaqueTensorDim);
-    let byte_size_of = ffi_status!(sys, context, TfLiteOpaqueTensorByteSize);
-    let tensor_data = ffi_status!(sys, context, TfLiteOpaqueTensorData);
-
-    let ngram_count = unsafe { dim(output, 1) }.max(0) as usize;
-    let stride = unsafe { dim(output, 2) }.max(0) as usize;
-    let byte_size = unsafe { byte_size_of(output) };
-    let data = unsafe { tensor_data(output) } as *mut i32;
-    if data.is_null() || stride == 0 || byte_size == 0 {
-        unsafe { report_error(sys, context, "NGramHash: the output tensor is not usable") };
+    let dims = unsafe { tensor_dims(output) };
+    let ngram_count = dims.get(1).copied().unwrap_or(0).max(0) as usize;
+    let stride = dims.get(2).copied().unwrap_or(0).max(0) as usize;
+    let data = output_ref.data.i32_;
+    if data.is_null() || stride == 0 || output_ref.bytes == 0 {
+        unsafe { report_error(context, "NGramHash: the output tensor is not usable") };
         return 1;
     }
 
     // Clear the padding slots: hash-derived ids are always >= 1, so a zero
     // reads as "no token here" to the downstream op.
-    unsafe { ptr::write_bytes(data as *mut u8, 0, byte_size) };
+    unsafe { ptr::write_bytes(data as *mut u8, 0, output_ref.bytes) };
 
     for (ngram_index, (&ngram_length, &vocab_size)) in params
         .ngram_lengths
@@ -255,63 +239,6 @@ unsafe extern "C" fn invoke(
     }
 
     KTFLITE_OK
-}
-
-unsafe extern "C" fn free_op(
-    _user_data: *mut c_void,
-    _context: *mut TfLiteOpaqueContext,
-    data: *mut c_void,
-) {
-    if !data.is_null() {
-        drop(unsafe { Box::from_raw(data as *mut NgramHashParams) });
-    }
-}
-
-/// Creates the operator and wires its callbacks.
-///
-/// The returned operator must outlive the interpreter that uses it, and
-/// `context` must outlive both.
-pub fn create(context: &OpContext) -> Result<*mut TfLiteOperator> {
-    let sys = context.sys();
-    let create = ffi!(sys, TfLiteOperatorCreate);
-    let operator = unsafe {
-        create(
-            KTFLITE_BUILTIN_CUSTOM,
-            c"NGramHash".as_ptr(),
-            OP_VERSION,
-            context as *const OpContext as *mut c_void,
-        )
-    };
-    if operator.is_null() {
-        return Err(Error::Op(format!("{OP_NAME}: TfLiteOperatorCreate failed")));
-    }
-
-    let set_init = ffi!(sys, TfLiteOperatorSetInitWithData);
-    let set_prepare = ffi!(sys, TfLiteOperatorSetPrepareWithData);
-    let set_invoke = ffi!(sys, TfLiteOperatorSetInvokeWithData);
-    let set_free = ffi!(sys, TfLiteOperatorSetFreeWithData);
-    let statuses = unsafe {
-        [
-            set_init(operator, Some(init)),
-            set_prepare(operator, Some(prepare)),
-            set_invoke(operator, Some(invoke)),
-            set_free(operator, Some(free_op)),
-        ]
-    };
-    if statuses.iter().any(|status| *status != KTFLITE_OK) {
-        return Err(Error::Op(format!("{OP_NAME}: cannot set the op callbacks")));
-    }
-    Ok(operator)
-}
-
-/// Creates the op and registers it on the interpreter options.
-pub fn register(
-    context: &OpContext,
-    options: *mut edgefirst_tflite_sys::TfLiteInterpreterOptions,
-) -> Result<*mut TfLiteOperator> {
-    let operator = create(context)?;
-    add_operator(context.sys(), options, operator)?;
-    Ok(operator)
 }
 
 #[cfg(test)]

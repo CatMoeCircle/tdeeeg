@@ -7,134 +7,96 @@
 //! the upstream op expresses padding.
 
 use std::ffi::c_void;
+use std::os::raw::c_char;
 use std::slice;
 
-use edgefirst_tflite_sys::{
-    tensorflowlite_c, TfLiteOpaqueContext, TfLiteOpaqueNode, TfLiteOpaqueTensor, TfLiteOperator,
-    TfLiteStatus,
-};
+use edgefirst_tflite_sys::{TfLiteContext, TfLiteNode, TfLiteStatus};
 
-use crate::error::{Error, Result};
-use crate::ops::{
-    add_operator, context_from_user_data, ffi, ffi_status, int_array, report_error, OpContext,
-    KTFLITE_BUILTIN_CUSTOM, KTFLITE_OK,
-};
-
-const OP_NAME: &str = "KmeansEmbeddingLookup";
-const OP_VERSION: i32 = 1;
+use crate::ops::{node_tensor, report_error, resize_tensor, tensor_dims, KTFLITE_OK};
 
 /// Input 0: vocab indices from `NGramHash`.
-const INPUT_TOKENS: i32 = 0;
+const INPUT_TOKENS: usize = 0;
 /// Input 1: the per-token compressed encoding table (uint8).
-const INPUT_ENCODING_TABLE: i32 = 1;
+const INPUT_ENCODING_TABLE: usize = 1;
 /// Input 2: the embedding codebook (float32).
-const INPUT_CODEBOOK: i32 = 2;
+const INPUT_CODEBOOK: usize = 2;
 
 /// Reports `message` and returns a non-OK status.
-fn fail(sys: &tensorflowlite_c, context: *mut TfLiteOpaqueContext, message: &str) -> TfLiteStatus {
-    unsafe { report_error(sys, context, message) };
+fn fail(context: *mut TfLiteContext, message: &str) -> TfLiteStatus {
+    unsafe { report_error(context, message) };
     1
 }
 
-/// Reads a tensor's dimensions, or `None` if the tensor is unusable.
-unsafe fn tensor_dims(
-    sys: &tensorflowlite_c,
-    tensor: *const TfLiteOpaqueTensor,
-) -> Option<Vec<i32>> {
-    let num_dims = (sys.TfLiteOpaqueTensorNumDims).as_ref().ok()?;
-    let dim = (sys.TfLiteOpaqueTensorDim).as_ref().ok()?;
-    let count = unsafe { num_dims(tensor) };
-    if count <= 0 {
-        return Some(Vec::new());
-    }
-    Some((0..count).map(|index| unsafe { dim(tensor, index) }).collect())
+pub(crate) unsafe extern "C" fn init(
+    _context: *mut TfLiteContext,
+    _buffer: *const c_char,
+    _length: usize,
+) -> *mut c_void {
+    // The model ships no custom options for this op, and the weights are read
+    // straight from the input tensors on every invocation.
+    std::ptr::null_mut()
 }
 
-unsafe extern "C" fn prepare(
-    user_data: *mut c_void,
-    context: *mut TfLiteOpaqueContext,
-    node: *mut TfLiteOpaqueNode,
-) -> TfLiteStatus {
-    let sys = unsafe { context_from_user_data(user_data) }.sys();
+pub(crate) unsafe extern "C" fn free_op(_context: *mut TfLiteContext, _data: *mut c_void) {}
 
-    let get_input = ffi_status!(sys, context, TfLiteOpaqueNodeGetInput);
-    let get_output = ffi_status!(sys, context, TfLiteOpaqueNodeGetOutput);
-    let encoding_table = unsafe { get_input(context, node, INPUT_ENCODING_TABLE) };
-    let codebook = unsafe { get_input(context, node, INPUT_CODEBOOK) };
-    let output = unsafe { get_output(context, node, 0) };
+pub(crate) unsafe extern "C" fn prepare(
+    context: *mut TfLiteContext,
+    node: *mut TfLiteNode,
+) -> TfLiteStatus {
+    let encoding_table = unsafe { node_tensor(context, node, INPUT_ENCODING_TABLE, true) };
+    let codebook = unsafe { node_tensor(context, node, INPUT_CODEBOOK, true) };
+    let output = unsafe { node_tensor(context, node, 0, false) };
     if encoding_table.is_null() || codebook.is_null() || output.is_null() {
-        return fail(sys, context, "KmeansEmbeddingLookup: missing input or output tensor");
+        return fail(context, "KmeansEmbeddingLookup: missing input or output tensor");
     }
 
-    let (Some(encoding_dims), Some(codebook_dims)) = (
-        unsafe { tensor_dims(sys, encoding_table) },
-        unsafe { tensor_dims(sys, codebook) },
-    ) else {
-        return fail(sys, context, "KmeansEmbeddingLookup: cannot read tensor dimensions");
-    };
+    let encoding_dims = unsafe { tensor_dims(encoding_table) };
+    let codebook_dims = unsafe { tensor_dims(codebook) };
     if encoding_dims.len() != 2 || codebook_dims.len() != 2 {
         return fail(
-            sys,
             context,
             "KmeansEmbeddingLookup: the encoding table and the codebook must be rank 2",
         );
     }
     let embedding_size = encoding_dims[1] * codebook_dims[1];
     if embedding_size <= 0 {
-        return fail(sys, context, "KmeansEmbeddingLookup: the embedding size must be positive");
+        return fail(context, "KmeansEmbeddingLookup: the embedding size must be positive");
     }
 
     // The model already declares this output as [1, encoding * block]; only ask
     // for a resize when it actually differs.
     let expected = [1, embedding_size];
-    let current = unsafe { tensor_dims(sys, output) };
-    if current.as_deref() != Some(expected.as_slice()) {
-        let dims = unsafe { int_array(&expected) };
-        if dims.is_null() {
-            return fail(sys, context, "KmeansEmbeddingLookup: cannot allocate the output shape");
-        }
-        let resize = ffi_status!(sys, context, TfLiteOpaqueContextResizeTensor);
-        let status = unsafe { resize(context, output, dims) };
-        if status != KTFLITE_OK {
-            return fail(sys, context, "KmeansEmbeddingLookup: cannot resize the output tensor");
-        }
+    if unsafe { tensor_dims(output) } != expected && !unsafe { resize_tensor(context, output, &expected) }
+    {
+        return fail(context, "KmeansEmbeddingLookup: cannot resize the output tensor");
     }
     KTFLITE_OK
 }
 
-unsafe extern "C" fn invoke(
-    user_data: *mut c_void,
-    context: *mut TfLiteOpaqueContext,
-    node: *mut TfLiteOpaqueNode,
+pub(crate) unsafe extern "C" fn invoke(
+    context: *mut TfLiteContext,
+    node: *mut TfLiteNode,
 ) -> TfLiteStatus {
-    let sys = unsafe { context_from_user_data(user_data) }.sys();
-
-    let get_input = ffi_status!(sys, context, TfLiteOpaqueNodeGetInput);
-    let get_output = ffi_status!(sys, context, TfLiteOpaqueNodeGetOutput);
-    let tokens_tensor = unsafe { get_input(context, node, INPUT_TOKENS) };
-    let encoding_tensor = unsafe { get_input(context, node, INPUT_ENCODING_TABLE) };
-    let codebook_tensor = unsafe { get_input(context, node, INPUT_CODEBOOK) };
-    let output_tensor = unsafe { get_output(context, node, 0) };
+    let tokens_tensor = unsafe { node_tensor(context, node, INPUT_TOKENS, true) };
+    let encoding_tensor = unsafe { node_tensor(context, node, INPUT_ENCODING_TABLE, true) };
+    let codebook_tensor = unsafe { node_tensor(context, node, INPUT_CODEBOOK, true) };
+    let output_tensor = unsafe { node_tensor(context, node, 0, false) };
     if tokens_tensor.is_null()
         || encoding_tensor.is_null()
         || codebook_tensor.is_null()
         || output_tensor.is_null()
     {
-        return fail(sys, context, "KmeansEmbeddingLookup: missing input or output tensor");
+        return fail(context, "KmeansEmbeddingLookup: missing input or output tensor");
     }
 
-    let (Some(token_dims), Some(encoding_dims), Some(codebook_dims)) = (
-        unsafe { tensor_dims(sys, tokens_tensor) },
-        unsafe { tensor_dims(sys, encoding_tensor) },
-        unsafe { tensor_dims(sys, codebook_tensor) },
-    ) else {
-        return fail(sys, context, "KmeansEmbeddingLookup: cannot read tensor dimensions");
-    };
+    let token_dims = unsafe { tensor_dims(tokens_tensor) };
+    let encoding_dims = unsafe { tensor_dims(encoding_tensor) };
+    let codebook_dims = unsafe { tensor_dims(codebook_tensor) };
     if token_dims.len() != 2 || encoding_dims.len() != 2 || codebook_dims.len() != 2 {
-        return fail(sys, context, "KmeansEmbeddingLookup: all tensors must be rank 2");
+        return fail(context, "KmeansEmbeddingLookup: all tensors must be rank 2");
     }
     if token_dims[0] != 1 {
-        return fail(sys, context, "KmeansEmbeddingLookup: the batch size must be 1");
+        return fail(context, "KmeansEmbeddingLookup: the batch size must be 1");
     }
 
     let num_tokens = token_dims[1].max(0) as usize;
@@ -142,24 +104,28 @@ unsafe extern "C" fn invoke(
     let block_size = codebook_dims[1].max(0) as usize;
     let embedding_size = encoding_size * block_size;
 
-    let tensor_data = ffi_status!(sys, context, TfLiteOpaqueTensorData);
-    let byte_size = ffi_status!(sys, context, TfLiteOpaqueTensorByteSize);
-    let tokens = unsafe { tensor_data(tokens_tensor) } as *const i32;
-    let encoding = unsafe { tensor_data(encoding_tensor) } as *const u8;
-    let codebook = unsafe { tensor_data(codebook_tensor) } as *const f32;
-    let output = unsafe { tensor_data(output_tensor) } as *mut f32;
-    if tokens.is_null()
-        || encoding.is_null()
-        || codebook.is_null()
-        || output.is_null()
-        || embedding_size == 0
+    let (Some(tokens_ref), Some(encoding_ref), Some(codebook_ref), Some(output_ref)) = (
+        unsafe { tokens_tensor.as_ref() },
+        unsafe { encoding_tensor.as_ref() },
+        unsafe { codebook_tensor.as_ref() },
+        unsafe { output_tensor.as_ref() },
+    ) else {
+        return fail(context, "KmeansEmbeddingLookup: the tensors are not allocated");
+    };
+    let (tokens, encoding, codebook, output) = (
+        tokens_ref.data.i32_,
+        encoding_ref.data.uint8,
+        codebook_ref.data.f,
+        output_ref.data.f,
+    );
+    if tokens.is_null() || encoding.is_null() || codebook.is_null() || output.is_null() || embedding_size == 0
     {
-        return fail(sys, context, "KmeansEmbeddingLookup: the tensors are not allocated");
+        return fail(context, "KmeansEmbeddingLookup: the tensors are not allocated");
     }
 
-    let encoding_len = unsafe { byte_size(encoding_tensor) };
-    let codebook_len = unsafe { byte_size(codebook_tensor) } / std::mem::size_of::<f32>();
-    let output_len = unsafe { byte_size(output_tensor) } / std::mem::size_of::<f32>();
+    let encoding_len = encoding_ref.bytes;
+    let codebook_len = codebook_ref.bytes / std::mem::size_of::<f32>();
+    let output_len = output_ref.bytes / std::mem::size_of::<f32>();
 
     let tokens = unsafe { slice::from_raw_parts(tokens, num_tokens) };
     let encoding = unsafe { slice::from_raw_parts(encoding, encoding_len) };
@@ -173,7 +139,7 @@ unsafe extern "C" fn invoke(
         }
         let token = token as usize;
         if (token + 1) * encoding_size > encoding.len() {
-            return fail(sys, context, "KmeansEmbeddingLookup: token index out of range");
+            return fail(context, "KmeansEmbeddingLookup: token index out of range");
         }
         num_embeddings += 1;
 
@@ -181,7 +147,7 @@ unsafe extern "C" fn invoke(
             let codebook_index = encoding[token * encoding_size + encoding_dim] as usize;
             let block_start = codebook_index * block_size;
             if block_start + block_size > codebook.len() {
-                return fail(sys, context, "KmeansEmbeddingLookup: codebook index out of range");
+                return fail(context, "KmeansEmbeddingLookup: codebook index out of range");
             }
             let destination = encoding_dim * block_size;
             for offset in 0..block_size {
@@ -197,47 +163,4 @@ unsafe extern "C" fn invoke(
     }
 
     KTFLITE_OK
-}
-
-/// Creates the operator and wires its callbacks.
-///
-/// The returned operator must outlive the interpreter that uses it, and
-/// `context` must outlive both.
-pub fn create(context: &OpContext) -> Result<*mut TfLiteOperator> {
-    let sys = context.sys();
-    let create = ffi!(sys, TfLiteOperatorCreate);
-    let operator = unsafe {
-        create(
-            KTFLITE_BUILTIN_CUSTOM,
-            c"KmeansEmbeddingLookup".as_ptr(),
-            OP_VERSION,
-            context as *const OpContext as *mut c_void,
-        )
-    };
-    if operator.is_null() {
-        return Err(Error::Op(format!("{OP_NAME}: TfLiteOperatorCreate failed")));
-    }
-
-    let set_prepare = ffi!(sys, TfLiteOperatorSetPrepareWithData);
-    let set_invoke = ffi!(sys, TfLiteOperatorSetInvokeWithData);
-    let statuses = unsafe {
-        [
-            set_prepare(operator, Some(prepare)),
-            set_invoke(operator, Some(invoke)),
-        ]
-    };
-    if statuses.iter().any(|status| *status != KTFLITE_OK) {
-        return Err(Error::Op(format!("{OP_NAME}: cannot set the op callbacks")));
-    }
-    Ok(operator)
-}
-
-/// Creates the op and registers it on the interpreter options.
-pub fn register(
-    context: &OpContext,
-    options: *mut edgefirst_tflite_sys::TfLiteInterpreterOptions,
-) -> Result<*mut TfLiteOperator> {
-    let operator = create(context)?;
-    add_operator(context.sys(), options, operator)?;
-    Ok(operator)
 }

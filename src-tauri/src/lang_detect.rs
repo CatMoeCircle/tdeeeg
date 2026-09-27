@@ -70,8 +70,14 @@ fn runtime_search_dirs() -> Vec<PathBuf> {
             dirs.push(dir.to_path_buf());
             dirs.push(dir.join("bin"));
             dirs.push(dir.join("Resources"));
+            // macOS .app：可执行文件在 Contents/MacOS/，资源在 Contents/Resources/
+            if let Some(contents) = dir.parent() {
+                dirs.push(contents.join("Resources"));
+                dirs.push(contents.join("Resources").join("bin"));
+            }
         }
     }
+    // Tauri resource_dir（lib.rs setup 写入）；Linux deb/AppImage 布局靠它兜住
     if let Ok(resource) = std::env::var("TURI_RESOURCE_DIR") {
         let dir = PathBuf::from(resource);
         dirs.push(dir.clone());
