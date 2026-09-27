@@ -12,15 +12,15 @@
 
                 <!-- 可用回应模式（频道受限）：与贴纸选择器一致的网格列表，去重后遍历展示 -->
                 <div v-else class="rp-available custom-scrollbar">
-                    <div v-if="loading" class="py-8 text-center text-xs text-gray-400">加载中...</div>
-                    <div v-else-if="allReactions.length === 0" class="py-8 text-center text-xs text-gray-400">无可用回应
+                    <div v-if="loading" class="py-8 text-center text-xs text-gray-400">{{ t('lng_contacts_loading') }}</div>
+                    <div v-else-if="allReactions.length === 0" class="py-8 text-center text-xs text-gray-400">{{ t('lng_manage_peer_reactions_none') }}
                     </div>
                     <div v-else class="grid grid-cols-8 gap-1">
                         <button v-for="reaction in allReactions" :key="getReactionId(reaction)" type="button"
                             class="flex items-center justify-center rounded-lg aspect-square hover:bg-black/5 dark:hover:bg-white/10 transition-colors duration-100"
                             :class="{ 'opacity-50 cursor-not-allowed': reaction.needs_premium && !isPremium }"
                             :disabled="reaction.needs_premium && !isPremium"
-                            :title="reaction.needs_premium ? '需要 Premium' : ''" @click.stop="selectReaction(reaction)">
+                            :title="reaction.needs_premium ? t('chat.needsPremium') : ''" @click.stop="selectReaction(reaction)">
                             <ReactionEmojiAnim v-if="isReactionEmoji(reaction.type)" :emoji="reaction.type.emoji"
                                 :size="28" :fallback-font="26" />
                             <CustomEmojiInline v-else-if="isReactionCustomEmoji(reaction.type)"
@@ -37,6 +37,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
 import PaidReactionIcon from '../../common/PaidReactionIcon.vue';
 import ReactionEmojiAnim from '../../common/ReactionEmojiAnim.vue';
@@ -45,6 +46,8 @@ import { tdlibSend } from '../../../utils/tdlib';
 import type { message, ReactionType, availableReaction, availableReactions } from 'tdlib-types';
 import { isReactionEmoji, isReactionCustomEmoji } from '../../../utils/reactionHelpers';
 import { prefetchEmojiReactionAnims } from '../../../store/emojiReactions';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     /** 是否显示 */
