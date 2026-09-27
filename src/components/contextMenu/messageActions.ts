@@ -1,6 +1,10 @@
 import { tdlibSend } from "../../utils/tdlib";
 import { getMessagePlainText } from "../../utils/messageText";
 import { MessagePlugin } from "tdesign-vue-next";
+import i18n from "../../i18n";
+
+const t = (key: string, params?: Record<string, unknown>) =>
+    i18n.global.t(key, params as any);
 import { TrashIcon } from "lucide-vue-next";
 import type { message, messageProperties, MessageSender, formattedText$Input, textEntity$Input } from "tdlib-types";
 import type { ContextMenuItem } from "./types";
@@ -152,14 +156,14 @@ export function buildDeleteMenuItems(
     const ask = (revoke: boolean): boolean => {
         if (!revoke) return true;
         return window.confirm(
-            `确定要删除这条消息吗？\n\n删除后所有成员都将看不到这条消息（此操作无法撤销）。`,
+            t('lng_selected_delete_sure_this'),
         );
     };
 
     if (canAll) {
         items.push({
             key: 'delete-for-all',
-            label: '为所有人删除',
+            label: t('lng_delete_for_everyone_check'),
             icon: TrashIcon,
             danger: true,
             onClick: async () => {
@@ -173,7 +177,7 @@ export function buildDeleteMenuItems(
     if (canSelf) {
         items.push({
             key: 'delete-for-self',
-            label: '为我删除',
+            label: t('context.deleteForMe'),
             icon: TrashIcon,
             danger: true,
             onClick: async () => {
@@ -370,7 +374,7 @@ export async function editTextMessage(
         return true;
     } catch (e) {
         console.error('editMessageText failed:', e);
-        MessagePlugin.error({ content: '编辑消息失败', placement: 'center' });
+        MessagePlugin.error({ content: t('context.editFailed'), placement: 'center' });
         return false;
     }
 }
@@ -395,7 +399,7 @@ export async function editCaptionMessage(
         return true;
     } catch (e) {
         console.error('editMessageCaption failed:', e);
-        MessagePlugin.error({ content: '编辑描述失败', placement: 'center' });
+        MessagePlugin.error({ content: t('context.editDescFailed'), placement: 'center' });
         return false;
     }
 }
@@ -419,7 +423,7 @@ export async function editMessageMediaContent(
         return true;
     } catch (e) {
         console.error('editMessageMedia failed:', e);
-        MessagePlugin.error({ content: '更换媒体失败', placement: 'center' });
+        MessagePlugin.error({ content: t('context.replaceMediaFailed'), placement: 'center' });
         return false;
     }
 }
@@ -442,9 +446,9 @@ export async function pinMessage(
             disable_notification: opts?.disableNotification ?? false,
             only_for_self: opts?.onlyForSelf ?? false,
         } as any);
-        MessagePlugin.success('已置顶');
+        MessagePlugin.success(t('lng_quick_dialog_action_toast_pin_success'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || '操作失败');
+        MessagePlugin.error(e?.message || t('context.actionFailed'));
     }
 }
 
@@ -456,9 +460,9 @@ export async function unpinMessage(chatId: number, msg: message) {
             chat_id: chatId,
             message_id: msg.id,
         });
-        MessagePlugin.success('已取消置顶');
+        MessagePlugin.success(t('lng_quick_dialog_action_toast_unpin_success'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || '操作失败');
+        MessagePlugin.error(e?.message || t('context.actionFailed'));
     }
 }
 
@@ -480,9 +484,9 @@ export async function deleteMessages(chatId: number, msg: message, revoke: boole
             message_ids: [msg.id],
             revoke,
         });
-        MessagePlugin.success('已删除');
+        MessagePlugin.success(t('context.deleted'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || '删除失败');
+        MessagePlugin.error(e?.message || t('context.deleteFailed'));
     }
 }
 
@@ -497,9 +501,9 @@ export async function deleteChatMessagesBySender(chatId: number, senderId: Messa
             chat_id: chatId,
             sender_id: senderId as any,
         });
-        MessagePlugin.success('已删除该发送者的所有消息');
+        MessagePlugin.success(t('context.deletedAllFromSender'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || '删除该发送者所有消息失败');
+        MessagePlugin.error(e?.message || t('context.deleteAllFromSenderFailed'));
     }
 }
 
@@ -516,9 +520,9 @@ export async function banChatSender(chatId: number, senderId: MessageSender) {
             banned_until_date: 0, // 0 = 永久封禁
             revoke_messages: true,
         });
-        MessagePlugin.success('已封禁该发送者');
+        MessagePlugin.success(t('context.bannedSender'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || '封禁失败');
+        MessagePlugin.error(e?.message || t('context.banFailed'));
     }
 }
 
@@ -553,14 +557,14 @@ export async function executeDeleteActions(
 export async function copyMessageText(msg: message) {
     const text = getMessagePlainText(msg);
     if (!text.trim()) {
-        MessagePlugin.warning('该消息没有可复制的文本');
+        MessagePlugin.warning(t('context.noCopyableText'));
         return;
     }
     try {
         await navigator.clipboard.writeText(text);
-        MessagePlugin.success('已复制');
+        MessagePlugin.success(t('context.copied'));
     } catch {
-        MessagePlugin.error('复制失败');
+        MessagePlugin.error(t('context.copyFailed'));
     }
 }
 
@@ -568,9 +572,9 @@ export async function copyMessageText(msg: message) {
 export async function copyMessageJson(msg: message) {
     try {
         await navigator.clipboard.writeText(JSON.stringify(msg, null, 2));
-        MessagePlugin.success('消息 JSON 已复制');
+        MessagePlugin.success(t('context.copiedJson'));
     } catch {
-        MessagePlugin.error('复制失败');
+        MessagePlugin.error(t('context.copyFailed'));
     }
 }
 
@@ -588,13 +592,13 @@ export async function copyMessageLink(chatId: number, msg: message) {
         }) as any;
         const url = link?.link;
         if (!url) {
-            MessagePlugin.warning('无法获取该消息的链接');
+            MessagePlugin.warning(t('context.linkUnavailable'));
             return;
         }
         await navigator.clipboard.writeText(url);
-        MessagePlugin.success('链接已复制');
+        MessagePlugin.success(t('lng_chat_link_copied'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || '无法获取链接');
+        MessagePlugin.error(e?.message || t('context.linkFailed'));
     }
 }
 

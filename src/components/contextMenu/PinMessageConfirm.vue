@@ -11,7 +11,7 @@
                         class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
                         <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
                             <PinIcon class="w-4 h-4 text-blue-500" />
-                            置顶
+                            {{ t('lng_pinned_pin') }}
                         </h3>
                         <button type="button"
                             class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
@@ -23,7 +23,7 @@
                     <!-- 正文 -->
                     <div class="px-4 py-4">
                         <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">
-                            确定要置顶这条消息吗？
+                            {{ t('lng_pinned_pin_sure') }}
                         </p>
 
                         <!-- 私聊：是否为对方置顶 -->
@@ -33,10 +33,10 @@
                             <input v-model="optPinForOther" type="checkbox" class="w-4 h-4 accent-blue-500 shrink-0" />
                             <div class="min-w-0 flex-1">
                                 <p class="text-sm font-medium text-gray-800 dark:text-gray-200">
-                                    同时为对方置顶
+                                    {{ t('lng_pinned_also_for_other', { user: otherName }) }}
                                 </p>
                                 <p class="text-xs text-gray-400 dark:text-gray-500">
-                                    关闭则仅自己可见这条置顶消息
+                                    {{ t('pinConfirm.pinForOtherHint') }}
                                 </p>
                             </div>
                         </label>
@@ -48,10 +48,10 @@
                             <input v-model="optNotify" type="checkbox" class="w-4 h-4 accent-blue-500 shrink-0" />
                             <div class="min-w-0 flex-1">
                                 <p class="text-sm font-medium text-gray-800 dark:text-gray-200">
-                                    通知群成员
+                                    {{ t('lng_pinned_notify') }}
                                 </p>
                                 <p class="text-xs text-gray-400 dark:text-gray-500">
-                                    关闭则静默置顶，不打扰成员
+                                    {{ t('pinConfirm.notifyHint') }}
                                 </p>
                             </div>
                         </label>
@@ -62,11 +62,11 @@
                         class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
                         <button type="button" @click="cancel"
                             class="px-4 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            取消
+                            {{ t('lng_cancel') }}
                         </button>
                         <button type="button" @click="confirm"
                             class="px-4 py-1.5 rounded-lg text-sm bg-blue-500 text-white hover:bg-blue-600">
-                            置顶
+                            {{ t('lng_pinned_pin') }}
                         </button>
                     </div>
                 </div>
@@ -78,12 +78,16 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onUnmounted } from "vue";
 import { XIcon, PinIcon } from "lucide-vue-next";
+import { useI18n } from "vue-i18n";
 import {
     visible, request, confirmPin, cancelPin,
 } from "../../store/pinMessage";
 import type { PinMessageResult } from "../../store/pinMessage";
 
+const { t } = useI18n();
+
 const isPrivate = computed(() => request.value?.scope === 'private');
+const otherName = computed(() => request.value?.otherName?.trim() || t('pinConfirm.thisUser'));
 
 const optPinForOther = ref(true);
 const optNotify = ref(true);

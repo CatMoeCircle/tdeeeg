@@ -24,13 +24,13 @@
                     <div class="px-4 py-4">
                         <!-- 加载中 -->
                         <div v-if="loading" class="flex items-center justify-center py-6">
-                            <span class="text-sm text-gray-400">加载中...</span>
+                            <span class="text-sm text-gray-400">{{ t('lng_context_seen_loading') }}</span>
                         </div>
 
                         <!-- 选择原因 -->
                         <template v-else-if="step === 'options'">
                             <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">
-                                {{ optionTitle || '请选择举报原因' }}
+                                {{ optionTitle || t('report.selectReason') }}
                             </p>
                             <div class="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
                                 <label v-for="opt in options" :key="opt.id"
@@ -48,11 +48,11 @@
                         <!-- 补充说明 -->
                         <template v-else-if="step === 'text'">
                             <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">
-                                请补充举报说明{{ textOptional ? '（可选）' : '' }}
+                                {{ t('lng_report_details_message_about') }}
                             </p>
                             <textarea v-model="commentText"
-                                class="w-full h-24 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-sm text-gray-800 dark:text-gray-200 resize-none focus:outline-none focus:border-red-400"
-                                placeholder="请输入举报说明..." maxlength="1024"></textarea>
+                                class="input-scrollbar w-full h-24 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent text-sm text-gray-800 dark:text-gray-200 resize-none overflow-y-auto focus:outline-none focus:border-red-400"
+                                :placeholder="t('report.commentPh')" maxlength="1024"></textarea>
                         </template>
                     </div>
 
@@ -61,11 +61,11 @@
                         class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
                         <button type="button" @click="cancel"
                             class="px-4 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            取消
+                            {{ t('lng_cancel') }}
                         </button>
                         <button type="button" :disabled="loading || !canSubmit" @click="submit"
                             class="px-4 py-1.5 rounded-lg text-sm bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed">
-                            {{ step === 'text' ? '提交' : '下一步' }}
+                            {{ step === 'text' ? t('lng_report_button') : t('report.next') }}
                         </button>
                     </div>
                 </div>
@@ -76,6 +76,9 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 import { XIcon, FlagIcon } from "lucide-vue-next";
 import {
     visible, request, confirmReport, cancelReport,
@@ -103,7 +106,7 @@ const canSubmit = computed(() => {
 const dialogTitle = computed(() => {
     const req = request.value;
     if (req?.title) return req.title;
-    return req?.msg ? '举报消息' : '举报';
+    return req?.msg ? t('lng_report_message_title') : t('lng_context_report_msg');
 });
 
 function messageIds(): number[] {

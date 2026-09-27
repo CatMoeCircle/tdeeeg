@@ -10,7 +10,7 @@
                     <!-- 标题 -->
                     <div
                         class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">添加代理</h3>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">{{ t('lng_proxy_add') }}</h3>
                         <button type="button"
                             class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
                             @click="cancel">
@@ -27,7 +27,7 @@
                                     <ServerIcon class="w-5 h-5" />
                                 </div>
                                 <div class="min-w-0">
-                                    <p class="text-xs text-gray-400">代理服务器</p>
+                                    <p class="text-xs text-gray-400">{{ t('lng_proxy_box_server') }}</p>
                                     <p class="text-sm font-semibold text-gray-800 dark:text-gray-200 break-all">
                                         {{ proxy.server }}
                                     </p>
@@ -36,28 +36,28 @@
 
                             <div class="mt-4 grid grid-cols-2 gap-3 text-sm">
                                 <div>
-                                    <p class="text-xs text-gray-400 mb-0.5">端口</p>
+                                    <p class="text-xs text-gray-400 mb-0.5">{{ t('lng_proxy_box_port') }}</p>
                                     <p class="text-gray-800 dark:text-gray-200">{{ proxy.port }}</p>
                                 </div>
                                 <div>
-                                    <p class="text-xs text-gray-400 mb-0.5">类型</p>
+                                    <p class="text-xs text-gray-400 mb-0.5">{{ t('proxy.type') }}</p>
                                     <p class="text-gray-800 dark:text-gray-200">{{ proxyTypeLabel }}</p>
                                 </div>
 
                                 <!-- MTProto：显示密文 -->
                                 <div v-if="proxy.type._ === 'proxyTypeMtproto'" class="col-span-2">
-                                    <p class="text-xs text-gray-400 mb-0.5">密文（Secret）</p>
+                                    <p class="text-xs text-gray-400 mb-0.5">{{ t('lng_proxy_box_secret') }}</p>
                                     <p class="text-gray-800 dark:text-gray-200 break-all">{{ proxy.type.secret }}</p>
                                 </div>
 
                                 <!-- SOCKS5 / HTTP：显示用户名密码 -->
                                 <template v-else>
                                     <div>
-                                        <p class="text-xs text-gray-400 mb-0.5">用户名</p>
+                                        <p class="text-xs text-gray-400 mb-0.5">{{ t('lng_proxy_box_username') }}</p>
                                         <p class="text-gray-800 dark:text-gray-200">{{ proxy.type.username || '—' }}</p>
                                     </div>
                                     <div>
-                                        <p class="text-xs text-gray-400 mb-0.5">密码</p>
+                                        <p class="text-xs text-gray-400 mb-0.5">{{ t('lng_proxy_box_password') }}</p>
                                         <p class="text-gray-800 dark:text-gray-200">{{ proxy.type.password || '—' }}</p>
                                     </div>
                                 </template>
@@ -69,7 +69,7 @@
                                     :disabled="pingLoading">
                                     <LoaderIcon v-if="pingLoading" class="w-4 h-4 animate-spin" />
                                     <ActivityIcon v-else class="w-4 h-4" />
-                                    {{ pingLoading ? '正在测试...' : 'Ping 测试' }}
+                                    {{ pingLoading ? t('proxy.adding') : t('proxy.pingTest') }}
                                 </button>
 
                                 <!-- ping 结果 -->
@@ -79,7 +79,7 @@
                                 </p>
                             </div>
                         </template>
-                        <p v-else class="text-sm text-gray-500">该代理类型不受支持。</p>
+                        <p v-else class="text-sm text-gray-500">{{ t('proxy.unsupportedType') }}</p>
                     </div>
 
                     <!-- 底部按钮 -->
@@ -87,11 +87,11 @@
                         class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
                         <button type="button" @click="cancel"
                             class="px-4 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            取消
+                            {{ t('lng_cancel') }}
                         </button>
                         <button type="button" @click="confirm" :disabled="!proxy"
                             class="px-4 py-1.5 rounded-lg text-sm bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50">
-                            继续
+                            {{ t('lng_continue') }}
                         </button>
                     </div>
                 </div>
@@ -108,7 +108,7 @@
                     <!-- 标题 -->
                     <div
                         class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">Ping 测试</h3>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">{{ t('proxy.pingTest') }}</h3>
                         <button type="button"
                             class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
                             @click="cancelWarning">
@@ -123,7 +123,7 @@
                             <AlertTriangleIcon class="w-5 h-5" />
                         </div>
                         <p class="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-                            警告：这将使您的IP地址暴露给代理服务器的管理员。
+                            {{ t('lng_proxy_check_ip_warning') }}
                         </p>
                     </div>
 
@@ -132,11 +132,11 @@
                         class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
                         <button type="button" @click="cancelWarning"
                             class="px-4 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            取消
+                            {{ t('lng_cancel') }}
                         </button>
                         <button type="button" @click="confirmWarning"
                             class="px-4 py-1.5 rounded-lg text-sm bg-amber-500 text-white hover:bg-amber-600">
-                            继续
+                            {{ t('lng_continue') }}
                         </button>
                     </div>
                 </div>
@@ -147,6 +147,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 import { XIcon, ServerIcon, ActivityIcon, LoaderIcon, AlertTriangleIcon } from "lucide-vue-next";
 import {
     visible,
@@ -169,7 +172,7 @@ const proxyTypeLabel = computed(() => {
         case "proxyTypeSocks5": return "SOCKS5";
         case "proxyTypeHttp": return "HTTP";
         case "proxyTypeMtproto": return "MTProto";
-        default: return "未知";
+        default: return t('proxy.unknownType');
     }
 });
 

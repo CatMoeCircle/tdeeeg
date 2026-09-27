@@ -10,7 +10,7 @@
                         class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
                         <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
                             <TrashIcon class="w-4 h-4 text-red-500" />
-                            删除消息
+                            {{ t('deleteConfirm.deleteTitle') }}
                         </h3>
                         <button type="button"
                             class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
@@ -22,9 +22,9 @@
                     <!-- 正文 -->
                     <div class="px-4 py-4 space-y-2">
                         <p class="text-sm text-gray-600 dark:text-gray-300">
-                            是否删除{{ senderLabel }}的消息？
+                            {{ t('deleteConfirm.deleteAsk', { sender: senderLabel }) }}
                             <span v-if="req?.canDeleteMessage && !req?.canDeleteAllFromSender && !req?.canBanSender"
-                                class="text-gray-400 dark:text-gray-500">（将按权限执行删除）</span>
+                                class="text-gray-400 dark:text-gray-500">{{ t('deleteConfirm.deleteAskHint') }}</span>
                         </p>
 
                         <!-- 附加选项 -->
@@ -37,10 +37,10 @@
                                     class="w-4 h-4 accent-red-500 shrink-0" />
                                 <div class="min-w-0 flex-1">
                                     <p class="text-sm font-medium text-gray-800 dark:text-gray-200">
-                                        删除{{ senderLabel }}的所有消息
+                                        {{ t('deleteConfirm.deleteAllFromSender', { sender: senderLabel }) }}
                                     </p>
                                     <p class="text-xs text-gray-400 dark:text-gray-500">
-                                        删除该发送者在本对话中发送的全部消息（需管理员权限）
+                                        {{ t('deleteConfirm.deleteAllFromSenderHint') }}
                                     </p>
                                 </div>
                             </label>
@@ -53,17 +53,17 @@
                                     class="w-4 h-4 accent-red-500 shrink-0" />
                                 <div class="min-w-0 flex-1">
                                     <p class="text-sm font-medium text-gray-800 dark:text-gray-200">
-                                        封禁{{ senderLabel }}
+                                        {{ t('deleteConfirm.banSender', { sender: senderLabel }) }}
                                     </p>
                                     <p class="text-xs text-gray-400 dark:text-gray-500">
-                                        将其移出本对话并禁止再进入（需管理员权限）
+                                        {{ t('deleteConfirm.banSenderHint') }}
                                     </p>
                                 </div>
                             </label>
 
                             <p v-if="!req?.canDeleteMessage && !canDeleteAllFromSender && !canBanSender"
                                 class="text-xs text-gray-400 dark:text-gray-500 pt-1">
-                                当前没有可执行的操作。
+                                {{ t('deleteConfirm.noActions') }}
                             </p>
                         </div>
                     </div>
@@ -73,12 +73,12 @@
                         class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
                         <button type="button" @click="cancel"
                             class="px-4 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
-                            取消
+                            {{ t('lng_cancel') }}
                         </button>
                         <button type="button" @click="confirm"
                             class="px-4 py-1.5 rounded-lg text-sm bg-red-500 text-white hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
                             :disabled="!hasAnyAction">
-                            删除
+                            {{ t('lng_box_delete') }}
                         </button>
                     </div>
                 </div>
@@ -90,17 +90,20 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onUnmounted } from "vue";
 import { XIcon, TrashIcon } from "lucide-vue-next";
+import { useI18n } from "vue-i18n";
 import {
     visible, request, confirmDelete, cancelDelete,
 } from "../../store/deleteMessage";
 import type { DeleteMessageResult } from "../../store/deleteMessage";
+
+const { t } = useI18n();
 
 const req = computed(() => request.value);
 
 // 发送者标签（文案中的名字），如「该用户」/「Ta」
 const senderLabel = computed(() => {
     const name = req.value?.senderName?.trim();
-    return name ? `“${name}”` : "该用户";
+    return name ? `“${name}”` : t("deleteConfirm.thisUser");
 });
 
 // 可删除当前消息
