@@ -35,15 +35,14 @@ export function folderTabClass(
     }
 }
 
-/** 容器附加类：tabs 需要底部分隔线；soft 需要宽度随内容、带左右外边距的通用磨砂玻璃浮层 */
-export function folderTabContainerClass(folderStyle: FolderStyle): string {
-    if (folderStyle === 'soft') {
-        // mx-2：浮层左右留白；max-w 扣除边距；内边距与其他样式一致
-        return `w-fit max-w-[calc(100%-1rem)] mx-2 rounded-full ${UI_GLASS_SURFACE} px-1.5 py-1`;
-    }
-    // tabs：底线随页签内容收缩，分组少时不拉满整行；分组多时受 max-w-full 约束并横向滚动
-    if (folderStyle === 'tabs') {
-        return 'border-b border-gray-200 dark:border-gray-700 w-fit max-w-full';
-    }
-    return '';
+/**
+ * 通用分组栏浮层（Telegram 风格）：宽度随内容、左右留白、磨砂玻璃完全圆角。
+ * 所有 folderStyle 变体共用同一浮层，仅内部标签按钮样式随变体变化。
+ */
+export const FOLDER_TAB_OVERLAY =
+    `w-fit max-w-[calc(100%-1rem)] mx-2 rounded-full ${UI_GLASS_SURFACE} px-1.5 py-1`;
+
+/** 容器附加类：全部变体统一带通用磨砂玻璃浮层 */
+export function folderTabContainerClass(_folderStyle: FolderStyle): string {
+    return FOLDER_TAB_OVERLAY;
 }

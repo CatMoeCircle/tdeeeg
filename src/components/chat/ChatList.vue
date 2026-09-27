@@ -1,50 +1,74 @@
 <template>
-    <div class="flex flex-col h-full border-r border-gray-200"
-        :class="settings.folderStyle === 'soft' ? 'pt-1.5' : 'pt-4'">
+    <div class="flex flex-col h-full border-r border-gray-200 pt-1.5">
         <!-- Search Bar (forum mode 时向上滑动隐藏) -->
         <Transition :name="suppressChromeAnim ? 'slide-up-locked' : 'slide-up'">
             <div v-if="!forumMode" class="overflow-hidden" :class="settings.folderStyle === 'soft'
                 ? 'px-2 pt-0.5 pb-2 max-h-14'
                 : 'px-3 py-1 max-h-14'">
-                <div class="relative">
-                    <input type="text" :placeholder="t('lng_dlg_filter')"
-                        class="w-full text-xs focus:outline-none" :class="settings.folderStyle === 'soft'
-                            ? `pl-8 pr-4 py-2 rounded-full ${UI_GLASS_SURFACE}`
-                            : `pl-7 pr-3.5 py-1.5 rounded-full ${UI_GLASS_SURFACE}`" />
-                    <SearchIcon class="w-3.5 h-3.5 absolute left-2.5 text-gray-400"
-                        :class="settings.folderStyle === 'soft' ? 'top-2.5' : 'top-2'" />
+                <div class="flex items-center gap-2">
+                    <!-- 圆形返回按钮：左侧让出宽度后淡入（平滑撑开） -->
+                    <div class="search-back-slot shrink-0" :class="searchMode ? 'search-back-open' : 'search-back-closed'">
+                        <button type="button" :aria-label="t('lng_menu_back')"
+                            class="w-9 h-9 rounded-full flex items-center justify-center transition-colors"
+                            :class="UI_GLASS_SURFACE + ' hover:bg-white/90 dark:hover:bg-gray-800/90 text-gray-600 dark:text-gray-300'"
+                            tabindex="-1" @click="exitSearchMode">
+                            <ArrowLeftIcon class="w-4.5 h-4.5" />
+                        </button>
+                    </div>
+
+                    <!-- 搜索框（同一元素不跳动：模式切换只改 readonly/焦点） -->
+                    <div class="relative flex-1 min-w-0">
+                        <input ref="searchInputEl" v-model="searchQuery" type="text" :placeholder="t('lng_dlg_filter')"
+                            :readonly="!searchMode"
+                            class="w-full text-xs focus:outline-none"
+                            :class="[
+                                settings.folderStyle === 'soft'
+                                    ? `pl-8 pr-4 py-2 rounded-full ${UI_GLASS_SURFACE}`
+                                    : `pl-7 pr-3.5 py-1.5 rounded-full ${UI_GLASS_SURFACE}`,
+                                !searchMode ? 'cursor-pointer' : '',
+                            ]"
+                            @click="enterSearchMode" @focus="enterSearchMode" @keydown.esc="exitSearchMode" />
+                        <SearchIcon class="w-3.5 h-3.5 absolute left-2.5 text-gray-400 pointer-events-none"
+                            :class="settings.folderStyle === 'soft' ? 'top-2.5' : 'top-2'" />
+                    </div>
                 </div>
             </div>
         </Transition>
-        <!-- Folder Tabs (forum mode 时向上滑动隐藏) -->
-        <Transition :name="suppressChromeAnim ? 'slide-up-locked' : 'slide-up'">
-            <SlidingTabBar v-if="!forumMode && tabs.length > 1" :tabs="tabs" :active-id="activeTab"
-                :variant="settings.folderStyle" :tab-class="folderTabClass" :container-class="folderContainerClass"
-                @select="switchToTab" :class="settings.folderStyle === 'soft' ? 'max-h-14' : 'px-2 max-h-14'">
-                <template #default="{ tab, active }">
-                    <!-- 分组图标（全部对话默认对话图标） -->
-                    <component :is="folderIcon(tab)" v-if="settings.showFolderIcons" class="w-3 h-3 shrink-0" />
-                    <FormattedTextInline v-if="tab.formattedName" :formattedText="tab.formattedName" :size="12" />
-                    <span v-else>{{ tab.name }}</span>
-                    <!-- 未读消息计数：soft 样式未选中也显示蓝色角标，其余变体未选中为灰色 -->
-                    <span v-if="settings.showFolderUnread && tabUnread(tab.id) > 0"
-                        class="min-w-3.5 h-3.5 px-1 rounded-full text-white text-[9px] font-bold leading-3.5 text-center shrink-0"
-                        :class="(active || settings.folderStyle === 'soft') ? 'bg-blue-500' : 'bg-gray-400'">
-                        {{ formatUnreadCount(tabUnread(tab.id)) }}
-                    </span>
-                </template>
-            </SlidingTabBar>
-        </Transition>
+        <!-- ===== 「分组栏 + 播放器 + 对话列表」↔「搜索分类 + 结果」原地交叉过渡 ===== -->
+        <div class="flex-1 min-h-0 relative flex flex-col">
+            <Transition name="search-swap" mode="out-in">
+            <!-- 常规内容：分组栏 + 播放器 + 对话列表 -->
+            <div v-if="!searchMode" key="normal-body" class="flex-1 min-h-0 flex flex-col">
+                <!-- Folder Tabs (forum mode 时向上滑动隐藏) -->
+                <Transition :name="suppressChromeAnim ? 'slide-up-locked' : 'slide-up'">
+                    <SlidingTabBar v-if="!forumMode && tabs.length > 1" :tabs="tabs" :active-id="activeTab"
+                        :variant="settings.folderStyle" :tab-class="folderTabClass"
+                        :container-class="folderContainerClass" @select="switchToTab" class="max-h-14 shrink-0">
+                        <template #default="{ tab, active }">
+                            <!-- 分组图标（全部对话默认对话图标） -->
+                            <component :is="folderIcon(tab)" v-if="settings.showFolderIcons" class="w-3 h-3 shrink-0" />
+                            <FormattedTextInline v-if="tab.formattedName" :formattedText="tab.formattedName"
+                                :size="12" />
+                            <span v-else>{{ tab.name }}</span>
+                            <!-- 未读消息计数：soft 样式未选中也显示蓝色角标，其余变体未选中为灰色 -->
+                            <span v-if="settings.showFolderUnread && tabUnread(tab.id) > 0"
+                                class="min-w-3.5 h-3.5 px-1 rounded-full text-white text-[9px] font-bold leading-3.5 text-center shrink-0"
+                                :class="(active || settings.folderStyle === 'soft') ? 'bg-blue-500' : 'bg-gray-400'">
+                                {{ formatUnreadCount(tabUnread(tab.id)) }}
+                            </span>
+                        </template>
+                    </SlidingTabBar>
+                </Transition>
 
-        <!-- 音乐播放器入口（聊天打开时由 ChatDetail 接管，此处隐藏） -->
-        <Transition :name="suppressChromeAnim ? 'slide-up-locked' : 'slide-up'">
-            <div v-if="!isChatOpen && !forumMode" class="overflow-hidden max-h-12">
-                <MusicPlayerEntry compact />
-            </div>
-        </Transition>
+                <!-- 音乐播放器入口（聊天打开时由 ChatDetail 接管，此处隐藏） -->
+                <Transition :name="suppressChromeAnim ? 'slide-up-locked' : 'slide-up'">
+                    <div v-if="!isChatOpen && !forumMode" class="overflow-hidden max-h-12 shrink-0">
+                        <MusicPlayerEntry compact />
+                    </div>
+                </Transition>
 
-        <!-- Main Container: Swipeable Chat List OR Forum Mode -->
-        <div class="flex-1 overflow-hidden relative">
+                <!-- Main Container: Swipeable Chat List OR Forum Mode -->
+                <div class="flex-1 overflow-hidden relative">
             <!-- 左侧列表宽度瞬时切换（不做宽度过渡，避免内容被横向拉伸成“整页横移”观感），
                  左列内容切换由 forum-avatar-column 淡入柔化 -->
             <div class="absolute inset-0 flex">
@@ -60,11 +84,12 @@
                         <div v-for="tab in tabsWithContent" :key="tab.id" v-show="!forumMode || tab.id === activeTab"
                             v-smooth-wheel class="swipe-page h-full shrink-0 overflow-y-auto custom-scrollbar"
                             :class="forumMode ? 'w-17 px-0.5 py-1 forum-avatar-column gap-0.5' : 'w-full pl-1.5 pr-0.5 py-1'"
-                            @scroll="(e: Event) => onScroll(e, tab.id)">
+                            @scroll="(e: Event) => onScroll(e, tab.id)"
+                            @wheel="(e: WheelEvent) => onListWheel(e, tab.id)">
                             <!-- Forum Mode: compact avatar only -->
                             <template v-if="forumMode">
                                 <div v-for="chat in tab.chats" :key="chat.id" @click="selectForumChat(chat)"
-                                    v-context-menu="buildChatContextMenu(chat)"
+                                    v-context-menu="buildChatContextMenu(chat, tab.id)"
                                     class="relative flex items-center justify-center py-2.5 cursor-pointer transition-colors hover:bg-white/70 dark:hover:bg-gray-800/70"
                                     :class="forumChatId === chat.id ? 'bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-lg' : ''"
                                     style="content-visibility: auto; contain-intrinsic-size: 68px">
@@ -117,16 +142,16 @@
                                         <div class="flex-1 min-w-0">
                                             <div class="flex justify-between items-baseline mb-1">
                                                 <h3 class="text-sm font-semibold truncate text-gray-900">
-                                                    归档
+                                                    {{ t('lng_archived_name') }}
                                                 </h3>
                                                 <ChevronRightIcon class="w-4 h-4 text-gray-400 shrink-0" />
                                             </div>
-                                            <p class="text-xs text-gray-500 truncate">已归档的对话</p>
+                                            <p class="text-xs text-gray-500 truncate">{{ t('lng_archived_name') }}</p>
                                         </div>
                                     </div>
 
                                     <div v-for="chat in tab.chats" :key="chat.id" @click="selectChat(chat)"
-                                        v-context-menu="buildChatContextMenu(chat)"
+                                        v-context-menu="buildChatContextMenu(chat, tab.id)"
                                         class="chat-list-item flex items-center p-2.5 mb-0.5 hover:bg-white/70 dark:hover:bg-gray-800/70 rounded-xl hover:shadow-(--box-shadow) cursor-pointer transition-colors"
                                         :class="{ 'bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50': selectedChatId === chat.id, 'ring-2 ring-blue-500': chatSelectionMode && selectedChatIds.has(chat.id) }"
                                         style="content-visibility: auto; contain-intrinsic-size: 72px">
@@ -168,15 +193,15 @@
                                                             class="w-3.5 h-3.5 text-gray-400 shrink-0" />
                                                     </h3>
                                                     <!-- 时间右侧区域：置顶对话显示为胶囊（图钉图标 + 灰色文本 + 10%灰背景），其他保持原样 -->
-                                                    <span class="shrink-0 ml-1 flex items-center gap-1" :class="isChatPinned(chat)
+                                                    <span class="shrink-0 ml-1 flex items-center gap-1" :class="isChatPinned(chat, tab.id)
                                                         ? 'px-2 py-0.5 rounded-full text-gray-500 bg-gray-400/10'
                                                         : ''">
-                                                        <!-- 顶置图标：显示在时间左边，仅置顶对话显示 -->
-                                                        <span v-if="isChatPinned(chat)"
+                                                        <!-- 顶置图标：显示在时间左边，仅当前列表置顶的对话显示 -->
+                                                        <span v-if="isChatPinned(chat, tab.id)"
                                                             class="tgico tgico-pin rotate-45 w-3.5 h-3.5 shrink-0"
                                                             :class="isChatMuted(chat) ? 'text-gray-300' : 'text-gray-400'" />
                                                         <span class="text-xs"
-                                                            :class="isChatPinned(chat) ? 'text-gray-500' : 'text-gray-400'">{{
+                                                            :class="isChatPinned(chat, tab.id) ? 'text-gray-500' : 'text-gray-400'">{{
                                                                 formatTime(chat.last_message?.date)
                                                             }}</span>
                                                     </span>
@@ -330,7 +355,14 @@
                         </div>
                     </div>
                 </Transition>
+                    </div>
+                </div>
             </div>
+
+            <!-- 搜索模式：分类页签 + 结果区 -->
+            <ChatSearchPanel v-else key="search-body" :query="searchQuery"
+                @close="exitSearchMode" />
+            </Transition>
         </div>
 
         <!-- ===== 对话选择模式操作栏 ===== -->
@@ -354,21 +386,21 @@
                         :class="toolbarNarrow ? 'w-9 h-9' : 'gap-0.5'" :disabled="selectedChatIds.size === 0"
                         @click="archiveSelectedChats">
                         <ArchiveIcon class="w-5 h-5" />
-                        <span v-if="!toolbarNarrow">归档</span>
+                        <span v-if="!toolbarNarrow">{{ t('lng_archived_add') }}</span>
                     </button>
                     <button type="button" :title="toolbarNarrow ? t('lng_channel_mute') : ''"
                         class="flex flex-col items-center justify-center px-2 py-1 rounded-lg text-xs text-blue-500 hover:bg-blue-500/10 disabled:opacity-40"
                         :class="toolbarNarrow ? 'w-9 h-9' : 'gap-0.5'" :disabled="selectedChatIds.size === 0"
                         @click="muteSelectedChats">
                         <BellOffIcon class="w-5 h-5" />
-                        <span v-if="!toolbarNarrow">静音</span>
+                        <span v-if="!toolbarNarrow">{{ t('lng_channel_mute') }}</span>
                     </button>
                     <button type="button" :title="toolbarNarrow ? t('lng_selected_delete') : ''"
                         class="flex flex-col items-center justify-center px-2 py-1 rounded-lg text-xs text-red-500 hover:bg-red-500/10 disabled:opacity-40"
                         :class="toolbarNarrow ? 'w-9 h-9' : 'gap-0.5'" :disabled="selectedChatIds.size === 0"
                         @click="deleteSelectedChats">
                         <Trash2Icon class="w-5 h-5" />
-                        <span v-if="!toolbarNarrow">删除</span>
+                        <span v-if="!toolbarNarrow">{{ t('lng_selected_delete') }}</span>
                     </button>
                 </div>
             </div>
@@ -412,6 +444,13 @@ import { folderTabClass as sharedFolderTabClass, folderTabContainerClass, UI_GLA
 import MessagePreviewMedia from './MessagePreviewMedia.vue';
 import CustomEmojiInline from '../common/CustomEmojiInline.vue';
 import SlidingTabBar from '../common/SlidingTabBar.vue';
+import ChatSearchPanel from './ChatSearchPanel.vue';
+import {
+    messageContentTypeLabel,
+    stickerBracketPreview,
+    bracketTypePreview,
+    pollOptionPreviewText,
+} from '../../utils/messagePreview';
 
 const props = defineProps<{
     isArchive?: boolean;
@@ -588,7 +627,7 @@ function folderTabClass(id: string, active: boolean): string {
     return sharedFolderTabClass(settings.folderStyle, id, active);
 }
 
-/** 分组栏容器附加类（soft 变体需要白色圆角浮层） */
+/** 分组栏容器附加类（全部变体共用通用磨砂玻璃浮层） */
 const folderContainerClass = computed(() => folderTabContainerClass(settings.folderStyle));
 
 /**
@@ -605,6 +644,27 @@ const tabUnread = (tabId: string): number => {
 };
 
 const activeTab = ref(props.isArchive ? 'chatListArchive' : 'chatListMain');
+
+// ==================== 全局搜索模式 ====================
+/** 搜索模式：原地替换「分组栏 + 列表」，搜索框左侧撑开返回按钮 */
+const searchMode = ref(false);
+/** 搜索关键词（绑定顶部搜索框，传给 ChatSearchPanel） */
+const searchQuery = ref('');
+const searchInputEl = ref<HTMLInputElement | null>(null);
+
+function enterSearchMode() {
+    if (searchMode.value) return;
+    searchMode.value = true;
+    // 解除 readonly 后聚焦，便于直接输入
+    nextTick(() => searchInputEl.value?.focus());
+}
+
+function exitSearchMode() {
+    searchMode.value = false;
+    searchQuery.value = '';
+    // 移开焦点，避免 readonly 输入框残留焦点环
+    searchInputEl.value?.blur();
+}
 
 const currentIndex = computed(() => {
     if (props.isArchive) return 0;
@@ -726,7 +786,7 @@ const exitChatSelectionMode = () => {
 const deleteSelectedChats = async () => {
     const ids = Array.from(selectedChatIds.value);
     if (ids.length === 0) return;
-    const revoke = window.confirm(`确定要删除选中的 ${ids.length} 个对话吗？\n\n将清空对话历史并从聊天列表移除。`)
+    const revoke = window.confirm(t('lng_selected_delete_sure', { count: ids.length }))
         ? true
         : false;
     try {
@@ -739,10 +799,10 @@ const deleteSelectedChats = async () => {
                 revoke,
             } as any);
         }
-        MessagePlugin.success('已删除');
+        MessagePlugin.success(t('context.deleted'));
         exitChatSelectionMode();
     } catch (e: any) {
-        MessagePlugin.error(e?.message || '操作失败');
+        MessagePlugin.error(e?.message || t('context.actionFailed'));
     }
 };
 
@@ -1001,28 +1061,35 @@ const getMessagePreview = (message: message | undefined): formattedText => {
         return EMPTY_TEXT;
     }
     if (content._ === 'messageAnimation') {
-        return content.caption?.text ? content.caption : plainText('[GIF]');
+        return content.caption?.text ? content.caption : plainText(bracketTypePreview(messageContentTypeLabel('messageAnimation')));
     }
     if (content._ === 'messageDocument') {
-        return content.caption?.text ? content.caption : plainText(`[文件] ${content.document.file_name}`.trim());
+        return content.caption?.text
+            ? content.caption
+            : plainText(bracketTypePreview(messageContentTypeLabel('messageDocument'), content.document.file_name));
     }
     if (content._ === 'messageSticker') {
-        return plainText(`${content.sticker.emoji || ''} [贴纸]`.trim());
+        return plainText(stickerBracketPreview(content.sticker.emoji));
     }
     if (content._ === 'messageVoiceNote') {
-        return plainText('[语音]');
+        return plainText(bracketTypePreview(messageContentTypeLabel('messageVoiceNote')));
     }
     if (content._ === 'messageAudio') {
-        return content.caption?.text ? content.caption : plainText(`🎵 ${content.audio.title || content.audio.file_name}`.trim());
+        return content.caption?.text
+            ? content.caption
+            : plainText(`🎵 ${content.audio.title || content.audio.file_name}`.trim());
     }
     if (content._ === 'messageVideoNote') {
-        return plainText('[视频消息]');
+        return plainText(bracketTypePreview(messageContentTypeLabel('messageVideoNote')));
     }
     if (content._ === 'messagePollOptionAdded' || content._ === 'messagePollOptionDeleted') {
-        const action = content._ === 'messagePollOptionAdded' ? '添加了选项' : '删除了选项';
-        return plainText(`[投票] ${action}：${content.text.text || ''}`.trim());
+        const action = pollOptionPreviewText(
+            content._ === 'messagePollOptionAdded' ? 'added' : 'deleted',
+            content.text.text,
+        );
+        return plainText(bracketTypePreview(messageContentTypeLabel('messagePoll'), action));
     }
-    return plainText('[消息]');
+    return plainText(bracketTypePreview(messageContentTypeLabel('')));
 };
 
 /** 该消息是否为需要缩略图预览的媒体（图片/视频；相册自动最多取 3 个） */
@@ -1072,10 +1139,10 @@ const senderName = (chat: Chat) => getSenderName(chat.last_message?.sender_id);
 const senderMiniAvatar = (chat: Chat) => getSenderPhoto(chat.last_message?.sender_id);
 
 // ==================== 对话右键菜单 ====================
-const buildChatContextMenu = (chat: Chat): ContextMenuItem[] => {
+const buildChatContextMenu = (chat: Chat, listKey: string): ContextMenuItem[] => {
     const items: ContextMenuItem[] = [];
     const chatId = chat.id;
-    const pinned = chatIsPinned(chat);
+    const pinned = chatIsPinned(chat, listKey);
     const muted = chatIsMuted(chat);
     const archived = isChatArchived(chat);
     const saved = isSavedMessagesChat(chat, userProfile.value?.id);
@@ -1084,7 +1151,7 @@ const buildChatContextMenu = (chat: Chat): ContextMenuItem[] => {
     if (saved) {
         items.push({
             key: 'select',
-            label: '选择',
+            label: t('lng_context_select_msg'),
             icon: CheckCheckIcon,
             onClick: () => onChatSelect(chat),
         });
@@ -1094,7 +1161,7 @@ const buildChatContextMenu = (chat: Chat): ContextMenuItem[] => {
     // 归档对话：归档/取消归档（根据当前状态切换）
     items.push({
         key: 'archive',
-        label: archived ? '取消归档' : '归档对话',
+        label: archived ? t('lng_archived_remove') : t('lng_archived_add'),
         icon: archived ? ArchiveRestoreIcon : ArchiveIcon,
         onClick: () => (archived ? unarchiveChat(chatId) : archiveChat(chatId)),
     });
@@ -1105,7 +1172,8 @@ const buildChatContextMenu = (chat: Chat): ContextMenuItem[] => {
         label: pinned ? t('lng_context_unpin_from_top') : t('lng_context_pin_to_top'),
         icon: pinned ? PinOffIcon : PinIcon,
         onClick: () => {
-            const list = archived ? { _: 'chatListArchive' } : undefined;
+            // 作用域与当前列表一致（Unigram: ToggleChatIsPinned(Items.ChatList, ...)）
+            const list = buildChatListObject(listKey) ?? (archived ? { _: 'chatListArchive' } : undefined);
             toggleChatPinned(chatId, !pinned, list);
         },
     });
@@ -1115,14 +1183,14 @@ const buildChatContextMenu = (chat: Chat): ContextMenuItem[] => {
     if (folderChildren.length === 0) {
         items.push({
             key: 'folder',
-            label: '加到分组',
+            label: t('lng_filters_menu_add'),
             icon: FolderPlusIcon,
             disabled: true,
         });
     } else {
         items.push({
             key: 'folder',
-            label: '加到分组',
+            label: t('lng_filters_menu_add'),
             icon: FolderPlusIcon,
             children: folderChildren,
         });
@@ -1142,12 +1210,12 @@ const buildChatContextMenu = (chat: Chat): ContextMenuItem[] => {
     if (canLeaveChat(chat)) {
         items.push({
             key: 'leave',
-            label: '退出群组',
+            label: t('lng_profile_leave_group'),
             icon: LogOutIcon,
             danger: true,
             divider: true,
             onClick: () => {
-                if (window.confirm(`确定要退出群组「${chat.title}」吗？`)) {
+                if (window.confirm(t('lng_sure_leave_group'))) {
                     leaveChat(chatId);
                 }
             },
@@ -1157,7 +1225,7 @@ const buildChatContextMenu = (chat: Chat): ContextMenuItem[] => {
     // 选择
     items.push({
         key: 'select',
-        label: '选择',
+        label: t('lng_context_select_msg'),
         icon: CheckCheckIcon,
         onClick: () => onChatSelect(chat),
     });
@@ -1166,7 +1234,7 @@ const buildChatContextMenu = (chat: Chat): ContextMenuItem[] => {
     if (showCopyJsonInMenus.value) {
         items.push({
             key: 'copy-json',
-            label: '复制 chat JSON',
+            label: t('context.copyChatJson'),
             icon: CopyIcon,
             divider: true,
             onClick: () => { void copyTdlibJson(chat, 'chat'); },
@@ -1282,6 +1350,80 @@ function switchToTab(tabId: string) {
     // watch(activeTab) 会触发平滑滚动；这里不重复 scrollTo，避免双动画
 }
 
+// ---- 滚动到顶/底切换分组（默认关闭，由 settings.scrollSwitchFolder 控制） ----
+/** 边界后继续同方向滚的过冲量（px），达到后才切组，避免轻触即切换 */
+const SCROLL_SWITCH_OVERSHOOT_PX = 80;
+/** 切组冷却，防止一次手势连续扫过多组 */
+const SCROLL_SWITCH_COOLDOWN_MS = 400;
+let scrollSwitchAcc = 0;
+let scrollSwitchDir = 0;
+let lastScrollSwitchAt = 0;
+
+function onListWheel(e: WheelEvent, tabId: string) {
+    if (props.isArchive || forumMode.value) return;
+    if (tabs.value.length <= 1) return;
+    if (e.ctrlKey || e.metaKey || e.defaultPrevented) return;
+
+    let delta = e.deltaY !== 0 ? e.deltaY : e.deltaX;
+    if (delta === 0) return;
+    if (e.deltaMode === 1) delta *= 16;
+    else if (e.deltaMode === 2) delta *= Math.max(window.innerHeight, 400);
+
+    const el = e.currentTarget as HTMLElement;
+    const atTop = el.scrollTop <= 1;
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+    const dir = delta < 0 ? -1 : 1;
+
+    // 仅在边界继续同方向滚时视为过冲；离开边界或反向则清零
+    const atEdge = (dir < 0 && atTop) || (dir > 0 && atBottom);
+    if (!atEdge) {
+        if (tabId === activeTab.value) {
+            scrollSwitchAcc = 0;
+            scrollSwitchDir = 0;
+        }
+        return;
+    }
+
+    // 边界过冲一律拦住（不看 tabId / 开关）：否则 smoothWheel 会把纵向滚轮
+    // 链到横向 swipe-track，通过 scroll-snap 误切分组。
+    e.preventDefault();
+
+    if (!settings.scrollSwitchFolder) {
+        scrollSwitchAcc = 0;
+        scrollSwitchDir = 0;
+        return;
+    }
+
+    // 仅当前激活分组触发切换：切组后旧页仍可能收到残留滚轮，避免连跳
+    if (tabId !== activeTab.value) return;
+
+    if (scrollSwitchDir !== dir) {
+        scrollSwitchDir = dir;
+        scrollSwitchAcc = 0;
+    }
+    scrollSwitchAcc += Math.abs(delta);
+
+    const now = performance.now();
+    // 冷却期内吞掉过冲，否则冷却结束时会带着巨额 acc 连跳多个分组
+    if (now - lastScrollSwitchAt < SCROLL_SWITCH_COOLDOWN_MS) {
+        scrollSwitchAcc = 0;
+        return;
+    }
+    if (scrollSwitchAcc < SCROLL_SWITCH_OVERSHOOT_PX) return;
+
+    const idx = currentIndex.value;
+    const nextIdx = dir < 0 ? idx - 1 : idx + 1;
+    if (nextIdx < 0 || nextIdx >= tabs.value.length) return;
+
+    scrollSwitchAcc = 0;
+    scrollSwitchDir = 0;
+    lastScrollSwitchAt = now;
+    // 先以 auto 吸附轨道再切 Tab：smooth 过程中 isProgrammaticScroll 可能提前复位，
+    // syncActiveTabFromScroll 会按未到位的 scrollLeft 把 activeTab 写回原分组。
+    scrollToIndex(nextIdx, 'auto');
+    switchToTab(tabs.value[nextIdx].id);
+}
+
 // ---- Forum Topic Helpers ----
 const topicIconColors: Record<number, string> = {
     0x6FB9F0: '#6FB9F0',
@@ -1328,28 +1470,35 @@ function getTopicPreview(topic: forumTopic): formattedText {
         return EMPTY_TEXT;
     }
     if (content._ === 'messageAnimation') {
-        return content.caption?.text ? content.caption : plainText('[GIF]');
+        return content.caption?.text ? content.caption : plainText(bracketTypePreview(messageContentTypeLabel('messageAnimation')));
     }
     if (content._ === 'messageDocument') {
-        return content.caption?.text ? content.caption : plainText(`[文件] ${content.document.file_name}`.trim());
+        return content.caption?.text
+            ? content.caption
+            : plainText(bracketTypePreview(messageContentTypeLabel('messageDocument'), content.document.file_name));
     }
     if (content._ === 'messageSticker') {
-        return plainText(`${content.sticker.emoji || ''} [贴纸]`.trim());
+        return plainText(stickerBracketPreview(content.sticker.emoji));
     }
     if (content._ === 'messageVoiceNote') {
-        return plainText('[语音]');
+        return plainText(bracketTypePreview(messageContentTypeLabel('messageVoiceNote')));
     }
     if (content._ === 'messageAudio') {
-        return content.caption?.text ? content.caption : plainText(`🎵 ${content.audio.title || content.audio.file_name}`.trim());
+        return content.caption?.text
+            ? content.caption
+            : plainText(`🎵 ${content.audio.title || content.audio.file_name}`.trim());
     }
     if (content._ === 'messageVideoNote') {
-        return plainText('[视频消息]');
+        return plainText(bracketTypePreview(messageContentTypeLabel('messageVideoNote')));
     }
     if (content._ === 'messagePollOptionAdded' || content._ === 'messagePollOptionDeleted') {
-        const action = content._ === 'messagePollOptionAdded' ? '添加了选项' : '删除了选项';
-        return plainText(`[投票] ${action}：${content.text.text || ''}`.trim());
+        const action = pollOptionPreviewText(
+            content._ === 'messagePollOptionAdded' ? 'added' : 'deleted',
+            content.text.text,
+        );
+        return plainText(bracketTypePreview(messageContentTypeLabel('messagePoll'), action));
     }
-    return plainText('[消息]');
+    return plainText(bracketTypePreview(messageContentTypeLabel('')));
 }
 </script>
 
@@ -1382,6 +1531,70 @@ function getTopicPreview(topic: forumTopic): formattedText {
 }
 
 /* Each page takes full width of the container */
+
+/* ===== 搜索模式：左侧返回按钮「撑开宽度」+ 淡入 =====
+   width/margin 过渡让左侧自然平出空间，按钮自身再轻微缩放浮现 */
+.search-back-slot {
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    transition:
+        width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+        margin 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: width, margin, opacity;
+}
+
+.search-back-open {
+    width: 2.25rem;
+    /* 36px = w-9 */
+    margin-right: 0;
+    opacity: 1;
+}
+
+.search-back-open button {
+    animation: search-back-pop 0.32s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.search-back-closed {
+    width: 0;
+    margin-right: -0.5rem;
+    /* 抵消父 gap-2，收起时无残留空隙 */
+    opacity: 0;
+    pointer-events: none;
+}
+
+@keyframes search-back-pop {
+    from {
+        transform: scale(0.7);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* ===== 搜索结果区 ↔ 常规列表区：纯淡入淡出（out-in：先淡出，再淡入） =====
+   不做位移：旧内容快速变淡，新区域随即浮现；返回时同理反向 */
+.search-swap-enter-active {
+    transition: opacity 0.14s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: opacity;
+}
+
+.search-swap-leave-active {
+    transition: opacity 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: opacity;
+}
+
+.search-swap-enter-from {
+    opacity: 0;
+}
+
+.search-swap-leave-to {
+    opacity: 0;
+}
 
 /* Forum topic panel slide animation
    只过渡 transform/opacity：走合成器，避免 all 把布局属性也插值导致每帧 reflow */

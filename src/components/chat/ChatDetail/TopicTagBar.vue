@@ -16,6 +16,10 @@
                         <span v-if="tab.kind === 'all'" class="shrink-0">
                             <MessageCircleIcon class="w-3.5 h-3.5" />
                         </span>
+                        <!-- 频道私信：对方小头像（已注销显示幽灵） -->
+                        <Avatar v-else-if="tab.photo !== undefined || tab.deleted || props.isDm" :photo="tab.photo"
+                            :title="tab.label" :deletedAccount="!!tab.deleted"
+                            sizeClass="!w-5 !h-5" class="shrink-0" />
                         <span v-else-if="tab.kind === 'general'" class="text-sm font-bold leading-none shrink-0"
                             :class="active ? '' : ''"
                             :style="active ? undefined : { color: tab.color }">#</span>
@@ -53,6 +57,10 @@
                             class="w-11 h-11 rounded-xl flex items-center justify-center text-gray-500 dark:text-gray-300 bg-gray-100 dark:bg-gray-800">
                             <MessageCircleIcon class="w-5 h-5" />
                         </div>
+                        <!-- 频道私信：对方头像（已注销显示幽灵） -->
+                        <Avatar v-else-if="entry.photo !== undefined || entry.deleted || props.isDm"
+                            :photo="entry.photo" :title="entry.label" :deletedAccount="!!entry.deleted"
+                            sizeClass="!w-11 !h-11" class="shrink-0" />
                         <div v-else-if="entry.kind === 'general'"
                             class="w-11 h-11 rounded-xl flex items-center justify-center text-white text-xl font-bold"
                             :style="{ backgroundColor: entry.color }">#</div>
@@ -81,13 +89,21 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { MessageCircleIcon } from 'lucide-vue-next';
-import type { forumTopic, forumTopics } from 'tdlib-types';
+import type { forumTopic, forumTopics, chatPhotoInfo, profilePhoto } from 'tdlib-types';
 import { tdlibSend } from '../../../utils/tdlib';
 import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
 import SlidingTabBar from '../../common/SlidingTabBar.vue';
+import Avatar from '../avatar.vue';
 import { folderTabClass, folderTabContainerClass, type FolderStyle } from '../../../utils/folderPillsTabClass';
 import { settings } from '../../../store/settings';
+import {
+    loadDmTopics,
+    watchDmTopics,
+    toDmTopicEntries,
+    type DmTopicEntry,
+} from '../../../utils/directMessagesTopics';
 
 export type TopicTagPosition = 'left' | 'top' | 'bottom';
 
@@ -100,11 +116,14 @@ const props = withDefaults(defineProps<{
     topOffset?: number;
     /** bottom 模式相对底部的偏移 */
     bottomOffset?: number;
+    /** 频道私聊群组：话题是与各用户的私信会话 */
+    isDm?: boolean;
 }>(), {
     topicId: null,
     position: 'left',
     topOffset: 4,
     bottomOffset: 76,
+    isDm: false,
 });
 
 const emit = defineEmits<{
@@ -114,10 +133,14 @@ const emit = defineEmits<{
 
 /** 话题列表缓存：位置切换会重建组件，避免每次都重新拉取导致闪空 */
 const topicsCache = new Map<number, forumTopic[]>();
+/** 私信话题展示条目缓存 */
+const dmEntriesCache = new Map<number, DmTopicEntry[]>();
 
 const router = useRouter();
+const { t } = useI18n();
 // 同步读缓存：位置切换重挂载时首帧就有数据，不会闪空
 const topics = ref<forumTopic[]>(topicsCache.get(props.chatId) ?? []);
+const dmEntries = ref<DmTopicEntry[]>(dmEntriesCache.get(props.chatId) ?? []);
 
 const rootClass = computed(() => {
     if (props.position === 'left') {
@@ -207,16 +230,54 @@ interface TagEntry {
     customEmojiId: string;
     unread: number;
     active: boolean;
+    /** 私信会话对方头像（DM 模式） */
+    photo?: chatPhotoInfo | profilePhoto;
+    /** 已注销/空账户：头像显示幽灵图标 */
+    deleted?: boolean;
     onClick: () => void;
 }
 
 const entries = computed<TagEntry[]>(() => {
+    // 频道私信：顶部「全部」+ 每条会话一个标签（用户头像 + 名称）
+    // 对齐 Unigram ForumTopicVerticalCell：SenderId==null 显示 AllTopics
+    if (props.isDm) {
+        const list: TagEntry[] = [];
+        list.push({
+            key: '__all__',
+            kind: 'all',
+            label: t('topicTag.all'),
+            title: t('topicTag.allDm'),
+            color: '',
+            initial: '',
+            customEmojiId: '',
+            unread: dmEntries.value.reduce((s, t) => s + (t.unreadCount || 0), 0),
+            active: !props.topicId,
+            onClick: () => selectAll(),
+        });
+        for (const e of dmEntries.value) {
+            list.push({
+                key: String(e.id),
+                kind: 'topic',
+                label: e.title,
+                title: e.title,
+                color: '',
+                initial: topicNameInitial(e.title),
+                customEmojiId: '',
+                unread: e.unreadCount || 0,
+                active: props.topicId === e.id,
+                photo: e.photo,
+                deleted: e.isDeleted,
+                onClick: () => selectTopic(e.id),
+            });
+        }
+        return list;
+    }
     const list: TagEntry[] = [];
     list.push({
         key: '__all__',
         kind: 'all',
-        label: '全部',
-        title: '全部话题',
+        label: t('topicTag.all'),
+        title: t('topicTag.allTopics'),
         color: '',
         initial: '',
         customEmojiId: '',
@@ -255,6 +316,8 @@ const slidingTabs = computed(() =>
         initial: e.initial,
         customEmojiId: e.customEmojiId,
         unread: e.unread,
+        photo: e.photo,
+        deleted: e.deleted,
     }))
 );
 const activeTabId = computed(() => {
@@ -295,6 +358,11 @@ function selectTopic(topicId: number) {
 
 async function loadTopics() {
     if (!props.chatId) return;
+    // 频道私信：走 DM 话题 API（updateDirectMessagesChatTopic）
+    if (props.isDm) {
+        await loadDmTopicsList();
+        return;
+    }
     // 先用缓存立即渲染，避免位置切换重挂载时闪空
     const cached = topicsCache.get(props.chatId);
     if (cached) {
@@ -324,19 +392,59 @@ async function loadTopics() {
     }
 }
 
+/** 刷新私信会话列表（含发送者名称） */
+async function refreshDmEntries() {
+    const list = await toDmTopicEntries(props.chatId);
+    dmEntriesCache.set(props.chatId, list);
+    dmEntries.value = list;
+    emit('loaded', list.length);
+}
+
+async function loadDmTopicsList() {
+    const cached = dmEntriesCache.get(props.chatId);
+    if (cached) {
+        dmEntries.value = cached;
+        emit('loaded', cached.length);
+    }
+    await loadDmTopics(props.chatId);
+    if (disposed) return;
+    await refreshDmEntries();
+}
+
 let disposed = false;
+let unwatchDm: (() => void) | null = null;
 
 onMounted(() => {
     disposed = false;
+    if (props.isDm) {
+        unwatchDm = watchDmTopics(props.chatId, () => {
+            if (disposed) return;
+            void refreshDmEntries();
+        });
+    }
     loadTopics();
 });
 
 onUnmounted(() => {
     disposed = true;
+    if (unwatchDm) {
+        unwatchDm();
+        unwatchDm = null;
+    }
 });
 
 watch(() => props.chatId, () => {
     if (disposed) return;
+    if (unwatchDm) {
+        unwatchDm();
+        unwatchDm = null;
+    }
+    if (props.isDm) {
+        unwatchDm = watchDmTopics(props.chatId, () => {
+            if (disposed) return;
+            void refreshDmEntries();
+        });
+    }
     loadTopics();
 });
 </script>

@@ -85,6 +85,12 @@ import { tdlibSend } from '../../utils/tdlib';
 import type { chat, forumTopic, forumTopics, supergroup } from 'tdlib-types';
 import Avatar from './avatar.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
+import {
+    messageContentTypeLabel,
+    stickerBracketPreview,
+    bracketTypePreview,
+    musicBracketPreview,
+} from '../../utils/messagePreview';
 const route = useRoute();
 const router = useRouter();
 
@@ -214,30 +220,32 @@ function getTopicPreview(topic: forumTopic): string {
         return content.text.text;
     }
     if (content._ === 'messagePhoto') {
-        return content.caption.text || '[图片]';
+        return content.caption.text || bracketTypePreview(messageContentTypeLabel('messagePhoto'));
     }
     if (content._ === 'messageVideo') {
-        return content.caption.text || '[视频]';
+        return content.caption.text || bracketTypePreview(messageContentTypeLabel('messageVideo'));
     }
     if (content._ === 'messageAnimation') {
-        return content.caption.text || '[GIF]';
+        return content.caption.text || bracketTypePreview(messageContentTypeLabel('messageAnimation'));
     }
     if (content._ === 'messageDocument') {
-        return content.caption.text || `[文件] ${content.document.file_name}`.trim();
+        return content.caption.text
+            || bracketTypePreview(messageContentTypeLabel('messageDocument'), content.document.file_name);
     }
     if (content._ === 'messageSticker') {
-        return `${content.sticker.emoji || ''} [贴纸]`.trim();
+        return stickerBracketPreview(content.sticker.emoji);
     }
     if (content._ === 'messageVoiceNote') {
-        return '[语音]';
+        return bracketTypePreview(messageContentTypeLabel('messageVoiceNote'));
     }
     if (content._ === 'messageAudio') {
-        return content.caption.text || `[音乐] ${content.audio.title || content.audio.file_name}`.trim();
+        return content.caption.text
+            || musicBracketPreview(content.audio.title || content.audio.file_name);
     }
     if (content._ === 'messageVideoNote') {
-        return '[视频消息]';
+        return bracketTypePreview(messageContentTypeLabel('messageVideoNote'));
     }
-    return '[消息]';
+    return bracketTypePreview(messageContentTypeLabel(''));
 }
 </script>
 
