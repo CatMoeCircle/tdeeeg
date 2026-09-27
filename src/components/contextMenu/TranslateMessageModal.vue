@@ -55,7 +55,8 @@
                             </div>
                             <div v-else-if="translatedText"
                                 class="max-h-60 overflow-y-auto custom-scrollbar rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap wrap-break-word">
-                                {{ translatedText }}
+                                <span v-if="translatedHtml" v-html="translatedHtml"></span>
+                                <template v-else>{{ translatedText }}</template>
                             </div>
                         </div>
                     </div>
@@ -84,14 +85,16 @@ import { computed, ref, watch, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { XIcon, CopyIcon, Languages as LanguagesIcon } from "lucide-vue-next";
 import { MessagePlugin } from "tdesign-vue-next";
+import type { textEntity } from "tdlib-types";
 import {
     translateVisible, translateRequest, hideTranslateDialog,
     getTranslateTargetLang,
 } from "../../store/translate";
 import { translateViaProvider } from "../../utils/translateProvider";
+import { renderEntitiesHTML } from "../../utils/textFormatters";
 import LoaderIndicator from "../common/LoaderIndicator";
 import {
-    TRANSLATE_TARGET_LANGUAGES,
+    getTranslateLanguageOptions,
 } from "../../utils/translateLanguages";
 
 const { t } = useI18n();
@@ -101,12 +104,21 @@ const req = translateRequest;
 /** 当前目标语言 */
 const targetLang = ref<string>(getTranslateTargetLang());
 const translatedText = ref("");
+/** 译文实体（TDLib 仅 Premium 保留格式；普通用户为空 → 纯文本展示） */
+const translatedEntities = ref<textEntity[]>([]);
 const translating = ref(false);
 const error = ref("");
 
+/** 译文富文本 HTML：无实体时返回 null，回退纯文本插值 */
+const translatedHtml = computed(() =>
+    translatedText.value && translatedEntities.value.length
+        ? renderEntitiesHTML(translatedText.value, translatedEntities.value)
+        : null,
+);
+
 /** 下拉选项：显示名 + 语言码 */
 const targetOptions = computed(() =>
-    TRANSLATE_TARGET_LANGUAGES.map((l) => ({ label: `${l.label} (${l.code})`, value: l.code })),
+    getTranslateLanguageOptions().map((l) => ({ label: `${l.label} (${l.code})`, value: l.code })),
 );
 
 const plainText = computed(() => req.value?.plainText ?? "");
@@ -132,6 +144,10 @@ async function doTranslate() {
         if (seq !== translateSeq) return; // 已切换目标语言，丢弃过期结果
         const text = res?.text ?? "";
         translatedText.value = text.trim() ? text : "";
+        // 实体仅在与译文文本完全对应时采用（第三方/AI 提供方可能只给纯文本）
+        const ft = res?.formattedText;
+        translatedEntities.value =
+            ft && ft.text === translatedText.value ? (ft.entities ?? []) : [];
         if (!translatedText.value) error.value = "lng_translate_box_error";
     } catch (e: any) {
         if (seq !== translateSeq) return;
@@ -148,6 +164,7 @@ watch(visible, (open) => {
         const seq = ++openSeq;
         targetLang.value = getTranslateTargetLang();
         translatedText.value = "";
+        translatedEntities.value = [];
         error.value = "";
         if (seq === openSeq && visible.value) doTranslate();
     }

@@ -1,7 +1,7 @@
 <template>
     <div v-bind="$attrs" class="h-full flex flex-col bg-white dark:bg-gray-900">
         <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3">
-            <button type="button" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" @click="goBack">
+            <button type="button" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" @click="goBack">
                 <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
             </button>
             <h2 class="text-lg font-semibold">{{ t('translateSettings.title') }}</h2>
@@ -23,6 +23,10 @@
                             icon-class="bg-green-100 dark:bg-green-900/30 text-green-600"
                             :title="t('appearance.translateInline')" :desc="t('appearance.translateInlineDesc')"
                             @click="settings.translate.displayMode = 'inline'" />
+                        <ModeCard :selected="settings.translate.displayMode === 'replace'" :icon="ArrowLeftRightIcon"
+                            icon-class="bg-purple-100 dark:bg-purple-900/30 text-purple-600"
+                            :title="t('appearance.translateReplace')" :desc="t('appearance.translateReplaceDesc')"
+                            @click="settings.translate.displayMode = 'replace'" />
                     </div>
                 </section>
 
@@ -88,19 +92,7 @@
                     <SectionHeader :title="t('translateSettings.providerSection')"
                         :desc="t('translateSettings.providerDesc')" />
 
-                    <!-- 全局默认提供方 -->
-                    <div
-                        class="mb-3 p-4 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-between gap-4">
-                        <div class="min-w-0">
-                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                {{ t('translateSettings.providerDefault') }}</p>
-                            <p class="text-xs text-gray-400 mt-0.5">{{ t('translateSettings.providerDefaultDesc') }}</p>
-                        </div>
-                        <t-select v-model="providerDefault" :options="providerOptions" size="small" style="width: 200px"
-                            class="shrink-0 select-none" />
-                    </div>
-
-                    <!-- 场景覆盖：右键翻译 / 全部翻译 -->
+                    <!-- 场景覆盖：右键翻译 / 全部翻译（默认固定 Telegram，不提供默认项选择） -->
                     <div
                         class="mb-3 p-4 rounded-xl border border-gray-200 dark:border-gray-700 space-y-3">
                         <div class="flex items-center justify-between gap-4">
@@ -109,7 +101,7 @@
                                     {{ t('translateSettings.providerMessage') }}</p>
                                 <p class="text-xs text-gray-400 mt-0.5">{{ t('translateSettings.providerMessageDesc') }}</p>
                             </div>
-                            <t-select v-model="providerMessage" :options="providerOverrideOptions" size="small"
+                            <t-select v-model="providerMessage" :options="providerOptions" size="small"
                                 style="width: 200px" class="shrink-0 select-none" />
                         </div>
                         <div class="h-px bg-gray-100 dark:bg-gray-700"></div>
@@ -119,12 +111,12 @@
                                     {{ t('translateSettings.providerChat') }}</p>
                                 <p class="text-xs text-gray-400 mt-0.5">{{ t('translateSettings.providerChatDesc') }}</p>
                             </div>
-                            <t-select v-model="providerChat" :options="providerOverrideOptions" size="small"
+                            <t-select v-model="providerChat" :options="providerOptions" size="small"
                                 style="width: 200px" class="shrink-0 select-none" />
                         </div>
                     </div>
 
-                    <!-- 提供方说明与接口配置（第三方 / AI 预留） -->
+                    <!-- 提供方说明与接口配置（AI） -->
                     <div class="space-y-3">
                         <div v-for="p in providerCards" :key="p.id"
                             class="rounded-xl border transition-colors"
@@ -140,12 +132,9 @@
                                     <div class="min-w-0">
                                         <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
                                             {{ p.title }}
-                                            <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded"
-                                                :class="p.available
-                                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-                                                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'">
-                                                {{ p.available ? t('translateSettings.available') :
-                                                    t('translateSettings.reserved') }}
+                                            <span v-if="!p.available"
+                                                class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                                                {{ t('translateSettings.unconfigured') }}
                                             </span>
                                         </p>
                                         <p class="text-xs text-gray-400 mt-0.5">{{ p.desc }}</p>
@@ -157,54 +146,71 @@
                                 </span>
                             </div>
 
-                            <!-- 第三方 API 配置（整套翻译共用；功能未实现） -->
-                            <div v-if="p.id === 'third-party' && showThirdPartyConfig"
+                            <!-- AI 配置（前端填写，后端保存；Key 存系统钥匙串） -->
+                            <div v-if="p.id === 'ai'"
                                 class="px-4 pb-4 space-y-3 border-t border-gray-100 dark:border-gray-700 pt-3">
-                                <p class="text-xs text-amber-600 dark:text-amber-400">
-                                    {{ t('translateSettings.notImplementedHint') }}
-                                </p>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <label class="block">
+                                        <span class="text-xs text-gray-500">{{ t('translateSettings.aiName') }}</span>
+                                        <input v-model="aiDraft.name" type="text"
+                                            :placeholder="t('translateSettings.aiNamePh')"
+                                            class="mt-1 w-full px-3 py-2 rounded-lg text-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-400" />
+                                    </label>
+                                    <label class="block">
+                                        <span class="text-xs text-gray-500">{{ t('translateSettings.aiFormat') }}</span>
+                                        <t-select v-model="aiDraft.format" :options="aiFormatOptions" size="small"
+                                            class="mt-1 w-full" />
+                                    </label>
+                                </div>
                                 <label class="block">
                                     <span class="text-xs text-gray-500">{{ t('translateSettings.endpoint') }}</span>
-                                    <input v-model="settings.translate.thirdParty.endpoint" type="text"
-                                        :placeholder="t('translateSettings.endpointPh')" disabled
-                                        class="mt-1 w-full px-3 py-2 rounded-lg text-sm border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-400 cursor-not-allowed" />
-                                </label>
-                                <label class="block">
-                                    <span class="text-xs text-gray-500">{{ t('translateSettings.apiKey') }}</span>
-                                    <input v-model="settings.translate.thirdParty.apiKey" type="password"
-                                        :placeholder="t('translateSettings.apiKeyPh')" disabled
-                                        class="mt-1 w-full px-3 py-2 rounded-lg text-sm border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-400 cursor-not-allowed" />
-                                </label>
-                                <p class="text-[11px] text-gray-400">{{ t('translateSettings.configSharedHint') }}</p>
-                            </div>
-
-                            <!-- AI 配置（整套翻译共用；功能未实现） -->
-                            <div v-if="p.id === 'ai' && showAiConfig"
-                                class="px-4 pb-4 space-y-3 border-t border-gray-100 dark:border-gray-700 pt-3">
-                                <p class="text-xs text-amber-600 dark:text-amber-400">
-                                    {{ t('translateSettings.notImplementedHint') }}
-                                </p>
-                                <label class="block">
-                                    <span class="text-xs text-gray-500">{{ t('translateSettings.endpoint') }}</span>
-                                    <input v-model="settings.translate.ai.endpoint" type="text"
-                                        :placeholder="t('translateSettings.aiEndpointPh')" disabled
-                                        class="mt-1 w-full px-3 py-2 rounded-lg text-sm border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-400 cursor-not-allowed" />
+                                    <input v-model="aiDraft.endpoint" type="text" :placeholder="aiEndpointPh"
+                                        class="mt-1 w-full px-3 py-2 rounded-lg text-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-400" />
                                 </label>
                                 <div class="grid grid-cols-2 gap-3">
                                     <label class="block">
                                         <span class="text-xs text-gray-500">{{ t('translateSettings.apiKey') }}</span>
-                                        <input v-model="settings.translate.ai.apiKey" type="password"
-                                            :placeholder="t('translateSettings.apiKeyPh')" disabled
-                                            class="mt-1 w-full px-3 py-2 rounded-lg text-sm border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-400 cursor-not-allowed" />
+                                        <input v-model="aiApiKey" type="password"
+                                            :placeholder="aiHasSavedKey ? t('translateSettings.aiKeySavedPh') : t('translateSettings.apiKeyPh')"
+                                            class="mt-1 w-full px-3 py-2 rounded-lg text-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-400" />
                                     </label>
                                     <label class="block">
                                         <span class="text-xs text-gray-500">{{ t('translateSettings.model') }}</span>
-                                        <input v-model="settings.translate.ai.model" type="text"
-                                            :placeholder="t('translateSettings.modelPh')" disabled
-                                            class="mt-1 w-full px-3 py-2 rounded-lg text-sm border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-400 cursor-not-allowed" />
+                                        <div class="mt-1 flex items-center gap-2">
+                                            <input v-model="aiDraft.model" type="text"
+                                                :placeholder="t('translateSettings.modelPh')"
+                                                class="flex-1 min-w-0 px-3 py-2 rounded-lg text-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-400" />
+                                            <button type="button"
+                                                class="text-xs text-blue-500 hover:text-blue-600 shrink-0 disabled:opacity-40"
+                                                :disabled="aiTesting" @click="runAiModelTest">
+                                                {{ aiTesting ? t('translateSettings.aiTesting') :
+                                                    t('translateSettings.aiTest') }}
+                                            </button>
+                                        </div>
                                     </label>
                                 </div>
-                                <p class="text-[11px] text-gray-400">{{ t('translateSettings.configSharedHint') }}</p>
+                                <!-- 测试成功后可从列表选；也可直接在上方输入自定义 ID -->
+                                <label v-if="aiModelOptions.length" class="block">
+                                    <span class="text-xs text-gray-500">{{ t('translateSettings.aiPickModel') }}</span>
+                                    <t-select v-model="aiDraft.model" :options="aiModelSelectOptions" filterable
+                                        size="small" class="mt-1 w-full" />
+                                </label>
+                                <div class="flex items-center justify-between gap-3">
+                                    <p class="text-[11px] text-gray-400 leading-4">
+                                        {{ t('translateSettings.aiKeyHint') }}</p>
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <button v-if="aiHasSavedConfig" type="button"
+                                            class="px-3 py-1.5 rounded-lg text-xs border border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20 disabled:opacity-40"
+                                            :disabled="aiSaving || aiClearing" @click="clearAiSettings">
+                                            {{ t('translateSettings.aiClearBtn') }}
+                                        </button>
+                                        <button type="button"
+                                            class="px-3 py-1.5 rounded-lg text-xs bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40"
+                                            :disabled="aiSaving" @click="saveAiSettings">
+                                            {{ t('translateSettings.aiSaveBtn') }}
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -223,26 +229,36 @@
  * 翻译设置页。
  * - 已实现：显示方式、目标语言（空=跟语言包）、消息翻译按钮、不翻译语言
  * - 全部翻译栏：不是设置项，跟随 chat.is_translatable
- * - 提供方：整套翻译共用配置；可分别覆盖右键翻译 / 全部翻译；默认官方 TDLib
- * - 第三方 API / AI：接口预留，功能未实现
+ * - 提供方：默认官方 TDLib；场景（右键 / 全部翻译）可切换 Telegram / AI（配置完整时）
+ * - AI 配置：前端填写、后端保存，API Key 存系统钥匙串（见 store/aiConfig）
  */
-import { computed, defineComponent, h, ref, watch, type Component } from 'vue';
+import { computed, defineComponent, h, onMounted, ref, reactive, watch, type Component } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
+import { MessagePlugin } from 'tdesign-vue-next';
 import {
     ChevronLeft as ChevronLeftIcon,
     Languages as LanguageIcon,
     MessageSquareText as MessageSquareTextIcon,
+    ArrowLeftRight as ArrowLeftRightIcon,
     Send as SendIcon,
-    Plug as PlugIcon,
     Sparkles as SparklesIcon,
     X as XIcon,
 } from 'lucide-vue-next';
 import { settings } from '../../store/settings';
+import {
+    aiConfig,
+    aiConfigComplete,
+    loadAiConfig,
+    saveAiConfig,
+    clearAiConfig,
+    listAiModels,
+    type AiTranslateFormat,
+} from '../../store/aiConfig';
 import { getTranslateTargetLang, clearShouldTranslateCache } from '../../store/translate';
 import {
-    TRANSLATE_TARGET_LANGUAGES,
     getTranslateLanguageLabel,
+    getTranslateLanguageOptions,
 } from '../../utils/translateLanguages';
 import type { TranslateProviderId } from '../../utils/translateProvider';
 
@@ -250,7 +266,7 @@ const router = useRouter();
 const { t } = useI18n();
 
 const langOnlyOptions = computed(() =>
-    TRANSLATE_TARGET_LANGUAGES.map((l) => ({ label: `${l.label} (${l.code})`, value: l.code })),
+    getTranslateLanguageOptions().map((l) => ({ label: `${l.label} (${l.code})`, value: l.code })),
 );
 
 /** 目标语言下拉：首项「跟随语言包」 */
@@ -275,36 +291,40 @@ function ensureProviderObj() {
     if (!anyP.provider || typeof anyP.provider !== 'object') {
         anyP.provider = { default: 'tdlib', message: null, chat: null };
     }
-    return anyP.provider as {
+    const p = anyP.provider as {
         default: TranslateProviderId;
         message: TranslateProviderId | null;
         chat: TranslateProviderId | null;
     };
+    // 默认提供方已不提供选择（TG 翻译始终可用），历史配置若指向其它接口则归位
+    if (p.default !== 'tdlib') p.default = 'tdlib';
+    return p;
 }
 
-const providerDefault = computed({
-    get: () => ensureProviderObj().default || 'tdlib',
-    set: (v: TranslateProviderId) => { ensureProviderObj().default = v; },
-});
 const providerMessage = computed({
-    get: () => ensureProviderObj().message as string,
-    set: (v: string) => { ensureProviderObj().message = (v === '' ? null : v) as TranslateProviderId | null; },
+    // 未单独配置时显示为 Telegram（默认即 Telegram，不再提供「跟随默认」项）
+    get: () => ensureProviderObj().message || 'tdlib',
+    set: (v: string) => { ensureProviderObj().message = v as TranslateProviderId; },
 });
 const providerChat = computed({
-    get: () => ensureProviderObj().chat as string,
-    set: (v: string) => { ensureProviderObj().chat = (v === '' ? null : v) as TranslateProviderId | null; },
+    get: () => ensureProviderObj().chat || 'tdlib',
+    set: (v: string) => { ensureProviderObj().chat = v as TranslateProviderId; },
 });
 
-const providerOptions = computed(() => [
-    { label: `${t('translateSettings.providerTdlib')} (${t('translateSettings.available')})`, value: 'tdlib' },
-    { label: `${t('translateSettings.providerThirdParty')} (${t('translateSettings.reserved')})`, value: 'third-party' },
-    { label: `${t('translateSettings.providerAi')} (${t('translateSettings.reserved')})`, value: 'ai' },
-]);
-
-const providerOverrideOptions = computed(() => [
-    { label: t('translateSettings.followDefault'), value: '' },
-    ...providerOptions.value,
-]);
+// TG 翻译始终可用，不标注状态；AI 配置完整后才可选，未配置时标注「未配置」
+const providerOptions = computed(() => {
+    const aiReady = aiConfigComplete();
+    return [
+        { label: t('translateSettings.providerTdlib'), value: 'tdlib' },
+        {
+            label: aiReady
+                ? t('translateSettings.providerAi')
+                : `${t('translateSettings.providerAi')} (${t('translateSettings.unconfigured')})`,
+            value: 'ai',
+            disabled: !aiReady,
+        },
+    ];
+});
 
 function isActiveProvider(id: TranslateProviderId): boolean {
     const cfg = ensureProviderObj();
@@ -313,17 +333,6 @@ function isActiveProvider(id: TranslateProviderId): boolean {
         || (cfg.message ?? cfg.default) === id
         || (cfg.chat ?? cfg.default) === id;
 }
-
-const showThirdPartyConfig = computed(() =>
-    ensureProviderObj().default === 'third-party'
-    || ensureProviderObj().message === 'third-party'
-    || ensureProviderObj().chat === 'third-party',
-);
-const showAiConfig = computed(() =>
-    ensureProviderObj().default === 'ai'
-    || ensureProviderObj().message === 'ai'
-    || ensureProviderObj().chat === 'ai',
-);
 
 const providerCards = computed(() => [
     {
@@ -335,22 +344,116 @@ const providerCards = computed(() => [
         iconClass: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600',
     },
     {
-        id: 'third-party' as const,
-        title: t('translateSettings.providerThirdParty'),
-        desc: t('translateSettings.providerThirdPartyDesc'),
-        available: false,
-        icon: PlugIcon as Component,
-        iconClass: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600',
-    },
-    {
         id: 'ai' as const,
         title: t('translateSettings.providerAi'),
         desc: t('translateSettings.providerAiDesc'),
-        available: false,
+        available: aiConfigComplete(),
         icon: SparklesIcon as Component,
         iconClass: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600',
     },
 ]);
+
+// ─── AI 配置草稿（提交后由后端保存） ─────────────────────────
+
+const aiDraft = reactive({
+    name: '',
+    endpoint: '',
+    format: 'openai-compatible' as AiTranslateFormat | string,
+    model: '',
+});
+/** 输入中的 Key：仅内存，保存后清空；已保存状态由后端回传 */
+const aiApiKey = ref('');
+const aiHasSavedKey = ref(false);
+const aiTesting = ref(false);
+const aiSaving = ref(false);
+const aiClearing = ref(false);
+const aiModelOptions = ref<string[]>([]);
+
+/** 后端是否已有保存过的配置（有则显示「删除配置」） */
+const aiHasSavedConfig = computed(() =>
+    !!(aiConfig.endpoint.trim() || aiConfig.model.trim() || aiConfig.name.trim() || aiConfig.hasApiKey),
+);
+
+const aiFormatOptions = computed(() => [
+    { label: 'OpenAI Responses', value: 'openai-responses' },
+    { label: 'OpenAI Compatible', value: 'openai-compatible' },
+    { label: 'Anthropic', value: 'anthropic' },
+]);
+
+const aiEndpointPh = computed(() =>
+    aiDraft.format === 'anthropic'
+        ? t('translateSettings.aiEndpointAnthropicPh')
+        : t('translateSettings.aiEndpointPh'),
+);
+
+const aiModelSelectOptions = computed(() =>
+    aiModelOptions.value.map((id) => ({ label: id, value: id })),
+);
+
+function syncAiDraftFromStore() {
+    aiDraft.name = aiConfig.name;
+    aiDraft.endpoint = aiConfig.endpoint;
+    aiDraft.format = aiConfig.format;
+    aiDraft.model = aiConfig.model;
+    aiHasSavedKey.value = aiConfig.hasApiKey;
+}
+
+/** 测试：拉取模型列表（成功后可从列表选择；失败给出原因） */
+async function runAiModelTest() {
+    aiTesting.value = true;
+    try {
+        const ids = await listAiModels({ ...aiDraft }, aiApiKey.value);
+        aiModelOptions.value = ids;
+        await MessagePlugin.success(t('translateSettings.aiTestOk'));
+    } catch (e) {
+        aiModelOptions.value = [];
+        await MessagePlugin.error(String(e));
+    } finally {
+        aiTesting.value = false;
+    }
+}
+
+/** 保存：非敏感字段写后端 JSON，Key 写系统钥匙串 */
+async function saveAiSettings() {
+    aiSaving.value = true;
+    try {
+        const view = await saveAiConfig({ ...aiDraft }, aiApiKey.value);
+        aiHasSavedKey.value = view.hasApiKey;
+        aiApiKey.value = '';
+        await MessagePlugin.success(t('translateSettings.aiSaveOk'));
+    } catch (e) {
+        await MessagePlugin.error(String(e));
+    } finally {
+        aiSaving.value = false;
+    }
+}
+
+/** 清除：删除后端配置与钥匙串 Key，并清空表单 */
+async function clearAiSettings() {
+    const ok = window.confirm(t('translateSettings.aiClearConfirm'));
+    if (!ok) return;
+    aiClearing.value = true;
+    try {
+        await clearAiConfig();
+        aiDraft.name = '';
+        aiDraft.endpoint = '';
+        aiDraft.format = 'openai-compatible';
+        aiDraft.model = '';
+        aiApiKey.value = '';
+        aiHasSavedKey.value = false;
+        aiModelOptions.value = [];
+        await MessagePlugin.success(t('translateSettings.aiClearOk'));
+    } catch (e) {
+        await MessagePlugin.error(String(e));
+    } finally {
+        aiClearing.value = false;
+    }
+}
+
+onMounted(async () => {
+    if (!aiConfig.loaded) await loadAiConfig();
+    syncAiDraftFromStore();
+});
 
 // ─── 不翻译语言 ───────────────────────────────────────────────
 

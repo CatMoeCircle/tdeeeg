@@ -14,6 +14,7 @@ import { initSenderInfo } from "./utils/senderInfo";
 import { initColors, watchSystemColorScheme } from "./store/colors";
 import { initNativeNotifications } from "./store/notifications";
 import { settings } from "./store/settings";
+import { loadAiConfig } from "./store/aiConfig";
 import { initDefaultBackgroundSync } from "./utils/wallpaper";
 
 /**
@@ -74,6 +75,9 @@ export async function initTdlib() {
     } catch (e) {
         console.error("Error syncing proxy config:", e);
     }
+
+    // AI 翻译配置（后端保存）：非阻塞加载，供提供方可用性判断
+    void loadAiConfig().catch((e) => console.error("Error loading AI translate config:", e));
 
     // Listen for initialization errors (e.g. invalid API ID/Hash)
     await listen("tdlib-init-error", (event) => {

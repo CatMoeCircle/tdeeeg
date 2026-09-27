@@ -4,23 +4,95 @@
  * 参考: https://core.telegram.org/tdlib/docs/classtd_1_1td__api_1_1translate_text.html
  * 文档中的 zh / zh-Hans、iw、in、ji 等别名已合并到其规范形式（zh-CN、he、id、yi），
  * 其余语言码保持原样，均为 TDLib 支持的有效值。
+ *
+ * 显示名用 Intl.DisplayNames（CLDR）按当前 UI 语言本地化；
+ * zh-CN / zh-TW 映射到 zh-Hans / zh-Hant，以得到「简体中文 / 繁体中文」而非「中文（中国）」。
  */
+
+import i18n from "../i18n";
 
 export interface TranslateLanguageOption {
     /** 传给 TDLib translateText 的 to_language_code */
     code: string;
-    /** 中文显示名 */
+    /** 显示名（getTranslateLanguageOptions 返回时已本地化） */
     label: string;
 }
 
-/** 默认目标语言：简体中文（仅作兑底；优先跟随语言包） */
+/** 默认目标语言：简体中文（仅作兜底；优先跟随语言包） */
 export const DEFAULT_TRANSLATE_TARGET = "zh-CN";
 
-/** 语言码 → 中文显示名（未知码原样返回） */
+/**
+ * DisplayNames 查询码。
+ * zh-CN / zh-TW 用语言+地区会得到「中文（中国）/中文（台湾）」，
+ * 用 zh-Hans / zh-Hant 才是「简体中文 / 繁体中文」。
+ */
+function displayCode(code: string): string {
+    const lower = code.toLowerCase().replace(/_/g, "-");
+    if (lower === "zh-cn" || lower === "zh-hans" || lower === "zh-sg") return "zh-Hans";
+    if (lower === "zh-tw" || lower === "zh-hant" || lower === "zh-hk" || lower === "zh-mo") {
+        return "zh-Hant";
+    }
+    return code;
+}
+
+/** vue-i18n locale → Intl 可用的 BCP-47（去掉 -raw / -tdesktop 等 pack 后缀） */
+function uiLocaleForIntl(): string {
+    // 读取 locale，保证 computed 内调用时语言切换会重新计算
+    void i18n.global.locale.value;
+    let loc = String(i18n.global.locale.value || "en");
+    loc = loc.replace(/-raw$/i, "").replace(/-tdesktop$/i, "");
+    if (!loc || loc === "tdesktop") return "en";
+    try {
+        // 无效 tag 会抛 RangeError
+        new Intl.DisplayNames([loc], { type: "language" });
+        return loc;
+    } catch {
+        return "en";
+    }
+}
+
+function displayNamesOf(code: string, locale: string): string | null {
+    try {
+        const dn = new Intl.DisplayNames([locale], {
+            type: "language",
+            languageDisplay: "dialect",
+        } as Intl.DisplayNamesOptions);
+        const name = dn.of(displayCode(code));
+        // 未知码可能原样返回 code
+        if (!name || name === code || name === displayCode(code)) return null;
+        return name;
+    } catch {
+        return null;
+    }
+}
+
+/** 语言码 → 当前 UI 语言下的显示名（Intl 不可用时回退中文表，再回退 code） */
 export function getTranslateLanguageLabel(code: string): string {
     if (!code) return "";
-    const hit = TRANSLATE_TARGET_LANGUAGES.find((l) => l.code === code);
-    return hit?.label ?? code;
+    return displayNamesOf(code, uiLocaleForIntl()) ?? fallbackLabel(code) ?? code;
+}
+
+/** 语言码 → 该语言自称（如 français / 日本語） */
+export function getTranslateLanguageNativeName(code: string): string {
+    if (!code) return "";
+    const dc = displayCode(code);
+    return displayNamesOf(code, dc) ?? fallbackLabel(code) ?? code;
+}
+
+/** 硬编码中文兜底（仅 Intl 失败时） */
+function fallbackLabel(code: string): string | null {
+    const hit = TRANSLATE_TARGET_LANGUAGES.find(
+        (l) => l.code.toLowerCase() === code.toLowerCase()
+    );
+    return hit?.label ?? null;
+}
+
+/** 本地化下拉选项（label 跟随 UI 语言） */
+export function getTranslateLanguageOptions(): TranslateLanguageOption[] {
+    return TRANSLATE_TARGET_LANGUAGES.map((l) => ({
+        code: l.code,
+        label: getTranslateLanguageLabel(l.code),
+    }));
 }
 
 /**
@@ -49,7 +121,10 @@ export function uiLanguageToTranslateCode(uiCode: string): string {
     return hit?.code ?? primary;
 }
 
-/** TDLib translateText 支持的目标语言（下拉选择项） */
+/**
+ * TDLib translateText 支持的目标语言。
+ * label 为中文兜底显示名；界面请用 getTranslateLanguageLabel / getTranslateLanguageOptions。
+ */
 export const TRANSLATE_TARGET_LANGUAGES: TranslateLanguageOption[] = [
     { code: "zh-CN", label: "简体中文" },
     { code: "zh-TW", label: "繁体中文" },

@@ -1,5 +1,5 @@
 import { reactive, ref } from "vue";
-import type { chat, formattedText, message } from "tdlib-types";
+import type { chat, formattedText, message, textEntity } from "tdlib-types";
 import { settings } from "./settings";
 import {
     translateViaProvider,
@@ -63,6 +63,11 @@ export interface InlineTranslation {
     targetLang: string;
     /** 译文文本 */
     translatedText: string;
+    /**
+     * 译文实体（偏移对应 translatedText）。
+     * TDLib 仅对 Premium 用户保留格式；普通用户返回为空，此时按纯文本展示。
+     */
+    translatedEntities: textEntity[];
     /** 正在翻译 */
     translating: boolean;
     /** 错误信息 */
@@ -100,6 +105,7 @@ export async function translateInlineMessage(
     inlineTranslations[key] = {
         targetLang,
         translatedText: inlineTranslations[key]?.translatedText ?? "",
+        translatedEntities: inlineTranslations[key]?.translatedEntities ?? [],
         translating: true,
         error: "",
         source,
@@ -117,10 +123,14 @@ export async function translateInlineMessage(
         const cur = inlineTranslations[key];
         if (!cur) return false; // 已被移除（例如消息删除 / 关闭全部翻译）
         const translated = (res?.text ?? "").trim() ? (res!.text as string) : "";
+        // 实体只在与译文文本完全对应时采用（第三方/AI 提供方可能只给纯文本）
+        const ft = res?.formattedText;
+        const entities = ft && ft.text === translated ? (ft.entities ?? []) : [];
         // 整对象替换：避免仅改嵌套字段时列表项 computed 不刷新
         inlineTranslations[key] = {
             ...cur,
             translatedText: translated,
+            translatedEntities: entities,
             translating: false,
             error: translated ? "" : "lng_translate_box_error",
         };
@@ -277,6 +287,9 @@ export async function requestViewportTranslation(
 ): Promise<void> {
     const lang = targetLang || getTranslateTargetLang();
     if (!hasTranslatableText(msg)) return;
+    // 相册消息无内联展示槽位（手动翻译特意回退到弹窗），
+    // 视口翻译若写入状态将永远不可见，还会污染右键菜单（显示「显示原文」），故跳过
+    if (msg.media_album_id && msg.media_album_id !== "0") return;
 
     const key = inlineKey(chatId, msg.id);
     const existing = inlineTranslations[key];
@@ -303,6 +316,25 @@ export function getTranslateTargetLang(): string {
     if (custom) return custom;
     const ui = settings.language?.code || "";
     return ui ? uiLanguageToTranslateCode(ui) : DEFAULT_TRANSLATE_TARGET;
+}
+
+/**
+ * 是否以「原位替换」样式展示气泡内的翻译结果：
+ * - displayMode=replace：右键翻译与全部翻译都原位替换（官方样式）
+ * - displayMode=popup：右键翻译走弹窗（不写内联状态），全部翻译的结果原位替换
+ * - displayMode=inline：附加译文块，不用原位替换
+ */
+export function isTranslateReplaceDisplay(): boolean {
+    const mode = settings.translate.displayMode;
+    return mode === "replace" || mode === "popup";
+}
+
+/**
+ * 是否渲染「附加译文块」（InlineTranslation，含全部翻译的紧凑态）：
+ * 仅 displayMode=inline 使用；popup 的全部翻译与 replace 均由正文原位顶替。
+ */
+export function isTranslateInlineBlockDisplay(): boolean {
+    return settings.translate.displayMode === "inline";
 }
 
 // ==================== 全部翻译：官方接口的显示门槛 ====================

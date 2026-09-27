@@ -1,14 +1,17 @@
 import type { formattedText } from "tdlib-types";
+import { invoke } from "@tauri-apps/api/core";
 import { tdlibSend } from "./tdlib";
 import { settings } from "../store/settings";
+import { aiConfigComplete } from "../store/aiConfig";
+import i18n from "../i18n";
 
 /**
  * 翻译提供方抽象层。
  *
  * 设计目标：
  * - 默认走 TDLib `translateText` / `translateMessageText`（官方，已实现）。
- * - 为第三方翻译 API、AI 翻译预留 **稳定接口**；配置对整套翻译生效，
- *   并可分别覆盖「右键单条翻译」与「聊天全部翻译」。
+ * - AI 翻译已接入（配置在后端，见 store/aiConfig）；第三方 API 仍为预留接口。
+ *   配置对整套翻译生效，并可分别覆盖「右键单条翻译」与「聊天全部翻译」。
  * - 业务侧只依赖本模块，后续接入时无需改动调用方。
  */
 
@@ -100,14 +103,14 @@ export const tdlibTranslateProvider: TranslateProvider = {
 
 export const thirdPartyTranslateProvider: TranslateProvider = {
   id: "third-party",
-  name: "第三方翻译 API",
+  get name() { return i18n.global.t("translate.thirdPartyName"); },
   isAvailable: () => true,
   isConfigured: () => {
     // 配置结构已保留（settings.translate.thirdParty），功能未实现
     return false;
   },
   async translate() {
-    throw new Error("第三方翻译接口尚未实现，请在设置中改用 Telegram 翻译");
+    throw new Error(i18n.global.t("translate.thirdPartyNotImplemented"));
   },
 };
 
@@ -115,14 +118,16 @@ export const thirdPartyTranslateProvider: TranslateProvider = {
 
 export const aiTranslateProvider: TranslateProvider = {
   id: "ai",
-  name: "AI 翻译",
+  get name() { return i18n.global.t("translate.aiName"); },
   isAvailable: () => true,
-  isConfigured: () => {
-    // 配置结构已保留（settings.translate.ai），功能未实现
-    return false;
-  },
-  async translate() {
-    throw new Error("AI 翻译接口尚未实现，请在设置中改用 Telegram 翻译");
+  // 配置在后端（接口/模型/钥匙串 Key），完整才可调用
+  isConfigured: () => aiConfigComplete(),
+  async translate(req) {
+    const text = await invoke<string>("ai_translate_text", {
+      text: req.plainText,
+      toLanguageCode: req.toLanguageCode,
+    });
+    return { text };
   },
 };
 
@@ -188,7 +193,7 @@ export function isOfficialProvider(scenario?: TranslateScenario): boolean {
 
 /**
  * 当前场景的有效提供方。
- * 预留接口（third-party / ai）未实现时回退 TDLib，保证默认链路可用。
+ * 未配置的预留接口（third-party / 未配置完成的 ai）回退 TDLib，保证默认链路可用。
  */
 export function getActiveTranslateProvider(scenario?: TranslateScenario): TranslateProvider {
   const preferred = getTranslateProvider(resolveProviderId(scenario));

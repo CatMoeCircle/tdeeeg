@@ -1,5 +1,6 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 mod accounts;
+mod ai_translate;
 mod chat_store;
 mod data_loc;
 mod device_info;
@@ -166,6 +167,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
+        // AI 翻译 API Key 存系统钥匙串（Rust 侧 app.keyring() 使用，无前端 IPC）
+        .plugin(tauri_plugin_keyring_store::init())
         // 不恢复 VISIBLE：插件默认会在 setup 阶段直接 show()，导致 TDLib
         // 授权态尚未确认时窗口就弹出。可见性始终由 tauri.conf.json
         // (visible:false) + 前端 bootstrap 完成后再 show() 控制。
@@ -176,13 +179,19 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
+            // 把 Tauri 资源目录写入 TURI_RESOURCE_DIR，供 lang_detect / tdlib
+            // 在各平台打包布局（macOS Contents/Resources、Linux deb/AppImage）下定位动态库
+            if let Ok(resource_dir) = app.path().resource_dir() {
+                std::env::set_var("TURI_RESOURCE_DIR", &resource_dir);
+            }
+
             // 根据持久化的数据存储模式解析数据根目录（AppData 或应用自带目录）
             let data_dir =
                 data_loc::resolve_current_data_dir(app.handle()).map_err(|e| e.to_string())?;
             std::fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
             app.manage(tdlib::AppState::new(data_dir));
 
-            // 注册开始菜单 AUMID 快捷方式，保证 Toast 归属为本应用而非启动 shell
+            // 注册 Toast AUMID 身份（未打包时写注册表；MSIX 由清单自动注册）
             toast_identity::init_toast_identity();
             // 通知服务状态（Rust 侧处理 updateNotificationGroup）
             notifications::init(app);
@@ -284,6 +293,11 @@ pub fn run() {
             toast_identity::show_system_notification,
             notifications::set_notification_prefs,
             notifications::set_active_chat_for_notifications,
+            ai_translate::get_ai_translate_config,
+            ai_translate::save_ai_translate_config,
+            ai_translate::clear_ai_translate_config,
+            ai_translate::ai_list_models,
+            ai_translate::ai_translate_text,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

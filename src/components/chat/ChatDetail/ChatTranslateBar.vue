@@ -103,8 +103,8 @@ import {
     canShowChatTranslateBar,
 } from '../../../store/translate';
 import {
-    TRANSLATE_TARGET_LANGUAGES,
     getTranslateLanguageLabel,
+    getTranslateLanguageOptions,
 } from '../../../utils/translateLanguages';
 import { detectLanguage } from '../../../utils/languageDetect';
 
@@ -177,7 +177,7 @@ const doNotLabel = computed(() => {
     return list.map((c) => getTranslateLanguageLabel(c)).join('、');
 });
 
-const languageOptions = TRANSLATE_TARGET_LANGUAGES;
+const languageOptions = computed(() => getTranslateLanguageOptions());
 
 function positionMenu() {
     const el = menuBtnRef.value;
