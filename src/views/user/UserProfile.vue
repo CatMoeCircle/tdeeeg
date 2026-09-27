@@ -41,9 +41,9 @@
                 <span v-else class="tgico tgico-emoji-status text-[20px]" />
               </button>
               <span v-if="!isDeletedProfile && !isSelf && user?.is_premium && !user?.emoji_status" class="text-base"
-                title="Telegram Premium">⭐</span>
+                :title="t('lng_premium_summary_title')">⭐</span>
               <VerifiedFilledIcon v-if="!isDeletedProfile && verificationType === 'verified'"
-                class="text-blue-500 text-lg" title="verified" :fill-color='["currentColor", "transparent"]'
+                class="text-blue-500 text-lg" :title="t('lng_sr_chat_column_verified')" :fill-color='["currentColor", "transparent"]'
                 :stroke-color='["currentColor", "#0052d9"]' :stroke-width="1.5" />
             </h1>
 
@@ -56,7 +56,7 @@
             <div v-if="!isSelf" class="mt-5 flex items-center justify-center gap-2">
               <!-- 消息 -->
               <button type="button"
-                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-500/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
+                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-400/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
                 @click="openPrivateChat">
                 <Send class="w-5 h-5 shrink-0" />
                 <span class="text-[11px] leading-tight text-center px-0.5 wrap-break-word max-w-full">{{
@@ -65,7 +65,7 @@
 
               <!-- 通话 -->
               <button type="button"
-                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-500/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
+                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-400/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
                 @click="startCall()">
                 <PhoneCall class="w-5 h-5 shrink-0" />
                 <span class="text-[11px] leading-tight text-center px-0.5 wrap-break-word max-w-full">{{
@@ -74,7 +74,7 @@
 
               <!-- 通知 -->
               <button type="button"
-                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-500/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
+                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-400/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
                 @click="toggleNotifications">
                 <BellOff v-if="isPrivateChatMuted" class="w-5 h-5 shrink-0" />
                 <Bell v-else class="w-5 h-5 shrink-0" />
@@ -85,7 +85,7 @@
 
               <!-- 搜索 -->
               <button type="button"
-                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-500/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
+                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-400/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
                 @click="searchInChat">
                 <Search class="w-5 h-5 shrink-0" />
                 <span class="text-[11px] leading-tight text-center px-0.5 wrap-break-word max-w-full">{{
@@ -94,7 +94,7 @@
 
               <!-- 更多 -->
               <button type="button"
-                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-500/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
+                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-400/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
                 @click="openMoreMenu($event)">
                 <MoreHorizontal class="w-5 h-5 shrink-0" />
                 <span class="text-[11px] leading-tight text-center px-0.5 wrap-break-word max-w-full">{{
@@ -120,7 +120,7 @@
                 <GlobalEmojiText
                   :text="isSecretChat && secretChatUser ? `${secretChatUser.first_name} ${secretChatUser.last_name}`.trim() || t('secretChat.label') : chatTitle" />
               </span>
-              <VerifiedFilledIcon v-if="isChatVerified" class="text-blue-500 text-lg" title="Verified"
+              <VerifiedFilledIcon v-if="isChatVerified" class="text-blue-500 text-lg" :title="t('lng_sr_chat_column_verified')"
                 :fill-color='["currentColor", "transparent"]' :stroke-color='["currentColor", "#0052d9"]'
                 :stroke-width="1.5" />
             </h1>
@@ -135,14 +135,14 @@
               <!-- 秘密聊天：消息 / 通话 / 通知 / 搜索 / 更多 -->
               <template v-if="isSecretChat">
                 <button type="button"
-                  class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-500/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
+                  class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-400/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
                   @click="openChatChannel">
                   <Send class="w-5 h-5 shrink-0" />
                   <span class="text-[11px] leading-tight text-center px-0.5 wrap-break-word max-w-full">{{
                     t('lng_profile_action_short_message') }}</span>
                 </button>
                 <button type="button"
-                  class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-500/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
+                  class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-400/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
                   @click="startCall()">
                   <PhoneCall class="w-5 h-5 shrink-0" />
                   <span class="text-[11px] leading-tight text-center px-0.5 wrap-break-word max-w-full">{{
@@ -152,7 +152,7 @@
               <!-- 频道/群组：进入或加入 -->
               <template v-else>
                 <button type="button"
-                  class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-500/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
+                  class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-400/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
                   @click="isChatJoined ? openChatChannel() : joinChat()">
                   <MessageSquareText class="w-5 h-5 shrink-0" />
                   <span class="text-[11px] leading-tight text-center px-0.5 wrap-break-word max-w-full">
@@ -165,7 +165,7 @@
 
               <!-- 通知 -->
               <button type="button"
-                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-500/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
+                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-400/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
                 @click="chatToggleNotifications">
                 <BellOff v-if="chatNotificationMuted" class="w-5 h-5 shrink-0" />
                 <Bell v-else class="w-5 h-5 shrink-0" />
@@ -177,7 +177,7 @@
 
               <!-- 秘密聊天：搜索 -->
               <button v-if="isSecretChat" type="button"
-                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-500/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
+                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-400/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
                 @click="searchInChat">
                 <Search class="w-5 h-5 shrink-0" />
                 <span class="text-[11px] leading-tight text-center px-0.5 wrap-break-word max-w-full">{{
@@ -186,7 +186,7 @@
 
               <!-- 频道/群组：查看讨论 / 关联频道 -->
               <button v-if="!isSecretChat && chatLinkedChatId" type="button"
-                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-500/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
+                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-400/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
                 @click="openLinkedGroup">
                 <Users class="w-5 h-5 shrink-0" />
                 <span class="text-[11px] leading-tight text-center px-0.5 wrap-break-word max-w-full">
@@ -194,9 +194,18 @@
                 </span>
               </button>
 
-              <!-- 频道/群组：举报 -->
-              <button v-if="!isSecretChat" type="button"
-                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-500/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
+              <!-- 频道/群组：编辑（创建者/管理员，紧挨「更多」左侧；有编辑时占举报位，保持一排按钮数量） -->
+              <button v-if="!isSecretChat && canEditGroup" type="button"
+                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-400/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
+                @click="openGroupEdit">
+                <Pencil class="w-5 h-5 shrink-0" />
+                <span class="text-[11px] leading-tight text-center px-0.5 wrap-break-word max-w-full">{{
+                  t('groupEdit.edit') }}</span>
+              </button>
+
+              <!-- 频道/群组：举报（无编辑权限时显示，保证一排按钮数量不变） -->
+              <button v-else-if="!isSecretChat" type="button"
+                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-400/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
                 @click="reportCurrentChat">
                 <Flag class="w-5 h-5 shrink-0" />
                 <span class="text-[11px] leading-tight text-center px-0.5 wrap-break-word max-w-full">{{
@@ -205,7 +214,7 @@
 
               <!-- 更多 -->
               <button v-if="hasChatMoreOptions" type="button"
-                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-500/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
+                class="w-16 h-16 shrink-0 flex flex-col items-center justify-center gap-1 rounded-2xl bg-gray-400/15 hover:bg-gray-500/25 text-gray-700 dark:text-gray-200 transition-colors overflow-hidden"
                 @click="openChatMoreMenu($event)">
                 <MoreHorizontal class="w-5 h-5 shrink-0" />
                 <span class="text-[11px] leading-tight text-center px-0.5 wrap-break-word max-w-full">{{
@@ -561,8 +570,7 @@
                 <component :is="tabIcon(tab.key)" class="w-3.5 h-3.5" />
                 {{ tab.label }}
                 <span v-if="tab.count > 0"
-                  class="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none"
-                  :class="active && settings.folderStyle === 'pills'
+                  class="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none" :class="active && settings.folderStyle === 'pills'
                     ? 'bg-white/20 text-white'
                     : settings.folderStyle === 'soft'
                       ? 'bg-blue-500 text-white'
@@ -651,9 +659,38 @@
             </div>
           </div>
 
-          <!-- 成员区（频道/群组成员） -->
-          <div v-else-if="activeTab === 'members' && chatMemberCountText" class="py-4">
-            <p class="text-center text-sm text-gray-400 py-6">{{ chatMemberCountText }}</p>
+          <!-- 成员区（群组成员）：按「隐藏成员」规则展示
+               - 未开隐藏 / 本人是管理员·创建者 → 完整成员列表
+               - 开了隐藏且本人非管理 → 仅管理员（+机器人），并提示已隐藏 -->
+          <div v-else-if="activeTab === 'members'" class="py-4">
+            <p v-if="membersHiddenForMe" class="text-center text-xs text-gray-400 mb-3 px-2">
+              {{ t('lng_profile_hide_participants_about') }}
+            </p>
+            <div v-if="membersLoading" class="text-center text-sm text-gray-400 py-6">
+              {{ t('lng_contacts_loading') }}
+            </div>
+            <div v-else-if="membersUnavailable" class="text-center text-sm text-gray-400 py-6">
+              {{ t('groupEdit.empty') }}
+            </div>
+            <div v-else-if="membersList.length > 0">
+              <button v-for="m in membersList" :key="memberRowKey(m)" type="button"
+                class="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                @click="openMemberProfile(m)">
+                <div class="w-10 h-10 shrink-0">
+                  <Avatar :photo="memberUserOf(m)?.profile_photo" :title="memberNameOf(m)"
+                    :deletedAccount="isDeletedMember(memberUserId(m))"
+                    :accentColorId="memberUserOf(m)?.profile_accent_color_id"
+                    sizeClass="!w-10 !h-10" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+                    {{ memberNameOf(m) }}
+                  </p>
+                  <p class="text-xs text-gray-400 mt-0.5 truncate">{{ memberStatusOf(m) }}</p>
+                </div>
+              </button>
+            </div>
+            <p v-else class="text-center text-sm text-gray-400 py-6">{{ chatMemberCountText }}</p>
           </div>
 
           <!-- 话题区（论坛话题） -->
@@ -980,7 +1017,7 @@
                 <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('lng_contact_add_notes')
                 }}</label>
                 <textarea v-model="contactNote" rows="3"
-                  class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
+                  class="input-scrollbar w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none overflow-y-auto"
                   :placeholder="t('lng_contact_add_notes')"></textarea>
               </div>
               <p class="text-xs text-gray-500">{{ t('lng_contact_add_notes_about') }}</p>
@@ -1072,7 +1109,7 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, ref, watch, nextTick, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, receivedGift, story, chat, audio as TdAudio, birthdate, file, message, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo, secretChat, SearchMessagesFilter$Input, emojiStatus, emojiStatus$Input, BlockList$Input } from "tdlib-types";
+import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, receivedGift, story, chat, audio as TdAudio, birthdate, file, message, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo, secretChat, SearchMessagesFilter$Input, emojiStatus, emojiStatus$Input, BlockList$Input, chatMember, ChatMemberStatus } from "tdlib-types";
 import Avatar from "../../components/chat/avatar.vue";
 import CustomEmojiInline from "../../components/common/CustomEmojiInline.vue";
 import GlobalEmojiText from "../../components/common/GlobalEmojiText.vue";
@@ -1094,6 +1131,15 @@ import { formatBusinessHours } from "../../utils/businessHours";
 import { tdlibSend } from "../../utils/tdlib";
 
 import { ensureChat, getReactiveUser, getReactiveChat, getChatTitle, DELETED_ACCOUNT_LABEL } from "../../utils/senderInfo";
+import {
+  loadGroupMembers,
+  ensureMemberUsers,
+  memberUserId,
+  userNameOf,
+  isDeletedMember,
+  isCreatorStatus,
+  isAdminStatus,
+} from "../../utils/groupRights";
 import { useAudioPlayerStore, type AudioTrack } from "../../store/audioPlayer";
 import formatTime from "../../utils/formatTime";
 import { openContextMenu, closeContextMenu } from "../../store/contextMenu";
@@ -1124,7 +1170,7 @@ import {
   ArrowLeft, Copy, Clock, MapPin, Gift, Bot, Play, Pause,
   Music, ChevronDown, Megaphone, ExternalLink, Send, Bell, BellOff,
   MoreHorizontal, TimerReset, Ban, UserPlus, UserMinus, X as XIcon,
-  Eye, LogOut, MessageSquareText, PhoneCall, Flag,
+  Eye, LogOut, MessageSquareText, PhoneCall, Flag, Pencil,
   Search, Users, Hash, FileText, Link, Mic, Film, KeyRound,
   Info as InfoIcon, Phone as PhoneIcon, AtSign as AtSignIcon,
   Calendar as CalendarIcon, IdCard as IdCardIcon,
@@ -1227,6 +1273,112 @@ const chatMemberCountText = computed(() => {
   return `${count.toLocaleString()} ${unit}`;
 });
 
+// ===== 群组成员列表（资料页「成员」Tab）=====
+/**
+ * 「隐藏成员」可见性（对应 Unigram HideMembers / TDLib has_hidden_members）：
+ * - 未开启隐藏 → 所有成员可见
+ * - 已开启隐藏：
+ *   - 创建者 / 管理员 → 仍可见完整成员列表
+ *   - 普通成员 → 仅管理员可见
+ */
+const membersList = ref<chatMember[]>([]);
+const membersLoading = ref(false);
+/** can_get_members=false 或加载失败时的空态 */
+const membersUnavailable = ref(false);
+
+/** 当前用户在该群的成员状态（创建者/管理员/成员…） */
+const myChatMemberStatus = computed<ChatMemberStatus | undefined>(() => {
+  if (isChatSupergroup.value) return supergroupObj.value?.status;
+  if (chatObj.value?.type?._ === 'chatTypeBasicGroup') return basicGroupObj.value?.status;
+  return undefined;
+});
+
+/** 创建者或管理员：即使开启隐藏成员也可见完整列表 */
+const isChatAdminOrCreator = computed(() => {
+  const st = myChatMemberStatus.value;
+  return isCreatorStatus(st) || isAdminStatus(st);
+});
+
+/** 对当前用户是否隐藏了普通成员（仅显示管理员） */
+const membersHiddenForMe = computed(() => {
+  if (!isChatSupergroup.value) return false;
+  const full = supergroupFull.value as { has_hidden_members?: boolean } | undefined;
+  return !!full?.has_hidden_members && !isChatAdminOrCreator.value;
+});
+
+function memberRowKey(m: chatMember): string {
+  return String(memberUserId(m) ?? Math.random());
+}
+
+function memberUserOf(m: chatMember) {
+  const id = memberUserId(m);
+  return id ? getReactiveUser(id) : undefined;
+}
+
+function memberNameOf(m: chatMember): string {
+  const id = memberUserId(m);
+  return id ? userNameOf(id) : '?';
+}
+
+/** 成员副标题：创建者/管理员显示角色，在线成员显示在线状态 */
+function memberStatusOf(m: chatMember): string {
+  const st = m.status;
+  if (isCreatorStatus(st)) return t('lng_gift_unique_owner');
+  if (isAdminStatus(st)) {
+    const title = (st as { rights?: { custom_title?: string } }).rights?.custom_title
+      || (m as { tag?: string }).tag;
+    return title || t('lng_channel_admins');
+  }
+  const uid = memberUserId(m);
+  const u = uid ? getReactiveUser(uid) : undefined;
+  return u ? formatStatus(u) : '';
+}
+
+function openMemberProfile(m: chatMember) {
+  const uid = memberUserId(m);
+  if (!uid) return;
+  router.push({ name: 'user-profile', params: { id: String(uid) } });
+}
+
+/**
+ * 加载群组成员列表。
+ * 过滤规则：
+ * - 隐藏成员开启且本人非管理 → 只拉管理员
+ * - 否则（未隐藏 / 本人是创建者·管理员）→ 拉最近成员（完整可见）
+ * - can_get_members=false → 不展示列表
+ */
+async function loadChatMembers() {
+  const c = chatObj.value;
+  if (!c || isSecretChat.value || isChatChannel.value) return;
+
+  // 超群：can_get_members=false 时 TDLib 不允许拉成员
+  if (c.type._ === 'chatTypeSupergroup') {
+    const full = supergroupFull.value as { can_get_members?: boolean } | undefined;
+    if (full && full.can_get_members === false) {
+      membersList.value = [];
+      membersUnavailable.value = true;
+      membersLoading.value = false;
+      return;
+    }
+  }
+
+  membersLoading.value = true;
+  membersUnavailable.value = false;
+  try {
+    // 隐藏成员且本人非管理 → 仅管理员；其余情况拉最近成员
+    const filter = membersHiddenForMe.value ? 'administrators' : 'recent';
+    const list = await loadGroupMembers(c, filter, '', 0, 50);
+    await ensureMemberUsers(list);
+    membersList.value = [...list];
+  } catch (e) {
+    console.error('loadChatMembers failed', e);
+    membersList.value = [];
+    membersUnavailable.value = true;
+  } finally {
+    membersLoading.value = false;
+  }
+}
+
 const chatLoaded = ref(false);
 const chatLoading = ref(false);
 const chatError = ref(false);
@@ -1267,7 +1419,10 @@ const hasBottomContent = computed(() => {
         || sharedMediaCounts.value.links > 0 || sharedMediaCounts.value.music > 0
         || sharedMediaCounts.value.voice > 0 || sharedMediaCounts.value.gifs > 0;
     }
-    return chatLoading.value || chatActiveStories.value.length > 0
+    // 群组始终有「成员」Tab（基础群 / 非频道超群），须计入底部内容，否则 Tab 栏被整体隐藏
+    const hasMembersTab = !isSecretChat.value
+      && (isChatSupergroup.value ? !isChatChannel.value : chatObj.value?.type?._ === 'chatTypeBasicGroup');
+    return chatLoading.value || hasMembersTab || chatActiveStories.value.length > 0
       || sharedMediaCounts.value.media > 0 || sharedMediaCounts.value.files > 0
       || sharedMediaCounts.value.links > 0 || sharedMediaCounts.value.music > 0
       || sharedMediaCounts.value.voice > 0 || sharedMediaCounts.value.gifs > 0;
@@ -1282,15 +1437,15 @@ const hasBottomContent = computed(() => {
 // ===== 派生属性 =====
 
 /**
- * 是否为「已注销/未知用户」。
- * 已注销账户（userTypeDeleted）或无名（first/last 都为空，即 t('lng_credits_box_history_entry_anonymous')）都按已注销账户处理：
- * 名称显示「已注销账户」、头像显示幽灵图标。
+ * 是否为「已注销/未知用户」：仅按 user.type 判断。
+ * userTypeDeleted（已注销）或 userTypeUnknown（无资料，按已注销处理）：
+ * 名称显示「已注销账户」、头像显示幽灵图标。空名不按此处理。
  */
 const isDeletedProfile = computed(() => {
   const u = user.value;
   if (!u) return false;
-  if (u.type?._ === 'userTypeDeleted') return true;
-  return `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() === '';
+  const t = u.type?._;
+  return t === 'userTypeDeleted' || t === 'userTypeUnknown';
 });
 
 const userName = computed(() =>
@@ -1307,7 +1462,7 @@ const additionalUsernames = computed<string[]>(() => {
 });
 const isSelf = computed(() => !!user.value && user.value.id === userStore.userProfile?.id);
 const statusText = computed(() =>
-  isDeletedProfile.value ? DELETED_ACCOUNT_LABEL : formatStatus(user.value?.status));
+  isDeletedProfile.value ? DELETED_ACCOUNT_LABEL : formatStatus(user.value));
 
 /** 用户主题色样式：主题色文本 + 主题色 10% 透明度背景（用于频道订阅数徽标） */
 const profileAccent = computed(() => {
@@ -1702,6 +1857,10 @@ const linkGroups = computed(() => {
 /** activeTab 切换时重新拉取共享媒体（仅在切换到共享媒体 tab 时） */
 let lastLoadedFilter = '';
 watch(activeTab, (tab) => {
+  // 切到「成员」时补拉一次（首次由 loadChatGroupInfo 触发；返回资料页/权限变更后可刷新）
+  if (tab === 'members' && !membersLoading.value && membersList.value.length === 0 && !membersUnavailable.value) {
+    void loadChatMembers();
+  }
   const f = sharedMediaFilterMap[tab];
   if (f && sharedMediaChatId.value) {
     const key = `${sharedMediaChatId.value}:${tab}`;
@@ -2542,6 +2701,11 @@ async function loadChatGroupInfo() {
     } else {
       chatObj.value = undefined;
     }
+    // 群组信息就绪后拉取成员列表（依赖 has_hidden_members / can_get_members 判定可见范围）
+    if (!isSecretChat.value && !isChatChannel.value
+      && (isChatSupergroup.value || chatObj.value?.type?._ === 'chatTypeBasicGroup')) {
+      void loadChatMembers();
+    }
   } catch (e) {
     console.error('Failed to load chat group info', e);
   }
@@ -2682,7 +2846,7 @@ async function startCall() {
   const cid = await getPrivateChatId();
   if (!cid) return;
   router.push({ name: 'chat-detail', params: { id: String(cid) } });
-  MessagePlugin.info('Calls are not supported yet');
+  MessagePlugin.info(t('user.callsNotSupported'));
 }
 
 /** 搜索聊天中的消息 */
@@ -2701,7 +2865,7 @@ async function joinChat() {
     MessagePlugin.success(isChatChannel.value ? t('lng_action_you_joined') : t('lng_you_joined_group'));
     loadData();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || 'Failed to join');
+    MessagePlugin.error(e?.message || t('user.joinFailed'));
   }
 }
 
@@ -2724,7 +2888,7 @@ async function toggleNotifications() {
     });
     isPrivateChatMuted.value = !isPrivateChatMuted.value;
   } catch (e: any) {
-    MessagePlugin.error(e?.message || 'Failed to update notifications');
+    MessagePlugin.error(e?.message || t('user.notifFailed'));
   }
 }
 
@@ -2779,28 +2943,28 @@ function openMoreMenu(e: MouseEvent) {
     const children: ContextMenuItem[] = [
       makeCopyJsonItem({
         key: 'copy-json-chat',
-        label: '复制 chat JSON',
+        label: t('debug.copyChatJson'),
         icon: Copy,
         getData: async () => {
           const cid = await getPrivateChatId();
-          if (!cid) throw new Error('私聊不可用');
+          if (!cid) throw new Error(t('user.privateChatUnavailable'));
           return getReactiveChat(cid) ?? tdlibSend({ _: 'getChat', chat_id: cid });
         },
       }),
       makeCopyJsonItem({
         key: 'copy-json-user',
-        label: '复制 user JSON',
+        label: t('debug.copyUserJson'),
         icon: Copy,
         getData: () => user.value ?? getReactiveUser(uid) ?? tdlibSend({ _: 'getUser', user_id: uid }),
       }),
       makeCopyJsonItem({
         key: 'copy-json-user-full',
-        label: '复制 userFullInfo JSON',
+        label: t('debug.copyUserFullJson'),
         icon: Copy,
         getData: () => fullInfo.value ?? tdlibSend({ _: 'getUserFullInfo', user_id: uid }),
       }),
     ];
-    menuItems.push(buildCopyJsonParentItem(children, Copy, '复制 JSON'));
+    menuItems.push(buildCopyJsonParentItem(children, Copy, t('debug.copyJson')));
   }
   // 在触发按钮坐标处打开菜单
   openContextMenu(e.clientX, e.clientY, menuItems, e.currentTarget as HTMLElement);
@@ -2846,7 +3010,7 @@ async function chatToggleNotifications() {
     });
     chatNotificationMuted.value = !chatNotificationMuted.value;
   } catch (e: any) {
-    MessagePlugin.error(e?.message || 'Failed to update notifications');
+    MessagePlugin.error(e?.message || t('user.notifFailed'));
   }
 }
 
@@ -2867,17 +3031,16 @@ async function reportCurrentChat() {
   } catch (e: any) {
     if (e?.message !== 'canceled') {
       console.error('reportChat failed:', e);
-      MessagePlugin.error(e?.message || 'Failed to report');
+      MessagePlugin.error(e?.message || t('chat.reportFailed'));
     }
   }
 }
 
 /** 退出频道/群组（带二级确认） */
 function unsubscribeChat() {
-  const title = chatTitle.value;
   showConfirm(
     t('lng_profile_leave_channel'),
-    `Leave “${title}”? You will no longer receive its messages.`,
+    isChatChannel.value ? t('lng_sure_leave_channel') : t('lng_sure_leave_group'),
     t('lng_profile_leave_channel'),
     async () => {
       const cid = chatId.value;
@@ -2887,10 +3050,31 @@ function unsubscribeChat() {
         cancelConfirmDialog();
         router.push('/home/chats');
       } catch (e: any) {
-        MessagePlugin.error(e?.message || 'Failed to leave');
+        MessagePlugin.error(e?.message || t('user.leaveFailed'));
       }
     },
   );
+}
+
+/**
+ * 是否显示群组/频道「编辑」按钮：
+ * 创建者或管理员（Unigram 超级群同款）；基本群额外允许默认权限可改资料的成员。
+ */
+const canEditGroup = computed(() => {
+  if (!chatMode.value || isSecretChat.value) return false;
+  const c = chatObj.value;
+  if (!c || (c.type?._ !== 'chatTypeSupergroup' && c.type?._ !== 'chatTypeBasicGroup')) return false;
+  const st = chatMemberStatus.value;
+  if (st?._ === 'chatMemberStatusCreator' || st?._ === 'chatMemberStatusAdministrator') return true;
+  if (c.type._ === 'chatTypeBasicGroup') return !!c.permissions?.can_change_info;
+  return false;
+});
+
+/** 打开群组/频道编辑页 */
+function openGroupEdit() {
+  const cid = chatId.value;
+  if (!cid) return;
+  router.push({ name: 'chat-edit', params: { id: String(cid) } });
 }
 
 /** 频道/群组是否还有「更多」可选项（无则隐藏入口）；开启复制 JSON 调试时始终显示 */
@@ -2910,7 +3094,7 @@ function buildProfileJsonChildren(): ContextMenuItem[] {
   return [
     makeCopyJsonItem({
       key: 'copy-json-chat',
-      label: '复制 chat JSON',
+      label: t('debug.copyChatJson'),
       icon: Copy,
       getData: () => getReactiveChat(cid) ?? tdlibSend({ _: 'getChat', chat_id: cid }),
     }),
@@ -2930,6 +3114,14 @@ function openChatMoreMenu(e: MouseEvent) {
       onClick: () => { /* TODO: 删除秘密聊天 */ },
     });
   } else if (isChatJoined.value) {
+    if (canEditGroup.value) {
+      menuItems.push({
+        key: 'edit-group',
+        label: t('groupEdit.edit'),
+        icon: Pencil,
+        onClick: () => { openGroupEdit(); },
+      });
+    }
     menuItems.push({
       key: 'unsubscribe',
       label: t('lng_profile_leave_channel'),
@@ -2943,7 +3135,7 @@ function openChatMoreMenu(e: MouseEvent) {
   if (showCopyJsonInMenus.value) {
     const children = buildProfileJsonChildren();
     if (children.length > 0) {
-      menuItems.push(buildCopyJsonParentItem(children, Copy, '复制 JSON'));
+      menuItems.push(buildCopyJsonParentItem(children, Copy, t('debug.copyJson')));
     }
   }
 
@@ -3018,7 +3210,7 @@ async function applyAutoDelete(seconds: number) {
     if (chatObj.value) chatObj.value.message_auto_delete_time = seconds;
     autoDeleteVisible.value = false;
   } catch (e: any) {
-    MessagePlugin.error(e?.message || 'Failed to update auto-delete settings');
+    MessagePlugin.error(e?.message || t('user.autoDeleteFailed'));
   }
 }
 
@@ -3081,7 +3273,7 @@ async function saveContact() {
     editContactVisible.value = false;
     loadData();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || 'Failed to save contact');
+    MessagePlugin.error(e?.message || t('user.saveContactFailed'));
   }
 }
 
@@ -3133,14 +3325,14 @@ async function onToggleBlock() {
           cancelConfirmDialog();
           loadData();
         } catch (e: any) {
-          MessagePlugin.error(e?.message || 'Failed to block');
+          MessagePlugin.error(e?.message || t('user.blockFailed'));
         }
       },
     );
   } else {
     showConfirm(
       t('lng_profile_unblock_user'),
-      `Unblock “${userName.value}”?`,
+      t('user.unblockConfirm', { name: userName.value }),
       t('lng_blocked_list_unblock'),
       async () => {
         try {
@@ -3152,7 +3344,7 @@ async function onToggleBlock() {
           cancelConfirmDialog();
           loadData();
         } catch (e: any) {
-          MessagePlugin.error(e?.message || 'Failed to unblock');
+          MessagePlugin.error(e?.message || t('user.unblockFailed'));
         }
       },
     );
@@ -3163,7 +3355,7 @@ async function onToggleBlock() {
 function onDeleteContact() {
   showConfirm(
     t('lng_info_delete_contact'),
-    `Remove “${userName.value}” from your contacts?`,
+    t('lng_sure_delete_contact', { contact: userName.value }),
     t('lng_selected_delete'),
     async () => {
       try {
@@ -3174,7 +3366,7 @@ function onDeleteContact() {
         cancelConfirmDialog();
         loadData();
       } catch (e: any) {
-        MessagePlugin.error(e?.message || 'Failed to delete contact');
+        MessagePlugin.error(e?.message || t('user.deleteContactFailed'));
       }
     },
   );

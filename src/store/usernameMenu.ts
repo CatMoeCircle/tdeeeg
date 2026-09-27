@@ -1,5 +1,6 @@
 import { ref } from "vue";
 import { tdlibSend } from "../utils/tdlib";
+import i18n from "../i18n";
 import type { chat, user, chatPhotoInfo, profilePhoto } from "tdlib-types";
 
 /**
@@ -80,7 +81,7 @@ export function openUsernameMenu(name: string, px: number, py: number) {
             if (token !== resolveToken || !visible.value) return;
 
             if (!chatResult) {
-                errorMessage.value = "用户名不在 Telegram 上";
+                errorMessage.value = i18n.global.t("lng_username_not_found", { user: clean });
                 return;
             }
 
@@ -119,7 +120,7 @@ export function openUsernameMenu(name: string, px: number, py: number) {
         } catch (e) {
             if (token !== resolveToken || !visible.value) return;
             console.warn("searchPublicChat failed:", e);
-            errorMessage.value = "用户名不在 Telegram 上";
+            errorMessage.value = i18n.global.t("lng_username_not_found", { user: clean });
         } finally {
             if (token === resolveToken) {
                 loading.value = false;

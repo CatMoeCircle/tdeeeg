@@ -27,9 +27,9 @@
                     </div>
 
                     <!-- 账户列表 -->
-                    <div class="account-menu-scroll py-1.5 flex-1 min-h-0 overflow-y-auto overscroll-contain scroll-smooth">
-                        <p class="px-4 pt-2 pb-1 text-xs font-medium text-gray-400 uppercase tracking-wider">登录账户</p>
-                        <div v-if="accounts.length === 0" class="px-4 py-3 text-sm text-gray-400">无可用账户</div>
+                    <div class="account-menu-scroll py-1.5 flex-1 min-h-0 overflow-y-auto overscroll-contain">
+                        <p class="px-4 pt-2 pb-1 text-xs font-medium text-gray-400 uppercase tracking-wider">{{ t('account.sectionTitle') }}</p>
+                        <div v-if="accounts.length === 0" class="px-4 py-3 text-sm text-gray-400">{{ t('account.empty') }}</div>
                         <div v-for="acc in accounts" :key="acc.id"
                             class="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
                             @click="onSelect(acc)">
@@ -64,7 +64,7 @@
                                 class="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-500 flex items-center justify-center">
                                 <UserPlusIcon class="w-5 h-5" />
                             </span>
-                            添加账户
+                            {{ t('lng_menu_add_account') }}
                         </button>
                     </div>
                 </div>
@@ -87,19 +87,19 @@
                                 class="mx-auto w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-500 flex items-center justify-center mb-3">
                                 <UserPlusIcon class="w-6 h-6" />
                             </div>
-                            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">添加账户</h3>
+                            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ t('lng_menu_add_account') }}</h3>
                             <p class="mt-1.5 text-sm text-gray-500 dark:text-gray-400 leading-5">
-                                将登录一个新的 Telegram 账户，多个账户可并存并随时切换。
+                                {{ t('systemSettings.addDialogDesc') }}
                             </p>
                         </div>
                         <div class="px-4 pb-4 flex items-center justify-end gap-3">
                             <button type="button" @click="showAdd = false"
                                 class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                                取消
+                                {{ t('lng_cancel') }}
                             </button>
                             <button type="button" @click="confirmAdd" :disabled="adding"
                                 class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:cursor-wait">
-                                {{ adding ? '正在创建…' : t('lng_continue') }}
+                                {{ adding ? t('systemSettings.creating') : t('lng_continue') }}
                             </button>
                         </div>
                     </template>
@@ -113,24 +113,26 @@
                                     <AlertIcon class="w-5 h-5" />
                                 </div>
                                 <div>
-                                    <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">需要自定义 API</h3>
-                                    <p class="text-xs text-gray-400">内置 API 账户已达上限（{{ limitInfo?.limit ?? 5 }} 个）</p>
+                                    <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ t('systemSettings.needCustomApi') }}</h3>
+                                    <p class="text-xs text-gray-400">{{ t('systemSettings.limitReached', { count: limitInfo?.limit ?? 5 }) }}</p>
                                 </div>
                             </div>
-                            <p class="text-sm text-gray-500 dark:text-gray-400 leading-5 mb-4">
-                                请在 <a href="https://my.telegram.org" target="_blank" rel="noopener"
-                                    class="text-blue-500 hover:underline">my.telegram.org</a> 获取您的 API ID 和 API Hash。
-                            </p>
+                            <i18n-t keypath="systemSettings.getApiHint" tag="p" class="mt-1.5 text-sm text-gray-500 dark:text-gray-400 leading-5 mb-4">
+                                <template #link>
+                                    <a href="https://my.telegram.org" target="_blank" rel="noopener"
+                                        class="text-blue-500 hover:underline">my.telegram.org</a>
+                                </template>
+                            </i18n-t>
                             <div class="space-y-3">
                                 <div>
                                     <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API ID</label>
-                                    <input v-model="customApiId" type="text" inputmode="numeric" placeholder="例如 12345"
+                                    <input v-model="customApiId" type="text" inputmode="numeric" :placeholder="t('systemSettings.apiIdPlaceholder')"
                                         spellcheck="false"
                                         class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
                                 </div>
                                 <div>
                                     <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API Hash</label>
-                                    <input v-model="customApiHash" type="text" placeholder="32 位十六进制字符串" spellcheck="false"
+                                    <input v-model="customApiHash" type="text" :placeholder="t('systemSettings.apiHashPlaceholder')" spellcheck="false"
                                         class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
                                 </div>
                             </div>
@@ -138,11 +140,11 @@
                         <div class="px-4 pb-4 flex items-center justify-end gap-3">
                             <button type="button" @click="showAdd = false"
                                 class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                                取消
+                                {{ t('lng_cancel') }}
                             </button>
                             <button type="button" @click="confirmAddCustom" :disabled="adding"
                                 class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:cursor-wait">
-                                {{ adding ? '正在创建…' : '使用自定义 API 登录' }}
+                                {{ adding ? t('systemSettings.creating') : t('systemSettings.loginWithCustomApi') }}
                             </button>
                         </div>
                     </template>
@@ -184,7 +186,7 @@ const customApiId = ref('');
 const customApiHash = ref('');
 
 const currentName = computed(() => {
-    if (!userProfile.value) return '加载中…';
+    if (!userProfile.value) return t('lng_profile_loading');
     return (userProfile.value.first_name || '') + ' ' + (userProfile.value.last_name || '');
 });
 const currentUsername = computed(() => userProfile.value?.usernames?.active_usernames?.[0] ?? '');
@@ -202,14 +204,14 @@ function accountName(acc: AccountInfo): string {
     if (acc.first_name || acc.last_name) {
         return (acc.first_name || '') + ' ' + (acc.last_name || '');
     }
-    return '未登录账户';
+    return t('systemSettings.notLoggedInAccount');
 }
 
 function accountSubtitle(acc: AccountInfo): string {
     if (acc.logged_in) {
         return acc.username ? '@' + acc.username : `#${acc.id}`;
     }
-    return '点击登录';
+    return t('account.clickToLogin');
 }
 
 function close() {
@@ -233,8 +235,7 @@ function onSelect(acc: AccountInfo) {
 }
 
 function onLogout(acc: AccountInfo) {
-    const label = acc.first_name || acc.last_name || acc.username || acc.id;
-    if (window.confirm(`确定要登出账户「${label}」吗？`)) {
+    if (window.confirm(t('lng_sure_logout'))) {
         accountsStore.logoutAccount(acc.id);
     }
 }
@@ -263,7 +264,7 @@ async function confirmAdd() {
         await accountsStore.addAccount();
     } catch (e: any) {
         adding.value = false;
-        MessagePlugin.error(e?.message || '添加账户失败');
+        MessagePlugin.error(e?.message || t('systemSettings.addFailed'));
     }
 }
 
@@ -274,12 +275,12 @@ async function confirmAddCustom() {
     const idStr = customApiId.value.trim();
     const hash = customApiHash.value.trim();
     if (!idStr || !hash) {
-        MessagePlugin.warning('请输入 API ID 和 API Hash');
+        MessagePlugin.warning(t('systemSettings.enterApiCreds'));
         return;
     }
     const idNum = Number(idStr);
     if (!Number.isInteger(idNum) || idNum <= 0) {
-        MessagePlugin.warning('API ID 必须为正整数');
+        MessagePlugin.warning(t('systemSettings.apiIdInvalid'));
         return;
     }
 
@@ -288,7 +289,7 @@ async function confirmAddCustom() {
         await accountsStore.addAccount(idNum, hash);
     } catch (e: any) {
         adding.value = false;
-        MessagePlugin.error(e?.message || '添加账户失败');
+        MessagePlugin.error(e?.message || t('systemSettings.addFailed'));
     }
 }
 </script>

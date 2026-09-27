@@ -6,6 +6,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { isThumbnailImgRenderable } from '../utils/thumbnail';
 import { listAlbumCoverFiles } from '../utils/profileMedia';
 import { fetchItunesCoverForAudio } from '../utils/itunesCover';
+import i18n from '../i18n';
 import type { message, SearchMessagesFilter$Input, photo, file, LinkPreviewType, formattedText } from 'tdlib-types';
 
 /** 仅从 textEntityTypeUrl / textEntityTypeTextUrl 实体提取第一个 URL */
@@ -241,8 +242,8 @@ function messageToItem(msg: message): SharedMediaItem | null {
             fileName: c.audio.file_name || c.audio.title,
             fileSize: c.audio.audio.size,
             mimeType: c.audio.mime_type,
-            audioTitle: c.audio.title || c.audio.file_name || '未知音乐',
-            performer: c.audio.performer || '未知艺术家',
+            audioTitle: c.audio.title || c.audio.file_name || i18n.global.t('lng_media_music_title'),
+            performer: c.audio.performer || i18n.global.t('lng_sr_message_column_artist'),
             audioDuration: c.audio.duration,
             url: entityUrl,
             linkTitle: c.audio.title || c.audio.file_name || '',

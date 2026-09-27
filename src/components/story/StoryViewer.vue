@@ -6,19 +6,19 @@
                 <!-- 关闭按钮（播放器外，遮罩左上角） -->
                 <button type="button"
                     class="absolute top-3 left-3 md:top-4 md:left-4 z-40 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors backdrop-blur-sm"
-                    @click.stop="close" title="关闭 (Esc)">
+                    @click.stop="close" :title="t('lng_close') + ' (Esc)'">
                     <XIcon :size="20" />
                 </button>
 
                 <!-- 侧边导航箭头（桌面） -->
                 <button v-if="items.length > 1" type="button"
                     class="absolute left-3 md:left-6 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white flex items-center justify-center transition-colors"
-                    @click.stop="goPrev" title="上一条">
+                    @click.stop="goPrev" :title="t('story.prev')">
                     <ChevronLeftIcon :size="22" />
                 </button>
                 <button v-if="items.length > 1" type="button"
                     class="absolute right-3 md:right-6 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white flex items-center justify-center transition-colors"
-                    @click.stop="goNext" title="下一条">
+                    @click.stop="goNext" :title="t('story.next')">
                     <ChevronRightIcon :size="22" />
                 </button>
 
@@ -60,7 +60,7 @@
                                 class="w-8 h-8 rounded-full flex items-center justify-center transition-colors" :class="isAnimationVideo
                                     ? 'text-white/40 cursor-default'
                                     : 'text-white/90 hover:text-white hover:bg-white/10'" :disabled="isAnimationVideo"
-                                @click.stop="toggleMute" :title="isAnimationVideo ? '无声动画' : (muted ? '打开声音' : t('lng_channel_mute'))">
+                                @click.stop="toggleMute" :title="isAnimationVideo ? t('lng_stories_about_silent') : (muted ? t('lng_channel_unmute') : t('lng_channel_mute'))">
                                 <Volume2Icon v-if="!muted && !isAnimationVideo" :size="18" />
                                 <VolumeXIcon v-else :size="18" />
                             </button>
@@ -97,7 +97,7 @@
                                 class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60">
                                 <AlertCircleIcon :size="40" class="text-white/50" />
                                 <p class="text-white/70 text-sm">
-                                    {{ currentKind === 'live' ? '直播故事暂不支持' : '暂不支持的故事类型' }}
+                                    {{ currentKind === 'live' ? t('story.liveUnsupported') : t('lng_stories_unsupported') }}
                                 </p>
                             </div>
 
@@ -105,7 +105,7 @@
                             <div v-if="loadingMedia"
                                 class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/40 pointer-events-none">
                                 <Loader2Icon :size="32" class="text-white animate-spin" />
-                                <p class="mt-2 text-white/70 text-xs">加载中…</p>
+                                <p class="mt-2 text-white/70 text-xs">{{ t('lng_context_seen_loading') }}</p>
                             </div>
                         </div>
 
@@ -118,7 +118,7 @@
                                     :class="captionExpanded ? '' : 'story-caption-clamp'">{{ captionText }}</p>
                                 <button v-if="!captionExpanded && captionOverflow" type="button"
                                     class="mt-1 text-white/85 hover:text-white text-[12px] font-medium">
-                                    显示更多
+                                    {{ t('lng_stories_show_more') }}
                                 </button>
                             </div>
                         </div>
@@ -147,7 +147,7 @@
                             <div class="flex-1" />
                             <button type="button"
                                 class="w-9 h-9 rounded-full flex items-center justify-center text-white/80 hover:text-red-400 hover:bg-white/10 transition-colors shrink-0"
-                                @click.stop="onDeleteStory" title="删除动态">
+                                @click.stop="onDeleteStory" :title="t('lng_mediaview_delete')">
                                 <Trash2Icon :size="18" />
                             </button>
                         </template>
@@ -155,7 +155,7 @@
                         <!-- 2) 直播故事：直播互动栏（消息输入 + 反应） -->
                         <template v-else-if="interactionKind === 'live'">
                             <div class="flex items-center gap-2 w-full">
-                                <input v-model="liveReplyText" type="text" placeholder="发送直播消息…"
+                                <input v-model="liveReplyText" type="text" :placeholder="t('story.liveMessagePh')"
                                     class="flex-1 min-w-0 h-9 px-3 rounded-full bg-white/10 text-white text-[13px] placeholder:text-white/40 outline-none focus:bg-white/15"
                                     @keydown.enter.prevent="onSendLiveReply" />
                                 <button type="button"
@@ -166,7 +166,7 @@
                                 <button type="button"
                                     class="w-9 h-9 rounded-full flex items-center justify-center transition-transform active:scale-90 shrink-0"
                                     :class="isLiked ? 'text-red-500' : 'text-white/90 hover:bg-white/10'"
-                                    @click.stop="toggleLike" title="回应">
+                                    @click.stop="toggleLike" :title="t('story.react')">
                                     <span class="tgico text-[18px]"
                                         :class="isLiked ? 'tgico-favorite-filled' : 'tgico-favorite'" />
                                 </button>
@@ -177,7 +177,7 @@
                         <template v-else-if="interactionKind === 'channel'">
                             <button type="button"
                                 class="flex items-center gap-1.5 text-white/90 hover:text-white transition-colors min-w-0"
-                                @click.stop="onViewsClick" title="浏览">
+                                @click.stop="onViewsClick" :title="t('lng_stats_overview_message_views')">
                                 <EyeIcon :size="18" class="shrink-0" />
                                 <span class="text-[13px] font-medium">{{ viewCountLabel }}</span>
                             </button>
@@ -190,7 +190,7 @@
                             <button type="button"
                                 class="w-9 h-9 rounded-full flex items-center justify-center transition-transform active:scale-90"
                                 :class="isLiked ? 'text-red-500' : 'text-white/90 hover:text-white hover:bg-white/10'"
-                                @click.stop="toggleLike" title="回应">
+                                @click.stop="toggleLike" :title="t('story.react')">
                                 <span class="tgico text-[18px]"
                                     :class="isLiked ? 'tgico-favorite-filled' : 'tgico-favorite'" />
                             </button>
@@ -199,7 +199,7 @@
                         <!-- 4) 别人的可回复故事：回复输入框 -->
                         <template v-else-if="interactionKind === 'reply'">
                             <div class="flex items-center gap-2 w-full">
-                                <input v-model="replyText" type="text" placeholder="回复这条动态…"
+                                <input v-model="replyText" type="text" :placeholder="t('lng_story_reply_ph')"
                                     class="flex-1 min-w-0 h-9 px-3 rounded-full bg-white/10 text-white text-[13px] placeholder:text-white/40 outline-none focus:bg-white/15"
                                     @keydown.enter.prevent="onSendReply" @pointerdown.stop />
                                 <button type="button"
@@ -321,10 +321,10 @@ const posterUser = computed(() => {
 const posterName = computed(() => {
     if (posterUser.value) {
         const u = posterUser.value;
-        return [u.first_name, u.last_name].filter(Boolean).join(" ").trim() || "故事";
+        return [u.first_name, u.last_name].filter(Boolean).join(" ").trim() || t('lng_in_dlg_story');
     }
-    if (posterChat.value) return posterChat.value.title || "故事";
-    return "故事";
+    if (posterChat.value) return posterChat.value.title || t('lng_in_dlg_story');
+    return t('lng_in_dlg_story');
 });
 
 const posterPhoto = computed<chatPhotoInfo | profilePhoto | undefined>(() => {
@@ -464,8 +464,8 @@ const showInteractionBar = computed(() => interactionKind.value !== "none");
 
 /** 自己的故事：观看文案 */
 const viewsLabel = computed(() => {
-    if (viewCount.value > 0) return `${formatStoryCount(viewCount.value)} 观看`;
-    return "暂无观看";
+    if (viewCount.value > 0) return t('lng_stories_views', { count: formatStoryCount(viewCount.value) });
+    return t('lng_stories_no_views');
 });
 
 const replyText = ref("");
@@ -490,10 +490,10 @@ async function onDeleteStory() {
         const nextIdx = Math.min(index.value, nextItems.length - 1);
         items.value = nextItems;
         index.value = nextIdx;
-        MessagePlugin.success("已删除动态");
+        MessagePlugin.success(t('story.deleted'));
     } catch (e) {
         console.warn("[StoryViewer] deleteStory failed", e);
-        MessagePlugin.error("删除失败");
+        MessagePlugin.error(t('context.deleteFailed'));
     }
 }
 
@@ -517,10 +517,10 @@ async function onSendReply() {
             },
         });
         replyText.value = "";
-        MessagePlugin.success("已发送回复");
+        MessagePlugin.success(t('lng_stories_reply_sent'));
     } catch (e) {
         console.warn("[StoryViewer] send reply failed", e);
-        MessagePlugin.error("发送失败");
+        MessagePlugin.error(t('context.actionFailed'));
     }
 }
 
@@ -540,10 +540,10 @@ async function onSendLiveReply() {
             },
         });
         liveReplyText.value = "";
-        MessagePlugin.success("已发送");
+        MessagePlugin.success(t('lng_stories_reply_sent'));
     } catch (e) {
         console.warn("[StoryViewer] send live reply failed", e);
-        MessagePlugin.error("发送失败");
+        MessagePlugin.error(t('context.actionFailed'));
     }
 }
 
@@ -946,7 +946,7 @@ async function toggleLike() {
     } catch (e) {
         isLiked.value = !next;
         console.warn("[StoryViewer] setStoryReaction failed", e);
-        MessagePlugin.error("回应失败");
+        MessagePlugin.error(t('context.actionFailed'));
     }
 }
 
@@ -973,13 +973,13 @@ async function resolveStoryPosterUsername(): Promise<string | undefined> {
 function onShare() {
     const st = current.value;
     if (!st) return;
-    MessagePlugin.info("可在聊天中转发该动态链接");
+    MessagePlugin.info(t('story.shareHint'));
 }
 
 function onViewsClick() {
     const st = current.value;
     if (!st) return;
-    MessagePlugin.info(`浏览 ${formatStoryCount(viewCount.value)}`);
+    MessagePlugin.info(t('lng_stories_views', { count: formatStoryCount(viewCount.value) }));
 }
 
 function onMoreClick(e: MouseEvent) {
@@ -988,23 +988,23 @@ function onMoreClick(e: MouseEvent) {
     const itemsMenu: ContextMenuItem[] = [
         {
             key: "copy-caption",
-            label: "复制文案",
+            label: t('lng_context_copy_text'),
             icon: CopyIcon,
             onClick: () => {
                 if (captionText.value) {
                     void navigator.clipboard.writeText(captionText.value);
-                    MessagePlugin.success("已复制");
+                    MessagePlugin.success(t('lng_text_copied'));
                 }
             },
         },
         {
             key: "copy-link",
-            label: "复制链接",
+            label: t('lng_context_copy_link'),
             icon: LinkIcon,
             onClick: async () => {
                 const uname = await resolveStoryPosterUsername();
                 if (!uname) {
-                    MessagePlugin.warning("该账号没有公开用户名");
+                    MessagePlugin.warning(t('story.noPublicUsername'));
                     return;
                 }
                 try {
@@ -1019,19 +1019,19 @@ function onMoreClick(e: MouseEvent) {
                     });
                     const url = link?.url;
                     if (!url) {
-                        MessagePlugin.warning("无法获取该动态的链接");
+                        MessagePlugin.warning(t('story.linkUnavailable'));
                         return;
                     }
                     void navigator.clipboard.writeText(url);
-                    MessagePlugin.success("已复制链接");
+                    MessagePlugin.success(t('lng_username_copied'));
                 } catch (e: any) {
-                    MessagePlugin.error(e?.message || "获取链接失败");
+                    MessagePlugin.error(e?.message || t('context.linkFailed'));
                 }
             },
         },
         {
             key: "mute",
-            label: muted.value ? "打开声音" : t('lng_channel_mute'),
+            label: muted.value ? t('lng_channel_unmute') : t('lng_channel_mute'),
             icon: SoundIcon,
             onClick: toggleMute,
             // 照片故事无静音；动画视频不可切换声音
