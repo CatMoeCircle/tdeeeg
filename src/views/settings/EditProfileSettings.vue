@@ -2,7 +2,7 @@
     <div class="h-full flex flex-col bg-white dark:bg-gray-900">
         <!-- 顶部导航 -->
         <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3 shrink-0">
-            <button type="button" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" @click="goBack">
+            <button type="button" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" @click="goBack">
                 <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
             </button>
             <h2 class="text-lg font-semibold flex-1">{{ t('lng_settings_information') }}</h2>
@@ -61,8 +61,8 @@
                     <div class="mt-5 space-y-3">
                         <div
                             class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 space-y-2">
-                            <textarea v-model="bio" rows="3" :maxlength="bioMax"
-                                class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                            <textarea ref="bioTextarea" v-model="bio" rows="3" :maxlength="bioMax"
+                                class="bio-textarea input-scrollbar w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm leading-6 resize-none overflow-y-auto focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
                             <div class="flex items-center justify-between">
                                 <span class="text-xs text-gray-400">{{ bio.length }} / {{ bioMax }}</span>
                             </div>
@@ -291,7 +291,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
     AtSign as AtSignIcon, Bot as BotIcon, Calendar as CalendarIcon,
@@ -399,6 +399,7 @@ async function initEditors() {
 onMounted(() => {
     loadAll();
     loadBioMax();
+    void nextTick(resizeBioTextarea);
 });
 
 async function onProfileChanged() {
@@ -446,6 +447,21 @@ async function saveProfile() {
 // =====================================================================
 const bio = ref('');
 const bioMax = ref(70);
+const bioTextarea = ref<HTMLTextAreaElement | null>(null);
+
+/** 简介框按内容高度自适应：最小 3 行，超高后内部滚动 */
+const BIO_MIN_HEIGHT = 72; // 约 3 行（leading-6 = 24px）
+const BIO_MAX_HEIGHT = 280;
+
+function resizeBioTextarea() {
+    const el = bioTextarea.value;
+    if (!el) return;
+    el.style.height = 'auto';
+    const next = Math.min(Math.max(el.scrollHeight, BIO_MIN_HEIGHT), BIO_MAX_HEIGHT);
+    el.style.height = `${next}px`;
+    // 仅在超出上限时显示滚动条，避免短内容出现空轨
+    el.style.overflowY = el.scrollHeight > BIO_MAX_HEIGHT ? 'auto' : 'hidden';
+}
 
 async function loadBioMax() {
     try {
@@ -641,4 +657,19 @@ watch(fullInfo, () => {
     birthdatePickerValue.value = birthdateToPicker(birthdateInfo.value);
     hideYear.value = !!(birthdateInfo.value && birthdateInfo.value.year <= 0);
 });
+watch(bio, () => {
+    void nextTick(resizeBioTextarea);
+});
 </script>
+
+<style scoped>
+/* 简介编辑框：按内容宽度自动换行；滚动条见全局 .input-scrollbar */
+.bio-textarea {
+    box-sizing: border-box;
+    min-height: 72px;
+    max-height: 280px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+</style>

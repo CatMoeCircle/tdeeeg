@@ -1,7 +1,7 @@
 <template>
     <div class="h-full flex flex-col bg-white dark:bg-gray-900">
         <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3">
-            <button type="button" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" @click="goBack">
+            <button type="button" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" @click="goBack">
                 <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
             </button>
             <h2 class="text-lg font-semibold">{{ t('lng_edit_channel_color')
@@ -18,13 +18,8 @@
                     </div>
 
                     <!-- 预览：模拟消息气泡，实时反映圆角/字体/缩放 -->
-                    <div class="mb-6 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-                        <div
-                            class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('appearance.preview') }}</span>
-                            <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('appearance.previewBubbles') }}</span>
-                        </div>
-                        <div class="relative bg-[#f5f5f5] dark:bg-[#1c1c1c] p-4 flex flex-col gap-3 overflow-hidden">
+                    <PreviewCard class="mb-6" :subtitle="t('appearance.previewBubbles')"
+                        body-class="relative bg-[#f5f5f5] dark:bg-[#1c1c1c] p-4 flex flex-col gap-3 overflow-hidden">
                             <div class="absolute inset-0" :style="messagePreviewBackgroundStyle"></div>
                             <div class="absolute inset-0 bg-white"
                                 :style="{ opacity: settings.chatWallpaperOverlayOpacity / 100 }">
@@ -64,8 +59,7 @@
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
+                    </PreviewCard>
 
                     <!-- 消息显示选项 -->
                     <div
@@ -172,13 +166,7 @@
                     </div>
 
                     <!-- 实时预览：分组栏即样式 -->
-                    <div class="mb-6 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-                        <div
-                            class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('appearance.preview') }}</span>
-                            <span class="text-xs text-gray-400 dark:text-gray-500">{{ styleLabel }}</span>
-                        </div>
-                        <div class="bg-white dark:bg-gray-900 p-4">
+                    <PreviewCard class="mb-6" :subtitle="styleLabel" body-class="bg-white dark:bg-gray-900 p-4">
                             <!-- 样式选择（集成在预览内） -->
                             <div class="mb-4 flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">
                                 <button v-for="s in styleOptions" :key="s.value" type="button"
@@ -217,8 +205,7 @@
                                     </template>
                                 </SlidingTabBar>
                             </Transition>
-                        </div>
-                    </div>
+                    </PreviewCard>
 
                     <!-- 分组栏显示选项（属于分组文件夹样式大类） -->
                     <div class="mt-4">
@@ -236,6 +223,11 @@
                             <div class="px-4 py-2">
                                 <ChatTypeToggle :label="t('appearance.showFolderIcons')" v-model="settings.showFolderIcons" />
                             </div>
+                            <div class="px-4 py-2">
+                                <ChatTypeToggle :label="t('appearance.scrollSwitchFolder')"
+                                    v-model="settings.scrollSwitchFolder" />
+                                <p class="mt-1 text-xs text-gray-400">{{ t('appearance.scrollSwitchFolderDesc') }}</p>
+                            </div>
                         </div>
                         <p class="mt-2 text-xs text-gray-400">{{ t('appearance.folderOptionsDesc') }}</p>
                     </div>
@@ -250,13 +242,7 @@
                     </div>
 
                     <!-- 预览：模拟聊天列表项 -->
-                    <div class="mb-6 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-                        <div
-                            class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('appearance.preview') }}</span>
-                            <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('appearance.chatList') }}</span>
-                        </div>
-                        <div class="bg-white dark:bg-gray-900 p-4">
+                    <PreviewCard class="mb-6" :subtitle="t('appearance.chatList')" body-class="bg-white dark:bg-gray-900 p-4">
                             <div class="flex items-center p-2 rounded-lg">
                                 <Avatar :photo="userPhoto" :title="userName"
                                     :radius="settings.chatList.avatarCornerRadius"
@@ -287,8 +273,7 @@
                                 </div>
                             </div>
                             <p class="mt-2 text-xs text-gray-400">{{ t('appearance.previewChatListDesc') }}</p>
-                        </div>
-                    </div>
+                    </PreviewCard>
 
                     <!-- 聊天列表选项 -->
                     <div
@@ -370,13 +355,7 @@
                     <p class="text-xs text-gray-400 mt-2">{{ t('appearance.loaderStyleDesc') }}</p>
 
                     <!-- 实时预览：网格展示各 loader + 点击选择 -->
-                    <div class="mb-4 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-                        <div
-                            class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('appearance.preview') }}</span>
-                            <span class="text-xs text-gray-400 dark:text-gray-500">{{ loaderLabel }}</span>
-                        </div>
-                        <div class="bg-white dark:bg-gray-900 p-4">
+                    <PreviewCard class="mb-4" :subtitle="loaderLabel" body-class="bg-white dark:bg-gray-900 p-4">
                             <div class="grid grid-cols-3 gap-3">
                                 <button v-for="opt in loaderOptions" :key="opt.value" type="button"
                                     @click="settings.loadingStyle = opt.value"
@@ -388,8 +367,7 @@
                             </div>
                             <p class="mt-3 text-xs text-gray-400">{{ t('appearance.loaderSelectedHint', { file: 'updateFile' }) }}
                             </p>
-                        </div>
-                    </div>
+                    </PreviewCard>
                 </div>
 
                 <!-- 导航栏头像位置 -->
@@ -402,15 +380,10 @@
                     <p class="text-xs text-gray-400 mt-2">{{ t('appearance.headerAvatarDesc') }}</p>
 
                     <!-- 预览：模拟窗口内部布局 -->
-                    <div class="mb-6 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-                        <div
-                            class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('appearance.preview') }}</span>
-                            <span class="text-xs text-gray-400 dark:text-gray-500">{{ settings.chatHeaderAvatarPosition
-                                === 'titlebar' ? t('appearance.titlebarMode') : t('appearance.defaultMode') }}</span>
-                        </div>
+                    <PreviewCard class="mb-6"
+                        :subtitle="settings.chatHeaderAvatarPosition === 'titlebar' ? t('appearance.titlebarMode') : t('appearance.defaultMode')"
+                        body-class="p-4">
                         <!-- 窗口模拟（四周有间距，像真实窗口嵌在卡片内） -->
-                        <div class="p-4">
                             <div
                                 class="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm bg-white dark:bg-gray-900">
                                 <!-- 标题栏 -->
@@ -509,8 +482,7 @@
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
+                    </PreviewCard>
 
                     <!-- 选项卡切换 -->
                     <div class="grid grid-cols-2 gap-3">
@@ -563,9 +535,10 @@ import ChatTypeToggle from '../../components/settings/ChatTypeToggle.vue';
 import Avatar from '../../components/chat/avatar.vue';
 import GlobalEmojiText from '../../components/common/GlobalEmojiText.vue';
 import EditableNumber from '../../components/settings/EditableNumber.vue';
+import PreviewCard from '../../components/settings/PreviewCard.vue';
 import LoaderIndicator from '../../components/common/LoaderIndicator';
 import SlidingTabBar from '../../components/common/SlidingTabBar.vue';
-import { UI_GLASS_SURFACE } from '../../utils/folderPillsTabClass';
+import { folderTabContainerClass } from '../../utils/folderPillsTabClass';
 import TitleBarEmojiStatus from '../../components/common/TitleBarEmojiStatus.vue';
 import stickerPreview from '../../assets/sticker.jpg';
 import { useI18n } from 'vue-i18n';
@@ -674,19 +647,7 @@ const styleLabel = computed(() => {
     return labels[settings.folderStyle];
 });
 
-const tabContainerClass = computed(() => {
-    switch (settings.folderStyle) {
-        case 'tabs':
-            return 'border-b border-gray-200 dark:border-gray-700';
-        case 'soft':
-            // 与 ChatList 共用通用磨砂玻璃浮层
-            return `w-fit max-w-[calc(100%-1rem)] mx-2 rounded-full ${UI_GLASS_SURFACE} px-1.5 py-1`;
-        case 'pills':
-            return '';
-        default:
-            return '';
-    }
-});
+const tabContainerClass = computed(() => folderTabContainerClass(settings.folderStyle));
 
 /** 根据样式与选中态返回分组按钮类名（与 ChatList 实际渲染一致，供 SlidingTabBar 使用） */
 function folderClass(_id: string, active: boolean) {

@@ -1,7 +1,7 @@
 <template>
     <div class="h-full flex flex-col bg-white dark:bg-gray-900">
         <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3">
-            <button type="button" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" @click="goBack">
+            <button type="button" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" @click="goBack">
                 <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
             </button>
             <h2 class="text-lg font-semibold">{{ t('lng_settings_section_notify') }}</h2>
@@ -23,98 +23,89 @@
                     </p>
 
                     <!-- 预览卡片 -->
-                    <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-                        <div
-                            class="flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{
-                                t('appearance.preview') }}</span>
-                            <span class="text-xs text-gray-400 dark:text-gray-500">
-                                {{ previewMode === 'private' ? t('lng_media_auto_private_chats') :
-                                    t('lng_notification_groups') }}
-                            </span>
-                        </div>
+                    <PreviewCard class="mt-5"
+                        :subtitle="previewMode === 'private' ? t('lng_media_auto_private_chats') : t('lng_notification_groups')"
+                        body-class="relative overflow-hidden bg-gradient-to-br from-[#c8e6c9] via-[#dcedc8] to-[#f0f4c3]">
+                        <div class="relative z-10 px-4 py-6 sm:px-8 sm:py-8 flex flex-col items-center gap-4">
 
-                        <!-- 模拟桌面壁纸 + Toast -->
-                        <div class="relative overflow-hidden" :class="previewBackdropClass">
-                            <div class="relative z-10 px-4 py-6 sm:px-8 sm:py-8 flex flex-col items-center gap-4">
-
-                                <!-- Toast -->
-                                <div class="w-full max-w-90 rounded-2xl shadow-xl border backdrop-blur-md"
-                                    :class="toastCardClass">
-                                    <!-- 顶栏：应用名 + 操作点 -->
-                                    <div class="flex items-center gap-2 px-3 pt-2.5 pb-1">
-                                        <img :src="appLogo" alt="tdeeeg"
-                                            class="w-5 h-5 rounded-full object-cover shrink-0" />
-                                        <span
-                                            class="text-xs font-medium text-gray-700 dark:text-gray-200 flex-1 truncate">
-                                            tdeeeg
-                                        </span>
-                                        <MoreHorizontalIcon class="w-4 h-4 text-gray-400 shrink-0" />
-                                        <XIcon class="w-4 h-4 text-gray-400 shrink-0" />
-                                    </div>
-
-                                    <!-- 主体：圆形头像 + 标题/正文（关闭发送者姓名时隐藏身份） -->
-                                    <div class="flex items-start gap-3 px-3 pb-3 pt-1"
-                                        :class="settings.notifications.enabled ? '' : 'opacity-40'">
-                                        <div v-if="showIdentity" class="w-10 h-10 shrink-0">
-                                            <Avatar :photo="previewAvatar" :title="previewAvatarName"
-                                                sizeClass="!w-10 !h-10" :radius="100" />
-                                        </div>
-                                        <div class="min-w-0 flex-1 pt-0.5">
-                                            <p
-                                                class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate leading-snug">
-                                                {{ previewTitle }}
-                                            </p>
-                                            <p
-                                                class="text-xs text-gray-600 dark:text-gray-300 mt-0.5 leading-snug line-clamp-2">
-                                                {{ previewBody }}
-                                            </p>
-                                        </div>
-                                    </div>
+                            <!-- Toast -->
+                            <div class="w-full max-w-90 rounded-2xl shadow-xl border backdrop-blur-md"
+                                :class="toastCardClass">
+                                <!-- 顶栏：应用名 + 操作点 -->
+                                <div class="flex items-center gap-2 px-3 pt-2.5 pb-1">
+                                    <img :src="appLogo" alt="tdeeeg"
+                                        class="w-5 h-5 rounded-full object-cover shrink-0" />
+                                    <span
+                                        class="text-xs font-medium text-gray-700 dark:text-gray-200 flex-1 truncate">
+                                        tdeeeg
+                                    </span>
+                                    <MoreHorizontalIcon class="w-4 h-4 text-gray-400 shrink-0" />
+                                    <XIcon class="w-4 h-4 text-gray-400 shrink-0" />
                                 </div>
 
-                                <!-- 预览模式切换 -->
-                                <div class="flex items-center gap-2">
-                                    <button type="button"
-                                        class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors" :class="previewMode === 'private'
-                                            ? 'bg-white/90 text-gray-800 shadow-sm'
-                                            : 'bg-white/40 text-gray-600 hover:bg-white/60'"
-                                        @click="previewMode = 'private'">
-                                        {{ t('lng_media_auto_private_chats') }}
-                                    </button>
-                                    <button type="button"
-                                        class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors" :class="previewMode === 'group'
-                                            ? 'bg-white/90 text-gray-800 shadow-sm'
-                                            : 'bg-white/40 text-gray-600 hover:bg-white/60'"
-                                        @click="previewMode = 'group'">
-                                        {{ t('lng_notification_groups') }}
-                                    </button>
+                                <!-- 主体：圆形头像 + 标题/正文（关闭发送者姓名时隐藏身份） -->
+                                <div class="flex items-start gap-3 px-3 pb-3 pt-1"
+                                    :class="settings.notifications.enabled ? '' : 'opacity-40'">
+                                    <div v-if="showIdentity" class="w-10 h-10 shrink-0">
+                                        <Avatar :photo="previewAvatar" :title="previewAvatarName"
+                                            sizeClass="!w-10 !h-10" :radius="100" />
+                                    </div>
+                                    <div class="min-w-0 flex-1 pt-0.5">
+                                        <p
+                                            class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate leading-snug">
+                                            {{ previewTitle }}
+                                        </p>
+                                        <p
+                                            class="text-xs text-gray-600 dark:text-gray-300 mt-0.5 leading-snug line-clamp-2">
+                                            {{ previewBody }}
+                                        </p>
+                                    </div>
                                 </div>
+                            </div>
+
+                            <!-- 预览模式切换 -->
+                            <div class="flex items-center gap-2">
+                                <button type="button"
+                                    class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors" :class="previewMode === 'private'
+                                        ? 'bg-white/90 text-gray-800 shadow-sm'
+                                        : 'bg-white/40 text-gray-600 hover:bg-white/60'"
+                                    @click="previewMode = 'private'">
+                                    {{ t('lng_media_auto_private_chats') }}
+                                </button>
+                                <button type="button"
+                                    class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors" :class="previewMode === 'group'
+                                        ? 'bg-white/90 text-gray-800 shadow-sm'
+                                        : 'bg-white/40 text-gray-600 hover:bg-white/60'"
+                                    @click="previewMode = 'group'">
+                                    {{ t('lng_notification_groups') }}
+                                </button>
                             </div>
                         </div>
 
                         <!-- 影响显示效果的开关（Unigram 风格 chips） -->
-                        <div class="flex flex-wrap items-center gap-2 px-4 py-3 bg-gray-50 dark:bg-gray-800/60 border-t border-gray-200 dark:border-gray-700"
-                            :class="{ 'opacity-50 pointer-events-none': !settings.notifications.enabled }">
-                            <span class="text-xs text-gray-400 mr-1">{{ t('notificationSettings.showContent') }}</span>
-                            <button type="button"
-                                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors"
-                                :class="chipClass(settings.notifications.showSenderName)"
-                                @click="settings.notifications.showSenderName = !settings.notifications.showSenderName">
-                                <CheckIcon v-if="settings.notifications.showSenderName" class="w-3.5 h-3.5" />
-                                <span v-else class="w-3.5 h-3.5 rounded-full border border-current opacity-40" />
-                                {{ t('lng_settings_show_name') }}
-                            </button>
-                            <button type="button"
-                                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors"
-                                :class="chipClass(settings.notifications.showPreview)"
-                                @click="settings.notifications.showPreview = !settings.notifications.showPreview">
-                                <CheckIcon v-if="settings.notifications.showPreview" class="w-3.5 h-3.5" />
-                                <span v-else class="w-3.5 h-3.5 rounded-full border border-current opacity-40" />
-                                {{ t('lng_settings_show_preview') }}
-                            </button>
-                        </div>
-                    </div>
+                        <template #footer>
+                            <div class="flex flex-wrap items-center gap-2 px-4 py-3 bg-gray-50 dark:bg-gray-800/60 border-t border-gray-200 dark:border-gray-700"
+                                :class="{ 'opacity-50 pointer-events-none': !settings.notifications.enabled }">
+                                <span class="text-xs text-gray-400 mr-1">{{ t('notificationSettings.showContent') }}</span>
+                                <button type="button"
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors"
+                                    :class="chipClass(settings.notifications.showSenderName)"
+                                    @click="settings.notifications.showSenderName = !settings.notifications.showSenderName">
+                                    <CheckIcon v-if="settings.notifications.showSenderName" class="w-3.5 h-3.5" />
+                                    <span v-else class="w-3.5 h-3.5 rounded-full border border-current opacity-40" />
+                                    {{ t('lng_settings_show_name') }}
+                                </button>
+                                <button type="button"
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors"
+                                    :class="chipClass(settings.notifications.showPreview)"
+                                    @click="settings.notifications.showPreview = !settings.notifications.showPreview">
+                                    <CheckIcon v-if="settings.notifications.showPreview" class="w-3.5 h-3.5" />
+                                    <span v-else class="w-3.5 h-3.5 rounded-full border border-current opacity-40" />
+                                    {{ t('lng_settings_show_preview') }}
+                                </button>
+                            </div>
+                        </template>
+                    </PreviewCard>
                 </section>
 
                 <!-- ===== 不影响显示外观的设置 ===== -->
@@ -172,6 +163,7 @@ import { settings } from '../../store/settings';
 import { useUserStore } from '../../store/user';
 import Avatar from '../../components/chat/avatar.vue';
 import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
+import PreviewCard from '../../components/settings/PreviewCard.vue';
 import appLogo from '../../assets/logo.png';
 
 const router = useRouter();
@@ -231,9 +223,6 @@ const previewBody = computed(() => {
     }
     return sample;
 });
-
-/** Unigram 风格浅色渐变底（桌面壁纸感） */
-const previewBackdropClass = 'bg-gradient-to-br from-[#c8e6c9] via-[#dcedc8] to-[#f0f4c3]';
 
 const toastCardClass = computed(() =>
     settings.notifications.enabled

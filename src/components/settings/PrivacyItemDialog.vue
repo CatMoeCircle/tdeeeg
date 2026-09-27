@@ -463,7 +463,7 @@ async function hydrateExceptions(list: ExceptionEntry[]): Promise<ExceptionEntry
         return {
             ...e,
             title: u ? [u.first_name, u.last_name].filter(Boolean).join(' ').trim() || String(e.id) : e.title,
-            subtitle: u ? formatStatus(u.status) : '',
+            subtitle: u ? formatStatus(u) : '',
             photo: u?.profile_photo,
             accentId: u && u.profile_accent_color_id !== undefined && u.profile_accent_color_id !== -1 ? u.profile_accent_color_id : undefined,
         };
@@ -497,7 +497,7 @@ async function resolveEntityFromInput(input: string): Promise<ExceptionEntry> {
             id,
             isChat: false,
             title: [u.first_name, u.last_name].filter(Boolean).join(' ').trim() || String(id),
-            subtitle: formatStatus(u.status),
+            subtitle: formatStatus(u),
             photo: u.profile_photo,
             accentId: u.profile_accent_color_id !== undefined && u.profile_accent_color_id !== -1 ? u.profile_accent_color_id : undefined,
         };
@@ -513,7 +513,7 @@ async function resolveEntityFromInput(input: string): Promise<ExceptionEntry> {
                 id: uid,
                 isChat: false,
                 title: u ? [u.first_name, u.last_name].filter(Boolean).join(' ').trim() : String(uid),
-                subtitle: u ? formatStatus(u.status) : '',
+                subtitle: u ? formatStatus(u) : '',
                 photo: u?.profile_photo,
                 accentId: u && u.profile_accent_color_id !== undefined && u.profile_accent_color_id !== -1 ? u.profile_accent_color_id : undefined,
             };

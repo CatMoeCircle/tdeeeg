@@ -51,6 +51,8 @@ interface Settings {
   showFolderUnread: boolean;
   /** 是否在分组栏选项卡中显示分组图标 */
   showFolderIcons: boolean;
+  /** 对话列表滚到顶/底后继续同方向滚动时切换上一个/下一个分组（默认关闭） */
+  scrollSwitchFolder: boolean;
   /** 聊天列表显示设置 */
   chatList: {
     /** 头像圆角角度 0~100（0=方形，100=圆形） */
@@ -150,8 +152,13 @@ interface Settings {
   };
   /** 翻译设置 */
   translate: {
-    /** 翻译结果显示方式：popup=弹窗，inline=在原消息气泡中显示 */
-    displayMode: "popup" | "inline";
+    /**
+     * 翻译结果显示方式：
+     * - popup=弹窗
+     * - inline=在原消息气泡中追加译文块
+     * - replace=原位替换原文（官方样式：翻译中原文扫光，完成后直接换文）
+     */
+    displayMode: "popup" | "inline" | "replace";
     /**
      * 目标语言码（TDLib translateText.to_language_code）。
      * 空字符串 = 未单独设置，跟随当前语言包 / 界面语言。
@@ -166,7 +173,7 @@ interface Settings {
      * - default：全局默认（未单独配置时使用）
      * - message：右键单条翻译；null = 跟随 default
      * - chat：聊天全部翻译；null = 跟随 default
-     * 当前默认均为官方 TDLib；third-party / ai 为预留接口，功能未实现。
+     * tdlib 默认官方；ai 走后端配置（store/aiConfig）；third-party 为预留接口未实现。
      */
     provider: {
       default: "tdlib" | "third-party" | "ai";
@@ -178,12 +185,8 @@ interface Settings {
       endpoint: string;
       apiKey: string;
     };
-    /** AI 翻译配置（预留，功能未实现；对整套翻译生效） */
-    ai: {
-      endpoint: string;
-      apiKey: string;
-      model: string;
-    };
+    // AI 翻译配置已迁移至后端（store/aiConfig + Rust ai_translate），
+    // 接口与 API Key 不再存 localStorage。
   };
   /** 话题标签栏位置：left=左侧图片样式，top/bottom=悬浮分组栏样式 */
   topicTagBar: {
@@ -223,6 +226,7 @@ const defaultSettings: Settings = {
   loadingStyle: "ring2",
   showFolderUnread: true,
   showFolderIcons: true,
+  scrollSwitchFolder: false,
   chatList: {
     avatarCornerRadius: 100,
     forumAvatarFollowsRadius: false,
@@ -269,11 +273,12 @@ const defaultSettings: Settings = {
       maxSize: 10,
     },
     files: {
+      // 默认不勾选任何对话类型的文件自动下载，由用户按需开启
       enabled: true,
-      contacts: true,
-      groups: true,
-      privateChats: true,
-      channels: true,
+      contacts: false,
+      groups: false,
+      privateChats: false,
+      channels: false,
       maxSize: 3,
     },
   },
@@ -310,11 +315,6 @@ const defaultSettings: Settings = {
     thirdParty: {
       endpoint: "",
       apiKey: "",
-    },
-    ai: {
-      endpoint: "",
-      apiKey: "",
-      model: "",
     },
   },
   chatHeaderAvatarPosition: "default",
@@ -384,7 +384,9 @@ try {
   }
   // 旧版 thirdParty/ai 带 enabled 字段：丢弃，只保留接口配置
   if (tp?.thirdParty && "enabled" in tp.thirdParty) delete tp.thirdParty.enabled;
-  if (tp?.ai && "enabled" in tp.ai) delete tp.ai.enabled;
+  // 旧版 AI 配置（含 API Key）已迁移至后端存储：整块删除，
+  // 停止把接口配置与 Key 留在 localStorage
+  if (tp && "ai" in tp) delete tp.ai;
   // 旧版误把 showTranslateBar 当设置：删除（全部翻译栏跟 chat.is_translatable）
   if (tp && "showTranslateBar" in tp) delete tp.showTranslateBar;
 } catch {

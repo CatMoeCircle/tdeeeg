@@ -211,6 +211,8 @@ async function unblock(item: { id: number; title: string; isChat?: boolean }) {
 }
 
 function onBlockedContextMenu(e: MouseEvent, item: { id: number; title: string }) {
+    e.preventDefault();
+    e.stopPropagation();
     openContextMenu(e.clientX, e.clientY, [
         {
             key: 'unblock',

@@ -1,18 +1,18 @@
 <template>
     <!-- 嵌入模式：仅表单内容 -->
     <div v-if="embedded" class="p-4 space-y-4">
-        <p class="text-xs text-gray-400">更改后需重建 TDLib 客户端才会生效，可能需重新登录。</p>
+        <p class="text-xs text-gray-400">{{ t('systemSettings.rebuildNote') }}</p>
 
         <div
             class="flex items-start gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
             <InfoIcon class="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-            <p class="text-xs text-blue-600 dark:text-blue-400 leading-5">这些设置仅影响当前正在登录的新账户，已有账户不受影响。</p>
+            <p class="text-xs text-blue-600 dark:text-blue-400 leading-5">{{ t('systemSettings.affectsNewOnly') }}</p>
         </div>
 
         <div class="flex items-center justify-between">
             <div>
-                <p class="text-sm font-medium text-gray-900 dark:text-gray-100">使用测试数据中心</p>
-                <p class="text-xs text-gray-400 mt-0.5">连接到 Telegram 测试服务器</p>
+                <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('systemSettings.useTestDc') }}</p>
+                <p class="text-xs text-gray-400 mt-0.5">{{ t('systemSettings.useTestDcDesc') }}</p>
             </div>
             <button type="button" @click="useTestDc = !useTestDc"
                 class="w-11 h-6 rounded-full transition-colors relative shrink-0"
@@ -25,8 +25,8 @@
         <div class="border-t border-gray-100 dark:border-gray-700 pt-4">
             <div class="flex items-center justify-between mb-3">
                 <div>
-                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">自定义 API ID / Hash</p>
-                    <p class="text-xs text-gray-400 mt-0.5">关闭则使用内置默认凭据</p>
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('systemSettings.customApi') }}</p>
+                    <p class="text-xs text-gray-400 mt-0.5">{{ t('systemSettings.customApiOff') }}</p>
                 </div>
                 <button type="button" @click="customApiCreds = !customApiCreds"
                     class="w-11 h-6 rounded-full transition-colors relative shrink-0"
@@ -38,10 +38,10 @@
 
             <template v-if="customApiCreds">
                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API ID</label>
-                <input v-model="apiId" type="text" inputmode="numeric" placeholder="例如 12345" spellcheck="false"
+                <input v-model="apiId" type="text" inputmode="numeric" :placeholder="t('systemSettings.apiIdPlaceholder')" spellcheck="false"
                     class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none mb-3" />
                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API Hash</label>
-                <input v-model="apiHash" type="text" placeholder="32 位十六进制字符串" spellcheck="false"
+                <input v-model="apiHash" type="text" :placeholder="t('systemSettings.apiHashPlaceholder')" spellcheck="false"
                     class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
             </template>
         </div>
@@ -50,7 +50,7 @@
             <button type="button" @click="apply"
                 class="px-4 py-1.5 rounded-lg text-sm font-medium text-white transition-colors"
                 :class="applying ? 'bg-blue-400 cursor-wait' : 'bg-blue-500 hover:bg-blue-600'" :disabled="applying">
-                {{ applying ? '正在重建…' : '应用并重启' }}
+                {{ applying ? t('systemSettings.rebuilding') : t('systemSettings.applyAndRestart') }}
             </button>
         </div>
     </div>
@@ -62,9 +62,9 @@
             class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors" :class="visible
                 ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
                 : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'"
-            title="API 与测试数据中心">
+            :title="t('systemSettings.apiTestDcTitle')">
             <SettingsIcon class="w-4 h-4" />
-            <span>{{ testDc ? '测试' : 'API' }}</span>
+            <span>{{ testDc ? t('systemSettings.testDcBadge') : 'API' }}</span>
         </button>
 
         <!-- 设置弹窗 -->
@@ -75,7 +75,7 @@
                     bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
                     <div
                         class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">API 与数据中心</h3>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">{{ t('systemSettings.apiDcTitle') }}</h3>
                         <button type="button"
                             class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
                             @click="visible = false">
@@ -84,19 +84,19 @@
                     </div>
 
                     <div class="p-4 space-y-4">
-                        <p class="text-xs text-gray-400">更改后需重建 TDLib 客户端才会生效，可能需重新登录。</p>
+                        <p class="text-xs text-gray-400">{{ t('systemSettings.rebuildNote') }}</p>
 
                         <div
                             class="flex items-start gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
                             <InfoIcon class="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-                            <p class="text-xs text-blue-600 dark:text-blue-400 leading-5">这些设置仅影响当前正在登录的新账户，已有账户不受影响。</p>
+                            <p class="text-xs text-blue-600 dark:text-blue-400 leading-5">{{ t('systemSettings.affectsNewOnly') }}</p>
                         </div>
 
                         <!-- 使用测试数据中心 -->
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100">使用测试数据中心</p>
-                                <p class="text-xs text-gray-400 mt-0.5">连接到 Telegram 测试服务器</p>
+                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('systemSettings.useTestDc') }}</p>
+                                <p class="text-xs text-gray-400 mt-0.5">{{ t('systemSettings.useTestDcDesc') }}</p>
                             </div>
                             <button type="button" @click="useTestDc = !useTestDc"
                                 class="w-11 h-6 rounded-full transition-colors relative shrink-0"
@@ -110,9 +110,9 @@
                         <div class="border-t border-gray-100 dark:border-gray-700 pt-4">
                             <div class="flex items-center justify-between mb-3">
                                 <div>
-                                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">自定义 API ID / Hash
+                                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('systemSettings.customApi') }}
                                     </p>
-                                    <p class="text-xs text-gray-400 mt-0.5">关闭则使用内置默认凭据</p>
+                                    <p class="text-xs text-gray-400 mt-0.5">{{ t('systemSettings.customApiOff') }}</p>
                                 </div>
                                 <button type="button" @click="customApiCreds = !customApiCreds"
                                     class="w-11 h-6 rounded-full transition-colors relative shrink-0"
@@ -126,12 +126,12 @@
                             <template v-if="customApiCreds">
                                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API
                                     ID</label>
-                                <input v-model="apiId" type="text" inputmode="numeric" placeholder="例如 12345"
+                                <input v-model="apiId" type="text" inputmode="numeric" :placeholder="t('systemSettings.apiIdPlaceholder')"
                                     spellcheck="false"
                                     class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none mb-3" />
                                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API
                                     Hash</label>
-                                <input v-model="apiHash" type="text" placeholder="32 位十六进制字符串" spellcheck="false"
+                                <input v-model="apiHash" type="text" :placeholder="t('systemSettings.apiHashPlaceholder')" spellcheck="false"
                                     class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
                             </template>
                         </div>
@@ -139,13 +139,13 @@
                         <div class="flex items-center justify-end gap-3 pt-1">
                             <button type="button" @click="visible = false"
                                 class="px-4 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
-                                取消
+                                {{ t('lng_cancel') }}
                             </button>
                             <button type="button" @click="apply"
                                 class="px-4 py-1.5 rounded-lg text-sm font-medium text-white transition-colors"
                                 :class="applying ? 'bg-blue-400 cursor-wait' : 'bg-blue-500 hover:bg-blue-600'"
                                 :disabled="applying">
-                                {{ applying ? '正在重建…' : '应用并重启' }}
+                                {{ applying ? t('systemSettings.rebuilding') : t('systemSettings.applyAndRestart') }}
                             </button>
                         </div>
                     </div>
@@ -156,6 +156,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
+const { t } = useI18n();
 import { ref, watch, onMounted, onUnmounted, computed } from "vue";
 import { MessagePlugin } from "tdesign-vue-next";
 import { Settings as SettingsIcon, X as XIcon, Info as InfoIcon } from 'lucide-vue-next';
@@ -199,12 +201,12 @@ async function apply() {
     if (applying.value) return;
     if (customApiCreds.value) {
         if (!apiId.value.trim() || !apiHash.value.trim()) {
-            MessagePlugin.warning('请输入 API ID 和 API Hash');
+            MessagePlugin.warning(t('systemSettings.enterApiCreds'));
             return;
         }
         const id = Number(apiId.value.trim());
         if (!Number.isInteger(id) || id <= 0) {
-            MessagePlugin.warning('API ID 必须为正整数');
+            MessagePlugin.warning(t('systemSettings.apiIdInvalid'));
             return;
         }
     }
@@ -221,10 +223,10 @@ async function apply() {
         window.dispatchEvent(new CustomEvent('login-menu-clear-qr'));
         // 写回 settings.system 的凭据 → 后端 config/账户，并 force 重建客户端
         await reinitTdlibWithSystemParams();
-        MessagePlugin.success('已应用，正在重新连接…');
+        MessagePlugin.success(t('systemSettings.appliedReconnecting'));
         window.location.reload();
     } catch (e: any) {
-        MessagePlugin.error(e?.message || '应用参数失败');
+        MessagePlugin.error(e?.message || t('systemSettings.applyParamsFailed'));
         applying.value = false;
     }
 }

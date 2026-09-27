@@ -92,7 +92,7 @@
                         </template>
                     </div>
 
-                    <div v-if="currentPhotoId"
+                    <div v-if="currentPhotoId || chatId"
                         class="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between shrink-0">
                         <span class="text-xs text-gray-400">{{ t('avatar.currentAvatar') }}</span>
                         <button type="button" @click="deleteCurrent" :disabled="saving"
@@ -125,6 +125,8 @@ const props = defineProps<{
     photos: chatPhoto[];
     /** 当前头像 id（user.profile_photo.id），用于显示「删除当前头像」 */
     currentPhotoId?: string;
+    /** 群组/频道 chat_id：传入后走 setChatPhoto，否则走 setProfilePhoto */
+    chatId?: number;
 }>();
 const emit = defineEmits<{
     'update:modelValue': [value: boolean];
@@ -341,10 +343,12 @@ async function saveFromHistory() {
     if (!item) return;
     saving.value = true;
     try {
-        await tdlibSend({
-            _: 'setProfilePhoto',
-            photo: { _: 'inputChatPhotoPrevious', chat_photo_id: item.id },
-        });
+        const photo = { _: 'inputChatPhotoPrevious' as const, chat_photo_id: item.id };
+        if (props.chatId != null) {
+            await tdlibSend({ _: 'setChatPhoto', chat_id: props.chatId, photo });
+        } else {
+            await tdlibSend({ _: 'setProfilePhoto', photo });
+        }
         MessagePlugin.success(t('avatar.avatarUpdated'));
         emit('changed');
         close();
@@ -361,10 +365,15 @@ async function saveFromUpload() {
     saving.value = true;
     try {
         const path = await exportCropToFile();
-        await tdlibSend({
-            _: 'setProfilePhoto',
-            photo: { _: 'inputChatPhotoStatic', photo: { _: 'inputFileLocal', path } },
-        });
+        const photo = {
+            _: 'inputChatPhotoStatic' as const,
+            photo: { _: 'inputFileLocal' as const, path },
+        };
+        if (props.chatId != null) {
+            await tdlibSend({ _: 'setChatPhoto', chat_id: props.chatId, photo });
+        } else {
+            await tdlibSend({ _: 'setProfilePhoto', photo });
+        }
         MessagePlugin.success(t('avatar.avatarUpdated'));
         emit('changed');
         close();
@@ -377,10 +386,15 @@ async function saveFromUpload() {
 }
 
 async function deleteCurrent() {
-    if (!props.currentPhotoId) return;
     saving.value = true;
     try {
-        await tdlibSend({ _: 'deleteProfilePhoto', profile_photo_id: props.currentPhotoId });
+        if (props.chatId != null) {
+            await tdlibSend({ _: 'setChatPhoto', chat_id: props.chatId, photo: null } as never);
+        } else if (props.currentPhotoId) {
+            await tdlibSend({ _: 'deleteProfilePhoto', profile_photo_id: props.currentPhotoId });
+        } else {
+            return;
+        }
         MessagePlugin.success(t('avatar.deleted'));
         emit('changed');
         close();
@@ -396,10 +410,11 @@ watch(
     () => props.modelValue,
     (visible) => {
         if (!visible) return;
-        tab.value = 'history';
+        // 群组/频道暂无历史头像列表时默认进入上传
+        tab.value = props.photos?.length ? 'history' : 'upload';
         selectedHistoryIndex.value = -1;
         resetUpload();
-        loadHistory();
+        if (props.photos?.length) loadHistory();
     },
 );
 

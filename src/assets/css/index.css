@@ -250,6 +250,14 @@ body {
 .tgico-card::before {
   content: "\e94c";
 }
+/* 盾牌：添加/设置管理员（U+E909） */
+.tgico-shield::before {
+  content: "\e909";
+}
+/* 密钥：限制成员（U+E9CE） */
+.tgico-key::before {
+  content: "\e9ce";
+}
 
 /* ===== Telegram 官方图标字体 tgico ===== */
 
@@ -317,6 +325,31 @@ body.is-resizing * {
 }
 .scrollbar-none::-webkit-scrollbar {
   display: none;
+}
+
+/* 可滚动输入框（textarea / contenteditable）：细滚动条 + 悬停加深，不占布局宽度 */
+.input-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.4) transparent;
+}
+.input-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.input-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.input-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.35);
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+.input-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.55);
+}
+.input-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(156, 163, 175, 0.75);
 }
 
 /* 使用 overlay 使滚动条不占用内容空间 */

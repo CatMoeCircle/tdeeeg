@@ -1,7 +1,7 @@
 <template>
     <div class="h-full flex flex-col bg-white dark:bg-gray-900">
         <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3">
-            <button type="button" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" @click="goBack">
+            <button type="button" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" @click="goBack">
                 <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
             </button>
             <h2 class="text-lg font-semibold">{{ t('dev.title') }}</h2>
@@ -162,7 +162,7 @@
 
                     <textarea v-model="langTestInput" rows="3" spellcheck="false"
                         :placeholder="t('dev.langTestPh')"
-                        class="w-full bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 ring-blue-500 resize-y"></textarea>
+                        class="input-scrollbar w-full bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 ring-blue-500 resize-y overflow-y-auto"></textarea>
 
                     <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
                         <span class="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800">
@@ -245,10 +245,20 @@
                     </div>
                 </section>
 
-                <!-- 显示当前所有 Option 状态 -->
+                <!-- 显示当前所有 Option 状态（实时） -->
                 <section>
-                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
-                        {{ t('dev.optionStatus') }}</h3>
+                    <div class="flex items-center gap-2 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wider">
+                            {{ t('dev.optionStatus') }}</h3>
+                        <span
+                            class="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                            {{ t('dev.optionStatusLive') }}
+                        </span>
+                        <span v-if="debugOptions.length"
+                            class="text-[10px] text-gray-400 tabular-nums">{{ debugOptions.length }}</span>
+                    </div>
+                    <p class="text-xs text-gray-500 mb-1">{{ t('dev.optionStatusDesc') }}</p>
+                    <p class="text-[11px] text-gray-400 dark:text-gray-500 mb-3">{{ t('dev.optionDocsHint') }}</p>
                     <button type="button"
                         class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 text-sm text-gray-900 dark:text-gray-100"
                         :disabled="debugOptionsLoading" @click="loadDebugOptions">
@@ -256,13 +266,25 @@
                             :class="debugOptionsLoading ? 'animate-spin' : ''" />
                         <span>{{ debugOptionsLoading ? t('dev.loading') : t('dev.refreshOptions') }}</span>
                     </button>
-                    <div v-if="debugOptions && debugOptions.length"
+                    <div v-if="debugOptions.length"
                         class="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800">
-                        <div v-for="opt in debugOptions" :key="opt.name" class="px-3 py-2">
+                        <div v-for="opt in debugOptions" :key="opt.name" class="px-3 py-2 transition-colors"
+                            :class="opt.name === flashOptionName
+                                ? 'bg-blue-50 dark:bg-blue-900/30'
+                                : ''">
                             <p class="text-xs font-mono text-gray-700 dark:text-gray-300 break-all">
                                 <span class="text-gray-400">{{ opt.name }}</span> = {{ opt.value }}
                             </p>
+                            <!-- 只读注释：来自官方 TDLib options 文档，不提供修改 -->
+                            <p v-if="optionDoc(opt.name)"
+                                class="mt-1 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
+                                {{ optionDoc(opt.name) }}
+                            </p>
                         </div>
+                    </div>
+                    <div v-else-if="!debugOptionsLoading"
+                        class="mt-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-3 py-6 text-center text-xs text-gray-400">
+                        {{ t('dev.optionStatusEmpty') }}
                     </div>
                 </section>
             </div>
@@ -272,8 +294,8 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-const { t } = useI18n();
-import { ref, computed } from 'vue';
+const { t, te } = useI18n();
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, RefreshCw as RefreshCwIcon } from 'lucide-vue-next';
 import { invoke } from '@tauri-apps/api/core';
@@ -283,6 +305,7 @@ import {
     showCopyJsonInMenus, setShowCopyJsonInMenus,
     recentUpdates, clearRecentUpdates, type CachedUpdate,
 } from '../../store/debug';
+import { onTdlibUpdate } from '../../store/tdlibBus';
 import { readCrashLog, clearCrashLog } from '../../utils/crashGuard';
 import { settings } from '../../store/settings';
 import { getTranslateTargetLang } from '../../store/translate';
@@ -370,10 +393,38 @@ async function sendDebugTdlib() {
     }
 }
 
-// ─── 显示当前 Option 状态 ─────────────────────
+// ─── 显示当前 Option 状态（实时） ────────────
 
-const debugOptions = ref<{ name: string; value: string }[]>([]);
+/** name → 可读值字符串；updateOption 推送会就地合并 */
+const debugOptionsMap = ref<Record<string, string>>({});
 const debugOptionsLoading = ref(false);
+/** 最近一次被 updateOption 更新的 name，用于短暂高亮 */
+const flashOptionName = ref<string | null>(null);
+let flashTimer: ReturnType<typeof setTimeout> | null = null;
+let unsubscribeOptions: (() => void) | null = null;
+
+const debugOptions = computed(() =>
+    Object.entries(debugOptionsMap.value)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+);
+
+/**
+ * 选项字段的只读注释（i18n）。
+ * 基于 https://core.telegram.org/tdlib/options ，仅展示说明，不提供修改。
+ * x/X 前缀选项为应用自定义存储，使用通用注释。
+ * try/catch：个别文案若触发消息编译错误，不得拖垮整个设置页。
+ */
+function optionDoc(name: string): string {
+    try {
+        if (/^x/i.test(name)) return t('dev.optionDocs._x_custom');
+        const key = `dev.optionDocs.${name}`;
+        return te(key) ? t(key) : '';
+    } catch (e) {
+        console.warn('[DeveloperSettings] optionDoc failed:', name, e);
+        return '';
+    }
+}
 
 /** 把 TDLib OptionValue 对象转成可读字符串 */
 function optionValueToString(value: unknown): string {
@@ -397,22 +448,59 @@ function optionValueToString(value: unknown): string {
     }
 }
 
+/** 合并单条 updateOption 进列表，并短暂高亮该行 */
+function applyOptionUpdate(name: string, value: unknown): void {
+    debugOptionsMap.value = {
+        ...debugOptionsMap.value,
+        [name]: optionValueToString(value),
+    };
+    flashOptionName.value = name;
+    if (flashTimer) clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => {
+        flashOptionName.value = null;
+        flashTimer = null;
+    }, 700);
+}
+
 /** 从 Rust 缓存的 updateOption 读取所有已缓存的 Option 状态（不发起 getOption 请求） */
 async function loadDebugOptions() {
     debugOptionsLoading.value = true;
-    debugOptions.value = [];
     try {
         // get_cached_options 返回 { name: OptionValue }（name → JSON Value）
         const cached = (await invoke<Record<string, unknown>>('get_cached_options')) ?? {};
-        debugOptions.value = Object.entries(cached)
-            .map(([name, value]) => ({ name, value: optionValueToString(value) }))
-            .sort((a, b) => a.name.localeCompare(b.name));
+        // 整表替换：与手动「从缓存重新加载」语义一致；后续 updateOption 会继续实时合并
+        const map: Record<string, string> = {};
+        for (const [name, value] of Object.entries(cached)) {
+            map[name] = optionValueToString(value);
+        }
+        debugOptionsMap.value = map;
     } catch (e) {
         console.warn('[DeveloperSettings] get_cached_options failed:', e);
     } finally {
         debugOptionsLoading.value = false;
     }
 }
+
+onMounted(() => {
+    void loadDebugOptions();
+    unsubscribeOptions = onTdlibUpdate('option', (update) => {
+        if (update._ !== 'updateOption') return;
+        const name = (update as { name?: unknown }).name;
+        const value = (update as { value?: unknown }).value;
+        if (typeof name === 'string' && value !== undefined) {
+            applyOptionUpdate(name, value);
+        }
+    });
+});
+
+onUnmounted(() => {
+    unsubscribeOptions?.();
+    unsubscribeOptions = null;
+    if (flashTimer) {
+        clearTimeout(flashTimer);
+        flashTimer = null;
+    }
+});
 
 // ─── 翻译门控 / 语言识别测试 ─────────────────
 
