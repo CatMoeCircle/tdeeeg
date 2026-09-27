@@ -4,6 +4,7 @@ import { tdlibSend, safeDownloadFile, isFileReady } from '../utils/tdlib';
 import { DL_PRIORITY } from '../utils/downloadPriority';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { message, thumbnail, audio, file, chat } from 'tdlib-types';
+import i18n from '../i18n';
 import { useDownloadStore, remoteIdOf } from './downloads';
 import { DL_TAG } from '../utils/downloadTags';
 import { useChatStore } from './chat';
@@ -53,10 +54,10 @@ export interface AudioTrack {
 }
 
 /** 从 audio 字段提取曲目元数据（标题/作者/时长） */
-export function trackMetaFromAudio(a: audio | undefined, fallbackTitle = '未知音乐', fallbackPerformer = '未知艺术家') {
+export function trackMetaFromAudio(a: audio | undefined, fallbackTitle?: string, fallbackPerformer?: string) {
     return {
-        title: a?.title || a?.file_name || fallbackTitle,
-        performer: a?.performer || fallbackPerformer,
+        title: a?.title || a?.file_name || fallbackTitle || i18n.global.t('lng_media_music_title'),
+        performer: a?.performer || fallbackPerformer || i18n.global.t('lng_sr_message_column_artist'),
         duration: a?.duration ?? 0,
     };
 }
@@ -151,7 +152,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
     /** 获取对话标题 */
     function getChatTitle(chatId: number): string {
         const cs = useChatStore();
-        return cs.chats[chatId]?.title || `对话 #${chatId}`;
+        return cs.chats[chatId]?.title || i18n.global.t('download.row.chatFallback', { id: chatId });
     }
 
     /** 将曲目注册为「流式下载」（边下边播，tdstream://），幂等：同一 file 只注册一次。 */
@@ -282,7 +283,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
                 if (isFileReady(info) && info.local?.path) track.localPath = info.local.path;
                 if (src.streaming && !streamingRegisteredFiles.has(track.fileId)) {
                     // 流式播放本质也是一次下载：注册到下载管理器，让进度可见（updateFile 驱动）。
-                    await registerStreamingDownload(track.fileId, track.title || `audio_${track.fileId}.mp3`, track.chatId, track.messageId, info.size || track.sizeBytes || 0, remoteIdOf(info), undefined, track.source === 'profile' ? '资料页' : undefined);
+                    await registerStreamingDownload(track.fileId, track.title || `audio_${track.fileId}.mp3`, track.chatId, track.messageId, info.size || track.sizeBytes || 0, remoteIdOf(info), undefined, track.source === 'profile' ? i18n.global.t('download.tag.profile') : undefined);
                 }
             } else {
                 // 无法流式：遵守自动下载大小限制，超过上限则不自动下载，
@@ -295,7 +296,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
                 try {
                     // 音乐播放触发下载：记录到正常下载列表，保留来源对话与消息。
                     // 用户主动播放 → 高优先级下载。
-                    await useDownloadStore().registerDownload(track.fileId, track.title || `audio_${track.fileId}.mp3`, getChatTitle(track.chatId), 0, 'audio', undefined, track.chatId, track.messageId, false, false, undefined, false, track.source === 'profile' ? [DL_TAG.PROFILE] : undefined, track.source === 'profile' ? '资料页' : undefined);
+                    await useDownloadStore().registerDownload(track.fileId, track.title || `audio_${track.fileId}.mp3`, getChatTitle(track.chatId), 0, 'audio', undefined, track.chatId, track.messageId, false, false, undefined, false, track.source === 'profile' ? [DL_TAG.PROFILE] : undefined, track.source === 'profile' ? i18n.global.t('download.tag.profile') : undefined);
                     await safeDownloadFile(track.fileId, true, DL_PRIORITY.USER_PLAYING);
                     track.ready = true;
                     // 重新获取文件路径（仅在完全下载完成时才使用，避免指向残缺/未完成文件）
@@ -315,7 +316,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
             }
         } else if (track.streaming && !streamingRegisteredFiles.has(track.fileId)) {
             // 由 loadChatAudio 预置的流式曲目（ready + streaming）：首次实际播放时注册进度。
-            await registerStreamingDownload(track.fileId, track.title || `audio_${track.fileId}.mp3`, track.chatId, track.messageId, track.sizeBytes || 0, undefined, track.source === 'profile' ? [DL_TAG.PROFILE] : undefined, track.source === 'profile' ? '资料页' : undefined);
+            await registerStreamingDownload(track.fileId, track.title || `audio_${track.fileId}.mp3`, track.chatId, track.messageId, track.sizeBytes || 0, undefined, track.source === 'profile' ? [DL_TAG.PROFILE] : undefined, track.source === 'profile' ? i18n.global.t('download.tag.profile') : undefined);
         }
 
         // 文件就绪后再切换当前曲目，确保 audioSrc 能拿到有效路径
@@ -856,7 +857,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
                 if (!isFileReady(file)) {
                     try {
                         // 资料音乐：注册到下载管理器（资料页标签 + 来源）
-                        const userTitle = getChatTitle(userId) || `用户 #${userId}`;
+                        const userTitle = getChatTitle(userId) || i18n.global.t('download.row.userFallback', { id: userId });
                         await useDownloadStore().registerDownload(
                             file.id,
                             a.title || a.file_name || `audio_${file.id}.mp3`,
@@ -868,7 +869,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
                             undefined,
                             false, false, undefined, false,
                             [DL_TAG.PROFILE],
-                            '资料页',
+                            i18n.global.t('download.tag.profile'),
                             remoteIdOf(file),
                         );
                         await safeDownloadFile(file.id, true, DL_PRIORITY.USER_ACTIVE);

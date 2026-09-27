@@ -32,14 +32,14 @@
             <!-- 上一首 -->
             <button @click.stop="player.prevTrack()"
                 class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-300"
-                title="上一首">
+                :title="t('lng_mac_menu_player_previous')">
                 <SkipBackIcon class="w-3.5 h-3.5" />
             </button>
 
             <!-- 播放/暂停 -->
             <button @click.stop="player.togglePlay()"
                 class="w-7 h-7 flex items-center justify-center rounded-full bg-blue-500 hover:bg-blue-600 transition-colors text-white"
-                title="播放/暂停">
+                :title="player.isPlaying ? t('lng_mac_menu_player_pause') : t('lng_mac_menu_player_resume')">
                 <PlayIcon v-if="!player.isPlaying" class="w-3.5 h-3.5 ml-0.5" />
                 <PauseIcon v-else class="w-3.5 h-3.5" />
             </button>
@@ -47,14 +47,14 @@
             <!-- 下一首 -->
             <button @click.stop="player.nextTrack()"
                 class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-300"
-                title="下一首">
+                :title="t('lng_mac_menu_player_next')">
                 <SkipForwardIcon class="w-3.5 h-3.5" />
             </button>
 
             <!-- 关闭 -->
             <button @click.stop="player.close()"
                 class="w-6 h-6 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0"
-                title="关闭播放器">
+                :title="t('player.close')">
                 <XIcon class="w-3.5 h-3.5" />
             </button>
         </div>
@@ -84,6 +84,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { SkipBackIcon, SkipForwardIcon, PlayIcon, PauseIcon, MusicIcon, XIcon } from 'lucide-vue-next';
+import { useI18n } from 'vue-i18n';
 import { useAudioPlayerStore } from '../../store/audioPlayer';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 
@@ -93,6 +94,7 @@ defineProps<{
 }>();
 
 const player = useAudioPlayerStore();
+const { t } = useI18n();
 
 function onCoverError(e: Event) {
     const img = e.target as HTMLImageElement;

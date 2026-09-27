@@ -17,7 +17,7 @@
 
                     <!-- 头部 -->
                     <div class="flex items-center justify-between px-5 pt-4 pb-2">
-                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">音乐播放器</h3>
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">{{ t('player.title') }}</h3>
                         <button @click="player.toggleOverlay()"
                             class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-400">
                             <XIcon class="w-4 h-4" />
@@ -34,7 +34,7 @@
                         </div>
                         <div class="min-w-0 flex-1">
                             <p class="text-base font-semibold text-gray-900 dark:text-gray-100 truncate">
-                                <GlobalEmojiText :text="player.currentTrack?.title || '未播放'" />
+                                <GlobalEmojiText :text="player.currentTrack?.title || t('player.nothingPlaying')" />
                             </p>
                             <p class="text-sm text-gray-500 truncate mt-0.5">
                                 <GlobalEmojiText :text="player.currentTrack?.performer || ''" />
@@ -109,7 +109,7 @@
                     <div
                         class="flex-1 overflow-y-auto custom-scrollbar border-t border-gray-100 dark:border-gray-700 mt-2">
                         <div class="px-4 py-2 flex items-center justify-between">
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">播放列表 ({{
+                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('lng_media_saved_music_title') }} ({{
                                 player.playlist.length }})</span>
                         </div>
                         <div class="pb-2">
@@ -152,6 +152,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import {
     PlayIcon, PauseIcon, SkipBackIcon, SkipForwardIcon,
     XIcon, MusicIcon, Volume2Icon, Volume1Icon, VolumeXIcon,
@@ -171,6 +172,7 @@ import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 const player = useAudioPlayerStore();
 const userStore = useUserStore();
 const router = useRouter();
+const { t } = useI18n();
 const previousVolume = ref(1);
 
 /** 当前用户 id（判断是否为「自己个人资料」的歌曲） */
@@ -184,7 +186,7 @@ function onTrackContextMenu(e: MouseEvent, track: AudioTrack, idx: number) {
     if (track.source !== 'profile' && track.messageSnapshot && track.chatId && track.messageId) {
         items.push({
             key: 'jump-to-message',
-            label: '跳转消息',
+            label: t('lng_downloads_view_in_chat'),
             icon: EyeIcon,
             onClick: () => {
                 player.toggleOverlay();
@@ -202,31 +204,31 @@ function onTrackContextMenu(e: MouseEvent, track: AudioTrack, idx: number) {
     if (localPath) {
         items.push({
             key: 'reveal-in-dir',
-            label: '打开文件夹',
+            label: t('lng_context_show_in_folder'),
             icon: FolderOpenIcon,
             onClick: async () => {
                 try {
                     await revealItemInDir([localPath]);
                 } catch (err) {
                     console.error('revealItemInDir failed:', err);
-                    MessagePlugin.error('打开文件夹失败');
+                    MessagePlugin.error(t('context.actionFailed'));
                 }
             },
         });
         items.push({
             key: 'save-as',
-            label: '另存为',
+            label: t('lng_mediaview_save_as'),
             icon: DownloadIcon,
             onClick: async () => {
                 try {
                     const fileName = track.title || `audio_${track.fileId}.mp3`;
-                    const dest = await save({ title: '另存为', defaultPath: fileName });
+                    const dest = await save({ title: t('lng_mediaview_save_as'), defaultPath: fileName });
                     if (!dest) return;
                     await copyFile(localPath, dest);
-                    MessagePlugin.success('已另存为');
+                    MessagePlugin.success(t('player.savedAs'));
                 } catch (err) {
                     console.error('saveAs failed:', err);
-                    MessagePlugin.error('另存为失败');
+                    MessagePlugin.error(t('player.saveAsFailed'));
                 }
             },
         });
@@ -240,27 +242,27 @@ function onTrackContextMenu(e: MouseEvent, track: AudioTrack, idx: number) {
     if (isOwnProfileTrack) {
         items.push({
             key: 'remove-profile-audio',
-            label: '从我的资料移除',
+            label: t('player.removeFromProfile'),
             icon: Trash2Icon,
             danger: true,
             onClick: async () => {
                 const ok = await player.removeTrackFromMyProfile(track);
                 if (ok) {
                     player.removeTrackAt(idx);
-                    MessagePlugin.success('已从我的资料移除');
+                    MessagePlugin.success(t('lng_saved_music_removed'));
                 } else {
-                    MessagePlugin.error('移除失败');
+                    MessagePlugin.error(t('context.actionFailed'));
                 }
             },
         });
     } else {
         items.push({
             key: 'save-to-profile',
-            label: '保存到我的资料',
+            label: t('player.saveToProfile'),
             icon: BookmarkPlusIcon,
             onClick: async () => {
                 const ok = await player.saveTrackToMyProfile(track);
-                MessagePlugin.success(ok ? '已保存到我的资料' : '保存失败（需先下载完成）');
+                MessagePlugin.success(ok ? t('lng_saved_music_added') : t('player.saveFailedNotDownloaded'));
             },
         });
     }
@@ -268,7 +270,7 @@ function onTrackContextMenu(e: MouseEvent, track: AudioTrack, idx: number) {
     // 从播放列表移除（仅移出当前列表，不影响资料/消息）
     items.push({
         key: 'remove-from-list',
-        label: '从列表移除',
+        label: t('player.removeFromList'),
         icon: XIcon,
         onClick: () => {
             player.removeTrackAt(idx);
@@ -339,10 +341,10 @@ const repeatIconClass = computed(() => {
 
 const repeatTitle = computed(() => {
     switch (player.repeatMode) {
-        case 'none': return '顺序播放';
-        case 'one': return '单曲循环';
-        case 'all': return '列表循环';
-        case 'shuffle': return '随机播放';
+        case 'none': return t('player.repeatNone');
+        case 'one': return t('player.repeatOne');
+        case 'all': return t('player.repeatAll');
+        case 'shuffle': return t('lng_audio_player_shuffle');
     }
 });
 
