@@ -2,172 +2,117 @@
 //!
 //! `tauri-plugin-notification` 在 `target/debug` / `target/release` 下故意不设置
 //! `System.AppUserModel.ID`，导致开发态 Toast 归属到启动 shell（常见显示为
-//! 「Windows PowerShell」）。这里自行发送通知并始终带 AUMID；同时在开始菜单
-//! 注册带 AUMID 的快捷方式，让 Windows 能解析出应用名与图标。
+//! 「Windows PowerShell」）。这里自行发送通知并始终带 AUMID。
 //!
-//! 另：notify-rust 在 Windows 上未设置 app_id 时会回落到
-//! `Toast::POWERSHELL_APP_ID`，这正是归属显示为 PowerShell 的直接原因。
+//! 身份注册分两种情况：
+//! - **打包应用（MSIX/AppX）**：AUMID 由 `Package.appxmanifest` 的
+//!   `Application Id` 提供，系统在安装时自动注册，这里不做任何事。
+//! - **未打包（便携 / 绿色 / 开发态）**：按
+//!   [`winrt-notification` 的 `unpackaged_app` 示例][1]，直接写
+//!   `HKCU\SOFTWARE\Classes\AppUserModelId\{AUMID}` 注册表项
+//!   （`DisplayName` / `IconUri` / `IconBackgroundColor`）。
+//!   不要用 PowerShell 建 `.lnk` + `IPropertyStore`——外部进程、慢、且易被杀软拦截。
+//!
+//! [1]: https://github.com/tauri-apps/winrt-notification/blob/dev/examples/unpackaged_app.rs
 
-use std::path::PathBuf;
-
-/// 与 tauri.conf.json 的 identifier 保持一致
-pub const APP_AUMID: &str = "com.xiaoqvan.tdeeeg";
+/// 与 tauri.conf.json 的 identifier 保持一致。
+/// 若将来做 MSIX，`Package.appxmanifest` 的 Application Id 必须与此相同。
+pub const APP_AUMID: &str = "com.catmoecircle.tdeeeg";
 pub const APP_DISPLAY_NAME: &str = "tdeeeg";
 
 fn is_windows() -> bool {
     cfg!(target_os = "windows")
 }
 
-/// 开始菜单快捷方式路径（用户级）
-fn start_menu_lnk() -> Option<PathBuf> {
-    let appdata = std::env::var_os("APPDATA")?;
-    let mut p = PathBuf::from(appdata);
-    p.push("Microsoft");
-    p.push("Windows");
-    p.push("Start Menu");
-    p.push("Programs");
-    p.push(format!("{APP_DISPLAY_NAME}.lnk"));
-    Some(p)
+/// 当前进程是否带包身份（MSIX / AppX / Store 安装）。
+///
+/// 打包应用的 AUMID 由清单自动注册，不应再写 `AppUserModelId` 注册表。
+#[cfg(target_os = "windows")]
+fn is_packaged_app() -> bool {
+    // kernel32!GetCurrentPackageFullName：有包身份返回 0（ERROR_SUCCESS），
+    // 无包身份返回 15700（APPMODEL_ERROR_NO_PACKAGE）。
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetCurrentPackageFullName(package_full_name_length: *mut u32, package_full_name: *mut u16) -> i32;
+    }
+
+    const APPMODEL_ERROR_NO_PACKAGE: i32 = 15700;
+    let mut len: u32 = 0;
+    let rc = unsafe { GetCurrentPackageFullName(&mut len, std::ptr::null_mut()) };
+    rc != APPMODEL_ERROR_NO_PACKAGE
 }
 
-/// 创建/更新带 AppUserModel.ID 的开始菜单快捷方式（幂等）。
+#[cfg(not(target_os = "windows"))]
+fn is_packaged_app() -> bool {
+    false
+}
+
+/// 解析 Toast 头像/应用图标文件路径。
+///
+/// 优先取可执行文件旁的 PNG/ICO；找不到就回落到 exe 本身（Shell 可从中抽图标）。
 #[cfg(target_os = "windows")]
-pub fn ensure_toast_shortcut(exe: &std::path::Path) -> Result<(), String> {
-    let lnk = start_menu_lnk().ok_or_else(|| "APPDATA not found".to_string())?;
-    let lnk_str = lnk.to_string_lossy().replace('\'', "''");
-    let exe_str = exe.to_string_lossy().replace('\'', "''");
-    let aumid = APP_AUMID;
-    let name = APP_DISPLAY_NAME;
+fn resolve_icon_uri() -> String {
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            for name in ["128x128.png", "icon.png", "icon.ico"] {
+                let p = dir.join(name);
+                if p.is_file() {
+                    return p.to_string_lossy().into_owned();
+                }
+            }
+            // Tauri 开发态 / 部分打包布局下的 icons 目录
+            let icons = dir.join("icons");
+            for name in ["128x128.png", "icon.png", "icon.ico"] {
+                let p = icons.join(name);
+                if p.is_file() {
+                    return p.to_string_lossy().into_owned();
+                }
+            }
+        }
+        return exe.to_string_lossy().into_owned();
+    }
+    String::new()
+}
 
-    // PowerShell + C# COM：WScript.Shell 建 .lnk，再经 IPropertyStore 写入
-    // System.AppUserModel.ID（fmtid 9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3, pid 5）。
-    // 注意：Add-Type 默认不引用 Microsoft.CSharp，因此不能用 dynamic，改用反射调用 COM。
-    let script = format!(
-        r#"$ErrorActionPreference = 'Stop'
-$exe = '{exe}'
-$lnk = '{lnk}'
-$aumid = '{aumid}'
-$name = '{name}'
-$dir = Split-Path -Parent $lnk
-if (-not (Test-Path -LiteralPath $dir)) {{ New-Item -ItemType Directory -Path $dir | Out-Null }}
+/// 写 `HKCU\SOFTWARE\Classes\AppUserModelId\{AUMID}`（幂等）。
+///
+/// 与 winrt-notification `unpackaged_app.rs` 相同的键值：
+/// `DisplayName` / `IconBackgroundColor` / `IconUri`。
+#[cfg(target_os = "windows")]
+fn register_aumid_registry(icon_uri: &str) -> Result<(), String> {
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
 
-$src = @'
-using System;
-using System.IO;
-using System.Reflection;
-using System.Runtime.InteropServices;
-using System.Runtime.InteropServices.ComTypes;
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let path = format!(r"SOFTWARE\Classes\AppUserModelId\{APP_AUMID}");
+    let (key, _) = hkcu
+        .create_subkey(&path)
+        .map_err(|e| format!("create AppUserModelId key failed: {e}"))?;
 
-[ComImport, Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-public interface IPropertyStore {{
-    [PreserveSig] int GetCount(out uint cProps);
-    [PreserveSig] int GetAt(uint iProp, out PROPERTYKEY pkey);
-    [PreserveSig] int GetValue(ref PROPERTYKEY key, out PROPVARIANT pv);
-    [PreserveSig] int SetValue(ref PROPERTYKEY key, ref PROPVARIANT pv);
-    [PreserveSig] int Commit();
-}}
-
-[StructLayout(LayoutKind.Sequential, Pack = 4)]
-public struct PROPERTYKEY {{
-    public Guid fmtid;
-    public uint pid;
-}}
-
-[StructLayout(LayoutKind.Sequential)]
-public struct PROPVARIANT {{
-    public ushort vt;
-    public ushort wReserved1, wReserved2, wReserved3;
-    public IntPtr pointerValue;
-    public int int64Value;
-}}
-
-public static class AumidShortcut {{
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
-    private static extern void SHGetPropertyStoreFromParsingName(
-        string path, IntPtr pbc, ref Guid riid, [MarshalAs(UnmanagedType.Interface)] out object ppv);
-
-    public static void Create(string exePath, string lnkPath, string aumid, string displayName) {{
-        // WScript.Shell via reflection — no dynamic / Microsoft.CSharp
-        Type shellType = Type.GetTypeFromProgID("WScript.Shell");
-        if (shellType == null) throw new InvalidOperationException("WScript.Shell ProgID not found");
-        object shell = Activator.CreateInstance(shellType);
-        object sc;
-        try {{
-            sc = shellType.InvokeMember(
-                "CreateShortcut",
-                BindingFlags.InvokeMethod,
-                null, shell, new object[] {{ lnkPath }});
-        }} catch {{
-            Marshal.FinalReleaseComObject(shell);
-            throw;
-        }}
-
-        Type scType = sc.GetType();
-        scType.InvokeMember("TargetPath", BindingFlags.SetProperty, null, sc, new object[] {{ exePath }});
-        scType.InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, sc, new object[] {{ Path.GetDirectoryName(exePath) }});
-        scType.InvokeMember("IconLocation", BindingFlags.SetProperty, null, sc, new object[] {{ exePath + ",0" }});
-        scType.InvokeMember("Description", BindingFlags.SetProperty, null, sc, new object[] {{ displayName }});
-        scType.InvokeMember("Save", BindingFlags.InvokeMethod, null, sc, null);
-        Marshal.FinalReleaseComObject(sc);
-        Marshal.FinalReleaseComObject(shell);
-
-        Guid iid = typeof(IPropertyStore).GUID;
-        object storeObj;
-        SHGetPropertyStoreFromParsingName(lnkPath, IntPtr.Zero, ref iid, out storeObj);
-        IPropertyStore store = (IPropertyStore)storeObj;
-        PROPERTYKEY key = new PROPERTYKEY {{
-            fmtid = new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"),
-            pid = 5
-        }};
-        PROPVARIANT val = new PROPVARIANT();
-        val.vt = 31; // VT_LPWSTR
-        val.pointerValue = Marshal.StringToCoTaskMemUni(aumid);
-        try {{
-            int hr = store.SetValue(ref key, ref val);
-            if (hr < 0) Marshal.ThrowExceptionForHR(hr);
-            hr = store.Commit();
-            if (hr < 0) Marshal.ThrowExceptionForHR(hr);
-        }} finally {{
-            if (val.pointerValue != IntPtr.Zero) Marshal.ZeroFreeCoTaskMemUnicode(val.pointerValue);
-            Marshal.FinalReleaseComObject(store);
-        }}
-    }}
-}}
-'@
-
-Add-Type -TypeDefinition $src -Language CSharp
-[AumidShortcut]::Create($exe, $lnk, $aumid, $name)
-Write-Output OK
-"#,
-        exe = exe_str,
-        lnk = lnk_str,
-        aumid = aumid,
-        name = name,
-    );
-
-    let output = std::process::Command::new("powershell.exe")
-        .args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            &script,
-        ])
-        .output()
-        .map_err(|e| format!("spawn powershell failed: {e}"))?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "create aumid shortcut failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        ));
+    key.set_value("DisplayName", &APP_DISPLAY_NAME)
+        .map_err(|e| format!("set DisplayName failed: {e}"))?;
+    // 示例值为 "0"（透明/默认），保持一致
+    key.set_value("IconBackgroundColor", &"0")
+        .map_err(|e| format!("set IconBackgroundColor failed: {e}"))?;
+    if !icon_uri.is_empty() {
+        key.set_value("IconUri", &icon_uri)
+            .map_err(|e| format!("set IconUri failed: {e}"))?;
     }
     Ok(())
 }
 
+/// 未打包时注册 Toast 身份；打包应用直接跳过（清单已自动注册）。
+#[cfg(target_os = "windows")]
+pub fn ensure_toast_identity() -> Result<(), String> {
+    if is_packaged_app() {
+        return Ok(());
+    }
+    let icon_uri = resolve_icon_uri();
+    register_aumid_registry(&icon_uri)
+}
+
 #[cfg(not(target_os = "windows"))]
-pub fn ensure_toast_shortcut(_exe: &std::path::Path) -> Result<(), String> {
+pub fn ensure_toast_identity() -> Result<(), String> {
     Ok(())
 }
 
@@ -183,11 +128,9 @@ pub fn show_system_notification(
     image: Option<String>,
     silent: bool,
 ) -> Result<(), String> {
-    // 先注册开始菜单身份，避免 AUMID 无主导致 Toast 被吞或归属异常
     if is_windows() {
-        if let Ok(exe) = tauri::utils::platform::current_exe() {
-            let _ = ensure_toast_shortcut(&exe);
-        }
+        // 便携目录可能被移动：发通知前再确一次注册（幂等，开销可忽略）
+        let _ = ensure_toast_identity();
         return show_toast_windows(&title, &body, image.as_deref(), silent);
     }
 
@@ -239,10 +182,7 @@ pub fn init_toast_identity() {
     if !is_windows() {
         return;
     }
-    let Ok(exe) = tauri::utils::platform::current_exe() else {
-        return;
-    };
-    if let Err(e) = ensure_toast_shortcut(&exe) {
-        eprintln!("[toast] ensure shortcut failed: {e}");
+    if let Err(e) = ensure_toast_identity() {
+        eprintln!("[toast] ensure aumid identity failed: {e}");
     }
 }
