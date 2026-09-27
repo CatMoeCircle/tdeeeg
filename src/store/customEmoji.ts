@@ -3,6 +3,7 @@ import { tdlibSend, downloadingFiles, localPathIfReady } from '../utils/tdlib';
 import { DL_PRIORITY } from '../utils/downloadPriority';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { sticker, file } from 'tdlib-types';
+import i18n from '../i18n';
 import { useDownloadStore, remoteIdOf } from './downloads';
 import { DL_TAG } from '../utils/downloadTags';
 import { isThumbnailImgRenderable } from '../utils/thumbnail';
@@ -117,7 +118,7 @@ async function downloadThumbnail(emojiId: string, fileId: number) {
   downloadingFiles.add(fileId);
   // 自定义表情缩略图：emoji + 缩略图，不带图片标签
   const stickerObj = state.sticker;
-  const setLabel = stickerObj?.set_id ? `emoji 集 #${stickerObj.set_id}` : undefined;
+  const setLabel = stickerObj?.set_id ? i18n.global.t('download.row.emojiSet', { id: stickerObj.set_id }) : undefined;
   await useDownloadStore().registerDownload(
     fileId, `emoji_${emojiId}_thumb.webp`, setLabel || '', 0, 'other',
     undefined, undefined, undefined, true, false, 'emoji', false,
@@ -164,7 +165,7 @@ async function downloadStickerFile(emojiId: string, fileId: number) {
   downloadingFiles.add(fileId);
   // 自定义表情完整贴纸：emoji 标签 + 来源 emoji 集
   const stickerObj = state.sticker;
-  const setLabel = stickerObj?.set_id ? `emoji 集 #${stickerObj.set_id}` : undefined;
+  const setLabel = stickerObj?.set_id ? i18n.global.t('download.row.emojiSet', { id: stickerObj.set_id }) : undefined;
   await useDownloadStore().registerDownload(
     fileId, `emoji_${emojiId}.webp`, setLabel || '', 0, 'sticker',
     undefined, undefined, undefined, true, false, 'emoji', false,

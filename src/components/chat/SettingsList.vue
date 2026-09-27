@@ -276,12 +276,10 @@ async function openOfficialGroup() {
 const route = useRoute();
 const isChatOpen = computed(() => /^\/home\/chat\/\d+/.test(route.path));
 
-/** 用户状态显示文本：优先用 formatStatus 显示上次在线时间，无数据时显示离线 */
+/** 用户状态显示文本：机器人显示「bot」，其余用 formatStatus 显示上次在线时间 */
 const userStatusText = computed(() => {
     if (!userProfile.value) return t('lng_context_seen_loading');
-    const status = userProfile.value.status;
-    if (!status) return t('settingsList.offline');
-    return formatStatus(status);
+    return formatStatus(userProfile.value);
 });
 
 /** 应用名称与版本号 */

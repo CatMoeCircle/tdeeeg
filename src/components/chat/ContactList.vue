@@ -20,7 +20,7 @@
                         </h3>
                         <p v-if="user.status._ === 'userStatusOnline'" class="text-xs text-blue-500">
                             在线</p>
-                        <p v-else class="text-xs text-gray-400">{{ formatStatus(user.status)
+                        <p v-else class="text-xs text-gray-400">{{ formatStatus(user)
                             }}</p>
                     </div>
                     <div class="flex items-center">

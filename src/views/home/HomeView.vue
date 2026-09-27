@@ -47,6 +47,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
 import SideNavBar from '../../components/layout/SideNavBar.vue';
@@ -63,6 +64,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { settings } from '../../store/settings';
 
 const route = useRoute();
+const { t } = useI18n();
 const homeBackgroundStyle = computed(() => {
     if (!settings.chatWallpaper) return {};
     const visual = settings.chatWallpaper;
@@ -119,6 +121,21 @@ const isSettingsDetail = computed(() => route.name === 'settings-appearance'
     || route.name === 'settings-devices');
 const isArchiveSection = computed(() => route.name === 'archived');
 const isProfile = computed(() => route.name === 'user-profile' || route.name === 'chat-profile');
+const isGroupEdit = computed(() => typeof route.name === 'string' && (
+    route.name === 'chat-edit'
+    || route.name === 'group-type'
+    || route.name === 'group-linked'
+    || route.name === 'group-permissions'
+    || route.name === 'group-admins'
+    || route.name === 'group-members'
+    || route.name === 'group-blacklist'
+    || route.name === 'group-event-log'
+    || route.name === 'group-appearance'
+    || route.name === 'group-direct-messages'
+    || route.name === 'group-topics'
+    || route.name === 'group-invite-links'
+    || route.name === 'group-reactions'
+));
 
 // 进入个人资料页时，记住来源栏目，让左侧列表保持不变（从设置进→仍是设置，
 // 从聊天进→仍是聊天），避免进入资料页后左侧被误切到聊天列表。
@@ -126,7 +143,7 @@ type SidebarSection = 'chats' | 'contacts' | 'settings';
 const profileFromSection = ref<SidebarSection | null>(null);
 /** 左侧应显示的栏目（资料页期间沿用进入前的栏目） */
 const activeSection = computed<SidebarSection>(() => {
-    if (isProfile.value && profileFromSection.value) return profileFromSection.value;
+    if ((isProfile.value || isGroupEdit.value) && profileFromSection.value) return profileFromSection.value;
     if (isContacts.value) return 'contacts';
     if (isSettings.value) return 'settings';
     return 'chats';
@@ -148,6 +165,7 @@ const showActiveChat = computed(
     () =>
         activeChatId.value !== null &&
         !isSettingsDetail.value &&
+        !isGroupEdit.value &&
         route.name !== 'user-profile' &&
         route.name !== 'chat-profile',
 );
@@ -180,6 +198,19 @@ watch(
             return;
         }
 
+        // 群组/频道编辑页：同样关闭聊天，保留左侧来源栏目
+        if (name === 'chat-edit' || name === 'group-type' || name === 'group-linked' || name === 'group-permissions' || name === 'group-admins' || name === 'group-members' || name === 'group-blacklist' || name === 'group-event-log' || name === 'group-appearance' || name === 'group-direct-messages' || name === 'group-topics' || name === 'group-invite-links' || name === 'group-reactions') {
+            closeActiveChat();
+            if (profileFromSection.value === null) {
+                const prev = previous?.[0];
+                if (prev === 'contacts') profileFromSection.value = 'contacts';
+                else if (typeof prev === 'string' && prev.startsWith('settings')) profileFromSection.value = 'settings';
+                else if (prev === 'chat-profile' || prev === 'user-profile' || prev === 'chat-edit' || (typeof prev === 'string' && prev.startsWith('group-'))) profileFromSection.value = profileFromSection.value ?? 'chats';
+                else profileFromSection.value = 'chats';
+            }
+            return;
+        }
+
         // 离开个人资料页后清除来源栏目记忆。
         if (profileFromSection.value !== null) {
             profileFromSection.value = null;
@@ -194,10 +225,10 @@ watch(
     { immediate: true },
 );
 const emptyStateText = computed(() => {
-    if (isContacts.value) return '联系人详情';
-    if (isSettings.value) return '选择一个设置项';
-    if (isArchiveSection.value) return '选择一个归档聊天';
-    return '选择一个聊天开始';
+    if (isContacts.value) return t('lng_contact_details_title');
+    if (isSettings.value) return t('home.selectSettings');
+    if (isArchiveSection.value) return t('home.selectArchivedChat');
+    return t('lng_willbe_history');
 });
 
 onMounted(async () => {

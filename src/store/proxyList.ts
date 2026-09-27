@@ -1,6 +1,7 @@
 import { ref } from "vue";
 import type { addedProxy, ProxyType$Input } from "tdlib-types";
 import { tdlibSend } from "../utils/tdlib";
+import i18n from "../i18n";
 
 /**
  * 已添加的代理列表（来自 TDLib getProxies）。
@@ -24,7 +25,7 @@ export async function refreshProxies(): Promise<void> {
         const res = await tdlibSend({ _: "getProxies" });
         proxies.value = res.proxies ?? [];
     } catch (e: any) {
-        proxiesError.value = e?.message || "获取代理列表失败";
+        proxiesError.value = e?.message || i18n.global.t("proxy.loadFailed");
         console.error("Failed to load proxies:", e);
     } finally {
         proxiesLoading.value = false;

@@ -8,6 +8,7 @@
  *   - 激活标签的追踪（v 选中态）
  *   - tabs 样式下滑动小蓝条（先移动后定宽的自然过渡，避免宽度抖动）
  *   - soft 样式下滑动浅蓝胶囊底（同 left/width 过渡）
+ *   - 全部变体共用 Telegram 风格磨砂玻璃浮层容器（由 containerClass 附加）
  *   - 激活标签滚动进可视区
  *   - 容器尺寸变化时重算滑动条
  *
@@ -35,7 +36,7 @@ const props = withDefaults(defineProps<{
     tabs: TabItem[];
     /** 当前激活标签 id（v-model:active-id） */
     activeId: string;
-    /** 样式变体：tabs=底部滑动条，pills=胶囊，text=纯文本，soft=完全圆角浮层内滑动浅蓝胶囊 */
+    /** 样式变体：tabs=底部滑动条，pills=胶囊，text=纯文本，soft=浮层内滑动浅蓝胶囊；全部变体共用磨砂玻璃浮层 */
     variant?: 'tabs' | 'pills' | 'text' | 'soft';
     /** 每个标签按钮的类（需根据 active 决定），由调用方传入以复用现有样式 */
     tabClass?: (id: string, active: boolean) => string;
@@ -60,13 +61,13 @@ const isSoft = computed(() => props.variant === 'soft');
 /** 需要滑动指示器的变体 */
 const hasSlidingIndicator = computed(() => isTabs.value || isSoft.value);
 
-/** 容器布局类：变体基础布局 + 调用方附加类 */
+/** 容器布局类：全部变体共用浮层布局（宽度随内容），调用方附加类再叠浮层外观 */
 const containerClass = computed(() => {
-    const base = props.variant === 'text'
-        ? 'flex gap-3'
-        // soft：宽度随内容；左右外边距与完全圆角浮层由 containerClass 附加
-        : props.variant === 'soft' ? 'flex gap-0.5 items-center w-fit max-w-[calc(100%-1rem)]' : 'flex gap-2';
-    return props.containerClass ? `${base} ${props.containerClass}` : base;
+    const base = 'flex items-center w-fit max-w-[calc(100%-1rem)]';
+    const gap = props.variant === 'text'
+        ? 'gap-3'
+        : props.variant === 'soft' ? 'gap-0.5' : 'gap-2';
+    return props.containerClass ? `${base} ${gap} ${props.containerClass}` : `${base} ${gap}`;
 });
 
 // ---- 滑动指示器（tabs 小蓝条 / soft 浅蓝胶囊底） ----

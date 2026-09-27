@@ -24,6 +24,8 @@ export interface PinMessageRequest {
     msg: message;
     /** 弹窗展示哪种选项（私聊 / 群组） */
     scope: 'private' | 'group';
+    /** 私聊对方显示名（用于「同时为对方置顶」） */
+    otherName?: string;
 }
 
 export const visible = ref(false);

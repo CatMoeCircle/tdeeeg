@@ -7,12 +7,14 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 
 const route = useRoute();
+const { t } = useI18n();
 const emptyStateText = computed(() => {
-    if (route.name === 'contacts') return '联系人详情';
-    if (route.name === 'settings') return '选择一个设置项';
-    if (route.name === 'archived') return '选择一个归档聊天';
-    return '选择一个聊天开始';
+    if (route.name === 'contacts') return t('lng_contact_details_title');
+    if (route.name === 'settings') return t('home.selectSettings');
+    if (route.name === 'archived') return t('home.selectArchivedChat');
+    return t('lng_willbe_history');
 });
 </script>

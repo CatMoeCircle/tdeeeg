@@ -1,5 +1,6 @@
 import { ref } from "vue";
 import type { proxy, ProxyType$Input } from "tdlib-types";
+import i18n from "../i18n";
 
 /**
  * 「从 proxy.t.me 链接添加代理」弹窗的全局状态。
@@ -121,17 +122,19 @@ export async function pingProxyOf(
         if (typeof seconds === "number") {
             result = {
                 ok: true,
-                text: seconds < 1
-                    ? `延迟 ${Math.round(seconds * 1000)}ms`
-                    : `延迟 ${seconds.toFixed(2)}s`,
+                text: i18n.global.t("proxy.pingLatency", {
+                    value: seconds < 1
+                        ? `${Math.round(seconds * 1000)}ms`
+                        : `${seconds.toFixed(2)}s`,
+                }),
             };
         } else {
-            result = { ok: false, text: "无法测量延迟" };
+            result = { ok: false, text: i18n.global.t("proxy.pingUnmeasurable") };
         }
         pingResult.value = result;
         return result;
     } catch (e: any) {
-        const result = { ok: false, text: e?.message || "ping 失败" };
+        const result = { ok: false, text: e?.message || i18n.global.t("proxy.pingFailed") };
         pingResult.value = result;
         return result;
     } finally {

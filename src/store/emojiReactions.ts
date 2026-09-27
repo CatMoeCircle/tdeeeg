@@ -3,6 +3,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import type { emojiReaction, sticker } from 'tdlib-types';
 import { tdlibSend, downloadingFiles, localPathIfReady } from '../utils/tdlib';
 import { DL_PRIORITY } from '../utils/downloadPriority';
+import i18n from '../i18n';
 import { useDownloadStore, remoteIdOf } from './downloads';
 import { DL_TAG } from '../utils/downloadTags';
 
@@ -86,11 +87,11 @@ async function downloadAnimSticker(emoji: string, st: sticker) {
         await useDownloadStore().registerDownload(
             f.id,
             `reaction_${emoji}_${f.id}.${extOf(st)}`,
-            '回应动画', 0, 'sticker',
+            i18n.global.t('download.row.reactionAnim'), 0, 'sticker',
             undefined, undefined, undefined, true, false,
             'reaction', false,
             [DL_TAG.STICKER, DL_TAG.EMOJI, DL_TAG.ANIM],
-            '回应动画',
+            i18n.global.t('download.row.reactionAnim'),
             remoteIdOf(f as any) || undefined,
         );
     } catch { /* 注册失败不阻塞下载 */ }

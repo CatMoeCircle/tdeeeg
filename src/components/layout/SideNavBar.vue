@@ -4,7 +4,7 @@
         :class="isTitlebarMode ? 'pt-3' : 'pt-1'">
         <!-- Avatar / Profile：titlebar 模式下隐藏（已移至标题栏） -->
         <div v-if="!isTitlebarMode" class="mb-5 ">
-            <button type="button" class="block" title="账户" @click="accountMenuOpen = true">
+            <button type="button" class="block" :title="t('lng_settings_my_account')" @click="accountMenuOpen = true">
                 <div v-if="userProfile" class="w-10 h-10">
                     <Avatar :photo="userProfile.profile_photo"
                         :title="userProfile.first_name + ' ' + userProfile.last_name"
@@ -35,7 +35,7 @@
         <div class="mt-auto flex flex-col gap-4 w-full items-center">
             <button type="button" @click="downloadStore.togglePanel()"
                 :class="[buttonStyle, downloadStore.isPanelOpen ? 'bg-white/60 dark:bg-gray-600 shadow-sm' : '']"
-                :title="downloadStore.isPanelOpen ? '关闭下载管理器' : '打开下载管理器'">
+                :title="downloadStore.isPanelOpen ? t('nav.closeDownloads') : t('nav.openDownloads')">
                 <span class="relative inline-flex">
                     <DownloadIcon :class="iconStyle" />
                     <!-- 下载角标（红色，右下角） -->
@@ -65,6 +65,7 @@ import Avatar from "../chat/avatar.vue";
 import AccountMenu from "../AccountMenu.vue";
 import { computed, ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { useUserStore } from '../../store/user';
 import { useDownloadStore } from '../../store/downloads';
 import { useUploadStore } from '../../store/upload';
@@ -72,6 +73,7 @@ import { storeToRefs } from 'pinia';
 import { settings } from '../../store/settings';
 
 const isTitlebarMode = computed(() => settings.chatHeaderAvatarPosition === 'titlebar');
+const { t } = useI18n();
 
 const buttonStyle = 'w-10 h-10 flex items-center justify-center text-gray-500 transition-colors relative rounded-lg hover:bg-white/60 hover:shadow-sm';
 const iconStyle = 'w-5 h-5';

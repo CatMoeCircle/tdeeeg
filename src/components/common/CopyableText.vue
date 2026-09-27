@@ -5,7 +5,7 @@
     :class="disabled ? '' : 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400'"
     role="button"
     :tabindex="disabled ? -1 : 0"
-    :aria-label="disabled ? undefined : `复制 ${displayText}`"
+    :aria-label="disabled ? undefined : t('lng_bot_copy_text_tooltip', { text: displayText })"
     @click="handleCopy"
     @keydown.enter.prevent="handleCopy"
     @keydown.space.prevent="handleCopy"
@@ -17,6 +17,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { MessagePlugin } from 'tdesign-vue-next';
+import { useI18n } from 'vue-i18n';
 
 /**
  * 可复制文本：默认正常颜色（黑色），悬停变蓝，点击复制内容。
@@ -38,6 +39,7 @@ const props = withDefaults(
 );
 
 const el = ref<HTMLElement | null>(null);
+const { t } = useI18n();
 
 /** 展示/用于提示的文本（text 属性优先） */
 const displayText = computed(() => props.text.trim());
@@ -55,10 +57,10 @@ async function handleCopy(e?: Event) {
   if (!value) return;
   try {
     await navigator.clipboard.writeText(value);
-    await MessagePlugin.success({ content: '已复制', placement: 'top-right' });
+    await MessagePlugin.success({ content: t('lng_text_copied'), placement: 'top-right' });
   } catch (e) {
     console.error('复制失败:', e);
-    MessagePlugin.error({ content: '复制失败', placement: 'top-right' });
+    MessagePlugin.error({ content: t('dev.copyFailed'), placement: 'top-right' });
   }
 }
 </script>

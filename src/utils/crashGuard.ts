@@ -2,11 +2,23 @@
  * 运行时崩溃/白屏诊断。
  *
  * 目标：在「页面突然清空、控制台无报错」时留下可定位线索。
- * 不依赖 Vue，即使应用未挂载或已卸载也能工作。
+ * 不依赖 Vue 组件，即使应用未挂载或已卸载也能工作。
+ * 文案经 i18n 解析，失败时回退英文硬编码。
  */
+import i18n from "../i18n";
 
 const LOG_KEY = "tdgram-crash-log";
 const MAX_ENTRIES = 40;
+
+/** 安全取 i18n 文案：i18n 不可用时回退硬编码 */
+function safeT(key: string, fallback: string, params?: Record<string, unknown>): string {
+  try {
+    const out = i18n.global.t(key, params as never);
+    return out && out !== key ? out : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 type CrashLogEntry = {
   t: number;
@@ -70,8 +82,10 @@ function showOverlay(title: string, detail: string) {
   p.textContent = detail;
   const hint = document.createElement("div");
   hint.style.cssText = "margin-top:16px;opacity:0.6;font-size:12px";
-  hint.textContent =
-    "该浮层来自 crashGuard，说明前端运行时已捕获到致命问题。详情已写入 localStorage['tdgram-crash-log']。";
+  hint.textContent = safeT(
+    "dev.crashHint",
+    "This overlay is from crashGuard, meaning the frontend has caught a fatal issue. Details have been written to localStorage['tdgram-crash-log'].",
+  );
   box.append(h, p, hint);
   document.body.appendChild(box);
 }
@@ -129,7 +143,11 @@ export function installCrashGuard(options?: { watchBlankMs?: number }) {
     const bodyChildren = document.body?.childElementCount ?? -1;
     // 挂载后曾经有过内容，突然变成 0 → 高度可疑
     if (lastAppChildren > 0 && children === 0) {
-      const msg = `#app 内容被清空（此前 ${lastAppChildren} 个子节点，body=${bodyChildren}）`;
+      const msg = safeT(
+        "dev.crashBlankDetail",
+        "#app content was cleared (previously {count} child nodes, body={body})",
+        { count: lastAppChildren, body: bodyChildren },
+      );
       appendLog({
         type: "blank-dom",
         message: msg,
@@ -140,7 +158,7 @@ export function installCrashGuard(options?: { watchBlankMs?: number }) {
         },
       });
       console.error("[crashGuard]", msg);
-      showOverlay("检测到界面被清空", msg + "\nlocation: " + location.href);
+      showOverlay(safeT("dev.crashBlankTitle", "Detected UI cleared"), msg + "\nlocation: " + location.href);
     }
     if (children > 0) lastAppChildren = children;
   }, watchBlankMs);
@@ -158,5 +176,5 @@ export function showBootstrapFailure(step: string, err: unknown) {
         : JSON.stringify(err);
   appendLog({ type: "bootstrap-fail", message: `${step}: ${detail}` });
   console.error(`[bootstrap] 失败于 ${step}:`, err);
-  showOverlay(`应用启动失败（${step}）`, detail);
+  showOverlay(safeT("dev.crashBootstrapTitle", "Application failed to start ({step})", { step }), detail);
 }
