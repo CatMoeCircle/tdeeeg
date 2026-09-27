@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { DL_PRIORITY } from "../utils/downloadPriority";
 import { onTdlibUpdate } from "./tdlibBus";
+import i18n from "../i18n";
 import {
     DL_TAG,
     FILTER_KEY,
@@ -17,9 +18,10 @@ import {
     isIncompleteStreaming,
     isItemVisibleByFilter,
     tagChipClass,
+    tagLabel,
 } from "../utils/downloadTags";
 
-export { DL_TAG, FILTER_KEY, FILTER_OPTIONS, resolveItemTags, tagChipClass };
+export { DL_TAG, FILTER_KEY, FILTER_OPTIONS, resolveItemTags, tagChipClass, tagLabel };
 export {
     isGenericItem,
     isAutoPhotoItem,
@@ -111,15 +113,16 @@ export type HiddenCategory =
     | "music_cover"
     | "other";
 
+/** 隐藏分类 → 标签 ID（展示时经 tagLabel 转 i18n） */
 const HIDDEN_CATEGORY_LABELS: Record<HiddenCategory, string> = {
-    emoji: "emoji",
-    video_cover: "视频封面",
-    avatar: "用户头像",
-    story_cover: "动态封面",
-    sticker: "贴纸",
-    gift: "礼物",
-    music_cover: "音乐封面",
-    other: "通用",
+    emoji: DL_TAG.EMOJI,
+    video_cover: DL_TAG.VIDEO_COVER,
+    avatar: DL_TAG.AVATAR,
+    story_cover: DL_TAG.STORY_COVER,
+    sticker: DL_TAG.STICKER,
+    gift: DL_TAG.GIFT,
+    music_cover: DL_TAG.MUSIC_COVER,
+    other: DL_TAG.THUMB,
 };
 
 /** 遗留：隐藏分类标签（有 tags 时优先用 tags） */
@@ -153,6 +156,13 @@ export interface TdlibDownloadListStats {
     completed_count: number;
 }
 
+/** 是否为自动生成的占位文件名（真实文件名到达时应替换） */
+function isPlaceholderFileName(name: string | undefined): boolean {
+    if (!name) return true;
+    // i18n 兜底名形如 "File #123" / "文件 #123"（任意语言），历史数据为 "文件 #123" / "文件_123"
+    return /#\d+$/.test(name) || /^文件_\d+$/.test(name);
+}
+
 /** 从 TDLib message 推断下载管理器展示用的文件名 */
 function fileNameFromTdlibMessage(msg: Record<string, unknown> | undefined): string {
     if (!msg) return "";
@@ -161,7 +171,7 @@ function fileNameFromTdlibMessage(msg: Record<string, unknown> | undefined): str
     const msgId = typeof msg.id === "number" ? msg.id : 0;
     if (content._ === "messageDocument") {
         const doc = content.document as Record<string, unknown> | undefined;
-        return (doc?.file_name as string) || `文件_${msgId}`;
+        return (doc?.file_name as string) || i18n.global.t("download.row.fileFallback", { id: msgId });
     }
     if (content._ === "messageVideo") {
         const video = content.video as Record<string, unknown> | undefined;
@@ -632,7 +642,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                 remote_id: key,
                 session_file_id: payload.fileId,
                 file_id: payload.fileId,
-                file_name: payload.fileName || `文件 #${payload.fileId}`,
+                file_name: payload.fileName || i18n.global.t("download.row.fileFallback", { id: payload.fileId }),
                 chat_title: "",
                 chat_id: payload.chatId,
                 message_id: payload.messageId,
@@ -683,7 +693,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                 dirty = true;
             }
         }
-        if (payload.fileName && (existing.file_name.startsWith("文件 #") || !existing.file_name)) {
+        if (payload.fileName && (isPlaceholderFileName(existing.file_name) || !existing.file_name)) {
             existing.file_name = payload.fileName;
             dirty = true;
         }
@@ -773,7 +783,7 @@ export const useDownloadStore = defineStore("downloads", () => {
             remote_id: key,
             session_file_id: fileId,
             file_id: fileId,
-            file_name: existing?.file_name || `文件 #${fileId}`,
+            file_name: existing?.file_name || i18n.global.t("download.row.fileFallback", { id: fileId }),
             chat_title: existing?.chat_title ?? "",
             chat_id: existing?.chat_id,
             message_id: existing?.message_id,
@@ -999,7 +1009,7 @@ export const useDownloadStore = defineStore("downloads", () => {
             remote_id: `session:${fileId}`,
             session_file_id: fileId,
             file_id: fileId,
-            file_name: `文件 #${fileId}`,
+            file_name: i18n.global.t("download.row.fileFallback", { id: fileId }),
             chat_title: "",
             chat_id: chatId,
             message_id: messageId,

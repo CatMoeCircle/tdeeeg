@@ -5,6 +5,9 @@
  * - 行内展示多枚标签 chip
  * - 标签过滤器（默认隐藏通用资源 / 自动下载图片）
  * - 分区（流式传输未完成项独立成组，不进「已暂停」）
+ *
+ * DL_TAG / FILTER_KEY 的值是持久化 ID（历史数据里已写入），不要改值。
+ * 展示文案统一走 tagLabel()：优先 TDLib 官方 key（lng_*），官方没有的走内部 downloads.tag.*。
  */
 
 export const DL_TAG = {
@@ -40,6 +43,45 @@ export const FILTER_KEY = {
     AUTO_VIDEO: "自动下载视频",
     AUTO_IMAGE: "自动下载图片",
 } as const;
+
+/**
+ * 标签 ID → i18n key。
+ * 优先 TDLib 官方词条（同区域：媒体/存储用 media/local_storage）；
+ * 官方没有的用内部命名空间 downloads.tag.*（见 locales/*.json）。
+ */
+export const TAG_I18N_KEY: Record<string, string> = {
+    [DL_TAG.VIDEO]: "lng_media_type_videos",
+    [DL_TAG.IMAGE]: "lng_local_storage_image_title",
+    [DL_TAG.MUSIC]: "lng_media_music_title",
+    [DL_TAG.FILE]: "lng_media_type_files",
+    [DL_TAG.VOICE]: "lng_all_voice",
+    [DL_TAG.ANIM]: "lng_media_type_gifs",
+    [DL_TAG.STICKER]: "lng_local_storage_sticker_title",
+    [DL_TAG.STORY]: "lng_media_type_stories",
+    [DL_TAG.THUMB]: "download.tag.thumb",
+    [DL_TAG.UPLOAD]: "download.tag.upload",
+    [DL_TAG.AUTO]: "download.tag.auto",
+    [DL_TAG.STREAM]: "download.tag.stream",
+    [DL_TAG.VIDEO_COVER]: "download.tag.videoCover",
+    [DL_TAG.MUSIC_COVER]: "download.tag.musicCover",
+    [DL_TAG.STORY_COVER]: "download.tag.storyCover",
+    [DL_TAG.AVATAR]: "download.tag.avatar",
+    [DL_TAG.HD_AVATAR]: "download.tag.hdAvatar",
+    [DL_TAG.EMOJI]: "emoji",
+    [DL_TAG.PROFILE]: "download.tag.profile",
+    [DL_TAG.GIFT]: "download.tag.gift",
+    [FILTER_KEY.GENERIC]: "download.tag.generic",
+    [FILTER_KEY.AUTO_VIDEO]: "download.tag.autoVideo",
+    [FILTER_KEY.AUTO_IMAGE]: "download.tag.autoImage",
+};
+
+/** 标签展示文案：官方 key 优先，无映射时原样返回（兼容历史自定义标签） */
+export function tagLabel(tag: string, t: (k: string) => string): string {
+    const key = TAG_I18N_KEY[tag];
+    if (!key) return tag;
+    const out = t(key);
+    return out && out !== key ? out : tag;
+}
 
 /** 默认隐藏的通用类标签（过滤器未开启时不展示） */
 export const GENERIC_TAGS: ReadonlySet<string> = new Set([
@@ -82,25 +124,25 @@ export const DEFAULT_FILTER_KEYS: ReadonlySet<string> = new Set([
     FILTER_KEY.AUTO_VIDEO,
 ]);
 
-/** 过滤器 UI 中展示的选项顺序 */
-export const FILTER_OPTIONS: Array<{ key: string; label: string }> = [
-    { key: DL_TAG.VIDEO, label: "视频" },
-    { key: DL_TAG.IMAGE, label: "图片" },
-    { key: DL_TAG.MUSIC, label: "音乐" },
-    { key: DL_TAG.FILE, label: "文件" },
-    { key: DL_TAG.UPLOAD, label: "上传" },
-    { key: DL_TAG.STREAM, label: "流式传输" },
-    { key: FILTER_KEY.AUTO_VIDEO, label: "自动下载视频" },
-    { key: FILTER_KEY.AUTO_IMAGE, label: "自动下载图片" },
-    { key: FILTER_KEY.GENERIC, label: "通用资源" },
-    { key: DL_TAG.VIDEO_COVER, label: "视频封面" },
-    { key: DL_TAG.MUSIC_COVER, label: "音乐封面" },
-    { key: DL_TAG.STORY_COVER, label: "动态封面" },
-    { key: DL_TAG.AVATAR, label: "用户头像" },
-    { key: DL_TAG.STICKER, label: "贴纸" },
-    { key: DL_TAG.EMOJI, label: "emoji" },
-    { key: DL_TAG.STORY, label: "动态" },
-    { key: DL_TAG.PROFILE, label: "资料页" },
+/** 过滤器 UI 中展示的选项顺序（label 由 tagLabel 在渲染时解析） */
+export const FILTER_OPTIONS: Array<{ key: string; labelKey: string }> = [
+    { key: DL_TAG.VIDEO, labelKey: TAG_I18N_KEY[DL_TAG.VIDEO] },
+    { key: DL_TAG.IMAGE, labelKey: TAG_I18N_KEY[DL_TAG.IMAGE] },
+    { key: DL_TAG.MUSIC, labelKey: TAG_I18N_KEY[DL_TAG.MUSIC] },
+    { key: DL_TAG.FILE, labelKey: TAG_I18N_KEY[DL_TAG.FILE] },
+    { key: DL_TAG.UPLOAD, labelKey: TAG_I18N_KEY[DL_TAG.UPLOAD] },
+    { key: DL_TAG.STREAM, labelKey: TAG_I18N_KEY[DL_TAG.STREAM] },
+    { key: FILTER_KEY.AUTO_VIDEO, labelKey: TAG_I18N_KEY[FILTER_KEY.AUTO_VIDEO] },
+    { key: FILTER_KEY.AUTO_IMAGE, labelKey: TAG_I18N_KEY[FILTER_KEY.AUTO_IMAGE] },
+    { key: FILTER_KEY.GENERIC, labelKey: TAG_I18N_KEY[FILTER_KEY.GENERIC] },
+    { key: DL_TAG.VIDEO_COVER, labelKey: TAG_I18N_KEY[DL_TAG.VIDEO_COVER] },
+    { key: DL_TAG.MUSIC_COVER, labelKey: TAG_I18N_KEY[DL_TAG.MUSIC_COVER] },
+    { key: DL_TAG.STORY_COVER, labelKey: TAG_I18N_KEY[DL_TAG.STORY_COVER] },
+    { key: DL_TAG.AVATAR, labelKey: TAG_I18N_KEY[DL_TAG.AVATAR] },
+    { key: DL_TAG.STICKER, labelKey: TAG_I18N_KEY[DL_TAG.STICKER] },
+    { key: DL_TAG.EMOJI, labelKey: TAG_I18N_KEY[DL_TAG.EMOJI] },
+    { key: DL_TAG.STORY, labelKey: TAG_I18N_KEY[DL_TAG.STORY] },
+    { key: DL_TAG.PROFILE, labelKey: TAG_I18N_KEY[DL_TAG.PROFILE] },
 ];
 
 export type DownloadFileTypeLike =

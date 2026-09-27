@@ -9,27 +9,27 @@
                 <div
                     class="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between shrink-0">
                     <div class="min-w-0">
-                        <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">下载管理器</h2>
+                        <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ t('download.manager.title') }}</h2>
                         <p class="text-xs text-gray-500 mt-0.5">
                             <template v-if="uploadStore.hasActiveUploads">
-                                {{ uploadStore.activeCount }} 个文件正在上传
+                                {{ t('download.manager.uploadingCount', { count: uploadStore.activeCount }) }}
                             </template>
                             <template v-else-if="store.downloadingItems.length > 0">
-                                {{ store.downloadingItems.length }} 个文件正在下载<template
-                                    v-if="store.streamingItems.length > 0">，{{ store.streamingItems.length
-                                    }} 个流式传输中</template>
+                                {{ t('download.manager.downloadingCount', { count: store.downloadingItems.length }) }}<template
+                                    v-if="store.streamingItems.length > 0">，{{
+                                    t('download.manager.streamingCount', { count: store.streamingItems.length }) }}</template>
                             </template>
                             <template v-else-if="store.streamingItems.length > 0">
-                                {{ store.streamingItems.length }} 个流式传输中
+                                {{ t('download.manager.streamingCount', { count: store.streamingItems.length }) }}
                             </template>
                             <template v-else-if="store.pausedItems.length > 0">
-                                {{ store.pausedItems.length }} 个文件已暂停
+                                {{ t('download.manager.pausedCount', { count: store.pausedItems.length }) }}
                             </template>
                             <template v-else-if="store.hasHiddenActive">
-                                {{ hiddenActiveCount }} 个隐藏下载进行中
+                                {{ t('download.manager.hiddenActiveCount', { count: hiddenActiveCount }) }}
                             </template>
                             <template v-else>
-                                暂无活跃下载
+                                {{ t('download.manager.idle') }}
                             </template>
                         </p>
                     </div>
@@ -53,7 +53,7 @@
                                         <path d="M12 6v14" />
                                         <path d="M7 11l5 5 5-5" />
                                     </svg>
-                                    重置标签过滤器
+                                    {{ t('download.manager.resetFilters') }}
                                 </button>
                                 <hr class="my-1 border-gray-200 dark:border-gray-700" />
                                 <button type="button" @click="store.clearCompleted(); menuOpen = false"
@@ -64,7 +64,7 @@
                                         <path
                                             d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 112 2v2" />
                                     </svg>
-                                    清除已完成
+                                    {{ t('download.manager.clearCompleted') }}
                                 </button>
                                 <button v-if="store.pendingItems.length > 0" type="button"
                                     @click="menuOpen = false; confirmCancelAll()"
@@ -74,7 +74,7 @@
                                         <circle cx="12" cy="12" r="10" />
                                         <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
                                     </svg>
-                                    取消全部下载
+                                    {{ t('download.manager.cancelAll') }}
                                 </button>
                             </div>
                         </Transition>
@@ -99,7 +99,7 @@
                                 ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 border-blue-300 dark:border-blue-700'
                                 : 'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700'"
                             @click="store.setFilterKey(opt.key, !store.filterKeys.has(opt.key))">
-                            {{ opt.label }}
+                            {{ t(opt.labelKey) }}
                         </button>
                     </div>
                 </div>
@@ -110,7 +110,7 @@
                     <div v-if="uploadStore.activeItems.length > 0" class="py-2">
                         <div class="px-4 py-1.5 text-xs font-medium text-emerald-500 dark:text-emerald-400 flex items-center gap-1.5">
                             <UploadCloudIcon class="w-3.5 h-3.5" />
-                            正在上传
+                            {{ t('download.manager.uploading') }}
                         </div>
                         <DownloadRow v-for="item in uploadStore.activeItems" :key="item.remote_id || item.file_id"
                             :item="item" :can-open-in-player="false" is-upload
@@ -120,7 +120,7 @@
                     <div v-if="uploadStore.completedItems.length > 0" class="py-2">
                         <div class="px-4 py-1.5 text-xs font-medium text-emerald-500 dark:text-emerald-400 flex items-center gap-1.5">
                             <UploadCloudIcon class="w-3.5 h-3.5" />
-                            已上传
+                            {{ t('download.manager.uploaded') }}
                         </div>
                         <DownloadRow v-for="item in uploadStore.completedItems" :key="item.remote_id || item.file_id"
                             :item="item" :can-open-in-player="false" is-upload
@@ -131,7 +131,7 @@
                     <!-- 正在下载 -->
                     <div v-if="store.downloadingItems.length > 0" class="py-2">
                         <div class="px-4 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wider">
-                            正在下载
+                            {{ t('download.manager.downloading') }}
                         </div>
                         <DownloadRow v-for="item in store.downloadingItems" :key="item.remote_id || item.file_id"
                             :item="item" :can-open-in-player="false" @toggle-pause="store.togglePause"
@@ -148,13 +148,13 @@
                                 stroke="currentColor" stroke-width="2">
                                 <polyline points="6 9 12 15 18 9" />
                             </svg>
-                            流式传输
+                            {{ t('download.manager.streaming') }}
                             <span
                                 class="normal-case text-[10px] text-teal-700 dark:text-teal-300 bg-teal-100 dark:bg-teal-900/40 px-1.5 rounded">
                                 {{ store.streamingItems.length }}
                             </span>
                             <span class="ml-auto text-[10px] text-gray-400 font-normal normal-case">
-                                未下载完成
+                                {{ t('download.manager.streamingIncomplete') }}
                             </span>
                         </button>
                         <template v-if="!streamingCollapsed">
@@ -167,7 +167,7 @@
                     <!-- 已暂停 -->
                     <div v-if="store.pausedItems.length > 0" class="py-2">
                         <div class="px-4 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                            已暂停
+                            {{ t('download.manager.paused') }}
                             <span class="normal-case text-[10px] text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/40 px-1.5 rounded">
                                 {{ store.pausedItems.length }}
                             </span>
@@ -180,7 +180,7 @@
                     <!-- 已完成 -->
                     <div v-if="store.completedItems.length > 0" class="py-2">
                         <div class="px-4 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wider">
-                            已完成
+                            {{ t('download.manager.completed') }}
                             <span class="ml-1 text-[10px] font-normal text-gray-400">{{ store.completedItems.length }}</span>
                         </div>
                         <DownloadRow v-for="item in displayCompletedItems" :key="item.remote_id || item.file_id"
@@ -189,7 +189,7 @@
                         <!-- 触底哨兵：滚动接近底部时自动加载下一页 -->
                         <div v-if="completedHasMore" ref="completedSentinelEl"
                             class="h-8 flex items-center justify-center text-[11px] text-gray-400">
-                            加载中…
+                            {{ t('download.manager.loading') }}
                         </div>
                     </div>
 
@@ -202,10 +202,10 @@
                             <polyline points="7 10 12 15 17 10" />
                             <line x1="12" y1="15" x2="12" y2="3" />
                         </svg>
-                        <p class="text-sm">暂无下载任务</p>
+                        <p class="text-sm">{{ t('download.manager.empty') }}</p>
                         <p v-if="store.hasHiddenActive" class="text-xs mt-2 text-blue-500">
                             <button type="button" @click="revealGenericViaFilter()" class="hover:underline">
-                                {{ hiddenActiveCount }} 个隐藏下载被过滤，点击查看
+                                {{ t('download.manager.hiddenFiltered', { count: hiddenActiveCount }) }}
                             </button>
                         </p>
                     </div>
@@ -226,6 +226,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 import { useDownloadStore, type DownloadItem, FILTER_OPTIONS } from "../../store/downloads";
 import { FILTER_KEY } from "../../utils/downloadTags";
 import { useUploadStore } from "../../store/upload";
@@ -238,6 +239,7 @@ import {
     UploadCloudIcon,
 } from 'lucide-vue-next';
 
+const { t } = useI18n();
 const store = useDownloadStore();
 const uploadStore = useUploadStore();
 const router = useRouter();
@@ -359,7 +361,7 @@ async function revealGenericViaFilter() {
 
 async function confirmCancelAll() {
     const count = store.pendingItems.length + store.streamingItems.length;
-    const ok = window.confirm(`确定要取消全部 ${count} 个下载任务吗？`);
+    const ok = window.confirm(t('download.manager.cancelAllConfirm', { count }));
     if (!ok) return;
     await store.cancelAllDownloads();
 }
@@ -486,7 +488,7 @@ function buildItemMenu(item: DownloadItem): ContextMenuItem[] {
     if (item.chat_id) {
         items.push({
             key: "chat",
-            label: "跳转到对应对话",
+            label: t('download.menu.jumpToChat'),
             icon: MessageCircleIcon,
             onClick: () => openChat(item),
         });
@@ -494,7 +496,7 @@ function buildItemMenu(item: DownloadItem): ContextMenuItem[] {
     if (item.file_type === "audio" || item.file_type === "photo" || item.file_type === "video") {
         items.push({
             key: "play",
-            label: item.file_type === "audio" ? "用播放器播放" : "在播放器中打开",
+            label: item.file_type === "audio" ? t('download.menu.playInPlayer') : t('download.menu.openInPlayer'),
             icon: item.file_type === "audio" ? MusicIcon : ImageIcon,
             onClick: () => openInPlayer(item),
         });
@@ -503,7 +505,7 @@ function buildItemMenu(item: DownloadItem): ContextMenuItem[] {
     if (item.local_path) {
         items.push({
             key: "reveal",
-            label: "打开文件位置",
+            label: t('download.menu.showInFolder'),
             icon: FolderOpenIcon,
             divider: items.length > 0,
             onClick: () => revealFile(item),
@@ -511,7 +513,7 @@ function buildItemMenu(item: DownloadItem): ContextMenuItem[] {
         if (item.is_completed) {
             items.push({
                 key: "open",
-                label: "打开文件",
+                label: t('download.menu.openFile'),
                 icon: FileIcon,
                 onClick: () => openFile(item),
             });
@@ -521,14 +523,14 @@ function buildItemMenu(item: DownloadItem): ContextMenuItem[] {
     if (!item.is_completed) {
         items.push({
             key: "pause",
-            label: item.is_paused ? "继续下载" : "暂停下载",
+            label: item.is_paused ? t('download.menu.resume') : t('download.menu.pause'),
             icon: item.is_paused ? PlayIcon : PauseIcon,
             divider: items.length > 0,
             onClick: () => store.togglePause(item.file_id),
         });
         items.push({
             key: "cancel",
-            label: "取消下载",
+            label: t('download.menu.cancelDownload'),
             icon: TrashIcon,
             danger: true,
             onClick: () => store.cancelDownload(item.file_id),
@@ -538,7 +540,7 @@ function buildItemMenu(item: DownloadItem): ContextMenuItem[] {
     if (item.is_completed) {
         items.push({
             key: "dismiss",
-            label: "从列表移除",
+            label: t('download.menu.removeFromList'),
             icon: TrashIcon,
             danger: true,
             divider: items.length > 0,
@@ -565,7 +567,7 @@ function buildUploadMenu(item: DownloadItem): ContextMenuItem[] {
     return [
         {
             key: "dismiss",
-            label: "从列表移除",
+            label: t('download.menu.removeFromList'),
             icon: TrashIcon,
             danger: true,
             onClick: () => uploadStore.dismiss(item.file_id),

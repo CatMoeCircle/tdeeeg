@@ -1,7 +1,7 @@
 <template>
     <div class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
         :class="rowClass" @click="onRowClick"
-        @contextmenu.prevent="emit('itemContextMenu', $event, item)">
+        @contextmenu.prevent.stop="emit('itemContextMenu', $event, item)">
         <div class="w-11 h-11 rounded-lg overflow-hidden shrink-0 relative">
             <img v-if="item.thumbnail_data_url && (item.file_type === 'photo' || item.file_type === 'video')"
                 :src="item.thumbnail_data_url" class="w-full h-full object-cover bg-gray-100 dark:bg-gray-700" />
@@ -27,19 +27,19 @@
             <div class="flex flex-wrap items-center gap-1 mt-1">
                 <span v-for="tag in displayTags" :key="tag"
                     class="shrink-0 inline-block text-[10px] leading-4 px-1.5 rounded whitespace-nowrap"
-                    :class="tagClass(tag)">{{ tag }}</span>
+                    :class="tagClass(tag)">{{ tagLabel(tag, t) }}</span>
             </div>
             <div class="flex items-center text-xs text-gray-400 min-w-0 mt-0.5">
                 <span class="truncate">{{ sourceLine }}</span>
                 <span class="mx-1 shrink-0">·</span>
-                <template v-if="isUpload && item.file_type === 'photo'">图片</template>
-                <template v-else-if="isUpload && item.file_type === 'video'">视频</template>
-                <template v-else-if="isUpload && item.file_type === 'audio'">音乐</template>
+                <template v-if="isUpload && item.file_type === 'photo'">{{ t('lng_local_storage_image_title') }}</template>
+                <template v-else-if="isUpload && item.file_type === 'video'">{{ t('lng_media_type_videos') }}</template>
+                <template v-else-if="isUpload && item.file_type === 'audio'">{{ t('lng_media_music_title') }}</template>
                 <template v-else-if="item.is_completed">
                     <span class="shrink-0">{{ formatSize(item.total_size) }}</span>
                 </template>
                 <template v-else-if="isStreamingIncomplete">
-                    <span class="shrink-0 text-teal-600 dark:text-teal-400">流式传输中 · {{ formatSize(item.downloaded_size) }} / {{ formatSize(item.total_size) }}</span>
+                    <span class="shrink-0 text-teal-600 dark:text-teal-400">{{ t('download.row.streamingProgress', { current: formatSize(item.downloaded_size), total: formatSize(item.total_size) }) }}</span>
                 </template>
                 <template v-else>
                     <span class="shrink-0">{{ formatSize(item.downloaded_size) }} / {{ formatSize(item.total_size) }}</span>
@@ -110,7 +110,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { FileIcon, ImageIcon, VideoIcon, MusicIcon, MicIcon } from "lucide-vue-next";
 import type { Component } from "vue";
 import type { DownloadFileType, DownloadItem } from "../../store/downloads";
-import { resolveItemTags, tagChipClass, DL_TAG, isIncompleteStreaming } from "../../utils/downloadTags";
+import { resolveItemTags, tagChipClass, tagLabel, DL_TAG, isIncompleteStreaming } from "../../utils/downloadTags";
 
 const { t } = useI18n();
 
@@ -148,13 +148,13 @@ const percentText = computed(() => {
 
 const sourceLine = computed(() => {
     const src = props.item.source_label || props.item.chat_title;
-    if (src && src.length > 0) return src;
-    if (props.item.chat_id) return "对话 #" + props.item.chat_id;
+    if (src && src.length > 0) return tagLabel(src, t);
+    if (props.item.chat_id) return t("download.row.chatFallback", { id: props.item.chat_id });
     const tags = displayTags.value;
-    if (tags.includes(DL_TAG.STICKER)) return "贴纸";
-    if (tags.includes(DL_TAG.EMOJI)) return "emoji";
-    if (tags.includes(DL_TAG.AVATAR)) return "用户头像";
-    return "未知来源";
+    if (tags.includes(DL_TAG.STICKER)) return t("download.row.sticker");
+    if (tags.includes(DL_TAG.EMOJI)) return t("download.row.emoji");
+    if (tags.includes(DL_TAG.AVATAR)) return t("download.row.avatar");
+    return t("download.row.unknownSource");
 });
 
 function tagClass(tag: string): string {
