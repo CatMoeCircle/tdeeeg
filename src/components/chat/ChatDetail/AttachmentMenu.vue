@@ -1,6 +1,6 @@
 <template>
     <div class="shrink-0 mb-1.5 relative">
-        <button ref="attachBtnRef" type="button" aria-label="添加附件" :class="[
+        <button ref="attachBtnRef" type="button" :aria-label="t('lng_attach')" :class="[
             'w-10 h-10 rounded-full flex items-center justify-center transition-colors',
             attachOpen
                 ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200'
@@ -114,7 +114,7 @@ async function addFile(path: string, name: string, tempFile = false, forceDocume
         probeFailed: result.probeFailed,
     });
     if (result.kind === 'animation') {
-        MessagePlugin.info('GIF 将以动图方式发送');
+        MessagePlugin.info(t('attachment.gifAsAnimation'));
     }
 }
 
@@ -122,9 +122,9 @@ async function pickMediaFiles(): Promise<string[]> {
     try {
         const selected = await open({
             multiple: true,
-            title: '选择图片和视频',
+            title: t('chat.choosePhotoOrVideo'),
             filters: [{
-                name: '图片和视频',
+                name: t('chat.photosAndVideos'),
                 extensions: [
                     'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'heic', 'heif',
                     'mp4', 'mov', 'mkv', 'avi', 'webm', 'm4v', 'mpeg', 'mpg', 'wmv', 'flv', '3gp', 'ogv',
@@ -149,7 +149,7 @@ async function handleAttachPhoto() {
 async function handleAttachFile() {
     const selected = await open({
         multiple: true,
-        title: '选择文件',
+        title: t('attachment.chooseFile'),
     });
     if (!selected) return;
     const paths = Array.isArray(selected) ? selected : [selected];
@@ -162,7 +162,7 @@ async function handleAttachFile() {
 async function handleAttachMusic() {
     const selected = await open({
         multiple: true,
-        title: '选择音乐',
+        title: t('attachment.chooseMusic'),
         filters: [{
             name: t('lng_all_music'),
             extensions: ['mp3', 'm4a', 'aac', 'ogg', 'opus', 'flac', 'wav', 'wma', 'amr'],
@@ -222,7 +222,7 @@ interface AttachItem {
 const attachItems = computed<AttachItem[]>(() => [
     {
         key: 'photo',
-        label: '图片和视频',
+        label: t('chat.photosAndVideos'),
         icon: ImageIcon,
         hidden: !photoRights.value,
     },
@@ -240,8 +240,8 @@ const attachItems = computed<AttachItem[]>(() => [
     },
     {
         key: 'checklist',
-        label: '清单',
-        hint: isPremium.value ? undefined : 'Premium',
+        label: t('lng_in_dlg_todo_list'),
+        hint: isPremium.value ? undefined : t('lng_premium'),
         icon: ListIcon,
         hidden: !checklistRights.value,
     },
@@ -301,7 +301,7 @@ const attachEmitMap: Record<AttachAction, 'attachPhoto' | 'attachFile' | 'attach
 
 const onAttachItemClick = (item: AttachItem) => {
     if (item.key === 'checklist' && !isPremium.value) {
-        MessagePlugin.warning('发送清单需要 Telegram Premium');
+        MessagePlugin.warning(t('attachment.todoNeedsPremium'));
         closeAttach();
         return;
     }

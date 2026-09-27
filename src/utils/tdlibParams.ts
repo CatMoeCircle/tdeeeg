@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { settings } from "../store/settings";
+import i18n from "../i18n";
 
 /** settings.system → Rust TdLibConfig（全局 config）。登录重建 / 冷启动共用。 */
 export async function applyTdlibSystemParams(opts?: { persist?: boolean }): Promise<void> {
@@ -11,7 +12,7 @@ export async function applyTdlibSystemParams(opts?: { persist?: boolean }): Prom
     if (useCustom) {
         const id = Number(apiId);
         if (!Number.isInteger(id) || id <= 0) {
-            throw new Error("API ID 必须为正整数");
+            throw new Error(i18n.global.t("systemSettings.apiIdInvalid"));
         }
         await invoke("set_tdlib_parameters", {
             useTestDc: sys.useTestDc,

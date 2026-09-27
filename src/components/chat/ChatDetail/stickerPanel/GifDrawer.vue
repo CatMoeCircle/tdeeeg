@@ -4,7 +4,7 @@
         <div class="sp-search px-3 pt-2 pb-1">
             <div class="flex items-center gap-2 rounded-lg bg-black/5 dark:bg-white/10 px-3 py-1.5">
                 <SearchIcon class="w-4 h-4 text-gray-400 shrink-0" />
-                <input v-model="query" type="text" placeholder="搜索 GIF"
+                <input v-model="query" type="text" :placeholder="t('lng_gifs_search')"
                     class="flex-1 bg-transparent outline-none text-sm py-0.5 placeholder-gray-400" />
                 <button v-if="query" class="text-gray-400 hover:text-gray-600" @click="query = ''">
                     <XIcon class="w-4 h-4" />
@@ -26,22 +26,25 @@
                     <!-- 已保存标记 -->
                     <span v-if="isSavedResult(r)"
                         class="absolute top-1 right-1 w-4 h-4 flex items-center justify-center rounded-full bg-black/50 text-white"
-                        title="已收藏">
+                        :title="t('lng_media_type_saved')">
                         <span class="text-[9px]">★</span>
                     </span>
                 </div>
             </div>
-            <div v-if="hasMore" class="text-center py-3 text-xs text-gray-400">滚动加载更多…</div>
+            <div v-if="hasMore" class="text-center py-3 text-xs text-gray-400">{{ t('search.loadMore') }}</div>
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { SearchIcon, XIcon } from 'lucide-vue-next';
 import StickerMediaItem from './StickerMediaItem.vue';
 import { useGifPicker, type GifResult } from './composables/useGifPicker';
 import { stickerPanelState } from './types';
+
+const { t } = useI18n();
 
 const emit = defineEmits<{ (e: 'pickAnimation', fileId: number, stickerId: string): void }>();
 

@@ -13,7 +13,7 @@
                     <div ref="panelRef"
                         class="min-w-50 max-h-80 overflow-y-auto bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200/60 dark:border-gray-700/60 custom-scrollbar">
                         <div v-if="loading" class="px-4 py-3 text-sm text-gray-400 dark:text-gray-500 text-center">
-                            加载中...
+                            {{ t('lng_contacts_loading') }}
                         </div>
                         <template v-else>
                             <div v-for="item in availableSenders" :key="getSenderKey(item.sender)"
@@ -23,10 +23,10 @@
                                 <Avatar :photo="getSenderPhoto(item.sender)" :title="getSenderName(item.sender)"
                                     sizeClass="!w-8 !h-8" :accent-color-id="getSenderAccentColorId(item.sender)" />
                                 <span class="flex-1 text-sm truncate text-gray-800 dark:text-gray-200">
-                                    {{ getSenderName(item.sender) || '未知' }}
+                                    {{ getSenderName(item.sender) || t('chat.unknown') }}
                                 </span>
                                 <span v-if="item.needs_premium"
-                                    class="text-yellow-500 text-xs shrink-0" title="需要 Telegram Premium">👑</span>
+                                    class="text-yellow-500 text-xs shrink-0" :title="t('chat.needsPremium')">👑</span>
                                 <svg v-if="isSelected(item.sender)" class="w-4 h-4 shrink-0 text-blue-500"
                                     viewBox="0 0 20 20" fill="currentColor">
                                     <path fill-rule="evenodd"
@@ -44,9 +44,12 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { MessageSender, chatMessageSender } from 'tdlib-types';
 import Avatar from '../avatar.vue';
 import { ensureSenderLoaded, getSenderName, getSenderPhoto, getSenderAccentColorId } from '../../../utils/senderInfo';
+
+const { t } = useI18n();
 
 const props = defineProps<{
     /** 当前已选中的消息发送身份 */

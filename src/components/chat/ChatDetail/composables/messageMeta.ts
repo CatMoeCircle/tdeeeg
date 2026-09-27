@@ -165,7 +165,7 @@ export function getSenderRoleText(
   // 自定义标签优先（群主和管理员也可能有 custom title）
   if (member?.tag) return member.tag;
   const role = getSenderRole(sender, ctx);
-  if (role === "creator") return "群主";
+  if (role === "creator") return i18n.global.t("lng_channel_admin_status_creator");
   if (role === "admin") return i18n.global.t("lng_admin_badge");
   return "";
 }

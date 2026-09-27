@@ -1,5 +1,5 @@
 import formatTime from "./formatTime";
-import type { UserStatus } from "tdlib-types";
+import type { UserStatus, user } from "tdlib-types";
 import i18n from "../i18n";
 
 const MINUTES_RECENT = 5;
@@ -31,10 +31,19 @@ function formatStatusDate(lastDate: Date, nowDate: Date): string {
 }
 
 /**
- * 格式化用户在线状态
+ * 格式化用户在线状态。
+ * 传入 user 时机器人显示「bot」而非在线；仅传 UserStatus 时按状态原文格式化。
  */
-export default function formatStatus(userStatus?: UserStatus): string {
+export default function formatStatus(source?: UserStatus | user | null): string {
   const t = i18n.global.t;
+
+  if (source && typeof source === "object" && "type" in source) {
+    const u = source as user;
+    if (u.type._ === "userTypeBot") return t("lng_status_bot");
+    return formatStatus(u.status);
+  }
+
+  const userStatus = source as UserStatus | undefined;
 
   if (!userStatus) return t("lng_status_offline");
 

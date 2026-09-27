@@ -4,7 +4,7 @@
         <div class="sp-search px-3 pt-2 pb-1">
             <div class="flex items-center gap-2 rounded-lg bg-black/5 dark:bg-white/10 px-3 py-1.5">
                 <SearchIcon class="w-4 h-4 text-gray-400 shrink-0" />
-                <input v-model="query" type="text" placeholder="搜索贴纸"
+                <input v-model="query" type="text" :placeholder="t('lng_stickers_search_sets')"
                     class="flex-1 bg-transparent outline-none text-sm py-0.5 placeholder-gray-400" />
                 <button v-if="query" class="text-gray-400 hover:text-gray-600" @click="query = ''">
                     <XIcon class="w-4 h-4" />
@@ -36,7 +36,7 @@
                         <StickerGroupSection :group="g" :load-set="loadSetFn" :cell-size="cellSize" @pick="onPick"
                             @contextmenu="onStickerContextMenu" />
                     </template>
-                    <div v-if="searchGroups.length === 0" class="text-center text-sm text-gray-400 py-8">无匹配贴纸</div>
+                    <div v-if="searchGroups.length === 0" class="text-center text-sm text-gray-400 py-8">{{ t('lng_stickers_nothing_found') }}</div>
                 </div>
             </template>
 
@@ -46,7 +46,7 @@
                     <div class="sp-skeleton inline-block w-40 h-4 rounded"></div>
                 </div>
                 <p v-else-if="allGroupsList().length === 0" class="text-center text-sm text-gray-400 py-8">
-                    还没有贴纸，去表情包商店添加吧</p>
+                    {{ t('stickerPanel.emptyStickers') }}</p>
                 <template v-for="g in allGroupsList()" :key="g.key">
                     <StickerGroupSection :group="g" :load-set="loadSetFn" :cell-size="cellSize" @pick="onPick"
                         :data-set-key="g.key" @contextmenu="onStickerContextMenu" />
@@ -232,7 +232,7 @@ function onStickerContextMenu(ev: MouseEvent, s: sticker) {
     const items: ContextMenuItem[] = [
         {
             key: 'toggle-fav',
-            label: isFav ? '取消收藏' : t('lng_saved_short'),
+            label: isFav ? t('lng_faved_stickers_remove') : t('lng_faved_stickers_add'),
             icon: Star,
             onClick: async () => {
                 await sticker.toggleFavorite(s);
@@ -242,7 +242,7 @@ function onStickerContextMenu(ev: MouseEvent, s: sticker) {
     if (isRec) {
         items.push({
             key: 'remove-recent',
-            label: '移除最近',
+            label: t('lng_recent_stickers_remove'),
             icon: Trash2,
             danger: true,
             onClick: async () => {

@@ -5,7 +5,7 @@
         <div class="flex items-center justify-between px-1 pt-1.5 pb-1">
             <p class="sp-set-title min-w-0 truncate text-[11px] font-medium text-gray-400">{{ group.title }}</p>
             <span v-if="group.lazy" class="ml-2 shrink-0 text-[10px] text-gray-300 dark:text-gray-500">
-                {{ group.size }} 个贴纸
+                {{ t('lng_stickers_count', { count: group.size }) }}
             </span>
         </div>
         <!-- 懒加载分组：滚动进入可视区才拉取完整 set（快速跳转路过时不拉取） -->
@@ -26,12 +26,15 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import StickerMediaItem from './StickerMediaItem.vue';
 import type { StickerGroup } from './composables/useStickerPicker';
 import { useLocalEmojiPrefs } from './composables/useLocalEmojiPrefs';
 import { onVisibilityChange, unobserve } from './composables/useStickerVisibility';
 import { enqueueViewportLoad } from '../../../../utils/viewportLoadGate';
 import type { sticker, animation } from 'tdlib-types';
+
+const { t } = useI18n();
 
 const props = withDefaults(defineProps<{
     group: StickerGroup;

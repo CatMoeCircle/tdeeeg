@@ -12,7 +12,7 @@
                             <XIcon class="h-5 w-5" />
                         </button>
                         <h2 id="link-dialog-title" class="text-lg font-semibold text-gray-900 dark:text-white">
-                            输入链接地址
+                            {{ t('input.linkTitle') }}
                         </h2>
                     </div>
                     <div class="px-6 py-4">
@@ -29,12 +29,12 @@
                         <button type="button"
                             class="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700"
                             @click="close">
-                            取消
+                            {{ t('lng_cancel') }}
                         </button>
                         <button type="button"
                             class="rounded-lg bg-[#2e9cd3] px-4 py-2 text-sm font-medium text-white hover:bg-[#278cc0] focus:outline-none focus:ring-2 focus:ring-sky-400/60"
                             @click="submit">
-                            确定
+                            {{ t('lng_box_ok') }}
                         </button>
                     </div>
                 </div>

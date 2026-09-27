@@ -5,12 +5,12 @@
             class="relative h-full flex items-center gap-2 px-2 sm:px-3 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg">
             <!-- 上下跳转器（左右结构） -->
             <div class="flex items-center gap-0.5 shrink-0">
-                <button type="button" aria-label="上一个结果"
+                <button type="button" :aria-label="t('search.prevResult')"
                     class="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-default disabled:hover:bg-transparent dark:disabled:hover:bg-transparent transition-colors"
                     :disabled="!canPrev" @click="goPrev">
                     <ChevronLeftIcon class="w-5 h-5" />
                 </button>
-                <button type="button" aria-label="下一个结果"
+                <button type="button" :aria-label="t('search.nextResult')"
                     class="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-default disabled:hover:bg-transparent dark:disabled:hover:bg-transparent transition-colors"
                     :disabled="!canNext" @click="goNext">
                     <ChevronRightIcon class="w-5 h-5" />
@@ -25,7 +25,7 @@
                     class="w-full h-9 pl-9 pr-10 rounded-full bg-gray-100 dark:bg-gray-800 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                     @keydown.enter="onEnter" @keydown.esc="emit('close')" />
                 <!-- 收起/展开结果面板箭头 -->
-                <button v-if="hasQuery" type="button" aria-label="收起搜索结果"
+                <button v-if="hasQuery" type="button" :aria-label="t('search.collapse')"
                     class="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                     @click="resultsOpen = !resultsOpen">
                     <ChevronUpIcon v-if="resultsOpen" class="w-4 h-4" />
@@ -34,7 +34,7 @@
             </div>
 
             <!-- 用户筛选 -->
-            <button type="button" aria-label="按发送者筛选"
+            <button type="button" :aria-label="t('search.filterBySender')"
                 class="w-9 h-9 shrink-0 flex items-center justify-center rounded-full transition-colors" :class="senderFilter
                     ? 'bg-blue-500 text-white hover:bg-blue-600'
                     : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'"
@@ -43,7 +43,7 @@
             </button>
 
             <!-- 关闭 -->
-            <button type="button" aria-label="关闭搜索"
+            <button type="button" :aria-label="t('search.close')"
                 class="w-9 h-9 shrink-0 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 @click="emit('close')">
                 <XIcon class="w-6 h-6" />
@@ -61,7 +61,7 @@
                         class="w-8 h-8 shrink-0 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                         <CheckIcon v-if="!senderFilter" class="w-4 h-4 text-blue-500" />
                     </div>
-                    <span class="truncate flex-1">全部消息</span>
+                    <span class="truncate flex-1">{{ t('lng_forum_all_messages') }}</span>
                 </button>
                 <button v-for="m in senderOptions" :key="senderKey(m)" type="button"
                     class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
@@ -79,7 +79,7 @@
             class="absolute top-full inset-x-0 mt-1 rounded-b-xl backdrop-blur-xl shadow-lg border-t border-gray-200/20 dark:border-gray-700/20 max-h-[60vh] overflow-y-auto custom-scrollbar"
             @scroll.passive="onResultsScroll">
             <div v-if="results.length === 0" class="px-4 py-3 text-sm text-center text-gray-400">
-                {{ loading ? '搜索中...' : '无结果' }}
+                {{ loading ? t('search.searching') : t('lng_search_messages_none') }}
             </div>
             <template v-else>
                 <button v-for="(msg, i) in results" :key="msg.id" type="button"
@@ -98,7 +98,7 @@
                         <p class="text-sm text-gray-700 dark:text-gray-200 truncate">{{ previewText(msg) }}</p>
                     </div>
                 </button>
-                <div v-if="loadingMore" class="px-4 py-2 text-xs text-center text-gray-400">加载更多...</div>
+                <div v-if="loadingMore" class="px-4 py-2 text-xs text-center text-gray-400">{{ t('search.loadMore') }}</div>
             </template>
         </div>
     </div>
@@ -122,6 +122,8 @@ const props = defineProps<{
     chatId?: number | null;
     topicId?: number | null;
     chat?: chat;
+    /** 频道私聊群组：topic_id 使用 messageTopicDirectMessages */
+    isDm?: boolean;
     /** 初始搜索词（如点击 #标签 打开搜索时预填），变化时同步到搜索框 */
     initialQuery?: string;
 }>();
@@ -230,7 +232,11 @@ async function doSearch(more = false) {
         const res = await tdlibSend({
             _: 'searchChatMessages',
             chat_id: props.chatId,
-            topic_id: props.topicId ? { _: 'messageTopicForum', forum_topic_id: props.topicId } : undefined,
+            topic_id: props.topicId
+                ? (props.isDm
+                    ? { _: 'messageTopicDirectMessages', direct_messages_chat_topic_id: props.topicId }
+                    : { _: 'messageTopicForum', forum_topic_id: props.topicId })
+                : undefined,
             query: q,
             sender_id: senderFilter.value ?? undefined,
             from_message_id: fromMessageId,
@@ -364,16 +370,16 @@ function previewText(msg: message): string {
     switch (msg.content._) {
         case 'messagePhoto': return t('lng_in_dlg_photo');
         case 'messageVideo': return t('lng_in_dlg_video');
-        case 'messageAnimation': return '动画';
-        case 'messageAudio': return '音频';
-        case 'messageVoiceNote': return '语音';
+        case 'messageAnimation': return t('search.animation');
+        case 'messageAudio': return t('search.audio');
+        case 'messageVoiceNote': return t('search.voice');
         case 'messageVideoNote': return t('lng_media_type_rounds');
         case 'messageDocument': return t('lng_in_dlg_file');
         case 'messageSticker': return t('lng_in_dlg_sticker');
         case 'messageLocation': return t('lng_maps_point');
         case 'messageContact': return t('lng_contacts_header');
         case 'messagePoll': return t('lng_in_dlg_poll');
-        case 'messageCall': return msg.content.is_video ? '视频通话' : t('lng_settings_notifications_calls_title');
+        case 'messageCall': return msg.content.is_video ? t('search.videoCall') : t('lng_settings_notifications_calls_title');
         default: return t('lng_contact_send_message');
     }
 }

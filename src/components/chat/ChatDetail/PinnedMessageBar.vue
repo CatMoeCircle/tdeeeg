@@ -91,6 +91,11 @@ import { tdlibSend } from '../../../utils/tdlib';
 import type { message } from 'tdlib-types';
 import MusicPlayerEntry from '../../audio/MusicPlayerEntry.vue';
 import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
+import {
+    messageContentTypeLabel,
+    bracketTypePreview,
+    musicBracketPreview,
+} from '../../../utils/messagePreview';
 import { useAudioPlayerStore } from '../../../store/audioPlayer';
 
 const props = defineProps<{
@@ -183,44 +188,44 @@ function getMessagePreview(msg: message): string {
     const c = msg.content;
     switch (c._) {
         case 'messageText':
-            return c.text?.text || '[消息]';
+            return c.text?.text || bracketTypePreview(messageContentTypeLabel(''));
         case 'messagePhoto':
-            return (c.caption?.text || '') ? `[图片] ${c.caption.text}` : '[图片]';
+            return (c.caption?.text || '') ? bracketTypePreview(messageContentTypeLabel('messagePhoto'), c.caption.text) : bracketTypePreview(messageContentTypeLabel('messagePhoto'));
         case 'messageVideo':
-            return (c.caption?.text || '') ? `[视频] ${c.caption.text}` : '[视频]';
+            return (c.caption?.text || '') ? bracketTypePreview(messageContentTypeLabel('messageVideo'), c.caption.text) : bracketTypePreview(messageContentTypeLabel('messageVideo'));
         case 'messageAnimation':
-            return (c.caption?.text || '') ? `[动画] ${c.caption.text}` : '[动画]';
+            return (c.caption?.text || '') ? bracketTypePreview(messageContentTypeLabel('messageAnimation'), c.caption.text) : bracketTypePreview(messageContentTypeLabel('messageAnimation'));
         case 'messageSticker':
-            return '[贴纸]';
+            return bracketTypePreview(messageContentTypeLabel('messageSticker'));
         case 'messageVoiceNote':
-            return '[语音]';
+            return bracketTypePreview(messageContentTypeLabel('messageVoiceNote'));
         case 'messageVideoNote':
-            return '[视频留言]';
+            return bracketTypePreview(messageContentTypeLabel('messageVideoNote'));
         case 'messageAudio':
-            return `[音乐] ${c.audio.title || ''} ${c.audio.performer || ''}`.trim() || '[音乐]';
+            return musicBracketPreview(c.audio.title, c.audio.performer);
         case 'messageDocument':
-            return `[文件] ${c.document.file_name || ''}`.trim() || '[文件]';
+            return bracketTypePreview(messageContentTypeLabel('messageDocument'), c.document.file_name);
         case 'messagePoll':
-            return '[投票]';
+            return bracketTypePreview(messageContentTypeLabel('messagePoll'));
         case 'messageLocation':
-            return '[位置]';
+            return bracketTypePreview(messageContentTypeLabel('messageLocation'));
         case 'messageContact':
-            return '[联系人]';
+            return bracketTypePreview(messageContentTypeLabel('messageContact'));
         case 'messageDice':
-            return '[骰子]';
+            return bracketTypePreview(messageContentTypeLabel('messageDice'));
         case 'messageGame':
-            return '[游戏]';
+            return bracketTypePreview(messageContentTypeLabel('messageGame'));
         case 'messagePinMessage':
             return t('lng_action_pinned_message', { from: '', text: '' });
         default:
-            return '[消息]';
+            return bracketTypePreview(messageContentTypeLabel(''));
     }
 }
 
 function getMessageSenderName(msg: message): string {
-    if (msg.sender_id._ === 'messageSenderUser') return '用户';
+    if (msg.sender_id._ === 'messageSenderUser') return t('preview.user');
     if (msg.sender_id._ === 'messageSenderChat') return t('lng_notification_channels');
-    return '未知';
+    return t('preview.unknown');
 }
 
 function formatPinTime(timestamp: number): string {

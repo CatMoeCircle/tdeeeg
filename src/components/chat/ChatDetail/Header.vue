@@ -13,8 +13,11 @@
                 <button type="button" @click="emit('openInfo')"
                     class="flex items-center gap-3 min-w-0 text-left flex-1 cursor-pointer rounded-full hover:opacity-80 active:scale-[0.99] transition-[opacity,transform] duration-150">
                     <template v-if="isTopicMode">
+                        <!-- 频道私信话题：对方头像（对齐 Unigram） -->
+                        <Avatar v-if="dmTopicInfo" :photo="dmTopicInfo.photo" :title="dmTopicInfo.name"
+                            sizeClass="!w-10 !h-10" />
                         <!-- 话题图标：General 用主题色 #，自定义 emoji 用 emoji，否则首字母色块 -->
-                        <div v-if="topic!.info.is_general"
+                        <div v-else-if="topic!.info.is_general"
                             class="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-white text-xl font-bold"
                             :style="{ backgroundColor: topicIconColor(topic!.info.icon.color) }">#</div>
                         <CustomEmojiInline v-else-if="topicCustomEmojiId" :emojiId="topicCustomEmojiId" :size="40"
@@ -80,7 +83,7 @@
                 </button>
                 <button type="button"
                     class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-200/80 dark:hover:bg-white/20 hover:text-blue-500 active:scale-95 transition-[background-color,color,transform] duration-150"
-                    aria-label="更多">
+                    :aria-label="t('lng_profile_action_short_more')">
                     <MoreHorizontalIcon class="w-5 h-5" />
                 </button>
             </div>
@@ -94,7 +97,7 @@ import { VerifiedFilledIcon } from 'tdesign-icons-vue-next';
 import { computed, h, onMounted, onUnmounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useI18n } from 'vue-i18n';
-import type { chat, user, verificationStatus, forumTopic, basicGroup, supergroup, supergroupFullInfo } from "tdlib-types";
+import type { chat, user, verificationStatus, forumTopic, basicGroup, supergroup, supergroupFullInfo, chatPhotoInfo, profilePhoto } from "tdlib-types";
 import { tdlibSend } from '../../../utils/tdlib';
 import formatStatus from '../../../utils/status';
 import { useUserStore } from '../../../store/user';
@@ -109,6 +112,8 @@ import { onTdlibUpdates } from '../../../store/tdlibBus';
 const props = defineProps<{
     chat: chat | undefined;
     topic?: forumTopic | undefined;
+    /** 频道私信话题（展示为对方头像/名称；与 topic 互斥） */
+    dmTopic?: { name: string; photo?: chatPhotoInfo | profilePhoto } | undefined;
     showBack?: boolean;
     /** 是否显示话题标签栏位置切换按钮（tag 栏话题模式） */
     showTopicTagToggle?: boolean;
@@ -133,9 +138,9 @@ const topicTagPositionIcon = computed(() => {
 });
 const topicTagPositionTitle = computed(() => {
     switch (props.topicTagPosition) {
-        case 'top': return '话题标签栏：顶部（点击切换到底部）';
-        case 'bottom': return '话题标签栏：底部（点击切换到左侧）';
-        default: return '话题标签栏：左侧（点击切换到顶部）';
+        case 'top': return t('header.topicBarTop');
+        case 'bottom': return t('header.topicBarBottom');
+        default: return t('header.topicBarLeft');
     }
 });
 
@@ -172,16 +177,19 @@ const isSecretChat = computed(() => props.chat?.type?._ === 'chatTypeSecret');
 /** 头部头像的无头像背景色（私聊取用户 profile accent，群组取 chat profile accent） */
 const headerAccentColorId = computed(() => getChatProfileAccentColorId(props.chat));
 
-/** 是否为话题模式（在话题详情页中） */
-const isTopicMode = computed(() => !!props.topic);
+/** 是否为话题模式（在话题详情页中）：论坛话题或频道私信会话 */
+const isTopicMode = computed(() => !!props.topic || !!props.dmTopic);
+/** 频道私信话题展示信息 */
+const dmTopicInfo = computed(() => props.dmTopic);
 
-/** 头部标题：话题模式显示话题名，否则显示对话名 */
+/** 头部标题：话题模式显示话题名（私信为对方名称），否则显示对话名 */
 const headerTitle = computed(() => {
-    if (isTopicMode.value) return props.topic!.info.name;
+    if (props.dmTopic) return props.dmTopic.name;
+    if (props.topic) return props.topic.info.name;
     return chatTitle.value;
 });
 
-/** 话题图标自定义 emoji ID（无则返回空字符串；General 话题忽略） */
+/** 话题图标自定义 emoji ID（无则返回空字符串；General 话题 / 私信忽略） */
 const topicCustomEmojiId = computed(() => {
     const topic = props.topic;
     if (!topic || topic.info.is_general) return '';
@@ -229,10 +237,10 @@ const formatCount = (count: number) => numberFormatter.format(count);
 const formatUserStatus = (currentUser: user) => {
     if (currentUser.type._ === 'userTypeBot') {
         return currentUser.type.active_user_count > 0
-            ? `${formatCount(currentUser.type.active_user_count)} 位月活用户`
-            : '机器人';
+            ? t('lng_bot_status_users', { count: formatCount(currentUser.type.active_user_count) })
+            : t('lng_sr_chat_bot');
     }
-    if (currentUser.type._ === 'userTypeDeleted') return '已删除账号';
+    if (currentUser.type._ === 'userTypeDeleted' || currentUser.type._ === 'userTypeUnknown') return t('lng_deleted');
     return formatStatus(currentUser.status);
 };
 
@@ -292,16 +300,18 @@ function rebuildStatusText() {
     if (newChat.type._ === 'chatTypeBasicGroup') {
         const count = statusBasic.value?.member_count || 0;
         status.value = count > 0
-            ? `${formatCount(count)} 位成员`
+            ? t('lng_chat_status_members', { count: formatCount(count) })
             : t('lng_notification_groups');
         return;
     }
 
     if (newChat.type._ === 'chatTypeSupergroup') {
-        const fallback = newChat.type.is_channel ? t('lng_notification_channels') : '超级群组';
+        const fallback = newChat.type.is_channel ? t('lng_notification_channels') : t('header.supergroup');
         const memberCount = statusSuperFull.value?.member_count || statusSuper.value?.member_count || 0;
         status.value = memberCount > 0
-            ? `${formatCount(memberCount)} 位${newChat.type.is_channel ? '订阅者' : t('lng_profile_participants_section')}`
+            ? (newChat.type.is_channel
+                ? t('lng_chat_status_subscribers', { count: formatCount(memberCount) })
+                : t('lng_chat_status_members', { count: formatCount(memberCount) }))
             : fallback;
         updateVerificationState(statusSuper.value?.verification_status);
     }
@@ -350,7 +360,7 @@ watch([() => props.chat, () => userProfile.value?.id], async ([newChat]) => {
         }
 
         if (newChat.type._ === 'chatTypeSupergroup') {
-            const fallback = newChat.type.is_channel ? t('lng_notification_channels') : '超级群组';
+            const fallback = newChat.type.is_channel ? t('lng_notification_channels') : t('header.supergroup');
             status.value = fallback;
             const [group, fullInfo] = await Promise.all([
                 tdlibSend({

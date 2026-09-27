@@ -43,12 +43,12 @@ export function getForwardName(
             const sourceUser = caches.users[origin.sender_user_id];
             return sourceUser
                 ? `${sourceUser.first_name} ${sourceUser.last_name}`.trim()
-                : '用户';
+                : i18n.global.t('lng_credits_box_history_entry_anonymous');
         }
         case 'messageOriginHiddenUser':
-            return origin.sender_name || '隐藏用户';
+            return origin.sender_name || i18n.global.t('lng_gift_from_hidden');
         case 'messageOriginChat':
-            return caches.chats[origin.sender_chat_id]?.title || origin.author_signature || '聊天';
+            return caches.chats[origin.sender_chat_id]?.title || origin.author_signature || i18n.global.t('lng_recent_chats');
         case 'messageOriginChannel':
             return caches.chats[origin.chat_id]?.title || origin.author_signature || i18n.global.t('lng_notification_channels');
     }
@@ -105,13 +105,13 @@ export function getSenderName(
     if (msg.sender_id._ === 'messageSenderUser') {
         const u = caches.users[msg.sender_id.user_id];
         if (!u) return i18n.global.t('lng_credits_box_history_entry_anonymous');
-        if (u.type?._ === 'userTypeDeleted') return '已注销账户';
+        if (u.type?._ === 'userTypeDeleted' || u.type?._ === 'userTypeUnknown') return i18n.global.t('lng_deleted');
         return `${u.first_name} ${u.last_name}`.trim() || i18n.global.t('lng_credits_box_history_entry_anonymous');
     } else if (msg.sender_id._ === 'messageSenderChat') {
         const c = caches.chats[msg.sender_id.chat_id];
-        return c ? c.title : '未知频道';
+        return c ? c.title : i18n.global.t('chat.unknownChannel');
     }
-    return '未知';
+    return i18n.global.t('chat.unknown');
 }
 
 /**
@@ -213,7 +213,7 @@ export function getDisplaySenderName(
     // 自己发送的消息显示为「你」（内联 bot 消息的名称行也用「你」）
     // 但马甲身份发送的消息虽按"自己发送"处理，顶部仍保留马甲的真实名称
     if (deps.isSelf(msg)) {
-        return isOutgoingAliasMessage(msg, deps.myId) ? getSenderName(msg, deps) : '你';
+        return isOutgoingAliasMessage(msg, deps.myId) ? getSenderName(msg, deps) : i18n.global.t('lng_from_you');
     }
     return getSenderName(msg, deps);
 }

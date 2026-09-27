@@ -4,7 +4,7 @@
         <div v-if="!showDefaultEmojiStatus" class="sp-search px-3 pt-2 pb-1">
             <div class="flex items-center gap-2 rounded-lg bg-black/5 dark:bg-white/10 px-3 py-1.5">
                 <SearchIcon class="w-4 h-4 text-gray-400 shrink-0" />
-                <input v-model="query" type="text" placeholder="搜索表情"
+                <input v-model="query" type="text" :placeholder="t('emojiPanel.search')"
                     class="flex-1 bg-transparent outline-none text-sm py-0.5 placeholder-gray-400" />
                 <button v-if="query" class="text-gray-400 hover:text-gray-600" @click="updateQuery('')">
                     <XIcon class="w-4 h-4" />
@@ -20,7 +20,7 @@
             <button v-if="reactionMode" type="button"
                 class="sp-cat-pill shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-base leading-none transition-colors"
                 :class="activeBlock === 'available_reactions' ? 'bg-blue-500/15 text-blue-500' : 'text-gray-500 hover:bg-black/5 dark:hover:bg-white/10'"
-                @click="scrollToBlock('available_reactions')" title="可用回应">
+                @click="scrollToBlock('available_reactions')" :title="t('lng_manage_peer_reactions_available')">
                 <span :style="{ fontSize: '18px', lineHeight: '1' }">{{ availableNavEmoji }}</span>
             </button>
 
@@ -58,7 +58,7 @@
             <button v-if="giftEmojiIds.length > 0 && !reactionMode" type="button"
                 class="sp-cat-pill shrink-0 w-8 h-8 flex items-center justify-center transition-colors"
                 :class="activeBlock === 'gift_status' ? 'bg-blue-500/15' : 'text-gray-500 hover:bg-black/5 dark:hover:bg-white/10'"
-                @click="scrollToBlock('gift_status')" title="典藏品">
+                @click="scrollToBlock('gift_status')" :title="t('emojiPanel.collectibles')">
                 <span class="tgico tgico-collectible text-[20px]" />
             </button>
 
@@ -69,7 +69,7 @@
                 @click="scrollToBlock(`custom_${set.id}`)" :title="set.title">
                 <StickerMediaItem v-if="installedIcon(set)" :item="installedIcon(set)" kind="sticker"
                     :size="20" :skin-tone="skinTone" />
-                <span v-else class="text-sm">{{ (set.title || t('lng_stickers_installed_tab'))?.[0] ?? '✨' }}</span>
+                <span v-else class="text-sm">{{ (set.title || t('emojiPanel.packFallback'))?.[0] ?? '✨' }}</span>
             </button>
         </div>
 
@@ -94,7 +94,7 @@
                     </button>
                 </div>
                 <div v-if="!searching && searchResults.length === 0" class="text-center text-sm text-gray-400 py-8">
-                    无匹配结果
+                    {{ t('lng_emoji_nothing_found') }}
                 </div>
             </template>
 
@@ -102,16 +102,16 @@
             <template v-else>
                 <!-- 可用回应固定区：前 16 个，始终排在第一位 -->
                 <div v-if="reactionMode" class="sp-emoji-section" data-emoji-block="available_reactions">
-                    <p class="sp-emoji-block-title">可用回应</p>
+                    <p class="sp-emoji-block-title">{{ t('lng_manage_peer_reactions_available') }}</p>
                     <div v-if="availableList.length === 0" class="text-center text-xs text-gray-400 py-4">
-                        加载中...
+                        {{ t('lng_contacts_loading') }}
                     </div>
                     <div v-else class="sp-emoji-shelf">
                         <button v-for="r in fixedReactions" :key="availableReactionKey(r)" type="button"
                             class="sp-emoji-cell flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 w-full aspect-square"
                             :class="{ 'opacity-50 cursor-not-allowed': !canPickAvailable(r) }"
                             :disabled="!canPickAvailable(r)"
-                            :title="!canPickAvailable(r) ? '需要 Premium' : ''" @click="onPickAvailable(r)">
+                            :title="!canPickAvailable(r) ? t('chat.needsPremium') : ''" @click="onPickAvailable(r)">
                             <ReactionEmojiAnim v-if="isReactionEmoji(r.type)" :emoji="r.type.emoji"
                                 :size="GRID_MEDIA_PX" :fallback-font="24" />
                             <CustomEmojiInline v-else-if="isReactionCustomEmoji(r.type)"
@@ -126,13 +126,13 @@
                 <div v-if="!reactionMode || leftoverReactions.length > 0" class="sp-emoji-section"
                     data-emoji-block="recent">
                     <template v-if="reactionMode">
-                        <p class="sp-emoji-block-title">最近</p>
+                        <p class="sp-emoji-block-title">{{ t('lng_recent_title') }}</p>
                         <div class="sp-emoji-shelf">
                             <button v-for="r in leftoverReactions" :key="availableReactionKey(r)" type="button"
                                 class="sp-emoji-cell flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 w-full aspect-square"
                                 :class="{ 'opacity-50 cursor-not-allowed': !canPickAvailable(r) }"
                                 :disabled="!canPickAvailable(r)"
-                                :title="!canPickAvailable(r) ? '需要 Premium' : ''" @click="onPickAvailable(r)">
+                                :title="!canPickAvailable(r) ? t('chat.needsPremium') : ''" @click="onPickAvailable(r)">
                                 <ReactionEmojiAnim v-if="isReactionEmoji(r.type)" :emoji="r.type.emoji"
                                     :size="GRID_MEDIA_PX" :fallback-font="24" />
                                 <CustomEmojiInline v-else-if="isReactionCustomEmoji(r.type)"
@@ -143,11 +143,11 @@
                         </div>
                     </template>
                     <template v-else>
-                        <p class="sp-emoji-block-title">最近</p>
+                        <p class="sp-emoji-block-title">{{ t('lng_recent_title') }}</p>
                         <div class="sp-emoji-shelf">
                             <button v-if="showDefaultEmojiStatus" type="button"
                                 class="sp-emoji-cell flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 w-full aspect-square"
-                                title="默认会员徽章" @click="emit('pickDefaultStatus')">
+                                :title="t('emojiPanel.defaultBadge')" @click="emit('pickDefaultStatus')">
                                 <span class="tgico tgico-emoji-status text-[28px]" />
                             </button>
                             <template v-if="showDefaultEmojiStatus">
@@ -162,12 +162,12 @@
                             <div
                                 v-if="(showDefaultEmojiStatus ? recentStatusStickers.length : recentEmoji.length) === 0"
                                 class="text-center text-sm text-gray-400 py-6 col-span-full">
-                                还没有最近使用
+                                {{ t('emojiPanel.noRecent') }}
                             </div>
                         </div>
                         <!-- 最近自定义 emoji -->
                         <div v-if="!showDefaultEmojiStatus && recentCustomStickers.length > 0" class="mt-1">
-                            <p class="sp-emoji-block-title">最近动态表情</p>
+                            <p class="sp-emoji-block-title">{{ t('emojiPanel.recentAnimated') }}</p>
                             <div class="flex flex-wrap gap-0.5">
                                 <StickerMediaItem v-for="s in recentCustomStickers" :key="s.id" :item="s"
                                     kind="sticker" :size="36" :skin-tone="skinTone" @pick="onPickCustom($event)" />
@@ -192,7 +192,7 @@
                 <!-- 升级礼物状态（典藏品） -->
                 <div v-if="giftEmojiIds.length > 0 && !reactionMode" class="sp-emoji-section"
                     data-emoji-block="gift_status">
-                    <p class="sp-emoji-block-title">典藏品</p>
+                    <p class="sp-emoji-block-title">{{ t('emojiPanel.collectibles') }}</p>
                     <div class="sp-emoji-shelf">
                         <StickerMediaItem v-for="s in giftStickers" :key="s.id" :item="s" kind="sticker"
                             :size="26" :skin-tone="skinTone" @pick="onPickCustom" />
@@ -201,7 +201,7 @@
 
                 <!-- 已安装自定义 emoji 包（自己的）：完整展开 -->
                 <div v-if="installedSets.length > 0" class="sp-emoji-divider">
-                    <p class="sp-emoji-block-title">我的表情包</p>
+                    <p class="sp-emoji-block-title">{{ t('emojiPanel.myPacks') }}</p>
                 </div>
                 <div v-for="set in installedSets" :key="set.id" class="sp-emoji-section"
                     :data-emoji-block="`custom_${set.id}`" :ref="(el) => registerCustomSetSection(set.id, el)">
@@ -209,7 +209,7 @@
                         <p class="sp-emoji-block-title">{{ setEmojiTitle(set) }}</p>
                         <button type="button" v-if="!isCustomLoaded(set.id)"
                             class="mr-1 text-[11px] text-blue-500 hover:underline shrink-0"
-                            @click="loadCustomSet(set.id)">加载全部</button>
+                            @click="loadCustomSet(set.id)">{{ t('lng_recent_frequent_all') }}</button>
                     </div>
                     <div class="sp-emoji-shelf">
                         <StickerMediaItem v-for="s in installedStamps(set)" :key="s.id" :item="s" kind="sticker"
@@ -219,14 +219,14 @@
 
                 <!-- 推荐自定义 emoji 包（热门）：默认折叠预览，可手动展开 -->
                 <div v-if="trendingSets.length > 0" class="sp-emoji-divider">
-                    <p class="sp-emoji-block-title">推荐表情包</p>
+                    <p class="sp-emoji-block-title">{{ t('emojiPanel.recommended') }}</p>
                 </div>
                 <div v-for="set in trendingSets" :key="set.id" class="sp-emoji-section sp-emoji-trending"
                     :data-emoji-block="`trending_${set.id}`">
                     <button type="button" class="sp-cat-head w-full text-left"
                         @click="toggleTrendingExpand(String(set.id))">
                         <span class="sp-emoji-block-title flex-1 min-w-0 truncate">{{ set.title }}</span>
-                        <span class="text-[10px] text-gray-400 shrink-0 ml-1">{{ set.size }} 个表情</span>
+                        <span class="text-[10px] text-gray-400 shrink-0 ml-1">{{ t('emojiPanel.emojiCount', { count: set.size }) }}</span>
                         <ChevronDownIcon v-if="trendingTotal(set) > PREVIEW_COUNT || isTrendingExpanded(String(set.id))"
                             class="w-3.5 h-3.5 shrink-0 ml-1 transition-transform"
                             :class="isTrendingExpanded(String(set.id)) ? 'rotate-180' : ''" />
@@ -236,7 +236,7 @@
                             :size="26" :skin-tone="skinTone" :source-label="set.title || setEmojiTitle(set)" @pick="onPickCustom" />
                         <button v-if="trendingCanExpand(set)" type="button"
                             class="sp-trending-more-cnt flex items-center justify-center rounded hover:bg-black/5 dark:hover:bg-white/10"
-                            :title="`展开剩余 ${trendingMore(set)} 个`"
+                            :title="t('emojiPanel.expandRemaining', { count: trendingMore(set) })"
                             @click="toggleTrendingExpand(String(set.id))">
                             +{{ trendingMore(set) }}
                         </button>
@@ -247,7 +247,7 @@
                             class="sp-add-btn shrink-0 ml-2 px-2.5 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50"
                             :class="isSetInstalled(set.id) ? 'bg-black/5 dark:bg-white/10 text-gray-400 cursor-default' : 'bg-blue-500/15 text-blue-500 hover:bg-blue-500/25'"
                             @click="addTrendingSet(set.id)">
-                            {{ isSetInstalled(set.id) ? '已添加' : t('lng_stickers_featured_add') }}
+                            {{ isSetInstalled(set.id) ? t('lng_stickers_featured_installed') : t('lng_stickers_featured_add') }}
                         </button>
                     </div>
                 </div>
@@ -299,7 +299,7 @@ import { isReactionEmoji, isReactionCustomEmoji } from '../../../../utils/reacti
 
 /** Fitzpatrick 肤色选项 */
 const SKIN_TONES = [
-    { value: 0, color: '#FFE0BD', label: '默认' },   // 用皮肤色占位，实际渲染原 emoji
+    { value: 0, color: '#FFE0BD', label: t('lng_font_default') },   // 用皮肤色占位，实际渲染原 emoji
     { value: 1, color: '#FFE0BD', label: '1-2' },
     { value: 3, color: '#FFCD94', label: '3' },
     { value: 4, color: '#E8B98A', label: '4' },
@@ -546,7 +546,7 @@ function onScroll() {
 
 /** 自定义包区块标题（优先用标题文本） */
 function setEmojiTitle(set: stickerSetInfo): string {
-    return set.title || '表情包';
+    return set.title || t('emojiPanel.packFallback');
 }
 
 /** 折叠预览条数：两排 × 8 列 */

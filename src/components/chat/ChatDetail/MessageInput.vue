@@ -6,13 +6,13 @@
                 <CornerUpLeftIcon class="w-4 h-4 shrink-0 mt-0.5 text-blue-500" />
                 <div class="min-w-0 flex-1">
                     <p class="text-xs font-semibold text-blue-500 truncate">
-                        {{ replyTarget.quote ? `引用 ${replyTarget.title}` : replyTarget.title }}
+                        {{ replyTarget.quote ? t('input.quoteUser', { name: replyTarget.title }) : replyTarget.title }}
                     </p>
                     <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {{ replyTarget.quote || replyTarget.text || '（无文本内容）' }}
+                        {{ replyTarget.quote || replyTarget.text || t('input.noTextContent') }}
                     </p>
                 </div>
-                <button type="button" aria-label="取消回复"
+                <button type="button" :aria-label="t('input.cancelReply')"
                     class="w-6 h-6 shrink-0 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400"
                     @click="emit('clearReply')">
                     <XIcon class="w-3.5 h-3.5" />
@@ -45,7 +45,7 @@
                     <div ref="previewInnerRef" class="input-preview-inner" v-html="previewHTML"></div>
                 </div>
                 <textarea ref="textareaRef" v-model="localValue" :placeholder="inputPlaceholder"
-                    :class="['message-input-scrollbar input-textarea flex-1 min-w-0 bg-transparent resize-none focus:outline-none text-sm leading-5 text-gray-800 dark:text-gray-200 px-2 py-2 min-h-9 max-h-40 overflow-y-auto field-sizing-content']"
+                    :class="['input-scrollbar input-textarea flex-1 min-w-0 bg-transparent resize-none focus:outline-none text-sm leading-5 text-gray-800 dark:text-gray-200 px-2 py-2 min-h-9 max-h-40 overflow-y-auto field-sizing-content']"
                     rows="1" @input="onInput" @keydown.enter.exact.prevent="onEnter" @keydown.enter.shift.stop
                     @keydown.escape="onEscape" @paste="onPaste" @scroll="syncPreviewScroll"
                     @contextmenu.prevent.stop="onContextMenu"></textarea>
@@ -269,7 +269,7 @@ function onInput(e: Event) {
 }
 
 const inputPlaceholder = computed(() =>
-    props.editTarget ? `${props.editTarget.label || '编辑消息'}...` : (attachmentStore.items.length > 0 ? '描述' : (props.placeholder || t('lng_message_ph'))));
+    props.editTarget ? `${props.editTarget.label || t('lng_edit_message')}...` : (attachmentStore.items.length > 0 ? t('lng_photo_caption') : (props.placeholder || t('lng_message_ph'))));
 
 /** 是否显示身份选择器（有多个可用发送身份时） */
 const showSenderSelector = computed(() => {
@@ -347,16 +347,16 @@ function buildFormatChildren(): ContextMenuItem[] {
     const [s, e] = getRange();
     const checked = (k: FormatKind) => e > s && hasFormat(entities.value, s, e, k);
     return [
-        { key: 'fmt-bold', label: '加粗', icon: Bold, checked: checked('bold'), onClick: () => applyFormat('bold') },
-        { key: 'fmt-italic', label: '斜体', icon: Italic, checked: checked('italic'), onClick: () => applyFormat('italic') },
-        { key: 'fmt-underline', label: '下划线', icon: Underline, checked: checked('underline'), onClick: () => applyFormat('underline') },
-        { key: 'fmt-strike', label: '删除线', icon: Strikethrough, checked: checked('strikethrough'), onClick: () => applyFormat('strikethrough') },
-        { key: 'fmt-quote', label: '引用', icon: Quote, checked: checked('quote'), onClick: () => applyFormat('quote') },
-        { key: 'fmt-code', label: '等宽', icon: Code2, checked: checked('code'), onClick: () => applyFormat('code') },
-        { key: 'fmt-spoiler', label: '剧透', icon: EyeOff, checked: checked('spoiler'), onClick: () => applyFormat('spoiler') },
+        { key: 'fmt-bold', label: t('lng_menu_formatting_bold'), icon: Bold, checked: checked('bold'), onClick: () => applyFormat('bold') },
+        { key: 'fmt-italic', label: t('lng_menu_formatting_italic'), icon: Italic, checked: checked('italic'), onClick: () => applyFormat('italic') },
+        { key: 'fmt-underline', label: t('lng_menu_formatting_underline'), icon: Underline, checked: checked('underline'), onClick: () => applyFormat('underline') },
+        { key: 'fmt-strike', label: t('lng_menu_formatting_strike_out'), icon: Strikethrough, checked: checked('strikethrough'), onClick: () => applyFormat('strikethrough') },
+        { key: 'fmt-quote', label: t('lng_menu_formatting_blockquote'), icon: Quote, checked: checked('quote'), onClick: () => applyFormat('quote') },
+        { key: 'fmt-code', label: t('lng_menu_formatting_monospace'), icon: Code2, checked: checked('code'), onClick: () => applyFormat('code') },
+        { key: 'fmt-spoiler', label: t('lng_menu_formatting_spoiler'), icon: EyeOff, checked: checked('spoiler'), onClick: () => applyFormat('spoiler') },
         { key: 'fmt-link', label: t('lng_link_header_short'), icon: Link2, checked: checked('link'), onClick: () => applyLink() },
         { divider: true, label: '' },
-        { key: 'fmt-plain', label: '纯文本', icon: Eraser, onClick: () => applyPlainText() },
+        { key: 'fmt-plain', label: t('lng_menu_formatting_clear'), icon: Eraser, onClick: () => applyPlainText() },
     ];
 }
 
@@ -399,15 +399,15 @@ function onContextMenu(e: MouseEvent) {
     const sel = hasSelection();
     if (sel) {
         items.push({ key: 'copy', label: t('lng_mac_menu_copy'), onClick: () => copySelection() });
-        items.push({ key: 'cut', label: '剪切', onClick: () => cutSelection() });
+        items.push({ key: 'cut', label: t('lng_mac_menu_cut'), onClick: () => cutSelection() });
     }
-    items.push({ key: 'paste', label: '粘贴', onClick: () => pasteFromClipboard() });
-    items.push({ key: 'selectAll', label: '全选', onClick: () => selectAll() });
+    items.push({ key: 'paste', label: t('lng_mac_menu_paste'), onClick: () => pasteFromClipboard() });
+    items.push({ key: 'selectAll', label: t('lng_mac_menu_select_all'), onClick: () => selectAll() });
     if (sel) {
         items.push({ key: 'fmt-sep', divider: true, label: '' });
         items.push({
             key: 'fmt',
-            label: '格式',
+            label: t('lng_menu_formatting'),
             icon: TypeIcon,
             children: buildFormatChildren(),
         });
@@ -459,7 +459,7 @@ async function pasteFromClipboard() {
         text = await navigator.clipboard.readText();
     } catch {
         try {
-            text = window.prompt('粘贴内容：', '') ?? '';
+            text = window.prompt(t('input.pastePrompt'), '') ?? '';
         } catch { /* 忽略 */ }
     }
     if (!text) return;
@@ -485,10 +485,6 @@ function selectAll() {
 </script>
 
 <style scoped>
-.message-input-scrollbar::-webkit-scrollbar {
-    width: 4px;
-}
-
 .mi-fade-enter-active,
 .mi-fade-leave-active {
     transition: opacity 0.16s ease, transform 0.16s ease;

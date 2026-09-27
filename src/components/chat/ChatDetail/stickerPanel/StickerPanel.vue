@@ -10,7 +10,7 @@
                     <div v-show="activeTab === 'emoji'" class="h-full">
                         <div v-if="!canSendBasic"
                             class="sp-permission flex h-full items-center justify-center px-6 text-center text-sm text-gray-400">
-                            此会话不允许发送该内容
+                            {{ t('lng_restricted_send_message_all') }}
                         </div>
                         <EmojiDrawer v-else-if="activeEmoji" ref="emojiRef" :is-premium="isPremium"
                             @pick-emoji="onPickEmoji" @pick-custom-emoji="onPickCustomEmoji" />
@@ -20,7 +20,7 @@
                     <div v-show="activeTab === 'gif'" class="h-full">
                         <div v-if="!canSendOther"
                             class="flex h-full items-center justify-center px-6 text-center text-sm text-gray-400">
-                            此会话不允许发送 GIF
+                            {{ t('lng_restricted_send_gifs_all') }}
                         </div>
                         <GifDrawer v-else-if="activeGif" ref="gifRef" @pick-animation="onPickAnimation" />
                     </div>
@@ -29,7 +29,7 @@
                     <div v-show="activeTab === 'sticker'" class="h-full">
                         <div v-if="!canSendOther"
                             class="flex h-full items-center justify-center px-6 text-center text-sm text-gray-400">
-                            此会话不允许发送贴纸
+                            {{ t('lng_restricted_send_stickers_all') }}
                         </div>
                         <StickerDrawer v-else-if="activeSticker" ref="stickerRef" @pick-sticker="onPickSticker" />
                     </div>
@@ -74,9 +74,9 @@ const emit = defineEmits<{
 }>();
 
 const tabs = [
-    { id: 'emoji' as StickerPanelTab, label: t('lng_stickers_installed_tab'), icon: Smile },
-    { id: 'gif' as StickerPanelTab, label: 'GIF', icon: Clapperboard },
-    { id: 'sticker' as StickerPanelTab, label: t('lng_in_dlg_sticker'), icon: Smile },
+    { id: 'emoji' as StickerPanelTab, label: t('lng_switch_emoji'), icon: Smile },
+    { id: 'gif' as StickerPanelTab, label: t('lng_switch_gifs'), icon: Clapperboard },
+    { id: 'sticker' as StickerPanelTab, label: t('lng_switch_stickers'), icon: Smile },
 ];
 
 const state = stickerPanelState.value;

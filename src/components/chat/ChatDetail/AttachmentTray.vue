@@ -1,7 +1,7 @@
 <template>
     <Transition name="att-tray">
         <div v-show="attachmentStore.items.length > 0"
-            class="mb-2 max-h-72 overflow-y-auto message-input-scrollbar rounded-xl bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 p-2">
+            class="mb-2 max-h-72 overflow-y-auto input-scrollbar rounded-xl bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 p-2">
             <VueDraggable v-model="draggableList" :animation="150" ghost-class="att-drag-ghost" :filter="'.no-drag'"
                 class="flex flex-wrap gap-2">
                 <template v-for="it in draggableList" :key="it.id">
@@ -26,13 +26,13 @@
                         </span>
                         <span v-if="(it.caption || '').trim()"
                             class="shrink-0 flex h-3.5 w-3.5 items-center justify-center rounded bg-blue-500"
-                            title="该文件设置了描述">
+                            :title="t('attachment.hasDescription')">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                                 class="h-2 w-2 text-white">
                                 <path d="M4 5h16M4 12h16M4 19h10" />
                             </svg>
                         </span>
-                        <button type="button" aria-label="移除附件" :title="t('lng_settings_channel_remove')"
+                        <button type="button" :aria-label="t('attachment.remove')" :title="t('lng_settings_channel_remove')"
                             class="no-drag shrink-0 flex h-5 w-5 items-center justify-center rounded-full text-gray-400 hover:text-red-500 transition-colors"
                             @click.stop="attachmentStore.remove(it.id)">
                             <XIcon class="h-4 w-4" />
@@ -65,7 +65,7 @@
                                 <path d="M4 5h16M4 12h16M4 19h10" />
                             </svg>
                         </span>
-                        <button type="button" aria-label="移除附件" :title="t('lng_settings_channel_remove')"
+                        <button type="button" :aria-label="t('attachment.remove')" :title="t('lng_settings_channel_remove')"
                             class="no-drag absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-black/50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
                             @click.stop="attachmentStore.remove(it.id)">
                             <XIcon class="w-3 h-3" />
@@ -80,7 +80,7 @@
 
             <div v-if="selectedItem" class="mt-2 flex flex-col gap-2">
                 <div class="flex items-center gap-2">
-                    <input v-model="selectedCaption" :placeholder="`${selectedItem.name} 的描述`"
+                    <input v-model="selectedCaption" :placeholder="t('attachment.captionPh', { name: selectedItem.name })"
                         class="flex-1 min-w-0 rounded-lg bg-white/80 dark:bg-gray-800 px-2.5 py-1.5 text-xs text-gray-800 dark:text-gray-200 outline-none focus:ring-1 focus:ring-blue-500"
                         @input="onCaptionInput" @keydown.enter.exact.prevent @keydown.enter.shift.stop />
                     <span class="text-[11px] text-gray-400 dark:text-gray-500 shrink-0">{{ selectedItem.name }}</span>
@@ -98,12 +98,12 @@
                     <button type="button"
                         class="rounded-lg bg-white/80 dark:bg-gray-800 px-2.5 py-1.5 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                         @click="pickCover">
-                        {{ selectedItem.cover ? '更改封面' : '添加封面' }}
+                        {{ selectedItem.cover ? t('lng_context_edit_cover') : t('attachment.addCover') }}
                     </button>
                     <button v-if="selectedItem.cover" type="button"
                         class="rounded-lg bg-white/80 dark:bg-gray-800 px-2.5 py-1.5 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
                         @click="removeCover">
-                        移除封面
+                        {{ t('lng_context_clear_cover') }}
                     </button>
                 </div>
             </div>
@@ -179,7 +179,7 @@ async function pickCover() {
     try {
         const selected = await open({
             multiple: false,
-            title: '选择封面图片',
+            title: t('attachment.chooseCover'),
             filters: [{
                 name: t('lng_in_dlg_photo'),
                 extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp'],
@@ -214,10 +214,6 @@ watch(() => attachmentStore.items, () => {
 </script>
 
 <style scoped>
-.message-input-scrollbar::-webkit-scrollbar {
-    width: 4px;
-}
-
 .att-tray-enter-active,
 .att-tray-leave-active {
     transition: opacity 0.16s ease, transform 0.16s ease;

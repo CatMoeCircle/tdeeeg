@@ -4,15 +4,17 @@ import { probeImage, probeVideo } from './mediaProbe';
 import type { $Function } from 'tdlib-types';
 import type { inputTextQuote, textEntity$Input } from 'tdlib-types';
 import type { AttachmentItem, AttachmentKind } from '../store/attachment';
+import i18n from '../i18n';
+import { messageContentTypeLabel } from './messagePreview';
 
-/** 替换资源时，各类 AttachmentKind 的中文名（提示文案用） */
+/** 替换资源时，各类 AttachmentKind 的中文名（提示文案用）；getter 惰性取当前语言 */
 export const ATTACHMENT_KIND_LABEL: Record<AttachmentKind, string> = {
-    photo: '图片',
-    video: '视频',
-    audio: '音频',
+    get photo() { return messageContentTypeLabel('photo'); },
+    get video() { return messageContentTypeLabel('video'); },
+    get audio() { return messageContentTypeLabel('audio'); },
     // TDLib 的 document 是「文件」通道：任意文件均可，不限于 office 文档
-    document: '文件',
-    animation: '动图',
+    get document() { return messageContentTypeLabel('document'); },
+    get animation() { return messageContentTypeLabel('animation'); },
 };
 
 /** MPEG4 动画扩展名（TDLib 动画仅接受 GIF / MPEG4） */
@@ -40,10 +42,13 @@ export function allowedEditReplaceKinds(contentType: string): AttachmentKind[] |
 /** 校验失败时的提示文案；通过时返回 null */
 export function editReplaceKindError(contentType: string, kind: AttachmentKind): string | null {
     const allowed = allowedEditReplaceKinds(contentType);
-    if (!allowed) return '该消息类型不支持更换资源';
+    if (!allowed) return i18n.global.t('preview.editReplaceUnsupported');
     if (allowed.includes(kind)) return null;
-    const expect = allowed.map((k) => ATTACHMENT_KIND_LABEL[k]).join('或');
-    return `资源类型不匹配：只能替换为${expect}，所选文件被识别为${ATTACHMENT_KIND_LABEL[kind]}`;
+    const expect = allowed.map((k) => ATTACHMENT_KIND_LABEL[k]).join(i18n.global.t('preview.listOr'));
+    return i18n.global.t('preview.editReplaceKindMismatch', {
+        expected: expect,
+        actual: ATTACHMENT_KIND_LABEL[kind],
+    });
 }
 
 function extOfName(fileName: string): string {
@@ -63,7 +68,7 @@ export function resolveEditReplaceKind(
     fileName: string,
 ): { ok: true; kind: AttachmentKind } | { ok: false; reason: string } {
     const allowed = allowedEditReplaceKinds(contentType);
-    if (!allowed) return { ok: false, reason: '该消息类型不支持更换资源' };
+    if (!allowed) return { ok: false, reason: i18n.global.t('preview.editReplaceUnsupported') };
 
     // 文件 ↔ 音乐：音乐文件走 audio，其它一律 document（文件通道）
     if (contentType === 'messageDocument' || contentType === 'messageAudio') {
@@ -76,7 +81,7 @@ export function resolveEditReplaceKind(
         if (classified === 'animation' || ext === 'gif' || ANIMATION_MPEG4_EXTS.includes(ext)) {
             return { ok: true, kind: 'animation' };
         }
-        return { ok: false, reason: '动画只能替换为 GIF 或 MPEG4 文件' };
+        return { ok: false, reason: i18n.global.t('preview.editReplaceAnimationOnly') };
     }
 
     // 图片 ↔ 视频
@@ -84,7 +89,7 @@ export function resolveEditReplaceKind(
         return { ok: true, kind: classified };
     }
 
-    return { ok: false, reason: editReplaceKindError(contentType, classified) ?? '资源类型不匹配' };
+    return { ok: false, reason: editReplaceKindError(contentType, classified) ?? i18n.global.t('preview.editReplaceKindMismatchShort') };
 }
 
 /** 文件大小上限 */
@@ -135,10 +140,10 @@ export async function classifyAttachment(input: ClassifyInput): Promise<Classify
 
     // ===== 大小上限校验（图片/视频）=====
     if (size > BYTES_4GB) {
-        return rejected(`文件超过 4GB 上限，无法发送`);
+        return rejected(i18n.global.t('preview.fileTooLarge4gb'));
     }
     if (size > BYTES_2GB && !isPremium) {
-        return rejected(`发送超过 2GB 的文件需要 Telegram Premium`);
+        return rejected(i18n.global.t('preview.fileNeedPremium2gb'));
     }
 
     // 「文件」菜单选择：一律作为普通文档发送，不做图片/视频/音频自动识别
@@ -198,7 +203,7 @@ export async function classifyAttachment(input: ClassifyInput): Promise<Classify
         const sum = probe.width + probe.height;
         if (ratio > RATIO_LIMIT || sum > DIMENSION_SUM_LIMIT) {
             if (album) {
-                return rejected('文件太大无法添加');
+                return rejected(i18n.global.t('preview.fileTooLargeToAlbum'));
             }
             return { status: 'ok', kind: 'document', width: probe.width, height: probe.height };
         }
@@ -324,6 +329,8 @@ export function buildEditMediaContent(
 interface SendCtx {
     chatId: number;
     topicId?: number | null;
+    /** 频道私聊群组：topic_id 使用 messageTopicDirectMessages */
+    isDm?: boolean;
     replyTo?: {
         _: 'inputMessageReplyToMessage';
         message_id: number;
@@ -338,7 +345,11 @@ function baseParams(ctx: SendCtx) {
         chat_id: ctx.chatId,
         // options 字段可省略：TDLib 会使用默认发送选项（不传即用默认值）
     };
-    if (ctx.topicId) p.topic_id = { _: 'messageTopicForum', forum_topic_id: ctx.topicId };
+    if (ctx.topicId) {
+        p.topic_id = ctx.isDm
+            ? { _: 'messageTopicDirectMessages', direct_messages_chat_topic_id: ctx.topicId }
+            : { _: 'messageTopicForum', forum_topic_id: ctx.topicId };
+    }
     if (ctx.replyTo) p.reply_to = ctx.replyTo;
     return p;
 }

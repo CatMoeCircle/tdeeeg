@@ -8,6 +8,7 @@ import { openStoryViewer } from "../store/storyViewer";
 import { showLanguagePackDialog } from "../store/languagePackLink";
 import { useLanguageStore } from "../store/language";
 import type { Router } from "vue-router";
+import i18n from "../i18n";
 
 /**
  * 解析 Telegram 内部链接（t.me / tg://）并跳转。
@@ -69,6 +70,31 @@ export async function resolveInternalLink(href: string, router: Router): Promise
                 await router.push(`/home/chat/${chat.id}`);
                 return true;
             }
+            case "internalLinkTypeDirectMessagesChat": {
+                // t.me/username/d 或频道私信入口：找频道后打开其关联私信群组
+                const channel = await tdlibSend({
+                    _: "searchPublicChat",
+                    username: linkType.channel_username,
+                }) as chat;
+                if (channel.type?._ !== "chatTypeSupergroup") {
+                    await MessagePlugin.warning({ content: i18n.global.t("preview.channelNotFound"), placement: "top-right" });
+                    return true;
+                }
+                // 优先取 supergroupFullInfo.direct_messages_chat_id；否则若是私信群自身则直接打开
+                let dmChatId = 0;
+                try {
+                    const full = await tdlibSend({
+                        _: "getSupergroupFullInfo",
+                        supergroup_id: channel.type.supergroup_id,
+                    }) as any;
+                    dmChatId = full?.direct_messages_chat_id ?? 0;
+                } catch {
+                    /* ignore */
+                }
+                const targetId = dmChatId || channel.id;
+                await router.push(`/home/chat/${targetId}`);
+                return true;
+            }
             case "internalLinkTypeBotStart": {
                 // t.me/xxxbot?start=xxx 深链接：解析出与 bot 的私聊并跳转；autostart 时自动发送 /start 深链接消息
                 const chat = await tdlibSend({ _: "searchPublicChat", username: linkType.bot_username }) as chat;
@@ -97,7 +123,7 @@ export async function resolveInternalLink(href: string, router: Router): Promise
                 // t.me/username/s123 → searchPublicChat → getStory → 故事播放器
                 const { story_poster_username, story_id } = linkType;
                 if (!story_poster_username || !story_id) {
-                    await MessagePlugin.warning({ content: "无效的动态链接", placement: "top-right" });
+                    await MessagePlugin.warning({ content: i18n.global.t("preview.invalidStoryLink"), placement: "top-right" });
                     return true;
                 }
                 const posterChat = await tdlibSend({
@@ -136,7 +162,7 @@ export async function resolveInternalLink(href: string, router: Router): Promise
                 // proxy.t.me 链接：弹出添加代理小窗，用户确认后再调用 addProxy
                 const proxyInfo = linkType.proxy as proxy | undefined;
                 if (!proxyInfo) {
-                    await MessagePlugin.warning({ content: "不支持的代理类型", placement: "top-right" });
+                    await MessagePlugin.warning({ content: i18n.global.t("preview.proxyTypeUnsupported"), placement: "top-right" });
                     return true;
                 }
                 const action = await showProxyLinkDialog(proxyInfo);
@@ -147,11 +173,11 @@ export async function resolveInternalLink(href: string, router: Router): Promise
                             proxy: { _: "proxy", server: proxyInfo.server, port: proxyInfo.port, type: proxyInfo.type },
                             enable: true,
                         });
-                        await MessagePlugin.success({ content: "代理已添加", placement: "top-right" });
+                        await MessagePlugin.success({ content: i18n.global.t("preview.proxyAdded"), placement: "top-right" });
                         // 刷新代理列表，让代理设置页跟随更新
                         refreshProxies();
                     } catch (e: any) {
-                        await MessagePlugin.error({ content: e?.message || "添加失败", placement: "top-right" });
+                        await MessagePlugin.error({ content: e?.message || i18n.global.t("preview.addFailed"), placement: "top-right" });
                     }
                 }
                 return true;
@@ -160,7 +186,7 @@ export async function resolveInternalLink(href: string, router: Router): Promise
                 // t.me/setlanguage/xxx：弹出「是否添加本语言包」确认框
                 const packId = linkType.language_pack_id;
                 if (!packId) {
-                    await MessagePlugin.warning({ content: "无效的语言包链接", placement: "top-right" });
+                    await MessagePlugin.warning({ content: i18n.global.t("preview.invalidLanguagePackLink"), placement: "top-right" });
                     return true;
                 }
                 const action = await showLanguagePackDialog(packId);
@@ -170,12 +196,12 @@ export async function resolveInternalLink(href: string, router: Router): Promise
                         const langStore = useLanguageStore();
                         await langStore.setLanguage(packId);
                         await MessagePlugin.success({
-                            content: `语言包 ${packId} 已启用`,
+                            content: i18n.global.t("preview.languagePackEnabled", { id: packId }),
                             placement: "top-right",
                         });
                     } catch (e: any) {
                         await MessagePlugin.error({
-                            content: e?.message || "应用语言包失败",
+                            content: e?.message || i18n.global.t("preview.languagePackApplyFailed"),
                             placement: "top-right",
                         });
                     }

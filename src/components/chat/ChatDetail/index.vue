@@ -39,7 +39,7 @@
                  在贴底时造成 ±几十像素的“莫名其妙跳动”。 -->
             <div v-if="isLoadingMore && loadingDirection === 'older'"
                 class="text-center text-gray-400 text-sm py-3 shrink-0">
-                加载中...
+                {{ t('lng_context_seen_loading') }}
             </div>
 
             <!-- 消息列表容器：mt-auto 将消息推到底部 -->
@@ -54,9 +54,9 @@
                     </div>
 
                     <!-- Unread separator -->
-                    <div v-else-if="item.type === 'unread'" class="flex items-center gap-3 my-3" aria-label="新消息">
+                    <div v-else-if="item.type === 'unread'" class="flex items-center gap-3 my-3" :aria-label="t('lng_unread_bar_some')">
                         <div class="h-px flex-1 bg-blue-400/70 dark:bg-blue-500/70"></div>
-                        <span class="text-xs font-medium text-blue-500 dark:text-blue-400 select-none">新消息</span>
+                        <span class="text-xs font-medium text-blue-500 dark:text-blue-400 select-none">{{ t('lng_unread_bar_some') }}</span>
                         <div class="h-px flex-1 bg-blue-400/70 dark:bg-blue-500/70"></div>
                     </div>
 
@@ -277,9 +277,23 @@
                                                 <ReactionsBar class="pl-2" :msg="item.msg" :isSelf="isSelf(item.msg)"
                                                     @toggle-reaction="(type: ReactionType) => toggleReaction(chatId!, item.msg, type)" />
                                             </template>
+                                            <!-- 媒体 caption：译文放在回应与时间之间（named slot → MessageMediaContent #translation），
+                                                 与普通消息一致（译文在时间上方）；媒体气泡无内边距，补 px-2 pb-1.5 对齐普通气泡。
+                                                 仅 inline 模式渲染附加块；popup 的全部翻译与 replace 均由正文原位顶替 -->
+                                            <template
+                                                v-if="isMediaMessage(item.msg) && isTranslateInlineBlockDisplay()"
+                                                #translation>
+                                                <div v-if="getInlineTranslation(chatId ?? 0, item.msg.id)" class="px-2 pb-1.5">
+                                                    <InlineTranslation
+                                                        :chat-id="chatId ?? 0" :message-id="item.msg.id"
+                                                        :text="getMessageFormattedText(item.msg)"
+                                                        :compact="getInlineTranslation(chatId ?? 0, item.msg.id)?.source === 'viewport'" />
+                                                </div>
+                                            </template>
                                         </MessageContent>
-                                        <!-- 内联翻译：在原消息气泡中显示译文 -->
-                                        <InlineTranslation v-if="getInlineTranslation(chatId ?? 0, item.msg.id)"
+                                        <!-- 内联翻译（非媒体）：在原消息气泡中显示译文；气泡容器自带 px-2 py-1.5 -->
+                                        <InlineTranslation
+                                            v-if="!isMediaMessage(item.msg) && getInlineTranslation(chatId ?? 0, item.msg.id)"
                                             :chat-id="chatId ?? 0" :message-id="item.msg.id"
                                             :text="getMessageFormattedText(item.msg)"
                                             :compact="getInlineTranslation(chatId ?? 0, item.msg.id)?.source === 'viewport'" />
@@ -321,7 +335,8 @@
         <!-- ===== Header（顶层，磨砂玻璃） ===== -->
         <div class="absolute top-0 left-0 right-0 z-10" :class="topicLayoutAnim ? 'topic-chrome-anim' : ''"
             :style="tagBarSideInsetStyle">
-            <ChatDetailHeader :chat="chat" :topic="topic" :showBack="showBackBtn" @back="handleBack"
+            <ChatDetailHeader :chat="chat" :topic="isDirectMessagesChat ? undefined : topic"
+                :dm-topic="dmHeaderTopic" :showBack="showBackBtn" @back="handleBack"
                 @openInfo="handleTopClick" @search="searchActive = true"
                 :show-topic-tag-toggle="showTopicPanel" :topic-tag-position="topicTagPosition"
                 @toggle-topic-tag-position="toggleTopicTagPosition" />
@@ -334,11 +349,12 @@
              （不用 Vue Transition，避免 out-in 卡死导致元素不再挂载） ===== -->
         <TopicTagBar v-if="showTopicPanel && chatId !== undefined" :chat-id="chatId" :topic-id="topicId"
             :position="topicTagPosition" :top-offset="4" :bottom-offset="76" :data-pos="topicTagPosition"
-            @select="onTopicTagSelect" />
+            :is-dm="isDirectMessagesChat" @select="onTopicTagSelect" />
 
         <!-- ===== 消息搜索栏（覆盖 Header） ===== -->
         <SearchBar v-if="searchActive && chatId !== undefined" :chat-id="chatId" :topic-id="topicId" :chat="chat"
-            :initial-query="hashtagSearchQuery" @close="searchActive = false" @jump="handleReplyJumpToMessage" />
+            :is-dm="isDirectMessagesChat" :initial-query="hashtagSearchQuery" @close="searchActive = false"
+            @jump="handleReplyJumpToMessage" />
 
         <!-- ===== 顶置消息栏 + 音乐播放器 + 全部翻译栏（合并同一顶部栈） ===== -->
         <!-- PinnedMessageBar 必须始终挂载：visibleChange 是 showTopCard 的唯一来源，
@@ -387,7 +403,7 @@
                         class="flex items-center justify-center w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-100 select-none shrink-0"
                         :class="{ 'opacity-50 cursor-not-allowed': r.needsPremium && !(userProfile?.is_premium) }"
                         :disabled="r.needsPremium && !(userProfile?.is_premium)"
-                        :title="r.needsPremium ? '需要 Premium' : r.type._ === 'reactionTypePaid' ? t('lng_sr_message_column_paid_reactions') : r.emoji"
+                        :title="r.needsPremium ? t('chat.needsPremium') : r.type._ === 'reactionTypePaid' ? t('lng_sr_message_column_paid_reactions') : r.emoji"
                         @click.stop="onCapsuleReactionClick(r)">
                         <PaidReactionIcon v-if="r.type._ === 'reactionTypePaid'" :size="24" />
                         <ReactionEmojiAnim v-else-if="!r.customEmojiId" :emoji="r.emoji" :size="26"
@@ -397,7 +413,7 @@
                     <!-- 更多回应按钮 -->
                     <button v-if="reactionCapsuleData.hasMore" type="button"
                         class="flex items-center justify-center w-8 h-8 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-100 select-none shrink-0"
-                        @click.stop="onCapsuleMoreClick" title="更多回应">
+                        @click.stop="onCapsuleMoreClick" :title="t('chat.moreReactions')">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4">
                             <polyline points="6 9 12 15 18 9"></polyline>
@@ -411,19 +427,19 @@
         <Transition name="multi-bar">
             <div v-if="selectionMode"
                 class="absolute left-3 right-3 bottom-3 z-20 flex items-center gap-2 px-3 h-13 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md shadow-lg border border-gray-200/50 dark:border-gray-700/50">
-                <button type="button" aria-label="退出多选"
+                <button type="button" :aria-label="t('chat.exitSelection')"
                     class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" @click="exitSelectionMode">
                     <XIcon class="w-5 h-5 text-gray-600 dark:text-gray-300" />
                 </button>
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-200 flex-1 truncate">
-                    已选 {{ selectedMsgIds.length }} 条
+                    {{ t('lng_media_selected_message', { count: selectedMsgIds.length }) }}
                 </span>
-                <button type="button" aria-label="转发选中消息" :title="t('lng_mediaview_forward')"
+                <button type="button" :aria-label="t('lng_context_forward_selected')" :title="t('lng_mediaview_forward')"
                     class="p-2 rounded-full enabled:hover:bg-gray-100 dark:enabled:hover:bg-gray-800 text-gray-600 dark:text-gray-300 disabled:opacity-40"
                     :disabled="selectedMsgIds.length === 0" @click="openForwardPicker">
                     <ShareIcon class="w-5 h-5" />
                 </button>
-                <button type="button" aria-label="删除选中消息" :title="t('lng_selected_delete')"
+                <button type="button" :aria-label="t('lng_context_delete_selected')" :title="t('lng_selected_delete')"
                     class="p-2 rounded-full enabled:hover:bg-red-50 dark:enabled:hover:bg-red-900/30 text-red-500 disabled:opacity-40 disabled:cursor-not-allowed"
                     :disabled="!canDeleteSelected" @click="onDeleteSelected">
                     <TrashIcon class="w-5 h-5" />
@@ -433,7 +449,7 @@
 
         <!-- ===== 转发选择器 ===== -->
         <ForwardPicker :visible="forwardPickerVisible" :from-chat-id="chatId ?? 0" :message-ids="forwardMessageIds"
-            @update:visible="forwardPickerVisible = $event" @done="onForwardDone" />
+            :messages="forwardMessagesSnapshot" @update:visible="forwardPickerVisible = $event" @done="onForwardDone" />
 
         <!-- ===== 叠层面板 ===== -->
         <Transition name="overlay-slide">
@@ -459,12 +475,12 @@
                         <button v-if="overlayUserId" type="button" @click="openOverlayUserProfile"
                             class="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left">
                             <UserIcon class="w-5 h-5 text-blue-500" />
-                            <span class="text-sm font-medium">查看个人资料</span>
+                            <span class="text-sm font-medium">{{ t('lng_context_view_profile') }}</span>
                         </button>
                         <button type="button" @click="openInNewChat"
                             class="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left">
                             <MessageCircleIcon class="w-5 h-5 text-blue-500" />
-                            <span class="text-sm font-medium">跳转到对话</span>
+                            <span class="text-sm font-medium">{{ t('lng_saved_open_chat') }}</span>
                         </button>
                     </div>
                 </div>
@@ -485,12 +501,12 @@
                     <div class="flex items-start gap-2">
                         <PencilIcon class="w-4 h-4 shrink-0 mt-0.5 text-orange-500" />
                         <div class="min-w-0 flex-1">
-                            <p class="text-xs font-semibold text-orange-500">编辑</p>
+                            <p class="text-xs font-semibold text-orange-500">{{ t('lng_theme_edit') }}</p>
                             <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ editTargetInfo.text ||
-                                '（无文本内容）' }}
+                                t('lng_message_empty') }}
                             </p>
                         </div>
-                        <button type="button" aria-label="取消编辑"
+                        <button type="button" :aria-label="t('lng_cancel')"
                             class="w-6 h-6 shrink-0 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400"
                             @click="cancelEdit">
                             <XIcon class="w-3.5 h-3.5" />
@@ -509,16 +525,16 @@
                         </div>
                         <div class="min-w-0 flex-1">
                             <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
-                                {{ editMediaReplacement ? editMediaReplacement.name : (editMediaPreviewSrc ? `已附带${editResourceLabel}` :
-                                    `无${editResourceLabel}预览`)
+                                {{ editMediaReplacement ? editMediaReplacement.name : (editMediaPreviewSrc ? t('chat.editMediaAttached', { type: editResourceLabel }) :
+                                    t('chat.editMediaNoPreview', { type: editResourceLabel }))
                                 }}
                             </p>
-                            <p v-if="editMediaReplacement" class="text-[11px] text-orange-500">已选择新{{ editResourceLabel }}，发送时将替换</p>
+                            <p v-if="editMediaReplacement" class="text-[11px] text-orange-500">{{ t('chat.editMediaReplaceHint', { type: editResourceLabel }) }}</p>
                         </div>
                         <button type="button"
                             class="shrink-0 px-2.5 py-1 rounded-lg text-xs font-medium text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
                             @click="pickEditMediaReplacement">
-                            更换
+                            {{ t('lng_boost_now_replace') }}
                         </button>
                     </div>
                 </div>
@@ -554,6 +570,21 @@
             </div>
         </div>
 
+        <!-- ===== 频道私信：未选中话题提示（替代输入框） ===== -->
+        <div v-else-if="showDmTopicHint"
+            class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-transparent dark:from-gray-900/80 via-transparent dark:via-gray-900/60 to-transparent"
+            :style="tagBarSideInsetStyle">
+            <div aria-hidden="true"
+                class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
+            </div>
+            <div class="relative z-10 flex items-center justify-center p-5">
+                <div
+                    class="min-h-12 max-w-[90%] px-5 py-3 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg flex items-center justify-center text-sm font-medium text-gray-500 dark:text-gray-400 text-center">
+                    {{ t('chat.selectDmTopic') }}
+                </div>
+            </div>
+        </div>
+
         <!-- ===== 秘密聊天状态：等待加密 / 已取消（替代输入框） ===== -->
         <div v-else-if="isSecretChat && secretChatNoticeText"
             class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-transparent dark:from-gray-900/80 via-transparent dark:via-gray-900/60 to-transparent">
@@ -580,7 +611,7 @@
                     @click="toggleNotifications">
                     {{ notificationsMuted ? t('lng_enable_notifications_from_tray') : t('lng_channel_mute') }}
                 </button>
-                <button v-if="linkedChatId" type="button" title="打开讨论组" aria-label="打开讨论组"
+                <button v-if="linkedChatId" type="button" :title="t('lng_profile_view_discussion')" :aria-label="t('lng_profile_view_discussion')"
                     class="w-12 h-12 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg flex items-center justify-center text-blue-500 dark:text-blue-400 hover:bg-white/80 dark:hover:bg-gray-800/90 transition-colors"
                     @click="openLinkedChat">
                     <MessageCircleIcon class="w-5 h-5" />
@@ -593,7 +624,7 @@
             <button v-if="showScrollButton"
                 class="absolute right-4 z-20 w-10 h-10 bg-white dark:bg-gray-700 rounded-full shadow-lg flex items-center justify-center text-gray-500 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
                 :style="{ bottom: (replyTargetInfo || editTargetInfo) ? '11.5rem' : '7rem' }"
-                @click="handleScrollToBottom" title="跳到底部">
+                @click="handleScrollToBottom" :title="t('chat.scrollToBottom')">
                 <span v-if="newMessageCount > 0"
                     class="absolute -top-1 -right-1 min-w-4.5 h-4.5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1 leading-none">
                     {{ newMessageCount > 99 ? '99+' : newMessageCount }}
@@ -657,7 +688,8 @@ import ReactionsBar from './ReactionsBar.vue';
 import ReactionPicker from './ReactionPicker.vue';
 
 import { tdlibSend, isFileReady } from '../../../utils/tdlib';
-import { resolveTopicDisplayMode } from '../../../utils/topicDisplayMode';
+import { resolveTopicMode } from '../../../utils/topicDisplayMode';
+import { buildMessageTopicInput, extractTopicNumber, ensureDmTopic, resolveDmSenderName, getSenderPhoto } from '../../../utils/directMessagesTopics';
 import { sendAttachments, sending } from '../../../utils/attachmentSend';
 import { useAttachmentStore } from '../../../store/attachment';
 import type { AttachmentItem } from '../../../store/attachment';
@@ -688,7 +720,7 @@ import {
     copyMessageText, copyMessageJson, copyMessageLink,
     toggleMessagePinned, pinMessage, getMessageProperties,
     executeDeleteActions,
-    canCopyMessage, canGetMessageLink, canPinMessage, canDeleteMessage,
+    canCopyMessage, canForwardMessage, canGetMessageLink, canPinMessage, canDeleteMessage,
     canReplyMessage, canEditMessage, editTextMessage, editCaptionMessage,
     editMessageMediaContent,
     canSaveMessage, canGetViewers, canGetReadDate, canGetAuthor,
@@ -700,7 +732,6 @@ import {
     buildEditMediaContent,
     allowedEditReplaceKinds,
     resolveEditReplaceKind,
-    ATTACHMENT_KIND_LABEL,
 } from '../../../utils/attachmentSend';
 import { isSavedMessagesChat } from '../../../utils/savedMessages';
 import { hasReactions } from '../../../utils/reactionHelpers';
@@ -716,6 +747,7 @@ import {
     isChatTranslating,
     requestViewportTranslation,
     getTranslateTargetLang,
+    isTranslateInlineBlockDisplay,
     canShowChatTranslateBar,
     shouldPromptChatTranslatePremium,
 } from '../../../store/translate';
@@ -822,9 +854,7 @@ let suppressDraftAutosave = false;
 let pendingTdlibDraft: { cid: number; tid?: number | null; text?: string } | null = null;
 
 function draftTopicInput(tid?: number | null) {
-    return tid
-        ? ({ _: 'messageTopicForum', forum_topic_id: tid } as const)
-        : undefined;
+    return buildMessageTopicInput(isDirectMessagesChat.value, tid);
 }
 
 /** 立即把 pendingTdlibDraft 提交到 TDLib；无待提交则不操作 */
@@ -1072,7 +1102,7 @@ function getChatSubtitle(): string {
         return t('lng_notification_groups');
     }
     if (c.type._ === 'chatTypeSupergroup') {
-        return c.type.is_channel ? t('lng_notification_channels') : '超级群组';
+        return c.type.is_channel ? t('lng_notification_channels') : t('lng_notification_groups');
     }
     return '';
 }
@@ -1088,14 +1118,18 @@ const chat = ref<chat | undefined>(undefined);
 /**
  * 话题展示模式（按群自身字段判定，非全局设置）：
  * - list：view_as_topics === true → 话题在对话列表（ChatList forumMode），对话页无标签栏
- * - tag ：view_as_topics === false 的论坛群 → 对话页左侧标签栏
+ * - tag ：view_as_topics === false 的论坛群 / 频道私聊群组 → 对话页左侧标签栏
  * - none：普通群组
  */
 const topicDisplayMode = ref<'none' | 'list' | 'tag'>('none');
+/** 频道私聊群组：话题是与各用户的私信会话，数据/发送走 messageTopicDirectMessages */
+const isDirectMessagesChat = ref(false);
 watch(chat, async (c) => {
     // 切换话题时 chat 会短暂清空再填充；空档不要清成 none，否则标签栏 v-if 闪断重挂
     if (!c) return;
-    topicDisplayMode.value = await resolveTopicDisplayMode(c);
+    const modeInfo = await resolveTopicMode(c);
+    topicDisplayMode.value = modeInfo.mode;
+    isDirectMessagesChat.value = modeInfo.isDirectMessages;
 }, { immediate: true });
 
 /** 对话页话题标签栏：仅 tag 栏话题模式显示 */
@@ -1184,6 +1218,8 @@ const overlayChatTitle = computed(() => {
 });
 /** 当前话题信息（话题模式时存在） */
 const topic = ref<forumTopic | undefined>(undefined);
+/** 频道私信话题的头部展示（对方头像/名称） */
+const dmHeaderTopic = ref<{ name: string; photo?: import('tdlib-types').chatPhotoInfo | import('tdlib-types').profilePhoto } | undefined>(undefined);
 const messageInput = ref('');
 /** 面板插入的自定义 emoji 队列（按插入顺序；发送时据此生成实体） */
 const pendingCustomEmoji = ref<{ id: string; alt: string }[]>([]);
@@ -1269,7 +1305,7 @@ const replyQuoteText = ref<string | null>(null);
 const replyTargetInfo = computed<{ title: string; text: string; quote?: string } | null>(() => {
     const m = replyTargetMsg.value;
     if (!m) return null;
-    const title = isSelf(m) ? '你' : getDisplaySenderName(m) || t('lng_profile_participants_section');
+    const title = isSelf(m) ? t('lng_from_you') : getDisplaySenderName(m) || t('lng_profile_participants_section');
     const text = getMessagePlainText(m);
     return { title, text, quote: replyQuoteText.value ?? undefined };
 });
@@ -1409,14 +1445,14 @@ const editHasMedia = computed(() => {
 /** 编辑区资源类型文案（文档/图片/视频…） */
 const editResourceLabel = computed(() => {
     const m = editingMsg.value;
-    if (!m) return '媒体';
+    if (!m) return t('lng_media_type_media');
     switch (m.content._) {
-        case 'messageDocument': return ATTACHMENT_KIND_LABEL.document;
-        case 'messagePhoto': return ATTACHMENT_KIND_LABEL.photo;
-        case 'messageVideo': return ATTACHMENT_KIND_LABEL.video;
-        case 'messageAudio': return ATTACHMENT_KIND_LABEL.audio;
-        case 'messageAnimation': return ATTACHMENT_KIND_LABEL.animation;
-        default: return '媒体';
+        case 'messageDocument': return t('lng_in_dlg_file');
+        case 'messagePhoto': return t('lng_in_dlg_photo');
+        case 'messageVideo': return t('lng_in_dlg_video');
+        case 'messageAudio': return t('lng_media_music_title');
+        case 'messageAnimation': return t('lng_media_type_gifs');
+        default: return t('lng_media_type_media');
     }
 });
 
@@ -1507,34 +1543,34 @@ function editReplaceDialogSpec(contentType: string): {
         case 'messageDocument':
             // 文件消息：任意文件；音频→music，其余→document
             return {
-                title: '选择新的文件或音乐',
+                title: t('chat.chooseFileOrMusic'),
                 forceDocument: false,
             };
         case 'messagePhoto':
             // 图片 ↔ 视频
             return {
-                title: '选择新的图片或视频',
-                filterName: '图片和视频',
+                title: t('chat.choosePhotoOrVideo'),
+                filterName: t('chat.photosAndVideos'),
                 extensions: [...IMAGE, ...VIDEO],
                 forceDocument: false,
             };
         case 'messageVideo':
             return {
-                title: '选择新的视频或图片',
-                filterName: '视频和图片',
+                title: t('chat.chooseVideoOrPhoto'),
+                filterName: t('chat.videosAndPhotos'),
                 extensions: [...VIDEO, ...IMAGE],
                 forceDocument: false,
             };
         case 'messageAudio':
             // 音乐 ↔ 文件
             return {
-                title: '选择新的音乐或文件',
+                title: t('chat.chooseMusicOrFile'),
                 forceDocument: false,
             };
         case 'messageAnimation':
             // 动画仅 GIF 或 MPEG4
             return {
-                title: '选择新的动图',
+                title: t('chat.chooseAnimation'),
                 filterName: 'GIF / MPEG4',
                 extensions: ANIMATION,
                 forceDocument: false,
@@ -1550,7 +1586,7 @@ async function pickEditMediaReplacement() {
     const contentType = editingMsg.value.content._;
     const spec = editReplaceDialogSpec(contentType);
     if (!spec || !allowedEditReplaceKinds(contentType)) {
-        MessagePlugin.warning('该消息类型不支持更换资源');
+        MessagePlugin.warning(t('chat.replaceUnsupported'));
         return;
     }
     try {
@@ -1559,7 +1595,7 @@ async function pickEditMediaReplacement() {
             title: spec.title,
             // 文件消息不设扩展名筛选：document 通道接受任意文件
             ...(spec.extensions && spec.extensions.length > 0
-                ? { filters: [{ name: spec.filterName || '文件', extensions: spec.extensions }] }
+                ? { filters: [{ name: spec.filterName || t('lng_in_dlg_file'), extensions: spec.extensions }] }
                 : {}),
         });
         if (!selected) return;
@@ -1600,7 +1636,7 @@ async function pickEditMediaReplacement() {
         editMediaPreviewSrc.value = convertFileSrc(path);
     } catch (e) {
         console.error('pick edit media failed:', e);
-        MessagePlugin.error({ content: `选择${editResourceLabel.value}失败`, placement: 'center' });
+        MessagePlugin.error({ content: t('chat.pickMediaFailed', { type: editResourceLabel.value }), placement: 'center' });
     }
 }
 
@@ -1701,10 +1737,22 @@ const canDeleteSelected = computed(() =>
 const forwardPickerVisible = ref(false);
 const forwardMessageIds = ref<number[]>([]);
 
+/** 转发选择器消息快照：供判断是否含媒体说明（相册/图/视/音/GIF/文件 caption） */
+const forwardMessagesSnapshot = computed(() => {
+    const ids = new Set(forwardMessageIds.value);
+    return messages.value.filter((m) => ids.has(m.id));
+});
+
 /** 打开转发选择器（用当前选中消息） */
 function openForwardPicker() {
     if (selectedMsgIds.value.length === 0) return;
     forwardMessageIds.value = [...selectedMsgIds.value];
+    forwardPickerVisible.value = true;
+}
+
+/** 右键「转发」：对单条消息打开转发选择器 */
+function startForward(msg: message) {
+    forwardMessageIds.value = [msg.id];
     forwardPickerVisible.value = true;
 }
 
@@ -1885,7 +1933,7 @@ function onCapsuleMoreClick() {
 async function onDeleteSelected() {
     const ids = [...selectedMsgIds.value];
     if (ids.length === 0) return;
-    const ok = window.confirm(`确定要删除选中的 ${ids.length} 条消息吗？\n\n（此操作将尝试为所有人删除）`);
+    const ok = window.confirm(t('lng_selected_delete_sure', { count: ids.length }));
     if (!ok) return;
     try {
         await tdlibSend({
@@ -1894,10 +1942,10 @@ async function onDeleteSelected() {
             message_ids: ids,
             revoke: true,
         });
-        MessagePlugin.success('已删除');
+        MessagePlugin.success(t('context.deleted'));
         exitSelectionMode();
     } catch (e: any) {
-        MessagePlugin.error(e?.message || '删除失败');
+        MessagePlugin.error(e?.message || t('context.deleteFailed'));
     }
 }
 
@@ -2189,9 +2237,9 @@ const handleUpdate = async (update: Update) => {
             if (msg.chat_id !== chatId.value || !isReady.value) return;
             if (messages.value.find(m => m.id === msg.id)) return;
 
-            // 话题模式下只显示属于当前话题的消息
+            // 话题模式下只显示属于当前话题的消息（论坛 / 频道私信）
             if (topicId.value) {
-                const msgTopicId = msg.topic_id?._ === 'messageTopicForum' ? msg.topic_id.forum_topic_id : 0;
+                const msgTopicId = extractTopicNumber(msg.topic_id as any);
                 if (msgTopicId !== topicId.value) return;
             }
 
@@ -2680,8 +2728,10 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
 
         // 并行发起：chat 基础信息 + 话题信息 +（可提前确定的）首屏消息
         const chatPromise = tdlibSend({ _: 'getChat', chat_id: currentId }) as Promise<chat>;
-        const topicPromise: Promise<forumTopic | undefined> = topicId.value
-            ? tdlibSend({ _: 'getForumTopic', chat_id: currentId, forum_topic_id: topicId.value }) as Promise<forumTopic>
+        const topicPromise: Promise<unknown> = topicId.value
+            ? (isDirectMessagesChat.value
+                ? ensureDmTopic(currentId, topicId.value)
+                : tdlibSend({ _: 'getForumTopic', chat_id: currentId, forum_topic_id: topicId.value }) as Promise<forumTopic>)
             : Promise.resolve(undefined);
 
         // 有上次浏览位置时，围绕该位置先拉一个对称切片，无需等待 getChat
@@ -2698,15 +2748,26 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
         // 话题模式：加载当前话题信息（用于头部显示话题名称/图标）
         if (topicId.value) {
             topic.value = undefined;
+            dmHeaderTopic.value = undefined;
             try {
                 const t = await topicPromise;
                 if (!isGenerationValid(gen)) return;
-                topic.value = t;
+                if (isDirectMessagesChat.value) {
+                    // 私信话题：解析对方名称/头像供 Header 展示
+                    const dm = t as Awaited<ReturnType<typeof ensureDmTopic>>;
+                    if (dm) {
+                        const name = await resolveDmSenderName(dm.sender_id);
+                        dmHeaderTopic.value = { name, photo: getSenderPhoto(dm.sender_id) };
+                    }
+                } else {
+                    topic.value = t as forumTopic;
+                }
             } catch (e) {
-                console.error('Failed to load forum topic:', e);
+                console.error('Failed to load topic:', e);
             }
         } else {
             topic.value = undefined;
+            dmHeaderTopic.value = undefined;
         }
 
         // 有未读消息时，以最后一条已读收件箱消息作为历史定位锚点
@@ -2871,23 +2932,33 @@ async function fetchMessages(chatIdNum: number, fromMessageId: number, limit: nu
         return null;
     }
     try {
-        // 话题模式使用 getForumTopicHistory
+        // 话题模式：论坛 getForumTopicHistory / 频道私信 getDirectMessagesChatTopicHistory
         const tid = topicId.value;
-        const result = await tdlibSend(tid ? {
-            _: 'getForumTopicHistory',
-            chat_id: chatIdNum,
-            forum_topic_id: tid,
-            from_message_id: fromMessageId,
-            offset,
-            limit,
-        } : {
-            _: 'getChatHistory',
-            chat_id: chatIdNum,
-            from_message_id: fromMessageId,
-            offset,
-            limit,
-            only_local: false
-        });
+        const isDm = isDirectMessagesChat.value;
+        const result = await tdlibSend(tid
+            ? (isDm ? {
+                _: 'getDirectMessagesChatTopicHistory',
+                chat_id: chatIdNum,
+                topic_id: tid,
+                from_message_id: fromMessageId,
+                offset,
+                limit,
+            } : {
+                _: 'getForumTopicHistory',
+                chat_id: chatIdNum,
+                forum_topic_id: tid,
+                from_message_id: fromMessageId,
+                offset,
+                limit,
+            })
+            : {
+                _: 'getChatHistory',
+                chat_id: chatIdNum,
+                from_message_id: fromMessageId,
+                offset,
+                limit,
+                only_local: false
+            });
         // 如果生成代数已过期（聊天已切换），丢弃结果
         if (generation !== undefined && !isGenerationValid(generation)) return null;
         const msgs: message[] = (result.messages || []).filter((m: any): m is message => !!m);
@@ -3340,7 +3411,11 @@ async function markVisibleMessagesAsRead() {
             chat_id: currentChatId,
             message_ids: messageIds,
             force_read: true,
-            source: topicId.value ? { _: 'messageSourceForumTopicHistory' } as const : undefined,
+            source: topicId.value
+                ? (isDirectMessagesChat.value
+                    ? { _: 'messageSourceDirectMessagesChatTopicHistory' } as const
+                    : { _: 'messageSourceForumTopicHistory' } as const)
+                : undefined,
         });
     } catch (e) {
         if (chatId.value === currentChatId && lastReportedReadMessageId === latestVisibleId) {
@@ -3690,6 +3765,7 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
                 {
                     chatId: chatId.value,
                     topicId: topicId.value,
+                    isDm: isDirectMessagesChat.value,
                     replyTo: replyTargetMsg.value
                         ? { _: 'inputMessageReplyToMessage', message_id: replyTargetMsg.value.id, quote: buildReplyQuote(), checklist_task_id: 0, poll_option_id: '' }
                         : null,
@@ -3727,7 +3803,7 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
                     poll_option_id: '',
                 }
                 : undefined,
-            topic_id: topicId.value ? { _: 'messageTopicForum', forum_topic_id: topicId.value } : undefined,
+            topic_id: buildMessageTopicInput(isDirectMessagesChat.value, topicId.value),
         };
         await tdlibSend(params as $Function);
         messageInput.value = '';
@@ -3773,7 +3849,7 @@ async function sendSticker(fileId: number | string) {
                     poll_option_id: '',
                 }
                 : undefined,
-            topic_id: topicId.value ? { _: 'messageTopicForum', forum_topic_id: topicId.value } : undefined,
+            topic_id: buildMessageTopicInput(isDirectMessagesChat.value, topicId.value),
         };
         await tdlibSend(params as $Function);
         clearReply();
@@ -3804,7 +3880,7 @@ function sendAnimation(fileId: number, _stickerId: string) {
                         poll_option_id: '',
                     }
                     : undefined,
-                topic_id: topicId.value ? { _: 'messageTopicForum', forum_topic_id: topicId.value } : undefined,
+                topic_id: buildMessageTopicInput(isDirectMessagesChat.value, topicId.value),
             };
             await tdlibSend(params as $Function);
             clearReply();
@@ -4146,7 +4222,7 @@ function openTranslateDialogFor(msg: message) {
     });
 }
 
-/** 根据「翻译显示设置」选择弹窗或内联翻译 */
+/** 根据「翻译显示设置」选择弹窗 / 内联 / 原位替换（replace 写入同一份内联翻译状态，由正文组件原位顶替） */
 function openTranslateFor(msg: message) {
     const ft = getMessageFormattedText(msg);
     if (!ft || !ft.text.trim()) return;
@@ -4154,8 +4230,9 @@ function openTranslateFor(msg: message) {
     const targetLang = getTranslateTargetLang() || DEFAULT_TRANSLATE_TARGET;
     // 相册消息不提供内联展示槽位，回退到弹窗
     const isAlbumMember = !!msg.media_album_id && msg.media_album_id !== '0';
-    if (settings.translate.displayMode === 'inline' && !isAlbumMember) {
-        // 内联：在原消息气泡中显示译文
+    const mode = settings.translate.displayMode;
+    if ((mode === 'inline' || mode === 'replace') && !isAlbumMember) {
+        // 内联：在原消息气泡中显示译文；replace：正文原位顶替 + 翻译中扫光
         void translateInlineMessage(
             cid,
             msg.id,
@@ -4165,7 +4242,7 @@ function openTranslateFor(msg: message) {
             getMessagePlainText(msg),
         );
     } else {
-        // 弹窗：默认行为
+        // 弹窗：默认行为 / 相册回退
         openTranslateDialogFor(msg);
     }
 }
@@ -4318,7 +4395,7 @@ async function handleRevealInDir(path: string) {
         await revealItemInDir([path]);
     } catch (e) {
         console.error('revealItemInDir failed:', e);
-        MessagePlugin.error('打开目录失败');
+        MessagePlugin.error(t('chat.revealFailed'));
     }
 }
 
@@ -4328,15 +4405,15 @@ async function handleMessageSaveAs(file: TdFile, fileName: string) {
     if (!src) return;
     try {
         const dest = await save({
-            title: '另存为',
+            title: t('lng_context_save_file'),
             defaultPath: fileName,
         });
         if (!dest) return;
         await copyFile(src, dest);
-        MessagePlugin.success('已另存为');
+        MessagePlugin.success(t('chat.saveAsDone'));
     } catch (e) {
         console.error('saveAs failed:', e);
-        MessagePlugin.error('另存为失败');
+        MessagePlugin.error(t('chat.saveAsFailed'));
     }
 }
 
@@ -4348,7 +4425,7 @@ async function handleSaveMessage(msg: message) {
         // Saved Messages 是与自己的私聊，chat_id = myId
         const savedChatId = myId.value;
         if (!savedChatId) {
-            MessagePlugin.warning('无法获取收藏对话');
+            MessagePlugin.warning(t('chat.savedChatUnavailable'));
             return;
         }
         await tdlibSend({
@@ -4360,10 +4437,10 @@ async function handleSaveMessage(msg: message) {
             disable_notification: false,
             send_pinned: false,
         });
-        MessagePlugin.success('已保存到收藏');
+        MessagePlugin.success(t('chat.savedToSaved'));
     } catch (e: any) {
         console.error('saveMessage failed:', e);
-        MessagePlugin.error(e?.message || '保存失败');
+        MessagePlugin.error(e?.message || t('chat.saveFailed'));
     }
 }
 
@@ -4379,7 +4456,7 @@ async function handleGetViewers(msg: message) {
         }) as any;
         const viewers: Array<{ user_id: number; view_date: number }> = result?.viewers || [];
         if (viewers.length === 0) {
-            MessagePlugin.info('暂无回应者');
+            MessagePlugin.info(t('lng_context_seen_reacted_none'));
             return;
         }
         // 批量获取用户信息以显示名称
@@ -4390,11 +4467,11 @@ async function handleGetViewers(msg: message) {
         const names = users
             .filter((u): u is any => u && u._ === 'user')
             .map(u => `${u.first_name}${u.last_name ? ' ' + u.last_name : ''}`);
-        const nameList = names.length > 0 ? names.join('、') : `${viewers.length} 位用户`;
-        MessagePlugin.success({ content: `回应者：${nameList}`, duration: 5000 });
+        const nameList = names.length > 0 ? names.join(', ') : t('chat.userCount', { count: viewers.length });
+        MessagePlugin.success({ content: t('chat.reactorsList', { names: nameList }), duration: 5000 });
     } catch (e: any) {
         console.error('getMessageViewers failed:', e);
-        MessagePlugin.error(e?.message || '获取回应者失败');
+        MessagePlugin.error(e?.message || t('chat.getReactorsFailed'));
     }
 }
 
@@ -4415,20 +4492,20 @@ async function fetchReadDateLabel(msg: message): Promise<string | null> {
         switch (result?._) {
             case 'messageReadDateRead': {
                 const d = new Date(result.read_date * 1000);
-                const timeStr = d.toLocaleString('zh-CN', {
+                const timeStr = d.toLocaleString(undefined, {
                     month: 'short', day: 'numeric',
                     hour: '2-digit', minute: '2-digit',
                 });
-                return `对方已于 ${timeStr} 阅读`;
+                return t('chat.readAt', { time: timeStr });
             }
             case 'messageReadDateUnread':
-                return '对方尚未阅读';
+                return t('lng_sr_message_not_seen');
             case 'messageReadDateTooOld':
-                return '消息太旧，无法获取阅读状态';
+                return t('chat.readDateTooOld');
             case 'messageReadDateUserPrivacyRestricted':
-                return '对方隐私设置限制了阅读状态';
+                return t('chat.readDatePrivacyOther');
             case 'messageReadDateMyPrivacyRestricted':
-                return '你的隐私设置限制了阅读状态';
+                return t('chat.readDatePrivacyMe');
             default:
                 return null;
         }
@@ -4450,11 +4527,11 @@ async function handleGetAuthor(msg: message) {
         if (author && author._ === 'user') {
             router.push({ name: 'user-profile', params: { id: String(author.id) } });
         } else {
-            MessagePlugin.info('无法获取作者信息');
+            MessagePlugin.info(t('chat.authorUnavailable'));
         }
     } catch (e: any) {
         console.error('getMessageAuthor failed:', e);
-        MessagePlugin.error(e?.message || '获取作者失败');
+        MessagePlugin.error(e?.message || t('chat.getAuthorFailed'));
     }
 }
 
@@ -4472,16 +4549,16 @@ async function handleGetMessageThread(msg: message) {
             const replyCount = thread.reply_info?.reply_count ?? 0;
             const unread = thread.unread_message_count ?? 0;
             const parts: string[] = [];
-            if (replyCount > 0) parts.push(`${replyCount} 条回复`);
-            if (unread > 0) parts.push(`${unread} 条未读`);
-            parts.push('查看消息功能开发中')
-            MessagePlugin.success(parts.length > 0 ? `消息线程：${parts.join('，')}` : '消息线程暂无回复');
+            if (replyCount > 0) parts.push(t('chat.replyCount', { count: replyCount }));
+            if (unread > 0) parts.push(t('lng_unread_bar', { count: unread }));
+            parts.push(t('chat.threadWip'));
+            MessagePlugin.success(parts.length > 0 ? t('chat.threadInfo', { parts: parts.join(', ') }) : t('chat.threadEmpty'));
         } else {
-            MessagePlugin.info('该消息没有回复线程');
+            MessagePlugin.info(t('chat.noThread'));
         }
     } catch (e: any) {
         console.error('getMessageThread failed:', e);
-        MessagePlugin.error(e?.message || '获取消息线程失败');
+        MessagePlugin.error(e?.message || t('chat.getThreadFailed'));
     }
 }
 
@@ -4496,13 +4573,13 @@ async function handleRecognizeSpeech(msg: message) {
             message_id: msg.id,
         }) as any;
         if (result && result.text) {
-            MessagePlugin.success(`识别结果：${result.text}`);
+            MessagePlugin.success(t('chat.transcriptResult', { text: result.text }));
         } else {
-            MessagePlugin.info('无法识别语音内容');
+            MessagePlugin.info(t('chat.transcriptEmpty'));
         }
     } catch (e: any) {
         console.error('recognizeSpeech failed:', e);
-        MessagePlugin.error(e?.message || '语音识别失败');
+        MessagePlugin.error(e?.message || t('chat.transcriptFailed'));
     }
 }
 
@@ -4512,11 +4589,11 @@ async function handleReportMessage(msg: message) {
     if (cid === undefined) return;
     try {
         await confirmReportMessage({ chatId: cid, msg });
-        MessagePlugin.success('已举报');
+        MessagePlugin.success(t('lng_report_spam_thanks'));
     } catch (e: any) {
         if (e?.message !== 'canceled') {
             console.error('reportChat failed:', e);
-            MessagePlugin.error(e?.message || '举报失败');
+            MessagePlugin.error(e?.message || t('chat.reportFailed'));
         }
     }
 }
@@ -4554,7 +4631,7 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
     if (!isService && quotedText && canReplyMessage(msg, cid)) {
         items.push({
             key: 'quote-reply',
-            label: '引用回复',
+            label: t('lng_context_quote_and_reply'),
             icon: QuoteIcon,
             onClick: () => startQuoteReply(msg, quotedText),
         });
@@ -4582,20 +4659,31 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
         });
     }
 
-    // —— 复制文本 / 媒体描述 ——
-    items.push({
-        key: 'copy-text',
-        label: isMediaMessage(msg) ? '复制描述' : t('lng_context_copy_text'),
-        icon: CopyPlusIcon,
-        disabled: !canCopyMessage(msg, cid),
-        onClick: () => copyMessageText(msg),
-    });
+    // —— 复制文本 / 媒体描述（禁止复制的频道/消息直接不显示，而非置灰）——
+    if (canCopyMessage(msg, cid)) {
+        items.push({
+            key: 'copy-text',
+            label: t('lng_context_copy_text'),
+            icon: CopyPlusIcon,
+            onClick: () => copyMessageText(msg),
+        });
+    }
+
+    // —— 转发（禁止转发的频道/消息直接不显示，而非置灰）——
+    if (canForwardMessage(msg, cid)) {
+        items.push({
+            key: 'forward',
+            label: t('lng_mediaview_forward'),
+            icon: ShareIcon,
+            onClick: () => startForward(msg),
+        });
+    }
 
     // —— 保存到收藏 ——
     if (!isService && canSaveMessage(msg, cid)) {
         items.push({
             key: 'save',
-            label: '保存到收藏',
+            label: t('chat.saveToSaved'),
             icon: BookmarkIcon,
             onClick: () => handleSaveMessage(msg),
         });
@@ -4655,7 +4743,7 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
     if (!isService && canGetViewers(msg, cid)) {
         items.push({
             key: 'viewers',
-            label: '查看回应者',
+            label: t('chat.viewReactors'),
             icon: EyeIcon,
             onClick: () => handleGetViewers(msg),
         });
@@ -4665,7 +4753,7 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
     if (!isService && canGetAuthor(msg, cid)) {
         items.push({
             key: 'author',
-            label: '查看真实作者',
+            label: t('chat.viewRealAuthor'),
             icon: UserCheckIcon,
             onClick: () => handleGetAuthor(msg),
         });
@@ -4675,7 +4763,7 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
     if (!isService && canGetMessageThread(msg, cid) && (msg.interaction_info?.reply_info?.reply_count ?? 0) > 0) {
         items.push({
             key: 'thread',
-            label: '查看回复',
+            label: t('lng_replies_view_thread'),
             icon: MessageSquareIcon,
             onClick: () => handleGetMessageThread(msg),
         });
@@ -4685,7 +4773,7 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
     if (!isService && canRecognizeSpeech(msg, cid)) {
         items.push({
             key: 'recognize-speech',
-            label: '语音转文字',
+            label: t('lng_feature_transcribe'),
             icon: AudioLinesIcon,
             onClick: () => handleRecognizeSpeech(msg),
         });
@@ -4757,7 +4845,7 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
         });
         items.push({
             key: 'copy-json',
-            label: '复制消息原始 JSON',
+            label: t('chat.copyJson'),
             icon: ClipboardCopyIcon,
             onClick: () => copyMessageJson(msg),
         });
@@ -4790,9 +4878,10 @@ async function openPinConfirm(msg: message) {
     }
 
     const scope: 'private' | 'group' = isPrivate ? 'private' : 'group';
+    const otherName = chat.value?.title || '';
 
     try {
-        const result = await confirmPinMessage({ chatId: cid, msg, scope });
+        const result = await confirmPinMessage({ chatId: cid, msg, scope, otherName });
         if (scope === 'private') {
             await pinMessage(cid, msg, { onlyForSelf: !result.pinForOther });
         } else {
@@ -5272,8 +5361,17 @@ const canSend = computed(() => {
     if (isSecretChat.value) {
         return secretChatState.value !== 'pending' && secretChatState.value !== 'closed';
     }
+    // 受管理的频道私信群组：未选中话题时不开放发送（对齐 Unigram ForumReplyToMessagesInTopic）
+    if (isDirectMessagesChat.value && topicDisplayMode.value === 'tag' && !topicId.value) {
+        return false;
+    }
     return true;
 });
+
+/** 频道私信：未选中话题时的底部提示 */
+const showDmTopicHint = computed(() =>
+    isDirectMessagesChat.value && topicDisplayMode.value === 'tag' && !topicId.value && !showMembershipAction.value
+);
 
 const showMembershipAction = computed(() =>
     showMembershipActionOf(chat.value, currentMemberStatus.value)
@@ -5285,14 +5383,16 @@ const canJoinCurrentChat = computed(() =>
 
 const membershipActionLabel = computed(() => {
     const currentChat = chat.value;
-    const noun = currentChat?.type._ === 'chatTypeSupergroup' && currentChat.type.is_channel ? t('lng_notification_channels') : t('lng_notification_groups');
-    if (isJoinPending.value) return '处理中...';
-    if (joinRequestSent.value) return '已发送加入申请';
-    if (!canJoinCurrentChat.value) return `无法加入${noun}`;
+    const isChannel = currentChat?.type._ === 'chatTypeSupergroup' && currentChat.type.is_channel;
+    const noun = isChannel ? t('lng_notification_channels') : t('lng_notification_groups');
+    if (isJoinPending.value) return t('lng_profile_loading');
+    if (joinRequestSent.value) return t(isChannel ? 'lng_group_request_sent_channel' : 'lng_group_request_sent');
+    if (!canJoinCurrentChat.value) return t('chat.cannotJoin', { noun });
 
     const needsRequest = currentChat?.type._ === 'chatTypeSupergroup'
         && !!supergroups.value[currentChat.type.supergroup_id]?.join_by_request;
-    return needsRequest ? `申请加入${noun}` : `加入${noun}`;
+    if (needsRequest) return t(isChannel ? 'lng_profile_apply_to_join_group' : 'lng_group_request_to_join');
+    return t(isChannel ? 'lng_profile_join_channel' : 'lng_profile_join_group');
 });
 
 async function joinCurrentChat() {

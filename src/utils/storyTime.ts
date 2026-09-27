@@ -1,8 +1,10 @@
+import i18n from "../i18n";
+
 /** 故事相对时间：42w / 3d / 5h / 12m / 刚刚 */
 export function formatStoryRelativeTime(unixSeconds: number): string {
   if (!unixSeconds) return "";
   const diff = Math.max(0, Date.now() / 1000 - unixSeconds);
-  if (diff < 60) return "刚刚";
+  if (diff < 60) return i18n.global.t("lng_mediaview_just_now");
   if (diff < 3600) return `${Math.floor(diff / 60)}m`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
   if (diff < 604800) return `${Math.floor(diff / 86400)}d`;
