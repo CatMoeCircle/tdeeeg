@@ -134,6 +134,72 @@ const router = createRouter({
           name: "chat-profile",
           component: () => import("../views/user/UserProfile.vue"),
         },
+        // ===== 群组/频道编辑（创建者 / 管理员）=====
+        {
+          path: "chat-edit/:id",
+          name: "chat-edit",
+          component: () => import("../views/group/GroupEditPage.vue"),
+        },
+        {
+          path: "chat-edit/:id/type",
+          name: "group-type",
+          component: () => import("../views/group/GroupTypePage.vue"),
+        },
+        {
+          path: "chat-edit/:id/linked",
+          name: "group-linked",
+          component: () => import("../views/group/GroupLinkedChatPage.vue"),
+        },
+        {
+          path: "chat-edit/:id/permissions",
+          name: "group-permissions",
+          component: () => import("../views/group/GroupPermissionsPage.vue"),
+        },
+        {
+          path: "chat-edit/:id/admins",
+          name: "group-admins",
+          component: () => import("../views/group/GroupAdminsPage.vue"),
+        },
+        {
+          path: "chat-edit/:id/members",
+          name: "group-members",
+          component: () => import("../views/group/GroupMembersPage.vue"),
+        },
+        {
+          path: "chat-edit/:id/blacklist",
+          name: "group-blacklist",
+          component: () => import("../views/group/GroupBlacklistPage.vue"),
+        },
+        {
+          path: "chat-edit/:id/event-log",
+          name: "group-event-log",
+          component: () => import("../views/group/GroupEventLogPage.vue"),
+        },
+        {
+          path: "chat-edit/:id/appearance",
+          name: "group-appearance",
+          component: () => import("../views/group/GroupAppearancePage.vue"),
+        },
+        {
+          path: "chat-edit/:id/direct-messages",
+          name: "group-direct-messages",
+          component: () => import("../views/group/GroupDirectMessagesPage.vue"),
+        },
+        {
+          path: "chat-edit/:id/topics",
+          name: "group-topics",
+          component: () => import("../views/group/GroupTopicsPage.vue"),
+        },
+        {
+          path: "chat-edit/:id/invite-links",
+          name: "group-invite-links",
+          component: () => import("../views/group/GroupInviteLinksPage.vue"),
+        },
+        {
+          path: "chat-edit/:id/reactions",
+          name: "group-reactions",
+          component: () => import("../views/group/GroupReactionsPage.vue"),
+        },
       ],
     },
     // 兜底：未匹配路由回到根占位，避免 router-view 渲染空白

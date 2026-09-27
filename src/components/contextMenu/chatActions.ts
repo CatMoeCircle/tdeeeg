@@ -1,6 +1,10 @@
 import { tdlibSend } from "../../utils/tdlib";
 import { MessagePlugin } from "tdesign-vue-next";
+import i18n from "../../i18n";
 import type { Chat } from "../../store/chat";
+
+const t = (key: string, params?: Record<string, unknown>) =>
+    i18n.global.t(key, params as any);
 
 /**
  * 对话列表右键菜单所需的各种 TDLib 操作封装。
@@ -12,8 +16,24 @@ export function isChatArchived(chat: Chat): boolean {
     return !!chat.chat_lists?.some((l) => l._ === 'chatListArchive');
 }
 
-/** 判断对话是否已顶置 */
-export function isChatPinned(chat: Chat): boolean {
+/**
+ * 判断对话是否已顶置（按列表作用域）。
+ * 与 Unigram chat.GetPosition(chatList).IsPinned 对齐：只看指定列表的
+ * position，避免「在其他分组置顶」误显示到当前分组。
+ * listKey 为 'chatListMain' | 'chatListArchive' | 'chat_folder_id{N}'。
+ */
+export function isChatPinned(chat: Chat, listKey?: string): boolean {
+    const keyOf = (list: unknown) => {
+        const l = list as { _?: string; chat_folder_id?: number } | null | undefined;
+        if (!l) return '';
+        if (l._ === 'chatListMain') return 'chatListMain';
+        if (l._ === 'chatListArchive') return 'chatListArchive';
+        if (l._ === 'chatListFolder') return `chat_folder_id${l.chat_folder_id}`;
+        return '';
+    };
+    if (listKey) {
+        return !!chat.positions?.some((p) => keyOf(p.list) === listKey && p.is_pinned);
+    }
     return !!chat.positions?.some((p) => p.is_pinned);
 }
 
@@ -37,18 +57,18 @@ export async function moveChatToList(chatId: number, chatList: { _: string }, su
         await tdlibSend({ _: 'addChatToList', chat_id: chatId, chat_list: chatList as any });
         if (successMsg) MessagePlugin.success(successMsg);
     } catch (e: any) {
-        MessagePlugin.error(e?.message || '操作失败');
+        MessagePlugin.error(e?.message || t('context.actionFailed'));
     }
 }
 
 /** 归档对话 */
 export async function archiveChat(chatId: number) {
-    await moveChatToList(chatId, { _: 'chatListArchive' }, '已归档');
+    await moveChatToList(chatId, { _: 'chatListArchive' }, t('lng_quick_dialog_action_toast_archive_success'));
 }
 
 /** 取消归档（移回主列表） */
 export async function unarchiveChat(chatId: number) {
-    await moveChatToList(chatId, { _: 'chatListMain' }, '已取消归档');
+    await moveChatToList(chatId, { _: 'chatListMain' }, t('lng_archived_removed'));
 }
 
 /** 顶置 / 取消顶置对话 */
@@ -60,14 +80,19 @@ export async function toggleChatPinned(chatId: number, isPinned: boolean, chatLi
             is_pinned: isPinned,
             chat_list: chatList as any,
         });
-        MessagePlugin.success(isPinned ? '已置顶' : '已取消置顶');
+        MessagePlugin.success(isPinned ? t('lng_quick_dialog_action_toast_pin_success') : t('lng_quick_dialog_action_toast_unpin_success'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || '操作失败');
+        MessagePlugin.error(e?.message || t('context.actionFailed'));
     }
 }
 
 /** 加入 / 移出分组（chatFolderInfo），folderId 为聊天文件夹 id */
-export async function toggleChatInFolder(chatId: number, folderId: number, add: boolean) {
+export async function toggleChatInFolder(
+    chatId: number,
+    folderId: number,
+    add: boolean,
+    names?: { chat?: string; folder?: string },
+) {
     try {
         await tdlibSend({
             _: 'addChatToList',
@@ -75,9 +100,15 @@ export async function toggleChatInFolder(chatId: number, folderId: number, add: 
             // chrome: TDLib 用 chatFolder 列表封装文件夹 id
             chat_list: { _: 'chatListFolder', chat_folder_id: folderId } as any,
         });
-        MessagePlugin.success(add ? '已加入分组' : '已移出分组');
+        const chat = names?.chat ?? String(chatId);
+        const folder = names?.folder ?? String(folderId);
+        MessagePlugin.success(
+            add
+                ? t('lng_filters_toast_add', { chat, folder })
+                : t('lng_filters_toast_remove', { chat, folder }),
+        );
     } catch (e: any) {
-        MessagePlugin.error(e?.message || '操作失败');
+        MessagePlugin.error(e?.message || t('context.actionFailed'));
     }
 }
 
@@ -95,9 +126,9 @@ export async function muteChat(chatId: number) {
                 sound_id: '0',
             } as any,
         });
-        MessagePlugin.success('已关闭通知');
+        MessagePlugin.success(t('lng_quick_dialog_action_toast_mute_success'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || '操作失败');
+        MessagePlugin.error(e?.message || t('context.actionFailed'));
     }
 }
 
@@ -115,9 +146,9 @@ export async function unmuteChat(chatId: number) {
                 sound_id: '0',
             } as any,
         });
-        MessagePlugin.success('已开启通知');
+        MessagePlugin.success(t('lng_quick_dialog_action_toast_unmute_success'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || '操作失败');
+        MessagePlugin.error(e?.message || t('context.actionFailed'));
     }
 }
 
@@ -125,9 +156,9 @@ export async function unmuteChat(chatId: number) {
 export async function leaveChat(chatId: number) {
     try {
         await tdlibSend({ _: 'leaveChat', chat_id: chatId });
-        MessagePlugin.success('已退出群组');
+        MessagePlugin.success(t('context.leftChat'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || '操作失败');
+        MessagePlugin.error(e?.message || t('context.actionFailed'));
     }
 }
 
@@ -143,9 +174,9 @@ export async function getChatListsToAdd(chatId: number): Promise<{ id: number; t
                 // 获取文件夹标题
                 try {
                     const folder = await tdlibSend({ _: 'getChatFolder', chat_folder_id: id }) as any;
-                    folders.push({ id, title: folder?.title?.text ?? `分组 ${id}` });
+                    folders.push({ id, title: folder?.title?.text ?? t('context.folderFallback', { id }) });
                 } catch {
-                    folders.push({ id, title: `分组 ${id}` });
+                    folders.push({ id, title: t('context.folderFallback', { id }) });
                 }
             }
         }
