@@ -113,6 +113,20 @@ export type HiddenCategory =
     | "music_cover"
     | "other";
 
+/** trackDownloadFile / reconcileFromFile 的可选展示元数据 */
+export interface TrackFileMeta {
+    fileName?: string;
+    chatTitle?: string;
+    chatId?: number;
+    messageId?: number;
+    fileType?: DownloadFileType;
+    isGeneric?: boolean;
+    hiddenCategory?: string;
+    isStreaming?: boolean;
+    tags?: string[];
+    sourceLabel?: string;
+}
+
 /** 隐藏分类 → 标签 ID（展示时经 tagLabel 转 i18n） */
 const HIDDEN_CATEGORY_LABELS: Record<HiddenCategory, string> = {
     emoji: DL_TAG.EMOJI,
@@ -1214,20 +1228,194 @@ export const useDownloadStore = defineStore("downloads", () => {
     }
 
     /**
-     * 内容快照 / TDLib File 已就绪时，把 store 中同文件的未完成条目对账为已完成。
-     * 用于修复「本地文件已下载完成，但下载管理器/气泡仍显示正在下载」。
+     * 校准：把一次下载请求返回的 File 纳入下载管理器。
+     *
+     * 覆盖所有 downloadFile / getFile 拿到的 file：
+     * - 条目已存在 → 按 file 回写进度 / 完成态 / 本地路径
+     * - 条目不存在且确有下载活动或完成 → 补录（有 meta 用 meta，否则按通用资源隐藏）
+     *
+     * 用于修复「音乐播放器等旁路请求下载后，下载管理器没有记录」。
+     */
+    function trackDownloadFile(
+        file: {
+            id?: number;
+            remote?: { id?: string };
+            size?: number;
+            expected_size?: number;
+            local?: {
+                downloaded_size?: number;
+                is_downloading_active?: boolean;
+                is_downloading_completed?: boolean;
+                path?: string;
+            };
+        } | null | undefined,
+        meta?: TrackFileMeta,
+    ): boolean {
+        if (!file || typeof file.id !== "number") return false;
+        const fileId = file.id;
+        const remoteId = remoteIdOf(file);
+        const path = file.local?.path && file.local.path.length > 0 ? file.local.path : undefined;
+        const ready = !!(file.local?.is_downloading_completed && path);
+        const downloaded = typeof file.local?.downloaded_size === "number" ? file.local.downloaded_size : 0;
+        const size = typeof file.size === "number" && file.size > 0 ? file.size : 0;
+        const expected = typeof file.expected_size === "number" ? file.expected_size : 0;
+        const total = size > 0 ? size : expected;
+        const active = !!file.local?.is_downloading_active;
+
+        const key = remoteId && remoteId.length > 0
+            ? migrateToRemoteKey(fileId, remoteId)
+            : (sessionIdMap.value[fileId] || `session:${fileId}`);
+        let existing = items.value[key];
+
+        // 无进度且调用方未给语义 → 不补录，避免空壳任务
+        if (!existing) {
+            const hasActivity = ready || active || downloaded > 0;
+            if (!hasActivity && !meta) return false;
+
+            const fileType = meta?.fileType ?? "other";
+            const generic = meta?.isGeneric
+                ?? (fileType === "sticker" || fileType === "avatar" || fileType === "other");
+            const category = meta?.hiddenCategory ?? (generic ? inferHiddenCategory(fileType) : undefined);
+            const finalTags = buildDownloadTags({
+                fileType,
+                hiddenCategory: category,
+                isGeneric: generic,
+                isStreaming: meta?.isStreaming,
+                extraTags: meta?.tags,
+            });
+            const rid = key;
+            void invoke("register_download", {
+                remoteId: rid,
+                fileId,
+                fileName: meta?.fileName || (path ? path.split(/[\\/]/).pop() : undefined) || i18n.global.t("download.row.fileFallback", { id: fileId }),
+                chatTitle: meta?.chatTitle || "",
+                totalSize: total,
+                fileType,
+                thumbnailDataUrl: null,
+                chatId: meta?.chatId || null,
+                messageId: meta?.messageId || null,
+                isGeneric: generic,
+                hiddenCategory: category ?? null,
+                isAutoPhoto: false,
+                isStreaming: meta?.isStreaming ?? false,
+                tags: finalTags,
+                sourceLabel: meta?.sourceLabel || null,
+            }).catch(() => { /* Rust 侧失败不阻塞前端展示 */ });
+
+            const now = Date.now();
+            items.value[rid] = {
+                remote_id: rid,
+                session_file_id: fileId,
+                file_id: fileId,
+                file_name: meta?.fileName || (path ? path.split(/[\\/]/).pop() : undefined) || i18n.global.t("download.row.fileFallback", { id: fileId }),
+                chat_title: meta?.chatTitle || "",
+                chat_id: meta?.chatId,
+                message_id: meta?.messageId,
+                total_size: total,
+                downloaded_size: ready && total > 0 ? total : downloaded,
+                progress: ready ? 1 : (total > 0 ? Math.min(1, downloaded / total) : 0),
+                is_paused: ready ? false : (!active && !ready),
+                is_completed: ready,
+                local_path: path,
+                file_type: fileType,
+                is_generic: generic,
+                hidden_category: category,
+                is_auto_photo: false,
+                is_streaming: meta?.isStreaming ?? false,
+                tags: finalTags,
+                source_label: meta?.sourceLabel,
+                dismissed: false,
+                created_at: now,
+                completed_at: ready ? now : undefined,
+                has_tdlib_update: true,
+                in_tdlib_list: false,
+            };
+            sessionIdMap.value[fileId] = rid;
+            return true;
+        }
+
+        // 已有条目：回写进度 / 完成态（TDLib 对已完成文件可能不再推 updateFile）
+        let dirty = false;
+        const nextDownloaded = ready && (total > 0 ? total : downloaded) ? (total > 0 ? total : downloaded) : downloaded;
+        if (existing.downloaded_size !== nextDownloaded) {
+            existing.downloaded_size = nextDownloaded;
+            dirty = true;
+        }
+        if (total > 0 && existing.total_size !== total) {
+            existing.total_size = total;
+            dirty = true;
+        }
+        const nextProgress = ready ? 1 : (existing.total_size > 0
+            ? Math.min(1, existing.downloaded_size / existing.total_size)
+            : existing.progress);
+        if (existing.progress !== nextProgress) {
+            existing.progress = nextProgress;
+            dirty = true;
+        }
+        if (!existing.has_tdlib_update && (ready || active || downloaded > 0)) {
+            existing.has_tdlib_update = true;
+            dirty = true;
+        }
+        if (existing.session_file_id !== fileId || existing.file_id !== fileId) {
+            existing.session_file_id = fileId;
+            existing.file_id = fileId;
+            dirty = true;
+        }
+        if (!existing.remote_id) {
+            existing.remote_id = key;
+            dirty = true;
+        }
+        if (meta?.fileName && (isPlaceholderFileName(existing.file_name) || !existing.file_name)) {
+            existing.file_name = meta.fileName;
+            dirty = true;
+        }
+        if (meta?.chatTitle && !existing.chat_title) {
+            existing.chat_title = meta.chatTitle;
+            dirty = true;
+        }
+        if (meta?.chatId != null && existing.chat_id == null) {
+            existing.chat_id = meta.chatId;
+            dirty = true;
+        }
+        if (meta?.messageId != null && existing.message_id == null) {
+            existing.message_id = meta.messageId;
+            dirty = true;
+        }
+        sessionIdMap.value[fileId] = existing.remote_id || key;
+
+        if (ready && path) {
+            if (existing.is_completed && existing.local_path === path) {
+                return dirty;
+            }
+            markCompleted(fileId, path, existing.remote_id || remoteIdOf(file));
+            return true;
+        }
+        if (dirty) {
+            items.value[key] = { ...existing };
+        }
+        return dirty;
+    }
+
+    /**
+     * 内容快照 / TDLib File 已就绪时，把 store 中同文件的未完成条目对账为已完成；
+     * 条目缺失时按 file 补录。兼容旧调用，语义并入 trackDownloadFile。
      */
     function reconcileFromFile(
-        file: { id?: number; local?: { path?: string; is_downloading_completed?: boolean } } | null | undefined,
+        file: {
+            id?: number;
+            remote?: { id?: string };
+            size?: number;
+            expected_size?: number;
+            local?: {
+                downloaded_size?: number;
+                is_downloading_active?: boolean;
+                is_downloading_completed?: boolean;
+                path?: string;
+            };
+        } | null | undefined,
+        meta?: TrackFileMeta,
     ): boolean {
-        if (!file) return false;
-        const path = file.local?.path;
-        const ready = !!(file.local?.is_downloading_completed && path);
-        if (!ready || !path) return false;
-        const info = getDownloadInfoForFile(file);
-        if (!info || info.is_completed) return false;
-        markCompleted(info.session_file_id ?? info.file_id ?? file.id ?? 0, path, info.remote_id || remoteIdOf(file));
-        return true;
+        return trackDownloadFile(file, meta);
     }
 
     function getDownloadInfo(fileId: number | string): DownloadItem | undefined {
@@ -1255,7 +1443,12 @@ export const useDownloadStore = defineStore("downloads", () => {
                 });
                 await invoke("tdlib_send", {
                     request: { _: "downloadFile", file_id: sid, priority: DL_PRIORITY.USER_ACTIVE, offset: 0, limit: 0, synchronous: false },
-                });
+                }).then((res) => {
+                    // 校准：恢复下载返回的 file 也纳入下载管理器
+                    if (res && typeof (res as { id?: number }).id === "number") {
+                        trackDownloadFile(res as never);
+                    }
+                }).catch(() => { /* ignore */ });
                 item.is_paused = false;
             }
         } catch (e) {
@@ -1431,6 +1624,7 @@ export const useDownloadStore = defineStore("downloads", () => {
         getProgress,
         markCompleted,
         reconcileFromFile,
+        trackDownloadFile,
         getDownloadInfo,
         getDownloadInfoForFile,
         getCompletedPathForFile,

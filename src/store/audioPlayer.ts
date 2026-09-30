@@ -1,11 +1,11 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { tdlibSend, safeDownloadFile, isFileReady } from '../utils/tdlib';
+import { tdlibSend, safeDownloadFile, isFileReady, metaDownloadFile } from '../utils/tdlib';
 import { DL_PRIORITY } from '../utils/downloadPriority';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { message, thumbnail, audio, file, chat } from 'tdlib-types';
 import i18n from '../i18n';
-import { useDownloadStore, remoteIdOf } from './downloads';
+import { useDownloadStore, remoteIdOf, type TrackFileMeta } from './downloads';
 import { DL_TAG } from '../utils/downloadTags';
 import { useChatStore } from './chat';
 import { isThumbnailImgRenderable } from '../utils/thumbnail';
@@ -155,6 +155,30 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         return cs.chats[chatId]?.title || i18n.global.t('download.row.chatFallback', { id: chatId });
     }
 
+    /** 音乐曲目下载的展示元数据（统一下载管理器校准入口） */
+    function trackMetaForAudio(params: {
+        fileId: number;
+        title?: string;
+        chatId?: number;
+        messageId?: number;
+        chatTitle?: string;
+        sourceLabel?: string;
+        tags?: string[];
+        isStreaming?: boolean;
+    }): TrackFileMeta {
+        return {
+            fileName: params.title || `audio_${params.fileId}.mp3`,
+            chatTitle: params.chatTitle || (params.chatId ? getChatTitle(params.chatId) : (params.sourceLabel || "")),
+            chatId: params.chatId || undefined,
+            messageId: params.messageId || undefined,
+            fileType: 'audio',
+            isGeneric: false,
+            isStreaming: params.isStreaming,
+            tags: params.tags,
+            sourceLabel: params.sourceLabel,
+        };
+    }
+
     /** 将曲目注册为「流式下载」（边下边播，tdstream://），幂等：同一 file 只注册一次。 */
     async function registerStreamingDownload(
         fileId: number,
@@ -169,6 +193,16 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         if (streamingRegisteredFiles.has(fileId)) return;
         streamingRegisteredFiles.add(fileId);
         const rid = remoteId || undefined;
+        const meta = trackMetaForAudio({
+            fileId,
+            title,
+            chatId,
+            messageId,
+            sourceLabel,
+            tags: extraTags,
+            isStreaming: true,
+        });
+        metaDownloadFile(fileId, meta);
         await useDownloadStore().registerDownload(
             fileId, title || `audio_${fileId}.mp3`,
             sourceLabel || getChatTitle(chatId), totalSize, 'audio',
@@ -296,7 +330,16 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
                 try {
                     // 音乐播放触发下载：记录到正常下载列表，保留来源对话与消息。
                     // 用户主动播放 → 高优先级下载。
-                    await useDownloadStore().registerDownload(track.fileId, track.title || `audio_${track.fileId}.mp3`, getChatTitle(track.chatId), 0, 'audio', undefined, track.chatId, track.messageId, false, false, undefined, false, track.source === 'profile' ? [DL_TAG.PROFILE] : undefined, track.source === 'profile' ? i18n.global.t('download.tag.profile') : undefined);
+                    const meta = trackMetaForAudio({
+                        fileId: track.fileId,
+                        title: track.title,
+                        chatId: track.chatId,
+                        messageId: track.messageId,
+                        sourceLabel: track.source === 'profile' ? i18n.global.t('download.tag.profile') : undefined,
+                        tags: track.source === 'profile' ? [DL_TAG.PROFILE] : undefined,
+                    });
+                    metaDownloadFile(track.fileId, meta);
+                    await useDownloadStore().registerDownload(track.fileId, track.title || `audio_${track.fileId}.mp3`, getChatTitle(track.chatId), info.size || track.sizeBytes || 0, 'audio', undefined, track.chatId, track.messageId, false, false, undefined, false, track.source === 'profile' ? [DL_TAG.PROFILE] : undefined, track.source === 'profile' ? i18n.global.t('download.tag.profile') : undefined, remoteIdOf(info));
                     await safeDownloadFile(track.fileId, true, DL_PRIORITY.USER_PLAYING);
                     track.ready = true;
                     // 重新获取文件路径（仅在完全下载完成时才使用，避免指向残缺/未完成文件）
@@ -304,6 +347,8 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
                         _: 'getFile',
                         file_id: track.fileId,
                     }) as file;
+                    // 校准：downloadFile / getFile 返回的 file 一律纳入下载管理器
+                    useDownloadStore().trackDownloadFile(fileInfo, meta);
                     if (isFileReady(fileInfo) && fileInfo?.local?.path) {
                         track.filePath = convertFileSrc(fileInfo.local.path);
                         track.localPath = fileInfo.local.path;
@@ -317,6 +362,17 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         } else if (track.streaming && !streamingRegisteredFiles.has(track.fileId)) {
             // 由 loadChatAudio 预置的流式曲目（ready + streaming）：首次实际播放时注册进度。
             await registerStreamingDownload(track.fileId, track.title || `audio_${track.fileId}.mp3`, track.chatId, track.messageId, track.sizeBytes || 0, undefined, track.source === 'profile' ? [DL_TAG.PROFILE] : undefined, track.source === 'profile' ? i18n.global.t('download.tag.profile') : undefined);
+        } else if (track.ready && !track.streaming && track.localPath) {
+            // 已本地就绪的曲目：对账一次，避免下载管理器仍显示进行中
+            useDownloadStore().trackDownloadFile({
+                id: track.fileId,
+                local: { is_downloading_completed: true, path: track.localPath },
+            } as never, trackMetaForAudio({
+                fileId: track.fileId,
+                title: track.title,
+                chatId: track.chatId,
+                messageId: track.messageId,
+            }));
         }
 
         // 文件就绪后再切换当前曲目，确保 audioSrc 能拿到有效路径
@@ -514,6 +570,13 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         if (coverFileReady(primary)) return file.local.path;
         if (!file.local.can_be_downloaded) return undefined;
         try {
+            metaDownloadFile(file.id, {
+                fileName: `music_cover_${file.id}.jpg`,
+                fileType: 'photo',
+                isGeneric: true,
+                hiddenCategory: 'music_cover',
+                tags: [DL_TAG.MUSIC_COVER, DL_TAG.THUMB],
+            });
             const downloaded = await tdlibSend({
                 _: 'downloadFile',
                 file_id: file.id,
@@ -622,9 +685,16 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
     async function prepareAudioForPlay(msg: message, audio: any): Promise<{ filePath: string; streaming: boolean }> {
         const file = audio.audio;
         const ready = isFileReady(file);
+        const meta = trackMetaForAudio({
+            fileId: file.id,
+            title: audio.title || audio.file_name,
+            chatId: msg.chat_id,
+            messageId: msg.id,
+        });
 
-        // 已下载：直接用本地文件
+        // 已下载：直接用本地文件，并对账下载管理器
         if (ready) {
+            useDownloadStore().trackDownloadFile(file as never, meta);
             return { filePath: convertFileSrc(file.local.path), streaming: false };
         }
 
@@ -642,7 +712,8 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
 
         // 无法流式：完整下载（用户显式点击播放不受自动下载大小上限限制）
         try {
-            await useDownloadStore().registerDownload(file.id, audio.title || audio.file_name || `audio_${file.id}.mp3`, getChatTitle(msg.chat_id), 0, 'audio', undefined, msg.chat_id, msg.id, false, false, undefined, false, undefined, undefined, remoteIdOf(file));
+            metaDownloadFile(file.id, meta);
+            await useDownloadStore().registerDownload(file.id, audio.title || audio.file_name || `audio_${file.id}.mp3`, getChatTitle(msg.chat_id), file.size || 0, 'audio', undefined, msg.chat_id, msg.id, false, false, undefined, false, undefined, undefined, remoteIdOf(file));
             await safeDownloadFile(file.id, true, DL_PRIORITY.USER_PLAYING);
         } catch (e) {
             console.error('Failed to download audio:', e);
@@ -652,6 +723,8 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         // 下载完成后获取本地路径（仅在完全下载完成时才使用，避免指向残缺/未完成文件）
         let filePath = '';
         const fileInfo = await tdlibSend({ _: 'getFile', file_id: file.id }) as file;
+        // 校准：返回的 file 纳入下载管理器（补进度/完成态，防漏记）
+        useDownloadStore().trackDownloadFile(fileInfo, meta);
         if (isFileReady(fileInfo) && fileInfo?.local?.path) {
             filePath = convertFileSrc(fileInfo.local.path);
         }
@@ -858,6 +931,14 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
                     try {
                         // 资料音乐：注册到下载管理器（资料页标签 + 来源）
                         const userTitle = getChatTitle(userId) || i18n.global.t('download.row.userFallback', { id: userId });
+                        const meta = trackMetaForAudio({
+                            fileId: file.id,
+                            title: a.title || a.file_name,
+                            chatTitle: userTitle,
+                            sourceLabel: i18n.global.t('download.tag.profile'),
+                            tags: [DL_TAG.PROFILE],
+                        });
+                        metaDownloadFile(file.id, meta);
                         await useDownloadStore().registerDownload(
                             file.id,
                             a.title || a.file_name || `audio_${file.id}.mp3`,
@@ -879,11 +960,19 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
                 }
                 // 下载完成后需重新获取文件路径（原 file 对象不会自动更新 local.path）
                 let filePath = '';
+                const profileMeta = trackMetaForAudio({
+                    fileId: file.id,
+                    title: a.title || a.file_name,
+                    sourceLabel: i18n.global.t('download.tag.profile'),
+                    tags: [DL_TAG.PROFILE],
+                });
                 if (isFileReady(file) && file.local?.path) {
                     filePath = convertFileSrc(file.local.path);
+                    useDownloadStore().trackDownloadFile(file as never, profileMeta);
                 } else {
                     try {
                         const fileInfo = await tdlibSend({ _: 'getFile', file_id: file.id }) as file;
+                        useDownloadStore().trackDownloadFile(fileInfo, profileMeta);
                         if (fileInfo.local?.path) {
                             filePath = convertFileSrc(fileInfo.local.path);
                         }

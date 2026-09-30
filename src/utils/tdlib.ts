@@ -2,10 +2,14 @@ import { invoke } from "@tauri-apps/api/core";
 import type { $Function, $FunctionResultByName } from "tdlib-types";
 import { ref } from 'vue';
 import { DL_PRIORITY } from './downloadPriority';
+import type { TrackFileMeta } from '../store/downloads';
 
 /**
  * Sends a request to TDLib.
  * Wraps the request object in the structure expected by the Tauri command.
+ *
+ * 下载校准：凡是 downloadFile 返回的 file，一律纳入下载管理器（旁路/音乐播放器
+ * 等未先 registerDownload 的请求也不漏记）。元数据由 metaDownloadFile 提供。
  */
 export async function tdlibSend<T extends $Function>(
   request: T
@@ -14,7 +18,32 @@ export async function tdlibSend<T extends $Function>(
   if (response._ === "error") {
     throw response;
   }
+  if (request._ === "downloadFile" && response && typeof (response as { id?: number }).id === "number") {
+    await trackDownloadFileResponse(response as never, pendingDownloadMeta.get((response as { id: number }).id));
+    pendingDownloadMeta.delete((response as { id: number }).id);
+  }
   return response;
+}
+
+/** downloadFile 前可选登记展示元数据，响应到达后随 file 一并写入下载管理器 */
+const pendingDownloadMeta = new Map<number, TrackFileMeta>();
+
+/** 为即将发起 downloadFile 的文件登记元数据（fileId 须与请求一致） */
+export function metaDownloadFile(fileId: number, meta: TrackFileMeta) {
+  if (!fileId) return;
+  pendingDownloadMeta.set(fileId, meta);
+}
+
+async function trackDownloadFileResponse(
+  file: { id?: number; remote?: { id?: string }; local?: unknown },
+  meta?: TrackFileMeta,
+) {
+  try {
+    const { useDownloadStore } = await import('../store/downloads');
+    useDownloadStore().trackDownloadFile(file as never, meta);
+  } catch {
+    // Pinia 未就绪 / store 初始化失败：不阻塞下载本身
+  }
 }
 
 /** 检查 TDLib 文件是否已下载且本地路径存在（非空且可用） */
