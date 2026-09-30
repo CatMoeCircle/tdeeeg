@@ -1,5 +1,5 @@
 <template>
-    <div class="h-full flex flex-col bg-white dark:bg-gray-900">
+    <div class="h-full flex flex-col">
         <!-- Header -->
         <div class="h-16 flex items-center px-4 border-b border-gray-200 dark:border-gray-800 shrink-0">
             <button type="button" @click="goBack"
