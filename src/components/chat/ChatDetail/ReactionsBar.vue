@@ -31,8 +31,8 @@
                         :accentColorId="getSenderProfileAccentColorId(s)" :deletedAccount="isDeletedSender(s)" />
                 </span>
             </span>
-            <!-- 计数（>3 人或无头像数据时） -->
-            <span v-else class="font-medium tabular-nums leading-none">{{ formatCount(reaction.total_count) }}</span>
+            <!-- 计数（>3 人或无头像数据时）：nowrap + shrink-0，宽度随位数自然撑开 -->
+            <span v-else class="font-medium tabular-nums leading-none whitespace-nowrap shrink-0">{{ formatCount(reaction.total_count) }}</span>
         </button>
     </div>
 
@@ -179,8 +179,11 @@ function openReactionList(reaction: messageReaction) {
 <style scoped>
 .reaction-btn {
     height: 28px;
-    min-width: 0;
+    /* 不给 0 下限：数字变长时胶囊随内容撑宽，而不是压扁位数 */
+    min-width: max-content;
+    flex-shrink: 0;
     line-height: 1;
+    white-space: nowrap;
 }
 
 .reaction-btn:active {

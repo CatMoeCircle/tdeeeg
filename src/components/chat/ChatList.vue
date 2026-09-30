@@ -1,5 +1,5 @@
 <template>
-    <div class="flex flex-col h-full border-r border-gray-200 pt-1.5">
+    <div class="flex flex-col h-full border-r border-gray-200 dark:border-gray-800 pt-1.5">
         <!-- Search Bar (forum mode 时向上滑动隐藏) -->
         <Transition :name="suppressChromeAnim ? 'slide-up-locked' : 'slide-up'">
             <div v-if="!forumMode" class="overflow-hidden" :class="settings.folderStyle === 'soft'
@@ -62,7 +62,9 @@
 
                 <!-- 音乐播放器入口（聊天打开时由 ChatDetail 接管，此处隐藏） -->
                 <Transition :name="suppressChromeAnim ? 'slide-up-locked' : 'slide-up'">
-                    <div v-if="!isChatOpen && !forumMode" class="overflow-hidden max-h-12 shrink-0">
+                    <!-- max-h-14：含 mt-1 顶距与 8px 进度热区 -->
+                    <!-- 外边距由 MusicPlayerEntry 自身 mx-2 mt-1 提供，与分组页签对齐 -->
+                    <div v-if="!isChatOpen && !forumMode" class="overflow-hidden max-h-14 shrink-0">
                         <MusicPlayerEntry compact />
                     </div>
                 </Transition>
@@ -127,11 +129,11 @@
                                     注意：每个列表项依赖 :key=chat.id 保持身份稳定，移动动画才有意义。
                                     当 tdlib 更新过于密集时通过 :name 动态锁定动画（见 reorderAnimName）。
                                 -->
-                                <TransitionGroup :name="reorderAnimName" tag="div">
+                                <TransitionGroup :name="effectiveReorderAnimName" tag="div">
                                     <!-- 归档入口：归档位置为“全部对话顶部”时显示 -->
                                     <div v-if="settings.chatList.archivePosition === 'top' && tab.id === 'chatListMain' && !props.isArchive"
                                         key="__archive__" @click="goToArchive"
-                                        class="flex items-center p-2.5 mb-1 cursor-pointer rounded-xl hover:bg-white/70 hover:shadow-(--box-shadow) transition-colors"
+                                        class="flex items-center p-2.5 mb-1 cursor-pointer rounded-xl hover:bg-white/70 dark:hover:bg-gray-800/70 hover:shadow-(--box-shadow) transition-colors"
                                         style="content-visibility: auto; contain-intrinsic-size: 72px">
                                         <div class="w-12 h-12 mr-2.5">
                                             <div class="w-full h-full bg-gray-200 text-gray-500 flex items-center justify-center"
@@ -141,7 +143,7 @@
                                         </div>
                                         <div class="flex-1 min-w-0">
                                             <div class="flex justify-between items-baseline mb-1">
-                                                <h3 class="text-sm font-semibold truncate text-gray-900">
+                                                <h3 class="text-sm font-semibold truncate text-gray-900 dark:text-gray-100">
                                                     {{ t('lng_archived_name') }}
                                                 </h3>
                                                 <ChevronRightIcon class="w-4 h-4 text-gray-400 shrink-0" />
@@ -158,12 +160,12 @@
                                         <!-- 占位对话（chat 数据尚未到达）渲染骨架屏 -->
                                         <template v-if="isPlaceholderChat(chat)">
                                             <div
-                                                class="w-12 h-12 mr-2.5 rounded-full bg-gray-200 animate-pulse shrink-0">
+                                                class="w-12 h-12 mr-2.5 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse shrink-0">
                                             </div>
                                             <div class="flex-1 min-w-0">
-                                                <div class="h-3.5 w-3/4 bg-gray-200 rounded animate-pulse mb-2">
+                                                <div class="h-3.5 w-3/4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2">
                                                 </div>
-                                                <div class="h-3 w-1/2 bg-gray-200 rounded animate-pulse"></div>
+                                                <div class="h-3 w-1/2 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
                                             </div>
                                         </template>
                                         <template v-else>
@@ -261,7 +263,7 @@
                      从头像列(68px)分界线右侧滑出，不会带动/挤压左侧聊天列表 -->
                 <Transition name="topic-slide">
                     <div v-if="forumMode && forumChatId"
-                        class="absolute top-0 bottom-0 left-17 right-0 border-l border-gray-200 bg-white overflow-hidden flex flex-col">
+                        class="absolute top-0 bottom-0 left-17 right-0 border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden flex flex-col">
                         <!-- Topics Header -->
                         <div class="flex items-center gap-2 px-3 py-2.5 border-b border-gray-200 shrink-0">
                             <button type="button" @click="exitForumMode"
@@ -277,12 +279,12 @@
                         <div class="flex-1 overflow-y-auto custom-scrollbar" v-smooth-wheel>
                             <div v-if="topicsLoading" class="flex flex-col gap-2 p-3">
                                 <div v-for="n in 5" :key="n" class="flex items-center gap-2.5 p-2.5">
-                                    <div class="w-9 h-9 rounded-xl bg-gray-200 animate-pulse shrink-0">
+                                    <div class="w-9 h-9 rounded-xl bg-gray-200 dark:bg-gray-700 animate-pulse shrink-0">
                                     </div>
                                     <div class="flex-1">
-                                        <div class="h-3.5 bg-gray-200 rounded w-3/4 mb-1.5 animate-pulse">
+                                        <div class="h-3.5 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-1.5 animate-pulse">
                                         </div>
-                                        <div class="h-3 bg-gray-200 rounded w-1/2 animate-pulse"></div>
+                                        <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2 animate-pulse"></div>
                                     </div>
                                 </div>
                             </div>
@@ -299,7 +301,7 @@
                                     <!-- 第一排：图标(头像)与标题同一排内联 + 时间；
                                          图标：General 用带主题色的 #，有自定义 emoji 用透明 emoji(无背景)，否则首字母小方块 -->
                                     <div class="flex justify-between items-baseline mb-0.5">
-                                        <h3 class="flex items-center gap-1.5 min-w-0 text-sm font-medium text-gray-900">
+                                        <h3 class="flex items-center gap-1.5 min-w-0 text-sm font-medium text-gray-900 dark:text-gray-100">
                                             <template v-if="topic.info.is_general">
                                                 <span class="text-base font-bold leading-none shrink-0"
                                                     :style="{ color: topicIconColor(topic.info.icon.color) }">#</span>
@@ -368,7 +370,7 @@
         <!-- ===== 对话选择模式操作栏 ===== -->
         <Transition name="slide-up">
             <div v-if="chatSelectionMode" ref="toolbarRef"
-                class="border-t border-gray-200 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shrink-0 px-3 py-2.5">
+                class="border-t border-gray-200 dark:border-gray-800 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md shrink-0 px-3 py-2.5">
                 <div class="flex items-stretch gap-2">
                     <div class="flex items-center gap-2">
                         <button type="button" :aria-label="t('lng_cancel')"
@@ -706,6 +708,16 @@ let lastReorderAnimAt = 0;
 /** 记录每个 tab 上一份 ID 签名，仅在实际顺序（增删/排序）变化时应用锁 */
 let prevReorderSig: Record<string, string> = {};
 
+/**
+ * 立即锁定换位动画并消耗一段时间的动画额度。
+ * 切聊天 / 进出 forum 会触发 openChat/已读线更新导致列表重排，
+ * TransitionGroup FLIP（applyTranslation + 强制回流）与详情页挂载叠加是点聊天卡顿主因。
+ */
+function lockReorderAnim() {
+    reorderAnimName.value = 'chat-list-locked';
+    lastReorderAnimAt = performance.now();
+}
+
 watch(tabsWithContent, (tabs) => {
     // 只关心真实顺序变化：内容/未读数更新不会触发 -move 动画，故不消耗锁额度
     let reordered = false;
@@ -733,6 +745,26 @@ const selectedChatId = ref<number | null>(null);
 watch(() => route.params.id, (id) => {
     selectedChatId.value = id ? Number(id) : null;
 }, { immediate: true });
+
+/**
+ * 最终生效的 TransitionGroup name：
+ * 聊天详情打开期间强制锁定——用户焦点在详情，列表 FLIP 只会和
+ * 消息列表测量/滚动抢主线程，不值得播。
+ */
+const effectiveReorderAnimName = computed(() =>
+    isChatOpen.value ? 'chat-list-locked' : reorderAnimName.value
+);
+
+// 切进/切出聊天详情：锁掉重排窗口内的 FLIP
+watch(isChatOpen, (open, prev) => {
+    if (open || prev === undefined) {
+        // 进入聊天：openChat 会更新 chat.positions 触发列表重排
+        lockReorderAnim();
+    } else {
+        // 回到列表：closeChat/已读线更新同样会重排
+        lockReorderAnim();
+    }
+});
 
 // ==================== 对话选择模式（多选） ====================
 const chatSelectionMode = ref(false);
@@ -975,8 +1007,7 @@ const selectTopic = (topicId: number) => {
 const enterForumMode = (chat: Chat) => {
     // 切 forum 时整列聊天项会从 TransitionGroup 卸载/重挂，先锁动画
     // 避免几十条 leave/enter 与话题面板滑入叠加造成卡顿
-    reorderAnimName.value = 'chat-list-locked';
-    lastReorderAnimAt = performance.now();
+    lockReorderAnim();
     armChromeAnimSuppress();
     selectedChatId.value = chat.id;
     forumMode.value = true;
@@ -1024,6 +1055,8 @@ const selectChat = async (chat: Chat) => {
         }
     }
     // 标记当前选中的对话（进入详情后列表中也保持高亮）
+    // 导航前先锁 FLIP：openChat 引发的列表重排不能和详情页挂载叠在同一帧
+    lockReorderAnim();
     selectedChatId.value = chat.id;
     await router.push({
         name: 'chat-detail',
@@ -1623,18 +1656,18 @@ function getTopicPreview(topic: forumTopic): formattedText {
     width: 68px;
 }
 
-/* Forum mode avatar column scrollbar */
+/* Forum mode avatar column：极细，悬停才露出 */
 .w-17::-webkit-scrollbar {
     width: 2px;
 }
 
 .w-17::-webkit-scrollbar-thumb {
     background: transparent;
-    border-radius: 1px;
+    border-radius: 999px;
 }
 
 .w-17:hover::-webkit-scrollbar-thumb {
-    background: rgba(156, 163, 175, 0.3);
+    background: var(--app-scrollbar-thumb-hover, rgba(71, 85, 105, 0.55));
 }
 
 /* Slide-up transition for search bar, tabs, music player */

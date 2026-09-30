@@ -305,30 +305,3 @@ async function confirmAddCustom() {
     opacity: 0;
 }
 </style>
-
-<style>
-.account-menu-scroll::-webkit-scrollbar {
-    width: 4px;
-}
-
-.account-menu-scroll::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.account-menu-scroll::-webkit-scrollbar-thumb {
-    background-color: rgba(0, 0, 0, 0.15);
-    border-radius: 4px;
-}
-
-.account-menu-scroll::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(0, 0, 0, 0.25);
-}
-
-.dark .account-menu-scroll::-webkit-scrollbar-thumb {
-    background-color: rgba(255, 255, 255, 0.15);
-}
-
-.dark .account-menu-scroll::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(255, 255, 255, 0.25);
-}
-</style>

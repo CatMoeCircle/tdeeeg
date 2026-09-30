@@ -166,9 +166,22 @@ watch(() => props.variant, () => {
             :style="indicatorStyle"></span>
 
         <button v-for="tab in tabs" :key="tab.id" type="button" :ref="setTabRef" :data-tab-id="tab.id"
-            @click="onTabClick(tab.id)" class="whitespace-nowrap inline-flex items-center transition-colors shrink-0"
+            @click="onTabClick(tab.id)"
+            class="whitespace-nowrap inline-flex items-center transition-colors shrink-0 select-none"
             :class="props.tabClass ? props.tabClass(tab.id, tab.id === props.activeId) : ''">
             <slot :tab="tab" :active="tab.id === props.activeId" />
         </button>
     </div>
 </template>
+
+<style>
+/* 分组栏标签不可选中：全局 button { user-select: text } 会让双击选中分组名，
+   覆盖回 none。非 scoped：slot 内容由父组件编译，scoped 到不了这些节点。 */
+.sliding-tabbar button,
+.sliding-tabbar button * {
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+}
+</style>

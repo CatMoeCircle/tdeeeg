@@ -30,7 +30,6 @@ import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import { useCustomEmoji, requestCustomEmoji } from '../../store/customEmoji';
 import { useLottiePause } from '../../composables/useLottiePause';
 import { useViewportLoad } from '../../composables/useViewportLoad';
-import { convertFileSrc } from '@tauri-apps/api/core';
 import TgsPlayer, { type TgsPlayerInstance } from './TgsPlayer.vue';
 
 const props = defineProps<{
@@ -64,15 +63,6 @@ const emojiFormat = computed(() => {
   return 'webp';
 });
 
-/** 用本地路径生成 asset URL，交给 tlottie 以 src 方式 fetch */
-function loadTgs(rawPath: string) {
-  tgsSrc.value = null;
-  // 下一帧再赋值，确保 LottiePlayer 在 key 变化时干净重建
-  requestAnimationFrame(() => {
-    tgsSrc.value = convertFileSrc(rawPath);
-  });
-}
-
 function onAnimError(e: unknown) {
   console.error('[CustomEmojiInline] TGS load error', e, tgsSrc.value);
 }
@@ -83,10 +73,16 @@ function onAnimLoad() {
 }
 
 // 当 emoji 就绪且为 tgs 格式时，加载 Lottie。
-watch([() => state.ready, () => state.sticker?.sticker?.local?.path, emojiFormat],
-  async ([ready, rawPath, fmt]) => {
-    if (ready && rawPath && fmt === 'tgs') {
-      loadTgs(rawPath);
+// 用 state.filePath（已是 convertFileSrc 后的 URL）作为 tgsSrc，
+// 不依赖 sticker.local.path——下载完成后 store 不一定把它写回 sticker 对象。
+watch([() => state.ready, () => state.filePath, emojiFormat],
+  async ([ready, filePath, fmt]) => {
+    if (ready && filePath && fmt === 'tgs') {
+      // 下一帧赋值，确保 LottiePlayer 在 src 变化时干净重建
+      tgsSrc.value = null;
+      requestAnimationFrame(() => {
+        tgsSrc.value = filePath;
+      });
     } else {
       tgsSrc.value = null;
       registerAnim(null);
@@ -101,7 +97,7 @@ watch([emojiFormat, () => state.ready], () => {
 // 视口门控：进入预取带才拉取/下载自定义 emoji；本地已就绪时 requestCustomEmoji 直接跳过 downloadFile
 const { start: startViewportLoad } = useViewportLoad(rootEl, () => {
   requestCustomEmoji(props.emojiId);
-}, { dwellMs: 80 });
+}, { dwellMs: 200 });
 
 onMounted(() => {
   setupPause();

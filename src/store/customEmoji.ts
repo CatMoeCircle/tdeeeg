@@ -184,6 +184,10 @@ async function downloadStickerFile(emojiId: string, fileId: number) {
     }) as file;
     const path = localPathIfReady(result) ?? (state.sticker ? localPathIfReady(state.sticker.sticker) : null);
     if (path) {
+      // 把下载结果同步回 sticker 对象，保证 sticker.sticker.local.path 可用
+      if (state.sticker && result) {
+        state.sticker.sticker = result;
+      }
       state.filePath = convertFileSrc(path);
       state.ready = true;
     }

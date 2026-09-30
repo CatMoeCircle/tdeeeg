@@ -29,12 +29,12 @@ const REGISTRABLE_MAP: Record<LoaderStyle, { register: (name?: string) => void }
 
 /** 每个 loader 的默认外观参数（尺寸/stroke/bg-opacity/速度，来自用户偏好） */
 const STYLE_MAP: Record<LoaderStyle, { size: string; stroke: string; bgOpacity: string; speed: string; indeterminate: string }> = {
-    ring2: { size: '40', stroke: '5', bgOpacity: '0.1', speed: '0.8', indeterminate: '0.25' },
-    squircle: { size: '37', stroke: '5', bgOpacity: '0.1', speed: '0.9', indeterminate: '0.15' },
-    square: { size: '35', stroke: '5', bgOpacity: '0.1', speed: '1.2', indeterminate: '0.25' },
-    reuleaux: { size: '37', stroke: '5', bgOpacity: '0.1', speed: '1.2', indeterminate: '0.15' },
-    infinity: { size: '55', stroke: '4', bgOpacity: '0.1', speed: '1.3', indeterminate: '0.15' },
-    trefoil: { size: '40', stroke: '4', bgOpacity: '0.1', speed: '1.4', indeterminate: '0.15' },
+    ring2: { size: '40', stroke: '5', bgOpacity: '0.1', speed: '0.8', indeterminate: '0.01' },
+    squircle: { size: '37', stroke: '5', bgOpacity: '0.1', speed: '0.9', indeterminate: '0.01' },
+    square: { size: '35', stroke: '5', bgOpacity: '0.1', speed: '1.2', indeterminate: '0.01' },
+    reuleaux: { size: '37', stroke: '5', bgOpacity: '0.1', speed: '1.2', indeterminate: '0.01' },
+    infinity: { size: '55', stroke: '4', bgOpacity: '0.1', speed: '1.3', indeterminate: '0.01' },
+    trefoil: { size: '40', stroke: '4', bgOpacity: '0.1', speed: '1.4', indeterminate: '0.01' },
 };
 
 /** 已注册的样式集合，避免对同一元素重复 register */

@@ -121,6 +121,16 @@ function startLoop() {
   requestAnimationFrame(loop);
 }
 
+/** 空闲调度：把粒子初始化挪出消息挂载的关键路径（大频道单条消息可能带多个剧透） */
+function scheduleIdle(fn: () => void): void {
+  const ric = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => void }).requestIdleCallback;
+  if (typeof ric === 'function') {
+    ric(fn, { timeout: 300 });
+  } else {
+    setTimeout(fn, 0);
+  }
+}
+
 /** 挂载到 DOM 上，标记实例，供 IntersectionObserver 反查 */
 declare global {
   interface HTMLElement {
@@ -153,6 +163,8 @@ export class SpoilerFX {
   private lastF = 0;
   private last = 0;
   visible = true;
+  /** 粒子系统是否已初始化（refreshColor/resize/动画循环）；挂载时延迟到空闲，避免大频道历史揭示卡顿 */
+  private inited = false;
 
   /**
    * 是否需要在下一帧绘制：
@@ -206,8 +218,19 @@ export class SpoilerFX {
       }
     }
 
-    this.refreshColor();
     this.attachEvents();
+    // 挂载路径上先只做轻量样式/事件；粒子种子、canvas 测量与全局循环推迟到空闲，
+    // 否则一条带多个剧透的消息会把历史揭示撑成 50ms+ 长任务。
+    this.cv.classList.add('sp-pending');
+    scheduleIdle(() => this.ensureInited());
+  }
+
+  /** 完成粒子初始化（幂等）。点击/动画前必须调用。 */
+  ensureInited(): void {
+    if (this.inited) return;
+    this.inited = true;
+    this.cv.classList.remove('sp-pending');
+    this.refreshColor();
     this.resize();
     startLoop();
   }
@@ -413,6 +436,7 @@ export class SpoilerFX {
   }
 
   private toggle(e: MouseEvent) {
+    this.ensureInited();
     const r = this.el.getBoundingClientRect();
     const x = (e && e.clientX ? e.clientX : r.left + this.w / 2) - r.left;
     const y = (e && e.clientY ? e.clientY : r.top + this.h / 2) - r.top;
@@ -444,6 +468,7 @@ export class SpoilerFX {
   }
 
   frame(now: number) {
+    if (!this.inited) this.ensureInited();
     let f: number;
     if (this.anim) {
       const t = Math.min(1, (now - this.anim.t0) / this.anim.dur);

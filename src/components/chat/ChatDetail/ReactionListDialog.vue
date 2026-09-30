@@ -3,14 +3,14 @@
         <!-- 按回应类型筛选（≥2 种回应时显示） -->
         <div v-if="typeTabs.length > 1" class="flex flex-wrap gap-1.5 mb-3">
             <button v-for="tab in typeTabs" :key="tab.key" type="button"
-                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border transition-colors"
+                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border transition-colors shrink-0 whitespace-nowrap"
                 :class="activeKey === tab.key
                     ? 'bg-blue-100 dark:bg-blue-900/50 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300'
                     : 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'"
                 @click="activeKey = tab.key">
                 <span v-if="tab.emoji">{{ tab.emoji }}</span>
                 <span v-else>{{ t('reactionList.all') }}</span>
-                <span class="tabular-nums">{{ tab.count }}</span>
+                <span class="tabular-nums shrink-0">{{ tab.count }}</span>
             </button>
         </div>
 
