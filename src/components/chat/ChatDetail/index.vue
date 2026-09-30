@@ -5,7 +5,7 @@
         <template v-if="hasChatSpecificBackground">
             <div class="absolute inset-0 pointer-events-none chat-wallpaper-layer" :style="chatWallpaperLayerStyle">
             </div>
-            <div class="absolute inset-0 pointer-events-none bg-white chat-wallpaper-overlay"
+            <div class="absolute inset-0 pointer-events-none bg-white dark:bg-gray-900 chat-wallpaper-overlay"
                 :style="{ opacity: settings.chatWallpaperOverlayOpacity / 100 }"></div>
         </template>
         <!-- ===== Messages Area (底层，穿透 header/footer) ===== -->
@@ -23,7 +23,7 @@
                 <div v-if="n % 3 !== 0" class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 mr-2 shrink-0"></div>
                 <div class="p-3 rounded-lg"
                     :class="n % 3 === 0 ? 'bg-blue-200 dark:bg-blue-900' : 'bg-gray-200 dark:bg-gray-700'"
-                    :style="{ width: (120 + Math.random() * 180) + 'px', height: '48px' }">
+                    :style="{ width: (120 + (n * 17) % 180) + 'px', height: '48px' }">
                 </div>
             </div>
         </div>
@@ -34,19 +34,11 @@
             :style="[topPaddingClass, tagBarMessagePadStyle, messagesContainerStyle]"
             @scroll.passive="onScroll">
 
-            <!-- 顶部加载更多指示器：仅向更旧方向加载时显示。
-                 向更新方向/跳底加载若也在这里插节点，会反复改变 scrollHeight，
-                 在贴底时造成 ±几十像素的“莫名其妙跳动”。 -->
-            <div v-if="isLoadingMore && loadingDirection === 'older'"
-                class="text-center text-gray-400 text-sm py-3 shrink-0">
-                {{ t('lng_context_seen_loading') }}
-            </div>
-
             <!-- 消息列表容器：mt-auto 将消息推到底部 -->
             <div class="mt-auto flex flex-col">
                 <template v-for="item in messageItems" :key="item.key">
                     <!-- Date separator -->
-                    <div v-if="item.type === 'date'" class="flex justify-center my-2" :data-sticky-key="item.key">
+                    <div v-if="item.type === 'date'" class="msg-list-item flex justify-center my-2" :data-sticky-key="item.key">
                         <span
                             class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2.5 py-1 rounded-full leading-none select-none">
                             {{ item.text }}
@@ -54,7 +46,8 @@
                     </div>
 
                     <!-- Unread separator -->
-                    <div v-else-if="item.type === 'unread'" class="flex items-center gap-3 my-3" :aria-label="t('lng_unread_bar_some')">
+                    <div v-else-if="item.type === 'unread'" class="msg-list-item flex items-center gap-3 my-3" :data-unread-sep="item.key"
+                        :aria-label="t('lng_unread_bar_some')">
                         <div class="h-px flex-1 bg-blue-400/70 dark:bg-blue-500/70"></div>
                         <span class="text-xs font-medium text-blue-500 dark:text-blue-400 select-none">{{ t('lng_unread_bar_some') }}</span>
                         <div class="h-px flex-1 bg-blue-400/70 dark:bg-blue-500/70"></div>
@@ -62,7 +55,7 @@
 
                     <!-- Album group -->
                     <template v-else-if="item.type === 'album'">
-                        <div :data-msg-id="item.messages[0].id" :class="{
+                        <div :data-msg-id="item.messages[0].id" class="msg-list-item" :class="{
                             'animate-message-in': isNewMessage(item.messages[0].id),
                             'animate-flash-highlight': highlightedMessageId === item.messages[0].id,
                             'relative': selectionMode
@@ -158,7 +151,7 @@
 
                     <!-- Single message -->
                     <template v-else-if="item.type === 'single'">
-                        <div :data-msg-id="item.msg.id" :class="{
+                        <div :data-msg-id="item.msg.id" class="msg-list-item" :class="{
                             'animate-message-in': isNewMessage(item.msg.id),
                             'animate-flash-highlight': highlightedMessageId === item.msg.id,
                             'relative': selectionMode
@@ -331,6 +324,13 @@
 
                 <div class="shrink-0 h-4"></div>
             </div>
+        </div>
+        <!-- 向更旧方向加载指示器：浮层，不进滚动流。
+             若作为滚动内容首个子节点，出现/消失会改 scrollHeight，贴顶时把内容顶起再落下。 -->
+        <div v-if="isLoadingMore && loadingDirection === 'older'"
+            class="absolute left-0 right-0 z-20 text-center text-gray-400 text-sm py-3 pointer-events-none"
+            :style="[topPaddingClass, tagBarMessagePadStyle]">
+            {{ t('lng_context_seen_loading') }}
         </div>
         <!-- ===== Header（顶层，磨砂玻璃） ===== -->
         <div class="absolute top-0 left-0 right-0 z-10" :class="topicLayoutAnim ? 'topic-chrome-anim' : ''"
@@ -698,7 +698,7 @@ import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
 import { MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, Quote as QuoteIcon, Languages as LanguagesIcon, User as UserIcon, Pencil as PencilIcon, FolderOpenIcon, DownloadIcon, BookmarkIcon, EyeIcon, UserCheckIcon, MessageSquareIcon, AudioLinesIcon, FlagIcon } from 'lucide-vue-next';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { useRoute, useRouter } from 'vue-router';
-import { computed, watch, ref, shallowRef, markRaw, onMounted, onUnmounted, nextTick } from 'vue';
+import { computed, watch, ref, shallowRef, markRaw, onMounted, onBeforeUnmount, onUnmounted, nextTick } from 'vue';
 import { useUserStore } from '../../../store/user';
 import { useAudioPlayerStore } from '../../../store/audioPlayer';
 import { clearActiveChatTitleBar } from '../../../store/activeChatTitleBar';
@@ -716,6 +716,14 @@ import { useCustomEmoji } from '../../../store/customEmoji';
 import type { ContextMenuItem } from '../../contextMenu/types';
 import { getMessagePlainText, getMessageFormattedText } from '../../../utils/messageText';
 import { applyTerminalFileToMessages, isTerminalFileUpdate } from '../../../utils/messageFileSnapshot';
+import {
+    captureViewportAnchor,
+    restoreViewportAnchor,
+    withViewportLock,
+    holdViewport,
+    type ViewportAnchor,
+    type ViewportHold,
+} from '../../../utils/viewportLock';
 import {
     copyMessageText, copyMessageJson, copyMessageLink,
     toggleMessagePinned, pinMessage, getMessageProperties,
@@ -815,17 +823,110 @@ const props = defineProps<{
     topicId?: number | null;
 }>();
 
-// ==================== 上次浏览位置缓存（模块级） ====================
-// 每个聊天的"上次浏览位置"（顶部可见消息 id），按 chatId(+topicId) 缓存。
-// 放在模块级，故跨聊天切换、甚至关闭/重开聊天面板（组件卸载重挂）后依然保留，
-// 用于重新打开聊天时恢复到上次浏览的位置，而不是每次都跳到底部。
-const lastBrowsePositionCache = new Map<string, number>();
-const lastBrowseCacheKey = (id: number, tid?: number | null) =>
-    tid ? `${id}:${tid}` : `${id}`;
-/** 删除某聊天的缓存位置（重置/跳转后位置失焦时使用） */
-const clearLastBrowsePosition = (id: number, tid?: number | null) => {
-    lastBrowsePositionCache.delete(lastBrowseCacheKey(id, tid));
+// ==================== 上次浏览位置缓存（模块级 + localStorage） ====================
+// 每个聊天的"上次浏览位置"，按 chatId(+topicId) 缓存。
+// 放在模块级，故跨聊天切换、甚至关闭/重开聊天面板（组件卸载重挂）后依然保留；
+// 同时持久化到 localStorage，应用重启后仍可回到上次阅读位置。
+interface BrowsePosition {
+    /** 视口顶第一条消息 id */
+    anchorId: number;
+    /** 该消息 top 相对容器顶的像素偏移（不是相对 window 视口） */
+    pixelFromTop: number;
+    /** 保存时的 last_read_inbox_message_id，用于失效判断 */
+    readInboxMaxId: number;
+    savedAt: number;
+}
+const BROWSE_POS_STORAGE_KEY = 'tdgram-browse-pos';
+const BROWSE_POS_STORAGE_VERSION = 1;
+/** 校准残余误差阈值（px）；超过则再纠一次，允许残余，禁止死循环 */
+const BROWSE_POS_TOLERANCE_PX = 12;
+/** 未读 separator 预留高度（my-3 上下边距 + 行高），首条未读顶对齐时垫在上方 */
+const UNREAD_SEP_RESERVE_PX = 40;
+
+function lastBrowseCacheKey(id: number, tid?: number | null) {
+    return tid ? `${id}:${tid}` : `${id}`;
+}
+
+function loadBrowsePosStore(): Map<string, BrowsePosition> {
+    const map = new Map<string, BrowsePosition>();
+    try {
+        const raw = localStorage.getItem(BROWSE_POS_STORAGE_KEY);
+        if (!raw) return map;
+        const parsed = JSON.parse(raw) as { v?: number; entries?: Record<string, BrowsePosition> };
+        if (!parsed || parsed.v !== BROWSE_POS_STORAGE_VERSION || !parsed.entries) return map;
+        for (const [key, entry] of Object.entries(parsed.entries)) {
+            if (entry && typeof entry.anchorId === 'number' && entry.anchorId > 0
+                && typeof entry.pixelFromTop === 'number'
+                && typeof entry.readInboxMaxId === 'number'
+                && typeof entry.savedAt === 'number') {
+                map.set(key, entry);
+            }
+        }
+    } catch {
+        // localStorage 损坏：丢弃，走未读/底部逻辑
+    }
+    return map;
+}
+
+function persistBrowsePosStore(map: Map<string, BrowsePosition>) {
+    try {
+        const entries: Record<string, BrowsePosition> = {};
+        for (const [key, entry] of map) entries[key] = entry;
+        localStorage.setItem(BROWSE_POS_STORAGE_KEY, JSON.stringify({
+            v: BROWSE_POS_STORAGE_VERSION,
+            entries,
+        }));
+    } catch {
+        // 配额/隐私模式：仅保留内存缓存
+    }
+}
+
+const lastBrowsePositionCache = loadBrowsePosStore();
+
+/** 读取某聊天的上次浏览位置 */
+const getBrowsePosition = (id: number, tid?: number | null): BrowsePosition | null =>
+    lastBrowsePositionCache.get(lastBrowseCacheKey(id, tid)) ?? null;
+
+/** 写入某聊天的上次浏览位置（内存 + localStorage） */
+const setBrowsePosition = (id: number, tid: number | null | undefined, pos: BrowsePosition) => {
+    lastBrowsePositionCache.set(lastBrowseCacheKey(id, tid), pos);
+    persistBrowsePosStore(lastBrowsePositionCache);
 };
+
+/** 删除某聊天的缓存位置（贴底 / 滑进未读 / 已读线变化 / 失效时使用） */
+const clearLastBrowsePosition = (id: number, tid?: number | null) => {
+    const key = lastBrowseCacheKey(id, tid);
+    if (!lastBrowsePositionCache.delete(key)) return;
+    persistBrowsePosStore(lastBrowsePositionCache);
+};
+
+/**
+ * 已读线前进时同步缓存 readInboxMaxId。
+ * 否则 capture 与 viewMessages 竞态会让 saved.readInboxMaxId 落后于 last_read_inbox_message_id，
+ * 退出再进时被「已读线变化」误失效。
+ */
+const bumpBrowsePosReadInboxMaxId = (id: number, tid: number | null | undefined, readInboxMaxId: number) => {
+    const key = lastBrowseCacheKey(id, tid);
+    const entry = lastBrowsePositionCache.get(key);
+    if (!entry || entry.readInboxMaxId >= readInboxMaxId) return;
+    lastBrowsePositionCache.set(key, { ...entry, readInboxMaxId });
+    persistBrowsePosStore(lastBrowsePositionCache);
+};
+
+/**
+ * anchor 是否已滑进未读区（capture / 进入会话共用，避免两份判定漂移）。
+ * - 有 UI 未读边界（含相册边界）→ 以边界为准
+ * - 无边界（首窗不含未读，unreadBoundary 为 null）→ 兜底比较「打开时已读线」
+ *   必须用 sessionUnreadBaseId 而非 live last_read / lastReported：
+ *   后两者会被 markVisible 推进，用户刚滚进未读时兜底会失效。
+ */
+function isAnchorInUnreadZone(anchorId: number): boolean {
+    const unreadBoundary = unreadBoundaryMessageId.value;
+    if (unreadBoundary != null && unreadBoundary > 0) {
+        return anchorId >= unreadBoundary;
+    }
+    return sessionUnreadBaseId > 0 && anchorId > sessionUnreadBaseId;
+}
 
 // ==================== 草稿缓存（模块级） ====================
 // 每个聊天的输入框草稿（文本 + 自定义 emoji 队列），按 chatId(+topicId) 缓存。
@@ -1245,6 +1346,14 @@ watch([messageInput, pendingCustomEmoji], () => {
 const messages = shallowRef<message[]>([]);
 /** 内存中同时保留的消息上限，超出后从远离视口的一端裁剪，避免 DOM/内存无限增长 */
 const MAX_MESSAGE_WINDOW = 180;
+/**
+ * 向更旧方向加载后、尚未分批揭示进 DOM 的消息 id。
+ * 大频道单条消息 DOM 很重，一次性挂载 30 条会造成 80ms+ 长任务；
+ * 先把新历史藏起来，再按块揭示，把挂载成本摊到多帧。
+ */
+const hiddenOlderIds = ref<Set<number>>(new Set());
+/** 揭示任务代际：切聊天/新加载时 +1，旧的分批揭示循环据此退出 */
+let olderRevealGen = 0;
 const messagesContainer = ref<HTMLElement | null>(null);
 
 // ===== 表情包面板（StickerPanel emoji/GIF/贴纸） =====
@@ -2149,6 +2258,15 @@ onMounted(async () => {
     window.addEventListener('tdgram:jump-to-message-in-chat', onSameChatJump);
 });
 
+// 浏览位置必须在 DOM 卸载前冲刷：onUnmounted 时 messagesContainer 已是 null，flush 会直接 return
+onBeforeUnmount(() => {
+    if (chatId.value !== undefined) {
+        flushScheduledBrowsePosSave(chatId.value, topicId.value);
+    } else {
+        cancelScheduledBrowsePosSave();
+    }
+});
+
 onUnmounted(() => {
     window.removeEventListener('tdgram:jump-to-message-in-chat', onSameChatJump);
     if (unsubscribeUpdates) {
@@ -2520,6 +2638,12 @@ let chatLoadRetryTimer: number | null = null;
 /** 滚动管理状态 — 必须声明在 watch 之前，因为 resetState 被 immediate watch 调用 */
 let readVisibilityTimer: number | null = null;
 let lastReportedReadMessageId = 0;
+/**
+ * 本次打开会话时的已读线（last_read_inbox_message_id）。
+ * 比较「是否滑进未读」用它，而不是会随 markVisible 前进的 live 已读线，
+ * 否则用户刚滚进未读、消息被标已读后，兜底判定永远为 false。
+ */
+let sessionUnreadBaseId = 0;
 
 // ==================== Pinned Messages ====================
 const pinnedBarVisible = ref(false);
@@ -2552,6 +2676,8 @@ const HISTORY_OLDER_LIMIT = 30;
 const HISTORY_NEWER_OFFSET = 30;
 const HISTORY_NEWER_LIMIT = HISTORY_NEWER_OFFSET + 1;
 const HISTORY_BOTTOM_LIMIT = 60;
+/** 本地切片少于此条数视为不足，首屏回退网络 */
+const HISTORY_LOCAL_MIN = 8;
 /** 距顶/底预取阈值（px），避免滚到边才请求导致空白 */
 const SCROLL_PREFETCH_PX = 220;
 
@@ -2676,6 +2802,9 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
     }
     const currentId = newChatId;
     const gen = ++loadGeneration;
+    // 取消进行中的历史分批揭示，清空隐藏集，避免旧聊天的消息串进新聊天
+    olderRevealGen++;
+    hiddenOlderIds.value = new Set();
 
     // 通知 TDLib 关闭旧聊天（停收推送更新等）
     if (chat.value) {
@@ -2689,6 +2818,8 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
     const switchingChat = oldChatId !== undefined
         && (oldChatId !== newChatId || oldTopicId !== newTopicId);
     if (switchingChat) {
+        // 切走前冲刷未写入的浏览位置（debounce 窗口内）
+        flushScheduledBrowsePosSave(oldChatId!, oldTopicId);
         // 编辑态下的输入框是被编辑消息内容，不是草稿；丢弃编辑并走本地缓存恢复，
         // 绝不能把编辑内容写成草稿，也不要把旧草稿覆盖成空。
         suppressDraftAutosave = true;
@@ -2723,8 +2854,8 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
     searchActive.value = false;
 
     try {
-        // 读取上次浏览位置（决定首屏加载锚点）
-        const cachedPos = lastBrowsePositionCache.get(lastBrowseCacheKey(currentId, topicId.value)) || 0;
+        // 读取上次浏览位置（决定首屏加载锚点；导航带 message_id 时忽略缓存）
+        const savedBrowsePos = requestedMessageId ? null : getBrowsePosition(currentId, topicId.value);
 
         // 并行发起：chat 基础信息 + 话题信息 +（可提前确定的）首屏消息
         const chatPromise = tdlibSend({ _: 'getChat', chat_id: currentId }) as Promise<chat>;
@@ -2734,9 +2865,12 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
                 : tdlibSend({ _: 'getForumTopic', chat_id: currentId, forum_topic_id: topicId.value }) as Promise<forumTopic>)
             : Promise.resolve(undefined);
 
-        // 有上次浏览位置时，围绕该位置先拉一个对称切片，无需等待 getChat
-        const earlyMessages: Promise<HistoryFetch> | null = cachedPos > 0 && !requestedMessageId
-            ? fetchMessages(currentId, cachedPos, HISTORY_SLICE_LIMIT, HISTORY_SLICE_OFFSET, gen)
+        // 有上次浏览位置时，围绕 anchor 先拉一个对称切片（40/-20），无需等待 getChat。
+        // 首屏优先 TDLib 本地库，不足再回退网络（fetchMessagesPreferLocal 两段式）
+        const earlyMessages: Promise<HistoryFetch> | null = savedBrowsePos && savedBrowsePos.anchorId > 0
+            ? fetchMessagesPreferLocal(currentId, savedBrowsePos.anchorId, HISTORY_SLICE_LIMIT, HISTORY_SLICE_OFFSET, gen, {
+                anchorId: savedBrowsePos.anchorId,
+            })
             : null;
 
         const chatData = await chatPromise;
@@ -2775,6 +2909,21 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
             ? chatData.last_read_inbox_message_id
             : 0;
         lastReportedReadMessageId = chatData.last_read_inbox_message_id;
+        // 记住打开时的已读线，供「滑进未读」兜底比较（不随 markVisible 前进）
+        sessionUnreadBaseId = chatData.last_read_inbox_message_id;
+
+        // 浏览位置失效判定（任一命中则删除缓存，改走未读/底部）：
+        // 1) 已读线前进（当前 last_read_inbox_message_id > saved.readInboxMaxId，其它端读过/离开期间读过）
+        // 2) 滑进未读：anchor 落在未读区（以 UI 未读边界为准，见下文 unreadBoundary）
+        let browsePos: BrowsePosition | null = savedBrowsePos;
+        if (browsePos) {
+            const readInboxMaxId = chatData.last_read_inbox_message_id;
+            const readLineChanged = readInboxMaxId > browsePos.readInboxMaxId;
+            if (readLineChanged) {
+                clearLastBrowsePosition(currentId, topicId.value);
+                browsePos = null;
+            }
+        }
 
         if (requestedMessageId) {
             const jumped = await jumpToMessageInternal(requestedMessageId, gen);
@@ -2805,15 +2954,19 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
         }
 
         // 首屏消息与群组/通知信息并行加载：
-        //   - 有上次位置 → 复用提前发起的 earlyMessages（对称切片）
+        //   - 位置仍有效 → 复用提前发起的 earlyMessages（围绕 anchor 的对称切片）
         //   - 否则有未读 → 围绕最后已读位置拉窗口（offset 合法且非对称过小）
         //   - 否则 → from_message_id=0 从最新消息向历史拉
-        const firstBatchPromise = earlyMessages ?? fetchMessages(
+        // 均走 fetchMessagesPreferLocal：先 TDLib 本地，不足再网络（话题/DM 自动退化为单次网络）
+        const firstBatchPromise = (browsePos && earlyMessages) ? earlyMessages : fetchMessagesPreferLocal(
             currentId,
             lastReadId,
             HISTORY_SLICE_LIMIT,
             lastReadId > 0 ? HISTORY_SLICE_OFFSET : 0,
-            gen
+            gen,
+            lastReadId > 0
+                ? { anchorId: lastReadId, requireUnread: true, lastReadId }
+                : {},
         );
         const [firstBatchResult] = await Promise.all([
             firstBatchPromise,
@@ -2842,6 +2995,12 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
             ? firstBatch.find(message => message.media_album_id === unreadAlbumId)?.id || firstUnreadMessage.id
             : firstUnreadMessage?.id || null;
 
+        // anchor 落在未读区：即使已读线未变，也视为「滑进未读」，下次从第一条未读顶进入
+        if (browsePos && isAnchorInUnreadZone(browsePos.anchorId)) {
+            clearLastBrowsePosition(currentId, topicId.value);
+            browsePos = null;
+        }
+
         // 写入首屏数据（此时列表仍 opacity:0 + 骨架遮罩，用户看不到中间态）
         applyMessages(firstBatch);
         // from_message_id=0 或已包含 last_message → 窗口贴真实底部
@@ -2852,39 +3011,67 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
             const newestInBatch = firstBatch[firstBatch.length - 1]?.id ?? 0;
             windowReachesLatest.value = lastMessageId > 0 && newestInBatch >= lastMessageId;
         }
+        // 本地窗口缺真正最新时，后台补全（只 merge，不阻塞 listRevealed、禁止整表 replace）。
+        // 仅首屏意图贴最新（from_message_id=0）时触发；历史 browsePos / 未读锚点窗口
+        // 本就不要求含最新，否则会白做桥接甚至拉大半段历史。
+        if (!earlyMessages && lastReadId === 0) {
+            void alignLatestMessagesInBackground(currentId, chatData, gen);
+        }
         chatLoadRetryCount = 0;
         restoreDraft(currentId, topicId.value, chatData.draft_message);
         void tdlibSend({ _: 'openChat', chat_id: currentId });
 
         // 1) 先按锚点定位（可见前） 2) 补视口 3) 再校准 4) 最后 listRevealed
-        const resolveAnchorId = (): number => {
+        /** 首屏定位：缓存有效 → anchor 顶对齐 + pixelFromTop；否则未读顶对齐（预留 separator）/ 贴底 */
+        const positionAtAnchor = (): number => {
+            if (browsePos && browsePos.anchorId > 0 && messages.value.some(m => m.id === browsePos!.anchorId)) {
+                scrollToBrowseAnchor(browsePos.anchorId, browsePos.pixelFromTop);
+                return browsePos.anchorId;
+            }
             const unreadBoundary = unreadBoundaryMessageId.value;
-            if (cachedPos > 0 && messages.value.some(m => m.id === cachedPos)) return cachedPos;
             if (unreadBoundary != null && unreadBoundary > 0 && messages.value.some(m => m.id === unreadBoundary)) {
+                scrollToUnreadAnchor(unreadBoundary);
                 return unreadBoundary;
             }
+            // 首屏回落到底部 ≠ 用户贴底意图：用纯滚动，避免误清仍然有效的 browsePos
+            // （anchor 临时不在 DOM 时常见：相册未渲染、ensureViewportFilled 前测量失败）
+            scrollToBottomPure();
             return 0;
         };
 
         await nextTick();
-        const anchorId = resolveAnchorId();
-        if (anchorId > 0) scrollToMessageImmediate(anchorId);
-        else scrollToBottomImmediate();
+        positionAtAnchor();
 
         await ensureViewportFilled(gen);
         if (!isGenerationValid(gen) || chatId.value !== currentId) return;
 
         await nextTick();
-        const anchorAfterFill = resolveAnchorId();
-        if (anchorAfterFill > 0) scrollToMessageImmediate(anchorAfterFill);
-        else scrollToBottomImmediate();
+        const anchorAfterFill = positionAtAnchor();
 
         // 定位与补齐都完成后才露出，避免「先显示再跳到已读/未读」
         listRevealed.value = true;
         isReady.value = true;
 
-        // 媒体布局后再校准一次（此时用户已可见，只做小幅纠偏）
-        if (anchorAfterFill > 0) {
+        // 媒体布局后再校准一次（此时用户已可见，只做小幅纠偏）；
+        // 误差 > 12px 再纠一次，允许残余，禁止死循环
+        if (anchorAfterFill > 0 && browsePos && anchorAfterFill === browsePos.anchorId) {
+            const calAnchorId = browsePos.anchorId;
+            const calPixelFromTop = browsePos.pixelFromTop;
+            calibrateBrowseAnchor(calAnchorId, calPixelFromTop, true);
+            setTimeout(() => {
+                if (isGenerationValid(gen) && chatId.value === currentId) {
+                    calibrateBrowseAnchor(calAnchorId, calPixelFromTop, true);
+                }
+            }, 250);
+        } else if (anchorAfterFill > 0 && unreadBoundaryMessageId.value === anchorAfterFill) {
+            // 未读锚点：保持顶对齐 + separator 预留，不要用 45% 居中覆盖
+            const unreadId = anchorAfterFill;
+            setTimeout(() => {
+                if (isGenerationValid(gen) && chatId.value === currentId) {
+                    scrollToUnreadAnchor(unreadId);
+                }
+            }, 250);
+        } else if (anchorAfterFill > 0) {
             setTimeout(() => {
                 if (isGenerationValid(gen) && chatId.value === currentId) {
                     scrollToMessage(anchorAfterFill);
@@ -2924,8 +3111,9 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
  * - `null`：请求失败 / 代数过期，调用方不得标记 exhausted
  * 注意：fromMessageId 会被 TDLib 包含在返回结果中，调用方需自行去重。
  * offset 为负时，limit 必须严格大于 -offset。
+ * onlyLocal 仅对普通 getChatHistory 透传；话题/DM 无此参数，忽略该值。
  */
-async function fetchMessages(chatIdNum: number, fromMessageId: number, limit: number, offset = 0, generation?: number): Promise<HistoryFetch> {
+async function fetchMessages(chatIdNum: number, fromMessageId: number, limit: number, offset = 0, generation?: number, onlyLocal = false): Promise<HistoryFetch> {
     // 客户端侧兜底：非法 TDLib 参数直接视为错误，避免服务端拒绝后被当成「边界」
     if (offset < 0 && limit <= -offset) {
         console.error(`fetchMessages: invalid TDLib params limit=${limit} offset=${offset} (limit must be > -offset)`);
@@ -2933,6 +3121,7 @@ async function fetchMessages(chatIdNum: number, fromMessageId: number, limit: nu
     }
     try {
         // 话题模式：论坛 getForumTopicHistory / 频道私信 getDirectMessagesChatTopicHistory
+        // （TDLib 无 only_local，禁止透传）
         const tid = topicId.value;
         const isDm = isDirectMessagesChat.value;
         const result = await tdlibSend(tid
@@ -2957,7 +3146,7 @@ async function fetchMessages(chatIdNum: number, fromMessageId: number, limit: nu
                 from_message_id: fromMessageId,
                 offset,
                 limit,
-                only_local: false
+                only_local: onlyLocal,
             });
         // 如果生成代数已过期（聊天已切换），丢弃结果
         if (generation !== undefined && !isGenerationValid(generation)) return null;
@@ -2974,6 +3163,135 @@ async function fetchMessages(chatIdNum: number, fromMessageId: number, limit: nu
         console.error("fetchMessages error:", e);
         return null;
     }
+}
+
+/** 首屏本地优先：判定切片是否够用所需的上下文 */
+interface PreferLocalOpts {
+    /** 必须被返回区间 [minId, maxId] 覆盖的锚点（browsePos.anchorId 或 lastReadId） */
+    anchorId?: number;
+    /** 有未读：返回里须能找到第一条未读，否则视为本地不足 */
+    requireUnread?: boolean;
+    /** 计算第一条未读用的已读线 */
+    lastReadId?: number;
+}
+
+/** 本地切片是否够用：失败/过少/锚点未覆盖/未读算不出来 → 不够 */
+function isLocalSliceSufficient(result: HistoryFetch, opts: PreferLocalOpts): boolean {
+    if (result == null) return false;
+    if (result.length < HISTORY_LOCAL_MIN) return false;
+    if (opts.anchorId != null && opts.anchorId > 0 && result.length > 0) {
+        let minId = result[0].id;
+        let maxId = result[0].id;
+        for (const m of result) {
+            if (m.id < minId) minId = m.id;
+            if (m.id > maxId) maxId = m.id;
+        }
+        if (opts.anchorId < minId || opts.anchorId > maxId) return false;
+    }
+    if (opts.requireUnread) {
+        const lastReadId = opts.lastReadId ?? 0;
+        const firstUnread = result.find(m => !m.is_outgoing && (lastReadId === 0 || m.id > lastReadId));
+        if (!firstUnread) return false;
+    }
+    return true;
+}
+
+/**
+ * 首屏本地优先两段式：先 onlyLocal，不足再用同一组参数走网络（严格串行，不并行双发）。
+ * 话题/DM 无 only_local，直接单次网络请求，与改前行为一致。
+ * 对外签名与 fetchMessages 对齐（多一个可选 opts）。
+ */
+async function fetchMessagesPreferLocal(
+    chatIdNum: number,
+    fromMessageId: number,
+    limit: number,
+    offset = 0,
+    generation?: number,
+    opts: PreferLocalOpts = {},
+): Promise<HistoryFetch> {
+    // 话题/DM：忽略 onlyLocal，保持现状
+    if (topicId.value) {
+        return fetchMessages(chatIdNum, fromMessageId, limit, offset, generation, false);
+    }
+
+    const local = await fetchMessages(chatIdNum, fromMessageId, limit, offset, generation, true);
+    if (generation !== undefined && !isGenerationValid(generation)) return null;
+
+    if (isLocalSliceSufficient(local, opts)) {
+        return local;
+    }
+
+    // 第二次发出前再验代数
+    if (generation !== undefined && !isGenerationValid(generation)) return null;
+    return fetchMessages(chatIdNum, fromMessageId, limit, offset, generation, false);
+}
+
+/**
+ * 首屏本地窗口缺最新消息时的后台补全。
+ * 只做 mergeIntoList（按 id 去重 append/insert），禁止 applyMessages(newest) 整表替换；
+ * gap 过大时复用 bridge（BRIDGE_MAX_PAGES），失败就放弃，不替换、不清列表。
+ * 不阻塞 listRevealed，不占用 isLoadingMore（避免与滚动加载互斥打架）。
+ */
+async function alignLatestMessagesInBackground(currentId: number, chatData: chat, gen: number): Promise<void> {
+    const lastMessageId = chatData.last_message?.id ?? 0;
+    if (lastMessageId <= 0) return;
+    // 已含最新：无需补全
+    if (messagesMaxId() >= lastMessageId) return;
+
+    const newest = await fetchMessages(currentId, 0, HISTORY_BOTTOM_LIMIT, 0, gen, false);
+    if (!isGenerationValid(gen) || chatId.value !== currentId) return;
+    if (newest == null || newest.length === 0) return;
+
+    const currentNewestId = messagesMaxId();
+    const batchOldestId = newest.reduce((min, m) => (m.id < min ? m.id : min), newest[0].id);
+    const batchNewestId = newest.reduce((max, m) => (m.id > max ? m.id : max), newest[0].id);
+
+    const mergeIntoList = (batch: message[]) => {
+        if (batch.length === 0) return;
+        const ids = new Set(messages.value.map(m => m.id));
+        const unique = batch.filter(m => !ids.has(m.id));
+        if (unique.length > 0) appendMessages(unique);
+    };
+
+    if (currentNewestId <= 0) {
+        // 列表仍为空（极端）：直接写入不算「整表替换已有列表」
+        applyMessages(newest);
+    } else if (currentNewestId >= batchNewestId) {
+        mergeIntoList(newest);
+    } else if (batchOldestId <= currentNewestId + 1) {
+        // 重叠或已连通
+        mergeIntoList(newest);
+    } else {
+        // 存在 gap：从当前末端向更新方向分页桥接（与 handleScrollToBottom 同策略）
+        const BRIDGE_MAX_PAGES = 4;
+        let newestId = currentNewestId;
+        let bridged = false;
+        for (let i = 0; i < BRIDGE_MAX_PAGES && newestId < batchNewestId; i++) {
+            if (!isGenerationValid(gen) || chatId.value !== currentId) return;
+            const page = await fetchMessages(
+                currentId,
+                newestId,
+                HISTORY_NEWER_LIMIT,
+                -HISTORY_NEWER_OFFSET,
+                gen,
+            );
+            if (page == null) break;
+            const newerOnly = page.filter(m => m.id > newestId);
+            if (newerOnly.length === 0) break;
+            mergeIntoList(newerOnly);
+            newestId = newerOnly.reduce((max, m) => (m.id > max ? m.id : max), newestId);
+            if (newestId >= batchOldestId - 1) {
+                bridged = true;
+                break;
+            }
+        }
+        // 桥接失败：放弃，不替换、不清列表
+        if (bridged) {
+            mergeIntoList(newest);
+        }
+    }
+
+    refreshWindowReachesLatest();
 }
 
 /**
@@ -3002,6 +3320,39 @@ async function loadJumpWindow(chatIdNum: number, targetMessageId: number, gen: n
  * 普通历史加载：只向更旧方向扩展当前列表顶部。
  * 仅在请求成功且确认无更旧消息时标记 exhausted；失败返回 false 但不焊死边界。
  */
+/**
+ * 分批把 hiddenOlderIds 里的历史消息揭示进 DOM。
+ * 每帧只挂一小块（大频道单条 DOM 很重）；块内「挂载 + 视口恢复」同帧完成，
+ * 块间才让出 rAF。外层 hold 保证 content-visibility 等高度回流也不挪视口。
+ * 顺序：id 从大到小（先揭靠近视口接缝的一侧）。
+ */
+async function revealOlderMessagesInChunks(ids: number[], gen: number, hold?: ViewportHold) {
+    // 大频道单条 DOM 极重（长文+几十个链接），每帧只挂 1 条，保证不出现 50ms 长任务
+    const REVEAL_CHUNK = 1;
+    const sorted = [...ids].sort((a, b) => b - a);
+    try {
+        for (let i = 0; i < sorted.length; i += REVEAL_CHUNK) {
+            if (gen !== olderRevealGen) return;
+            const chunk = sorted.slice(i, i + REVEAL_CHUNK).filter(id => hiddenOlderIds.value.has(id));
+            if (chunk.length === 0) continue;
+
+            // 块间让出一帧，给上一帧绘制/布局喘息；本块内变更与恢复必须同帧
+            await new Promise<void>(r => requestAnimationFrame(() => r()));
+            if (gen !== olderRevealGen) return;
+
+            await withViewportLock(messagesContainer.value, () => {
+                const next = new Set(hiddenOlderIds.value);
+                for (const id of chunk) next.delete(id);
+                hiddenOlderIds.value = next;
+            }, nextTick);
+            if (gen !== olderRevealGen) return;
+        }
+    } finally {
+        // 揭示结束后再钉几帧，吞掉 content-visibility 估算→真实高度的回流
+        hold?.releaseAfterStable(4);
+    }
+}
+
 async function loadHistoryOlder(loadChatId: number, gen: number): Promise<boolean> {
     if (isLoadingMore.value) return false;
 
@@ -3032,20 +3383,33 @@ async function loadHistoryOlder(loadChatId: number, gen: number): Promise<boolea
             return false;
         }
 
+        // 先把新历史藏进 hiddenOlderIds，再写入 messages：DOM 不会一次性挂载 30 条。
+        // 整个加载过程持视口钉扎：插入同帧恢复，高度回流由 RO 拉回。
+        const newIds = unique.map(m => m.id);
+        olderRevealGen++;
+        const revealGen = olderRevealGen;
+        const nextHidden = new Set(hiddenOlderIds.value);
+        for (const id of newIds) nextHidden.add(id);
+
+        const hold = holdViewport(messagesContainer.value);
+        try {
+            await withViewportLock(messagesContainer.value, () => {
+                hiddenOlderIds.value = nextHidden;
+                applyMessages([...unique, ...messages.value], 'older');
+            }, nextTick);
+        } catch (e) {
+            hold.release();
+            throw e;
+        }
+
         const el = messagesContainer.value;
-        const prevHeight = el?.scrollHeight ?? 0;
-        const prevTop = el?.scrollTop ?? 0;
-
-        applyMessages([...unique, ...messages.value], 'older');
-        await nextTick();
-
         if (el) {
-            el.scrollTop = el.scrollHeight - prevHeight + prevTop;
-            // 顶部插入会改变日期分隔/首条消息相对顶缘的位置；scrollTop 修正后重算吸顶
-            // 同步 lastStickyScrollTop，避免程序化修正被当成用户向下滚动
             lastStickyScrollTop = el.scrollTop;
             updateStickyDate(el);
         }
+
+        // 分批揭示：每帧挂载一小块，块内同帧恢复视口；结束后 hold 自行稳定释放
+        void revealOlderMessagesInChunks(newIds, revealGen, hold);
         return true;
     } finally {
         isLoadingMore.value = false;
@@ -3417,6 +3781,8 @@ async function markVisibleMessagesAsRead() {
                     : { _: 'messageSourceForumTopicHistory' } as const)
                 : undefined,
         });
+        // 已读线前进：同步缓存里的 readInboxMaxId，避免退出再进时被「已读线变化」误失效
+        bumpBrowsePosReadInboxMaxId(currentChatId, topicId.value, latestVisibleId);
     } catch (e) {
         if (chatId.value === currentChatId && lastReportedReadMessageId === latestVisibleId) {
             lastReportedReadMessageId = previousReportedId;
@@ -3432,16 +3798,18 @@ const isAtBottom = (threshold = 150): boolean => {
     return el.scrollTop + el.clientHeight >= el.scrollHeight - threshold;
 };
 
-/** 滚动到底部（标准 flex-col：scrollTop = scrollHeight） */
+/** 滚动到底部（标准 flex-col：scrollTop = scrollHeight - clientHeight） */
 const scrollToBottom = () => {
     showScrollButton.value = false;
     newMessageCount.value = 0;
+    stickyDateHidden.value = true;
     nextTick(() => {
-        if (messagesContainer.value) {
-            messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
-            lastStickyScrollTop = messagesContainer.value.scrollTop;
-            stickyDateHidden.value = true;
-        }
+        const el = messagesContainer.value;
+        if (!el) return;
+        // 布局读一次算目标值，写后不回读 scrollTop，避免强制二次布局
+        const top = Math.max(0, el.scrollHeight - el.clientHeight);
+        el.scrollTop = top;
+        lastStickyScrollTop = top;
     });
 };
 
@@ -3461,21 +3829,32 @@ function scrollToMessageImmediate(messageId: number): boolean {
     const delta = msgRect.top - containerRect.top;
     const desired = el.scrollTop + delta - el.clientHeight * 0.45 + msgRect.height / 2;
     const max = Math.max(0, el.scrollHeight - el.clientHeight);
-    el.scrollTop = Math.max(0, Math.min(Math.round(desired), max));
-    lastStickyScrollTop = el.scrollTop;
+    const next = Math.max(0, Math.min(Math.round(desired), max));
+    el.scrollTop = next;
+    lastStickyScrollTop = next;
     return true;
 }
 
-/** 同步滚到底部（调用方需已 await nextTick） */
-function scrollToBottomImmediate() {
+/** 同步滚到底部（不触碰浏览位置缓存；首屏定位/测量失败回落用） */
+function scrollToBottomPure() {
     showScrollButton.value = false;
     newMessageCount.value = 0;
+    stickyDateHidden.value = true;
     const el = messagesContainer.value;
-    if (el) {
-        el.scrollTop = el.scrollHeight;
-        lastStickyScrollTop = el.scrollTop;
-        stickyDateHidden.value = true;
+    if (!el) return;
+    // 先读布局算出目标 scrollTop，一次写入且不回读，避免写后读触发二次 Recalculate style
+    const top = Math.max(0, el.scrollHeight - el.clientHeight);
+    el.scrollTop = top;
+    lastStickyScrollTop = top;
+}
+
+/** 同步滚到底部（用户贴底意图：清掉浏览位置缓存，下次进入直接到底部） */
+function scrollToBottomImmediate() {
+    if (chatId.value !== undefined) {
+        cancelScheduledBrowsePosSave();
+        clearLastBrowsePosition(chatId.value, topicId.value);
     }
+    scrollToBottomPure();
 }
 
 /** 滚动到指定消息元素，将其放在视口约 45% 位置（基于 getBoundingClientRect，避免 offsetTop 偏差） */
@@ -3583,13 +3962,98 @@ const handleReplyJumpToMessage = (messageId: number) => {
 };
 
 // ==================== Scroll Events ====================
-/** 计算当前视口顶部可见的第一条消息 id（用于记录上次浏览位置） */
-function captureBrowsePosition(el: HTMLElement, id: number, tid?: number | null): number {
-    if (!el) return 0;
+/** 解析相册/单条消息在 DOM 上的锚点节点（相册挂在第一条 media 的 data-msg-id 上） */
+function findRenderedMsgEl(el: HTMLElement, messageId: number): HTMLElement | null {
+    const direct = el.querySelector<HTMLElement>(`[data-msg-id="${messageId}"]`);
+    if (direct) return direct;
+    const target = messages.value.find(m => m.id === messageId);
+    if (target?.media_album_id && target.media_album_id !== '0') {
+        const albumFirst = messages.value.find(m => m.media_album_id === target.media_album_id);
+        if (albumFirst) {
+            return el.querySelector<HTMLElement>(`[data-msg-id="${albumFirst.id}"]`);
+        }
+    }
+    return null;
+}
+
+/**
+ * 浏览位置恢复：anchor 顶对齐 + pixelFromTop。
+ * pixelFromTop 是保存时「元素 top 相对容器顶」的偏移，不是相对 window 视口。
+ * 恢复时把该偏移重新对齐到容器顶，从而还原同一屏内容。
+ */
+function scrollToBrowseAnchor(anchorId: number, pixelFromTop: number): boolean {
+    const el = messagesContainer.value;
+    if (!el) return false;
+    const msgEl = findRenderedMsgEl(el, anchorId);
+    if (!msgEl) return false;
+    const refTop = el.getBoundingClientRect().top;
+    const msgTop = msgEl.getBoundingClientRect().top;
+    const delta = msgTop - refTop;
+    const desired = el.scrollTop + delta - pixelFromTop;
+    const max = Math.max(0, el.scrollHeight - el.clientHeight);
+    const next = Math.max(0, Math.min(Math.round(desired), max));
+    el.scrollTop = next;
+    lastStickyScrollTop = next;
+    return true;
+}
+
+/**
+ * 未读锚点定位：第一条未读顶对齐，并为未读 separator 预留高度
+ * （separator 在首条未读上方，预留后露出时不会把它顶出视口）。
+ */
+function scrollToUnreadAnchor(messageId: number): boolean {
+    const el = messagesContainer.value;
+    if (!el) return false;
+    const msgEl = findRenderedMsgEl(el, messageId);
+    if (!msgEl) return false;
+    const refTop = el.getBoundingClientRect().top;
+    const msgTop = msgEl.getBoundingClientRect().top;
+    const sep = el.querySelector<HTMLElement>('[data-unread-sep]');
+    // separator 自身高度 + my-3 上下边距；无 separator 节点时用固定预留
+    const reserve = sep
+        ? sep.getBoundingClientRect().height + 24
+        : UNREAD_SEP_RESERVE_PX;
+    const delta = msgTop - refTop;
+    const desired = el.scrollTop + delta - reserve;
+    const max = Math.max(0, el.scrollHeight - el.clientHeight);
+    const next = Math.max(0, Math.min(Math.round(desired), max));
+    el.scrollTop = next;
+    lastStickyScrollTop = next;
+    return true;
+}
+
+/**
+ * 浏览位置校准：测量当前 anchor 顶相对容器顶的偏移，与 pixelFromTop 比较。
+ * 误差 > 12px 再纠一次（allowRetry），允许残余误差，禁止死循环。
+ */
+function calibrateBrowseAnchor(anchorId: number, pixelFromTop: number, allowRetry: boolean) {
+    const el = messagesContainer.value;
+    if (!el) return;
+    const msgEl = findRenderedMsgEl(el, anchorId);
+    if (!msgEl) return;
+    const refTop = el.getBoundingClientRect().top;
+    const msgTop = msgEl.getBoundingClientRect().top;
+    const current = msgTop - refTop;
+    const error = Math.abs(current - pixelFromTop);
+    if (error <= BROWSE_POS_TOLERANCE_PX) return;
+    if (!allowRetry) return;
+    scrollToBrowseAnchor(anchorId, pixelFromTop);
+    requestAnimationFrame(() => {
+        calibrateBrowseAnchor(anchorId, pixelFromTop, false);
+    });
+}
+
+/**
+ * 计算并保存当前浏览位置。
+ * 返回保存的位置；贴底 / 滑进未读 / 无锚点时清空缓存并返回 null。
+ */
+function captureBrowsePosition(el: HTMLElement, id: number, tid?: number | null): BrowsePosition | null {
+    if (!el) return null;
     // 容器自身的视口位置是常数参考点：消息 rect.top 越接近它，越靠近容器顶部（scrollTop=0 处）
     const refTop = el.getBoundingClientRect().top;
     let bestId = 0;
     let bestDistance = Infinity;
+    let bestPixelFromTop = 0;
     for (const node of el.querySelectorAll<HTMLElement>('[data-msg-id]')) {
         const msgId = Number(node.dataset.msgId || '0');
         if (msgId <= 0) continue;
@@ -3599,10 +4063,59 @@ function captureBrowsePosition(el: HTMLElement, id: number, tid?: number | null)
         if (distance < bestDistance) {
             bestDistance = distance;
             bestId = msgId;
+            // 元素 top 相对容器顶的偏移（不是相对 window 视口）
+            bestPixelFromTop = top - refTop;
         }
     }
-    if (bestId > 0) lastBrowsePositionCache.set(lastBrowseCacheKey(id, tid), bestId);
-    return bestId;
+    if (bestId <= 0) {
+        clearLastBrowsePosition(id, tid);
+        return null;
+    }
+
+    // 用本地已上报与 TDLib 两侧的较大值，避免「已读回执晚于 capture」造成 readInboxMaxId 过期
+    const readInboxMaxId = Math.max(chat.value?.last_read_inbox_message_id ?? 0, lastReportedReadMessageId);
+    // 滑进未读 → 删除缓存，下次进入走未读/底部（与进入会话共用 isAnchorInUnreadZone）
+    if (isAnchorInUnreadZone(bestId)) {
+        clearLastBrowsePosition(id, tid);
+        return null;
+    }
+
+    const pos: BrowsePosition = {
+        anchorId: bestId,
+        pixelFromTop: bestPixelFromTop,
+        readInboxMaxId,
+        savedAt: Date.now(),
+    };
+    setBrowsePosition(id, tid, pos);
+    return pos;
+}
+
+/** 滚动 debounce 写入浏览位置（300ms）；贴底时仍立即 clear */
+let browsePosSaveTimer: number | null = null;
+
+function cancelScheduledBrowsePosSave() {
+    if (browsePosSaveTimer !== null) {
+        window.clearTimeout(browsePosSaveTimer);
+        browsePosSaveTimer = null;
+    }
+}
+
+function scheduleBrowsePosSave(el: HTMLElement) {
+    cancelScheduledBrowsePosSave();
+    browsePosSaveTimer = window.setTimeout(() => {
+        browsePosSaveTimer = null;
+        if (chatId.value === undefined || !listRevealed.value) return;
+        captureBrowsePosition(el, chatId.value, topicId.value);
+    }, 300);
+}
+
+/** 切换/卸载前冲刷 debounce 中的浏览位置（用旧 chatId 写入） */
+function flushScheduledBrowsePosSave(id: number, tid?: number | null) {
+    if (browsePosSaveTimer === null) return;
+    cancelScheduledBrowsePosSave();
+    const el = messagesContainer.value;
+    if (!el || !listRevealed.value) return;
+    captureBrowsePosition(el, id, tid);
 }
 
 const onScroll = async (e: Event) => {
@@ -3620,7 +4133,24 @@ const onScroll = async (e: Event) => {
     }
     lastStickyScrollTop = nextTop;
     // 吸顶日期需在跳底抑制窗口内也更新（程序化滚动同样会改变日期相对顶缘的位置）
-    updateStickyDate(el);
+    // rAF 合帧，避免高频 scroll 事件每次都触发 DOM 测量
+    scheduleUpdateStickyDate(el);
+
+    const H = el.scrollHeight;
+    const C = el.clientHeight;
+    const T = el.scrollTop;
+    const atBottom = T + C >= H - SCROLL_PREFETCH_PX;
+
+    // 记录当前浏览位置（用户手动滚动时 debounce 写入顶部可见消息）
+    // 贴底时立即清空缓存位置（下次进入直接到底部，能自动看到新消息）
+    if (chatId.value !== undefined) {
+        if (atBottom) {
+            cancelScheduledBrowsePosSave();
+            clearLastBrowsePosition(chatId.value, topicId.value);
+        } else {
+            scheduleBrowsePosSave(el);
+        }
+    }
 
     // 程序化跳底后的短暂窗口：避免 onScroll 与 scrollToBottom/load 互相打架
     if (Date.now() < scrollLoadSuppressedUntil) {
@@ -3632,22 +4162,7 @@ const onScroll = async (e: Event) => {
     // 全部翻译：滚动时按需翻译新进入视口的消息
     if (chatTranslateOn.value) scheduleViewportTranslate();
 
-    const H = el.scrollHeight;
-    const C = el.clientHeight;
-    const T = el.scrollTop;
-
-    // 记录当前浏览位置（用户手动滚动时持续更新顶部可见消息）
-    if (chatId.value !== undefined) {
-        // 已贴底时清空缓存位置（下次进入直接到底部，能自动看到新消息）
-        if (T + C >= H - SCROLL_PREFETCH_PX) {
-            clearLastBrowsePosition(chatId.value, topicId.value);
-        } else {
-            captureBrowsePosition(el, chatId.value, topicId.value);
-        }
-    }
-
     // 底部检测
-    const atBottom = T + C >= H - SCROLL_PREFETCH_PX;
     showScrollButton.value = !atBottom;
     if (atBottom && newMessageCount.value > 0) {
         newMessageCount.value = 0;
@@ -3926,6 +4441,7 @@ function resetState() {
         readVisibilityTimer = null;
     }
     lastReportedReadMessageId = 0;
+    sessionUnreadBaseId = 0;
     applyMessages([]);
     chat.value = undefined;
     clearActiveChatTitleBar();
@@ -4017,10 +4533,25 @@ function messagesMaxId(): number {
     return max;
 }
 
-/** 末尾追加消息（新消息 / 向更新方向加载），超出窗口时裁掉最旧一端 */
+/**
+ * 末尾追加消息（新消息 / 向更新方向加载）。
+ * 超出窗口时裁掉最旧一端——那批消息在视口上方，必须钉住视口，否则内容上跳。
+ */
 function appendMessages(incoming: message[]) {
     if (incoming.length === 0) return;
+    const willTrimFromTop = messages.value.length + incoming.length > MAX_MESSAGE_WINDOW;
+    if (!willTrimFromTop) {
+        applyMessages([...messages.value, ...incoming], 'newer');
+        return;
+    }
+    const el = messagesContainer.value;
+    const anchor: ViewportAnchor | null = el && listRevealed.value ? captureViewportAnchor(el) : null;
     applyMessages([...messages.value, ...incoming], 'newer');
+    if (el && anchor) {
+        void nextTick().then(() => {
+            if (el.isConnected) restoreViewportAnchor(el, anchor);
+        });
+    }
 }
 
 /** 按 id 补丁更新消息（浅合并后整体替换该条，驱动依赖该消息字段的子组件刷新） */
@@ -5241,6 +5772,16 @@ function updateStickyDate(el?: HTMLElement | null) {
     const threshold = container.getBoundingClientRect().top + paddingTop;
     const items = messageItems.value;
 
+    // 一次 querySelectorAll 建索引，替代逐条 querySelector（滚动时 O(n) DOM 查询是强制回流热点）
+    const stickyByKey = new Map<string, HTMLElement>();
+    const msgElById = new Map<number, HTMLElement>();
+    for (const node of container.querySelectorAll<HTMLElement>('[data-sticky-key], [data-msg-id]')) {
+        const key = node.dataset.stickyKey;
+        if (key) stickyByKey.set(key, node);
+        const id = node.dataset.msgId;
+        if (id) msgElById.set(Number(id), node);
+    }
+
     type Section = { text: string; el: Element | null };
     const sections: Section[] = [];
     let currentDateText: string | null = null;
@@ -5250,7 +5791,7 @@ function updateStickyDate(el?: HTMLElement | null) {
     for (const item of items) {
         if (item.type === 'date') {
             currentDateText = item.text;
-            const sep = container.querySelector<HTMLElement>(`[data-sticky-key="${item.key}"]`);
+            const sep = stickyByKey.get(item.key);
             if (sep) {
                 sections.push({ text: item.text, el: sep });
                 pendingSectionText = null;
@@ -5259,7 +5800,7 @@ function updateStickyDate(el?: HTMLElement | null) {
             }
         } else if (item.type === 'single' || item.type === 'album') {
             const msg = item.type === 'single' ? item.msg : item.messages[0];
-            const msgEl = container.querySelector(`[data-msg-id="${msg.id}"]`);
+            const msgEl = msgElById.get(msg.id);
             if (pendingSectionText) {
                 // 分隔未挂载：等该日第一条能定位到的消息出现再记区块
                 if (msgEl) {
@@ -5288,6 +5829,16 @@ function updateStickyDate(el?: HTMLElement | null) {
     stickyDateText.value = active;
 }
 
+/** 滚动路径上的吸顶日期更新：rAF 合帧，避免每帧 scroll 事件都做一次 DOM 测量 */
+let stickyDateRaf = 0;
+function scheduleUpdateStickyDate(el?: HTMLElement | null) {
+    if (stickyDateRaf) return;
+    stickyDateRaf = requestAnimationFrame(() => {
+        stickyDateRaf = 0;
+        updateStickyDate(el);
+    });
+}
+
 /**
  * 顶置消息跳转：复用统一的 jumpToMessage，
  * 保证目标消息加载进列表、填补与当前列表的断层，再定位 + 高亮。
@@ -5302,13 +5853,38 @@ async function jumpToPinnedMessage(messageId: number) {
  * 纯数据构建逻辑已下沉到 `composables/messageItems.ts`，此处仅注入
  * 依赖组件 ref 的判断回调。
  */
-const messageItems = computed<DisplayItem[]>(() =>
-    buildDisplayItems(messages.value, unreadBoundaryMessageId.value, {
+/**
+ * messageItems 结果缓存：可见消息对象身份完全一致时直接复用。
+ * 向顶部插入「仍隐藏」的历史时，可见列表不变，跳过 buildDisplayItems 与整表 patch；
+ * patchMessage 会换新对象引用，身份比较会失效并正确重建。
+ */
+let messageItemsCache: { list: message[]; unread: number; items: DisplayItem[] } | null = null;
+
+const messageItems = computed<DisplayItem[]>(() => {
+    const hidden = hiddenOlderIds.value;
+    const list = hidden.size > 0
+        ? messages.value.filter(m => !hidden.has(m.id))
+        : messages.value;
+    const unread = unreadBoundaryMessageId.value ?? 0;
+    const cache = messageItemsCache;
+    if (cache && cache.unread === unread && cache.list.length === list.length) {
+        let same = true;
+        for (let i = 0; i < list.length; i++) {
+            if (cache.list[i] !== list[i]) {
+                same = false;
+                break;
+            }
+        }
+        if (same) return cache.items;
+    }
+    const items = buildDisplayItems(list, unreadBoundaryMessageId.value, {
         isSelf,
         isSavedForwardedMessage,
         shouldReserveAvatarColumn,
-    })
-);
+    });
+    messageItemsCache = { list, unread, items };
+    return items;
+});
 
 // 列表结构 / 顶栏高度 / 露出后 DOM 变化时重算吸顶日期
 // 用 flush:'post' 确保 DOM（日期分隔、消息节点）已更新后再测量
@@ -5636,9 +6212,16 @@ async function handleScrollToBottom() {
     }
     await nextTick();
     scrollToBottomImmediate();
-    // 媒体懒加载后二次校准
+    // 媒体懒加载后二次校准：高度未变且已贴底则跳过写入，避免无意义二次强制布局
     setTimeout(() => {
-        scrollToBottomImmediate();
+        const el = messagesContainer.value;
+        if (el) {
+            const top = Math.max(0, el.scrollHeight - el.clientHeight);
+            if (el.scrollTop < top - 1) {
+                el.scrollTop = top;
+                lastStickyScrollTop = top;
+            }
+        }
         scrollLoadSuppressedUntil = Date.now() + 300;
     }, 200);
 }
@@ -5734,6 +6317,9 @@ async function handleScrollToBottom() {
 <style>
 .messages-scroll {
     min-height: 0;
+    /* 视口位置由 viewportLock 手动维护；关掉浏览器 scroll-anchoring，
+       避免与手动补偿叠加造成二次位移（闪跳）。 */
+    overflow-anchor: none;
 }
 
 .mi-fade-enter-active,
@@ -5827,5 +6413,16 @@ async function handleScrollToBottom() {
         top 0.28s cubic-bezier(0.4, 0, 0.2, 1),
         left 0.28s cubic-bezier(0.4, 0, 0.2, 1),
         right 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/*
+ * 消息行 content-visibility：视口外的消息跳过布局/绘制。
+ * 大频道（长文本多链接）DOM 很重，向顶部插入历史时新行大多在视口上方，
+ * 浏览器可直接用 contain-intrinsic-size 估算高度，避免一次性布局几十条复杂消息。
+ * auto 前缀会在首次渲染后记住真实高度，滚动越久越准。
+ */
+.msg-list-item {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 88px;
 }
 </style>
