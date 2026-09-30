@@ -8,6 +8,7 @@ mod download_store;
 mod lang_detect;
 mod media_stream;
 mod notifications;
+mod smtc;
 mod tdlib;
 mod toast_identity;
 mod update_manager;
@@ -19,18 +20,43 @@ use tauri::{
 };
 
 #[tauri::command]
-fn set_window_effect(window: tauri::WebviewWindow, effect: String) -> Result<(), String> {
+fn set_window_effect(
+    window: tauri::WebviewWindow,
+    effect: String,
+    dark: Option<bool>,
+) -> Result<(), String> {
     use tauri::window::{Effect, EffectsBuilder};
+    use tauri::Theme;
 
-    let effects = match effect.as_str() {
-        "acrylic" => EffectsBuilder::new().effect(Effect::Acrylic).build(),
-        "mica" => EffectsBuilder::new().effect(Effect::Mica).build(),
-        "tabbed" => EffectsBuilder::new().effect(Effect::Tabbed).build(),
-        "blur" => EffectsBuilder::new().effect(Effect::Blur).build(),
-        _ => return Err(format!("Unknown effect: {}", effect)),
+    // Win11 acrylic / mica 的明暗由窗口 Theme 驱动；切换主题时应带 dark 一并设置。
+    if let Some(d) = dark {
+        let theme = if d { Theme::Dark } else { Theme::Light };
+        window.set_theme(Some(theme)).map_err(|e| e.to_string())?;
+    }
+
+    // Acrylic 浅/深色调（Win10 tint；Win11 主要跟 Theme，这里仍写入以兼容）
+    let tint: Option<(u8, u8, u8, u8)> = match (effect.as_str(), dark) {
+        ("acrylic", Some(true)) => Some((28, 28, 28, 200)),
+        ("acrylic", Some(false)) => Some((255, 255, 255, 210)),
+        ("blur", Some(true)) => Some((28, 28, 28, 160)),
+        ("blur", Some(false)) => Some((255, 255, 255, 180)),
+        _ => None,
     };
 
-    window.set_effects(effects).map_err(|e| e.to_string())
+    let mut builder = EffectsBuilder::new();
+    builder = match effect.as_str() {
+        "acrylic" => builder.effect(Effect::Acrylic),
+        "mica" => builder.effect(Effect::Mica),
+        "tabbed" => builder.effect(Effect::Tabbed),
+        "blur" => builder.effect(Effect::Blur),
+        _ => return Err(format!("Unknown effect: {}", effect)),
+    };
+    if let Some((r, g, b, a)) = tint {
+        use tauri::window::Color;
+        builder = builder.color(Color(r, g, b, a));
+    }
+
+    window.set_effects(builder.build()).map_err(|e| e.to_string())
 }
 
 /// 用系统「打开方式」对话框选择应用打开文件（Windows 触发 OpenAs_RunDLL）。
@@ -192,9 +218,25 @@ pub fn run() {
             app.manage(tdlib::AppState::new(data_dir));
 
             // 注册 Toast AUMID 身份（未打包时写注册表；MSIX 由清单自动注册）
+            // 同时设置进程 AUMID——SMTC/Toast 解析应用显示名依赖它
             toast_identity::init_toast_identity();
             // 通知服务状态（Rust 侧处理 updateNotificationGroup）
             notifications::init(app);
+
+            // 系统媒体控件（SMTC）：宿主进程发布，避免 WebView2 MediaSession 显示「未知应用」
+            {
+                let main = app.get_webview_window("main");
+                #[cfg(target_os = "windows")]
+                if let Some(window) = main {
+                    if let Ok(hwnd) = window.hwnd() {
+                        if let Err(e) = smtc::init_with_hwnd(app.handle(), hwnd.0 as isize) {
+                            eprintln!("[smtc] init failed: {e}");
+                        }
+                    }
+                }
+                #[cfg(not(target_os = "windows"))]
+                let _ = main;
+            }
 
             // ===== 系统托盘 =====
             let show_i = MenuItem::with_id(app, "show", "显示窗口", true, None::<&str>)?;
@@ -291,6 +333,9 @@ pub fn run() {
             lang_detect::detect_languages,
             lang_detect::should_translate_text,
             toast_identity::show_system_notification,
+            smtc::smtc_update_metadata,
+            smtc::smtc_update_playback,
+            smtc::smtc_clear,
             notifications::set_notification_prefs,
             notifications::set_active_chat_for_notifications,
             ai_translate::get_ai_translate_config,

@@ -177,11 +177,31 @@ fn show_toast_windows(
     toast.show().map_err(|e| format!("show notification failed: {e}"))
 }
 
+/// 设置当前进程的 AppUserModelID。
+///
+/// Toast / SMTC（系统媒体控件）按进程 AUMID 解析应用显示名；
+/// 不设置时 SMTC 会显示「未知应用」。打包应用由清单提供身份，仍建议设置
+/// 以便开发态与 NSIS 便携版一致。
+#[cfg(target_os = "windows")]
+pub fn set_process_aumid() {
+    use windows::core::HSTRING;
+    use windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID;
+
+    let app_id = HSTRING::from(APP_AUMID);
+    if let Err(e) = unsafe { SetCurrentProcessExplicitAppUserModelID(&app_id) } {
+        eprintln!("[identity] SetCurrentProcessExplicitAppUserModelID failed: {e}");
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn set_process_aumid() {}
+
 /// 启动时预注册 Toast 身份（幂等）。
 pub fn init_toast_identity() {
     if !is_windows() {
         return;
     }
+    set_process_aumid();
     if let Err(e) = ensure_toast_identity() {
         eprintln!("[toast] ensure aumid identity failed: {e}");
     }

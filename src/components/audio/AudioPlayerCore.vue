@@ -6,17 +6,42 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onMounted } from 'vue';
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useAudioPlayerStore } from '../../store/audioPlayer';
 
 const player = useAudioPlayerStore();
 const audioRef = ref<HTMLAudioElement | null>(null);
 
+/**
+ * Windows 上必须走 Rust 原生 SMTC：
+ * WebView2 的 navigator.mediaSession 会把源应用标成 msedgewebview2（显示「未知应用」），
+ * 且若同时启用会出现两条系统媒体会话。其它平台继续用 Media Session API。
+ */
+const isWindows = /Windows/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '');
+const useNativeSmtc = isWindows;
+
 const mediaSession =
     typeof navigator !== 'undefined' && 'mediaSession' in navigator ? navigator.mediaSession : null;
-const hasMediaSession = !!mediaSession;
+const hasMediaSession = !!mediaSession && !useNativeSmtc;
 
-/** 将当前曲目同步到 Media Session（含封面） */
+/**
+ * Windows：HTML5 Audio 播放会让 WebView2 自动注册一条 SMTC（源应用是
+ * msedgewebview2，显示「未知应用」，标题回落到 document.title）。
+ * 显式把 playbackState 固定为 none，压掉这条，只保留 Rust 原生 SMTC。
+ */
+function suppressWebviewSmtc() {
+    if (!useNativeSmtc || !mediaSession) return;
+    try {
+        mediaSession.metadata = null;
+        mediaSession.playbackState = 'none';
+    } catch {
+        // ignore
+    }
+}
+
+/** 将当前曲目同步到 Media Session（含封面）——非 Windows 回退路径 */
 function syncMediaSession() {
     if (!hasMediaSession) return;
     const track = player.currentTrack;
@@ -116,6 +141,30 @@ function syncMediaSessionPosition() {
     }
 }
 
+/** 同步原生 SMTC 元数据（Windows）。无封面也要调用，以便清掉上一曲缩略图。 */
+function syncNativeSmtcMetadata() {
+    const track = player.currentTrack;
+    if (!track) return;
+    const coverFile = track.coverSource?.file;
+    const coverBytes = track.coverSource?.buffer;
+    void invoke('smtc_update_metadata', {
+        title: track.title,
+        artist: track.performer,
+        album: '',
+        coverPath: coverFile ?? null,
+        coverBytes: coverBytes && coverBytes.length > 0 ? coverBytes : null,
+    }).catch(() => { /* SMTC 未初始化时忽略 */ });
+}
+
+/** 同步原生 SMTC 播放状态与进度（Windows） */
+function syncNativeSmtcPlayback() {
+    if (useNativeSmtc) suppressWebviewSmtc();
+    void invoke('smtc_update_playback', {
+        playing: player.isPlaying,
+        positionSecs: player.currentTime || 0,
+        durationSecs: player.duration || 0,
+    }).catch(() => { /* SMTC 未初始化时忽略 */ });
+}
 
 let syncPositionQueued = false;
 /** 高频进度同步：用 requestAnimationFrame 合并，只在播放中更新进度。 */
@@ -124,7 +173,10 @@ function pushPosition() {
     syncPositionQueued = true;
     requestAnimationFrame(() => {
         syncPositionQueued = false;
-        if (player.isPlaying) {
+        if (!player.isPlaying) return;
+        if (useNativeSmtc) {
+            syncNativeSmtcPlayback();
+        } else {
             syncMediaSessionPosition();
         }
     });
@@ -133,13 +185,18 @@ function pushPosition() {
 /** 低频元数据/封面/状态同步（仅在曲目或封面变化、播放状态切换时调用）。 */
 function pushSmtc(force = false) {
     void force;
+    if (useNativeSmtc) {
+        syncNativeSmtcMetadata();
+        syncNativeSmtcPlayback();
+        return;
+    }
     syncMediaSession();
     syncMediaSessionState();
     // 同步进度一次；进度本身由 pushPosition 高频接管。
     syncMediaSessionPosition();
 }
 
-/** 注册 Media Session 系统命令（一次性注册） */
+/** 注册 Media Session 系统命令（一次性注册；仅非 Windows） */
 let mediaHandlersBound = false;
 function bindMediaActionHandlers() {
     if (!hasMediaSession || mediaHandlersBound) return;
@@ -168,13 +225,71 @@ function bindMediaActionHandlers() {
     });
 }
 
-onMounted(() => {
+/** 系统媒体控件按钮 → 播放器指令（Windows 原生 SMTC） */
+function handleSmtcControl(payload: { action?: string; position?: number }) {
+    const action = payload?.action;
+    switch (action) {
+        case 'play':
+            if (player.currentIndex === -1) player.playTrack(0);
+            else if (!player.isPlaying) player.togglePlay();
+            break;
+        case 'pause':
+        case 'stop':
+            if (player.isPlaying) player.togglePlay();
+            break;
+        case 'next':
+            player.nextTrack();
+            break;
+        case 'prev':
+            player.prevTrack();
+            break;
+        case 'seek':
+            if (typeof payload.position === 'number') player.seek(payload.position);
+            break;
+    }
+}
+
+let unlistenSmtc: UnlistenFn | null = null;
+
+onMounted(async () => {
     bindMediaActionHandlers();
+    suppressWebviewSmtc();
     pushSmtc(true);
+    if (useNativeSmtc) {
+        try {
+            unlistenSmtc = await listen<{ action?: string; position?: number }>(
+                'smtc-control',
+                (e) => handleSmtcControl(e.payload || {}),
+            );
+        } catch {
+            unlistenSmtc = null;
+        }
+    }
+});
+
+onUnmounted(() => {
+    if (unlistenSmtc) {
+        unlistenSmtc();
+        unlistenSmtc = null;
+    }
+    if (useNativeSmtc) {
+        void invoke('smtc_clear').catch(() => { });
+    }
 });
 
 // 监听曲目变化 → 同步元数据/封面（新的曲目，强制立即同步）
-watch(() => player.currentTrack, () => {
+watch(() => player.currentTrack, (track) => {
+    if (!track) {
+        if (useNativeSmtc) {
+            void invoke('smtc_clear').catch(() => { });
+        } else if (hasMediaSession) {
+            try {
+                mediaSession.metadata = null;
+                mediaSession.playbackState = 'none';
+            } catch { /* ignore */ }
+        }
+        return;
+    }
     pushSmtc(true);
 });
 
@@ -230,6 +345,7 @@ watch(() => player.isPlaying, (playing) => {
     } else if (!playing && !audio.paused) {
         audio.pause();
     }
+    suppressWebviewSmtc();
     // 同步系统媒体控件播放状态（低频，元数据路径）
     pushSmtc();
 });
@@ -264,6 +380,8 @@ function onTimeUpdate() {
     // 进度更新：高频且轻量（requestAnimationFrame 合并，仅 setPositionState），
     // 避免在视图切换等主线程繁忙时段造成 SMTC 大量重建而卡慢音频。
     pushPosition();
+    // 播放期间 Chromium 可能重新拉起 WebView2 SMTC，低频压掉
+    suppressWebviewSmtc();
 }
 
 function onLoaded() {
@@ -293,6 +411,8 @@ function onError() {
 
 function onPlay() {
     player.isPlaying = true;
+    // Chromium 在 HTML5 Audio 开始播放时会自动注册 WebView2 SMTC，这里立刻压掉
+    suppressWebviewSmtc();
 }
 
 function onPause() {

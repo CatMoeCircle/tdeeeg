@@ -5165,6 +5165,7 @@ dependencies = [
  "tauri-plugin-window-state",
  "tauri-winrt-notification",
  "tokio",
+ "windows",
  "winreg 0.56.0",
 ]
 
