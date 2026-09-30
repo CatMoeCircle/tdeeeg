@@ -4,7 +4,9 @@
             <h2 class="text-lg font-semibold">{{ t('lng_menu_contacts') }}</h2>
         </div>
         <!-- 音乐播放器入口（聊天打开时由 ChatDetail 接管） -->
-        <MusicPlayerEntry v-if="!isChatOpen" compact />
+        <div v-if="!isChatOpen" class="pb-1">
+            <MusicPlayerEntry compact />
+        </div>
         <div class="flex-1 overflow-y-auto custom-scrollbar p-2" v-smooth-wheel>
             <div v-for="user in Contacts ?? []" :key="user.id">
                 <div class="flex items-center p-2 hover:shadow-(--box-shadow) hover:bg-gray-200/50 rounded-xl cursor-pointer transition-colors"
@@ -15,7 +17,7 @@
                             :accentColorId="user.profile_accent_color_id" />
                     </div>
                     <div class="flex-1 min-w-0">
-                        <h3 class="text-sm font-semibold text-gray-900">
+                        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">
                             <GlobalEmojiText :text="user.first_name + ' ' + user.last_name" />
                         </h3>
                         <p v-if="user.status._ === 'userStatusOnline'" class="text-xs text-blue-500">

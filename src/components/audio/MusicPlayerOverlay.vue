@@ -48,8 +48,14 @@
                             @mousedown="handleProgressStart">
                             <div class="h-full bg-blue-500 rounded-full"
                                 :style="{ width: displayProgress + '%' }"></div>
-                            <div class="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-blue-500 shadow border-2 border-white dark:border-gray-800 opacity-0 group-hover:opacity-100"
-                                :style="{ left: displayProgress + '%' }"></div>
+                            <!-- 拖拽圆点：负 margin 让圆心落在进度末端 + 轨道中心（不依赖 transform） -->
+                            <div class="absolute w-3.5 h-3.5 rounded-full bg-blue-500 shadow border-2 border-white dark:border-gray-800 opacity-0 group-hover:opacity-100"
+                                :style="{
+                                    left: displayProgress + '%',
+                                    top: '50%',
+                                    marginLeft: '-7px',
+                                    marginTop: '-7px'
+                                }"></div>
                         </div>
                         <div class="flex justify-between mt-1.5">
                             <span class="text-xs text-gray-400">{{ formatTime(player.currentTime) }}</span>

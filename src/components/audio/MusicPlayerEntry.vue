@@ -1,29 +1,43 @@
 <template>
+    <!-- bare：对话页合并进顶部卡片，保持原有样式；
+         非 bare：列表模式玻璃卡片，带外边距并收紧内距 -->
     <div v-if="player.showEntry && player.currentTrack" class="select-none" :class="[
         compact ? 'text-xs' : 'text-sm',
-        bare ? '' : 'rounded-lg bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg shadow-sm border border-gray-200/50 dark:border-gray-700/50'
+        bare
+            ? 'pb-[5px]'
+            : `mx-2 mt-1 rounded-lg overflow-hidden ${UI_GLASS_SURFACE}`
     ]">
 
         <!-- 主要内容行 -->
-        <div class="flex items-center gap-1.5 px-3 py-1.5">
+        <div class="flex items-center" :class="bare ? 'gap-1.5 px-3 py-1.5' : 'gap-1.5 px-2 pt-1 pb-0.5'">
 
-            <!-- 分隔线 -->
-            <div class="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1"></div>
+            <!-- 分隔线（对话页 bare 保留原有） -->
+            <div v-if="bare" class="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1"></div>
 
             <!-- 歌曲信息 -->
             <div class="flex-1 min-w-0 flex items-center gap-1.5 cursor-pointer" @click.stop="player.toggleOverlay()">
-                <div
-                    class="w-6 h-6 rounded bg-gray-200 dark:bg-gray-700 flex items-center justify-center shrink-0 overflow-hidden">
+                <div class="flex items-center justify-center shrink-0 overflow-hidden"
+                    :class="bare
+                        ? 'w-6 h-6 rounded bg-gray-200 dark:bg-gray-700'
+                        : 'w-6 h-6 rounded-md bg-gray-200/70 dark:bg-gray-700/70'">
                     <img v-if="player.currentTrack?.coverPath" :src="player.currentTrack.coverPath"
                         class="w-full h-full object-cover" @error="onCoverError" />
-                    <MusicIcon v-else class="w-3.5 h-3.5 text-gray-500" />
+                    <MusicIcon v-else class="w-3.5 h-3.5"
+                        :class="bare ? 'text-gray-500' : 'text-gray-500 dark:text-gray-400'" />
                 </div>
                 <div class="min-w-0 leading-tight">
-                    <p class="truncate font-medium text-gray-800 dark:text-gray-200"
-                        :class="compact ? 'text-[11px]' : 'text-xs'">
+                    <p class="truncate font-medium"
+                        :class="[
+                            compact ? 'text-[11px]' : 'text-xs',
+                            bare ? 'text-gray-800 dark:text-gray-200' : 'text-gray-900 dark:text-gray-100'
+                        ]">
                         <GlobalEmojiText :text="player.currentTrack.title" />
                     </p>
-                    <p class="truncate text-gray-500" :class="compact ? 'text-[10px]' : 'text-[11px]'">
+                    <p class="truncate"
+                        :class="[
+                            compact ? 'text-[10px]' : 'text-[11px]',
+                            bare ? 'text-gray-500' : 'text-gray-500 dark:text-gray-400'
+                        ]">
                         <GlobalEmojiText :text="player.currentTrack.performer" />
                     </p>
                 </div>
@@ -31,7 +45,8 @@
 
             <!-- 上一首 -->
             <button @click.stop="player.prevTrack()"
-                class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-300"
+                class="w-7 h-7 flex items-center justify-center rounded-full transition-colors text-gray-600 dark:text-gray-300"
+                :class="bare ? 'hover:bg-gray-200 dark:hover:bg-gray-700' : 'hover:bg-gray-200/70 dark:hover:bg-gray-700/70'"
                 :title="t('lng_mac_menu_player_previous')">
                 <SkipBackIcon class="w-3.5 h-3.5" />
             </button>
@@ -39,6 +54,7 @@
             <!-- 播放/暂停 -->
             <button @click.stop="player.togglePlay()"
                 class="w-7 h-7 flex items-center justify-center rounded-full bg-blue-500 hover:bg-blue-600 transition-colors text-white"
+                :class="bare ? '' : 'shadow-sm shadow-blue-500/30'"
                 :title="player.isPlaying ? t('lng_mac_menu_player_pause') : t('lng_mac_menu_player_resume')">
                 <PlayIcon v-if="!player.isPlaying" class="w-3.5 h-3.5 ml-0.5" />
                 <PauseIcon v-else class="w-3.5 h-3.5" />
@@ -46,36 +62,45 @@
 
             <!-- 下一首 -->
             <button @click.stop="player.nextTrack()"
-                class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-300"
+                class="w-7 h-7 flex items-center justify-center rounded-full transition-colors text-gray-600 dark:text-gray-300"
+                :class="bare ? 'hover:bg-gray-200 dark:hover:bg-gray-700' : 'hover:bg-gray-200/70 dark:hover:bg-gray-700/70'"
                 :title="t('lng_mac_menu_player_next')">
                 <SkipForwardIcon class="w-3.5 h-3.5" />
             </button>
 
             <!-- 关闭 -->
             <button @click.stop="player.close()"
-                class="w-6 h-6 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0"
+                class="w-6 h-6 flex items-center justify-center rounded-full transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0"
+                :class="bare ? 'hover:bg-gray-200 dark:hover:bg-gray-700' : 'hover:bg-gray-200/70 dark:hover:bg-gray-700/70'"
                 :title="t('player.close')">
                 <XIcon class="w-3.5 h-3.5" />
             </button>
         </div>
 
         <!-- 底部进度条 -->
-        <div class="px-3 overflow-hidden cursor-pointer group/progress relative h-0.75 group-hover/progress:h-3 transition-all duration-150 ease-out"
+        <!-- 列表模式热区收到 8px；bare 保持原 12px -->
+        <div class="cursor-pointer group/progress relative" :class="bare ? 'px-3' : 'px-2'"
+            :style="{ height: bare ? '12px' : '8px' }"
             @click.stop="handleProgressClick" @mousedown.stop="handleProgressStart">
-            <!-- 可视轨道（贴底细线，hover 变高） -->
-            <div class="absolute bottom-0 left-0 right-0
-                        h-0.75 group-hover/progress:h-2
-                        bg-gray-200/60 dark:bg-gray-700/60
-                        rounded-full overflow-hidden
-                        transition-all duration-150 ease-out">
-                <div class="h-full bg-blue-500 rounded-full transition-none" :style="displayStyle"></div>
-            </div>
-            <!-- 拖拽圆点（hover 时显示；仅透明度过渡，left 实时跟手不加动画） -->
-            <div class="absolute bottom-0 -translate-x-1/2
-                        w-3 h-3 -mb-0.5 rounded-full bg-blue-500 shadow-md border-2 border-white dark:border-gray-800
-                        opacity-0 group-hover/progress:opacity-100
-                        transition-opacity pointer-events-none"
-                :style="{ left: displayStyle.width || '0%' }">
+            <!-- 定位条：贴底；轨道与圆点共用，保证 left%/width% 同源 -->
+            <div class="absolute bottom-0 left-0 right-0" :class="bare ? 'h-[3px]' : 'h-0.5'">
+                <!-- 可视轨道 -->
+                <div class="absolute inset-0 rounded-full overflow-hidden"
+                    :class="bare
+                        ? 'bg-gray-200/60 dark:bg-gray-700/60'
+                        : 'bg-black/[0.06] dark:bg-white/[0.10]'">
+                    <div class="h-full rounded-full transition-none"
+                        :class="bare ? 'bg-blue-500' : 'bg-blue-500/90'" :style="displayStyle"></div>
+                </div>
+                <!-- 拖拽圆点：圆心对齐进度末端 + 轨道中心 -->
+                <div class="absolute top-1/2 w-3 h-3 rounded-full bg-blue-500 shadow-md border-2 border-white dark:border-gray-800
+                            opacity-0 group-hover/progress:opacity-100
+                            transition-opacity pointer-events-none"
+                    :style="{
+                        left: displayStyle.width || '0%',
+                        transform: 'translate(-50%, -50%)'
+                    }">
+                </div>
             </div>
         </div>
     </div>
@@ -86,6 +111,7 @@ import { computed, ref } from 'vue';
 import { SkipBackIcon, SkipForwardIcon, PlayIcon, PauseIcon, MusicIcon, XIcon } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import { useAudioPlayerStore } from '../../store/audioPlayer';
+import { UI_GLASS_SURFACE } from '../../utils/folderPillsTabClass';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 
 defineProps<{
