@@ -1,6 +1,6 @@
 <!-- 侧边栏 -->
 <template>
-    <div class="w-14 h-full dark:bg-gray-900 flex flex-col items-center py-4 dark:border-gray-800"
+    <div class="w-14 h-full flex flex-col items-center py-4 border-r border-transparent"
         :class="isTitlebarMode ? 'pt-3' : 'pt-1'">
         <!-- Avatar / Profile：titlebar 模式下隐藏（已移至标题栏） -->
         <div v-if="!isTitlebarMode" class="mb-5 ">
@@ -17,16 +17,16 @@
         <!-- 侧边栏-上部分-->
         <div class="flex-1 flex flex-col gap-2 w-full items-center">
             <router-link to="/home/chats"
-                :class="[buttonStyle, { 'bg-white/60 dark:bg-gray-600 shadow-sm': isChatNavActive }]">
+                :class="[buttonStyle, { 'bg-white/40 dark:bg-gray-600/50 shadow-sm': isChatNavActive }]">
                 <MessageCircleIcon :class="iconStyle" />
             </router-link>
 
-            <router-link to="/home/contacts" :class="buttonStyle" active-class="bg-white/60 dark:bg-gray-600 shadow-sm">
+            <router-link to="/home/contacts" :class="buttonStyle" active-class="bg-white/40 dark:bg-gray-600/50 shadow-sm">
                 <UsersIcon :class="iconStyle" />
             </router-link>
 
             <router-link v-if="settings.chatList.archivePosition === 'sidebar'" to="/home/archived" :class="buttonStyle"
-                active-class="bg-white/60 dark:bg-gray-600 shadow-sm">
+                active-class="bg-white/40 dark:bg-gray-600/50 shadow-sm">
                 <ArchiveIcon :class="iconStyle" />
             </router-link>
         </div>
@@ -34,7 +34,7 @@
         <!-- 侧边栏-下部分 -->
         <div class="mt-auto flex flex-col gap-4 w-full items-center">
             <button type="button" @click="downloadStore.togglePanel()"
-                :class="[buttonStyle, downloadStore.isPanelOpen ? 'bg-white/60 dark:bg-gray-600 shadow-sm' : '']"
+                :class="[buttonStyle, downloadStore.isPanelOpen ? 'bg-white/40 dark:bg-gray-600/50 shadow-sm' : '']"
                 :title="downloadStore.isPanelOpen ? t('nav.closeDownloads') : t('nav.openDownloads')">
                 <span class="relative inline-flex">
                     <DownloadIcon :class="iconStyle" />
@@ -51,7 +51,7 @@
                 </span>
             </button>
             <router-link to="/home/settings"
-                :class="[buttonStyle, { 'bg-white/60 dark:bg-gray-600 shadow-sm': isSettingsNavActive }]">
+                :class="[buttonStyle, { 'bg-white/40 dark:bg-gray-600/50 shadow-sm': isSettingsNavActive }]">
                 <SettingsIcon :class="iconStyle" />
             </router-link>
         </div>
@@ -75,7 +75,7 @@ import { settings } from '../../store/settings';
 const isTitlebarMode = computed(() => settings.chatHeaderAvatarPosition === 'titlebar');
 const { t } = useI18n();
 
-const buttonStyle = 'w-10 h-10 flex items-center justify-center text-gray-500 transition-colors relative rounded-lg hover:bg-white/60 hover:shadow-sm';
+const buttonStyle = 'w-10 h-10 flex items-center justify-center text-gray-500 dark:text-gray-400 transition-colors relative rounded-lg hover:bg-white/40 dark:hover:bg-gray-600/40 hover:shadow-sm';
 const iconStyle = 'w-5 h-5';
 
 const userStore = useUserStore();

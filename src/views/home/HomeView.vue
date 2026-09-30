@@ -1,12 +1,16 @@
 <template>
-    <div class="flex h-full w-full bg-white/40 overflow-hidden dark:bg-black text-gray-900 dark:text-gray-100">
-        <SideNavBar />
-        <div class="flex-1 min-w-0 bg-white rounded-tl-xl rounded-sm relative overflow-hidden mr-1 mb-1"
+    <div class="flex h-full w-full overflow-hidden text-gray-900 dark:text-gray-100 relative">
+        <!-- 底层：与侧栏/顶栏一致的半透明毛玻璃，填充主面板圆角拐角与 mr-1/mb-1 缝隙。
+             独立成层，避免 backdrop-filter 成为内部 fixed 元素的包含块。 -->
+        <div class="absolute inset-0 chrome-translucent pointer-events-none" aria-hidden="true"></div>
+        <SideNavBar class="relative z-10" />
+        <div class="flex-1 min-w-0 rounded-tl-xl rounded-sm relative overflow-hidden mr-1 mb-1 z-10"
             :style="homeBackgroundStyle">
             <!-- 整块内容区共用的唯一默认壁纸底层（对话列表 + 聊天区） -->
             <div v-if="settings.chatWallpaper" class="absolute inset-0 pointer-events-none overflow-hidden">
                 <div class="absolute inset-0" :style="homeWallpaperLayerStyle"></div>
-                <div class="absolute inset-0 bg-white" :style="{ opacity: settings.chatWallpaperOverlayOpacity / 100 }">
+                <div class="absolute inset-0"
+                    :style="{ background: 'var(--app-bg-elevated, #fff)', opacity: settings.chatWallpaperOverlayOpacity / 100 }">
                 </div>
             </div>
             <ResizableLayout class="relative z-10">
@@ -66,17 +70,18 @@ import { settings } from '../../store/settings';
 const route = useRoute();
 const { t } = useI18n();
 const homeBackgroundStyle = computed(() => {
-    if (!settings.chatWallpaper) return {};
+    const base = 'var(--app-bg-elevated, #fff)';
+    if (!settings.chatWallpaper) return { background: base };
     const visual = settings.chatWallpaper;
     if (visual.kind === 'image' && visual.path) {
         return {
-            backgroundColor: '#f5f5f5',
+            backgroundColor: 'var(--app-bg-page, #f5f5f5)',
             backgroundImage: `url("${convertFileSrc(visual.path)}")`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
         };
     }
-    return { backgroundColor: visual.color || '#f5f5f5' };
+    return { backgroundColor: visual.color || 'var(--app-bg-page, #f5f5f5)' };
 });
 const homeWallpaperLayerStyle = computed(() => {
     const visual = settings.chatWallpaper;

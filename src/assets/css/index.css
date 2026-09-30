@@ -1,6 +1,27 @@
 @import "tailwindcss";
 @import "./theme.css";
 
+/* 明暗模式走 html.dark class（由 store/theme.ts 切换），而非系统 media */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * 将 Tailwind 蓝色阶重映射到主题品牌色（运行时 CSS 变量），
+ * 使 text-blue-500 / bg-blue-500 等既有类随主题色变化。
+ */
+@theme inline {
+  --color-blue-50: var(--app-tw-blue-50);
+  --color-blue-100: var(--app-tw-blue-100);
+  --color-blue-200: var(--app-tw-blue-200);
+  --color-blue-300: var(--app-tw-blue-300);
+  --color-blue-400: var(--app-tw-blue-400);
+  --color-blue-500: var(--app-tw-blue-500);
+  --color-blue-600: var(--app-tw-blue-600);
+  --color-blue-700: var(--app-tw-blue-700);
+  --color-blue-800: var(--app-tw-blue-800);
+  --color-blue-900: var(--app-tw-blue-900);
+  --color-blue-950: var(--app-tw-blue-950);
+}
+
 /* ===== Apple Emoji 字体 ===== */
 @font-face {
   font-family: "Apple Color Emoji";
@@ -134,15 +155,26 @@ body {
     0 1px 4px rgba(0, 0, 0, 0.06) !important;
   border: 1px solid rgba(0, 0, 0, 0.08);
   background: #fff;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
 }
 .country-select-popup .t-popup__content::-webkit-scrollbar {
-  width: 6px;
+  width: var(--app-scrollbar-width, 6px);
+}
+.country-select-popup .t-popup__content::-webkit-scrollbar-button,
+.country-select-popup .t-popup__content::-webkit-scrollbar-corner {
+  display: none;
+  width: 0;
+  height: 0;
+  border: none;
+  background: transparent;
+  background-image: none;
+  -webkit-appearance: none;
 }
 .country-select-popup .t-popup__content::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 3px;
+  background: var(--app-scrollbar-thumb, rgba(100, 116, 139, 0.38));
+  border-radius: var(--app-scrollbar-radius, 999px);
+}
+.country-select-popup .t-popup__content::-webkit-scrollbar-thumb:hover {
+  background: var(--app-scrollbar-thumb-hover, rgba(71, 85, 105, 0.55));
 }
 .dark .country-select-popup .t-popup__content,
 .country-select-popup .t-popup__content.t-is-dark {
@@ -316,51 +348,88 @@ body.is-resizing * {
   animation: none !important;
 }
 
-/* ===== 自定义滚动条：overlay 模式 + 悬停增宽 ===== */
+/* ===== 自定义滚动条（跟随明暗主题） ===== */
 
-/* 隐藏滚动条但保留滚动能力 */
-.scrollbar-none {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-.scrollbar-none::-webkit-scrollbar {
-  display: none;
-}
-
-/* 可滚动输入框（textarea / contenteditable）：细滚动条 + 悬停加深，不占布局宽度 */
-.input-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(156, 163, 175, 0.4) transparent;
-}
-.input-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-.input-scrollbar::-webkit-scrollbar-track {
+/*
+ * 勿写 scrollbar-width/color：WebView2 会切回 Windows 原生滚动条，
+ * 端点小三角由系统绘制，::-webkit-scrollbar-button 压不住。
+ */
+*::-webkit-scrollbar {
+  width: var(--app-scrollbar-width, 6px);
+  height: var(--app-scrollbar-width, 6px);
   background: transparent;
 }
-.input-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(156, 163, 175, 0.35);
-  border-radius: 999px;
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-corner {
+  display: none;
+  background: transparent;
+}
+/* 清 display/尺寸/背景图/appearance，否则 Windows 主题箭头仍可能绘出 */
+*::-webkit-scrollbar-button,
+*::-webkit-scrollbar-button:single-button,
+*::-webkit-scrollbar-button:vertical:decrement,
+*::-webkit-scrollbar-button:vertical:increment,
+*::-webkit-scrollbar-button:horizontal:decrement,
+*::-webkit-scrollbar-button:horizontal:increment,
+*::-webkit-scrollbar-button:vertical:start:decrement,
+*::-webkit-scrollbar-button:vertical:end:increment,
+*::-webkit-scrollbar-button:horizontal:start:decrement,
+*::-webkit-scrollbar-button:horizontal:end:increment {
+  display: none;
+  width: 0;
+  height: 0;
+  border: none;
+  background: transparent;
+  background-image: none;
+  background-color: transparent;
+  -webkit-appearance: none;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--app-scrollbar-thumb, rgba(100, 116, 139, 0.38));
+  border-radius: var(--app-scrollbar-radius, 999px);
+  /* 1px 透明边让 6px 轨道上露出约 4px 软胶囊 */
   border: 1px solid transparent;
   background-clip: padding-box;
 }
-.input-scrollbar:hover::-webkit-scrollbar-thumb {
-  background-color: rgba(156, 163, 175, 0.55);
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--app-scrollbar-thumb-hover, rgba(71, 85, 105, 0.55));
 }
-.input-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(156, 163, 175, 0.75);
+*::-webkit-scrollbar-thumb:active {
+  background-color: var(--app-scrollbar-thumb-active, rgba(51, 65, 85, 0.72));
 }
 
-/* 使用 overlay 使滚动条不占用内容空间 */
+.scrollbar-none,
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 .custom-scrollbar {
-  overflow-y: overlay !important;
+  overflow-y: auto;
 }
 
-/* 默认：细滚动条 4px，滑块极淡始终可见 */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
+  width: var(--app-scrollbar-width-compact, 4px);
   background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-button,
+.custom-scrollbar::-webkit-scrollbar-corner {
+  display: none;
+  width: 0;
+  height: 0;
+  border: none;
+  background: transparent;
+  background-image: none;
+  -webkit-appearance: none;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
@@ -368,21 +437,145 @@ body.is-resizing * {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(156, 163, 175, 0.25);
-  border-radius: 3px;
+  background-color: var(--app-scrollbar-thumb, rgba(100, 116, 139, 0.38));
+  border-radius: var(--app-scrollbar-radius, 999px);
+  border: none;
+  background-clip: unset;
 }
 
-/* 容器悬停：滑块变明显 */
 .custom-scrollbar:hover::-webkit-scrollbar-thumb {
-  background-color: rgba(156, 163, 175, 0.5);
+  background-color: var(--app-scrollbar-thumb-hover, rgba(71, 85, 105, 0.55));
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(156, 163, 175, 0.75);
+  background-color: var(--app-scrollbar-thumb-active, rgba(51, 65, 85, 0.72));
 }
 
 .custom-scrollbar::-webkit-scrollbar-track:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--app-scrollbar-track-hover, rgba(15, 23, 42, 0.035));
+}
+
+.input-scrollbar::-webkit-scrollbar {
+  width: var(--app-scrollbar-width-compact, 4px);
+  height: var(--app-scrollbar-width-compact, 4px);
+}
+.input-scrollbar::-webkit-scrollbar-button,
+.input-scrollbar::-webkit-scrollbar-corner {
+  display: none;
+  width: 0;
+  height: 0;
+  border: none;
+  background: transparent;
+  background-image: none;
+  -webkit-appearance: none;
+}
+.input-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.input-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--app-scrollbar-thumb, rgba(100, 116, 139, 0.38));
+  border-radius: var(--app-scrollbar-radius, 999px);
+}
+.input-scrollbar:hover::-webkit-scrollbar-thumb {
+  background-color: var(--app-scrollbar-thumb-hover, rgba(71, 85, 105, 0.55));
+}
+.input-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: var(--app-scrollbar-thumb-active, rgba(51, 65, 85, 0.72));
+}
+
+/* TDesign 下拉/弹层内部滚动 */
+.t-popup__content::-webkit-scrollbar,
+.t-select__dropdown::-webkit-scrollbar,
+.t-select__list::-webkit-scrollbar,
+.t-dialog__body::-webkit-scrollbar,
+.t-drawer__body::-webkit-scrollbar,
+.t-table__content::-webkit-scrollbar,
+.t-tabs__content::-webkit-scrollbar,
+.t-tree::-webkit-scrollbar,
+.t-cascader__menu::-webkit-scrollbar {
+  width: var(--app-scrollbar-width, 6px);
+  height: var(--app-scrollbar-width, 6px);
+  background: transparent;
+}
+.t-popup__content::-webkit-scrollbar-button,
+.t-popup__content::-webkit-scrollbar-corner,
+.t-select__dropdown::-webkit-scrollbar-button,
+.t-select__dropdown::-webkit-scrollbar-corner,
+.t-select__list::-webkit-scrollbar-button,
+.t-select__list::-webkit-scrollbar-corner,
+.t-dialog__body::-webkit-scrollbar-button,
+.t-dialog__body::-webkit-scrollbar-corner,
+.t-drawer__body::-webkit-scrollbar-button,
+.t-drawer__body::-webkit-scrollbar-corner,
+.t-table__content::-webkit-scrollbar-button,
+.t-table__content::-webkit-scrollbar-corner,
+.t-tabs__content::-webkit-scrollbar-button,
+.t-tabs__content::-webkit-scrollbar-corner,
+.t-tree::-webkit-scrollbar-button,
+.t-tree::-webkit-scrollbar-corner,
+.t-cascader__menu::-webkit-scrollbar-button,
+.t-cascader__menu::-webkit-scrollbar-corner {
+  display: none;
+  width: 0;
+  height: 0;
+  border: none;
+  background: transparent;
+  background-image: none;
+  -webkit-appearance: none;
+}
+.t-popup__content::-webkit-scrollbar-track,
+.t-select__dropdown::-webkit-scrollbar-track,
+.t-select__list::-webkit-scrollbar-track,
+.t-dialog__body::-webkit-scrollbar-track,
+.t-drawer__body::-webkit-scrollbar-track,
+.t-table__content::-webkit-scrollbar-track,
+.t-tabs__content::-webkit-scrollbar-track,
+.t-tree::-webkit-scrollbar-track,
+.t-cascader__menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+.t-popup__content::-webkit-scrollbar-thumb,
+.t-select__dropdown::-webkit-scrollbar-thumb,
+.t-select__list::-webkit-scrollbar-thumb,
+.t-dialog__body::-webkit-scrollbar-thumb,
+.t-drawer__body::-webkit-scrollbar-thumb,
+.t-table__content::-webkit-scrollbar-thumb,
+.t-tabs__content::-webkit-scrollbar-thumb,
+.t-tree::-webkit-scrollbar-thumb,
+.t-cascader__menu::-webkit-scrollbar-thumb {
+  background-color: var(--app-scrollbar-thumb, rgba(100, 116, 139, 0.38));
+  border-radius: var(--app-scrollbar-radius, 999px);
+}
+.t-popup__content::-webkit-scrollbar-thumb:hover,
+.t-select__dropdown::-webkit-scrollbar-thumb:hover,
+.t-select__list::-webkit-scrollbar-thumb:hover,
+.t-dialog__body::-webkit-scrollbar-thumb:hover,
+.t-drawer__body::-webkit-scrollbar-thumb:hover,
+.t-table__content::-webkit-scrollbar-thumb:hover,
+.t-tabs__content::-webkit-scrollbar-thumb:hover,
+.t-tree::-webkit-scrollbar-thumb:hover,
+.t-cascader__menu::-webkit-scrollbar-thumb:hover {
+  background-color: var(--app-scrollbar-thumb-hover, rgba(71, 85, 105, 0.55));
+}
+
+/* 无 ::-webkit-scrollbar 的引擎（Firefox）用标准属性，避免和 Chromium 抢模型 */
+@supports not selector(::-webkit-scrollbar) {
+  *,
+  .custom-scrollbar,
+  .input-scrollbar,
+  .t-popup__content,
+  .t-select__dropdown,
+  .t-select__list,
+  .t-dialog__body,
+  .t-drawer__body,
+  .t-table__content,
+  .t-tabs__content,
+  .t-tree,
+  .t-cascader__menu {
+    scrollbar-width: thin;
+    scrollbar-color: var(--app-scrollbar-thumb, rgba(100, 116, 139, 0.38))
+      transparent;
+  }
 }
 
 /* ===== Telegram 剧透粒子特效（Spoiler）=====
@@ -425,6 +618,15 @@ body.is-resizing * {
   width: 100%;
   height: 100%;
   pointer-events: none;
+}
+
+/* 粒子尚未初始化（空闲调度前）的占位遮罩：保证不闪出原文/媒体 */
+.sp-cv.sp-pending {
+  background: #9ca3af;
+}
+
+.media-sp > .sp-cv.sp-pending {
+  background: rgba(0, 0, 0, 0.35);
 }
 
 /* ===== 媒体剧透粒子（SpoilerMedia）=====

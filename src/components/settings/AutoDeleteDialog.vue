@@ -270,7 +270,7 @@ watch(
 }
 
 /* 未选中时的浅色边框在深色模式下略提亮 */
-:global(.dark) .radio-dot {
+:global(html.dark .radio-dot){
     border-color: #6b7280;
 }
 </style>

@@ -306,13 +306,11 @@ async function ban() {
   background: #3b82f6;
 }
 
-@media (prefers-color-scheme: dark) {
-  .radio-dot {
-    border-color: #4b5563;
-  }
+:global(html.dark .radio-dot){
+  border-color: #4b5563;
+}
 
-  .radio-dot-on {
-    border-color: #3b82f6;
-  }
+:global(html.dark .radio-dot-on){
+  border-color: #3b82f6;
 }
 </style>

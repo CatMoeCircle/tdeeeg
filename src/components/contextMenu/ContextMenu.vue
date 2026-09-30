@@ -291,11 +291,9 @@ onUnmounted(() => {
     -webkit-backdrop-filter: blur(30px) saturate(180%);
 }
 
-@media (prefers-color-scheme: dark) {
-    .cm-menu {
-        background: rgba(34, 34, 34, 0.82);
-        border-color: rgba(255, 255, 255, 0.1);
-    }
+:global(html.dark .cm-menu){
+    background: rgba(34, 34, 34, 0.82);
+    border-color: rgba(255, 255, 255, 0.1);
 }
 
 .cm-submenu {
@@ -321,30 +319,24 @@ onUnmounted(() => {
     line-height: 1.25rem;
 }
 
-@media (prefers-color-scheme: dark) {
-    .cm-item {
-        color: #e5e7eb;
-    }
+:global(html.dark .cm-item){
+    color: #e5e7eb;
 }
 
 .cm-item:hover {
     background: rgba(0, 0, 0, 0.06);
 }
 
-@media (prefers-color-scheme: dark) {
-    .cm-item:hover {
-        background: rgba(255, 255, 255, 0.08);
-    }
+:global(html.dark .cm-item:hover){
+    background: rgba(255, 255, 255, 0.08);
 }
 
 .cm-item.cm-open {
     background: rgba(0, 0, 0, 0.08);
 }
 
-@media (prefers-color-scheme: dark) {
-    .cm-item.cm-open {
-        background: rgba(255, 255, 255, 0.12);
-    }
+:global(html.dark .cm-item.cm-open){
+    background: rgba(255, 255, 255, 0.12);
 }
 
 .cm-item.cm-disabled {
@@ -369,10 +361,8 @@ onUnmounted(() => {
     color: #6b7280;
 }
 
-@media (prefers-color-scheme: dark) {
-    .cm-icon {
-        color: #9ca3af;
-    }
+:global(html.dark .cm-icon){
+    color: #9ca3af;
 }
 
 .cm-item.cm-danger .cm-icon {
@@ -399,10 +389,8 @@ onUnmounted(() => {
     margin-left: 0.75rem;
 }
 
-@media (prefers-color-scheme: dark) {
-    .cm-shortcut {
-        color: #6b7280;
-    }
+:global(html.dark .cm-shortcut){
+    color: #6b7280;
 }
 
 .cm-sub-arrow {
@@ -414,10 +402,8 @@ onUnmounted(() => {
     border-top: 1px solid rgba(0, 0, 0, 0.1);
 }
 
-@media (prefers-color-scheme: dark) {
-    .cm-divider {
-        border-top-color: rgba(255, 255, 255, 0.1);
-    }
+:global(html.dark .cm-divider){
+    border-top-color: rgba(255, 255, 255, 0.1);
 }
 
 /* 下拉动画 */

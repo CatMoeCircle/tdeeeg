@@ -1,5 +1,5 @@
 <template>
-    <div class="h-full flex flex-col bg-white dark:bg-gray-900">
+    <div class="h-full flex flex-col">
         <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3">
             <button type="button" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" @click="goBack">
                 <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
@@ -9,6 +9,20 @@
         </div>
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
             <div class="max-w-2xl">
+                <!-- 主题设置入口 -->
+                <router-link to="/home/settings/theme"
+                    class="flex items-center gap-3 p-4 mb-8 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
+                    <div
+                        class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                        <PaletteIcon class="w-5 h-5" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('themeSettings.title') }}</p>
+                        <p class="text-xs text-gray-400 truncate">{{ t('themeSettings.entryDesc') }}</p>
+                    </div>
+                    <ChevronRightIcon class="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                </router-link>
+
                 <!-- 聊天页面设置 -->
                 <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
                     <div class="flex items-center gap-3 mb-1">
@@ -527,6 +541,7 @@ import {
     MessageCircleIcon, UserIcon, UsersIcon, MegaphoneIcon,
     ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Wallpaper as WallpaperIcon,
     LayoutList as LayoutListIcon, PanelTop as PanelTopIcon,
+    Palette as PaletteIcon,
 } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
 import { settings } from '../../store/settings';

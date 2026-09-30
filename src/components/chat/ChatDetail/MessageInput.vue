@@ -509,10 +509,9 @@ function selectAll() {
     -webkit-text-fill-color: rgba(128, 128, 128, 0.6);
 }
 
-@media (prefers-color-scheme: dark) {
-    .input-textarea {
-        caret-color: #e5e7eb;
-    }
+/* 深色：跟随主题 class（store/theme.ts 写入 html.dark） */
+:global(html.dark .input-textarea){
+    caret-color: #e5e7eb;
 }
 
 /* 预览层内部排版与 textarea 完全一致（font / padding / line-height / 换行） */
@@ -538,10 +537,9 @@ function selectAll() {
     display: none;
 }
 
-@media (prefers-color-scheme: dark) {
-    .input-preview-inner {
-        color: #e5e7eb;
-    }
+/* 深色：跟随主题 class */
+:global(html.dark .input-preview-inner){
+    color: #e5e7eb;
 }
 
 /* 预览层内渲染的 emoji 字体/动画（自定义 emoji → 对应贴纸/动画）。

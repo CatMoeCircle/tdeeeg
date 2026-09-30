@@ -42,7 +42,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, type CSSProperties, useTemplateRef, onMounted, computed, watch, nextTick, onUnmounted } from 'vue';
+import { type CSSProperties, useTemplateRef, onMounted, computed, watch, nextTick, onUnmounted } from 'vue';
+import { isDark as themeIsDark } from '../../store/theme';
 
 interface GlassSurfaceProps {
     width?: string | number;
@@ -107,22 +108,8 @@ const props = withDefaults(defineProps<GlassSurfaceProps>(), {
 });
 
 
-const isDarkMode = ref(false);
-
-const updateDarkMode = () => {
-    if (typeof window === 'undefined') return;
-
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    isDarkMode.value = mediaQuery.matches;
-
-    const handler = (e: MediaQueryListEvent) => {
-        isDarkMode.value = e.matches;
-    };
-
-    mediaQuery.addEventListener('change', handler);
-
-    return () => mediaQuery.removeEventListener('change', handler);
-};
+// 明暗跟随主题系统（light / dark / system）
+const isDarkMode = computed(() => themeIsDark.value);
 
 // Generate unique IDs for SVG elements
 const generateUniqueId = () => {
@@ -350,8 +337,6 @@ watch([() => props.width, () => props.height], () => {
 });
 
 onMounted(() => {
-    const cleanup = updateDarkMode();
-
     nextTick(() => {
         updateDisplacementMap();
         updateFilterElements();
@@ -359,10 +344,17 @@ onMounted(() => {
     });
 
     onUnmounted(() => {
-        if (cleanup) cleanup();
         if (resizeObserver) {
             resizeObserver.disconnect();
         }
+    });
+});
+
+// 明暗切换后重绘玻璃滤镜
+watch(isDarkMode, () => {
+    nextTick(() => {
+        updateDisplacementMap();
+        updateFilterElements();
     });
 });
 </script>

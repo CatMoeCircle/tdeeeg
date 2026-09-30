@@ -170,7 +170,7 @@ onUnmounted(() => {
     background: rgba(0, 0, 0, 0.05);
 }
 
-:global(.dark) .um-copy:hover {
+:global(html.dark .um-copy:hover){
     background: rgba(255, 255, 255, 0.08);
 }
 
@@ -184,7 +184,7 @@ onUnmounted(() => {
     background: rgba(0, 0, 0, 0.06);
 }
 
-:global(.dark) .um-divider {
+:global(html.dark .um-divider){
     background: rgba(255, 255, 255, 0.08);
 }
 
@@ -201,7 +201,7 @@ onUnmounted(() => {
     background: rgba(0, 0, 0, 0.05);
 }
 
-:global(.dark) .um-body:hover {
+:global(html.dark .um-body:hover){
     background: rgba(255, 255, 255, 0.08);
 }
 
@@ -215,7 +215,7 @@ onUnmounted(() => {
     animation: um-shimmer 1.4s ease infinite;
 }
 
-:global(.dark) .um-skeleton-avatar {
+:global(html.dark .um-skeleton-avatar){
     background: linear-gradient(90deg, #374151 25%, #4b5563 37%, #374151 63%);
     background-size: 400% 100%;
     animation: um-shimmer 1.4s ease infinite;
@@ -230,7 +230,7 @@ onUnmounted(() => {
     animation: um-shimmer 1.4s ease infinite;
 }
 
-:global(.dark) .um-skeleton-line {
+:global(html.dark .um-skeleton-line){
     background: linear-gradient(90deg, #374151 25%, #4b5563 37%, #374151 63%);
     background-size: 400% 100%;
     animation: um-shimmer 1.4s ease infinite;

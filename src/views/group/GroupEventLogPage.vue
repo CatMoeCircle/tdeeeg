@@ -3,7 +3,7 @@
   <div class="h-full relative overflow-hidden chat-wallpaper-root flex flex-col" :style="rootStyle">
     <template v-if="hasChatSpecificBackground">
       <div class="absolute inset-0 pointer-events-none chat-wallpaper-layer" :style="chatWallpaperLayerStyle"></div>
-      <div class="absolute inset-0 pointer-events-none bg-white chat-wallpaper-overlay"
+      <div class="absolute inset-0 pointer-events-none bg-white dark:bg-gray-900 chat-wallpaper-overlay"
         :style="chatWallpaperOverlayStyle"></div>
     </template>
 

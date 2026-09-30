@@ -215,6 +215,33 @@ interface Settings {
      */
     code: string;
   };
+  /** 主题外观（颜色 / 明暗 / 阴影 / 密度，同步映射到 TDesign 变量） */
+  theme: {
+    /** 明暗模式：light=浅色，dark=深色，system=跟随系统 */
+    mode: "light" | "dark" | "system";
+    /** 浅色模式主题主色 */
+    brandColorLight: string;
+    /** 深色模式主题主色 */
+    brandColorDark: string;
+    /** 浅色模式界面背景色；空 = 默认浅灰 */
+    bgColorLight: string;
+    /** 深色模式界面背景色；空 = 默认深灰 */
+    bgColorDark: string;
+    /** 成功色（hex）；空字符串 = 使用默认 */
+    successColor: string;
+    /** 警告色（hex）；空字符串 = 使用默认 */
+    warningColor: string;
+    /** 危险/错误色（hex）；空字符串 = 使用默认 */
+    errorColor: string;
+    /** 圆角风格：sharp=锐利，soft=柔和（默认），round=圆润，extra=超圆 */
+    radius: "sharp" | "soft" | "round" | "extra";
+    /** 圆角整体缩放（0.5 ~ 2），在风格基础上再乘 */
+    radiusScale: number;
+    /** 阴影强度：none / subtle / normal / strong */
+    shadow: "none" | "subtle" | "normal" | "strong";
+    /** 控件密度：compact=紧凑，default=标准，large=宽松 */
+    density: "compact" | "default" | "large";
+  };
 }
 
 const defaultSettings: Settings = {
@@ -332,6 +359,22 @@ const defaultSettings: Settings = {
     // 默认简体中文，与历史行为一致
     code: "zh-CN",
   },
+  theme: {
+    mode: "system",
+    // 默认使用 Telegram 蓝（浅/深可分别配置，深色略提亮更易读）
+    brandColorLight: "#3390ec",
+    brandColorDark: "#3390ec",
+    // 空 = 使用默认背景（浅 #f5f5f5 / 深 #181818）
+    bgColorLight: "",
+    bgColorDark: "",
+    successColor: "",
+    warningColor: "",
+    errorColor: "",
+    radius: "soft",
+    radiusScale: 1,
+    shadow: "normal",
+    density: "default",
+  },
 };
 
 // Load from localStorage（与默认值深度合并，确保新增的嵌套字段始终有默认值）
@@ -391,6 +434,23 @@ try {
   if (tp && "showTranslateBar" in tp) delete tp.showTranslateBar;
 } catch {
   // ignore migration errors
+}
+
+// ─── 主题设置结构迁移 ───────────────────────────────────────
+// 旧版单 brandColor → 浅/深两套主题色
+try {
+  const th: any = (initialState as any)?.theme;
+  if (th && typeof th.brandColor === "string") {
+    if (!th.brandColorLight) th.brandColorLight = th.brandColor;
+    if (!th.brandColorDark) th.brandColorDark = th.brandColor;
+    delete th.brandColor;
+  }
+  if (th && !th.brandColorLight) th.brandColorLight = "#3390ec";
+  if (th && !th.brandColorDark) th.brandColorDark = th.brandColorLight || "#3390ec";
+  if (th && !("bgColorLight" in th)) th.bgColorLight = "";
+  if (th && !("bgColorDark" in th)) th.bgColorDark = "";
+} catch {
+  // ignore
 }
 
 export const settings = reactive<Settings>(initialState);

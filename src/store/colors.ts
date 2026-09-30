@@ -2,6 +2,7 @@ import { reactive, ref } from 'vue';
 import type { accentColor, profileAccentColor, Update, Updates } from 'tdlib-types';
 import { tdlibSend } from '../utils/tdlib';
 import { onTdlibUpdate } from './tdlibBus';
+import { isDark as themeIsDark, initTheme } from './theme';
 
 /**
  * Telegram 色彩主题系统
@@ -289,18 +290,12 @@ export function accentAvatarBackground(profileAccentColorId: number): string {
     return `linear-gradient(${rgbToCss(from)}, ${rgbToCss(to)})`;
 }
 
-export const isDark = ref<boolean>(
-    typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches,
-);
-
-let mediaListener: MediaQueryList | null = null;
+export const isDark = themeIsDark;
 
 export function watchSystemColorScheme(): () => void {
-    if (mediaListener) return () => { };
-    mediaListener = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = (e: MediaQueryListEvent) => { isDark.value = e.matches; };
-    mediaListener.addEventListener('change', handler);
-    return () => mediaListener?.removeEventListener('change', handler);
+    // 明暗由主题系统统一维护（light/dark/system）；这里只保证主题已初始化
+    initTheme();
+    return () => { };
 }
 
 export function useColors() {

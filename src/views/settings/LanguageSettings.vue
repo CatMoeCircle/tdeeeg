@@ -1,6 +1,6 @@
 <template>
     <!-- 多根节点（主面板）：手动把透传 class 绑到主面板根 -->
-    <div v-bind="$attrs" class="h-full flex flex-col bg-white dark:bg-gray-900">
+    <div v-bind="$attrs" class="h-full flex flex-col">
         <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3">
             <button type="button" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" @click="goBack">
                 <ChevronLeftIcon class="w-5 h-5 text-gray-500" />

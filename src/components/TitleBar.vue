@@ -45,8 +45,9 @@ const close = () => appWindow.close();
 </script>
 
 <template>
-    <div data-tauri-drag-region class="h-8 flex justify-between items-center select-none w-full shrink-0 bg-white/40">
-        <div class="pl-2 flex items-center gap-1 text-sm font-medium text-gray-700 min-w-0">
+    <div data-tauri-drag-region
+        class="h-8 flex justify-between items-center select-none w-full shrink-0 chrome-translucent">
+        <div class="pl-2 flex items-center gap-1 text-sm font-medium text-gray-700 dark:text-gray-300 min-w-0">
             <template v-if="!isTitlebarMode">
                 <TitleBarEmojiStatus />
             </template>
@@ -76,15 +77,15 @@ const close = () => appWindow.close();
         <Teleport to="body">
             <div class="fixed top-0 right-0 flex h-8 z-9999">
                 <button @click="minimize"
-                    class="w-12 h-full flex items-center justify-center hover:bg-gray-100 text-gray-500 transition-colors focus:outline-none">
+                    class="w-12 h-full flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors focus:outline-none">
                     <Minus :size="18" />
                 </button>
                 <button @click="maximize"
-                    class="w-12 h-full flex items-center justify-center hover:bg-gray-100 text-gray-500 transition-colors focus:outline-none">
+                    class="w-12 h-full flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors focus:outline-none">
                     <Square :size="14" />
                 </button>
                 <button @click="close"
-                    class="w-12 h-full flex items-center justify-center hover:bg-red-500 hover:text-white text-gray-500 transition-colors focus:outline-none">
+                    class="w-12 h-full flex items-center justify-center hover:bg-red-500 hover:text-white text-gray-500 dark:text-gray-400 transition-colors focus:outline-none">
                     <X :size="18" />
                 </button>
             </div>

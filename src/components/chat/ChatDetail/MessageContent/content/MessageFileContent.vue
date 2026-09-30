@@ -960,7 +960,7 @@ onUnmounted(() => {
     opacity: 0;
 }
 
-:global(.dark) .audio-progress::-webkit-slider-runnable-track {
+:global(html.dark .audio-progress::-webkit-slider-runnable-track){
     background: linear-gradient(to right, #60a5fa var(--audio-progress), rgb(75 85 99) var(--audio-progress));
 }
 

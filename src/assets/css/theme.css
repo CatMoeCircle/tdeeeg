@@ -1,3 +1,120 @@
+/**
+ * 主题变量层
+ * - --app-*：应用自定义 UI 用
+ * - --td-*：TDesign 组件用（由 store/theme.ts 在运行时写入 brand/radius/shadow/size）
+ * - Tailwind dark 变体走 html.dark class（index.css @custom-variant）
+ */
+
+:root {
+  /* 默认应用变量 = Telegram 蓝 #3390ec */
+  --app-brand: #3390ec;
+  --app-brand-hover: #2b7fd4;
+  --app-brand-active: #2570b8;
+  --app-brand-soft: rgba(51, 144, 236, 0.14);
+  --app-brand-softer: rgba(51, 144, 236, 0.08);
+
+  --app-success: #2ba471;
+  --app-warning: #e37318;
+  --app-error: #d54941;
+  --app-success-soft: rgba(43, 164, 113, 0.16);
+  --app-warning-soft: rgba(227, 115, 24, 0.16);
+  --app-error-soft: rgba(213, 73, 65, 0.16);
+
+  /* Tailwind blue-* 重映射目标（默认=Telegram 蓝色阶，改主题色后由 store 覆盖） */
+  --app-tw-blue-50: #f0f7ff;
+  --app-tw-blue-100: #dceefc;
+  --app-tw-blue-200: #b8dcf8;
+  --app-tw-blue-300: #86c3f3;
+  --app-tw-blue-400: #5aabea;
+  --app-tw-blue-500: #3390ec;
+  --app-tw-blue-600: #2b7fd4;
+  --app-tw-blue-700: #2570b8;
+  --app-tw-blue-800: #1f5a96;
+  --app-tw-blue-900: #184774;
+  --app-tw-blue-950: #123456;
+
+  --app-radius-xs: 4px;
+  --app-radius-sm: 6px;
+  --app-radius-md: 10px;
+  --app-radius-lg: 14px;
+  --app-radius-xl: 18px;
+
+  --app-shadow-1: 0 0 3px rgba(0, 0, 0, 0.25);
+  --app-shadow-2: 0 1px 10px rgba(0, 0, 0, 0.12);
+  --app-shadow-3: 0 4px 16px rgba(0, 0, 0, 0.14);
+
+  --app-control-height: 32px;
+  --app-control-height-s: 28px;
+  --app-control-height-l: 40px;
+
+  --box-shadow: var(--app-shadow-1);
+
+  /* 滚动条：固定宽度避免悬停回流；浅色用冷灰 */
+  --app-scrollbar-width: 6px;
+  --app-scrollbar-width-compact: 4px;
+  --app-scrollbar-radius: 999px;
+  --app-scrollbar-thumb: rgba(100, 116, 139, 0.38);
+  --app-scrollbar-thumb-hover: rgba(71, 85, 105, 0.55);
+  --app-scrollbar-thumb-active: rgba(51, 65, 85, 0.72);
+  --app-scrollbar-track-hover: rgba(15, 23, 42, 0.035);
+}
+
+/* 表面色：浅色 */
+:root,
+:root[theme-mode="light"] {
+  --app-bg-page: #f5f5f5;
+  --app-bg-container: #ffffff;
+  --app-bg-elevated: #ffffff;
+  --app-bg-muted: #f3f3f3;
+  --app-border: #e7e7e7;
+  --app-border-strong: #dcdcdc;
+  --app-text-primary: rgba(0, 0, 0, 0.9);
+  --app-text-secondary: rgba(0, 0, 0, 0.6);
+  --app-text-placeholder: rgba(0, 0, 0, 0.4);
+  --app-text-disabled: rgba(0, 0, 0, 0.26);
+}
+
+/* 表面色：深色（与 TDesign theme-mode=dark 灰阶对齐）；同时挂 html.dark */
+:root[theme-mode="dark"],
+html.dark {
+  --app-bg-page: #181818;
+  --app-bg-container: #242424;
+  --app-bg-elevated: #2c2c2c;
+  --app-bg-muted: #2c2c2c;
+  --app-border: #393939;
+  --app-border-strong: #5e5e5e;
+  --app-text-primary: rgba(255, 255, 255, 0.9);
+  --app-text-secondary: rgba(255, 255, 255, 0.55);
+  --app-text-placeholder: rgba(255, 255, 255, 0.35);
+  --app-text-disabled: rgba(255, 255, 255, 0.22);
+
+  /* 滚动条（深色） */
+  --app-scrollbar-thumb: rgba(255, 255, 255, 0.2);
+  --app-scrollbar-thumb-hover: rgba(255, 255, 255, 0.36);
+  --app-scrollbar-thumb-active: rgba(255, 255, 255, 0.52);
+  --app-scrollbar-track-hover: rgba(255, 255, 255, 0.05);
+}
+
+/* 兜底：html/body 保持透明，让 acrylic 窗口效果透出；
+   侧栏/顶栏用半透明层，主内容区再铺实色 */
+html.dark,
+html[theme-mode="dark"],
+html,
 body {
-  --box-shadow: 0 0 3px rgba(0, 0, 0, 0.25);
+  background-color: transparent !important;
+}
+html.dark body,
+html[theme-mode="dark"] body {
+  color: rgba(255, 255, 255, 0.9);
+}
+html.dark ::selection,
+html[theme-mode="dark"] ::selection {
+  background: rgba(51, 144, 236, 0.35);
+}
+
+/* 顶部栏 / 侧边栏共用的半透明毛玻璃（尽量少上色，露出 acrylic） */
+.chrome-translucent {
+  background: color-mix(in srgb, var(--app-bg-elevated, #fff) 28%, transparent);
+  backdrop-filter: blur(16px) saturate(120%);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
 }

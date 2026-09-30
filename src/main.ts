@@ -15,15 +15,18 @@ import { closeContextMenu } from "./store/contextMenu";
 import { initTdlib, waitForAuthorization } from "./init";
 import { registerLoaderStyle, type LoaderStyle } from "./components/common/LoaderIndicator";
 import { settings } from "./store/settings";
+import { initTheme } from "./store/theme";
 import { debugMode } from "./store/debug";
 import { useLanguageStore } from "./store/language";
 import { initTlottie } from "./utils/tlottiePreload";
 import { installCrashGuard, showBootstrapFailure } from "./utils/crashGuard";
-import { restoreDefaultWallpaperFromTdlib } from "./utils/wallpaper";
 import { applyTdlibSystemParams } from "./utils/tdlibParams";
 
 // 尽早安装全局错误/白屏诊断（不依赖 Vue mount）
 installCrashGuard();
+
+// 尽早应用主题（明暗 / 品牌色 / 圆角阴影密度），避免首帧默认样式闪烁
+initTheme();
 
 // 全局右键处理：
 // - 输入框/可编辑元素/链接等保留原生右键（便于复制粘贴等）
@@ -160,10 +163,8 @@ async function bootstrap() {
         step = "router.push";
         await router.push(authState === "ready" ? "/home" : "/login");
 
-        // 授权后从 TDLib 恢复默认壁纸，避免只依赖可能失效的本地路径
+        // 授权就绪后再同步一次 language_pack_id（登录前 setOption 可能尚未生效）
         if (authState === "ready") {
-            void restoreDefaultWallpaperFromTdlib();
-            // 授权就绪后再同步一次 language_pack_id（登录前 setOption 可能尚未生效）
             try {
                 const langStore = useLanguageStore();
                 void langStore.setLanguage(langStore.currentCode, { silent: true });
