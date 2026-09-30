@@ -1,11 +1,7 @@
-import { tempDir } from '@tauri-apps/api/path';
-import { readFile, writeFile } from '@tauri-apps/plugin-fs';
-import { tdlibSend, isFileReady, safeDownloadFile } from './tdlib';
+import { appDataDir, tempDir } from '@tauri-apps/api/path';
+import { copyFile, mkdir, readFile, stat, writeFile } from '@tauri-apps/plugin-fs';
 import { settings, type ChatWallpaperVisual } from '../store/settings';
-import { onTdlibUpdate } from '../store/tdlibBus';
-import { DL_PRIORITY } from './downloadPriority';
 import i18n from '../i18n';
-import type { background, file } from 'tdlib-types';
 
 /** RGB 整数转 CSS 颜色（Telegram 为 0xRRGGBB） */
 export function telegramColorToCss(color: number): string {
@@ -19,6 +15,27 @@ function guessImageMime(path: string): string {
   if (ext === 'bmp') return 'image/bmp';
   if (ext === 'gif') return 'image/gif';
   return 'image/jpeg';
+}
+
+function normalizePath(path: string): string {
+  return path.replace(/[\\/]+$/, '');
+}
+
+function joinPath(...parts: string[]): string {
+  return parts
+    .map((p, i) => (i === 0 ? normalizePath(p) : p.replace(/^[\\/]+|[\\/]+$/g, '')))
+    .filter(Boolean)
+    .join('\\');
+}
+
+async function fileExists(path: string | undefined | null): Promise<boolean> {
+  if (!path) return false;
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -59,92 +76,153 @@ export async function ensureJpegWallpaper(path: string): Promise<string> {
   }
 }
 
+// ─── 按账户本地缓存（选择后写入；重启 / 切换账户直接读） ───
+
+const ACCOUNT_WP_KEY = 'tdgram-wallpaper-by-account';
+
+interface WallpaperCacheEntry {
+  visual: ChatWallpaperVisual | null;
+  /** TDLib background.id，仅作记录 */
+  backgroundId?: string;
+}
+
+let activeAccountId: number | null = null;
+
+/** 由 init / 账户切换写入当前活动账户 id */
+export function bindWallpaperAccount(accountId: number | null | undefined): void {
+  activeAccountId = accountId ?? null;
+}
+
+export function getWallpaperAccountId(): number | null {
+  return activeAccountId;
+}
+
+function loadAllAccountWallpapers(): Record<string, WallpaperCacheEntry> {
+  try {
+    const raw = localStorage.getItem(ACCOUNT_WP_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return parsed as Record<string, WallpaperCacheEntry>;
+  } catch {
+    return {};
+  }
+}
+
+function writeAllAccountWallpapers(all: Record<string, WallpaperCacheEntry>): void {
+  try {
+    localStorage.setItem(ACCOUNT_WP_KEY, JSON.stringify(all));
+  } catch (e) {
+    console.warn('[wallpaper] write account cache failed:', e);
+  }
+}
+
+/** 读取指定账户（默认当前）的本地缓存壁纸 */
+export function loadAccountWallpaper(
+  accountId: number | string | null | undefined = activeAccountId,
+): ChatWallpaperVisual | null {
+  if (accountId == null) return null;
+  return loadAllAccountWallpapers()[String(accountId)]?.visual ?? null;
+}
+
+/** 写入指定账户（默认当前）的本地缓存 */
+export function saveAccountWallpaper(
+  visual: ChatWallpaperVisual | null,
+  backgroundId?: string,
+  accountId: number | string | null | undefined = activeAccountId,
+): void {
+  if (accountId == null) return;
+  const all = loadAllAccountWallpapers();
+  all[String(accountId)] = { visual, backgroundId };
+  writeAllAccountWallpapers(all);
+}
+
 /**
- * 轮询等待 TDLib 文件进入可用状态。
- * 本地壁纸上传时：等 is_uploading_active 结束且拿到本地路径。
+ * 选择壁纸后的统一落点：
+ * 1. 图片复制到应用数据目录（临时/源文件可能被清理）
+ * 2. 写入当前账户本地缓存
+ * 3. 应用到 settings 立即生效
  */
-export async function waitForFileSettled(fileId: number, timeoutMs = 90_000): Promise<file> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const f = await tdlibSend({ _: 'getFile', file_id: fileId }) as file;
-    const uploading = f.remote?.is_uploading_active === true;
-    const hasLocalPath = !!f.local?.path;
-    if (!uploading && hasLocalPath) return f;
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  throw new Error(i18n.global.t('wallpaper.uploadTimeout'));
-}
+export async function applySelectedWallpaper(
+  visual: ChatWallpaperVisual | null,
+  backgroundId?: string,
+  sourcePathForCopy?: string,
+): Promise<void> {
+  let next = visual;
 
-/** 解析 background 的高清本地路径；必要时先下载 */
-export async function resolveBackgroundPath(bg: background): Promise<string | undefined> {
-  const docFile = bg.document?.document;
-  if (!docFile) return undefined;
-  if (isFileReady(docFile) && docFile.local.path) return docFile.local.path;
-  await safeDownloadFile(docFile.id, true, DL_PRIORITY.DEFAULT);
-  const refreshed = await tdlibSend({ _: 'getFile', file_id: docFile.id }) as file;
-  if (isFileReady(refreshed) && refreshed.local.path) return refreshed.local.path;
-  return undefined;
-}
-
-/** 将 TDLib background 写入本地 settings.chatWallpaper（默认壁纸视觉） */
-export async function applyBackgroundToSettings(bg: background | null | undefined): Promise<void> {
-  if (!bg) {
-    settings.chatWallpaper = null;
-    window.dispatchEvent(new Event('tdgram:chat-wallpaper-changed'));
-    return;
+  // 图片壁纸：先落一份稳定副本，缓存里存副本路径
+  if (visual?.kind === 'image') {
+    const src = sourcePathForCopy || visual.path;
+    if (src && (await fileExists(src))) {
+      const copied = await copyToWallpaperDir(src, backgroundId);
+      if (copied) next = { kind: 'image', path: copied };
+    }
   }
 
-  const type = bg.type;
-  if (type._ === 'backgroundTypeFill' && type.fill?._ === 'backgroundFillSolid') {
-    settings.chatWallpaper = {
-      kind: 'color',
-      color: telegramColorToCss(type.fill.color),
-    };
-    window.dispatchEvent(new Event('tdgram:chat-wallpaper-changed'));
-    return;
-  }
-
-  const path = await resolveBackgroundPath(bg);
-  const visual: ChatWallpaperVisual | null = path
-    ? { kind: 'image', path }
-    : null;
-  settings.chatWallpaper = visual;
+  settings.chatWallpaper = next;
+  saveAccountWallpaper(next, backgroundId);
   window.dispatchEvent(new Event('tdgram:chat-wallpaper-changed'));
 }
 
-/**
- * 从 TDLib 已安装壁纸中恢复默认壁纸视觉（is_default）。
- * 启动时调用，避免只依赖 localStorage 里可能失效的本地路径。
- */
-export async function restoreDefaultWallpaperFromTdlib(forDarkTheme = false): Promise<void> {
+/** 把图片复制到 appData/wallpapers/<accountId>/ */
+async function copyToWallpaperDir(
+  sourcePath: string,
+  backgroundId?: string,
+): Promise<string | undefined> {
   try {
-    const result = await tdlibSend({
-      _: 'getInstalledBackgrounds',
-      for_dark_theme: forDarkTheme,
-    }) as { backgrounds?: background[] };
-    const list = result.backgrounds ?? [];
-    const def = list.find((b) => b.is_default);
-    if (def) {
-      await applyBackgroundToSettings(def);
+    const base = await appDataDir();
+    const acct = activeAccountId == null ? 'shared' : String(activeAccountId);
+    const dir = joinPath(base, 'wallpapers', acct);
+    try {
+      await mkdir(dir, { recursive: true });
+    } catch {
+      // 已存在
     }
+    const ext = (sourcePath.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const name = backgroundId
+      ? `bg_${String(backgroundId).replace(/[^\w-]/g, '_')}.${ext}`
+      : `bg_${Date.now()}.${ext}`;
+    const dest = joinPath(dir, name);
+    if (normalizePath(dest) === normalizePath(sourcePath)) return dest;
+    await copyFile(sourcePath, dest);
+    return dest;
   } catch (e) {
-    console.warn('[wallpaper] restore default from TDLib failed:', e);
+    console.warn('[wallpaper] copy to wallpaper dir failed:', e);
+    return undefined;
   }
 }
 
-let syncListenerInstalled = false;
-
 /**
- * 监听 updateDefaultBackground，保持 settings.chatWallpaper 与 TDLib 同步
- * （含其他设备改默认壁纸、本端 setDefaultBackground 后的远端回写）。
+ * 启动 / 切换账户后恢复：只读本地缓存。
+ * 选择时已写入缓存，这里直接灌回 settings。
  */
-export async function initDefaultBackgroundSync(): Promise<void> {
-  if (syncListenerInstalled) return;
-  syncListenerInstalled = true;
+export function restoreWallpaperFromLocalCache(
+  accountId: number | string | null | undefined = activeAccountId,
+): void {
+  if (accountId == null) return;
+  activeAccountId = typeof accountId === 'string' ? Number(accountId) : accountId;
 
-  onTdlibUpdate('other', async (update) => {
-    if (update._ !== 'updateDefaultBackground') return;
-    if ((update as any).for_dark_theme) return;
-    await applyBackgroundToSettings(((update as any).background as background | null) ?? null);
-  });
+  const all = loadAllAccountWallpapers();
+  const key = String(accountId);
+  if (key in all) {
+    settings.chatWallpaper = all[key].visual ?? null;
+    window.dispatchEvent(new Event('tdgram:chat-wallpaper-changed'));
+    return;
+  }
+
+  if (Object.keys(all).length === 0) {
+    // 旧版全局单槽迁移：首次升级时把当前 settings 视为本账户已选壁纸
+    saveAccountWallpaper(settings.chatWallpaper, undefined, accountId);
+    return;
+  }
+
+  // 该账户尚未选择过壁纸：无自定义壁纸
+  settings.chatWallpaper = null;
+  window.dispatchEvent(new Event('tdgram:chat-wallpaper-changed'));
+}
+
+/** 切换账户 / 重载前：当前 visual 再写一次缓存 */
+export function persistWallpaperBeforeReload(): void {
+  if (activeAccountId == null) return;
+  saveAccountWallpaper(settings.chatWallpaper);
 }

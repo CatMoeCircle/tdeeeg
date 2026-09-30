@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { persistWallpaperBeforeReload } from "../utils/wallpaper";
 
 /** 单个账户的展示信息（来自 Rust 端账户清单 + 运行时元数据） */
 export interface AccountInfo {
@@ -61,18 +62,22 @@ export const useAccountsStore = defineStore("accounts", () => {
       args.apiId = apiId;
       args.apiHash = apiHash;
     }
+    // 重载前把当前账户壁纸落盘，避免全局槽被下一账户覆盖
+    persistWallpaperBeforeReload();
     await invoke<number>("add_account", args);
     window.location.reload();
   }
 
   /** 切换账户：重载后前端引导到目标账户 */
   async function switchAccount(id: number) {
+    persistWallpaperBeforeReload();
     await invoke("switch_account", { sessionId: id });
     window.location.reload();
   }
 
   /** 登出（并移除）指定账户 */
   async function logoutAccount(id: number) {
+    persistWallpaperBeforeReload();
     await invoke("logout_account", { sessionId: id });
     window.location.reload();
   }

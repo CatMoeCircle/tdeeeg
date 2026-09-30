@@ -1,5 +1,5 @@
 <template>
-    <div class="h-full flex flex-col bg-white dark:bg-gray-900">
+    <div class="h-full flex flex-col">
         <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3 shrink-0">
             <button type="button" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" @click="goBack"
                 :aria-label="t('lng_menu_back')">
@@ -18,7 +18,7 @@
                     <p class="text-xs text-gray-400 mt-2">{{ t('wallpaper.defaultDesc') }}</p>
                     <PreviewCard class="mt-5" :show-header="false" body-class="h-32 relative overflow-hidden">
                         <div class="absolute inset-0" :style="previewBackgroundStyle"></div>
-                        <div class="absolute inset-0 bg-white"
+                        <div class="absolute inset-0 bg-white dark:bg-gray-900"
                             :style="{ opacity: settings.chatWallpaperOverlayOpacity / 100 }"></div>
                         <div class="absolute inset-0 bg-black/5"></div>
                         <div
@@ -135,11 +135,7 @@ import PreviewCard from '../../components/settings/PreviewCard.vue';
 import { DL_PRIORITY } from '../../utils/downloadPriority';
 import {
     ensureJpegWallpaper,
-    waitForFileSettled,
-    resolveBackgroundPath,
-    applyBackgroundToSettings,
-    restoreDefaultWallpaperFromTdlib,
-    initDefaultBackgroundSync,
+    applySelectedWallpaper,
 } from '../../utils/wallpaper';
 import type { background, backgrounds, file } from 'tdlib-types';
 
@@ -154,7 +150,6 @@ const selectedLabel = ref(t('wallpaper.followTelegram'));
 const hasCustomDefault = ref(false);
 const thumbnailSources = ref<Record<string, string>>({});
 const coverSources = ref<Record<string, string>>({});
-let unlisten: (() => void) | undefined;
 let unlistenFile: (() => void) | undefined;
 const colors = computed(() => [
     { key: 'solid:16777215', value: 16777215, css: '#ffffff', label: t('wallpaper.colorWhite') },
@@ -247,46 +242,35 @@ async function save(
 ) {
     saving.value = true;
     try {
-        const result = await tdlibSend({
-            _: 'setDefaultBackground',
-            background: backgroundInput,
-            type,
-            for_dark_theme: forDarkTheme.value,
-        }) as background;
+        // 1) 选择后立刻本地缓存（重启 / 切换账户都靠这份）
+        await applySelectedWallpaper(
+            visual,
+            key,
+            visual.kind === 'image' ? visual.path : undefined,
+        );
 
-        // 本地壁纸：等 TDLib 上传完成，视觉路径改用 TDLib 返回的文件路径
-        let visualPath = visual.path;
-        if (backgroundInput?._ === 'inputBackgroundLocal' && result.document?.document?.id != null) {
-            try {
-                const settled = await waitForFileSettled(result.document.document.id);
-                if (settled.local?.path) visualPath = settled.local.path;
-            } catch (e) {
-                console.warn('[WallpaperSettings] wait for wallpaper upload:', e);
-            }
-        } else if (result.document) {
-            const path = await resolveBackgroundPath(result);
-            if (path) visualPath = path;
+        // 2) 同步到 TDLib（云端默认壁纸，失败不影响本地已缓存）
+        let resultId = key;
+        try {
+            const result = await tdlibSend({
+                _: 'setDefaultBackground',
+                background: backgroundInput,
+                type,
+                for_dark_theme: forDarkTheme.value,
+            }) as background;
+            if (result?.id) resultId = `remote:${result.id}`;
+        } catch (e) {
+            console.warn('[WallpaperSettings] setDefaultBackground (cloud) failed:', e);
         }
 
-        const finalVisual = visual.kind === 'image'
-            ? { kind: 'image' as const, path: visualPath ?? visual.path }
-            : visual;
-
-        settings.chatWallpaper = finalVisual;
-        selectedKey.value = result.document ? `remote:${result.id}` : key;
+        selectedKey.value = resultId;
         selectedLabel.value = label;
         hasCustomDefault.value = true;
-        window.dispatchEvent(new Event('tdgram:chat-wallpaper-changed'));
 
-        // 从 TDLib 重新拉已安装列表，用真实 background 替换任何本地假条目
         await loadBackgrounds();
-        if (result.document && backgrounds.value.some((b) => b.id === result.id)) {
-            selectedKey.value = `remote:${result.id}`;
-        }
-
         MessagePlugin.success(t('wallpaper.updated'));
     } catch (err: any) {
-        console.error('[WallpaperSettings] setDefaultBackground failed:', err);
+        console.error('[WallpaperSettings] save wallpaper failed:', err);
         MessagePlugin.error(err?.message || err?.error?.message || t('wallpaper.setFailed'));
     } finally {
         saving.value = false;
@@ -307,7 +291,6 @@ async function pickLocalWallpaper() {
     const selected = await open({ multiple: false, filters: [{ name: t('lng_in_dlg_photo'), extensions: ['jpg', 'jpeg', 'png'] }] });
     if (!selected) return;
     const rawPath = typeof selected === 'string' ? selected : String(selected);
-    saving.value = true;
     try {
         const filePath = await ensureJpegWallpaper(rawPath);
         await save(
@@ -325,7 +308,6 @@ async function pickLocalWallpaper() {
 }
 
 async function setRemote(item: background) {
-    saving.value = true;
     try {
         const path = await ensureFullResolution(item);
         await save(
@@ -345,12 +327,15 @@ async function setRemote(item: background) {
 async function resetDefault() {
     saving.value = true;
     try {
-        await tdlibSend({ _: 'deleteDefaultBackground', for_dark_theme: forDarkTheme.value });
-        settings.chatWallpaper = null;
+        await applySelectedWallpaper(null);
+        try {
+            await tdlibSend({ _: 'deleteDefaultBackground', for_dark_theme: forDarkTheme.value });
+        } catch (e) {
+            console.warn('[WallpaperSettings] deleteDefaultBackground failed:', e);
+        }
         selectedKey.value = '';
         selectedLabel.value = t('wallpaper.followTelegram');
         hasCustomDefault.value = false;
-        window.dispatchEvent(new Event('tdgram:chat-wallpaper-changed'));
         MessagePlugin.success(t('wallpaper.resetOk'));
         await loadBackgrounds();
     } catch (err: any) {
@@ -361,34 +346,7 @@ async function resetDefault() {
 }
 
 onMounted(async () => {
-    await initDefaultBackgroundSync();
-    // 先从 TDLib 恢复默认壁纸（覆盖失效的本地路径），再拉列表
-    await restoreDefaultWallpaperFromTdlib(forDarkTheme.value);
-    unlisten = onTdlibUpdate('other', (update) => {
-        if (update._ === 'updateDefaultBackground') {
-            const bg = (update as any).background as background | null | undefined;
-            if (!(update as any).for_dark_theme) {
-                void applyBackgroundToSettings(bg ?? null);
-                if (bg) {
-                    hasCustomDefault.value = true;
-                    if (bg.document) {
-                        selectedKey.value = `remote:${bg.id}`;
-                        selectedLabel.value = bg.name || t('wallpaper.custom');
-                    } else if (bg.type._ === 'backgroundTypeFill' && bg.type.fill?._ === 'backgroundFillSolid') {
-                        const key = `solid:${bg.type.fill.color}`;
-                        selectedKey.value = key;
-                        selectedLabel.value = colors.value.find((c) => c.key === key)?.label || t('wallpaper.solid');
-                    }
-                } else {
-                    selectedKey.value = '';
-                    selectedLabel.value = t('wallpaper.followTelegram');
-                    hasCustomDefault.value = false;
-                }
-            }
-            return;
-        }
-    });
-    // updateFile 走独立 IPC（tdlib-update-file），用于刷新壁纸缩略图/封面
+    // 当前壁纸已在启动时从本地缓存恢复，这里只拉「已保存壁纸」列表
     unlistenFile = onTdlibUpdate('file', (update) => {
         if (update._ !== 'updateFile') return;
         const updatedFile = (update as any).file as file;
@@ -405,5 +363,5 @@ onMounted(async () => {
     });
     await loadBackgrounds();
 });
-onUnmounted(() => { unlisten?.(); unlistenFile?.(); });
+onUnmounted(() => { unlistenFile?.(); });
 </script>

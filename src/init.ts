@@ -12,10 +12,11 @@ import { useAccountsStore } from "./store/accounts";
 import { useLanguageStore } from "./store/language";
 import { initSenderInfo } from "./utils/senderInfo";
 import { initColors, watchSystemColorScheme } from "./store/colors";
+import { initTheme } from "./store/theme";
 import { initNativeNotifications } from "./store/notifications";
 import { settings } from "./store/settings";
 import { loadAiConfig } from "./store/aiConfig";
-import { initDefaultBackgroundSync } from "./utils/wallpaper";
+import { bindWallpaperAccount, restoreWallpaperFromLocalCache } from "./utils/wallpaper";
 
 /**
  * 初始化 TDLib 及各模块的事件监听。
@@ -55,14 +56,20 @@ export async function initTdlib() {
     await userStore.initUpdates();
     // 初始化多账户管理
     await accountsStore.init();
+    // 壁纸：按活动账户从本地缓存恢复（选择后已缓存）
+    {
+        const accountId = accountsStore.activeAccount?.id ?? null;
+        bindWallpaperAccount(accountId);
+        restoreWallpaperFromLocalCache(accountId);
+    }
     // 初始化 Telegram 色彩主题系统（colors 通道）
     await initColors();
-    // 跟随系统明暗模式，供 accent 色选择对应明暗色板
+    // 主题系统：明暗模式 + 主题色 + 圆角/阴影/密度
+    initTheme();
+    // 兼容入口：确保主题系统已就绪（内部幂等）
     watchSystemColorScheme();
     // 初始化系统原生通知（Windows Toast / 通知中心）
     await initNativeNotifications();
-    // 默认壁纸与 TDLib 同步（other 通道的 updateDefaultBackground）
-    await initDefaultBackgroundSync();
     // 语言系统：恢复 UI 语言、监听 language 通道、同步 TDLib language_pack_id
     await languageStore.init();
 
