@@ -9,9 +9,8 @@
             :photo="forwardPhoto" :accent-id="forwardAccentId" :navigable="forwardNavigable" :self="isSelf"
             :text-color="forwardTextColor" media-inline @open-source="emit('openForwardSource')" />
 
-        <!-- Caption above media -->
-        <div v-if="showCaptionAbove && captionText" class="caption-text px-2 pt-2 pb-1"
-            :class="isSelf ? 'text-white/90' : 'text-gray-800 dark:text-gray-200'">
+        <!-- Caption above media：字色跟气泡走（.msg-bubble-self 内强制深色，否则主题正文字色） -->
+        <div v-if="showCaptionAbove && captionText" class="caption-text px-2 pt-2 pb-1 msg-body-text">
             <MessageTextContent :formattedText="captionFormatted" :chatId="chatId" :messageId="messageId" />
         </div>
 
@@ -23,12 +22,13 @@
                 class="relative overflow-hidden bg-gray-200 dark:bg-gray-700 cursor-pointer group"
                 :class="[borderRadiusClass, { 'msg-spoiler-media': hasSpoiler }]" :style="photoSizeStyle"
                 @click="mediaSrc ? openViewer() : undefined">
-                <!-- 渐进占位：minithumbnail 高斯模糊 → Small 清晰图；Big 就绪后被 mediaSrc 取代 -->
-                <img v-if="thumbSrc && !mediaSrc" :src="thumbSrc"
+                <!-- 渐进占位：minithumbnail 高斯模糊 → Small 清晰图；Big 解码完成前一直垫在下层，避免闪空白 -->
+                <img v-if="thumbSrc && !imageLoaded" :src="thumbSrc" decoding="async"
                     class="absolute inset-0 w-full h-full object-cover"
                     :class="thumbIsBlur ? 'blur-sm scale-105' : ''" />
                 <!-- Full image (object-cover fills area) -->
-                <img v-if="mediaSrc" ref="photoImgEl" :src="mediaSrc" class="w-full h-full object-cover select-none"
+                <img v-if="mediaSrc" ref="photoImgEl" :src="mediaSrc" decoding="async"
+                    class="w-full h-full object-cover select-none"
                     :class="{ 'opacity-0': !imageLoaded }" @load="onImageLoad" @error="onImageError" />
                 <!-- Placeholder -->
                 <div v-if="!mediaSrc && !thumbSrc" class="flex items-center justify-center w-full h-full">
@@ -71,7 +71,7 @@
                   视频本体就绪（videoShowMedia）→ 直接渲染 <video>，不用 mini/封面盖住。
                   仅当视频不可用时才用封面/mini 占位；高清封面优先，mini 兜底。
                 -->
-                <img v-if="!videoShowMedia && videoThumbSrc && !videoThumbIsVideo" :src="videoThumbSrc"
+                <img v-if="!videoShowMedia && videoThumbSrc && !videoThumbIsVideo" :src="videoThumbSrc" decoding="async"
                     class="absolute inset-0 w-full h-full object-cover"
                     :class="isMiniThumbSrc(videoThumbSrc) ? 'blur-sm scale-105' : ''" />
                 <video v-else-if="!videoShowMedia && videoThumbSrc && videoThumbIsVideo" :src="videoThumbSrc" autoplay
@@ -171,13 +171,16 @@
                 class="relative overflow-hidden bg-gray-200 dark:bg-gray-700 cursor-pointer group select-none"
                 :class="borderRadiusClass" :style="animSizeStyle" @click="mediaSrc ? openViewer() : undefined">
                 <!-- Thumbnail: 静态位图用 <img>，MPEG4/WEBM 动态图用 <video> -->
-                <img v-if="animThumbSrc && !animThumbIsVideo && !mediaSrc" :src="animThumbSrc"
+                <!-- GIF 封面垫底到 mediaSrc 解码完成前，避免换源瞬间闪空白 -->
+                <img v-if="animThumbSrc && !animThumbIsVideo && !animMediaReady" :src="animThumbSrc" decoding="async"
                     class="absolute inset-0 w-full h-full object-cover" />
                 <video v-else-if="animThumbSrc && animThumbIsVideo && !mediaSrc" :src="animThumbSrc" autoplay loop muted
                     playsinline class="absolute inset-0 w-full h-full object-cover" />
                 <!-- Full GIF (animation) -->
                 <video v-if="mediaSrc" :src="mediaSrc" autoplay loop muted playsinline
-                    class="w-full h-full object-cover" />
+                    class="w-full h-full object-cover"
+                    :class="{ 'opacity-0': !animMediaReady }" @loadeddata="animMediaReady = true"
+                    @canplay="animMediaReady = true" />
 
                 <!-- GIF 胶囊（左上角，始终显示） -->
                 <span
@@ -234,12 +237,9 @@
             </div>
         </div>
 
-        <!-- Caption below：有时间跟在下方时不保留 pb，避免文本与时间之间出现多余边距 -->
-        <div v-if="!showCaptionAbove && captionText" class="caption-text px-2 pt-1"
-            :class="[
-                isSelf ? 'text-gray-900' : 'text-gray-800 dark:text-gray-200',
-                !(captionBelow && date) && 'pb-2',
-            ]">
+        <!-- Caption below：字色跟气泡走 -->
+        <div v-if="!showCaptionAbove && captionText" class="caption-text px-2 pt-1 msg-body-text"
+            :class="!(captionBelow && date) && 'pb-2'">
             <MessageTextContent :formattedText="captionFormatted" :chatId="chatId" :messageId="messageId" />
         </div>
 
@@ -918,9 +918,19 @@ const mediaContainerStyle = computed(() => {
 // Image state
 const imageLoaded = ref(false);
 const imageError = ref(false);
+/** GIF 本体已出帧（loadeddata/canplay），此前用封面垫底 */
+const animMediaReady = ref(false);
 const photoImgEl = ref<HTMLImageElement | null>(null);
 function onImageLoad() { imageLoaded.value = true; mediaLoaded.value = true; }
 function onImageError() { imageError.value = true; }
+
+// 换源后必须等新图解码完成再揭幕，否则 src 变更瞬间会闪空白
+watch(mediaSrc, (src, prev) => {
+    if (src && src !== prev) {
+        imageLoaded.value = false;
+        animMediaReady.value = false;
+    }
+});
 
 /** 图片已就绪后，若其 URL 命中浏览器缓存导致 @load 早于监听器绑定而漏触发，
  *  则在此兜底：DOM 已 complete 且有实际尺寸即可视为加载成功。 */
@@ -967,29 +977,20 @@ function openViewer() {
 // - 自动下载设置只决定「要不要下」，不阻止「已就绪则展示」
 
 /**
- * 视口门控仅用于触发下载排队，不负责资源展示判断。
- * 主媒体（视频本体 / 图片 Big）：视口 + 停留 + 并发闸门。
+ * 视口门控：停留后才触发缩略图/封面 + 主媒体下载。
+ * 缩略图 Small / 视频封面也走 500ms 停留——高速滚动时路过的消息不应打 downloadFile。
+ * minithumbnail base64 占位仍立刻上屏（无网络）；主媒体下载再经并发闸门排队。
  */
 const { start: startViewportLoad, entered: mediaViewportEntered } = useViewportLoad(rootEl, () => {
+    void prefetchAuxThumbs();
     return requestAutoDownloads();
 });
 
-/**
- * 缩略图 / Small：同样要求视口 + 停留（默认 500ms），
- * 但 enqueue=false，不占 chat 并发槽。
- */
-const { start: startAuxViewportLoad, entered: auxViewportEntered } = useViewportLoad(
-    rootEl,
-    () => prefetchAuxThumbs(),
-    { enqueue: false },
-);
-
 onMounted(() => {
-    // 先迷你占位，再立刻套用 content 内已就绪资源（不进下载队列）
+    // 先迷你占位，再套用 content 内已就绪资源（不发下载）
     setMediaPreview();
     applyMediaFromContent();
-    // 封面 / Small：进入视口并停留后再同步拉取
-    startAuxViewportLoad();
+    // 下载（缩略图/封面 + 主媒体）：视口 + 停留后再触发
     startViewportLoad();
 });
 
@@ -1031,6 +1032,7 @@ function resetMediaForContent() {
     mediaLoaded.value = false;
     imageLoaded.value = false;
     imageError.value = false;
+    animMediaReady.value = false;
     inlineErrorRetries = 0;
     clearInlineRetryTimer();
     if (!keepStreamSrc) {
@@ -1043,12 +1045,31 @@ function resetMediaForContent() {
     }
     setMediaPreview();
     applyMediaFromContent();
-    // 已触发过视口加载的实例：内容原地替换后立刻补拉缩略图
-    if (auxViewportEntered.value) void prefetchAuxThumbs();
-    if (mediaViewportEntered.value) void requestAutoDownloads();
+    // 已过视口停留：缩略图与主媒体一并补拉；未进入则等 startViewportLoad 首次触发
+    if (mediaViewportEntered.value) {
+        void prefetchAuxThumbs();
+        void requestAutoDownloads();
+    }
 }
 
-watch(() => props.content, () => {
+/**
+ * 媒体身份：同一张图/视频/GIF 在 updateFile 快照回写时 File.id 不变，
+ * 仅 local.path 等字段更新。用它区分「文件就绪补丁」与「内容被真正替换」。
+ */
+function mediaIdentity(c: typeof props.content): string {
+    if (c._ === 'messagePhoto') return `p:${pickBigPhotoSize(c.photo)?.id ?? pickSmallPhotoSize(c.photo)?.id ?? 0}`;
+    if (c._ === 'messageVideo') return `v:${c.video.video?.id ?? 0}`;
+    return `a:${c.animation.animation?.id ?? 0}`;
+}
+
+watch(() => props.content, (next, prev) => {
+    // 文件就绪回写（syncEmbeddedFileSnapshot / patchMessage）只换了 content 引用，
+    // 媒体身份未变：绝不能 resetMediaForContent——那会清掉已上屏的 mini/Small/Big，
+    // 造成缩略图↔原图替换时的闪白、重解码卡顿。路径 watch 会自动补上新 local.path。
+    if (prev && mediaIdentity(prev) === mediaIdentity(next)) {
+        applyMediaFromContent();
+        return;
+    }
     resetMediaForContent();
 });
 
@@ -1362,7 +1383,10 @@ async function requestAutoDownloads() {
         const f = videoFile.value;
         // 封面已由 prefetchAuxThumbs 处理；此处只负责视频本体
         if (f && isFileReady(f) && f.local.path) {
-            mediaSrc.value = convertFileSrc(f.local.path);
+            // 流式源已在播：下载完成只记账，不换 src（换源会让 <video> 重载闪跳）
+            if (!shouldKeepStreamSrc(mediaSrc.value)) {
+                mediaSrc.value = convertFileSrc(f.local.path);
+            }
             videoDownloaded.value = true;
             videoDownloading.value = false;
             return;
@@ -1404,8 +1428,8 @@ async function requestAutoDownloads() {
 }
 
 /**
- * 缩略图 / 图片 Small 预取：挂载与 content 变化时立刻执行。
- * 不进视口并发闸门；主媒体（视频本体 / 图片 Big）仍走 requestAutoDownloads。
+ * 缩略图 / 图片 Small 预取：视口停留后由 useViewportLoad 触发（与主媒体同一 500ms 防抖）。
+ * 高速滚动路过时不发 downloadFile；已就绪资源仍由 applyMediaFromContent 立刻上屏。
  */
 async function prefetchAuxThumbs() {
     const seq = mediaLoadSeq;
@@ -1685,9 +1709,12 @@ async function handleVideoDownload(isUserAction = false) {
     if (videoFilePath.value || isFileReady(videoFileObj)) {
         const path = videoFilePath.value || videoFileObj.local.path;
         if (path) {
-            mediaSrc.value = convertFileSrc(path);
+            // 流式源已在播：不换 src，避免下载完成瞬间 <video> 重载闪跳
+            if (!shouldKeepStreamSrc(mediaSrc.value)) {
+                mediaSrc.value = convertFileSrc(path);
+                videoHasFrame.value = false;
+            }
             videoDownloaded.value = true;
-            videoHasFrame.value = false;
             videoDownloading.value = false;
         }
         return;

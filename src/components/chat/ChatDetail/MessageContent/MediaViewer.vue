@@ -725,13 +725,29 @@ function localPathOf(file: TdFile | undefined): string | undefined {
 
 /**
  * 主媒体 src：
- * 1. readyPath / localPathOverrides（调用方或 getFile/store 已确认就绪）
- * 2. 消息内嵌 File 就绪路径（photo 用 Big，就绪失败回退已就绪的最大尺寸）
- * 3. 下载 store 完成路径（覆盖 updateFile 快照滞后）
+ * 1. 同一条视频的 sticky tdstream（已在流式播放时禁止切换本地路径，避免重载闪跳）
+ * 2. readyPath / localPathOverrides（调用方或 getFile/store 已确认就绪）
+ * 3. 消息内嵌 File 就绪路径（photo 用 Big，就绪失败回退已就绪的最大尺寸）
+ * 4. 下载 store 完成路径（覆盖 updateFile 快照滞后）
  */
 const currentMediaSrc = computed(() => {
     const item = currentItem.value;
     if (!item) return '';
+
+    const c = currentContent.value;
+    // 同一条视频已在用流式源：优先 sticky，下载完成 / 快照回写 / readyPath
+    // 都不得切到本地路径（换源会让 <video> 重载闪跳）。tdstream 下完后读本地文件。
+    if (c && c._ === 'messageVideo') {
+        const vid = c.video.video;
+        if (
+            stickyStreamSrc.value
+            && stickyStreamFileId.value === vid?.id
+            && stickyStreamSrc.value.includes('tdstream')
+        ) {
+            return stickyStreamSrc.value;
+        }
+    }
+
     const mid = item.messageId;
     if (mid != null) {
         const ov = localPathOverrides.value[mid];
@@ -739,7 +755,6 @@ const currentMediaSrc = computed(() => {
     }
     if (item.readyPath) return convertFileSrc(item.readyPath);
 
-    const c = currentContent.value;
     if (c) {
         let localPath: string | undefined;
         if (c._ === 'messagePhoto') {
@@ -755,14 +770,6 @@ const currentMediaSrc = computed(() => {
         } else if (c._ === 'messageVideo') {
             const vid = c.video.video;
             localPath = localPathOf(vid);
-            // 同一条视频已在用流式源：下载完成后继续用 tdstream，不切换本地路径（避免闪烁）
-            if (
-                stickyStreamSrc.value
-                && stickyStreamFileId.value === vid?.id
-                && stickyStreamSrc.value.includes('tdstream')
-            ) {
-                return stickyStreamSrc.value;
-            }
             if (!localPath && c.video.supports_streaming && c.video.video.size > 0) {
                 // 断网时不生成 tdstream，避免查看器一直卡在「加载中」黑屏
                 if (typeof navigator !== 'undefined' && navigator.onLine === false) {

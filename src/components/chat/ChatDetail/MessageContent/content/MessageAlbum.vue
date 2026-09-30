@@ -5,10 +5,11 @@
                 class="absolute overflow-hidden cursor-pointer bg-gray-200 dark:bg-gray-700"
                 :class="{ 'bg-black': item.isVideo }" :style="item.style" @click="openViewer(item.index)"
                 @contextmenu.prevent.stop="onTileContextMenu($event, item.index)">
-                <img v-if="item.thumbSrc" :src="item.thumbSrc"
+                <!-- thumb 垫在下层直到 media 解码完成，避免换源瞬间透出底色 -->
+                <img v-if="item.thumbSrc" :src="item.thumbSrc" decoding="async"
                     class="absolute inset-0 w-full h-full object-cover"
                     :class="item.thumbIsBlur ? 'blur-sm scale-105' : ''" />
-                <img v-if="item.mediaSrc && !item.isVideo && !item.isGif" :src="item.mediaSrc"
+                <img v-if="item.mediaSrc && !item.isVideo && !item.isGif" :src="item.mediaSrc" decoding="async"
                     class="absolute inset-0 w-full h-full object-cover" />
                 <video v-if="item.mediaSrc && item.isGif" :src="item.mediaSrc" autoplay loop muted playsinline
                     class="absolute inset-0 w-full h-full object-cover" />
@@ -46,8 +47,7 @@
             </div>
         </div>
         <!-- 有描述时时间跟在下方，caption 不保留 pb，避免文本与时间之间出现多余边距 -->
-        <div v-if="captionText" class="px-2 pt-1.5"
-            :class="isSelf ? 'text-gray-900' : 'text-gray-800 dark:text-gray-200'">
+        <div v-if="captionText" class="px-2 pt-1.5 msg-body-text">
             <MessageTextContent :formattedText="captionFormatted" :chatId="chatId" />
         </div>
         <!-- Reactions slot（caption 与时间之间） -->
@@ -114,19 +114,40 @@ const mediaCache = reactive<Record<number, string>>({});
 let albumLoadSeq = 0;
 
 /**
- * 记录上一次构建时每条消息的对象引用，用于检测「同一 msg.id 的内容被原地替换」。
+ * 媒体身份：同一张图/视频/GIF 在 updateFile 快照回写时 File.id 不变，
+ * 仅 local.path 等字段更新。用它区分「文件就绪补丁」与「内容被真正替换」。
+ */
+function mediaKeyOf(msg: message): string {
+    const c = msg.content;
+    if (c._ === 'messagePhoto') return `p:${pickBigPhotoSize(c.photo)?.id ?? pickSmallPhotoSize(c.photo)?.id ?? 0}`;
+    if (c._ === 'messageVideo') return `v:${c.video.video?.id ?? 0}`;
+    if (c._ === 'messageAnimation') return `a:${c.animation.animation?.id ?? 0}`;
+    return `${c._}:${msg.id}`;
+}
+
+/**
+ * 记录上一次构建时每条消息的对象引用与媒体身份。
  * TDLib 的 updateMessageContent 会原地替换 msg.content（引用变化但 id 不变），
  * 组件不会重挂载，而 thumbCache/mediaCache 又带 !cache[id] 守卫永不刷新，导致
- * 相册缩略图/大图显示成旧内容（串图）。只要内容对象引用变化，就作废旧缓存。
+ * 相册缩略图/大图显示成旧内容（串图）。
+ *
+ * 但 updateFile 快照回写（patchMessage）也会换消息引用，此时媒体身份不变。
+ * 若一律按引用变化清缓存，mini→Small→Big 替换过程中会被反复清掉再重解码，
+ * 表现为缩略图/原图替换时的闪烁与卡顿。仅当媒体身份真正变化时才作废缓存。
  */
 let prevAlbumMsgRefs = new Map<number, message>();
+let prevAlbumMediaKeys = new Map<number, string>();
 
-/** 清理内容已被替换的消息的旧缩略图/大图缓存，并更新引用快照 */
+/** 清理「媒体已被替换」的消息的旧缩略图/大图缓存，并更新引用快照 */
 function invalidateAlbumCaches(msgs: message[]) {
     const next = new Map<number, message>();
+    const nextKeys = new Map<number, string>();
     for (const m of msgs) {
         const prev = prevAlbumMsgRefs.get(m.id);
-        if (prev && prev !== m) {
+        const prevKey = prevAlbumMediaKeys.get(m.id);
+        const key = mediaKeyOf(m);
+        if (prev && prev !== m && prevKey !== key) {
+            // 真正换了媒体（编辑/替换内容）才清缓存，避免串图
             delete thumbCache[m.id];
             delete mediaCache[m.id];
         } else if (!prev) {
@@ -135,8 +156,10 @@ function invalidateAlbumCaches(msgs: message[]) {
             delete mediaCache[m.id];
         }
         next.set(m.id, m);
+        nextKeys.set(m.id, key);
     }
     prevAlbumMsgRefs = next;
+    prevAlbumMediaKeys = nextKeys;
 }
 
 /** 相册根元素（用于视口门控：进入视口才下载） */
@@ -369,7 +392,7 @@ const containerStyle = computed(() => {
 });
 
 // ---- React to messages ----
-watch(() => props.messages, () => rebuildLayout(), { immediate: true, deep: true });
+// 布局重建并入下方主 watch，避免两条 deep watch 在 patchMessage 时重复跑。
 
 /**
  * 以受限并发执行一组异步任务，避免相册内图片被 for...of await 串行下载。
@@ -416,12 +439,68 @@ loadAlbumFn = async (msgs) => {
     if (changed) rebuildLayout();
 };
 
-// 视口门控：进入视口触发下载；未进入只显示 setAlbumPreview 的 base64。
-// entered 同时供 watch 判断是否应触发下载。
+// 视口门控：停留后才触发缩略图 Small + 主媒体下载；未进入只显示 setAlbumPreview 的 base64。
+// entered 同时供 watch 判断是否应触发下载。缩略图同样走 500ms，高速滚动路过不打 downloadFile。
 const { start: startViewportLoad, entered: albumEntered } = useViewportLoad(rootEl, () => {
+    void prefetchAlbumSmallThumbs();
     return runAlbumLoad();
 });
-watch(() => props.messages, (msgs) => {
+
+/**
+ * 相册缩略图 Small：视口停留后拉取（与主媒体同一防抖）。
+ * minithumbnail base64 占位仍立刻上屏；Big 主媒体由 runAlbumLoad 排队。
+ */
+async function prefetchAlbumSmallThumbs() {
+    const seq = albumLoadSeq;
+    let changed = false;
+    await Promise.all(props.messages.map(async (msg) => {
+        if (seq !== albumLoadSeq) return;
+        if (msg.content._ !== 'messagePhoto') return;
+        const photo = msg.content.photo;
+        if (photo.minithumbnail?.data && !thumbCache[msg.id]) {
+            thumbCache[msg.id] = `data:image/jpeg;base64,${photo.minithumbnail.data}`;
+            thumbIsMini[msg.id] = true;
+            changed = true;
+        }
+        const small = pickSmallPhotoSize(photo);
+        if (!small) return;
+        if (isFileReady(small)) {
+            // 已就绪：直接上屏清晰 Small
+            if (small.local.path && !mediaCache[msg.id]
+                && (!thumbCache[msg.id] || thumbIsMini[msg.id])) {
+                thumbCache[msg.id] = convertFileSrc(small.local.path);
+                thumbIsMini[msg.id] = false;
+                changed = true;
+            }
+            return;
+        }
+        if (!small.local?.can_be_downloaded || downloadingFiles.has(small.id)) return;
+        try {
+            await safeDownloadFile(small.id, true, DL_PRIORITY.THUMBNAIL);
+            const r = await tdlibSend({ _: 'getFile', file_id: small.id });
+            if (seq !== albumLoadSeq) return;
+            if (isFileReady(r) && r.local.path && !mediaCache[msg.id]) {
+                thumbCache[msg.id] = convertFileSrc(r.local.path);
+                thumbIsMini[msg.id] = false;
+                changed = true;
+            }
+        } catch { /* ignore */ }
+    }));
+    // layoutItems 是 thumbSrc 快照，缓存更新后必须重建布局才能上屏
+    if (changed && seq === albumLoadSeq) rebuildLayout();
+}
+
+watch(() => props.messages, (msgs, prev) => {
+    // 媒体身份（msg.id + 主文件 id）未变 = updateFile 快照回写：
+    // 只套用新就绪路径，不清缓存、不递增 albumLoadSeq、不重启下载。
+    const identityChanged = !prev || msgs.length !== prev.length || msgs.some((m, i) => {
+        const p = prev[i];
+        return !p || p.id !== m.id || mediaKeyOf(p) !== mediaKeyOf(m);
+    });
+    if (!identityChanged) {
+        if (applyAlbumReadyFromContent(msgs)) rebuildLayout();
+        return;
+    }
     albumLoadSeq++;
     // 内容被原地替换（updateMessageContent）时作废旧缩略图/大图缓存，避免串图
     invalidateAlbumCaches(msgs);
@@ -429,9 +508,12 @@ watch(() => props.messages, (msgs) => {
     // 就绪资源在加载时直接使用，不经过视口
     applyAlbumReadyFromContent(msgs);
     rebuildLayout();
-    // 视口只闸「下载」：未就绪且已在视口才入队下载
-    if (albumEntered.value) runAlbumLoad();
-}, { immediate: true, deep: true });
+    // 已过视口停留：缩略图与主媒体一并补拉；未进入则等 startViewportLoad
+    if (albumEntered.value) {
+        void prefetchAlbumSmallThumbs();
+        runAlbumLoad();
+    }
+}, { immediate: true });
 onMounted(() => {
     setAlbumPreview();
     if (applyAlbumReadyFromContent()) rebuildLayout();
