@@ -34,7 +34,7 @@
   "bundle": {
     "active": true,
     "createUpdaterArtifacts": true,
-    "targets": "all",
+    "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -46,9 +46,6 @@
       "nsis": {
         "languages": ["English", "SimpChinese", "TradChinese", "Russian"],
         "displayLanguageSelector": false
-      },
-      "wix": {
-        "language": ["zh-CN", "zh-TW", "ru-RU", "en-US"]
       }
     },
     "resources": ["./bin/*"]
