@@ -210,7 +210,7 @@ interface Settings {
   language: {
     /**
      * 当前语言 code：
-     * - 内置：zh-CN / zh-TW / en
+     * - 内置：zh-CN / zh-TW / en / ru
      * - TDLib 语言包：tdesktop 目标下的 pack id（如 ja-raw）
      */
     code: string;

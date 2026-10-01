@@ -55,6 +55,36 @@ function Remove-WebviewArtifacts {
   }
 }
 
+# MSI 语言后缀规范化：en-US 直接去掉（语言中立名），ru-RU → ru，其余保留。
+# .msi / .msi.sig 一并处理，避免 releases 里残留 tdeeeg_*_en-US.msi.sig。
+function Normalize-MsiLanguageSuffix {
+  param([string]$Name)
+  $n = $Name
+  $n = $n -replace "_en-US\.msi(\.sig)?$", '.msi$1'
+  $n = $n -replace "_ru-RU\.msi(\.sig)?$", '_ru.msi$1'
+  $n = $n -replace "_zh-CN\.msi(\.sig)?$", '_zh-CN.msi$1'
+  $n = $n -replace "_zh-TW\.msi(\.sig)?$", '_zh-TW.msi$1'
+  return $n
+}
+
+function Invoke-MsiLanguageRename {
+  $msiDir = Join-Path $bundleRoot "msi"
+  if (-not (Test-Path $msiDir)) { return }
+  Get-ChildItem $msiDir -File | Where-Object {
+    $_.Name -like "$($productName)_$($version)_*" -and $_.Name -match "msi"
+  } | ForEach-Object {
+    $newName = Normalize-MsiLanguageSuffix $_.Name
+    if ($newName -ne $_.Name) {
+      $dest = Join-Path $msiDir $newName
+      if ((Test-Path $dest) -and ($_.FullName -ne $dest)) {
+        Remove-Item $dest -Force
+      }
+      Rename-Item -Path $_.FullName -NewName $newName -Force
+      Write-Host "MSI rename: $($_.Name) -> $newName"
+    }
+  }
+}
+
 function Rename-WebviewArtifacts {
   $renamed = @()
   $nsisDir = Join-Path $bundleRoot "nsis"
@@ -87,6 +117,7 @@ Remove-WebviewArtifacts
 if ($Mode -eq "All") {
   Write-Host "==> Bundling default variant (tauri.conf.json)"
   Invoke-Tauri (@("bundle", "--config", "src-tauri/tauri.conf.json") + $signArgs)
+  Invoke-MsiLanguageRename
 
   if (Test-Path $staging) {
     Remove-Item $staging -Recurse -Force
@@ -100,6 +131,7 @@ if ($Mode -eq "All") {
 
 Write-Host "==> Bundling webview variant (offline WebView2, same productName)"
 Invoke-Tauri (@("bundle", "--config", "src-tauri/tauri.webview.conf.json") + $signArgs)
+Invoke-MsiLanguageRename
 
 Write-Host "==> Renaming webview artifacts"
 $webviewFiles = Rename-WebviewArtifacts

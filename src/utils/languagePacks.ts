@@ -59,6 +59,12 @@ export const BUILTIN_LANGUAGES: BuiltinLanguage[] = [
         englishName: "English",
         tdlibPackId: "en",
     },
+    {
+        code: "ru",
+        nativeName: "Русский",
+        englishName: "Russian",
+        tdlibPackId: "ru-raw",
+    },
 ];
 
 /** 内置语言 code → TDLib pack id */
@@ -430,6 +436,9 @@ export function detectPreferredBuiltinCode(): string {
         }
         if (lang.startsWith("en")) {
             return "en";
+        }
+        if (lang.startsWith("ru")) {
+            return "ru";
         }
     }
     return "zh-CN";

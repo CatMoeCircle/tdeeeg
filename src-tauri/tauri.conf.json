@@ -44,8 +44,11 @@
     ],
     "windows": {
       "nsis": {
-        "languages": ["English", "SimpChinese"],
+        "languages": ["English", "SimpChinese", "TradChinese", "Russian"],
         "displayLanguageSelector": false
+      },
+      "wix": {
+        "language": ["zh-CN", "zh-TW", "ru-RU", "en-US"]
       }
     },
     "resources": ["./bin/*"]

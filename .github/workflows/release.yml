@@ -210,6 +210,62 @@ jobs:
           releaseDraft: false
           prerelease: ${{ steps.release_type.outputs.prerelease }}
 
+      # tauri-action 会按 WiX 默认命名上传 *_en-US.msi(.sig)。
+      # 这里本地改掉语言后缀（en-US 去掉 / ru-RU→ru），并替换 Release 资产。
+      - name: Normalize MSI language suffixes and replace release assets
+        run: |
+          $ErrorActionPreference = "Stop"
+          $productName = "tdeeeg"
+          $version = "${{ steps.version.outputs.version }}"
+          $msiDir = "src-tauri/target/release/bundle/msi"
+          $tag = "v$version"
+          $hdrs = @{
+            Authorization = "Bearer $env:GITHUB_TOKEN"
+            Accept        = "application/vnd.github+json"
+          }
+
+          function Normalize-MsiLanguageSuffix([string]$Name) {
+            $n = $Name
+            $n = $n -replace "_en-US\.msi(\.sig)?$", '.msi$1'
+            $n = $n -replace "_ru-RU\.msi(\.sig)?$", '_ru.msi$1'
+            return $n
+          }
+
+          if (Test-Path $msiDir) {
+            Get-ChildItem $msiDir -File | Where-Object {
+              $_.Name -like "${productName}_${version}_*" -and $_.Name -match "msi"
+            } | ForEach-Object {
+              $newName = Normalize-MsiLanguageSuffix $_.Name
+              if ($newName -ne $_.Name) {
+                $dest = Join-Path $msiDir $newName
+                if ((Test-Path $dest) -and ($_.FullName -ne (Resolve-Path $dest))) {
+                  Remove-Item $dest -Force
+                }
+                Rename-Item -Path $_.FullName -NewName $newName -Force
+                Write-Host "Renamed: $($_.Name) -> $newName"
+              }
+            }
+          }
+
+          $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/$tag" -Headers $hdrs
+          foreach ($asset in $rel.assets) {
+            if ($asset.name -match "_en-US\.msi(\.sig)?$" -or $asset.name -match "_ru-RU\.msi(\.sig)?$") {
+              Write-Host "Deleting old asset: $($asset.name)"
+              Invoke-RestMethod -Method Delete -Uri $asset.url -Headers $hdrs | Out-Null
+            }
+          }
+
+          Get-ChildItem $msiDir -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like "${productName}_${version}_*.msi*" -and $_.Name -notmatch "webview" -and $_.Name -notmatch "_en-US" } |
+            ForEach-Object {
+              Write-Host "Uploading: $($_.Name)"
+              $uploadUrl = "https://uploads.github.com/repos/${{ github.repository }}/releases/$($rel.id)/assets?name=$([uri]::EscapeDataString($_.Name))"
+              Invoke-RestMethod -Method Post -Uri $uploadUrl -Headers $hdrs -InFile $_.FullName -ContentType "application/octet-stream" | Out-Null
+            }
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       # 复用上一步已编译产物；应用名仍为 tdeeeg，仅安装包文件名加 -webview 后缀
       # webview 变体 createUpdaterArtifacts=false，无需 updater 签名
       - name: Bundle webview (offline WebView2) variant

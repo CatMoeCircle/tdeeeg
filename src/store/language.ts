@@ -25,12 +25,14 @@ import { ensureBuiltinTdEnglish, mergeTdPackIntoLocale } from "../utils/tdLang";
 import en from "../locales/en.json";
 import zhCN from "../locales/zh-CN.json";
 import zhTW from "../locales/zh-TW.json";
+import ru from "../locales/ru.json";
 
 const BUILTIN_MESSAGES: Record<string, unknown> = {
     en,
     "zh-CN": zhCN,
     zh: zhCN,
     "zh-TW": zhTW,
+    ru,
 };
 
 function readSavedLanguageCode(): string {

@@ -132,6 +132,7 @@ async function bootstrap() {
             "zh-CN": "zh-hans-raw",
             "zh-TW": "zh-hant-raw",
             en: "en",
+            ru: "ru-raw",
         };
         const languagePackId = BUILTIN_PACK[langCode] || langCode;
         const systemLanguageCode =
@@ -139,7 +140,9 @@ async function bootstrap() {
                 ? "zh-hans"
                 : langCode.startsWith("en")
                     ? "en"
-                    : langCode;
+                    : langCode.startsWith("ru")
+                        ? "ru"
+                        : langCode;
         await applyTdlibSystemParams({ persist: true });
         await invoke("set_tdlib_parameters", {
             languagePackId,

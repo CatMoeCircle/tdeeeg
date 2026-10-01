@@ -2,6 +2,7 @@ import { createI18n } from "vue-i18n";
 import en from "./locales/en.json";
 import zhCN from "./locales/zh-CN.json";
 import zhTW from "./locales/zh-TW.json";
+import ru from "./locales/ru.json";
 
 const messages = {
   en,
@@ -9,6 +10,7 @@ const messages = {
   // keep generic `zh` to avoid breaking existing imports
   zh: zhCN,
   "zh-TW": zhTW,
+  ru,
 };
 
 /** vue-i18n 复数选择器：choice 为数量，返回管道消息下标 */
@@ -103,6 +105,7 @@ function restoreLocale(): string {
   if (nav.startsWith("zh-tw") || nav.startsWith("zh-hant")) return "zh-TW";
   if (nav.startsWith("zh")) return "zh-CN";
   if (nav.startsWith("en")) return "en";
+  if (nav.startsWith("ru")) return "ru";
   return "zh-CN";
 }
 
