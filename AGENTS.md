@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guidance for AI coding agents working on **tdeeeg** (tdgram) — a Telegram desktop client.
+Guidance for AI coding agents working on **tdeeeg** — a Telegram desktop client.
 
 ## Project overview
 

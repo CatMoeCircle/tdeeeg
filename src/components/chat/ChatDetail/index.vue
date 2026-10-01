@@ -2190,6 +2190,7 @@ watch(
     async () => {
         await nextTick();
         scheduleMeasureBubbleWidths();
+        refreshScrollMetrics();
     },
     { immediate: true }
 );
@@ -2199,8 +2200,15 @@ let bubbleWidthObserver: ResizeObserver | null = null;
 watch(messagesContainer, (el) => {
     if (bubbleWidthObserver) bubbleWidthObserver.disconnect();
     bubbleWidthObserver = null;
+    scrollMetrics.h = 0;
+    scrollMetrics.c = 0;
     if (el) {
-        bubbleWidthObserver = new ResizeObserver(() => scheduleMeasureBubbleWidths());
+        refreshScrollMetrics(el);
+        bubbleWidthObserver = new ResizeObserver(() => {
+            scheduleMeasureBubbleWidths();
+            // clientHeight 随窗口/顶栏变化；scrollHeight 在下一次预取前再读
+            scrollMetrics.c = el.clientHeight;
+        });
         bubbleWidthObserver.observe(el);
     }
 });
@@ -2278,6 +2286,7 @@ onUnmounted(() => {
         cancelAnimationFrame(measureBubbleRaf);
         measureBubbleRaf = 0;
     }
+    cancelHistoryPrefetch();
     if (readVisibilityTimer !== null) window.clearTimeout(readVisibilityTimer);
     if (chatLoadRetryTimer !== null) window.clearTimeout(chatLoadRetryTimer);
     if (localDraftTimer !== null) {
@@ -2389,11 +2398,12 @@ const handleUpdate = async (update: Update) => {
                 break;
             }
 
+            // 先读贴底状态再写列表：append 后立刻读布局会和 patch 抢强制回流
+            const atBottom = isAtBottom();
             if (!messages.value.find(m => m.id === msg.id)) {
                 appendMessages([msg]);
             }
 
-            const atBottom = isAtBottom();
             newMessageIds.value.add(msg.id);
             if (senderIsMe || atBottom) {
                 showScrollButton.value = false;
@@ -3405,6 +3415,7 @@ async function loadHistoryOlder(loadChatId: number, gen: number): Promise<boolea
         const el = messagesContainer.value;
         if (el) {
             lastStickyScrollTop = el.scrollTop;
+            refreshScrollMetrics(el);
             updateStickyDate(el);
         }
 
@@ -3467,6 +3478,7 @@ async function loadHistoryNewer(loadChatId: number, gen: number): Promise<boolea
         appendMessages(unique);
         refreshWindowReachesLatest();
         await nextTick();
+        refreshScrollMetrics();
         return true;
     } finally {
         isLoadingMore.value = false;
@@ -3716,6 +3728,28 @@ async function handleChangeSender(senderId: import('tdlib-types').MessageSender)
 }
 
 // ==================== Scroll Management ====================
+/**
+ * 滚动路径布局缓存：scrollHeight/clientHeight 在加载/消息变化后刷新。
+ * onScroll 读 scrollTop + 本缓存即可做预取判断，避免高频读写交错强制回流。
+ */
+const scrollMetrics = { h: 0, c: 0 };
+
+function refreshScrollMetrics(el?: HTMLElement | null) {
+    const target = el ?? messagesContainer.value;
+    if (!target) return;
+    scrollMetrics.h = target.scrollHeight;
+    scrollMetrics.c = target.clientHeight;
+}
+
+/** 历史预取：scroll 只调度，真正读边界并加载放到下一帧（读写分离） */
+let historyPrefetchRaf = 0;
+function cancelHistoryPrefetch() {
+    if (historyPrefetchRaf) {
+        cancelAnimationFrame(historyPrefetchRaf);
+        historyPrefetchRaf = 0;
+    }
+}
+
 /** 滚动稳定后，将当前视口中的未读消息批量标记为已读 */
 function scheduleVisibleMessagesRead() {
     if (!isReady.value) return;
@@ -3791,11 +3825,13 @@ async function markVisibleMessagesAsRead() {
     }
 }
 
-/** 检测是否在底部附近 */
+/** 检测是否在底部附近（优先用缓存的 scrollHeight/clientHeight，减少滚动路径布局读） */
 const isAtBottom = (threshold = 150): boolean => {
     const el = messagesContainer.value;
     if (!el) return true;
-    return el.scrollTop + el.clientHeight >= el.scrollHeight - threshold;
+    const h = scrollMetrics.h || el.scrollHeight;
+    const c = scrollMetrics.c || el.clientHeight;
+    return el.scrollTop + c >= h - threshold;
 };
 
 /** 滚动到底部（标准 flex-col：scrollTop = scrollHeight - clientHeight） */
@@ -4118,13 +4154,13 @@ function flushScheduledBrowsePosSave(id: number, tid?: number | null) {
     captureBrowsePosition(el, id, tid);
 }
 
-const onScroll = async (e: Event) => {
+const onScroll = (e: Event) => {
     // 首屏「定位/补齐但尚未露出」阶段：忽略滚动事件，
     // 避免程序化 scrollTop 触发加载，或把中间态写入上次浏览位置缓存。
     if (!listRevealed.value) return;
 
     const el = e.currentTarget as HTMLElement;
-    // 滚动方向：向下（scrollTop 增大）隐藏吸顶日期，向上（减小）重新显示
+    // 滚动路径只读 scrollTop + 缓存的 H/C，避免与后续写交错强制回流
     const nextTop = el.scrollTop;
     if (nextTop > lastStickyScrollTop + 1) {
         stickyDateHidden.value = true;
@@ -4136,9 +4172,10 @@ const onScroll = async (e: Event) => {
     // rAF 合帧，避免高频 scroll 事件每次都触发 DOM 测量
     scheduleUpdateStickyDate(el);
 
-    const H = el.scrollHeight;
-    const C = el.clientHeight;
-    const T = el.scrollTop;
+    if (!scrollMetrics.h || !scrollMetrics.c) refreshScrollMetrics(el);
+    const H = scrollMetrics.h;
+    const C = scrollMetrics.c;
+    const T = nextTop;
     const atBottom = T + C >= H - SCROLL_PREFETCH_PX;
 
     // 记录当前浏览位置（用户手动滚动时 debounce 写入顶部可见消息）
@@ -4170,6 +4207,25 @@ const onScroll = async (e: Event) => {
     scheduleVisibleMessagesRead();
 
     if (!chatId.value || !isReady.value) return;
+
+    // 历史预取推迟到下一帧：本帧只做 UI 状态，加载（写 DOM）与滚动读分离
+    cancelHistoryPrefetch();
+    historyPrefetchRaf = requestAnimationFrame(() => {
+        historyPrefetchRaf = 0;
+        void maybePrefetchHistory(el);
+    });
+};
+
+/** rAF 内再读一次边界并按需拉历史（与 scroll 读路径分离） */
+async function maybePrefetchHistory(el: HTMLElement) {
+    if (!listRevealed.value || !chatId.value || !isReady.value) return;
+    if (Date.now() < scrollLoadSuppressedUntil) return;
+    if (isLoadingMore.value) return;
+
+    refreshScrollMetrics(el);
+    const H = scrollMetrics.h;
+    const C = scrollMetrics.c;
+    const T = el.scrollTop;
     const scrollGen = loadGeneration;
     const loadChat = chatId.value;
 
@@ -4181,15 +4237,12 @@ const onScroll = async (e: Event) => {
         return;
     }
 
-    if (isLoadingMore.value) return;
-
     // 距边预取，降低高速滚动空白
     const atTop = T <= SCROLL_PREFETCH_PX;
     const nearBottom = T + C >= H - SCROLL_PREFETCH_PX;
-
-    // jump / normal 共用同一套两端扩展；exhausted 标志按模式读取
     if (messages.value.length === 0) return;
 
+    // jump / normal 共用同一套两端扩展；exhausted 标志按模式读取
     if (atTop && !isOlderExhausted()) {
         await loadHistoryOlder(loadChat, scrollGen);
         return;
@@ -4197,7 +4250,7 @@ const onScroll = async (e: Event) => {
     if (nearBottom && !isNewerDirectionExhausted()) {
         await loadHistoryNewer(loadChat, scrollGen);
     }
-};
+}
 
 // ==================== Send Message ====================
 /**

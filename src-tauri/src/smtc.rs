@@ -1,11 +1,13 @@
 //! Windows SMTC（System Media Transport Controls）——系统媒体控件 / 锁屏播放卡片。
 //!
-//! WebView2 的 `navigator.mediaSession` 也会向 SMTC 注册，但源应用身份取自
-//! `msedgewebview2.exe`，显示名常为「未知应用」。这里在 **宿主进程** 用
+//! WebView2 的 HTML5 Audio 会经 Chromium `HardwareMediaKeyHandling` →
+//! `MediaKeysListenerManager` 注册一条 SMTC（源应用是 `msedgewebview2.exe`，
+//! 显示名常为「未知应用」）。根治方式是在 WebView2 启动参数里
+//! `--disable-features=HardwareMediaKeyHandling`（见 `main.rs`），让 WebView2
+//! 进程根本不创建 SMC。这里在 **宿主进程** 用
 //! `ISystemMediaTransportControlsInterop::GetForWindow` 发布会话，并配合
 //! [`crate::toast_identity`] 的进程 AUMID + 注册表 DisplayName，使系统显示
-//! 正确应用名。Windows 上前端应改走本模块，不再更新 webview MediaSession，
-//! 避免出现两条会话。
+//! 正确应用名。前端不更新 webview MediaSession。
 
 /// 与前端约定的控制事件名。
 pub const CONTROL_EVENT: &str = "smtc-control";

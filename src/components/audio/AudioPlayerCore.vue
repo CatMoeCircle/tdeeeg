@@ -18,6 +18,8 @@ const audioRef = ref<HTMLAudioElement | null>(null);
  * Windows 上必须走 Rust 原生 SMTC：
  * WebView2 的 navigator.mediaSession 会把源应用标成 msedgewebview2（显示「未知应用」），
  * 且若同时启用会出现两条系统媒体会话。其它平台继续用 Media Session API。
+ * WebView2 自身的 SMTC 由启动参数 --disable-features=HardwareMediaKeyHandling 关闭，
+ * 前端不再往 webview MediaSession 写任何状态。
  */
 const isWindows = /Windows/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '');
 const useNativeSmtc = isWindows;
@@ -25,21 +27,6 @@ const useNativeSmtc = isWindows;
 const mediaSession =
     typeof navigator !== 'undefined' && 'mediaSession' in navigator ? navigator.mediaSession : null;
 const hasMediaSession = !!mediaSession && !useNativeSmtc;
-
-/**
- * Windows：HTML5 Audio 播放会让 WebView2 自动注册一条 SMTC（源应用是
- * msedgewebview2，显示「未知应用」，标题回落到 document.title）。
- * 显式把 playbackState 固定为 none，压掉这条，只保留 Rust 原生 SMTC。
- */
-function suppressWebviewSmtc() {
-    if (!useNativeSmtc || !mediaSession) return;
-    try {
-        mediaSession.metadata = null;
-        mediaSession.playbackState = 'none';
-    } catch {
-        // ignore
-    }
-}
 
 /** 将当前曲目同步到 Media Session（含封面）——非 Windows 回退路径 */
 function syncMediaSession() {
@@ -158,7 +145,6 @@ function syncNativeSmtcMetadata() {
 
 /** 同步原生 SMTC 播放状态与进度（Windows） */
 function syncNativeSmtcPlayback() {
-    if (useNativeSmtc) suppressWebviewSmtc();
     void invoke('smtc_update_playback', {
         playing: player.isPlaying,
         positionSecs: player.currentTime || 0,
@@ -253,7 +239,6 @@ let unlistenSmtc: UnlistenFn | null = null;
 
 onMounted(async () => {
     bindMediaActionHandlers();
-    suppressWebviewSmtc();
     pushSmtc(true);
     if (useNativeSmtc) {
         try {
@@ -345,7 +330,6 @@ watch(() => player.isPlaying, (playing) => {
     } else if (!playing && !audio.paused) {
         audio.pause();
     }
-    suppressWebviewSmtc();
     // 同步系统媒体控件播放状态（低频，元数据路径）
     pushSmtc();
 });
@@ -380,8 +364,6 @@ function onTimeUpdate() {
     // 进度更新：高频且轻量（requestAnimationFrame 合并，仅 setPositionState），
     // 避免在视图切换等主线程繁忙时段造成 SMTC 大量重建而卡慢音频。
     pushPosition();
-    // 播放期间 Chromium 可能重新拉起 WebView2 SMTC，低频压掉
-    suppressWebviewSmtc();
 }
 
 function onLoaded() {
@@ -411,8 +393,6 @@ function onError() {
 
 function onPlay() {
     player.isPlaying = true;
-    // Chromium 在 HTML5 Audio 开始播放时会自动注册 WebView2 SMTC，这里立刻压掉
-    suppressWebviewSmtc();
 }
 
 function onPause() {

@@ -12,7 +12,12 @@ fn main() {
         const EXTRA_ARGS: &[&str] = &[];
 
         let mut args = vec![
-            "--disable-features=ElasticOverscroll",
+            // HardwareMediaKeyHandling 在 Windows 默认开启，会让 WebView2 进程
+            // 经 MediaKeysListenerManager 创建自己的 SMTC 单例，与宿主 Rust 原生
+            // SMTC 抢系统媒体会话（源应用显示 msedgewebview2 / 未知应用）。
+            // 关掉后 WebView2 不再向 Windows 注册媒体会话，只保留原生一条。
+            // 仅影响 WebView2 的媒体键/SMTC 集成，不影响 HTML5 Audio 出声。
+            "--disable-features=ElasticOverscroll,HardwareMediaKeyHandling",
             "--enable-features=msWebView2EnableDraggableRegions",
         ];
         args.extend(EXTRA_ARGS);

@@ -557,6 +557,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
     if (scrollSyncTimer !== null) window.clearTimeout(scrollSyncTimer);
+    if (listScrollHoldTimer !== null) window.clearTimeout(listScrollHoldTimer);
+    if (listLoadMoreRaf) cancelAnimationFrame(listLoadMoreRaf);
     resetProgrammaticScroll();
     trackResizeObserver?.disconnect();
     trackResizeObserver = null;
@@ -718,6 +720,25 @@ function lockReorderAnim() {
     lastReorderAnimAt = performance.now();
 }
 
+/**
+ * 滚动期间锁定 FLIP：滚动本身 + tdlib 列表更新叠加时，
+ * TransitionGroup 的 getPosition/forceReflow 会成为强制回流热点。
+ * 停稳一小段时间后才允许再播排序动画。
+ */
+const listScrollHold = ref(false);
+let listScrollHoldTimer: number | null = null;
+const LIST_SCROLL_REORDER_LOCK_MS = 150;
+
+function holdReorderAnimDuringListScroll() {
+    listScrollHold.value = true;
+    lastReorderAnimAt = performance.now();
+    if (listScrollHoldTimer !== null) window.clearTimeout(listScrollHoldTimer);
+    listScrollHoldTimer = window.setTimeout(() => {
+        listScrollHoldTimer = null;
+        listScrollHold.value = false;
+    }, LIST_SCROLL_REORDER_LOCK_MS);
+}
+
 watch(tabsWithContent, (tabs) => {
     // 只关心真实顺序变化：内容/未读数更新不会触发 -move 动画，故不消耗锁额度
     let reordered = false;
@@ -750,9 +771,10 @@ watch(() => route.params.id, (id) => {
  * 最终生效的 TransitionGroup name：
  * 聊天详情打开期间强制锁定——用户焦点在详情，列表 FLIP 只会和
  * 消息列表测量/滚动抢主线程，不值得播。
+ * 列表滚动期间同样锁定，避免滚动中 FLIP 测量造成丢帧。
  */
 const effectiveReorderAnimName = computed(() =>
-    isChatOpen.value ? 'chat-list-locked' : reorderAnimName.value
+    isChatOpen.value || listScrollHold.value ? 'chat-list-locked' : reorderAnimName.value
 );
 
 // 切进/切出聊天详情：锁掉重排窗口内的 FLIP
@@ -1345,11 +1367,18 @@ watch(activeTab, (newTab) => {
     triggerLoadMore(newTab);
 });
 
+/** load-more 触摸检测：scroll 路径只记目标，布局读与触发合到下一帧 */
+let listLoadMoreRaf = 0;
 const onScroll = (e: Event, tabId: string) => {
-    const target = e.target as HTMLElement;
-    if (target.scrollHeight - target.scrollTop <= target.clientHeight + 50) {
-        triggerLoadMore(tabId);
-    }
+    holdReorderAnimDuringListScroll();
+    if (listLoadMoreRaf) return;
+    const target = e.currentTarget as HTMLElement;
+    listLoadMoreRaf = requestAnimationFrame(() => {
+        listLoadMoreRaf = 0;
+        if (target.scrollHeight - target.scrollTop <= target.clientHeight + 50) {
+            triggerLoadMore(tabId);
+        }
+    });
 };
 
 function buildChatListObject(tabKey: string): any {
