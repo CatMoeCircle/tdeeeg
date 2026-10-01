@@ -78,7 +78,11 @@ jobs:
           }
 
           # 构建 release body
+          $tdlibHash = "${{ github.event.inputs.tdlib_commit_hash }}"
           $body = "## TDEEEG v${{ github.event.inputs.version }}`n`n"
+          $body += "### 构建信息`n`n"
+          $body += "- TDLib commit: ``$tdlibHash```n"
+          $body += "- WebView2: 默认包在线安装 / ``-webview`` 包离线安装`n`n"
           if ($commits) {
             $body += "### 更新内容`n`n$($commits -join "`n")"
           } else {
@@ -209,15 +213,39 @@ jobs:
       # 复用上一步已编译产物；应用名仍为 tdeeeg，仅安装包文件名加 -webview 后缀
       # webview 变体 createUpdaterArtifacts=false，无需 updater 签名
       - name: Bundle webview (offline WebView2) variant
-        run: bun run tauri:bundle:webview
+        run: |
+          if (-not (Test-Path "scripts/bundle-webview.ps1")) {
+            Write-Host "scripts/bundle-webview.ps1 NOT found!" -ForegroundColor Red
+            exit 1
+          }
+          & powershell -NoProfile -ExecutionPolicy Bypass -File scripts/bundle-webview.ps1 -Mode WebviewOnly
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "bundle-webview.ps1 failed with exit code $LASTEXITCODE" -ForegroundColor Red
+            exit $LASTEXITCODE
+          }
+        shell: pwsh
         env:
           TG_API_ID: ${{ secrets.TG_API_ID }}
           TG_API_HASH: ${{ secrets.TG_API_HASH }}
+
+      - name: Verify webview artifacts
+        run: |
+          $files = @()
+          $files += Get-ChildItem "src-tauri/target/release/bundle/nsis" -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -match "webview" }
+          $files += Get-ChildItem "src-tauri/target/release/bundle/msi" -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -match "webview" }
+          if (-not $files -or $files.Count -eq 0) {
+            Write-Host "No webview artifacts found!" -ForegroundColor Red
+            Get-ChildItem "src-tauri/target/release/bundle/nsis","src-tauri/target/release/bundle/msi" -ErrorAction SilentlyContinue | Format-Table Name, Length
+            exit 1
+          }
+          $files | Format-Table Name, @{N = "SizeMB"; E = { [math]::Round($_.Length / 1MB, 2) } } -AutoSize
+        shell: pwsh
 
       - name: Upload webview artifacts to release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
+          fail_on_unmatched_files: true
           files: |
             src-tauri/target/release/bundle/nsis/*webview*
             src-tauri/target/release/bundle/msi/*webview*

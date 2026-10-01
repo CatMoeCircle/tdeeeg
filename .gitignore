@@ -23,4 +23,6 @@ src-tauri/TDLib/
 *.njsproj
 *.sln
 *.sw?
-/scripts
+# 一次性/维护脚本默认不入库；发布打包脚本必须跟踪
+/scripts/*
+!/scripts/bundle-webview.ps1
