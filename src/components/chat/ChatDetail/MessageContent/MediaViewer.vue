@@ -272,13 +272,17 @@
                 ref="contentRef" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp"
                 @pointercancel="onPointerUp">
 
+                <!-- 平移量按屏幕像素存储；translate 处于 scale 之后会被放大 zoom 倍，
+                     故除以 zoom 抵消，保证拖拽始终 1:1 跟手（缩小时也不会变慢） -->
                 <img v-if="!isAnimation && currentMediaSrc" :src="currentMediaSrc" ref="imageRef"
-                    class="max-w-full max-h-full transition-transform duration-200 ease-out select-none"
-                    :style="{ transform: `scale(${zoom}) rotate(${rotation}deg) translate(${panX}px, ${panY}px)` }"
+                    class="max-w-full max-h-full select-none"
+                    :class="isDragging ? '' : 'transition-transform duration-200 ease-out'"
+                    :style="{ transform: `scale(${zoom}) rotate(${rotation}deg) translate(${panX / zoom}px, ${panY / zoom}px)` }"
                     draggable="false" @dblclick="toggleZoom" />
                 <video v-else-if="isAnimation && currentMediaSrc" :src="currentMediaSrc" autoplay loop muted playsinline
-                    class="max-w-full max-h-full transition-transform duration-200 ease-out select-none"
-                    :style="{ transform: `scale(${zoom}) rotate(${rotation}deg) translate(${panX}px, ${panY}px)` }"
+                    class="max-w-full max-h-full select-none"
+                    :class="isDragging ? '' : 'transition-transform duration-200 ease-out'"
+                    :style="{ transform: `scale(${zoom}) rotate(${rotation}deg) translate(${panX / zoom}px, ${panY / zoom}px)` }"
                     @dblclick="toggleZoom" />
 
                 <!-- 加载中：预览缩略图 + 待加载提示 + 进度（点击可关闭查看器） -->
@@ -495,6 +499,8 @@ const dragStartX = ref(0);
 const dragStartY = ref(0);
 const dragStartPanX = ref(0);
 const dragStartPanY = ref(0);
+// panX / panY 的单位是屏幕像素（等于指针位移），与 zoom 无关；
+// 模板里换算到图像坐标系（除以 zoom）后再做 translate。
 
 // Video state
 const videoRef = ref<HTMLVideoElement | null>(null);
