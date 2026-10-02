@@ -272,17 +272,18 @@
                 ref="contentRef" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp"
                 @pointercancel="onPointerUp">
 
-                <!-- 平移量按屏幕像素存储；translate 处于 scale 之后会被放大 zoom 倍，
-                     故除以 zoom 抵消，保证拖拽始终 1:1 跟手（缩小时也不会变慢） -->
+                <!-- 平移量按屏幕像素存储（等于指针位移），且作为最外层 translate：
+                     它不受后面的 scale / rotate 影响，因此无论缩放倍率与旋转角度如何，
+                     图像都严格跟随光标 1:1 位移（旋转后也不会变成相对方向移动） -->
                 <img v-if="!isAnimation && currentMediaSrc" :src="currentMediaSrc" ref="imageRef"
                     class="max-w-full max-h-full select-none"
                     :class="isDragging ? '' : 'transition-transform duration-200 ease-out'"
-                    :style="{ transform: `scale(${zoom}) rotate(${rotation}deg) translate(${panX / zoom}px, ${panY / zoom}px)` }"
+                    :style="{ transform: `translate(${panX}px, ${panY}px) scale(${zoom}) rotate(${rotation}deg)` }"
                     draggable="false" @dblclick="toggleZoom" />
                 <video v-else-if="isAnimation && currentMediaSrc" :src="currentMediaSrc" autoplay loop muted playsinline
                     class="max-w-full max-h-full select-none"
                     :class="isDragging ? '' : 'transition-transform duration-200 ease-out'"
-                    :style="{ transform: `scale(${zoom}) rotate(${rotation}deg) translate(${panX / zoom}px, ${panY / zoom}px)` }"
+                    :style="{ transform: `translate(${panX}px, ${panY}px) scale(${zoom}) rotate(${rotation}deg)` }"
                     @dblclick="toggleZoom" />
 
                 <!-- 加载中：预览缩略图 + 待加载提示 + 进度（点击可关闭查看器） -->
@@ -499,8 +500,8 @@ const dragStartX = ref(0);
 const dragStartY = ref(0);
 const dragStartPanX = ref(0);
 const dragStartPanY = ref(0);
-// panX / panY 的单位是屏幕像素（等于指针位移），与 zoom 无关；
-// 模板里换算到图像坐标系（除以 zoom）后再做 translate。
+// panX / panY 的单位是屏幕像素（等于指针位移），与 zoom / rotation 无关；
+// 模板中作为最外层 translate 使用，故拖拽始终 1:1 跟手。
 
 // Video state
 const videoRef = ref<HTMLVideoElement | null>(null);
@@ -1438,7 +1439,10 @@ function toggleZoom() {
     else zoom.value = 3;
 }
 function rotate90() {
-    rotation.value = (rotation.value + 90) % 360;
+    // 不取模（不用 % 360）：270 → 0 的回绕会让 transition 沿数值反向动画，
+    // 表现为第 4 次点击逆时针转回起点。累加则每次都顺时针 +90°，
+    // 外观与 mod 360 等价（360 即回到起点）。
+    rotation.value += 90;
 }
 
 /** 格式化日期：2026/01/03 12:45 */
