@@ -1424,5 +1424,13 @@
   "nav": {
     "openDownloads": "打开下载管理器",
     "closeDownloads": "关闭下载管理器"
+  },
+  "profileBadges": {
+    "verified": "已认证",
+    "scam": "诈骗",
+    "fake": "假冒",
+    "developer": "开发者",
+    "contributor": "贡献者",
+    "officialGroup": "官方群组"
   }
 }

@@ -1417,5 +1417,13 @@
   "nav": {
     "openDownloads": "Open download manager",
     "closeDownloads": "Close download manager"
+  },
+  "profileBadges": {
+    "verified": "Verified",
+    "scam": "Scam",
+    "fake": "Fake",
+    "developer": "Developer",
+    "contributor": "Contributor",
+    "officialGroup": "Official Group"
   }
 }

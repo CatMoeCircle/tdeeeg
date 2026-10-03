@@ -1417,5 +1417,13 @@
   "nav": {
     "openDownloads": "開啟下載管理員",
     "closeDownloads": "關閉下載管理員"
+  },
+  "profileBadges": {
+    "verified": "已認證",
+    "scam": "詐騙",
+    "fake": "假冒",
+    "developer": "開發者",
+    "contributor": "貢獻者",
+    "officialGroup": "官方群組"
   }
 }

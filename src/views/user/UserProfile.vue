@@ -29,13 +29,28 @@
               </span>
             </button>
 
-            <!-- 昵称 -->
+            <!-- 昵称：从左到右 = 认证/诈骗/虚假/自定义标识 → 会员 emoji → 开发者/贡献者标识 -->
             <h1 class="mt-3 text-2xl font-bold flex items-center gap-1.5 max-w-full">
               <span class="truncate">
                 <GlobalEmojiText :text="userName" />
               </span>
+              <!-- ① 认证/诈骗/虚假/自定义标识 -->
+              <VerifiedFilledIcon
+                v-if="!isDeletedProfile && userVerification?.is_verified && !customVerifyEmojiId"
+                class="text-blue-500 text-lg shrink-0" :title="t('profileBadges.verified')"
+                :fill-color='["currentColor", "transparent"]' :stroke-color='["currentColor", "#0052d9"]'
+                :stroke-width="1.5" />
+              <ShieldAlert v-if="!isDeletedProfile && userVerification?.is_scam"
+                class="text-red-500 text-lg shrink-0" :title="t('profileBadges.scam')" />
+              <ShieldAlert v-if="!isDeletedProfile && userVerification?.is_fake"
+                class="text-red-500 text-lg shrink-0" :title="t('profileBadges.fake')" />
+              <span v-if="!isDeletedProfile && customVerifyEmojiId" class="inline-flex shrink-0"
+                :title="customVerifyTitle">
+                <CustomEmojiInline :emojiId="customVerifyEmojiId" :size="20" />
+              </span>
+              <!-- ② 会员 emoji -->
               <button v-if="!isDeletedProfile && isSelf && user?.is_premium" type="button"
-                class="w-6 h-6 inline-flex items-center justify-center rounded-full hover:bg-blue-500/10 transition-colors"
+                class="w-6 h-6 inline-flex items-center justify-center rounded-full hover:bg-blue-500/10 transition-colors shrink-0"
                 @click.stop="openEmojiStatusPicker">
                 <CustomEmojiInline v-if="emojiStatusDisplayId" :emojiId="emojiStatusDisplayId" :size="22" />
                 <span v-else class="tgico tgico-emoji-status text-[20px]" />
@@ -43,11 +58,10 @@
               <!-- 他人资料：有 emoji 状态显示状态；纯会员（无状态）显示 ⭐ -->
               <template v-if="!isDeletedProfile && !isSelf && user?.is_premium">
                 <CustomEmojiInline v-if="emojiStatusDisplayId" :emojiId="emojiStatusDisplayId" :size="22" />
-                <span v-else class="text-base" :title="t('lng_premium_summary_title')">⭐</span>
+                <span v-else class="text-base shrink-0" :title="t('lng_premium_summary_title')">⭐</span>
               </template>
-              <VerifiedFilledIcon v-if="!isDeletedProfile && verificationType === 'verified'"
-                class="text-blue-500 text-lg" :title="t('lng_sr_chat_column_verified')" :fill-color='["currentColor", "transparent"]'
-                :stroke-color='["currentColor", "#0052d9"]' :stroke-width="1.5" />
+              <!-- ③ 开发者/贡献者标识（硬编码） -->
+              <ProfileRoleBadge v-if="!isDeletedProfile && userRoleBadge" :kind="userRoleBadge" />
             </h1>
 
             <!-- 在线状态 -->
@@ -117,15 +131,24 @@
                 sizeClass="!w-24 !h-24" no-background />
             </div>
 
-            <!-- 名称 -->
+            <!-- 名称：从左到右 = 认证/诈骗/虚假/自定义标识 → 官方群组标识 -->
             <h1 class="mt-3 text-2xl font-bold flex items-center gap-1.5 max-w-full">
               <span class="truncate">
                 <GlobalEmojiText
                   :text="isSecretChat && secretChatUser ? `${secretChatUser.first_name} ${secretChatUser.last_name}`.trim() || t('secretChat.label') : chatTitle" />
               </span>
-              <VerifiedFilledIcon v-if="isChatVerified" class="text-blue-500 text-lg" :title="t('lng_sr_chat_column_verified')"
+              <VerifiedFilledIcon v-if="chatVerification?.is_verified && !chatCustomVerifyEmojiId"
+                class="text-blue-500 text-lg shrink-0" :title="t('profileBadges.verified')"
                 :fill-color='["currentColor", "transparent"]' :stroke-color='["currentColor", "#0052d9"]'
                 :stroke-width="1.5" />
+              <ShieldAlert v-if="chatVerification?.is_scam" class="text-red-500 text-lg shrink-0"
+                :title="t('profileBadges.scam')" />
+              <ShieldAlert v-if="chatVerification?.is_fake" class="text-red-500 text-lg shrink-0"
+                :title="t('profileBadges.fake')" />
+              <span v-if="chatCustomVerifyEmojiId" class="inline-flex shrink-0" :title="chatCustomVerifyTitle">
+                <CustomEmojiInline :emojiId="chatCustomVerifyEmojiId" :size="20" />
+              </span>
+              <ProfileRoleBadge v-if="chatRoleBadge" :kind="chatRoleBadge" />
             </h1>
 
             <!-- 副标题 -->
@@ -1169,6 +1192,8 @@ import { formatDateLabel, isSameCalendarDay } from "../../components/chat/ChatDe
 import { requestCustomEmoji } from "../../store/customEmoji";
 import EncryptionKeyDialog from "../../components/user/EncryptionKeyDialog.vue";
 import { tdPlural } from "../../utils/tdLang";
+import ProfileRoleBadge from "../../components/common/ProfileRoleBadge.vue";
+import { getUserRoleBadge, getChatRoleBadge, type ProfileRoleBadgeKind } from "../../utils/profileBadges";
 
 // ===== 图标组件（lucide-vue-next，与项目其余部分一致） =====
 import {
@@ -1178,7 +1203,7 @@ import {
   Eye, LogOut, MessageSquareText, PhoneCall, Flag, Pencil,
   Search, Users, Hash, FileText, Link, Mic, Film, KeyRound,
   Info as InfoIcon, Phone as PhoneIcon, AtSign as AtSignIcon,
-  Calendar as CalendarIcon, IdCard as IdCardIcon,
+  Calendar as CalendarIcon, IdCard as IdCardIcon, ShieldAlert,
 } from "lucide-vue-next"; import { VerifiedFilledIcon } from "tdesign-icons-vue-next";
 const route = useRoute();
 const router = useRouter();
@@ -1235,11 +1260,20 @@ const isChatChannel = computed(() => {
   const t = chatObj.value?.type;
   return t?._ === 'chatTypeSupergroup' && !!t.is_channel;
 });
-/** 聊天是否已验证 */
-const isChatVerified = computed(() => {
-  const v = supergroupObj.value?.verification_status;
-  return !!v && v.is_verified;
+/** 聊天认证状态（名称旁标识槽位① 数据源） */
+const chatVerification = computed(() => supergroupObj.value?.verification_status);
+/** bot 提供的自定义验证标识 emoji（有值时替代默认蓝 V） */
+const chatCustomVerifyEmojiId = computed(() => {
+  const id = chatVerification.value?.bot_verification_icon_custom_emoji_id;
+  return id && id !== '0' ? id : '';
 });
+const chatCustomVerifyTitle = computed(() =>
+  supergroupFull.value?.bot_verification?.custom_description?.text || t('profileBadges.verified'),
+);
+/** 名称旁角色标识：官方群组（硬编码 chat id） */
+const chatRoleBadge = computed<ProfileRoleBadgeKind | null>(() =>
+  chatMode.value ? getChatRoleBadge(chatId.value) : null,
+);
 /** 聊天是否为超级群组 */
 const isChatSupergroup = computed(() => chatObj.value?.type?._ === 'chatTypeSupergroup');
 /** 聊天的展示标题（频道/群组名） */
@@ -1638,15 +1672,20 @@ async function setEmojiStatus(option?: EmojiStatusOption) {
   }
 }
 
-/** 认证/安全状态：verified（蓝 V）｜fake（假冒）｜scam（诈骗）｜none */
-const verificationType = computed<'verified' | 'fake' | 'scam' | 'none'>(() => {
-  const v = user.value?.verification_status;
-  if (!v) return 'none';
-  if (v.is_verified) return 'verified';
-  if (v.is_fake) return 'fake';
-  if (v.is_scam) return 'scam';
-  return 'none';
+/** 用户认证状态（名称旁标识槽位① 数据源）：verified｜scam｜fake｜bot 自定义标识 */
+const userVerification = computed(() => user.value?.verification_status);
+/** bot 提供的自定义验证标识 emoji（有值时替代默认蓝 V） */
+const customVerifyEmojiId = computed(() => {
+  const id = userVerification.value?.bot_verification_icon_custom_emoji_id;
+  return id && id !== '0' ? id : '';
 });
+const customVerifyTitle = computed(() =>
+  fullInfo.value?.bot_verification?.custom_description?.text || t('profileBadges.verified'),
+);
+/** 名称旁角色标识：开发者/贡献者（硬编码用户 id，贡献者为预留接口） */
+const userRoleBadge = computed<ProfileRoleBadgeKind | null>(() =>
+  chatMode.value ? null : getUserRoleBadge(userId.value),
+);
 const bioText = computed(() => fullInfo.value?.bio?.text || '');
 const birthdateInfo = computed<birthdate | undefined>(() => fullInfo.value?.birthdate);
 const birthdateText = computed(() => {

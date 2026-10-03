@@ -1416,5 +1416,13 @@
   "nav": {
     "openDownloads": "Открыть менеджер загрузок",
     "closeDownloads": "Закрыть менеджер загрузок"
+  },
+  "profileBadges": {
+    "verified": "Проверено",
+    "scam": "Мошенничество",
+    "fake": "Фейк",
+    "developer": "Разработчик",
+    "contributor": "Контрибьютор",
+    "officialGroup": "Официальная группа"
   }
 }
