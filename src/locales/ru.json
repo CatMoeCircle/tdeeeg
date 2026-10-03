@@ -168,6 +168,7 @@
     "usernameUnavailableCheck": "Сейчас нельзя проверить доступность",
     "usernameUpdated": "Имя пользователя обновлено",
     "usernameSetFailed": "Не удалось задать имя пользователя",
+    "userInfoLoadFailed": "Не удалось загрузить информацию о пользователе",
     "reorderFailed": "Не удалось изменить порядок",
     "actionFailed": "Действие не выполнено",
     "usernameActiveCount": "активных: {count}",

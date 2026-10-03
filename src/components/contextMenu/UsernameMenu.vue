@@ -3,14 +3,16 @@
         <Transition name="um-drop">
             <div v-if="visible" ref="rootRef" class="fixed z-10000" :style="menuStyle" @contextmenu.prevent.stop>
                 <div class="um-card" @click.stop>
-                    <!-- ① 顶部：用户名 + 复制 -->
-                    <button type="button" class="um-copy" @click="copyUsername">
-                        <AtSignIcon class="w-4 h-4" />
-                        <span class="min-w-0 flex-1 truncate text-left">{{ username }}</span>
-                        <span class="um-copy-hint">复制用户名</span>
-                    </button>
+                    <!-- ① 顶部：用户名 + 复制（用户提及可能没有公开用户名，此时整行隐藏） -->
+                    <template v-if="headerText">
+                        <button type="button" class="um-copy" @click="copyUsername">
+                            <AtSignIcon class="w-4 h-4" />
+                            <span class="min-w-0 flex-1 truncate text-left">{{ headerText }}</span>
+                            <span class="um-copy-hint">复制用户名</span>
+                        </button>
 
-                    <div class="um-divider"></div>
+                        <div class="um-divider"></div>
+                    </template>
 
                     <!-- ② 加载骨架屏 -->
                     <div v-if="loading" class="um-body">
@@ -28,7 +30,7 @@
                             <GhostIcon class="w-5 h-5 text-gray-400" />
                         </div>
                         <div class="flex-1 min-w-0">
-                            <p class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ username }}</p>
+                            <p v-if="headerText" class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ headerText }}</p>
                             <p class="text-xs text-gray-500 dark:text-gray-400">{{ errorMessage }}</p>
                         </div>
                     </div>
@@ -70,14 +72,18 @@ const router = useRouter();
 const rootRef = ref<HTMLElement | null>(null);
 const menuStyle = ref<Record<string, string>>({ left: "0px", top: "0px" });
 
+/** 顶部用户名行文案（@用户名）；用户提及且对方无公开用户名时为空 → 隐藏该行 */
+const headerText = computed(() => (username.value ? `@${username.value}` : ""));
+
 const typeLabel = computed(() =>
     display.value?.isChat ? "群组 / 频道" : "Telegram 用户"
 );
 
 /** 复制用户名 */
 async function copyUsername() {
+    if (!headerText.value) return;
     try {
-        await navigator.clipboard.writeText(`@${username.value}`);
+        await navigator.clipboard.writeText(headerText.value);
         await MessagePlugin.success({ content: "已复制用户名", placement: "top-right" });
         closeUsernameMenu();
     } catch (e) {
@@ -85,12 +91,16 @@ async function copyUsername() {
     }
 }
 
-/** 前往：跳转到该会话资料页 */
+/** 前往：用户提及 → 用户资料页；@用户名解析出的会话 → 会话 */
 function go() {
     const d = display.value;
     if (!d) return;
     closeUsernameMenu();
-    router.push(`/home/chat/${d.chatId}`);
+    if (d.userId) {
+        router.push({ name: "user-profile", params: { id: String(d.userId) } });
+    } else if (d.chatId) {
+        router.push(`/home/chat/${d.chatId}`);
+    }
 }
 
 /** 关闭（点外部 / Esc） */

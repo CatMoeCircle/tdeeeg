@@ -168,6 +168,7 @@
     "usernameUnavailableCheck": "暫時無法檢查可用性",
     "usernameUpdated": "用戶名已更新",
     "usernameSetFailed": "設定用戶名失敗",
+    "userInfoLoadFailed": "無法載入使用者資訊",
     "reorderFailed": "排序失敗",
     "actionFailed": "操作失敗",
     "usernameActiveCount": "{count} 個啟用",

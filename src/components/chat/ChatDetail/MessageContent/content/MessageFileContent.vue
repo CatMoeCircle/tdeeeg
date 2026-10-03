@@ -115,7 +115,8 @@
                 <a v-else-if="segment.href" :href="segment.href"
                     class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
                     :class="[segment.className, captionLoadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
-                    @click.prevent.stop="handleCaptionSegmentClick($event, segment)">{{ segment.text
+                    @click.prevent.stop="handleCaptionSegmentClick($event, segment)"
+                    @contextmenu="handleCaptionSegmentContextMenu($event, segment)">{{ segment.text
                     }}</a>
                 <span v-else
                     :class="[segment.className, (segment.copyable || segment.isHashtag) ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
@@ -173,6 +174,7 @@ import { settings } from '../../../../../store/settings';
 import { getInlineTranslation, isTranslateReplaceDisplay } from '../../../../../store/translate';
 import { requestInsertCommand } from '../../../../../store/commandInsert';
 import { requestHashtagSearch } from '../../../../../store/hashtagSearch';
+import { openUsernameMenu, openUserMenuById } from '../../../../../store/usernameMenu';
 import { openContextMenu } from '../../../../../store/contextMenu';
 import { getChatCategory } from '../../../../../utils/autoDownload';
 import { useAudioPlayerStore } from '../../../../../store/audioPlayer';
@@ -317,6 +319,12 @@ type CaptionSegment = {
     copyable?: boolean;
     /** 是否为 bot 命令（/command），点击后插入输入框（可设置） */
     isCommand?: boolean;
+    /** 是否为 @用户名 提及（textEntityTypeMention），右键打开用户资料菜单 */
+    isMention?: boolean;
+    /** 是否为「名字提及」（textEntityTypeMentionName），右键打开对应用户资料菜单 */
+    isMentionName?: boolean;
+    /** 「名字提及」指向的用户 id */
+    mentionUserId?: number;
     /** 是否为 #话题标签（textEntityTypeHashtag），点击激活聊天内搜索，右键复制 */
     isHashtag?: boolean;
     /** 是否为剧透（点击后揭示显示） */
@@ -385,9 +393,14 @@ const captionSegments = computed<CaptionSegment[]>(() => {
         const className = activeEntities.map(getEntityClass).filter(Boolean).join(' ');
         const copyable = activeEntities.some(e => isCopyableEntity(e));
         const isCommand = activeEntities.some(e => e.type._ === 'textEntityTypeBotCommand');
+        const isMention = activeEntities.some(e => e.type._ === 'textEntityTypeMention');
+        const mentionNameEntity = activeEntities.find(e => e.type._ === 'textEntityTypeMentionName');
+        const mentionUserId = mentionNameEntity
+            ? Number((mentionNameEntity.type as any).user_id) || undefined
+            : undefined;
         const isHashtag = activeEntities.some(e => e.type._ === 'textEntityTypeHashtag');
         const isSpoiler = activeEntities.some(e => e.type._ === 'textEntityTypeSpoiler');
-        return { text: segmentText, href, className, copyable, isCommand, isHashtag, isSpoiler };
+        return { text: segmentText, href, className, copyable, isCommand, isMention, isMentionName: !!mentionUserId, mentionUserId, isHashtag, isSpoiler };
     });
 });
 
@@ -467,16 +480,28 @@ function handleCaptionSegmentClick(_event: MouseEvent, segment: CaptionSegment) 
     }
 }
 
-/** 右击 #话题标签：弹出「复制」菜单 */
+/** 右击 #话题标签：弹出「复制」菜单；右击 @用户名 /「名字提及」：打开对应用户资料菜单 */
 function handleCaptionSegmentContextMenu(e: MouseEvent, segment: CaptionSegment) {
-    if (!segment.isHashtag || !segment.text) return;
+    if (segment.isHashtag && segment.text) {
+        e.preventDefault();
+        e.stopPropagation();
+        openContextMenu(e.clientX, e.clientY, [{
+            key: 'copy-hashtag',
+            label: t('lng_mac_menu_copy'),
+            onClick: () => copyToClipboard(segment.text),
+        }], e.currentTarget as HTMLElement | null);
+        return;
+    }
+    if (segment.isMentionName && segment.mentionUserId) {
+        e.preventDefault();
+        e.stopPropagation();
+        openUserMenuById(segment.mentionUserId, e.clientX, e.clientY);
+        return;
+    }
+    if (!segment.isMention || !segment.text) return;
     e.preventDefault();
     e.stopPropagation();
-    openContextMenu(e.clientX, e.clientY, [{
-        key: 'copy-hashtag',
-        label: t('lng_mac_menu_copy'),
-        onClick: () => copyToClipboard(segment.text),
-    }], e.currentTarget as HTMLElement | null);
+    openUsernameMenu(segment.text, e.clientX, e.clientY);
 }
 
 async function openCaptionLink(href: string) {

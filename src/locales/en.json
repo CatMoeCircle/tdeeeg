@@ -168,6 +168,7 @@
     "usernameUnavailableCheck": "Cannot check availability right now",
     "usernameUpdated": "Username updated",
     "usernameSetFailed": "Failed to set username",
+    "userInfoLoadFailed": "Failed to load user info",
     "reorderFailed": "Failed to reorder",
     "actionFailed": "Action failed",
     "usernameActiveCount": "{count} active",

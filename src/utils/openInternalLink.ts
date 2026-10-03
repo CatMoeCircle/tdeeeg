@@ -19,6 +19,7 @@ import i18n from "../i18n";
  *   - internalLinkTypeProxy      → 弹出「添加代理」确认，确认后 addProxy
  *   - internalLinkTypeBotStart   → searchPublicChat 解析出 bot，跳转其私聊；autostart 时自动发送 /start 深链接
  *   - internalLinkTypeStory      → searchPublicChat + getStory，打开故事播放器
+ *   - tg://user?id=N             → 用户资料页（消息中的「名字提及」）
  *   - 其他 / 解析失败            → 外部浏览器打开（openUrl）
  *
  * **同聊天优化**：若链接目标消息所在 chat 与当前打开的聊天一致（params.id 匹配），
@@ -33,6 +34,14 @@ import i18n from "../i18n";
  * 注意：调用方组件负责自己的加载态（如 MessageTextContent 的 loadingLinks），本函数只负责解析与跳转。
  */
 export async function resolveInternalLink(href: string, router: Router): Promise<boolean> {
+    // tg://user?id=N：消息里的「名字提及」（textEntityTypeMentionName）指向用户 id。
+    // TDLib 的 getInternalLinkType 不认这种链接（会落到「未知深链接」并被丢给外部浏览器），
+    // 而资料页本就按 user id 路由，直接内部跳转。
+    const mentionUserId = /^tg:\/\/user\?id=(\d+)/.exec(href)?.[1];
+    if (mentionUserId) {
+        await router.push({ name: "user-profile", params: { id: mentionUserId } });
+        return true;
+    }
     try {
         const linkType = await tdlibSend({ _: "getInternalLinkType", link: href }) as InternalLinkType;
 

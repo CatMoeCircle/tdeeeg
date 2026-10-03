@@ -270,7 +270,7 @@ import { useColors, rgbToCss } from '../../../../../store/colors';
 import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
 import { requestInsertCommand } from '../../../../../store/commandInsert';
 import { requestHashtagSearch } from '../../../../../store/hashtagSearch';
-import { openUsernameMenu } from '../../../../../store/usernameMenu';
+import { openUsernameMenu, openUserMenuById } from '../../../../../store/usernameMenu';
 import { openContextMenu } from '../../../../../store/contextMenu';
 import { settings } from '../../../../../store/settings';
 import { getInlineTranslation, isTranslateReplaceDisplay } from '../../../../../store/translate';
@@ -349,6 +349,10 @@ type Segment = {
     isCommand?: boolean;
     /** 是否为 @用户名 提及（textEntityTypeMention），右键打开用户资料菜单 */
     isMention?: boolean;
+    /** 是否为「名字提及」（textEntityTypeMentionName，实体直接带 user_id），右键打开该用户资料菜单 */
+    isMentionName?: boolean;
+    /** 「名字提及」指向的用户 id */
+    mentionUserId?: number;
     /** 是否为 #话题标签（textEntityTypeHashtag），点击激活聊天内搜索，右键复制 */
     isHashtag?: boolean;
     /** 是否在引用块内 */
@@ -468,11 +472,16 @@ const segments = computed<Segment[]>(() => {
         const isCommand = activeEntities.some(e => e.type._ === 'textEntityTypeBotCommand');
         // 是否为 @用户名 提及：右键打开用户资料菜单
         const isMention = activeEntities.some(e => e.type._ === 'textEntityTypeMention');
+        // 是否为「名字提及」（只带 user_id 的提及）：右键打开对应用户的资料菜单
+        const mentionNameEntity = activeEntities.find(e => e.type._ === 'textEntityTypeMentionName');
+        const mentionUserId = mentionNameEntity
+            ? Number((mentionNameEntity.type as any).user_id) || undefined
+            : undefined;
         // 是否为 #话题标签：点击激活聊天内搜索，右键复制
         const isHashtag = activeEntities.some(e => e.type._ === 'textEntityTypeHashtag');
         // 是否为剧透：点击后揭示显示（仿 Web Telegram）
         const isSpoiler = activeEntities.some(e => e.type._ === 'textEntityTypeSpoiler');
-        return { text: segmentText, href, className, copyable, isCommand, isMention, isHashtag, isBlockquote, blockquoteType, isCodeBlock, codeLanguage, isSpoiler };
+        return { text: segmentText, href, className, copyable, isCommand, isMention, isMentionName: !!mentionUserId, mentionUserId, isHashtag, isBlockquote, blockquoteType, isCodeBlock, codeLanguage, isSpoiler };
     });
 });
 
@@ -654,7 +663,8 @@ function handleSegmentClick(_event: MouseEvent, segment: Segment) {
     }
 }
 
-/** 右击 @用户名 提及：打开用户资料菜单；右击 #话题标签：弹出「复制」菜单（非以上段直接忽略，不阻止默认） */
+/** 右击 @用户名 提及：打开用户资料菜单；右击「名字提及」：按 user_id 打开对应用户资料菜单；
+ *  右击 #话题标签：弹出「复制」菜单（非以上段直接忽略，不阻止默认） */
 function handleSegmentContextMenu(e: MouseEvent, segment: Segment) {
     if (segment.isHashtag) {
         if (!segment.text) return;
@@ -665,6 +675,12 @@ function handleSegmentContextMenu(e: MouseEvent, segment: Segment) {
             label: t('lng_mac_menu_copy'),
             onClick: () => copyToClipboard(segment.text),
         }], e.currentTarget as HTMLElement | null);
+        return;
+    }
+    if (segment.isMentionName && segment.mentionUserId) {
+        e.preventDefault();
+        e.stopPropagation();
+        openUserMenuById(segment.mentionUserId, e.clientX, e.clientY);
         return;
     }
     if (!segment.isMention || !segment.text) return;

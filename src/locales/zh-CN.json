@@ -175,6 +175,7 @@
     "usernameUnavailableCheck": "暂时无法检查可用性",
     "usernameUpdated": "用户名已更新",
     "usernameSetFailed": "设置用户名失败",
+    "userInfoLoadFailed": "无法加载用户信息",
     "reorderFailed": "排序失败",
     "actionFailed": "操作失败",
     "usernameActiveCount": "{count} 个活跃",
