@@ -1182,6 +1182,7 @@
     "repeatNone": "順序播放",
     "repeatOne": "單曲循環",
     "repeatAll": "列表循環",
+    "volume": "音量",
     "close": "關閉播放器"
   },
   "preview": {

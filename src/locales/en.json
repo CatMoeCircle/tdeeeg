@@ -1182,6 +1182,7 @@
     "repeatNone": "Play in order",
     "repeatOne": "Repeat one",
     "repeatAll": "Repeat all",
+    "volume": "Volume",
     "close": "Close player"
   },
   "preview": {

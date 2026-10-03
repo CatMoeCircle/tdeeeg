@@ -7,9 +7,11 @@
                 <!-- 背景遮罩 -->
                 <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
 
-                <!-- 面板：小屏为底部抽屉，sm 起为居中卡片，md 起左右分栏 -->
-                <div class="relative w-full sm:w-[420px] md:w-[680px] md:max-w-[calc(100vw-2rem)]
-                            max-h-[90vh] rounded-t-3xl sm:rounded-3xl overflow-hidden flex flex-col
+                <!-- 面板：小屏为底部抽屉，sm 起为居中卡片，md 起左右分栏。
+                     高度同时受绝对上限与视口 90vh 约束：窗口很高时长列表不会把卡片拉到过高，
+                     窗口很矮时又退回 90vh，不至于顶出视口 -->
+                <div class="relative w-full sm:w-[460px] md:w-[780px] md:max-w-[calc(100vw-2rem)]
+                            max-h-[90vh] md:max-h-[min(600px,90vh)] rounded-t-3xl sm:rounded-3xl overflow-hidden flex flex-col
                             bg-white/85 dark:bg-gray-900/85 backdrop-blur-2xl
                             shadow-[0_24px_64px_-16px_rgba(15,23,42,0.45)]
                             ring-1 ring-black/5 dark:ring-white/10">
@@ -45,7 +47,7 @@
 
                         <!-- 左栏（md 起）：大封面 + 曲目信息 + 进度 + 控制 -->
                         <div class="shrink-0 flex flex-col items-center px-6 pt-2 pb-6
-                                    md:w-[320px] md:justify-center md:px-7 md:pt-0 md:pb-7">
+                                    md:w-[360px] md:justify-center md:px-7 md:pt-0 md:pb-7">
                             <div class="relative">
                                 <!-- 封面光晕：让封面“浮”起来 -->
                                 <div v-if="heroCover"
@@ -54,7 +56,7 @@
                                     <img :src="heroCover" class="w-full h-full object-cover" />
                                 </div>
 
-                                <div class="relative w-44 h-44 md:w-[200px] md:h-[200px] rounded-2xl overflow-hidden
+                                <div class="relative w-44 h-44 md:w-[220px] md:h-[220px] rounded-2xl overflow-hidden
                                             shadow-2xl shadow-black/25 ring-1 ring-black/10 dark:ring-white/15
                                             bg-blue-500">
                                     <img v-if="heroCover" :src="heroCover" class="w-full h-full object-cover"
@@ -79,27 +81,15 @@
 
                             <!-- 进度条：可拖拽，拖动实时跟手，松手才 seek -->
                             <div class="w-full pt-4">
-                                <div class="group/progress relative py-2 cursor-pointer" @mousedown="handleProgressStart">
-                                    <div
-                                        class="relative h-1.5 rounded-full overflow-hidden bg-black/10 dark:bg-white/15 group-hover/progress:h-2 transition-[height]">
-                                        <div class="absolute inset-y-0 left-0 rounded-full bg-linear-to-r from-sky-400 to-blue-600"
-                                            :style="{ width: displayProgress + '%' }"></div>
-                                    </div>
-                                    <!-- 拖拽圆点：负 margin 让圆心落在进度末端 + 轨道中心 -->
-                                    <div class="absolute w-3.5 h-3.5 rounded-full bg-white shadow-md ring-1 ring-black/15
-                                                opacity-0 group-hover/progress:opacity-100 transition-opacity pointer-events-none"
-                                        :style="{
-                                            left: displayProgress + '%',
-                                            top: '50%',
-                                            marginLeft: '-7px',
-                                            marginTop: '-7px'
-                                        }"></div>
-                                </div>
+                                <!-- 越界拉伸上限取左栏水平内边距（px-6 = 24px），拉动时不会越出栏外 -->
+                                <SmoothSlider :model-value="progressValue" :max-value="progressMax"
+                                    :max-overflow="24" :disabled="progressMax <= 0" @update:model-value="onProgressUpdate"
+                                    @change="onProgressCommit" />
                                 <div class="flex justify-between">
                                     <span class="text-[11px] tabular-nums text-gray-500 dark:text-gray-400">{{
-                                        formatTime(player.currentTime) }}</span>
+                                        formatTime(progressValue) }}</span>
                                     <span class="text-[11px] tabular-nums text-gray-500 dark:text-gray-400">{{
-                                        formatTime(player.currentTrack?.duration || 0) }}</span>
+                                        formatTime(progressMax) }}</span>
                                 </div>
                             </div>
 
@@ -146,17 +136,16 @@
                                         <Volume1Icon v-else-if="player.volume > 0" class="w-[18px] h-[18px]" />
                                         <VolumeXIcon v-else class="w-[18px] h-[18px]" />
                                     </button>
-                                    <!-- 音量滑块：hover 区域从按钮顶连续到滑块，避免鼠标上移途中脱离 hover 导致滑块消失 -->
-                                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 hidden group-hover/vol:flex items-center
-                                                py-3 px-2.5 rounded-2xl bg-white/95 dark:bg-gray-800/95 backdrop-blur-md
-                                                shadow-xl ring-1 ring-black/5 dark:ring-white/10">
-                                        <input type="range" min="0" max="1" step="0.05"
-                                            class="w-20 h-1 appearance-none cursor-pointer rounded-full bg-gray-300 dark:bg-gray-600
-                                                   [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
-                                                   [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500
-                                                   [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:ring-2
-                                                   [&::-webkit-slider-thumb]:ring-white dark:[&::-webkit-slider-thumb]:ring-gray-800"
-                                            :value="player.volume" @input="onVolumeChange" />
+                                    <!-- 音量滑块：hover 区域从按钮顶连续到滑块，避免鼠标上移途中脱离 hover 导致滑块消失；
+                                         拖拽与回弹期间由 volumeActive 锁住显示，否则指针移出弹层会中途隐藏 -->
+                                    <div class="absolute bottom-full left-1/2 -translate-x-1/2 items-center
+                                                p-1.5 rounded-2xl bg-white/95 dark:bg-gray-800/95 backdrop-blur-md
+                                                shadow-xl ring-1 ring-black/5 dark:ring-white/10"
+                                        :class="volumeActive ? 'flex' : 'hidden group-hover/vol:flex'">
+                                        <ScrubField :label="t('player.volume')" suffix="%" size="md" :value="volumePercent"
+                                            :min="0" :max="100" :step="1" chip-color="transparent"
+                                            @change="onVolumeScrub" @update:dragging="volumeDragging = $event"
+                                            @update:settling="volumeSettling = $event" />
                                     </div>
                                 </div>
                             </div>
@@ -241,12 +230,25 @@ import { useUserStore } from '../../store/user';
 import { openContextMenu } from '../../store/contextMenu';
 import type { ContextMenuItem } from '../contextMenu/types';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
+import SmoothSlider from '../common/SmoothSlider.vue';
+import ScrubField from '../common/ScrubField.vue';
 
 const player = useAudioPlayerStore();
 const userStore = useUserStore();
 const router = useRouter();
 const { t } = useI18n();
 const previousVolume = ref(1);
+
+/** 音量百分比（0~100）：ScrubField 按整数百分比工作，store 侧存 0~1 */
+const volumePercent = computed(() => Math.round(player.volume * 100));
+
+/**
+ * 音量字段交互中（拖拽 + 松手回弹）：锁住 hover 弹层。
+ * 指针被拖到弹层外时松手，仅靠 hover 会让弹层立刻隐藏，回弹纠正动画就看不见了。
+ */
+const volumeDragging = ref(false);
+const volumeSettling = ref(false);
+const volumeActive = computed(() => volumeDragging.value || volumeSettling.value);
 
 /** 当前用户 id（判断是否为「自己个人资料」的歌曲） */
 const myUserId = computed(() => userStore.userProfile?.id);
@@ -365,49 +367,22 @@ function onTrackContextMenu(e: MouseEvent, track: AudioTrack, idx: number) {
     openContextMenu(e.clientX, e.clientY, items, e.currentTarget as HTMLElement);
 }
 
-/** 拖拽中即时显示的进度 (0~1)，拖动时优先使用本地值，松手后回退到 store */
-const dragRatio = ref<number | null>(null);
+/** 拖拽中的本地秒数：拖动时优先用它（跟手），松手 seek 后清空回退到 store */
+const dragValue = ref<number | null>(null);
 
-/** 实际渲染用的进度百分比：拖拽时用本地 dragRatio（跟手），否则用播放进度 */
-const displayProgress = computed(() => {
-    if (dragRatio.value !== null) return dragRatio.value * 100;
-    const track = player.currentTrack;
-    if (!track || track.duration === 0) return 0;
-    return Math.min((player.currentTime / track.duration) * 100, 100);
-});
+/** 取值范围上界 = 当前曲目时长 */
+const progressMax = computed(() => player.currentTrack?.duration || 0);
 
-/** 根据鼠标 X 计算进度比例 (0~1) */
-function calcRatio(el: HTMLElement, clientX: number): number {
-    const rect = el.getBoundingClientRect();
-    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+/** 实际渲染用的进度值（秒） */
+const progressValue = computed(() => dragValue.value ?? player.currentTime);
+
+function onProgressUpdate(value: number) {
+    dragValue.value = value;
 }
 
-/** 进度条拖拽：拖动只更新跟手位置，松手（onUp）时才真正 seek */
-function handleProgressStart(e: MouseEvent) {
-    const bar = e.currentTarget as HTMLElement;
-
-    const update = (clientX: number) => {
-        dragRatio.value = calcRatio(bar, clientX);
-    };
-
-    update(e.clientX);
-
-    const onMove = (ev: MouseEvent) => {
-        ev.preventDefault();
-        update(ev.clientX);
-    };
-
-    const onUp = () => {
-        if (dragRatio.value !== null && player.currentTrack) {
-            player.seek(dragRatio.value * player.currentTrack.duration);
-        }
-        dragRatio.value = null;
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-    };
-
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+function onProgressCommit(value: number) {
+    player.seek(value);
+    dragValue.value = null;
 }
 
 const repeatIcon = computed(() => {
@@ -433,9 +408,8 @@ const repeatTitle = computed(() => {
     }
 });
 
-function onVolumeChange(e: Event) {
-    const val = parseFloat((e.target as HTMLInputElement).value);
-    player.setVolume(val);
+function onVolumeScrub(percent: number) {
+    player.setVolume(percent / 100);
 }
 
 function toggleMute() {
