@@ -64,7 +64,7 @@
                 <Transition :name="suppressChromeAnim ? 'slide-up-locked' : 'slide-up'">
                     <!-- max-h-14：含 mt-1 顶距与 8px 进度热区 -->
                     <!-- 外边距由 MusicPlayerEntry 自身 mx-2 mt-1 提供，与分组页签对齐 -->
-                    <div v-if="!isChatOpen && !forumMode" class="overflow-hidden max-h-14 shrink-0">
+                    <div v-if="!chatPaneVisible && !forumMode" class="overflow-hidden max-h-14 shrink-0">
                         <MusicPlayerEntry compact />
                     </div>
                 </Transition>
@@ -440,6 +440,7 @@ import {
     leaveChat, isChatInFolder, toggleChatInFolder,
 } from '../contextMenu/chatActions';
 import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
+import { chatPaneVisible } from '../../store/chatPane';
 import FormattedTextInline from './FormattedTextInline.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 import { folderTabClass as sharedFolderTabClass, folderTabContainerClass, UI_GLASS_SURFACE } from '../../utils/folderPillsTabClass';
@@ -461,10 +462,15 @@ const props = defineProps<{
 const router = useRouter();
 const route = useRoute();
 
-/** 是否有聊天详情或话题列表打开（route 包含 chat id） */
+/**
+ * 路由是否指向某个聊天详情（只反映 URL，不代表右侧聊天面板真的在显示：
+ * 切到设置/联系人/归档栏目时 URL 已离开聊天，面板仍被 HomeView 保留）。
+ * 仅用于列表 FLIP 动画锁定；判断播放器入口让位请用 chatPaneVisible。
+ */
 const isChatOpen = computed(() => {
     return route.name === 'chat-detail' || route.name === 'chat-topic-detail';
 });
+
 const chatStore = useChatStore();
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);

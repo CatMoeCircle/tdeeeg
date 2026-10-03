@@ -30,8 +30,8 @@
             </button>
         </div>
 
-        <!-- 音乐播放器入口（聊天打开时由 ChatDetail 接管） -->
-        <div v-if="!isChatOpen" class="pb-1.5">
+        <!-- 音乐播放器入口（聊天面板打开时由 ChatDetail 接管，此处隐藏） -->
+        <div v-if="!chatPaneVisible" class="pb-1.5">
             <MusicPlayerEntry compact />
         </div>
 
@@ -114,6 +114,7 @@ import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import { computed, ref, onMounted } from 'vue';
 import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
+import { chatPaneVisible } from '../../store/chatPane';
 import formatStatus from '../../utils/status';
 import { tdlibSend } from '../../utils/tdlib';
 import { resolveInternalLink } from '../../utils/openInternalLink';
@@ -145,8 +146,6 @@ async function openOfficialGroup() {
         console.warn('openOfficialGroup failed:', e);
     }
 }
-
-const isChatOpen = computed(() => /^\/home\/chat\/\d+/.test(route.path));
 
 /** 用户状态显示文本：机器人显示「bot」，其余用 formatStatus 显示上次在线时间 */
 const userStatusText = computed(() => {

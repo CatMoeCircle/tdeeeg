@@ -3,8 +3,8 @@
         <div class="p-4 border-b border-gray-200 dark:border-gray-800">
             <h2 class="text-lg font-semibold">{{ t('lng_menu_contacts') }}</h2>
         </div>
-        <!-- 音乐播放器入口（聊天打开时由 ChatDetail 接管） -->
-        <div v-if="!isChatOpen" class="pb-1">
+        <!-- 音乐播放器入口（聊天面板打开时由 ChatDetail 接管，此处隐藏） -->
+        <div v-if="!chatPaneVisible" class="pb-1">
             <MusicPlayerEntry compact />
         </div>
         <div class="flex-1 overflow-y-auto custom-scrollbar p-2" v-smooth-wheel>
@@ -41,18 +41,16 @@ import { tdlibSend } from '../../utils/tdlib';
 import formatStatus from '../../utils/status';
 import { ArrowLeftRightIcon } from 'lucide-vue-next';
 import { onMounted, ref } from "vue"
-import { useRoute, useRouter } from 'vue-router';
-import { computed } from 'vue';
+import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
+import { chatPaneVisible } from '../../store/chatPane';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 
 import type { user } from 'tdlib-types';
 
-const route = useRoute();
 const router = useRouter();
-const isChatOpen = computed(() => /^\/home\/chat\/\d+/.test(route.path));
 
 /** 点击联系人行 → 打开该用户的个人资料页 */
 function openProfile(userId: number) {

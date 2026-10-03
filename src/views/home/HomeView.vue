@@ -67,6 +67,7 @@ import UsernameMenu from '../../components/contextMenu/UsernameMenu.vue';
 import DownloadsModule from '../../components/downloads/DownloadsModule.vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { settings } from '../../store/settings';
+import { setChatPaneVisible } from '../../store/chatPane';
 
 const route = useRoute();
 const { t } = useI18n();
@@ -177,6 +178,10 @@ const showActiveChat = computed(
         route.name !== 'user-profile' &&
         route.name !== 'chat-profile',
 );
+
+// 同步聊天面板的挂载状态：侧栏（对话/联系人/设置/归档列表）据此让出音乐播放器
+// 入口，避免切到设置、联系人等栏目时与对话顶部的那份重复显示。
+watch(showActiveChat, (visible) => setChatPaneVisible(visible), { immediate: true });
 
 // 聊天详情独立于二级导航路由。切换联系人、设置等栏目时，只更新中间栏，
 // 保留当前聊天组件，避免右侧聊天被 router-view 卸载。
