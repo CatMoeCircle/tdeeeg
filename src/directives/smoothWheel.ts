@@ -312,6 +312,9 @@ function onGlobalWheel(e: WheelEvent) {
     // 从事件目标向上找可滚链，逐个尝试；到边界则链到外层
     let el = findScrollableFrom(e.target instanceof Element ? e.target : null);
     while (el) {
+        // 标记了 data-no-smooth-wheel 的容器（如消息列表）不做平滑缓冲：
+        // 不 preventDefault，直接交给浏览器原生滚动，便于对比排查滚动手感问题
+        if (el.dataset.noSmoothWheel !== undefined) return;
         if (trySmoothScroll(el, e, deltaPx)) return;
         el = findScrollableFrom(el.parentElement);
     }

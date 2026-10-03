@@ -32,6 +32,7 @@
         <!-- Messages：始终挂载，定位完成前不可见 -->
         <div ref="messagesContainer"
             class="absolute inset-0 z-10 overflow-y-auto custom-scrollbar flex flex-col messages-scroll pb-15"
+            data-no-smooth-wheel
             :style="[topPaddingClass, tagBarMessagePadStyle, messagesContainerStyle]"
             @scroll.passive="onScroll">
 
@@ -329,6 +330,7 @@
         <!-- 向更旧方向加载指示器：浮层，不进滚动流。
              若作为滚动内容首个子节点，出现/消失会改 scrollHeight，贴顶时把内容顶起再落下。 -->
         <div v-if="isLoadingMore && loadingDirection === 'older'"
+            data-loading-older
             class="absolute left-0 right-0 z-20 text-center text-gray-400 text-sm py-3 pointer-events-none"
             :style="[topPaddingClass, tagBarMessagePadStyle]">
             {{ t('lng_context_seen_loading') }}
@@ -719,11 +721,12 @@ import type { ContextMenuItem } from '../../contextMenu/types';
 import { getMessagePlainText, getMessageFormattedText } from '../../../utils/messageText';
 import { applyTerminalFileToMessages, isTerminalFileUpdate } from '../../../utils/messageFileSnapshot';
 import {
-    captureViewportAnchor,
-    restoreViewportAnchor,
     withViewportLock,
     holdViewport,
-    type ViewportAnchor,
+    beginManualAnchor,
+    endManualAnchor,
+    beginLayoutCompensation,
+    compensateLayoutShift,
     type ViewportHold,
 } from '../../../utils/viewportLock';
 import {
@@ -4610,11 +4613,15 @@ function appendMessages(incoming: message[]) {
         return;
     }
     const el = messagesContainer.value;
-    const anchor: ViewportAnchor | null = el && listRevealed.value ? captureViewportAnchor(el) : null;
+    // 顶部裁剪会抬升锚点上方布局：手动增量补偿（与 hold 共享状态，避免叠加）；
+    // 无锚点时不接管，交给原生 scroll anchoring
+    const manual = !!(el && listRevealed.value && beginLayoutCompensation(el));
+    if (manual && el) beginManualAnchor(el);
     applyMessages([...messages.value, ...incoming], 'newer');
-    if (el && anchor) {
+    if (manual && el) {
         void nextTick().then(() => {
-            if (el.isConnected) restoreViewportAnchor(el, anchor);
+            if (el.isConnected) compensateLayoutShift(el);
+            endManualAnchor(el);
         });
     }
 }
@@ -6382,9 +6389,8 @@ async function handleScrollToBottom() {
 <style>
 .messages-scroll {
     min-height: 0;
-    /* 视口位置由 viewportLock 手动维护；关掉浏览器 scroll-anchoring，
-       避免与手动补偿叠加造成二次位移（闪跳）。 */
-    overflow-anchor: none;
+    /* 滚动锚定分工见 viewportLock.ts：平时原生 scroll anchoring 补偿
+       content-visibility/图片高度抖动；手动补偿期间由 beginManualAnchor 临时关闭。 */
 }
 
 .mi-fade-enter-active,
