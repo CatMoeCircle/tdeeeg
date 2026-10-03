@@ -3,11 +3,6 @@ import { copyFile, mkdir, readFile, stat, writeFile } from '@tauri-apps/plugin-f
 import { settings, type ChatWallpaperVisual } from '../store/settings';
 import i18n from '../i18n';
 
-/** RGB 整数转 CSS 颜色（Telegram 为 0xRRGGBB） */
-export function telegramColorToCss(color: number): string {
-  return `#${(color >>> 0).toString(16).padStart(6, '0')}`;
-}
-
 function guessImageMime(path: string): string {
   const ext = path.split(/[\\/]/).pop()?.split('.').pop()?.toLowerCase() ?? '';
   if (ext === 'png') return 'image/png';
@@ -155,7 +150,7 @@ export async function applySelectedWallpaper(
     const src = sourcePathForCopy || visual.path;
     if (src && (await fileExists(src))) {
       const copied = await copyToWallpaperDir(src, backgroundId);
-      if (copied) next = { kind: 'image', path: copied };
+      if (copied) next = { ...visual, path: copied };
     }
   }
 

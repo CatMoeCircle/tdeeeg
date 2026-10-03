@@ -33,6 +33,14 @@ export interface ChatWallpaperVisual {
   kind: "color" | "image";
   color?: string;
   path?: string;
+  /**
+   * 该壁纸是否已同步到 TDLib 云端默认背景。
+   * - `local`：纯本地使用，云端不知道它的存在（纯色壁纸），渲染时覆盖 TDLib 默认背景
+   * - `tg`：已作为默认背景写入云端（上传的本地图片 / 引用的已保存壁纸）
+   *
+   * 缺省表示旧数据：旧版本的纯色与图片都会上传，按 `tg` 处理。
+   */
+  source?: "local" | "tg";
 }
 
 interface Settings {

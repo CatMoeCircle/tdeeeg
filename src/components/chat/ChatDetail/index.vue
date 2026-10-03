@@ -1,14 +1,9 @@
 <template>
     <!-- 全屏显示壁纸时默认壁纸由 HomeView 底层统一绘制；此处仅在会话有专属背景、
          或关闭全屏后需要自己铺默认壁纸时叠一层 -->
-    <div class="h-full relative overflow-hidden chat-wallpaper-root"
-        :style="drawsOwnWallpaper ? chatBackgroundStyle : undefined">
-        <template v-if="drawsOwnWallpaper">
-            <div class="absolute inset-0 pointer-events-none chat-wallpaper-layer" :style="chatWallpaperLayerStyle">
-            </div>
-            <div class="absolute inset-0 pointer-events-none chat-wallpaper-overlay"
-                :style="{ background: 'var(--app-bg-elevated, #fff)', opacity: settings.chatWallpaperOverlayOpacity / 100 }"></div>
-        </template>
+    <div class="h-full relative overflow-hidden chat-wallpaper-root" :style="rootStyle">
+        <ChatBackgroundLayers v-if="drawsOwnWallpaper" :render="render" :overlay-opacity="overlayOpacity"
+            :blur-px="blurPx" />
         <!-- ===== Messages Area (底层，穿透 header/footer) ===== -->
         <!--
           骨架屏作为遮罩叠在列表上：消息容器在首屏数据到达后即挂载（可测量/可滚动），
@@ -711,8 +706,10 @@ import { onTdlibUpdates } from "../../../store/tdlibBus";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { copyFile } from "@tauri-apps/plugin-fs";
 import { save, open as openDialog } from "@tauri-apps/plugin-dialog";
-import { settings, type ChatWallpaperVisual } from '../../../store/settings';
+import { settings } from '../../../store/settings';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { useChatWallpaper } from '../../../composables/useChatWallpaper';
+import ChatBackgroundLayers from '../ChatBackgroundLayers.vue';
 import { showCopyJsonInMenus } from '../../../store/debug';
 import { useCommandInsert, clearPendingCommand } from '../../../store/commandInsert';
 import { useHashtagSearch, clearPendingHashtag } from '../../../store/hashtagSearch';
@@ -1282,45 +1279,13 @@ function onTopicTagSelect(_topicId: number | null) {
     // 路由由 TopicTagBar 内部 push
 }
 
-const hasChatSpecificBackground = computed(() => {
-    const bg = chat.value?.background?.background;
-    if (!bg) return false;
-    if (bg.type._ === 'backgroundTypeFill') return true;
-    return !!bg.document?.thumbnail?.file.local.path;
-});
-/** 本组件是否需要自己铺一层壁纸：有会话专属背景，或全屏显示关闭时的默认壁纸 */
-const drawsOwnWallpaper = computed(() =>
-    hasChatSpecificBackground.value || (!settings.chatWallpaperFullScreen && !!settings.chatWallpaper)
-);
-const chatBackgroundStyle = computed(() => {
-    const visual = chatBackgroundVisual.value;
-    return { backgroundColor: visual?.color || '#f5f5f5' };
-});
-const chatBackgroundVisual = computed<ChatWallpaperVisual | null>(() => {
-    const background = chat.value?.background?.background;
-    if (!background) return settings.chatWallpaper;
-    if (background.type._ === 'backgroundTypeFill' && background.type.fill._ === 'backgroundFillSolid') {
-        return { kind: 'color', color: `#${(background.type.fill.color & 0xffffff).toString(16).padStart(6, '0')}` };
-    }
-    if (background.document?.thumbnail?.file.local.path) {
-        return { kind: 'image', path: background.document.thumbnail.file.local.path };
-    }
-    return settings.chatWallpaper;
-});
-const chatWallpaperLayerStyle = computed(() => {
-    const visual = chatBackgroundVisual.value;
-    const style: Record<string, string> = {
-        backgroundColor: visual?.color || '#f5f5f5',
-        filter: `blur(${settings.chatWallpaperBlur}px)`,
-        transform: settings.chatWallpaperBlur > 0 ? 'scale(1.05)' : 'none',
-    };
-    if (visual?.kind === 'image' && visual.path) {
-        style.backgroundImage = `url("${convertFileSrc(visual.path)}")`;
-        style.backgroundSize = 'cover';
-        style.backgroundPosition = 'center';
-    }
-    return style;
-});
+const {
+  drawsOwnWallpaper,
+  render,
+  overlayOpacity,
+  blurPx,
+  rootStyle,
+} = useChatWallpaper(chat);
 /** 叠层对话信息面板显示的对话标题（已注销账户对话显示「已注销账户」） */
 const overlayChatTitle = computed(() => {
     if (!chat.value) return '';
@@ -6299,11 +6264,6 @@ async function handleScrollToBottom() {
 }
 </script>
 <style scoped>
-.chat-wallpaper-layer,
-.chat-wallpaper-overlay {
-    z-index: 0;
-}
-
 /* 话题标签栏（左侧 list / tag）由 TopicTagBar 自身定位 */
 
 /* 新消息淡入上弹动画 */

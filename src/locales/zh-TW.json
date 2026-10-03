@@ -559,7 +559,16 @@
     "resetFailed": "恢復預設壁紙失敗",
     "processImageFailed": "無法處理圖片",
     "jpegConvertFailed": "圖片轉換為 JPEG 失敗",
-    "uploadTimeout": "壁紙上傳逾時，請檢查網路後重試"
+    "uploadTimeout": "壁紙上傳逾時，請檢查網路後重試",
+    "copyJson": "複製 background JSON",
+    "share": "分享",
+    "shareCopied": "壁紙連結已複製",
+    "shareUnavailable": "無法產生該壁紙的分享連結",
+    "shareFailed": "產生壁紙分享連結失敗",
+    "delete": "刪除",
+    "deleteConfirm": "確定刪除該壁紙嗎？",
+    "deleted": "壁紙已刪除",
+    "deleteFailed": "刪除壁紙失敗"
   },
   "dev": {
     "title": "開發者選項",

@@ -25,6 +25,7 @@ declare module 'vue' {
     BusinessHoursDialog: typeof import('./components/settings/BusinessHoursDialog.vue')['default']
     BusinessLocationDialog: typeof import('./components/settings/BusinessLocationDialog.vue')['default']
     ChangePhoneDialog: typeof import('./components/settings/ChangePhoneDialog.vue')['default']
+    ChatBackgroundLayers: typeof import('./components/chat/ChatBackgroundLayers.vue')['default']
     ChatDetail: typeof import('./components/chat/ChatDetail/index.vue')['default']
     ChatList: typeof import('./components/chat/ChatList.vue')['default']
     ChatSearchPanel: typeof import('./components/chat/ChatSearchPanel.vue')['default']

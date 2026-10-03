@@ -6,14 +6,10 @@
         <SideNavBar class="relative z-10" />
         <div class="flex-1 min-w-0 rounded-tl-xl rounded-sm relative overflow-hidden mr-1 mb-1 z-10"
             :style="homeBackgroundStyle">
-            <!-- 全屏显示壁纸时：整块内容区共用的唯一默认壁纸底层（对话列表 + 聊天区）。
+            <!-- 全屏显示壁纸时：整块内容区共用的唯一默认背景底层（对话列表 + 聊天区）。
                  关闭后改由聊天区（ChatDetail）自己铺，避免与列表共用一层。 -->
-            <div v-if="showContentWallpaper" class="absolute inset-0 pointer-events-none overflow-hidden">
-                <div class="absolute inset-0" :style="homeWallpaperLayerStyle"></div>
-                <div class="absolute inset-0"
-                    :style="{ background: 'var(--app-bg-elevated, #fff)', opacity: settings.chatWallpaperOverlayOpacity / 100 }">
-                </div>
-            </div>
+            <ChatBackgroundLayers v-if="showContentWallpaper" :render="render" :overlay-opacity="overlayOpacity"
+                :blur-px="blurPx" />
             <ResizableLayout class="relative z-10">
                 <template #sidebar>
                     <ChatList v-if="sidebarShowsChats" :is-archive="isArchiveSection" />
@@ -65,43 +61,16 @@ import AudioPlayerCore from '../../components/audio/AudioPlayerCore.vue';
 import MusicPlayerOverlay from '../../components/audio/MusicPlayerOverlay.vue';
 import UsernameMenu from '../../components/contextMenu/UsernameMenu.vue';
 import DownloadsModule from '../../components/downloads/DownloadsModule.vue';
-import { convertFileSrc } from '@tauri-apps/api/core';
-import { settings } from '../../store/settings';
+import { useDefaultChatBackground } from '../../composables/useChatWallpaper';
+import ChatBackgroundLayers from '../../components/chat/ChatBackgroundLayers.vue';
 import { setChatPaneVisible } from '../../store/chatPane';
 
 const route = useRoute();
 const { t } = useI18n();
-/** 默认壁纸铺满整块内容区（含对话列表）时才由 HomeView 绘制底层 */
-const showContentWallpaper = computed(() => !!settings.chatWallpaper && settings.chatWallpaperFullScreen);
-const homeBackgroundStyle = computed(() => {
-    const base = 'var(--app-bg-elevated, #fff)';
-    const visual = showContentWallpaper.value ? settings.chatWallpaper : null;
-    if (!visual) return { background: base };
-    if (visual.kind === 'image' && visual.path) {
-        return {
-            backgroundColor: 'var(--app-bg-page, #f5f5f5)',
-            backgroundImage: `url("${convertFileSrc(visual.path)}")`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-        };
-    }
-    return { backgroundColor: visual.color || 'var(--app-bg-page, #f5f5f5)' };
-});
-const homeWallpaperLayerStyle = computed(() => {
-    const visual = settings.chatWallpaper;
-    if (!visual) return {};
-    const style: Record<string, string> = {
-        backgroundColor: visual.color || '#f5f5f5',
-        filter: `blur(${settings.chatWallpaperBlur}px)`,
-        transform: settings.chatWallpaperBlur > 0 ? 'scale(1.05)' : 'none',
-    };
-    if (visual.kind === 'image' && visual.path) {
-        style.backgroundImage = `url("${convertFileSrc(visual.path)}")`;
-        style.backgroundSize = 'cover';
-        style.backgroundPosition = 'center';
-    }
-    return style;
-});
+/** 默认背景（TDLib 默认 → 本地缓存兜底）；全屏显示时铺满整块内容区（含对话列表） */
+const { render, show: showContentWallpaper, overlayOpacity, blurPx } = useDefaultChatBackground();
+/** 内容区底色：背景本身由 ChatBackgroundLayers 绘制，这里只给中性兜底 */
+const homeBackgroundStyle = computed(() => ({ background: 'var(--app-bg-elevated, #fff)' }));
 const isContacts = computed(() => route.name === 'contacts');
 const isSettings = computed(() => route.name === 'settings'
     || route.name === 'settings-appearance'

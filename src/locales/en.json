@@ -559,7 +559,16 @@
     "resetFailed": "Failed to restore default wallpaper",
     "processImageFailed": "Unable to process image",
     "jpegConvertFailed": "Failed to convert image to JPEG",
-    "uploadTimeout": "Wallpaper upload timed out. Check your network and try again."
+    "uploadTimeout": "Wallpaper upload timed out. Check your network and try again.",
+    "copyJson": "Copy background JSON",
+    "share": "Share",
+    "shareCopied": "Wallpaper link copied",
+    "shareUnavailable": "Could not create a share link for this wallpaper",
+    "shareFailed": "Failed to create wallpaper share link",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this wallpaper?",
+    "deleted": "Wallpaper deleted",
+    "deleteFailed": "Failed to delete wallpaper"
   },
   "dev": {
     "title": "Developer options",

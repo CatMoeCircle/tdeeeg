@@ -1,11 +1,8 @@
 <template>
   <!-- 与 ChatDetail 一致：专属背景或关闭全屏显示时叠壁纸层，否则透出 HomeView 默认壁纸 -->
   <div class="h-full relative overflow-hidden chat-wallpaper-root flex flex-col" :style="rootStyle">
-    <template v-if="drawsOwnWallpaper">
-      <div class="absolute inset-0 pointer-events-none chat-wallpaper-layer" :style="chatWallpaperLayerStyle"></div>
-      <div class="absolute inset-0 pointer-events-none chat-wallpaper-overlay"
-        :style="[chatWallpaperOverlayStyle, { background: 'var(--app-bg-elevated, #fff)' }]"></div>
-    </template>
+    <ChatBackgroundLayers v-if="drawsOwnWallpaper" :render="render" :overlay-opacity="overlayOpacity"
+      :blur-px="blurPx" />
 
     <!-- 顶栏 -->
     <div
@@ -132,6 +129,7 @@ import {
 } from '../../utils/eventLogText';
 import { isChannelChat, loadMyChatMemberStatus } from '../../utils/groupRights';
 import { useChatWallpaper } from '../../composables/useChatWallpaper';
+import ChatBackgroundLayers from '../../components/chat/ChatBackgroundLayers.vue';
 import { accentColorStyle } from '../../store/colors';
 import type { chat, chatEvent } from 'tdlib-types';
 
@@ -162,8 +160,9 @@ const chatAccent = computed(() => {
 
 const {
   drawsOwnWallpaper,
-  chatWallpaperLayerStyle,
-  chatWallpaperOverlayStyle,
+  render,
+  overlayOpacity,
+  blurPx,
   rootStyle,
 } = useChatWallpaper(chat);
 
@@ -302,10 +301,3 @@ onMounted(() => {
   else loading.value = false;
 });
 </script>
-
-<style scoped>
-.chat-wallpaper-layer,
-.chat-wallpaper-overlay {
-  z-index: 0;
-}
-</style>

@@ -1,75 +1,172 @@
-import { computed, type ComputedRef } from "vue";
-import { convertFileSrc } from "@tauri-apps/api/core";
-import type { chat } from "tdlib-types";
-import { settings, type ChatWallpaperVisual } from "../store/settings";
+import { computed, onScopeDispose, ref, watch, type ComputedRef, type Ref } from 'vue';
+import type { ChatTheme, background, chat } from 'tdlib-types';
+import { settings } from '../store/settings';
+import { defaultBackgroundFor, emojiChatThemes } from '../store/chatBackground';
+import { isDark } from '../store/theme';
+import { onTdlibUpdate } from '../store/tdlibBus';
+import { safeDownloadFile } from '../utils/tdlib';
+import { DL_PRIORITY } from '../utils/downloadPriority';
+import {
+  backgroundDocumentFile,
+  localWallpaperRender,
+  resolveChatBackground,
+  type ChatBackgroundRender,
+} from '../utils/chatBackground';
 
 /**
- * 对话壁纸视觉（与 ChatDetail / HomeView 一致）：
- * 专属背景优先，否则用全局 settings.chatWallpaper。
+ * 对话背景渲染。
+ *
+ * 取背景的优先级（对齐 Unigram ChatBackgroundControl）：
+ *   1. 对话专属背景 `chat.background`
+ *   2. 纯本地壁纸 `settings.chatWallpaper`（source=local，云端没有记录，必须本地覆盖）
+ *   3. TDLib 默认背景 `updateDefaultBackground`（明/暗各一份）
+ *   4. 本地缓存 `settings.chatWallpaper`（离线 / 首帧兜底）
+ *
+ * `backgroundTypeChatTheme` 只带主题名，真正背景在 emoji 主题缓存里，
+ * 缓存到达后会再次解析，因此这里用响应式 watcher 而不是一次性求值。
  */
-export function useChatWallpaper(chat: ComputedRef<chat | undefined>) {
-  const hasChatSpecificBackground = computed(() => {
-    const bg = chat.value?.background?.background;
-    if (!bg) return false;
-    if (bg.type._ === "backgroundTypeFill") return true;
-    return !!bg.document?.thumbnail?.file.local.path;
+export function useChatWallpaper(chat: Ref<chat | undefined>) {
+  const chatBackground = computed(() => chat.value?.background ?? null);
+  /** 对话专属背景 */
+  const specific = computed(() => chatBackground.value?.background ?? null);
+
+  const own = useResolvedBackground(specific, {
+    theme: computed(() => chat.value?.theme ?? null),
+    /** 深色主题压暗只来自对话背景（TDLib 文档：仅影响 wallpaper / fill） */
+    dimming: computed(() =>
+      isDark.value ? chatBackground.value?.dark_theme_dimming ?? 0 : 0
+    ),
+    localFallback: computed(() => null),
   });
 
-  const chatBackgroundVisual = computed<ChatWallpaperVisual | null>(() => {
-    const background = chat.value?.background?.background;
-    if (!background) return settings.chatWallpaper;
-    if (background.type._ === "backgroundTypeFill" && background.type.fill._ === "backgroundFillSolid") {
-      return {
-        kind: "color",
-        color: `#${(background.type.fill.color & 0xffffff).toString(16).padStart(6, "0")}`,
-      };
-    }
-    if (background.document?.thumbnail?.file.local.path) {
-      return { kind: "image", path: background.document.thumbnail.file.local.path };
-    }
-    return settings.chatWallpaper;
-  });
+  const fallback = useDefaultBackground();
 
-  const chatBackgroundStyle = computed(() => {
-    const visual = chatBackgroundVisual.value;
-    return { backgroundColor: visual?.color || "#f5f5f5" };
-  });
+  const render = computed(() => own.render.value ?? fallback.render.value);
 
-  const chatWallpaperLayerStyle = computed(() => {
-    const visual = chatBackgroundVisual.value;
-    const style: Record<string, string> = {
-      backgroundColor: visual?.color || "#f5f5f5",
-      filter: `blur(${settings.chatWallpaperBlur}px)`,
-      transform: settings.chatWallpaperBlur > 0 ? "scale(1.05)" : "none",
-    };
-    if (visual?.kind === "image" && visual.path) {
-      style.backgroundImage = `url("${convertFileSrc(visual.path)}")`;
-      style.backgroundSize = "cover";
-      style.backgroundPosition = "center";
-    }
-    return style;
-  });
-
-  const chatWallpaperOverlayStyle = computed(() => ({
-    opacity: settings.chatWallpaperOverlayOpacity / 100,
-  }));
-
-  /** 需要本页自己铺壁纸：有专属背景，或全屏显示关闭时的默认壁纸 */
+  /** 需要本页自己铺壁纸：有专属背景，或全屏显示关闭时的默认背景 */
   const drawsOwnWallpaper = computed(
-    () => hasChatSpecificBackground.value || (!settings.chatWallpaperFullScreen && !!settings.chatWallpaper)
+    () => !!own.render.value || (!settings.chatWallpaperFullScreen && !!fallback.render.value)
   );
 
-  /** 不需要自己铺时页面透明，露出 HomeView 底层默认壁纸 */
-  const rootStyle = computed(() =>
-    drawsOwnWallpaper.value ? chatBackgroundStyle.value : undefined
+  /** 不自己铺时留空，透出 HomeView 底层默认背景 */
+  const rootStyle = computed<Record<string, string> | undefined>(() =>
+    drawsOwnWallpaper.value && render.value
+      ? { backgroundColor: render.value.baseColor }
+      : undefined
   );
 
   return {
     drawsOwnWallpaper,
-    chatBackgroundVisual,
-    chatBackgroundStyle,
-    chatWallpaperLayerStyle,
-    chatWallpaperOverlayStyle,
+    render,
     rootStyle,
+    overlayOpacity: computed(() => settings.chatWallpaperOverlayOpacity),
+    blurPx: computed(() => settings.chatWallpaperBlur),
   };
+}
+
+/**
+ * 默认背景（不含对话专属背景）。
+ * 纯本地壁纸优先于 TDLib 默认背景——它从来没被上传，云端那份是别的来源。
+ */
+function useDefaultBackground() {
+  const localOnly = computed(() =>
+    settings.chatWallpaper?.source === 'local'
+      ? localWallpaperRender(settings.chatWallpaper)
+      : null
+  );
+
+  const cloud = useResolvedBackground(computed(() => defaultBackgroundFor(isDark.value)), {
+    /** 本地壁纸盖住云端时，不必再为云端背景下载图案 / 原图 */
+    downloadFiles: computed(() => !localOnly.value),
+    localFallback: computed(() => localWallpaperRender(settings.chatWallpaper)),
+  });
+
+  return { render: computed(() => localOnly.value ?? cloud.render.value) };
+}
+
+/** HomeView 用的默认背景（全屏铺满整块内容区时） */
+export function useDefaultChatBackground() {
+  const { render } = useDefaultBackground();
+
+  return {
+    render,
+    show: computed(() => settings.chatWallpaperFullScreen && !!render.value),
+    overlayOpacity: computed(() => settings.chatWallpaperOverlayOpacity),
+    blurPx: computed(() => settings.chatWallpaperBlur),
+  };
+}
+
+interface ResolvedBackgroundOptions {
+  theme?: ComputedRef<ChatTheme | null | undefined>;
+  /** 深色主题压暗百分比 */
+  dimming?: ComputedRef<number>;
+  /** 是否为该背景下载原图（图案 / 壁纸）；默认 true */
+  downloadFiles?: ComputedRef<boolean>;
+  /** 解析不出来时用什么 */
+  localFallback?: ComputedRef<ChatBackgroundRender | null>;
+}
+
+function useResolvedBackground(
+  source: ComputedRef<background | null | undefined>,
+  options: ResolvedBackgroundOptions = {},
+) {
+  const render = ref<ChatBackgroundRender | null>(null) as Ref<ChatBackgroundRender | null>;
+  /** 正在等的背景原图文件 id（图案 / 壁纸下载完要重算） */
+  const pendingFileId = ref<number | null>(null);
+  let token = 0;
+
+  async function refresh() {
+    const current = ++token;
+    const background = source.value;
+    const fallback = options.localFallback?.value ?? null;
+
+    if (!background) {
+      render.value = fallback;
+      return;
+    }
+
+    const resolved = await resolveChatBackground(background, {
+      dark: isDark.value,
+      emojiThemes: emojiChatThemes(),
+      theme: options.theme?.value ?? null,
+      files: 'full',
+    });
+    if (current !== token) return;
+
+    const dimming = options.dimming?.value ?? 0;
+    render.value = resolved ? { ...resolved, dimming } : fallback;
+
+    if (options.downloadFiles?.value === false) pendingFileId.value = null;
+    else requestDocument(background);
+  }
+
+  /** 图案 / 壁纸原图常未下载：发起后台下载，完成事件到达后重算 */
+  function requestDocument(background: background) {
+    const document = backgroundDocumentFile(background);
+    if (!document?.id || document.local?.is_downloading_completed) {
+      pendingFileId.value = null;
+      return;
+    }
+    pendingFileId.value = document.id;
+    if (!document.local?.is_downloading_active && document.local?.can_be_downloaded) {
+      void safeDownloadFile(document.id, false, DL_PRIORITY.DEFAULT);
+    }
+  }
+
+  const off = onTdlibUpdate('file', (update) => {
+    if (update._ !== 'updateFile' || pendingFileId.value == null) return;
+    const file = (update as { file?: { id?: number; local?: { is_downloading_completed?: boolean } } })
+      .file;
+    if (file?.id !== pendingFileId.value) return;
+    if (file.local?.is_downloading_completed) void refresh();
+  });
+  onScopeDispose(off);
+
+  watch(
+    [source, isDark, () => options.theme?.value, () => options.dimming?.value, () => options.downloadFiles?.value, () => options.localFallback?.value],
+    () => void refresh(),
+    { immediate: true, deep: false }
+  );
+
+  return { render };
 }

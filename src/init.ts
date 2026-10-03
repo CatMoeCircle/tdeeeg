@@ -12,6 +12,7 @@ import { useAccountsStore } from "./store/accounts";
 import { useLanguageStore } from "./store/language";
 import { initSenderInfo } from "./utils/senderInfo";
 import { initColors, watchSystemColorScheme } from "./store/colors";
+import { initChatBackgroundStore } from "./store/chatBackground";
 import { initTheme } from "./store/theme";
 import { initNativeNotifications } from "./store/notifications";
 import { settings } from "./store/settings";
@@ -62,6 +63,8 @@ export async function initTdlib() {
         bindWallpaperAccount(accountId);
         restoreWallpaperFromLocalCache(accountId);
     }
+    // 默认背景（updateDefaultBackground）+ emoji 聊天主题缓存（backgroundTypeChatTheme 要按名查表）
+    initChatBackgroundStore();
     // 初始化 Telegram 色彩主题系统（colors 通道）
     await initColors();
     // 主题系统：明暗模式 + 主题色 + 圆角/阴影/密度
