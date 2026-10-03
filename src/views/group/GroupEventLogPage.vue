@@ -1,10 +1,10 @@
 <template>
-  <!-- 与 ChatDetail 一致：专属背景时叠壁纸层，否则透出 HomeView 默认壁纸 -->
+  <!-- 与 ChatDetail 一致：专属背景或关闭全屏显示时叠壁纸层，否则透出 HomeView 默认壁纸 -->
   <div class="h-full relative overflow-hidden chat-wallpaper-root flex flex-col" :style="rootStyle">
-    <template v-if="hasChatSpecificBackground">
+    <template v-if="drawsOwnWallpaper">
       <div class="absolute inset-0 pointer-events-none chat-wallpaper-layer" :style="chatWallpaperLayerStyle"></div>
-      <div class="absolute inset-0 pointer-events-none bg-white dark:bg-gray-900 chat-wallpaper-overlay"
-        :style="chatWallpaperOverlayStyle"></div>
+      <div class="absolute inset-0 pointer-events-none chat-wallpaper-overlay"
+        :style="[chatWallpaperOverlayStyle, { background: 'var(--app-bg-elevated, #fff)' }]"></div>
     </template>
 
     <!-- 顶栏 -->
@@ -161,7 +161,7 @@ const chatAccent = computed(() => {
 });
 
 const {
-  hasChatSpecificBackground,
+  drawsOwnWallpaper,
   chatWallpaperLayerStyle,
   chatWallpaperOverlayStyle,
   rootStyle,

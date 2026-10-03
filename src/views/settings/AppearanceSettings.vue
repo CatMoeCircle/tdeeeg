@@ -35,8 +35,8 @@
                     <PreviewCard class="mb-6" :subtitle="t('appearance.previewBubbles')"
                         body-class="relative bg-[#f5f5f5] dark:bg-[#1c1c1c] p-4 flex flex-col gap-3 overflow-hidden">
                             <div class="absolute inset-0" :style="messagePreviewBackgroundStyle"></div>
-                            <div class="absolute inset-0 bg-white"
-                                :style="{ opacity: settings.chatWallpaperOverlayOpacity / 100 }">
+                            <div class="absolute inset-0"
+                                :style="{ background: 'var(--app-bg-elevated, #fff)', opacity: settings.chatWallpaperOverlayOpacity / 100 }">
                             </div>
                             <div class="relative z-10 flex flex-col gap-3">
                                 <!-- 他人消息：左侧完整头像 + 气泡 -->

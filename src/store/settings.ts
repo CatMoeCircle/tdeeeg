@@ -36,11 +36,13 @@ export interface ChatWallpaperVisual {
 }
 
 interface Settings {
+  /** 设置结构版本：递增后在下方按版本做一次性迁移 */
+  schemaVersion: number;
   /** 默认对话壁纸的本地渲染信息；聊天专属背景由 TDLib Chat.background 覆盖 */
   chatWallpaper: ChatWallpaperVisual | null;
-  /** @deprecated 默认壁纸现已固定铺在 HomeView 整块内容区底部，字段仅保留兼容旧配置 */
+  /** 默认壁纸是否铺满 HomeView 整块内容区（对话列表 + 聊天区）；关闭时仅铺聊天区 */
   chatWallpaperFullScreen: boolean;
-  /** 默认壁纸上方的白色叠加透明度（0-100） */
+  /** 默认壁纸上方的遮罩不透明度（0-100）；遮罩颜色跟随主题 */
   chatWallpaperOverlayOpacity: number;
   /** 默认图片壁纸的模糊半径（0-24px） */
   chatWallpaperBlur: number;
@@ -245,9 +247,10 @@ interface Settings {
 }
 
 const defaultSettings: Settings = {
+  schemaVersion: 2,
   chatWallpaper: null,
-  chatWallpaperFullScreen: false,
-  chatWallpaperOverlayOpacity: 0,
+  chatWallpaperFullScreen: true,
+  chatWallpaperOverlayOpacity: 68,
   chatWallpaperBlur: 0,
   folderStyle: "soft",
   loadingStyle: "ring2",
@@ -410,6 +413,15 @@ try {
   }
 }
 const initialState = mergeSettings(defaultSettings, parsedSettings);
+
+// ─── 设置结构迁移 ───────────────────────────────────────────
+// v2：壁纸「全屏显示」开关曾长期失效（默认壁纸恒定铺满整块内容区），
+// 遮罩默认强度也从 0% 改为 68%。旧配置里的这两个值不代表用户意图，
+// 一次性复位为新默认值；之后用户的自定义会随版本号一起落盘。
+if ((parsedSettings as any).schemaVersion !== defaultSettings.schemaVersion) {
+  initialState.chatWallpaperFullScreen = defaultSettings.chatWallpaperFullScreen;
+  initialState.chatWallpaperOverlayOpacity = defaultSettings.chatWallpaperOverlayOpacity;
+}
 
 // ─── 翻译设置结构迁移 ─────────────────────────────────────────
 // 旧版 provider 为字符串；新版为 { default, message, chat }

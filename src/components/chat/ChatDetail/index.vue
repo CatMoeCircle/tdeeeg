@@ -1,12 +1,13 @@
 <template>
-    <!-- 默认壁纸由 HomeView 底层统一绘制；此处仅在聊天有专属背景时叠一层 -->
+    <!-- 全屏显示壁纸时默认壁纸由 HomeView 底层统一绘制；此处仅在会话有专属背景、
+         或关闭全屏后需要自己铺默认壁纸时叠一层 -->
     <div class="h-full relative overflow-hidden chat-wallpaper-root"
-        :style="hasChatSpecificBackground ? chatBackgroundStyle : undefined">
-        <template v-if="hasChatSpecificBackground">
+        :style="drawsOwnWallpaper ? chatBackgroundStyle : undefined">
+        <template v-if="drawsOwnWallpaper">
             <div class="absolute inset-0 pointer-events-none chat-wallpaper-layer" :style="chatWallpaperLayerStyle">
             </div>
-            <div class="absolute inset-0 pointer-events-none bg-white dark:bg-gray-900 chat-wallpaper-overlay"
-                :style="{ opacity: settings.chatWallpaperOverlayOpacity / 100 }"></div>
+            <div class="absolute inset-0 pointer-events-none chat-wallpaper-overlay"
+                :style="{ background: 'var(--app-bg-elevated, #fff)', opacity: settings.chatWallpaperOverlayOpacity / 100 }"></div>
         </template>
         <!-- ===== Messages Area (底层，穿透 header/footer) ===== -->
         <!--
@@ -1283,6 +1284,10 @@ const hasChatSpecificBackground = computed(() => {
     if (bg.type._ === 'backgroundTypeFill') return true;
     return !!bg.document?.thumbnail?.file.local.path;
 });
+/** 本组件是否需要自己铺一层壁纸：有会话专属背景，或全屏显示关闭时的默认壁纸 */
+const drawsOwnWallpaper = computed(() =>
+    hasChatSpecificBackground.value || (!settings.chatWallpaperFullScreen && !!settings.chatWallpaper)
+);
 const chatBackgroundStyle = computed(() => {
     const visual = chatBackgroundVisual.value;
     return { backgroundColor: visual?.color || '#f5f5f5' };

@@ -18,8 +18,8 @@
                     <p class="text-xs text-gray-400 mt-2">{{ t('wallpaper.defaultDesc') }}</p>
                     <PreviewCard class="mt-5" :show-header="false" body-class="h-32 relative overflow-hidden">
                         <div class="absolute inset-0" :style="previewBackgroundStyle"></div>
-                        <div class="absolute inset-0 bg-white dark:bg-gray-900"
-                            :style="{ opacity: settings.chatWallpaperOverlayOpacity / 100 }"></div>
+                        <div class="absolute inset-0"
+                            :style="{ background: 'var(--app-bg-elevated, #fff)', opacity: settings.chatWallpaperOverlayOpacity / 100 }"></div>
                         <div class="absolute inset-0 bg-black/5"></div>
                         <div
                             class="absolute left-4 bottom-4 z-10 rounded-2xl rounded-bl-md bg-white/90 dark:bg-gray-800/90 px-3 py-2 text-xs text-gray-700 dark:text-gray-200 shadow-sm">
@@ -38,7 +38,12 @@
                         </template>
                     </PreviewCard>
                     <div
-                        class="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 space-y-4">
+                        class="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-4 space-y-4">
+                        <div>
+                            <ChatTypeToggle :label="t('wallpaper.fullScreen')"
+                                v-model="settings.chatWallpaperFullScreen" />
+                            <p class="mt-1 text-xs text-gray-400">{{ t('wallpaper.fullScreenDesc') }}</p>
+                        </div>
                         <div>
                             <div class="flex items-center justify-between"><span
                                     class="text-sm text-gray-600 dark:text-gray-300">{{ t('wallpaper.overlay') }}</span><span
@@ -132,6 +137,7 @@ import { tdlibSend, isFileReady, safeDownloadFile } from '../../utils/tdlib';
 import { isThumbnailImgRenderable } from '../../utils/thumbnail';
 import { settings } from '../../store/settings';
 import PreviewCard from '../../components/settings/PreviewCard.vue';
+import ChatTypeToggle from '../../components/settings/ChatTypeToggle.vue';
 import { DL_PRIORITY } from '../../utils/downloadPriority';
 import {
     ensureJpegWallpaper,

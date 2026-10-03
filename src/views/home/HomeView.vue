@@ -6,8 +6,9 @@
         <SideNavBar class="relative z-10" />
         <div class="flex-1 min-w-0 rounded-tl-xl rounded-sm relative overflow-hidden mr-1 mb-1 z-10"
             :style="homeBackgroundStyle">
-            <!-- 整块内容区共用的唯一默认壁纸底层（对话列表 + 聊天区） -->
-            <div v-if="settings.chatWallpaper" class="absolute inset-0 pointer-events-none overflow-hidden">
+            <!-- 全屏显示壁纸时：整块内容区共用的唯一默认壁纸底层（对话列表 + 聊天区）。
+                 关闭后改由聊天区（ChatDetail）自己铺，避免与列表共用一层。 -->
+            <div v-if="showContentWallpaper" class="absolute inset-0 pointer-events-none overflow-hidden">
                 <div class="absolute inset-0" :style="homeWallpaperLayerStyle"></div>
                 <div class="absolute inset-0"
                     :style="{ background: 'var(--app-bg-elevated, #fff)', opacity: settings.chatWallpaperOverlayOpacity / 100 }">
@@ -69,10 +70,12 @@ import { settings } from '../../store/settings';
 
 const route = useRoute();
 const { t } = useI18n();
+/** 默认壁纸铺满整块内容区（含对话列表）时才由 HomeView 绘制底层 */
+const showContentWallpaper = computed(() => !!settings.chatWallpaper && settings.chatWallpaperFullScreen);
 const homeBackgroundStyle = computed(() => {
     const base = 'var(--app-bg-elevated, #fff)';
-    if (!settings.chatWallpaper) return { background: base };
-    const visual = settings.chatWallpaper;
+    const visual = showContentWallpaper.value ? settings.chatWallpaper : null;
+    if (!visual) return { background: base };
     if (visual.kind === 'image' && visual.path) {
         return {
             backgroundColor: 'var(--app-bg-page, #f5f5f5)',

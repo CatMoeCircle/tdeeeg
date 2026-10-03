@@ -54,13 +54,18 @@ export function useChatWallpaper(chat: ComputedRef<chat | undefined>) {
     opacity: settings.chatWallpaperOverlayOpacity / 100,
   }));
 
-  /** 无专属背景时，页面透明，露出 HomeView 底层默认壁纸 */
+  /** 需要本页自己铺壁纸：有专属背景，或全屏显示关闭时的默认壁纸 */
+  const drawsOwnWallpaper = computed(
+    () => hasChatSpecificBackground.value || (!settings.chatWallpaperFullScreen && !!settings.chatWallpaper)
+  );
+
+  /** 不需要自己铺时页面透明，露出 HomeView 底层默认壁纸 */
   const rootStyle = computed(() =>
-    hasChatSpecificBackground.value ? chatBackgroundStyle.value : undefined
+    drawsOwnWallpaper.value ? chatBackgroundStyle.value : undefined
   );
 
   return {
-    hasChatSpecificBackground,
+    drawsOwnWallpaper,
     chatBackgroundVisual,
     chatBackgroundStyle,
     chatWallpaperLayerStyle,
