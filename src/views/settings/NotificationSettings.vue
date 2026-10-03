@@ -122,7 +122,7 @@
 
                     <div class="mt-5 space-y-3">
                         <div
-                            class="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                            class="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md">
                             <div>
                                 <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">
                                     {{ t('lng_settings_desktop_notify') }}</h4>
@@ -131,7 +131,7 @@
                             <ToggleSwitch v-model="settings.notifications.enabled" />
                         </div>
 
-                        <div class="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
+                        <div class="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md"
                             :class="{ 'opacity-50 pointer-events-none': !settings.notifications.enabled }">
                             <div>
                                 <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('notificationSettings.whenAppFocused') }}</h4>
@@ -232,7 +232,7 @@ const toastCardClass = computed(() =>
 
 function chipClass(on: boolean): string {
     if (on) {
-        return 'border-emerald-500/60 bg-emerald-500 text-white shadow-sm';
+        return 'border-emerald-500/60 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 shadow-sm';
     }
     return 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700';
 }

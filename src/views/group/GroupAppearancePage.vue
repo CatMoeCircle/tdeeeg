@@ -18,7 +18,7 @@
       <div class="max-w-2xl space-y-6">
         <!-- 当前 Boost -->
         <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
-          <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3">
+          <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-4 flex items-center gap-3">
             <ZapIcon class="w-5 h-5 text-amber-500 shrink-0" />
             <div class="min-w-0 flex-1">
               <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lng_boosts_title') }}</p>
@@ -104,7 +104,7 @@
             </h3>
             <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
           </div>
-          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 flex items-center gap-3"
+          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-3 flex items-center gap-3"
             :class="emojiStatusLocked ? 'opacity-60' : ''">
             <SmileIcon class="w-5 h-5 text-gray-400 shrink-0" />
             <div class="min-w-0 flex-1">
@@ -132,7 +132,7 @@
             </h3>
             <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
           </div>
-          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 flex items-center gap-3"
+          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-3 flex items-center gap-3"
             :class="wallpaperLocked ? 'opacity-60' : ''">
             <ImageIcon class="w-5 h-5 text-gray-400 shrink-0" />
             <div class="min-w-0 flex-1">

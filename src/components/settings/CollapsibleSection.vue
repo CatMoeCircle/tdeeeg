@@ -1,7 +1,7 @@
 <template>
     <div class="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
         <button type="button"
-            class="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+            class="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
             @click="$emit('toggle')">
             <div>
                 <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ title }}</h3>

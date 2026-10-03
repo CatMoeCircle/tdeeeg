@@ -39,8 +39,8 @@
                         v-context-menu="() => languageContextMenu(opt)"
                         class="w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors text-left"
                         :class="opt.code === currentCode
-                            ? 'border-blue-400 bg-blue-50/80 dark:bg-blue-500/10'
-                            : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 hover:border-blue-300'"
+                            ? 'border-blue-400 bg-blue-100/60 dark:bg-blue-500/15 backdrop-blur-md'
+                            : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md hover:border-blue-300 hover:bg-black/5 dark:hover:bg-white/5'"
                         @click="select(opt)">
                         <div class="w-9 h-9 rounded-full shrink-0 flex items-center justify-center" :class="opt.builtin
                             ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400'

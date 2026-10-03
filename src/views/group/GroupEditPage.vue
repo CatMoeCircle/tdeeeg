@@ -22,7 +22,7 @@
             <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
           </div>
           <div class="mt-5">
-            <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex gap-6">
+            <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-4 flex gap-6">
               <div class="flex flex-col items-center gap-3 shrink-0">
                 <Avatar :photo="chat?.photo" :title="chat?.title" :accentColorId="chatAccentId" sizeClass="!w-20 !h-20" />
                 <button v-if="canChangeInfo" type="button" @click="photoVisible = true"
@@ -58,10 +58,10 @@
             <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
           </div>
           <div class="mt-5 space-y-3">
-            <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+            <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
               <!-- 频道类型 -->
               <button v-if="showTypeRow" type="button" @click="go('group-type')"
-                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                 <MegaphoneIcon v-if="isChannel" class="w-5 h-5 text-gray-400 shrink-0" />
                 <UsersIcon v-else class="w-5 h-5 text-gray-400 shrink-0" />
                 <p class="min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">
@@ -73,7 +73,7 @@
 
               <!-- 讨论（频道：关联讨论组） -->
               <button v-if="showDiscussionRow" type="button" @click="go('group-linked')"
-                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                 <MessageSquareTextIcon class="w-5 h-5 text-gray-400 shrink-0" />
                 <p class="min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">
                   {{ t('lng_manage_discussion_group') }}
@@ -83,7 +83,7 @@
 
               <!-- 外观 -->
               <button v-if="showAppearance" type="button" @click="go('group-appearance')"
-                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                 <PaletteIcon class="w-5 h-5 text-gray-400 shrink-0" />
                 <p class="min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">
                   {{ t('lng_edit_channel_color') }}
@@ -109,7 +109,7 @@
 
               <!-- 私信 -->
               <button v-if="showDirectMessages" type="button" @click="go('group-direct-messages')"
-                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                 <MailIcon class="w-5 h-5 text-gray-400 shrink-0" />
                 <p class="min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">
                   {{ t('lng_profile_direct_messages') }}
@@ -119,7 +119,7 @@
 
               <!-- 已关联频道（群组：显示关联频道） -->
               <button v-if="showLinkedChannelRow" type="button" @click="go('group-linked')"
-                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                 <MessageSquareTextIcon class="w-5 h-5 text-gray-400 shrink-0" />
                 <p class="min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">
                   {{ t('groupEdit.linkedChannel') }}
@@ -129,7 +129,7 @@
 
               <!-- 话题 -->
               <button v-if="showTopics" type="button" @click="go('group-topics')"
-                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                 <ListTreeIcon class="w-5 h-5 text-gray-400 shrink-0" />
                 <p class="min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">
                   {{ t('lng_edit_topics_enable') }}
@@ -148,7 +148,7 @@
 
               <!-- 邀请链接 -->
               <button v-if="showInviteLinks" type="button" @click="go('group-invite-links')"
-                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                 <LinkIcon class="w-5 h-5 text-gray-400 shrink-0" />
                 <p class="min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">
                   {{ t('lng_manage_peer_invite_links') }}
@@ -169,10 +169,10 @@
             <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
           </div>
           <div class="mt-5 space-y-3">
-            <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+            <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
               <!-- 表情回应 -->
               <button type="button" @click="go('group-reactions')"
-                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                 <SmilePlusIcon class="w-5 h-5 text-gray-400 shrink-0" />
                 <p class="min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">
                   {{ t('lng_manage_peer_reactions') }}
@@ -182,7 +182,7 @@
 
               <!-- 权限 -->
               <button v-if="showPermissions" type="button" @click="go('group-permissions')"
-                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                 <ShieldIcon class="w-5 h-5 text-gray-400 shrink-0" />
                 <p class="min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">
                   {{ t('lng_manage_peer_permissions') }}
@@ -192,7 +192,7 @@
 
               <!-- 管理员 -->
               <button type="button" @click="go('group-admins')"
-                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                 <ShieldCheckIcon class="w-5 h-5 text-gray-400 shrink-0" />
                 <p class="min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">
                   {{ t('lng_manage_peer_administrators') }}
@@ -203,7 +203,7 @@
 
               <!-- 成员 -->
               <button type="button" @click="go('group-members')"
-                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                 <UsersIcon class="w-5 h-5 text-gray-400 shrink-0" />
                 <p class="min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">
                   {{ isChannel ? t('lng_manage_peer_subscribers') : t('lng_manage_peer_members') }}
@@ -214,7 +214,7 @@
 
               <!-- 被移除用户 -->
               <button v-if="showBlacklist" type="button" @click="go('group-blacklist')"
-                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                 <BanIcon class="w-5 h-5 text-gray-400 shrink-0" />
                 <p class="min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">
                   {{ t('lng_manage_peer_banned_users') }}
@@ -225,7 +225,7 @@
 
               <!-- 近期操作 -->
               <button v-if="showEventLog" type="button" @click="go('group-event-log')"
-                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                 <HistoryIcon class="w-5 h-5 text-gray-400 shrink-0" />
                 <p class="min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">
                   {{ t('lng_manage_peer_recent_actions') }}

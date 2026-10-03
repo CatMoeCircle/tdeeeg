@@ -22,8 +22,8 @@
                         <!-- 跟随系统代理（默认） -->
                         <div class="flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-colors"
                             :class="settings.proxy.mode === 'auto'
-                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'"
+                                ? 'border-blue-500 bg-blue-100/60 dark:bg-blue-900/40 backdrop-blur-md'
+                                : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md hover:bg-black/5 dark:hover:bg-white/5'"
                             @click="selectMode('auto')">
                             <div class="flex items-center">
                                 <div
@@ -46,8 +46,8 @@
                         <!-- 禁用代理 -->
                         <div class="flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-colors"
                             :class="settings.proxy.mode === 'disabled'
-                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'"
+                                ? 'border-blue-500 bg-blue-100/60 dark:bg-blue-900/40 backdrop-blur-md'
+                                : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md hover:bg-black/5 dark:hover:bg-white/5'"
                             @click="selectMode('disabled')">
                             <div class="flex items-center">
                                 <div
@@ -70,8 +70,8 @@
                         <!-- 使用系统代理 -->
                         <div class="flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-colors"
                             :class="settings.proxy.mode === 'system'
-                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'"
+                                ? 'border-blue-500 bg-blue-100/60 dark:bg-blue-900/40 backdrop-blur-md'
+                                : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md hover:bg-black/5 dark:hover:bg-white/5'"
                             @click="selectMode('system')">
                             <div class="flex items-center">
                                 <div
@@ -97,8 +97,8 @@
 
                         <!-- 使用代理列表中的代理 -->
                         <div class="p-4 rounded-xl border cursor-pointer transition-colors" :class="settings.proxy.mode === 'custom'
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                            : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'"
+                            ? 'border-blue-500 bg-blue-100/60 dark:bg-blue-900/40 backdrop-blur-md'
+                            : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md hover:bg-black/5 dark:hover:bg-white/5'"
                             @click="selectMode('custom')">
                             <div class="flex items-center justify-between">
                                 <div class="flex items-center">
@@ -186,8 +186,8 @@
                         <div v-for="p in proxies" :key="p.id" @click="useProxy(p)"
                             class="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors"
                             :class="isCurrentProxy(p)
-                                ? 'border-green-400 bg-green-50 dark:bg-green-900/20'
-                                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'">
+                                ? 'border-green-400 bg-green-100/60 dark:bg-green-900/40 backdrop-blur-md'
+                                : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md hover:bg-black/5 dark:hover:bg-white/5'">
                             <!-- 勾选指示器：当前选用的代理打勾 -->
                             <div class="w-6 h-6 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors"
                                 :class="isCurrentProxy(p)
@@ -221,7 +221,7 @@
 
                             <!-- 使用按钮（未启用时显示，阻止冒泡避免触发选中） -->
                             <button type="button" v-if="!p.is_enabled" @click.stop="useProxy(p)"
-                                class="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+                                class="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-green-600 dark:text-green-400 hover:bg-green-500/10 dark:hover:bg-green-500/15 transition-colors"
                                 :title="t('proxy.useThisProxy')">
                                 <PlayIcon class="w-4 h-4" />
                                 {{ t('proxy.useShort') }}

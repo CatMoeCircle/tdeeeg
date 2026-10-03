@@ -19,7 +19,7 @@
                     </div>
 
                     <!-- 自动下载总开关 -->
-                    <div class="flex items-center justify-between py-3 px-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
+                    <div class="flex items-center justify-between py-3 px-4 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-xl">
                         <div>
                             <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ t('download.enableAuto') }}</h4>
                             <p class="text-xs text-gray-400 mt-0.5">{{ t('download.enableAutoDesc') }}</p>
@@ -100,8 +100,8 @@
                             <!-- AppData 模式 -->
                             <div class="flex items-center justify-between p-4 rounded-xl border transition-colors"
                                 :class="dataMode === 'appdata'
-                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                    : 'border-gray-200 dark:border-gray-700'">
+                                    ? 'border-blue-500 bg-blue-100/60 dark:bg-blue-900/40 backdrop-blur-md'
+                                    : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md'">
                                 <div class="flex items-center">
                                     <div
                                         class="w-9 h-9 rounded-full flex items-center justify-center mr-3 bg-gray-100 dark:bg-gray-700 text-gray-500">
@@ -124,8 +124,8 @@
                             <!-- 应用自带目录模式 -->
                             <div class="flex items-center justify-between p-4 rounded-xl border transition-colors"
                                 :class="dataMode === 'portable'
-                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                    : 'border-gray-200 dark:border-gray-700'">
+                                    ? 'border-blue-500 bg-blue-100/60 dark:bg-blue-900/40 backdrop-blur-md'
+                                    : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md'">
                                 <div class="flex items-center">
                                     <div
                                         class="w-9 h-9 rounded-full flex items-center justify-center mr-3 bg-teal-100 dark:bg-teal-900/30 text-teal-600">
@@ -155,7 +155,7 @@
                     <div class="mb-6">
                         <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('download.stats') }}</h4>
 
-                        <div class="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                        <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden">
                             <div
                                 class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                                 <span class="text-sm text-gray-600 dark:text-gray-300">{{ t('download.currentDir') }}</span>

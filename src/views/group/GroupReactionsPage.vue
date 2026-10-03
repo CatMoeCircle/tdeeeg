@@ -20,9 +20,9 @@
             </h3>
             <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
           </div>
-          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
             <button v-for="opt in options" :key="opt.value" type="button"
-              class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
               @click="mode = opt.value">
               <span class="w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center"
                 :class="mode === opt.value ? 'border-blue-500' : 'border-gray-300 dark:border-gray-600'">
@@ -37,7 +37,7 @@
           <!-- 部分回应：自定义 emoji 列表 -->
           <div v-if="mode === 'some'" class="mt-4">
             <p class="text-xs text-gray-400 mb-2">{{ t('lng_manage_peer_reactions_some_about') }}</p>
-            <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3 flex flex-wrap gap-2">
+            <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-3 flex flex-wrap gap-2">
               <button v-for="e in emojiPool" :key="e" type="button"
                 class="w-10 h-10 rounded-lg text-2xl leading-none flex items-center justify-center border-2 transition-transform hover:scale-105"
                 :class="selectedEmojis.has(e) ? 'border-blue-500 bg-blue-500/10' : 'border-transparent'"

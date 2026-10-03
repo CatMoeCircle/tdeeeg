@@ -40,7 +40,7 @@
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
                         {{ t('dev.logs') }}</h3>
                     <button type="button"
-                        class="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                        class="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
                         @click="setLogUpdates(!logUpdates)">
                         <div class="text-left">
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('dev.logUpdates') }}</p>
@@ -69,9 +69,9 @@
                             {{ t('dev.waitingUpdate') }}
                         </div>
                         <div v-else
-                            class="rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800 max-h-96 overflow-y-auto custom-scrollbar">
+                            class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md divide-y divide-gray-100 dark:divide-gray-800 max-h-96 overflow-y-auto custom-scrollbar">
                             <div v-for="u in recentUpdates" :key="u.seq"
-                                class="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/60">
+                                class="flex items-start gap-2 px-3 py-2 hover:bg-black/5 dark:hover:bg-white/5">
                                 <div class="min-w-0 flex-1">
                                     <div class="flex items-baseline gap-2 flex-wrap">
                                         <span
@@ -99,7 +99,7 @@
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
                         {{ t('dev.contextMenu') }}</h3>
                     <button type="button"
-                        class="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                        class="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
                         @click="setShowCopyJsonInMenus(!showCopyJsonInMenus)">
                         <div class="text-left">
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('dev.showCopyJson')
@@ -143,7 +143,7 @@
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
                         {{ t('dev.debugTools') }}</h3>
                     <button type="button"
-                        class="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                        class="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
                         @click="openDevTools">
                         <div class="text-left">
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('dev.openDevtools')
@@ -187,7 +187,7 @@
                     </div>
 
                     <!-- 检查结果 -->
-                    <div v-if="langTestResult" class="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div v-if="langTestResult" class="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden">
                         <div class="px-4 py-3 flex items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-700"
                             :class="langTestResult.shouldTranslate
                                 ? 'bg-green-50/80 dark:bg-green-900/20'
@@ -267,10 +267,10 @@
                         <span>{{ debugOptionsLoading ? t('dev.loading') : t('dev.refreshOptions') }}</span>
                     </button>
                     <div v-if="debugOptions.length"
-                        class="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800">
+                        class="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md divide-y divide-gray-100 dark:divide-gray-800">
                         <div v-for="opt in debugOptions" :key="opt.name" class="px-3 py-2 transition-colors"
                             :class="opt.name === flashOptionName
-                                ? 'bg-blue-50 dark:bg-blue-900/30'
+                                ? 'bg-blue-500/10 dark:bg-blue-500/15'
                                 : ''">
                             <p class="text-xs font-mono text-gray-700 dark:text-gray-300 break-all">
                                 <span class="text-gray-400">{{ opt.name }}</span> = {{ opt.value }}

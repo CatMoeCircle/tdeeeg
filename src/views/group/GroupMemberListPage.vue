@@ -14,8 +14,8 @@
 
     <!-- 管理员页顶部：近期操作 / 签名 / 反垃圾（Unigram：事件日志仅超群，签名仅频道+可改资料，反垃圾仅群组） -->
     <div v-if="mode === 'admins' && showAdminHeader" class="px-6 pt-4 shrink-0 space-y-2">
-      <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
-        <button v-if="showEventLog" type="button" class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+      <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+        <button v-if="showEventLog" type="button" class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
           @click="goEventLog">
           <HistoryIcon class="w-5 h-5 text-gray-400 shrink-0" />
           <div class="min-w-0 flex-1">
@@ -49,7 +49,7 @@
 
     <!-- 成员页：隐藏成员（Unigram HideMembers，需 can_hide_members） -->
     <div v-if="mode === 'members' && canHideMembers" class="px-6 pt-4 shrink-0">
-      <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 flex items-center gap-3">
+      <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-3 flex items-center gap-3">
         <div class="min-w-0 flex-1">
           <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lng_profile_hide_participants') }}</p>
           <p class="text-xs text-gray-400 mt-0.5">{{ t('lng_manage_peer_no_forwards_about') }}</p>
@@ -70,9 +70,9 @@
         <template v-if="mode === 'members' && !query.trim() && sections.length">
           <div v-for="sec in sections" :key="sec.key">
             <p class="px-1 pb-2 text-xs font-medium text-gray-400 dark:text-gray-500">{{ sec.title }}</p>
-            <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+            <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
               <div v-for="m in sec.members" :key="memberKey(m)"
-                class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                class="flex items-center gap-3 px-4 py-3 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
                 @click="onRowClick(m)"
                 @contextmenu.prevent="openMenu($event, m)">
                 <div class="w-10 h-10 shrink-0">
@@ -84,7 +84,7 @@
                   <p class="text-xs text-gray-400 mt-0.5">{{ statusOf(m) }}</p>
                 </div>
                 <button type="button"
-                  class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shrink-0"
+                  class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-black/5 dark:hover:bg-white/5 transition-colors shrink-0"
                   @click.stop="openMenu($event, m)">
                   <MoreHorizontalIcon class="w-4 h-4" />
                 </button>
@@ -92,9 +92,9 @@
             </div>
           </div>
         </template>
-        <div v-else class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+        <div v-else class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
           <div v-for="m in members" :key="memberKey(m)"
-            class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+            class="flex items-center gap-3 px-4 py-3 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
             @click="onRowClick(m)"
             @contextmenu.prevent="openMenu($event, m)">
             <div class="w-10 h-10 shrink-0">
@@ -106,7 +106,7 @@
               <p class="text-xs text-gray-400 mt-0.5">{{ statusOf(m) }}</p>
             </div>
             <button type="button"
-              class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shrink-0"
+              class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-black/5 dark:hover:bg-white/5 transition-colors shrink-0"
               @click.stop="openMenu($event, m)">
               <MoreHorizontalIcon class="w-4 h-4" />
             </button>
@@ -117,11 +117,11 @@
           <div v-if="loading" class="px-4 py-8 text-center text-sm text-gray-400">{{ t('groupEdit.loading') }}</div>
         </div>
         <div v-if="mode === 'members' && !query.trim() && !loading && sections.length === 0"
-          class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-8 text-center text-sm text-gray-400">
+          class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-8 text-center text-sm text-gray-400">
           {{ t('groupEdit.empty') }}
         </div>
         <div v-if="mode === 'members' && !query.trim() && loading"
-          class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-8 text-center text-sm text-gray-400">
+          class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-8 text-center text-sm text-gray-400">
           {{ t('groupEdit.loading') }}
         </div>
       </div>

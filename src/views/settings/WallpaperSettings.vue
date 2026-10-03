@@ -111,7 +111,7 @@
                     <p v-if="error" class="mt-3 text-xs text-red-500">{{ error }}</p>
                 </section>
                 <label
-                    class="flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 cursor-pointer">
+                    class="flex items-center justify-between rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-4 cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/5">
                     <div>
                         <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('wallpaper.darkMode') }}</p>
                         <p class="mt-0.5 text-xs text-gray-400">{{ t('wallpaper.darkModeDesc') }}</p>

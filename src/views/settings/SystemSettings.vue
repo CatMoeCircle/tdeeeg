@@ -23,7 +23,7 @@
 
                     <div class="mt-5 space-y-3">
                         <div
-                            class="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                            class="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md">
                             <div>
                                 <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">
                                     {{ t('systemSettings.useTestDc') }}</h4>
@@ -37,7 +37,7 @@
                         </div>
 
                         <div
-                            class="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                            class="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md">
                             <div>
                                 <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">
                                     {{ t('systemSettings.customApi') }}</h4>
@@ -67,7 +67,7 @@
                     <!-- 账户列表 -->
                     <div class="mt-5 space-y-2">
                         <div v-for="acc in accounts" :key="acc.id"
-                            class="flex items-center p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                            class="flex items-center p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md">
                             <img v-if="acc.avatar_path" :src="avatarSrc(acc)" alt="avatar"
                                 class="w-10 h-10 rounded-full object-cover mr-3 shrink-0" />
                             <div v-else
@@ -117,7 +117,7 @@
 
                     <!-- 版本信息：应用版本 + TDLib 版本 一排居中 -->
                     <div
-                        class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 py-6">
+                        class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md py-6">
                         <div class="flex items-center justify-center gap-6 text-sm text-gray-600 dark:text-gray-300">
                             <span>{{ appName }} v{{ appVersion }}</span>
                             <span class="text-gray-300 dark:text-gray-600">|</span>
@@ -127,7 +127,7 @@
 
                     <!-- 当前连接参数 -->
                     <div
-                        class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800 text-sm text-gray-600 dark:text-gray-300">
+                        class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md divide-y divide-gray-100 dark:divide-gray-800 text-sm text-gray-600 dark:text-gray-300">
                         <div class="px-4 py-3 flex items-center justify-between">
                             <span class="text-gray-500 dark:text-gray-400">{{ t('systemSettings.dataCenter') }}</span>
                             <span class="font-mono">

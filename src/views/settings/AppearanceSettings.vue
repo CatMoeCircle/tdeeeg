@@ -11,7 +11,7 @@
             <div class="max-w-2xl">
                 <!-- 主题设置入口 -->
                 <router-link to="/home/settings/theme"
-                    class="flex items-center gap-3 p-4 mb-8 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
+                    class="flex items-center gap-3 p-4 mb-8 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors group">
                     <div
                         class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
                         <PaletteIcon class="w-5 h-5" />
@@ -77,7 +77,7 @@
 
                     <!-- 消息显示选项 -->
                     <div
-                        class="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-800">
+                        class="border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-lg divide-y divide-gray-100 dark:divide-gray-800">
                         <!-- 消息圆角 -->
                         <div class="px-4 py-3">
                             <div class="flex items-center justify-between mb-2">
@@ -158,7 +158,7 @@
 
                         <!-- 对话壁纸入口 -->
                         <router-link to="/home/settings/wallpaper"
-                            class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                            class="flex items-center gap-3 px-4 py-3 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                             <div
                                 class="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center shrink-0">
                                 <WallpaperIcon class="w-5 h-5" />
@@ -224,7 +224,7 @@
                     <!-- 分组栏显示选项（属于分组文件夹样式大类） -->
                     <div class="mt-4">
                         <div
-                            class="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-800">
+                            class="border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-lg divide-y divide-gray-100 dark:divide-gray-800">
                             <div class="px-4 py-2">
                                 <ChatTypeToggle :label="t('appearance.showFolderUnread')" v-model="settings.showFolderUnread" />
                             </div>
@@ -291,7 +291,7 @@
 
                     <!-- 聊天列表选项 -->
                     <div
-                        class="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-800">
+                        class="border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-lg divide-y divide-gray-100 dark:divide-gray-800">
                         <!-- 头像圆角 -->
                         <div class="px-4 py-3">
                             <div class="flex items-center justify-between mb-2">
@@ -339,17 +339,17 @@
                             <div class="grid grid-cols-3 gap-2">
                                 <button type="button" @click="settings.chatList.archivePosition = 'top'"
                                     class="px-2 py-1.5 text-xs rounded-md border transition-colors"
-                                    :class="settings.chatList.archivePosition === 'top' ? 'border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'">
+                                    :class="settings.chatList.archivePosition === 'top' ? 'border-blue-500 bg-blue-100/60 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5'">
                                     {{ t('appearance.archiveTop') }}
                                 </button>
                                 <button type="button" @click="settings.chatList.archivePosition = 'sidebar'"
                                     class="px-2 py-1.5 text-xs rounded-md border transition-colors"
-                                    :class="settings.chatList.archivePosition === 'sidebar' ? 'border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'">
+                                    :class="settings.chatList.archivePosition === 'sidebar' ? 'border-blue-500 bg-blue-100/60 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5'">
                                     {{ t('appearance.archiveSidebar') }}
                                 </button>
                                 <button type="button" @click="settings.chatList.archivePosition = 'hidden'"
                                     class="px-2 py-1.5 text-xs rounded-md border transition-colors"
-                                    :class="settings.chatList.archivePosition === 'hidden' ? 'border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'">
+                                    :class="settings.chatList.archivePosition === 'hidden' ? 'border-blue-500 bg-blue-100/60 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5'">
                                     {{ t('appearance.archiveHidden') }}
                                 </button>
                             </div>
@@ -374,7 +374,7 @@
                                 <button v-for="opt in loaderOptions" :key="opt.value" type="button"
                                     @click="settings.loadingStyle = opt.value"
                                     class="flex flex-col items-center gap-2 py-4 rounded-xl border transition-colors"
-                                    :class="settings.loadingStyle === opt.value ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'">
+                                    :class="settings.loadingStyle === opt.value ? 'border-blue-500 bg-blue-100/60 dark:bg-blue-900/40 backdrop-blur-md' : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md hover:bg-black/5 dark:hover:bg-white/5'">
                                     <LoaderIndicator :force="opt.value" :progress="0.55" size="34" color="#3b82f6" />
                                     <span class="text-xs text-gray-500 dark:text-gray-400">{{ opt.label }}</span>
                                 </button>
@@ -502,8 +502,8 @@
                     <div class="grid grid-cols-2 gap-3">
                         <button type="button" @click="settings.chatHeaderAvatarPosition = 'default'"
                             class="flex items-center gap-3 p-3 rounded-xl border transition-colors" :class="settings.chatHeaderAvatarPosition === 'default'
-                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'">
+                                ? 'border-blue-500 bg-blue-100/60 dark:bg-blue-900/40 backdrop-blur-md'
+                                : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md hover:bg-black/5 dark:hover:bg-white/5'">
                             <div
                                 class="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center shrink-0">
                                 <LayoutListIcon class="w-5 h-5" />
@@ -515,8 +515,8 @@
                         </button>
                         <button type="button" @click="settings.chatHeaderAvatarPosition = 'titlebar'"
                             class="flex items-center gap-3 p-3 rounded-xl border transition-colors" :class="settings.chatHeaderAvatarPosition === 'titlebar'
-                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'">
+                                ? 'border-blue-500 bg-blue-100/60 dark:bg-blue-900/40 backdrop-blur-md'
+                                : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md hover:bg-black/5 dark:hover:bg-white/5'">
                             <div
                                 class="w-9 h-9 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 flex items-center justify-center shrink-0">
                                 <PanelTopIcon class="w-5 h-5" />

@@ -17,7 +17,7 @@
             <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
           </div>
           <p class="mt-3 text-xs text-gray-400">{{ t('lng_manage_discussion_group_about') }}</p>
-          <div class="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+          <div class="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
             <div v-if="linkedChat" class="flex items-center gap-3 px-4 py-3">
               <div class="w-10 h-10 shrink-0">
                 <Avatar :photo="linkedChat.photo" :title="linkedChat.title" sizeClass="!w-10 !h-10" />
@@ -32,7 +32,7 @@
               </button>
             </div>
             <template v-else>
-              <button type="button" class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              <button type="button" class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                 @click="createDiscussion">
                 <div class="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-blue-500/10 text-blue-500">
                   <PlusIcon class="w-5 h-5" />
@@ -41,7 +41,7 @@
                   <p class="text-sm text-blue-500">{{ t('lng_manage_discussion_group_create') }}</p>
                 </div>
               </button>
-              <button v-for="c in candidates" :key="c.id" type="button" class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              <button v-for="c in candidates" :key="c.id" type="button" class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                 @click="linkTo(c.id)">
                 <div class="w-10 h-10 shrink-0">
                   <Avatar :photo="c.photo" :title="c.title" sizeClass="!w-10 !h-10" />
@@ -66,7 +66,7 @@
             </h3>
             <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
           </div>
-          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
             <div class="flex items-center gap-3 px-4 py-3">
               <div class="min-w-0 flex-1">
                 <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lng_manage_peer_send_only_members') }}</p>

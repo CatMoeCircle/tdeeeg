@@ -14,7 +14,7 @@
     <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
       <div class="max-w-2xl space-y-6">
         <section>
-          <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 flex items-center gap-3">
+          <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-3 flex items-center gap-3">
             <div class="min-w-0 flex-1">
               <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lng_edit_topics_enable') }}</p>
               <p class="text-xs text-gray-400 mt-0.5">{{ t('lng_edit_topics_about') }}</p>
@@ -30,8 +30,8 @@
             </h3>
             <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
           </div>
-          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
-            <button type="button" class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
+          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+            <button type="button" class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5"
               @click="useTabs = true">
               <span class="w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center"
                 :class="useTabs ? 'border-blue-500' : 'border-gray-300 dark:border-gray-600'">
@@ -39,7 +39,7 @@
               </span>
               <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lng_edit_topics_tabs') }}</p>
             </button>
-            <button type="button" class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800"
+            <button type="button" class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5"
               @click="useTabs = false">
               <span class="w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center"
                 :class="!useTabs ? 'border-blue-500' : 'border-gray-300 dark:border-gray-600'">

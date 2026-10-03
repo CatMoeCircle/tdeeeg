@@ -37,7 +37,7 @@
 
                     <!-- 目标语言：空 = 跟随语言包 -->
                     <div
-                        class="mb-3 flex items-center justify-between gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                        class="mb-3 flex items-center justify-between gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md">
                         <div class="min-w-0">
                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
                                 {{ t('translateSettings.targetLang') }}</p>
@@ -56,7 +56,7 @@
                         :desc="t('translateSettings.showMsgButtonDesc')" />
 
                     <div
-                        class="p-4 rounded-xl border border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400 leading-5">
+                        class="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md text-xs text-gray-500 dark:text-gray-400 leading-5">
                         {{ t('translateSettings.barHint') }}
                     </div>
                 </section>
@@ -66,7 +66,7 @@
                         <SectionHeader :title="t('translateSettings.doNotSection')"
                             :desc="t('translateSettings.doNotDesc')" />
                     <div
-                        class="p-4 rounded-xl border border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-2">
+                        class="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md flex flex-wrap items-center gap-2">
                         <span v-for="code in settings.translate.doNotTranslate" :key="code"
                             class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200">
                             {{ languageLabel(code) }}
@@ -94,7 +94,7 @@
 
                     <!-- 场景覆盖：右键翻译 / 全部翻译（默认固定 Telegram，不提供默认项选择） -->
                     <div
-                        class="mb-3 p-4 rounded-xl border border-gray-200 dark:border-gray-700 space-y-3">
+                        class="mb-3 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md space-y-3">
                         <div class="flex items-center justify-between gap-4">
                             <div class="min-w-0">
                                 <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
@@ -121,8 +121,8 @@
                         <div v-for="p in providerCards" :key="p.id"
                             class="rounded-xl border transition-colors"
                             :class="isActiveProvider(p.id)
-                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                : 'border-gray-200 dark:border-gray-700'">
+                                ? 'border-blue-500 bg-blue-100/60 dark:bg-blue-900/40 backdrop-blur-md'
+                                : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md'">
                             <div class="flex items-center justify-between p-4">
                                 <div class="flex items-center min-w-0">
                                     <div class="w-9 h-9 rounded-full shrink-0 flex items-center justify-center mr-3"
@@ -509,8 +509,8 @@ const ModeCard = defineComponent({
         return () => h('div', {
             class: 'flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-colors ' +
                 (props.selected
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'),
+                    ? 'border-blue-500 bg-blue-100/60 dark:bg-blue-900/40 backdrop-blur-md'
+                    : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md hover:bg-black/5 dark:hover:bg-white/5'),
             onClick: () => emit('click'),
         }, [
             h('div', { class: 'flex items-center' }, [
@@ -539,7 +539,7 @@ const ToggleRow = defineComponent({
     emits: ['update:modelValue'],
     setup(props, { emit }) {
         return () => h('div', {
-            class: 'mb-3 flex items-center justify-between gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700',
+            class: 'mb-3 flex items-center justify-between gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md',
         }, [
             h('div', { class: 'min-w-0' }, [
                 h('p', { class: 'text-sm font-medium text-gray-900 dark:text-gray-100' }, props.title),

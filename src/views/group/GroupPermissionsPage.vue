@@ -21,7 +21,7 @@
             </h3>
             <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
           </div>
-          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
             <!-- 发送消息 -->
             <div class="flex items-center gap-3 px-4 py-3">
               <div class="min-w-0 flex-1">
@@ -45,7 +45,7 @@
                 </div>
                 <ToggleSwitch :model-value="mediaAllOn" @update:model-value="onMediaAll" />
               </div>
-              <div v-if="mediaExpanded" class="mt-2 ml-7 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+              <div v-if="mediaExpanded" class="mt-2 ml-7 rounded-lg border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
                 <div v-for="row in mediaRows" :key="row.key" class="flex items-center gap-3 px-3 py-2">
                   <div class="min-w-0 flex-1">
                     <p class="text-sm text-gray-700 dark:text-gray-200">{{ row.label }}</p>
@@ -74,7 +74,7 @@
             </h3>
             <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
           </div>
-          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3">
+          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-3">
             <div class="flex items-center gap-3">
               <div class="min-w-0 flex-1">
                 <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lng_rights_charge_stars') }}</p>
@@ -97,7 +97,7 @@
             </h3>
             <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
           </div>
-          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4">
+          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-4">
             <select v-model.number="slowModeDelay"
               class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option v-for="opt in slowModeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
@@ -116,7 +116,7 @@
             </h3>
             <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
           </div>
-          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3">
+          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-3">
             <div class="flex items-center gap-3">
               <div class="min-w-0 flex-1">
                 <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lng_rights_boosts_no_restrict') }}</p>
@@ -139,9 +139,9 @@
             </h3>
             <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
           </div>
-          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden">
+          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden">
             <button type="button" @click="goBlacklist"
-              class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+              class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
               <BanIcon class="w-5 h-5 text-gray-400 shrink-0" />
               <div class="min-w-0 flex-1">
                 <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lng_manage_peer_banned_users') }}</p>
@@ -160,16 +160,16 @@
             <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
           </div>
           <button v-if="canRestrict" type="button" @click="goMembers"
-            class="mt-3 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+            class="mt-3 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-3 flex items-center gap-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
             <UserPlusIcon class="w-5 h-5 text-gray-400 shrink-0" />
             <div class="min-w-0 flex-1">
               <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lng_channel_add_exception') }}</p>
             </div>
             <ChevronRightIcon class="w-4 h-4 text-gray-400 shrink-0" />
           </button>
-          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
             <div v-for="m in restrictedMembers" :key="String(memberUserId(m) ?? Math.random())"
-              class="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              class="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
               @click="openRestrict(m)"
               @contextmenu.prevent="openRestrictedMenu($event, m)">
               <div class="w-9 h-9 shrink-0">
@@ -181,7 +181,7 @@
                 <p class="text-xs text-gray-400 mt-0.5">{{ restrictedBy(m) }}</p>
               </div>
               <button type="button"
-                class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+                class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-black/5 dark:hover:bg-white/5"
                 @click.stop="openRestrictedMenu($event, m)">
                 <MoreHorizontalIcon class="w-4 h-4" />
               </button>

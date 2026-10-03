@@ -24,7 +24,7 @@
                     </div>
                     <div class="mt-5">
                         <div
-                            class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex gap-6">
+                            class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-4 flex gap-6">
                             <!-- 左侧：头像 + 上传按钮 -->
                             <div class="flex flex-col items-center gap-3 shrink-0">
                                 <Avatar :photo="user?.profile_photo" :title="fullName"
@@ -60,7 +60,7 @@
                     </div>
                     <div class="mt-5 space-y-3">
                         <div
-                            class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 space-y-2">
+                            class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-4 space-y-2">
                             <textarea ref="bioTextarea" v-model="bio" rows="3" :maxlength="bioMax"
                                 class="bio-textarea input-scrollbar w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm leading-6 resize-none overflow-y-auto focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
                             <div class="flex items-center justify-between">
@@ -79,7 +79,7 @@
                     </div>
                     <div class="mt-5 space-y-3">
                         <button type="button" @click="phoneVisible = true"
-                            class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                            class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-4 flex items-center gap-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                             <PhoneIcon class="w-5 h-5 text-gray-400 shrink-0" />
                             <div class="min-w-0 flex-1">
                                 <p class="text-sm text-gray-800 dark:text-gray-100 select-all">{{ formattedPhone ||
@@ -102,7 +102,7 @@
                     </div>
                     <div class="mt-5 space-y-3">
                         <button type="button" @click="openUsernamePopup"
-                            class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                            class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-4 flex items-center gap-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                             <AtSignIcon class="w-5 h-5 text-gray-400 shrink-0" />
                             <div class="min-w-0 flex-1">
                                 <p class="text-sm text-gray-800 dark:text-gray-100">{{ primaryUsername ||
@@ -124,7 +124,7 @@
                     </div>
                     <div class="mt-5 space-y-3">
                         <div
-                            class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 space-y-3">
+                            class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-4 space-y-3">
                             <div class="flex items-center gap-3">
                                 <CalendarIcon class="w-5 h-5 text-gray-400 shrink-0" />
                                 <p v-if="birthdateText" class="text-sm text-gray-800 dark:text-gray-100 flex-1">{{
@@ -170,7 +170,7 @@
                     </div>
                     <div class="mt-5 space-y-3">
                         <button type="button" @click="openPersonalChatPopup"
-                            class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                            class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-4 flex items-center gap-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                             <div class="w-10 h-10 shrink-0" v-if="personalChat">
                                 <Avatar :photo="personalChat.photo" :title="personalChat.title"
                                     :accentColorId="personalChatAccent" sizeClass="!w-10 !h-10" />
@@ -200,7 +200,7 @@
                     </div>
                     <div class="mt-5 space-y-3">
                         <button type="button" @click="openBusinessHoursPopup"
-                            class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                            class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-4 flex items-center gap-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                             <ClockIcon class="w-5 h-5 text-gray-400 shrink-0" />
                             <div class="min-w-0 flex-1">
                                 <p v-if="businessHoursLines.length"
@@ -228,7 +228,7 @@
                     </div>
                     <div class="mt-5 space-y-3">
                         <button type="button" @click="openLocationPopup"
-                            class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                            class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-4 flex items-center gap-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                             <MapPinIcon class="w-5 h-5 text-gray-400 shrink-0" />
                             <div class="min-w-0 flex-1">
                                 <p v-if="businessLocation?.address"
@@ -251,7 +251,7 @@
                     </div>
                     <div class="mt-5 space-y-3">
                         <button type="button" @click="openChatbotPopup"
-                            class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                            class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-4 flex items-center gap-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                             <BotIcon class="w-5 h-5 text-gray-400 shrink-0" />
                             <div class="min-w-0 flex-1">
                                 <p class="text-sm text-gray-800 dark:text-gray-100 truncate">{{ chatbotText ||

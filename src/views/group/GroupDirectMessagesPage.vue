@@ -14,7 +14,7 @@
     <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
       <div class="max-w-2xl space-y-6">
         <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
-          <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 flex items-center gap-3">
+          <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-3 flex items-center gap-3">
             <div class="min-w-0 flex-1">
               <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lng_action_direct_messages_enabled') }}</p>
               <p class="text-xs text-gray-400 mt-0.5">{{ t('lng_admin_log_about_text_channel') }}</p>
@@ -30,7 +30,7 @@
             </h3>
             <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
           </div>
-          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4">
+          <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-4">
             <p class="text-sm text-gray-800 dark:text-gray-100 mb-2">{{ starCount }}</p>
             <input v-model.number="starCount" type="range" min="0" max="10000" step="1" class="w-full accent-blue-500" />
             <p class="text-xs text-gray-400 mt-2">{{ t('lng_rights_charge_stars_about') }}</p>

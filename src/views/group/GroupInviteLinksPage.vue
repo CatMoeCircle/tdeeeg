@@ -14,7 +14,7 @@
     <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
       <div class="max-w-2xl space-y-3">
         <p class="text-xs text-gray-400">{{ t('lng_create_invite_link_about') }}</p>
-        <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+        <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
           <div v-for="link in links" :key="link.invite_link" class="px-4 py-3 flex items-center gap-3">
             <div class="min-w-0 flex-1">
               <p class="text-sm text-gray-800 dark:text-gray-100 select-all break-all">{{ link.invite_link }}</p>

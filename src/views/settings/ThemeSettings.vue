@@ -28,8 +28,8 @@
                         <button v-for="opt in modeOptions" :key="opt.value" type="button"
                             class="flex flex-col items-center gap-2 p-4 rounded-xl border transition-colors"
                             :class="settings.theme.mode === opt.value
-                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'"
+                                ? 'border-blue-500 bg-blue-100/60 dark:bg-blue-900/40 backdrop-blur-md'
+                                : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md hover:bg-black/5 dark:hover:bg-white/5'"
                             @click="themeApi.setMode(opt.value)">
                             <div class="w-10 h-10 rounded-full flex items-center justify-center" :class="opt.iconClass">
                                 <component :is="opt.icon" class="w-5 h-5" />
@@ -112,7 +112,7 @@
                         </label>
                     </div>
 
-                    <div class="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700">
+                    <div class="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md">
                         <div class="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-700 shrink-0"
                             :style="{ background: activeBrandColor }"></div>
                         <div class="flex-1 min-w-0">
@@ -165,7 +165,7 @@
                         </label>
                     </div>
 
-                    <div class="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden">
                         <div class="p-4" :style="{ background: activeBgColor }">
                             <div class="rounded-lg p-3 shadow-sm border" :style="{
                                 background: bgPreviewContainer,
@@ -208,7 +208,7 @@
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
                     <div
-                        class="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-800">
+                        class="border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-lg divide-y divide-gray-100 dark:divide-gray-800">
                         <div v-for="item in semanticItems" :key="item.key" class="px-4 py-3 flex items-center gap-3">
                             <div class="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-700 shrink-0"
                                 :style="{ background: item.current }"></div>

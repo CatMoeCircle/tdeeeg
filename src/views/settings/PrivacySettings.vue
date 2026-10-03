@@ -20,10 +20,10 @@
                     </div>
                     <div class="mt-5 space-y-3">
                         <div
-                            class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+                            class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
                             <!-- 拉黑用户列表 -->
                             <button type="button" @click="openBlockedPopup"
-                                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                                 <BanIcon class="w-5 h-5 text-gray-400 shrink-0" />
                                 <div class="min-w-0 flex-1">
                                     <p class="text-sm text-gray-800 dark:text-gray-100">{{
@@ -34,7 +34,7 @@
                             </button>
                             <!-- 两步验证 -->
                             <button type="button" @click="openTwoStepSettings"
-                                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                                 <KeyRoundIcon class="w-5 h-5 text-gray-400 shrink-0" />
                                 <div class="min-w-0 flex-1">
                                     <p class="text-sm text-gray-800 dark:text-gray-100">{{
@@ -45,7 +45,7 @@
                             </button>
                             <!-- 自动删除设置 -->
                             <button type="button" @click="openAutoDeletePopup"
-                                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                                 <TimerResetIcon class="w-5 h-5 text-gray-400 shrink-0" />
                                 <div class="min-w-0 flex-1">
                                     <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lng_settings_ttl_title')
@@ -67,7 +67,7 @@
                             </div>
                             <!-- 活动会话 -->
                             <button type="button" @click="router.push({ name: 'settings-devices' })"
-                                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                                 <SmartphoneIcon class="w-5 h-5 text-gray-400 shrink-0" />
                                 <div class="min-w-0 flex-1">
                                     <p class="text-sm text-gray-800 dark:text-gray-100">
@@ -89,9 +89,9 @@
                     </div>
                     <div class="mt-5 space-y-3">
                         <div
-                            class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+                            class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
                             <button v-for="item in privacyItems" :key="item.key" type="button"
-                                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                                 @click="openPrivacyItem(item)">
                                 <div class="min-w-0 flex-1">
                                     <p class="text-sm text-gray-800 dark:text-gray-100 flex items-center gap-1.5">
@@ -117,7 +117,7 @@
                     </div>
                     <div class="mt-5 space-y-3">
                         <button type="button" @click="openAccountTtlPopup"
-                            class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                            class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-4 flex items-center gap-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                             <Trash2Icon class="w-5 h-5 text-gray-400 shrink-0" />
                             <div class="min-w-0 flex-1">
                                 <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lng_self_destruct_title')
@@ -138,7 +138,7 @@
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
                     <div class="mt-5 space-y-3">
-                        <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 flex items-center gap-3"
+                        <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-3 flex items-center gap-3"
                             :class="!canIgnoreSensitive ? 'opacity-60' : ''">
                             <div class="min-w-0 flex-1">
                                 <p class="text-sm text-gray-800 dark:text-gray-100">{{
