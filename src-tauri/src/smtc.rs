@@ -68,9 +68,10 @@ mod imp {
         let controls: SystemMediaTransportControls = unsafe { interop.GetForWindow(hwnd) }
             .map_err(|e| format!("GetForWindow failed: {e}"))?;
 
-        // 只注册回调，不在此 SetIsEnabled(true)：
-        // 启动即启用会让系统在「从未播放」时也挂一条空 SMTC。
-        // 有曲目时由 update_metadata 负责启用。
+        // IsEnabled 默认为 true（UWP 代码常不设它也能收到按键），仅删除
+        // SetIsEnabled(true) 不够——启动时仍是启用态，系统会挂出空卡片。
+        // 这里显式禁用；有曲目时由 update_metadata 负责启用。
+        let _ = controls.SetIsEnabled(false);
         let _ = controls.SetIsPlayEnabled(true);
         let _ = controls.SetIsPauseEnabled(true);
         let _ = controls.SetIsStopEnabled(true);
