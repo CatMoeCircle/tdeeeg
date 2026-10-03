@@ -1228,6 +1228,7 @@
   "chat": {
     "moreReactions": "更多回應",
     "exitSelection": "退出多選",
+    "selectLimit": "最多只能選取 {max} 條訊息",
     "needsPremium": "需要 Premium",
     "selectDmTopic": "請選擇一個私訊會話後回覆",
     "scrollToBottom": "跳到底部",

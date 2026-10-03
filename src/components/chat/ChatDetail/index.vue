@@ -434,6 +434,7 @@
                 </button>
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-200 flex-1 truncate">
                     {{ t('lng_media_selected_message', { count: selectedMsgIds.length }) }}
+                    <span class="text-xs font-normal text-gray-500 dark:text-gray-400">/ {{ MAX_SELECTED_MSG_COUNT }}</span>
                 </span>
                 <button type="button" :aria-label="t('lng_context_forward_selected')" :title="t('lng_mediaview_forward')"
                     class="p-2 rounded-full enabled:hover:bg-gray-100 dark:enabled:hover:bg-gray-800 text-gray-600 dark:text-gray-300 disabled:opacity-40"
@@ -1773,6 +1774,8 @@ function buildReplyQuote(): inputTextQuote | null {
 }
 
 // ===== 多选模式 =====
+/** 多选上限：与 Telegram 官方客户端一致，单次最多选中 100 条消息 */
+const MAX_SELECTED_MSG_COUNT = 100;
 /** 是否处于多选模式 */
 const selectionMode = ref(false);
 /** 多选中选中的消息 id 集合（按加入顺序用数组保持稳定） */
@@ -1805,6 +1808,10 @@ function toggleSelectMsg(msgId: number) {
     if (idx >= 0) {
         selectedMsgIds.value.splice(idx, 1);
     } else {
+        if (selectedMsgIds.value.length >= MAX_SELECTED_MSG_COUNT) {
+            MessagePlugin.warning(t('chat.selectLimit', { max: MAX_SELECTED_MSG_COUNT }));
+            return;
+        }
         selectedMsgIds.value.push(msgId);
     }
     void refreshSelectionPermissions();

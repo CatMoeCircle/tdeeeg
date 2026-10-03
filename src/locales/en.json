@@ -1228,6 +1228,7 @@
   "chat": {
     "moreReactions": "More reactions",
     "exitSelection": "Exit selection",
+    "selectLimit": "You can select up to {max} messages",
     "needsPremium": "Premium required",
     "selectDmTopic": "Select a direct message chat to reply",
     "scrollToBottom": "Scroll to bottom",

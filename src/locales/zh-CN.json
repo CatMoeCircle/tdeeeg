@@ -1235,6 +1235,7 @@
   "chat": {
     "moreReactions": "更多回应",
     "exitSelection": "退出多选",
+    "selectLimit": "最多只能选择 {max} 条消息",
     "needsPremium": "需要 Premium",
     "selectDmTopic": "请选择一个私信会话后回复",
     "scrollToBottom": "跳到底部",

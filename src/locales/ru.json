@@ -1228,6 +1228,7 @@
   "chat": {
     "moreReactions": "Ещё реакции",
     "exitSelection": "Выйти из выбора",
+    "selectLimit": "Можно выбрать не более {max} сообщений",
     "needsPremium": "Требуется Premium",
     "selectDmTopic": "Выберите личный чат для ответа",
     "scrollToBottom": "Прокрутить вниз",
