@@ -40,8 +40,11 @@
                 <CustomEmojiInline v-if="emojiStatusDisplayId" :emojiId="emojiStatusDisplayId" :size="22" />
                 <span v-else class="tgico tgico-emoji-status text-[20px]" />
               </button>
-              <span v-if="!isDeletedProfile && !isSelf && user?.is_premium && !user?.emoji_status" class="text-base"
-                :title="t('lng_premium_summary_title')">⭐</span>
+              <!-- 他人资料：有 emoji 状态显示状态；纯会员（无状态）显示 ⭐ -->
+              <template v-if="!isDeletedProfile && !isSelf && user?.is_premium">
+                <CustomEmojiInline v-if="emojiStatusDisplayId" :emojiId="emojiStatusDisplayId" :size="22" />
+                <span v-else class="text-base" :title="t('lng_premium_summary_title')">⭐</span>
+              </template>
               <VerifiedFilledIcon v-if="!isDeletedProfile && verificationType === 'verified'"
                 class="text-blue-500 text-lg" :title="t('lng_sr_chat_column_verified')" :fill-color='["currentColor", "transparent"]'
                 :stroke-color='["currentColor", "#0052d9"]' :stroke-width="1.5" />
@@ -623,15 +626,16 @@
             </div>
           </div>
 
-          <!-- 礼物区（仅普通用户） -->
-          <div v-else-if="activeTab === 'gifts' && !chatMode && giftsList.length > 0"
+          <!-- 礼物区（仅普通用户）：容器进入视口停留后才拉取列表（视口 + profile 池并发闸门 + store 去重） -->
+          <div v-else-if="activeTab === 'gifts' && !chatMode" ref="giftsSectionEl"
             class="py-6 text-center text-sm text-gray-400">
             <div class="flex items-center justify-between mb-2">
               <span class="px-2 py-0.5 rounded-lg bg-teal-600 text-white text-xs font-medium">{{
                 t('lng_media_type_gifts')
               }}</span>
             </div>
-            <div class="grid grid-cols-4 gap-1.5">
+            <div v-if="giftsLoading" class="py-6">{{ t('lng_contacts_loading') }}</div>
+            <div v-else-if="giftsList.length > 0" class="grid grid-cols-4 gap-1.5">
               <div v-for="(gift, i) in giftsList" :key="gift.received_gift_id || i"
                 class="flex items-center justify-center cursor-pointer" :title="giftText(gift)"
                 @click="openGiftDetail(gift)">
@@ -1160,6 +1164,7 @@ import { folderTabClass, folderTabContainerClass } from "../../utils/folderPills
 import type { SharedMediaCounts } from "../../utils/sharedMediaCounts";
 import { useProfileSharedMedia } from "../../composables/useProfileSharedMedia";
 import { onVisibilityChange, unobserveVisibility } from "../../composables/useSharedIntersectionObserver";
+import { enqueueViewportLoad, DEFAULT_DWELL_MS } from "../../utils/viewportLoadGate";
 import { formatDateLabel, isSameCalendarDay } from "../../components/chat/ChatDetail/composables/dateLabel";
 import { requestCustomEmoji } from "../../store/customEmoji";
 import EncryptionKeyDialog from "../../components/user/EncryptionKeyDialog.vue";
@@ -1389,6 +1394,8 @@ const user = computed<TdUser | undefined>(() => profileStore.users.get(userId.va
 const fullInfo = computed<userFullInfo | undefined>(() => profileStore.fullInfos.get(userId.value));
 const photosList = computed<chatPhoto[]>(() => profileStore.photos.get(userId.value) ?? []);
 const giftsList = computed<receivedGift[]>(() => profileStore.gifts.get(userId.value) ?? []);
+/** 礼物列表是否正在拉取（视口触发的按需加载中） */
+const giftsLoading = computed(() => profileStore.giftsLoading.get(userId.value) ?? false);
 /** 共同群组：用户模式按 route userId；秘密聊天按对方 user_id（route 上是 chat id） */
 const commonGroupsList = computed<number[]>(() => {
   const uid = isSecretChat.value ? secretChatUserId.value : userId.value;
@@ -1428,6 +1435,7 @@ const hasBottomContent = computed(() => {
       || sharedMediaCounts.value.voice > 0 || sharedMediaCounts.value.gifs > 0;
   }
   return isLoading.value || activeStoriesList.value.length > 0 || giftsList.value.length > 0
+    || (fullInfo.value?.gift_count ?? 0) > 0
     || (!isSelf.value && commonGroupsList.value.length > 0)
     || sharedMediaCounts.value.media > 0 || sharedMediaCounts.value.files > 0
     || sharedMediaCounts.value.links > 0 || sharedMediaCounts.value.music > 0
@@ -1729,7 +1737,8 @@ const profileTabs = computed<ProfileTab[]>(() => {
     isSelf: isSelf.value,
     hasPostedStories: storyList.length > 0,
     hasArchivedStories: archivedList.length > 0,
-    giftCount: giftsList.value.length,
+    // 礼物数用 fullInfo.gift_count（首屏即有）；礼物列表本身改为进视口才拉取
+    giftCount: fullInfo.value?.gift_count || giftsList.value.length,
     commonGroupCount: commonGroupsList.value.length,
     isBot: isBot.value,
     hasTopics: false,
@@ -2446,6 +2455,52 @@ function closePhotoViewer() {
 // 礼物网格单元格宽（用于 GiftDisplay 组件的尺寸）。
 // grid-cols-4 在 ~544px 内容区下每格约 131px，取 112 留出间距且卡片足够大。
 const profileGiftCellSize = 112;
+
+// ===== 礼物列表按需加载：视口 + 并发判断 =====
+// 礼物区容器进入视口并停留 DEFAULT_DWELL_MS 后才拉取列表（快速切走取消）；
+// 拉取经 profile 池排队（enqueueViewportLoad），且 store 内 ensureGifts 做请求去重，
+// 因此重复进入、切页重挂载都不会重复发 getReceivedGifts。
+const giftsSectionEl = ref<HTMLElement | null>(null);
+let giftsObservedEl: Element | null = null;
+let giftsDwellTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearGiftsDwell() {
+  if (giftsDwellTimer !== null) {
+    clearTimeout(giftsDwellTimer);
+    giftsDwellTimer = null;
+  }
+}
+
+// userId 也参与绑定：切资料页时即使礼物区容器未重挂载（礼物恰为首 tab），也重新观察并触发新用户拉取
+watch([giftsSectionEl, userId], ([el]) => {
+  // 离开礼物标签 / 重挂载：解除旧观察并取消未完成的停留计时
+  if (giftsObservedEl) {
+    unobserveVisibility(giftsObservedEl);
+    giftsObservedEl = null;
+  }
+  clearGiftsDwell();
+  if (!el) return;
+  giftsObservedEl = el;
+  onVisibilityChange(
+    el,
+    () => {
+      clearGiftsDwell();
+      giftsDwellTimer = setTimeout(() => {
+        giftsDwellTimer = null;
+        enqueueViewportLoad(() => profileStore.ensureGifts(userId.value), 'profile');
+      }, DEFAULT_DWELL_MS);
+    },
+    clearGiftsDwell,
+  );
+});
+
+onUnmounted(() => {
+  clearGiftsDwell();
+  if (giftsObservedEl) {
+    unobserveVisibility(giftsObservedEl);
+    giftsObservedEl = null;
+  }
+});
 
 /** 礼物 tooltip 文本 */
 function giftText(gift: receivedGift): string {

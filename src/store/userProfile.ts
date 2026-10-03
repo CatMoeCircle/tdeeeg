@@ -22,7 +22,7 @@ import { fetchSharedMediaCounts, type SharedMediaCounts } from "../utils/sharedM
  *   - 基础用户信息（复用 senderInfo 的 getUser 缓存）
  *   - 完整信息（getUserFullInfo：bio、个人/公开照片、商业信息、礼物数、共同群组数等）
  *   - 个人照片墙（getUserProfilePhotos）
- *   - 礼物列表（getReceivedGifts）
+ *   - 礼物列表（getReceivedGifts，进入视口按需拉取，不随资料页首屏 eager 加载）
  *   - 共同群组（getGroupsInCommon）
  *   - 动态列表（getChatActiveStories + getChatPostedToChatPageStories）
  *
@@ -37,6 +37,12 @@ export const useUserProfileStore = defineStore("userProfile", () => {
   const photos = reactive(new Map<number, chatPhoto[]>());
   /** 每个用户的礼物列表 */
   const gifts = reactive(new Map<number, receivedGift[]>());
+  /** 礼物列表是否已成功拉取（按需加载去重：已加载则不再请求） */
+  const giftsLoaded = new Set<number>();
+  /** 礼物列表进行中的请求（并发去重：重复触发复用同一 Promise） */
+  const giftsPending = new Map<number, Promise<void>>();
+  /** 礼物列表是否正在拉取（按 userId，供资料页礼物区显示加载态） */
+  const giftsLoading = reactive(new Map<number, boolean>());
   /** 每个用户的共同群组（chat id 列表） */
   const commonGroups = reactive(new Map<number, number[]>());
   /** 每个用户的动态列表（普通动态 + 归档动态合并，按日期倒序） */
@@ -92,23 +98,40 @@ export const useUserProfileStore = defineStore("userProfile", () => {
     }
   }
 
-  /** 获取用户收到的礼物（保存到个人资料页的） */
-  async function fetchGifts(userId: number): Promise<void> {
-    try {
-      const owner: MessageSender = { _: "messageSenderUser", user_id: userId };
-      const res = (await tdlibSend({
-        _: "getReceivedGifts",
-        owner_id: owner,
-        exclude_unsaved: true,
-        exclude_saved: false,
-        exclude_unlimited: false,
-        offset: "",
-        limit: 100,
-      })) as { gifts: receivedGift[] };
-      gifts.set(userId, res.gifts ?? []);
-    } catch (e) {
-      console.error("Failed to fetch user gifts", e);
-    }
+  /**
+   * 按需获取用户收到的礼物（保存到个人资料页的）。
+   * - 已加载：直接跳过；
+   * - 进行中：复用同一 Promise（并发去重）；
+   * 供资料页礼物区进入视口后触发，避免打开任意资料页都 eager 拉取。
+   */
+  async function ensureGifts(userId: number): Promise<void> {
+    if (giftsLoaded.has(userId)) return;
+    const inFlight = giftsPending.get(userId);
+    if (inFlight) return inFlight;
+    giftsLoading.set(userId, true);
+    const p = (async () => {
+      try {
+        const owner: MessageSender = { _: "messageSenderUser", user_id: userId };
+        const res = (await tdlibSend({
+          _: "getReceivedGifts",
+          owner_id: owner,
+          exclude_unsaved: true,
+          exclude_saved: false,
+          exclude_unlimited: false,
+          offset: "",
+          limit: 100,
+        })) as { gifts: receivedGift[] };
+        gifts.set(userId, res.gifts ?? []);
+        giftsLoaded.add(userId);
+      } catch (e) {
+        console.error("Failed to fetch user gifts", e);
+      } finally {
+        giftsLoading.set(userId, false);
+        giftsPending.delete(userId);
+      }
+    })();
+    giftsPending.set(userId, p);
+    return p;
   }
 
   /** 获取共同群组 */
@@ -212,7 +235,6 @@ export const useUserProfileStore = defineStore("userProfile", () => {
           fetchUser(userId),
           fetchFullInfo(userId),
           fetchPhotos(userId),
-          fetchGifts(userId),
           fetchStories(userId),
         ];
         if (!isSelf) {
@@ -237,6 +259,7 @@ export const useUserProfileStore = defineStore("userProfile", () => {
     loaded.delete(userId);
     photos.delete(userId);
     gifts.delete(userId);
+    giftsLoaded.delete(userId);
     commonGroups.delete(userId);
     stories.delete(userId);
     await loadProfile(userId);
@@ -313,6 +336,7 @@ export const useUserProfileStore = defineStore("userProfile", () => {
     fullInfos,
     photos,
     gifts,
+    giftsLoading,
     commonGroups,
     stories,
     activeStories,
@@ -328,6 +352,7 @@ export const useUserProfileStore = defineStore("userProfile", () => {
     fetchFullInfo,
     fetchCommonGroups,
     fetchPhotos,
+    ensureGifts,
     fetchSharedMediaCountsForChat,
     initUserProfileUpdates,
     getPhoneInfo,

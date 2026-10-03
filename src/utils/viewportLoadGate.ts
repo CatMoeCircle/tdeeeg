@@ -23,7 +23,7 @@ export const MAX_CONCURRENT_VIEWPORT_LOADS = 3;
  * 界面分池标识：
  * - chat:    聊天消息媒体 / 头像 / 自定义 emoji 等
  * - sticker: 贴纸 / GIF / 表情抽屉
- * - profile: 个人资料共享媒体网格
+ * - profile: 个人资料共享媒体网格 / 礼物列表
  */
 export type ViewportLoadScope = 'chat' | 'sticker' | 'profile';
 
