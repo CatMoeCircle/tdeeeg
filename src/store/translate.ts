@@ -14,6 +14,7 @@ import {
     shouldTranslateText,
     type ShouldTranslateDecision,
 } from "../utils/languageDetect";
+import { detectInlineEntities } from "../utils/textEntityDetect";
 
 /**
  * 「翻译消息」弹窗 + 内联翻译 + 聊天「全部翻译」的全局状态。
@@ -65,7 +66,8 @@ export interface InlineTranslation {
     translatedText: string;
     /**
      * 译文实体（偏移对应 translatedText）。
-     * TDLib 仅对 Premium 用户保留格式；普通用户返回为空，此时按纯文本展示。
+     * TDLib 仅对 Premium 用户保留格式；其余情况（含 AI / 第三方提供方）按译文
+     * 补全 @提及 / #话题 / 链接，见 utils/textEntityDetect。
      */
     translatedEntities: textEntity[];
     /** 正在翻译 */
@@ -123,9 +125,13 @@ export async function translateInlineMessage(
         const cur = inlineTranslations[key];
         if (!cur) return false; // 已被移除（例如消息删除 / 关闭全部翻译）
         const translated = (res?.text ?? "").trim() ? (res!.text as string) : "";
-        // 实体只在与译文文本完全对应时采用（第三方/AI 提供方可能只给纯文本）
+        // 实体只在与译文文本完全对应时采用（第三方/AI 提供方可能只给纯文本）；
+        // 再按译文补全 @提及 / #话题 / 链接，避免译文里的这些格式退化成普通文字
         const ft = res?.formattedText;
-        const entities = ft && ft.text === translated ? (ft.entities ?? []) : [];
+        const entities = detectInlineEntities(
+            translated,
+            ft && ft.text === translated ? (ft.entities ?? []) : [],
+        );
         // 整对象替换：避免仅改嵌套字段时列表项 computed 不刷新
         inlineTranslations[key] = {
             ...cur,

@@ -352,7 +352,16 @@ function styleForType(type: TextEntityType): string {
         case 'textEntityTypeBlockQuote':
         case 'textEntityTypeExpandableBlockQuote': st.push('display:block;border-left:3px solid rgba(128,128,128,.5);padding-left:8px;margin:2px 0'); break;
         case 'textEntityTypeTextUrl': st.push('color:var(--tc-link,#4f9cf9);text-decoration:underline'); break;
-        case 'textEntityTypeMentionName': st.push('color:var(--tc-link,#4f9cf9)'); break;
+        // 提及 / 话题 / 链接型实体：Telegram 统一渲染为强调色
+        case 'textEntityTypeMention':
+        case 'textEntityTypeMentionName':
+        case 'textEntityTypeHashtag':
+        case 'textEntityTypeCashtag':
+        case 'textEntityTypeBotCommand':
+        case 'textEntityTypeUrl':
+        case 'textEntityTypeEmailAddress':
+        case 'textEntityTypePhoneNumber':
+            st.push('color:var(--tc-link,#4f9cf9)'); break;
         default: break;
     }
     return st.join(';');

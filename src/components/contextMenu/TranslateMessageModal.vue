@@ -92,6 +92,7 @@ import {
 } from "../../store/translate";
 import { translateViaProvider } from "../../utils/translateProvider";
 import { renderEntitiesHTML } from "../../utils/textFormatters";
+import { detectInlineEntities } from "../../utils/textEntityDetect";
 import LoaderIndicator from "../common/LoaderIndicator";
 import {
     getTranslateLanguageOptions,
@@ -104,7 +105,7 @@ const req = translateRequest;
 /** 当前目标语言 */
 const targetLang = ref<string>(getTranslateTargetLang());
 const translatedText = ref("");
-/** 译文实体（TDLib 仅 Premium 保留格式；普通用户为空 → 纯文本展示） */
+/** 译文实体（TDLib 仅 Premium 保留格式；其余按译文文本补全 @提及/#话题/链接） */
 const translatedEntities = ref<textEntity[]>([]);
 const translating = ref(false);
 const error = ref("");
@@ -144,10 +145,13 @@ async function doTranslate() {
         if (seq !== translateSeq) return; // 已切换目标语言，丢弃过期结果
         const text = res?.text ?? "";
         translatedText.value = text.trim() ? text : "";
-        // 实体仅在与译文文本完全对应时采用（第三方/AI 提供方可能只给纯文本）
+        // 实体仅在与译文文本完全对应时采用（第三方/AI 提供方可能只给纯文本）；
+        // 再按译文补全 @提及 / #话题 / 链接，避免译文里的这些格式退化成普通文字
         const ft = res?.formattedText;
-        translatedEntities.value =
-            ft && ft.text === translatedText.value ? (ft.entities ?? []) : [];
+        translatedEntities.value = detectInlineEntities(
+            translatedText.value,
+            ft && ft.text === translatedText.value ? (ft.entities ?? []) : [],
+        );
         if (!translatedText.value) error.value = "lng_translate_box_error";
     } catch (e: any) {
         if (seq !== translateSeq) return;
