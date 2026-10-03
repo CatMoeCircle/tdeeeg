@@ -68,10 +68,9 @@ mod imp {
         let controls: SystemMediaTransportControls = unsafe { interop.GetForWindow(hwnd) }
             .map_err(|e| format!("GetForWindow failed: {e}"))?;
 
-        // 启用基础按钮
-        controls
-            .SetIsEnabled(true)
-            .map_err(|e| format!("SetIsEnabled failed: {e}"))?;
+        // 只注册回调，不在此 SetIsEnabled(true)：
+        // 启动即启用会让系统在「从未播放」时也挂一条空 SMTC。
+        // 有曲目时由 update_metadata 负责启用。
         let _ = controls.SetIsPlayEnabled(true);
         let _ = controls.SetIsPauseEnabled(true);
         let _ = controls.SetIsStopEnabled(true);
@@ -273,17 +272,26 @@ mod imp {
         })
     }
 
-    /// 清空元数据并停用 SMTC（关闭播放器时调用）。
+    /// 清空元数据并停用 SMTC（关闭播放器 / 无曲目时调用）。
+    ///
+    /// Win11 媒体浮窗对「只 Stopped + disable」的会话有时会留残影：
+    /// 需先 ClearAll+Update 清显示，再置 Closed，最后 SetIsEnabled(false)。
     pub fn clear() -> Result<(), String> {
         with_controls(|controls| {
-            controls
-                .SetPlaybackStatus(MediaPlaybackStatus::Stopped)
-                .map_err(|e| format!("SetPlaybackStatus failed: {e}"))?;
-            let _ = controls.SetIsEnabled(false);
             if let Ok(updater) = controls.DisplayUpdater() {
                 let _ = updater.ClearAll();
                 let _ = updater.Update();
             }
+            if let Ok(timeline) = SystemMediaTransportControlsTimelineProperties::new() {
+                let _ = timeline.SetStartTime(TimeSpan { Duration: 0 });
+                let _ = timeline.SetEndTime(TimeSpan { Duration: 0 });
+                let _ = timeline.SetPosition(TimeSpan { Duration: 0 });
+                let _ = timeline.SetMinSeekTime(TimeSpan { Duration: 0 });
+                let _ = timeline.SetMaxSeekTime(TimeSpan { Duration: 0 });
+                let _ = controls.UpdateTimelineProperties(&timeline);
+            }
+            let _ = controls.SetPlaybackStatus(MediaPlaybackStatus::Closed);
+            let _ = controls.SetIsEnabled(false);
             Ok(())
         })
     }

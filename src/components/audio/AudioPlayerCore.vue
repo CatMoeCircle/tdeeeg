@@ -143,8 +143,9 @@ function syncNativeSmtcMetadata() {
     }).catch(() => { /* SMTC 未初始化时忽略 */ });
 }
 
-/** 同步原生 SMTC 播放状态与进度（Windows） */
+/** 同步原生 SMTC 播放状态与进度（Windows）。无曲目时不推送，避免 clear 后被 Paused 拉回。 */
 function syncNativeSmtcPlayback() {
+    if (!player.currentTrack) return;
     void invoke('smtc_update_playback', {
         playing: player.isPlaying,
         positionSecs: player.currentTime || 0,
@@ -172,6 +173,9 @@ function pushPosition() {
 function pushSmtc(force = false) {
     void force;
     if (useNativeSmtc) {
+        // 无曲目（关闭播放器 / 切列表间隙）：交给 currentTrack watch 做 smtc_clear，
+        // 不要再 update_playback，否则 Closed/disable 之后又会被推成 Paused。
+        if (!player.currentTrack) return;
         syncNativeSmtcMetadata();
         syncNativeSmtcPlayback();
         return;
