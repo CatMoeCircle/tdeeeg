@@ -1,5 +1,5 @@
 <template>
-    <div class="flex items-stretch gap-2 mb-1.5 px-2 py-1.5 rounded-lg overflow-hidden select-none"
+    <div ref="rootEl" class="flex items-stretch gap-2 mb-1.5 px-2 py-1.5 rounded-lg overflow-hidden select-none"
         :class="status === 'found' ? 'cursor-pointer' : ''" :style="replyBgStyle"
         @click="status === 'found' && jumpToMessage()">
         <!-- Left color bar -->
@@ -41,6 +41,7 @@ import { isThumbnailImgRenderable } from '../../../../../utils/thumbnail';
 import { useColors, rgbToCss } from '../../../../../store/colors';
 import { getSenderAccentColorId } from '../../../../../utils/senderInfo';
 import { messageContentTypeLabel } from '../../../../../utils/messagePreview';
+import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 
 const props = defineProps<{
@@ -65,10 +66,12 @@ interface ReplyDisplayData {
     messageId: number;
 }
 
+const rootEl = ref<HTMLElement | null>(null);
+
 const replyData = ref<ReplyDisplayData | null>(null);
 
 /** 回复目标的加载状态：
- *  - loading：尚未查到消息（正在获取中）
+ *  - loading：尚未查到消息（等待进入视口 / 正在获取中）
  *  - found：已找到被回复消息
  *  - deleted：被回复消息已被删除 / 无法获取（如 MESSAGE_NOT_FOUND）
  */
@@ -138,18 +141,34 @@ const senderNameStyle = computed(() => {
     return { color: 'rgba(59,130,246,1)' }; // 回退蓝色
 });
 
-onMounted(async () => {
-    await loadReplyData();
+/**
+ * 视口门控：进入视口并停留后才去查询被回复消息。
+ * 列表里每条带回复的消息都会挂载本组件，若一挂载就 getMessage（还可能拉缩略图），
+ * 首屏就会同时打出大量 TDLib 调用；未进入视口时保持「获取中」占位即可。
+ *
+ * enqueue: false —— getMessage 与 Small 缩略图都是轻量请求，不占 chat 媒体并发池，
+ * 否则可见区的回复预览会排在大图/视频下载后面，长时间停在「获取中」。
+ */
+const { start: startViewportLoad, entered: replyEntered } = useViewportLoad(
+    rootEl,
+    () => loadReplyData(),
+    { enqueue: false },
+);
+
+onMounted(() => {
+    startViewportLoad();
 });
 
 /** 加载代次：replyTo 变化 / 重复加载时自增，丢弃过期异步结果，避免缩略图串到别的回复 */
 let replyLoadSeq = 0;
 
-/** replyTo 目标变化时重新加载（组件可能不重挂载，仅 onMounted 会漏更新并串图） */
+/** replyTo 目标变化时重新加载（组件可能不重挂载，仅首次加载会漏更新并串图）；
+ *  尚未进入视口时不加载——首次触发时会读取最新的 replyTo。 */
 watch(
     () => [props.replyTo?.chat_id, props.replyTo?.message_id] as const,
     ([chatId, msgId], [prevChatId, prevMsgId]) => {
         if (chatId === prevChatId && msgId === prevMsgId) return;
+        if (!replyEntered.value) return;
         void loadReplyData();
     },
 );
