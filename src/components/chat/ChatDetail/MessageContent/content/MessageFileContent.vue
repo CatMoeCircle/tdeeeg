@@ -50,18 +50,18 @@
 <!-- Audio -->
 <div v-else-if="content._ === 'messageAudio'"
     class="relative flex w-full max-w-full min-w-0 items-center gap-3 overflow-hidden rounded-lg">
-    <div class="relative h-14 w-14 shrink-0">
+    <div class="relative h-12 w-12 shrink-0">
         <div class="group relative h-full w-full overflow-hidden rounded-xl bg-blue-100 dark:bg-blue-950">
             <img v-if="coverSrc" :src="coverSrc" :alt="content.audio.title || content.audio.file_name"
                 class="h-full w-full select-none object-cover" @error="coverSrc = undefined" />
             <div v-else class="flex h-full w-full items-center justify-center">
-                <MusicIcon class="h-6 w-6 text-blue-500 dark:text-blue-300" />
+                <MusicIcon class="h-5 w-5 text-blue-500 dark:text-blue-300" />
             </div>
             <button type="button"
                 class="audio-cover-button absolute inset-0 flex items-center justify-center bg-black/20 text-white transition-colors hover:bg-black/30"
                 :aria-label="isGloballyPlaying ? t('lng_mac_menu_player_pause') : t('content.play')" @click="togglePlayback">
-                <PauseIcon v-if="isGloballyPlaying" class="h-6 w-6 fill-current" />
-                <PlayIcon v-else class="ml-0.5 h-6 w-6 fill-current" />
+                <PauseIcon v-if="isGloballyPlaying" class="h-5 w-5 fill-current" />
+                <PlayIcon v-else class="ml-0.5 h-5 w-5 fill-current" />
             </button>
             <!-- 上传（发送中）覆盖提示 -->
             <div v-if="uploading"
@@ -86,7 +86,11 @@
         <span class="truncate text-sm font-medium" :class="isCurrentTrack ? 'text-blue-600 dark:text-blue-400' : ''">
             {{ content.audio.title || content.audio.file_name }}
         </span>
-        <span class="truncate text-xs text-gray-500 dark:text-gray-400">
+        <!-- 当前曲目（含暂停）一直显示进度条，切换到其他曲目才恢复作者名；作者行 py-[3px] 补足到与滑块相同的 22px 行高 -->
+        <SmoothSlider v-if="isCurrentTrack" :model-value="progressValue" :max-value="displayDuration"
+            :max-overflow="0" :disabled="displayDuration <= 0" @update:model-value="onProgressUpdate"
+            @change="onProgressCommit" />
+        <span v-else class="truncate py-[3px] text-xs text-gray-500 dark:text-gray-400">
             <template v-if="uploading">
                 {{ t('content.uploading') }} {{ formatSize(uploadCurrentSize) }} / {{ formatSize(uploadTotalSize) }}
             </template>
@@ -94,15 +98,10 @@
                 {{ content.audio.performer || t('content.unknownArtist') }}
             </template>
         </span>
-        <input class="audio-progress mt-1.5 w-full" type="range" min="0" :max="displayDuration || 1" step="0.1"
-            :value="displayTime" :style="audioProgressStyle" :disabled="!isCurrentTrack || displayDuration <= 0"
-            :aria-label="t('content.musicProgress')" @input="seekAudio" />
-        <div class="mt-0.5 flex justify-between text-[10px] leading-none text-gray-400 dark:text-gray-500">
-            <span>{{ formatDuration(displayTime) }}</span>
-            <span>{{ formatDuration(displayDuration) }}</span>
+        <div class="mt-1 text-[10px] leading-none tabular-nums text-gray-400 dark:text-gray-500">
+            {{ formatDuration(progressValue) }} / {{ formatDuration(displayDuration) }}
         </div>
     </div>
-    <!-- 音乐已自带进度条（audio-progress 滑块展示下载/播放进度），不再额外绘制底部细进度条 -->
 </div>
 
     <!-- 相对定位容器：承载 replace 模式扫光覆盖层（flow-root 防外边距塌陷，保证两层对齐） -->
@@ -167,6 +166,7 @@ import { MessagePlugin } from 'tdesign-vue-next';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
 import SpoilerSpan from '../spoiler/SpoilerSpan.vue';
 import LoaderIndicator from '../../../../common/LoaderIndicator';
+import SmoothSlider from '../../../../common/SmoothSlider.vue';
 import { useDownloadStore, type DownloadFileType } from '../../../../../store/downloads';
 import { useUploadStore } from '../../../../../store/upload';
 import { useChatStore } from '../../../../../store/chat';
@@ -260,12 +260,20 @@ const displayDuration = computed(() => {
     return props.content._ === 'messageAudio' ? props.content.audio.duration : 0;
 });
 
-const audioProgressStyle = computed<Record<string, string>>(() => {
-    const ratio = isCurrentTrack.value && displayDuration.value > 0
-        ? displayTime.value / displayDuration.value
-        : downloadProgress.value;
-    return { '--audio-progress': `${Math.min(1, Math.max(0, ratio)) * 100}%` };
-});
+/** 拖拽中的本地秒数：拖动时跟手，松手 seek 后清空回退到 store */
+const dragValue = ref<number | null>(null);
+
+/** 进度条与时间展示值：拖拽时优先用拖拽值 */
+const progressValue = computed(() => dragValue.value ?? displayTime.value);
+
+function onProgressUpdate(value: number) {
+    dragValue.value = value;
+}
+
+function onProgressCommit(value: number) {
+    audioPlayer.seek(value);
+    dragValue.value = null;
+}
 
 /** 音频文件是否已下载就绪 */
 const fileReady = computed(() => {
@@ -859,16 +867,10 @@ async function togglePlayback() {
     await audioPlayer.playMessageAudio(msg);
 }
 
-function seekAudio(event: Event) {
-    if (!isCurrentTrack.value) return;
-    const nextTime = Number((event.target as HTMLInputElement).value);
-    audioPlayer.seek(nextTime);
-}
-
 function formatDuration(seconds: number) {
     const safeSeconds = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
     const minutes = Math.floor(safeSeconds / 60);
-    return `${minutes}:${String(safeSeconds % 60).padStart(2, '0')}`;
+    return `${String(minutes).padStart(2, '0')}:${String(safeSeconds % 60).padStart(2, '0')}`;
 }
 
 const formatSize = (size: number) => {
@@ -927,72 +929,9 @@ onUnmounted(() => {
     transform: scale(0.96);
 }
 
-.audio-progress {
-    --audio-progress: 0%;
-    appearance: none;
-    height: 12px;
-    margin-inline: 0;
-    cursor: pointer;
-    background: transparent;
-}
-
-.audio-progress:disabled {
-    cursor: default;
-    opacity: 1;
-}
-
-.audio-progress::-webkit-slider-runnable-track {
-    height: 3px;
-    border-radius: 9999px;
-    background: linear-gradient(to right, #3b82f6 var(--audio-progress), rgb(209 213 219) var(--audio-progress));
-}
-
-.audio-progress::-webkit-slider-thumb {
-    width: 9px;
-    height: 9px;
-    margin-top: -3px;
-    appearance: none;
-    border: 0;
-    border-radius: 9999px;
-    background: #3b82f6;
-}
-
-.audio-progress:disabled::-webkit-slider-thumb {
-    opacity: 0;
-}
-
-.audio-progress::-moz-range-track {
-    height: 3px;
-    border-radius: 9999px;
-    background: rgb(209 213 219);
-}
-
-.audio-progress::-moz-range-progress {
-    height: 3px;
-    border-radius: 9999px;
-    background: #3b82f6;
-}
-
-.audio-progress::-moz-range-thumb {
-    width: 9px;
-    height: 9px;
-    border: 0;
-    border-radius: 9999px;
-    background: #3b82f6;
-}
-
-.audio-progress:disabled::-moz-range-thumb {
-    opacity: 0;
-}
-
-:global(html.dark .audio-progress::-webkit-slider-runnable-track){
-    background: linear-gradient(to right, #60a5fa var(--audio-progress), rgb(75 85 99) var(--audio-progress));
-}
-
 @media (prefers-reduced-motion: reduce) {
 
-    .audio-cover-button,
-    .audio-progress {
+    .audio-cover-button {
         transition: none;
     }
 
