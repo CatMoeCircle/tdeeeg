@@ -53,7 +53,7 @@ This project is developed entirely with AI tools, so contributions made with the
 - [x] Message search
 - [x] Message editing
 - [x] Draft sync
-- [ ] Translate-all button
+- [x] Translate-all button
 - [ ] Voice / video calls
 - [ ] More message types (polls, location sharing, etc.)
 
@@ -72,11 +72,11 @@ This project is developed entirely with AI tools, so contributions made with the
 - [x] Channel / group / topic mode (list)
 - [x] Gift showcase
 - [x] Premium status modification
-- [ ] Topic mode (tabs)
-- [ ] Group / channel management (create, edit, member management)
+- [x] Topic mode (tabs)
+- [x] Group / channel management (create, edit, member management)
 - [ ] Gift purchase and sending
 - [ ] Telegram Premium feature showcase
-- [ ] Global search box
+- [x] Global search box
 
 ### Settings
 - [x] Profile editing
@@ -89,7 +89,7 @@ This project is developed entirely with AI tools, so contributions made with the
 - [x] Multi-account support
 - [x] Notification settings
 - [ ] Chat folder management
-- [ ] Theme customization
+- [x] Theme customization
 - [x] Multi-language support
 
 ## Development setup
