@@ -92,6 +92,14 @@ interface Settings {
     scale: number;
     /** 点击 bot 命令（如 /start）时：true=添加到输入框（而非直接发送） */
     botCommandInsert: boolean;
+    /** 自定义气泡皮肤图片路径（QQ 风格图片气泡；空 = 使用默认气泡，启用后圆角与缩放不可调） */
+    customBubbleImage: string;
+    /** 自定义气泡九宫格切线手动覆盖（上右下左，源图像素）；null = 使用自动分析 */
+    customBubbleSlice: [number, number, number, number] | null;
+    /** 自定义气泡皮肤边距：皮肤绘制尺寸 = 切片 × 该比例（0.3 ~ 1） */
+    customBubbleBorderScale: number;
+    /** 自定义气泡内容内边距（px）：文字距白底边缘的间距，0 = 紧贴白底 */
+    customBubblePadding: number;
   };
   /** 贴纸显示设置 */
   sticker: {
@@ -280,6 +288,10 @@ const defaultSettings: Settings = {
     fontSize: 14,
     scale: 1,
     botCommandInsert: false,
+    customBubbleImage: "",
+    customBubbleSlice: null,
+    customBubbleBorderScale: 0.6,
+    customBubblePadding: 6,
   },
   sticker: {
     size: 160,

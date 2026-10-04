@@ -78,24 +78,130 @@
                     <!-- 消息显示选项 -->
                     <div
                         class="border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-lg divide-y divide-gray-100 dark:divide-gray-800">
-                        <!-- 消息圆角 -->
+                        <!-- 自定义气泡（图片皮肤） -->
                         <div class="px-4 py-3">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <span class="text-sm text-gray-600 dark:text-gray-400">{{ t('appearance.customBubble') }}</span>
+                                    <p class="mt-1 text-xs text-gray-400">{{ t('appearance.customBubbleDesc') }}</p>
+                                </div>
+                                <div class="flex items-center gap-2 shrink-0">
+                                    <button type="button"
+                                        class="px-3 py-1.5 text-xs rounded-md border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                        @click="pickCustomBubbleImage">
+                                        {{ settings.message.customBubbleImage ? t('appearance.customBubbleChange')
+                                            : t('appearance.customBubbleChoose') }}
+                                    </button>
+                                    <button v-if="settings.message.customBubbleImage" type="button"
+                                        class="px-3 py-1.5 text-xs rounded-md border border-gray-200 dark:border-gray-700 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                                        @click="settings.message.customBubbleImage = ''">
+                                        {{ t('appearance.customBubbleRemove') }}
+                                    </button>
+                                </div>
+                            </div>
+                            <!-- 拖拽式九宫格编辑器：图上直接拖十字线校准切线 -->
+                            <div v-if="customSkin" class="mt-3 flex items-start gap-3">
+                                <div ref="skinEditorRef"
+                                    class="relative shrink-0 select-none overflow-hidden rounded-md border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900"
+                                    :style="{ width: editorSize.w + 'px', height: editorSize.h + 'px' }">
+                                    <img :src="customSkin.url" alt="" draggable="false"
+                                        class="absolute inset-0 h-full w-full pointer-events-none" />
+                                    <!-- 拉伸十字带（该区域随气泡尺寸伸缩） -->
+                                    <div class="absolute pointer-events-none bg-emerald-400/20"
+                                        :style="crossStyles.vertical"></div>
+                                    <div class="absolute pointer-events-none bg-emerald-400/20"
+                                        :style="crossStyles.horizontal"></div>
+                                    <!-- 四条切线（拖拽调整） -->
+                                    <div v-for="axis in SLICE_AXES" :key="axis" class="absolute"
+                                        :class="axis === 't' || axis === 'b' ? 'left-0 right-0 h-4 -mt-2' : 'top-0 bottom-0 w-4 -ml-2'"
+                                        :style="lineStyles[axis]" @pointerdown.prevent="startSliceDrag(axis, $event)">
+                                        <div class="absolute border-blue-500"
+                                            :class="axis === 't' || axis === 'b'
+                                                ? 'left-0 right-0 top-2 border-t border-dashed'
+                                                : 'top-0 bottom-0 left-2 border-l border-dashed'"></div>
+                                        <div
+                                            class="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-blue-500 shadow-sm">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div class="min-w-0">
+                                            <p class="text-xs font-medium text-gray-600 dark:text-gray-300">{{
+                                                t('appearance.customBubbleSlice') }}</p>
+                                            <p class="mt-1 text-xs text-amber-500">{{ t('appearance.customBubbleLocked') }}
+                                            </p>
+                                        </div>
+                                        <button type="button"
+                                            class="shrink-0 px-2 py-0.5 text-xs rounded-md border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                            :disabled="!settings.message.customBubbleSlice"
+                                            :class="settings.message.customBubbleSlice ? '' : 'opacity-40'"
+                                            @click="settings.message.customBubbleSlice = null">
+                                            {{ t('appearance.customBubbleAuto') }}
+                                        </button>
+                                    </div>
+                                    <p class="mt-2 text-xs text-gray-400">{{ t('appearance.customBubbleSliceDesc') }}</p>
+                                    <p class="mt-1.5 text-[11px] text-gray-500 tabular-nums">{{ sliceCaption }}</p>
+                                </div>
+                            </div>
+
+                            <!-- 边距与内边距：皮肤显示比例 / 内容留白 -->
+                            <CollapsibleSection v-if="customSkin" class="mt-3" :open="showSkinTuning"
+                                :title="t('appearance.customBubbleTuning')"
+                                :description="t('appearance.customBubbleTuningDesc')"
+                                @toggle="showSkinTuning = !showSkinTuning">
+                                <!-- 皮肤边距 -->
+                                <div class="pt-1 pb-2">
+                                    <div class="flex items-center justify-between mb-1.5">
+                                        <span class="text-xs font-medium text-gray-600 dark:text-gray-300">{{
+                                            t('appearance.customBubbleBorderScale') }}</span>
+                                        <span class="text-xs text-gray-500 tabular-nums">{{
+                                            Math.round(settings.message.customBubbleBorderScale * 100) }}%</span>
+                                    </div>
+                                    <input type="range" min="30" max="100" step="5"
+                                        :value="Math.round(settings.message.customBubbleBorderScale * 100)"
+                                        @input="onBorderScaleInput" class="w-full accent-blue-500" />
+                                    <p class="mt-1 text-xs text-gray-400">{{ t('appearance.customBubbleBorderScaleDesc')
+                                        }}</p>
+                                </div>
+                                <!-- 内容内边距 -->
+                                <div class="pb-1">
+                                    <div class="flex items-center justify-between mb-1.5">
+                                        <span class="text-xs font-medium text-gray-600 dark:text-gray-300">{{
+                                            t('appearance.customBubblePadding') }}</span>
+                                        <span class="text-xs text-gray-500 tabular-nums">{{
+                                            settings.message.customBubblePadding }}px</span>
+                                    </div>
+                                    <input type="range" min="0" max="24" step="1"
+                                        v-model.number="settings.message.customBubblePadding"
+                                        class="w-full accent-blue-500" />
+                                    <p class="mt-1 text-xs text-gray-400">{{ t('appearance.customBubblePaddingDesc') }}</p>
+                                </div>
+                            </CollapsibleSection>
+                        </div>
+
+                        <!-- 消息圆角（自定义气泡启用时锁定） -->
+                        <div class="px-4 py-3"
+                            :class="customBubbleLocked ? 'opacity-40 pointer-events-none' : ''">
                             <div class="flex items-center justify-between mb-2">
                                 <span class="text-sm text-gray-600 dark:text-gray-400">{{ t('appearance.messageRadius') }}</span>
                                 <span class="flex items-center gap-1">
                                     <EditableNumber :value="settings.message.cornerRadius" unit="px" :min="0" :max="24"
+                                        :disabled="customBubbleLocked"
                                         @update:value="settings.message.cornerRadius = $event" />
                                     <span v-if="settings.message.cornerRadius === DEFAULT_MESSAGE.cornerRadius"
                                         class="text-xs font-normal text-gray-400">{{ t('appearance.defaultSuffix') }}</span>
                                 </span>
                             </div>
                             <input type="range" min="0" max="24" step="1" v-model.number="settings.message.cornerRadius"
+                                :disabled="customBubbleLocked"
                                 class="w-full accent-blue-500" />
                             <p class="mt-1 text-xs text-gray-400">{{ t('appearance.messageRadiusDesc') }}</p>
                         </div>
 
-                        <!-- 4 角对称 -->
-                        <div class="px-4 py-2">
+                        <!-- 4 角对称（自定义气泡启用时锁定） -->
+                        <div class="px-4 py-2"
+                            :class="customBubbleLocked ? 'opacity-40 pointer-events-none' : ''">
                             <ChatTypeToggle :label="t('appearance.cornerRadiusSymmetrical')" v-model="settings.message.cornerRadiusSymmetrical" />
                             <p class="mt-1 text-xs text-gray-400">{{ t('appearance.cornerRadiusSymmetricalDesc') }}</p>
                         </div>
@@ -116,15 +222,18 @@
                             <p class="mt-1 text-xs text-gray-400">{{ t('appearance.fontSizeDesc') }}</p>
                         </div>
 
-                        <!-- 消息整体比例缩放 -->
-                        <div class="px-4 py-3">
+                        <!-- 消息整体比例缩放（自定义气泡启用时锁定） -->
+                        <div class="px-4 py-3"
+                            :class="customBubbleLocked ? 'opacity-40 pointer-events-none' : ''">
                             <div class="flex items-center justify-between mb-2">
                                 <span class="text-sm text-gray-600 dark:text-gray-400">{{ t('appearance.messageScale') }}</span>
                                 <EditableNumber :value="Math.round(settings.message.scale * 100)" unit="%" :min="80"
-                                    :max="120" @update:value="settings.message.scale = $event / 100" />
+                                    :max="120" :disabled="customBubbleLocked"
+                                    @update:value="settings.message.scale = $event / 100" />
                             </div>
                             <input type="range" min="80" max="120" step="1"
                                 :value="Math.round(settings.message.scale * 100)" @input="onScaleInput"
+                                :disabled="customBubbleLocked"
                                 class="w-full accent-blue-500" />
                             <p class="mt-1 text-xs text-gray-400">{{ t('appearance.messageScaleDesc') }}</p>
                         </div>
@@ -232,7 +341,7 @@
                             <div v-if="settings.showFolderUnread" class="px-4 py-2">
                                 <ChatTypeToggle :label="t('appearance.showUnreadMessages')"
                                     :modelValue="settings.chatList.unreadCountMode === 'messages'"
-                                    @update:modelValue="(v: boolean) => settings.chatList.unreadCountMode = v ? 'messages' : 'chats'" />
+                                    @update:modelValue="setUnreadCountMode" />
                             </div>
                             <div class="px-4 py-2">
                                 <ChatTypeToggle :label="t('appearance.showFolderIcons')" v-model="settings.showFolderIcons" />
@@ -534,8 +643,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, type Component } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, type Component } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-dialog';
 import { useRouter } from 'vue-router';
 import {
     MessageCircleIcon, UserIcon, UsersIcon, MegaphoneIcon,
@@ -550,12 +660,14 @@ import ChatTypeToggle from '../../components/settings/ChatTypeToggle.vue';
 import Avatar from '../../components/chat/avatar.vue';
 import GlobalEmojiText from '../../components/common/GlobalEmojiText.vue';
 import EditableNumber from '../../components/settings/EditableNumber.vue';
+import CollapsibleSection from '../../components/settings/CollapsibleSection.vue';
 import PreviewCard from '../../components/settings/PreviewCard.vue';
 import LoaderIndicator from '../../components/common/LoaderIndicator';
 import SlidingTabBar from '../../components/common/SlidingTabBar.vue';
 import { folderTabContainerClass } from '../../utils/folderPillsTabClass';
 import TitleBarEmojiStatus from '../../components/common/TitleBarEmojiStatus.vue';
 import stickerPreview from '../../assets/sticker.jpg';
+import { useCustomBubbleSkin, customSkinStyle } from '../../composables/useCustomBubbleSkin';
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 
@@ -568,6 +680,149 @@ function goBack() {
 
 /** 消息显示/贴纸设置默认值（用于显示“(默认)”标记，与 settings.ts 默认值一致） */
 const DEFAULT_MESSAGE = { cornerRadius: 12, fontSize: 14, stickerSize: 160 };
+
+/** 自定义气泡皮肤（分析完成后可渲染；null = 未启用或分析中） */
+const customSkin = useCustomBubbleSkin();
+
+/** 自定义气泡是否已设置（设置即锁定圆角/缩放，不等分析完成） */
+const customBubbleLocked = computed(() => !!settings.message.customBubbleImage);
+
+/** “切线与边距”面板展开状态 */
+const showSkinTuning = ref(false);
+
+/** 切线轴顺序（模板 v-for 用） */
+const SLICE_AXES = ['t', 'r', 'b', 'l'] as const;
+type SliceAxis = (typeof SLICE_AXES)[number];
+
+/** 九宫格编辑器容器 ref */
+const skinEditorRef = ref<HTMLElement | null>(null);
+
+/** 编辑器显示尺寸：小图放大到约 280px 宽（1~3 倍），便于拖拽 */
+const editorSize = computed(() => {
+    const s = customSkin.value;
+    if (!s) return { w: 0, h: 0 };
+    const [w, h] = s.size;
+    const scale = Math.max(1, Math.min(3, 280 / w));
+    return { w: Math.round(w * scale), h: Math.round(h * scale) };
+});
+
+/** 四条切线的定位样式（命中区 16px，中心线可视化） */
+const lineStyles = computed<Record<SliceAxis, Record<string, string>>>(() => {
+    const empty = { t: {}, r: {}, b: {}, l: {} } as Record<SliceAxis, Record<string, string>>;
+    const s = customSkin.value;
+    if (!s) return empty;
+    const [w, h] = s.size;
+    const kx = editorSize.value.w / w;
+    const ky = editorSize.value.h / h;
+    const [st, sr, sb, sl] = s.slice;
+    const horizontal = (y: number): Record<string, string> => ({ top: `${y}px`, cursor: 'ns-resize' });
+    const vertical = (x: number): Record<string, string> => ({ left: `${x}px`, cursor: 'ew-resize' });
+    return {
+        t: horizontal(st * ky),
+        b: horizontal(editorSize.value.h - sb * ky),
+        l: vertical(sl * kx),
+        r: vertical(editorSize.value.w - sr * kx),
+    };
+});
+
+/** 拉伸十字带（绿色高亮区域）：中间列 + 中间行 */
+const crossStyles = computed(() => {
+    const none = { vertical: {}, horizontal: {} } as Record<string, Record<string, string>>;
+    const s = customSkin.value;
+    if (!s) return none;
+    const [w, h] = s.size;
+    const kx = editorSize.value.w / w;
+    const ky = editorSize.value.h / h;
+    const [st, sr, sb, sl] = s.slice;
+    return {
+        vertical: {
+            left: `${sl * kx}px`,
+            width: `${editorSize.value.w - (sl + sr) * kx}px`,
+            top: '0px',
+            bottom: '0px',
+        },
+        horizontal: {
+            top: `${st * ky}px`,
+            height: `${editorSize.value.h - (st + sb) * ky}px`,
+            left: '0px',
+            right: '0px',
+        },
+    };
+});
+
+/** 当前切线数值说明（编辑器旁） */
+const sliceCaption = computed(() => {
+    const s = customSkin.value;
+    if (!s) return '';
+    const [st, sr, sb, sl] = s.slice;
+    return `${t('appearance.sliceTop')} ${st} · ${t('appearance.sliceBottom')} ${sb} · ${t('appearance.sliceLeft')} ${sl} · ${t('appearance.sliceRight')} ${sr} px`;
+});
+
+/** 拖拽中的切线轴（null = 未拖拽） */
+let draggingAxis: SliceAxis | null = null;
+
+/** 拖拽切线：pointermove 期间按指针位置写入手动覆盖 */
+function startSliceDrag(axis: SliceAxis, event: PointerEvent) {
+    if (!customSkin.value) return;
+    draggingAxis = axis;
+    window.addEventListener('pointermove', onSliceDragMove);
+    window.addEventListener('pointerup', stopSliceDrag);
+    window.addEventListener('pointercancel', stopSliceDrag);
+    void event;
+}
+
+function onSliceDragMove(event: PointerEvent) {
+    const axis = draggingAxis;
+    const s = customSkin.value;
+    const el = skinEditorRef.value;
+    if (!axis || !s || !el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const [w, h] = s.size;
+    const srcX = (event.clientX - rect.left) * (w / rect.width);
+    const srcY = (event.clientY - rect.top) * (h / rect.height);
+    const maxX = Math.floor(w * 0.6);
+    const maxY = Math.floor(h * 0.6);
+    const clamp = (v: number, max: number) => Math.max(8, Math.min(Math.round(v), max));
+    const next: [number, number, number, number] = [...s.slice];
+    if (axis === 't') next[0] = clamp(srcY, maxY);
+    if (axis === 'r') next[1] = clamp(w - srcX, maxX);
+    if (axis === 'b') next[2] = clamp(h - srcY, maxY);
+    if (axis === 'l') next[3] = clamp(srcX, maxX);
+    settings.message.customBubbleSlice = next;
+}
+
+function stopSliceDrag() {
+    draggingAxis = null;
+    window.removeEventListener('pointermove', onSliceDragMove);
+    window.removeEventListener('pointerup', stopSliceDrag);
+    window.removeEventListener('pointercancel', stopSliceDrag);
+}
+
+onBeforeUnmount(stopSliceDrag);
+
+/** 皮肤边距比例滑条（30% ~ 100%） */
+function onBorderScaleInput(event: Event) {
+    const value = Number((event.target as HTMLInputElement).value);
+    settings.message.customBubbleBorderScale = value / 100;
+}
+
+/** 选择自定义气泡皮肤图片 */
+async function pickCustomBubbleImage() {
+    try {
+        const selected = await open({
+            multiple: false,
+            filters: [{ name: t('lng_in_dlg_photo'), extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+        });
+        if (typeof selected === 'string') {
+            // 新图重新自动分析，旧图的切线覆盖不沿用
+            settings.message.customBubbleImage = selected;
+            settings.message.customBubbleSlice = null;
+        }
+    } catch {
+        // 用户取消或系统对话框错误：保持原设置
+    }
+}
 
 /** 加载指示器可选样式（与 loader tag 对应） */
 const loaderOptions = [
@@ -664,6 +919,11 @@ const styleLabel = computed(() => {
 
 const tabContainerClass = computed(() => folderTabContainerClass(settings.folderStyle));
 
+/** 分组栏未读计数方式：开启 = 未读消息总数，关闭 = 未读对话数量 */
+function setUnreadCountMode(messages: boolean) {
+    settings.chatList.unreadCountMode = messages ? 'messages' : 'chats';
+}
+
 /** 根据样式与选中态返回分组按钮类名（与 ChatList 实际渲染一致，供 SlidingTabBar 使用） */
 function folderClass(_id: string, active: boolean) {
     const base = 'px-3 py-1.5 text-sm font-medium';
@@ -688,8 +948,14 @@ function folderClass(_id: string, active: boolean) {
     }
 }
 
-/** 预览消息气泡内联样式（圆角 + 缩放） */
+/** 预览消息气泡内联样式（圆角 + 缩放）；启用自定义气泡时改用图片皮肤（他人消息镜像） */
 function previewBubbleStyle(kind: 'in' | 'out', isFirst: boolean) {
+    if (customSkin.value) {
+        return {
+            zoom: String(settings.message.scale),
+            ...customSkinStyle(customSkin.value, kind === 'in'),
+        };
+    }
     const r = settings.message.cornerRadius;
     const style: Record<string, string> = {
         zoom: String(settings.message.scale),

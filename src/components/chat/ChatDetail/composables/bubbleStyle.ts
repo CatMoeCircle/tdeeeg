@@ -1,6 +1,10 @@
 import type { message } from 'tdlib-types';
 import type { AccentColorStyle } from '../../../../store/colors';
 import { isStandaloneMessage, isBubblelessMediaMessage, albumHasVisibleCaption } from './messageType';
+import {
+    customSkinStyle,
+    type CustomBubbleSkin,
+} from '../../../../composables/useCustomBubbleSkin';
 
 /**
  * 消息气泡样式计算（纯函数，无任何响应式依赖）。
@@ -151,10 +155,13 @@ export function messageRadiusCss(
 export interface BubbleStyleDeps extends BubbleRadiusDeps, BubbleBackgroundDeps {
     /** 用户消息显示设置 */
     settings: MessageDisplaySettings;
+    /** 自定义气泡皮肤（null/undefined = 未启用，走默认圆角+背景逻辑） */
+    customSkin?: CustomBubbleSkin | null;
 }
 
 /**
  * 计算单条消息气泡内联样式：合并本体 scale（zoom）与圆角，自己消息叠加 accent 背景。
+ * 启用自定义气泡皮肤时，圆角/背景/阴影/内边距被 border-image 皮肤样式覆盖。
  *
  * @param item - 气泡的组内位置信息
  * @param deps - 外部依赖
@@ -173,14 +180,19 @@ export function bubbleStyle(
         }),
     };
     // 独立消息（贴纸 / 动画表情）与无 caption 纯媒体：不渲染消息气泡，不叠加背景
-    if (deps.isSelf(item.msg) && !isStandaloneMessage(item.msg) && !isBubblelessMediaMessage(item.msg)) {
-        Object.assign(style, selfBubbleStyle(item.msg, deps));
+    if (!isStandaloneMessage(item.msg) && !isBubblelessMediaMessage(item.msg)) {
+        if (deps.customSkin) {
+            // 别人的消息（左侧）镜像皮肤，角色装饰翻到左下角（头像侧）
+            Object.assign(style, customSkinStyle(deps.customSkin, !deps.isSelf(item.msg)));
+        } else if (deps.isSelf(item.msg)) {
+            Object.assign(style, selfBubbleStyle(item.msg, deps));
+        }
     }
     return style;
 }
 
 /**
- * 计算相册气泡内联样式：scale + 圆角 + self 背景。
+ * 计算相册气泡内联样式：scale + 圆角 + self 背景（或自定义皮肤）。
  *
  * @param item - 相册条目
  * @param deps - 外部依赖
@@ -194,9 +206,14 @@ export function albumStyle(
         zoom: String(deps.settings.scale),
         borderRadius: deps.settings.cornerRadius + 'px',
     };
-    // 无可见 caption 的相册：媒体在气泡外，不叠加 self 背景
-    if (deps.isSelf(item.messages[0]) && albumHasVisibleCaption(item.messages)) {
-        Object.assign(style, selfAlbumStyle(item, deps));
+    // 无可见 caption 的相册：媒体在气泡外，不叠加背景
+    if (albumHasVisibleCaption(item.messages)) {
+        if (deps.customSkin) {
+            // 别人的相册（左侧）镜像皮肤
+            Object.assign(style, customSkinStyle(deps.customSkin, !deps.isSelf(item.messages[0])));
+        } else if (deps.isSelf(item.messages[0])) {
+            Object.assign(style, selfAlbumStyle(item, deps));
+        }
     }
     return style;
 }

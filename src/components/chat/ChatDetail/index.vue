@@ -815,6 +815,7 @@ import {
     messagesStyleCss,
 } from './composables/bubbleStyle';
 import type { BubbleStyleDeps, BubbleBackgroundDeps } from './composables/bubbleStyle';
+import { useCustomBubbleSkin } from '../../../composables/useCustomBubbleSkin';
 import {
     getDisplaySenderName as computeDisplaySenderName,
     getDisplaySenderPhoto as computeDisplaySenderPhoto,
@@ -5822,6 +5823,9 @@ const bubbleBackgroundDeps = (): BubbleBackgroundDeps => ({
     isDark: isDark.value,
 });
 
+/** 自定义气泡皮肤（QQ 风格图片气泡，null = 未启用） */
+const customBubbleSkin = useCustomBubbleSkin();
+
 /** 气泡完整样式计算的动态依赖 */
 const bubbleDeps = (): BubbleStyleDeps => ({
     ...bubbleBackgroundDeps(),
@@ -5829,6 +5833,7 @@ const bubbleDeps = (): BubbleStyleDeps => ({
     bubbleWidths: bubbleWidths.value,
     isSelf,
     settings: settings.message,
+    customSkin: customBubbleSkin.value,
 });
 
 /** 发送者名称内联样式；无 accent 时回退蓝色 */
