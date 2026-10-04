@@ -45,10 +45,14 @@
                     <!-- 主体 -->
                     <div class="relative z-10 flex-1 min-h-0 flex flex-col md:flex-row">
 
-                        <!-- 左栏（md 起）：大封面 + 曲目信息 + 进度 + 控制 -->
-                        <div class="shrink-0 flex flex-col items-center px-6 pt-2 pb-6
+                        <!-- 左栏（md 起）：大封面 + 曲目信息 + 进度 + 控制。
+                             窄屏（纵向排布）允许左栏被压缩，宽屏（md 横向分栏）宽度固定不动 -->
+                        <div class="shrink md:shrink-0 flex flex-col items-center px-6 pt-2 pb-6
                                     md:w-[360px] md:justify-center md:px-7 md:pt-0 md:pb-7">
-                            <div class="relative">
+                            <!-- 封面以高度为基准：窗口变矮时这一层先被压（下限 min-h），
+                                 宽度由 aspect-square 跟随高度，始终是正方形；
+                                 下方文字与控制区都是 shrink-0，因此不会被一起压扁 -->
+                            <div class="relative shrink h-44 md:h-[220px] min-h-[5.5rem] aspect-square">
                                 <!-- 封面光晕：让封面“浮”起来 -->
                                 <div v-if="heroCover"
                                     class="pointer-events-none absolute -inset-3 rounded-[26px] overflow-hidden blur-2xl opacity-50 dark:opacity-40 scale-105"
@@ -56,7 +60,7 @@
                                     <img :src="heroCover" class="w-full h-full object-cover" />
                                 </div>
 
-                                <div class="relative w-44 h-44 md:w-[220px] md:h-[220px] rounded-2xl overflow-hidden
+                                <div class="absolute inset-0 rounded-2xl overflow-hidden
                                             shadow-2xl shadow-black/25 ring-1 ring-black/10 dark:ring-white/15
                                             bg-blue-500">
                                     <img v-if="heroCover" :src="heroCover" class="w-full h-full object-cover"
@@ -72,15 +76,15 @@
                             </div>
 
                             <h2
-                                class="mt-5 w-full text-center text-[17px] font-semibold text-gray-900 dark:text-gray-50 truncate">
+                                class="shrink-0 mt-5 w-full text-center text-[17px] font-semibold text-gray-900 dark:text-gray-50 truncate">
                                 <GlobalEmojiText :text="player.currentTrack?.title || t('player.nothingPlaying')" />
                             </h2>
-                            <p class="mt-1 w-full text-center text-[13px] text-gray-500 dark:text-gray-400 truncate">
+                            <p class="shrink-0 mt-1 w-full text-center text-[13px] text-gray-500 dark:text-gray-400 truncate">
                                 <GlobalEmojiText :text="player.currentTrack?.performer || ''" />
                             </p>
 
                             <!-- 进度条：可拖拽，拖动实时跟手，松手才 seek -->
-                            <div class="w-full pt-4">
+                            <div class="shrink-0 w-full pt-4">
                                 <!-- 越界拉伸上限取左栏水平内边距（px-6 = 24px），拉动时不会越出栏外 -->
                                 <SmoothSlider :model-value="progressValue" :max-value="progressMax"
                                     :max-overflow="24" :disabled="progressMax <= 0" @update:model-value="onProgressUpdate"
@@ -94,7 +98,7 @@
                             </div>
 
                             <!-- 控制按钮 -->
-                            <div class="w-full flex items-center justify-center gap-2.5 pt-3">
+                            <div class="shrink-0 w-full flex items-center justify-center gap-2.5 pt-3">
                                 <!-- 循环模式 -->
                                 <button @click="player.cycleRepeatMode()"
                                     class="w-10 h-10 flex items-center justify-center rounded-full transition-colors active:scale-95 hover:bg-black/5 dark:hover:bg-white/10"
