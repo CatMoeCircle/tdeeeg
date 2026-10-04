@@ -86,6 +86,8 @@ const props = defineProps<{
     topicId?: number;
     authorSignature?: string;
     isRead?: boolean;
+    /** 气泡底部是否显示频道评论条：无可见 caption 时需要压平相册下缘承接评论白条 */
+    commentsBar?: boolean;
 }>();
 
 /**
@@ -832,8 +834,9 @@ const captionFormatted = computed(() => {
 });
 
 const borderRadiusClass = computed(() => {
-    // 无可见 caption：相册在气泡外，四角圆角
-    if (!captionText.value) return 'rounded-lg';
+    // 无可见 caption：相册在气泡外，四角圆角；
+    // 底部有频道评论条时下缘压平，由评论白条承接（外层容器 overflow-hidden 收圆角）
+    if (!captionText.value) return props.commentsBar ? 'rounded-t-lg rounded-b-none' : 'rounded-lg';
     if (props.isSelf) return 'rounded-lg rounded-tr-none';
     return 'rounded-lg rounded-tl-none';
 });

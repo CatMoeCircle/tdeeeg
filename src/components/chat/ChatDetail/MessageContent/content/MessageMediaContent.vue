@@ -332,6 +332,8 @@ const props = defineProps<{
     messageList?: message[];
     /** 发送者 accent_color_id（用于回复栏配色） */
     accentColorId?: number;
+    /** 气泡底部是否显示频道评论条：无 caption 媒体需要压平下缘承接评论白条 */
+    commentsBar?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -841,8 +843,9 @@ const captionBelow = computed(() => !!captionText.value && !showCaptionAbove.val
 
 const borderRadiusClass = computed(() => {
     const hasCap = !!captionText.value;
-    // 无 caption 的媒体在气泡外独立显示：始终四角圆角，不参与组内连体切角
-    if (!hasCap) return 'rounded-lg';
+    // 无 caption 的媒体在气泡外独立显示：通常四角圆角、不参与组内连体切角；
+    // 底部有频道评论条时下缘压平，由评论白条承接（外层容器 overflow-hidden 收圆角）
+    if (!hasCap) return props.commentsBar ? 'rounded-t-lg rounded-b-none' : 'rounded-lg';
     const hasForward = !!props.forwardInfo;
     if (hasForward || hasCap) {
         if (showCaptionAbove.value && captionText.value) return 'rounded-b-lg';

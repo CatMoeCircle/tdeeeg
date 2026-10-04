@@ -42,6 +42,7 @@
             :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature"
             :chatId="chatId" :messageId="messageId" :message="message" :topicId="topicId" :senderName="senderName"
             :replyTo="replyTo" :messageList="messageList" :accentColorId="accentColorId"
+            :commentsBar="commentsBar"
             @openForwardSource="onOpenForwardSource" @jumpToMessage="onJumpToMessage">
             <template #reactions>
                 <slot name="reactions" />
@@ -214,6 +215,8 @@ const props = defineProps<{
     senderUserId?: number;
     /** 是否将时间内嵌到普通文本消息末尾（float 同行，参考网页版），由 ChatDetail 决策 */
     inlineTime?: boolean;
+    /** 气泡底部是否显示频道评论条（媒体下缘需要压平以承接评论条，仅媒体内容使用） */
+    commentsBar?: boolean;
     /** 是否有回应（用于贴纸/动画表情气泡外渲染 ReactionsBar） */
     hasReactions?: boolean;
     /** 回应切换回调（贴纸场景使用） */

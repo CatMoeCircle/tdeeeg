@@ -1265,6 +1265,7 @@
     "getAuthorFailed": "取得作者失敗",
     "replyCount": "{count} 則回覆",
     "threadWip": "查看訊息功能開發中",
+    "commentPh": "發表評論…",
     "threadInfo": "訊息串：{parts}",
     "threadEmpty": "訊息串暫無回覆",
     "noThread": "該訊息沒有回覆串",

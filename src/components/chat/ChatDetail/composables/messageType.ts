@@ -174,3 +174,15 @@ export function isInlineTimeMessage(msg: message): boolean {
 export function isServiceMessage(msg: message): boolean {
   return SERVICE_TYPES.has(msg.content._);
 }
+
+/**
+ * 频道消息底部是否显示评论条（参考 Unigram MessageBubble 的 Thread 行）：
+ * 仅频道帖子（is_channel_post）且已关联讨论组（interaction_info.reply_info 存在）；
+ * 服务消息与无气泡的独立消息（贴纸 / 动画表情）不显示。
+ */
+export function showChannelCommentsBar(msg: message): boolean {
+  if (isServiceMessage(msg)) return false;
+  if (isStandaloneMessage(msg)) return false;
+  if (!msg.is_channel_post) return false;
+  return !!msg.interaction_info?.reply_info;
+}

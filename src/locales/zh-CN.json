@@ -1272,6 +1272,7 @@
     "getAuthorFailed": "获取作者失败",
     "replyCount": "{count} 条回复",
     "threadWip": "查看消息功能开发中",
+    "commentPh": "发表评论…",
     "threadInfo": "消息线程：{parts}",
     "threadEmpty": "消息线程暂无回复",
     "noThread": "该消息没有回复线程",

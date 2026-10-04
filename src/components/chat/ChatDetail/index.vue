@@ -119,6 +119,7 @@
                                             @open-source="openForwardSource(item.messages[0].forward_info)" />
                                         <MessageAlbum :messages="item.messages" :isSelf="isOutgoingAlbum(item)"
                                             :chatId="chatId" :topicId="topicId"
+                                            :commentsBar="!!albumCommentsMsg(item.messages)"
                                             :isRead="isMessageRead(item.messages[item.messages.length - 1])"
                                             :authorSignature="getDisplayAuthorSignature(item.messages[0])"
                                             @message-context-menu="onAlbumMessageContextMenu">
@@ -131,6 +132,13 @@
                                                     @toggle-reaction="(type: ReactionType) => toggleReaction(chatId!, item.messages[0], type)" />
                                             </template>
                                         </MessageAlbum>
+                                        <!-- 频道评论条（相册）：无可见 caption 时白条承接相册底部（相册下缘由 commentsBar 压平），
+                                             有 caption 时回应 / 时间在相册根内，此处即气泡最底部 -->
+                                        <MessageCommentsBar v-if="albumCommentsMsg(item.messages)"
+                                            class="border-t border-black/10 px-2 dark:border-white/10"
+                                            :class="albumHasVisibleCaption(item.messages) ? 'pt-2.5 pb-2.5' : 'py-2.5 bg-white dark:bg-gray-800'"
+                                            :msg="albumCommentsMsg(item.messages) || item.messages[0]"
+                                            @open="openCommentsThread(albumCommentsMsg(item.messages) || item.messages[0])" />
                                         <!-- 相册无 caption 时：回应放在气泡外面，自己靠右、他人靠左 -->
                                         <ReactionsBar class="w-full"
                                             v-if="hasReactions(item.messages[0]) && !albumHasVisibleCaption(item.messages)"
@@ -250,6 +258,7 @@
                                             :replyTo="item.msg.reply_to?._ === 'messageReplyToMessage' ? item.msg.reply_to : undefined"
                                             :messageList="messages" :accentColorId="getSenderAccentId(item.msg)"
                                             :inlineTime="isInlineTimeMessage(item.msg)"
+                                            :commentsBar="showChannelCommentsBar(item.msg)"
                                             :hasReactions="hasReactions(item.msg)" :isSelfReaction="isSelf(item.msg)"
                                             :onToggleReaction="hasReactions(item.msg) ? (type: ReactionType) => toggleReaction(chatId!, item.msg, type) : undefined"
                                             @jumpToMessage="handleReplyJumpToMessage"
@@ -281,6 +290,11 @@
                                                 </div>
                                             </template>
                                         </MessageContent>
+                                        <!-- 频道评论条（参考 Unigram Thread 行）：无气泡媒体紧跟媒体本体，
+                                             白条直接承接媒体底部（媒体下缘由 commentsBar 压平），回应行再往下 -->
+                                        <MessageCommentsBar v-if="showChannelCommentsBar(item.msg) && isBubblelessMedia(item.msg)"
+                                            class="border-t border-black/10 bg-white px-2 py-2.5 dark:border-white/10 dark:bg-gray-800"
+                                            :msg="item.msg" @open="openCommentsThread(item.msg)" />
                                         <!-- 内联翻译（非媒体）：在原消息气泡中显示译文；气泡容器自带 px-2 py-1.5 -->
                                         <InlineTranslation
                                             v-if="!isMediaMessage(item.msg) && getInlineTranslation(chatId ?? 0, item.msg.id)"
@@ -308,6 +322,15 @@
                                                 :viewCount="item.msg.interaction_info?.view_count"
                                                 :authorSignature="getDisplayAuthorSignature(item.msg)" />
                                         </span>
+                                        <!-- 频道评论条：文本 / 带 caption 媒体放气泡最底部。
+                                             文本气泡有 px-2，出血靠外层 div 的 -mx-2（button 自身负 margin 拉不宽）；
+                                             分隔线贯通气泡宽度 -->
+                                        <div v-if="showChannelCommentsBar(item.msg) && !isBubblelessMedia(item.msg)"
+                                            :class="isMediaMessage(item.msg) ? '' : '-mx-2 mt-1'">
+                                            <MessageCommentsBar class="border-t border-black/10 px-2 pt-2.5 dark:border-white/10"
+                                                :class="isMediaMessage(item.msg) ? 'pb-2.5' : 'pb-1'"
+                                                :msg="item.msg" @open="openCommentsThread(item.msg)" />
+                                        </div>
                                     </div>
                                     <InlineKeyboard v-if="getInlineKeyboard(item.msg)" class="mt-1 w-full"
                                         :ref="registerKeyboardRef(item.msg.id)"
@@ -317,6 +340,15 @@
                             </div>
                         </div>
                     </template>
+
+                    <!-- 评论线程分隔（参考 Unigram DiscussionStarted/NoComments 服务消息）：
+                         紧跟根帖副本之后、评论之前；0 评论时显示「暂无留言」 -->
+                    <div v-if="threadMode && isThreadRootItem(item)" class="msg-list-item flex justify-center my-2">
+                        <span
+                            class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2.5 py-1 rounded-full leading-none select-none">
+                            {{ threadHasComments ? t('lng_replies_discussion_started') : t('lng_replies_no_comments') }}
+                        </span>
+                    </div>
                 </template>
 
                 <div class="shrink-0 h-4"></div>
@@ -335,7 +367,7 @@
             :style="tagBarSideInsetStyle">
             <ChatDetailHeader :chat="chat" :topic="isDirectMessagesChat ? undefined : topic"
                 :dm-topic="dmHeaderTopic" :showBack="showBackBtn" @back="handleBack"
-                @openInfo="handleTopClick" @search="searchActive = true"
+                @openInfo="handleTopClick" @search="openSearch"
                 :show-topic-tag-toggle="showTopicPanel" :topic-tag-position="topicTagPosition"
                 @toggle-topic-tag-position="toggleTopicTagPosition" />
         </div>
@@ -543,7 +575,9 @@
                 :chat="chat" :users="users" :supergroups="supergroups" :basic-groups="basicGroups" :my-id="myId"
                 :member-status="currentMemberStatus" :is-premium="isMePremium" :custom-emojis="pendingCustomEmoji"
                 :current-sender-id="chat?.message_sender_id" :available-senders="availableSenders"
-                :senders-loading="sendersLoading" @clear-reply="clearReply" @clear-edit="cancelEdit" @send="handleSend"
+                :senders-loading="sendersLoading"
+                :placeholder="threadMode ? t('chat.commentPh') : undefined"
+                @clear-reply="clearReply" @clear-edit="cancelEdit" @send="handleSend"
                 @attach="handleAttach" @attach-file="handleAttachFile" @attach-music="handleAttachMusic"
                 @attach-poll="handleAttachPoll" @attach-checklist="handleAttachChecklist"
                 @attach-contact="handleAttachContact" @change-sender="handleChangeSender" @sticker="openStickerPanel" />
@@ -659,6 +693,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
+import { tdPlural } from '../../../utils/tdLang';
 import MessageInput from './MessageInput.vue';
 import StickerPanel from './stickerPanel/StickerPanel.vue';
 import { stickerPanelState, openStickerPanel as openStickerPanelOf, closeStickerPanel as closeStickerPanelOf } from './stickerPanel/types';
@@ -684,6 +719,7 @@ import PinnedMessageBar from './PinnedMessageBar.vue';
 import TopicTagBar from './TopicTagBar.vue';
 import SearchBar from './SearchBar.vue';
 import ReactionsBar from './ReactionsBar.vue';
+import MessageCommentsBar from './MessageCommentsBar.vue';
 import ReactionPicker from './ReactionPicker.vue';
 
 import { tdlibSend, isFileReady } from '../../../utils/tdlib';
@@ -770,7 +806,7 @@ import { getViewerState, closeMediaViewer, isMediaViewerActive, openMediaViewer 
 
 import { getSenderAccentColorId, getSenderProfileAccentColorId, getChatProfileAccentColorId, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
 import { useColors } from '../../../store/colors';
-import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage, isBubblelessMediaMessage, albumHasVisibleCaption } from './composables/messageType';
+import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage, isBubblelessMediaMessage, albumHasVisibleCaption, showChannelCommentsBar } from './composables/messageType';
 import { buildDisplayItems } from './composables/messageItems';
 import type { DisplayItem, AlbumDisplayItem } from './composables/messageItems';
 import { formatDateLabel } from './composables/dateLabel';
@@ -823,6 +859,8 @@ const emit = defineEmits<{
 const props = defineProps<{
     chatId?: number | null;
     topicId?: number | null;
+    /** 频道评论线程根帖子的 message id（>0 时进入评论线程视图） */
+    threadRootId?: number | null;
 }>();
 
 // ==================== 上次浏览位置缓存（模块级 + localStorage） ====================
@@ -1104,6 +1142,85 @@ const topicId = computed(() => {
     return tid !== undefined && tid !== null && tid !== '' ? Number(tid) : undefined;
 });
 
+/**
+ * 频道评论线程视图：threadRootMsgId = 频道帖子（线程根）的 message id。
+ * 进入后消息列表来自讨论组的 getMessageThreadHistory，发送带 messageTopicThread。
+ */
+const threadRootMsgId = computed(() => {
+    const v = props.threadRootId ?? route.params.threadMsgId;
+    const n = v !== undefined && v !== null && v !== '' ? Number(v) : 0;
+    return Number.isFinite(n) && n > 0 ? n : 0;
+});
+const threadMode = computed(() => threadRootMsgId.value > 0);
+/** getMessageThread 结果：讨论组 chat_id、线程 id、根消息副本、评论计数 */
+const threadInfo = ref<import('tdlib-types').messageThreadInfo | undefined>(undefined);
+/** 线程评论计数信息（头部标题与未读点的数据源，随 updateMessageInteractionInfo 刷新） */
+const threadReplyInfo = ref<import('tdlib-types').messageReplyInfo | undefined>(undefined);
+
+/** 线程视图中「当前消息归属的会话」= 讨论组；普通模式 = 当前会话 */
+function isActiveChat(cid: number | undefined | null): boolean {
+    if (cid === undefined || cid === null) return false;
+    if (cid === chatId.value) return true;
+    return threadMode.value && threadInfo.value !== undefined && cid === threadInfo.value.chat_id;
+}
+
+/** 评论线程头部标题：有评论显示「N 条评论」，无评论显示「评论」（官方词条） */
+function threadHeaderTitle(): string {
+    const count = threadReplyInfo.value?.reply_count ?? 0;
+    return count > 0 ? tdPlural('lng_comments_header', count) : t('lng_comments_header_none');
+}
+
+/** 线程是否已有评论（决定根帖下方分隔显示「讨论开始」还是「暂无留言」） */
+const threadHasComments = computed(() => (threadReplyInfo.value?.reply_count ?? 0) > 0);
+
+/** 评论线程中某展示项是否为线程根（讨论组内的帖子副本） */
+function isThreadRootItem(item: DisplayItem): boolean {
+    if (!threadMode.value || !threadInfo.value) return false;
+    const rootId = threadInfo.value.message_thread_id;
+    if (item.type === 'single') return item.msg.id === rootId;
+    if (item.type === 'album') return item.messages.some(m => m.id === rootId);
+    return false;
+}
+
+/**
+ * 发送消息的 topic_id：评论线程 → messageTopicThread（发到讨论组线程）；
+ * 否则论坛 / 频道私信原有逻辑。（已实测：线程发送必须 chat_id=讨论组 + 该 topic）
+ */
+function outgoingTopicInput() {
+    if (threadMode.value) {
+        const t = threadInfo.value;
+        return t ? ({ _: 'messageTopicThread', message_thread_id: t.message_thread_id } as const) : undefined;
+    }
+    return buildMessageTopicInput(isDirectMessagesChat.value, topicId.value);
+}
+
+/** 发送目标会话：评论线程的消息实体在讨论组（已实测：频道 chat_id 不能直接带线程 topic 发送） */
+function outgoingChatId(): number | undefined {
+    if (threadMode.value && threadInfo.value) return threadInfo.value.chat_id;
+    return chatId.value;
+}
+
+/**
+ * 重新拉取 getMessageThread，刷新评论计数/根消息/线程归属。
+ * 删除评论时 TDLib 不一定再发 updateMessageInteractionInfo，删完主动对账一次。
+ */
+async function refreshThreadInfo(): Promise<void> {
+    if (!threadMode.value || chatId.value === undefined) return;
+    try {
+        const t = await tdlibSend({
+            _: 'getMessageThread',
+            chat_id: chatId.value,
+            message_id: threadRootMsgId.value,
+        }) as import('tdlib-types').messageThreadInfo;
+        if (!threadMode.value || !t || t._ !== 'messageThreadInfo') return;
+        threadInfo.value = t;
+        threadReplyInfo.value = t.reply_info;
+        dmHeaderTopic.value = { name: threadHeaderTitle(), photo: chat.value?.photo };
+    } catch (e) {
+        console.warn('refreshThreadInfo failed:', e);
+    }
+}
+
 // ==================== 话题标签栏 ====================
 /** 论坛群组（话题模式）才显示标签栏 */
 /**
@@ -1133,6 +1250,15 @@ function handleTopClick() {
     const c = chat.value;
     if (!c) return;
     const t = c.type;
+
+    // 评论线程：头部点击打开评论实际所在的「讨论组」资料页，而不是频道资料页
+    if (threadMode.value && threadInfo.value) {
+        router.push({
+            name: 'chat-profile',
+            params: { id: String(threadInfo.value.chat_id) },
+        });
+        return;
+    }
 
     // 秘密聊天：必须用 secret chat id 进 chat-profile，不能落到普通用户资料
     if (t?._ === 'chatTypeSecret') {
@@ -1189,10 +1315,19 @@ const showBackBtn = computed(() => true);
 function handleBack() {
     if (showOverlay.value) {
         closeOverlay();
+    } else if (threadMode.value && chatId.value !== undefined) {
+        // 评论线程返回：回到所属频道会话（而不是聊天列表）
+        router.push(`/home/chat/${chatId.value}`);
     } else {
         emit('close');
         router.push('/home/chats');
     }
+}
+
+/** 顶部搜索：评论线程内不提供会话级搜索（搜索结果属频道历史，与线程上下文不符） */
+function openSearch() {
+    if (threadMode.value) return;
+    searchActive.value = true;
 }
 
 function getChatSubtitle(): string {
@@ -1303,6 +1438,8 @@ const pendingCustomEmoji = ref<{ id: string; alt: string }[]>([]);
 watch([messageInput, pendingCustomEmoji], () => {
     if (suppressDraftAutosave) return;
     if (editingMsg.value) return;
+    // 评论线程不写会话草稿（key 与主聊天相同，会覆盖主聊天草稿）
+    if (threadMode.value) return;
     if (chatId.value === undefined) return;
     if (localDraftTimer !== null) window.clearTimeout(localDraftTimer);
     localDraftTimer = window.setTimeout(() => {
@@ -1310,6 +1447,14 @@ watch([messageInput, pendingCustomEmoji], () => {
         if (suppressDraftAutosave || editingMsg.value) return;
         saveDraft();
     }, 500);
+});
+
+// 线程 ↔ 会话视图切换时清空输入框，避免会话草稿文本被当成评论发出
+// （本 watcher 先于主加载 watcher 触发；load 流程结束的 finally 会解除抑制）
+watch(threadRootMsgId, () => {
+    suppressDraftAutosave = true;
+    messageInput.value = '';
+    pendingCustomEmoji.value = [];
 });
 /**
  * 消息列表使用 shallowRef + markRaw：
@@ -2341,11 +2486,18 @@ const handleUpdate = async (update: Update) => {
         case 'updateNewMessage': {
             const msg = update.message;
             // 仅处理当前正在渲染的聊天中的消息
-            if (msg.chat_id !== chatId.value || !isReady.value) return;
+            if (!isReady.value) return;
+            if (threadMode.value) {
+                // 评论线程：只接收讨论组内属于本线程的消息（含自己刚发出的评论）
+                const t = threadInfo.value;
+                const topic = msg.topic_id;
+                if (!t || msg.chat_id !== t.chat_id || !topic || topic._ !== 'messageTopicThread'
+                    || topic.message_thread_id !== t.message_thread_id) return;
+            } else if (msg.chat_id !== chatId.value) return;
             if (messages.value.find(m => m.id === msg.id)) return;
 
             // 话题模式下只显示属于当前话题的消息（论坛 / 频道私信）
-            if (topicId.value) {
+            if (!threadMode.value && topicId.value) {
                 const msgTopicId = extractTopicNumber(msg.topic_id as any);
                 if (msgTopicId !== topicId.value) return;
             }
@@ -2365,7 +2517,8 @@ const handleUpdate = async (update: Update) => {
             if (!windowReachesLatest.value) {
                 if (senderIsMe) {
                     // 自己发送：切到真实底部连续窗口，保证发送结果可见且列表连续
-                    if (chat.value?.last_message && msg.id >= (chat.value.last_message.id || 0)) {
+                    // 评论线程的 message 属讨论组，不得回写频道会话的 last_message
+                    if (!threadMode.value && chat.value?.last_message && msg.id >= (chat.value.last_message.id || 0)) {
                         chat.value.last_message = msg;
                     }
                     void handleScrollToBottom();
@@ -2388,7 +2541,7 @@ const handleUpdate = async (update: Update) => {
             if (senderIsMe || atBottom) {
                 showScrollButton.value = false;
                 newMessageCount.value = 0;
-                if (chat.value?.last_message && msg.id >= (chat.value.last_message.id || 0)) {
+                if (!threadMode.value && chat.value?.last_message && msg.id >= (chat.value.last_message.id || 0)) {
                     chat.value.last_message = msg;
                 }
                 windowReachesLatest.value = true;
@@ -2412,7 +2565,7 @@ const handleUpdate = async (update: Update) => {
         }
 
         case 'updateMessageContent': {
-            if (update.chat_id !== chatId.value) break;
+            if (!isActiveChat(update.chat_id)) break;
             const msg = messages.value.find(m => m.id === update.message_id);
             if (msg) {
                 // 内容变化（如编辑文本变长）会改变气泡高度，
@@ -2433,7 +2586,7 @@ const handleUpdate = async (update: Update) => {
         case 'updateMessageSendSucceeded':
         case 'updateMessageSendFailed': {
             if (!isReady.value) return;
-            if (update.message.chat_id !== chatId.value) return;
+            if (!isActiveChat(update.message.chat_id)) return;
             const oldIndex = messages.value.findIndex(m => m.id === update.old_message_id);
             const currentIndex = messages.value.findIndex(m => m.id === update.message.id);
 
@@ -2471,8 +2624,11 @@ const handleUpdate = async (update: Update) => {
         case 'updateDeleteMessages': {
             // from_cache=true 的删除是本地缓存的过时标记，不是真实的删除，忽略
             if (update.from_cache) break;
-            if (update.chat_id !== chatId.value || !isReady.value) break;
+            if (!isActiveChat(update.chat_id) || !isReady.value) break;
+            const removedSome = update.message_ids.some(id => messages.value.some(m => m.id === id));
             removeMessagesByIds(update.message_ids);
+            // 评论被删：TDLib 不一定补发 interaction 更新，主动刷新线程计数
+            if (threadMode.value && removedSome) void refreshThreadInfo();
             break;
         }
 
@@ -2540,7 +2696,7 @@ const handleUpdate = async (update: Update) => {
                 refreshKeyboardLock(update.message_id);
             };
 
-            if (update.chat_id === chatId.value) {
+            if (isActiveChat(update.chat_id)) {
                 const msg = messages.value.find(m => m.id === update.message_id);
                 if (msg) {
                     applyReplyMarkup(msg);
@@ -2595,13 +2751,24 @@ const handleUpdate = async (update: Update) => {
 
         // ---- 消息回应更新 ----
         case 'updateMessageInteractionInfo': {
-            if (update.chat_id !== chatId.value) break;
+            // 评论线程：频道帖子或讨论组内根副本的 interaction_info 变化 → 刷新头部评论计数
+            if (threadMode.value && threadRootMsgId.value > 0
+                && (update.message_id === threadRootMsgId.value
+                    || (threadInfo.value && update.chat_id === threadInfo.value.chat_id
+                        && update.message_id === threadInfo.value.message_thread_id))) {
+                threadReplyInfo.value = update.interaction_info?.reply_info;
+                dmHeaderTopic.value = {
+                    name: threadHeaderTitle(),
+                    photo: chat.value?.photo,
+                };
+            }
+            if (!isActiveChat(update.chat_id)) break;
             patchMessage(update.message_id, { interaction_info: update.interaction_info });
             break;
         }
 
         case 'updateMessageUnreadReactions': {
-            if (update.chat_id !== chatId.value) break;
+            if (!isActiveChat(update.chat_id)) break;
             patchMessage(update.message_id, { unread_reactions: update.unread_reactions });
             break;
         }
@@ -2777,7 +2944,7 @@ async function loadSecretChatState(currentChat: chat) {
 }
 
 // 监听 chatId 变化，加载聊天信息和消息
-watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
+watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMessageId], async (
     [newChatId, newTopicId, , requestedMessageId],
     oldVals,
 ) => {
@@ -2844,16 +3011,18 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
     searchActive.value = false;
 
     try {
-        // 读取上次浏览位置（决定首屏加载锚点；导航带 message_id 时忽略缓存）
-        const savedBrowsePos = requestedMessageId ? null : getBrowsePosition(currentId, topicId.value);
+        // 读取上次浏览位置（决定首屏加载锚点；导航带 message_id / 评论线程模式时忽略缓存）
+        const savedBrowsePos = requestedMessageId || threadMode.value ? null : getBrowsePosition(currentId, topicId.value);
 
-        // 并行发起：chat 基础信息 + 话题信息 +（可提前确定的）首屏消息
+        // 并行发起：chat 基础信息 + 话题/线程信息 +（可提前确定的）首屏消息
         const chatPromise = tdlibSend({ _: 'getChat', chat_id: currentId }) as Promise<chat>;
-        const topicPromise: Promise<unknown> = topicId.value
-            ? (isDirectMessagesChat.value
-                ? ensureDmTopic(currentId, topicId.value)
-                : tdlibSend({ _: 'getForumTopic', chat_id: currentId, forum_topic_id: topicId.value }) as Promise<forumTopic>)
-            : Promise.resolve(undefined);
+        const topicPromise: Promise<unknown> = threadMode.value
+            ? tdlibSend({ _: 'getMessageThread', chat_id: currentId, message_id: threadRootMsgId.value }) as Promise<import('tdlib-types').messageThreadInfo>
+            : topicId.value
+                ? (isDirectMessagesChat.value
+                    ? ensureDmTopic(currentId, topicId.value)
+                    : tdlibSend({ _: 'getForumTopic', chat_id: currentId, forum_topic_id: topicId.value }) as Promise<forumTopic>)
+                : Promise.resolve(undefined);
 
         // 有上次浏览位置时，围绕 anchor 先拉一个对称切片（40/-20），无需等待 getChat。
         // 首屏优先 TDLib 本地库，不足再回退网络（fetchMessagesPreferLocal 两段式）
@@ -2866,13 +3035,38 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
         const chatData = await chatPromise;
         if (!isGenerationValid(gen)) return;
         chat.value = chatData;
+        // 当前会话同时进本地 chats 缓存：消息发送者为本会话时（频道帖子/线程根副本）
+        // 头像与名称需要能解析，否则回退成「未知频道」
+        if (chatData && chatData.id) chats.value[chatData.id] = chatData;
         // 秘密聊天：读取握手状态（Pending/Ready/Closed），驱动底部提示与输入框
         void loadSecretChatState(chatData);
 
         // 话题模式：加载当前话题信息（用于头部显示话题名称/图标）
-        if (topicId.value) {
+        // 评论线程模式：加载 getMessageThread（讨论组、线程 id、根消息、评论计数）
+        if (threadMode.value) {
             topic.value = undefined;
             dmHeaderTopic.value = undefined;
+            threadInfo.value = undefined;
+            threadReplyInfo.value = undefined;
+            try {
+                const t = await topicPromise as import('tdlib-types').messageThreadInfo;
+                if (!isGenerationValid(gen)) return;
+                if (!t || t._ !== 'messageThreadInfo') throw new Error('getMessageThread returned no thread');
+                threadInfo.value = t;
+                threadReplyInfo.value = t.reply_info;
+                dmHeaderTopic.value = {
+                    name: threadHeaderTitle(),
+                    photo: chatData.photo,
+                };
+            } catch (e) {
+                console.error('Failed to load message thread:', e);
+                throw e;
+            }
+        } else if (topicId.value) {
+            topic.value = undefined;
+            dmHeaderTopic.value = undefined;
+            threadInfo.value = undefined;
+            threadReplyInfo.value = undefined;
             try {
                 const t = await topicPromise;
                 if (!isGenerationValid(gen)) return;
@@ -2892,15 +3086,20 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
         } else {
             topic.value = undefined;
             dmHeaderTopic.value = undefined;
+            threadInfo.value = undefined;
+            threadReplyInfo.value = undefined;
         }
 
         // 有未读消息时，以最后一条已读收件箱消息作为历史定位锚点
-        const lastReadId = chatData.unread_count > 0
-            ? chatData.last_read_inbox_message_id
-            : 0;
-        lastReportedReadMessageId = chatData.last_read_inbox_message_id;
+        // 评论线程：不使用会话未读线（属另一会话），首屏固定从线程最新向历史拉、贴底打开
+        const lastReadId = threadMode.value
+            ? 0
+            : chatData.unread_count > 0
+                ? chatData.last_read_inbox_message_id
+                : 0;
+        lastReportedReadMessageId = threadMode.value ? 0 : chatData.last_read_inbox_message_id;
         // 记住打开时的已读线，供「滑进未读」兜底比较（不随 markVisible 前进）
-        sessionUnreadBaseId = chatData.last_read_inbox_message_id;
+        sessionUnreadBaseId = threadMode.value ? 0 : chatData.last_read_inbox_message_id;
 
         // 浏览位置失效判定（任一命中则删除缓存，改走未读/底部）：
         // 1) 已读线前进（当前 last_read_inbox_message_id > saved.readInboxMaxId，其它端读过/离开期间读过）
@@ -2922,7 +3121,9 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
                 unreadBoundaryMessageId.value = null;
                 chatLoadRetryCount = 0;
                 refreshWindowReachesLatest();
-                restoreDraft(currentId, topicId.value, chatData.draft_message);
+                if (!threadMode.value) {
+                    restoreDraft(currentId, topicId.value, chatData.draft_message);
+                }
                 void tdlibSend({ _: 'openChat', chat_id: currentId });
                 // 先补齐视口再校准锚点，最后才露出列表（避免看到中间态再跳）
                 await ensureViewportFilled(gen);
@@ -2968,8 +3169,16 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
         if (firstBatchResult == null) {
             throw new Error(`Chat ${currentId} history fetch failed`);
         }
-        const firstBatch = firstBatchResult;
-        if (firstBatch.length === 0 && chatData.last_message) {
+        let firstBatch = firstBatchResult;
+        // 评论线程：把 getMessageThread 返回的根消息（讨论组内的帖子副本）并到列表顶部，
+        // 保证0评论时也能显示原帖；副本 id 即线程 id，天然比评论消息旧
+        if (threadMode.value && threadInfo.value) {
+            const roots = (threadInfo.value.messages || []).filter(
+                (m): m is import('tdlib-types').message => !!m && !firstBatch.some(x => x.id === m.id),
+            );
+            if (roots.length > 0) firstBatch = [...roots, ...firstBatch];
+        }
+        if (firstBatch.length === 0 && chatData.last_message && !threadMode.value) {
             throw new Error(`Chat ${currentId} returned empty history despite having a last message`);
         }
         // earlyMessages 发起时 chat 尚未就绪，群成员状态可能被跳过，这里补拉一次
@@ -2977,7 +3186,8 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
             void fetchMemberStatuses(firstBatch);
         }
 
-        const firstUnreadMessage = chatData.unread_count > 0
+        // 评论线程不按会话未读锚定（未读线属另一会话），始终贴线程底部打开
+        const firstUnreadMessage = !threadMode.value && chatData.unread_count > 0
             ? firstBatch.find(message => !message.is_outgoing && (lastReadId === 0 || message.id > lastReadId))
             : undefined;
         const unreadAlbumId = firstUnreadMessage?.media_album_id;
@@ -3003,12 +3213,15 @@ watch([chatId, topicId, chatLoadRetryToken, forwardedTargetMessageId], async (
         }
         // 本地窗口缺真正最新时，后台补全（只 merge，不阻塞 listRevealed、禁止整表 replace）。
         // 仅首屏意图贴最新（from_message_id=0）时触发；历史 browsePos / 未读锚点窗口
-        // 本就不要求含最新，否则会白做桥接甚至拉大半段历史。
-        if (!earlyMessages && lastReadId === 0) {
+        // 本就不要求含最新，否则会白做桥接甚至拉大半段历史。评论线程不适用（桥接拉的是会话历史）。
+        if (!earlyMessages && lastReadId === 0 && !threadMode.value) {
             void alignLatestMessagesInBackground(currentId, chatData, gen);
         }
         chatLoadRetryCount = 0;
-        restoreDraft(currentId, topicId.value, chatData.draft_message);
+        // 评论线程不读写会话草稿（草稿 key 与主聊天相同，会互相覆盖）
+        if (!threadMode.value) {
+            restoreDraft(currentId, topicId.value, chatData.draft_message);
+        }
         void tdlibSend({ _: 'openChat', chat_id: currentId });
 
         // 1) 先按锚点定位（可见前） 2) 补视口 3) 再校准 4) 最后 listRevealed
@@ -3110,6 +3323,29 @@ async function fetchMessages(chatIdNum: number, fromMessageId: number, limit: nu
         return null;
     }
     try {
+        // 评论线程模式：讨论组内 getMessageThreadHistory（消息实体归属讨论组，
+        // chat_id/message_id 传线程归属会话与线程 id；TDLib 无 only_local）
+        if (threadMode.value && threadInfo.value) {
+            const t = threadInfo.value;
+            const result = await tdlibSend({
+                _: 'getMessageThreadHistory',
+                chat_id: t.chat_id,
+                message_id: t.message_thread_id,
+                from_message_id: fromMessageId,
+                offset,
+                limit,
+            });
+            if (generation !== undefined && !isGenerationValid(generation)) return null;
+            const msgs: message[] = (result.messages || []).filter((m: any): m is message => !!m);
+            if (msgs.length > 0) {
+                await fetchSenders(msgs);
+                void fetchMemberStatuses(msgs);
+                // TDLib 返回 newest-first，反转成 oldest-first
+                msgs.reverse();
+                return msgs;
+            }
+            return [];
+        }
         // 话题模式：论坛 getForumTopicHistory / 频道私信 getDirectMessagesChatTopicHistory
         // （TDLib 无 only_local，禁止透传）
         const tid = topicId.value;
@@ -3199,8 +3435,8 @@ async function fetchMessagesPreferLocal(
     generation?: number,
     opts: PreferLocalOpts = {},
 ): Promise<HistoryFetch> {
-    // 话题/DM：忽略 onlyLocal，保持现状
-    if (topicId.value) {
+    // 话题/DM/评论线程：无 onlyLocal（线程历史也没有该参数），直接单次网络请求
+    if (topicId.value || threadMode.value) {
         return fetchMessages(chatIdNum, fromMessageId, limit, offset, generation, false);
     }
 
@@ -3786,17 +4022,23 @@ async function markVisibleMessagesAsRead() {
     try {
         await tdlibSend({
             _: 'viewMessages',
-            chat_id: currentChatId,
+            // 评论线程：消息实体在讨论组，需用讨论组 chat_id 标记已读（推进线程已读线）
+            chat_id: threadMode.value && threadInfo.value ? threadInfo.value.chat_id : currentChatId,
             message_ids: messageIds,
             force_read: true,
-            source: topicId.value
-                ? (isDirectMessagesChat.value
-                    ? { _: 'messageSourceDirectMessagesChatTopicHistory' } as const
-                    : { _: 'messageSourceForumTopicHistory' } as const)
-                : undefined,
+            source: threadMode.value
+                ? ({ _: 'messageSourceMessageThreadHistory' } as const)
+                : topicId.value
+                    ? (isDirectMessagesChat.value
+                        ? { _: 'messageSourceDirectMessagesChatTopicHistory' } as const
+                        : { _: 'messageSourceForumTopicHistory' } as const)
+                    : undefined,
         });
         // 已读线前进：同步缓存里的 readInboxMaxId，避免退出再进时被「已读线变化」误失效
-        bumpBrowsePosReadInboxMaxId(currentChatId, topicId.value, latestVisibleId);
+        // 评论线程不写浏览位置缓存（与主聊天共用 key，会互相污染）
+        if (!threadMode.value) {
+            bumpBrowsePosReadInboxMaxId(currentChatId, topicId.value, latestVisibleId);
+        }
     } catch (e) {
         if (chatId.value === currentChatId && lastReportedReadMessageId === latestVisibleId) {
             lastReportedReadMessageId = previousReportedId;
@@ -4117,6 +4359,8 @@ function cancelScheduledBrowsePosSave() {
 }
 
 function scheduleBrowsePosSave(el: HTMLElement) {
+    // 评论线程不落浏览位置（与主聊天共用 chatId+topicId key，会污染主聊天锚点）
+    if (threadMode.value) return;
     cancelScheduledBrowsePosSave();
     browsePosSaveTimer = window.setTimeout(() => {
         browsePosSaveTimer = null;
@@ -4269,12 +4513,12 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
                     text,
                     entities,
                 );
-                ok = await editMessageMediaContent(chatId.value, target.id, content);
+                ok = await editMessageMediaContent(target.chat_id || chatId.value, target.id, content);
             } else if (isMedia) {
                 // 仅改描述
-                ok = await editCaptionMessage(chatId.value, target.id, text, entities);
+                ok = await editCaptionMessage(target.chat_id || chatId.value, target.id, text, entities);
             } else {
-                ok = await editTextMessage(chatId.value, target.id, text, entities);
+                ok = await editTextMessage(target.chat_id || chatId.value, target.id, text, entities);
             }
             if (ok) {
                 messageInput.value = '';
@@ -4288,7 +4532,8 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
                     localDraftTimer = null;
                 }
                 // 编辑成功后恢复进入编辑前保存的草稿，避免输入框被清空丢失草稿视图
-                if (chatId.value !== undefined) {
+                // （评论线程不读写会话草稿）
+                if (chatId.value !== undefined && !threadMode.value) {
                     suppressDraftAutosave = true;
                     restoreDraft(chatId.value, topicId.value, chat.value?.draft_message);
                     // restore 触发的模型更新在 nextTick 后结束，再解除抑制
@@ -4311,8 +4556,10 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
             await sendAttachments(
                 attachStore.items,
                 {
-                    chatId: chatId.value,
+                    chatId: outgoingChatId() ?? chatId.value,
                     topicId: topicId.value,
+                    // 评论线程：消息发到讨论组的线程（优先于 topicId）
+                    threadId: threadMode.value ? threadInfo.value?.message_thread_id : undefined,
                     isDm: isDirectMessagesChat.value,
                     replyTo: replyTargetMsg.value
                         ? { _: 'inputMessageReplyToMessage', message_id: replyTargetMsg.value.id, quote: buildReplyQuote(), checklist_task_id: 0, poll_option_id: '' }
@@ -4336,7 +4583,7 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
         const entities = [...richEntities, ...customEmojiEntities];
         const params: sendMessage = {
             _: 'sendMessage',
-            chat_id: chatId.value!,
+            chat_id: outgoingChatId()!,
             input_message_content: {
                 _: 'inputMessageText',
                 text: { _: 'formattedText', text, entities },
@@ -4351,13 +4598,13 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
                     poll_option_id: '',
                 }
                 : undefined,
-            topic_id: buildMessageTopicInput(isDirectMessagesChat.value, topicId.value),
+            topic_id: outgoingTopicInput(),
         };
         await tdlibSend(params as $Function);
         messageInput.value = '';
         pendingCustomEmoji.value = [];
-        // 发送成功后清除本地草稿与 TDLib 草稿，并清除回复状态
-        if (chatId.value !== undefined) {
+        // 发送成功后清除本地草稿与 TDLib 草稿，并清除回复状态（评论线程不触碰会话草稿）
+        if (chatId.value !== undefined && !threadMode.value) {
             const dKey = draftCacheKey(chatId.value, topicId.value);
             draftCache.delete(dKey);
             lastSyncedDraftText.delete(dKey);
@@ -4382,7 +4629,7 @@ async function sendSticker(fileId: number | string) {
     try {
         const params: sendMessage = {
             _: 'sendMessage',
-            chat_id: chatId.value!,
+            chat_id: outgoingChatId()!,
             input_message_content: {
                 _: 'inputMessageSticker',
                 sticker: { _: 'inputSticker', sticker: { _: 'inputFileId', id: fid } },
@@ -4397,7 +4644,7 @@ async function sendSticker(fileId: number | string) {
                     poll_option_id: '',
                 }
                 : undefined,
-            topic_id: buildMessageTopicInput(isDirectMessagesChat.value, topicId.value),
+            topic_id: outgoingTopicInput(),
         };
         await tdlibSend(params as $Function);
         clearReply();
@@ -4413,7 +4660,7 @@ function sendAnimation(fileId: number, _stickerId: string) {
         try {
             const params: sendMessage = {
                 _: 'sendMessage',
-                chat_id: chatId.value!,
+                chat_id: outgoingChatId()!,
                 input_message_content: {
                     _: 'inputMessageAnimation',
                     animation: { _: 'inputAnimation', animation: { _: 'inputFileId', id: fileId } },
@@ -4428,7 +4675,7 @@ function sendAnimation(fileId: number, _stickerId: string) {
                         poll_option_id: '',
                     }
                     : undefined,
-                topic_id: buildMessageTopicInput(isDirectMessagesChat.value, topicId.value),
+                topic_id: outgoingTopicInput(),
             };
             await tdlibSend(params as $Function);
             clearReply();
@@ -4479,6 +4726,9 @@ function resetState() {
     chat.value = undefined;
     clearActiveChatTitleBar();
     topic.value = undefined;
+    dmHeaderTopic.value = undefined;
+    threadInfo.value = undefined;
+    threadReplyInfo.value = undefined;
     memberStatus.value = {};
     isHistoryExhausted.value = false;
     isNewerExhausted.value = false;
@@ -4534,7 +4784,13 @@ function freezeMsg(m: message): message {
  */
 function applyMessages(next: message[], keep: 'older' | 'newer' = 'newer') {
     const cid = chatId.value;
-    const safe = cid != null ? next.filter(m => m.chat_id === cid) : next;
+    // 按消息归属会话过滤；评论线程中消息归属讨论组（≠ 当前频道），需一并放行
+    const belongs = (m: message): boolean => {
+        if (cid == null) return true;
+        if (m.chat_id === cid) return true;
+        return threadMode.value && threadInfo.value !== undefined && m.chat_id === threadInfo.value.chat_id;
+    };
+    const safe = next.filter(belongs);
     const seen = new Set<number>();
     const dedup: message[] = [];
     for (const m of safe) {
@@ -4665,6 +4921,11 @@ function isAlbumBubbleless(item: { messages: message[] }): boolean {
     return !albumHasVisibleCaption(item.messages);
 }
 
+/** 相册中携带频道评论信息的消息（有则该相册底部显示评论条） */
+function albumCommentsMsg(messages: message[]): message | undefined {
+    return messages.find(showChannelCommentsBar);
+}
+
 /** 当前右键菜单对应的消息（供获取完成后判断是否需要打开菜单） */
 let currentMenuMsg: message | null = null;
 
@@ -4673,7 +4934,7 @@ let currentMenuMsg: message | null = null;
  * 调用 TDLib getMessageAvailableReactions 获取该消息的可用回应，取前 6 个作为快捷行。
  */
 async function buildReactionRow(msg: message): Promise<import('../../contextMenu/types').ContextMenuReactionRow | null> {
-    const cid = chatId.value;
+    const cid = msg.chat_id || chatId.value;
     if (cid === undefined) return null;
     try {
         const result = await tdlibSend({
@@ -4736,7 +4997,8 @@ function makeMsgMenu(msg: message): { items: (e: MouseEvent, data?: any) => Prom
         items: async (e: MouseEvent, data?: any): Promise<ContextMenuItem[]> => {
             void e;
             void data;
-            const cid = chatId.value;
+            // 属性/权限按消息归属会话查询（评论线程中消息属讨论组，不是当前频道）
+            const cid = msg.chat_id || chatId.value;
             if (cid !== undefined) {
                 await getMessageProperties(cid, msg.id);
             }
@@ -4757,7 +5019,7 @@ function makeMsgMenu(msg: message): { items: (e: MouseEvent, data?: any) => Prom
 async function openMessageContextMenu(msg: message, x: number, y: number) {
     if (selectionMode.value) return;
     currentMenuMsg = msg;
-    const cid = chatId.value;
+    const cid = msg.chat_id || chatId.value;
     if (cid !== undefined) {
         await getMessageProperties(cid, msg.id);
     }
@@ -5048,7 +5310,7 @@ let pendingReadDateLabel: string | null = null;
 
 /** 预取阅读状态，返回可显示的标签文本（null 表示不显示） */
 async function fetchReadDateLabel(msg: message): Promise<string | null> {
-    const cid = chatId.value;
+    const cid = msg.chat_id || chatId.value;
     if (cid === undefined) return null;
     if (!canGetReadDate(msg, cid)) return null;
     try {
@@ -5103,31 +5365,11 @@ async function handleGetAuthor(msg: message) {
     }
 }
 
-/** 查看消息线程 */
-async function handleGetMessageThread(msg: message) {
+/** 打开频道帖子的评论线程视图（评论条 / 右键「查看消息线程」共用入口） */
+function openCommentsThread(msg: message) {
     const cid = chatId.value;
     if (cid === undefined) return;
-    try {
-        const thread = await tdlibSend({
-            _: 'getMessageThread',
-            chat_id: cid,
-            message_id: msg.id,
-        }) as any;
-        if (thread && thread._ === 'messageThreadInfo') {
-            const replyCount = thread.reply_info?.reply_count ?? 0;
-            const unread = thread.unread_message_count ?? 0;
-            const parts: string[] = [];
-            if (replyCount > 0) parts.push(t('chat.replyCount', { count: replyCount }));
-            if (unread > 0) parts.push(t('lng_unread_bar', { count: unread }));
-            parts.push(t('chat.threadWip'));
-            MessagePlugin.success(parts.length > 0 ? t('chat.threadInfo', { parts: parts.join(', ') }) : t('chat.threadEmpty'));
-        } else {
-            MessagePlugin.info(t('chat.noThread'));
-        }
-    } catch (e: any) {
-        console.error('getMessageThread failed:', e);
-        MessagePlugin.error(e?.message || t('chat.getThreadFailed'));
-    }
+    router.push(`/home/chat/${cid}/thread/${msg.id}`);
 }
 
 /** 语音转文字 */
@@ -5172,7 +5414,8 @@ async function handleReportMessage(msg: message) {
 function buildMessageContextMenu(msg: message): ContextMenuItem[] {
     const items: ContextMenuItem[] = [];
     const isService = isServiceMessage(msg);
-    const cid = chatId.value;
+    // 评论线程中的消息归属讨论组，能力查询用消息自身 chat_id
+    const cid = msg.chat_id || chatId.value;
 
     // —— 阅读状态（信息项，不可点击）——
     if (pendingReadDateLabel) {
@@ -5333,7 +5576,7 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
             key: 'thread',
             label: t('lng_replies_view_thread'),
             icon: MessageSquareIcon,
-            onClick: () => handleGetMessageThread(msg),
+            onClick: () => openCommentsThread(msg),
         });
     }
 

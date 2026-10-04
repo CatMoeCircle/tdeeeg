@@ -621,6 +621,8 @@ export async function toggleReaction(
     msg: message,
     reactionType: ReactionType,
 ): Promise<void> {
+    // 消息归属会话优先（评论线程中消息在讨论组，与当前频道 chat_id 不同）
+    const targetChatId = msg.chat_id || chatId;
     const isChosen = msg.interaction_info?.reactions?.reactions?.some(
         (r) => r.is_chosen && isSameReactionType(r.type, reactionType),
     ) ?? false;
@@ -629,14 +631,14 @@ export async function toggleReaction(
         if (isChosen) {
             await tdlibSend({
                 _: 'removeMessageReaction',
-                chat_id: chatId,
+                chat_id: targetChatId,
                 message_id: msg.id,
                 reaction_type: reactionType as ReactionType$Input,
             });
         } else {
             await tdlibSend({
                 _: 'addMessageReaction',
-                chat_id: chatId,
+                chat_id: targetChatId,
                 message_id: msg.id,
                 reaction_type: reactionType as ReactionType$Input,
                 is_big: false,

@@ -331,6 +331,8 @@ interface SendCtx {
     topicId?: number | null;
     /** 频道私聊群组：topic_id 使用 messageTopicDirectMessages */
     isDm?: boolean;
+    /** 频道评论线程：topic_id 使用 messageTopicThread（消息发到讨论组线程） */
+    threadId?: number | null;
     replyTo?: {
         _: 'inputMessageReplyToMessage';
         message_id: number;
@@ -345,7 +347,9 @@ function baseParams(ctx: SendCtx) {
         chat_id: ctx.chatId,
         // options 字段可省略：TDLib 会使用默认发送选项（不传即用默认值）
     };
-    if (ctx.topicId) {
+    if (ctx.threadId) {
+        p.topic_id = { _: 'messageTopicThread', message_thread_id: ctx.threadId };
+    } else if (ctx.topicId) {
         p.topic_id = ctx.isDm
             ? { _: 'messageTopicDirectMessages', direct_messages_chat_topic_id: ctx.topicId }
             : { _: 'messageTopicForum', forum_topic_id: ctx.topicId };

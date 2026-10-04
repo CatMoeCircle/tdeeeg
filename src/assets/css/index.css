@@ -290,6 +290,10 @@ body {
 .tgico-key::before {
   content: "\e9ce";
 }
+/* 留言/评论（tgico U+E965，评论条无评论者头像时的图标） */
+.tgico-comments::before {
+  content: "\e965";
+}
 
 /* ===== Telegram 官方图标字体 tgico ===== */
 

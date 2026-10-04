@@ -1265,6 +1265,7 @@
     "getAuthorFailed": "Failed to get author",
     "replyCount": "{count} replies",
     "threadWip": "View message is under development",
+    "commentPh": "Write a comment…",
     "threadInfo": "Message thread: {parts}",
     "threadEmpty": "No replies in this thread yet",
     "noThread": "This message has no reply thread",

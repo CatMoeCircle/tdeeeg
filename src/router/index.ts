@@ -44,6 +44,12 @@ const router = createRouter({
           component: () => import("../components/chat/ChatDetail/index.vue"),
         },
         {
+          // 频道评论线程视图：threadMsgId = 频道帖子（线程根）的 message id
+          path: "chat/:id/thread/:threadMsgId",
+          name: "chat-thread-detail",
+          component: () => import("../components/chat/ChatDetail/index.vue"),
+        },
+        {
           path: "chat/:id",
           name: "chat-detail",
           component: () => import("../components/chat/ChatDetail/index.vue"),

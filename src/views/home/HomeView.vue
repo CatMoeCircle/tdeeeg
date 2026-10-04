@@ -20,7 +20,7 @@
                 <template #content>
                     <div class="relative w-full h-full">
                         <ChatDetail v-if="showActiveChat" :chat-id="activeChatId" :topic-id="activeTopicId"
-                            @close="closeActiveChat" />
+                            :thread-root-id="activeThreadRootId" @close="closeActiveChat" />
                         <router-view v-else v-slot="{ Component }">
                             <KeepAlive>
                                 <component v-if="Component" :is="Component" :key="route.fullPath"
@@ -131,10 +131,13 @@ const sidebarShowsContacts = computed(() => activeSection.value === 'contacts');
 const sidebarShowsSettings = computed(() => activeSection.value === 'settings');
 const activeChatId = ref<number | null>(null);
 const activeTopicId = ref<number | null>(null);
-const isChatRoute = (name: unknown) => name === 'chat-detail' || name === 'chat-topic-detail';
+/** 频道评论线程根帖子 id（chat/:id/thread/:threadMsgId） */
+const activeThreadRootId = ref<number | null>(null);
+const isChatRoute = (name: unknown) => name === 'chat-detail' || name === 'chat-topic-detail' || name === 'chat-thread-detail';
 const closeActiveChat = () => {
     activeChatId.value = null;
     activeTopicId.value = null;
+    activeThreadRootId.value = null;
 };
 // 个人资料页（user-profile）是独立路由页面，走 router-view 渲染，
 // 绝不复用聊天详情容器。加上该判断确保即使 activeChatId 尚未被
@@ -155,11 +158,12 @@ watch(showActiveChat, (visible) => setChatPaneVisible(visible), { immediate: tru
 // 聊天详情独立于二级导航路由。切换联系人、设置等栏目时，只更新中间栏，
 // 保留当前聊天组件，避免右侧聊天被 router-view 卸载。
 watch(
-    () => [route.name, route.params.id, route.params.topicId] as const,
-    ([name, id, topicId], previous) => {
+    () => [route.name, route.params.id, route.params.topicId, route.params.threadMsgId] as const,
+    ([name, id, topicId, threadMsgId], previous) => {
         if (isChatRoute(name) && id !== undefined && id !== '') {
             activeChatId.value = Number(id);
             activeTopicId.value = topicId !== undefined && topicId !== '' ? Number(topicId) : null;
+            activeThreadRootId.value = threadMsgId !== undefined && threadMsgId !== '' ? Number(threadMsgId) : null;
             return;
         }
 
