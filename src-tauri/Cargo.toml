@@ -1,6 +1,6 @@
 [package]
 name = "tdeeeg"
-version = "0.2.1"
+version = "0.2.2"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -19,11 +19,7 @@ tauri-build = { version = "2", features = [] }
 dotenv = "0.15"
 
 [dependencies]
-tauri = { version = "2", features = [
-    "protocol-asset",
-    "devtools",
-    "tray-icon",
-] }
+tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
 tauri-plugin-opener = "2"
 tauri-plugin-window-state = "2"
 tauri-plugin-dialog = "2"
@@ -46,7 +42,10 @@ notify-rust = "4"
 langdetect = { path = "langdetect" }
 llmsdk = { version = "0.1", features = ["openai", "anthropic"] }
 tauri-plugin-keyring-store = { version = "0.2", default-features = false }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = [
+    "json",
+    "rustls-tls",
+] }
 
 [target.'cfg(windows)'.dependencies]
 tauri-plugin-updater = "2.11.0"

@@ -587,7 +587,7 @@
              滚动时粘性置顶；下方内容区保证足够高度，切换标签时标签栏稳定贴顶、内容不闪空 -->
         <div v-if="hasBottomContent" ref="profileTabsEl" class="px-4 mt-5 sticky top-0 z-10 py-2 scroll-mt-0">
           <SlidingTabBar :active-id="activeTab" :tabs="profileTabItems" :variant="settings.folderStyle"
-            :tab-class="(id, active) => folderTabClass(settings.folderStyle, id, active)"
+            :tab-class="profileTabClass"
             :container-class="folderTabContainerClass(settings.folderStyle)"
             :show-indicator="settings.folderStyle === 'tabs' || settings.folderStyle === 'soft'"
             @select="onProfileTabSelect">
@@ -1800,6 +1800,11 @@ const profileTabs = computed<ProfileTab[]>(() => {
 const profileTabItems = computed(() =>
   profileTabs.value.map((t) => ({ ...t, id: t.key })),
 );
+
+/** 标签类名：跟随设置中的分组样式（与对话列表分组栏共用同一套 class 规则） */
+function profileTabClass(id: string, active: boolean): string {
+  return folderTabClass(settings.folderStyle, id, active);
+}
 
 /** 进入/切换资料页后，待标签栏就绪时自动选中第一个可用标签 */
 let shouldSelectFirstTab = true;
