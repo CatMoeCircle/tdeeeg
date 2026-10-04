@@ -1,6 +1,6 @@
 # tdeeeg
 
-English | [简体中文](README.zh-CN.md)
+English | [简体中文](README.zh-CN.md) | [Русский](README.ru.md)
 
 > ⚠️ **This project is still under active development.** Most core features are implemented, but some parts may be unstable or not behave as expected. Feel free to try it out and open an issue.
 
