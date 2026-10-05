@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { tdlibSend, safeDownloadFile, isFileReady, metaDownloadFile } from '../utils/tdlib';
 import { DL_PRIORITY } from '../utils/downloadPriority';
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -64,6 +64,17 @@ export function trackMetaFromAudio(a: audio | undefined, fallbackTitle?: string,
 
 export type RepeatMode = 'none' | 'one' | 'all' | 'shuffle';
 
+/** 主动暂停的来源 */
+export type AudioPauseSource = 'user' | 'video';
+
+/**
+ * 音频暂停发起方，用于判断外部媒体（视频）结束后能否自动恢复播放。
+ * - 'user'  用户主动暂停（播放器 UI / 系统媒体控件）；列表播完、关闭播放器等主动停止同属此类
+ * - 'video' 视频互斥导致的暂停（视频取消静音 / 全屏播放）
+ * - 'none'  未暂停（正在播放，或从未被暂停）
+ */
+export type AudioPauseReason = AudioPauseSource | 'none';
+
 /**
  * 解析音频的可播放来源：
  * - 已完全下载（path && is_downloading_completed）→ 直接使用本地文件；
@@ -111,6 +122,15 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
      * 解决「切到同一 index（单曲列表循环 / 列表循环绕回同一首）时 audioSrc 不变、audio 不重载」导致列表循环看起来完全不循环的问题。
      */
     const playEpoch = ref(0);
+
+    /** 最近一次暂停的发起方；恢复播放即失效 */
+    const pauseReason = ref<AudioPauseReason>('none');
+
+    // 任何路径恢复播放都说明那次暂停已失效，统一清空发起方：
+    // 否则「视频暂停音乐 → 用户手动播放过 → 视频结束」会拿陈旧标记去恢复用户早已放弃的播放。
+    watch(isPlaying, (playing) => {
+        if (playing) pauseReason.value = 'none';
+    });
 
     // ======== UI 状态 ========
     const showEntry = ref(false);      // 是否显示入口栏
@@ -392,11 +412,30 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
             playTrack(0);
             return;
         }
-        isPlaying.value = !isPlaying.value;
-        // 兜底：只要恢复播放就确保入口栏显示（关闭后从系统控件/其他入口恢复播放时）
         if (isPlaying.value) {
-            showEntry.value = true;
+            pauseBy('user');
+            return;
         }
+        isPlaying.value = true;
+        // 兜底：只要恢复播放就确保入口栏显示（关闭后从系统控件/其他入口恢复播放时）
+        showEntry.value = true;
+    }
+
+    /**
+     * 暂停播放并记录发起方。
+     * 已处于暂停态时保留原发起方：用户手动暂停优先于视频等外部触发。
+     */
+    function pauseBy(reason: AudioPauseSource) {
+        if (!isPlaying.value) return;
+        isPlaying.value = false;
+        pauseReason.value = reason;
+    }
+
+    /** 仅当暂停由 reason 发起、且期间未被用户接管时才恢复播放 */
+    function resumeIfPausedBy(reason: AudioPauseSource) {
+        if (pauseReason.value !== reason || isPlaying.value) return;
+        pauseReason.value = 'none';
+        togglePlay();
     }
 
     /** 下一首 */
@@ -1039,6 +1078,8 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         loadChatAudio,
         playTrack,
         togglePlay,
+        pauseBy,
+        resumeIfPausedBy,
         nextTrack,
         prevTrack,
         cycleRepeatMode,

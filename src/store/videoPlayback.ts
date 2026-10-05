@@ -203,26 +203,21 @@ export function setGlobalMute(muted: boolean): void {
 
 // ======== 视频与音频播放器的互斥逻辑 ========
 
-/** 标记音频是否因视频操作而被暂停（用于自动恢复判断） */
-let audioPausedByVideo = false;
-
-/** 暂停音频播放器（因视频取消静音/全屏播放） */
+/**
+ * 暂停音频播放器（因视频取消静音/全屏播放）。
+ * 暂停发起方记为 'video'；若音乐本就未在播放（含用户刚手动暂停），发起方保持不变。
+ */
 export function pauseAudioForVideo(): void {
-    const audio = useAudioPlayerStore();
-    if (audio.isPlaying) {
-        audio.togglePlay();
-        audioPausedByVideo = true;
-    }
+    useAudioPlayerStore().pauseBy('video');
 }
 
-/** 恢复音频播放器（视频不再播放时） */
+/**
+ * 恢复音频播放器（视频不再播放时）。
+ * 仅恢复仍标记为「由视频发起」的那次暂停：期间用户手动播放/暂停过音乐，
+ * 发起方已变为 'user'，此处不得擅自恢复。
+ */
 export function resumeAudioAfterVideo(): void {
-    if (!audioPausedByVideo) return;
-    const audio = useAudioPlayerStore();
-    if (!audio.isPlaying) {
-        audio.togglePlay();
-    }
-    audioPausedByVideo = false;
+    useAudioPlayerStore().resumeIfPausedBy('video');
 }
 
 /** 当视频停止播放时调用（离开视口 / 关闭查看器 / 播放结束） */
