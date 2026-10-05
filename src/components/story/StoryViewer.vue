@@ -824,6 +824,14 @@ function goNext() {
     index.value += 1;
 }
 
+/** 重播当前视频故事：回到开头并继续播放 */
+function restartCurrentVideo() {
+    const el = videoRef.value;
+    if (!el) return;
+    el.currentTime = 0;
+    void el.play().catch(() => { });
+}
+
 function goPrev() {
     // 进度超过 15% 时先重播当前
     if (currentKind.value === "photo" && photoProgress.value > 0.15) {
@@ -832,14 +840,17 @@ function goPrev() {
     }
     if (currentKind.value === "video") {
         const el = videoRef.value;
-        if (el && el.currentTime > 1.5) {
-            el.currentTime = 0;
-            void el.play().catch(() => { });
+        // 已播过 1.5s，或已在第一条（无处可退）→ 重播当前视频。
+        // 注意不能落到下面的 startPhotoTimer()：那会给视频故事启一个 5s 照片倒计时，
+        // 到点后 goNext() 把「上一条」变成「下一条」。
+        if (index.value <= 0 || (el && el.currentTime > 1.5)) {
+            restartCurrentVideo();
             return;
         }
     }
     if (index.value <= 0) {
-        startPhotoTimer();
+        // 只有照片故事才由计时器重播；视频已在上面处理，live/unsupported 保持不动
+        if (currentKind.value === "photo") startPhotoTimer();
         return;
     }
     index.value -= 1;
