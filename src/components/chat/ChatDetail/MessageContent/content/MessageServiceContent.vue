@@ -33,11 +33,19 @@ const emit = defineEmits<{
 /** 发送者名称（未解析到时兜底） */
 const sender = computed(() => props.senderName?.trim() || t('service.someone'));
 
-/** 离开的成员可能已不在群内，主动发 getUser 拉取；用户缓存就绪后文案自动更新 */
+/**
+ * 涉及的成员可能尚未缓存（离开的成员还会因退群而从在线列表消失），主动发 getUser 拉取；
+ * 用户缓存就绪后文案自动更新。
+ */
 watch(
-    () => (props.content._ === 'messageChatDeleteMember' ? props.content.user_id : 0),
-    (userId) => {
-        if (userId) ensureUser(userId);
+    () => {
+        const c = props.content;
+        if (c._ === 'messageChatDeleteMember') return [c.user_id];
+        if (c._ === 'messageChatAddMembers') return c.member_user_ids;
+        return [];
+    },
+    (userIds) => {
+        for (const userId of userIds) if (userId) void ensureUser(userId);
     },
     { immediate: true },
 );
@@ -71,18 +79,31 @@ function findTaskNames(checklistMessageId: number): Map<number, string> {
 }
 
 /**
+ * 官方 zh-hans 语言包把名字括在引号里（`{from} 添加了“{users}”`），英文等语言则不带引号。
+ * 本应用统一按不带引号显示：去掉包裹被插值名字的成对引号，并补一个空格分隔。
+ */
+function unquoteName(text: string, name?: string): string {
+    if (!name) return text;
+    const quoted = [
+        `“${name}”`, `「${name}」`, `『${name}』`, `„${name}“`, `«${name}»`, `‘${name}’`, `"${name}"`,
+    ];
+    return quoted
+        .reduce((acc, pair) => acc.split(pair).join(` ${name} `), text)
+        .replace(/ {2,}/g, ' ')
+        .trimEnd();
+}
+
+/**
  * 成员离开/被移出的提示文案。messageChatDeleteMember 自带 user_id，
  * 能精确显示“是谁”离开/被移出，而非笼统的“有成员离开”。
+ * 自行退出时消息发送者即该成员本人，用发送者名称（该成员的用户数据可能已拉取失败）。
  */
 function memberRemovedText(userId: number): string {
-    const name = getUserDisplayName(userId);
-    if (!name) return t('lng_action_user_left', { from: t('service.someone') });
-    // 成员自行退出：此时消息发送者即该成员本人
-    if (props.senderUserId === userId) return t('lng_action_user_left', { from: name });
-    // 被其他成员/管理员移出：优先带出操作者
-    const actor = props.senderName?.trim();
-    if (actor) return t('lng_action_kick_user', { from: actor, user: name });
-    return t('lng_action_kick_user', { from: t('service.someone'), user: name });
+    if (props.senderUserId === userId) return t('lng_action_user_left', { from: sender.value });
+    // 被其他成员/管理员移出：带出操作者与被移出的成员
+    const actor = props.senderName?.trim() || t('service.someone');
+    const user = getUserDisplayName(userId) || t('service.someone');
+    return unquoteName(t('lng_action_kick_user', { from: actor, user }), user);
 }
 
 /** 置顶服务消息（messagePinMessage）文案，异步解析被置顶消息类型后填充 */
@@ -214,10 +235,19 @@ const serviceText = computed(() => {
         case 'messageChatDeletePhoto':
             return t('lng_action_removed_photo', { from: sender.value });
         case 'messageChatAddMembers': {
-            const names = c.member_user_ids.map(id => getUserDisplayName(id) || t('service.someone'));
-            if (names.length === 1) return t('lng_action_add_user', { from: sender.value, user: names[0] });
+            const userIds = c.member_user_ids;
+            // 成员自行加入：消息发送者就是被加入的成员本人，应表述为「加入了群组」而非「被谁添加」
+            if (userIds.length === 1 && userIds[0] === props.senderUserId) {
+                return t('lng_action_user_joined', { from: sender.value });
+            }
+            const names = userIds.map(id => getUserDisplayName(id) || t('service.someone'));
+            // 官方 zh-hans 包里该 key 是 "{from} 添加了“{users}”"，与 en 的 "{user}" 不一致；
+            // vue-i18n 会把缺失的具名参数渲染成空串（名字被静默吞掉），故两种写法都传
+            if (names.length === 1) {
+                return unquoteName(t('lng_action_add_user', { from: sender.value, user: names[0], users: names[0] }), names[0]);
+            }
             const users = joinNames(names, 'lng_action_add_users_and_one', 'lng_action_add_users_and_last');
-            return t('lng_action_add_users_many', { from: sender.value, users });
+            return unquoteName(t('lng_action_add_users_many', { from: sender.value, users }), users);
         }
         case 'messageChatJoinByLink':
             return t('lng_action_user_joined_by_link', { from: sender.value });
