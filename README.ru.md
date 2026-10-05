@@ -6,7 +6,8 @@
 
 Клиент Telegram для десктопа на базе [Tauri 2](https://v2.tauri.app/) + [Vue 3](https://vuejs.org/) + [TDLib](https://core.telegram.org/tdlib), полностью разработанный AI-агентами. Возможны периодические сбои и несогласованность стилей интерфейса.
 
-![Скриншот](screenshot/screenshot1.jpg)
+![Screenshot](screenshot/screenshot1.jpg)
+![Screenshot2](screenshot/screenshot2.jpg)
 
 ## Замечания по платформам
 

@@ -7,6 +7,7 @@ English | [简体中文](README.zh-CN.md) | [Русский](README.ru.md)
 A Telegram desktop client built with [Tauri 2](https://v2.tauri.app/) + [Vue 3](https://vuejs.org/) + [TDLib](https://core.telegram.org/tdlib), developed entirely by AI agents. Expect occasional instability and inconsistent UI styling.
 
 ![Screenshot](screenshot/screenshot1.jpg)
+![Screenshot2](screenshot/screenshot2.jpg)
 
 ## Platform notes
 

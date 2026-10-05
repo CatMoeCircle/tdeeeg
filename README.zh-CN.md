@@ -6,7 +6,8 @@
 
 基于 [Tauri 2](https://v2.tauri.app/) + [Vue 3](https://vuejs.org/) + [TDLib](https://core.telegram.org/tdlib) 构建的 Telegram 桌面客户端，由 AI Agent 工具完成全部开发工作，可能出现任何的不稳定现象和 UI 风格不统一问题。
 
-![截图](screenshot/screenshot1.jpg)
+![Screenshot](screenshot/screenshot1CN.jpg)
+![Screenshot2](screenshot/screenshot2CN.jpg)
 
 ## 平台说明
 
