@@ -697,12 +697,13 @@ type SliceAxis = (typeof SLICE_AXES)[number];
 /** 九宫格编辑器容器 ref */
 const skinEditorRef = ref<HTMLElement | null>(null);
 
-/** 编辑器显示尺寸：小图放大到约 280px 宽（1~3 倍），便于拖拽 */
+/** 编辑器显示尺寸：大图缩到约 280px 宽，小图最多放大 3 倍，便于拖拽 */
 const editorSize = computed(() => {
     const s = customSkin.value;
     if (!s) return { w: 0, h: 0 };
     const [w, h] = s.size;
-    const scale = Math.max(1, Math.min(3, 280 / w));
+    // 只保留上限：大图必须能缩小（1000px 宽的皮肤曾按原尺寸渲染，撑爆布局）
+    const scale = Math.min(3, 280 / w);
     return { w: Math.round(w * scale), h: Math.round(h * scale) };
 });
 
