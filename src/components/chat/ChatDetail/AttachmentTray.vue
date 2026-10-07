@@ -16,9 +16,11 @@
                         <span
                             class="relative shrink-0 flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg bg-gray-200 dark:bg-gray-700">
                             <img v-if="it.cover" :src="previewSrcOf(it.cover)" draggable="false"
-                                class="h-full w-full object-cover" />
+                                :class="['h-full w-full object-cover', { 'blur-[2px] scale-110': it.spoiler }]" />
                             <component v-else :is="it.kind === 'video' ? VideoIcon : (it.kind === 'audio' ? MusicIcon : FileIcon)"
                                 class="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                            <!-- 剧透：封面缩略图上叠加粒子遮罩 -->
+                            <SpoilerMedia v-if="it.spoiler" has-spoiler overlay :fx="COVER_SPOILER_FX" />
                         </span>
                         <span class="min-w-0 flex-1">
                             <span class="block truncate text-xs font-medium text-gray-800 dark:text-gray-200">{{ it.name }}</span>
@@ -32,6 +34,13 @@
                                 <path d="M4 5h16M4 12h16M4 19h10" />
                             </svg>
                         </span>
+                        <!-- 剧透开关：卡片右上角（与左上角序号角标对称），仅图片 / 视频支持 -->
+                        <button v-if="canSpoil(it)" type="button" :aria-label="spoilerLabel(it)" :title="spoilerLabel(it)"
+                            class="no-drag absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-white transition-opacity"
+                            :class="it.spoiler ? 'bg-blue-500' : 'bg-black/50 opacity-0 group-hover:opacity-100'"
+                            @click.stop="attachmentStore.setSpoiler(it.id, !it.spoiler)">
+                            <EyeOffIcon class="w-2.5 h-2.5" />
+                        </button>
                         <button type="button" :aria-label="t('attachment.remove')" :title="t('lng_settings_channel_remove')"
                             class="no-drag shrink-0 flex h-5 w-5 items-center justify-center rounded-full text-gray-400 hover:text-red-500 transition-colors"
                             @click.stop="attachmentStore.remove(it.id)">
@@ -51,27 +60,37 @@
                             : 'ring-transparent hover:ring-gray-300 dark:hover:ring-gray-600'
                     ]" @click="selectItem(it.id)">
                         <img v-if="it.kind === 'photo' || it.kind === 'animation'" :src="previewSrc(it)"
-                            draggable="false" class="w-full h-full object-cover"
+                            draggable="false"
+                            :class="['w-full h-full object-cover', { 'blur-[2px] scale-110': it.spoiler }]"
                             @error="(e) => (e.target as HTMLImageElement).style.display = 'none'"
                             @click.stop="selectItem(it.id)" />
                         <div v-else
                             class="w-full h-full flex items-center justify-center bg-gray-200 dark:bg-gray-700">
                             <MusicIcon class="w-5 h-5 text-gray-500 dark:text-gray-400" />
                         </div>
+                        <!-- 剧透：预览框上叠加粒子遮罩，点击遮罩可临时揭示（与消息气泡内一致） -->
+                        <SpoilerMedia v-if="it.spoiler" has-spoiler overlay :fx="TILE_SPOILER_FX" />
+                        <!-- 剧透开关：预览框右上角，控制发送时是否遮挡预览（z-10 保证在遮罩之上可点） -->
+                        <button v-if="canSpoil(it)" type="button" :aria-label="spoilerLabel(it)" :title="spoilerLabel(it)"
+                            class="no-drag absolute top-0.5 right-0.5 z-10 w-5 h-5 rounded-full flex items-center justify-center text-white transition-opacity"
+                            :class="it.spoiler ? 'bg-blue-500' : 'bg-black/50 opacity-0 group-hover:opacity-100'"
+                            @click.stop="attachmentStore.setSpoiler(it.id, !it.spoiler)">
+                            <EyeOffIcon class="w-3 h-3" />
+                        </button>
                         <span v-if="(it.caption || '').trim()"
-                            class="absolute top-0 right-0 w-3.5 h-3.5 bg-blue-500 rounded-bl-md flex items-center justify-center pointer-events-none">
+                            class="absolute bottom-0.5 right-0.5 z-10 w-3.5 h-3.5 bg-blue-500 rounded-tl-md flex items-center justify-center pointer-events-none">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                                 class="w-2 h-2 text-white">
                                 <path d="M4 5h16M4 12h16M4 19h10" />
                             </svg>
                         </span>
                         <button type="button" :aria-label="t('attachment.remove')" :title="t('lng_settings_channel_remove')"
-                            class="no-drag absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-black/50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                            class="no-drag absolute top-0.5 left-0.5 z-10 w-5 h-5 rounded-full bg-black/50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
                             @click.stop="attachmentStore.remove(it.id)">
                             <XIcon class="w-3 h-3" />
                         </button>
                         <span
-                            class="absolute bottom-0.5 left-0.5 px-1 rounded bg-black/50 text-white text-[9px] leading-tight pointer-events-none">
+                            class="absolute bottom-0.5 left-0.5 z-10 px-1 rounded bg-black/50 text-white text-[9px] leading-tight pointer-events-none">
                             {{ indexOf(it.id) }}
                         </span>
                     </div>
@@ -117,16 +136,32 @@ const { t } = useI18n();
 import { computed, ref, watch } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { FileIcon, ImageIcon, MusicIcon, VideoIcon, XIcon } from 'lucide-vue-next';
+import { FileIcon, EyeOff as EyeOffIcon, ImageIcon, MusicIcon, VideoIcon, XIcon } from 'lucide-vue-next';
 import { VueDraggable } from 'vue-draggable-plus';
 import { useAttachmentStore } from '../../../store/attachment';
 import type { AttachmentItem, AttachmentKind } from '../../../store/attachment';
+import SpoilerMedia from './MessageContent/spoiler/SpoilerMedia.vue';
 
 const attachmentStore = useAttachmentStore();
+
+/** 64×64 预览框的剧透粒子参数（按缩略图尺寸缩小自媒体默认值） */
+const TILE_SPOILER_FX = { count: 110, sizeMin: 1.8, sizeMax: 2.8, layerBg: 'rgba(0, 0, 0, 0.4)' };
+/** 视频卡片 36×36 封面缩略图的剧透粒子参数（与消息列表缩略图保持一致） */
+const COVER_SPOILER_FX = { count: 60, sizeMin: 1.2, sizeMax: 2, layerBg: 'rgba(0, 0, 0, 0.4)' };
 
 /** 是否为卡片样式附件（文档 / 视频 / 音频）：图标 + 文件名 + 大小 + 删除，而非方形缩略图 */
 function isCardKind(kind: AttachmentKind): boolean {
     return kind === 'document' || kind === 'video' || kind === 'audio';
+}
+
+/** 是否支持剧透遮挡：仅图片 / 视频（接收端也只对这两类渲染剧透遮罩） */
+function canSpoil(it: AttachmentItem): boolean {
+    return it.kind === 'photo' || it.kind === 'video';
+}
+
+/** 剧透开关提示：按当前状态给出将要执行的动作 */
+function spoilerLabel(it: AttachmentItem): string {
+    return it.spoiler ? t('lng_context_disable_spoiler') : t('lng_context_spoiler_effect');
 }
 
 function formatSize(bytes: number): string {

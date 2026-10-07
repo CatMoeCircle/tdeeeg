@@ -232,11 +232,21 @@ function thumbnailOf(path?: string) {
     return { _: 'inputThumbnail', thumbnail: file(path), width: 0, height: 0 } as const;
 }
 
+/**
+ * 媒体剧透遮挡（has_spoiler），仅图片 / 视频支持。
+ * 仅在明确开启时带上字段，未设置时省略——保持 TDLib 默认的 false，
+ * 也避免「编辑替换媒体」等复用这些构造器的场景被动清掉原有状态。
+ */
+function spoilerField(it: AttachmentItem) {
+    return it.spoiler ? { has_spoiler: true as const } : {};
+}
+
 function photoContent(it: AttachmentItem, caption: string | formattedCaption) {
     return {
         _: 'inputMessagePhoto',
         photo: { _: 'inputPhoto', photo: file(it.path), width: it.width, height: it.height },
         caption: captionToFormatted(caption),
+        ...spoilerField(it),
     } as const;
 }
 
@@ -253,6 +263,7 @@ function videoContent(it: AttachmentItem, caption: string | formattedCaption, co
             cover: cover ? file(cover) : undefined,
         },
         caption: captionToFormatted(caption),
+        ...spoilerField(it),
     } as const;
 }
 

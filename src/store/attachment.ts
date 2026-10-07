@@ -26,6 +26,8 @@ export interface AttachmentItem {
     caption?: string;
     /** 该文件的自定义封面（本地绝对路径，音乐/视频/文档可设置） */
     cover?: string;
+    /** 发送时以剧透方式遮挡预览（仅图片 / 视频支持） */
+    spoiler?: boolean;
 }
 
 let uid = 0;
@@ -87,6 +89,12 @@ export const useAttachmentStore = defineStore('attachment', () => {
         it.cover = cover ? cover : undefined;
     }
 
+    /** 设置/取消某附件的剧透遮挡 */
+    function setSpoiler(id: string, spoiler: boolean) {
+        const it = items.value.find((i) => i.id === id);
+        if (it) it.spoiler = spoiler;
+    }
+
     /** 拖拽重排：把 fromId 移动到 toId 的位置 */
     function reorder(fromId: string, toId: string) {
         const list = items.value;
@@ -97,7 +105,7 @@ export const useAttachmentStore = defineStore('attachment', () => {
         list.splice(toIdx, 0, moved);
     }
 
-    return { items, add, remove, clear, clearWithCleanup, setKind, setMetadata, setCaption, setCover, reorder };
+    return { items, add, remove, clear, clearWithCleanup, setKind, setMetadata, setCaption, setCover, setSpoiler, reorder };
 });
 
 /** 删除临时文件（幂等，失败静默） */
