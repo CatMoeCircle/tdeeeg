@@ -1859,6 +1859,12 @@ fn handle_update_file(
         .pointer("/remote/id")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
+    // unique_id 不含 file_reference，同一文件恒定：下载管理器以它为去重主键
+    let unique_id = file
+        .pointer("/remote/unique_id")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
     let is_active_account = state.active.load(Ordering::SeqCst) == session_id;
 
     // 下载进度
@@ -1887,7 +1893,12 @@ fn handle_update_file(
             .map(|s| s.to_string());
 
         let mut dl_store = state.download_store.lock().unwrap();
-        let store_key = dl_store.bind_session_key(session_id, file_id as i32, remote_id.as_deref());
+        let store_key = dl_store.bind_session_key(
+            session_id,
+            file_id as i32,
+            unique_id.as_deref(),
+            remote_id.as_deref(),
+        );
         dl_store.update_progress(
             Some(session_id),
             &store_key,
@@ -1916,8 +1927,11 @@ fn handle_update_file(
                             .to_string()
                     })
                     .unwrap_or_default();
-                let rid =
-                    crate::download_store::derive_remote_id(remote_id.as_deref(), file_id as i32);
+                let rid = crate::download_store::derive_item_key(
+                    unique_id.as_deref(),
+                    remote_id.as_deref(),
+                    file_id as i32,
+                );
                 DownloadItem {
                     remote_id: rid,
                     session_file_id: Some(file_id as i32),
@@ -2002,11 +2016,14 @@ fn handle_update_file(
                     (display, t)
                 })
                 .unwrap_or_else(|| (format!("文件 #{}", file_id), "other".to_string()));
-            let rid =
-                crate::download_store::derive_remote_id(remote_id.as_deref(), file_id as i32);
+            let rid = crate::download_store::derive_item_key(
+                unique_id.as_deref(),
+                remote_id.as_deref(),
+                file_id as i32,
+            );
             ul_store.register_upload(
                 Some(session_id),
-                Some(rid),
+                Some(rid.clone()),
                 file_id as i32,
                 name,
                 file_type,
@@ -2017,7 +2034,7 @@ fn handle_update_file(
             );
             if let Some(item) = ul_store.update_upload_progress(
                 Some(session_id),
-                remote_id.as_deref().unwrap_or(&file_id.to_string()),
+                &rid,
                 uploaded_size,
                 effective_total,
                 is_up_active,

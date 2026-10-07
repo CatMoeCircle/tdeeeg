@@ -8,8 +8,8 @@ pub type DownloadFileType = String;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DownloadItem {
-    /// 稳定主键：file.remote.id（跨重启/跨会话不变）。
-    /// 本地未上传或 remote.id 为空时，回退为 `session:<file_id>` / `legacy:<file_id>`。
+    /// 稳定主键：file.remote.unique_id（不含 file_reference，同一文件恒定）。
+    /// remote.unique_id 缺失时回退 file.remote.id，再回退 `session:<file_id>` / `legacy:<file_id>`。
     pub remote_id: String,
     /// 当前 TDLib 会话内的 file.id（重启后会变），用于 pause/cancel/download 等 TDLib 调用。
     #[serde(default)]
@@ -84,6 +84,143 @@ pub fn derive_remote_id(remote_id: Option<&str>, session_file_id: i32) -> String
     }
 }
 
+/// 条目的稳定主键：remote.unique_id → remote.id → `session:<file_id>`。
+///
+/// TDLib 的 remote.id 里编码了 file_reference（td/telegram/files/FileLocation.hpp：
+/// `FullRemoteFileLocation::store`），而 file_reference 会随消息/上下文刷新，TDLib 文档
+/// 也明确「同一文件可以有很多个有效的 remote.id」。remote.unique_id 用的是
+/// `as_unique()`（不含 file_reference），同一文件跨刷新/跨对话恒定，才是真正的去重键。
+pub fn derive_item_key(
+    unique_id: Option<&str>,
+    remote_id: Option<&str>,
+    session_file_id: i32,
+) -> String {
+    match unique_id {
+        Some(u) if !u.is_empty() => u.to_string(),
+        _ => derive_remote_id(remote_id, session_file_id),
+    }
+}
+
+/// 自动生成的占位文件名（空 / "文件 #12" / "File #12" / 历史 "文件_12"）
+/// 与前端 isPlaceholderFileName 保持一致：这些名字不能充当文件身份。
+fn is_placeholder_file_name(name: &str) -> bool {
+    let name = name.trim();
+    if name.is_empty() {
+        return true;
+    }
+    if let Some((_, digits)) = name.rsplit_once('#') {
+        if !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit()) {
+            return true;
+        }
+    }
+    if let Some(digits) = name.strip_prefix("文件_") {
+        if !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit()) {
+            return true;
+        }
+    }
+    false
+}
+
+/// 仅由文件内容决定的身份（类型 + 文件名 + 大小）。
+///
+/// 用于认领历史条目：旧版本的键是 remote.id（含 file_reference），刷新后同一文件换了 id，
+/// 老条目既没有 unique_id 也无法反推，只能靠内容身份认亲。
+fn content_key_of(file_type: &str, file_name: &str, total_size: i64) -> Option<String> {
+    if total_size <= 0 || is_placeholder_file_name(file_name) {
+        return None;
+    }
+    Some(format!("{}|{}|{}", file_type, file_name, total_size))
+}
+
+/// 把同一文件的另一条记录并入 `dst`：进度/完成态取更完整的一份，元数据互补，标签取并集。
+fn merge_item_into(dst: &mut DownloadItem, src: &DownloadItem) {
+    if src.total_size > dst.total_size {
+        dst.total_size = src.total_size;
+    }
+    if src.downloaded_size > dst.downloaded_size {
+        dst.downloaded_size = src.downloaded_size;
+    }
+    if src.progress > dst.progress {
+        dst.progress = src.progress;
+    }
+    let dst_has_path = dst.local_path.as_ref().map(|p| !p.is_empty()).unwrap_or(false);
+    let src_has_path = src.local_path.as_ref().map(|p| !p.is_empty()).unwrap_or(false);
+    if src_has_path && (!dst_has_path || (src.is_completed && !dst.is_completed)) {
+        dst.local_path = src.local_path.clone();
+    }
+    if src.is_completed && (!dst.is_completed || !dst_has_path) {
+        dst.is_completed = true;
+    }
+    if src.completed_at > dst.completed_at {
+        dst.completed_at = src.completed_at;
+    }
+    if dst.created_at == 0 || (src.created_at > 0 && src.created_at < dst.created_at) {
+        dst.created_at = src.created_at;
+    }
+    if src.in_tdlib_list {
+        dst.in_tdlib_list = true;
+    }
+    dst.has_tdlib_update = dst.has_tdlib_update || src.has_tdlib_update;
+    // 流式标记只增不清（与前端约定一致）
+    dst.is_streaming = dst.is_streaming || src.is_streaming;
+    for tag in &src.tags {
+        if !dst.tags.contains(tag) {
+            dst.tags.push(tag.clone());
+        }
+    }
+    if dst.file_name.is_empty() || (is_placeholder_file_name(&dst.file_name) && !is_placeholder_file_name(&src.file_name)) {
+        dst.file_name = src.file_name.clone();
+    }
+    if dst.chat_title.is_empty() {
+        dst.chat_title = src.chat_title.clone();
+    }
+    if dst.chat_id.is_none() {
+        dst.chat_id = src.chat_id;
+    }
+    if dst.message_id.is_none() {
+        dst.message_id = src.message_id;
+    }
+    if dst.thumbnail_data_url.is_none() {
+        dst.thumbnail_data_url = src.thumbnail_data_url.clone();
+    }
+    if dst.source_label.is_none() {
+        dst.source_label = src.source_label.clone();
+    }
+    // 占位条目（类型未知的通用资源）用更具体的一方补齐分类
+    if dst.file_type == "other" && dst.is_generic {
+        dst.file_type = src.file_type.clone();
+        dst.is_generic = src.is_generic;
+        dst.hidden_category = src.hidden_category.clone();
+        dst.is_auto_photo = src.is_auto_photo;
+    }
+    // 会话内 file.id 取较大者：更可能是当前 TDLib 会话仍在用的那个
+    if src.session_file_id.unwrap_or(0) > dst.session_file_id.unwrap_or(0) {
+        dst.session_file_id = src.session_file_id;
+        dst.file_id = if src.file_id != 0 { src.file_id } else { dst.file_id };
+    }
+    dst.dismissed = dst.dismissed && src.dismissed;
+    if dst.is_completed {
+        dst.is_paused = false;
+        if dst.total_size > 0 {
+            dst.downloaded_size = dst.total_size;
+            dst.progress = 1.0;
+        }
+        if dst.completed_at == 0 {
+            dst.completed_at = now_ms();
+        }
+    }
+}
+
+/// 条目保留优先级：已完成且有本地路径 > 已完成 > 进度大 > 会话 file.id 大
+fn item_keep_rank(item: &DownloadItem) -> (bool, bool, i64, i64) {
+    (
+        item.is_completed && item.local_path.as_ref().map(|p| !p.is_empty()).unwrap_or(false),
+        item.is_completed,
+        (item.progress * 1000.0) as i64,
+        item.session_file_id.unwrap_or(0) as i64,
+    )
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct PersistedData {
     items: HashMap<String, DownloadItem>,
@@ -91,6 +228,9 @@ struct PersistedData {
     show_hidden: bool,
     #[serde(default)]
     show_auto_photos: bool,
+    /// 是否已做过「同一文件合并」的一次性清理（旧 remote.id 键造成的重复行）
+    #[serde(default)]
+    dupes_merged: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -151,6 +291,7 @@ struct AccountDownloadData {
     session_map: HashMap<i32, String>,
     show_hidden: bool,
     show_auto_photos: bool,
+    dupes_merged: bool,
     uploads: HashMap<String, DownloadItem>,
     upload_session_map: HashMap<i32, String>,
 }
@@ -192,6 +333,7 @@ impl AccountDownloadData {
                 self.items = data.items;
                 self.show_hidden = data.show_hidden;
                 self.show_auto_photos = data.show_auto_photos;
+                self.dupes_merged = data.dupes_merged;
                 self.rebuild_session_map();
                 return true;
             }
@@ -252,6 +394,92 @@ impl AccountDownloadData {
         }
     }
 
+    /// 一次性清理历史重复行。
+    ///
+    /// 旧版本以 remote.id 为键，而 remote.id 内含 file_reference（会刷新），
+    /// 同一文件因此可能出现多行（下载管理器里就是「两条一样的下载」）。
+    /// 这些老行既没有 unique_id 也反推不出，只能按内容身份（类型+名字+大小）归并。
+    fn merge_duplicate_items(&mut self) {
+        let mut keys: Vec<String> = self
+            .items
+            .iter()
+            .filter(|(_, it)| !it.dismissed)
+            .map(|(k, _)| k.clone())
+            .collect();
+        keys.sort_by(|a, b| {
+            let ra = item_keep_rank(&self.items[a]);
+            let rb = item_keep_rank(&self.items[b]);
+            rb.cmp(&ra).then_with(|| b.cmp(a))
+        });
+
+        // 内容身份 → 保留项键
+        let mut owners: HashMap<String, String> = HashMap::new();
+        for key in keys {
+            let Some(item) = self.items.get(&key) else {
+                continue;
+            };
+            let ck = content_key_of(&item.file_type, &item.file_name, item.total_size);
+            let keeper = ck
+                .as_ref()
+                .and_then(|c| owners.get(c))
+                .cloned()
+                .filter(|k| *k != key && self.items.contains_key(k));
+            match keeper {
+                Some(keeper_key) => {
+                    if let Some(src) = self.items.remove(&key) {
+                        if let Some(dst) = self.items.get_mut(&keeper_key) {
+                            merge_item_into(dst, &src);
+                        }
+                    }
+                    if let Some(c) = ck {
+                        owners.insert(c, keeper_key);
+                    }
+                }
+                None => {
+                    if let Some(c) = ck {
+                        owners.insert(c, key);
+                    }
+                }
+            }
+        }
+        self.rebuild_session_map();
+    }
+
+    /// 同文件的历史条目（旧 remote.id 键，没有稳定身份）——按内容身份认亲
+    fn find_same_file_key(&self, file_type: &str, file_name: &str, total_size: i64) -> Option<String> {
+        let probe = content_key_of(file_type, file_name, total_size)?;
+        self.items
+            .iter()
+            .find(|(_, it)| {
+                !it.dismissed
+                    && content_key_of(&it.file_type, &it.file_name, it.total_size).as_deref()
+                        == Some(probe.as_str())
+            })
+            .map(|(k, _)| k.clone())
+    }
+
+    /// 把条目从旧键搬到稳定键（目标键已有条目时并入），并同步 session 映射。
+    fn rekey_item(&mut self, from: &str, to: &str) {
+        if from == to {
+            return;
+        }
+        let Some(mut item) = self.items.remove(from) else {
+            return;
+        };
+        match self.items.get_mut(to) {
+            Some(dst) => merge_item_into(dst, &item),
+            None => {
+                item.remote_id = to.to_string();
+                self.items.insert(to.to_string(), item);
+            }
+        }
+        for mapped in self.session_map.values_mut() {
+            if mapped == from {
+                *mapped = to.to_string();
+            }
+        }
+    }
+
     fn save_to_path(&self, path: &Path) {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).ok();
@@ -260,6 +488,7 @@ impl AccountDownloadData {
             items: self.items.clone(),
             show_hidden: self.show_hidden,
             show_auto_photos: self.show_auto_photos,
+            dupes_merged: self.dupes_merged,
         };
         if let Ok(content) = serde_json::to_string_pretty(&data) {
             fs::write(path, content).ok();
@@ -331,7 +560,7 @@ impl DownloadStore {
         }
         let path = self.path_for(account_id);
         let mut data = AccountDownloadData::default();
-        let loaded = data.load_from_path(&path);
+        let mut loaded = data.load_from_path(&path);
 
         if !loaded && !self.legacy_migrated {
             let legacy = legacy_downloads_json(&self.data_dir);
@@ -340,7 +569,15 @@ impl DownloadStore {
                 // 旧文件改名备份，避免再次误迁移
                 let _ = fs::rename(&legacy, legacy.with_extension("json.migrated"));
                 self.legacy_migrated = true;
+                loaded = true;
             }
+        }
+
+        // 每个账户只跑一次：把旧 remote.id 键造成的同一文件重复行并成一行
+        if loaded && !data.dupes_merged {
+            data.merge_duplicate_items();
+            data.dupes_merged = true;
+            data.save_to_path(&path);
         }
 
         self.accounts.insert(account_id, data);
@@ -482,6 +719,7 @@ impl DownloadStore {
     ) -> String {
         let acct = account_id.unwrap_or(self.active_account);
         let rid = derive_remote_id(remote_id.as_deref(), session_file_id);
+        let rid_is_stable = !rid.starts_with("session:") && !rid.starts_with("legacy:");
 
         // 若该会话曾指向 session:/legacy: 键，尽量迁到 remote_id 键
         let existing_key = self
@@ -494,11 +732,11 @@ impl DownloadStore {
             {
                 old_key
             } else if old_key != rid {
-                if let Some(mut item) = self.data_mut(acct).items.remove(&old_key) {
-                    item.remote_id = rid.clone();
+                let data = self.data_mut(acct);
+                data.rekey_item(&old_key, &rid);
+                if let Some(item) = data.items.get_mut(&rid) {
                     item.session_file_id = Some(session_file_id);
                     item.file_id = session_file_id;
-                    self.data_mut(acct).items.insert(rid.clone(), item);
                 }
                 rid
             } else {
@@ -507,6 +745,21 @@ impl DownloadStore {
         } else {
             rid
         };
+
+        // 同一文件的历史条目（键为旧 remote.id、无稳定身份）：收编到稳定键，
+        // 而不是再插一行——否则 TDLib 刷新 file_reference 后同一文件会出现两条下载。
+        let key_missing = rid_is_stable && !self.data(acct).items.contains_key(&use_key);
+        let same_file_key = if key_missing {
+            self.data(acct)
+                .find_same_file_key(&file_type, &file_name, total_size)
+        } else {
+            None
+        };
+        if let Some(old_key) = same_file_key {
+            if old_key != use_key {
+                self.data_mut(acct).rekey_item(&old_key, &use_key);
+            }
+        }
 
         self.merge_register(
             acct,
@@ -639,46 +892,29 @@ impl DownloadStore {
 
     /// updateFile 时：绑定 session → 条目键（在指定账户下）。
     ///
-    /// TDLib file.id 仅会话内有效，可能被不同文件复用。有 remote.id 时必须以其
+    /// TDLib file.id 仅会话内有效，可能被不同文件复用。有稳定 id（unique_id）时必须以其
     /// 为准重绑 session_map；否则沿用旧绑定会把进度/路径写到错误条目（媒体乱串）。
     pub fn bind_session_key(
         &mut self,
         account_id: i64,
         session_file_id: i32,
+        unique_id: Option<&str>,
         remote_id: Option<&str>,
     ) -> String {
-        let key = derive_remote_id(remote_id, session_file_id);
-        let has_remote = remote_id.map(|r| !r.is_empty()).unwrap_or(false);
+        let key = derive_item_key(unique_id, remote_id, session_file_id);
+        let has_stable_id = unique_id.map(|r| !r.is_empty()).unwrap_or(false)
+            || remote_id.map(|r| !r.is_empty()).unwrap_or(false);
         let d = self.data_mut(account_id);
 
-        if has_remote {
-            // session:xxx → remote_id 键迁移：remote.id 就绪前条目可能挂在 session 键上，
-            // 不迁移则 update_progress 按 remote 键查不到，进度/完成态被静默丢弃。
+        if has_stable_id {
+            // session:xxx → 稳定键迁移：稳定 id 就绪前条目可能挂在 session 键上，
+            // 不迁移则 update_progress 按稳定键查不到，进度/完成态被静默丢弃。
             if let Some(old_key) = d.session_map.get(&session_file_id).cloned() {
                 if old_key != key && (old_key.starts_with("session:") || old_key.starts_with("legacy:")) {
-                    if let Some(mut item) = d.items.remove(&old_key) {
-                        item.remote_id = key.clone();
+                    d.rekey_item(&old_key, &key);
+                    if let Some(item) = d.items.get_mut(&key) {
                         item.session_file_id = Some(session_file_id);
                         item.file_id = session_file_id;
-                        // 并入已有 remote 条目时保留较新进度/完成态
-                        let mut merged = false;
-                        if let Some(existing) = d.items.get_mut(&key) {
-                            if item.is_completed && (!existing.is_completed || existing.local_path.is_none()) {
-                                existing.is_completed = item.is_completed;
-                                existing.local_path = item.local_path.clone();
-                                existing.completed_at = item.completed_at;
-                            }
-                            if item.downloaded_size > existing.downloaded_size {
-                                existing.downloaded_size = item.downloaded_size;
-                                existing.progress = item.progress;
-                            }
-                            existing.session_file_id = Some(session_file_id);
-                            existing.file_id = session_file_id;
-                            merged = true;
-                        }
-                        if !merged {
-                            d.items.insert(key.clone(), item);
-                        }
                     }
                 }
             }
@@ -1191,5 +1427,191 @@ impl DownloadStore {
     /// 账户登出：丢弃内存缓存（磁盘已随账户目录删除）
     pub fn drop_account(&mut self, account_id: i64) {
         self.accounts.remove(&account_id);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("tdgram-dl-{}-{}", tag, now_ms()));
+        fs::create_dir_all(&dir).expect("create temp dir");
+        dir
+    }
+
+    fn make_item(
+        key: &str,
+        file_name: &str,
+        total_size: i64,
+        downloaded_size: i64,
+        is_completed: bool,
+        local_path: Option<&str>,
+        session_file_id: i32,
+    ) -> DownloadItem {
+        DownloadItem {
+            remote_id: key.to_string(),
+            session_file_id: Some(session_file_id),
+            file_id: session_file_id,
+            file_name: file_name.to_string(),
+            chat_title: "chat".to_string(),
+            chat_id: None,
+            message_id: None,
+            total_size,
+            downloaded_size,
+            progress: if total_size > 0 {
+                downloaded_size as f64 / total_size as f64
+            } else {
+                0.0
+            },
+            is_paused: false,
+            is_completed,
+            local_path: local_path.map(|p| p.to_string()),
+            thumbnail_data_url: None,
+            file_type: "audio".to_string(),
+            is_generic: false,
+            hidden_category: None,
+            is_auto_photo: false,
+            is_streaming: false,
+            tags: Vec::new(),
+            source_label: None,
+            dismissed: false,
+            is_upload: false,
+            created_at: now_ms(),
+            completed_at: if is_completed { now_ms() } else { 0 },
+            has_tdlib_update: true,
+            in_tdlib_list: false,
+        }
+    }
+
+    fn write_account_json(dir: &Path, account_id: i64, items: HashMap<String, DownloadItem>) {
+        let path = account_downloads_json(dir, account_id);
+        fs::create_dir_all(path.parent().unwrap()).expect("create dirs");
+        let data = PersistedData {
+            items,
+            show_hidden: false,
+            show_auto_photos: false,
+            dupes_merged: false,
+        };
+        fs::write(&path, serde_json::to_string_pretty(&data).unwrap()).expect("write json");
+    }
+
+    /// 旧 remote.id 键造成的同一文件重复行：加载时并成一行，且不误合其他文件
+    #[test]
+    fn load_merges_duplicate_rows_of_same_file() {
+        let dir = temp_dir("merge");
+        let account = 7;
+        let mut items = HashMap::new();
+        // 同一文件两行：老键（file_reference 刷新前的 remote.id）+ 新键（unique_id）
+        items.insert(
+            "OLD_REMOTE_ID".to_string(),
+            make_item("OLD_REMOTE_ID", "song.mp3", 100, 40, false, None, 101),
+        );
+        items.insert(
+            "NEW_UNIQUE_ID".to_string(),
+            make_item("NEW_UNIQUE_ID", "song.mp3", 100, 0, true, Some("/tmp/song.mp3"), 202),
+        );
+        // 同名不同大小 → 不是同一文件，必须保留
+        items.insert(
+            "OTHER_SIZE".to_string(),
+            make_item("OTHER_SIZE", "song.mp3", 200, 0, false, None, 303),
+        );
+        write_account_json(&dir, account, items);
+
+        let store = DownloadStore::new(dir.clone(), account);
+        let loaded = store.get_all_items();
+        assert_eq!(loaded.len(), 2, "同一文件的两行应合并为一行");
+
+        let merged = loaded
+            .iter()
+            .find(|i| i.file_name == "song.mp3" && i.total_size == 100)
+            .expect("merged item");
+        assert!(merged.is_completed);
+        assert_eq!(merged.local_path.as_deref(), Some("/tmp/song.mp3"));
+        assert_eq!(merged.downloaded_size, 100, "完成态补齐进度");
+        assert!(loaded.iter().any(|i| i.total_size == 200), "不同大小不得合并");
+
+        // 已经合并过就不要再动（幂等）
+        let reloaded = DownloadStore::new(dir.clone(), account);
+        assert_eq!(reloaded.get_all_items().len(), 2);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// 同一文件换了 remote.id：注册时收编老条目，而不是再插一行
+    #[test]
+    fn register_adopts_legacy_row_of_same_file() {
+        let dir = temp_dir("adopt");
+        let account = 3;
+        let mut store = DownloadStore::new(dir.clone(), account);
+
+        let old_key = store.register_download(
+            None,
+            Some("OLD_REMOTE_ID".to_string()),
+            11,
+            "song.mp3".to_string(),
+            "chat".to_string(),
+            100,
+            "audio".to_string(),
+            None,
+            None,
+            None,
+            false,
+            None,
+            false,
+            false,
+            None,
+            None,
+        );
+        assert_eq!(old_key, "OLD_REMOTE_ID");
+
+        // 同一文件的新稳定 id（remote.unique_id）——应并入老条目而非新插一行
+        let new_key = store.register_download(
+            None,
+            Some("NEW_UNIQUE_ID".to_string()),
+            12,
+            "song.mp3".to_string(),
+            "chat".to_string(),
+            100,
+            "audio".to_string(),
+            None,
+            None,
+            None,
+            false,
+            None,
+            false,
+            false,
+            None,
+            None,
+        );
+        assert_eq!(new_key, "NEW_UNIQUE_ID");
+        assert_eq!(store.get_all_items().len(), 1, "同一文件不应出现两行");
+        // 老键的会话映射随之指向新键
+        let by_session = store.get_item_for(account, "11").expect("resolved by session id");
+        assert_eq!(by_session.remote_id, "NEW_UNIQUE_ID");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn placeholder_names_are_not_identity() {
+        assert!(content_key_of("audio", "文件 #12", 100).is_none());
+        assert!(content_key_of("audio", "File #12", 100).is_none());
+        assert!(content_key_of("audio", "文件_12", 100).is_none());
+        assert!(content_key_of("audio", "", 100).is_none());
+        assert!(content_key_of("audio", "   ", 100).is_none());
+        assert!(content_key_of("audio", "song.mp3", 0).is_none());
+        assert_eq!(
+            content_key_of("audio", "song.mp3", 100).as_deref(),
+            Some("audio|song.mp3|100")
+        );
+    }
+
+    #[test]
+    fn item_key_prefers_unique_id() {
+        assert_eq!(
+            derive_item_key(Some("UNIQUE"), Some("REMOTE"), 5),
+            "UNIQUE"
+        );
+        assert_eq!(derive_item_key(None, Some("REMOTE"), 5), "REMOTE");
+        assert_eq!(derive_item_key(Some(""), Some(""), 5), "session:5");
     }
 }

@@ -43,9 +43,14 @@ export type DownloadFileType =
 
 /**
  * 从 TDLib file 对象取稳定主键。
- * 优先 file.remote.id（跨重启不变）；无远程 id 时回退 session:<file_id>。
+ *
+ * 优先 file.remote.unique_id：它不含 file_reference，同一文件跨刷新/跨对话恒定。
+ * 退回 file.remote.id：里面编码了 file_reference，TDLib 刷新后会变（官方文档明确
+ * 「同一文件可以有很多个有效的 remote.id」），仅作兜底。再退回 session:<file_id>。
  */
-export function remoteIdOf(file: { id?: number; remote?: { id?: string } } | null | undefined): string {
+export function remoteIdOf(file: { id?: number; remote?: { id?: string; unique_id?: string } } | null | undefined): string {
+    const uid = file?.remote?.unique_id;
+    if (uid && uid.length > 0) return uid;
     const rid = file?.remote?.id;
     if (rid && rid.length > 0) return rid;
     if (typeof file?.id === "number") return `session:${file.id}`;
@@ -54,7 +59,7 @@ export function remoteIdOf(file: { id?: number; remote?: { id?: string } } | nul
 
 /** Rust 端 DownloadItem 的序列化结构 */
 export interface DownloadItem {
-    /** 稳定主键：file.remote.id（跨重启不变）；无远程 id 时为 session:<id> / legacy:<id> */
+    /** 稳定主键：file.remote.unique_id（含 file_reference 的 remote.id 会刷新，仅兜底） */
     remote_id: string;
     /** 当前 TDLib 会话 file.id（重启后会变），pause/cancel 等操作使用 */
     session_file_id?: number;
@@ -177,6 +182,85 @@ function isPlaceholderFileName(name: string | undefined): boolean {
     return /#\d+$/.test(name) || /^文件_\d+$/.test(name);
 }
 
+/** 同一文件的探针（内容身份：类型 + 文件名 + 大小），与 Rust 端 content_key 对齐 */
+interface SameFileProbe {
+    file_type?: string;
+    file_name?: string;
+    total_size?: number;
+}
+
+/**
+ * 两个条目是否指向同一个文件内容。
+ *
+ * 历史条目以旧 remote.id 为键（含 file_reference，刷新后会变），同一文件因此会留下
+ * 多行；这些老行没有稳定身份，只能按内容身份认亲。占位名与大小为 0 的一律不认，
+ * 避免把「文件 #12」这类空壳互相合并。
+ */
+function isSameFileRecord(item: DownloadItem | undefined, probe: SameFileProbe): boolean {
+    if (!item || item.dismissed) return false;
+    const name = probe.file_name;
+    const size = probe.total_size ?? 0;
+    if (!name || size <= 0 || isPlaceholderFileName(name)) return false;
+    return item.file_type === probe.file_type
+        && item.file_name === name
+        && item.total_size === size;
+}
+
+/** 把同一文件的另一条记录并入 dst（进度/完成态取更完整的一份，标签并集） */
+function mergeRecords(dst: DownloadItem, src: DownloadItem): DownloadItem {
+    const dstHasPath = !!dst.local_path;
+    const srcHasPath = !!src.local_path;
+    const next: DownloadItem = { ...dst };
+    if ((src.total_size ?? 0) > (next.total_size ?? 0)) next.total_size = src.total_size;
+    if ((src.downloaded_size ?? 0) > (next.downloaded_size ?? 0)) next.downloaded_size = src.downloaded_size;
+    if ((src.progress ?? 0) > (next.progress ?? 0)) next.progress = src.progress;
+    if (srcHasPath && (!dstHasPath || (src.is_completed && !dst.is_completed))) {
+        next.local_path = src.local_path;
+    }
+    if (src.is_completed && (!next.is_completed || !dstHasPath)) next.is_completed = true;
+    if ((src.completed_at ?? 0) > (next.completed_at ?? 0)) next.completed_at = src.completed_at;
+    if (!next.created_at || (src.created_at && src.created_at < next.created_at)) {
+        next.created_at = src.created_at;
+    }
+    next.in_tdlib_list = !!(next.in_tdlib_list || src.in_tdlib_list);
+    next.has_tdlib_update = !!(next.has_tdlib_update || src.has_tdlib_update);
+    // 流式标记只增不清
+    next.is_streaming = !!(next.is_streaming || src.is_streaming);
+    if (src.tags?.length) {
+        const merged = [...(next.tags ?? [])];
+        for (const tag of src.tags) if (!merged.includes(tag)) merged.push(tag);
+        next.tags = merged;
+    }
+    if (!next.file_name || (isPlaceholderFileName(next.file_name) && !isPlaceholderFileName(src.file_name))) {
+        next.file_name = src.file_name;
+    }
+    if (!next.chat_title) next.chat_title = src.chat_title;
+    if (next.chat_id == null) next.chat_id = src.chat_id;
+    if (next.message_id == null) next.message_id = src.message_id;
+    if (!next.thumbnail_data_url) next.thumbnail_data_url = src.thumbnail_data_url;
+    if (!next.source_label) next.source_label = src.source_label;
+    if (next.file_type === "other" && next.is_generic) {
+        next.file_type = src.file_type;
+        next.is_generic = src.is_generic;
+        next.hidden_category = src.hidden_category;
+        next.is_auto_photo = src.is_auto_photo;
+    }
+    if ((src.session_file_id ?? 0) > (next.session_file_id ?? 0)) {
+        next.session_file_id = src.session_file_id;
+        if (src.file_id) next.file_id = src.file_id;
+    }
+    next.dismissed = next.dismissed && src.dismissed;
+    if (next.is_completed) {
+        next.is_paused = false;
+        if (next.total_size > 0) {
+            next.downloaded_size = next.total_size;
+            next.progress = 1;
+        }
+        if (!next.completed_at) next.completed_at = next.created_at || Date.now();
+    }
+    return next;
+}
+
 /** 从 TDLib message 推断下载管理器展示用的文件名 */
 function fileNameFromTdlibMessage(msg: Record<string, unknown> | undefined): string {
     if (!msg) return "";
@@ -268,31 +352,39 @@ export const useDownloadStore = defineStore("downloads", () => {
      * 按 TDLib File 对象查询下载条目。
      *
      * file.id 只在当前 TDLib 会话内有效，重启后会变，且不同文件可能复用同一 id。
-     * 因此必须优先用 file.remote.id（跨重启稳定）查找；按 session id 回退时，
-     * 仅当映射到的条目 remote_id 与当前 file 一致才接受，否则视为 id 复用冲突。
+     * 因此必须优先用稳定键（file.remote.unique_id，退回 remote.id）查找；历史条目可能
+     * 仍挂在旧 remote.id 键上，故再试一次原始 remote.id。按 session id 回退时，
+     * 仅当映射到的条目与本文件的稳定键一致才接受，否则视为 id 复用冲突。
      */
     function getDownloadInfoForFile(
-        file: { id?: number; remote?: { id?: string } } | null | undefined,
+        file: { id?: number; remote?: { id?: string; unique_id?: string } } | null | undefined,
     ): DownloadItem | undefined {
         if (!file) return undefined;
-        const remoteId = file.remote?.id;
-        if (remoteId && remoteId.length > 0) {
-            const byRemote = items.value[remoteId];
-            if (byRemote) return byRemote;
+        const canonical = remoteIdOf(file);
+        if (canonical && !canonical.startsWith("session:")) {
+            const byKey = items.value[canonical];
+            if (byKey) return byKey;
+            const rawRemoteId = file.remote?.id;
+            if (rawRemoteId && rawRemoteId !== canonical) {
+                const byRaw = items.value[rawRemoteId];
+                if (byRaw) return byRaw;
+            }
             if (typeof file.id !== "number") return undefined;
             const mapped = items.value[sessionIdMap.value[file.id] || `session:${file.id}`];
             if (!mapped) return undefined;
-            // session 映射指向其他 remote → file.id 被复用，不得当作本文件
-            if (mapped.remote_id && mapped.remote_id !== remoteId) return undefined;
-            return mapped.remote_id === remoteId ? mapped : undefined;
+            // session 映射指向其他文件 → file.id 被复用，不得当作本文件
+            if (mapped.remote_id && mapped.remote_id !== canonical && mapped.remote_id !== rawRemoteId) {
+                return undefined;
+            }
+            return mapped;
         }
         if (typeof file.id === "number") return getItemByKey(file.id);
         return undefined;
     }
 
-    /** 读取某 File 的已完成本地路径；remote_id 不匹配时返回空串，避免串媒体 */
+    /** 读取某 File 的已完成本地路径；稳定身份不匹配时返回空串，避免串媒体 */
     function getCompletedPathForFile(
-        file: { id?: number; remote?: { id?: string } } | null | undefined,
+        file: { id?: number; remote?: { id?: string; unique_id?: string } } | null | undefined,
     ): string {
         const info = getDownloadInfoForFile(file);
         return info?.is_completed && info.local_path ? info.local_path : "";
@@ -431,9 +523,9 @@ export const useDownloadStore = defineStore("downloads", () => {
     }
 
     /**
-     * session:<id> → remote_id 键迁移。
-     * TDLib file.id 会话内可能复用；remote.id 就绪后必须把旧条目并入稳定键，
-     * 否则后续 updateFile 按 remote.id 查不到，进度/完成态永远写不进去。
+     * session:<id> → 稳定键迁移。
+     * TDLib file.id 会话内可能复用；稳定 id 就绪后必须把旧条目并入稳定键，
+     * 否则后续 updateFile 按稳定键查不到，进度/完成态永远写不进去。
      */
     function migrateToRemoteKey(sessionFileId: number, remoteId: string): string {
         if (!remoteId || remoteId.length === 0) return `session:${sessionFileId}`;
@@ -441,23 +533,56 @@ export const useDownloadStore = defineStore("downloads", () => {
         if (oldKey === remoteId) return remoteId;
         const old = items.value[oldKey];
         if (old && oldKey !== remoteId) {
-            const merged: DownloadItem = {
-                ...old,
-                remote_id: remoteId,
-                session_file_id: sessionFileId,
-                file_id: sessionFileId,
-                // 保留原 has_tdlib_update：register 迁移不能把「未开下」标成已开始
-                has_tdlib_update: old.has_tdlib_update ?? false,
-            };
+            const target = items.value[remoteId];
+            const merged: DownloadItem = target
+                ? mergeRecords(target, old)
+                : { ...old, remote_id: remoteId };
+            merged.remote_id = remoteId;
+            merged.session_file_id = sessionFileId;
+            merged.file_id = sessionFileId;
+            // 保留原 has_tdlib_update：register 迁移不能把「未开下」标成已开始
+            merged.has_tdlib_update = !!(merged.has_tdlib_update || old.has_tdlib_update);
             delete items.value[oldKey];
             items.value[remoteId] = merged;
+            reindexKey(oldKey, remoteId);
         }
         sessionIdMap.value[sessionFileId] = remoteId;
         return remoteId;
     }
 
+    /** 键改名后同步 session 映射，避免按 file.id 查到已删除的键 */
+    function reindexKey(from: string, to: string) {
+        for (const [sid, mapped] of Object.entries(sessionIdMap.value)) {
+            if (mapped === from) sessionIdMap.value[Number(sid)] = to;
+        }
+    }
+
+    /**
+     * 同一文件的历史条目收编到稳定键。
+     *
+     * 旧版本的键是 remote.id（含 file_reference），TDLib 刷新后同一文件换了 id，
+     * 旧条目就留成了第二行。这里按内容身份（类型+名字+大小）认亲并合入当前键，
+     * 与 Rust 端 register_download 的收编逻辑对齐。
+     */
+    function adoptSameFileRow(key: string, probe: SameFileProbe): DownloadItem | undefined {
+        if (!key || key.startsWith("session:") || key.startsWith("legacy:")) return undefined;
+        const staleKeys = Object.keys(items.value).filter(
+            (k) => k !== key && isSameFileRecord(items.value[k], probe),
+        );
+        if (staleKeys.length === 0) return undefined;
+        let merged: DownloadItem | undefined = items.value[key];
+        for (const staleKey of staleKeys) {
+            const stale = items.value[staleKey];
+            delete items.value[staleKey];
+            merged = merged ? mergeRecords(merged, stale) : { ...stale, remote_id: key };
+            reindexKey(staleKey, key);
+        }
+        if (merged) items.value[key] = merged;
+        return merged;
+    }
+
     function applyItem(payload: DownloadItem) {
-        // 先做 session→remote 键迁移，避免旧 session 键条目与新 remote 键并存
+        // 先做 session→稳定键迁移，避免旧 session 键条目与新稳定键并存
         const sid = payload.session_file_id ?? payload.file_id;
         const rid = payload.remote_id;
         if (rid && rid.length > 0 && !rid.startsWith("session:") && !rid.startsWith("legacy:") && sid) {
@@ -466,13 +591,16 @@ export const useDownloadStore = defineStore("downloads", () => {
         const key = indexSession(payload);
         const existing = items.value[key];
         if (!existing) {
-            items.value[key] = {
+            // Rust 端收编的历史行不会有「删除」事件，这里按内容身份同步一次
+            const adopted = adoptSameFileRow(key, payload);
+            const fresh: DownloadItem = {
                 ...payload,
                 remote_id: key,
                 has_tdlib_update: true,
                 completed_at: payload.completed_at
                     || (payload.is_completed ? (payload.created_at || Date.now()) : undefined),
             };
+            items.value[key] = adopted ? mergeRecords(fresh, adopted) : fresh;
             return;
         }
         const completedBefore = !!existing.is_completed && !!existing.local_path;
@@ -771,8 +899,9 @@ export const useDownloadStore = defineStore("downloads", () => {
     function applyUpdateFile(file: Record<string, unknown> | undefined) {
         if (!file || typeof file.id !== "number") return;
         const fileId = file.id;
-        const remote = file.remote as { id?: string } | undefined;
-        const remoteId = remote?.id && remote.id.length > 0 ? remote.id : undefined;
+        const remote = file.remote as { id?: string; unique_id?: string } | undefined;
+        // 与 Rust 端一致：unique_id 优先，remote.id（含 file_reference，会刷新）兜底
+        const stableId = remoteIdOf({ id: fileId, remote });
         const local = file.local as {
             downloaded_size?: number;
             is_downloading_active?: boolean;
@@ -787,8 +916,8 @@ export const useDownloadStore = defineStore("downloads", () => {
         const active = !!local?.is_downloading_active;
         const path = local?.path && local.path.length > 0 ? local.path : undefined;
 
-        const key = remoteId
-            ? migrateToRemoteKey(fileId, remoteId)
+        const key = stableId && !stableId.startsWith("session:")
+            ? migrateToRemoteKey(fileId, stableId)
             : (sessionIdMap.value[fileId] || `session:${fileId}`);
         const existing = items.value[key];
 
@@ -1046,7 +1175,7 @@ export const useDownloadStore = defineStore("downloads", () => {
 
     /**
      * 注册下载项。
-     * @param remoteId file.remote.id（稳定主键）；缺省时用 session:<fileId>
+     * @param remoteId 稳定主键（remoteIdOf：unique_id → remote.id → session:<fileId>）
      * @param tags 标签；缺省时按 fileType/hiddenCategory 等推断
      * @param sourceLabel 来源补充展示（用户 / 贴纸集 / emoji 集…）
      */
@@ -1072,6 +1201,8 @@ export const useDownloadStore = defineStore("downloads", () => {
         const rid = remoteId && remoteId.length > 0
             ? migrateToRemoteKey(fileId, remoteId)
             : `session:${fileId}`;
+        // 同一文件若还有挂在旧 remote.id 键上的条目（TDLib 刷新过 file_reference），先收编
+        adoptSameFileRow(rid, { file_type: fileType, file_name: fileName, total_size: totalSize });
         const finalTags = buildDownloadTags({
             fileType,
             hiddenCategory: category,
@@ -1205,7 +1336,7 @@ export const useDownloadStore = defineStore("downloads", () => {
     }
 
     /**
-     * @param remoteId 可选：file.remote.id。优先按其写入，避免 session file.id
+     * @param remoteId 可选：稳定主键（remoteIdOf）。优先按其写入，避免 session file.id
      *   被其他文件复用时把完成路径写到错误条目。
      */
     function markCompleted(fileId: number | string, localPath: string, remoteId?: string) {
@@ -1265,7 +1396,15 @@ export const useDownloadStore = defineStore("downloads", () => {
         const key = remoteId && remoteId.length > 0
             ? migrateToRemoteKey(fileId, remoteId)
             : (sessionIdMap.value[fileId] || `session:${fileId}`);
-        let existing = items.value[key];
+        let existing: DownloadItem | undefined = items.value[key];
+        if (!existing && meta?.fileName && total > 0) {
+            // 同一文件的历史条目（旧 remote.id 键）先收编，避免补录出第二行
+            existing = adoptSameFileRow(key, {
+                file_type: meta.fileType ?? "other",
+                file_name: meta.fileName,
+                total_size: total,
+            });
+        }
 
         // 无进度且调用方未给语义 → 不补录，避免空壳任务
         if (!existing) {
