@@ -9,7 +9,7 @@
                     <StarIcon v-else class="h-14 w-14 fill-current text-white" />
                 </div>
                 <div
-                    class="absolute bottom-0 left-1/2 z-10 -translate-x-1/2 translate-y-1/6 rounded-full bg-[#3390ec] px-2 py-0.5 text-xs font-semibold text-white shadow-sm">
+                    class="absolute bottom-0 left-1/2 z-10 -translate-x-1/2 translate-y-1/6 rounded-full bg-blue-500 px-2 py-0.5 text-xs font-semibold text-white shadow-sm">
                     {{ winnerCountBadge }}</div>
             </div>
             <h3 class="mt-3 text-base font-bold text-gray-900 dark:text-white">{{ t('lng_prizes_title') }}</h3>

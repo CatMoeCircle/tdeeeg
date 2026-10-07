@@ -24,7 +24,7 @@
       <!-- 限制时长：预设 + 自定义（≥60 秒） -->
       <div>
         <p class="text-xs font-medium text-blue-500 mb-1">{{ t('lng_rights_chat_banned_until_header') }}</p>
-        <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 divide-y divide-gray-100 dark:divide-gray-800">
+        <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
           <button v-for="opt in presetOptions" :key="opt.value" type="button"
             class="w-full flex items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
             @click="selectPreset(opt.value)">

@@ -257,8 +257,8 @@ watch(
 }
 
 .radio-dot-on {
-    border-color: #3390ec;
-    background: #3390ec;
+    border-color: var(--app-brand, #2aabee);
+    background: var(--app-brand, #2aabee);
 }
 
 .radio-dot-on::after {

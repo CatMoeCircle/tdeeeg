@@ -549,7 +549,7 @@ onUnmounted(() => {
                         class="flex items-center border rounded-[0.625rem] h-10 px-3 transition-colors"
                         :class="loginPending
                             ? 'border-gray-200 dark:border-gray-700 opacity-60'
-                            : 'border-gray-300 dark:border-gray-600 focus-within:border-[#3390ec]'">
+                            : 'border-gray-300 dark:border-gray-600 focus-within:border-blue-500'">
                         <input type="tel" inputmode="tel" :placeholder="t('login.phonePlaceholder')"
                             v-model="phoneNumber" @input="onPhoneInput" :disabled="loginPending"
                             class="flex-1 text-sm outline-none bg-transparent placeholder-gray-400 text-gray-800 dark:text-gray-100 disabled:cursor-not-allowed" />

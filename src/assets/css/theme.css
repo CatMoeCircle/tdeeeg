@@ -6,12 +6,12 @@
  */
 
 :root {
-  /* 默认应用变量 = Telegram 蓝 #3390ec */
-  --app-brand: #3390ec;
-  --app-brand-hover: #2b7fd4;
-  --app-brand-active: #2570b8;
-  --app-brand-soft: rgba(51, 144, 236, 0.14);
-  --app-brand-softer: rgba(51, 144, 236, 0.08);
+  /* 默认应用变量 = Telegram 蓝 #2aabee（启动时由 store/theme.ts 按设置重写） */
+  --app-brand: #2aabee;
+  --app-brand-hover: #1f9ad9;
+  --app-brand-active: #1a87bf;
+  --app-brand-soft: rgba(42, 171, 238, 0.14);
+  --app-brand-softer: rgba(42, 171, 238, 0.08);
 
   --app-success: #2ba471;
   --app-warning: #e37318;
@@ -20,13 +20,13 @@
   --app-warning-soft: rgba(227, 115, 24, 0.16);
   --app-error-soft: rgba(213, 73, 65, 0.16);
 
-  /* Tailwind blue-* 重映射目标（默认=Telegram 蓝色阶，改主题色后由 store 覆盖） */
+  /* Tailwind blue-* 重映射目标（静态兜底，启动时由 store/theme.ts 按主题色重写） */
   --app-tw-blue-50: #f0f7ff;
   --app-tw-blue-100: #dceefc;
   --app-tw-blue-200: #b8dcf8;
   --app-tw-blue-300: #86c3f3;
   --app-tw-blue-400: #5aabea;
-  --app-tw-blue-500: #3390ec;
+  --app-tw-blue-500: #2aabee;
   --app-tw-blue-600: #2b7fd4;
   --app-tw-blue-700: #2570b8;
   --app-tw-blue-800: #1f5a96;
@@ -77,7 +77,7 @@
 /* 表面色：深色（与 TDesign theme-mode=dark 灰阶对齐）；同时挂 html.dark */
 :root[theme-mode="dark"],
 html.dark {
-  --app-bg-page: #181818;
+  --app-bg-page: #1e293b;
   --app-bg-container: #242424;
   --app-bg-elevated: #2c2c2c;
   --app-bg-muted: #2c2c2c;
@@ -109,7 +109,7 @@ html[theme-mode="dark"] body {
 }
 html.dark ::selection,
 html[theme-mode="dark"] ::selection {
-  background: rgba(51, 144, 236, 0.35);
+  background: rgba(42, 171, 238, 0.35);
 }
 
 /* 顶部栏 / 侧边栏共用的半透明毛玻璃（尽量少上色，露出 acrylic） */

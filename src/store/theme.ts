@@ -59,7 +59,7 @@ function hexToRgb(hex: string): [number, number, number] {
       .map((c) => c + c)
       .join("");
   }
-  if (!/^[0-9a-fA-F]{6}$/.test(h)) return [0x33, 0x90, 0xec];
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return [0x2a, 0xab, 0xee];
   return [
     parseInt(h.slice(0, 2), 16),
     parseInt(h.slice(2, 4), 16),
@@ -180,7 +180,7 @@ export function generateTailwindScale(hex: string, dark: boolean): string[] {
   const base = hexToRgb(hex);
   const white: [number, number, number] = [255, 255, 255];
   const black: [number, number, number] = [0, 0, 0];
-  const bg: [number, number, number] = dark ? [24, 24, 24] : white;
+  const bg: [number, number, number] = dark ? [30, 41, 59] : white;
   const scale: string[] = [];
 
   // 50..400：向 bg / 白混合的 tint；500=主色；600..950=压暗
@@ -273,9 +273,9 @@ export function applyTheme(): void {
   const t = settings.theme;
   const dark = isDark.value;
   // 浅/深各用一套主题色与背景色
-  const brandHex = (dark ? t.brandColorDark : t.brandColorLight) || "#3390ec";
+  const brandHex = (dark ? t.brandColorDark : t.brandColorLight) || "#2aabee";
   const bgHex = dark
-    ? t.bgColorDark || "#181818"
+    ? t.bgColorDark || "#1e293b"
     : t.bgColorLight || "#f5f5f5";
 
   // 明暗：Tailwind class + TDesign theme-mode + color-scheme
@@ -489,8 +489,8 @@ export const themeApi = {
   reset() {
     settings.theme.mode = "system";
     // 默认使用 Telegram 蓝
-    settings.theme.brandColorLight = "#3390ec";
-    settings.theme.brandColorDark = "#3390ec";
+    settings.theme.brandColorLight = "#2aabee";
+    settings.theme.brandColorDark = "#2aabee";
     settings.theme.bgColorLight = "";
     settings.theme.bgColorDark = "";
     settings.theme.successColor = "";
@@ -505,8 +505,8 @@ export const themeApi = {
   /** 当前模式下的主题色（浅/深各一套） */
   getActiveBrandColor(): string {
     return isDark.value
-      ? settings.theme.brandColorDark || "#3390ec"
-      : settings.theme.brandColorLight || "#3390ec";
+      ? settings.theme.brandColorDark || "#2aabee"
+      : settings.theme.brandColorLight || "#2aabee";
   },
   setActiveBrandColor(hex: string) {
     if (isDark.value) settings.theme.brandColorDark = hex;
@@ -514,7 +514,7 @@ export const themeApi = {
   },
   getActiveBgColor(): string {
     return isDark.value
-      ? settings.theme.bgColorDark || "#181818"
+      ? settings.theme.bgColorDark || "#1e293b"
       : settings.theme.bgColorLight || "#f5f5f5";
   },
   setActiveBgColor(hex: string) {

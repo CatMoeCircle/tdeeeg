@@ -159,7 +159,7 @@ onUnmounted(() => {
                         class="flex items-center border rounded-[0.625rem] h-10 pl-3 pr-1 transition-colors"
                         :class="shake
                             ? 'border-red-400'
-                            : 'border-gray-300 dark:border-gray-600 focus-within:border-[#3390ec]'">
+                            : 'border-gray-300 dark:border-gray-600 focus-within:border-blue-500'">
                         <input ref="inputRef" type="text"
                             :placeholder="passwordHint || t('login.passwordPlaceholder')" v-model="password"
                             :disabled="loading" autocomplete="off"
@@ -189,7 +189,7 @@ onUnmounted(() => {
                     class="w-full h-10 rounded-[0.625rem] text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     :class="loading || !password
                         ? 'bg-gray-200 dark:bg-gray-700 text-gray-400'
-                        : 'bg-[#3390ec] text-white hover:bg-[#2b7fd4]'"
+                        : 'bg-blue-500 text-white hover:bg-blue-600'"
                     :disabled="loading || !password" @click="submitPassword">
                     {{ loading ? t("login.submitting") : t("login.next") }}
                 </button>

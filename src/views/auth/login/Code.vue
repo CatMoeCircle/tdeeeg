@@ -182,7 +182,7 @@ onUnmounted(() => {
 
             <div class="w-full mb-4 space-y-2">
                 <div
-                    class="flex items-center border rounded-[0.625rem] h-10 px-3 transition-colors border-gray-300 dark:border-gray-600 focus-within:border-[#3390ec]">
+                    class="flex items-center border rounded-[0.625rem] h-10 px-3 transition-colors border-gray-300 dark:border-gray-600 focus-within:border-blue-500">
                     <input type="text" inputmode="numeric" autocomplete="one-time-code"
                         :placeholder="t('login.codePlaceholder')" v-model="code" :disabled="loading" maxlength="8"
                         class="flex-1 text-sm outline-none bg-transparent placeholder-gray-400 text-gray-800 dark:text-gray-100 text-center tracking-[0.35em] tabular-nums"
@@ -193,7 +193,7 @@ onUnmounted(() => {
                     class="w-full h-10 rounded-[0.625rem] text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     :class="loading || !code.trim()
                         ? 'bg-gray-200 dark:bg-gray-700 text-gray-400'
-                        : 'bg-[#3390ec] text-white hover:bg-[#2b7fd4]'"
+                        : 'bg-blue-500 text-white hover:bg-blue-600'"
                     :disabled="loading || !code.trim()" @click="submitCode">
                     {{ loading ? t("login.submitting") : t("login.next") }}
                 </button>

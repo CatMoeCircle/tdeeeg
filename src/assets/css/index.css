@@ -105,7 +105,7 @@ body {
 .country-select .t-input.t-is-focused,
 .country-select .t-input.t-input--focused,
 .country-select .t-input:focus-within {
-  border-color: #3390ec !important;
+  border-color: var(--app-brand, #2aabee) !important;
   box-shadow: none !important;
 }
 .country-select .t-input__inner {
@@ -204,12 +204,12 @@ body {
 }
 .country-select-popup .t-select-option:hover,
 .country-select-popup .t-option:hover {
-  background: rgba(51, 144, 236, 0.08) !important;
+  background: var(--app-brand-softer, rgba(42, 171, 238, 0.08)) !important;
 }
 .country-select-popup .t-select-option.t-is-selected,
 .country-select-popup .t-option.t-is-selected {
-  background: rgba(51, 144, 236, 0.12) !important;
-  color: #3390ec !important;
+  background: var(--app-brand-soft, rgba(42, 171, 238, 0.14)) !important;
+  color: var(--app-brand, #2aabee) !important;
 }
 
 /* 登录页「下一步」：与国家/手机号输入同一套紧凑规格 */

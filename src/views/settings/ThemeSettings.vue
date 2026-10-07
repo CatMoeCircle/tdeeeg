@@ -155,7 +155,7 @@
                             :class="isBgSelected(p) ? 'border-gray-900 dark:border-white scale-110' : 'border-gray-200 dark:border-gray-700'"
                             :style="{ background: p.css }" :title="p.label" @click="applyBgPreset(p)">
                             <CheckIcon v-if="isBgSelected(p)" class="w-4 h-4 drop-shadow"
-                                :style="{ color: p.check || '#3390ec' }" />
+                                :style="{ color: p.check || '#2aabee' }" />
                         </button>
                         <label
                             class="w-10 h-10 rounded-full border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer hover:border-blue-400 transition-colors relative overflow-hidden">
@@ -285,13 +285,13 @@ const modeOptions = computed(() => [
 // ─── 主题色 / 背景色（浅深各一套） ──────────────────────────
 const activeBrandColor = computed(() =>
     themeIsDark.value
-        ? (settings.theme.brandColorDark || '#3390ec')
-        : (settings.theme.brandColorLight || '#3390ec'),
+        ? (settings.theme.brandColorDark || '#2aabee')
+        : (settings.theme.brandColorLight || '#2aabee'),
 );
 
 const activeBgColor = computed(() =>
     themeIsDark.value
-        ? (settings.theme.bgColorDark || '#181818')
+        ? (settings.theme.bgColorDark || '#1e293b')
         : (settings.theme.bgColorLight || '#f5f5f5'),
 );
 
@@ -306,8 +306,7 @@ const bgPreviewContainer = computed(() =>
 );
 
 const brandPresets = computed(() => [
-    { hex: '#3390ec', label: t('themeSettings.presetTelegram') },
-    { hex: '#2AABEE', label: 'Telegram Cyan' },
+    { hex: '#2aabee', label: t('themeSettings.presetTelegram') },
     { hex: '#3b82f6', label: 'Blue' },
     { hex: '#2563eb', label: 'Blue Dark' },
     { hex: '#4f46e5', label: 'Indigo' },
@@ -341,13 +340,14 @@ interface BgPreset {
 const bgPresets = computed<BgPreset[]>(() => {
     const dark = themeIsDark.value;
     return [
-        { key: 'default', label: t('themeSettings.bgDefault'), hex: null, css: dark ? '#181818' : '#f5f5f5', check: dark ? '#fff' : '#3390ec' },
-        { key: 'pure', label: dark ? '#111' : '#fff', hex: dark ? '#111111' : '#ffffff', css: dark ? '#111111' : '#ffffff', check: dark ? '#fff' : '#3390ec' },
-        { key: 'slate', label: dark ? '#1e293b' : '#f1f5f9', hex: dark ? '#1e293b' : '#f1f5f9', css: dark ? '#1e293b' : '#f1f5f9', check: dark ? '#fff' : '#3390ec' },
+        { key: 'default', label: t('themeSettings.bgDefault'), hex: null, css: dark ? '#1e293b' : '#f5f5f5', check: dark ? '#fff' : '#2aabee' },
+        { key: 'pure', label: dark ? '#111' : '#fff', hex: dark ? '#111111' : '#ffffff', css: dark ? '#111111' : '#ffffff', check: dark ? '#fff' : '#2aabee' },
+        { key: 'slate', label: dark ? '#1e293b' : '#f1f5f9', hex: dark ? '#1e293b' : '#f1f5f9', css: dark ? '#1e293b' : '#f1f5f9', check: dark ? '#fff' : '#2aabee' },
         { key: 'bluegray', label: dark ? '#0f172a' : '#f0f7ff', hex: dark ? '#0f172a' : '#f0f7ff', css: dark ? '#0f172a' : '#f0f7ff', check: '#fff' },
-        { key: 'warm', label: dark ? '#1c1917' : '#fafaf9', hex: dark ? '#1c1917' : '#fafaf9', css: dark ? '#1c1917' : '#fafaf9', check: dark ? '#fff' : '#3390ec' },
-        { key: 'zinc', label: dark ? '#27272a' : '#fafafa', hex: dark ? '#27272a' : '#fafafa', css: dark ? '#27272a' : '#fafafa', check: dark ? '#fff' : '#3390ec' },
-    ];
+        { key: 'warm', label: dark ? '#1c1917' : '#fafaf9', hex: dark ? '#1c1917' : '#fafaf9', css: dark ? '#1c1917' : '#fafaf9', check: dark ? '#fff' : '#2aabee' },
+        { key: 'zinc', label: dark ? '#27272a' : '#fafafa', hex: dark ? '#27272a' : '#fafafa', css: dark ? '#27272a' : '#fafafa', check: dark ? '#fff' : '#2aabee' },
+        // 深色下 slate 与「默认」同色，重复项隐掉
+    ].filter((p) => !(dark && p.key === 'slate'));
 });
 
 function isBgSelected(p: BgPreset) {

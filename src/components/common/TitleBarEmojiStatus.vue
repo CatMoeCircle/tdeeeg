@@ -95,6 +95,6 @@ async function setCustomStatus(emojiId: string) {
 
 .tgico-emoji-status::before {
   content: "\ea2a";
-  color: #3390ec;
+  color: var(--app-brand, #2aabee);
 }
 </style>

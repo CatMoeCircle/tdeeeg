@@ -44,7 +44,7 @@
                         </button>
                         <Transition name="fade">
                             <div v-if="menuOpen"
-                                class="absolute right-0 top-10 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
+                                class="absolute right-0 top-10 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50 overflow-hidden">
                                 <button type="button" @click="store.resetFilters(); menuOpen = false"
                                     class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                                     <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
