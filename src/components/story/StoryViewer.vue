@@ -74,22 +74,26 @@
                         <!-- 媒体区 -->
                         <div class="absolute inset-0 z-10" @pointerdown="onPointerDown" @pointerup="onPointerUp"
                             @pointercancel="onPointerUp" @pointerleave="onPointerUp">
-                            <!-- 照片：优先高清尺寸，minithumbnail 仅兜底且轻模糊 -->
+                            <!-- 照片：层级 mini缩略图(底层常驻) → 高清图；mini 防止切换/解码间隙黑屏 -->
                             <template v-if="currentKind === 'photo'">
-                                <img v-if="currentThumb && !currentSrc" :src="currentThumb"
+                                <img v-if="currentMini" :src="currentMini"
                                     class="absolute inset-0 w-full h-full object-cover blur-[2px] scale-105 opacity-80" />
                                 <img v-if="currentSrc" :src="currentSrc"
                                     class="absolute inset-0 w-full h-full object-cover" draggable="false"
                                     @load="onMediaReady" />
                             </template>
 
-                            <!-- 视频 -->
+                            <!-- 视频：层级 mini缩略图 → 官方封面 → 视频；封面在视频首帧就绪前显示 -->
                             <template v-else-if="currentKind === 'video'">
-                                <img v-if="currentThumb && !currentSrc" :src="currentThumb"
+                                <img v-if="currentMini" :src="currentMini"
                                     class="absolute inset-0 w-full h-full object-cover" />
-                                <video ref="videoRef" v-if="currentSrc" :src="currentSrc" playsinline
-                                    class="absolute inset-0 w-full h-full object-cover" @timeupdate="onVideoTimeUpdate"
-                                    @ended="onVideoEnded" @loadedmetadata="onVideoLoaded" />
+                                <img v-if="currentCover" :src="currentCover"
+                                    class="absolute inset-0 w-full h-full object-cover" />
+                                <video ref="videoRef" v-if="currentSrc" :src="currentSrc" playsinline preload="auto"
+                                    class="absolute inset-0 w-full h-full object-cover transition-opacity duration-150"
+                                    :class="videoReady ? 'opacity-100' : 'opacity-0'" @timeupdate="onVideoTimeUpdate"
+                                    @ended="onVideoEnded" @loadedmetadata="onVideoLoaded"
+                                    @loadeddata="onVideoData" />
                             </template>
 
                             <!-- 不支持 / 直播 -->
@@ -270,11 +274,24 @@ const videoRef = ref<HTMLVideoElement | null>(null);
 
 const muted = ref(settings.player.storyMuted);
 const loadingMedia = ref(false);
+/** 层级3：视频/照片主媒体 URL */
 const currentSrc = ref("");
-const currentThumb = ref("");
+/** 层级1：minithumbnail（base64，始终垫底） */
+const currentMini = ref("");
+/** 层级2：官方封面（视频故事，视频首帧就绪前显示） */
+const currentCover = ref("");
+/** 视频首帧已解码：true 才把 <video> 显示出来，避免黑帧盖住封面 */
+const videoReady = ref(false);
 const photoProgress = ref(0);
 const videoProgress = ref(0);
 const videoDurationSec = ref(0);
+
+/**
+ * 媒体加载代次：每次开始加载 / 关闭 / 切换故事自增。
+ * 所有 await 之后必须校验代次，防止上一条故事的异步结果
+ * 回填到当前故事上造成窜图。
+ */
+let mediaLoadSeq = 0;
 
 const isLiked = ref(false);
 const localViewBump = ref(false);
@@ -586,7 +603,7 @@ function pickReadyPhotoUrl(photo: photo): { url: string; area: number } | undefi
     return undefined;
 }
 
-/** minithumbnail：仅在没有任何可用尺寸时兜底 */
+/** minithumbnail：层级1，始终垫底（照片与视频均适用） */
 function pickThumbDataUrl(st: story): string {
     const c = st.content;
     if (!c) return "";
@@ -599,14 +616,47 @@ function pickThumbDataUrl(st: story): string {
     return "";
 }
 
-async function ensureFileUrl(f: file | undefined, name: string): Promise<string | undefined> {
+/**
+ * 下载文件并返回本地 URL。
+ *
+ * 防窜图守卫：TDLib 会话内 file.id 可能被复用——记住发起下载时的
+ * remote.id，取回后不一致直接丢弃，绝不把别人的文件路径上屏。
+ * 他人并发下载时改用 getFile 轮询最新快照（story 内嵌的静态快照
+ * 不会被 updateFile 回写，直接轮询快照永远等不到就绪）。
+ */
+async function ensureFileUrl(
+    f: file | undefined,
+    name: string,
+    priority: number = DL_PRIORITY.USER_PLAYING,
+): Promise<string | undefined> {
     if (!f?.id) return undefined;
     if (isFileReady(f)) return convertFileSrc(f.local.path!);
+    const expectedRemoteId = f.remote?.id;
+    const verify = (res: file | undefined): string | undefined => {
+        if (!res) return undefined;
+        // file.id 复用：remote.id 与发起时预期不一致 → 丢弃，防止窜图
+        if (expectedRemoteId && res.remote?.id && res.remote.id !== expectedRemoteId) return undefined;
+        if (isFileReady(res)) return convertFileSrc(res.local.path!);
+        return undefined;
+    };
     if (downloadingFiles.has(f.id)) {
-        // 轮询等待
+        // 他人已在下载：轮询 getFile 拿最新状态
         for (let i = 0; i < 80; i++) {
             await new Promise((r) => setTimeout(r, 150));
-            if (isFileReady(f)) return convertFileSrc(f.local.path!);
+            try {
+                const url = verify((await tdlibSend({ _: "getFile", file_id: f.id })) as file);
+                if (url) return url;
+            } catch {
+                // getFile 瞬时失败（文件信息未同步）时继续重试
+            }
+            if (!downloadingFiles.has(f.id)) {
+                // 下载已结束仍未就绪：最后再查一次终态
+                try {
+                    return verify((await tdlibSend({ _: "getFile", file_id: f.id })) as file);
+                } catch {
+                    return undefined;
+                }
+            }
         }
         return undefined;
     }
@@ -614,12 +664,15 @@ async function ensureFileUrl(f: file | undefined, name: string): Promise<string 
         const res = (await tdlibSend({
             _: "downloadFile",
             file_id: f.id,
-            priority: DL_PRIORITY.USER_PLAYING,
+            priority,
             offset: 0,
             limit: 0,
             synchronous: true,
         })) as file;
-        if (isFileReady(res)) return convertFileSrc(res.local.path!);
+        const url = verify(res);
+        if (url) return url;
+        // downloadFile 返回对象可能未写回路径：再 getFile 兜底一次
+        return verify((await tdlibSend({ _: "getFile", file_id: f.id })) as file);
     } catch (e) {
         console.warn("[StoryViewer] download failed", name, e);
     }
@@ -627,9 +680,15 @@ async function ensureFileUrl(f: file | undefined, name: string): Promise<string 
 }
 
 async function loadCurrentMedia() {
+    // 代次守卫：本次加载的唯一标识，所有 await 之后据此丢弃过期结果
+    const seq = ++mediaLoadSeq;
+    const isStale = () => seq !== mediaLoadSeq;
+
     stopPhotoTimer();
     currentSrc.value = "";
-    currentThumb.value = "";
+    currentMini.value = "";
+    currentCover.value = "";
+    videoReady.value = false;
     photoProgress.value = 0;
     videoProgress.value = 0;
     videoDurationSec.value = 0;
@@ -648,33 +707,27 @@ async function loadCurrentMedia() {
     // 上报已读
     void markOpened(st);
 
+    // 层级1：minithumbnail 始终先垫底（base64，无需下载，防止切换间隙黑屏）
+    currentMini.value = pickThumbDataUrl(st);
+
     if (c._ === "storyContentPhoto") {
         const sizes = sortedPhotoSizes(c.photo);
         const best = sizes[0]?.photo;
         const bestArea = sizes[0] ? sizes[0].width * sizes[0].height : 0;
 
-        // 1) 已有任意高清尺寸 → 立即展示，不走糊图
+        // 层级3：已有任意高清尺寸 → 立即展示（mini 仍在其下垫底）
         const ready = pickReadyPhotoUrl(c.photo);
-        if (ready) {
-            currentSrc.value = ready.url;
-            currentThumb.value = "";
-        } else {
-            // 2) 完全没有就绪尺寸时，才用 minithumbnail 兜底
-            currentThumb.value = pickThumbDataUrl(st);
-        }
+        if (ready) currentSrc.value = ready.url;
 
         // 需要下载最大图（无就绪图，或就绪图不是最大尺寸）
         const needDownload = !!best && (!ready || ready.area < bestArea);
         loadingMedia.value = needDownload && !ready;
         if (needDownload && best) {
             const url = await ensureFileUrl(best, `story_photo_${st.id}`);
+            if (isStale()) return;
             loadingMedia.value = false;
-            if (index.value !== items.value.findIndex((x) => x.id === st.id)) return;
             if (url) {
-                if (currentSrc.value !== url) {
-                    currentSrc.value = url;
-                    currentThumb.value = "";
-                }
+                currentSrc.value = url;
             } else if (!currentSrc.value) {
                 // 完全失败仍启动计时，避免卡死
                 startPhotoTimer();
@@ -684,36 +737,52 @@ async function loadCurrentMedia() {
         }
     } else if (c._ === "storyContentVideo") {
         const f = c.video.video;
-        // 视频已就绪：直接播；否则用官方缩略图（非 minithumbnail）作封面
-        if (f && isFileReady(f) && f.local.path) {
-            currentSrc.value = convertFileSrc(f.local.path);
-            currentThumb.value = "";
-        } else {
-            const th = c.video.thumbnail;
-            if (th?._ === "thumbnail" && th.file && isFileReady(th.file) && th.file.local.path) {
-                currentThumb.value = convertFileSrc(th.file.local.path);
+        const th = c.video.thumbnail;
+        const coverFile = th?._ === "thumbnail" && th.file?.id ? th.file : undefined;
+
+        // 层级3 预置：视频本体已就绪则立即上屏
+        const videoReadyFile = !!(f && isFileReady(f) && f.local.path);
+        if (videoReadyFile) currentSrc.value = convertFileSrc(f.local.path!);
+        // 视频未就绪期间（含等封面阶段）都显示加载中
+        loadingMedia.value = !!f && !videoReadyFile;
+
+        // 层级2：官方封面 —— 视频未加载前优先显示封面
+        if (coverFile) {
+            if (isFileReady(coverFile) && coverFile.local.path) {
+                currentCover.value = convertFileSrc(coverFile.local.path);
+            } else if (!videoReadyFile) {
+                // 视频还没就绪：封面是小文件，先等它下完再下视频，保证封面先上屏
+                const coverUrl = await ensureFileUrl(coverFile, `story_cover_${st.id}`, DL_PRIORITY.THUMBNAIL);
+                if (isStale()) return;
+                if (coverUrl) currentCover.value = coverUrl;
             } else {
-                currentThumb.value = pickThumbDataUrl(st);
+                // 视频已就绪可直接播：封面后台补拉，不阻塞播放
+                void ensureFileUrl(coverFile, `story_cover_${st.id}`, DL_PRIORITY.THUMBNAIL).then((url) => {
+                    if (!isStale() && url) currentCover.value = url;
+                });
             }
         }
 
-        loadingMedia.value = !!f && !currentSrc.value;
-        const url = await ensureFileUrl(f, `story_video_${st.id}`);
-        loadingMedia.value = false;
-        if (index.value !== items.value.findIndex((x) => x.id === st.id)) return;
-        if (url) {
-            currentSrc.value = url;
-            await nextTick();
-            const el = videoRef.value;
-            if (el) {
-                el.muted = muted.value;
-                try {
-                    await el.play();
-                    // 视频故事（含静音）占用音频通道，暂停正在播放的音乐
-                    if (!isAnimationVideo.value) pauseMusicForStory();
-                } catch {
-                    /* 自动播放被拦截：等用户手势 */
-                }
+        if (!currentSrc.value) {
+            const url = await ensureFileUrl(f, `story_video_${st.id}`);
+            if (isStale()) return;
+            loadingMedia.value = false;
+            if (url) currentSrc.value = url;
+        }
+
+        if (isStale()) return;
+        await nextTick();
+        if (isStale()) return;
+        const el = videoRef.value;
+        if (el) {
+            el.muted = muted.value;
+            try {
+                await el.play();
+                if (isStale()) return;
+                // 视频故事（含静音）占用音频通道，暂停正在播放的音乐
+                if (!isAnimationVideo.value) pauseMusicForStory();
+            } catch {
+                /* 自动播放被拦截：等用户手势 */
             }
         }
     }
@@ -810,6 +879,11 @@ function onVideoLoaded() {
         .catch(() => { });
 }
 
+/** 首帧已解码：把 <video> 从透明切到可见，此前由封面/mini 垫底 */
+function onVideoData() {
+    videoReady.value = true;
+}
+
 function onVideoEnded() {
     goNext();
 }
@@ -857,6 +931,7 @@ function goPrev() {
 }
 
 function close() {
+    mediaLoadSeq++; // 关闭后在途下载/回填全部作废，防止过期结果窜图
     void markClosed();
     stopPhotoTimer();
     const el = videoRef.value;
@@ -1122,6 +1197,7 @@ watch(
     () => [visible.value, index.value] as const,
     async ([vis]) => {
         if (!vis) {
+            mediaLoadSeq++; // 关闭后在途加载全部作废
             stopPhotoTimer();
             holdPaused = false;
             isStoryViewerActive.value = false;
@@ -1131,6 +1207,19 @@ watch(
         }
         isStoryViewerActive.value = true;
         document.body.style.overflow = "hidden";
+        // 同步重置媒体层（pre-flush，先于重渲染）：index 已指向新故事，
+        // 立刻清掉上一条的 src/封面/视频并铺新故事 mini，
+        // 防止 nextTick + 下载间隙里旧故事画面残留造成窜图
+        mediaLoadSeq++;
+        stopPhotoTimer();
+        currentSrc.value = "";
+        currentCover.value = "";
+        videoReady.value = false;
+        loadingMedia.value = false;
+        photoProgress.value = 0;
+        videoProgress.value = 0;
+        videoDurationSec.value = 0;
+        currentMini.value = current.value ? pickThumbDataUrl(current.value) : "";
         await nextTick();
         rootRef.value?.focus();
         // 确保 poster 信息可用
