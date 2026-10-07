@@ -78,9 +78,9 @@
         </div>
 
         <!-- 底部进度条 -->
-        <!-- 列表模式热区收到 8px；bare 保持原 12px -->
+        <!-- 热区：列表模式 8px；bare（对话置顶栏）收到 6px，收紧与上方卡片内容的间距 -->
         <div class="cursor-pointer group/progress relative" :class="bare ? 'px-3' : 'px-2'"
-            :style="{ height: bare ? '12px' : '8px' }"
+            :style="{ height: bare ? '6px' : '8px' }"
             @click.stop="handleProgressClick" @mousedown.stop="handleProgressStart">
             <!-- 定位条：贴底；轨道与圆点共用，保证 left%/width% 同源 -->
             <div class="absolute bottom-0 left-0 right-0" :class="bare ? 'h-[3px]' : 'h-0.5'">
