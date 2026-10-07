@@ -125,6 +125,14 @@ watch(
     },
 );
 
+// 换了文件（组件被复用到新内容）：停掉旧进度跟踪并复位状态，
+// 否则旧文件的进度/转圈残留到新文件上
+watch(fileId, () => {
+    stopTracking();
+    state.downloading = false;
+    state.progress = 0;
+});
+
 async function startDownload() {
     const fid = fileId.value;
     if (!fid || !canDownload.value || ready.value) return;

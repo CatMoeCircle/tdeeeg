@@ -307,11 +307,21 @@ const audioSrc = computed(() => {
     return track?.filePath || '';
 });
 
+/** 元素上实际加载过的源（loadAndPlay 写入），用于区分「切歌回滚到已加载源」与「切到新源」 */
+let loadedSrc = '';
+
+/** audio 元素当前 src 是否就是当前曲目的源（切歌准备期间两者不匹配） */
+function elementMatchesCurrentTrack(): boolean {
+    const audio = audioRef.value;
+    return !!audio && !!audioSrc.value && audio.getAttribute('src') === audioSrc.value;
+}
+
 /** 装载并按需播放当前源 */
 function loadAndPlay(src: string) {
     const audio = audioRef.value;
     if (!audio || !src) return;
     audio.src = src;
+    loadedSrc = src;
     audio.load();
     if (player.isPlaying) {
         audio.play().catch(() => { });
@@ -320,8 +330,22 @@ function loadAndPlay(src: string) {
 
 // 源变化或播放纪元变化 → 加载并播放。
 // playEpoch 保证「同一 index 再次 playTrack」（列表循环绕回同一首 / 单曲列表循环）也会强制重载。
-watch([audioSrc, () => player.playEpoch], ([newSrc]) => {
-    if (!newSrc || !audioRef.value) return;
+watch([audioSrc, () => player.playEpoch], ([newSrc, newEpoch], [, oldEpoch]) => {
+    const audio = audioRef.value;
+    if (!audio) return;
+    if (!newSrc) {
+        // 新曲目尚未就绪（切歌后下载/流式建立中，audioSrc 短暂为空）：
+        // 暂停旧音频，避免 UI 已显示新曲却仍在播上一首。
+        // filePath 落地后 audioSrc 变化会重新走 loadAndPlay。
+        audio.pause();
+        return;
+    }
+    // playTrack 准备失败回滚：源切回「元素上已加载的源」且纪元未变 → 不重载，
+    // 仅同步播放状态，避免旧曲被强制从头重播。
+    if (newEpoch === oldEpoch && audio.getAttribute('src') === newSrc) {
+        if (player.isPlaying && audio.paused) audio.play().catch(() => { });
+        return;
+    }
     loadAndPlay(newSrc);
 });
 
@@ -330,7 +354,9 @@ watch(() => player.isPlaying, (playing) => {
     const audio = audioRef.value;
     if (!audio) return;
     if (playing && audio.paused) {
-        audio.play().catch(() => { });
+        // 仅当元素上就是当前曲目的源才恢复播放：
+        // 切歌准备期间元素还挂着上一首的源，直接 play 会「UI 显示新曲却播旧曲」
+        if (elementMatchesCurrentTrack()) audio.play().catch(() => { });
     } else if (!playing && !audio.paused) {
         audio.pause();
     }
@@ -342,6 +368,9 @@ watch(() => player.isPlaying, (playing) => {
 watch(() => player.currentTime, (time) => {
     const audio = audioRef.value;
     if (!audio || !audio.src) return;
+    // 切歌准备期间元素仍是上一首的源：只更新 UI 进度，不动旧音频的播放位置
+    // （否则 UI 重置进度会把仍在播放/暂停的旧曲 seek 到 0，回滚时丢位置）
+    if (!elementMatchesCurrentTrack()) return;
     // 只在差异较大时 seek，避免循环
     if (Math.abs(audio.currentTime - time) > 0.5) {
         audio.currentTime = time;
@@ -357,6 +386,9 @@ watch(() => player.volume, (vol) => {
 
 // 监听切换曲目时重置进度
 watch(() => player.currentIndex, () => {
+    // 已加载源与当前曲目一致（同曲重播 / 回滚 / 列表移位）：位置由 loadAndPlay
+    // 的 load() 或回滚恢复负责，这里再 seek(0) 会把回滚的旧曲进度清零
+    if (audioSrc.value && audioSrc.value === loadedSrc) return;
     player.seek(0);
 });
 

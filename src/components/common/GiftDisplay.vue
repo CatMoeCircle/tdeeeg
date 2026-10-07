@@ -223,8 +223,11 @@ const badgeStyle = computed(() => {
 
 // ---------- 发送人头像（普通非私密礼物） ----------
 const senderAvatarUrl = ref<string | undefined>(undefined);
+/** 加载代次：gift/showSenderAvatar 变化时自增，丢弃过期 async 写回（避免头像窜到别的礼物） */
+let senderAvatarLoadSeq = 0;
 
-watch(() => props.showSenderAvatar, async (show) => {
+watch(() => [props.showSenderAvatar, props.gift] as const, async ([show]) => {
+    const seq = ++senderAvatarLoadSeq;
     if (!show || isUpgraded.value || props.gift.is_private) {
         senderAvatarUrl.value = undefined;
         return;
@@ -234,6 +237,7 @@ watch(() => props.showSenderAvatar, async (show) => {
     try {
         if (sender._ === 'messageSenderUser') {
             const u = await tdlibSend({ _: 'getUser', user_id: sender.user_id }) as user;
+            if (seq !== senderAvatarLoadSeq) return;
             const photo = u.profile_photo;
             if (photo) {
                 const file = photo.small;
@@ -248,6 +252,7 @@ watch(() => props.showSenderAvatar, async (show) => {
                         limit: 0,
                         synchronous: true,
                     }) as any;
+                    if (seq !== senderAvatarLoadSeq) return;
                     if (res?.local?.is_downloading_completed) {
                         senderAvatarUrl.value = convertFileSrc(res.local.path);
                     }
@@ -255,6 +260,7 @@ watch(() => props.showSenderAvatar, async (show) => {
             }
         } else if (sender._ === 'messageSenderChat') {
             const c = await tdlibSend({ _: 'getChat', chat_id: sender.chat_id }) as chat;
+            if (seq !== senderAvatarLoadSeq) return;
             const photo = c.photo as chatPhotoInfo | undefined;
             if (photo?.small?.local?.is_downloading_completed) {
                 senderAvatarUrl.value = convertFileSrc(photo.small.local.path);
@@ -267,6 +273,7 @@ watch(() => props.showSenderAvatar, async (show) => {
                     limit: 0,
                     synchronous: true,
                 }) as any;
+                if (seq !== senderAvatarLoadSeq) return;
                 if (res?.local?.is_downloading_completed) {
                     senderAvatarUrl.value = convertFileSrc(res.local.path);
                 }

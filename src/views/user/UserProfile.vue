@@ -2416,12 +2416,19 @@ const displayPhoto = computed<profilePhoto | undefined>(() => user.value?.profil
 
 /** 头部大图 URL（使用全量照片的最大尺寸） */
 const headerPhotoUrl = ref<string | undefined>(undefined);
+/**
+ * 资料页媒体加载代次：切换用户/聊天时自增，丢弃过期 await 写回。
+ * 没有它时 A→B 快速切换，A 的慢请求后到会把 A 的图写到 B 的资料页上（窜图）。
+ */
+let profileMediaLoadSeq = 0;
 async function loadHeaderPhoto() {
+  const seq = profileMediaLoadSeq;
   headerPhotoUrl.value = undefined;
   const info = fullInfo.value;
   const biggest = pickLargestPhotoFile(info?.photo);
   if (biggest) {
-    headerPhotoUrl.value = await downloadFileUrl(biggest, `profile_header_${biggest.id}.jpg`, 'avatar');
+    const url = await downloadFileUrl(biggest, `profile_header_${biggest.id}.jpg`, 'avatar');
+    if (seq === profileMediaLoadSeq) headerPhotoUrl.value = url;
   }
 }
 
@@ -2445,15 +2452,18 @@ function pickLargestPhotoFile(photo?: chatPhoto): file | undefined {
 const photoUrls = ref<Record<number, string>>({});
 
 async function loadPhotoUrls() {
+  const seq = profileMediaLoadSeq;
   const urls: Record<number, string> = {};
   for (let i = 0; i < photosList.value.length; i++) {
     const p = photosList.value[i];
     const biggest = pickLargestPhotoFile(p);
     if (!biggest) continue;
-    const url = await downloadFileUrl(biggest, `profile_photo_${i}.jpg`, 'avatar', {
+    const url = await downloadFileUrl(biggest, `profile_photo_${biggest.id}.jpg`, 'avatar', {
       tags: ['用户头像', '高清头像'],
       sourceLabel: userName.value || undefined,
     });
+    // 整批一次写回：任一 await 期间切换了用户就整批作废
+    if (seq !== profileMediaLoadSeq) return;
     if (url) urls[i] = url;
   }
   photoUrls.value = urls;
@@ -2571,17 +2581,20 @@ function closeGiftDetail() {
 // ===== 动态 URL =====
 const storyUrls = ref<Record<number, string>>({});
 async function loadStoryUrls() {
+  const seq = profileMediaLoadSeq;
   const urls: Record<number, string> = {};
   for (const s of storiesList.value) {
     const file = pickStoryCoverFile(s);
     if (!file) continue;
     try {
       const url = await downloadFileUrl(file, `story_${s.id}.jpg`, 'story_cover', { tags: ['动态封面', '缩略图', '动态'], sourceLabel: userName.value || undefined });
+      if (seq !== profileMediaLoadSeq) return;
       if (url) urls[s.id] = url;
     } catch (e) {
       // 单条封面拉取失败不影响其他动态
     }
   }
+  if (seq !== profileMediaLoadSeq) return;
   storyUrls.value = urls;
 }
 
@@ -3492,6 +3505,10 @@ watch(profileTabs, (tabs) => {
 }, { immediate: true });
 
 watch([userId, chatMode], () => {
+  // 作废在途的资料页媒体下载写回，并清掉上一个账号/会话的共享媒体缩略图缓存
+  // （sharedMediaUrlCache 只按 messageId 键，跨会话可重复，不清会窜图）
+  profileMediaLoadSeq++;
+  sharedMediaUrlCache.value = {};
   if (userId.value > 0 || chatMode.value) {
     // 进入/切换资料：等标签栏就绪后自动选中第一个可用标签
     shouldSelectFirstTab = true;

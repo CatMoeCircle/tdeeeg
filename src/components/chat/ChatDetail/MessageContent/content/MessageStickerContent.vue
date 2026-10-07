@@ -40,6 +40,8 @@ const playerRef = ref<TgsPlayerInstance | null>(null);
 const videoRef = ref<HTMLVideoElement | null>(null);
 const mediaSrc = ref<string | undefined>(undefined);
 const isDownloading = ref(false);
+/** 加载代次：content 变化时自增，丢弃过期下载结果，避免旧贴纸窜到新内容 */
+let loadSeq = 0;
 /** TGS 本地文件 URL（convertFileSrc → tlottie fetch） */
 const tgsSrc = ref<string | null>(null);
 /** Telegram fitzpatrick → tlottie FitzModifier */
@@ -90,15 +92,17 @@ const getFile = () => sticker.value?.sticker;
 const loadMedia = async () => {
     const f = getFile();
     if (!f) return;
+    const seq = loadSeq;
 
     if (isFileReady(f)) {
-        await loadSticker(f.local.path);
+        if (seq !== loadSeq) return;
+        await loadSticker(f.local.path, seq);
     } else if (f.local.can_be_downloaded && !f.local.is_downloading_active) {
-        await downloadFile(f.id);
+        await downloadFile(f.id, seq);
     }
 };
 
-const downloadFile = async (fileId: number) => {
+const downloadFile = async (fileId: number, seq: number) => {
     if (isDownloading.value) return;
     if (downloadingFiles.has(fileId)) return;
     isDownloading.value = true;
@@ -121,32 +125,35 @@ const downloadFile = async (fileId: number) => {
             limit: 0,
             synchronous: true,
         });
+        if (seq !== loadSeq) return;
         if (isFileReady(res)) {
-            await loadSticker(res.local.path);
+            await loadSticker(res.local.path, seq);
         }
     } catch (e) {
         console.error("Sticker download failed", e);
     } finally {
         downloadingFiles.delete(fileId);
-        isDownloading.value = false;
+        if (seq === loadSeq) isDownloading.value = false;
     }
 };
 
-/** 加载贴纸（根据格式选择渲染方式） */
-async function loadSticker(filePath: string) {
+/** 加载贴纸（根据格式选择渲染方式）；seq 用于丢弃内容已替换后的过期写回 */
+async function loadSticker(filePath: string, seq = loadSeq) {
+    if (seq !== loadSeq) return;
     if (format.value === 'webp') {
         mediaSrc.value = convertFileSrc(filePath);
     } else if (format.value === 'tgs') {
-        loadTgs(filePath);
+        loadTgs(filePath, seq);
     } else if (format.value === 'webm') {
         mediaSrc.value = convertFileSrc(filePath);
     }
 }
 
 /** 加载 TGS：本地路径 → asset URL，tlottie 以 src fetch + Worker 内解压 */
-function loadTgs(filePath: string) {
+function loadTgs(filePath: string, seq = loadSeq) {
     tgsSrc.value = null;
     requestAnimationFrame(() => {
+        if (seq !== loadSeq) return;
         tgsSrc.value = convertFileSrc(filePath);
     });
 }
@@ -185,6 +192,9 @@ const { start: startViewportLoad, entered: stickerEntered } = useViewportLoad(ro
     return loadMedia();
 });
 watch(() => props.content, () => {
+    // 换内容：作废在途加载并复位 isDownloading，否则新贴纸被旧下载状态挡住
+    loadSeq++;
+    isDownloading.value = false;
     mediaSrc.value = undefined;
     tgsSrc.value = null;
     registerAnim(null);

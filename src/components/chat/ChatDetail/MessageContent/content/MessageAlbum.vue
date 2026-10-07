@@ -152,10 +152,12 @@ function invalidateAlbumCaches(msgs: message[]) {
             // 真正换了媒体（编辑/替换内容）才清缓存，避免串图
             delete thumbCache[m.id];
             delete mediaCache[m.id];
+            delete thumbIsMini[m.id];
         } else if (!prev) {
             // 首次见到该消息：清掉可能残留的占位缓存（防御性）
             delete thumbCache[m.id];
             delete mediaCache[m.id];
+            delete thumbIsMini[m.id];
         }
         next.set(m.id, m);
         nextKeys.set(m.id, key);
@@ -181,6 +183,8 @@ function setAlbumPreview() {
                 : undefined;
         if (min?.data && !thumbCache[msg.id]) {
             thumbCache[msg.id] = `data:image/jpeg;base64,${min.data}`;
+            // mini 占位必须同步标记，否则后续判断会把模糊状态搞错
+            thumbIsMini[msg.id] = true;
         }
     }
 }

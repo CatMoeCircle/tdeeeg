@@ -1,7 +1,7 @@
 <template>
     <div class="rich-message" :style="{ fontSize: 'var(--msg-font-size, 14px)', lineHeight: '1.4' }"
         :dir="isRtl ? 'rtl' : 'ltr'">
-        <template v-for="(block, bi) in blocks" :key="bi">
+        <template v-for="(block, bi) in blocks" :key="`${block._}:${bi}`">
             <!-- 标题 / 副标题 / 页头 / 段头 / 章节标题 / kicker -->
             <h1 v-if="block._ === 'pageBlockTitle'" class="text-xl font-bold mb-2">
                 <RichText :text="block.title" />

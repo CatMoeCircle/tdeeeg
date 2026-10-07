@@ -24,11 +24,16 @@ export function listAlbumCoverFiles(a: audio | undefined): file[] {
 async function waitForFileReady(
   fileId: number,
   timeoutMs = 15000,
+  expectedRemoteId?: string,
 ): Promise<string | undefined> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     try {
       const info = (await tdlibSend({ _: "getFile", file_id: fileId })) as file;
+      // session file.id 可能被其他文件复用：remote.id 不一致时丢弃，避免窜图
+      if (expectedRemoteId && info.remote?.id && info.remote.id !== expectedRemoteId) {
+        return undefined;
+      }
       if (isFileReady(info)) return convertFileSrc(info.local.path!);
     } catch {
       // getFile 瞬时失败（文件信息未同步）时继续重试
@@ -57,9 +62,11 @@ export async function downloadFileUrl(
   if (!f || !f.id) return undefined;
   if (isFileReady(f)) return convertFileSrc(f.local.path);
   const fileId = f.id;
+  // file.id 可能在 TDLib 会话内被复用：记住期望的 remote.id，取回后校验身份
+  const expectedRemoteId = f.remote?.id;
 
   if (downloadingFiles.has(fileId)) {
-    return waitForFileReady(fileId);
+    return waitForFileReady(fileId, 15000, expectedRemoteId);
   }
 
   try {
@@ -90,8 +97,10 @@ export async function downloadFileUrl(
       limit: 0,
       synchronous: true,
     });
+    if (expectedRemoteId && res?.remote?.id && res.remote.id !== expectedRemoteId) return undefined;
     if (isFileReady(res)) return convertFileSrc(res.local.path);
     const info = (await tdlibSend({ _: "getFile", file_id: fileId })) as file;
+    if (expectedRemoteId && info?.remote?.id && info.remote.id !== expectedRemoteId) return undefined;
     if (isFileReady(info)) return convertFileSrc(info.local.path!);
   } catch (e) {
     console.error("Failed to download file", e);

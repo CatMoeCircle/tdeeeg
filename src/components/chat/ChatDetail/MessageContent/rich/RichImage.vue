@@ -47,6 +47,8 @@ const downloadStore = useDownloadStore();
 const rootEl = ref<HTMLElement | null>(null);
 const src = ref('');
 const downloading = ref(false);
+/** 加载代次：file 变化时自增，丢弃过期异步结果，避免旧图写回复用后的组件（窜图） */
+let loadSeq = 0;
 
 /** 未就绪且可下载时显示手动下载按钮 */
 const showDownload = computed(() => !!props.file?.id && !!props.file?.local?.can_be_downloaded);
@@ -76,24 +78,28 @@ const placeholderStyle = computed(() => {
 async function load() {
     const f = props.file;
     if (!f) return;
+    const seq = loadSeq;
     if (isFileReady(f)) {
+        if (seq !== loadSeq) return;
         src.value = convertFileSrc(f.local.path);
         return;
     }
     // 富文本图片跟随「图片」自动下载设置
     if (!shouldAutoDownloadPhotos(props.chatId)) return;
+    // 同一文件的下载进行中：跳过；不同文件（seq 已变）不被旧 downloading 卡住
     if (downloading.value) return;
     downloading.value = true;
     try {
         await tdlibSend({ _: 'downloadFile', file_id: f.id, priority: DL_PRIORITY.THUMBNAIL, offset: 0, limit: 0, synchronous: true });
         const updated = await tdlibSend({ _: 'getFile', file_id: f.id });
+        if (seq !== loadSeq) return;
         // 仅在完全下载完成（本地路径非空且 is_downloading_completed）时才展示真实图片；
         // 否则保持占位，避免显示残缺/半下载的文件。
         if (isFileReady(updated)) src.value = convertFileSrc(updated.local.path);
     } catch (e) {
         console.warn('RichImage download failed:', e);
     } finally {
-        downloading.value = false;
+        if (seq === loadSeq) downloading.value = false;
     }
 }
 
@@ -109,6 +115,9 @@ const { start: startViewportLoad, entered: imgEntered } = useViewportLoad(rootEl
     return load();
 });
 watch(() => props.file?.id, () => {
+    // 换了文件：作废在途加载并复位 downloading，否则新文件被旧下载状态挡住
+    loadSeq++;
+    downloading.value = false;
     src.value = '';
     if (imgEntered.value) load();
 });

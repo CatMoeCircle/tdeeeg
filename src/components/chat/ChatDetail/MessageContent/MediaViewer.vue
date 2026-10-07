@@ -710,8 +710,20 @@ const isAnimation = computed(() => currentMediaType.value === 'animation');
 /** 下载 store（提前初始化，供 src 解析与进度读取） */
 const downloadStore = useDownloadStore();
 
-/** 本地路径覆盖：getFile / 下载 store 发现已就绪但消息快照未回写时补位 */
-const localPathOverrides = ref<Record<number, string>>({});
+/** 本地路径覆盖：getFile / 下载 store 发现已就绪但消息快照未回写时补位。
+ *  带 fileId 校验：messageId 仅在会话内唯一，跨会话复用/内容被替换后旧条目
+ *  会在打开瞬间窜图，读取时须与当前主文件 id 比对，不一致即丢弃。 */
+const localPathOverrides = ref<Record<number, { path: string; fileId: number }>>({});
+
+/** 读取与 item 当前主文件匹配的覆盖路径；身份不符返回 undefined */
+function validOverridePath(item: MediaViewerItem | undefined): string | undefined {
+    if (!item || item.messageId == null) return undefined;
+    const ov = localPathOverrides.value[item.messageId];
+    if (!ov) return undefined;
+    const mainFile = resolveMainFile(item) || item.file;
+    if (!mainFile || mainFile.id !== ov.fileId) return undefined;
+    return ov.path;
+}
 
 /** 解析当前项主媒体 File（photo 取 Big，video/animation 取本体） */
 function resolveMainFile(item: MediaViewerItem | undefined): TdFile | undefined {
@@ -755,11 +767,8 @@ const currentMediaSrc = computed(() => {
         }
     }
 
-    const mid = item.messageId;
-    if (mid != null) {
-        const ov = localPathOverrides.value[mid];
-        if (ov) return convertFileSrc(ov);
-    }
+    const ovPath = validOverridePath(item);
+    if (ovPath) return convertFileSrc(ovPath);
     if (item.readyPath) return convertFileSrc(item.readyPath);
 
     if (c) {
@@ -861,8 +870,8 @@ const currentDate = computed(() => currentItem.value?.message?.date || 0);
 const currentLocalPath = computed(() => {
     const item = currentItem.value;
     if (!item) return '';
-    const mid = item.messageId;
-    if (mid != null && localPathOverrides.value[mid]) return localPathOverrides.value[mid];
+    const ovPath = validOverridePath(item);
+    if (ovPath) return ovPath;
     if (item.readyPath) return item.readyPath;
     const c = currentContent.value;
     if (c) {
@@ -982,9 +991,12 @@ function handleImageManualDownload() {
     })();
 }
 
-/** 轮询 getFile：补字节进度，并在完成时写入 ready 覆盖 */
+/** 轮询 getFile：补字节进度，并在完成时写入 ready 覆盖。
+ *  启动时捕获 messageId/fileId：轮询跨数百毫秒，期间用户可能切换条目，
+ *  完成时按 currentItem 写会把路径窜到别的消息上。 */
 function startLiveFilePoll(fileId: number) {
     stopLiveFilePoll();
+    const ownerMsgId = currentItem.value?.messageId ?? null;
     liveFilePollTimer = setInterval(async () => {
         try {
             const info = await tdlibSend({ _: 'getFile', file_id: fileId }) as TdFile;
@@ -996,8 +1008,7 @@ function startLiveFilePoll(fileId: number) {
                 progress: total > 0 ? Math.min(1, downloaded / total) : (info?.local?.is_downloading_completed ? 1 : 0),
             };
             if (info?.local?.is_downloading_completed && info.local.path) {
-                const mid = currentItem.value?.messageId;
-                if (mid != null) localPathOverrides.value[mid] = info.local.path;
+                if (ownerMsgId != null) localPathOverrides.value[ownerMsgId] = { path: info.local.path, fileId };
                 useDownloadStore().markCompleted(fileId, info.local.path, remoteIdOf(info));
                 downloadingFiles.delete(fileId);
                 imageDownloading.value = false;
@@ -1051,8 +1062,7 @@ function allowsAutoDownload(item: MediaViewerItem): boolean {
 
 function isItemReady(item: MediaViewerItem): boolean {
     if (item.readyPath) return true;
-    const mid = item.messageId;
-    if (mid != null && localPathOverrides.value[mid]) return true;
+    if (validOverridePath(item)) return true;
     const f = resolveMainFile(item);
     return isFileReady(f);
 }
@@ -1103,7 +1113,7 @@ async function refreshCurrentFileOnce() {
         const info = await tdlibSend({ _: 'getFile', file_id: f.id }) as TdFile;
         if (info?.local?.is_downloading_completed && info.local.path) {
             const mid = item.messageId;
-            if (mid != null) localPathOverrides.value[mid] = info.local.path;
+            if (mid != null) localPathOverrides.value[mid] = { path: info.local.path, fileId: f.id };
             downloadStore.markCompleted(f.id, info.local.path, remoteIdOf(info));
         } else if (info?.local?.is_downloading_active || (info?.local?.downloaded_size || 0) > 0) {
             liveDownloadBytes.value = {

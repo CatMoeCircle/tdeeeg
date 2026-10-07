@@ -146,11 +146,17 @@ function formatDuration(seconds: number) {
     return `${String(minutes).padStart(2, '0')}:${String(safeSeconds % 60).padStart(2, '0')}`;
 }
 
+/** 加载代次：audio 变化时自增，丢弃过期异步封面写回，避免封面窜到另一首音频 */
+let coverLoadSeq = 0;
+
 /** 加载专辑封面：minithumbnail → 内嵌缩略图 → iTunes Search（不再下载 external_album_covers） */
 async function loadCover() {
     const a = props.audio;
     if (!a) return;
+    const seq = coverLoadSeq;
     const audioFileId = a.audio?.id;
+    // file.id 可能在 TDLib 会话内被复用：记住期望的 remote.id
+    const expectedRemoteId = a.album_cover_thumbnail?.file?.remote?.id;
 
     coverSrc.value = a.album_cover_minithumbnail?.data
         ? `data:image/jpeg;base64,${a.album_cover_minithumbnail.data}`
@@ -164,7 +170,8 @@ async function loadCover() {
     if (primary) {
         const file = primary.file;
         if (isFileReady(file)) {
-            if (props.audio?.audio?.id === audioFileId) coverSrc.value = convertFileSrc(file.local.path);
+            if (seq !== coverLoadSeq || props.audio?.audio?.id !== audioFileId) return;
+            coverSrc.value = convertFileSrc(file.local.path);
             return;
         }
         try {
@@ -176,8 +183,11 @@ async function loadCover() {
                 limit: 0,
                 synchronous: true,
             });
+            if (seq !== coverLoadSeq || props.audio?.audio?.id !== audioFileId) return;
+            // remote.id 不一致 = file.id 被复用，丢弃结果避免窜图
+            if (expectedRemoteId && downloaded?.remote?.id && downloaded.remote.id !== expectedRemoteId) return;
             if (isFileReady(downloaded)) {
-                if (props.audio?.audio?.id === audioFileId) coverSrc.value = convertFileSrc(downloaded.local.path);
+                coverSrc.value = convertFileSrc(downloaded.local.path);
                 return;
             }
         } catch (_) { }
@@ -185,6 +195,7 @@ async function loadCover() {
 
     // 内嵌封面为空/下载失败 → iTunes Search；无结果则保持当前（minithumbnail 或空）
     const itunes = await fetchItunesCoverForAudio(a);
+    if (seq !== coverLoadSeq) return;
     if (itunes && props.audio?.audio?.id === audioFileId) coverSrc.value = itunes;
 }
 
@@ -200,6 +211,7 @@ const { start: startViewportLoad, entered: audioEntered } = useViewportLoad(root
     return loadCover();
 });
 watch(() => props.audio?.audio?.id, () => {
+    coverLoadSeq++;
     setCoverPreview();
     if (audioEntered.value) loadCover();
 }, { immediate: true });

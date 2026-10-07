@@ -240,6 +240,9 @@ function formatPinTime(timestamp: number): string {
 
 watch(() => props.chatId, (newId) => {
     expanded.value = false;
+    // 切换会话先清空：否则旧会话的置顶消息会残留显示到新会话，直到 fetch 返回
+    pinnedMessages.value = [];
+    currentPinned.value = null;
     loadPinnedMessages(newId);
 }, { immediate: true });
 </script>

@@ -1702,6 +1702,7 @@ async function handleAnimDownload() {
  */
 async function handleVideoDownload(isUserAction = false) {
     if (props.content._ !== 'messageVideo') return;
+    const seq = mediaLoadSeq;
     const video = props.content.video;
     const videoFileObj = videoFile.value;
     if (!videoFileObj) return;
@@ -1786,7 +1787,8 @@ async function handleVideoDownload(isUserAction = false) {
             }
         } catch {
             downloadingFiles.delete(fileId);
-            if (mediaLoadSeq >= 0) videoDownloading.value = false;
+            // 内容已替换时不动新内容的状态
+            if (seq === mediaLoadSeq) videoDownloading.value = false;
         }
     }, { immediate: isUserAction });
 }

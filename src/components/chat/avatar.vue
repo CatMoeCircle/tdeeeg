@@ -237,9 +237,11 @@ const { start: startViewportLoad, entered } = useViewportLoad(
     }
 );
 
+// photo 引用 + small 文件 id 双维度：store 就地 patch photo 字段时引用可能不变，
+// 但 small.id 变了（换了新头像文件）也必须重置，否则旧头像残留
 watch(
-    () => props.photo,
-    (photo) => {
+    [() => props.photo, () => props.photo?.small?.id],
+    ([photo]) => {
         pendingPhoto = photo;
         resetFromPhoto(photo);
         // 若头像已进入视口（此前无头像/已就绪未触发），新头像到达后应懒加载真实文件

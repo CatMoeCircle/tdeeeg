@@ -187,6 +187,8 @@ const mediaPlan = computed<MediaPlan | undefined>(() => {
 
 const mediaSrc = ref<string | undefined>(undefined);
 const mediaIsVideo = ref(false);
+/** 加载代次：内容变化时自增，丢弃过期异步写回，避免旧商品图窜到新内容 */
+let mediaLoadSeq = 0;
 const rootEl = ref<HTMLElement | null>(null);
 const downloading = ref(false);
 
@@ -209,7 +211,9 @@ async function loadMedia() {
     if (!plan || plan.locked) return;
     const f = plan.file;
     if (!f) return;
+    const seq = mediaLoadSeq;
     if (isFileReady(f)) {
+        if (seq !== mediaLoadSeq) return;
         mediaSrc.value = convertFileSrc(f.local.path);
         mediaIsVideo.value = !!plan.fileIsVideo;
         return;
@@ -219,6 +223,7 @@ async function loadMedia() {
     downloading.value = true;
     try {
         await safeDownloadFile(f.id, true, DL_PRIORITY.DEFAULT);
+        if (seq !== mediaLoadSeq) return;
         if (f.local.is_downloading_completed && f.local.path) {
             mediaSrc.value = convertFileSrc(f.local.path);
             mediaIsVideo.value = !!plan.fileIsVideo;
@@ -226,7 +231,7 @@ async function loadMedia() {
     } catch {
         /* 保持占位 */
     } finally {
-        downloading.value = false;
+        if (seq === mediaLoadSeq) downloading.value = false;
     }
 }
 
@@ -267,6 +272,9 @@ const { start: startViewport } = useViewportLoad(rootEl, () => {
 watch(
     () => [props.content.paid_media, props.content.product_info.photo, props.messageId],
     () => {
+        // 换内容：作废在途加载并复位 downloading，避免旧下载状态挡住新内容
+        mediaLoadSeq++;
+        downloading.value = false;
         mediaSrc.value = undefined;
         mediaIsVideo.value = false;
         void loadMedia();

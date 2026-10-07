@@ -26,7 +26,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
+import { computed, ref, shallowRef, watch, onMounted, onUnmounted } from 'vue';
 import { useCustomEmoji, requestCustomEmoji } from '../../store/customEmoji';
 import { useLottiePause } from '../../composables/useLottiePause';
 import { useViewportLoad } from '../../composables/useViewportLoad';
@@ -43,8 +43,10 @@ const props = defineProps<{
 
 const size = computed(() => props.size || 22);
 const rootEl = ref<HTMLElement | null>(null);
-// 创建状态但不立即拉取下载；进入视口后由 requestCustomEmoji 触发（视口懒加载）
-const state = useCustomEmoji(props.emojiId, false);
+// 创建状态但不立即拉取下载；进入视口后由 requestCustomEmoji 触发（视口懒加载）。
+// 必须随 props.emojiId 重绑：组件被 v-for(index key) 复用时 emojiId 会变，
+// 只在 setup 取一次会让 state 永远指向首个 id 的缓存条目（窜图）。
+const state = shallowRef(useCustomEmoji(props.emojiId, false));
 const playerRef = ref<TgsPlayerInstance | null>(null);
 /** WEBM/GIF 视频元素（受同一窗口/视口暂停门控） */
 const videoRef = ref<HTMLVideoElement | null>(null);
@@ -56,8 +58,8 @@ const { register: registerAnim, registerVideo, setup: setupPause } = useLottiePa
 
 /** 检测贴纸格式 */
 const emojiFormat = computed(() => {
-  if (!state.sticker) return 'webp';
-  const fmt = state.sticker.format._;
+  if (!state.value.sticker) return 'webp';
+  const fmt = state.value.sticker.format._;
   if (fmt === 'stickerFormatTgs') return 'tgs';
   if (fmt === 'stickerFormatWebm') return 'webm';
   return 'webp';
@@ -73,9 +75,9 @@ function onAnimLoad() {
 }
 
 // 当 emoji 就绪且为 tgs 格式时，加载 Lottie。
-// 用 state.filePath（已是 convertFileSrc 后的 URL）作为 tgsSrc，
+// 用 state.value.filePath（已是 convertFileSrc 后的 URL）作为 tgsSrc，
 // 不依赖 sticker.local.path——下载完成后 store 不一定把它写回 sticker 对象。
-watch([() => state.ready, () => state.filePath, emojiFormat],
+watch([() => state.value.ready, () => state.value.filePath, emojiFormat],
   async ([ready, filePath, fmt]) => {
     if (ready && filePath && fmt === 'tgs') {
       // 下一帧赋值，确保 LottiePlayer 在 src 变化时干净重建
@@ -90,14 +92,22 @@ watch([() => state.ready, () => state.filePath, emojiFormat],
   }, { immediate: true });
 
 // WEBM 视频：等 DOM 渲染出 <video> 后注册进窗口/视口暂停门控
-watch([emojiFormat, () => state.ready], () => {
+watch([emojiFormat, () => state.value.ready], () => {
   registerVideo(emojiFormat.value === 'webm' ? videoRef.value : null);
 }, { flush: 'post' });
 
 // 视口门控：进入预取带才拉取/下载自定义 emoji；本地已就绪时 requestCustomEmoji 直接跳过 downloadFile
-const { start: startViewportLoad } = useViewportLoad(rootEl, () => {
+const { start: startViewportLoad, entered } = useViewportLoad(rootEl, () => {
   requestCustomEmoji(props.emojiId);
 }, { dwellMs: 200 });
+
+// emojiId 变化（v-for index key 复用组件实例）时重绑 state，
+// 否则 state 永远指向首个 id 的缓存条目 → 迷你图窜到别的位置。
+watch(() => props.emojiId, (id) => {
+  state.value = useCustomEmoji(id, false);
+  // once 门控已触发过，不会为新 id 自动拉取，需手动补一次
+  if (entered.value) requestCustomEmoji(id);
+});
 
 onMounted(() => {
   setupPause();
