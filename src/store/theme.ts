@@ -291,9 +291,11 @@ export function applyTheme(): void {
     ? rgbToHex(mixRgb(bgRgb, [255, 255, 255], 0.06))
     : rgbToHex(mixRgb(bgRgb, [255, 255, 255], 0.85));
   root.style.setProperty("--app-bg-container", container);
+  // 主面板（对话列表 / 内容区 / 标题栏）铺的就是这一层：浅色直接等于用户选的主背景色，
+  // 深色略微提亮以免与弹层底色糊在一起（原浅色写死 #ffffff，导致浅色下改背景色无效果）
   root.style.setProperty("--app-bg-elevated", dark
     ? rgbToHex(mixRgb(bgRgb, [255, 255, 255], 0.1))
-    : "#ffffff");
+    : rgbToHex(bgRgb));
   root.style.setProperty("--app-bg-muted", dark
     ? rgbToHex(mixRgb(bgRgb, [255, 255, 255], 0.04))
     : rgbToHex(mixRgb(bgRgb, [0, 0, 0], 0.04)));
