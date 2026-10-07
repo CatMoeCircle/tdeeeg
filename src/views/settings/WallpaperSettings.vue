@@ -17,9 +17,10 @@
                     </div>
                     <p class="text-xs text-gray-400 mt-2">{{ t('wallpaper.defaultDesc') }}</p>
                     <PreviewCard class="mt-5" :show-header="false" body-class="h-32 relative overflow-hidden">
+                        <!-- 遮罩 / 图片模糊只对「全屏显示」的壁纸生效，预览跟随同一规则 -->
                         <ChatBackgroundLayers :render="previewRender"
-                            :overlay-opacity="settings.chatWallpaperOverlayOpacity"
-                            :blur-px="settings.chatWallpaperBlur" />
+                            :overlay-opacity="settings.chatWallpaperFullScreen ? settings.chatWallpaperOverlayOpacity : 0"
+                            :blur-px="settings.chatWallpaperFullScreen ? settings.chatWallpaperBlur : 0" />
                         <div class="absolute inset-0 bg-black/5"></div>
                         <div
                             class="absolute left-4 bottom-4 z-10 rounded-2xl rounded-bl-md bg-white/90 dark:bg-gray-800/90 px-3 py-2 text-xs text-gray-700 dark:text-gray-200 shadow-sm">
@@ -158,7 +159,8 @@ const loading = ref(true);
 const saving = ref(false);
 const error = ref('');
 const backgrounds = ref<background[]>([]);
-const forDarkTheme = ref(false);
+/** 编辑哪一套主题的壁纸：跟随当前明暗，否则在深色主题下改的其实是浅色那一套 */
+const forDarkTheme = ref(isDark.value);
 const selectedKey = ref('');
 const selectedLabel = ref(t('wallpaper.followTelegram'));
 const hasCustomDefault = ref(false);
@@ -204,12 +206,19 @@ async function updatePreview() {
         };
         return;
     }
+    // 本地缓存里是 TDLib 背景对象（图案 / 渐变）时按它解析：
+    // 与实际聊天同一份数据源，避免预览画出图案、聊天只剩平均色
+    const cached = settings.chatWallpaper?.background;
+    if (cached) {
+        previewRender.value = await resolveChatBackground(cached, resolveOptions('full'));
+        return;
+    }
     const local = localWallpaperRender(settings.chatWallpaper);
     if (local) {
         previewRender.value = local;
         return;
     }
-    const current = defaultBackgroundFor(isDark.value);
+    const current = defaultBackgroundFor(forDarkTheme.value);
     previewRender.value = current
         ? await resolveChatBackground(current, resolveOptions('full'))
         : null;
@@ -271,7 +280,7 @@ async function loadBackgrounds() {
             selectedLabel.value = match?.label ?? t('wallpaper.solid');
             hasCustomDefault.value = true;
         } else {
-            const cloud = defaultBackgroundFor(isDark.value);
+            const cloud = defaultBackgroundFor(forDarkTheme.value) ?? settings.chatWallpaper?.background ?? null;
             const match = cloud ? backgrounds.value.find((item) => item.id === cloud.id) : undefined;
             if (match && !selectedItem.value) {
                 selectedKey.value = `remote:${match.id}`;
@@ -382,7 +391,14 @@ async function setRemote(item: background) {
             visual = { kind: 'image', path, source: 'tg' };
             sourcePath = path;
         } else {
-            visual = { kind: 'color', color: fillBaseColor(render?.fill ?? null) ?? '#f5f5f5', source: 'tg' };
+            // 渐变 / 图案没有原图：本地缓存带上完整 TDLib 背景对象，
+            // 聊天侧才能画出图案和渐变（`color` 只是平均色）
+            visual = {
+                kind: 'color',
+                color: fillBaseColor(render?.fill ?? null) ?? '#f5f5f5',
+                source: 'tg',
+                background: item,
+            };
         }
 
         await save({

@@ -183,9 +183,11 @@ function renderFreeform(colors: string[], phase: number): string {
 
       const offset = (y * size + x) * 4;
       if (sum > 0) {
-        data[offset] = clamp255((b / sum) * 255);
+        // canvas ImageData 是 RGBA；官方写的是 BGRA 位图（Unigram ChatBackgroundControl
+        // .GenerateGradient），照搬字节序会把红蓝写反 → 自由渐变整片偏色
+        data[offset] = clamp255((r / sum) * 255);
         data[offset + 1] = clamp255((g / sum) * 255);
-        data[offset + 2] = clamp255((r / sum) * 255);
+        data[offset + 2] = clamp255((b / sum) * 255);
       }
       data[offset + 3] = 255;
     }

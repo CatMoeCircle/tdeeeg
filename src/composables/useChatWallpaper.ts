@@ -20,7 +20,7 @@ import {
  *   1. 对话专属背景 `chat.background`
  *   2. 纯本地壁纸 `settings.chatWallpaper`（source=local，云端没有记录，必须本地覆盖）
  *   3. TDLib 默认背景 `updateDefaultBackground`（明/暗各一份）
- *   4. 本地缓存 `settings.chatWallpaper`（离线 / 首帧兜底）
+ *   4. 本地缓存 `settings.chatWallpaper`（图案 / 渐变背景对象 → 纯色 / 图片兜底）
  *
  * `backgroundTypeChatTheme` 只带主题名，真正背景在 emoji 主题缓存里，
  * 缓存到达后会再次解析，因此这里用响应式 watcher 而不是一次性求值。
@@ -55,12 +55,19 @@ export function useChatWallpaper(chat: Ref<chat | undefined>) {
       : undefined
   );
 
+  /**
+   * 遮罩与图片模糊只对「全屏显示」的壁纸生效。
+   * 关闭全屏后壁纸只铺聊天区，属于本页自己铺的那一层，保持原图不受这两项影响
+   * （模糊本身只作用于图片壁纸，见 ChatBackgroundLayers）。
+   */
+  const fullScreen = computed(() => settings.chatWallpaperFullScreen);
+
   return {
     drawsOwnWallpaper,
     render,
     rootStyle,
-    overlayOpacity: computed(() => settings.chatWallpaperOverlayOpacity),
-    blurPx: computed(() => settings.chatWallpaperBlur),
+    overlayOpacity: computed(() => (fullScreen.value ? settings.chatWallpaperOverlayOpacity : 0)),
+    blurPx: computed(() => (fullScreen.value ? settings.chatWallpaperBlur : 0)),
   };
 }
 
@@ -75,11 +82,19 @@ function useDefaultBackground() {
       : null
   );
 
-  const cloud = useResolvedBackground(computed(() => defaultBackgroundFor(isDark.value)), {
-    /** 本地壁纸盖住云端时，不必再为云端背景下载图案 / 原图 */
-    downloadFiles: computed(() => !localOnly.value),
-    localFallback: computed(() => localWallpaperRender(settings.chatWallpaper)),
-  });
+  const cloud = useResolvedBackground(
+    /**
+     * 云端默认背景优先；没到（TDLib 没推 / 只推了另一主题那一份）就回落本地缓存里
+     * 同一份 TDLib 背景对象——`color` 那个平均色画不出渐变和图案，正是
+     * 「设置页预览正常、实际聊天只剩纯色」的根因。
+     */
+    computed(() => defaultBackgroundFor(isDark.value) ?? settings.chatWallpaper?.background ?? null),
+    {
+      /** 本地壁纸盖住云端时，不必再为云端背景下载图案 / 原图 */
+      downloadFiles: computed(() => !localOnly.value),
+      localFallback: computed(() => localWallpaperRender(settings.chatWallpaper)),
+    }
+  );
 
   return { render: computed(() => localOnly.value ?? cloud.render.value) };
 }

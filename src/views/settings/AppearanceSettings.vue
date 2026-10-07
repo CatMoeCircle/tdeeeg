@@ -34,10 +34,9 @@
                     <!-- 预览：模拟消息气泡，实时反映圆角/字体/缩放 -->
                     <PreviewCard class="mb-6" :subtitle="t('appearance.previewBubbles')"
                         body-class="relative bg-[#f5f5f5] dark:bg-[#1c1c1c] p-4 flex flex-col gap-3 overflow-hidden">
-                            <div class="absolute inset-0" :style="messagePreviewBackgroundStyle"></div>
-                            <div class="absolute inset-0"
-                                :style="{ background: 'var(--app-bg-elevated, #fff)', opacity: settings.chatWallpaperOverlayOpacity / 100 }">
-                            </div>
+                            <!-- 与实际聊天同源：默认壁纸（TDLib 背景 / 本地缓存），图案与渐变一并画出 -->
+                            <ChatBackgroundLayers v-if="previewRender" :render="previewRender"
+                                :overlay-opacity="previewOverlayOpacity" :blur-px="previewBlurPx" />
                             <div class="relative z-10 flex flex-col gap-3">
                                 <!-- 他人消息：左侧完整头像 + 气泡 -->
                                 <div class="flex justify-start">
@@ -77,7 +76,7 @@
 
                     <!-- 消息显示选项 -->
                     <div
-                        class="border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-lg divide-y divide-gray-100 dark:divide-gray-800">
+                        class="border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-lg overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
                         <!-- 自定义气泡（图片皮肤） -->
                         <div class="px-4 py-3">
                             <div class="flex items-start justify-between gap-3">
@@ -644,7 +643,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, type Component } from 'vue';
-import { convertFileSrc } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useRouter } from 'vue-router';
 import {
@@ -668,6 +666,8 @@ import { folderTabContainerClass } from '../../utils/folderPillsTabClass';
 import TitleBarEmojiStatus from '../../components/common/TitleBarEmojiStatus.vue';
 import stickerPreview from '../../assets/sticker.jpg';
 import { useCustomBubbleSkin, customSkinStyle } from '../../composables/useCustomBubbleSkin';
+import { useDefaultChatBackground } from '../../composables/useChatWallpaper';
+import ChatBackgroundLayers from '../../components/chat/ChatBackgroundLayers.vue';
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 
@@ -875,25 +875,15 @@ const userName = computed(() => {
 /** 预览使用的当前用户头像 */
 const userPhoto = computed(() => userProfile.value?.profile_photo);
 
-/** 消息预览背景与实际默认对话壁纸保持一致 */
-const messagePreviewBackgroundStyle = computed<Record<string, string>>(() => {
-    const visual = settings.chatWallpaper;
-    if (!visual) {
-        return {};
-    }
-
-    const style: Record<string, string> = {
-        backgroundColor: visual.color || '#f5f5f5',
-        filter: `blur(${settings.chatWallpaperBlur}px)`,
-        transform: settings.chatWallpaperBlur > 0 ? 'scale(1.05)' : 'none',
-    };
-    if (visual.kind === 'image' && visual.path) {
-        style.backgroundImage = `url("${convertFileSrc(visual.path)}")`;
-        style.backgroundSize = 'cover';
-        style.backgroundPosition = 'center';
-    }
-    return style;
-});
+/**
+ * 消息预览背景：直接复用默认壁纸的渲染模型（与实际聊天同一份数据源），
+ * 图案 / 渐变才画得出来；遮罩与图片模糊只对「全屏显示」的壁纸生效，同样跟随。
+ */
+const { render: previewRender } = useDefaultChatBackground();
+const previewOverlayOpacity = computed(() =>
+    settings.chatWallpaperFullScreen ? settings.chatWallpaperOverlayOpacity : 0
+);
+const previewBlurPx = computed(() => (settings.chatWallpaperFullScreen ? settings.chatWallpaperBlur : 0));
 
 /** 预览中是否显示左侧未读角标（开启且未限定仅静音；预览对话视为非静音） */
 const showPreviewLeftBadge = computed(

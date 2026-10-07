@@ -1,4 +1,5 @@
 import { reactive, watch } from "vue";
+import type { background } from "tdlib-types";
 
 const SETTINGS_KEY = "tdgram-settings";
 
@@ -41,6 +42,14 @@ export interface ChatWallpaperVisual {
    * 缺省表示旧数据：旧版本的纯色与图片都会上传，按 `tg` 处理。
    */
   source?: "local" | "tg";
+  /**
+   * 该壁纸对应的 TDLib 背景对象（图案 / 渐变类必需）。
+   *
+   * `color` 只是填充的平均色，画不出渐变与图案；云端 `updateDefaultBackground`
+   * 没到（或只到了另一主题那一份）时，就靠它本地解析，保证实际聊天与设置页
+   * 预览（同一份 TDLib 背景）完全一致。
+   */
+  background?: background | null;
 }
 
 interface Settings {
@@ -385,9 +394,9 @@ const defaultSettings: Settings = {
   theme: {
     mode: "system",
     // 默认使用 Telegram 蓝（浅/深可分别配置，深色略提亮更易读）
-    brandColorLight: "#3390ec",
-    brandColorDark: "#3390ec",
-    // 空 = 使用默认背景（浅 #f5f5f5 / 深 #181818）
+    brandColorLight: "#2aabee",
+    brandColorDark: "#2aabee",
+    // 空 = 使用默认背景（浅 #f5f5f5 / 深 #1e293b）
     bgColorLight: "",
     bgColorDark: "",
     successColor: "",
@@ -477,8 +486,8 @@ try {
     if (!th.brandColorDark) th.brandColorDark = th.brandColor;
     delete th.brandColor;
   }
-  if (th && !th.brandColorLight) th.brandColorLight = "#3390ec";
-  if (th && !th.brandColorDark) th.brandColorDark = th.brandColorLight || "#3390ec";
+  if (th && !th.brandColorLight) th.brandColorLight = "#2aabee";
+  if (th && !th.brandColorDark) th.brandColorDark = th.brandColorLight || "#2aabee";
   if (th && !("bgColorLight" in th)) th.bgColorLight = "";
   if (th && !("bgColorDark" in th)) th.bgColorDark = "";
 } catch {
