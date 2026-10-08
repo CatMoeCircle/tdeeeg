@@ -26,7 +26,7 @@
                 <div class="story-layout flex flex-col items-center gap-1.5">
                     <!-- 手机框 -->
                     <div class="story-phone relative bg-black overflow-hidden shadow-2xl shrink-0" :class="phoneClass"
-                        ref="phoneRef">
+                        ref="phoneRef" @contextmenu.prevent.stop="onMoreClick">
                         <!-- 顶部进度条 -->
                         <div class="absolute top-2 left-2.5 right-2.5 z-30 flex gap-1">
                             <div v-for="(s, i) in items" :key="s.id"
@@ -217,6 +217,56 @@
                 </div>
             </div>
         </Transition>
+
+        <!-- 隐身模式（隐藏我的浏览记录）功能说明弹窗 -->
+        <Transition name="story-fade">
+            <div v-if="stealthDialogOpen"
+                class="fixed inset-0 z-9999 flex items-center justify-center bg-black/60 select-none"
+                @click.self="closeStealthDialog" @contextmenu.prevent>
+                <div ref="stealthDialogRef" tabindex="-1" role="dialog" aria-modal="true"
+                    :aria-label="t('lng_stealth_mode_title')"
+                    class="w-[330px] max-w-[90vw] rounded-2xl bg-white dark:bg-[#2a2a2a] shadow-2xl px-5 py-5 outline-none"
+                    @keydown.esc.stop.prevent="closeStealthDialog">
+                    <div class="flex items-center gap-2.5 mb-2.5">
+                        <span
+                            class="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                            <UserInvisibleIcon size="18px" />
+                        </span>
+                        <h3 class="text-[15px] font-semibold text-gray-900 dark:text-white">
+                            {{ t('lng_stealth_mode_title') }}</h3>
+                    </div>
+                    <p class="text-[13px] leading-relaxed text-gray-600 dark:text-gray-300">
+                        {{ t('lng_stealth_mode_about') }}</p>
+                    <ul class="mt-2 space-y-1">
+                        <li class="flex items-start gap-1.5 text-[13px] text-gray-600 dark:text-gray-300">
+                            <span class="text-blue-500 leading-5 shrink-0">✓</span>
+                            <span>{{ t('lng_stealth_mode_past_about') }}</span>
+                        </li>
+                        <li class="flex items-start gap-1.5 text-[13px] text-gray-600 dark:text-gray-300">
+                            <span class="text-blue-500 leading-5 shrink-0">✓</span>
+                            <span>{{ t('lng_stealth_mode_next_about') }}</span>
+                        </li>
+                    </ul>
+                    <p v-if="stealthDialogActive"
+                        class="mt-2 text-[13px] font-medium text-green-600 dark:text-green-400">
+                        {{ t('lng_stealth_mode_already_title') }}</p>
+                    <p v-else-if="!isPremium" class="mt-2 text-[13px] font-medium text-amber-600 dark:text-amber-400">
+                        {{ t('lng_stealth_mode_unlock_about') }}</p>
+                    <div class="mt-5 flex justify-end gap-2">
+                        <button type="button"
+                            class="px-3.5 h-9 rounded-lg text-[13px] text-gray-600 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                            @click="closeStealthDialog">{{ t('lng_cancel') }}</button>
+                        <button type="button" class="px-3.5 h-9 rounded-lg text-[13px] font-medium text-white transition-colors"
+                            :class="!isPremium
+                                ? 'bg-amber-500 hover:bg-amber-600'
+                                : stealthDialogActive
+                                    ? 'bg-gray-400 hover:bg-gray-500 dark:bg-white/20 dark:hover:bg-white/30'
+                                    : 'bg-blue-500 hover:bg-blue-600'"
+                            @click="onStealthConfirm">{{ stealthConfirmLabel }}</button>
+                    </div>
+                </div>
+            </div>
+        </Transition>
     </Teleport>
 </template>
 
@@ -242,12 +292,14 @@ import { markStoriesRead } from "../../store/storyRing";
 import { settings } from "../../store/settings";
 import { useAudioPlayerStore } from "../../store/audioPlayer";
 import { openContextMenu } from "../../store/contextMenu";
+import { onTdlibUpdate } from "../../store/tdlibBus";
 import type { ContextMenuItem } from "../contextMenu/types";
 import {
     CopyIcon,
     LinkIcon,
     SoundIcon,
     CloseIcon,
+    UserInvisibleIcon,
 } from "tdesign-icons-vue-next";
 import {
     XIcon,
@@ -1065,6 +1117,87 @@ function onShare() {
     MessagePlugin.info(t('story.shareHint'));
 }
 
+// ==================== 隐身模式（隐藏我的浏览记录） ====================
+
+/** 隐身模式截止时间（Unix 秒，0 = 未开启），来自 updateStoryStealthMode */
+const stealthActiveUntil = ref(0);
+const stealthDialogOpen = ref(false);
+/** 打开弹窗时的生效状态快照（弹窗期间保持不变） */
+const stealthDialogActive = ref(false);
+const stealthDialogRef = ref<HTMLElement | null>(null);
+
+const isPremium = computed(() => !!userStore.userProfile?.is_premium);
+
+/** Premium 是否可购买（TDLib 选项 is_premium_available；未知时视为 true） */
+const isPremiumAvailable = ref(true);
+void tdlibSend({ _: "getOption", name: "is_premium_available" })
+    .then((o) => {
+        if (o?._ === "optionValueBoolean") isPremiumAvailable.value = !!o.value;
+    })
+    .catch(() => { });
+
+/**
+ * 隐身模式入口显示条件（对齐 Unigram StoriesWindow.PopulateMenuFlyout）：
+ * - 发布者是私聊用户（个人账号，非频道/超级群）
+ * - 不是自己发布的动态
+ * - 当前用户是 Premium 或 Premium 仍可购买
+ */
+const stealthMenuVisible = computed(() => {
+    if (posterChat.value?.type?._ !== "chatTypePrivate") return false;
+    if (isMyStory.value) return false;
+    return isPremium.value || isPremiumAvailable.value;
+});
+
+function isStealthActive(): boolean {
+    return stealthActiveUntil.value > Math.floor(Date.now() / 1000);
+}
+
+/** TDLib 隐身模式状态更新（稀有 update，走 tdlib-other 通道） */
+const offStealthUpdate = onTdlibUpdate("other", (u) => {
+    if (u._ !== "updateStoryStealthMode") return;
+    stealthActiveUntil.value = Number(u.active_until_date) || 0;
+});
+
+const stealthConfirmLabel = computed(() => {
+    if (!isPremium.value) return t("lng_stealth_mode_unlock");
+    if (stealthDialogActive.value) return t("lng_box_ok");
+    return t("lng_stealth_mode_enable");
+});
+
+function openStealthDialog() {
+    stealthDialogActive.value = isStealthActive();
+    stealthDialogOpen.value = true;
+    void nextTick(() => stealthDialogRef.value?.focus());
+}
+
+function closeStealthDialog() {
+    stealthDialogOpen.value = false;
+    rootRef.value?.focus();
+}
+
+async function onStealthConfirm() {
+    // 非会员：按钮为原版「Unlock Stealth Mode」，点击提示需要订阅
+    if (!isPremium.value) {
+        MessagePlugin.warning(t("lng_stealth_mode_unlock_about"));
+        closeStealthDialog();
+        return;
+    }
+    // 已在隐身中：仅确认关闭
+    if (stealthDialogActive.value) {
+        closeStealthDialog();
+        return;
+    }
+    try {
+        await tdlibSend({ _: "activateStoryStealthMode" });
+        // 服务端 updateStoryStealthMode 随后兜底，这里先乐观更新（官方窗口 25 分钟）
+        stealthActiveUntil.value = Math.floor(Date.now() / 1000) + 1500;
+        MessagePlugin.success(t("lng_stealth_mode_enabled_tip_title"));
+    } catch (e: any) {
+        MessagePlugin.error(e?.message || t("context.actionFailed"));
+    }
+    closeStealthDialog();
+}
+
 function onViewsClick() {
     const st = current.value;
     if (!st) return;
@@ -1126,13 +1259,25 @@ function onMoreClick(e: MouseEvent) {
             // 照片故事无静音；动画视频不可切换声音
             disabled: currentKind.value !== "video" || isAnimationVideo.value,
         },
-        {
-            key: "close",
-            label: t('lng_close'),
-            icon: CloseIcon,
-            onClick: close,
-        },
     ];
+    // 隐身模式入口：对齐 Unigram，仅私聊用户的非本人动态且 Premium 可用时显示
+    if (stealthMenuVisible.value) {
+        itemsMenu[itemsMenu.length - 1].divider = true;
+        itemsMenu.push({
+            key: "stealth",
+            label: t('lng_stealth_mode_menu_item'),
+            icon: UserInvisibleIcon,
+            checked: isStealthActive(),
+            onClick: openStealthDialog,
+            divider: true,
+        });
+    }
+    itemsMenu.push({
+        key: "close",
+        label: t('lng_close'),
+        icon: CloseIcon,
+        onClick: close,
+    });
     openContextMenu(e.clientX, e.clientY, itemsMenu, e.target as HTMLElement);
 }
 
@@ -1249,6 +1394,7 @@ watch(
 );
 
 onBeforeUnmount(() => {
+    offStealthUpdate();
     stopPhotoTimer();
     if (holdTimer !== null) window.clearTimeout(holdTimer);
     document.body.style.overflow = "";
