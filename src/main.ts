@@ -21,6 +21,7 @@ import { useLanguageStore } from "./store/language";
 import { initTlottie } from "./utils/tlottiePreload";
 import { installCrashGuard, showBootstrapFailure } from "./utils/crashGuard";
 import { applyTdlibSystemParams } from "./utils/tdlibParams";
+import { initStoryRing } from "./store/storyRing";
 
 // 尽早安装全局错误/白屏诊断（不依赖 Vue mount）
 installCrashGuard();
@@ -174,6 +175,8 @@ async function bootstrap() {
             } catch (e) {
                 console.warn("[bootstrap] re-apply language failed:", e);
             }
+            // 动态（Story）圆环状态：注册 updateChatActiveStories 监听并播种活跃动态
+            void initStoryRing();
         }
 
         // 预注册加载指示器样式（ldrs 自定义元素）。

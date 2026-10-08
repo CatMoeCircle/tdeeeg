@@ -290,6 +290,42 @@ export function accentAvatarBackground(profileAccentColorId: number): string {
     return `linear-gradient(${rgbToCss(from)}, ${rgbToCss(to)})`;
 }
 
+// ============================================================================
+// 动态（Story）圆环渐变 — 与 Unigram ActiveStoriesSegments 同源
+// ============================================================================
+
+/** 未读动态圆环：绿 → 蓝（Unigram _storyUnreadTop/BottomColor） */
+const STORY_UNREAD_GRADIENT = "linear-gradient(#34C76F, #3DA1FD)";
+/** 已读动态圆环：半透明灰（Unigram _storyDefaultColor，alpha 77/255） */
+const STORY_READ_GRADIENT = "linear-gradient(rgba(128,128,128,0.30), rgba(128,128,128,0.30))";
+/** 直播动态圆环：红色（Unigram _storyLiveColor） */
+const STORY_LIVE_GRADIENT = "linear-gradient(#FF2C55, #FF2C55)";
+
+/**
+ * 动态圆环渐变。
+ * accentColorId 提供时使用该主题的 story_colors（TDLib accentColor.story_colors），
+ * 否则回退到 Telegram 官方默认色。
+ */
+export function storyRingGradient(accentColorId?: number): string {
+    // story_colors 由 TDLib 在 accentColor 上提供（部分版本类型定义未收录，故按可选字段读取）
+    const entry = typeof accentColorId === "number" ? accentColors.get(accentColorId) : undefined;
+    const story = (entry as { story_colors?: number[] } | undefined)?.story_colors;
+    if (Array.isArray(story) && story.length >= 2) {
+        return `linear-gradient(${rgbToCss(intToRgb(story[0]))}, ${rgbToCss(intToRgb(story[1]))})`;
+    }
+    return STORY_UNREAD_GRADIENT;
+}
+
+export const storyReadGradient = STORY_READ_GRADIENT;
+export const storyLiveGradient = STORY_LIVE_GRADIENT;
+
+/** 根据阅读状态取圆环渐变 */
+export function storyRingGradientFor(unread: boolean, live: boolean, accentColorId?: number): string {
+    if (live) return STORY_LIVE_GRADIENT;
+    if (!unread) return STORY_READ_GRADIENT;
+    return storyRingGradient(accentColorId);
+}
+
 export const isDark = themeIsDark;
 
 export function watchSystemColorScheme(): () => void {
@@ -304,5 +340,6 @@ export function useColors() {
         availableIds, profileAvailableIds,
         accentColorStyle, accentAvatarBackground, accentTextColor,
         intToCss, rgbToCss, rgbToHex,
+        storyRingGradient, storyRingGradientFor,
     };
 }

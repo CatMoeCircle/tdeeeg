@@ -128,6 +128,8 @@ declare module 'vue' {
     StickerMediaItem: typeof import('./components/chat/ChatDetail/stickerPanel/StickerMediaItem.vue')['default']
     StickerPanel: typeof import('./components/chat/ChatDetail/stickerPanel/StickerPanel.vue')['default']
     StickerSetItem: typeof import('./components/chat/ChatDetail/stickerPanel/StickerSetItem.vue')['default']
+    StoryRing: typeof import('./components/story/StoryRing.vue')['default']
+    StoryRingStack: typeof import('./components/story/StoryRingStack.vue')['default']
     StoryViewer: typeof import('./components/story/StoryViewer.vue')['default']
     TButton: typeof import('tdesign-vue-next')['Button']
     TgsPlayer: typeof import('./components/common/TgsPlayer.vue')['default']

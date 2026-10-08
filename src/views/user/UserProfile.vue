@@ -14,10 +14,18 @@
 
           <!-- 用户模式头像/昵称/状态 -->
           <div v-if="!chatMode" class="flex flex-col items-center pt-10 pb-3 px-4 text-gray-900 dark:text-gray-100">
-            <!-- 头像 -->
+            <!-- 头像（有动态时外圈渐变描边，看过后变灰；点击打开动态播放器） -->
             <button type="button" class="relative rounded-full focus:outline-none"
-              :title="t('lng_action_suggested_photo_button')" @click="openPhotoViewer(0)">
-              <span class="block rounded-full">
+              :title="t('lng_action_suggested_photo_button')" @click="openHeaderPhoto">
+              <StoryRing v-if="userStory" :user-id="userId" :size="96" :diameter="96" class="inline-flex shrink-0">
+                <div v-if="headerPhotoUrl" class="w-full h-full rounded-full overflow-hidden">
+                  <img :src="headerPhotoUrl" class="w-full h-full object-cover" />
+                </div>
+                <Avatar v-else :photo="isDeletedProfile ? undefined : displayPhoto" :title="userName"
+                  :accentColorId="isDeletedProfile ? undefined : user?.profile_accent_color_id"
+                  :deletedAccount="isDeletedProfile" no-background />
+              </StoryRing>
+              <span v-else class="block rounded-full">
                 <div v-if="headerPhotoUrl" class="w-24 h-24 rounded-full overflow-hidden">
                   <img :src="headerPhotoUrl" class="w-full h-full object-cover" />
                 </div>
@@ -122,13 +130,20 @@
 
           <!-- 频道/群组/秘密聊天模式头像/名称 -->
           <div v-else-if="chatObj" class="flex flex-col items-center pt-10 pb-3 px-4 text-gray-900 dark:text-gray-100">
-            <!-- 头像：秘密聊天显示用户头像，其他显示聊天头像 -->
-            <div class="w-24 h-24 rounded-full overflow-hidden">
-              <Avatar v-if="isSecretChat && secretChatUser" :photo="secretChatUser.profile_photo"
+            <!-- 头像：秘密聊天显示用户头像，其他显示聊天头像（带动态渐变圆环） -->
+            <div class="w-24 h-24">
+              <StoryRing v-if="isSecretChat && secretChatUser" :user-id="secretChatUser.id" :size="96"
+                :diameter="96" class="inline-flex shrink-0">
+                <Avatar :photo="secretChatUser.profile_photo"
+                  :title="`${secretChatUser.first_name} ${secretChatUser.last_name}`"
+                  :accentColorId="secretChatUser.profile_accent_color_id" no-background />
+              </StoryRing>
+              <Avatar v-else-if="isSecretChat && secretChatUser" :photo="secretChatUser.profile_photo"
                 :title="`${secretChatUser.first_name} ${secretChatUser.last_name}`"
                 :accentColorId="secretChatUser.profile_accent_color_id" sizeClass="!w-24 !h-24" no-background />
-              <Avatar v-else :photo="chatPhotoInfo" :title="chatTitle" :accentColorId="chatAccentColorId"
-                sizeClass="!w-24 !h-24" no-background />
+              <StoryRing v-else :chat-id="chatObj.id" :size="96" :diameter="96" class="inline-flex shrink-0">
+                <Avatar :photo="chatPhotoInfo" :title="chatTitle" :accentColorId="chatAccentColorId" no-background />
+              </StoryRing>
             </div>
 
             <!-- 名称：从左到右 = 认证/诈骗/虚假/自定义标识 → 官方群组标识 -->
@@ -1153,7 +1168,9 @@ import { confirmAndOpenExternalLink } from "../../utils/openExternalLink";
 import formatStatus from "../../utils/status";
 import { downloadFileUrl, listAlbumCoverFiles } from "../../utils/profileMedia";
 import { fetchItunesCoverForAudio } from "../../utils/itunesCover";
+import StoryRing from "../../components/story/StoryRing.vue";
 import { openStoryViewer } from "../../store/storyViewer";
+import { ensureUserStories, getUserStoryState, openChatStories } from "../../store/storyRing";
 import { formatBusinessHours } from "../../utils/businessHours";
 import { tdlibSend } from "../../utils/tdlib";
 
@@ -2662,6 +2679,18 @@ function openStory(s: story) {
   openStoryViewer(list, idx);
 }
 
+/** 头部头像是否有活跃动态（有则画渐变圆环，点击优先打开动态） */
+const userStory = computed(() => (chatMode.value ? null : getUserStoryState(userId.value)));
+
+/** 头部头像点击：有动态先看动态，否则打开照片查看器 */
+function openHeaderPhoto() {
+  if (userStory.value) {
+    void openChatStories(undefined, 0, userId.value);
+    return;
+  }
+  openPhotoViewer(0);
+}
+
 // ===== 数据加载 =====
 async function loadData() {
   // 频道/群组资料模式：加载聊天数据
@@ -2679,6 +2708,7 @@ async function loadData() {
     loadPhoneInfo(),
     loadChannelInfo(),
     refreshPrivateChatMuted(),
+    ensureUserStories(userId.value),
     ...commonGroupsList.value.map((id) => ensureChat(id).catch(() => { })),
   ]);
   // 获取共享媒体计数（用户模式下需要私聊 chat id）

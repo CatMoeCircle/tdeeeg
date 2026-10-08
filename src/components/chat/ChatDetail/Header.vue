@@ -34,8 +34,11 @@
                             <BookmarkIcon class="w-5 h-5 fill-current" />
                         </div>
                     </template>
-                    <Avatar v-else :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" :square="isForumChat"
-                        :accentColorId="headerAccentColorId" :deletedAccount="isDeletedChat(props.chat as any)" />
+                    <StoryRing v-else :chat-id="chat.id" :size="40" :diameter="40"
+                        :radius-percent="isForumChat ? 0 : undefined">
+                        <Avatar :photo="chat.photo" :title="chat.title" :square="isForumChat"
+                            :accentColorId="headerAccentColorId" :deletedAccount="isDeletedChat(props.chat as any)" />
+                    </StoryRing>
                     <div class="flex flex-col min-w-0">
                         <h2
                             class="flex items-center font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight truncate">
@@ -105,6 +108,7 @@ import { useConnectionStore } from '../../../store/connectionState';
 import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../../utils/savedMessages';
 import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
 import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
+import StoryRing from '../../story/StoryRing.vue';
 import { getChatProfileAccentColorId, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
 import { updateActiveChatTitleBar, clearActiveChatTitleBar } from '../../../store/activeChatTitleBar';
 import { onTdlibUpdates } from '../../../store/tdlibBus';

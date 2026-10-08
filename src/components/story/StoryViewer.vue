@@ -238,6 +238,7 @@ import {
     closeStoryViewer,
     isStoryViewerActive,
 } from "../../store/storyViewer";
+import { markStoriesRead } from "../../store/storyRing";
 import { settings } from "../../store/settings";
 import { useAudioPlayerStore } from "../../store/audioPlayer";
 import { openContextMenu } from "../../store/contextMenu";
@@ -962,6 +963,8 @@ async function markOpened(st: story) {
         });
         openStoryId = st.id;
         localViewBump.value = true;
+        // 圆环即时反馈：该对话的动态全部看过后变灰（服务端 update 随后兜底）
+        markStoriesRead(st.poster_chat_id, [st.id]);
     } catch {
         /* ignore */
     }

@@ -107,10 +107,13 @@
                                             :style="{ borderRadius: avatarRadius + '%' }">
                                             <BookmarkIcon class="w-7 h-7 fill-current" />
                                         </div>
-                                        <Avatar v-else :photo="chat.photo" :title="chat.title" sizeClass="!w-12 !h-12"
-                                            :radius="chatAvatarRadius(chat)"
-                                            :accentColorId="getChatProfileAccentColorId(chat)"
-                                            :deletedAccount="isDeletedChat(chat)" />
+                                        <StoryRing v-else :chat-id="chat.id" :size="48" :diameter="48"
+                                            :radius-percent="storyRingRadiusPercent(chat)">
+                                            <Avatar :photo="chat.photo" :title="chat.title"
+                                                :radius="chatAvatarRadius(chat)"
+                                                :accentColorId="getChatProfileAccentColorId(chat)"
+                                                :deletedAccount="isDeletedChat(chat)" />
+                                        </StoryRing>
                                         <!-- 未读角标：显示在头像右下角（静音对话灰显） -->
                                         <span v-if="chat.unread_count > 0"
                                             class="absolute -bottom-0.5 -right-0.5 min-w-4.5 h-4.5 px-1 rounded-full text-white text-[10px] font-bold leading-4.5 text-center border-2 border-white"
@@ -175,10 +178,13 @@
                                                     :style="{ borderRadius: avatarRadius + '%' }">
                                                     <BookmarkIcon class="w-7 h-7 fill-current" />
                                                 </div>
-                                                <Avatar v-else :photo="chat.photo" :title="chat.title"
-                                                    :radius="chatAvatarRadius(chat)"
-                                                    :accentColorId="getChatProfileAccentColorId(chat)"
-                                                    :deletedAccount="isDeletedChat(chat)" />
+                                                <StoryRing v-else :chat-id="chat.id" :size="48" :diameter="48"
+                                                    :radius-percent="storyRingRadiusPercent(chat)">
+                                                    <Avatar :photo="chat.photo" :title="chat.title"
+                                                        :radius="chatAvatarRadius(chat)"
+                                                        :accentColorId="getChatProfileAccentColorId(chat)"
+                                                        :deletedAccount="isDeletedChat(chat)" />
+                                                </StoryRing>
                                             </div>
                                             <div class="flex-1 min-w-0">
                                                 <div class="flex justify-between items-baseline mb-1">
@@ -430,6 +436,7 @@ import { showCopyJsonInMenus } from '../../store/debug';
 import { copyTdlibJson } from '../contextMenu/copyJsonActions';
 import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../utils/savedMessages';
 import Avatar from './avatar.vue';
+import StoryRing from '../story/StoryRing.vue';
 import type { message, forumTopic, forumTopics, formattedText } from 'tdlib-types';
 import { tdlibSend } from '../../utils/tdlib';
 import type { ContextMenuItem } from '../contextMenu/types';
@@ -1182,6 +1189,12 @@ const chatAvatarRadius = (chat: Chat) =>
     isForumChat(chat) && settings.chatList.forumAvatarFollowsRadius === false
         ? FORUM_SQUARE_RADIUS
         : avatarRadius.value;
+
+/**
+ * 动态圆环圆角：直接沿用头像的圆角百分比（Avatar 的 radius 除以 2 才是 border-radius%），
+ * 保证环与头像同心、空隙均匀。
+ */
+const storyRingRadiusPercent = (chat: Chat): number => chatAvatarRadius(chat) / 2;
 
 /** 是否在消息预览左侧显示未读角标（badgeOnLeft，且可选仅对静音对话生效） */
 const showLeftBadge = (chat: Chat) => {
