@@ -543,6 +543,7 @@
     "defaultDesc": "When a chat has no custom background, new chats use this wallpaper.",
     "previewIncoming": "Chat wallpaper preview",
     "previewOutgoing": "Looks good",
+    "previewApplyFailed": "Failed to apply the wallpaper",
     "resetDefault": "Reset",
     "overlay": "Overlay",
     "overlayDesc": "Reduces wallpaper interference with messages and UI",
@@ -1310,6 +1311,7 @@
   },
   "service": {
     "someone": "Someone",
+    "setSameWallpaper": "{user} set the same wallpaper for you in this chat",
     "memberLeft": "A member left the group",
     "topicEdited": "Topic info updated",
     "videoCall": "Video call",

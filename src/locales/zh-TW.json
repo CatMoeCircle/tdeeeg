@@ -543,6 +543,7 @@
     "defaultDesc": "沒有單獨設定聊天背景時，新對話會使用這裡的壁紙。",
     "previewIncoming": "對話壁紙預覽",
     "previewOutgoing": "看起來不錯",
+    "previewApplyFailed": "套用桌布失敗",
     "resetDefault": "恢復預設",
     "overlay": "遮罩",
     "overlayDesc": "降低壁紙對訊息和介面的干擾",
@@ -1310,6 +1311,7 @@
   },
   "service": {
     "someone": "有人",
+    "setSameWallpaper": "{user} 已在此聊天中為您設定與其相同的壁紙",
     "memberLeft": "有成員離開了群組",
     "topicEdited": "主題資訊已更新",
     "videoCall": "視訊通話",

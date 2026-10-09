@@ -144,5 +144,6 @@ declare module 'vue' {
     TwoFactorDialog: typeof import('./components/settings/TwoFactorDialog.vue')['default']
     UsernameDialog: typeof import('./components/settings/UsernameDialog.vue')['default']
     UsernameMenu: typeof import('./components/contextMenu/UsernameMenu.vue')['default']
+    WallpaperPreviewDialog: typeof import('./components/chat/WallpaperPreviewDialog.vue')['default']
   }
 }
