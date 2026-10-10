@@ -550,6 +550,7 @@
     "defaultDesc": "没有单独设置聊天背景时，新对话会使用这里的壁纸。",
     "previewIncoming": "对话壁纸预览",
     "previewOutgoing": "看起来不错",
+    "previewApplyFailed": "应用壁纸失败",
     "resetDefault": "恢复默认",
     "overlay": "遮罩",
     "overlayDesc": "降低壁纸对消息和界面的干扰",
@@ -1317,6 +1318,7 @@
   },
   "service": {
     "someone": "有人",
+    "setSameWallpaper": "{user} 在此聊天中已为您设置与其相同的壁纸",
     "memberLeft": "有成员离开了群组",
     "topicEdited": "主题信息已更新",
     "videoCall": "视频通话",

@@ -1,8 +1,31 @@
 <template>
     <div class="text-center py-1" :class="clickable ? 'cursor-pointer' : ''" @click="onClick">
-        <span class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full">
+        <!-- 设置新壁纸（messageChatSetBackground）：正方形磨砂卡片，内含圆形壁纸预览、文案与查看按钮 -->
+        <div v-if="wallpaperContent"
+            class="mx-auto flex aspect-square w-52 max-w-full flex-col items-center justify-center gap-2 rounded-2xl bg-white/40 px-4 py-4 shadow-sm backdrop-blur-md dark:bg-black/20">
+            <div class="h-24 w-24 shrink-0 overflow-hidden rounded-full bg-gray-200/70 dark:bg-gray-700/70">
+                <img v-if="wallpaperThumbSrc" :src="wallpaperThumbSrc" alt="" class="h-full w-full object-cover" />
+            </div>
+            <span class="text-xs text-gray-600 dark:text-gray-300">
+                {{ serviceText }}
+            </span>
+            <!-- 只有对方设置的壁纸才提供预览入口；自己设的壁纸不显示按钮 -->
+            <button v-if="!isSelf" type="button"
+                class="rounded-full bg-white/50 px-4 py-1 text-xs font-medium text-gray-900 backdrop-blur-sm dark:bg-white/15 dark:text-white"
+                @click="wallpaperPreviewOpen = true">
+                {{ t('lng_action_set_wallpaper_button') }}
+            </button>
+        </div>
+
+        <span v-else
+            class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full">
             {{ serviceText }}
         </span>
+
+        <!-- 壁纸预览弹窗（点击卡片里的查看按钮打开） -->
+        <WallpaperPreviewDialog :open="wallpaperPreviewOpen" :wallpaper="wallpaperContent?.background ?? null"
+            :user-name="otherUserName" :chat-id="chatId" :message-id="messageId"
+            @close="wallpaperPreviewOpen = false" />
     </div>
 </template>
 
@@ -10,9 +33,12 @@
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, watch, ref } from 'vue';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import type { MessageContent, message } from 'tdlib-types';
-import { tdlibSend } from '../../../../../utils/tdlib';
+import { ensureLocalFilePath, tdlibSend } from '../../../../../utils/tdlib';
 import { ensureUser, getUserDisplayName } from '../../../../../utils/senderInfo';
+import { useChatStore } from '../../../../../store/chat';
+import WallpaperPreviewDialog from '../../../WallpaperPreviewDialog.vue';
 
 const props = defineProps<{
     content: MessageContent;
@@ -20,10 +46,14 @@ const props = defineProps<{
     senderName?: string;
     /** 服务消息发送者（操作者）的用户 id，用于判断成员是否为自行退出 */
     senderUserId?: number;
+    /** 是否为自己发送（设置壁纸提示区分「你 / 对方」文案） */
+    isSelf?: boolean;
     /** 当前消息列表（用于按 checklist_message_id 查找清单消息，展示任务文本） */
     messageList?: message[];
     /** 对话 id（置顶提示需按 message_id 拉取被置顶消息以判断其类型） */
     chatId?: number;
+    /** 本条服务消息 id（壁纸预览沿用消息里的背景需要） */
+    messageId?: number;
 }>();
 
 const emit = defineEmits<{
@@ -32,6 +62,65 @@ const emit = defineEmits<{
 
 /** 发送者名称（未解析到时兜底） */
 const sender = computed(() => props.senderName?.trim() || t('service.someone'));
+
+/**
+ * 需要按卡片渲染的「设置新壁纸」消息。
+ * old_background_message_id > 0 表示设的是与对方相同的壁纸，属普通提示行，不出卡片。
+ */
+const wallpaperContent = computed(() => {
+    const c = props.content;
+    if (c._ !== 'messageChatSetBackground') return null;
+    return c.old_background_message_id > 0 ? null : c;
+});
+
+/** 已下载就绪的壁纸缩略图 / 原图（asset 地址），未就绪时为空 */
+const wallpaperFileSrc = ref('');
+
+/** 壁纸预览弹窗开关 */
+const wallpaperPreviewOpen = ref(false);
+
+const chatStore = useChatStore();
+
+/**
+ * 弹窗里的 {user} 取「对话对方」：对方设的壁纸发送者就是对方，
+ * 自己设的壁纸取对话标题（私聊即对方名称），拿不到再退回发送者名。
+ */
+const otherUserName = computed(() => {
+    if (!props.isSelf) return sender.value;
+    const title = props.chatId != null ? chatStore.chats[props.chatId]?.title?.trim() : '';
+    return title || sender.value;
+});
+
+/** 内嵌 minithumbnail（base64，无需下载），作为缩略图就绪前的占位 */
+const wallpaperMiniSrc = computed(() => {
+    const data = wallpaperContent.value?.background.background.document?.minithumbnail?.data;
+    return data ? `data:image/jpeg;base64,${data}` : '';
+});
+
+/** 卡片内圆形预览图：就绪的缩略图 / 原图优先，否则内嵌 minithumbnail */
+const wallpaperThumbSrc = computed(() => wallpaperFileSrc.value || wallpaperMiniSrc.value);
+
+/**
+ * 取壁纸预览文件：缩略图（尺寸足够圆形预览，体积小）优先，
+ * 文档为图片时才退到原图；两者都拿不到就用 minithumbnail 垫底。
+ */
+watch(
+    () => props.content,
+    async (c) => {
+        wallpaperFileSrc.value = '';
+        if (c._ !== 'messageChatSetBackground' || c.old_background_message_id > 0) return;
+        const document = c.background.background.document;
+        if (!document) return;
+        const path =
+            (await ensureLocalFilePath(document.thumbnail?.file)) ??
+            ((document.mime_type ?? '').startsWith('image/')
+                ? await ensureLocalFilePath(document.document)
+                : null);
+        // 期间消息已切换则丢弃结果
+        if (path && props.content === c) wallpaperFileSrc.value = convertFileSrc(path);
+    },
+    { immediate: true },
+);
 
 /**
  * 涉及的成员可能尚未缓存（离开的成员还会因退群而从在线列表消失），主动发 getUser 拉取；
@@ -261,6 +350,18 @@ const serviceText = computed(() => {
             return t('lng_action_group_migrate');
         case 'messagePinMessage':
             return pinText.value;
+        case 'messageChatSetBackground':
+            // 同一张壁纸（old_background_message_id > 0）是独立提示行；设置新壁纸走上方卡片。
+            // 对方设的这条官方包只有 lng_action_set_same_wallpaper（"{user} set the same wallpaper
+            // for this chat"，中文「{user} 已为聊天设置相同的壁纸」），缺少「为您设置」这层语义，
+            // 故用 app 自有词条（见 locales 的 service.setSameWallpaper）。
+            return c.old_background_message_id > 0
+                ? props.isSelf
+                    ? t('lng_action_set_same_wallpaper_me')
+                    : t('service.setSameWallpaper', { user: sender.value })
+                : props.isSelf
+                    ? t('lng_action_set_wallpaper_me')
+                    : t('lng_action_set_wallpaper', { user: sender.value });
         case 'messageScreenshotTaken':
             return t('lng_action_took_screenshot', { from: sender.value });
         case 'messageChatSetMessageAutoDeleteTime':

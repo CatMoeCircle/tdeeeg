@@ -172,7 +172,8 @@
                                 </div>
                                 <MessageContent :content="item.msg.content" :date="item.msg.date"
                                     :senderName="getServiceSenderName(item.msg)"
-                                    :senderUserId="senderUserIdOf(item.msg)" :messageList="messages" :chatId="chatId"
+                                    :senderUserId="senderUserIdOf(item.msg)" :isSelf="isOutgoingMsg(item.msg)"
+                                    :messageList="messages" :chatId="chatId" :messageId="item.msg.id"
                                     @jumpToMessage="handleReplyJumpToMessage" />
                             </div>
                             <div v-else class="flex" :class="[
@@ -2746,6 +2747,18 @@ const handleUpdate = async (update: Update) => {
             if (typeof update.chat_id === 'number' && chats.value[update.chat_id]) {
                 chats.value[update.chat_id].accent_color_id = update.accent_color_id;
                 chats.value[update.chat_id].profile_accent_color_id = update.profile_accent_color_id;
+            }
+            break;
+        }
+        case 'updateChatBackground': {
+            // 换壁纸（自己应用 / 对方设置 / 其他设备）：useChatWallpaper 读的就是 chat.background，
+            // 不在这里同步的话界面会一直用旧壁纸，直到重新打开对话。
+            // background 缺省表示已重置为默认背景。
+            if (update.chat_id === chatId.value && chat.value) {
+                chat.value.background = update.background;
+            }
+            if (typeof update.chat_id === 'number' && chats.value[update.chat_id]) {
+                chats.value[update.chat_id].background = update.background;
             }
             break;
         }
