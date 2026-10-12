@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -524,6 +524,12 @@ pub struct DownloadStore {
     accounts: HashMap<i64, AccountDownloadData>,
     /// 旧全局 json 是否已迁移到某个账户
     legacy_migrated: bool,
+    /// 有内存改动但还没落盘的账户。
+    ///
+    /// 高频进度（updateFile 每几十毫秒一条）只改内存并在这里记账，
+    /// 由 `flush_dirty` 合并成一次写盘；状态变化（完成/暂停/取消/登记）
+    /// 仍走 `save_now` 立即落盘，保证崩溃时不丢最终态。
+    dirty: HashSet<i64>,
 }
 
 #[allow(dead_code)]
@@ -534,6 +540,7 @@ impl DownloadStore {
             active_account,
             accounts: HashMap::new(),
             legacy_migrated: false,
+            dirty: HashSet::new(),
         };
         store.ensure_loaded(store.active_account);
         store
@@ -592,11 +599,36 @@ impl DownloadStore {
         self.data_mut(account_id)
     }
 
-    fn save(&mut self, account_id: i64) {
+    /// 立即写盘：登记 / 完成 / 暂停 / 取消 等低频但重要的状态变化。
+    fn save_now(&mut self, account_id: i64) {
         let path = self.path_for(account_id);
         if let Some(d) = self.accounts.get(&account_id) {
             d.save_to_path(&path);
         }
+        self.dirty.remove(&account_id);
+    }
+
+    /// 只记账不写盘（高频进度）：真正的写盘由 `flush_dirty` 合并完成。
+    fn mark_dirty(&mut self, account_id: i64) {
+        self.dirty.insert(account_id);
+    }
+
+    /// 把记过账的账户各写一份最新快照，返回实际写盘的账户数。
+    ///
+    /// 由持久化线程按 `DOWNLOADS_FLUSH_INTERVAL_MS` 调用；调用方只需短暂持有
+    /// store 锁，且每个账户每轮最多一次完整序列化。
+    pub fn flush_dirty(&mut self) -> usize {
+        if self.dirty.is_empty() {
+            return 0;
+        }
+        let accounts: Vec<i64> = self.dirty.drain().collect();
+        for acct in &accounts {
+            let path = self.path_for(*acct);
+            if let Some(d) = self.accounts.get(acct) {
+                d.save_to_path(&path);
+            }
+        }
+        accounts.len()
     }
 
     // ==================== 查询 ====================
@@ -782,7 +814,7 @@ impl DownloadStore {
         self.data_mut(acct)
             .session_map
             .insert(session_file_id, use_key.clone());
-        self.save(acct);
+        self.save_now(acct);
         use_key
     }
 
@@ -1038,7 +1070,8 @@ impl DownloadStore {
                 }
             }
         }
-        self.save(acct);
+        // 纯进度：只改内存 + 记账，由持久化线程合并写盘（见 flush_dirty）
+        self.mark_dirty(acct);
     }
 
     pub fn set_paused(&mut self, account_id: Option<i64>, id: &str, paused: bool) -> bool {
@@ -1047,7 +1080,7 @@ impl DownloadStore {
         let d = self.data_mut(acct);
         if let Some(item) = d.items.get_mut(&key) {
             item.is_paused = paused;
-            self.save(acct);
+            self.save_now(acct);
             true
         } else {
             false
@@ -1116,7 +1149,7 @@ impl DownloadStore {
                 item.message_id = message_id;
             }
             let snapshot = item.clone();
-            self.save(acct);
+            self.save_now(acct);
             return Some(snapshot);
         }
 
@@ -1154,7 +1187,7 @@ impl DownloadStore {
         let snapshot = Some(item.clone());
         d.items.insert(key.clone(), item);
         d.session_map.insert(session_file_id, key);
-        self.save(acct);
+        self.save_now(acct);
         snapshot
     }
 
@@ -1188,7 +1221,7 @@ impl DownloadStore {
             }
         }
         let snapshot = item.clone();
-        self.save(acct);
+        self.save_now(acct);
         Some(snapshot)
     }
 
@@ -1198,7 +1231,7 @@ impl DownloadStore {
         let d = self.data_mut(acct);
         if let Some(item) = d.items.get_mut(&key) {
             item.dismissed = true;
-            self.save(acct);
+            self.save_now(acct);
             true
         } else {
             false
@@ -1210,7 +1243,7 @@ impl DownloadStore {
         self.data_mut(acct)
             .items
             .retain(|_, item| !item.is_completed && !item.dismissed);
-        self.save(acct);
+        self.save_now(acct);
     }
 
     pub fn get_show_hidden(&self) -> bool {
@@ -1223,7 +1256,7 @@ impl DownloadStore {
     pub fn set_show_hidden(&mut self, value: bool) {
         let acct = self.active_account;
         self.data_mut(acct).show_hidden = value;
-        self.save(acct);
+        self.save_now(acct);
     }
 
     pub fn get_show_auto_photos(&self) -> bool {
@@ -1236,7 +1269,7 @@ impl DownloadStore {
     pub fn set_show_auto_photos(&mut self, value: bool) {
         let acct = self.active_account;
         self.data_mut(acct).show_auto_photos = value;
-        self.save(acct);
+        self.save_now(acct);
     }
 
     // ==================== 上传（仅内存，按账户隔离） ====================
@@ -1613,5 +1646,35 @@ mod tests {
         );
         assert_eq!(derive_item_key(None, Some("REMOTE"), 5), "REMOTE");
         assert_eq!(derive_item_key(Some(""), Some(""), 5), "session:5");
+    }
+
+    /// 高频进度不写盘：只记账，flush 时合并成一次完整快照
+    #[test]
+    fn progress_updates_are_deferred_until_flush() {
+        let dir = temp_dir("deferred");
+        let account = 3;
+        let mut store = DownloadStore::new(dir.clone(), account);
+        let path = account_downloads_json(&dir, account);
+
+        store.update_progress(Some(account), "session:5", 10, 100, true, false, None);
+        assert!(!path.exists(), "纯进度更新不应立即写盘");
+
+        assert_eq!(store.flush_dirty(), 1, "记账的账户应被写盘");
+        let data: PersistedData =
+            serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(data.items["session:5"].downloaded_size, 10);
+
+        store.update_progress(Some(account), "session:5", 50, 100, true, false, None);
+        let data: PersistedData =
+            serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(data.items["session:5"].downloaded_size, 10, "合并窗口内不写盘");
+
+        store.flush_dirty();
+        let data: PersistedData =
+            serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(data.items["session:5"].downloaded_size, 50);
+
+        assert_eq!(store.flush_dirty(), 0, "没有新改动时不该重复写盘");
+        let _ = fs::remove_dir_all(&dir);
     }
 }

@@ -497,10 +497,8 @@ export const useDownloadStore = defineStore("downloads", () => {
     const hasHiddenAutoPhotos = computed(() => hiddenStats.value.autoPhotos > 0);
 
     let unlistenProgress: (() => void) | null = null;
-    let unlistenOther: (() => void) | null = null;
     let unlistenAuth: (() => void) | null = null;
     let unlistenStats: (() => void) | null = null;
-    let unlistenFile: (() => void) | null = null;
     let tdlibListLoaded = false;
     let pendingUpdates = new Map<string, DownloadItem>();
     let throttleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -890,120 +888,6 @@ export const useDownloadStore = defineStore("downloads", () => {
             downloaded_size: num("downloaded_size"),
         };
     }
-
-    /**
-     * 处理 `file` 通道上的原始 updateFile（tdlib-update-file）。
-     * Rust 端 handle_update_file 会再推 download-progress-update，但键不匹配时
-     * 会静默丢进度；这里直接吃 updateFile 兜底，保证下载管理器/气泡不丢事件。
-     */
-    function applyUpdateFile(file: Record<string, unknown> | undefined) {
-        if (!file || typeof file.id !== "number") return;
-        const fileId = file.id;
-        const remote = file.remote as { id?: string; unique_id?: string } | undefined;
-        // 与 Rust 端一致：unique_id 优先，remote.id（含 file_reference，会刷新）兜底
-        const stableId = remoteIdOf({ id: fileId, remote });
-        const local = file.local as {
-            downloaded_size?: number;
-            is_downloading_active?: boolean;
-            is_downloading_completed?: boolean;
-            path?: string;
-        } | undefined;
-        const downloaded = typeof local?.downloaded_size === "number" ? local.downloaded_size : 0;
-        const size = typeof file.size === "number" ? file.size : 0;
-        const expected = typeof file.expected_size === "number" ? file.expected_size : 0;
-        const total = size > 0 ? size : expected;
-        const completed = !!local?.is_downloading_completed;
-        const active = !!local?.is_downloading_active;
-        const path = local?.path && local.path.length > 0 ? local.path : undefined;
-
-        const key = stableId && !stableId.startsWith("session:")
-            ? migrateToRemoteKey(fileId, stableId)
-            : (sessionIdMap.value[fileId] || `session:${fileId}`);
-        const existing = items.value[key];
-
-        const effectiveTotal = total > 0 ? total : (existing?.total_size ?? 0);
-        const payload: DownloadItem = {
-            remote_id: key,
-            session_file_id: fileId,
-            file_id: fileId,
-            file_name: existing?.file_name || i18n.global.t("download.row.fileFallback", { id: fileId }),
-            chat_title: existing?.chat_title ?? "",
-            chat_id: existing?.chat_id,
-            message_id: existing?.message_id,
-            total_size: effectiveTotal,
-            downloaded_size: downloaded,
-            progress: effectiveTotal > 0
-                ? Math.min(1, downloaded / effectiveTotal)
-                : (completed ? 1 : 0),
-            is_paused: !active && !completed,
-            is_completed: completed,
-            local_path: path,
-            thumbnail_data_url: existing?.thumbnail_data_url,
-            file_type: existing?.file_type || "other",
-            is_generic: existing?.is_generic ?? true,
-            hidden_category: existing?.hidden_category,
-            is_auto_photo: existing?.is_auto_photo ?? false,
-            is_streaming: existing?.is_streaming ?? false,
-            tags: existing?.tags,
-            source_label: existing?.source_label,
-            dismissed: existing?.dismissed ?? false,
-            created_at: existing?.created_at,
-            completed_at: existing?.completed_at,
-            has_tdlib_update: true,
-            in_tdlib_list: existing?.in_tdlib_list,
-        };
-        scheduleUpdate(payload);
-    }
-
-    /** 处理 other 通道上的 TDLib download-list update */
-    function handleDownloadListUpdate(update: Record<string, unknown>) {
-        switch (update._) {
-            case "updateFileDownload": {
-                const fileId = update.file_id as number | undefined;
-                if (typeof fileId !== "number") return;
-                applyTdlibDownloadListState({
-                    fileId,
-                    isPaused: !!update.is_paused,
-                    completeDate: typeof update.complete_date === "number" ? update.complete_date : 0,
-                    inTdlibList: true,
-                });
-                applyTdlibCounts(update.counts as Record<string, unknown> | undefined);
-                break;
-            }
-            case "updateFileAddedToDownloads": {
-                const fd = update.file_download as Record<string, unknown> | undefined;
-                if (!fd || typeof fd.file_id !== "number") return;
-                const msg = fd.message as Record<string, unknown> | undefined;
-                applyTdlibDownloadListState({
-                    fileId: fd.file_id,
-                    isPaused: !!fd.is_paused,
-                    completeDate: typeof fd.complete_date === "number" ? fd.complete_date : 0,
-                    inTdlibList: true,
-                    fileName: fileNameFromTdlibMessage(msg) || undefined,
-                    chatId: typeof msg?.chat_id === "number" ? msg.chat_id : undefined,
-                    messageId: typeof msg?.id === "number" ? msg.id : undefined,
-                    fileType: fileNameFromTdlibMessage(msg) ? fileTypeFromTdlibMessage(msg) : undefined,
-                });
-                applyTdlibCounts(update.counts as Record<string, unknown> | undefined);
-                break;
-            }
-            case "updateFileRemovedFromDownloads": {
-                const fileId = update.file_id as number | undefined;
-                if (typeof fileId !== "number") return;
-                applyTdlibDownloadListState({
-                    fileId,
-                    inTdlibList: false,
-                });
-                applyTdlibCounts(update.counts as Record<string, unknown> | undefined);
-                break;
-            }
-            case "updateFileDownloads": {
-                applyTdlibListTotals(update);
-                break;
-            }
-        }
-    }
-
     /**
      * 拉取一次 TDLib 下载列表。
      * TDLib 文档：updateFileAddedToDownloads / updateFileDownload /
@@ -1053,20 +937,6 @@ export const useDownloadStore = defineStore("downloads", () => {
                 if (item) scheduleUpdate(item);
             });
         }
-        // TDLib 官方下载列表 update（低频，走 other 通道）
-        if (!unlistenOther) {
-            unlistenOther = onTdlibUpdate("other", (update) => {
-                handleDownloadListUpdate(update as Record<string, unknown>);
-            });
-        }
-        // 原始 updateFile（高频独立通道）：直接写入下载 store，兜底 Rust 侧
-        // download-progress-update 因键不匹配丢事件的情况
-        if (!unlistenFile) {
-            unlistenFile = onTdlibUpdate("file", (update) => {
-                if (update._ !== "updateFile") return;
-                applyUpdateFile(update.file as Record<string, unknown> | undefined);
-            });
-        }
         // 授权就绪后加载下载列表，激活 updateFileDownload* 推送
         if (!unlistenAuth) {
             unlistenAuth = onTdlibUpdate("auth", (update) => {
@@ -1112,10 +982,6 @@ export const useDownloadStore = defineStore("downloads", () => {
             unlistenProgress();
             unlistenProgress = null;
         }
-        if (unlistenOther) {
-            unlistenOther();
-            unlistenOther = null;
-        }
         if (unlistenAuth) {
             unlistenAuth();
             unlistenAuth = null;
@@ -1123,10 +989,6 @@ export const useDownloadStore = defineStore("downloads", () => {
         if (unlistenStats) {
             unlistenStats();
             unlistenStats = null;
-        }
-        if (unlistenFile) {
-            unlistenFile();
-            unlistenFile = null;
         }
     }
 

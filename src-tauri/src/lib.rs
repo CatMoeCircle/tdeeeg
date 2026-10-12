@@ -5,6 +5,7 @@ mod chat_store;
 mod data_loc;
 mod device_info;
 mod download_store;
+mod file_gate;
 mod lang_detect;
 mod media_stream;
 mod notifications;
@@ -12,6 +13,9 @@ mod smtc;
 mod tdlib;
 mod toast_identity;
 mod update_manager;
+
+/// downloads.json 合并写盘间隔（毫秒）。起始值，按实际压力测试调整。
+const DOWNLOADS_FLUSH_INTERVAL_MS: u64 = 400;
 
 use tauri::{
     menu::{Menu, MenuItem},
@@ -217,6 +221,23 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
             app.manage(tdlib::AppState::new(data_dir));
 
+            // downloads.json 延迟持久化：updateFile 进度只改内存并记账，这里合并写盘。
+            // 完成/暂停/取消等状态变化仍由 store 立即落盘（DownloadStore::save_now）。
+            {
+                let store = app.state::<tdlib::AppState>().download_store.clone();
+                std::thread::Builder::new()
+                    .name("downloads-persist".into())
+                    .spawn(move || loop {
+                        std::thread::sleep(std::time::Duration::from_millis(
+                            DOWNLOADS_FLUSH_INTERVAL_MS,
+                        ));
+                        if let Ok(mut store) = store.lock() {
+                            store.flush_dirty();
+                        }
+                    })
+                    .expect("failed to spawn downloads persist thread");
+            }
+
             // 注册 Toast AUMID 身份（未打包时写注册表；MSIX 由清单自动注册）
             // 同时设置进程 AUMID——SMTC/Toast 解析应用显示名依赖它
             toast_identity::init_toast_identity();
@@ -346,11 +367,17 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_app_handle, event| {
+        .run(|app_handle, event| {
             match event {
                 // 所有窗口关闭时阻止退出（托盘仍在运行）
                 // code.is_none() 表示是窗口全部关闭触发的，非 app.exit() 调用
                 RunEvent::ExitRequested { code, api, .. } => {
+                    // 退出前冲刷还没写盘的下载进度，正常退出不丢最终状态
+                    if let Some(state) = app_handle.try_state::<tdlib::AppState>() {
+                        if let Ok(mut store) = state.download_store.lock() {
+                            store.flush_dirty();
+                        }
+                    }
                     if code.is_none() {
                         api.prevent_exit();
                     }

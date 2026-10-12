@@ -2,6 +2,7 @@ use crate::accounts::AccountsStore;
 use crate::chat_store::ChatStore;
 use crate::device_info;
 use crate::download_store::{DownloadItem, DownloadStore};
+use crate::file_gate::{FileGate, Verdict};
 use crate::update_manager::{classify, UpdateManager};
 use libloading::{Library, Symbol};
 use serde_json::json;
@@ -18,6 +19,11 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{Emitter, Manager, State};
 use tokio::sync::oneshot;
+
+/// updateFile 进度合并窗口。起始值：普通进度最多延迟这么久下发一次；
+/// 完成/暂停/取消/路径就绪等状态变化不受它影响，仍然立即下发。
+/// 压力测试（大文件下载 + 多图相册 + 媒体查看器连切）后再定值。
+const FILE_GATE_WINDOW: Duration = Duration::from_millis(100);
 
 // --- 辅助函数：递归重命名 JSON 键 ---
 fn rename_json_key(value: &mut serde_json::Value, old_key: &str, new_key: &str) {
@@ -1240,6 +1246,9 @@ fn spawn_receive_loop(
     let update_mgr = Arc::new(UpdateManager::new());
 
     // updateFile 专用通道 + 处理线程（下载/上传 store 更新、头像路径、独立 IPC）
+    //
+    // 内存状态逐条更新（下载/上传 store、头像、chat 缓存），只有**下发**过闸门：
+    // 里程碑立即推、纯进度按 FILE_GATE_WINDOW 合并成最新一条、无变化直接丢。
     let (file_tx, file_rx) = mpsc::channel::<serde_json::Value>();
     {
         let app_handle = app_handle.clone();
@@ -1249,23 +1258,63 @@ fn spawn_receive_loop(
         std::thread::Builder::new()
             .name(format!("tdlib-update-file-{session_id}"))
             .spawn(move || {
-                while let Ok(event) = file_rx.recv() {
-                    // 进度写入发起下载的账户独立 store；仅活动账户推前端事件
-                    handle_update_file(&event, &state, &app_handle, session_id);
-                    maybe_update_avatar(&event, &state, &app_handle, &client);
-                    // 只回写 Rust chat 缓存（photo.small/big.local），供下次 get_chat_list 等拉取。
-                    // 不 emit chat-update：前端已自行处理头像上屏，避免双源覆盖/闪烁。
-                    {
-                        let mut store = client.chat_store.lock().unwrap();
-                        let _ = store.apply_file_update(&event);
+                let mut gate = FileGate::new(FILE_GATE_WINDOW);
+                loop {
+                    match file_rx.recv_timeout(gate.poll()) {
+                        Ok(event) => {
+                            // 进度写入发起下载的账户独立 store；仅活动账户推前端事件
+                            let progresses = handle_update_file(&event, &state, session_id);
+                            maybe_update_avatar(&event, &state, &app_handle, &client);
+                            // 只回写 Rust chat 缓存（photo.small/big.local），供下次 get_chat_list 等拉取。
+                            // 不 emit chat-update：前端已自行处理头像上屏，避免双源覆盖/闪烁。
+                            {
+                                let mut store = client.chat_store.lock().unwrap();
+                                let _ = store.apply_file_update(&event);
+                            }
+                            if state.active.load(Ordering::SeqCst) != session_id {
+                                continue;
+                            }
+                            let null = serde_json::Value::Null;
+                            let file = event.get("file").unwrap_or(&null);
+                            let file_id = file.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
+                            let mut milestone = false;
+                            for progress in progresses {
+                                let channel = if progress.is_upload {
+                                    "upload-progress-update"
+                                } else {
+                                    "download-progress-update"
+                                };
+                                let payload = serde_json::to_value(&progress.item)
+                                    .unwrap_or(serde_json::Value::Null);
+                                match gate.submit(file_id, file, channel, payload) {
+                                    Verdict::Now => {
+                                        milestone = true;
+                                        let _ = app_handle.emit(channel, &progress.item);
+                                    }
+                                    // 进合并缓冲，窗口到期统一下发最新一条
+                                    Verdict::Later => {}
+                                    // 与已下发状态一致，丢弃
+                                    Verdict::Drop => {}
+                                }
+                            }
+                            // 里程碑（开始/暂停/完成/路径就绪/上传状态变化）才推原始事件：
+                            // 壁纸页与消息快照按 file.id 匹配，纯进度 tick 对它们没有意义。
+                            if milestone {
+                                if let Err(e) = app_handle.emit("tdlib-update-file", &event) {
+                                    eprintln!("Failed to emit updateFile event: {}", e);
+                                }
+                            }
+                        }
+                        Err(mpsc::RecvTimeoutError::Timeout) => {}
+                        // 发送端被 drop（接收循环因 closed 退出）→ 本线程结束
+                        Err(mpsc::RecvTimeoutError::Disconnected) => break,
                     }
-                    if state.active.load(Ordering::SeqCst) == session_id {
-                        if let Err(e) = app_handle.emit("tdlib-update-file", &event) {
-                            eprintln!("Failed to emit updateFile event: {}", e);
+                    for pending in gate.take_due() {
+                        if state.active.load(Ordering::SeqCst) == session_id {
+                            let _ = app_handle.emit(pending.channel, pending.payload);
                         }
                     }
                 }
-                // 发送端被 drop（接收循环因 closed 退出）→ 本线程结束
             })
             .expect("failed to spawn tdlib updateFile worker thread");
     }
@@ -1840,20 +1889,26 @@ fn build_accounts_payload_ref(state: &AppStateRef) -> Vec<serde_json::Value> {
         .collect()
 }
 
-/// 处理 updateFile 的下载/上传进度。
+/// 一条待下发的进度载荷（下载/上传共用）。
+struct FileProgress {
+    is_upload: bool,
+    item: DownloadItem,
+}
+
+/// 处理 updateFile 的下载/上传进度：**只更新内存，不下发**。
 /// `session_id`：发起该文件操作的 TDLib 账户；数据写入该账户独立的 downloads.json。
-/// 仅当该账户是活动账户时，进度事件才会推给前端（后台账户静默记账）。
+/// 后台账户静默记账（返回空 Vec），只有活动账户才把进度快照交给 `FileGate` 决定下发。
 fn handle_update_file(
     event: &serde_json::Value,
     state: &AppStateRef,
-    app_handle: &tauri::AppHandle,
     session_id: i64,
-) {
+) -> Vec<FileProgress> {
+    let mut out = Vec::new();
     let Some(file) = event.get("file") else {
-        return;
+        return out;
     };
     let Some(file_id) = file.get("id").and_then(|v| v.as_i64()) else {
-        return;
+        return out;
     };
     let remote_id = file
         .pointer("/remote/id")
@@ -1910,7 +1965,7 @@ fn handle_update_file(
         );
 
         if !is_active_account {
-            return;
+            return out;
         }
 
         let item = dl_store
@@ -1976,7 +2031,10 @@ fn handle_update_file(
                     in_tdlib_list: false,
                 }
             });
-        let _ = app_handle.emit("download-progress-update", &item);
+        out.push(FileProgress {
+            is_upload: false,
+            item,
+        });
     }
 
     // 上传进度（同样按账户隔离；仅活动账户推送前端）
@@ -2040,10 +2098,15 @@ fn handle_update_file(
                 is_up_active,
                 is_up_completed,
             ) {
-                let _ = app_handle.emit("upload-progress-update", &item);
+                out.push(FileProgress {
+                    is_upload: true,
+                    item,
+                });
             }
         }
     }
+
+    out
 }
 
 /// 从 fileDownload.message 提取展示用文件名。
