@@ -1,5 +1,9 @@
 <template>
     <div class="min-w-50 max-w-85 select-text">
+        <!-- 顶部媒体：图片 / 动图 / 视频 / 音乐 / 文件 / 贴纸 / 链接 / 位置 -->
+        <PollMedia v-if="content.media" :media="content.media" variant="top" :chat-id="chatId"
+            :message-id="messageId" />
+
         <!-- 标题 -->
         <div class="mb-2 flex items-start gap-1.5">
             <h3 class="min-w-0 wrap-break-word text-sm font-semibold leading-5">
@@ -49,6 +53,9 @@
                         <GlobalEmojiText v-else :text="seg.text" :size="14" />
                     </template>
                 </span>
+                <!-- 选项右侧媒体：小图 / 贴纸 / 链接 -->
+                <PollMedia v-if="option.media" :media="option.media" variant="thumb" :chat-id="chatId"
+                    :message-id="messageId" />
             </div>
 
             <!-- 投票按钮 -->
@@ -77,13 +84,16 @@
                     <div class="min-w-0 flex-1">
                         <!-- 选项文字 + 投该选项的最近投票者头像 -->
                         <div class="flex items-start justify-between gap-2 text-sm leading-5">
-                            <span class="min-w-0 wrap-break-word text-gray-800 dark:text-gray-200">
+                            <span class="min-w-0 flex-1 wrap-break-word text-gray-800 dark:text-gray-200">
                                 <template v-for="(seg, si) in splitFormattedText(option.text)" :key="si">
                                     <CustomEmojiInline v-if="seg.customEmojiId" :emoji-id="seg.customEmojiId" :size="18"
                                         :fallback-text="seg.text" />
                                     <GlobalEmojiText v-else :text="seg.text" :size="14" />
                                 </template>
                             </span>
+                            <!-- 选项右侧媒体：小图 / 贴纸 / 链接 -->
+                            <PollMedia v-if="option.media" :media="option.media" variant="thumb" :chat-id="chatId"
+                                :message-id="messageId" />
                             <!-- 头像：非匿名且有结果时才有数据 -->
                             <span v-if="optionVoters(option).length" class="mt-0.5 flex shrink-0 -space-x-1.5">
                                 <span v-for="v in optionVoters(option)" :key="senderKey(v)"
@@ -122,6 +132,7 @@ import { computed, ref, watch } from 'vue';
 import type { formattedText, messagePoll, MessageSender, pollOption, textEntity } from 'tdlib-types';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { CheckCircleIcon, CheckIcon } from 'lucide-vue-next';
+import PollMedia from './PollMedia.vue';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
 import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 import { tdlibSend } from '../../../../../utils/tdlib';

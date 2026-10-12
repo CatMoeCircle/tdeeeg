@@ -1,7 +1,7 @@
 <template>
     <figure ref="rootEl" class="my-1.5">
-        <div
-            class="relative flex w-full min-w-0 items-center gap-2.5 overflow-hidden rounded-lg bg-black/5 dark:bg-white/10 p-2">
+        <div class="relative flex w-full min-w-0 items-center gap-2.5 overflow-hidden rounded-lg"
+            :class="plain ? 'p-0' : 'bg-black/5 dark:bg-white/10 p-2'">
             <!-- 封面 + 播放按钮 -->
             <div class="relative h-12 w-12 shrink-0">
                 <div class="group relative h-full w-full overflow-hidden rounded-xl bg-blue-100 dark:bg-blue-950">
@@ -65,6 +65,8 @@ const props = defineProps<{
     caption?: pageBlockCaption | null;
     chatId?: number;
     messageId?: number;
+    /** 去掉底色与内边距（投票卡片顶部等场景） */
+    plain?: boolean;
 }>();
 
 const audioPlayer = useAudioPlayerStore();
