@@ -125,8 +125,15 @@ function onPhoneInput() {
     phoneNumber.value = asYouType.input(withPlus);
 }
 
+/** 国家选择器写进输入框的完整值：输入框 watcher 据此识别「本次变化来自选择器」，不回填覆盖用户选择 */
+let countryDrivenPhone = "";
+
 // 输入框优先：当输入框中的区号变化时，让选择器跟随更新。
 watch(phoneNumber, (newVal) => {
+    // 选择器刚写入的值：国家是用户明确选的，不要再用 libphonenumber 的结果覆盖
+    // （+1 美/加、+7 俄/哈 等共享区号会被 libphonenumber 归到其中一个国家）
+    if (newVal === countryDrivenPhone) return;
+
     const cleanNum = newVal.replace(/[^\d]/g, "");
     if (!cleanNum) return;
 
@@ -159,20 +166,26 @@ watch(phoneNumber, (newVal) => {
     }
 });
 
-// 选择器 → 输入框：手动选择国家时，若输入框为空则预填 +区号，便于接着输入本地号码。
+// 选择器 → 输入框：手动选择国家时，保留已输入的本地号码，只把国家区号换成新选国家的。
 // 输入框触发的选择器变化（isAutoSwitching）不覆盖已有输入。
-watch(selectedCountry, (newVal) => {
+watch(selectedCountry, (newVal, oldVal) => {
     if (isAutoSwitching.value) {
         isAutoSwitching.value = false;
         return;
     }
     const country = Countries.value.find((c) => c.country_code === newVal);
-    if (country && country.calling_codes.length > 0) {
-        const current = phoneNumber.value.replace(/[^\d]/g, "");
-        if (!current) {
-            phoneNumber.value = "+" + country.calling_codes[0];
-        }
+    if (!country || country.calling_codes.length === 0) return;
+
+    // 本地号码：优先让 libphonenumber 剥掉旧区号；号码过短/无法识别时退回按旧国家区号前缀裁剪
+    const digits = phoneNumber.value.replace(/[^\d]/g, "");
+    let national = parsePhoneNumberFromString("+" + digits)?.nationalNumber;
+    if (national === undefined) {
+        const oldCountry = Countries.value.find((c) => c.country_code === oldVal);
+        const oldCode = oldCountry?.calling_codes.find((code) => digits.startsWith(code)) ?? "";
+        national = digits.slice(oldCode.length);
     }
+    countryDrivenPhone = new AsYouType().input("+" + country.calling_codes[0] + national);
+    phoneNumber.value = countryDrivenPhone;
 });
 
 /** 用户主动点击二维码区域时显示/刷新二维码 */
