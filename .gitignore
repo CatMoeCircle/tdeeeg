@@ -27,3 +27,5 @@ src-tauri/TDLib/
 /scripts/*
 !/scripts/bundle-webview.ps1
 /promo
+# 本地工具目录
+/.serena

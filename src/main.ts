@@ -11,6 +11,7 @@ import "tdesign-vue-next/es/style/index.css";
 import i18n from "./i18n";
 import vContextMenu from "./directives/contextMenu";
 import vSmoothWheel, { installGlobalSmoothWheel } from "./directives/smoothWheel";
+import { vBubbleSize } from "./directives/bubbleSize";
 import { closeContextMenu } from "./store/contextMenu";
 import { initTdlib, waitForAuthorization } from "./init";
 import { registerLoaderStyle, type LoaderStyle } from "./components/common/LoaderIndicator";
@@ -111,6 +112,8 @@ app.directive("context-menu", vContextMenu);
 installGlobalSmoothWheel();
 // 注册 v-smooth-wheel（仅用于显式指定横/竖向，可选）
 app.directive("smooth-wheel", vSmoothWheel);
+// 注册 v-bubble-size（消息气泡尺寸变化动画）
+app.directive("bubble-size", vBubbleSize);
 
 // 应用启动流程：
 // 1. 先初始化 TDLib 及各模块事件监听（不渲染 App）

@@ -205,7 +205,7 @@
                                 </div>
                                 <div class="flex min-w-0 max-w-[70%] flex-col"
                                     :class="isSelf(item.msg) ? 'items-end' : 'items-start'">
-                                    <div :data-bubble-msg-id="item.msg.id" :class="[
+                                    <div :data-bubble-msg-id="item.msg.id" v-bubble-size :class="[
                                         isMediaMessage(item.msg)
                                             ? [
                                                 'w-fit max-w-full min-w-0 overflow-hidden',
