@@ -1,5 +1,7 @@
 <template>
-    <div class="flex flex-col h-full border-r border-gray-200 dark:border-gray-800 pt-1.5">
+    <!-- 顶部留白只给搜索框：话题面板模式没有搜索框，留白会让面板与左分隔线短一截 -->
+    <div class="flex flex-col h-full border-r border-gray-200 dark:border-gray-800"
+        :class="forumMode ? '' : 'pt-1.5'">
         <!-- Search Bar (forum mode 时向上滑动隐藏) -->
         <Transition :name="suppressChromeAnim ? 'slide-up-locked' : 'slide-up'">
             <div v-if="!forumMode" class="overflow-hidden" :class="settings.folderStyle === 'soft'
