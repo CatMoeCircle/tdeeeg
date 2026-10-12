@@ -52,10 +52,8 @@
             <span>{{ content.is_video ? t('service.videoCall') : t('lng_settings_notifications_calls_title') }}</span>
         </div>
 
-        <!-- Unsupported -->
-        <p v-else class="text-sm italic text-red-500">
-            {{ t('content.unsupportedMessageType', { type: content._ }) }}
-        </p>
+        <!-- 未适配的消息类型：统一走卡片，不再用斜体红字兜底 -->
+        <MessageUnsupportedContent v-else :content="content" />
     </div>
 </template>
 
@@ -67,6 +65,7 @@ import type { MessageContent, message } from 'tdlib-types';
 import { MapPinIcon, PhoneIcon, VideoIcon } from 'lucide-vue-next';
 import MessagePollContent from './MessagePollContent.vue';
 import MessageInvoiceContent from './MessageInvoiceContent.vue';
+import MessageUnsupportedContent from './MessageUnsupportedContent.vue';
 // GlobalEmojiInline removed - using global Apple Color Emoji font
 
 const props = defineProps<{

@@ -1,5 +1,8 @@
 <template>
-    <div class="text-center py-1" :class="clickable ? 'cursor-pointer' : ''" @click="onClick">
+    <!-- switch 未覆盖的服务消息类型（TDLib 有、本端未适配）：用未适配卡片替代兜底文案 -->
+    <MessageUnsupportedContent v-if="unadapted" :content="content" />
+
+    <div v-else class="text-center py-1" :class="clickable ? 'cursor-pointer' : ''" @click="onClick">
         <!-- 设置新壁纸（messageChatSetBackground）：正方形磨砂卡片，内含圆形壁纸预览、文案与查看按钮 -->
         <div v-if="wallpaperContent"
             class="mx-auto flex aspect-square w-52 max-w-full flex-col items-center justify-center gap-2 rounded-2xl bg-white/40 px-4 py-4 shadow-sm backdrop-blur-md dark:bg-black/20">
@@ -39,6 +42,7 @@ import { ensureLocalFilePath, tdlibSend } from '../../../../../utils/tdlib';
 import { ensureUser, getUserDisplayName } from '../../../../../utils/senderInfo';
 import { useChatStore } from '../../../../../store/chat';
 import WallpaperPreviewDialog from '../../../WallpaperPreviewDialog.vue';
+import MessageUnsupportedContent from './MessageUnsupportedContent.vue';
 
 const props = defineProps<{
     content: MessageContent;
@@ -310,7 +314,7 @@ function joinNames(names: string[], oneKey: string, lastKey: string): string {
     return acc;
 }
 
-const serviceText = computed(() => {
+const serviceText = computed<string | null>(() => {
     const c = props.content;
     switch (c._) {
         case 'messageBasicGroupChatCreate':
@@ -425,7 +429,11 @@ const serviceText = computed(() => {
         case 'messageProximityAlertTriggered':
             return t('service.proximityAlert');
         default:
-            return t('service.unknownService', { type: c._ });
+            // null = 本 switch 未覆盖该类型，交由 unadapted 渲染未适配卡片（其余分支均返回非空文案）
+            return null;
     }
 });
+
+/** switch 未覆盖的服务消息类型 → 渲染未适配卡片 */
+const unadapted = computed(() => serviceText.value === null);
 </script>
