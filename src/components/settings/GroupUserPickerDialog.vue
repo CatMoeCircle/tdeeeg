@@ -10,7 +10,8 @@
           :class="isPicked(u.id) ? 'bg-blue-50 dark:bg-blue-500/15' : 'hover:bg-gray-50 dark:hover:bg-gray-800'"
           @click="pick(u)">
           <div class="relative w-9 h-9 shrink-0">
-            <Avatar :photo="u.profile_photo" :title="nameOf(u)" :deletedAccount="isDeletedUser(u)" sizeClass="!w-9 !h-9" />
+            <Avatar :photo="u.profile_photo" :title="nameOf(u)" :first-name="u.first_name" :last-name="u.last_name"
+              :deletedAccount="isDeletedUser(u)" sizeClass="!w-9 !h-9" />
             <div v-if="isPicked(u.id)"
               class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-blue-500 border-2 border-white dark:border-gray-800 flex items-center justify-center">
               <CheckIcon class="w-2.5 h-2.5 text-white" stroke-width="3" />

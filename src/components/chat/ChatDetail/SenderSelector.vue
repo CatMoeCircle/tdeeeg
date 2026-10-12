@@ -4,6 +4,8 @@
             class="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center shrink-0 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none"
             :title="currentName" @click.stop="toggleFlyout">
             <Avatar :photo="currentPhoto" :title="currentName" sizeClass="!w-10 !h-10"
+                :first-name="getSenderNameParts(currentSenderId).first"
+                :last-name="getSenderNameParts(currentSenderId).last"
                 :accent-color-id="currentAccentColorId" />
         </button>
 
@@ -21,6 +23,8 @@
                                 :class="{ 'bg-blue-50 dark:bg-blue-900/30': isSelected(item.sender) }"
                                 @click.stop="onSelect(item)">
                                 <Avatar :photo="getSenderPhoto(item.sender)" :title="getSenderName(item.sender)"
+                                    :first-name="getSenderNameParts(item.sender).first"
+                                    :last-name="getSenderNameParts(item.sender).last"
                                     sizeClass="!w-8 !h-8" :accent-color-id="getSenderAccentColorId(item.sender)" />
                                 <span class="flex-1 text-sm truncate text-gray-800 dark:text-gray-200">
                                     {{ getSenderName(item.sender) || t('chat.unknown') }}
@@ -47,7 +51,7 @@ import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { MessageSender, chatMessageSender } from 'tdlib-types';
 import Avatar from '../avatar.vue';
-import { ensureSenderLoaded, getSenderName, getSenderPhoto, getSenderAccentColorId } from '../../../utils/senderInfo';
+import { ensureSenderLoaded, getSenderName, getSenderNameParts, getSenderPhoto, getSenderAccentColorId } from '../../../utils/senderInfo';
 
 const { t } = useI18n();
 

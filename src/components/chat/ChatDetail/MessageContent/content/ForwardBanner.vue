@@ -20,7 +20,8 @@
                 <!-- 转发来源头像（隐藏来源时无头像） -->
                 <span v-if="photo !== undefined || accentId !== undefined"
                     class="mr-0.5 inline-flex shrink-0 items-center">
-                    <Avatar :photo="photo" :title="name" :accentColorId="accentId" sizeClass="!w-4 !h-4" />
+                    <Avatar :photo="photo" :title="name" :first-name="firstName" :last-name="lastName"
+                        :accentColorId="accentId" sizeClass="!w-4 !h-4" />
                 </span>
 
                 <!-- 来源名称（peer title）+ 原始作者签名（频道帖子 / 匿名群管），同一行内紧跟 -->
@@ -49,6 +50,9 @@ const { t } = useI18n();
 const props = defineProps<{
     /** 来源显示名（peer title / 用户姓名） */
     name: string;
+    /** 来源为用户时的姓名拆分（无头像文字用） */
+    firstName?: string;
+    lastName?: string;
     /** 原始作者签名（频道帖子 / 匿名群管），可为空 */
     originalName?: string;
     /** 来源头像 */

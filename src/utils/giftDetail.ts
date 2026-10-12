@@ -22,6 +22,9 @@ export type GiftDetailParty = {
     name: string;
     photo?: chatPhotoInfo | profilePhoto;
     accentColorId?: number;
+    /** 姓名拆分（无头像文字用；仅用户来源） */
+    firstName?: string;
+    lastName?: string;
 };
 
 export type GiftDetailRow = {
@@ -111,6 +114,8 @@ export async function resolveGiftParty(id?: MessageSender): Promise<GiftDetailPa
                 name: displayGiftPartyName(u),
                 photo: u.profile_photo,
                 accentColorId: u.accent_color_id,
+                firstName: u.first_name || '',
+                lastName: u.last_name || '',
             };
         }
         const c = await tdlibSend({ _: 'getChat', chat_id: id.chat_id }) as chat;

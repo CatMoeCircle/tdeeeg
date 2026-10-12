@@ -15,6 +15,7 @@
                     <template v-if="isTopicMode">
                         <!-- 频道私信话题：对方头像（对齐 Unigram） -->
                         <Avatar v-if="dmTopicInfo" :photo="dmTopicInfo.photo" :title="dmTopicInfo.name"
+                            :first-name="dmTopicInfo.firstName" :last-name="dmTopicInfo.lastName"
                             sizeClass="!w-10 !h-10" />
                         <!-- 话题图标：General 用主题色 #，自定义 emoji 用 emoji，否则首字母色块 -->
                         <div v-else-if="topic!.info.is_general"
@@ -37,6 +38,8 @@
                     <StoryRing v-else :chat-id="chat.id" :size="40" :diameter="40"
                         :radius-percent="isForumChat ? 0 : undefined">
                         <Avatar :photo="chat.photo" :title="chat.title" :square="isForumChat"
+                            :first-name="getChatUserNames(props.chat).first"
+                            :last-name="getChatUserNames(props.chat).last"
                             :accentColorId="headerAccentColorId" :deletedAccount="isDeletedChat(props.chat as any)" />
                     </StoryRing>
                     <div class="flex flex-col min-w-0">
@@ -109,7 +112,7 @@ import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../../utils/savedM
 import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
 import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
 import StoryRing from '../../story/StoryRing.vue';
-import { getChatProfileAccentColorId, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
+import { getChatProfileAccentColorId, getChatUserNames, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
 import { updateActiveChatTitleBar, clearActiveChatTitleBar } from '../../../store/activeChatTitleBar';
 import { onTdlibUpdates } from '../../../store/tdlibBus';
 
@@ -117,7 +120,7 @@ const props = defineProps<{
     chat: chat | undefined;
     topic?: forumTopic | undefined;
     /** 频道私信话题（展示为对方头像/名称；与 topic 互斥） */
-    dmTopic?: { name: string; photo?: chatPhotoInfo | profilePhoto } | undefined;
+    dmTopic?: { name: string; photo?: chatPhotoInfo | profilePhoto; firstName?: string; lastName?: string } | undefined;
     showBack?: boolean;
     /** 是否显示话题标签栏位置切换按钮（tag 栏话题模式） */
     showTopicTagToggle?: boolean;

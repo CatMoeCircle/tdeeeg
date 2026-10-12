@@ -22,7 +22,8 @@
                   <img :src="headerPhotoUrl" class="w-full h-full object-cover" />
                 </div>
                 <Avatar v-else :photo="isDeletedProfile ? undefined : displayPhoto" :title="userName"
-                  :accentColorId="isDeletedProfile ? undefined : user?.profile_accent_color_id"
+                  :first-name="user?.first_name" :last-name="user?.last_name"
+                  :accentColorId="isDeletedProfile ? undefined : avatarColorId(user?.profile_accent_color_id, user?.accent_color_id)"
                   :deletedAccount="isDeletedProfile" no-background />
               </StoryRing>
               <span v-else class="block rounded-full">
@@ -31,7 +32,8 @@
                 </div>
                 <div v-else class="w-24 h-24 rounded-full overflow-hidden">
                   <Avatar :photo="isDeletedProfile ? undefined : displayPhoto" :title="userName"
-                    :accentColorId="isDeletedProfile ? undefined : user?.profile_accent_color_id"
+                    :first-name="user?.first_name" :last-name="user?.last_name"
+                    :accentColorId="isDeletedProfile ? undefined : avatarColorId(user?.profile_accent_color_id, user?.accent_color_id)"
                     :deletedAccount="isDeletedProfile" sizeClass="!w-24 !h-24" no-background />
                 </div>
               </span>
@@ -136,13 +138,17 @@
                 :diameter="96" class="inline-flex shrink-0">
                 <Avatar :photo="secretChatUser.profile_photo"
                   :title="`${secretChatUser.first_name} ${secretChatUser.last_name}`"
-                  :accentColorId="secretChatUser.profile_accent_color_id" no-background />
+                  :first-name="secretChatUser.first_name" :last-name="secretChatUser.last_name"
+                  :accentColorId="avatarColorId(secretChatUser.profile_accent_color_id, secretChatUser.accent_color_id)" no-background />
               </StoryRing>
               <Avatar v-else-if="isSecretChat && secretChatUser" :photo="secretChatUser.profile_photo"
                 :title="`${secretChatUser.first_name} ${secretChatUser.last_name}`"
-                :accentColorId="secretChatUser.profile_accent_color_id" sizeClass="!w-24 !h-24" no-background />
+                :first-name="secretChatUser.first_name" :last-name="secretChatUser.last_name"
+                :accentColorId="avatarColorId(secretChatUser.profile_accent_color_id, secretChatUser.accent_color_id)" sizeClass="!w-24 !h-24" no-background />
               <StoryRing v-else :chat-id="chatObj.id" :size="96" :diameter="96" class="inline-flex shrink-0">
-                <Avatar :photo="chatPhotoInfo" :title="chatTitle" :accentColorId="chatAccentColorId" no-background />
+                <Avatar :photo="chatPhotoInfo" :title="chatTitle"
+                  :first-name="getChatUserNames(chatObj).first" :last-name="getChatUserNames(chatObj).last"
+                  :accentColorId="chatAccentColorId" no-background />
               </StoryRing>
             </div>
 
@@ -316,7 +322,9 @@
             <button type="button" @click="openPersonalChat"
               class="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
               <div class="w-10 h-10 shrink-0">
-                <Avatar :photo="personalChatPhoto" :title="personalChatTitle" :accentColorId="personalChatAccent"
+                <Avatar :photo="personalChatPhoto" :title="personalChatTitle"
+                  :first-name="getChatUserNames(personalChat).first" :last-name="getChatUserNames(personalChat).last"
+                  :accentColorId="personalChatAccent"
                   sizeClass="!w-10 !h-10" />
               </div>
               <div class="min-w-0 flex-1">
@@ -690,7 +698,9 @@
                 @click="openCommonGroup(gid)">
                 <div class="w-10 h-10 shrink-0">
                   <Avatar :photo="getReactiveChat(gid)?.photo" :title="getChatTitle(getReactiveChat(gid))"
-                    :accentColorId="getReactiveChat(gid)?.profile_accent_color_id ?? getReactiveChat(gid)?.accent_color_id"
+                    :first-name="getChatUserNames(getReactiveChat(gid)).first"
+                    :last-name="getChatUserNames(getReactiveChat(gid)).last"
+                    :accentColorId="avatarColorId(getReactiveChat(gid)?.profile_accent_color_id, getReactiveChat(gid)?.accent_color_id)"
                     sizeClass="!w-10 !h-10" />
                 </div>
                 <div class="min-w-0 flex-1">
@@ -720,8 +730,9 @@
                 @click="openMemberProfile(m)">
                 <div class="w-10 h-10 shrink-0">
                   <Avatar :photo="memberUserOf(m)?.profile_photo" :title="memberNameOf(m)"
+                    :first-name="memberUserOf(m)?.first_name" :last-name="memberUserOf(m)?.last_name"
                     :deletedAccount="isDeletedMember(memberUserId(m))"
-                    :accentColorId="memberUserOf(m)?.profile_accent_color_id"
+                    :accentColorId="avatarColorId(memberUserOf(m)?.profile_accent_color_id, memberUserOf(m)?.accent_color_id)"
                     sizeClass="!w-10 !h-10" />
                 </div>
                 <div class="min-w-0 flex-1">
@@ -1174,7 +1185,7 @@ import { ensureUserStories, getUserStoryState, openChatStories } from "../../sto
 import { formatBusinessHours } from "../../utils/businessHours";
 import { tdlibSend } from "../../utils/tdlib";
 
-import { ensureChat, getReactiveUser, getReactiveChat, getChatTitle, DELETED_ACCOUNT_LABEL } from "../../utils/senderInfo";
+import { ensureChat, getReactiveUser, getReactiveChat, getChatTitle, getChatUserNames, DELETED_ACCOUNT_LABEL } from "../../utils/senderInfo";
 import {
   loadGroupMembers,
   ensureMemberUsers,
@@ -1297,8 +1308,17 @@ const isChatSupergroup = computed(() => chatObj.value?.type?._ === 'chatTypeSupe
 const chatTitle = computed(() => chatObj.value?.title || '');
 /** 聊天头像（chat.photo 为 chatPhotoInfo，可直接交给 Avatar 组件） */
 const chatPhotoInfo = computed<chatPhotoInfo | undefined>(() => chatObj.value?.photo);
+/**
+ * 资料页头像/主题色取色：profile_accent_color_id 有效（≥0）时优先（资料页头像背景色），
+ * 否则回退 accent_color_id（TDLib：-1 表示未设置，不能直接当色 id 用）。
+ */
+function avatarColorId(profile?: number, accent?: number): number | undefined {
+  if (typeof profile === 'number' && profile >= 0) return profile;
+  if (typeof accent === 'number' && accent >= 0) return accent;
+  return undefined;
+}
 const chatAccentColorId = computed<number | undefined>(() =>
-  chatObj.value?.profile_accent_color_id ?? chatObj.value?.accent_color_id,
+  avatarColorId(chatObj.value?.profile_accent_color_id, chatObj.value?.accent_color_id),
 );
 /** 聊天简介（超级群组/基本群组的描述） */
 const chatDescription = computed(() => supergroupFull.value?.description || basicGroupFull.value?.description || '');
@@ -1525,9 +1545,7 @@ const statusText = computed(() =>
 
 /** 用户主题色样式：主题色文本 + 主题色 10% 透明度背景（用于频道订阅数徽标） */
 const profileAccent = computed(() => {
-  const id = typeof user.value?.profile_accent_color_id === 'number'
-    ? user.value.profile_accent_color_id
-    : 5;
+  const id = avatarColorId(user.value?.profile_accent_color_id, user.value?.accent_color_id) ?? 5;
   const style = accentColorStyle(id);
   return {
     color: style.color,
@@ -1721,7 +1739,9 @@ const personalChat = computed<chat | undefined>(() =>
 );
 const personalChatTitle = computed(() => personalChat.value?.title || t('lng_settings_channel_label'));
 const personalChatPhoto = computed(() => personalChat.value?.photo);
-const personalChatAccent = computed(() => personalChat.value?.profile_accent_color_id);
+const personalChatAccent = computed(() =>
+  avatarColorId(personalChat.value?.profile_accent_color_id, personalChat.value?.accent_color_id),
+);
 
 /** 关联频道的最新推送消息（用于资料页订阅卡片展示） */
 const channelLastMessage = computed(() => personalChat.value?.last_message);

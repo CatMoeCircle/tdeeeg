@@ -2,6 +2,7 @@
     <span v-if="ids.length" class="flex items-center -space-x-1.5 shrink-0">
         <StoryRing v-for="id in ids" :key="id" :chat-id="id" :size="22" :diameter="22" class="shrink-0" no-drag>
             <Avatar v-if="chatOf(id)" :photo="chatOf(id)!.photo" :title="chatOf(id)!.title"
+                :first-name="getChatUserNames(chatOf(id)).first" :last-name="getChatUserNames(chatOf(id)).last"
                 :accentColorId="accentOf(id)" />
         </StoryRing>
     </span>
@@ -16,6 +17,7 @@ import {
     ensureChat,
     getReactiveChat,
     getChatAccentColorId,
+    getChatUserNames,
     ensureChatAccentLoaded,
 } from "../../utils/senderInfo";
 

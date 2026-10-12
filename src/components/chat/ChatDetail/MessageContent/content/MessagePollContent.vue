@@ -89,6 +89,7 @@
                                 <span v-for="v in optionVoters(option)" :key="senderKey(v)"
                                     class="inline-flex h-4 w-4 overflow-hidden rounded-full ring-2 ring-white dark:ring-gray-800">
                                     <Avatar :photo="getSenderPhoto(v)" :title="getSenderName(v)"
+                                        :first-name="getSenderNameParts(v).first" :last-name="getSenderNameParts(v).last"
                                         :accentColorId="getSenderProfileAccentColorId(v)"
                                         :deletedAccount="isDeletedSender(v)" />
                                 </span>
@@ -127,6 +128,7 @@ import { tdlibSend } from '../../../../../utils/tdlib';
 import {
     ensureSenderLoaded,
     getSenderName,
+    getSenderNameParts,
     getSenderPhoto,
     getSenderProfileAccentColorId,
     isDeletedSender,

@@ -44,6 +44,7 @@
           <div v-if="item.bubbleMessage" class="flex justify-start mb-1.5">
             <div class="w-9 shrink-0 mr-2 self-end">
               <Avatar :photo="item.bubbleSender?.photo" :title="item.bubbleSender?.name"
+                :first-name="item.bubbleSender?.first" :last-name="item.bubbleSender?.last"
                 :accentColorId="item.bubbleSender?.accentId" :deletedAccount="item.bubbleSender?.deleted"
                 sizeClass="!w-9 !h-9" />
             </div>

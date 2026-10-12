@@ -39,6 +39,7 @@
                     <div v-else-if="display" class="um-body" role="button" tabindex="0" @click="go" @keydown.enter="go">
                         <div class="w-10 h-10 shrink-0 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
                             <Avatar :photo="display.photo" :title="display.name" sizeClass="w-10 h-10"
+                                :first-name="display.firstName" :last-name="display.lastName"
                                 :accentColorId="display.accentId" />
                         </div>
                         <div class="flex-1 min-w-0">

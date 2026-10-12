@@ -18,7 +18,8 @@
                         </span>
                         <!-- 频道私信：对方小头像（已注销显示幽灵） -->
                         <Avatar v-else-if="tab.photo !== undefined || tab.deleted || props.isDm" :photo="tab.photo"
-                            :title="tab.label" :deletedAccount="!!tab.deleted"
+                            :title="tab.label" :first-name="tab.firstName" :last-name="tab.lastName"
+                            :deletedAccount="!!tab.deleted"
                             sizeClass="!w-5 !h-5" class="shrink-0" />
                         <span v-else-if="tab.kind === 'general'" class="text-sm font-bold leading-none shrink-0"
                             :class="active ? '' : ''"
@@ -59,7 +60,8 @@
                         </div>
                         <!-- 频道私信：对方头像（已注销显示幽灵） -->
                         <Avatar v-else-if="entry.photo !== undefined || entry.deleted || props.isDm"
-                            :photo="entry.photo" :title="entry.label" :deletedAccount="!!entry.deleted"
+                            :photo="entry.photo" :title="entry.label" :first-name="entry.firstName"
+                            :last-name="entry.lastName" :deletedAccount="!!entry.deleted"
                             sizeClass="!w-11 !h-11" class="shrink-0" />
                         <div v-else-if="entry.kind === 'general'"
                             class="w-11 h-11 rounded-xl flex items-center justify-center text-white text-xl font-bold"
@@ -97,6 +99,7 @@ import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
 import SlidingTabBar from '../../common/SlidingTabBar.vue';
 import Avatar from '../avatar.vue';
 import { folderTabClass, folderTabContainerClass, type FolderStyle } from '../../../utils/folderPillsTabClass';
+import { getSenderNameParts } from '../../../utils/senderInfo';
 import { settings } from '../../../store/settings';
 import {
     loadDmTopics,
@@ -234,6 +237,9 @@ interface TagEntry {
     photo?: chatPhotoInfo | profilePhoto;
     /** 已注销/空账户：头像显示幽灵图标 */
     deleted?: boolean;
+    /** 对方姓名拆分（DM 模式，无头像文字用） */
+    firstName?: string;
+    lastName?: string;
     onClick: () => void;
 }
 
@@ -255,6 +261,7 @@ const entries = computed<TagEntry[]>(() => {
             onClick: () => selectAll(),
         });
         for (const e of dmEntries.value) {
+            const names = getSenderNameParts(e.senderId);
             list.push({
                 key: String(e.id),
                 kind: 'topic',
@@ -267,6 +274,8 @@ const entries = computed<TagEntry[]>(() => {
                 active: props.topicId === e.id,
                 photo: e.photo,
                 deleted: e.isDeleted,
+                firstName: names.first,
+                lastName: names.last,
                 onClick: () => selectTopic(e.id),
             });
         }
@@ -318,6 +327,8 @@ const slidingTabs = computed(() =>
         unread: e.unread,
         photo: e.photo,
         deleted: e.deleted,
+        firstName: e.firstName,
+        lastName: e.lastName,
     }))
 );
 const activeTabId = computed(() => {

@@ -276,7 +276,7 @@ import { tdlibSend } from '../../utils/tdlib';
 import {
     ensureUser, ensureChat, getReactiveUser, getReactiveChat, getChatTitle,
     getChatProfileAccentColorId, ensureBasicGroup, ensureSupergroup,
-    getReactiveBasicGroup, getReactiveSupergroup,
+    getReactiveBasicGroup, getReactiveSupergroup, getChatUserNames,
 } from '../../utils/senderInfo';
 import formatStatus from '../../utils/status';
 import {
@@ -457,6 +457,8 @@ async function hydrateExceptions(list: ExceptionEntry[]): Promise<ExceptionEntry
                 subtitle: chatSubtitle(c),
                 photo: c?.photo,
                 accentId: getChatProfileAccentColorId(c),
+                firstName: getChatUserNames(c).first,
+                lastName: getChatUserNames(c).last,
             };
         }
         const u = getReactiveUser(e.id);
@@ -466,6 +468,8 @@ async function hydrateExceptions(list: ExceptionEntry[]): Promise<ExceptionEntry
             subtitle: u ? formatStatus(u) : '',
             photo: u?.profile_photo,
             accentId: u && u.profile_accent_color_id !== undefined && u.profile_accent_color_id !== -1 ? u.profile_accent_color_id : undefined,
+            firstName: u?.first_name || '',
+            lastName: u?.last_name || '',
         };
     });
 }
@@ -488,6 +492,8 @@ async function resolveEntityFromInput(input: string): Promise<ExceptionEntry> {
                 subtitle: chatSubtitle(c),
                 photo: c.photo,
                 accentId: getChatProfileAccentColorId(c),
+                firstName: getChatUserNames(c).first,
+                lastName: getChatUserNames(c).last,
             };
         }
         await ensureUser(id).catch(() => { });
@@ -500,6 +506,8 @@ async function resolveEntityFromInput(input: string): Promise<ExceptionEntry> {
             subtitle: formatStatus(u),
             photo: u.profile_photo,
             accentId: u.profile_accent_color_id !== undefined && u.profile_accent_color_id !== -1 ? u.profile_accent_color_id : undefined,
+            firstName: u.first_name || '',
+            lastName: u.last_name || '',
         };
     }
     try {
@@ -516,6 +524,8 @@ async function resolveEntityFromInput(input: string): Promise<ExceptionEntry> {
                 subtitle: u ? formatStatus(u) : '',
                 photo: u?.profile_photo,
                 accentId: u && u.profile_accent_color_id !== undefined && u.profile_accent_color_id !== -1 ? u.profile_accent_color_id : undefined,
+                firstName: u?.first_name || '',
+                lastName: u?.last_name || '',
             };
         }
         await ensureChat(chat.id);
@@ -529,6 +539,8 @@ async function resolveEntityFromInput(input: string): Promise<ExceptionEntry> {
             subtitle: chatSubtitle(c),
             photo: c?.photo,
             accentId: getChatProfileAccentColorId(c),
+            firstName: getChatUserNames(c).first,
+            lastName: getChatUserNames(c).last,
         };
     } catch (e: any) {
         throw new Error(e?.message || t('privacy.userOrChatNotFound'));

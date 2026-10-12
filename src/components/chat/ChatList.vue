@@ -119,6 +119,8 @@
                                         <StoryRing v-else :chat-id="chat.id" :size="48" :diameter="48"
                                             :radius-percent="storyRingRadiusPercent(chat)">
                                             <Avatar :photo="chat.photo" :title="chat.title"
+                                                :first-name="getChatUserNames(chat).first"
+                                                :last-name="getChatUserNames(chat).last"
                                                 :radius="chatAvatarRadius(chat)"
                                                 :accentColorId="getChatProfileAccentColorId(chat)"
                                                 :deletedAccount="isDeletedChat(chat)" />
@@ -190,6 +192,8 @@
                                                 <StoryRing v-else :chat-id="chat.id" :size="48" :diameter="48"
                                                     :radius-percent="storyRingRadiusPercent(chat)">
                                                     <Avatar :photo="chat.photo" :title="chat.title"
+                                                        :first-name="getChatUserNames(chat).first"
+                                                        :last-name="getChatUserNames(chat).last"
                                                         :radius="chatAvatarRadius(chat)"
                                                         :accentColorId="getChatProfileAccentColorId(chat)"
                                                         :deletedAccount="isDeletedChat(chat)" />
@@ -235,7 +239,10 @@
                                                             <Avatar
                                                                 v-if="settings.chatList.showSenderMiniAvatar && senderMiniAvatar(chat)"
                                                                 :photo="senderMiniAvatar(chat)"
-                                                                :title="senderName(chat)" sizeClass="!w-4 !h-4"
+                                                                :title="senderName(chat)"
+                                                                :first-name="getSenderNameParts(chat.last_message?.sender_id).first"
+                                                                :last-name="getSenderNameParts(chat.last_message?.sender_id).last"
+                                                                sizeClass="!w-4 !h-4"
                                                                 :radius="avatarRadius" class="shrink-0" />
                                                             <span class="shrink-0 text-xs text-gray-400">
                                                                 <GlobalEmojiText :text="senderName(chat)" />：
@@ -344,6 +351,8 @@
                                                 <Avatar
                                                     v-if="settings.chatList.showSenderMiniAvatar && topicMiniAvatar(topic)"
                                                     :photo="topicMiniAvatar(topic)" :title="topicSender(topic)"
+                                                    :first-name="getSenderNameParts(topic.last_message?.sender_id).first"
+                                                    :last-name="getSenderNameParts(topic.last_message?.sender_id).last"
                                                     sizeClass="!w-4 !h-4" :radius="avatarRadius" class="shrink-0" />
                                                 <span class="shrink-0 text-xs text-gray-400">
                                                     <GlobalEmojiText :text="topicSender(topic)" />：
@@ -437,8 +446,8 @@ import { BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon, UserIcon, U
 import { storeToRefs } from 'pinia';
 import { settings } from '../../store/settings';
 import {
-    getSenderName, getSenderPhoto, ensureSenderLoaded,
-    getChatProfileAccentColorId, ensureChatAccentLoaded, isDeletedChat,
+    getSenderName, getSenderNameParts, getSenderPhoto, ensureSenderLoaded,
+    getChatProfileAccentColorId, ensureChatAccentLoaded, getChatUserNames, isDeletedChat,
     isChatGroup, isChatMuted, isChatPinned, DELETED_ACCOUNT_LABEL,
 } from '../../utils/senderInfo';
 import { useChatStore } from '../../store/chat';

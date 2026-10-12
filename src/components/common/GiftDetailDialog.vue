@@ -78,6 +78,7 @@
                                         <template v-if="row.kind === 'party' && row.party">
                                             <div class="flex h-6 w-6 shrink-0 overflow-hidden rounded-full">
                                                 <Avatar :photo="row.party.photo" :title="row.party.name"
+                                                    :first-name="row.party.firstName" :last-name="row.party.lastName"
                                                     :accent-color-id="row.party.accentColorId" />
                                             </div>
                                             <span class="truncate font-medium">

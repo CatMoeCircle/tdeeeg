@@ -6,7 +6,8 @@
             :accentColorId="accentColorId" @jump="onReplyJump" />
 
         <ForwardBanner v-if="forwardInfo" :name="forwardName ?? ''" :original-name="forwardOriginalName"
-            :photo="forwardPhoto" :accent-id="forwardAccentId" :navigable="forwardNavigable" :self="isSelf"
+            :first-name="forwardFirstName" :last-name="forwardLastName" :photo="forwardPhoto"
+            :accent-id="forwardAccentId" :navigable="forwardNavigable" :self="isSelf"
             :text-color="forwardTextColor" media-inline @open-source="emit('openForwardSource')" />
 
         <!-- Caption above media：字色跟气泡走（.msg-bubble-self 内强制深色，否则主题正文字色） -->
@@ -310,6 +311,9 @@ const props = defineProps<{
     forwardAccentId?: number;
     /** 转发原始作者签名（括号内） */
     forwardOriginalName?: string;
+    /** 转发来源为用户时的姓名拆分（头像文字用） */
+    forwardFirstName?: string;
+    forwardLastName?: string;
     /** 转发横幅文字色 */
     forwardTextColor?: string;
     isFirstInGroup?: boolean;

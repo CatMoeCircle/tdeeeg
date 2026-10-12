@@ -42,6 +42,9 @@ export interface EventLogItem {
     photo?: chatPhotoInfo | profilePhoto;
     accentId?: number;
     deleted?: boolean;
+    /** 用户姓名拆分（头像首字母用；群发送者为空） */
+    first?: string;
+    last?: string;
   };
 }
 
@@ -107,6 +110,8 @@ function senderOfMsg(msg: message) {
     photo: u?.profile_photo,
     accentId: u?.profile_accent_color_id ?? u?.accent_color_id,
     deleted: isDeletedUser(u),
+    first: uid ? u?.first_name || "" : "",
+    last: uid ? u?.last_name || "" : "",
   };
 }
 
@@ -119,6 +124,8 @@ function actorOf(event: chatEvent) {
     photo: u?.profile_photo,
     accentId: u?.profile_accent_color_id ?? u?.accent_color_id,
     deleted: isDeletedUser(u),
+    first: uid ? u?.first_name || "" : "",
+    last: uid ? u?.last_name || "" : "",
   };
 }
 

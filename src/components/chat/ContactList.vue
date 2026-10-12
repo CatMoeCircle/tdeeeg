@@ -14,6 +14,7 @@
 
                     <div class="w-13 h-13 mr-3">
                         <Avatar :photo="user.profile_photo" :title="user.first_name + ` ` + user.last_name"
+                            :first-name="user.first_name" :last-name="user.last_name"
                             :accentColorId="user.profile_accent_color_id" />
                     </div>
                     <div class="flex-1 min-w-0">

@@ -39,6 +39,7 @@
         <MessageMediaContent v-else-if="isMediaContent(content)" :content="content" :isSelf="isSelf ?? false"
             :date="date" :forwardInfo="forwardInfo" :forwardName="forwardName" :forwardNavigable="forwardNavigable"
             :forwardPhoto="forwardPhoto" :forwardAccentId="forwardAccentId" :forwardOriginalName="forwardOriginalName"
+            :forwardFirstName="forwardFirstName" :forwardLastName="forwardLastName"
             :forwardTextColor="forwardTextColor" :isFirstInGroup="isFirstInGroup" :isLastInGroup="isLastInGroup"
             :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature"
             :chatId="chatId" :messageId="messageId" :message="message" :topicId="topicId" :senderName="senderName"
@@ -192,6 +193,9 @@ const props = defineProps<{
     forwardAccentId?: number;
     /** 转发原始作者签名（括号内） */
     forwardOriginalName?: string;
+    /** 转发来源为用户时的姓名拆分（头像文字用） */
+    forwardFirstName?: string;
+    forwardLastName?: string;
     /** 转发横幅文字色 */
     forwardTextColor?: string;
     isFirstInGroup?: boolean;

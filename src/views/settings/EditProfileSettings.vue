@@ -28,6 +28,7 @@
                             <!-- 左侧：头像 + 上传按钮 -->
                             <div class="flex flex-col items-center gap-3 shrink-0">
                                 <Avatar :photo="user?.profile_photo" :title="fullName"
+                                    :first-name="user?.first_name" :last-name="user?.last_name"
                                     :accentColorId="user?.profile_accent_color_id" sizeClass="!w-20 !h-20" />
                                 <button type="button" @click="avatarEditorVisible = true"
                                     class="px-3 py-1.5 rounded-lg bg-blue-500 text-white text-xs font-medium hover:bg-blue-600 transition-colors">
@@ -173,6 +174,7 @@
                             class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-4 flex items-center gap-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                             <div class="w-10 h-10 shrink-0" v-if="personalChat">
                                 <Avatar :photo="personalChat.photo" :title="personalChat.title"
+                                    :first-name="user?.first_name" :last-name="user?.last_name"
                                     :accentColorId="personalChatAccent" sizeClass="!w-10 !h-10" />
                             </div>
                             <div v-else

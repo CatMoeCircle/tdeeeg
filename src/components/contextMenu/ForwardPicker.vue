@@ -67,6 +67,7 @@
                             <!-- 头像 + 右下角蓝色确认图标（圆角跟随外观设置；已注销账户显示幽灵头像） -->
                             <div class="relative w-9 h-9 shrink-0">
                                 <Avatar v-if="!isSaved(chat)" :photo="chat.photo" :title="chat.title"
+                                    :first-name="getChatUserNames(chat).first" :last-name="getChatUserNames(chat).last"
                                     :radius="chatAvatarRadius(chat)" :deletedAccount="isDeletedChat(chat)"
                                     :accentColorId="(chat as any).profile_accent_color_id" />
                                 <div v-else
@@ -111,6 +112,7 @@
                                 <!-- 话题图标 / 用户头像（圆角跟随外观设置；已注销账户显示幽灵头像） -->
                                 <div class="relative w-9 h-9 shrink-0">
                                     <Avatar v-if="tp.photo || tp.deleted" :photo="tp.photo" :title="tp.name"
+                                        :first-name="tp.firstName" :last-name="tp.lastName"
                                         :radius="avatarRadius" :deletedAccount="tp.deleted" />
                                     <div v-else-if="tp.customEmojiId"
                                         class="w-full h-full flex items-center justify-center">
@@ -227,7 +229,7 @@ import type { ContextMenuItem } from "./types";
 import type { chat, message, forumTopics, chatPhotoInfo, profilePhoto } from "tdlib-types";
 import { resolveTopicMode } from "../../utils/topicDisplayMode";
 import { loadDmTopics, toDmTopicEntries, buildMessageTopicInput } from "../../utils/directMessagesTopics";
-import { isDeletedChat, DELETED_ACCOUNT_LABEL } from "../../utils/senderInfo";
+import { isDeletedChat, getChatUserNames, getSenderNameParts, DELETED_ACCOUNT_LABEL } from "../../utils/senderInfo";
 import { folderTabClass, folderTabContainerClass } from "../../utils/folderPillsTabClass";
 
 const props = defineProps<{
@@ -282,6 +284,9 @@ interface TopicRow {
     /** 已注销/空账户：头像显示幽灵图标 */
     deleted?: boolean;
     photo?: chatPhotoInfo | profilePhoto;
+    /** 对方姓名拆分（DM 模式，无头像文字用） */
+    firstName?: string;
+    lastName?: string;
 }
 
 const topicPicker = reactive({
@@ -357,6 +362,8 @@ async function loadDmTopicRows(chatId: number): Promise<TopicRow[]> {
         customEmojiId: '',
         deleted: e.isDeleted,
         photo: e.photo,
+        firstName: getSenderNameParts(e.senderId).first,
+        lastName: getSenderNameParts(e.senderId).last,
     }));
 }
 

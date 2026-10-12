@@ -66,7 +66,8 @@
                 <button v-for="m in senderOptions" :key="senderKey(m)" type="button"
                     class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                     @click="setSenderFilter(senderInput(m))">
-                    <Avatar :photo="senderPhoto(m)" :title="senderName(m)" :accentColorId="senderAccent(m)"
+                    <Avatar :photo="senderPhoto(m)" :title="senderName(m)" :first-name="getSenderNameParts(m).first"
+                        :last-name="getSenderNameParts(m).last" :accentColorId="senderAccent(m)"
                         :deletedAccount="senderDeleted(m)" sizeClass="!w-8 !h-8" class="shrink-0" />
                     <span class="truncate flex-1">{{ senderName(m) }}</span>
                     <CheckIcon v-if="isSenderSelected(m)" class="w-4 h-4 text-blue-500 shrink-0" />
@@ -87,6 +88,8 @@
                     :class="i === activeIndex ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/60'"
                     @click="selectResult(i)">
                     <Avatar :photo="resultSenderPhoto(msg)" :title="resultSenderName(msg)"
+                        :first-name="getSenderNameParts(msg.sender_id).first"
+                        :last-name="getSenderNameParts(msg.sender_id).last"
                         :accentColorId="resultSenderAccent(msg)" :deletedAccount="resultSenderDeleted(msg)"
                         sizeClass="!w-8 !h-8" class="mt-0.5 shrink-0" />
                     <div class="min-w-0 flex-1">
@@ -113,7 +116,7 @@ import type { message, chat, MessageSender, MessageSender$Input, chatMember } fr
 import { tdlibSend } from '../../../utils/tdlib';
 import { getMessagePlainText } from '../../../utils/messageText';
 import {
-    getSenderName, getSenderPhoto, getSenderProfileAccentColorId, isDeletedSender, ensureSenderLoaded,
+    getSenderName, getSenderNameParts, getSenderPhoto, getSenderProfileAccentColorId, isDeletedSender, ensureSenderLoaded,
 } from '../../../utils/senderInfo';
 import { formatDateLabel } from './composables/dateLabel';
 import Avatar from '../avatar.vue';

@@ -4,7 +4,8 @@
         <div
             class="h-20 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 pt-4 flex items-center px-4 justify-between shrink-0">
             <div class="flex items-center gap-3" v-if="chat">
-                <Avatar :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10" />
+                <Avatar :photo="chat.photo" :title="chat.title" sizeClass="!w-10 !h-10"
+                    :first-name="getChatNames(chat).first" :last-name="getChatNames(chat).last" />
                 <div class="flex flex-col">
                     <h2 class="font-semibold text-lg text-gray-800 dark:text-gray-100 leading-tight">
                         <GlobalEmojiText :text="chat.title" />
@@ -37,7 +38,8 @@
                 <!-- Avatar for others -->
                 <div v-if="!isSelf(msg) && shouldReserveAvatarSpace(msg)" class="mr-2 shrink-0 self-end"
                     :class="{ 'invisible': !shouldShowAvatar(index) }">
-                    <Avatar :photo="getSenderPhoto(msg)" :title="getSenderName(msg)" sizeClass="w-8 h-8" />
+                    <Avatar :photo="getSenderPhoto(msg)" :title="getSenderName(msg)" sizeClass="w-8 h-8"
+                        :first-name="getSenderNames(msg).first" :last-name="getSenderNames(msg).last" />
                 </div>
 
                 <div :class="[
@@ -466,9 +468,27 @@ const getSenderName = (msg: message) => {
     return 'Unknown';
 };
 
-// 获取消息发送者的头像信息（user.profile_photo 或 chat.photo）
-const getSenderPhoto = (msg: message): chatPhotoInfo | profilePhoto | undefined => {
+// 发送者姓名拆分（无头像文字用）；群发送者返回空串回退标题
+const getSenderNames = (msg: message): { first: string; last: string } => {
     if (msg.sender_id._ === 'messageSenderUser') {
+        const u = users.value[msg.sender_id.user_id];
+        if (u) return { first: u.first_name || '', last: u.last_name || '' };
+    }
+    return { first: '', last: '' };
+};
+
+// 私聊/密聊对话的用户姓名拆分；其他对话返回空串回退标题
+const getChatNames = (c: chat): { first: string; last: string } => {
+    const t = c.type;
+    if (t && (t._ === 'chatTypePrivate' || t._ === 'chatTypeSecret')) {
+        const u = users.value[t.user_id];
+        if (u) return { first: u.first_name || '', last: u.last_name || '' };
+    }
+    return { first: '', last: '' };
+};
+
+// 获取消息发送者的头像信息（user.profile_photo 或 chat.photo）
+const getSenderPhoto = (msg: message): chatPhotoInfo | profilePhoto | undefined => {    if (msg.sender_id._ === 'messageSenderUser') {
         const u = users.value[msg.sender_id.user_id];
         return u?.profile_photo;
     } else if (msg.sender_id._ === 'messageSenderChat') {

@@ -33,6 +33,9 @@ export const menuKind = ref<UsernameMenuKind>("username");
 /** 会话展示信息 */
 export interface UsernameMenuDisplay {
     name: string;
+    /** 姓名拆分（无头像文字用；仅个人/机器人） */
+    firstName?: string;
+    lastName?: string;
     /** 是否群/频道（false 表示个人/机器人） */
     isChat: boolean;
     photo?: chatPhotoInfo | profilePhoto;
@@ -109,6 +112,8 @@ export function openUsernameMenu(name: string, px: number, py: number) {
                 display.value = {
                     name: u ? `${u.first_name} ${u.last_name}`.trim()
                         : (chatResult.title || `@${clean}`),
+                    firstName: u?.first_name || "",
+                    lastName: u?.last_name || "",
                     isChat: false,
                     photo: u?.profile_photo ?? chatResult.photo,
                     accentId: u && u.profile_accent_color_id !== -1
@@ -178,6 +183,8 @@ export function openUserMenuById(userId: number, px: number, py: number) {
             const name = `${u?.first_name ?? ""} ${u?.last_name ?? ""}`.trim();
             display.value = {
                 name: name || (uname ? `@${uname}` : `#${userId}`),
+                firstName: u?.first_name || "",
+                lastName: u?.last_name || "",
                 isChat: false,
                 photo: u?.profile_photo,
                 accentId: u && u.profile_accent_color_id !== -1

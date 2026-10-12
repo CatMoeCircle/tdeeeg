@@ -21,7 +21,8 @@
                     class="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-context-menu"
                     @contextmenu.prevent="onBlockedContextMenu($event, item)">
                     <div class="w-9 h-9 shrink-0">
-                        <Avatar :photo="item.photo" :title="item.title" :accentColorId="item.accentId"
+                        <Avatar :photo="item.photo" :title="item.title" :first-name="item.firstName"
+                            :last-name="item.lastName" :accentColorId="item.accentId"
                             sizeClass="!w-9 !h-9" />
                     </div>
                     <div class="min-w-0 flex-1">
@@ -50,7 +51,7 @@ import { openContextMenu } from '../../store/contextMenu';
 import { tdlibSend } from '../../utils/tdlib';
 import {
     ensureUser, ensureChat, getReactiveUser, getReactiveChat, getChatTitle,
-    getChatProfileAccentColorId,
+    getChatProfileAccentColorId, getChatUserNames,
 } from '../../utils/senderInfo';
 import type { chat as TdChat, MessageSender } from 'tdlib-types';
 
@@ -68,7 +69,7 @@ const visible = computed({
     set: (v) => emit('update:modelValue', v),
 });
 
-const blockedList = ref<{ id: number; title: string; subtitle: string; isChat: boolean; photo?: any; accentId?: number }[]>([]);
+const blockedList = ref<{ id: number; title: string; subtitle: string; isChat: boolean; photo?: any; accentId?: number; firstName?: string; lastName?: string }[]>([]);
 const blockedLoading = ref(false);
 const blockInput = ref('');
 const blockingAdd = ref(false);
@@ -117,6 +118,8 @@ async function loadBlocked() {
                     subtitle: u?.usernames?.active_usernames?.[0] ? `@${u.usernames.active_usernames[0]}` : `ID: ${s.user_id}`,
                     photo: u?.profile_photo,
                     accentId: u && u.profile_accent_color_id !== undefined && u.profile_accent_color_id !== -1 ? u.profile_accent_color_id : undefined,
+                    firstName: u?.first_name || '',
+                    lastName: u?.last_name || '',
                     isChat: false,
                 };
             }
@@ -128,6 +131,8 @@ async function loadBlocked() {
                 subtitle: chatUsername ? `@${chatUsername}` : `ID: ${s.chat_id}`,
                 photo: c?.photo,
                 accentId: getChatProfileAccentColorId(c),
+                firstName: getChatUserNames(c).first,
+                lastName: getChatUserNames(c).last,
                 isChat: true,
             };
         });

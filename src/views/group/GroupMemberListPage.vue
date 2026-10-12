@@ -76,7 +76,8 @@
                 @click="onRowClick(m)"
                 @contextmenu.prevent="openMenu($event, m)">
                 <div class="w-10 h-10 shrink-0">
-                  <Avatar :photo="userOf(m)?.profile_photo" :title="nameOf(m)" :deletedAccount="isDeletedMember(memberUserId(m))"
+                  <Avatar :photo="userOf(m)?.profile_photo" :title="nameOf(m)" :first-name="userOf(m)?.first_name"
+                    :last-name="userOf(m)?.last_name" :deletedAccount="isDeletedMember(memberUserId(m))"
                     sizeClass="!w-10 !h-10" />
                 </div>
                 <div class="min-w-0 flex-1">
@@ -98,7 +99,8 @@
             @click="onRowClick(m)"
             @contextmenu.prevent="openMenu($event, m)">
             <div class="w-10 h-10 shrink-0">
-              <Avatar :photo="userOf(m)?.profile_photo" :title="nameOf(m)" :deletedAccount="isDeletedMember(memberUserId(m))"
+              <Avatar :photo="userOf(m)?.profile_photo" :title="nameOf(m)" :first-name="userOf(m)?.first_name"
+                :last-name="userOf(m)?.last_name" :deletedAccount="isDeletedMember(memberUserId(m))"
                 sizeClass="!w-10 !h-10" />
             </div>
             <div class="min-w-0 flex-1">

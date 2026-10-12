@@ -28,6 +28,7 @@
                         ? 'ring-blue-100 dark:ring-blue-900/50'
                         : 'ring-gray-100 dark:ring-gray-800'">
                     <Avatar :photo="getSenderPhoto(s)" :title="getSenderName(s)"
+                        :first-name="getSenderNameParts(s).first" :last-name="getSenderNameParts(s).last"
                         :accentColorId="getSenderProfileAccentColorId(s)" :deletedAccount="isDeletedSender(s)" />
                 </span>
             </span>
@@ -58,6 +59,7 @@ import {
 import {
     ensureSenderLoaded,
     getSenderName,
+    getSenderNameParts,
     getSenderPhoto,
     getSenderProfileAccentColorId,
     isDeletedSender,

@@ -55,6 +55,19 @@ export function getForwardName(
 }
 
 /**
+ * 计算转发来源的姓名拆分（头像首字母用）；来源不是用户时返回空串。
+ */
+export function getForwardNames(
+    forwardInfo: messageForwardInfo,
+    caches: SenderCache,
+): { first: string; last: string } {
+    const origin = forwardInfo.origin;
+    if (origin._ !== 'messageOriginUser') return { first: '', last: '' };
+    const u = caches.users[origin.sender_user_id];
+    return { first: u?.first_name || '', last: u?.last_name || '' };
+}
+
+/**
  * 获取转发来源携带的原始作者签名（频道帖子/匿名群管消息）。
  */
 export function getForwardAuthorSignature(
@@ -148,33 +161,39 @@ export function isSavedForwardedMessage(
 }
 
 /**
- * 计算转发来源的头像渐变 profile_accent_color_id（用于无头像时的头像背景）。
+ * 计算转发来源的头像渐变色 id（用于无头像时的头像背景）。
+ * 与其余头像取色一致：profile_accent_color_id ≥0 优先，否则回退 accent_color_id。
  *
  * @param forwardInfo - TDLib 转发信息
  * @param caches - 用户 / 聊天缓存
- * @returns profile accent 色 id；无有效值时为 `undefined`
+ * @returns 头像渐变色 id；无有效值时为 `undefined`
  */
 export function getForwardProfileAccentId(
     forwardInfo: messageForwardInfo,
     caches: SenderCache,
 ): number | undefined {
     const origin = forwardInfo.origin;
-    let id: number | undefined;
+    let profile: number | undefined;
+    let accent: number | undefined;
     switch (origin._) {
         case 'messageOriginUser':
-            id = caches.users[origin.sender_user_id]?.profile_accent_color_id;
+            profile = caches.users[origin.sender_user_id]?.profile_accent_color_id;
+            accent = caches.users[origin.sender_user_id]?.accent_color_id;
             break;
         case 'messageOriginChat':
-            id = caches.chats[origin.sender_chat_id]?.profile_accent_color_id;
+            profile = caches.chats[origin.sender_chat_id]?.profile_accent_color_id;
+            accent = caches.chats[origin.sender_chat_id]?.accent_color_id;
             break;
         case 'messageOriginChannel':
-            id = caches.chats[origin.chat_id]?.profile_accent_color_id;
+            profile = caches.chats[origin.chat_id]?.profile_accent_color_id;
+            accent = caches.chats[origin.chat_id]?.accent_color_id;
             break;
         case 'messageOriginHiddenUser':
-            id = undefined;
-            break;
+            return undefined;
     }
-    return id !== undefined && id !== -1 ? id : undefined;
+    if (profile !== undefined && profile >= 0) return profile;
+    if (accent !== undefined && accent >= 0) return accent;
+    return undefined;
 }
 
 /** 上方各函数所需的外部依赖集合 */
@@ -216,6 +235,29 @@ export function getDisplaySenderName(
         return isOutgoingAliasMessage(msg, deps.myId) ? getSenderName(msg, deps) : i18n.global.t('lng_from_you');
     }
     return getSenderName(msg, deps);
+}
+
+/**
+ * 计算展示发送者的姓名拆分（无头像头像的文字用）。
+ * 无法解析为用户（群/频道发送者、来源为聊天的收藏转发、未加载）时返回空串，
+ * 调用方应回退到展示名称。
+ */
+export function getDisplaySenderNames(
+    msg: message,
+    deps: SenderDisplayDeps,
+): { first: string; last: string } {
+    const empty = { first: '', last: '' };
+    if (isSavedForwardedMessage(msg, deps) && msg.forward_info) {
+        const origin = msg.forward_info.origin;
+        if (origin._ !== 'messageOriginUser') return empty;
+        const u = deps.users[origin.sender_user_id];
+        if (!u) return empty;
+        return { first: u.first_name || '', last: u.last_name || '' };
+    }
+    if (msg.sender_id._ !== 'messageSenderUser') return empty;
+    const u = deps.users[msg.sender_id.user_id];
+    if (!u || u.type?._ === 'userTypeDeleted' || u.type?._ === 'userTypeUnknown') return empty;
+    return { first: u.first_name || '', last: u.last_name || '' };
 }
 
 /**

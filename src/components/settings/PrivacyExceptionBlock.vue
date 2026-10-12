@@ -17,7 +17,8 @@
             <div v-for="e in list" :key="(e.isChat ? 'c' : 'u') + e.id"
                 class="flex items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800">
                 <div class="w-8 h-8 shrink-0">
-                    <Avatar :photo="e.photo" :title="e.title" :accentColorId="e.accentId" sizeClass="!w-8 !h-8" />
+                    <Avatar :photo="e.photo" :title="e.title" :first-name="e.firstName" :last-name="e.lastName"
+                        :accentColorId="e.accentId" sizeClass="!w-8 !h-8" />
                 </div>
                 <div class="flex-1 min-w-0">
                     <div class="text-sm text-gray-800 dark:text-gray-100 truncate">{{ e.title }}</div>
@@ -39,6 +40,9 @@ export interface ExceptionEntry {
     subtitle?: string;
     photo?: any;
     accentId?: number;
+    /** 姓名拆分（无头像文字用；私聊对方 / 用户条目） */
+    firstName?: string;
+    lastName?: string;
 }
 </script>
 

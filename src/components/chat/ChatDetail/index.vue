@@ -76,6 +76,8 @@
                                         :disabled="!canOpenSenderProfile(item.messages[0])">
                                         <Avatar :photo="getDisplaySenderPhoto(item.messages[0])"
                                             :title="getDisplaySenderName(item.messages[0])"
+                                            :first-name="getDisplaySenderNames(item.messages[0]).first"
+                                            :last-name="getDisplaySenderNames(item.messages[0]).last"
                                             :accentColorId="getDisplaySenderProfileAccentId(item.messages[0])"
                                             :deletedAccount="getDisplaySenderDeleted(item.messages[0])" />
                                     </button>
@@ -111,6 +113,8 @@
                                             v-if="item.messages[0].forward_info && !isLinkedChannelMessage(item.messages[0])"
                                             :name="getForwardName(item.messages[0].forward_info)"
                                             :original-name="getForwardOriginalName(item.messages[0].forward_info)"
+                                            :first-name="getForwardNames(item.messages[0].forward_info).first"
+                                            :last-name="getForwardNames(item.messages[0].forward_info).last"
                                             :photo="getForwardPhoto(item.messages[0].forward_info)"
                                             :accent-id="getForwardAccentId(item.messages[0].forward_info)"
                                             :navigable="canNavigateForward(item.messages[0].forward_info)"
@@ -193,6 +197,8 @@
                                         :disabled="!canOpenSenderProfile(item.msg)">
                                         <Avatar :photo="getDisplaySenderPhoto(item.msg)"
                                             :title="getDisplaySenderName(item.msg)"
+                                            :first-name="getDisplaySenderNames(item.msg).first"
+                                            :last-name="getDisplaySenderNames(item.msg).last"
                                             :accentColorId="getDisplaySenderProfileAccentId(item.msg)"
                                             :deletedAccount="getDisplaySenderDeleted(item.msg)" />
                                     </button>
@@ -237,6 +243,8 @@
                                             v-if="item.msg.forward_info && !isMediaMessage(item.msg) && !isLinkedChannelMessage(item.msg)"
                                             :name="getForwardName(item.msg.forward_info)"
                                             :original-name="getForwardOriginalName(item.msg.forward_info)"
+                                            :first-name="getForwardNames(item.msg.forward_info).first"
+                                            :last-name="getForwardNames(item.msg.forward_info).last"
                                             :photo="getForwardPhoto(item.msg.forward_info)"
                                             :accent-id="getForwardAccentId(item.msg.forward_info)"
                                             :navigable="canNavigateForward(item.msg.forward_info)"
@@ -249,6 +257,8 @@
                                             :forwardPhoto="getDisplayForwardInfo(item.msg) ? getForwardPhoto(getDisplayForwardInfo(item.msg)!) : undefined"
                                             :forwardAccentId="getDisplayForwardInfo(item.msg) ? getForwardAccentId(getDisplayForwardInfo(item.msg)!) : undefined"
                                             :forwardOriginalName="getDisplayForwardInfo(item.msg) ? getForwardOriginalName(getDisplayForwardInfo(item.msg)!) : undefined"
+                                            :forwardFirstName="getDisplayForwardInfo(item.msg) ? getForwardNames(getDisplayForwardInfo(item.msg)!).first : undefined"
+                                            :forwardLastName="getDisplayForwardInfo(item.msg) ? getForwardNames(getDisplayForwardInfo(item.msg)!).last : undefined"
                                             :forwardTextColor="forwardTextColor(item.msg)"
                                             :isFirstInGroup="item.isFirstInGroup" :isLastInGroup="item.isLastInGroup"
                                             :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
@@ -494,6 +504,7 @@
                             class="w-20 h-20 mb-3 rounded-full overflow-hidden focus:outline-none cursor-pointer"
                             :disabled="!overlayUserId" @click="openOverlayUserProfile">
                             <Avatar :photo="chat.photo" :title="chat.title" sizeClass="!w-20 !h-20"
+                                :first-name="getChatUserNames(chat).first" :last-name="getChatUserNames(chat).last"
                                 :accentColorId="getChatProfileAccentColorId(chat)" />
                         </button>
                         <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">
@@ -806,7 +817,7 @@ import { DEFAULT_TRANSLATE_TARGET } from '../../../utils/translateLanguages';
 import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity, textEntity$Input, file as TdFile, ReactionType } from 'tdlib-types';
 import { getViewerState, closeMediaViewer, isMediaViewerActive, openMediaViewer } from '../../../store/mediaViewer';
 
-import { getSenderAccentColorId, getSenderProfileAccentColorId, getChatProfileAccentColorId, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
+import { getSenderAccentColorId, getSenderProfileAccentColorId, getSenderNameParts, getChatProfileAccentColorId, getChatUserNames, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
 import { useColors } from '../../../store/colors';
 import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage, isBubblelessMediaMessage, albumHasVisibleCaption, showChannelCommentsBar } from './composables/messageType';
 import { buildDisplayItems } from './composables/messageItems';
@@ -820,11 +831,13 @@ import type { BubbleStyleDeps, BubbleBackgroundDeps } from './composables/bubble
 import { useCustomBubbleSkin } from '../../../composables/useCustomBubbleSkin';
 import {
     getDisplaySenderName as computeDisplaySenderName,
+    getDisplaySenderNames as computeDisplaySenderNames,
     getDisplaySenderPhoto as computeDisplaySenderPhoto,
     getDisplaySenderProfileAccentId as computeDisplaySenderProfileAccentId,
     getDisplaySenderDeleted as computeDisplaySenderDeleted,
     getSenderName as computeSenderName,
     getForwardName as computeForwardName,
+    getForwardNames as computeForwardNames,
     getForwardPhoto as computeForwardPhoto,
     getForwardProfileAccentId as computeForwardProfileAccentId,
     getForwardAuthorSignature as computeForwardAuthorSignature,
@@ -1439,7 +1452,7 @@ const overlayChatTitle = computed(() => {
 /** 当前话题信息（话题模式时存在） */
 const topic = ref<forumTopic | undefined>(undefined);
 /** 频道私信话题的头部展示（对方头像/名称） */
-const dmHeaderTopic = ref<{ name: string; photo?: import('tdlib-types').chatPhotoInfo | import('tdlib-types').profilePhoto } | undefined>(undefined);
+const dmHeaderTopic = ref<{ name: string; photo?: import('tdlib-types').chatPhotoInfo | import('tdlib-types').profilePhoto; firstName?: string; lastName?: string } | undefined>(undefined);
 const messageInput = ref('');
 /** 面板插入的自定义 emoji 队列（按插入顺序；发送时据此生成实体） */
 const pendingCustomEmoji = ref<{ id: string; alt: string }[]>([]);
@@ -2967,7 +2980,9 @@ async function loadSecretChatState(currentChat: chat) {
 
 // 监听 chatId 变化，加载聊天信息和消息
 watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMessageId], async (
-    [newChatId, newTopicId, , requestedMessageId],
+    // 源数组：[chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMessageId]
+    // 目标消息 id 在末位（index 4），不是 index 3（那是重试令牌）
+    [newChatId, newTopicId, , , requestedMessageId],
     oldVals,
 ) => {
     if (newChatId === undefined) return;
@@ -3097,7 +3112,8 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
                     const dm = t as Awaited<ReturnType<typeof ensureDmTopic>>;
                     if (dm) {
                         const name = await resolveDmSenderName(dm.sender_id);
-                        dmHeaderTopic.value = { name, photo: getSenderPhoto(dm.sender_id) };
+                        const dmNames = getSenderNameParts(dm.sender_id);
+                        dmHeaderTopic.value = { name, photo: getSenderPhoto(dm.sender_id), firstName: dmNames.first, lastName: dmNames.last };
                     }
                 } else {
                     topic.value = t as forumTopic;
@@ -5880,6 +5896,10 @@ const getDisplaySenderProfileAccentId = (msg: message): number | undefined =>
 const getForwardName = (forwardInfo: messageForwardInfo): string =>
     computeForwardName(forwardInfo, senderCaches());
 
+/** 转发来源姓名拆分（头像首字母用；非用户来源为空串） */
+const getForwardNames = (forwardInfo: messageForwardInfo): { first: string; last: string } =>
+    computeForwardNames(forwardInfo, senderCaches());
+
 /** 转发来源头像（频道/群组/用户；隐藏来源为 undefined） */
 const getForwardPhoto = (forwardInfo: messageForwardInfo): chatPhotoInfo | profilePhoto | undefined =>
     computeForwardPhoto(forwardInfo, senderCaches());
@@ -5913,6 +5933,10 @@ const isSavedForwardedMessage = (msg: message): boolean =>
 
 const getDisplaySenderName = (msg: message): string =>
     computeDisplaySenderName(msg, senderDeps());
+
+/** 展示发送者的姓名拆分（无头像文字用）；无法解析为用户时回退展示名称 */
+const getDisplaySenderNames = (msg: message): { first: string; last: string } =>
+    computeDisplaySenderNames(msg, senderDeps());
 
 /**
  * 服务消息的操作者名称：直接用真实名称（"你" 只用于气泡上方的发送者名称行）。

@@ -58,7 +58,8 @@
                                 <!-- 他人消息：左侧完整头像 + 气泡 -->
                                 <div class="flex justify-start">
                                     <div class="w-9 shrink-0 mr-2 self-end">
-                                        <Avatar :photo="userPhoto" :title="userName"
+                                        <Avatar :photo="userPhoto" :title="userName" :first-name="userProfile?.first_name"
+                                            :last-name="userProfile?.last_name"
                                             :radius="settings.chatList.avatarCornerRadius" sizeClass="!w-9 !h-9" />
                                     </div>
                                     <div class="max-w-[70%] bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 px-3 py-2 shadow-sm"
@@ -79,7 +80,8 @@
                                 <!-- 贴纸消息预览（右下角时间胶囊 + 大小调整） -->
                                 <div class="flex justify-start">
                                     <div class="w-9 shrink-0 mr-2 self-end">
-                                        <Avatar :photo="userPhoto" :title="userName"
+                                        <Avatar :photo="userPhoto" :title="userName" :first-name="userProfile?.first_name"
+                                            :last-name="userProfile?.last_name"
                                             :radius="settings.chatList.avatarCornerRadius" sizeClass="!w-9 !h-9" />
                                     </div>
                                     <div class="relative self-end overflow-hidden" :style="previewStickerWrapStyle">
@@ -370,7 +372,8 @@
                     <!-- 预览：模拟聊天列表项 -->
                     <PreviewCard class="mb-6" :subtitle="t('appearance.chatList')" body-class="bg-white dark:bg-gray-900 p-4">
                             <div class="flex items-center p-2 rounded-lg">
-                                <Avatar :photo="userPhoto" :title="userName"
+                                <Avatar :photo="userPhoto" :title="userName" :first-name="userProfile?.first_name"
+                                            :last-name="userProfile?.last_name"
                                     :radius="settings.chatList.avatarCornerRadius"
                                     sizeClass="!w-11 !h-11 mr-3 shrink-0" />
                                 <div class="flex-1 min-w-0">
@@ -384,7 +387,8 @@
                                             <span v-if="showPreviewLeftBadge"
                                                 class="shrink-0 text-xs font-semibold leading-5 text-blue-500">[3]</span>
                                             <template v-if="settings.chatList.showSenderMiniAvatar">
-                                                <Avatar :photo="userPhoto" :title="userName"
+                                                <Avatar :photo="userPhoto" :title="userName" :first-name="userProfile?.first_name"
+                                            :last-name="userProfile?.last_name"
                                                     :radius="settings.chatList.avatarCornerRadius"
                                                     sizeClass="!w-4 !h-4 shrink-0" />
                                             </template>
@@ -524,7 +528,8 @@
                                         <!-- titlebar 模式：用户头像 + 名称 + emoji状态 -->
                                         <template v-if="settings.chatHeaderAvatarPosition === 'titlebar'">
                                             <span class="w-1.5"></span>
-                                            <Avatar :photo="userPhoto" :title="userName"
+                                            <Avatar :photo="userPhoto" :title="userName" :first-name="userProfile?.first_name"
+                                            :last-name="userProfile?.last_name"
                                                 :radius="settings.chatList.avatarCornerRadius" sizeClass="!w-4 !h-4" />
                                             <span
                                                 class="text-[10px] font-medium text-gray-700 dark:text-gray-300 truncate">{{
@@ -545,7 +550,8 @@
                                     <div
                                         class="w-10 shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col items-center pt-2.5 gap-2 bg-gray-50 dark:bg-gray-800/50">
                                         <Avatar v-if="settings.chatHeaderAvatarPosition !== 'titlebar'"
-                                            :photo="userPhoto" :title="userName"
+                                            :photo="userPhoto" :title="userName" :first-name="userProfile?.first_name"
+                                            :last-name="userProfile?.last_name"
                                             :radius="settings.chatList.avatarCornerRadius"
                                             sizeClass="!w-8 !h-8 shrink-0" />
                                         <div class="w-6 h-6 rounded-md bg-gray-200 dark:bg-gray-600"></div>

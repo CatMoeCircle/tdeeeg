@@ -35,6 +35,9 @@ const props = defineProps<{
     radius?: number;
     /** 无头像时的名称头像主题色 id（Telegram accent_color_id） */
     accentColorId?: number;
+    /** 用户名（无头像时与 lastName 组合成首字母文本；仅传其一则显示该名前 2 位） */
+    firstName?: string;
+    lastName?: string;
     /** 是否已删除账户：显示 tgico 删除图标 + 归档灰色渐变背景 */
     deletedAccount?: boolean;
     /** 去除容器占位背景色（bg-gray-300），用于需要透明背景的场景（如个人资料页大头像） */
@@ -88,9 +91,18 @@ const iconSize = computed(() => {
 
 const imgError = ref(false);
 
+/**
+ * 无头像时的文字：
+ * - 传了姓名（用户头像）：first_name 首位 + last_name 首位；只有一侧有值时取该名前 2 位；
+ * - 未传姓名（群组/频道等）：回退到 title 前 2 个字符。
+ */
 const initials = computed(() => {
-    const t = props.title || '';
-    return t.substring(0, 2);
+    const first = (props.firstName || '').trim();
+    const last = (props.lastName || '').trim();
+    if (first && last) return first.charAt(0) + last.charAt(0);
+    const single = first || last;
+    if (single) return single.substring(0, 2);
+    return (props.title || '').substring(0, 2);
 });
 
 /** 文字头像字号：按容器实测尺寸缩放，避免固定 text-xs 在小头像上显得偏大 */
@@ -103,9 +115,11 @@ const initialsFontSize = computed(() => {
     return `${Math.round(size * INITIALS_RATIO)}px`;
 });
 
-/** 无头像时：有 accentColorId 用其主题渐变背景 + 白色文字；否则按标题哈希回退到内置渐变色，避免千篇一律的灰底 */
+/** 无头像时：有效（≥0）的 accentColorId 用其主题渐变背景 + 白色文字；否则（未传或 TDLib 的 -1）按标题哈希回退到内置渐变色，避免千篇一律的灰底/蓝底 */
 const initialsTextStyle = computed(() => {
-    const id = typeof props.accentColorId === 'number' ? props.accentColorId : hashAccentId();
+    const id = typeof props.accentColorId === 'number' && props.accentColorId >= 0
+        ? props.accentColorId
+        : hashAccentId();
     return {
         background: accentAvatarBackground(id),
         fontSize: initialsFontSize.value,

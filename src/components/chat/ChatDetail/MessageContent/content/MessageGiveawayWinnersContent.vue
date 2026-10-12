@@ -21,7 +21,8 @@
                     <div v-for="w in winners" :key="w.id"
                         class="mx-auto flex w-fit items-center gap-1.5 rounded-full pr-3" :style="winnerRowStyle(w)">
                         <div class="h-7 w-7 shrink-0 overflow-hidden rounded-full">
-                            <Avatar :photo="w.photo" :title="w.name" :accent-color-id="w.accentColorId" />
+                            <Avatar :photo="w.photo" :title="w.name" :first-name="w.firstName" :last-name="w.lastName"
+                                :accent-color-id="w.accentColorId" />
                         </div>
                         <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ w.name }}</span>
                     </div>
@@ -66,6 +67,8 @@ interface WinnerUser {
     name: string;
     photo?: profilePhoto;
     accentColorId?: number;
+    firstName?: string;
+    lastName?: string;
 }
 
 type GiveawayWinnersWithSticker = messageGiveawayWinners & { sticker?: sticker };
@@ -191,6 +194,8 @@ async function resolveWinner(id: number): Promise<WinnerUser | undefined> {
         name: displayUserName(value),
         photo: value.profile_photo,
         accentColorId: value.accent_color_id,
+        firstName: value.first_name || '',
+        lastName: value.last_name || '',
     };
 }
 

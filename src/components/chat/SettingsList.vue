@@ -9,6 +9,7 @@
                 <div class="w-12 h-12 shrink-0">
                     <avatar v-if="userProfile" :photo="userProfile.profile_photo"
                         :title="userProfile.first_name + ' ' + userProfile.last_name"
+                        :first-name="userProfile.first_name" :last-name="userProfile.last_name"
                         :accentColorId="userProfile.profile_accent_color_id" />
                     <div v-else class="w-full h-full rounded-full bg-gray-200/80 dark:bg-gray-700/80 animate-pulse"></div>
                 </div>

@@ -3,7 +3,8 @@
     <div class="space-y-4">
       <!-- 用户信息：头像 + 名称 + 状态 -->
       <div class="flex items-center gap-3">
-        <Avatar :photo="user?.profile_photo" :title="userName" :deletedAccount="isDeleted"
+        <Avatar :photo="user?.profile_photo" :title="userName" :first-name="user?.first_name"
+          :last-name="user?.last_name" :deletedAccount="isDeleted"
           sizeClass="!w-12 !h-12" />
         <div class="min-w-0 flex-1">
           <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ userName }}</p>

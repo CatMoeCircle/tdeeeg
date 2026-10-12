@@ -340,6 +340,33 @@ export function getSenderName(senderId?: MessageSender): string {
   return "";
 }
 
+/** 发送者姓名拆分（用户头像首字母用）；群发送者/未加载返回空串 */
+export function getSenderNameParts(
+  senderId?: MessageSender,
+): { first: string; last: string } {
+  if (senderId?._ === "messageSenderUser") {
+    const u = users.get(senderId.user_id);
+    if (u && !isDeletedUser(u)) {
+      return { first: u.first_name || "", last: u.last_name || "" };
+    }
+  }
+  return { first: "", last: "" };
+}
+
+/**
+ * 对话对应的用户姓名拆分（头像首字母用）。
+ * 群组/频道/未加载用户返回空串，调用方应回退到对话标题。
+ */
+export function getChatUserNames(
+  chat?: { type?: ChatType } | null,
+): { first: string; last: string } {
+  const uid = getChatUserId(chat?.type);
+  if (uid === undefined) return { first: "", last: "" };
+  const u = users.get(uid);
+  if (!u || isDeletedUser(u)) return { first: "", last: "" };
+  return { first: u.first_name || "", last: u.last_name || "" };
+}
+
 /** 对话显示名称：已注销账户的私聊/密聊对话显示「已注销账户」，否则返回对话标题 */
 export function getChatTitle(chat?: Chat): string {
   if (!chat) return "";
@@ -390,38 +417,54 @@ export function getSenderAccentColorId(
   return undefined;
 }
 
-/** 发送者的头像渐变主题色 id（user.profile_accent_color_id / chat.profile_accent_color_id；-1 视为无） */
+/**
+ * 发送者的头像渐变主题色 id（用于无头像时的头像背景）。
+ * 规则与资料页一致：profile_accent_color_id 有效（≥0）时优先，否则回退 accent_color_id；
+ * TDLib 用 -1 表示“未设置”，不能直接当色 id。
+ */
 export function getSenderProfileAccentColorId(
   senderId?: MessageSender,
 ): number | undefined {
   if (!senderId) return undefined;
-  let id: number | undefined;
+  let profile: number | undefined;
+  let accent: number | undefined;
   if (senderId._ === "messageSenderUser") {
-    id = users.get(senderId.user_id)?.profile_accent_color_id;
+    profile = users.get(senderId.user_id)?.profile_accent_color_id;
+    accent = users.get(senderId.user_id)?.accent_color_id;
   } else if (senderId._ === "messageSenderChat") {
-    id = chats.get(senderId.chat_id)?.profile_accent_color_id;
+    profile = chats.get(senderId.chat_id)?.profile_accent_color_id;
+    accent = chats.get(senderId.chat_id)?.accent_color_id;
   }
-  return id !== undefined && id !== -1 ? id : undefined;
+  if (profile !== undefined && profile >= 0) return profile;
+  if (accent !== undefined && accent >= 0) return accent;
+  return undefined;
 }
 
 /**
  * 对话列表项的头像渐变主题色 id（用于无头像时的头像背景）。
- * - 私聊/密聊：取对应用户的 profile_accent_color_id
- * - 群组/频道/机器人：取 chat 的 profile_accent_color_id
+ * - 私聊/密聊：取对应用户的 profile_accent_color_id，回退 accent_color_id
+ * - 群组/频道/机器人：取 chat 的 profile_accent_color_id，回退 chat.accent_color_id
  */
 export function getChatProfileAccentColorId(
   chat: Chat | undefined,
 ): number | undefined {
   if (!chat) return undefined;
-  let id: number | undefined;
+  let profile: number | undefined;
+  let accent: number | undefined;
   const t = chat.type?._;
   if (t === "chatTypePrivate" || t === "chatTypeSecret") {
     const uid = getChatUserId(chat.type);
-    if (uid) id = users.get(uid)?.profile_accent_color_id;
+    if (uid) {
+      profile = users.get(uid)?.profile_accent_color_id;
+      accent = users.get(uid)?.accent_color_id;
+    }
   } else {
-    id = chat.profile_accent_color_id;
+    profile = chat.profile_accent_color_id;
+    accent = chat.accent_color_id;
   }
-  return id !== undefined && id !== -1 ? id : undefined;
+  if (profile !== undefined && profile >= 0) return profile;
+  if (accent !== undefined && accent >= 0) return accent;
+  return undefined;
 }
 
 /**

@@ -77,9 +77,11 @@ const close = () => appWindow.close();
                     <StoryRing v-if="userProfile && selfStory" :size="24" :diameter="24" class="inline-flex shrink-0"
                         no-drag>
                         <Avatar :photo="userProfile.profile_photo" :title="userDisplayName"
+                            :first-name="userProfile.first_name" :last-name="userProfile.last_name"
                             :accentColorId="userProfile.profile_accent_color_id" sizeClass="!w-6 !h-6" />
                     </StoryRing>
                     <Avatar v-else-if="userProfile" :photo="userProfile.profile_photo" :title="userDisplayName"
+                        :first-name="userProfile.first_name" :last-name="userProfile.last_name"
                         :accentColorId="userProfile.profile_accent_color_id" sizeClass="!w-6 !h-6" />
                     <span v-if="userDisplayName" class="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
                         {{ userDisplayName }}

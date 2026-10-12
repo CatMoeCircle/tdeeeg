@@ -11,7 +11,9 @@
         <span v-if="repliers.length" class="flex shrink-0 items-center" :class="repliers.length > 1 ? '-space-x-1' : ''">
             <span v-for="s in repliers" :key="senderKey(s)"
                 class="inline-flex h-5 w-5 overflow-hidden rounded-full ring-1 ring-white dark:ring-gray-800">
-                <Avatar :photo="getSenderPhoto(s)" :title="getSenderName(s)" :accentColorId="getSenderProfileAccentColorId(s)"
+                <Avatar :photo="getSenderPhoto(s)" :title="getSenderName(s)"
+                    :first-name="getSenderNameParts(s).first" :last-name="getSenderNameParts(s).last"
+                    :accentColorId="getSenderProfileAccentColorId(s)"
                     :deletedAccount="isDeletedSender(s)" />
             </span>
         </span>
@@ -34,6 +36,7 @@ import { tdPlural } from '../../../utils/tdLang';
 import {
     ensureSenderLoaded,
     getSenderName,
+    getSenderNameParts,
     getSenderPhoto,
     getSenderProfileAccentColorId,
     isDeletedSender,

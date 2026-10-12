@@ -142,6 +142,7 @@
                                 <BookmarkIcon class="w-7 h-7 fill-current" />
                             </div>
                             <Avatar v-else :photo="chat.photo" :title="chat.title" :radius="avatarRadius"
+                                :first-name="getChatUserNames(chat).first" :last-name="getChatUserNames(chat).last"
                                 :accentColorId="chat.profile_accent_color_id ?? chat.accent_color_id"
                                 :deletedAccount="isDeletedChat(chat)" />
                         </div>
@@ -163,6 +164,8 @@
                     class="flex items-start gap-2.5 p-2.5 mb-0.5 hover:bg-white/70 dark:hover:bg-gray-800/70 rounded-xl cursor-pointer transition-colors"
                     style="content-visibility: auto; contain-intrinsic-size: 72px">
                     <Avatar :photo="resultChat(msg.chat_id)?.photo" :title="resultChat(msg.chat_id)?.title"
+                        :first-name="getChatUserNames(resultChat(msg.chat_id)).first"
+                        :last-name="getChatUserNames(resultChat(msg.chat_id)).last"
                         :accentColorId="resultChat(msg.chat_id)?.profile_accent_color_id ?? resultChat(msg.chat_id)?.accent_color_id"
                         sizeClass="!w-10 !h-10" :radius="avatarRadius" class="mt-0.5 shrink-0" />
                     <div class="flex-1 min-w-0">
@@ -201,7 +204,7 @@ import { settings } from '../../store/settings';
 import type { Chat } from '../../store/chat';
 import { useUserStore } from '../../store/user';
 import {
-    getReactiveChat, ensureChat, ensureUser, getReactiveUser, isDeletedChat, getChatTitle,
+    getReactiveChat, ensureChat, ensureUser, getReactiveUser, isDeletedChat, getChatTitle, getChatUserNames,
 } from '../../utils/senderInfo';
 import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../utils/savedMessages';
 import { tdlibSend } from '../../utils/tdlib';
@@ -730,7 +733,7 @@ function selectMessage(msg: message) {
     router.push({
         name: 'chat-detail',
         params: { id: String(msg.chat_id) },
-        query: { msg: String(msg.id) },
+        query: { message: String(msg.id) },
     });
 }
 

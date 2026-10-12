@@ -174,6 +174,7 @@
               @contextmenu.prevent="openRestrictedMenu($event, m)">
               <div class="w-9 h-9 shrink-0">
                 <Avatar :photo="userOf(m)?.profile_photo" :title="nameOf(m)"
+                  :first-name="userOf(m)?.first_name" :last-name="userOf(m)?.last_name"
                   :deletedAccount="isDeletedMember(memberUserId(m))" sizeClass="!w-9 !h-9" />
               </div>
               <div class="min-w-0 flex-1">

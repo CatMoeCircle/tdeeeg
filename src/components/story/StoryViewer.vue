@@ -40,6 +40,7 @@
                         <div class="absolute top-5 left-2.5 right-2.5 z-30 flex items-center gap-2.5">
                             <div class="w-9 h-9 shrink-0 rounded-full overflow-hidden ring-1 ring-white/40">
                                 <Avatar v-if="posterPhoto" :photo="posterPhoto" :title="posterName"
+                                    :first-name="posterUser?.first_name" :last-name="posterUser?.last_name"
                                     :accentColorId="posterAccentId" sizeClass="!w-9 !h-9" />
                                 <div v-else
                                     class="w-full h-full bg-linear-to-br from-teal-400 to-blue-500 flex items-center justify-center text-white text-xs font-semibold">
@@ -140,6 +141,7 @@
                                 <div v-for="uid in recentViewerIds.slice(0, 3)" :key="uid"
                                     class="w-7 h-7 rounded-full overflow-hidden ring-2 ring-[#2a2a2a] bg-gray-600">
                                     <Avatar :photo="recentViewerPhoto(uid)" :title="recentViewerName(uid)"
+                                        :first-name="recentViewerNames(uid).first" :last-name="recentViewerNames(uid).last"
                                         :accentColorId="recentViewerAccent(uid)" sizeClass="!w-7 !h-7" />
                                 </div>
                             </div>
@@ -476,6 +478,12 @@ const recentViewerIds = computed(() =>
 /** 最近观看者：加载 user 缓存后取真实头像/姓名 */
 function recentViewerPhoto(uid: number) {
     return getReactiveUser(uid)?.profile_photo;
+}
+
+/** 浏览者姓名拆分（无头像文字用） */
+function recentViewerNames(uid: number): { first: string; last: string } {
+    const u = getReactiveUser(uid);
+    return { first: u?.first_name || '', last: u?.last_name || '' };
 }
 function recentViewerName(uid: number): string {
     const u = getReactiveUser(uid);
