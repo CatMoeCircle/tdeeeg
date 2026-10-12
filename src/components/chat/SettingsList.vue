@@ -117,7 +117,7 @@ import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
 import { chatPaneVisible } from '../../store/chatPane';
 import formatStatus from '../../utils/status';
 import { tdlibSend } from '../../utils/tdlib';
-import { resolveInternalLink } from '../../utils/openInternalLink';
+import { OFFICIAL_GROUP_USERNAME, openOfficialGroup as openOfficialGroupLink } from '../../utils/appLinks';
 import { getVersion } from '@tauri-apps/api/app';
 import packageInfo from '../../../package.json';
 import { debugMode, setDebugMode, setLogUpdates } from '../../store/debug';
@@ -135,13 +135,10 @@ function openMyProfile() {
     router.push({ name: 'user-profile', params: { id: String(userProfile.value.id) } });
 }
 
-/** TDEEEG 官方群组用户名 */
-const OFFICIAL_GROUP_USERNAME = 'CatMoeCircle_Group';
-
-/** 跳转到官方群组：与「消息中点击 @ 用户名」完全一致的逻辑（t.me 链接 → resolveInternalLink） */
+/** 跳转到官方群组：统一走 appLinks（与「消息中点击 @ 用户名」同一套逻辑） */
 async function openOfficialGroup() {
     try {
-        await resolveInternalLink(`https://t.me/${OFFICIAL_GROUP_USERNAME}`, router);
+        await openOfficialGroupLink(router);
     } catch (e) {
         console.warn('openOfficialGroup failed:', e);
     }
