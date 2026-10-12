@@ -294,6 +294,10 @@ body {
 .tgico-comments::before {
   content: "\e965";
 }
+/* 语音转文字（tgico U+E935） */
+.tgico-transcribe::before {
+  content: "\e935";
+}
 
 /* ===== Telegram 官方图标字体 tgico ===== */
 
