@@ -71,32 +71,11 @@ const { t } = useI18n();
 const { render, show: showContentWallpaper, overlayOpacity, blurPx } = useDefaultChatBackground();
 /** 内容区底色：背景本身由 ChatBackgroundLayers 绘制，这里只给中性兜底 */
 const homeBackgroundStyle = computed(() => ({ background: 'var(--app-bg-elevated, #fff)' }));
+/** 设置栏目路由：首页 + 全部二级设置页，路由名统一以 settings 开头（新增设置页无需再登记） */
+const isSettingsRouteName = (name: unknown): boolean => typeof name === 'string' && name.startsWith('settings');
 const isContacts = computed(() => route.name === 'contacts');
-const isSettings = computed(() => route.name === 'settings'
-    || route.name === 'settings-appearance'
-    || route.name === 'settings-wallpaper'
-    || route.name === 'settings-download'
-    || route.name === 'settings-notifications'
-    || route.name === 'settings-proxy'
-    || route.name === 'settings-language'
-    || route.name === 'settings-translate'
-    || route.name === 'settings-debug'
-    || route.name === 'settings-system'
-    || route.name === 'settings-edit-profile'
-    || route.name === 'settings-privacy'
-    || route.name === 'settings-devices');
-const isSettingsDetail = computed(() => route.name === 'settings-appearance'
-    || route.name === 'settings-wallpaper'
-    || route.name === 'settings-download'
-    || route.name === 'settings-notifications'
-    || route.name === 'settings-proxy'
-    || route.name === 'settings-language'
-    || route.name === 'settings-translate'
-    || route.name === 'settings-debug'
-    || route.name === 'settings-system'
-    || route.name === 'settings-edit-profile'
-    || route.name === 'settings-privacy'
-    || route.name === 'settings-devices');
+const isSettings = computed(() => isSettingsRouteName(route.name));
+const isSettingsDetail = computed(() => isSettingsRouteName(route.name) && route.name !== 'settings');
 const isArchiveSection = computed(() => route.name === 'archived');
 const isProfile = computed(() => route.name === 'user-profile' || route.name === 'chat-profile');
 const isGroupEdit = computed(() => typeof route.name === 'string' && (
@@ -168,7 +147,7 @@ watch(
         }
 
         // 点击设置二级内容时，关闭当前聊天并显示对应设置页面。
-        if (name === 'settings-appearance' || name === 'settings-wallpaper' || name === 'settings-download' || name === 'settings-notifications' || name === 'settings-proxy' || name === 'settings-language' || name === 'settings-translate' || name === 'settings-debug' || name === 'settings-system' || name === 'settings-edit-profile' || name === 'settings-privacy' || name === 'settings-devices') {
+        if (isSettingsRouteName(name)) {
             closeActiveChat();
             return;
         }
@@ -179,7 +158,7 @@ watch(
             closeActiveChat();
             const prev = previous?.[0];
             if (prev === 'contacts') profileFromSection.value = 'contacts';
-            else if (prev === 'settings' || prev === 'settings-appearance' || prev === 'settings-wallpaper' || prev === 'settings-download' || prev === 'settings-notifications' || prev === 'settings-proxy' || prev === 'settings-language' || prev === 'settings-translate' || prev === 'settings-debug' || prev === 'settings-system') profileFromSection.value = 'settings';
+            else if (isSettingsRouteName(prev)) profileFromSection.value = 'settings';
             else profileFromSection.value = 'chats';
             return;
         }

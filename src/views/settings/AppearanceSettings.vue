@@ -9,19 +9,36 @@
         </div>
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
             <div class="max-w-2xl">
-                <!-- 主题设置入口 -->
-                <router-link to="/home/settings/theme"
-                    class="flex items-center gap-3 p-4 mb-8 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors group">
-                    <div
-                        class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-                        <PaletteIcon class="w-5 h-5" />
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('themeSettings.title') }}</p>
-                        <p class="text-xs text-gray-400 truncate">{{ t('themeSettings.entryDesc') }}</p>
-                    </div>
-                    <ChevronRightIcon class="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
-                </router-link>
+                <!-- 主题与壁纸（同一大类：主题在上，壁纸紧随其下） -->
+                <div
+                    class="mb-8 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+                    <router-link to="/home/settings/theme"
+                        class="flex items-center gap-3 p-4 hover:bg-black/5 dark:hover:bg-white/5 transition-colors group">
+                        <div
+                            class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                            <PaletteIcon class="w-5 h-5" />
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('themeSettings.title') }}</p>
+                            <p class="text-xs text-gray-400 truncate">{{ t('themeSettings.entryDesc') }}</p>
+                        </div>
+                        <ChevronRightIcon class="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                    </router-link>
+
+                    <!-- 对话壁纸入口 -->
+                    <router-link to="/home/settings/wallpaper"
+                        class="flex items-center gap-3 p-4 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                        <div
+                            class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                            <WallpaperIcon class="w-5 h-5" />
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('appearance.chatWallpaper') }}</p>
+                            <p class="text-xs text-gray-400 truncate">{{ t('appearance.chatWallpaperDesc') }}</p>
+                        </div>
+                        <ChevronRightIcon class="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                    </router-link>
+                </div>
 
                 <!-- 聊天页面设置 -->
                 <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">
@@ -264,19 +281,6 @@
                             <p class="mt-1 text-xs text-gray-400">{{ t('appearance.botCommandInsertDesc') }}</p>
                         </div>
 
-                        <!-- 对话壁纸入口 -->
-                        <router-link to="/home/settings/wallpaper"
-                            class="flex items-center gap-3 px-4 py-3 hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
-                            <div
-                                class="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center shrink-0">
-                                <WallpaperIcon class="w-5 h-5" />
-                            </div>
-                            <div class="min-w-0 flex-1">
-                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('appearance.chatWallpaper') }}</p>
-                                <p class="text-xs text-gray-400">{{ t('appearance.chatWallpaperDesc') }}</p>
-                            </div>
-                            <ChevronRightIcon class="w-4 h-4 text-gray-400" />
-                        </router-link>
                     </div>
                 </div>
 
