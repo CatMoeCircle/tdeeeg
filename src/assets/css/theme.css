@@ -118,3 +118,13 @@ html[theme-mode="dark"] ::selection {
   backdrop-filter: blur(16px) saturate(120%);
   -webkit-backdrop-filter: blur(16px) saturate(120%);
 }
+
+/*
+ * 频道消息「评论区」行的分隔线：取正文色（currentColor）的 15%。
+ * 深浅两种模式、以及浅色自定义气泡皮肤下都是同一条规则、同一个观感，
+ * 不再为深色单独写颜色。要调整明显程度只改这里的 15%。
+ */
+.msg-comments-bar {
+  border-top: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+}
+

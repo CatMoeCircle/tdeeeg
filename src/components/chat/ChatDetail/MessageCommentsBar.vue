@@ -3,6 +3,7 @@
          最近评论者头像 / 评论图标 + 评论数或「发表评论」+ 未读点 + 右箭头 -->
     <!-- 注意：button 是表单控件，width:auto 为 fit-content，负 margin 不会把它拉宽；
          文本气泡要出血请在外层 div 用 -mx-2（块级 div 才会被负 margin 拉伸），本体保持 w-full -->
+    <!-- 文案与图标都不设颜色，继承上方正文色（气泡 / 帖子根节点的 text-*），保证与正文同色 -->
     <button type="button"
         class="msg-comments-bar flex w-full items-center gap-1.5 text-left text-[13px] leading-none select-none cursor-pointer transition-colors hover:bg-black/[0.04] dark:hover:bg-white/5"
         :title="label" :aria-label="label" @click.stop="emit('open')">
@@ -15,12 +16,11 @@
             </span>
         </span>
         <!-- 无评论者数据时显示留言图标：tgico 字体 U+E965（index.css 的 .tgico-comments） -->
-        <span v-else aria-hidden="true"
-            class="tgico tgico-comments shrink-0 text-[16px] text-gray-400 dark:text-gray-500" />
-        <span class="min-w-0 flex-1 truncate text-gray-600 dark:text-gray-300">{{ label }}</span>
+        <span v-else aria-hidden="true" class="tgico tgico-comments shrink-0 text-[16px]" />
+        <span class="min-w-0 flex-1 truncate">{{ label }}</span>
         <!-- 有未读评论：蓝点提示 -->
         <span v-if="hasUnread" class="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
-        <ChevronRightIcon class="h-4 w-4 shrink-0 text-gray-400 dark:text-gray-500" />
+        <ChevronRightIcon class="h-4 w-4 shrink-0" />
     </button>
 </template>
 

@@ -135,7 +135,7 @@
                                         <!-- 频道评论条（相册）：无可见 caption 时白条承接相册底部（相册下缘由 commentsBar 压平），
                                              有 caption 时回应 / 时间在相册根内，此处即气泡最底部 -->
                                         <MessageCommentsBar v-if="albumCommentsMsg(item.messages)"
-                                            class="border-t border-black/10 px-2 dark:border-white/10"
+                                            class="px-2"
                                             :class="albumHasVisibleCaption(item.messages) ? 'pt-2.5 pb-2.5' : 'py-2.5 bg-white dark:bg-gray-800'"
                                             :msg="albumCommentsMsg(item.messages) || item.messages[0]"
                                             @open="openCommentsThread(albumCommentsMsg(item.messages) || item.messages[0])" />
@@ -294,7 +294,7 @@
                                         <!-- 频道评论条（参考 Unigram Thread 行）：无气泡媒体紧跟媒体本体，
                                              白条直接承接媒体底部（媒体下缘由 commentsBar 压平），回应行再往下 -->
                                         <MessageCommentsBar v-if="showChannelCommentsBar(item.msg) && isBubblelessMedia(item.msg)"
-                                            class="border-t border-black/10 bg-white px-2 py-2.5 dark:border-white/10 dark:bg-gray-800"
+                                            class="bg-white px-2 py-2.5 dark:bg-gray-800"
                                             :msg="item.msg" @open="openCommentsThread(item.msg)" />
                                         <!-- 内联翻译（非媒体）：在原消息气泡中显示译文；气泡容器自带 px-2 py-1.5 -->
                                         <InlineTranslation
@@ -328,7 +328,7 @@
                                              分隔线贯通气泡宽度 -->
                                         <div v-if="showChannelCommentsBar(item.msg) && !isBubblelessMedia(item.msg)"
                                             :class="isMediaMessage(item.msg) ? '' : '-mx-2 mt-1'">
-                                            <MessageCommentsBar class="border-t border-black/10 px-2 pt-2.5 dark:border-white/10"
+                                            <MessageCommentsBar class="px-2 pt-2.5"
                                                 :class="isMediaMessage(item.msg) ? 'pb-2.5' : 'pb-1'"
                                                 :msg="item.msg" @open="openCommentsThread(item.msg)" />
                                         </div>
