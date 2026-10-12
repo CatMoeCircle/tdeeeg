@@ -738,6 +738,7 @@ import { computed, watch, ref, shallowRef, markRaw, onMounted, onBeforeUnmount, 
 import { useUserStore } from '../../../store/user';
 import { useAudioPlayerStore } from '../../../store/audioPlayer';
 import { clearActiveChatTitleBar } from '../../../store/activeChatTitleBar';
+import { chatPaneOrigin } from '../../../store/chatPane';
 import { storeToRefs } from 'pinia';
 import { onTdlibUpdates } from "../../../store/tdlibBus";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -1313,7 +1314,11 @@ function closeOverlay() {
 /** 话题模式时显示返回按钮 */
 const showBackBtn = computed(() => true);
 
-/** 返回按钮处理：叠层模式先关闭叠层；话题/普通聊天模式返回聊天列表（无选中对话 = 为空状态） */
+/**
+ * 返回按钮处理：叠层模式先关闭叠层；评论线程回到所属频道；
+ * 其余情况收起聊天面板，并回到「打开该聊天的来源栏目」（对话列表 / 联系人 / 归档 / 设置）。
+ * 聊天面板在联系人、归档等栏目下仍然挂载，此时返回只收起面板、保持当前栏目的路由。
+ */
 function handleBack() {
     if (showOverlay.value) {
         closeOverlay();
@@ -1322,7 +1327,10 @@ function handleBack() {
         router.push(`/home/chat/${chatId.value}`);
     } else {
         emit('close');
-        router.push('/home/chats');
+        // 当前已在栏目页（联系人/归档/设置）时不要再改路由，否则会被带回对话列表
+        if (route.name === 'chat-detail' || route.name === 'chat-topic-detail' || route.name === 'chat-thread-detail') {
+            router.push(chatPaneOrigin.value);
+        }
     }
 }
 

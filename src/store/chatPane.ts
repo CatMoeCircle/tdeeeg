@@ -15,3 +15,16 @@ export const chatPaneVisible = ref(false);
 export function setChatPaneVisible(visible: boolean) {
     chatPaneVisible.value = visible;
 }
+
+/**
+ * 打开当前聊天的来源栏目路由（对话列表 / 联系人 / 归档 / 设置 …）。
+ *
+ * 聊天面板独立于路由：从归档列表、联系人资料页进入聊天后，路由已经不在该栏目上，
+ * 此时返回不能一律跳 /home/chats，否则「在联系人页 / 归档页点开聊天再返回」会莫名
+ * 落到对话列表。由 HomeView 在进入聊天路由时写入，ChatDetail 的返回按钮读取。
+ */
+export const chatPaneOrigin = ref("/home/chats");
+
+export function setChatPaneOrigin(path: string) {
+    chatPaneOrigin.value = path;
+}

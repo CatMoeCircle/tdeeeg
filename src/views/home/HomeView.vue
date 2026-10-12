@@ -63,7 +63,7 @@ import UsernameMenu from '../../components/contextMenu/UsernameMenu.vue';
 import DownloadsModule from '../../components/downloads/DownloadsModule.vue';
 import { useDefaultChatBackground } from '../../composables/useChatWallpaper';
 import ChatBackgroundLayers from '../../components/chat/ChatBackgroundLayers.vue';
-import { setChatPaneVisible } from '../../store/chatPane';
+import { setChatPaneVisible, setChatPaneOrigin, chatPaneOrigin } from '../../store/chatPane';
 
 const route = useRoute();
 const { t } = useI18n();
@@ -73,10 +73,14 @@ const { render, show: showContentWallpaper, overlayOpacity, blurPx } = useDefaul
 const homeBackgroundStyle = computed(() => ({ background: 'var(--app-bg-elevated, #fff)' }));
 /** 设置栏目路由：首页 + 全部二级设置页，路由名统一以 settings 开头（新增设置页无需再登记） */
 const isSettingsRouteName = (name: unknown): boolean => typeof name === 'string' && name.startsWith('settings');
+const isChatRoute = (name: unknown) => name === 'chat-detail' || name === 'chat-topic-detail' || name === 'chat-thread-detail';
 const isContacts = computed(() => route.name === 'contacts');
 const isSettings = computed(() => isSettingsRouteName(route.name));
 const isSettingsDetail = computed(() => isSettingsRouteName(route.name) && route.name !== 'settings');
-const isArchiveSection = computed(() => route.name === 'archived');
+/** 归档栏目：从归档列表点进会话后左侧仍应停留在归档列表（路由已变成 chat-detail） */
+const isArchiveSection = computed(
+    () => route.name === 'archived' || (isChatRoute(route.name) && chatPaneOrigin.value === '/home/archived'),
+);
 const isProfile = computed(() => route.name === 'user-profile' || route.name === 'chat-profile');
 const isGroupEdit = computed(() => typeof route.name === 'string' && (
     route.name === 'chat-edit'
@@ -112,7 +116,18 @@ const activeChatId = ref<number | null>(null);
 const activeTopicId = ref<number | null>(null);
 /** 频道评论线程根帖子 id（chat/:id/thread/:threadMsgId） */
 const activeThreadRootId = ref<number | null>(null);
-const isChatRoute = (name: unknown) => name === 'chat-detail' || name === 'chat-topic-detail' || name === 'chat-thread-detail';
+/** 栏目路由 → 该栏目对应的首页路径（关闭聊天时作为返回目标） */
+const sectionPathOf = (name: unknown): string => {
+    if (name === 'contacts') return '/home/contacts';
+    if (name === 'archived') return '/home/archived';
+    if (isSettingsRouteName(name)) return '/home/settings';
+    // 资料页/群资料页：沿用进入资料页时记住的来源栏目
+    if (name === 'user-profile' || name === 'chat-profile') {
+        if (profileFromSection.value === 'contacts') return '/home/contacts';
+        if (profileFromSection.value === 'settings') return '/home/settings';
+    }
+    return '/home/chats';
+};
 const closeActiveChat = () => {
     activeChatId.value = null;
     activeTopicId.value = null;
@@ -140,6 +155,10 @@ watch(
     () => [route.name, route.params.id, route.params.topicId, route.params.threadMsgId] as const,
     ([name, id, topicId, threadMsgId], previous) => {
         if (isChatRoute(name) && id !== undefined && id !== '') {
+            // 记录来源栏目：从归档/联系人资料页进入聊天时，返回应回到该栏目
+            if (!isChatRoute(previous?.[0])) {
+                setChatPaneOrigin(sectionPathOf(previous?.[0]));
+            }
             activeChatId.value = Number(id);
             activeTopicId.value = topicId !== undefined && topicId !== '' ? Number(topicId) : null;
             activeThreadRootId.value = threadMsgId !== undefined && threadMsgId !== '' ? Number(threadMsgId) : null;
@@ -159,6 +178,11 @@ watch(
             const prev = previous?.[0];
             if (prev === 'contacts') profileFromSection.value = 'contacts';
             else if (isSettingsRouteName(prev)) profileFromSection.value = 'settings';
+            // 资料页之间互跳（联系人列表里连点两个联系人）：沿用已记住的来源栏目，
+            // 否则第二次点击会把左侧列表切回对话列表。
+            else if (prev === 'user-profile' || prev === 'chat-profile' || prev === 'chat-edit' || (typeof prev === 'string' && prev.startsWith('group-'))) {
+                profileFromSection.value = profileFromSection.value ?? 'chats';
+            }
             else profileFromSection.value = 'chats';
             return;
         }
