@@ -56,18 +56,21 @@ export function useChatWallpaper(chat: Ref<chat | undefined>) {
   );
 
   /**
-   * 遮罩与图片模糊只对「全屏显示」的壁纸生效。
-   * 关闭全屏后壁纸只铺聊天区，属于本页自己铺的那一层，保持原图不受这两项影响
+   * 遮罩与图片模糊只对「全屏显示」的默认壁纸生效：它们是全局设置，与对话无关。
+   * - 关闭全屏时壁纸只铺聊天区（本页自己铺的那一层），保持原图
+   * - 对话有专属背景（含对方设置的）时那层画在本页，同样不套全局遮罩 / 模糊
    * （模糊本身只作用于图片壁纸，见 ChatBackgroundLayers）。
    */
-  const fullScreen = computed(() => settings.chatWallpaperFullScreen);
+  const globalOverlayApplies = computed(
+    () => settings.chatWallpaperFullScreen && !own.render.value
+  );
 
   return {
     drawsOwnWallpaper,
     render,
     rootStyle,
-    overlayOpacity: computed(() => (fullScreen.value ? settings.chatWallpaperOverlayOpacity : 0)),
-    blurPx: computed(() => (fullScreen.value ? settings.chatWallpaperBlur : 0)),
+    overlayOpacity: computed(() => (globalOverlayApplies.value ? settings.chatWallpaperOverlayOpacity : 0)),
+    blurPx: computed(() => (globalOverlayApplies.value ? settings.chatWallpaperBlur : 0)),
   };
 }
 
