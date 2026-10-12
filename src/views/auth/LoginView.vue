@@ -577,7 +577,7 @@ onUnmounted(() => {
                                 {{ accountName(loggedAccounts[0]).substring(0, 2) }}
                             </div>
                             <div class="min-w-0 flex-1">
-                                <p class="text-sm font-medium text-gray-800 truncate">{{ accountName(loggedAccounts[0]) }}</p>
+                                <p class="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{{ accountName(loggedAccounts[0]) }}</p>
                                 <p class="text-xs text-gray-400 truncate">{{ loggedAccounts[0].username ? '@' + loggedAccounts[0].username : '' }}</p>
                             </div>
                             <svg class="w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200"
@@ -601,7 +601,7 @@ onUnmounted(() => {
                                         {{ accountName(acc).substring(0, 2) }}
                                     </div>
                                     <div class="min-w-0 flex-1">
-                                        <p class="text-sm font-medium text-gray-800 truncate">{{ accountName(acc) }}</p>
+                                        <p class="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{{ accountName(acc) }}</p>
                                         <p class="text-xs text-gray-400 truncate">{{ acc.username ? '@' + acc.username : '' }}</p>
                                     </div>
                                 </div>
@@ -612,23 +612,23 @@ onUnmounted(() => {
             </div>
 
             <!-- Divider -->
-            <div class="h-[80dvh] w-px bg-gray-200"></div>
+            <div class="h-[80dvh] w-px bg-gray-200 dark:bg-gray-700"></div>
 
             <!-- Right Side: QR Code -->
             <div class="flex-1 flex flex-col items-center text-center px-8">
                 <div ref="qrCodeContainer" @click="startQrLogin"
-                    class="mb-6 p-2 border border-gray-100 rounded-2xl shadow-sm relative w-55 h-55 flex items-center justify-center cursor-pointer hover:border-blue-300 transition-colors">
+                    class="mb-6 p-2 border border-gray-100 dark:border-gray-700 rounded-2xl shadow-sm relative w-55 h-55 flex items-center justify-center cursor-pointer hover:border-blue-300 transition-colors">
                     <div v-if="!qrlink"
                         class="absolute inset-0 flex flex-col items-center justify-center text-center text-gray-400 px-4">
-                        <div class="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center mb-3">
+                        <div class="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-3">
                             <span class="text-2xl">QR</span>
                         </div>
                         <div class="text-sm">{{ t('login.clickToShowQr') }}</div>
                     </div>
                 </div>
 
-                <h2 class="text-xl font-bold mb-4 text-gray-800">{{ t('login.scanTitle') }}</h2>
-                <ol class="text-left text-gray-600 space-y-2 text-sm">
+                <h2 class="text-xl font-bold mb-4 text-gray-800 dark:text-gray-100">{{ t('login.scanTitle') }}</h2>
+                <ol class="text-left text-gray-600 dark:text-gray-300 space-y-2 text-sm">
                     <li>{{ t('login.step1') }}</li>
                     <li>{{ t('login.step2') }}</li>
                     <li>{{ t('login.step3') }}</li>

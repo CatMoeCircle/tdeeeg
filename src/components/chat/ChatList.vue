@@ -139,7 +139,7 @@
                                         class="flex items-center p-2.5 mb-1 cursor-pointer rounded-xl hover:bg-white/70 dark:hover:bg-gray-800/70 hover:shadow-(--box-shadow) transition-colors"
                                         style="content-visibility: auto; contain-intrinsic-size: 72px">
                                         <div class="w-12 h-12 mr-2.5">
-                                            <div class="w-full h-full bg-gray-200 text-gray-500 flex items-center justify-center"
+                                            <div class="w-full h-full bg-gray-200 dark:bg-gray-700 text-gray-500 flex items-center justify-center"
                                                 :style="{ borderRadius: avatarRadius + '%' }">
                                                 <ArchiveIcon class="w-6 h-6" />
                                             </div>
@@ -269,13 +269,13 @@
                      从头像列(68px)分界线右侧滑出，不会带动/挤压左侧聊天列表 -->
                 <Transition name="topic-slide">
                     <div v-if="forumMode && forumChatId"
-                        class="absolute top-0 bottom-0 left-17 right-0 border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden flex flex-col">
+                        class="absolute top-0 bottom-0 left-17 right-0 border-l border-gray-200 dark:border-gray-800 overflow-hidden flex flex-col">
                         <!-- Topics Header -->
-                        <div class="flex items-center gap-2 px-3 py-2.5 border-b border-gray-200 shrink-0">
+                        <div class="flex items-center gap-2 px-3 py-2.5 border-b border-gray-200 dark:border-gray-800 shrink-0">
                             <button type="button" @click="exitForumMode"
-                                class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-200 transition-colors shrink-0"
+                                class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shrink-0"
                                 :aria-label="t('lng_menu_back')">
-                                <ArrowLeftIcon class="w-4 h-4 text-gray-600" />
+                                <ArrowLeftIcon class="w-4 h-4 text-gray-600 dark:text-gray-300" />
                             </button>
                             <span class="text-sm font-medium text-gray-500 truncate">
                                 <GlobalEmojiText :text="forumChatTitle" />
@@ -302,7 +302,7 @@
                             <div v-else class="py-1">
                                 <button v-for="topic in forumTopics" :key="topic.info.forum_topic_id" type="button"
                                     @click="selectTopic(topic.info.forum_topic_id)"
-                                    class="w-full px-3 py-2.5 hover:bg-gray-100 transition-colors text-left"
+                                    class="w-full px-3 py-2.5 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors text-left"
                                     style="content-visibility: auto; contain-intrinsic-size: 68px">
                                     <!-- 第一排：图标(头像)与标题同一排内联 + 时间；
                                          图标：General 用带主题色的 #，有自定义 emoji 用透明 emoji(无背景)，否则首字母小方块 -->

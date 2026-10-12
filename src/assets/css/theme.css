@@ -83,10 +83,11 @@ html.dark {
   --app-bg-muted: #2c2c2c;
   --app-border: #393939;
   --app-border-strong: #5e5e5e;
+  /* 三级文本语义色：组件字面量灰统一收敛到这里（见文件末尾「深色模式颜色收敛」） */
   --app-text-primary: rgba(255, 255, 255, 0.9);
-  --app-text-secondary: rgba(255, 255, 255, 0.55);
-  --app-text-placeholder: rgba(255, 255, 255, 0.35);
-  --app-text-disabled: rgba(255, 255, 255, 0.22);
+  --app-text-secondary: rgba(255, 255, 255, 0.65);
+  --app-text-placeholder: rgba(255, 255, 255, 0.45);
+  --app-text-disabled: rgba(255, 255, 255, 0.3);
 
   /* 滚动条（深色） */
   --app-scrollbar-thumb: rgba(255, 255, 255, 0.2);
@@ -128,3 +129,75 @@ html[theme-mode="dark"] ::selection {
   border-top: 1px solid color-mix(in srgb, currentColor 15%, transparent);
 }
 
+/*
+ * ===== 深色模式颜色收敛 =====
+ * 组件里有大量颜色字面量只写了浅色档、没有 dark: 兄弟（text-gray-400/500 约 700 处，
+ * 以及浅色 hover 底色、浅色描边），深色下这些文本会和背景糊在一起，hover 还会把整行刷亮。
+ * 这里在深色分支把它们统一收敛到语义色，浅色模式完全不受影响。
+ *
+ * 优先级约定（@layer utilities 与 Tailwind 同层，本文件更靠后）：
+ *   :where(html.dark) 基类规则 —— 只压过 Tailwind 字面量基类，保住 hover/变体；
+ *   html.dark 规则 —— 高一级，压过基类，用于把已有 dark: 档位收敛到三级语义色。
+ */
+@layer utilities {
+  /* 次要文本：只有浅色档的字面量 */
+  :where(html.dark) .text-gray-400,
+  :where(html.dark) .text-gray-500 {
+    color: var(--app-text-secondary);
+  }
+
+  /* 悬停文字：hover:text-gray-600 之类在深色下会越变越暗 */
+  :where(html.dark) .hover\:text-gray-500:hover,
+  :where(html.dark) .hover\:text-gray-600:hover,
+  :where(html.dark) .hover\:text-gray-700:hover {
+    color: var(--app-text-primary);
+  }
+
+  /* 悬停底色：浅色 hover 档在深色下等同于刷一层浅灰 */
+  :where(html.dark) .hover\:bg-gray-50:hover,
+  :where(html.dark) .hover\:bg-gray-100:hover,
+  :where(html.dark) .hover\:bg-gray-200:hover,
+  :where(html.dark) .hover\:bg-gray-300:hover,
+  :where(html.dark) .hover\:bg-gray-400:hover,
+  :where(html.dark) .hover\:bg-gray-500:hover,
+  :where(html.dark) .dark\:hover\:bg-gray-600:hover,
+  :where(html.dark) .dark\:hover\:bg-gray-700:hover,
+  :where(html.dark) .dark\:hover\:bg-gray-800:hover {
+    background-color: rgba(255, 255, 255, 0.06);
+  }
+
+  /* 浅色描边在深色下是亮线 */
+  :where(html.dark) .border-gray-100,
+  :where(html.dark) .border-gray-200,
+  :where(html.dark) .border-gray-300 {
+    border-color: var(--app-border);
+  }
+
+  /* 已有 dark: 档位 → 三级语义色（primary / secondary / placeholder） */
+  html.dark .dark\:text-gray-100,
+  html.dark .dark\:text-gray-200,
+  html.dark .dark\:text-gray-300 {
+    color: var(--app-text-primary);
+  }
+  html.dark .dark\:text-gray-400,
+  html.dark .dark\:text-gray-500 {
+    color: var(--app-text-secondary);
+  }
+  html.dark .dark\:text-gray-600 {
+    color: var(--app-text-placeholder);
+  }
+  html.dark .dark\:hover\:text-gray-100:hover,
+  html.dark .dark\:hover\:text-gray-200:hover,
+  html.dark .dark\:hover\:text-gray-300:hover {
+    color: var(--app-text-primary);
+  }
+  html.dark .dark\:hover\:text-gray-400:hover,
+  html.dark .dark\:hover\:text-gray-500:hover {
+    color: var(--app-text-secondary);
+  }
+  html.dark .dark\:border-gray-600,
+  html.dark .dark\:border-gray-700,
+  html.dark .dark\:border-gray-800 {
+    border-color: var(--app-border);
+  }
+}
