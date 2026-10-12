@@ -251,10 +251,10 @@
                                                         <!-- 图片/视频/相册：正方形缩略图预览（相册最多 3 个），有 caption 时追加文字 -->
                                                         <MessagePreviewMedia v-if="isMediaPreviewMsg(chat.last_message)"
                                                             :message="chat.last_message" :chat-id="chat.id" />
-                                                        <p v-if="mediaCaption(chat.last_message)"
+                                                        <p v-if="previewCaption(chat.last_message, chat.id)"
                                                             class="min-w-0 truncate text-xs text-gray-500">
                                                             <FormattedTextInline
-                                                                :formattedText="mediaCaption(chat.last_message)"
+                                                                :formattedText="previewCaption(chat.last_message, chat.id)!"
                                                                 :size="14" />
                                                         </p>
                                                         <p v-else-if="!isMediaPreviewMsg(chat.last_message)"
@@ -360,9 +360,9 @@
                                             </template>
                                             <MessagePreviewMedia v-if="isMediaPreviewMsg(topic.last_message)"
                                                 :message="topic.last_message" :chat-id="forumChatId ?? undefined" />
-                                            <p v-if="mediaCaption(topic.last_message)"
+                                            <p v-if="previewCaption(topic.last_message, forumChatId ?? undefined)"
                                                 class="min-w-0 truncate text-xs text-gray-500">
-                                                <FormattedTextInline :formattedText="mediaCaption(topic.last_message)"
+                                                <FormattedTextInline :formattedText="previewCaption(topic.last_message, forumChatId ?? undefined)!"
                                                     :size="14" />
                                             </p>
                                             <p v-else-if="!isMediaPreviewMsg(topic.last_message)"
@@ -473,6 +473,7 @@ import FormattedTextInline from './FormattedTextInline.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 import { folderTabClass as sharedFolderTabClass, folderTabContainerClass, UI_GLASS_SURFACE } from '../../utils/folderPillsTabClass';
 import MessagePreviewMedia from './MessagePreviewMedia.vue';
+import { albumCaptionCache, albumCacheKey } from './albumCaptionCache';
 import CustomEmojiInline from '../common/CustomEmojiInline.vue';
 import SlidingTabBar from '../common/SlidingTabBar.vue';
 import ChatSearchPanel from './ChatSearchPanel.vue';
@@ -1226,6 +1227,15 @@ const mediaCaption = (message: message | undefined): formattedText | undefined =
         return c.caption?.text ? c.caption : undefined;
     }
     return undefined;
+};
+
+/** 预览文字：相册取相册内第一条带文字的消息（由 MessagePreviewMedia 抓取），单条取自身 caption */
+const previewCaption = (message: message | undefined, chatId?: number): formattedText | undefined => {
+    if (message && chatId && message.media_album_id && message.media_album_id !== '0') {
+        const cached = albumCaptionCache.get(albumCacheKey(chatId, message.media_album_id));
+        if (cached) return cached;
+    }
+    return mediaCaption(message);
 };
 
 // ---- 聊天列表增强：发送者名称/迷你头像、静音、顶置、归档 ----

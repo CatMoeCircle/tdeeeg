@@ -18,11 +18,12 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
 import { Play as PlayIcon } from 'lucide-vue-next';
-import type { message } from 'tdlib-types';
+import type { formattedText, message } from 'tdlib-types';
 import { tdlibSend, isFileReady } from '../../utils/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { isThumbnailImgRenderable } from '../../utils/thumbnail';
 import SpoilerMedia from './ChatDetail/MessageContent/spoiler/SpoilerMedia.vue';
+import { albumCaptionCache, albumCacheKey } from './albumCaptionCache';
 
 const props = defineProps<{
     /** 最后一条消息（图片/视频/相册） */
@@ -104,6 +105,13 @@ function messageThumb(msg: message): ThumbData | null {
     return null;
 }
 
+/** 图片/视频消息的 caption（无则 undefined） */
+function captionOf(msg: message): formattedText | undefined {
+    const c = msg.content;
+    if (c._ === 'messagePhoto' || c._ === 'messageVideo') return c.caption?.text ? c.caption : undefined;
+    return undefined;
+}
+
 /** 该消息是否为可展示缩略图的媒体（图片/视频/相册） */
 function isPreviewMedia(msg: message | undefined): boolean {
     if (!msg) return false;
@@ -118,7 +126,7 @@ function isAlbum(msg: message | undefined): boolean {
 /** 抓取相册中的前 N 条消息缩略图（最多 3 个），带缓存 */
 async function fetchAlbumThumbs(msg: message, chatId: number): Promise<ThumbData[]> {
     const albumId = msg.media_album_id;
-    const key = `${chatId}:${albumId}`;
+    const key = albumCacheKey(chatId, albumId);
     if (albumThumbsCache.has(key)) {
         return albumThumbsCache.get(key) || [];
     }
@@ -130,22 +138,21 @@ async function fetchAlbumThumbs(msg: message, chatId: number): Promise<ThumbData
 
     const task = (async (): Promise<ThumbData[] | null> => {
         try {
-            // getChatHistory 返回 newest-first；向后翻取相册其余成员
+            // getChatHistory 返回 newest-first；向后翻取相册其余成员（相册最多 10 条，含自身）
             const result = await tdlibSend({
                 _: 'getChatHistory',
                 chat_id: chatId,
                 from_message_id: msg.id,
                 offset: 0,
-                limit: 9,
+                limit: 10,
                 only_local: false,
             }) as any;
             const msgs: message[] = (result.messages || []).filter((m: any): m is message => !!m);
-            // 收集同相册消息，按 id 升序（先发送的在前），取前 3 个
-            const albumMsgs = msgs
-                .filter((m: any) => m.media_album_id === albumId && isPreviewMedia(m))
-                .sort((a, b) => a.id - b.id)
-                .slice(0, 3);
-            if (albumMsgs.length === 0) return null;
+            // 收集同相册消息，按 id 升序（先发送的在前）
+            const albumMsgs = (msgs.some((m) => m.id === msg.id) ? msgs : [msg, ...msgs])
+                .filter((m) => m.media_album_id === albumId && isPreviewMedia(m))
+                .sort((a, b) => a.id - b.id);
+            albumCaptionCache.set(key, albumMsgs.map(captionOf).find(Boolean) ?? null);
             const list: ThumbData[] = [];
             for (const am of albumMsgs) {
                 const t = messageThumb(am);
