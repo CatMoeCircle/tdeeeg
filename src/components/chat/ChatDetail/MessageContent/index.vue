@@ -152,7 +152,7 @@ const SERVICE_TYPES = new Set([
     'messageGiveawayCreated',
     'messageGiveawayCompleted',
     'messageGiftedStars',
-    'messageGiftedTon',
+    'messageGiftedGrams',
     'messageGiveawayPrizeStars',
     'messageGift',
     'messageUpgradedGift',

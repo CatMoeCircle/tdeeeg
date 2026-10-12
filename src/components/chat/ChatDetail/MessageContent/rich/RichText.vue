@@ -116,6 +116,7 @@ function normalize(rt: RichText): RichNode {
         case 'richTextHashtag': return { type: 'hashtag', text: rt.text };
         case 'richTextCashtag': return { type: 'cashtag', text: rt.text };
         case 'richTextBankCardNumber': return { type: 'bankCard', text: rt.text };
+        case 'richTextTonAddress': return { type: 'tonAddress', text: rt.text };
         case 'richTextBotCommand': return { type: 'botCommand', text: rt.text };
         case 'richTextMentionName': return { type: 'mentionName', text: rt.text, userId: rt.user_id };
         case 'richTextCustomEmoji': return { type: 'customEmoji', emojiId: String(rt.custom_emoji_id), textStr: rt.alternative_text ?? '' };
@@ -127,6 +128,7 @@ function normalize(rt: RichText): RichNode {
         case 'richTextReference': return { type: 'reference', text: rt.text };
         case 'richTextDiff': return { type: 'diff', text: rt.text };
         case 'richTextIcon': return { type: 'icon', textStr: t('content.richTextImage') };
+        case 'richTextButton': return { type: 'button', text: rt.button.text };
         case 'richTextDateTime': return { type: 'dateTime', text: rt.text };
         case 'richTextPlain':
         default: return { type: 'plain', textStr: rt.text ?? '' };
@@ -177,6 +179,7 @@ function extractText(rt?: RichText): string {
         case 'richTexts': return rt.texts.map(extractText).join('');
         case 'richTextCustomEmoji': return rt.alternative_text ?? '';
         case 'richTextMathematicalExpression': return rt.expression ?? '';
+        case 'richTextButton': return extractText(rt.button.text);
         default:
             if ('text' in rt && rt.text) return extractText(rt.text as RichText);
             return '';

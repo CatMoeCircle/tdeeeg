@@ -56,7 +56,7 @@ export const SERVICE_TYPES: ReadonlySet<string> = new Set([
   "messageGiveawayCreated",
   "messageGiveawayCompleted",
   "messageGiftedStars",
-  "messageGiftedTon",
+  "messageGiftedGrams",
   "messageGiveawayPrizeStars",
   "messageGift",
   "messageUpgradedGift",

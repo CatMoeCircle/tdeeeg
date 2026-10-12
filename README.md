@@ -105,7 +105,7 @@ Place the compiled TDLib dynamic library into the `src-tauri/bin` directory:
 | macOS | `libtdjson.dylib` |
 | Linux | `libtdjson.so` |
 
-Recommended TDLib version: 1.8.66
+Recommended TDLib version: 1.8.68
 
 ### 2. Environment variables
 

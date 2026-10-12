@@ -1,4 +1,4 @@
-// Types for TDLib v1.8.66 (022d60202e446ad1287b9fb68e687c8a0760788b)
+// Types for TDLib v1.8.68 (c15d3f5a5de6e3ba5839822c451152e5e18bb700)
 // Generated using tdl-install-types v0.3.1
 declare module 'tdlib-types' {
   export type error = {
@@ -314,6 +314,18 @@ declare module 'tdlib-types' {
     readonly is_full?: boolean,
   }
 
+  export type inputRichMessageMedia = {
+    /** Describes a media to be used in a sent rich message */
+    _: 'inputRichMessageMedia',
+    /** Unique identifier of the media; 1-64 base64url characters */
+    id: string,
+    /**
+     * The media to send. Must be one of the following types: inputMessageAnimation,
+     * inputMessageAudio, inputMessagePhoto, inputMessageVideo, or inputMessageVoiceNote
+     */
+    media: InputMessageContent,
+  }
+
   export type inputRichMessageMedia$Input = {
     /** Describes a media to be used in a sent rich message */
     readonly _: 'inputRichMessageMedia',
@@ -326,11 +338,27 @@ declare module 'tdlib-types' {
     readonly media?: InputMessageContent$Input,
   }
 
+  export type richMessageSourceBlocks = {
+    /** A rich message defined by blocks */
+    _: 'richMessageSourceBlocks',
+    /** Content of the message */
+    blocks: Array<InputPageBlock>,
+  }
+
   export type richMessageSourceBlocks$Input = {
     /** A rich message defined by blocks */
     readonly _: 'richMessageSourceBlocks',
     /** Content of the message */
     readonly blocks?: ReadonlyArray<InputPageBlock$Input>,
+  }
+
+  export type richMessageSourceMarkdown = {
+    /** A Markdown-formatted rich message; for bots only */
+    _: 'richMessageSourceMarkdown',
+    /** Markdown-formatted text of the message */
+    text: string,
+    /** Media used in the message */
+    media: Array<inputRichMessageMedia>,
   }
 
   export type richMessageSourceMarkdown$Input = {
@@ -342,6 +370,15 @@ declare module 'tdlib-types' {
     readonly media?: ReadonlyArray<inputRichMessageMedia$Input>,
   }
 
+  export type richMessageSourceHtml = {
+    /** An HTML-formatted rich message; for bots only */
+    _: 'richMessageSourceHtml',
+    /** HTML-formatted text of the message */
+    text: string,
+    /** Media used in the message */
+    media: Array<inputRichMessageMedia>,
+  }
+
   export type richMessageSourceHtml$Input = {
     /** An HTML-formatted rich message; for bots only */
     readonly _: 'richMessageSourceHtml',
@@ -349,6 +386,24 @@ declare module 'tdlib-types' {
     readonly text?: string,
     /** Media used in the message */
     readonly media?: ReadonlyArray<inputRichMessageMedia$Input>,
+  }
+
+  export type inputRichMessage = {
+    /**
+     * A rich message to send. Total length of all texts, including custom emoji alternative
+     * text and formula source, must not exceed getOption("rich_message_text_length_max").
+     * The total number of all blocks, list items and table rows must not exceed getOption("rich_message_block_count_max").
+     * The maximum allowed depth of nested blocks and rich texts is getOption("rich_message_depth_max").
+     * The total number of media in all blocks must not exceed getOption("rich_message_media_count_max").
+     * The maximum allowed number of table columns is getOption("rich_message_table_column_count_max")
+     */
+    _: 'inputRichMessage',
+    /** Source of the rich message */
+    source: RichMessageSource,
+    /** Pass true if the message must be shown from right to left */
+    is_rtl: boolean,
+    /** Pass true to enable detection of URLs, email addresses and other automatic blocks */
+    detect_automatic_blocks: boolean,
   }
 
   export type inputRichMessage$Input = {
@@ -459,7 +514,7 @@ declare module 'tdlib-types' {
     /** Point in time (Unix timestamp) when the passkey was used last time; 0 if never */
     last_usage_date: number,
     /**
-     * Identifier of the custom emoji that is used as the icon of the software, which
+     * Identifier of the custom emoji that is used as the icon of the software that
      * created the passkey; 0 if unknown
      */
     software_icon_custom_emoji_id: string,
@@ -858,11 +913,31 @@ declare module 'tdlib-types' {
     readonly remote?: remoteFile$Input,
   }
 
+  export type inputFileId = {
+    /** A file defined by its unique identifier */
+    _: 'inputFileId',
+    /** Unique file identifier */
+    id: number,
+  }
+
   export type inputFileId$Input = {
     /** A file defined by its unique identifier */
     readonly _: 'inputFileId',
     /** Unique file identifier */
     readonly id?: number,
+  }
+
+  export type inputFileRemote = {
+    /**
+     * A file defined by its remote identifier. The remote identifier is guaranteed
+     * to be usable only if the corresponding file is still accessible to the user
+     * and known to TDLib. For example, if the file is from a message, then the message
+     * must be not deleted and accessible to the user. If the file database is disabled,
+     * then the corresponding object with the file must be preloaded by the application
+     */
+    _: 'inputFileRemote',
+    /** Remote file identifier */
+    id: string,
   }
 
   export type inputFileRemote$Input = {
@@ -878,11 +953,40 @@ declare module 'tdlib-types' {
     readonly id?: string,
   }
 
+  export type inputFileLocal = {
+    /** A file defined by a local path */
+    _: 'inputFileLocal',
+    /** Local path to the file */
+    path: string,
+  }
+
   export type inputFileLocal$Input = {
     /** A file defined by a local path */
     readonly _: 'inputFileLocal',
     /** Local path to the file */
     readonly path?: string,
+  }
+
+  export type inputFileGenerated = {
+    /**
+     * A file generated by the application. The application must handle updates updateFileGenerationStart
+     * and updateFileGenerationStop to generate the file when asked by TDLib
+     */
+    _: 'inputFileGenerated',
+    /**
+     * Local path to a file from which the file is generated. The path doesn't have
+     * to be a valid path and is used by TDLib only to detect name and MIME type of
+     * the generated file
+     */
+    original_path: string,
+    /**
+     * String specifying the conversion applied to the original file; must be persistent
+     * across application restarts. Conversions beginning with '#' are reserved for
+     * internal TDLib usage
+     */
+    conversion: string,
+    /** Expected size of the generated file, in bytes; pass 0 if unknown */
+    expected_size: number,
   }
 
   export type inputFileGenerated$Input = {
@@ -1312,6 +1416,22 @@ declare module 'tdlib-types' {
     addition_date: number,
   }
 
+  export type inputPollOption = {
+    /** Describes one answer option of a poll to be created */
+    _: 'inputPollOption',
+    /**
+     * Option text; 1-100 characters. Only custom emoji entities are allowed to be
+     * added and only by Premium users
+     */
+    text: formattedText,
+    /**
+     * Option media; pass null if none. Must be one of the following types: inputPollMediaAnimation,
+     * inputPollMediaLink, inputPollMediaLocation, inputPollMediaPhoto, inputPollMediaSticker,
+     * inputPollMediaVenue, or inputPollMediaVideo without caption
+     */
+    media: InputPollMedia,
+  }
+
   export type inputPollOption$Input = {
     /** Describes one answer option of a poll to be created */
     readonly _: 'inputPollOption',
@@ -1321,10 +1441,9 @@ declare module 'tdlib-types' {
      */
     readonly text?: formattedText$Input,
     /**
-     * Option media; pass null if none; ignored in addPollOption. Must be one of the
-     * following types: inputPollMediaAnimation, inputPollMediaLink, inputPollMediaLocation,
-     * inputPollMediaPhoto, inputPollMediaSticker, inputPollMediaVenue, or inputPollMediaVideo
-     * without caption
+     * Option media; pass null if none. Must be one of the following types: inputPollMediaAnimation,
+     * inputPollMediaLink, inputPollMediaLocation, inputPollMediaPhoto, inputPollMediaSticker,
+     * inputPollMediaVenue, or inputPollMediaVideo without caption
      */
     readonly media?: InputPollMedia$Input,
   }
@@ -1356,6 +1475,16 @@ declare module 'tdlib-types' {
     explanation_media?: PollMedia,
   }
 
+  export type inputPollTypeRegular = {
+    /** A regular poll */
+    _: 'inputPollTypeRegular',
+    /**
+     * True, if answer options can be added to the poll after creation; not supported
+     * in channel chats and for anonymous polls
+     */
+    allow_adding_options: boolean,
+  }
+
   export type inputPollTypeRegular$Input = {
     /** A regular poll */
     readonly _: 'inputPollTypeRegular',
@@ -1364,6 +1493,28 @@ declare module 'tdlib-types' {
      * in channel chats and for anonymous polls
      */
     readonly allow_adding_options?: boolean,
+  }
+
+  export type inputPollTypeQuiz = {
+    /** A poll in quiz mode, which has predefined correct answers */
+    _: 'inputPollTypeQuiz',
+    /**
+     * Increasing list of 0-based identifiers of the correct answer options; must be
+     * non-empty
+     */
+    correct_option_ids: Array<number>,
+    /**
+     * Text that is shown when the user chooses an incorrect answer or taps on the
+     * lamp icon; 0-200 characters with at most 2 line feeds
+     */
+    explanation: formattedText,
+    /**
+     * Media that is shown when the user chooses an incorrect answer or taps on the
+     * lamp icon; pass null if none. Must be one of the following types: inputPollMediaAnimation,
+     * inputPollMediaAudio, inputPollMediaDocument, inputPollMediaLocation, inputPollMediaPhoto,
+     * inputPollMediaVenue, or inputPollMediaVideo without caption
+     */
+    explanation_media: InputPollMedia,
   }
 
   export type inputPollTypeQuiz$Input = {
@@ -1447,6 +1598,19 @@ declare module 'tdlib-types' {
     completion_date: number,
   }
 
+  export type inputChecklistTask = {
+    /** Describes a task in a checklist to be sent */
+    _: 'inputChecklistTask',
+    /** Unique identifier of the task; must be positive */
+    id: number,
+    /**
+     * Text of the task; 1-getOption("checklist_task_text_length_max") characters without
+     * line feeds. May contain only Bold, Italic, Underline, Strikethrough, Spoiler,
+     * CustomEmoji, and DateTime entities
+     */
+    text: formattedText,
+  }
+
   export type inputChecklistTask$Input = {
     /** Describes a task in a checklist to be sent */
     readonly _: 'inputChecklistTask',
@@ -1487,6 +1651,23 @@ declare module 'tdlib-types' {
      * Premium subscription
      */
     can_mark_tasks_as_done: boolean,
+  }
+
+  export type inputChecklist = {
+    /** Describes a checklist to be sent */
+    _: 'inputChecklist',
+    /**
+     * Title of the checklist; 1-getOption("checklist_title_length_max") characters.
+     * May contain only Bold, Italic, Underline, Strikethrough, Spoiler, CustomEmoji,
+     * and DateTime entities
+     */
+    title: formattedText,
+    /** List of tasks in the checklist; 1-getOption("checklist_task_count_max") tasks */
+    tasks: Array<inputChecklistTask>,
+    /** True, if other users can add tasks to the list */
+    others_can_add_tasks: boolean,
+    /** True, if other users can mark tasks as done or not done */
+    others_can_mark_tasks_as_done: boolean,
   }
 
   export type inputChecklist$Input = {
@@ -1852,6 +2033,8 @@ declare module 'tdlib-types' {
      * The sound is encoded with the Opus codec, and stored inside an OGG container
      */
     sound?: file,
+    /** True, if the emoji is a regular emoji */
+    is_regular_emoji: boolean,
   }
 
   export type contact = {
@@ -2514,7 +2697,8 @@ declare module 'tdlib-types' {
     icon_custom_emoji_id: string,
     /**
      * Custom description of verification reason set by the bot. Can contain only Mention,
-     * Hashtag, Cashtag, PhoneNumber, BankCardNumber, Url, and EmailAddress entities
+     * Hashtag, Cashtag, PhoneNumber, BankCardNumber, TonAddress, Url, and EmailAddress
+     * entities
      */
     custom_description: formattedText,
   }
@@ -3352,6 +3536,8 @@ declare module 'tdlib-types' {
      * groups and supergroups only
      */
     can_manage_tags: boolean,
+    /** True, if the administrator can manage and send welcome messages */
+    can_send_welcome_messages: boolean,
     /**
      * True, if the administrator isn't shown in the chat member list and sends messages
      * anonymously; applicable to supergroups only
@@ -3434,6 +3620,8 @@ declare module 'tdlib-types' {
      * groups and supergroups only
      */
     readonly can_manage_tags?: boolean,
+    /** True, if the administrator can manage and send welcome messages */
+    readonly can_send_welcome_messages?: boolean,
     /**
      * True, if the administrator isn't shown in the chat member list and sends messages
      * anonymously; applicable to supergroups only
@@ -4088,7 +4276,7 @@ declare module 'tdlib-types' {
     currency: string,
     /** The amount to pay, in the smallest units of the currency */
     amount: number,
-    /** Number of users which will be able to activate the gift codes */
+    /** Number of users who will be able to activate the gift codes */
     winner_count: number,
     /** Number of months the Telegram Premium subscription will be active */
     month_count: number,
@@ -6001,6 +6189,626 @@ declare module 'tdlib-types' {
     next_offset: string,
   }
 
+  export type tonCenterApiRequestTypeGet$Input = {
+    /** A GET request */
+    readonly _: 'tonCenterApiRequestTypeGet',
+    /** URL-encoded query of the request */
+    readonly query?: string,
+  }
+
+  export type tonCenterApiRequestTypePost$Input = {
+    /** A POST request */
+    readonly _: 'tonCenterApiRequestTypePost',
+    /** Payload of the request */
+    readonly payload?: string,
+  }
+
+  export type tonWalletTransferReceiverUser = {
+    /** The receiver is specified by its username */
+    _: 'tonWalletTransferReceiverUser',
+    /**
+     * Username of the user. Use searchPublicChat to find the user, check that it is
+     * a regular user, and then use createUserTonWallet to get information about the
+     * user's TON wallet
+     */
+    username: string,
+  }
+
+  export type tonWalletTransferReceiverUser$Input = {
+    /** The receiver is specified by its username */
+    readonly _: 'tonWalletTransferReceiverUser',
+    /**
+     * Username of the user. Use searchPublicChat to find the user, check that it is
+     * a regular user, and then use createUserTonWallet to get information about the
+     * user's TON wallet
+     */
+    readonly username?: string,
+  }
+
+  export type tonWalletTransferReceiverAddress = {
+    /** The receiver is specified by its address */
+    _: 'tonWalletTransferReceiverAddress',
+    /**
+     * Address of the receiver. Use getAddressTonWallet to get information about the
+     * user's TON wallet
+     */
+    address: string,
+  }
+
+  export type tonWalletTransferReceiverAddress$Input = {
+    /** The receiver is specified by its address */
+    readonly _: 'tonWalletTransferReceiverAddress',
+    /**
+     * Address of the receiver. Use getAddressTonWallet to get information about the
+     * user's TON wallet
+     */
+    readonly address?: string,
+  }
+
+  export type tonCenterStreamingApiUrl = {
+    /** Contains an HTTP URL for TON Center Streaming API */
+    _: 'tonCenterStreamingApiUrl',
+    /** The URL */
+    url: string,
+    /** Time after which the URL expires */
+    expires_in: number,
+  }
+
+  export type walletBotBalance = {
+    /** Describes balance of the current user in the bot https://t.me/walt */
+    _: 'walletBotBalance',
+    /** True, if the user has positive TON Gram balance */
+    has_balance: boolean,
+    /** The URL to open to launch the bot; may be empty if none */
+    url: string,
+  }
+
+  export type userTonWalletAddress = {
+    /** Contains TON wallet address of a user */
+    _: 'userTonWalletAddress',
+    /** Identifier of the user; 0 if unknown */
+    user_id: number,
+    /** Address of the user's wallet in the TON blockchain */
+    wallet_address: string,
+    /** Public key of the user */
+    public_key: string /* base64 */,
+  }
+
+  export type userTonWalletAddresses = {
+    /** Represents a list of TON wallet addresses of users */
+    _: 'userTonWalletAddresses',
+    /** A list of TON wallet addresses */
+    addresses: Array<userTonWalletAddress>,
+  }
+
+  export type tonWalletOwnershipProofChallenge = {
+    /** Represents a challenge for TON wallet ownership proof */
+    _: 'tonWalletOwnershipProofChallenge',
+    /** Payload of the challenge */
+    payload: string,
+    /** Domain of the proof requester */
+    domain: string,
+  }
+
+  export type tonWalletOwnershipProof$Input = {
+    /** Represents a proof of TON wallet ownership */
+    readonly _: 'tonWalletOwnershipProof',
+    /** Public key of the wallet */
+    readonly public_key?: string /* base64 */,
+    /** The current UNIX timestamp which was used to create the proof */
+    readonly timestamp?: number,
+    /** The signature prooving the ownership */
+    readonly signature?: string /* base64 */,
+  }
+
+  export type tonWalletGaslessTransfersInfo = {
+    /** Represents state of gasless transfers for the current user */
+    _: 'tonWalletGaslessTransfersInfo',
+    /**
+     * Number of left gasless transfers. The daily available number of gasless transfers
+     * is available as getOption("ton_wallet_gasless_transfer_daily_count_max")
+     */
+    left_count: number,
+    /**
+     * Point in time (Unix timestamp) when the number of left transfers will be reset;
+     * 0 if never
+     */
+    reset_date: number,
+    /** Address of the relayer for gasless transfers; may be empty if unavailable */
+    relayer_address: string,
+  }
+
+  export type currencyExchangeRate = {
+    /** Describes exchange rate of a currency to USD */
+    _: 'currencyExchangeRate',
+    /** ISO 4217 currency code of the payment currency */
+    currency: string,
+    /** Exchange rate of the currency to USD */
+    rate: number,
+  }
+
+  export type currencyExchangeRates = {
+    /** Represents a list of currency exchange rates */
+    _: 'currencyExchangeRates',
+    /** A list of currency exchange rates */
+    rates: Array<currencyExchangeRate>,
+  }
+
+  export type onRampProvider = {
+    /** Describes an on-ramp provider */
+    _: 'onRampProvider',
+    /** Unique identifier of the provider */
+    id: string,
+    /** Name of the provider */
+    name: string,
+    /** List of cryptocurrencies supported by the provider */
+    cryptocurrencies: Array<string>,
+    /**
+     * True, if the provider supports base currencies and can be used in the method
+     * getOnRampProviderBaseCurrencies
+     */
+    supports_base_currencies: boolean,
+    /** True, if the provider supports limits retrieval using the method getOnRampPaymentLimits */
+    supports_limits: boolean,
+    /** True, if the provider supports quote retrieval using the method getOnRampPaymentQuote */
+    supports_quote: boolean,
+  }
+
+  export type onRampProviders = {
+    /** Represents a list of on-ramp providers */
+    _: 'onRampProviders',
+    /** A list of providers */
+    providers: Array<onRampProvider>,
+  }
+
+  export type currencies = {
+    /** Represents a list of currencies */
+    _: 'currencies',
+    /** A list of ISO 4217 currency codes */
+    currencies: Array<string>,
+  }
+
+  export type onRampPaymentMethod = {
+    /** Describes a payment method of an on-ramp provider */
+    _: 'onRampPaymentMethod',
+    /** Name of the method */
+    name: string,
+    /** True, if the method is available to the user */
+    is_available: boolean,
+  }
+
+  export type onRampPaymentAvailability = {
+    /** Describes availability of cryptocurrency purchase through an on-ramp provider */
+    _: 'onRampPaymentAvailability',
+    /** True, if the current user can use the provider */
+    is_allowed: boolean,
+    /** True, if the current user can purchase through the provider */
+    is_purchase_allowed: boolean,
+    /** The list of available payment methods */
+    methods: Array<onRampPaymentMethod>,
+    /** A two-letter ISO 3166-1 alpha-2 country code of the current user's country */
+    country_code: string,
+    /** Code of the state of the current user; may be empty if unknown */
+    state: string,
+  }
+
+  export type onRampPaymentLimits = {
+    /** Describes limits for an on-ramp purchase */
+    _: 'onRampPaymentLimits',
+    /** The payment method to be used */
+    payment_method: string,
+    /** The minimum allowed amount of the base currency */
+    base_currency_min_amount: string,
+    /** The maximum allowed amount of the base currency */
+    base_currency_max_amount: string,
+    /** The minimum allowed amount of the bought cryptocurrency */
+    cryptocurrency_min_amount: string,
+    /** The maximum allowed amount of the bought cryptocurrency */
+    cryptocurrency_max_amount: string,
+  }
+
+  export type onRampPaymentQuote = {
+    /** Describes a quote for an on-ramp purchase */
+    _: 'onRampPaymentQuote',
+    /** The payment method to be used */
+    payment_method: string,
+    /** Point in time (Unix timestamp) when the quote will expire */
+    expiration_date: number,
+    /** Paid amount of the base currency */
+    base_currency_amount: string,
+    /** Purchased amount of the cryptocurrency */
+    cryptocurrency_amount: string,
+    /** The price of the cryptocurrency */
+    cryptocurrency_price: string,
+    /** Fee amount */
+    fee_amount: string,
+    /** Extra fee amount */
+    extra_fee_amount: string,
+    /** Network fee amount */
+    network_fee_amount: string,
+    /** Total paid amount */
+    total_amount: string,
+  }
+
+  export type onRampPaymentSession = {
+    /** Describes a session for an on-ramp purchase */
+    _: 'onRampPaymentSession',
+    /** Identifier of the session */
+    session_id: string,
+    /** Point in time (Unix timestamp) when the session will expire */
+    expiration_date: number,
+    /** HTTPS URL to be opened in a WebView to complete the purchase */
+    url: string,
+  }
+
+  export type tonWalletState = {
+    /** Describes state of the wallet of the current user in the TON blockchain */
+    _: 'tonWalletState',
+    /** Address of the wallet; may be empty if none */
+    address: string,
+    /** Public key of the wallet; may be empty if none */
+    public_key: string /* base64 */,
+    /** The total amount of owned TON Grams, in the smallest units of the cryptocurrency */
+    gram_amount: number,
+    /** True, if the wallet is being created */
+    is_being_created: boolean,
+    /** True, if backup for the wallet key is enabled */
+    is_backup_enabled: boolean,
+    /** True, if the user can enable backup for the wallet key */
+    can_enable_backup: boolean,
+    /** True, if the wallet key can be exported using getTonWalletSecretPhrase */
+    can_export_phrase: boolean,
+  }
+
+  export type tonNftAttribute = {
+    /** Represents an attribute of an NFT in the TON blockchain */
+    _: 'tonNftAttribute',
+    /** Trait type */
+    trait_type: string,
+    /** Value of the attribute */
+    value: string,
+  }
+
+  export type tonNft = {
+    /** Represents an NFT in the TON blockchain */
+    _: 'tonNft',
+    /** Address of the collection to which the NFT belongs; may be empty if unknown */
+    collection_address: string,
+    /** Address of the NFT */
+    address: string,
+    /** Address of the owner of the NFT */
+    owner_address: string,
+    /** Index of the NFT among all NFTs from the collection as a decimal number */
+    index: string,
+    /** Name of the NFT */
+    name: string,
+    /** Description of the NFT */
+    description: string,
+    /** Image of the NFT; may be null if none */
+    image?: photoSize,
+    /** Thumbnail of the NFT; may be null if none */
+    thumbnail?: photoSize,
+    /** Content of the NFT; may be null if none */
+    content?: document,
+    /** Sticker of the NFT; may be null if none */
+    sticker?: sticker,
+    /** Attributes of the NFT */
+    attributes: Array<tonNftAttribute>,
+    /** Additional data about the NFT; may be null if none */
+    extra?: JsonValue,
+  }
+
+  export type tonNfts = {
+    /** Represents a list of TON NFTs */
+    _: 'tonNfts',
+    /** List of NFTs */
+    nfts: Array<tonNft>,
+    /** The offset for the next request. If empty, then there are no more results */
+    next_offset: string,
+  }
+
+  export type tonWalletTransactionStateSucceeded = {
+    /** The transaction succeeded */
+    _: 'tonWalletTransactionStateSucceeded',
+    /** Hash of the transaction */
+    tx_hash: string,
+  }
+
+  export type tonWalletTransactionStateFailed = {
+    /** The transaction failed */
+    _: 'tonWalletTransactionStateFailed',
+  }
+
+  export type tonWalletTransactionTypeOnRampDeposit = {
+    /** The transaction is a deposit from an on-ramp provider */
+    _: 'tonWalletTransactionTypeOnRampDeposit',
+    /** The amount of received cryptocurrency, in the smallest units of the cryptocurrency */
+    amount: number,
+    /** Name of the on-ramp provider */
+    provider_name: string,
+  }
+
+  export type tonWalletTransactionTypeTransfer = {
+    /** A transfer of TON Grams to or from the wallet */
+    _: 'tonWalletTransactionTypeTransfer',
+    /**
+     * The amount of received cryptocurrency, in the smallest units of the cryptocurrency;
+     * negative for outgoing transactions
+     */
+    amount: number,
+    /** True, if the fee was paid by Telegram */
+    is_gasless: boolean,
+    /** Comment added to the transaction */
+    comment: string,
+    /**
+     * True, if the comment is encrypted and must be decrypted using the user's private
+     * key
+     */
+    is_comment_encrypted: boolean,
+  }
+
+  export type tonWalletTransactionTypeNftTransfer = {
+    /** A transfer of a TON NFT to or from the wallet */
+    _: 'tonWalletTransactionTypeNftTransfer',
+    /** The transferred NFT */
+    nft: tonNft,
+    /** True, if the transfer is outgoing */
+    is_outgoing: boolean,
+    /** Comment added to the transaction */
+    comment: string,
+    /**
+     * True, if the comment is encrypted and must be decrypted using the user's private
+     * key
+     */
+    is_comment_encrypted: boolean,
+  }
+
+  export type tonWalletTransactionTypeKeyChange = {
+    /** Change of the wallet key */
+    _: 'tonWalletTransactionTypeKeyChange',
+  }
+
+  export type tonWalletTransaction = {
+    /** Represents a transaction with the TON wallet of the current user */
+    _: 'tonWalletTransaction',
+    /** Unique identifier of the transaction */
+    id: string,
+    /**
+     * Address in the TON blockchain of the transaction peer; may be empty if the transaction
+     * isn't a wallet transfer
+     */
+    peer_address: string,
+    /** Identifier of the other user who participated in the transaction; 0 if unknown */
+    peer_user_id: number,
+    /** Identifier of the domain assigned to the peer address; may be empty if none */
+    peer_domain: string,
+    /** Point in time (Unix timestamp) when the transaction was completed */
+    date: number,
+    /**
+     * The fee amount paid for the transaction in TON Grams, in the smallest units
+     * of the cryptocurrency
+     */
+    fee_amount: number,
+    /** State of the transaction */
+    state: TonWalletTransactionState,
+    /** Type of the transaction */
+    type: TonWalletTransactionType,
+  }
+
+  export type tonWalletTransactions = {
+    /** Represents a list of TON Gram transactions */
+    _: 'tonWalletTransactions',
+    /** The total amount of owned TON Grams, in the smallest units of the cryptocurrency */
+    gram_amount: number,
+    /** List of transactions */
+    transactions: Array<tonWalletTransaction>,
+    /** The offset for the next request. If empty, then there are no more results */
+    next_offset: string,
+  }
+
+  export type tonConnectRequestStatePending = {
+    /** The request must be accepted or rejected if it isn't expired yet */
+    _: 'tonConnectRequestStatePending',
+    /** Point in time (Unix timestamp) when the request will expire or has expired */
+    expiration_date: number,
+  }
+
+  export type tonConnectRequestStateAccepted = {
+    /** The request was accepted */
+    _: 'tonConnectRequestStateAccepted',
+  }
+
+  export type tonConnectRequestStateRejected = {
+    /** The request was rejected */
+    _: 'tonConnectRequestStateRejected',
+  }
+
+  export type tonConnectManifestPending = {
+    /** The manifest is being downloaded */
+    _: 'tonConnectManifestPending',
+  }
+
+  export type tonConnectManifestInfo = {
+    /** The manifest is available */
+    _: 'tonConnectManifestInfo',
+    /** URL of the dApp */
+    url: string,
+    /** Name of the dApp */
+    name: string,
+    /** App icon in PNG or ICO format */
+    icon: document,
+  }
+
+  export type tonConnectManifestFailed = {
+    /** The manifest has failed to download */
+    _: 'tonConnectManifestFailed',
+  }
+
+  export type tonConnectManifestInvalid = {
+    /** The manifest is invalid */
+    _: 'tonConnectManifestInvalid',
+  }
+
+  export type tonConnectSessionStatePending = {
+    /** The session is pending */
+    _: 'tonConnectSessionStatePending',
+  }
+
+  export type tonConnectSessionStateReady = {
+    /** The session is ready */
+    _: 'tonConnectSessionStateReady',
+  }
+
+  export type tonConnectSessionStateClosing = {
+    /** The session is being closed */
+    _: 'tonConnectSessionStateClosing',
+  }
+
+  export type tonConnectSessionStateClosed = {
+    /** The session is closed */
+    _: 'tonConnectSessionStateClosed',
+  }
+
+  export type tonConnectConnectItemAddress = {
+    /** Address of the wallet */
+    _: 'tonConnectConnectItemAddress',
+    /** Stringified TON network global_id (e.g. "-239" for mainnet); may be empty */
+    network: string,
+  }
+
+  export type tonConnectConnectItemAddress$Input = {
+    /** Address of the wallet */
+    readonly _: 'tonConnectConnectItemAddress',
+    /** Stringified TON network global_id (e.g. "-239" for mainnet); may be empty */
+    readonly network?: string,
+  }
+
+  export type tonConnectConnectItemProof = {
+    /** Proof of the wallet ownership */
+    _: 'tonConnectConnectItemProof',
+    /** Payload to be used for the proof (e.g. nonce + expiration timestamp) */
+    payload: string,
+  }
+
+  export type tonConnectConnectItemProof$Input = {
+    /** Proof of the wallet ownership */
+    readonly _: 'tonConnectConnectItemProof',
+    /** Payload to be used for the proof (e.g. nonce + expiration timestamp) */
+    readonly payload?: string,
+  }
+
+  export type tonConnectConnectRequest = {
+    /**
+     * Contains information about a request to connect the user's TON wallet to a dApp
+     * using TON Connect
+     */
+    _: 'tonConnectConnectRequest',
+    /** URL of the manifest of the dApp */
+    manifest_url: string,
+    /** Items requested from the wallet */
+    items: Array<TonConnectConnectItem>,
+  }
+
+  export type tonConnectConnectRequest$Input = {
+    /**
+     * Contains information about a request to connect the user's TON wallet to a dApp
+     * using TON Connect
+     */
+    readonly _: 'tonConnectConnectRequest',
+    /** URL of the manifest of the dApp */
+    readonly manifest_url?: string,
+    /** Items requested from the wallet */
+    readonly items?: ReadonlyArray<TonConnectConnectItem$Input>,
+  }
+
+  export type tonConnectSession = {
+    /**
+     * Represents a TON Connect session. See https://github.com/ton-blockchain/ton-connect/tree/main/spec
+     * for full TON Connect protocol documentation
+     */
+    _: 'tonConnectSession',
+    /** Unique identifier of the session */
+    id: string,
+    /** Hex-encoded public X25519 key of the dApp */
+    dapp_client_id: string,
+    /**
+     * Hex-encoded public X25519 key of the current user's application; may be empty
+     * if none
+     */
+    wallet_client_id: string,
+    /** Point in time (Unix timestamp) when the session was created */
+    creation_date: number,
+    /** Manifest of the dApp */
+    manifest: TonConnectManifest,
+    /** Nonce used for the session */
+    nonce: string /* base64 */,
+    /** Session state */
+    state: TonConnectSessionState,
+  }
+
+  export type tonConnectSessions = {
+    /** Contains a list of TON Connect sessions */
+    _: 'tonConnectSessions',
+    /** The list of sessions */
+    sessions: Array<tonConnectSession>,
+  }
+
+  export type tonConnectRequest = {
+    /** Represents a pending TON Connect request */
+    _: 'tonConnectRequest',
+    /** Unique identifier of the session */
+    session_id: string,
+    /** Unique identifier of the service message in the chat 777000 with the request */
+    message_id: number,
+    /** Body of the request */
+    body: string /* base64 */,
+    /** Point in time (Unix timestamp) when the request will expire; 0 if never */
+    expiration_date: number,
+    /** Topic of the request; may be empty if none */
+    topic: string,
+    /** Identifier to trace the request; may be empty if none */
+    trace_id: string,
+  }
+
+  export type tonConnectRequests = {
+    /** Represents a session with its pending TON Connect requests */
+    _: 'tonConnectRequests',
+    /** The session */
+    session: tonConnectSession,
+    /** The requests */
+    requests: Array<tonConnectRequest>,
+  }
+
+  export type tonConnectChallenge = {
+    /** Represents a TON Connect challenge */
+    _: 'tonConnectChallenge',
+    /** 104-byte challenge */
+    challenge: string /* base64 */,
+    /** Unique identifier of the first outgoing event */
+    event_id: string,
+  }
+
+  export type tonConnectSessionEventId = {
+    /** Represents identifier of an event in a TON Connect session */
+    _: 'tonConnectSessionEventId',
+    /** The event identifier */
+    event_id: string,
+  }
+
+  export type tonWalletTransferResult = {
+    /** Represents result of cryptocurrency transfer from the current user's TON wallet */
+    _: 'tonWalletTransferResult',
+    /** True, if the transfer is gasless */
+    is_gasless: boolean,
+    /**
+     * Unique identifier of the sent message; use getTonWalletTransactionByMsgHash
+     * to poll information about the transaction
+     */
+    msg_hash: string /* base64 */,
+    /** The completed transaction; may be null if the transaction is still pending */
+    transaction?: tonWalletTransaction,
+  }
+
   export type activeStoryStateLive = {
     /** The chat has an active live story */
     _: 'activeStoryStateLive',
@@ -6239,11 +7047,25 @@ declare module 'tdlib-types' {
     min_channel_chat_boost_level: number,
   }
 
+  export type communityId = {
+    /** Contains identifier of a community */
+    _: 'communityId',
+    /** Community identifier */
+    id: number,
+  }
+
   export type communityPermissions = {
     /** Describes actions that a user is allowed to take in a community */
     _: 'communityPermissions',
     /** True, if the user can change the chats added to the community */
     can_edit_chat_list: boolean,
+  }
+
+  export type communityPermissions$Input = {
+    /** Describes actions that a user is allowed to take in a community */
+    readonly _: 'communityPermissions',
+    /** True, if the user can change the chats added to the community */
+    readonly can_edit_chat_list?: boolean,
   }
 
   export type communityAdministratorRights = {
@@ -6334,6 +7156,44 @@ declare module 'tdlib-types' {
      * community
      */
     permissions: communityPermissions,
+  }
+
+  export type communityChat = {
+    /** Describes a chat in a community */
+    _: 'communityChat',
+    /** Identifier of the chat in the community */
+    chat_id: number,
+    /** True, if message history of the chat can be viewed */
+    can_view_history: boolean,
+    /**
+     * True, if the chat is hidden in the list of community chats; for community administrators
+     * only
+     */
+    is_hidden: boolean,
+  }
+
+  export type communityFullInfo = {
+    /** Contains full information about a community */
+    _: 'communityFullInfo',
+    /** Photo of the community */
+    photo: chatPhoto,
+    /** Chats belonging to the community */
+    chats: Array<communityChat>,
+    /**
+     * Number of privileged users in the community; 0 if the current user isn't an
+     * administrator of the community
+     */
+    administrator_count: number,
+    /**
+     * Number of users banned from the community; 0 if the current user isn't an administrator
+     * of the community
+     */
+    banned_count: number,
+    /**
+     * Number of pending requests for addition of chats to the community; 0 if the
+     * current user isn't an administrator of the community
+     */
+    add_chat_request_count: number,
   }
 
   export type userRating = {
@@ -6475,6 +7335,13 @@ declare module 'tdlib-types' {
      * passed to getCollectibleItemInfo for more details
      */
     collectible_usernames: Array<string>,
+    /**
+     * Secondary non-collectible username; for bots only. Can't be used in toggleBotUsernameIsActive;
+     * use addBotSecondaryUsername or deleteBotSecondaryUsername to edit it. If the
+     * username is disabled, then Telegram Premium subscription is required to re-enable
+     * it
+     */
+    secondary_username: string,
   }
 
   export type user = {
@@ -7010,7 +7877,7 @@ declare module 'tdlib-types' {
   }
 
   export type chatMembersFilterMention$Input = {
-    /** Returns users which can be mentioned in the chat */
+    /** Returns users who can be mentioned in the chat */
     readonly _: 'chatMembersFilterMention',
     /** Identifier of the topic in which the users will be mentioned; pass null if none */
     readonly topic_id?: MessageTopic$Input,
@@ -7043,7 +7910,7 @@ declare module 'tdlib-types' {
   }
 
   export type supergroupMembersFilterContacts$Input = {
-    /** Returns contacts of the user, which are members of the supergroup or channel */
+    /** Returns contacts of the current user who are members of the supergroup or channel */
     readonly _: 'supergroupMembersFilterContacts',
     /** Query to search for */
     readonly query?: string,
@@ -7076,7 +7943,7 @@ declare module 'tdlib-types' {
   }
 
   export type supergroupMembersFilterMention$Input = {
-    /** Returns users which can be mentioned in the supergroup */
+    /** Returns users who can be mentioned in the supergroup */
     readonly _: 'supergroupMembersFilterMention',
     /** Query to search for */
     readonly query?: string,
@@ -7192,8 +8059,9 @@ declare module 'tdlib-types' {
     creates_join_request: boolean,
     /**
      * True, if the link is primary. Primary invite link can't have name, expiration
-     * date, or usage limit. There is exactly one primary invite link for each administrator
-     * with can_invite_users right at a given time
+     * date, or usage limit. Primary link can create join requests only if this is
+     * set up using toggleSupergroupJoinByRequest. There is exactly one primary invite
+     * link for each administrator with can_invite_users right at a given time
      */
     is_primary: boolean,
     /** True, if the link was revoked */
@@ -7894,10 +8762,7 @@ declare module 'tdlib-types' {
   }
 
   export type messageOriginHiddenUser = {
-    /**
-     * The message was originally sent by a user, which is hidden by their privacy
-     * settings
-     */
+    /** The message was originally sent by a user who is hidden by their privacy settings */
     _: 'messageOriginHiddenUser',
     /** Name of the sender */
     sender_name: string,
@@ -8549,6 +9414,25 @@ declare module 'tdlib-types' {
     country_code: string,
   }
 
+  export type ephemeralMessageContent = {
+    /**
+     * Describes an ephemeral content of a regular message, which must be shown instead
+     * of the regular content
+     */
+    _: 'ephemeralMessageContent',
+    /** True, if content of the message can be saved locally */
+    can_be_saved: boolean,
+    /**
+     * True, if media timestamp entities refers to a media in this message as opposed
+     * to a media in the replied message
+     */
+    has_timestamped_media: boolean,
+    /** Content of the message */
+    content: MessageContent,
+    /** Reply markup for the message; may be null if none */
+    reply_markup?: ReplyMarkup,
+  }
+
   export type message = {
     /** Describes a message */
     _: 'message',
@@ -8703,6 +9587,11 @@ declare module 'tdlib-types' {
     summary_language_code: string,
     /** Content of the message */
     content: MessageContent,
+    /**
+     * Content of the message, which is visible only to the current user and must be
+     * shown instead of the regular content; may be null if none
+     */
+    ephemeral_content?: ephemeralMessageContent,
     /** Reply markup for the message; may be null if none */
     reply_markup?: ReplyMarkup,
     /**
@@ -8710,6 +9599,11 @@ declare module 'tdlib-types' {
      * bots only
      */
     ephemeral_message_id: number,
+    /**
+     * Identifier that uniquely corresponds to the chat to which the message was sent;
+     * for bots only
+     */
+    chat_instance: string,
   }
 
   export type messages = {
@@ -9449,15 +10343,29 @@ declare module 'tdlib-types' {
   export type draftMessageContentRichMessage = {
     /** A rich message draft; not supported in setChatDraftMessage */
     _: 'draftMessageContentRichMessage',
-    /** The rich message; the message must not have not yet uploaded media */
+    /** The rich message */
     message: richMessage,
   }
 
   export type draftMessageContentRichMessage$Input = {
     /** A rich message draft; not supported in setChatDraftMessage */
     readonly _: 'draftMessageContentRichMessage',
-    /** The rich message; the message must not have not yet uploaded media */
+    /** The rich message */
     readonly message?: richMessage$Input,
+  }
+
+  export type draftMessageContentInputRichMessage = {
+    /** A rich message draft; only for setChatDraftMessage */
+    _: 'draftMessageContentInputRichMessage',
+    /** The rich message */
+    message: inputRichMessage,
+  }
+
+  export type draftMessageContentInputRichMessage$Input = {
+    /** A rich message draft; only for setChatDraftMessage */
+    readonly _: 'draftMessageContentInputRichMessage',
+    /** The rich message */
+    readonly message?: inputRichMessage$Input,
   }
 
   export type draftMessageContentVideoNote = {
@@ -10106,6 +11014,11 @@ declare module 'tdlib-types' {
     /** True, if the chat has scheduled messages */
     has_scheduled_messages: boolean,
     /**
+     * True, if the chat has welcome messages; for chat administrators with can_change_info
+     * administrator right only
+     */
+    has_welcome_messages: boolean,
+    /**
      * True, if the chat messages can be deleted only for the current user while other
      * users will continue to see the messages
      */
@@ -10360,6 +11273,22 @@ declare module 'tdlib-types' {
   export type buttonStyleSuccess$Input = {
     /** The button has green color */
     readonly _: 'buttonStyleSuccess',
+  }
+
+  export type buttonStyleLink = {
+    /**
+     * The button must be shown as a link. The style is allowed only for callback buttons
+     * in inlineButton
+     */
+    _: 'buttonStyleLink',
+  }
+
+  export type buttonStyleLink$Input = {
+    /**
+     * The button must be shown as a link. The style is allowed only for callback buttons
+     * in inlineButton
+     */
+    readonly _: 'buttonStyleLink',
   }
 
   export type keyboardButtonTypeText = {
@@ -10677,7 +11606,7 @@ declare module 'tdlib-types' {
   export type inlineKeyboardButtonTypeLoginUrl = {
     /**
      * A button that opens a specified URL and automatically authorize the current
-     * user by calling getLoginUrlInfo
+     * user by calling getLoginUrlInfo; not supported in ephemeral messages
      */
     _: 'inlineKeyboardButtonTypeLoginUrl',
     /** An HTTP URL to pass to getLoginUrlInfo */
@@ -10691,7 +11620,7 @@ declare module 'tdlib-types' {
   export type inlineKeyboardButtonTypeLoginUrl$Input = {
     /**
      * A button that opens a specified URL and automatically authorize the current
-     * user by calling getLoginUrlInfo
+     * user by calling getLoginUrlInfo; not supported in ephemeral messages
      */
     readonly _: 'inlineKeyboardButtonTypeLoginUrl',
     /** An HTTP URL to pass to getLoginUrlInfo */
@@ -10844,6 +11773,16 @@ declare module 'tdlib-types' {
     readonly text?: string,
   }
 
+  export type inlineKeyboardButtonTypeDisabled = {
+    /** A disabled button */
+    _: 'inlineKeyboardButtonTypeDisabled',
+  }
+
+  export type inlineKeyboardButtonTypeDisabled$Input = {
+    /** A disabled button */
+    readonly _: 'inlineKeyboardButtonTypeDisabled',
+  }
+
   export type keyboardButtonSourceMessage$Input = {
     /** The button is from a bot's message */
     readonly _: 'keyboardButtonSourceMessage',
@@ -10968,6 +11907,8 @@ declare module 'tdlib-types' {
      * for the target user of a reply
      */
     is_personal: boolean,
+    /** True, if the keyboard must force reply to the message with the keyboard */
+    force_reply: boolean,
     /**
      * If non-empty, the placeholder to be shown in the input field when the keyboard
      * is active; 0-64 characters
@@ -10995,6 +11936,8 @@ declare module 'tdlib-types' {
      * for the target user of a reply
      */
     readonly is_personal?: boolean,
+    /** True, if the keyboard must force reply to the message with the keyboard */
+    readonly force_reply?: boolean,
     /**
      * If non-empty, the placeholder to be shown in the input field when the keyboard
      * is active; 0-64 characters
@@ -11007,6 +11950,8 @@ declare module 'tdlib-types' {
     _: 'replyMarkupInlineKeyboard',
     /** A list of rows of inline keyboard buttons */
     rows: Array<Array<inlineKeyboardButton>>,
+    /** True, if a reply to the message must be forced when the message is received */
+    force_reply: boolean,
   }
 
   export type replyMarkupInlineKeyboard$Input = {
@@ -11014,6 +11959,8 @@ declare module 'tdlib-types' {
     readonly _: 'replyMarkupInlineKeyboard',
     /** A list of rows of inline keyboard buttons */
     readonly rows?: ReadonlyArray<ReadonlyArray<inlineKeyboardButton$Input>>,
+    /** True, if a reply to the message must be forced when the message is received */
+    readonly force_reply?: boolean,
   }
 
   export type loginUrlInfoOpen = {
@@ -11354,8 +12301,58 @@ declare module 'tdlib-types' {
     outgoing_message_fill?: BackgroundFill,
     /** If true, the freeform gradient fill needs to be animated on every sent message */
     animate_outgoing_message_fill: boolean,
-    /** Accent color of outgoing messages in ARGB format */
+    /**
+     * True, if there is chosen accent color for outgoing messages; otherwise, the
+     * color must be deduced from other theme settings
+     */
+    has_outgoing_message_accent_color: boolean,
+    /**
+     * Accent color of outgoing messages in ARGB format; must be ignored if has_outgoing_message_accent_color
+     * is false
+     */
     outgoing_message_accent_color: number,
+  }
+
+  export type inlineButton = {
+    /** Represents a button inside a rich message */
+    _: 'inlineButton',
+    /**
+     * Text of the button; only richTexts, richTextPlain, and richTextCustomEmoji are
+     * allowed
+     */
+    text: RichText,
+    /** Style of the button */
+    style: ButtonStyle,
+    /**
+     * Type of the button; must be one of inlineKeyboardButtonTypeUrl, inlineKeyboardButtonTypeLoginUrl,
+     * inlineKeyboardButtonTypeWebApp, inlineKeyboardButtonTypeCallback, inlineKeyboardButtonTypeSwitchInline,
+     * inlineKeyboardButtonTypeUser, inlineKeyboardButtonTypeCopyText. Additionally,
+     * inlineKeyboardButtonTypeCallbackWithPassword and inlineKeyboardButtonTypeDisabled
+     * may be received in incoming messages. Regular users may use only inlineKeyboardButtonTypeUrl,
+     * inlineKeyboardButtonTypeUser and inlineKeyboardButtonTypeCopyText
+     */
+    type: InlineKeyboardButtonType,
+  }
+
+  export type inlineButton$Input = {
+    /** Represents a button inside a rich message */
+    readonly _: 'inlineButton',
+    /**
+     * Text of the button; only richTexts, richTextPlain, and richTextCustomEmoji are
+     * allowed
+     */
+    readonly text?: RichText$Input,
+    /** Style of the button */
+    readonly style?: ButtonStyle$Input,
+    /**
+     * Type of the button; must be one of inlineKeyboardButtonTypeUrl, inlineKeyboardButtonTypeLoginUrl,
+     * inlineKeyboardButtonTypeWebApp, inlineKeyboardButtonTypeCallback, inlineKeyboardButtonTypeSwitchInline,
+     * inlineKeyboardButtonTypeUser, inlineKeyboardButtonTypeCopyText. Additionally,
+     * inlineKeyboardButtonTypeCallbackWithPassword and inlineKeyboardButtonTypeDisabled
+     * may be received in incoming messages. Regular users may use only inlineKeyboardButtonTypeUrl,
+     * inlineKeyboardButtonTypeUser and inlineKeyboardButtonTypeCopyText
+     */
+    readonly type?: InlineKeyboardButtonType$Input,
   }
 
   export type richTextPlain = {
@@ -11584,6 +12581,24 @@ declare module 'tdlib-types' {
     readonly bank_card_number?: string,
   }
 
+  export type richTextTonAddress = {
+    /** An address in the TON blockchain */
+    _: 'richTextTonAddress',
+    /** Text */
+    text: RichText,
+    /** The address */
+    address: string,
+  }
+
+  export type richTextTonAddress$Input = {
+    /** An address in the TON blockchain */
+    readonly _: 'richTextTonAddress',
+    /** Text */
+    readonly text?: RichText$Input,
+    /** The address */
+    readonly address?: string,
+  }
+
   export type richTextBotCommand = {
     /** A bot command */
     _: 'richTextBotCommand',
@@ -11744,6 +12759,20 @@ declare module 'tdlib-types' {
     readonly _: 'richTextMathematicalExpression',
     /** The expression in LaTeX format */
     readonly expression?: string,
+  }
+
+  export type richTextButton = {
+    /** A button */
+    _: 'richTextButton',
+    /** The button */
+    button: inlineButton,
+  }
+
+  export type richTextButton$Input = {
+    /** A button */
+    readonly _: 'richTextButton',
+    /** The button */
+    readonly button?: inlineButton$Input,
   }
 
   export type richTextDiff = {
@@ -11912,6 +12941,25 @@ declare module 'tdlib-types' {
      * numerals, "1" for decimal numbers, or empty for unordered lists
      */
     readonly type?: string,
+  }
+
+  export type inputPageBlockListItem = {
+    /** Describes an item of a list page block to be sent */
+    _: 'inputPageBlockListItem',
+    /** Item blocks */
+    blocks: Array<InputPageBlock>,
+    /** True, if the item has a checkbox */
+    has_checkbox: boolean,
+    /** True, if the item is checked */
+    is_checked: boolean,
+    /** Value of the item; pass 0 for unordered lists */
+    value: number,
+    /**
+     * Type of the item numbering type; must be one of "a" for a lowercase letter,
+     * "A" for an uppercase letter, "i" for lowercase Roman numerals, "I" for uppercase
+     * Roman numerals, "1" for decimal numbers, or empty for unordered lists
+     */
+    type: string,
   }
 
   export type inputPageBlockListItem$Input = {
@@ -12303,6 +13351,24 @@ declare module 'tdlib-types' {
     readonly credit?: RichText$Input,
   }
 
+  export type pageBlockExpandableBlockQuote = {
+    /** An expandable block quote */
+    _: 'pageBlockExpandableBlockQuote',
+    /** Text of the quote */
+    text: RichText,
+    /** Quote credit; may be null if none */
+    credit?: RichText,
+  }
+
+  export type pageBlockExpandableBlockQuote$Input = {
+    /** An expandable block quote */
+    readonly _: 'pageBlockExpandableBlockQuote',
+    /** Text of the quote */
+    readonly text?: RichText$Input,
+    /** Quote credit; may be null if none */
+    readonly credit?: RichText$Input,
+  }
+
   export type pageBlockPullQuote = {
     /** A pull quote */
     _: 'pageBlockPullQuote',
@@ -12350,8 +13416,8 @@ declare module 'tdlib-types' {
   export type pageBlockAudio = {
     /** An audio file */
     _: 'pageBlockAudio',
-    /** Audio file; may be null */
-    audio?: audio,
+    /** Audio file */
+    audio: audio,
     /** Audio file caption; may be null if none */
     caption?: pageBlockCaption,
   }
@@ -12359,9 +13425,27 @@ declare module 'tdlib-types' {
   export type pageBlockAudio$Input = {
     /** An audio file */
     readonly _: 'pageBlockAudio',
-    /** Audio file; may be null */
+    /** Audio file */
     readonly audio?: audio$Input,
     /** Audio file caption; may be null if none */
+    readonly caption?: pageBlockCaption$Input,
+  }
+
+  export type pageBlockDocument = {
+    /** A general file */
+    _: 'pageBlockDocument',
+    /** The file */
+    document: document,
+    /** File caption; may be null if none */
+    caption?: pageBlockCaption,
+  }
+
+  export type pageBlockDocument$Input = {
+    /** A general file */
+    readonly _: 'pageBlockDocument',
+    /** The file */
+    readonly document?: document$Input,
+    /** File caption; may be null if none */
     readonly caption?: pageBlockCaption$Input,
   }
 
@@ -12424,8 +13508,8 @@ declare module 'tdlib-types' {
   export type pageBlockVoiceNote = {
     /** A voice note */
     _: 'pageBlockVoiceNote',
-    /** Voice note; may be null */
-    voice_note?: voiceNote,
+    /** Voice note */
+    voice_note: voiceNote,
     /** Voice note caption; may be null if none */
     caption?: pageBlockCaption,
   }
@@ -12433,7 +13517,7 @@ declare module 'tdlib-types' {
   export type pageBlockVoiceNote$Input = {
     /** A voice note */
     readonly _: 'pageBlockVoiceNote',
-    /** Voice note; may be null */
+    /** Voice note */
     readonly voice_note?: voiceNote$Input,
     /** Voice note caption; may be null if none */
     readonly caption?: pageBlockCaption$Input,
@@ -12602,6 +13686,8 @@ declare module 'tdlib-types' {
     is_bordered: boolean,
     /** True, if the table is striped */
     is_striped: boolean,
+    /** True, if table cells must have smaller indents */
+    is_compact: boolean,
   }
 
   export type pageBlockTable$Input = {
@@ -12615,6 +13701,8 @@ declare module 'tdlib-types' {
     readonly is_bordered?: boolean,
     /** True, if the table is striped */
     readonly is_striped?: boolean,
+    /** True, if table cells must have smaller indents */
+    readonly is_compact?: boolean,
   }
 
   export type pageBlockDetails = {
@@ -12685,6 +13773,40 @@ declare module 'tdlib-types' {
     readonly height?: number,
     /** Block caption; may be null if none */
     readonly caption?: pageBlockCaption$Input,
+  }
+
+  export type pageBlockButtonRow = {
+    /** A list of buttons shown in a row */
+    _: 'pageBlockButtonRow',
+    /** The buttons */
+    buttons: Array<inlineButton>,
+    /**
+     * Horizontal alignment of the buttons; may be null if the buttons must be shown
+     * full-width
+     */
+    align?: PageBlockHorizontalAlignment,
+  }
+
+  export type pageBlockButtonRow$Input = {
+    /** A list of buttons shown in a row */
+    readonly _: 'pageBlockButtonRow',
+    /** The buttons */
+    readonly buttons?: ReadonlyArray<inlineButton$Input>,
+    /**
+     * Horizontal alignment of the buttons; may be null if the buttons must be shown
+     * full-width
+     */
+    readonly align?: PageBlockHorizontalAlignment$Input,
+  }
+
+  export type pageBlockUnsupported = {
+    /** Represents a block unsupported by the current application version */
+    _: 'pageBlockUnsupported',
+  }
+
+  export type pageBlockUnsupported$Input = {
+    /** Represents a block unsupported by the current application version */
+    readonly _: 'pageBlockUnsupported',
   }
 
   export type webPageInstantView = {
@@ -15116,6 +16238,13 @@ declare module 'tdlib-types' {
     _: 'messageChatJoinByRequest',
   }
 
+  export type messageChatJoinFromCommunity = {
+    /** A new member joined the chat from a community */
+    _: 'messageChatJoinFromCommunity',
+    /** Identifier of the community from which the user joined the chat */
+    community_id: number,
+  }
+
   export type messageChatDeleteMember = {
     /** A chat member was deleted */
     _: 'messageChatDeleteMember',
@@ -15285,6 +16414,8 @@ declare module 'tdlib-types' {
     _: 'messageManagedBotCreated',
     /** User identifier of the created bot */
     bot_user_id: number,
+    /** Identifier of the bot which will manage the new bot */
+    manager_bot_user_id: number,
   }
 
   export type messagePaymentSuccessful = {
@@ -15447,7 +16578,7 @@ declare module 'tdlib-types' {
     _: 'messageGiveaway',
     /** Giveaway parameters */
     parameters: giveawayParameters,
-    /** Number of users which will receive Telegram Premium subscription gift codes */
+    /** Number of users who will receive Telegram Premium subscription gift codes */
     winner_count: number,
     /** Prize of the giveaway */
     prize: GiveawayPrize,
@@ -15530,9 +16661,9 @@ declare module 'tdlib-types' {
     sticker?: sticker,
   }
 
-  export type messageGiftedTon = {
+  export type messageGiftedGrams = {
     /** TON Grams were gifted to a user */
-    _: 'messageGiftedTon',
+    _: 'messageGiftedGrams',
     /**
      * The identifier of a user who gifted Grams; 0 if the gift was anonymous or is
      * outgoing
@@ -15572,6 +16703,47 @@ declare module 'tdlib-types' {
     is_unclaimed: boolean,
     /** A sticker to be shown in the message; may be null if unknown */
     sticker?: sticker,
+  }
+
+  export type messageTonWalletTransfer = {
+    /** Represents a transfer with the TON wallet of the current user */
+    _: 'messageTonWalletTransfer',
+    /** Sender of the transfer; 0 if unknown */
+    sender_user_id: number,
+    /**
+     * Unique identifier of the transaction; may be empty if the transfer isn't send
+     * yet. Use getTonWalletTransaction to get additional information about the transaction
+     */
+    transaction_id: string,
+    /** Address in the TON blockchain of the transaction peer */
+    peer_address: string,
+    /**
+     * The amount of received cryptocurrency, in the smallest units of the cryptocurrency;
+     * negative for outgoing transactions
+     */
+    amount: number,
+    /** Comment added to the transaction */
+    comment: string,
+    /**
+     * True, if the comment is encrypted and must be decrypted using the receiver's
+     * or sender's private key
+     */
+    is_comment_encrypted: boolean,
+  }
+
+  export type messageTonConnectRequest = {
+    /** A request from a dApp was received through TON Connect */
+    _: 'messageTonConnectRequest',
+    /** Unique identifier of the TON Connect session */
+    session_id: string,
+    /** State of the request */
+    state: TonConnectRequestState,
+    /** Name of the dApp; may be empty if unknown */
+    dapp_name: string,
+    /** Topic of the request; may be empty if none */
+    topic: string,
+    /** Identifier to trace the request; may be empty if none */
+    trace_id: string,
   }
 
   export type messageGift = {
@@ -15672,6 +16844,13 @@ declare module 'tdlib-types' {
      * of the gift
      */
     received_gift_id: string,
+    /** Message added to the gift */
+    text: formattedText,
+    /**
+     * True, if the sender and gift text are shown only to the gift receiver; otherwise,
+     * everyone will be able to see them
+     */
+    is_private: boolean,
     /**
      * True, if the gift is displayed on the user's or the channel's profile page;
      * only for the receiver of the gift
@@ -15898,7 +17077,7 @@ declare module 'tdlib-types' {
   }
 
   export type messageUsersShared = {
-    /** The current user shared users, which were requested by the bot */
+    /** The current user shared users who were requested by the bot */
     _: 'messageUsersShared',
     /** The shared users */
     users: Array<sharedUser>,
@@ -16136,6 +17315,16 @@ declare module 'tdlib-types' {
     readonly _: 'textEntityTypeBankCardNumber',
   }
 
+  export type textEntityTypeTonAddress = {
+    /** An address in the TON blockchain */
+    _: 'textEntityTypeTonAddress',
+  }
+
+  export type textEntityTypeTonAddress$Input = {
+    /** An address in the TON blockchain */
+    readonly _: 'textEntityTypeTonAddress',
+  }
+
   export type textEntityTypeBold = {
     /** A bold text */
     _: 'textEntityTypeBold',
@@ -16371,6 +17560,20 @@ declare module 'tdlib-types' {
     _: 'diffEntityTypeDelete',
   }
 
+  export type inputThumbnail = {
+    /**
+     * A thumbnail to be sent along with a file; must be in JPEG or WEBP format for
+     * stickers, and less than 200 KB in size
+     */
+    _: 'inputThumbnail',
+    /** Thumbnail file to send. Sending thumbnails by file_id is currently not supported */
+    thumbnail: InputFile,
+    /** Thumbnail width, usually shouldn't exceed 320. Use 0 if unknown */
+    width: number,
+    /** Thumbnail height, usually shouldn't exceed 320. Use 0 if unknown */
+    height: number,
+  }
+
   export type inputThumbnail$Input = {
     /**
      * A thumbnail to be sent along with a file; must be in JPEG or WEBP format for
@@ -16383,6 +17586,23 @@ declare module 'tdlib-types' {
     readonly width?: number,
     /** Thumbnail height, usually shouldn't exceed 320. Use 0 if unknown */
     readonly height?: number,
+  }
+
+  export type inputAnimation = {
+    /** An animation to be sent */
+    _: 'inputAnimation',
+    /** Animation file to be sent */
+    animation: InputFile,
+    /** Animation thumbnail; pass null to skip thumbnail uploading */
+    thumbnail: inputThumbnail,
+    /** File identifiers of the stickers added to the animation, if applicable */
+    added_sticker_file_ids: Array<number>,
+    /** Duration of the animation, in seconds; may be replaced by the server */
+    duration: number,
+    /** Width of the animation; may be replaced by the server */
+    width: number,
+    /** Height of the animation; may be replaced by the server */
+    height: number,
   }
 
   export type inputAnimation$Input = {
@@ -16402,6 +17622,21 @@ declare module 'tdlib-types' {
     readonly height?: number,
   }
 
+  export type inputAudio = {
+    /** An audio to be sent */
+    _: 'inputAudio',
+    /** Audio file to be sent */
+    audio: InputFile,
+    /** Thumbnail of the cover for the album; pass null to skip thumbnail uploading */
+    album_cover_thumbnail: inputThumbnail,
+    /** Duration of the audio, in seconds; may be replaced by the server */
+    duration: number,
+    /** Title of the audio; 0-64 characters; may be replaced by the server */
+    title: string,
+    /** Performer of the audio; 0-64 characters, may be replaced by the server */
+    performer: string,
+  }
+
   export type inputAudio$Input = {
     /** An audio to be sent */
     readonly _: 'inputAudio',
@@ -16417,6 +17652,20 @@ declare module 'tdlib-types' {
     readonly performer?: string,
   }
 
+  export type inputDocument = {
+    /** A document (general file) to be sent */
+    _: 'inputDocument',
+    /** File to be sent */
+    document: InputFile,
+    /** Document thumbnail; pass null to skip thumbnail uploading */
+    thumbnail: inputThumbnail,
+    /**
+     * Pass true to disable automatic file type detection and send the document as
+     * a file. Always true for files sent to secret chats
+     */
+    disable_content_type_detection: boolean,
+  }
+
   export type inputDocument$Input = {
     /** A document (general file) to be sent */
     readonly _: 'inputDocument',
@@ -16429,6 +17678,33 @@ declare module 'tdlib-types' {
      * a file. Always true for files sent to secret chats
      */
     readonly disable_content_type_detection?: boolean,
+  }
+
+  export type inputPhoto = {
+    /** A photo to be sent */
+    _: 'inputPhoto',
+    /**
+     * Photo to be sent. The photo must be at most 10 MB in size. The photo's width
+     * and height must not exceed 10000 in total. Width and height ratio must be at
+     * most 20
+     */
+    photo: InputFile,
+    /**
+     * Photo thumbnail; pass null to skip thumbnail uploading. The thumbnail is sent
+     * to the other party only in secret chats
+     */
+    thumbnail: inputThumbnail,
+    /**
+     * Video of the live photo; not supported in secret chats; pass null if the photo
+     * isn't a live photo
+     */
+    video: InputFile,
+    /** File identifiers of the stickers added to the photo, if applicable */
+    added_sticker_file_ids: Array<number>,
+    /** Photo width; may be replaced by the server */
+    width: number,
+    /** Photo height; may be replaced by the server */
+    height: number,
   }
 
   export type inputPhoto$Input = {
@@ -16458,6 +17734,19 @@ declare module 'tdlib-types' {
     readonly height?: number,
   }
 
+  export type inputSticker = {
+    /** A sticker to be sent */
+    _: 'inputSticker',
+    /** Sticker to be sent */
+    sticker: InputFile,
+    /** Sticker thumbnail; pass null to skip thumbnail uploading */
+    thumbnail: inputThumbnail,
+    /** Sticker width */
+    width: number,
+    /** Sticker height */
+    height: number,
+  }
+
   export type inputSticker$Input = {
     /** A sticker to be sent */
     readonly _: 'inputSticker',
@@ -16469,6 +17758,35 @@ declare module 'tdlib-types' {
     readonly width?: number,
     /** Sticker height */
     readonly height?: number,
+  }
+
+  export type inputVideo = {
+    /** A video to be sent */
+    _: 'inputVideo',
+    /**
+     * Video file to be sent. The video is expected to be re-encoded to MPEG4 format
+     * with H.264 codec by the sender
+     */
+    video: InputFile,
+    /** Video thumbnail; pass null to skip thumbnail uploading */
+    thumbnail: inputThumbnail,
+    /**
+     * Cover of the video; pass null to skip cover uploading; not supported in secret
+     * chats and for self-destructing messages
+     */
+    cover: InputFile,
+    /** Timestamp from which the video playing must start, in seconds */
+    start_timestamp: number,
+    /** File identifiers of the stickers added to the video, if applicable */
+    added_sticker_file_ids: Array<number>,
+    /** Duration of the video, in seconds */
+    duration: number,
+    /** Video width */
+    width: number,
+    /** Video height */
+    height: number,
+    /** True, if the video is expected to be streamed */
+    supports_streaming: boolean,
   }
 
   export type inputVideo$Input = {
@@ -16500,6 +17818,22 @@ declare module 'tdlib-types' {
     readonly supports_streaming?: boolean,
   }
 
+  export type inputVideoNote = {
+    /** A video note to be sent */
+    _: 'inputVideoNote',
+    /**
+     * Video note file to be sent. The video is expected to be encoded to MPEG4 format
+     * with H.264 codec and have no data outside of the visible circle
+     */
+    video_note: InputFile,
+    /** Video thumbnail; may be null if empty; pass null to skip thumbnail uploading */
+    thumbnail?: inputThumbnail,
+    /** Duration of the video, in seconds; 0-60 */
+    duration: number,
+    /** Video width and height; must be positive and not greater than 640 */
+    length: number,
+  }
+
   export type inputVideoNote$Input = {
     /** A video note to be sent */
     readonly _: 'inputVideoNote',
@@ -16514,6 +17848,21 @@ declare module 'tdlib-types' {
     readonly duration?: number,
     /** Video width and height; must be positive and not greater than 640 */
     readonly length?: number,
+  }
+
+  export type inputVoiceNote = {
+    /** A video note to be sent */
+    _: 'inputVoiceNote',
+    /**
+     * Voice note file to be sent. The voice note must be encoded with the Opus codec
+     * and stored inside an OGG container with a single audio channel, or be in MP3
+     * or M4A format as regular audio
+     */
+    voice_note: InputFile,
+    /** Duration of the voice note, in seconds */
+    duration: number,
+    /** Waveform representation of the voice note in 5-bit format */
+    waveform: string /* base64 */,
   }
 
   export type inputVoiceNote$Input = {
@@ -16531,6 +17880,17 @@ declare module 'tdlib-types' {
     readonly waveform?: string /* base64 */,
   }
 
+  export type inputPaidMediaTypePhoto = {
+    /**
+     * The media is a photo. The photo must be at most 10 MB in size. The photo's width
+     * and height must not exceed 10000 in total. Width and height ratio must be at
+     * most 20
+     */
+    _: 'inputPaidMediaTypePhoto',
+    /** Video of the live photo; pass null if the photo isn't a live photo */
+    video: InputFile,
+  }
+
   export type inputPaidMediaTypePhoto$Input = {
     /**
      * The media is a photo. The photo must be at most 10 MB in size. The photo's width
@@ -16540,6 +17900,19 @@ declare module 'tdlib-types' {
     readonly _: 'inputPaidMediaTypePhoto',
     /** Video of the live photo; pass null if the photo isn't a live photo */
     readonly video?: InputFile$Input,
+  }
+
+  export type inputPaidMediaTypeVideo = {
+    /** The media is a video */
+    _: 'inputPaidMediaTypeVideo',
+    /** Cover of the video; pass null to skip cover uploading */
+    cover: InputFile,
+    /** Timestamp from which the video playing must start, in seconds */
+    start_timestamp: number,
+    /** Duration of the video, in seconds */
+    duration: number,
+    /** True, if the video is expected to be streamed */
+    supports_streaming: boolean,
   }
 
   export type inputPaidMediaTypeVideo$Input = {
@@ -16553,6 +17926,23 @@ declare module 'tdlib-types' {
     readonly duration?: number,
     /** True, if the video is expected to be streamed */
     readonly supports_streaming?: boolean,
+  }
+
+  export type inputPaidMedia = {
+    /** Describes a paid media to be sent */
+    _: 'inputPaidMedia',
+    /** Type of the media */
+    type: InputPaidMediaType,
+    /** Photo or video to be sent */
+    media: InputFile,
+    /** Media thumbnail; pass null to skip thumbnail uploading */
+    thumbnail: inputThumbnail,
+    /** File identifiers of the stickers added to the media, if applicable */
+    added_sticker_file_ids: Array<number>,
+    /** Media width */
+    width: number,
+    /** Media height */
+    height: number,
   }
 
   export type inputPaidMedia$Input = {
@@ -16737,6 +18127,38 @@ declare module 'tdlib-types' {
     readonly only_preview?: boolean,
   }
 
+  export type messageCopyOptions = {
+    /**
+     * Options to be used when a message content is copied without reference to the
+     * original sender. Service messages, messages with messageInvoice, messagePaidMedia,
+     * messageGiveaway, or messageGiveawayWinners content can't be copied
+     */
+    _: 'messageCopyOptions',
+    /**
+     * True, if content of the message needs to be copied without reference to the
+     * original sender. Always true if the message is forwarded to a secret chat or
+     * is local. Use messageProperties.can_be_copied and messageProperties.can_be_copied_to_secret_chat
+     * to check whether the message is suitable
+     */
+    send_copy: boolean,
+    /**
+     * True, if media caption of the message copy needs to be replaced. Ignored if
+     * send_copy is false
+     */
+    replace_caption: boolean,
+    /**
+     * New message caption; pass null to copy message without caption. Ignored if replace_caption
+     * is false
+     */
+    new_caption: formattedText,
+    /**
+     * True, if new caption must be shown above the media; otherwise, new caption must
+     * be shown below the media; not supported in secret chats. Ignored if replace_caption
+     * is false
+     */
+    new_show_caption_above_media: boolean,
+  }
+
   export type messageCopyOptions$Input = {
     /**
      * Options to be used when a message content is copied without reference to the
@@ -16769,11 +18191,25 @@ declare module 'tdlib-types' {
     readonly new_show_caption_above_media?: boolean,
   }
 
+  export type inputPollMediaAnimation = {
+    /** An animation */
+    _: 'inputPollMediaAnimation',
+    /** The animation to be sent */
+    animation: inputAnimation,
+  }
+
   export type inputPollMediaAnimation$Input = {
     /** An animation */
     readonly _: 'inputPollMediaAnimation',
     /** The animation to be sent */
     readonly animation?: inputAnimation$Input,
+  }
+
+  export type inputPollMediaAudio = {
+    /** An audio */
+    _: 'inputPollMediaAudio',
+    /** The audio to be sent */
+    audio: inputAudio,
   }
 
   export type inputPollMediaAudio$Input = {
@@ -16783,11 +18219,25 @@ declare module 'tdlib-types' {
     readonly audio?: inputAudio$Input,
   }
 
+  export type inputPollMediaDocument = {
+    /** A document (general file) */
+    _: 'inputPollMediaDocument',
+    /** The document to be sent */
+    document: inputDocument,
+  }
+
   export type inputPollMediaDocument$Input = {
     /** A document (general file) */
     readonly _: 'inputPollMediaDocument',
     /** The document to be sent */
     readonly document?: inputDocument$Input,
+  }
+
+  export type inputPollMediaLink = {
+    /** A link */
+    _: 'inputPollMediaLink',
+    /** URL of the link */
+    url: string,
   }
 
   export type inputPollMediaLink$Input = {
@@ -16797,11 +18247,25 @@ declare module 'tdlib-types' {
     readonly url?: string,
   }
 
+  export type inputPollMediaLocation = {
+    /** A location */
+    _: 'inputPollMediaLocation',
+    /** Location to be sent */
+    location: location,
+  }
+
   export type inputPollMediaLocation$Input = {
     /** A location */
     readonly _: 'inputPollMediaLocation',
     /** Location to be sent */
     readonly location?: location$Input,
+  }
+
+  export type inputPollMediaPhoto = {
+    /** A photo */
+    _: 'inputPollMediaPhoto',
+    /** Photo to be sent */
+    photo: inputPhoto,
   }
 
   export type inputPollMediaPhoto$Input = {
@@ -16811,11 +18275,25 @@ declare module 'tdlib-types' {
     readonly photo?: inputPhoto$Input,
   }
 
+  export type inputPollMediaSticker = {
+    /** A sticker */
+    _: 'inputPollMediaSticker',
+    /** Sticker to be sent */
+    sticker: inputSticker,
+  }
+
   export type inputPollMediaSticker$Input = {
     /** A sticker */
     readonly _: 'inputPollMediaSticker',
     /** Sticker to be sent */
     readonly sticker?: inputSticker$Input,
+  }
+
+  export type inputPollMediaVenue = {
+    /** A venue */
+    _: 'inputPollMediaVenue',
+    /** Venue to send */
+    venue: venue,
   }
 
   export type inputPollMediaVenue$Input = {
@@ -16825,11 +18303,27 @@ declare module 'tdlib-types' {
     readonly venue?: venue$Input,
   }
 
+  export type inputPollMediaVideo = {
+    /** A video */
+    _: 'inputPollMediaVideo',
+    /** The video to be sent */
+    video: inputVideo,
+  }
+
   export type inputPollMediaVideo$Input = {
     /** A video */
     readonly _: 'inputPollMediaVideo',
     /** The video to be sent */
     readonly video?: inputVideo$Input,
+  }
+
+  export type inputPageBlockSectionHeading = {
+    /** A section heading */
+    _: 'inputPageBlockSectionHeading',
+    /** Text of the section heading */
+    text: RichText,
+    /** Relative size of the text font; 1-6, 1 is the largest, 6 is the smallest */
+    size: number,
   }
 
   export type inputPageBlockSectionHeading$Input = {
@@ -16841,11 +18335,27 @@ declare module 'tdlib-types' {
     readonly size?: number,
   }
 
+  export type inputPageBlockParagraph = {
+    /** A text paragraph */
+    _: 'inputPageBlockParagraph',
+    /** Paragraph text */
+    text: RichText,
+  }
+
   export type inputPageBlockParagraph$Input = {
     /** A text paragraph */
     readonly _: 'inputPageBlockParagraph',
     /** Paragraph text */
     readonly text?: RichText$Input,
+  }
+
+  export type inputPageBlockPreformatted = {
+    /** A preformatted text paragraph */
+    _: 'inputPageBlockPreformatted',
+    /** Paragraph text */
+    text: RichText,
+    /** Programming language for which the text needs to be formatted */
+    language: string,
   }
 
   export type inputPageBlockPreformatted$Input = {
@@ -16857,11 +18367,25 @@ declare module 'tdlib-types' {
     readonly language?: string,
   }
 
+  export type inputPageBlockFooter = {
+    /** The footer of the page */
+    _: 'inputPageBlockFooter',
+    /** Footer */
+    footer: RichText,
+  }
+
   export type inputPageBlockFooter$Input = {
     /** The footer of the page */
     readonly _: 'inputPageBlockFooter',
     /** Footer */
     readonly footer?: RichText$Input,
+  }
+
+  export type inputPageBlockThinking = {
+    /** A "Thinking..." placeholder; for pending rich messages only; for bots only */
+    _: 'inputPageBlockThinking',
+    /** Text of the placeholder */
+    text: RichText,
   }
 
   export type inputPageBlockThinking$Input = {
@@ -16871,9 +18395,21 @@ declare module 'tdlib-types' {
     readonly text?: RichText$Input,
   }
 
+  export type inputPageBlockDivider = {
+    /** An empty block separating the page */
+    _: 'inputPageBlockDivider',
+  }
+
   export type inputPageBlockDivider$Input = {
     /** An empty block separating the page */
     readonly _: 'inputPageBlockDivider',
+  }
+
+  export type inputPageBlockMathematicalExpression = {
+    /** A mathematical expression */
+    _: 'inputPageBlockMathematicalExpression',
+    /** The expression in LaTeX format */
+    expression: string,
   }
 
   export type inputPageBlockMathematicalExpression$Input = {
@@ -16883,6 +18419,13 @@ declare module 'tdlib-types' {
     readonly expression?: string,
   }
 
+  export type inputPageBlockAnchor = {
+    /** An invisible anchor */
+    _: 'inputPageBlockAnchor',
+    /** Name of the anchor */
+    name: string,
+  }
+
   export type inputPageBlockAnchor$Input = {
     /** An invisible anchor */
     readonly _: 'inputPageBlockAnchor',
@@ -16890,11 +18433,27 @@ declare module 'tdlib-types' {
     readonly name?: string,
   }
 
+  export type inputPageBlockList = {
+    /** A list of data blocks */
+    _: 'inputPageBlockList',
+    /** The items of the list */
+    items: Array<inputPageBlockListItem>,
+  }
+
   export type inputPageBlockList$Input = {
     /** A list of data blocks */
     readonly _: 'inputPageBlockList',
     /** The items of the list */
     readonly items?: ReadonlyArray<inputPageBlockListItem$Input>,
+  }
+
+  export type inputPageBlockBlockQuote = {
+    /** A block quote */
+    _: 'inputPageBlockBlockQuote',
+    /** Quote blocks */
+    blocks: Array<InputPageBlock>,
+    /** Quote credit; pass null if none */
+    credit: RichText,
   }
 
   export type inputPageBlockBlockQuote$Input = {
@@ -16906,6 +18465,33 @@ declare module 'tdlib-types' {
     readonly credit?: RichText$Input,
   }
 
+  export type inputPageBlockExpandableBlockQuote = {
+    /** An expandable block quote */
+    _: 'inputPageBlockExpandableBlockQuote',
+    /** Quote text */
+    text: RichText,
+    /** Quote credit; pass null if none */
+    credit: RichText,
+  }
+
+  export type inputPageBlockExpandableBlockQuote$Input = {
+    /** An expandable block quote */
+    readonly _: 'inputPageBlockExpandableBlockQuote',
+    /** Quote text */
+    readonly text?: RichText$Input,
+    /** Quote credit; pass null if none */
+    readonly credit?: RichText$Input,
+  }
+
+  export type inputPageBlockPullQuote = {
+    /** A pull quote */
+    _: 'inputPageBlockPullQuote',
+    /** Quote text */
+    text: RichText,
+    /** Quote credit; pass null if none */
+    credit: RichText,
+  }
+
   export type inputPageBlockPullQuote$Input = {
     /** A pull quote */
     readonly _: 'inputPageBlockPullQuote',
@@ -16913,6 +18499,17 @@ declare module 'tdlib-types' {
     readonly text?: RichText$Input,
     /** Quote credit; pass null if none */
     readonly credit?: RichText$Input,
+  }
+
+  export type inputPageBlockAnimation = {
+    /** An animation */
+    _: 'inputPageBlockAnimation',
+    /** The animation to be sent */
+    animation: inputAnimation,
+    /** Animation caption; pass null if none */
+    caption: pageBlockCaption,
+    /** True, if the animation preview must be covered by a spoiler animation */
+    has_spoiler: boolean,
   }
 
   export type inputPageBlockAnimation$Input = {
@@ -16926,6 +18523,15 @@ declare module 'tdlib-types' {
     readonly has_spoiler?: boolean,
   }
 
+  export type inputPageBlockAudio = {
+    /** An audio file */
+    _: 'inputPageBlockAudio',
+    /** The audio to be sent */
+    audio: inputAudio,
+    /** Audio file caption; pass null if none */
+    caption: pageBlockCaption,
+  }
+
   export type inputPageBlockAudio$Input = {
     /** An audio file */
     readonly _: 'inputPageBlockAudio',
@@ -16933,6 +18539,35 @@ declare module 'tdlib-types' {
     readonly audio?: inputAudio$Input,
     /** Audio file caption; pass null if none */
     readonly caption?: pageBlockCaption$Input,
+  }
+
+  export type inputPageBlockDocument = {
+    /** A general file */
+    _: 'inputPageBlockDocument',
+    /** The file to be sent */
+    document: inputDocument,
+    /** File caption; pass null if none */
+    caption: pageBlockCaption,
+  }
+
+  export type inputPageBlockDocument$Input = {
+    /** A general file */
+    readonly _: 'inputPageBlockDocument',
+    /** The file to be sent */
+    readonly document?: inputDocument$Input,
+    /** File caption; pass null if none */
+    readonly caption?: pageBlockCaption$Input,
+  }
+
+  export type inputPageBlockPhoto = {
+    /** A photo */
+    _: 'inputPageBlockPhoto',
+    /** The photo to be sent */
+    photo: inputPhoto,
+    /** Photo caption; pass null if none */
+    caption: pageBlockCaption,
+    /** True, if the photo preview must be covered by a spoiler animation */
+    has_spoiler: boolean,
   }
 
   export type inputPageBlockPhoto$Input = {
@@ -16946,6 +18581,17 @@ declare module 'tdlib-types' {
     readonly has_spoiler?: boolean,
   }
 
+  export type inputPageBlockVideo = {
+    /** A video */
+    _: 'inputPageBlockVideo',
+    /** The video to be sent */
+    video: inputVideo,
+    /** Video caption; pass null if none */
+    caption: pageBlockCaption,
+    /** True, if the video preview must be covered by a spoiler animation */
+    has_spoiler: boolean,
+  }
+
   export type inputPageBlockVideo$Input = {
     /** A video */
     readonly _: 'inputPageBlockVideo',
@@ -16957,6 +18603,15 @@ declare module 'tdlib-types' {
     readonly has_spoiler?: boolean,
   }
 
+  export type inputPageBlockVoiceNote = {
+    /** A voice note */
+    _: 'inputPageBlockVoiceNote',
+    /** The voice note to be sent */
+    voice_note: inputVoiceNote,
+    /** Voice note caption; pass null if none */
+    caption: pageBlockCaption,
+  }
+
   export type inputPageBlockVoiceNote$Input = {
     /** A voice note */
     readonly _: 'inputPageBlockVoiceNote',
@@ -16964,6 +18619,15 @@ declare module 'tdlib-types' {
     readonly voice_note?: inputVoiceNote$Input,
     /** Voice note caption; pass null if none */
     readonly caption?: pageBlockCaption$Input,
+  }
+
+  export type inputPageBlockCollage = {
+    /** A collage */
+    _: 'inputPageBlockCollage',
+    /** Collage item contents */
+    blocks: Array<InputPageBlock>,
+    /** Block caption; pass null if none */
+    caption: pageBlockCaption,
   }
 
   export type inputPageBlockCollage$Input = {
@@ -16975,6 +18639,15 @@ declare module 'tdlib-types' {
     readonly caption?: pageBlockCaption$Input,
   }
 
+  export type inputPageBlockSlideshow = {
+    /** A slideshow */
+    _: 'inputPageBlockSlideshow',
+    /** Slideshow item contents */
+    blocks: Array<InputPageBlock>,
+    /** Block caption; pass null if none */
+    caption: pageBlockCaption,
+  }
+
   export type inputPageBlockSlideshow$Input = {
     /** A slideshow */
     readonly _: 'inputPageBlockSlideshow',
@@ -16984,6 +18657,21 @@ declare module 'tdlib-types' {
     readonly caption?: pageBlockCaption$Input,
   }
 
+  export type inputPageBlockTable = {
+    /** A table */
+    _: 'inputPageBlockTable',
+    /** Table caption */
+    caption: RichText,
+    /** Table cells */
+    cells: Array<Array<pageBlockTableCell>>,
+    /** Pass true if the table is bordered */
+    is_bordered: boolean,
+    /** Pass true if the table is striped */
+    is_striped: boolean,
+    /** Pass true if table cells must have smaller indents */
+    is_compact: boolean,
+  }
+
   export type inputPageBlockTable$Input = {
     /** A table */
     readonly _: 'inputPageBlockTable',
@@ -16991,10 +18679,23 @@ declare module 'tdlib-types' {
     readonly caption?: RichText$Input,
     /** Table cells */
     readonly cells?: ReadonlyArray<ReadonlyArray<pageBlockTableCell$Input>>,
-    /** True, if the table is bordered */
+    /** Pass true if the table is bordered */
     readonly is_bordered?: boolean,
-    /** True, if the table is striped */
+    /** Pass true if the table is striped */
     readonly is_striped?: boolean,
+    /** Pass true if table cells must have smaller indents */
+    readonly is_compact?: boolean,
+  }
+
+  export type inputPageBlockDetails = {
+    /** A collapsible block */
+    _: 'inputPageBlockDetails',
+    /** Always visible heading for the block */
+    header: RichText,
+    /** Block contents */
+    blocks: Array<InputPageBlock>,
+    /** True, if the block is open by default */
+    is_open: boolean,
   }
 
   export type inputPageBlockDetails$Input = {
@@ -17006,6 +18707,24 @@ declare module 'tdlib-types' {
     readonly blocks?: ReadonlyArray<InputPageBlock$Input>,
     /** True, if the block is open by default */
     readonly is_open?: boolean,
+  }
+
+  export type inputPageBlockMap = {
+    /**
+     * A map. The map's width and height must not exceed 10000 in total. Width and
+     * height ratio must be at most 20
+     */
+    _: 'inputPageBlockMap',
+    /** Location of the map center */
+    location: location,
+    /** Map zoom level; 0-24 */
+    zoom: number,
+    /** Map width; 0-10000 */
+    width: number,
+    /** Map height; 0-10000 */
+    height: number,
+    /** Block caption; pass null if none */
+    caption: pageBlockCaption,
   }
 
   export type inputPageBlockMap$Input = {
@@ -17024,6 +18743,49 @@ declare module 'tdlib-types' {
     readonly height?: number,
     /** Block caption; pass null if none */
     readonly caption?: pageBlockCaption$Input,
+  }
+
+  export type inputPageBlockButtonRow = {
+    /** A list of buttons shown in a row */
+    _: 'inputPageBlockButtonRow',
+    /** The buttons */
+    buttons: Array<inlineButton>,
+    /**
+     * Horizontal alignment of the buttons; pass null if the buttons must be shown
+     * full-width
+     */
+    align: PageBlockHorizontalAlignment,
+  }
+
+  export type inputPageBlockButtonRow$Input = {
+    /** A list of buttons shown in a row */
+    readonly _: 'inputPageBlockButtonRow',
+    /** The buttons */
+    readonly buttons?: ReadonlyArray<inlineButton$Input>,
+    /**
+     * Horizontal alignment of the buttons; pass null if the buttons must be shown
+     * full-width
+     */
+    readonly align?: PageBlockHorizontalAlignment$Input,
+  }
+
+  export type inputMessageText = {
+    /** A text message */
+    _: 'inputMessageText',
+    /**
+     * Formatted text to be sent; 0-getOption("message_text_length_max") characters.
+     * Only Bold, Italic, Underline, Strikethrough, Spoiler, CustomEmoji, BlockQuote,
+     * ExpandableBlockQuote, Code, Pre, PreCode, TextUrl, MentionName, and DateTime
+     * entities are allowed to be specified manually
+     */
+    text: formattedText,
+    /**
+     * Options to be used for generation of a link preview; may be null if none; pass
+     * null to use default link preview options
+     */
+    link_preview_options?: linkPreviewOptions,
+    /** Pass true to delete message draft in the chat */
+    clear_draft: boolean,
   }
 
   export type inputMessageText$Input = {
@@ -17045,6 +18807,15 @@ declare module 'tdlib-types' {
     readonly clear_draft?: boolean,
   }
 
+  export type inputMessageRichMessage = {
+    /** A rich message */
+    _: 'inputMessageRichMessage',
+    /** The rich message to send */
+    message: inputRichMessage,
+    /** Pass true to delete message draft in the chat */
+    clear_draft: boolean,
+  }
+
   export type inputMessageRichMessage$Input = {
     /** A rich message */
     readonly _: 'inputMessageRichMessage',
@@ -17052,6 +18823,28 @@ declare module 'tdlib-types' {
     readonly message?: inputRichMessage$Input,
     /** Pass true to delete message draft in the chat */
     readonly clear_draft?: boolean,
+  }
+
+  export type inputMessageAnimation = {
+    /** An animation message (GIF-style). */
+    _: 'inputMessageAnimation',
+    /** The animation to be sent */
+    animation: inputAnimation,
+    /**
+     * Animation caption; pass null to use an empty caption; 0-getOption("message_caption_length_max")
+     * characters
+     */
+    caption: formattedText,
+    /**
+     * True, if the caption must be shown above the animation; otherwise, the caption
+     * must be shown below the animation; not supported in secret chats
+     */
+    show_caption_above_media: boolean,
+    /**
+     * True, if the animation preview must be covered by a spoiler animation; not supported
+     * in secret chats
+     */
+    has_spoiler: boolean,
   }
 
   export type inputMessageAnimation$Input = {
@@ -17076,6 +18869,18 @@ declare module 'tdlib-types' {
     readonly has_spoiler?: boolean,
   }
 
+  export type inputMessageAudio = {
+    /** An audio message */
+    _: 'inputMessageAudio',
+    /** Audio to be sent */
+    audio: inputAudio,
+    /**
+     * Audio caption; pass null to use an empty caption; 0-getOption("message_caption_length_max")
+     * characters
+     */
+    caption: formattedText,
+  }
+
   export type inputMessageAudio$Input = {
     /** An audio message */
     readonly _: 'inputMessageAudio',
@@ -17088,6 +18893,18 @@ declare module 'tdlib-types' {
     readonly caption?: formattedText$Input,
   }
 
+  export type inputMessageDocument = {
+    /** A document message (general file) */
+    _: 'inputMessageDocument',
+    /** Document to be sent */
+    document: inputDocument,
+    /**
+     * Document caption; pass null to use an empty caption; 0-getOption("message_caption_length_max")
+     * characters
+     */
+    caption: formattedText,
+  }
+
   export type inputMessageDocument$Input = {
     /** A document message (general file) */
     readonly _: 'inputMessageDocument',
@@ -17098,6 +18915,27 @@ declare module 'tdlib-types' {
      * characters
      */
     readonly caption?: formattedText$Input,
+  }
+
+  export type inputMessagePaidMedia = {
+    /** A message with paid media; can be used only in channel chats with supergroupFullInfo.has_paid_media_allowed */
+    _: 'inputMessagePaidMedia',
+    /** The number of Telegram Stars that must be paid to see the media; 1-getOption("paid_media_message_star_count_max") */
+    star_count: number,
+    /** The content of the paid media */
+    paid_media: Array<inputPaidMedia>,
+    /**
+     * Message caption; pass null to use an empty caption; 0-getOption("message_caption_length_max")
+     * characters
+     */
+    caption: formattedText,
+    /**
+     * True, if the caption must be shown above the media; otherwise, the caption must
+     * be shown below the media; not supported in secret chats
+     */
+    show_caption_above_media: boolean,
+    /** Bot-provided data for the paid media; bots only */
+    payload: string,
   }
 
   export type inputMessagePaidMedia$Input = {
@@ -17119,6 +18957,30 @@ declare module 'tdlib-types' {
     readonly show_caption_above_media?: boolean,
     /** Bot-provided data for the paid media; bots only */
     readonly payload?: string,
+  }
+
+  export type inputMessagePhoto = {
+    /** A photo message */
+    _: 'inputMessagePhoto',
+    /** Photo to be sent */
+    photo: inputPhoto,
+    /**
+     * Photo caption; pass null to use an empty caption; 0-getOption("message_caption_length_max")
+     * characters
+     */
+    caption: formattedText,
+    /**
+     * True, if the caption must be shown above the photo; otherwise, the caption must
+     * be shown below the photo; not supported in secret chats
+     */
+    show_caption_above_media: boolean,
+    /** Photo self-destruct type; pass null if none; private chats only */
+    self_destruct_type: MessageSelfDestructType,
+    /**
+     * True, if the photo preview must be covered by a spoiler animation; not supported
+     * in secret chats
+     */
+    has_spoiler: boolean,
   }
 
   export type inputMessagePhoto$Input = {
@@ -17145,6 +19007,15 @@ declare module 'tdlib-types' {
     readonly has_spoiler?: boolean,
   }
 
+  export type inputMessageSticker = {
+    /** A sticker message */
+    _: 'inputMessageSticker',
+    /** Sticker to be sent */
+    sticker: inputSticker,
+    /** Emoji used to choose the sticker */
+    emoji: string,
+  }
+
   export type inputMessageSticker$Input = {
     /** A sticker message */
     readonly _: 'inputMessageSticker',
@@ -17152,6 +19023,30 @@ declare module 'tdlib-types' {
     readonly sticker?: inputSticker$Input,
     /** Emoji used to choose the sticker */
     readonly emoji?: string,
+  }
+
+  export type inputMessageVideo = {
+    /** A video message */
+    _: 'inputMessageVideo',
+    /** Video to be sent */
+    video: inputVideo,
+    /**
+     * Video caption; pass null to use an empty caption; 0-getOption("message_caption_length_max")
+     * characters
+     */
+    caption: formattedText,
+    /**
+     * True, if the caption must be shown above the video; otherwise, the caption must
+     * be shown below the video; not supported in secret chats
+     */
+    show_caption_above_media: boolean,
+    /** Video self-destruct type; pass null if none; private chats only */
+    self_destruct_type: MessageSelfDestructType,
+    /**
+     * True, if the video preview must be covered by a spoiler animation; not supported
+     * in secret chats
+     */
+    has_spoiler: boolean,
   }
 
   export type inputMessageVideo$Input = {
@@ -17178,6 +19073,18 @@ declare module 'tdlib-types' {
     readonly has_spoiler?: boolean,
   }
 
+  export type inputMessageVideoNote = {
+    /** A video note message */
+    _: 'inputMessageVideoNote',
+    /** Video note to be sent */
+    video_note: inputVideoNote,
+    /**
+     * Video note self-destruct type; may be null if none; pass null if none; private
+     * chats only
+     */
+    self_destruct_type?: MessageSelfDestructType,
+  }
+
   export type inputMessageVideoNote$Input = {
     /** A video note message */
     readonly _: 'inputMessageVideoNote',
@@ -17188,6 +19095,23 @@ declare module 'tdlib-types' {
      * chats only
      */
     readonly self_destruct_type?: MessageSelfDestructType$Input,
+  }
+
+  export type inputMessageVoiceNote = {
+    /** A voice note message */
+    _: 'inputMessageVoiceNote',
+    /** Voice note to be sent */
+    voice_note: inputVoiceNote,
+    /**
+     * Voice note caption; pass null to use an empty caption; 0-getOption("message_caption_length_max")
+     * characters
+     */
+    caption: formattedText,
+    /**
+     * Voice note self-destruct type; may be null if none; pass null if none; private
+     * chats only
+     */
+    self_destruct_type?: MessageSelfDestructType,
   }
 
   export type inputMessageVoiceNote$Input = {
@@ -17207,6 +19131,16 @@ declare module 'tdlib-types' {
     readonly self_destruct_type?: MessageSelfDestructType$Input,
   }
 
+  export type inputMessageLiveLocation = {
+    /** A message with a live location */
+    _: 'inputMessageLiveLocation',
+    /**
+     * Initial state of the live location to be sent. Live period must be equal to
+     * 0x7FFFFFFF for permanent live locations, or between 60 and 86400
+     */
+    location: liveLocation,
+  }
+
   export type inputMessageLiveLocation$Input = {
     /** A message with a live location */
     readonly _: 'inputMessageLiveLocation',
@@ -17217,11 +19151,25 @@ declare module 'tdlib-types' {
     readonly location?: liveLocation$Input,
   }
 
+  export type inputMessageLocation = {
+    /** A message with a location */
+    _: 'inputMessageLocation',
+    /** Location to be sent */
+    location: location,
+  }
+
   export type inputMessageLocation$Input = {
     /** A message with a location */
     readonly _: 'inputMessageLocation',
     /** Location to be sent */
     readonly location?: location$Input,
+  }
+
+  export type inputMessageVenue = {
+    /** A message with information about a venue */
+    _: 'inputMessageVenue',
+    /** Venue to send */
+    venue: venue,
   }
 
   export type inputMessageVenue$Input = {
@@ -17231,11 +19179,27 @@ declare module 'tdlib-types' {
     readonly venue?: venue$Input,
   }
 
+  export type inputMessageContact = {
+    /** A message containing a user contact */
+    _: 'inputMessageContact',
+    /** Contact to send */
+    contact: contact,
+  }
+
   export type inputMessageContact$Input = {
     /** A message containing a user contact */
     readonly _: 'inputMessageContact',
     /** Contact to send */
     readonly contact?: contact$Input,
+  }
+
+  export type inputMessageDice = {
+    /** A dice message */
+    _: 'inputMessageDice',
+    /** Emoji on which the dice throw animation is based */
+    emoji: string,
+    /** Pass true to delete message draft in the chat */
+    clear_draft: boolean,
   }
 
   export type inputMessageDice$Input = {
@@ -17247,6 +19211,15 @@ declare module 'tdlib-types' {
     readonly clear_draft?: boolean,
   }
 
+  export type inputMessageGame = {
+    /** A message with a game; not supported for channels or secret chats */
+    _: 'inputMessageGame',
+    /** User identifier of the bot that owns the game */
+    bot_user_id: number,
+    /** Short name of the game */
+    game_short_name: string,
+  }
+
   export type inputMessageGame$Input = {
     /** A message with a game; not supported for channels or secret chats */
     readonly _: 'inputMessageGame',
@@ -17254,6 +19227,43 @@ declare module 'tdlib-types' {
     readonly bot_user_id?: number,
     /** Short name of the game */
     readonly game_short_name?: string,
+  }
+
+  export type inputMessageInvoice = {
+    /** A message with an invoice; can be used only by bots */
+    _: 'inputMessageInvoice',
+    /** Invoice */
+    invoice: invoice,
+    /** Product title; 1-32 characters */
+    title: string,
+    /** Product description; 0-255 characters */
+    description: string,
+    /** Product photo URL; optional */
+    photo_url: string,
+    /** Product photo size */
+    photo_size: number,
+    /** Product photo width */
+    photo_width: number,
+    /** Product photo height */
+    photo_height: number,
+    /** The invoice payload */
+    payload: string /* base64 */,
+    /** Payment provider token; may be empty for payments in Telegram Stars */
+    provider_token: string,
+    /** JSON-encoded data about the invoice, which will be shared with the payment provider */
+    provider_data: string,
+    /**
+     * Unique invoice bot deep link parameter for the generation of this invoice. If
+     * empty, it would be possible to pay directly from forwards of the invoice message
+     */
+    start_parameter: string,
+    /** The content of paid media attached to the invoice; pass null if none */
+    paid_media: inputPaidMedia,
+    /**
+     * Paid media caption; pass null to use an empty caption; 0-getOption("message_caption_length_max")
+     * characters
+     */
+    paid_media_caption: formattedText,
   }
 
   export type inputMessageInvoice$Input = {
@@ -17291,6 +19301,73 @@ declare module 'tdlib-types' {
      * characters
      */
     readonly paid_media_caption?: formattedText$Input,
+  }
+
+  export type inputMessagePoll = {
+    /**
+     * A message with a poll. Polls can't be sent to secret chats and channel direct
+     * messages chats. Polls can be sent to a private chat only if the chat is a chat
+     * with a bot or the Saved Messages chat
+     */
+    _: 'inputMessagePoll',
+    /**
+     * Poll question; 1-255 characters (up to 300 characters for bots). Only custom
+     * emoji entities are allowed to be added and only by Premium users
+     */
+    question: formattedText,
+    /** List of poll answer options; 1-getOption("poll_answer_count_max") options */
+    options: Array<inputPollOption>,
+    /**
+     * Poll description; pass null to use an empty description; 0-getOption("message_caption_length_max")
+     * characters
+     */
+    description: formattedText,
+    /**
+     * Media attached to the poll; pass null if none. Must be one of the following
+     * types: inputPollMediaAnimation, inputPollMediaAudio, inputPollMediaDocument,
+     * inputPollMediaLocation, inputPollMediaPhoto, inputPollMediaVenue, or inputPollMediaVideo
+     * without caption
+     */
+    media: InputPollMedia,
+    /**
+     * True, if the poll voters are anonymous. Non-anonymous polls can't be sent or
+     * forwarded to channels
+     */
+    is_anonymous: boolean,
+    /** True, if multiple answer options can be chosen simultaneously */
+    allows_multiple_answers: boolean,
+    /** True, if the poll can be answered multiple times */
+    allows_revoting: boolean,
+    /**
+     * True, if only the users that are members of the chat for more than a day will
+     * be able to vote; for channel chats only
+     */
+    members_only: boolean,
+    /**
+     * The list of two-letter ISO 3166-1 alpha-2 codes of countries, users from which
+     * will be able to vote; for channel chats only. If empty, then all users can participate
+     * in the poll. There can be up to getOption("poll_country_count_max") chosen countries
+     */
+    country_codes: Array<string>,
+    /** True, if poll options must be shown in a fixed random order */
+    shuffle_options: boolean,
+    /** True, if the poll results will appear only after the poll closes */
+    hide_results_until_closes: boolean,
+    /** Type of the poll */
+    type: InputPollType,
+    /**
+     * Amount of time the poll will be active after creation, in seconds; 0-getOption("poll_open_period_max");
+     * pass 0 if not specified
+     */
+    open_period: number,
+    /**
+     * Point in time (Unix timestamp) when the poll will automatically be closed; must
+     * be 0-getOption("poll_open_period_max") seconds in the future; pass 0 if not
+     * specified
+     */
+    close_date: number,
+    /** True, if the poll needs to be sent already closed; for bots only */
+    is_closed: boolean,
   }
 
   export type inputMessagePoll$Input = {
@@ -17360,6 +19437,23 @@ declare module 'tdlib-types' {
     readonly is_closed?: boolean,
   }
 
+  export type inputMessageStakeDice = {
+    /** A stake dice message */
+    _: 'inputMessageStakeDice',
+    /**
+     * Hash of the stake dice state. The state hash can be used only if it was received
+     * recently enough. Otherwise, a new state must be requested using getStakeDiceState
+     */
+    state_hash: string,
+    /**
+     * The TON Gram amount that will be staked; in the smallest units of the currency.
+     * Must be in the range getOption("stake_dice_stake_amount_min")-getOption("stake_dice_stake_amount_max")
+     */
+    stake_gram_amount: number,
+    /** Pass true to delete message draft in the chat */
+    clear_draft: boolean,
+  }
+
   export type inputMessageStakeDice$Input = {
     /** A stake dice message */
     readonly _: 'inputMessageStakeDice',
@@ -17377,6 +19471,18 @@ declare module 'tdlib-types' {
     readonly clear_draft?: boolean,
   }
 
+  export type inputMessageStory = {
+    /**
+     * A message with a forwarded story. Stories can't be forwarded to secret chats.
+     * A story can be forwarded only if story.can_be_forwarded
+     */
+    _: 'inputMessageStory',
+    /** Identifier of the chat that posted the story */
+    story_poster_chat_id: number,
+    /** Story identifier */
+    story_id: number,
+  }
+
   export type inputMessageStory$Input = {
     /**
      * A message with a forwarded story. Stories can't be forwarded to secret chats.
@@ -17389,6 +19495,16 @@ declare module 'tdlib-types' {
     readonly story_id?: number,
   }
 
+  export type inputMessageChecklist = {
+    /**
+     * A message with a checklist. Checklists can't be sent to secret chats, channel
+     * chats and channel direct messages chats; for Telegram Premium users only
+     */
+    _: 'inputMessageChecklist',
+    /** The checklist to send */
+    checklist: inputChecklist,
+  }
+
   export type inputMessageChecklist$Input = {
     /**
      * A message with a checklist. Checklists can't be sent to secret chats, channel
@@ -17397,6 +19513,29 @@ declare module 'tdlib-types' {
     readonly _: 'inputMessageChecklist',
     /** The checklist to send */
     readonly checklist?: inputChecklist$Input,
+  }
+
+  export type inputMessageForwarded = {
+    /** A forwarded message */
+    _: 'inputMessageForwarded',
+    /** Identifier for the chat this forwarded message came from */
+    from_chat_id: number,
+    /** Identifier of the message to forward. A message can be forwarded only if messageProperties.can_be_forwarded */
+    message_id: number,
+    /**
+     * Pass true if a game message is being shared from a launched game; applies only
+     * to game messages
+     */
+    in_game_share: boolean,
+    /** Pass true to replace video start timestamp in the forwarded message */
+    replace_video_start_timestamp: boolean,
+    /** The new video start timestamp; ignored if replace_video_start_timestamp == false */
+    new_video_start_timestamp: number,
+    /**
+     * Options to be used to copy content of the message without reference to the original
+     * sender; pass null to forward the message as usual
+     */
+    copy_options: messageCopyOptions,
   }
 
   export type inputMessageForwarded$Input = {
@@ -17553,6 +19692,8 @@ declare module 'tdlib-types' {
     can_report_supergroup_spam: boolean,
     /** True, if fact check for the message can be changed through setMessageFactCheck */
     can_set_fact_check: boolean,
+    /** Identifiers of custom emoji used in the message */
+    custom_emoji_ids: Array<string>,
     /**
      * True, if content of the message can't be saved locally, because it is protected
      * by the current user; if true, then can_be_saved is false
@@ -17715,6 +19856,13 @@ declare module 'tdlib-types' {
   export type searchMessagesChatTypeFilterChannel$Input = {
     /** Returns only messages in channel chats */
     readonly _: 'searchMessagesChatTypeFilterChannel',
+  }
+
+  export type searchMessagesChatTypeFilterCommunity$Input = {
+    /** Returns only messages in the specified community */
+    readonly _: 'searchMessagesChatTypeFilterCommunity',
+    /** Identifier of the community to search in */
+    readonly community_id?: number,
   }
 
   export type searchChatTypeFilterBot$Input = {
@@ -18864,6 +21012,18 @@ declare module 'tdlib-types' {
     message_count: number,
   }
 
+  export type welcomeMessage = {
+    /** Describes a set up welcome message */
+    _: 'welcomeMessage',
+    /**
+     * Welcome message identifier; unique for the chat to which the welcome message
+     * belongs
+     */
+    id: number,
+    /** Content of the welcome message */
+    content: MessageContent,
+  }
+
   export type publicForwardMessage = {
     /** Contains a public forward as a message */
     _: 'publicForwardMessage',
@@ -19059,7 +21219,7 @@ declare module 'tdlib-types' {
     _: 'prepaidGiveaway',
     /** Unique identifier of the prepaid giveaway */
     id: string,
-    /** Number of users which will receive giveaway prize */
+    /** Number of users who will receive giveaway prize */
     winner_count: number,
     /** Prize of the giveaway */
     prize: GiveawayPrize,
@@ -21245,7 +23405,7 @@ declare module 'tdlib-types' {
   }
 
   export type chatEventHasProtectedContentToggled = {
-    /** The has_protected_content setting of a channel was toggled */
+    /** The has_protected_content setting of a chat was toggled */
     _: 'chatEventHasProtectedContentToggled',
     /** New value of has_protected_content */
     has_protected_content: boolean,
@@ -21362,7 +23522,7 @@ declare module 'tdlib-types' {
   }
 
   export type chatEventIsForumToggled = {
-    /** The is_forum setting of a channel was toggled */
+    /** The is_forum setting of a supergroup was toggled */
     _: 'chatEventIsForumToggled',
     /** New value of is_forum */
     is_forum: boolean,
@@ -22481,7 +24641,7 @@ declare module 'tdlib-types' {
     readonly currency?: string,
     /** Paid amount, in the smallest units of the currency */
     readonly amount?: number,
-    /** Identifiers of the user which will receive Telegram Premium */
+    /** Identifier of the user who will receive Telegram Premium */
     readonly user_id?: number,
     /**
      * Text to show along with the gift codes; 0-getOption("gift_text_length_max")
@@ -22504,7 +24664,7 @@ declare module 'tdlib-types' {
     readonly currency?: string,
     /** Paid amount, in the smallest units of the currency */
     readonly amount?: number,
-    /** Identifiers of the users which can activate the gift codes */
+    /** Identifiers of the users who can activate the gift codes */
     readonly user_ids?: ReadonlyArray<number>,
     /**
      * Text to show along with the gift codes; 0-getOption("gift_text_length_max")
@@ -22597,7 +24757,7 @@ declare module 'tdlib-types' {
     readonly currency?: string,
     /** Paid amount, in the smallest units of the currency */
     readonly amount?: number,
-    /** Identifier of the user which will receive Telegram Premium */
+    /** Identifier of the user who will receive Telegram Premium */
     readonly user_id?: number,
     /** Number of months the Telegram Premium subscription will be active for the user */
     readonly month_count?: number,
@@ -22622,7 +24782,7 @@ declare module 'tdlib-types' {
     readonly currency?: string,
     /** Paid amount, in the smallest units of the currency */
     readonly amount?: number,
-    /** Identifiers of the users which can activate the gift codes */
+    /** Identifiers of the users who can activate the gift codes */
     readonly user_ids?: ReadonlyArray<number>,
     /** Number of months the Telegram Premium subscription will be active for the users */
     readonly month_count?: number,
@@ -22643,7 +24803,7 @@ declare module 'tdlib-types' {
     readonly currency?: string,
     /** Paid amount, in the smallest units of the currency */
     readonly amount?: number,
-    /** Number of users which will be able to activate the gift codes */
+    /** Number of users who will be able to activate the gift codes */
     readonly winner_count?: number,
     /** Number of months the Telegram Premium subscription will be active for the users */
     readonly month_count?: number,
@@ -22660,7 +24820,8 @@ declare module 'tdlib-types' {
     readonly star_count?: number,
     /**
      * Identifier of the chat that is supposed to receive the Telegram Stars; pass
-     * 0 if none
+     * 0 if none. If non-zero and getOption("star_top_up_disabled"), then the payment
+     * isn't allowed and the user can't buy Telegram Stars in this place
      */
     readonly chat_id?: number,
   }
@@ -23414,12 +25575,30 @@ declare module 'tdlib-types' {
   export type pushMessageContentGiveaway = {
     /** A message with a giveaway */
     _: 'pushMessageContentGiveaway',
-    /** Number of users which will receive giveaway prizes; 0 for pinned message */
+    /** Number of users who will receive giveaway prizes; 0 for pinned message */
     winner_count: number,
     /** Prize of the giveaway; may be null for pinned message */
     prize?: GiveawayPrize,
     /** True, if the message is a pinned message with the specified content */
     is_pinned: boolean,
+  }
+
+  export type pushMessageContentTonWalletTransfer = {
+    /** A message with a TON wallet transfer */
+    _: 'pushMessageContentTonWalletTransfer',
+    /** Sender of the transfer; 0 if unknown */
+    sender_user_id: number,
+    /** String representation of the received amount */
+    amount: string,
+    /** Comment added to the transaction if it is public */
+    comment: string,
+  }
+
+  export type pushMessageContentTonConnectRequest = {
+    /** A message with a request from a dApp was received through TON Connect */
+    _: 'pushMessageContentTonConnectRequest',
+    /** Name of the dApp; may be empty if unknown */
+    dapp_name: string,
   }
 
   export type pushMessageContentGift = {
@@ -26317,7 +28496,10 @@ declare module 'tdlib-types' {
     _: 'internalLinkTypeRequestManagedBot',
     /** Username of the bot which will manage the new bot */
     manager_bot_username: string,
-    /** Suggested username for the bot; always ends with "bot" case-insensitive */
+    /**
+     * Suggested username for the bot; always ends with "bot" or a string from updateAllowedBotUsernamePremiumSuffixes
+     * case-insensitive
+     */
     suggested_bot_username: string,
     /** Suggested name for the bot; may be empty if not specified */
     suggested_bot_name: string,
@@ -26334,7 +28516,10 @@ declare module 'tdlib-types' {
     readonly _: 'internalLinkTypeRequestManagedBot',
     /** Username of the bot which will manage the new bot */
     readonly manager_bot_username?: string,
-    /** Suggested username for the bot; always ends with "bot" case-insensitive */
+    /**
+     * Suggested username for the bot; always ends with "bot" or a string from updateAllowedBotUsernamePremiumSuffixes
+     * case-insensitive
+     */
     readonly suggested_bot_username?: string,
     /** Suggested name for the bot; may be empty if not specified */
     readonly suggested_bot_name?: string,
@@ -26532,6 +28717,58 @@ declare module 'tdlib-types' {
     readonly _: 'internalLinkTypeTheme',
     /** Name of the theme */
     readonly theme_name?: string,
+  }
+
+  export type internalLinkTypeTonConnect = {
+    /** The link is a universal TON Connect link */
+    _: 'internalLinkTypeTonConnect',
+    /** TON Connect version */
+    version: number,
+    /** Hex-encoded public X25519 key of the dApp */
+    dapp_client_id: string,
+    /** TON Connect connect request */
+    connect_request: tonConnectConnectRequest,
+    /** Request return strategy; one of "back", "none", or a URL to open */
+    return_strategy: string,
+    /** Embedded RPC request represented as base64url-encoded JSON */
+    rpc_request: string,
+    /** Identifier to trace the connection request */
+    trace_id: string,
+  }
+
+  export type internalLinkTypeTonConnect$Input = {
+    /** The link is a universal TON Connect link */
+    readonly _: 'internalLinkTypeTonConnect',
+    /** TON Connect version */
+    readonly version?: number,
+    /** Hex-encoded public X25519 key of the dApp */
+    readonly dapp_client_id?: string,
+    /** TON Connect connect request */
+    readonly connect_request?: tonConnectConnectRequest$Input,
+    /** Request return strategy; one of "back", "none", or a URL to open */
+    readonly return_strategy?: string,
+    /** Embedded RPC request represented as base64url-encoded JSON */
+    readonly rpc_request?: string,
+    /** Identifier to trace the connection request */
+    readonly trace_id?: string,
+  }
+
+  export type internalLinkTypeTonWalletTransfer = {
+    /** The link is a link for sending Grams from the user's TON wallet */
+    _: 'internalLinkTypeTonWalletTransfer',
+    /** Chosen receiver of the transfer; may be null if none */
+    receiver?: TonWalletTransferReceiver,
+    /** The pre-filled amount of TON Grams to send; in the smallest units of the cryptocurrency */
+    gram_amount: number,
+  }
+
+  export type internalLinkTypeTonWalletTransfer$Input = {
+    /** The link is a link for sending Grams from the user's TON wallet */
+    readonly _: 'internalLinkTypeTonWalletTransfer',
+    /** Chosen receiver of the transfer; may be null if none */
+    readonly receiver?: TonWalletTransferReceiver$Input,
+    /** The pre-filled amount of TON Grams to send; in the smallest units of the cryptocurrency */
+    readonly gram_amount?: number,
   }
 
   export type internalLinkTypeUnknownDeepLink = {
@@ -27670,6 +29907,16 @@ declare module 'tdlib-types' {
     readonly _: 'suggestedActionViewChecksHint',
   }
 
+  export type suggestedActionViewFirstTonWalletTransferHint = {
+    /** Suggests the user to view a hint about receiving of the first TON wallet transfer */
+    _: 'suggestedActionViewFirstTonWalletTransferHint',
+  }
+
+  export type suggestedActionViewFirstTonWalletTransferHint$Input = {
+    /** Suggests the user to view a hint about receiving of the first TON wallet transfer */
+    readonly _: 'suggestedActionViewFirstTonWalletTransferHint',
+  }
+
   export type suggestedActionConvertToBroadcastGroup = {
     /** Suggests the user to convert specified supergroup to a broadcast group */
     _: 'suggestedActionConvertToBroadcastGroup',
@@ -28276,8 +30523,8 @@ declare module 'tdlib-types' {
     /** Amount of earned revenue */
     revenue_amount: chatRevenueAmount,
     /**
-     * Current conversion rate of the cryptocurrency in which revenue is calculated
-     * to USD
+     * Current exchange rate of the cryptocurrency in which revenue is calculated to
+     * USD
      */
     usd_rate: number,
   }
@@ -28410,7 +30657,7 @@ declare module 'tdlib-types' {
     revenue_by_day_graph: StatisticalGraph,
     /** Telegram Star revenue status */
     status: starRevenueStatus,
-    /** Current conversion rate of a Telegram Star to USD */
+    /** Current exchange rate of a Telegram Star to USD */
     usd_rate: number,
   }
 
@@ -28437,7 +30684,7 @@ declare module 'tdlib-types' {
     revenue_by_day_graph: StatisticalGraph,
     /** Amount of earned revenue */
     status: gramRevenueStatus,
-    /** Current conversion rate of nanogram to USD cents */
+    /** Current exchange rate of nanogram to USD cents */
     usd_rate: number,
   }
 
@@ -28599,6 +30846,17 @@ declare module 'tdlib-types' {
     message_id: number,
     /** New message content */
     new_content: MessageContent,
+  }
+
+  export type updateMessageEphemeralContent = {
+    /** The message ephemeral content has changed */
+    _: 'updateMessageEphemeralContent',
+    /** Chat identifier */
+    chat_id: number,
+    /** Message identifier */
+    message_id: number,
+    /** New ephemeral content of the message; may be null if none */
+    ephemeral_content?: ephemeralMessageContent,
   }
 
   export type updateMessageEdited = {
@@ -29088,6 +31346,15 @@ declare module 'tdlib-types' {
     has_scheduled_messages: boolean,
   }
 
+  export type updateChatHasWelcomeMessages = {
+    /** A chat's has_welcome_messages field has changed */
+    _: 'updateChatHasWelcomeMessages',
+    /** Chat identifier */
+    chat_id: number,
+    /** New value of has_welcome_messages */
+    has_welcome_messages: boolean,
+  }
+
   export type updateChatFolders = {
     /** The list of chat folders or a chat folder has changed */
     _: 'updateChatFolders',
@@ -29188,6 +31455,18 @@ declare module 'tdlib-types' {
      * to the last sent
      */
     messages: Array<quickReplyMessage>,
+  }
+
+  export type updateChatWelcomeMessages = {
+    /** The list of welcome messages of a chat has changed */
+    _: 'updateChatWelcomeMessages',
+    /** The identifier of the chat */
+    chat_id: number,
+    /**
+     * The new list of welcome messages of the chat in the order from the first to
+     * the last sent
+     */
+    messages: Array<welcomeMessage>,
   }
 
   export type updateForumTopicInfo = {
@@ -29336,8 +31615,9 @@ declare module 'tdlib-types' {
     /**
      * A new pending text or rich message was received in a chat with a bot. The message
      * must be shown in the chat for at most getOption("pending_text_message_period")
-     * seconds, replace any other pending message with the same draft_id, and be deleted
-     * whenever any incoming message from the bot in the message thread is received
+     * seconds, replace any other pending message with the same draft_id with animation,
+     * and be deleted whenever any incoming message or a pending message with another
+     * draft_id is received in the message thread
      */
     _: 'updatePendingMessage',
     /** Chat identifier */
@@ -29346,8 +31626,29 @@ declare module 'tdlib-types' {
     forum_topic_id: number,
     /** Unique identifier of the message draft within the message thread */
     draft_id: string,
+    /**
+     * True, if a button that calls stopPendingMessage to stop further message generation
+     * must be shown
+     */
+    can_stop: boolean,
+    /**
+     * True, if the pending message must not be automatically deleted when the user
+     * presses the Stop button
+     */
+    keep_on_stop: boolean,
     /** Content of the message; always of the type messageText or messageRichMessage */
     content: MessageContent,
+  }
+
+  export type updateStopMessageDraft = {
+    /** A message draft generation was stopped by the user */
+    _: 'updateStopMessageDraft',
+    /** Chat identifier */
+    chat_id: number,
+    /** The forum topic identifier of the message draft */
+    forum_topic_id: number,
+    /** Identifier of the message draft within the message thread */
+    draft_id: string,
   }
 
   export type updateCommunity = {
@@ -29436,6 +31737,15 @@ declare module 'tdlib-types' {
     supergroup_full_info: supergroupFullInfo,
   }
 
+  export type updateCommunityFullInfo = {
+    /** Some data in communityFullInfo has been changed */
+    _: 'updateCommunityFullInfo',
+    /** Identifier of the community */
+    community_id: number,
+    /** New full information about the community */
+    community_full_info: communityFullInfo,
+  }
+
   export type updateServiceNotification = {
     /**
      * A service notification from the server was received. Upon receiving this the
@@ -29490,9 +31800,9 @@ declare module 'tdlib-types' {
      */
     destination_path: string,
     /**
-     * If the conversion is "#url#" than original_path contains an HTTP/HTTPS URL of
-     * a file that must be downloaded by the application. Otherwise, this is the conversion
-     * specified by the application in inputFileGenerated
+     * If the conversion is "#url#", then original_path contains an HTTP/HTTPS URL
+     * of a file that must be downloaded by the application. Otherwise, this is the
+     * conversion specified by the application in inputFileGenerated
      */
     conversion: string,
   }
@@ -29852,6 +32162,16 @@ declare module 'tdlib-types' {
     cooldown_until_date: number,
   }
 
+  export type updateAllowedBotUsernamePremiumSuffixes = {
+    /**
+     * Lists of suffixes allowed in secondary bot usernames, which can be added additionally
+     * to the main username if the bot's owner has a Telegram Premium subscription
+     */
+    _: 'updateAllowedBotUsernamePremiumSuffixes',
+    /** The list of allowed suffixes */
+    suffixes: Array<string>,
+  }
+
   export type updateTrustedMiniAppBots = {
     /**
      * Lists of bots which Mini Apps must be allowed to read text from clipboard and
@@ -30138,6 +32458,34 @@ declare module 'tdlib-types' {
     _: 'updateOwnedGramCount',
     /** The new amount of owned Grams; in the smallest units of the cryptocurrency */
     gram_amount: number,
+  }
+
+  export type updateTonWalletState = {
+    /** The state of the TON wallet of the current user has changed */
+    _: 'updateTonWalletState',
+    /** The new state of the wallet */
+    state: tonWalletState,
+  }
+
+  export type updateTonWalletGaslessTransfersInfo = {
+    /** The information about gasless transfers has changed */
+    _: 'updateTonWalletGaslessTransfersInfo',
+    /** The new state of the wallet */
+    info: tonWalletGaslessTransfersInfo,
+  }
+
+  export type updateTonWalletTonConnectSession = {
+    /** A session of a TON Connect has changed */
+    _: 'updateTonWalletTonConnectSession',
+    /** The new state of the session */
+    session: tonConnectSession,
+  }
+
+  export type updateTonWalletTonConnectSessionDisconnectRequired = {
+    /** TON Connect sessions must be disconnected in a regular way */
+    _: 'updateTonWalletTonConnectSessionDisconnectRequired',
+    /** Identifiers of the sessions */
+    session_ids: Array<string>,
   }
 
   export type updateChatRevenueAmount = {
@@ -32142,6 +34490,74 @@ declare module 'tdlib-types' {
     readonly saved_messages_topic_ids?: ReadonlyArray<number>,
   }
 
+  export type getCommunityFullInfo = {
+    /** Returns full information about a community */
+    readonly _: 'getCommunityFullInfo',
+    /** Community identifier */
+    readonly community_id?: number,
+  }
+
+  export type createCommunity = {
+    /**
+     * Creates a new community for the given chat. Returns identifier of the created
+     * community
+     */
+    readonly _: 'createCommunity',
+    /** Name of the new community */
+    readonly name?: string,
+    /**
+     * Identifier of the chat in the community; only chats with owned bots and owned
+     * basic group, supergroup and channel chats are allowed; basic group chats will
+     * be automatically upgraded to supergroup chats
+     */
+    readonly chat_id?: number,
+    /** Pass true if the chat will be visible only to administrators of the community */
+    readonly is_chat_hidden?: boolean,
+  }
+
+  export type setCommunityName = {
+    /**
+     * Changes name of the given community; requires can_change_info administrator
+     * right in the community
+     */
+    readonly _: 'setCommunityName',
+    /** Identifier of the community */
+    readonly community_id?: number,
+    /** New name of the community */
+    readonly name?: string,
+  }
+
+  export type setCommunityPhoto = {
+    /**
+     * Changes the photo of a community; requires can_change_info administrator right
+     * in the community
+     */
+    readonly _: 'setCommunityPhoto',
+    /** Identifier of the community */
+    readonly community_id?: number,
+    /** New chat photo; pass null to delete the chat photo */
+    readonly photo?: InputChatPhoto$Input,
+  }
+
+  export type setCommunityPermissions = {
+    /**
+     * Changes permissions of regular members in the given community; requires can_ban_members
+     * administrator right in the community
+     */
+    readonly _: 'setCommunityPermissions',
+    /** Identifier of the community */
+    readonly community_id?: number,
+    /** New permissions of the community */
+    readonly permissions?: communityPermissions$Input,
+  }
+
+  export type deleteCommunity = {
+    /** Deletes a community; requires owner privileges */
+    readonly _: 'deleteCommunity',
+    /** Identifier of the community */
+    readonly community_id?: number,
+  }
+
   export type getGroupsInCommon = {
     /**
      * Returns a list of common group chats with a given user. Chats are sorted by
@@ -33432,10 +35848,20 @@ declare module 'tdlib-types' {
     /** Identifier of the callback query which triggered the message; for bots only */
     readonly callback_query_id?: number | string,
     /**
+     * Pass true if the ephemeral message must replace the message from which the callback
+     * query originated; for bots only
+     */
+    readonly replace_callback_query_message?: boolean,
+    /**
      * Information about the message to be replied; pass null if none. The message
      * can be an incoming ephemeral message
      */
     readonly reply_to?: InputMessageReplyTo$Input,
+    /**
+     * Pass true if the content of the message must be protected from forwarding and
+     * saving; for bots only
+     */
+    readonly protect_content?: boolean,
     /**
      * Non-persistent identifier, which will be returned back in messageSendingStatePending
      * object and can be used to match sent messages and corresponding updateNewMessage
@@ -33449,8 +35875,8 @@ declare module 'tdlib-types' {
     /**
      * The content of the message to be sent. Must be one of the following types: inputMessageText,
      * inputMessageAnimation, inputMessageAudio, inputMessageDocument, inputMessagePhoto,
-     * inputMessageSticker, inputMessageVideo, inputMessageVideoNote, inputMessageVoiceNote,
-     * inputMessageLocation, inputMessageVenue, inputMessageContact
+     * inputMessageRichMessage, inputMessageSticker, inputMessageVideo, inputMessageVideoNote,
+     * inputMessageVoiceNote, inputMessageLocation, inputMessageVenue, inputMessageContact
      */
     readonly input_message_content?: InputMessageContent$Input,
   }
@@ -33497,7 +35923,7 @@ declare module 'tdlib-types' {
     readonly chat_id?: number,
     /** Identifier of the user who received the message */
     readonly receiver_user_id?: number,
-    /** Identifiers of the message to be deleted */
+    /** Identifier of the message to be deleted */
     readonly ephemeral_message_id?: number,
   }
 
@@ -33745,8 +36171,8 @@ declare module 'tdlib-types' {
 
   export type editEphemeralMessage = {
     /**
-     * Edits the text, caption or reply markup of an ephemeral message sent by the
-     * bot; for bots only
+     * Edits the text, media, or reply markup of an ephemeral message sent by the bot;
+     * for bots only
      */
     readonly _: 'editEphemeralMessage',
     /** The chat the message belongs to */
@@ -33760,8 +36186,60 @@ declare module 'tdlib-types' {
     /**
      * New content of the message; pass null to edit only reply markup. Must be one
      * of the following types: inputMessageText, inputMessageAnimation, inputMessageAudio,
-     * inputMessageDocument, inputMessagePhoto, inputMessageSticker, inputMessageVideo,
-     * inputMessageVideoNote, inputMessageVoiceNote
+     * inputMessageDocument, inputMessagePhoto, inputMessageRichMessage, inputMessageSticker,
+     * inputMessageVideo, inputMessageVideoNote, inputMessageVoiceNote
+     */
+    readonly input_message_content?: InputMessageContent$Input,
+  }
+
+  export type editEphemeralMessageCaption = {
+    /**
+     * Edits the caption and reply markup of an ephemeral message sent by the bot;
+     * for bots only
+     */
+    readonly _: 'editEphemeralMessageCaption',
+    /** The chat the message belongs to */
+    readonly chat_id?: number,
+    /** Identifier of the user who received the message */
+    readonly receiver_user_id?: number,
+    /** Identifier of the ephemeral message */
+    readonly ephemeral_message_id?: number,
+    /** The new message reply markup; pass null if none */
+    readonly reply_markup?: ReplyMarkup$Input,
+    /**
+     * New message content caption; pass null to remove caption; 0-getOption("message_caption_length_max")
+     * characters
+     */
+    readonly caption?: formattedText$Input,
+    /**
+     * Pass true to show the caption above the media; otherwise, the caption will be
+     * shown below the media. May be true only for animation, photo, and video messages
+     */
+    readonly show_caption_above_media?: boolean,
+  }
+
+  export type replyToCallbackQueryWithEphemeralMessage = {
+    /** Replies to a callback query with an ephemeral message; for bots only */
+    readonly _: 'replyToCallbackQueryWithEphemeralMessage',
+    /** Identifier of the callback query */
+    readonly callback_query_id?: number | string,
+    /**
+     * Pass true if the ephemeral message must replace the message from which the callback
+     * query originated
+     */
+    readonly replace_callback_query_message?: boolean,
+    /**
+     * Pass true if the content of the message must be protected from forwarding and
+     * saving
+     */
+    readonly protect_content?: boolean,
+    /** The new message reply markup; pass null if none */
+    readonly reply_markup?: ReplyMarkup$Input,
+    /**
+     * New content of the message. Must be one of the following types: inputMessageText,
+     * inputMessageAnimation, inputMessageAudio, inputMessageDocument, inputMessagePhoto,
+     * inputMessageRichMessage, inputMessageSticker, inputMessageVideo, inputMessageVideoNote,
+     * inputMessageVoiceNote
      */
     readonly input_message_content?: InputMessageContent$Input,
   }
@@ -33785,6 +36263,15 @@ declare module 'tdlib-types' {
      * Must be null for messages in the state messageSchedulingStateSendWhenVideoProcessed
      */
     readonly scheduling_state?: MessageSchedulingState$Input,
+  }
+
+  export type deleteMessageEphemeralContent = {
+    /** Removes message ephemeral content and reverts message state to the original */
+    readonly _: 'deleteMessageEphemeralContent',
+    /** The chat the message belongs to */
+    readonly chat_id?: number,
+    /** Identifier of the message */
+    readonly message_id?: number,
   }
 
   export type setMessageFactCheck = {
@@ -34296,7 +36783,7 @@ declare module 'tdlib-types' {
      * messageSendingStateFailed.retry_after time passed. If a message is re-added,
      * the corresponding failed to send message is deleted. Returns the sent messages
      * in the same order as the message identifiers passed in message_ids. If a message
-     * can't be readded, null will be returned instead of the message
+     * can't be re-added, null will be returned instead of the message
      */
     readonly _: 'readdQuickReplyShortcutMessages',
     /** Name of the target shortcut */
@@ -34327,6 +36814,75 @@ declare module 'tdlib-types' {
      * inputMessageRichMessage, inputMessageText, or inputMessageVideo
      */
     readonly input_message_content?: InputMessageContent$Input,
+  }
+
+  export type loadChatWelcomeMessages = {
+    /**
+     * Loads welcome messages of a chat; requires can_send_welcome_messages administrator
+     * right in the chat. The loaded messages will be sent through updateChatWelcomeMessages
+     */
+    readonly _: 'loadChatWelcomeMessages',
+    /** The identifier of the chat */
+    readonly chat_id?: number,
+  }
+
+  export type addChatWelcomeMessage = {
+    /**
+     * Adds a message to the list of welcome messages of a chat; requires can_send_welcome_messages
+     * administrator right in the chat. There can be up to getOption("welcome_message_count_max")
+     * welcome messages in a chat
+     */
+    readonly _: 'addChatWelcomeMessage',
+    /** The identifier of the chat */
+    readonly chat_id?: number,
+    /**
+     * The content of the message to be sent. Must be one of the following types: inputMessageText,
+     * inputMessageAnimation, inputMessageAudio, inputMessageDocument, inputMessagePhoto,
+     * inputMessageRichMessage, inputMessageSticker, inputMessageVideo, inputMessageVideoNote,
+     * inputMessageVoiceNote, inputMessageLocation, inputMessageVenue, inputMessageContact
+     */
+    readonly input_message_content?: InputMessageContent$Input,
+  }
+
+  export type editChatWelcomeMessage = {
+    /**
+     * Edits a welcome message of a chat; requires can_send_welcome_messages administrator
+     * right in the chat
+     */
+    readonly _: 'editChatWelcomeMessage',
+    /** The identifier of the chat */
+    readonly chat_id?: number,
+    /** The identifier of the welcome message */
+    readonly welcome_message_id?: number,
+    /**
+     * New content of the message. Must be one of the following types: inputMessageText,
+     * inputMessageAnimation, inputMessageAudio, inputMessageDocument, inputMessagePhoto,
+     * inputMessageRichMessage, inputMessageSticker, inputMessageVideo, inputMessageVideoNote,
+     * inputMessageVoiceNote
+     */
+    readonly input_message_content?: InputMessageContent$Input,
+  }
+
+  export type deleteChatWelcomeMessage = {
+    /**
+     * Deletes a welcome message of a chat; requires can_send_welcome_messages administrator
+     * right in the chat
+     */
+    readonly _: 'deleteChatWelcomeMessage',
+    /** The identifier of the chat */
+    readonly chat_id?: number,
+    /** The identifier of the welcome message */
+    readonly welcome_message_id?: number,
+  }
+
+  export type deleteAllChatWelcomeMessages = {
+    /**
+     * Deletes all welcome messages of a chat; requires can_send_welcome_messages administrator
+     * right in the chat
+     */
+    readonly _: 'deleteAllChatWelcomeMessages',
+    /** The identifier of the chat */
+    readonly chat_id?: number,
   }
 
   export type getForumTopicDefaultIcons = {
@@ -34893,7 +37449,8 @@ declare module 'tdlib-types' {
   export type getTextEntities = {
     /**
      * Returns all entities (mentions, hashtags, cashtags, bot commands, bank card
-     * numbers, URLs, and email addresses) found in the text. Can be called synchronously
+     * numbers, TON blockchain addresses, URLs, and email addresses) found in the text.
+     * Can be called synchronously
      */
     readonly _: 'getTextEntities',
     /** The text in which to look for entities */
@@ -35687,6 +38244,10 @@ declare module 'tdlib-types' {
     readonly forum_topic_id?: number,
     /** Unique identifier of the draft */
     readonly draft_id?: number | string,
+    /** Pass true to show the user a button to stop further drafts */
+    readonly can_stop?: boolean,
+    /** Pass true to keep the current draft when the user stops further generation */
+    readonly keep_on_stop?: boolean,
     /** Draft text of the message; pass null to show a "Thinking..." placeholder */
     readonly text?: formattedText$Input,
   }
@@ -35700,8 +38261,23 @@ declare module 'tdlib-types' {
     readonly forum_topic_id?: number,
     /** Unique identifier of the draft */
     readonly draft_id?: number | string,
+    /** Pass true to show the user a button to stop further drafts */
+    readonly can_stop?: boolean,
+    /** Pass true to keep the current draft when the user stops further generation */
+    readonly keep_on_stop?: boolean,
     /** Draft of the message; file upload isn't supported */
     readonly message?: inputRichMessage$Input,
+  }
+
+  export type stopPendingMessage = {
+    /** Stops a pending message generation by a bot */
+    readonly _: 'stopPendingMessage',
+    /** Identifier of the chat with the bot */
+    readonly chat_id?: number,
+    /** Identifier of the topic in which the action is performed; pass null if none */
+    readonly topic_id?: MessageTopic$Input,
+    /** Unique identifier of the message draft within the message thread */
+    readonly draft_id?: number | string,
   }
 
   export type openChat = {
@@ -36481,11 +39057,7 @@ declare module 'tdlib-types' {
      * the chat itself
      */
     readonly topic_id?: MessageTopic$Input,
-    /**
-     * New draft message; pass null to remove the draft. All files in draft message
-     * content must be of the type inputFileLocal. Media thumbnails and captions are
-     * ignored
-     */
+    /** New draft message; pass null to remove the draft */
     readonly draft_message?: draftMessage$Input,
   }
 
@@ -36806,7 +39378,7 @@ declare module 'tdlib-types' {
     readonly _: 'setChatMemberTag',
     /** Chat identifier */
     readonly chat_id?: number,
-    /** Identifier of the user, which tag is changed. Chats can't have member tags */
+    /** Identifier of the user whose tag is changed. Chats can't have member tags */
     readonly user_id?: number,
     /** The new tag of the member in the chat; 0-16 characters without emoji */
     readonly tag?: string,
@@ -40562,12 +43134,19 @@ declare module 'tdlib-types' {
 
   export type checkBotUsername = {
     /**
-     * Checks whether a username can be set for a new bot. Use checkChatUsername to
-     * check username for other chat types
+     * Checks whether a username can be set for a new bot or assigned as a secondary
+     * username to an existing bot. Use checkChatUsername to check username for other
+     * chat types
      */
     readonly _: 'checkBotUsername',
     /** Username to be checked */
     readonly username?: string,
+    /**
+     * Pass true to check whether the username is suitable as a secondary username
+     * for an existing bot; pass false to check whether the username is suitable for
+     * createBot
+     */
+    readonly is_secondary?: boolean,
   }
 
   export type createBot = {
@@ -40584,8 +43163,12 @@ declare module 'tdlib-types' {
     /** Name of the bot; 1-64 characters */
     readonly name?: string,
     /**
-     * Username of the bot. The username must end with "bot". Use checkBotUsername
-     * to find whether the name is suitable
+     * Username of the bot. The username must end with "bot" or a string from updateAllowedBotUsernamePremiumSuffixes
+     * case-insensitive. Use checkBotUsername to find whether the name is suitable.
+     * If the username doesn't end with "bot", then the current user must have Telegram
+     * Premium subscription, the chosen username will be assigned as secondary and
+     * an additional regular username ending with "bot" will be automatically assigned
+     * to the created bot
      */
     readonly username?: string,
     /** Pass true if the bot is created from an internalLinkTypeRequestManagedBot link */
@@ -40653,6 +43236,34 @@ declare module 'tdlib-types' {
     readonly bot_user_id?: number,
     /** Profile photo to set; pass null to delete the chat photo */
     readonly photo?: InputChatPhoto$Input,
+  }
+
+  export type addBotSecondaryUsername = {
+    /**
+     * Adds a secondary username to a bot. Can be called only if userTypeBot.can_be_edited,
+     * the bot has no secondary username and the current user has Telegram Premium
+     * subscription. May return an error with a message "OWNER_USERNAMES_LIMIT_EXCEEDED"
+     * if the current user already owns at least getOption("secondary_bot_username_count_max")
+     * bots with a secondary username
+     */
+    readonly _: 'addBotSecondaryUsername',
+    /** Identifier of the target bot */
+    readonly bot_user_id?: number,
+    /**
+     * The new secondary username; must be non-empty. Use checkBotUsername to check
+     * username validness
+     */
+    readonly username?: string,
+  }
+
+  export type deleteBotSecondaryUsername = {
+    /**
+     * Removes a secondary username from a bot. Can be called only if userTypeBot.can_be_edited
+     * == true and the bot has a secondary username
+     */
+    readonly _: 'deleteBotSecondaryUsername',
+    /** Identifier of the target bot */
+    readonly bot_user_id?: number,
   }
 
   export type toggleBotUsernameIsActive = {
@@ -40754,12 +43365,12 @@ declare module 'tdlib-types' {
      */
     readonly verified_id?: MessageSender$Input,
     /**
-     * Custom description of verification reason; 0-getOption("bot_verification_custom_description_length_max").
-     * If empty, then "was verified by organization "organization_name"" will be used
-     * as description. Can be specified only if the bot is allowed to provide custom
-     * description
+     * Custom description of verification reason; 0-getOption("bot_verification_custom_description_length_max")
+     * characters. Only TextUrl entities are supported. If empty, then "was verified
+     * by organization "organization_name"" will be used as description. Can be specified
+     * only if the bot is allowed to provide custom description
      */
-    readonly custom_description?: string,
+    readonly custom_description?: formattedText$Input,
   }
 
   export type removeMessageSenderBotVerification = {
@@ -41541,6 +44152,18 @@ declare module 'tdlib-types' {
     readonly owner_id?: MessageSender$Input,
     /** The price that the user agreed to pay for the gift */
     readonly price?: GiftResalePrice$Input,
+    /**
+     * Text to show along with the gift; 0-getOption("gift_text_length_max") characters.
+     * Only Bold, Italic, Underline, Strikethrough, Spoiler, CustomEmoji, and DateTime
+     * entities are allowed. Must be empty if the receiver enabled paid messages and
+     * the price of the gift is less than the price of a paid message to the user
+     */
+    readonly text?: formattedText$Input,
+    /**
+     * Pass true to show gift text and sender only to the gift receiver; otherwise,
+     * everyone will be able to see them
+     */
+    readonly is_private?: boolean,
   }
 
   export type sendGiftPurchaseOffer = {
@@ -42266,7 +44889,7 @@ declare module 'tdlib-types' {
   export type reportChat = {
     /**
      * Reports a chat to the Telegram moderators. A chat can be reported only from
-     * the chat action bar, or if chat.can_be_reported
+     * the chat action bar, if chat.can_be_reported, or if messageProperties.can_report_chat
      */
     readonly _: 'reportChat',
     /** Chat identifier */
@@ -42361,7 +44984,7 @@ declare module 'tdlib-types' {
   }
 
   export type getTonTransactions = {
-    /** Returns the list of TON blockchain transactions of the current user */
+    /** Returns the list of TON Gram transactions of the current user */
     readonly _: 'getTonTransactions',
     /** Direction of the transactions to receive; pass null to get all transactions */
     readonly direction?: TransactionDirection$Input,
@@ -42372,6 +44995,482 @@ declare module 'tdlib-types' {
     readonly offset?: string,
     /** The maximum number of transactions to return */
     readonly limit?: number,
+  }
+
+  export type getTonWalletTransactions = {
+    /**
+     * Returns the list of TON wallet transactions of the current user; can be used
+     * only if getOption("can_use_ton_wallet")
+     */
+    readonly _: 'getTonWalletTransactions',
+    /** Direction of the transactions to receive; pass null to get all transactions */
+    readonly direction?: TransactionDirection$Input,
+    /**
+     * Offset of the first transaction to return as received from the previous request;
+     * use empty string to get the first chunk of results
+     */
+    readonly offset?: string,
+    /** The maximum number of transactions to return */
+    readonly limit?: number,
+  }
+
+  export type getTonWalletTransaction = {
+    /** Returns a TON wallet transaction by their identifier */
+    readonly _: 'getTonWalletTransaction',
+    /** Identifier of the transaction */
+    readonly transaction_id?: string,
+  }
+
+  export type getTonWalletTransactionByMsgHash = {
+    /**
+     * Returns a TON wallet transaction by their msg_hash; return an error if the transaction
+     * isn't finalized yet
+     */
+    readonly _: 'getTonWalletTransactionByMsgHash',
+    /** Value of msg_hash of the transaction */
+    readonly msg_hash?: string,
+  }
+
+  export type loadTonWalletState = {
+    /** Loads state of the TON wallet of the current user; can be used only if getOption("can_use_ton_wallet") */
+    readonly _: 'loadTonWalletState',
+  }
+
+  export type loadTonWalletGaslessTransfersInfo = {
+    /**
+     * Loads or reloads the current state of gasless transfers for the current user;
+     * can be used only if getOption("can_use_ton_wallet")
+     */
+    readonly _: 'loadTonWalletGaslessTransfersInfo',
+  }
+
+  export type checkWalletBotBalance = {
+    /**
+     * Returns information about balance of the current user in the bot https://t.me/walt;
+     * can be used only if getOption("can_use_ton_wallet")
+     */
+    readonly _: 'checkWalletBotBalance',
+  }
+
+  export type getUserTonWalletAddresses = {
+    /** Returns TON wallet addresses of the specified users; can be used only if getOption("can_use_ton_wallet") */
+    readonly _: 'getUserTonWalletAddresses',
+    /**
+     * Identifiers of the users whose wallet addresses have to be returned. If a user
+     * has no TON wallet, it will be skipped in the result
+     */
+    readonly user_ids?: ReadonlyArray<number>,
+  }
+
+  export type createUserTonWallet = {
+    /**
+     * Creates a TON wallet for the specified regular user; can be used only if getOption("can_use_ton_wallet").
+     * The current user must have positive TON wallet balance
+     */
+    readonly _: 'createUserTonWallet',
+    /** Identifier of the user */
+    readonly user_id?: number,
+  }
+
+  export type getAddressTonWallet = {
+    /**
+     * Returns information about a TON wallet with the given address; can be used only
+     * if getOption("can_use_ton_wallet")
+     */
+    readonly _: 'getAddressTonWallet',
+    /** Address in the TON blockchain */
+    readonly address?: string,
+  }
+
+  export type getTonWalletSecretPhrase = {
+    /**
+     * Returns the secret phrase of the user's TON wallet as a space separated list
+     * of words. Works only if tonWalletState.can_export_phrase is true
+     */
+    readonly _: 'getTonWalletSecretPhrase',
+    /**
+     * Password of the current user; pass an empty string unless receive an error with
+     * a message "PASSWORD_MISSING" for a passwordless request
+     */
+    readonly password?: string,
+  }
+
+  export type getTonWalletOwnershipProofChallenge = {
+    /**
+     * Returns a challenge which may be used to proof ownership of a TON wallet; can
+     * be used only if getOption("can_use_ton_wallet")
+     */
+    readonly _: 'getTonWalletOwnershipProofChallenge',
+  }
+
+  export type enableTonWalletBackup = {
+    /**
+     * Enables backup of the TON wallet of the user. Works only if tonWalletState.can_enable_backup
+     * is true
+     */
+    readonly _: 'enableTonWalletBackup',
+    /** The secret phrase of the user's TON wallet as a space separated list of words */
+    readonly secret_phrase?: string,
+    /**
+     * Proof of the TON wallet ownership; use getTonWalletOwnershipProofChallenge to
+     * get a challenge for the proof
+     */
+    readonly proof?: tonWalletOwnershipProof$Input,
+  }
+
+  export type disableTonWalletBackup = {
+    /**
+     * Disables backup of the TON wallet of the user. Works only if tonWalletState.is_backup_enabled
+     * is true
+     */
+    readonly _: 'disableTonWalletBackup',
+    /**
+     * Password of the current user; pass an empty string unless receive an error with
+     * a message "PASSWORD_MISSING" for a passwordless request
+     */
+    readonly password?: string,
+  }
+
+  export type disableTonWalletBackupWithProof = {
+    /**
+     * Disables backup of the TON wallet of the user using proof of wallet ownership
+     * instead of the password. Works only if tonWalletState.is_backup_enabled is true
+     */
+    readonly _: 'disableTonWalletBackupWithProof',
+    /**
+     * Proof of the TON wallet ownership; use getTonWalletOwnershipProofChallenge to
+     * get a challenge for the proof
+     */
+    readonly proof?: tonWalletOwnershipProof$Input,
+  }
+
+  export type sendTonWalletTransfer = {
+    /** Sends a cryptocurrency from the user's TON wallet; can be used only if getOption("can_use_ton_wallet") */
+    readonly _: 'sendTonWalletTransfer',
+    /** Identifier of the user who will receive the transfer; pass 0 if unknown */
+    readonly user_id?: number,
+    /** Address in the TON blockchain of the transaction peer */
+    readonly address?: string,
+    /** The amount of the sent cryptocurrency, in the smallest units of the cryptocurrency */
+    readonly amount?: number,
+    /** Comment added to the transaction */
+    readonly comment?: string,
+    /**
+     * Pass true if the comment is encrypted and must be decrypted using the receiver's
+     * or sender's private key
+     */
+    readonly is_comment_encrypted?: boolean,
+    /**
+     * Non-persistent identifier, which will be returned back in messageSendingStatePending
+     * object and can be used to match sent messages and corresponding updateNewMessage
+     * updates
+     */
+    readonly sending_id?: number,
+    /**
+     * Serialized data for regular cryptocurrency transfer request. The minimum allowed
+     * transfer amount is getOption("ton_wallet_transfer_amount_min")
+     */
+    readonly regular_transfer_data?: string /* base64 */,
+    /**
+     * Serialized data for gasless cryptocurrency transfer request; pass an empty string
+     * to force a regular request. The minimum allowed transfer amount for a gassless
+     * transfer is getOption("ton_wallet_gasless_transfer_amount_min")
+     */
+    readonly gasless_transfer_data?: string /* base64 */,
+  }
+
+  export type deleteTonWallet = {
+    /**
+     * Deletes the current TON wallet of the user and creates a new one; can be used
+     * only if getOption("can_use_ton_wallet")
+     */
+    readonly _: 'deleteTonWallet',
+    /**
+     * Password of the current user; pass an empty string unless receive an error with
+     * a message "PASSWORD_MISSING" for a passwordless request
+     */
+    readonly password?: string,
+  }
+
+  export type replaceTonWallet = {
+    /**
+     * Replaces the current TON wallet with another existing v6r2 wallet or changes
+     * private key of the current TON wallet; can be used only if getOption("can_use_ton_wallet")
+     */
+    readonly _: 'replaceTonWallet',
+    /**
+     * Password of the current user; pass an empty string unless receive an error with
+     * a message "PASSWORD_MISSING" for a passwordless request
+     */
+    readonly password?: string,
+    /** Original public key of the new TON wallet */
+    readonly anchor_public_key?: string /* base64 */,
+    /**
+     * Proof of ownership of the new private key of the TON wallet; use getTonWalletOwnershipProofChallenge
+     * to get a challenge for the proof
+     */
+    readonly proof?: tonWalletOwnershipProof$Input,
+  }
+
+  export type getCurrencyExchangeRates = {
+    /** Returns exchange rates of currencies to USD */
+    readonly _: 'getCurrencyExchangeRates',
+  }
+
+  export type getTonWalletNfts = {
+    /** Returns NFTs stored on the TON wallet of the user; can be used only if getOption("can_use_ton_wallet") */
+    readonly _: 'getTonWalletNfts',
+    /**
+     * Offset of the first entry to return as received from the previous request; use
+     * empty string to get the first chunk of results
+     */
+    readonly offset?: string,
+    /**
+     * The maximum number of NFTs to be returned; must be positive and can't be greater
+     * than 20
+     */
+    readonly limit?: number,
+  }
+
+  export type getTonConnectSessions = {
+    /** Returns active TON Connect sessions; can be used only if getOption("can_use_ton_wallet") */
+    readonly _: 'getTonConnectSessions',
+  }
+
+  export type createTonConnectSession = {
+    /** Creates a TON Connect session; can be used only if getOption("can_use_ton_wallet") */
+    readonly _: 'createTonConnectSession',
+    /** Hex-encoded public X25519 key of the dApp */
+    readonly dapp_client_id?: string,
+    /** URL of the manifest of the dApp */
+    readonly manifest_url?: string,
+  }
+
+  export type setTonConnectSessionWalletClientId = {
+    /**
+     * Sets wallet_client_id for a pending TON Connect session. Then, sendTonConnectSessionConnectResult
+     * must be used to accept or reject the session
+     */
+    readonly _: 'setTonConnectSessionWalletClientId',
+    /** Unique identifier of the session */
+    readonly session_id?: number | string,
+    /**
+     * Hex-encoded public X25519 key of the current user's application calculated from
+     * the TON wallet private key and session parameters
+     */
+    readonly wallet_client_id?: string,
+  }
+
+  export type sendTonConnectSessionConnectResult = {
+    /** Accepts or rejects a TON Connect session */
+    readonly _: 'sendTonConnectSessionConnectResult',
+    /** Unique identifier of the session */
+    readonly session_id?: number | string,
+    /** Answer to the challenge received from setTonConnectSessionWalletClientId */
+    readonly challenge_answer?: string /* base64 */,
+    /** Pass true to reject the request; pass false to accept it */
+    readonly is_error?: boolean,
+    /** Body of the result */
+    readonly body?: string /* base64 */,
+    /** Identifier to trace the connection request */
+    readonly trace_id?: string,
+  }
+
+  export type getTonConnectSessionPendingRequests = {
+    /** Returns pending requests in a TON Connect session */
+    readonly _: 'getTonConnectSessionPendingRequests',
+    /** Unique identifier of the session */
+    readonly session_id?: number | string,
+  }
+
+  export type getTonConnectDAppPendingRequests = {
+    /** Returns pending requests with a dApp through TON Connect */
+    readonly _: 'getTonConnectDAppPendingRequests',
+    /** Hex-encoded public X25519 key of the dApp */
+    readonly dapp_client_id?: string,
+  }
+
+  export type claimTonConnectRequest = {
+    /** Claims a request received through TON Connect for processing on this device */
+    readonly _: 'claimTonConnectRequest',
+    /** Unique identifier of the TON Connect session */
+    readonly session_id?: number | string,
+    /** Identifier of the message with the request */
+    readonly message_id?: number,
+    /** Identifier of the request assigned by the dApp */
+    readonly dapp_request_id?: string,
+    /** Pass true to reject the request */
+    readonly is_rejected?: boolean,
+  }
+
+  export type answerTonConnectRequest = {
+    /** Sends an answer for a request received through TON Connect */
+    readonly _: 'answerTonConnectRequest',
+    /** Unique identifier of the TON Connect session */
+    readonly session_id?: number | string,
+    /** Identifier of the message with the request */
+    readonly message_id?: number,
+    /** Identifier to trace the request */
+    readonly trace_id?: string,
+    /** Body of the response */
+    readonly body?: string /* base64 */,
+  }
+
+  export type getTonConnectSessionNextEventId = {
+    /** Returns the next event identifier for the given TON Connect session */
+    readonly _: 'getTonConnectSessionNextEventId',
+    /** Unique identifier of the TON Connect session */
+    readonly session_id?: number | string,
+  }
+
+  export type disconnectTonConnectSession = {
+    /** Closes a TON Connect session */
+    readonly _: 'disconnectTonConnectSession',
+    /** Unique identifier of the TON Connect session to close */
+    readonly session_id?: number | string,
+    /**
+     * Encrypted body of the disconnect event; may be empty if the session has already
+     * been closed. Use getTonConnectSessionNextEventId to get event identifier for
+     * the event
+     */
+    readonly body?: string /* base64 */,
+  }
+
+  export type getOnRampProviders = {
+    /** Returns available on-ramp providers */
+    readonly _: 'getOnRampProviders',
+    /**
+     * Pass a cryptocurrency to receive only providers that support it; pass an empty
+     * string to receive all providers
+     */
+    readonly cryptocurrency?: string,
+  }
+
+  export type getOnRampProviderBaseCurrencies = {
+    /**
+     * Returns the list of fiat currencies supported by an on-ramp provider for the
+     * given cryptocurrency
+     */
+    readonly _: 'getOnRampProviderBaseCurrencies',
+    /**
+     * Unique identifier of the on-ramp provider; only for providers that supports
+     * base currencies
+     */
+    readonly provider_id?: string,
+    /** The cryptocurrency that will be bought */
+    readonly cryptocurrency?: string,
+  }
+
+  export type getOnRampPaymentAvailability = {
+    /** Returns the available on-ramp payment methods based on the current user location */
+    readonly _: 'getOnRampPaymentAvailability',
+    /** Unique identifier of the on-ramp provider */
+    readonly provider_id?: string,
+    /** The cryptocurrency that will be bought */
+    readonly cryptocurrency?: string,
+    /**
+     * ISO 4217 currency code of the currency that will be used for the purchase; pass
+     * an empty string if unknown
+     */
+    readonly base_currency?: string,
+  }
+
+  export type getOnRampPaymentLimits = {
+    /**
+     * Returns the limits for an on-ramp payment; only for providers that supports
+     * limits retrieval
+     */
+    readonly _: 'getOnRampPaymentLimits',
+    /** Unique identifier of the on-ramp provider */
+    readonly provider_id?: string,
+    /** The cryptocurrency that will be bought */
+    readonly cryptocurrency?: string,
+    /** ISO 4217 currency code of the currency that will be used for the purchase */
+    readonly base_currency?: string,
+    /** Name of the chosen payment method; pass an empty string if none */
+    readonly payment_method_name?: string,
+  }
+
+  export type getOnRampPaymentQuote = {
+    /**
+     * Returns a quote for an on-ramp payment; only for providers that supports quote
+     * retrieval
+     */
+    readonly _: 'getOnRampPaymentQuote',
+    /** Unique identifier of the on-ramp provider */
+    readonly provider_id?: string,
+    /** The cryptocurrency that will be bought */
+    readonly cryptocurrency?: string,
+    /** ISO 4217 currency code of the currency that will be used for the purchase */
+    readonly base_currency?: string,
+    /**
+     * The amount of the cryptocurrency to buy; pass an empty string if the user selected
+     * base_currency_amount
+     */
+    readonly cryptocurrency_amount?: string,
+    /**
+     * The amount of the base currency to spend; pass an empty string if the user selected
+     * cryptocurrency_amount
+     */
+    readonly base_currency_amount?: string,
+    /** Name of the chosen payment method; pass an empty string if none */
+    readonly payment_method_name?: string,
+  }
+
+  export type createOnRampPaymentSession = {
+    /** Creates a session for an on-ramp payment */
+    readonly _: 'createOnRampPaymentSession',
+    /** Unique identifier of the on-ramp provider */
+    readonly provider_id?: string,
+    /** The cryptocurrency that will be bought */
+    readonly cryptocurrency?: string,
+    /** Address to which the cryptocurrency will be sent */
+    readonly address?: string,
+    /** Name of the chosen payment method; pass an empty string if none */
+    readonly payment_method_name?: string,
+    /**
+     * ISO 4217 currency code of the currency that will be used for the purchase; pass
+     * an empty string if unknown
+     */
+    readonly base_currency?: string,
+    /**
+     * The amount of the cryptocurrency to buy; pass an empty string if the user selected
+     * base_currency_amount
+     */
+    readonly cryptocurrency_amount?: string,
+    /**
+     * The amount of the base currency to spend; pass an empty string if the user selected
+     * cryptocurrency_amount
+     */
+    readonly base_currency_amount?: string,
+    /** Memo for the query; pass an empty string if none */
+    readonly memo?: string,
+    /**
+     * Preferred theme for the WebView; pass "light" for a light theme, "dark" for
+     * a dark theme, or leave empty for a default theme
+     */
+    readonly theme?: string,
+    /** The URL opened on successful payment; pass an empty string if none */
+    readonly success_return_url?: string,
+    /** The URL opened on failed payment; pass an empty string if none */
+    readonly fail_return_url?: string,
+  }
+
+  export type sendTonCenterApiRequest = {
+    /** Sends a request to TON Center API and returns its response in JSON format */
+    readonly _: 'sendTonCenterApiRequest',
+    /**
+     * The path of the requested endpoint. See https://toncenter.com/api/v3/index.html
+     * for the list of supported endpoints
+     */
+    readonly endpoint?: string,
+    /** Type of the request */
+    readonly type?: TonCenterApiRequestType$Input,
+  }
+
+  export type getTonCenterStreamingApiUrl = {
+    /** Returns a URL for TON Center Streaming API */
+    readonly _: 'getTonCenterStreamingApiUrl',
   }
 
   export type getStarRevenueStatistics = {
@@ -43160,7 +46259,7 @@ declare module 'tdlib-types' {
      * in Telegram Stars; for bots only
      */
     readonly _: 'giftPremiumWithStars',
-    /** Identifier of the user which will receive Telegram Premium */
+    /** Identifier of the user who will receive Telegram Premium */
     readonly user_id?: number,
     /** The number of Telegram Stars to pay for subscription */
     readonly star_count?: number,
@@ -43523,6 +46622,16 @@ declare module 'tdlib-types' {
     readonly link?: string,
   }
 
+  export type dismissWebToken = {
+    /**
+     * Dismissess a received web token without consumption; for official Telegram apps
+     * only
+     */
+    readonly _: 'dismissWebToken',
+    /** The token to dismiss */
+    readonly token?: string,
+  }
+
   export type getApplicationConfig = {
     /** Returns application config, provided by the server. Can be called before authorization */
     readonly _: 'getApplicationConfig',
@@ -43874,6 +46983,12 @@ declare module 'tdlib-types' {
   export type RichMessage = richMessage
 
   /** Describes source of a rich message */
+  export type RichMessageSource =
+    | richMessageSourceBlocks
+    | richMessageSourceMarkdown
+    | richMessageSourceHtml
+
+  /** Describes source of a rich message */
   export type RichMessageSource$Input =
     | richMessageSourceBlocks$Input
     | richMessageSourceMarkdown$Input
@@ -43917,6 +47032,13 @@ declare module 'tdlib-types' {
   export type TemporaryPasswordState = temporaryPasswordState
 
   export type File = file
+
+  /** Points to a file */
+  export type InputFile =
+    | inputFileId
+    | inputFileRemote
+    | inputFileLocal
+    | inputFileGenerated
 
   /** Points to a file */
   export type InputFile$Input =
@@ -43995,6 +47117,11 @@ declare module 'tdlib-types' {
   export type PollType =
     | pollTypeRegular
     | pollTypeQuiz
+
+  /** Describes the type of poll to send */
+  export type InputPollType =
+    | inputPollTypeRegular
+    | inputPollTypeQuiz
 
   /** Describes the type of poll to send */
   export type InputPollType$Input =
@@ -44350,6 +47477,105 @@ declare module 'tdlib-types' {
   export type TonTransactions = tonTransactions
 
   /** Describes state of active stories posted by a chat */
+  export type TonCenterApiRequestType$Input =
+    | tonCenterApiRequestTypeGet$Input
+    | tonCenterApiRequestTypePost$Input
+
+  /** Represents expected receiver of a TON wallet transfer */
+  export type TonWalletTransferReceiver =
+    | tonWalletTransferReceiverUser
+    | tonWalletTransferReceiverAddress
+
+  /** Represents expected receiver of a TON wallet transfer */
+  export type TonWalletTransferReceiver$Input =
+    | tonWalletTransferReceiverUser$Input
+    | tonWalletTransferReceiverAddress$Input
+
+  export type TonCenterStreamingApiUrl = tonCenterStreamingApiUrl
+
+  export type WalletBotBalance = walletBotBalance
+
+  export type UserTonWalletAddress = userTonWalletAddress
+
+  export type UserTonWalletAddresses = userTonWalletAddresses
+
+  export type TonWalletOwnershipProofChallenge = tonWalletOwnershipProofChallenge
+
+  export type CurrencyExchangeRates = currencyExchangeRates
+
+  export type OnRampProviders = onRampProviders
+
+  export type Currencies = currencies
+
+  export type OnRampPaymentAvailability = onRampPaymentAvailability
+
+  export type OnRampPaymentLimits = onRampPaymentLimits
+
+  export type OnRampPaymentQuote = onRampPaymentQuote
+
+  export type OnRampPaymentSession = onRampPaymentSession
+
+  export type TonNfts = tonNfts
+
+  /** Describes state of a transaction with a TON wallet */
+  export type TonWalletTransactionState =
+    | tonWalletTransactionStateSucceeded
+    | tonWalletTransactionStateFailed
+
+  /** Describes type of transaction with a TON wallet */
+  export type TonWalletTransactionType =
+    | tonWalletTransactionTypeOnRampDeposit
+    | tonWalletTransactionTypeTransfer
+    | tonWalletTransactionTypeNftTransfer
+    | tonWalletTransactionTypeKeyChange
+
+  export type TonWalletTransaction = tonWalletTransaction
+
+  export type TonWalletTransactions = tonWalletTransactions
+
+  /** Describes state of a request received from a dApp through TON Connect */
+  export type TonConnectRequestState =
+    | tonConnectRequestStatePending
+    | tonConnectRequestStateAccepted
+    | tonConnectRequestStateRejected
+
+  /** Describes manifest of the dApp that is being connected using TON Connect */
+  export type TonConnectManifest =
+    | tonConnectManifestPending
+    | tonConnectManifestInfo
+    | tonConnectManifestFailed
+    | tonConnectManifestInvalid
+
+  /** Describes state of a TON Connect session */
+  export type TonConnectSessionState =
+    | tonConnectSessionStatePending
+    | tonConnectSessionStateReady
+    | tonConnectSessionStateClosing
+    | tonConnectSessionStateClosed
+
+  /** Represents a data item to share with a dApp */
+  export type TonConnectConnectItem =
+    | tonConnectConnectItemAddress
+    | tonConnectConnectItemProof
+
+  /** Represents a data item to share with a dApp */
+  export type TonConnectConnectItem$Input =
+    | tonConnectConnectItemAddress$Input
+    | tonConnectConnectItemProof$Input
+
+  export type TonConnectSession = tonConnectSession
+
+  export type TonConnectSessions = tonConnectSessions
+
+  export type TonConnectRequests = tonConnectRequests
+
+  export type TonConnectChallenge = tonConnectChallenge
+
+  export type TonConnectSessionEventId = tonConnectSessionEventId
+
+  export type TonWalletTransferResult = tonWalletTransferResult
+
+  /** Describes state of active stories posted by a chat */
   export type ActiveStoryState =
     | activeStoryStateLive
     | activeStoryStateUnread
@@ -44373,6 +47599,8 @@ declare module 'tdlib-types' {
     | giveawayPrizePremium
     | giveawayPrizeStars
 
+  export type CommunityId = communityId
+
   /** Provides information about the status of a member in a community */
   export type CommunityMemberStatus =
     | communityMemberStatusCreator
@@ -44380,6 +47608,8 @@ declare module 'tdlib-types' {
     | communityMemberStatusMember
     | communityMemberStatusLeft
     | communityMemberStatusBanned
+
+  export type CommunityFullInfo = communityFullInfo
 
   /** Describes type of emoji status */
   export type EmojiStatusType =
@@ -44685,6 +47915,7 @@ declare module 'tdlib-types' {
   export type DraftMessageContent =
     | draftMessageContentText
     | draftMessageContentRichMessage
+    | draftMessageContentInputRichMessage
     | draftMessageContentVideoNote
     | draftMessageContentVoiceNote
 
@@ -44692,6 +47923,7 @@ declare module 'tdlib-types' {
   export type DraftMessageContent$Input =
     | draftMessageContentText$Input
     | draftMessageContentRichMessage$Input
+    | draftMessageContentInputRichMessage$Input
     | draftMessageContentVideoNote$Input
     | draftMessageContentVoiceNote$Input
 
@@ -44777,6 +48009,7 @@ declare module 'tdlib-types' {
     | buttonStylePrimary
     | buttonStyleDanger
     | buttonStyleSuccess
+    | buttonStyleLink
 
   /** Describes style of a button */
   export type ButtonStyle$Input =
@@ -44784,6 +48017,7 @@ declare module 'tdlib-types' {
     | buttonStylePrimary$Input
     | buttonStyleDanger$Input
     | buttonStyleSuccess$Input
+    | buttonStyleLink$Input
 
   /** Describes a keyboard button type */
   export type KeyboardButtonType =
@@ -44821,6 +48055,7 @@ declare module 'tdlib-types' {
     | inlineKeyboardButtonTypeBuy
     | inlineKeyboardButtonTypeUser
     | inlineKeyboardButtonTypeCopyText
+    | inlineKeyboardButtonTypeDisabled
 
   /** Describes the type of inline keyboard button */
   export type InlineKeyboardButtonType$Input =
@@ -44834,6 +48069,7 @@ declare module 'tdlib-types' {
     | inlineKeyboardButtonTypeBuy$Input
     | inlineKeyboardButtonTypeUser$Input
     | inlineKeyboardButtonTypeCopyText$Input
+    | inlineKeyboardButtonTypeDisabled$Input
 
   /** Describes source of a keyboard button */
   export type KeyboardButtonSource$Input =
@@ -44910,6 +48146,7 @@ declare module 'tdlib-types' {
     | richTextHashtag
     | richTextCashtag
     | richTextBankCardNumber
+    | richTextTonAddress
     | richTextBotCommand
     | richTextFixed
     | richTextMentionName
@@ -44919,6 +48156,7 @@ declare module 'tdlib-types' {
     | richTextCustomEmoji
     | richTextIcon
     | richTextMathematicalExpression
+    | richTextButton
     | richTextDiff
     | richTextReference
     | richTextReferenceLink
@@ -44942,6 +48180,7 @@ declare module 'tdlib-types' {
     | richTextHashtag$Input
     | richTextCashtag$Input
     | richTextBankCardNumber$Input
+    | richTextTonAddress$Input
     | richTextBotCommand$Input
     | richTextFixed$Input
     | richTextMentionName$Input
@@ -44951,6 +48190,7 @@ declare module 'tdlib-types' {
     | richTextCustomEmoji$Input
     | richTextIcon$Input
     | richTextMathematicalExpression$Input
+    | richTextButton$Input
     | richTextDiff$Input
     | richTextReference$Input
     | richTextReferenceLink$Input
@@ -45000,9 +48240,11 @@ declare module 'tdlib-types' {
     | pageBlockAnchor
     | pageBlockList
     | pageBlockBlockQuote
+    | pageBlockExpandableBlockQuote
     | pageBlockPullQuote
     | pageBlockAnimation
     | pageBlockAudio
+    | pageBlockDocument
     | pageBlockPhoto
     | pageBlockVideo
     | pageBlockVoiceNote
@@ -45016,6 +48258,8 @@ declare module 'tdlib-types' {
     | pageBlockDetails
     | pageBlockRelatedArticles
     | pageBlockMap
+    | pageBlockButtonRow
+    | pageBlockUnsupported
 
   /** Describes a block of an instant view for a web page or a block of a rich message */
   export type PageBlock$Input =
@@ -45035,9 +48279,11 @@ declare module 'tdlib-types' {
     | pageBlockAnchor$Input
     | pageBlockList$Input
     | pageBlockBlockQuote$Input
+    | pageBlockExpandableBlockQuote$Input
     | pageBlockPullQuote$Input
     | pageBlockAnimation$Input
     | pageBlockAudio$Input
+    | pageBlockDocument$Input
     | pageBlockPhoto$Input
     | pageBlockVideo$Input
     | pageBlockVoiceNote$Input
@@ -45051,6 +48297,8 @@ declare module 'tdlib-types' {
     | pageBlockDetails$Input
     | pageBlockRelatedArticles$Input
     | pageBlockMap$Input
+    | pageBlockButtonRow$Input
+    | pageBlockUnsupported$Input
 
   export type WebPageInstantView = webPageInstantView
 
@@ -45324,6 +48572,7 @@ declare module 'tdlib-types' {
     | messageChatAddMembers
     | messageChatJoinByLink
     | messageChatJoinByRequest
+    | messageChatJoinFromCommunity
     | messageChatDeleteMember
     | messageChatAddedToCommunity
     | messageChatRemovedFromCommunity
@@ -45354,8 +48603,10 @@ declare module 'tdlib-types' {
     | messageGiveawayCompleted
     | messageGiveawayWinners
     | messageGiftedStars
-    | messageGiftedTon
+    | messageGiftedGrams
     | messageGiveawayPrizeStars
+    | messageTonWalletTransfer
+    | messageTonConnectRequest
     | messageGift
     | messageUpgradedGift
     | messageRefundedUpgradedGift
@@ -45414,6 +48665,7 @@ declare module 'tdlib-types' {
     | textEntityTypeEmailAddress
     | textEntityTypePhoneNumber
     | textEntityTypeBankCardNumber
+    | textEntityTypeTonAddress
     | textEntityTypeBold
     | textEntityTypeItalic
     | textEntityTypeUnderline
@@ -45440,6 +48692,7 @@ declare module 'tdlib-types' {
     | textEntityTypeEmailAddress$Input
     | textEntityTypePhoneNumber$Input
     | textEntityTypeBankCardNumber$Input
+    | textEntityTypeTonAddress$Input
     | textEntityTypeBold$Input
     | textEntityTypeItalic$Input
     | textEntityTypeUnderline$Input
@@ -45461,6 +48714,11 @@ declare module 'tdlib-types' {
     | diffEntityTypeInsert
     | diffEntityTypeReplace
     | diffEntityTypeDelete
+
+  /** Describes type of paid media to send */
+  export type InputPaidMediaType =
+    | inputPaidMediaTypePhoto
+    | inputPaidMediaTypeVideo
 
   /** Describes type of paid media to send */
   export type InputPaidMediaType$Input =
@@ -45490,6 +48748,18 @@ declare module 'tdlib-types' {
     | messageSelfDestructTypeImmediately$Input
 
   /** The content of a poll media to send */
+  export type InputPollMedia =
+    | inputPollMediaAnimation
+    | inputPollMediaAudio
+    | inputPollMediaDocument
+    | inputPollMediaLink
+    | inputPollMediaLocation
+    | inputPollMediaPhoto
+    | inputPollMediaSticker
+    | inputPollMediaVenue
+    | inputPollMediaVideo
+
+  /** The content of a poll media to send */
   export type InputPollMedia$Input =
     | inputPollMediaAnimation$Input
     | inputPollMediaAudio$Input
@@ -45500,6 +48770,33 @@ declare module 'tdlib-types' {
     | inputPollMediaSticker$Input
     | inputPollMediaVenue$Input
     | inputPollMediaVideo$Input
+
+  /** Describes a block of a rich message to send */
+  export type InputPageBlock =
+    | inputPageBlockSectionHeading
+    | inputPageBlockParagraph
+    | inputPageBlockPreformatted
+    | inputPageBlockFooter
+    | inputPageBlockThinking
+    | inputPageBlockDivider
+    | inputPageBlockMathematicalExpression
+    | inputPageBlockAnchor
+    | inputPageBlockList
+    | inputPageBlockBlockQuote
+    | inputPageBlockExpandableBlockQuote
+    | inputPageBlockPullQuote
+    | inputPageBlockAnimation
+    | inputPageBlockAudio
+    | inputPageBlockDocument
+    | inputPageBlockPhoto
+    | inputPageBlockVideo
+    | inputPageBlockVoiceNote
+    | inputPageBlockCollage
+    | inputPageBlockSlideshow
+    | inputPageBlockTable
+    | inputPageBlockDetails
+    | inputPageBlockMap
+    | inputPageBlockButtonRow
 
   /** Describes a block of a rich message to send */
   export type InputPageBlock$Input =
@@ -45513,9 +48810,11 @@ declare module 'tdlib-types' {
     | inputPageBlockAnchor$Input
     | inputPageBlockList$Input
     | inputPageBlockBlockQuote$Input
+    | inputPageBlockExpandableBlockQuote$Input
     | inputPageBlockPullQuote$Input
     | inputPageBlockAnimation$Input
     | inputPageBlockAudio$Input
+    | inputPageBlockDocument$Input
     | inputPageBlockPhoto$Input
     | inputPageBlockVideo$Input
     | inputPageBlockVoiceNote$Input
@@ -45524,6 +48823,33 @@ declare module 'tdlib-types' {
     | inputPageBlockTable$Input
     | inputPageBlockDetails$Input
     | inputPageBlockMap$Input
+    | inputPageBlockButtonRow$Input
+
+  /** The content of a message to send */
+  export type InputMessageContent =
+    | inputMessageText
+    | inputMessageRichMessage
+    | inputMessageAnimation
+    | inputMessageAudio
+    | inputMessageDocument
+    | inputMessagePaidMedia
+    | inputMessagePhoto
+    | inputMessageSticker
+    | inputMessageVideo
+    | inputMessageVideoNote
+    | inputMessageVoiceNote
+    | inputMessageLiveLocation
+    | inputMessageLocation
+    | inputMessageVenue
+    | inputMessageContact
+    | inputMessageDice
+    | inputMessageGame
+    | inputMessageInvoice
+    | inputMessagePoll
+    | inputMessageStakeDice
+    | inputMessageStory
+    | inputMessageChecklist
+    | inputMessageForwarded
 
   /** The content of a message to send */
   export type InputMessageContent$Input =
@@ -45582,6 +48908,7 @@ declare module 'tdlib-types' {
     | searchMessagesChatTypeFilterPrivate$Input
     | searchMessagesChatTypeFilterGroup$Input
     | searchMessagesChatTypeFilterChannel$Input
+    | searchMessagesChatTypeFilterCommunity$Input
 
   /** Represents a filter for type of the chats to search for */
   export type SearchChatTypeFilter$Input =
@@ -46406,6 +49733,8 @@ declare module 'tdlib-types' {
     | pushMessageContentPoll
     | pushMessageContentPremiumGiftCode
     | pushMessageContentGiveaway
+    | pushMessageContentTonWalletTransfer
+    | pushMessageContentTonConnectRequest
     | pushMessageContentGift
     | pushMessageContentUpgradedGift
     | pushMessageContentScreenshotTaken
@@ -46742,6 +50071,8 @@ declare module 'tdlib-types' {
     | internalLinkTypeStoryAlbum
     | internalLinkTypeTextCompositionStyle
     | internalLinkTypeTheme
+    | internalLinkTypeTonConnect
+    | internalLinkTypeTonWalletTransfer
     | internalLinkTypeUnknownDeepLink
     | internalLinkTypeUpgradedGift
     | internalLinkTypeUserPhoneNumber
@@ -46805,6 +50136,8 @@ declare module 'tdlib-types' {
     | internalLinkTypeStoryAlbum$Input
     | internalLinkTypeTextCompositionStyle$Input
     | internalLinkTypeTheme$Input
+    | internalLinkTypeTonConnect$Input
+    | internalLinkTypeTonWalletTransfer$Input
     | internalLinkTypeUnknownDeepLink$Input
     | internalLinkTypeUpgradedGift$Input
     | internalLinkTypeUserPhoneNumber$Input
@@ -46985,6 +50318,7 @@ declare module 'tdlib-types' {
     | suggestedActionCheckPassword
     | suggestedActionCheckPhoneNumber
     | suggestedActionViewChecksHint
+    | suggestedActionViewFirstTonWalletTransferHint
     | suggestedActionConvertToBroadcastGroup
     | suggestedActionSetPassword
     | suggestedActionUpgradePremium
@@ -47005,6 +50339,7 @@ declare module 'tdlib-types' {
     | suggestedActionCheckPassword$Input
     | suggestedActionCheckPhoneNumber$Input
     | suggestedActionViewChecksHint$Input
+    | suggestedActionViewFirstTonWalletTransferHint$Input
     | suggestedActionConvertToBroadcastGroup$Input
     | suggestedActionSetPassword$Input
     | suggestedActionUpgradePremium$Input
@@ -47130,6 +50465,7 @@ declare module 'tdlib-types' {
     | updateMessageSendSucceeded
     | updateMessageSendFailed
     | updateMessageContent
+    | updateMessageEphemeralContent
     | updateMessageEdited
     | updateMessageIsPinned
     | updateMessageInteractionInfo
@@ -47175,6 +50511,7 @@ declare module 'tdlib-types' {
     | updateChatViewAsTopics
     | updateChatBlockList
     | updateChatHasScheduledMessages
+    | updateChatHasWelcomeMessages
     | updateChatFolders
     | updateChatOnlineMemberCount
     | updateSavedMessagesTopic
@@ -47185,6 +50522,7 @@ declare module 'tdlib-types' {
     | updateQuickReplyShortcutDeleted
     | updateQuickReplyShortcuts
     | updateQuickReplyShortcutMessages
+    | updateChatWelcomeMessages
     | updateForumTopicInfo
     | updateForumTopic
     | updateScopeNotificationSettings
@@ -47196,6 +50534,7 @@ declare module 'tdlib-types' {
     | updateDeleteMessages
     | updateChatAction
     | updatePendingMessage
+    | updateStopMessageDraft
     | updateCommunity
     | updateUserStatus
     | updateUser
@@ -47205,6 +50544,7 @@ declare module 'tdlib-types' {
     | updateUserFullInfo
     | updateBasicGroupFullInfo
     | updateSupergroupFullInfo
+    | updateCommunityFullInfo
     | updateServiceNotification
     | updateNewOauthRequest
     | updateFile
@@ -47240,6 +50580,7 @@ declare module 'tdlib-types' {
     | updateChatActiveStories
     | updateStoryListChatCount
     | updateStoryStealthMode
+    | updateAllowedBotUsernamePremiumSuffixes
     | updateTrustedMiniAppBots
     | updateOption
     | updateStickerSet
@@ -47270,6 +50611,10 @@ declare module 'tdlib-types' {
     | updateActiveLiveLocationMessages
     | updateOwnedStarCount
     | updateOwnedGramCount
+    | updateTonWalletState
+    | updateTonWalletGaslessTransfersInfo
+    | updateTonWalletTonConnectSession
+    | updateTonWalletTonConnectSessionDisconnectRequired
     | updateChatRevenueAmount
     | updateStarRevenueStatus
     | updateGramRevenueStatus
@@ -47460,6 +50805,12 @@ declare module 'tdlib-types' {
     | deleteSavedMessagesTopicMessagesByDate
     | toggleSavedMessagesTopicIsPinned
     | setPinnedSavedMessagesTopics
+    | getCommunityFullInfo
+    | createCommunity
+    | setCommunityName
+    | setCommunityPhoto
+    | setCommunityPermissions
+    | deleteCommunity
     | getGroupsInCommon
     | getChatHistory
     | getMessageThreadHistory
@@ -47550,7 +50901,10 @@ declare module 'tdlib-types' {
     | editInlineMessageCaption
     | editInlineMessageReplyMarkup
     | editEphemeralMessage
+    | editEphemeralMessageCaption
+    | replyToCallbackQueryWithEphemeralMessage
     | editMessageSchedulingState
+    | deleteMessageEphemeralContent
     | setMessageFactCheck
     | sendBusinessMessage
     | sendBusinessMessageAlbum
@@ -47585,6 +50939,11 @@ declare module 'tdlib-types' {
     | addQuickReplyShortcutMessageAlbum
     | readdQuickReplyShortcutMessages
     | editQuickReplyMessage
+    | loadChatWelcomeMessages
+    | addChatWelcomeMessage
+    | editChatWelcomeMessage
+    | deleteChatWelcomeMessage
+    | deleteAllChatWelcomeMessages
     | getForumTopicDefaultIcons
     | createForumTopic
     | editForumTopic
@@ -47685,6 +51044,7 @@ declare module 'tdlib-types' {
     | sendChatAction
     | sendTextMessageDraft
     | sendRichMessageDraft
+    | stopPendingMessage
     | openChat
     | closeChat
     | viewMessages
@@ -48082,6 +51442,8 @@ declare module 'tdlib-types' {
     | setBotName
     | getBotName
     | setBotProfilePhoto
+    | addBotSecondaryUsername
+    | deleteBotSecondaryUsername
     | toggleBotUsernameIsActive
     | reorderBotActiveUsernames
     | setBotInfoDescription
@@ -48220,6 +51582,43 @@ declare module 'tdlib-types' {
     | getChatRevenueWithdrawalUrl
     | getChatRevenueTransactions
     | getTonTransactions
+    | getTonWalletTransactions
+    | getTonWalletTransaction
+    | getTonWalletTransactionByMsgHash
+    | loadTonWalletState
+    | loadTonWalletGaslessTransfersInfo
+    | checkWalletBotBalance
+    | getUserTonWalletAddresses
+    | createUserTonWallet
+    | getAddressTonWallet
+    | getTonWalletSecretPhrase
+    | getTonWalletOwnershipProofChallenge
+    | enableTonWalletBackup
+    | disableTonWalletBackup
+    | disableTonWalletBackupWithProof
+    | sendTonWalletTransfer
+    | deleteTonWallet
+    | replaceTonWallet
+    | getCurrencyExchangeRates
+    | getTonWalletNfts
+    | getTonConnectSessions
+    | createTonConnectSession
+    | setTonConnectSessionWalletClientId
+    | sendTonConnectSessionConnectResult
+    | getTonConnectSessionPendingRequests
+    | getTonConnectDAppPendingRequests
+    | claimTonConnectRequest
+    | answerTonConnectRequest
+    | getTonConnectSessionNextEventId
+    | disconnectTonConnectSession
+    | getOnRampProviders
+    | getOnRampProviderBaseCurrencies
+    | getOnRampPaymentAvailability
+    | getOnRampPaymentLimits
+    | getOnRampPaymentQuote
+    | createOnRampPaymentSession
+    | sendTonCenterApiRequest
+    | getTonCenterStreamingApiUrl
     | getStarRevenueStatistics
     | getStarWithdrawalUrl
     | getStarAdAccountUrl
@@ -48322,6 +51721,7 @@ declare module 'tdlib-types' {
     | getPhoneNumberInfoSync
     | getCollectibleItemInfo
     | getDeepLinkInfo
+    | dismissWebToken
     | getApplicationConfig
     | saveApplicationLogEvent
     | getApplicationDownloadLink
@@ -48472,6 +51872,12 @@ declare module 'tdlib-types' {
     deleteSavedMessagesTopicMessagesByDate: Ok,
     toggleSavedMessagesTopicIsPinned: Ok,
     setPinnedSavedMessagesTopics: Ok,
+    getCommunityFullInfo: CommunityFullInfo,
+    createCommunity: CommunityId,
+    setCommunityName: Ok,
+    setCommunityPhoto: Ok,
+    setCommunityPermissions: Ok,
+    deleteCommunity: Ok,
     getGroupsInCommon: Chats,
     getChatHistory: Messages,
     getMessageThreadHistory: Messages,
@@ -48562,7 +51968,10 @@ declare module 'tdlib-types' {
     editInlineMessageCaption: Ok,
     editInlineMessageReplyMarkup: Ok,
     editEphemeralMessage: Ok,
+    editEphemeralMessageCaption: Ok,
+    replyToCallbackQueryWithEphemeralMessage: Ok,
     editMessageSchedulingState: Ok,
+    deleteMessageEphemeralContent: Ok,
     setMessageFactCheck: Ok,
     sendBusinessMessage: BusinessMessage,
     sendBusinessMessageAlbum: BusinessMessages,
@@ -48597,6 +52006,11 @@ declare module 'tdlib-types' {
     addQuickReplyShortcutMessageAlbum: QuickReplyMessages,
     readdQuickReplyShortcutMessages: QuickReplyMessages,
     editQuickReplyMessage: Ok,
+    loadChatWelcomeMessages: Ok,
+    addChatWelcomeMessage: Ok,
+    editChatWelcomeMessage: Ok,
+    deleteChatWelcomeMessage: Ok,
+    deleteAllChatWelcomeMessages: Ok,
     getForumTopicDefaultIcons: Stickers,
     createForumTopic: ForumTopicInfo,
     editForumTopic: Ok,
@@ -48697,6 +52111,7 @@ declare module 'tdlib-types' {
     sendChatAction: Ok,
     sendTextMessageDraft: Ok,
     sendRichMessageDraft: Ok,
+    stopPendingMessage: Ok,
     openChat: Ok,
     closeChat: Ok,
     viewMessages: Ok,
@@ -49094,6 +52509,8 @@ declare module 'tdlib-types' {
     setBotName: Ok,
     getBotName: Text,
     setBotProfilePhoto: Ok,
+    addBotSecondaryUsername: Ok,
+    deleteBotSecondaryUsername: Ok,
     toggleBotUsernameIsActive: Ok,
     reorderBotActiveUsernames: Ok,
     setBotInfoDescription: Ok,
@@ -49232,6 +52649,43 @@ declare module 'tdlib-types' {
     getChatRevenueWithdrawalUrl: HttpUrl,
     getChatRevenueTransactions: ChatRevenueTransactions,
     getTonTransactions: TonTransactions,
+    getTonWalletTransactions: TonWalletTransactions,
+    getTonWalletTransaction: TonWalletTransaction,
+    getTonWalletTransactionByMsgHash: TonWalletTransaction,
+    loadTonWalletState: Ok,
+    loadTonWalletGaslessTransfersInfo: Ok,
+    checkWalletBotBalance: WalletBotBalance,
+    getUserTonWalletAddresses: UserTonWalletAddresses,
+    createUserTonWallet: UserTonWalletAddress,
+    getAddressTonWallet: UserTonWalletAddress,
+    getTonWalletSecretPhrase: Text,
+    getTonWalletOwnershipProofChallenge: TonWalletOwnershipProofChallenge,
+    enableTonWalletBackup: Ok,
+    disableTonWalletBackup: Ok,
+    disableTonWalletBackupWithProof: Ok,
+    sendTonWalletTransfer: TonWalletTransferResult,
+    deleteTonWallet: Ok,
+    replaceTonWallet: Ok,
+    getCurrencyExchangeRates: CurrencyExchangeRates,
+    getTonWalletNfts: TonNfts,
+    getTonConnectSessions: TonConnectSessions,
+    createTonConnectSession: TonConnectSession,
+    setTonConnectSessionWalletClientId: TonConnectChallenge,
+    sendTonConnectSessionConnectResult: Ok,
+    getTonConnectSessionPendingRequests: TonConnectRequests,
+    getTonConnectDAppPendingRequests: TonConnectRequests,
+    claimTonConnectRequest: Ok,
+    answerTonConnectRequest: Ok,
+    getTonConnectSessionNextEventId: TonConnectSessionEventId,
+    disconnectTonConnectSession: Ok,
+    getOnRampProviders: OnRampProviders,
+    getOnRampProviderBaseCurrencies: Currencies,
+    getOnRampPaymentAvailability: OnRampPaymentAvailability,
+    getOnRampPaymentLimits: OnRampPaymentLimits,
+    getOnRampPaymentQuote: OnRampPaymentQuote,
+    createOnRampPaymentSession: OnRampPaymentSession,
+    sendTonCenterApiRequest: Text,
+    getTonCenterStreamingApiUrl: TonCenterStreamingApiUrl,
     getStarRevenueStatistics: StarRevenueStatistics,
     getStarWithdrawalUrl: HttpUrl,
     getStarAdAccountUrl: HttpUrl,
@@ -49334,6 +52788,7 @@ declare module 'tdlib-types' {
     getPhoneNumberInfoSync: PhoneNumberInfo,
     getCollectibleItemInfo: CollectibleItemInfo,
     getDeepLinkInfo: DeepLinkInfo,
+    dismissWebToken: Ok,
     getApplicationConfig: JsonValue,
     saveApplicationLogEvent: Ok,
     getApplicationDownloadLink: HttpUrl,
@@ -49485,6 +52940,12 @@ declare module 'tdlib-types' {
     deleteSavedMessagesTopicMessagesByDate: deleteSavedMessagesTopicMessagesByDate,
     toggleSavedMessagesTopicIsPinned: toggleSavedMessagesTopicIsPinned,
     setPinnedSavedMessagesTopics: setPinnedSavedMessagesTopics,
+    getCommunityFullInfo: getCommunityFullInfo,
+    createCommunity: createCommunity,
+    setCommunityName: setCommunityName,
+    setCommunityPhoto: setCommunityPhoto,
+    setCommunityPermissions: setCommunityPermissions,
+    deleteCommunity: deleteCommunity,
     getGroupsInCommon: getGroupsInCommon,
     getChatHistory: getChatHistory,
     getMessageThreadHistory: getMessageThreadHistory,
@@ -49575,7 +53036,10 @@ declare module 'tdlib-types' {
     editInlineMessageCaption: editInlineMessageCaption,
     editInlineMessageReplyMarkup: editInlineMessageReplyMarkup,
     editEphemeralMessage: editEphemeralMessage,
+    editEphemeralMessageCaption: editEphemeralMessageCaption,
+    replyToCallbackQueryWithEphemeralMessage: replyToCallbackQueryWithEphemeralMessage,
     editMessageSchedulingState: editMessageSchedulingState,
+    deleteMessageEphemeralContent: deleteMessageEphemeralContent,
     setMessageFactCheck: setMessageFactCheck,
     sendBusinessMessage: sendBusinessMessage,
     sendBusinessMessageAlbum: sendBusinessMessageAlbum,
@@ -49610,6 +53074,11 @@ declare module 'tdlib-types' {
     addQuickReplyShortcutMessageAlbum: addQuickReplyShortcutMessageAlbum,
     readdQuickReplyShortcutMessages: readdQuickReplyShortcutMessages,
     editQuickReplyMessage: editQuickReplyMessage,
+    loadChatWelcomeMessages: loadChatWelcomeMessages,
+    addChatWelcomeMessage: addChatWelcomeMessage,
+    editChatWelcomeMessage: editChatWelcomeMessage,
+    deleteChatWelcomeMessage: deleteChatWelcomeMessage,
+    deleteAllChatWelcomeMessages: deleteAllChatWelcomeMessages,
     getForumTopicDefaultIcons: getForumTopicDefaultIcons,
     createForumTopic: createForumTopic,
     editForumTopic: editForumTopic,
@@ -49710,6 +53179,7 @@ declare module 'tdlib-types' {
     sendChatAction: sendChatAction,
     sendTextMessageDraft: sendTextMessageDraft,
     sendRichMessageDraft: sendRichMessageDraft,
+    stopPendingMessage: stopPendingMessage,
     openChat: openChat,
     closeChat: closeChat,
     viewMessages: viewMessages,
@@ -50107,6 +53577,8 @@ declare module 'tdlib-types' {
     setBotName: setBotName,
     getBotName: getBotName,
     setBotProfilePhoto: setBotProfilePhoto,
+    addBotSecondaryUsername: addBotSecondaryUsername,
+    deleteBotSecondaryUsername: deleteBotSecondaryUsername,
     toggleBotUsernameIsActive: toggleBotUsernameIsActive,
     reorderBotActiveUsernames: reorderBotActiveUsernames,
     setBotInfoDescription: setBotInfoDescription,
@@ -50245,6 +53717,43 @@ declare module 'tdlib-types' {
     getChatRevenueWithdrawalUrl: getChatRevenueWithdrawalUrl,
     getChatRevenueTransactions: getChatRevenueTransactions,
     getTonTransactions: getTonTransactions,
+    getTonWalletTransactions: getTonWalletTransactions,
+    getTonWalletTransaction: getTonWalletTransaction,
+    getTonWalletTransactionByMsgHash: getTonWalletTransactionByMsgHash,
+    loadTonWalletState: loadTonWalletState,
+    loadTonWalletGaslessTransfersInfo: loadTonWalletGaslessTransfersInfo,
+    checkWalletBotBalance: checkWalletBotBalance,
+    getUserTonWalletAddresses: getUserTonWalletAddresses,
+    createUserTonWallet: createUserTonWallet,
+    getAddressTonWallet: getAddressTonWallet,
+    getTonWalletSecretPhrase: getTonWalletSecretPhrase,
+    getTonWalletOwnershipProofChallenge: getTonWalletOwnershipProofChallenge,
+    enableTonWalletBackup: enableTonWalletBackup,
+    disableTonWalletBackup: disableTonWalletBackup,
+    disableTonWalletBackupWithProof: disableTonWalletBackupWithProof,
+    sendTonWalletTransfer: sendTonWalletTransfer,
+    deleteTonWallet: deleteTonWallet,
+    replaceTonWallet: replaceTonWallet,
+    getCurrencyExchangeRates: getCurrencyExchangeRates,
+    getTonWalletNfts: getTonWalletNfts,
+    getTonConnectSessions: getTonConnectSessions,
+    createTonConnectSession: createTonConnectSession,
+    setTonConnectSessionWalletClientId: setTonConnectSessionWalletClientId,
+    sendTonConnectSessionConnectResult: sendTonConnectSessionConnectResult,
+    getTonConnectSessionPendingRequests: getTonConnectSessionPendingRequests,
+    getTonConnectDAppPendingRequests: getTonConnectDAppPendingRequests,
+    claimTonConnectRequest: claimTonConnectRequest,
+    answerTonConnectRequest: answerTonConnectRequest,
+    getTonConnectSessionNextEventId: getTonConnectSessionNextEventId,
+    disconnectTonConnectSession: disconnectTonConnectSession,
+    getOnRampProviders: getOnRampProviders,
+    getOnRampProviderBaseCurrencies: getOnRampProviderBaseCurrencies,
+    getOnRampPaymentAvailability: getOnRampPaymentAvailability,
+    getOnRampPaymentLimits: getOnRampPaymentLimits,
+    getOnRampPaymentQuote: getOnRampPaymentQuote,
+    createOnRampPaymentSession: createOnRampPaymentSession,
+    sendTonCenterApiRequest: sendTonCenterApiRequest,
+    getTonCenterStreamingApiUrl: getTonCenterStreamingApiUrl,
     getStarRevenueStatistics: getStarRevenueStatistics,
     getStarWithdrawalUrl: getStarWithdrawalUrl,
     getStarAdAccountUrl: getStarAdAccountUrl,
@@ -50347,6 +53856,7 @@ declare module 'tdlib-types' {
     getPhoneNumberInfoSync: getPhoneNumberInfoSync,
     getCollectibleItemInfo: getCollectibleItemInfo,
     getDeepLinkInfo: getDeepLinkInfo,
+    dismissWebToken: dismissWebToken,
     getApplicationConfig: getApplicationConfig,
     saveApplicationLogEvent: saveApplicationLogEvent,
     getApplicationDownloadLink: getApplicationDownloadLink,

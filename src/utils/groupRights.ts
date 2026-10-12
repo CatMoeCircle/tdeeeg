@@ -321,6 +321,7 @@ export function emptyAdminRights(): chatAdministratorRights {
     can_delete_stories: false,
     can_manage_direct_messages: false,
     can_manage_tags: false,
+    can_send_welcome_messages: false,
     is_anonymous: false,
   };
 }

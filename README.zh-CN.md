@@ -106,7 +106,7 @@ Linux 端目前尚未适配，也未进行可用性验证，主要受限于维�
 | macOS | `libtdjson.dylib` |
 | Linux | `libtdjson.so` |
 
-当前推荐 TDLib 版本 1.8.66
+当前推荐 TDLib 版本 1.8.68
 
 ### 2. 环境变量
 

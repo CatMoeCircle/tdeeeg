@@ -61,7 +61,7 @@ When runtime UI debugging is needed, prefer the configured **chrome-devtools** t
   - Windows: `tdjson.dll`
   - macOS: `libtdjson.dylib`
   - Linux: `libtdjson.so`
-  - Recommended version: `1.8.66`
+  - Recommended version: `1.8.68`
 - **`src-tauri/.env`** (never commit secrets):
 
 ```env
