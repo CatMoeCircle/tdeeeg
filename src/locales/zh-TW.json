@@ -1019,6 +1019,21 @@
     "selectUser": "選擇用戶",
     "userLoadFailed": "載入用戶失敗"
   },
+  "newChat": {
+    "title": "新增對話",
+    "newGroup": "新增群組",
+    "newChannel": "新增頻道",
+    "groupAboutPh": "新增群組簡介...",
+    "channelAboutPh": "新增頻道簡介...",
+    "addMembers": "新增成員",
+    "create": "建立",
+    "creating": "建立中...",
+    "titleRequired": "名稱不能為空",
+    "createFailed": "建立失敗",
+    "groupCreated": "群組已建立",
+    "channelCreated": "頻道已建立",
+    "membersFailed": "有 {count} 位用戶未能加入"
+  },
   "secretChat": {
     "label": "秘密聊天",
     "autoDeleteTitle": "自動刪除訊息",

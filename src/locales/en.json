@@ -1019,6 +1019,21 @@
     "selectUser": "Select user",
     "userLoadFailed": "Failed to load users"
   },
+  "newChat": {
+    "title": "New chat",
+    "newGroup": "New group",
+    "newChannel": "New channel",
+    "groupAboutPh": "Add a description...",
+    "channelAboutPh": "Add a channel description...",
+    "addMembers": "Add members",
+    "create": "Create",
+    "creating": "Creating...",
+    "titleRequired": "Name cannot be empty",
+    "createFailed": "Failed to create chat",
+    "groupCreated": "Group created",
+    "channelCreated": "Channel created",
+    "membersFailed": "{count} users couldn't be added"
+  },
   "secretChat": {
     "label": "Secret Chat",
     "autoDeleteTitle": "Auto-Delete Messages",

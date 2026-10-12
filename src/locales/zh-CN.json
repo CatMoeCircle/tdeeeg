@@ -1026,6 +1026,21 @@
     "selectUser": "选择用户",
     "userLoadFailed": "加载用户失败"
   },
+  "newChat": {
+    "title": "新建会话",
+    "newGroup": "新建群组",
+    "newChannel": "新建频道",
+    "groupAboutPh": "添加群组简介...",
+    "channelAboutPh": "添加频道简介...",
+    "addMembers": "添加成员",
+    "create": "创建",
+    "creating": "创建中...",
+    "titleRequired": "名称不能为空",
+    "createFailed": "创建失败",
+    "groupCreated": "群组已创建",
+    "channelCreated": "频道已创建",
+    "membersFailed": "有 {count} 位用户未能加入"
+  },
   "secretChat": {
     "label": "秘密聊天",
     "autoDeleteTitle": "自动删除消息",

@@ -25,13 +25,20 @@
                             class="w-full text-xs focus:outline-none"
                             :class="[
                                 settings.folderStyle === 'soft'
-                                    ? `pl-8 pr-4 py-2 rounded-full ${UI_GLASS_SURFACE}`
-                                    : `pl-7 pr-3.5 py-1.5 rounded-full ${UI_GLASS_SURFACE}`,
+                                    ? `pl-8 pr-8 py-2 rounded-full ${UI_GLASS_SURFACE}`
+                                    : `pl-7 pr-8 py-1.5 rounded-full ${UI_GLASS_SURFACE}`,
                                 !searchMode ? 'cursor-pointer' : '',
                             ]"
                             @click="enterSearchMode" @focus="enterSearchMode" @keydown.esc="exitSearchMode" />
                         <SearchIcon class="w-3.5 h-3.5 absolute left-2.5 text-gray-400 pointer-events-none"
                             :class="settings.folderStyle === 'soft' ? 'top-2.5' : 'top-2'" />
+                        <!-- 新建：右端 + 按钮 → 群组 / 频道（搜索态隐藏，避免和输入冲突） -->
+                        <button v-if="!searchMode" type="button" :aria-label="t('newChat.title')"
+                            :title="t('newChat.title')"
+                            class="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                            @click.stop="openNewChatMenu">
+                            <PlusIcon class="w-4 h-4" />
+                        </button>
                     </div>
                 </div>
             </div>
@@ -415,6 +422,9 @@
                 </div>
             </div>
         </Transition>
+
+        <!-- 新建群组 / 频道 -->
+        <NewChatDialog v-model="newChatVisible" :mode="newChatMode" />
     </div>
 </template>
 
@@ -423,7 +433,7 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, type Component } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon, UserIcon, UsersIcon, MegaphoneIcon, BotIcon, FolderIcon, BellOffIcon, PinIcon, ArchiveIcon, ChevronRightIcon, ArchiveRestore as ArchiveRestoreIcon, PinOff as PinOffIcon, FolderPlus as FolderPlusIcon, FolderMinus as FolderMinusIcon, BellRing as BellRingIcon, LogOut as LogOutIcon, CheckCheck as CheckCheckIcon, Trash2 as Trash2Icon, X as XIcon, Copy as CopyIcon } from 'lucide-vue-next';
+import { BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon, UserIcon, UsersIcon, MegaphoneIcon, BotIcon, FolderIcon, BellOffIcon, PinIcon, ArchiveIcon, ChevronRightIcon, ArchiveRestore as ArchiveRestoreIcon, PinOff as PinOffIcon, FolderPlus as FolderPlusIcon, FolderMinus as FolderMinusIcon, BellRing as BellRingIcon, LogOut as LogOutIcon, CheckCheck as CheckCheckIcon, Trash2 as Trash2Icon, X as XIcon, Copy as CopyIcon, Plus as PlusIcon } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
 import { settings } from '../../store/settings';
 import {
@@ -457,6 +467,8 @@ import MessagePreviewMedia from './MessagePreviewMedia.vue';
 import CustomEmojiInline from '../common/CustomEmojiInline.vue';
 import SlidingTabBar from '../common/SlidingTabBar.vue';
 import ChatSearchPanel from './ChatSearchPanel.vue';
+import NewChatDialog from './NewChatDialog.vue';
+import { openContextMenu } from '../../store/contextMenu';
 import {
     messageContentTypeLabel,
     stickerBracketPreview,
@@ -683,6 +695,35 @@ function exitSearchMode() {
     searchQuery.value = '';
     // 移开焦点，避免 readonly 输入框残留焦点环
     searchInputEl.value?.blur();
+}
+
+// ==================== 新建群组 / 频道 ====================
+const newChatVisible = ref(false);
+const newChatMode = ref<'group' | 'channel'>('group');
+
+/** 搜索框右端「+」：复用全局右键菜单弹出创建选项（Unigram RootDestination.NewGroup / NewChannel） */
+function openNewChatMenu(e: MouseEvent) {
+    const el = e.currentTarget as HTMLElement;
+    const rect = el.getBoundingClientRect();
+    openContextMenu(rect.left - 60, rect.bottom + 6, [
+        {
+            key: 'new-group',
+            label: t('newChat.newGroup'),
+            icon: UsersIcon,
+            onClick: () => openNewChat('group'),
+        },
+        {
+            key: 'new-channel',
+            label: t('newChat.newChannel'),
+            icon: MegaphoneIcon,
+            onClick: () => openNewChat('channel'),
+        },
+    ], el);
+}
+
+function openNewChat(mode: 'group' | 'channel') {
+    newChatMode.value = mode;
+    newChatVisible.value = true;
 }
 
 const currentIndex = computed(() => {

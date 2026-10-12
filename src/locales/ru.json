@@ -1019,6 +1019,21 @@
     "selectUser": "Выбрать пользователя",
     "userLoadFailed": "Не удалось загрузить пользователей"
   },
+  "newChat": {
+    "title": "Новый чат",
+    "newGroup": "Новая группа",
+    "newChannel": "Новый канал",
+    "groupAboutPh": "Добавьте описание...",
+    "channelAboutPh": "Добавьте описание канала...",
+    "addMembers": "Добавить участников",
+    "create": "Создать",
+    "creating": "Создание...",
+    "titleRequired": "Название не может быть пустым",
+    "createFailed": "Не удалось создать чат",
+    "groupCreated": "Группа создана",
+    "channelCreated": "Канал создан",
+    "membersFailed": "Не удалось добавить пользователей: {count}"
+  },
   "secretChat": {
     "label": "Секретный чат",
     "autoDeleteTitle": "Авто-удаление сообщений",
