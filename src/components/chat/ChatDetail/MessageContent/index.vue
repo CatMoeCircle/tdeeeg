@@ -132,6 +132,7 @@ const SERVICE_TYPES = new Set([
     'messageChatAddMembers',
     'messageChatJoinByLink',
     'messageChatJoinByRequest',
+    'messageChatJoinFromCommunity',
     'messageChatDeleteMember',
     'messageChatAddedToCommunity',
     'messageChatUpgradeTo',

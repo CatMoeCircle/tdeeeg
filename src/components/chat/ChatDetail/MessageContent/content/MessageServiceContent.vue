@@ -449,6 +449,13 @@ const serviceText = computed<ServicePart[] | string | null>(() => {
             return t('lng_action_user_joined_by_link', { from: sender.value });
         case 'messageChatJoinByRequest':
             return t('lng_action_user_joined_by_request', { from: sender.value });
+        case 'messageChatJoinFromCommunity': {
+            // 社群名未缓存时用官方「通过社群加入（无名）」文案兜底
+            const name = communityStore.names[c.community_id];
+            return name
+                ? t('lng_action_user_joined_via_community', { from: sender.value, community: name })
+                : t('lng_action_user_joined_via_community_unknown', { from: sender.value });
+        }
         case 'messageChatDeleteMember':
             return memberRemovedText(c.user_id);
         case 'messageChatUpgradeTo':

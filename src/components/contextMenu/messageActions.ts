@@ -103,6 +103,7 @@ export function isServiceMessage(msg: message): boolean {
         case "messageChatDeletePhoto":
         case "messageChatJoinByLink":
         case "messageChatJoinByRequest":
+        case "messageChatJoinFromCommunity":
         case "messageChatUpgradeFrom":
         case "messageChatUpgradeTo":
         case "messageCustomServiceAction":

@@ -698,7 +698,23 @@ export interface LanguagePackExport {
     strings: languagePackString[];
     /** 方便直接阅读的扁平 map（复数取 other_value） */
     flat: Record<string, string>;
+    /** 复数六形态（与 td-en.json 的 plurals 字段同构） */
+    plurals: Record<string, TDPluralForms>;
     stringCount: number;
+}
+
+/** 打包内置 en 保底文件结构：strings + plurals（与 src/locales/td-en.json 一致） */
+export interface BundledTdEnFile {
+    strings: Record<string, string>;
+    plurals: Record<string, TDPluralForms>;
+}
+
+/** 将完整语言包导出转换为 td-en.json 结构（strings + plurals） */
+export function exportToBundledTdEn(exp: LanguagePackExport): BundledTdEnFile {
+    return {
+        strings: { ...exp.flat },
+        plurals: { ...exp.plurals },
+    };
 }
 
 /**
@@ -754,7 +770,7 @@ export async function buildLanguagePackExport(
     opts: { onlyLocal?: boolean } = {}
 ): Promise<LanguagePackExport> {
     const { info, strings } = await fetchLanguagePackAllStrings(packId, opts);
-    const { flat } = flattenPackStrings(strings);
+    const { flat, plurals } = flattenPackStrings(strings);
     return {
         exportedAt: new Date().toISOString(),
         localizationTarget: LOCALIZATION_TARGET,
@@ -762,6 +778,7 @@ export async function buildLanguagePackExport(
         info,
         strings,
         flat,
+        plurals,
         stringCount: strings.length,
     };
 }

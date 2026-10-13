@@ -154,6 +154,43 @@
                     </button>
                 </section>
 
+                <!-- 导出语言包（按 pack id） -->
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
+                        {{ t('dev.exportPack') }}</h3>
+                    <p class="text-xs text-gray-500 mb-3">{{ t('dev.exportPackDesc') }}</p>
+
+                    <div class="flex items-center gap-2">
+                        <input v-model="exportPackId" type="text" placeholder="en / zh-hans / ja-raw" spellcheck="false"
+                            class="flex-1 min-w-0 bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2 text-sm font-mono outline-none focus:ring-1 ring-blue-500"
+                            @keyup.enter="runExportPack('json')" />
+                        <button type="button"
+                            class="shrink-0 px-4 py-2 rounded-lg text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50"
+                            :disabled="exportPackBusy || !exportPackId.trim()" @click="runExportPack('json')">
+                            {{ exportPackBusy ? t('dev.exportPackBusy') : t('dev.exportPackRun') }}
+                        </button>
+                    </div>
+
+                    <p v-if="exportPackId.trim() === 'en' || exportPackId.trim().startsWith('en-')"
+                        class="mt-2 text-[11px] text-gray-400 leading-4">
+                        {{ t('dev.exportPackEnHint') }}
+                    </p>
+                    <button type="button" v-if="exportPackId.trim() === 'en' || exportPackId.trim().startsWith('en-')"
+                        class="mt-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50"
+                        :disabled="exportPackBusy" @click="runExportPack('tdEn')">
+                        {{ t('dev.exportPackWriteTdEn') }}
+                    </button>
+
+                    <p v-if="exportPackStatus"
+                        class="mt-3 text-xs font-mono text-green-600 dark:text-green-400 whitespace-pre-wrap break-all">
+                        {{ exportPackStatus }}
+                    </p>
+                    <p v-if="exportPackError"
+                        class="mt-3 text-xs font-mono text-red-500 dark:text-red-400 whitespace-pre-wrap break-all">
+                        {{ exportPackError }}
+                    </p>
+                </section>
+
                 <!-- 翻译门控 / 语言识别测试 -->
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
@@ -308,6 +345,8 @@ import {
 import { onTdlibUpdate } from '../../store/tdlibBus';
 import { readCrashLog, clearCrashLog } from '../../utils/crashGuard';
 import { settings } from '../../store/settings';
+import { save } from '@tauri-apps/plugin-dialog';
+import { writeFile } from '@tauri-apps/plugin-fs';
 import { getTranslateTargetLang } from '../../store/translate';
 import { getTranslateLanguageLabel } from '../../utils/translateLanguages';
 import {
@@ -560,5 +599,78 @@ function clearLangTest() {
     langTestResult.value = null;
     langTestCandidates.value = [];
     langTestError.value = '';
+}
+
+// ─── 按 pack id 导出语言包 ─────────────────────────
+
+const exportPackId = ref('en');
+const exportPackBusy = ref(false);
+const exportPackStatus = ref('');
+const exportPackError = ref('');
+
+/**
+ * 输入语言包 ID → getLanguagePackStrings(keys=[]) 拉全量 → 导出。
+ * mode=json：保存为 tdgram-tddesktop-<packId>-<时间戳>.json
+ * mode=tdEn：仅 en 包，将 flat 写入 src/locales/td-en.json（开发环境更新内置保底）
+ */
+async function runExportPack(mode: 'json' | 'tdEn') {
+    const packId = exportPackId.value.trim();
+    if (!packId || exportPackBusy.value) return;
+    exportPackBusy.value = true;
+    exportPackStatus.value = '';
+    exportPackError.value = '';
+    try {
+        const { buildLanguagePackExport, languagePackExportFileName, exportToBundledTdEn } = await import(
+            '../../utils/languagePacks'
+        );
+        const payload = await buildLanguagePackExport(packId);
+
+        if (mode === 'json') {
+            const defaultName = languagePackExportFileName(packId);
+            const dest = await save({
+                title: t('dev.exportPackRun'),
+                defaultPath: defaultName,
+                filters: [{ name: 'JSON', extensions: ['json'] }],
+            });
+            if (!dest) {
+                exportPackStatus.value = t('dev.exportPackCancelled');
+                return;
+            }
+            await writeFile(dest, new TextEncoder().encode(JSON.stringify(payload, null, 2)));
+            exportPackStatus.value = t('dev.exportPackSaved', {
+                count: payload.stringCount,
+                path: dest,
+            });
+            console.log('[exportPack] saved', dest, payload);
+            return;
+        }
+
+        // mode === 'tdEn'：写出与 src/locales/td-en.json 同构的 { strings, plurals }
+        if (!packId.startsWith('en')) {
+            throw new Error('td-en only supports en* packs, got: ' + packId);
+        }
+        const path = await save({
+            title: t('dev.exportPackWriteTdEn'),
+            defaultPath: 'td-en.json',
+            filters: [{ name: 'JSON', extensions: ['json'] }],
+        });
+        if (!path) {
+            exportPackStatus.value = t('dev.exportPackCancelled');
+            return;
+        }
+        const bundled = exportToBundledTdEn(payload);
+        await writeFile(path, new TextEncoder().encode(JSON.stringify(bundled, null, 2)));
+        exportPackStatus.value = t('dev.exportPackTdEnSaved', {
+            path,
+            strings: Object.keys(bundled.strings).length,
+            plurals: Object.keys(bundled.plurals).length,
+        });
+        console.log('[exportPack] td-en {strings,plurals} saved', path);
+    } catch (e) {
+        exportPackError.value = e && typeof e === 'object' ? JSON.stringify(e) : String(e);
+        console.error('[exportPack] failed:', e);
+    } finally {
+        exportPackBusy.value = false;
+    }
 }
 </script>

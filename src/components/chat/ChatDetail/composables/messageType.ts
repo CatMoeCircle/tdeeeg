@@ -32,6 +32,7 @@ export const SERVICE_TYPES: ReadonlySet<string> = new Set([
   "messageChatAddMembers",
   "messageChatJoinByLink",
   "messageChatJoinByRequest",
+  "messageChatJoinFromCommunity",
   "messageChatDeleteMember",
   "messageChatAddedToCommunity",
   "messageChatUpgradeTo",
