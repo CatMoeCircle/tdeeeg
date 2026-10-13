@@ -33,6 +33,7 @@ export const SERVICE_TYPES: ReadonlySet<string> = new Set([
   "messageChatJoinByLink",
   "messageChatJoinByRequest",
   "messageChatDeleteMember",
+  "messageChatAddedToCommunity",
   "messageChatUpgradeTo",
   "messageChatUpgradeFrom",
   "messagePinMessage",
@@ -133,7 +134,7 @@ export function isAlbumMedia(msg: message): boolean {
 }
 
 /**
- * 判断消息是否为"独立消息"（贴纸 / 动画表情 / 圆形视频）。
+ * 判断消息是否为"独立消息"（贴纸 / 动画表情 / 骰子 / 圆形视频）。
  * 独立消息不渲染常规气泡背景与时间状态行。
  *
  * @param msg - 待判断的 TDLib 消息对象
@@ -143,6 +144,7 @@ export function isStandaloneMessage(msg: message): boolean {
   return (
     msg.content._ === "messageSticker" ||
     msg.content._ === "messageAnimatedEmoji" ||
+    msg.content._ === "messageDice" ||
     msg.content._ === "messageVideoNote"
   );
 }
@@ -179,7 +181,7 @@ export function isServiceMessage(msg: message): boolean {
 /**
  * 频道消息底部是否显示评论条（参考 Unigram MessageBubble 的 Thread 行）：
  * 仅频道帖子（is_channel_post）且已关联讨论组（interaction_info.reply_info 存在）；
- * 服务消息与无气泡的独立消息（贴纸 / 动画表情）不显示。
+ * 服务消息与无气泡的独立消息（贴纸 / 动画表情 / 骰子）不显示。
  */
 export function showChannelCommentsBar(msg: message): boolean {
   if (isServiceMessage(msg)) return false;

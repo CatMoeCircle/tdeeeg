@@ -54,14 +54,16 @@
             </template>
         </MessageMediaContent>
 
-        <!-- Stickers / animated emoji are rendered without a message bubble.
+        <!-- Stickers / animated emoji / dice are rendered without a message bubble.
              回复预览显示在贴纸旁边（小宽度），而非贴纸上方。
              ReactionsBar 贴纸下方：自己靠右、他人靠左 -->
         <div v-else-if="isStickerLikeContent" class="flex items-end gap-1.5 pb-2">
             <!-- 贴纸 + 回应：自己消息在右，他人在左 -->
             <div class="flex flex-col gap-0.5 min-w-0" :class="isSelf ? 'items-end order-2' : 'items-start order-1'">
                 <div class="relative inline-block align-bottom">
-                    <MessageStickerContent :content="stickerContent" />
+                    <MessageDiceContent v-if="content._ === 'messageDice'" :content="content" :chat-id="chatId"
+                        :message-id="messageId" />
+                    <MessageStickerContent v-else :content="stickerContent" />
                     <span v-if="date && !settings.sticker.hideTimestamp"
                         class="absolute right-1.5 bottom-1.5 z-10 bg-black/60 text-white px-1.5 py-0.5 rounded-md leading-none select-none pointer-events-none flex items-center">
                         <MessageStatus :date="date" :isOutgoing="!!isSelf" :sendingState="sendingState" :isRead="isRead"
@@ -103,6 +105,7 @@ import MessageRichMessage from './rich/MessageRichMessage.vue';
 import MessageChecklistContent from './content/MessageChecklistContent.vue';
 import MessageMediaContent from './content/MessageMediaContent.vue';
 import MessageStickerContent from './content/MessageStickerContent.vue';
+import MessageDiceContent from './content/MessageDiceContent.vue';
 import MessageVoiceContent from './content/MessageVoiceContent.vue';
 import MessageFileContent from './content/MessageFileContent.vue';
 import MessageServiceContent from './content/MessageServiceContent.vue';
@@ -130,6 +133,7 @@ const SERVICE_TYPES = new Set([
     'messageChatJoinByLink',
     'messageChatJoinByRequest',
     'messageChatDeleteMember',
+    'messageChatAddedToCommunity',
     'messageChatUpgradeTo',
     'messageChatUpgradeFrom',
     'messagePinMessage',
@@ -258,9 +262,11 @@ function isServiceContent(content: MessageContent): boolean {
     return SERVICE_TYPES.has(content._);
 }
 
-/** 贴纸 / 动画表情：无气泡渲染，回复显示在贴纸旁边（小宽度） */
+/** 贴纸 / 动画表情 / 骰子：无气泡渲染，回复显示在旁边（小宽度） */
 const isStickerLikeContent = computed(
-    () => props.content._ === 'messageSticker' || props.content._ === 'messageAnimatedEmoji',
+    () => props.content._ === 'messageSticker'
+        || props.content._ === 'messageAnimatedEmoji'
+        || props.content._ === 'messageDice',
 );
 /** 贴纸 / 动画表情的窄化内容（供 MessageStickerContent 使用） */
 const stickerContent = computed<messageSticker | messageAnimatedEmoji>(

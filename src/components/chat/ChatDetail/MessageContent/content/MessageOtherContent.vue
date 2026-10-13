@@ -28,13 +28,6 @@
         <MessagePollContent v-else-if="content._ === 'messagePoll'" :content="content" :chat-id="chatId"
             :message-id="messageId" />
 
-        <!-- Dice -->
-        <div v-else-if="content._ === 'messageDice'"
-            class="text-4xl text-center py-2 flex items-center justify-center gap-3">
-            <span :style="{ fontSize: '36px', lineHeight: '1' }">{{ content.emoji }}</span>
-            <span class="text-4xl">{{ content.value }}</span>
-        </div>
-
         <!-- Game -->
         <div v-else-if="content._ === 'messageGame'" class="text-sm">
             <p class="font-medium">{{ content.game.title }}</p>

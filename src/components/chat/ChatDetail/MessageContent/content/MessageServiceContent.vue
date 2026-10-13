@@ -50,6 +50,7 @@ import type { chatPhoto, file, formattedText, MessageContent, message, photoSize
 import { ensureLocalFilePath, tdlibSend } from '../../../../../utils/tdlib';
 import { ensureUser, getUserDisplayName } from '../../../../../utils/senderInfo';
 import { useChatStore } from '../../../../../store/chat';
+import { useCommunityStore } from '../../../../../store/community';
 import { openMediaViewer } from '../../../../../store/mediaViewer';
 import FormattedTextInline from '../../../FormattedTextInline.vue';
 import WallpaperPreviewDialog from '../../../WallpaperPreviewDialog.vue';
@@ -109,6 +110,7 @@ const wallpaperFileSrc = ref('');
 const wallpaperPreviewOpen = ref(false);
 
 const chatStore = useChatStore();
+const communityStore = useCommunityStore();
 
 /**
  * 弹窗里的 {user} 取「对话对方」：对方设的壁纸发送者就是对方，
@@ -530,6 +532,13 @@ const serviceText = computed<ServicePart[] | string | null>(() => {
         }
         case 'messageProximityAlertTriggered':
             return t('service.proximityAlert');
+        case 'messageChatAddedToCommunity': {
+            // 社群名未缓存时用官方「已加入到某社群」无名文案兜底
+            const name = communityStore.names[c.community_id];
+            return name
+                ? t('lng_action_community_added_channel', { community: name })
+                : t('lng_action_community_added_unknown_channel');
+        }
         default:
             // null = 本 switch 未覆盖该类型，交由 unadapted 渲染未适配卡片（其余分支均返回非空文案）
             return null;

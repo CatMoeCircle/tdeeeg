@@ -8,6 +8,7 @@ import { useUploadStore } from "./store/upload";
 import { useConnectionStore } from "./store/connectionState";
 import { useOptionsStore } from "./store/options";
 import { useUserStore } from "./store/user";
+import { useCommunityStore } from "./store/community";
 import { useAccountsStore } from "./store/accounts";
 import { useLanguageStore } from "./store/language";
 import { initSenderInfo } from "./utils/senderInfo";
@@ -55,6 +56,8 @@ export async function initTdlib() {
     await initSenderInfo();
     // 初始化当前用户信息监听（user 通道）
     await userStore.initUpdates();
+    // 初始化社群名称缓存监听（other 通道 updateCommunity）
+    useCommunityStore().initUpdates();
     // 初始化多账户管理
     await accountsStore.init();
     // 壁纸：按活动账户从本地缓存恢复（选择后已缓存）

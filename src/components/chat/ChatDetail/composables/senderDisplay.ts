@@ -263,7 +263,7 @@ export function getDisplaySenderNames(
 /**
  * 判断是否显示发送者名称：有 author_signature 时显示；否则非自己消息且开启了发送者名称才显示。
  * 自己通过内联机器人发送的消息也显示名称行（用于在名称旁展示 `via @bot`）。
- * 媒体（图片/视频/动画）与独立消息（贴纸/动画 emoji）不显示名称行。
+ * 媒体（图片/视频/动画）与独立消息（贴纸/动画 emoji/骰子）不显示名称行。
  *
  * @param msg - 消息对象
  * @param deps - 外部依赖
