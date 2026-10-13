@@ -22,6 +22,23 @@
 
         <AttachmentTray />
 
+        <!-- 机器人命令快捷弹窗：输入以 / 开头时在输入框顶部弹出；
+             点击按设置 botCommandInsert 决定放入输入框或直接发送 -->
+        <Transition name="mi-fade">
+            <div v-if="commandSuggestions.length"
+                class="mb-2 max-h-44 overflow-y-auto py-1 rounded-2xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-lg border border-gray-200/50 dark:border-gray-700/50">
+                <button v-for="c in commandSuggestions" :key="`${c.botUserId}/${c.command}`" type="button"
+                    class="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-blue-50 dark:hover:bg-gray-700/60"
+                    @mousedown.prevent @click="sendCommand(c.command)">
+                    <Avatar :photo="botUser(c.botUserId)?.profile_photo" :title="botUser(c.botUserId)?.first_name"
+                        :first-name="botUser(c.botUserId)?.first_name" :last-name="botUser(c.botUserId)?.last_name"
+                        size-class="!w-7 !h-7" />
+                    <span class="shrink-0 text-sm font-medium text-blue-500">/{{ c.command }}</span>
+                    <span class="truncate text-xs text-gray-500 dark:text-gray-400">{{ c.description }}</span>
+                </button>
+            </div>
+        </Transition>
+
         <div
             class="flex items-end gap-3 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-2 rounded-4xl shadow-lg border border-gray-200/50 dark:border-gray-700/50">
             <SenderSelector v-if="showSenderSelector" :current-sender-id="currentSenderId"
@@ -89,6 +106,9 @@ import AttachmentMenu from './AttachmentMenu.vue';
 import AttachmentTray from './AttachmentTray.vue';
 import LinkInputDialog from './LinkInputDialog.vue';
 import SenderSelector from './SenderSelector.vue';
+import { fetchChatBotCommands, type ChatBotCommand } from '../../../utils/chatBotCommands';
+import { getReactiveUser } from '../../../utils/senderInfo';
+import { settings } from '../../../store/settings';
 
 export interface ReplyTarget {
     title: string;
@@ -278,6 +298,76 @@ const showSenderSelector = computed(() => {
 });
 
 const attachmentMenuRef = ref<InstanceType<typeof AttachmentMenu> | null>(null);
+
+/* =========================================================================
+ * 机器人命令快捷弹窗：输入以 / 开头 → 输入框顶部弹出命令列表
+ * 点击行为跟随设置 message.botCommandInsert：开启→放入输入框；关闭→直接发送
+ * 命令来源（同 Unigram）：私聊 = userFullInfo.bot_info.commands；
+ * 基本群/超级群 = groupFullInfo.bot_commands（各 bot 命令拍平合并），见 utils/chatBotCommands
+ * ========================================================================= */
+/** 当前聊天的 bot 命令列表（null = 未拉取；私聊 + 基本群 + 超级群，来源同 Unigram） */
+const chatCommands = ref<ChatBotCommand[] | null>(null);
+
+/** 命令所属 bot 的用户信息（响应式；未加载时 undefined → 头像回退为姓名首字母） */
+function botUser(userId: number) {
+    return getReactiveUser(userId);
+}
+
+/** 输入以 / 开头时按需拉取当前聊天的命令列表 */
+function loadChatCommands() {
+    const c = props.chat;
+    if (!c || chatCommands.value) return;
+    const id = c.id;
+    void fetchChatBotCommands(c).then((cmds) => {
+        // 拉取期间可能已切换聊天，避免写入过期命令
+        if (props.chat?.id === id) chatCommands.value = cmds ?? [];
+    });
+}
+
+// 输入以 / 开头时触发拉取
+watch(() => localValue.value.startsWith('/'), (on) => {
+    if (on) loadChatCommands();
+});
+
+// 切换聊天 → 清空；若输入仍以 /开头（如草稿），立即为新聊天拉取
+watch(() => props.chat?.id, () => {
+    chatCommands.value = null;
+    if (localValue.value.startsWith('/')) loadChatCommands();
+});
+
+/** 与当前输入（首个 token，不含 /）匹配的命令列表 */
+const commandSuggestions = computed(() => {
+    const v = localValue.value;
+    if (!v.startsWith('/')) return [];
+    const cmds = chatCommands.value;
+    if (!cmds?.length) return [];
+    const q = v.slice(1).split(/\s/, 1)[0].toLowerCase();
+    return cmds.filter((c) => c.command.toLowerCase().startsWith(q));
+});
+
+/**
+ * 点击命令：按聊天设置「点击机器人命令添加到输入框」（message.botCommandInsert）决定——
+ * 开启：不发送，把「/命令 + 空格 + 命令 token 之后的剩余内容」放入输入框；
+ * 关闭（默认）：直接发送。
+ */
+function sendCommand(cmd: string) {
+    if (sending.value) return;
+    const rest = localValue.value.replace(/^\/\S*/, '').trimStart();
+    const text = rest ? `/${cmd} ${rest}` : `/${cmd}`;
+    if (settings.message.botCommandInsert) {
+        // 放入输入框：按文本 diff 平移实体，保留已有格式
+        const old = localValue.value;
+        entities.value = shiftEntitiesAfterTextChange(entities.value, old, text);
+        localValue.value = text;
+        lastText = text;
+        return;
+    }
+    const ft: formattedText = { _: 'formattedText', text, entities: [] };
+    emit('send', ft);
+    localValue.value = '';
+    entities.value = [];
+    lastText = '';
+}
 
 const onClickSend = () => {
     if (sending.value) return;
