@@ -29,7 +29,8 @@
 
         <span v-else
             class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full">
-            {{ serviceText }}
+            <ServiceTextNodes v-if="serviceTextParts" />
+            <template v-else>{{ serviceText }}</template>
         </span>
 
         <!-- 壁纸预览弹窗（点击卡片里的查看按钮打开） -->
@@ -42,13 +43,15 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
-import { computed, watch, ref } from 'vue';
+import { computed, watch, ref, h, Text } from 'vue';
+import type { VNode } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import type { chatPhoto, file, MessageContent, message, photoSize } from 'tdlib-types';
+import type { chatPhoto, file, formattedText, MessageContent, message, photoSize } from 'tdlib-types';
 import { ensureLocalFilePath, tdlibSend } from '../../../../../utils/tdlib';
 import { ensureUser, getUserDisplayName } from '../../../../../utils/senderInfo';
 import { useChatStore } from '../../../../../store/chat';
 import { openMediaViewer } from '../../../../../store/mediaViewer';
+import FormattedTextInline from '../../../FormattedTextInline.vue';
 import WallpaperPreviewDialog from '../../../WallpaperPreviewDialog.vue';
 import MessageUnsupportedContent from './MessageUnsupportedContent.vue';
 
@@ -247,14 +250,14 @@ function onClick() {
 
 /**
  * 从消息列表中按 checklist_message_id 找到 messageChecklist 消息，
- * 返回 任务 id -> 任务纯文本 的映射（找不到对应消息时返回空 Map）。
+ * 返回 任务 id -> 任务标题（formattedText，保留自定义 emoji / 格式实体） 的映射（找不到对应消息时返回空 Map）。
  */
-function findTaskNames(checklistMessageId: number): Map<number, string> {
-    const map = new Map<number, string>();
+function findTaskTitles(checklistMessageId: number): Map<number, formattedText> {
+    const map = new Map<number, formattedText>();
     const listMsg = props.messageList?.find(m => m.id === checklistMessageId);
     if (listMsg?.content._ === 'messageChecklist') {
         for (const task of listMsg.content.list.tasks) {
-            map.set(task.id, task.text.text || `#${task.id}`);
+            map.set(task.id, task.text.text ? task.text : { _: 'formattedText', text: `#${task.id}`, entities: [] });
         }
     }
     return map;
@@ -403,7 +406,13 @@ function joinNames(names: string[], oneKey: string, lastKey: string): string {
     return acc;
 }
 
-const serviceText = computed<string | null>(() => {
+/** i18n key 参数值：纯文本，或带自定义 emoji 的富文本（渲染时内联展示），或多段文案嵌套 */
+type ServiceParam = string | formattedText | ServiceParam[] | ServicePart;
+
+/** 一条完整的服务消息文案：i18n key + 参数 */
+type ServicePart = { key: string; params: Record<string, ServiceParam> };
+
+const serviceText = computed<ServicePart[] | string | null>(() => {
     const c = props.content;
     switch (c._) {
         case 'messageBasicGroupChatCreate':
@@ -487,36 +496,37 @@ const serviceText = computed<string | null>(() => {
         case 'messageGiveawayCompleted':
             return t('lng_prizes_end_title');
         case 'messagePollOptionAdded':
-            return t('lng_action_poll_added_answer', { from: sender.value, option: c.text.text || '' });
+            return [{ key: 'lng_action_poll_added_answer', params: { from: sender.value, option: c.text.text ? c.text : '' } }];
         case 'messagePollOptionDeleted':
-            return t('lng_action_poll_deleted_answer', { from: sender.value, option: c.text.text || '' });
+            return [{ key: 'lng_action_poll_deleted_answer', params: { from: sender.value, option: c.text.text ? c.text : '' } }];
         case 'messageChecklistTasksDone': {
-            const names = findTaskNames(c.checklist_message_id);
-            const parts: string[] = [];
-            const appendGroup = (ids: number[], done: boolean) => {
-                if (ids.length === 0) return;
+            const titles = findTaskTitles(c.checklist_message_id);
+            const groupPart = (ids: number[], done: boolean): ServicePart | null => {
+                if (ids.length === 0) return null;
                 const key = done ? 'lng_action_todo_marked_done' : 'lng_action_todo_marked_not_done';
-                const labels = ids.map(id => names.get(id)).filter((n): n is string => !!n);
+                const labels = ids.map(id => titles.get(id)).filter((n): n is formattedText => !!n);
                 if (labels.length === ids.length) {
-                    const tasks = joinNames(labels, 'lng_action_todo_tasks_and_one', 'lng_action_todo_tasks_and_last');
-                    parts.push(t(key, { from: sender.value, tasks }));
-                } else {
-                    parts.push(t(key, { from: sender.value, tasks: t('lng_action_todo_tasks_fallback', { count: ids.length }) }));
+                    return { key, params: { from: sender.value, tasks: joinNamesFormatted(labels, 'lng_action_todo_tasks_and_one', 'lng_action_todo_tasks_and_last') } };
                 }
+                return { key, params: { from: sender.value, tasks: t('lng_action_todo_tasks_fallback', { count: ids.length }) } };
             };
-            appendGroup(c.marked_as_done_task_ids, true);
-            appendGroup(c.marked_as_not_done_task_ids, false);
-            if (parts.length === 0) return t('service.checklistUpdated', { from: sender.value });
-            if (parts.length === 1) return parts[0];
-            return t('lng_action_todo_tasks_and_one', { tasks: parts[0], task: parts[1] });
+            const donePart = groupPart(c.marked_as_done_task_ids, true);
+            const notDonePart = groupPart(c.marked_as_not_done_task_ids, false);
+            if (!donePart && !notDonePart) return [{ key: 'service.checklistUpdated', params: { from: sender.value } }];
+            if (donePart && notDonePart) {
+                // 两组都存在：拼成 lng_action_todo_tasks_and_one({tasks}, {task})
+                return [{ key: 'lng_action_todo_tasks_and_one', params: { tasks: [donePart, notDonePart] } }];
+            }
+            const only = (donePart ?? notDonePart) as ServicePart;
+            return [only];
         }
         case 'messageChecklistTasksAdded': {
-            const labels = c.tasks.map(t => t.text.text || `#${t.id}`).filter(Boolean);
+            const labels = c.tasks.map(task => task.text.text ? task.text : null).filter((n): n is formattedText => !!n);
             if (labels.length === 0) {
-                return t('lng_action_todo_added', { from: sender.value, tasks: t('lng_action_todo_tasks_fallback', { count: c.tasks.length }) });
+                return [{ key: 'lng_action_todo_added', params: { from: sender.value, tasks: t('lng_action_todo_tasks_fallback', { count: c.tasks.length }) } }];
             }
-            const tasks = joinNames(labels, 'lng_action_todo_tasks_and_one', 'lng_action_todo_tasks_and_last');
-            return t('lng_action_todo_added', { from: sender.value, tasks });
+            const tasks = joinNamesFormatted(labels, 'lng_action_todo_tasks_and_one', 'lng_action_todo_tasks_and_last');
+            return [{ key: 'lng_action_todo_added', params: { from: sender.value, tasks } }];
         }
         case 'messageProximityAlertTriggered':
             return t('service.proximityAlert');
@@ -528,4 +538,68 @@ const serviceText = computed<string | null>(() => {
 
 /** switch 未覆盖的服务消息类型 → 渲染未适配卡片 */
 const unadapted = computed(() => serviceText.value === null);
+
+/** 服务文案的 VNode 列表（函数式组件，直接返回 VNode 数组） */
+const ServiceTextNodes = () => serviceTextParts.value ?? [];
+
+/** 把多段文案（参数里的富文本/嵌套文案渲染成内联自定义 emoji）转成可渲染的 VNode 列表 */
+const serviceTextParts = computed<VNode[] | null>(() => {
+    const parts = serviceText.value;
+    if (!parts || typeof parts === 'string') return null;
+    return parts.flatMap(({ key, params }) => renderServicePart(key, params));
+});
+
+// ==================== 富文本拼接 / 渲染 ====================
+
+/**
+ * 渲染一条服务文案：非字符串参数（富文本 / 嵌套文案）先替换成占位符穿过 t()，
+ * 再把占位符还原为对应的 VNode。不能直接把 VNode 传给 t()，vue-i18n 会把它字符串化、丢失自定义 emoji。
+ */
+function renderServicePart(key: string, params: Record<string, ServiceParam>): VNode[] {
+    const slots: VNode[][] = [];
+    const strParams: Record<string, string> = {};
+    for (const [k, v] of Object.entries(params)) {
+        if (typeof v === 'string') {
+            strParams[k] = v;
+        } else {
+            strParams[k] = `\u0000${slots.length}\u0000`;
+            slots.push(paramNodes(v));
+        }
+    }
+    const text = t(key, strParams) as string;
+    return text.split(/\u0000(\d+)\u0000/).flatMap((piece, i) =>
+        i % 2 === 0 ? (piece ? [h(Text, null, piece)] : []) : slots[Number(piece)],
+    );
+}
+
+/** 把任意非字符串 ServiceParam 递归转成可渲染的子节点数组 */
+function paramNodes(v: ServiceParam): VNode[] {
+    if (typeof v === 'string') return [h(Text, null, v)];
+    if (Array.isArray(v)) return v.flatMap(paramNodes);
+    if ('key' in v) return renderServicePart(v.key, v.params);
+    // formattedText → FormattedTextInline 内联渲染自定义 emoji，其余实体按纯文本展示
+    return [h(FormattedTextInline, { formattedText: v, size: 16 })];
+}
+
+/** 用官方 and_one / and_last 把富文本名称列表拼成一个 formattedText（自定义 emoji 保留） */
+function joinNamesFormatted(items: formattedText[], oneKey: string, lastKey: string): formattedText {
+    if (items.length === 0) return { _: 'formattedText', text: '', entities: [] };
+    if (items.length === 1) return items[0];
+    let acc = items[0];
+    for (let i = 1; i < items.length; i++) {
+        const isLast = i === items.length - 1;
+        // 分隔符从官方文案里取（含 ", "、" and " 等），占位符保证不与真实参数冲突
+        const sep = t(isLast ? lastKey : oneKey, { accumulated: '\u0000', tasks: '\u0000', task: '\u0000', user: '\u0000' });
+        const [pre, post] = sep.split('\u0000');
+        acc = {
+            _: 'formattedText',
+            text: pre + acc.text + post + items[i].text,
+            entities: [
+                ...(acc.entities ?? []).map(e => ({ ...e, offset: e.offset + pre.length })),
+                ...(items[i].entities ?? []).map(e => ({ ...e, offset: e.offset + pre.length + acc.text.length + post.length })),
+            ],
+        };
+    }
+    return acc;
+}
 </script>
