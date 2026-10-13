@@ -96,6 +96,9 @@ const photoContent = computed(() => {
 /** 需要按卡片渲染的消息：设置新壁纸 / 群头像更新 */
 const cardContent = computed(() => wallpaperContent.value ?? photoContent.value);
 
+/** 是否频道帖子：频道里的操作消息没有用户身份，文案要用 lng_action_*_channel 变体 */
+const isChannelPost = computed(() => props.message?.is_channel_post === true);
+
 /** 已下载就绪的壁纸缩略图 / 原图（asset 地址），未就绪时为空 */
 const wallpaperFileSrc = ref('');
 
@@ -410,7 +413,10 @@ const serviceText = computed<string | null>(() => {
         case 'messageChatChangeTitle':
             return t('lng_action_changed_title', { from: sender.value, title: c.title });
         case 'messageChatChangePhoto':
-            return t('lng_action_changed_photo', { from: sender.value });
+            // 频道帖子里没有操作者用户，不能用「{from} 更换了群组头像」把频道名当人名
+            return isChannelPost.value
+                ? t('lng_action_changed_photo_channel')
+                : t('lng_action_changed_photo', { from: sender.value });
         case 'messageChatDeletePhoto':
             return t('lng_action_removed_photo', { from: sender.value });
         case 'messageChatAddMembers': {
