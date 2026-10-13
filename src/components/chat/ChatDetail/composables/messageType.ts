@@ -133,7 +133,7 @@ export function isAlbumMedia(msg: message): boolean {
 }
 
 /**
- * 判断消息是否为"独立消息"（贴纸 / 动画表情）。
+ * 判断消息是否为"独立消息"（贴纸 / 动画表情 / 圆形视频）。
  * 独立消息不渲染常规气泡背景与时间状态行。
  *
  * @param msg - 待判断的 TDLib 消息对象
@@ -142,7 +142,8 @@ export function isAlbumMedia(msg: message): boolean {
 export function isStandaloneMessage(msg: message): boolean {
   return (
     msg.content._ === "messageSticker" ||
-    msg.content._ === "messageAnimatedEmoji"
+    msg.content._ === "messageAnimatedEmoji" ||
+    msg.content._ === "messageVideoNote"
   );
 }
 

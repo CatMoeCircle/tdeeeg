@@ -50,6 +50,8 @@ function onResize(el: HTMLElement, st: State) {
 export const vBubbleSize: Directive<HTMLElement> = {
     mounted(el) {
         if (typeof ResizeObserver === "undefined" || typeof el.animate !== "function") return;
+        // 圆形视频自己管理尺寸过渡（展开 / 收起），外层不能 overflow:hidden 裁剪它
+        if (el.hasAttribute("data-no-bubble-anim")) return;
         const st: State = {
             ro: new ResizeObserver(() => onResize(el, st)),
             w: el.offsetWidth,

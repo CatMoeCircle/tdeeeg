@@ -205,7 +205,8 @@
                                 </div>
                                 <div class="flex min-w-0 max-w-[70%] flex-col"
                                     :class="isSelf(item.msg) ? 'items-end' : 'items-start'">
-                                    <div :data-bubble-msg-id="item.msg.id" v-bubble-size :class="[
+                                    <div :data-bubble-msg-id="item.msg.id" v-bubble-size
+                                        :data-no-bubble-anim="item.msg.content._ === 'messageVideoNote' ? '' : null" :class="[
                                         isMediaMessage(item.msg)
                                             ? [
                                                 'w-fit max-w-full min-w-0 overflow-hidden',
@@ -348,6 +349,8 @@
                                         :rows="getInlineKeyboard(item.msg)!.rows" :chat-id="chatId"
                                         :message-id="item.msg.id" />
                                 </div>
+                                <!-- 消息右侧小按钮：转文字（语音 / 圆形视频）、评论（频道圆形视频） -->
+                                <MessageSideActions :msg="item.msg" @comments="openCommentsThread(item.msg)" />
                             </div>
                         </div>
                     </template>
@@ -732,6 +735,7 @@ import TopicTagBar from './TopicTagBar.vue';
 import SearchBar from './SearchBar.vue';
 import ReactionsBar from './ReactionsBar.vue';
 import MessageCommentsBar from './MessageCommentsBar.vue';
+import MessageSideActions from './MessageSideActions.vue';
 import ReactionPicker from './ReactionPicker.vue';
 
 import { tdlibSend, isFileReady } from '../../../utils/tdlib';
@@ -743,7 +747,7 @@ import type { AttachmentItem } from '../../../store/attachment';
 import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
 
 import { MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, Quote as QuoteIcon, Languages as LanguagesIcon, User as UserIcon, Pencil as PencilIcon, FolderOpenIcon, DownloadIcon, BookmarkIcon, EyeIcon, UserCheckIcon, MessageSquareIcon, AudioLinesIcon, FlagIcon } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../../utils/toast';
 import { useRoute, useRouter } from 'vue-router';
 import { computed, watch, ref, shallowRef, markRaw, onMounted, onBeforeUnmount, onUnmounted, nextTick } from 'vue';
 import { useUserStore } from '../../../store/user';
@@ -1837,7 +1841,7 @@ async function pickEditMediaReplacement() {
     const contentType = editingMsg.value.content._;
     const spec = editReplaceDialogSpec(contentType);
     if (!spec || !allowedEditReplaceKinds(contentType)) {
-        MessagePlugin.warning(t('chat.replaceUnsupported'));
+        toast.warning(t('chat.replaceUnsupported'));
         return;
     }
     try {
@@ -1866,13 +1870,13 @@ async function pickEditMediaReplacement() {
             forceDocument: spec.forceDocument,
         });
         if (result.status === 'rejected') {
-            MessagePlugin.warning(result.reason);
+            toast.warning(result.reason);
             return;
         }
         // 图片↔视频、文件↔音乐：映射为合法提交类型
         const resolved = resolveEditReplaceKind(contentType, result.kind, name);
         if (!resolved.ok) {
-            MessagePlugin.warning(resolved.reason);
+            toast.warning(resolved.reason);
             return;
         }
         editMediaReplacement.value = {
@@ -1887,7 +1891,7 @@ async function pickEditMediaReplacement() {
         editMediaPreviewSrc.value = convertFileSrc(path);
     } catch (e) {
         console.error('pick edit media failed:', e);
-        MessagePlugin.error({ content: t('chat.pickMediaFailed', { type: editResourceLabel.value }), placement: 'center' });
+        toast.error({ content: t('chat.pickMediaFailed', { type: editResourceLabel.value }), placement: 'center' });
     }
 }
 
@@ -1945,7 +1949,7 @@ function toggleSelectMsg(msgId: number) {
         selectedMsgIds.value.splice(idx, 1);
     } else {
         if (selectedMsgIds.value.length >= MAX_SELECTED_MSG_COUNT) {
-            MessagePlugin.warning(t('chat.selectLimit', { max: MAX_SELECTED_MSG_COUNT }));
+            toast.warning(t('chat.selectLimit', { max: MAX_SELECTED_MSG_COUNT }));
             return;
         }
         selectedMsgIds.value.push(msgId);
@@ -2199,10 +2203,10 @@ async function onDeleteSelected() {
             message_ids: ids,
             revoke: true,
         });
-        MessagePlugin.success(t('context.deleted'));
+        toast.success(t('context.deleted'));
         exitSelectionMode();
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('context.deleteFailed'));
+        toast.error(e?.message || t('context.deleteFailed'));
     }
 }
 
@@ -4543,7 +4547,7 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
                     editMediaReplacement.value.name,
                 );
                 if (!resolved.ok) {
-                    MessagePlugin.warning(resolved.reason);
+                    toast.warning(resolved.reason);
                     return;
                 }
                 const content = buildEditMediaContent(
@@ -5156,7 +5160,7 @@ function maybePromptTranslatePremium() {
     if (!shouldPromptChatTranslatePremium(input)) return;
     if (canShowChatTranslateBar(input)) return;
     translatePremiumPromptedChatId = cid;
-    MessagePlugin.warning({
+    toast.warning({
         content: t('translate.premiumHint'),
         duration: 5000,
         placement: 'top-right',
@@ -5263,7 +5267,7 @@ async function handleRevealInDir(path: string) {
         await revealItemInDir([path]);
     } catch (e) {
         console.error('revealItemInDir failed:', e);
-        MessagePlugin.error(t('chat.revealFailed'));
+        toast.error(t('chat.revealFailed'));
     }
 }
 
@@ -5278,10 +5282,10 @@ async function handleMessageSaveAs(file: TdFile, fileName: string) {
         });
         if (!dest) return;
         await copyFile(src, dest);
-        MessagePlugin.success(t('chat.saveAsDone'));
+        toast.success(t('chat.saveAsDone'));
     } catch (e) {
         console.error('saveAs failed:', e);
-        MessagePlugin.error(t('chat.saveAsFailed'));
+        toast.error(t('chat.saveAsFailed'));
     }
 }
 
@@ -5293,7 +5297,7 @@ async function handleSaveMessage(msg: message) {
         // Saved Messages 是与自己的私聊，chat_id = myId
         const savedChatId = myId.value;
         if (!savedChatId) {
-            MessagePlugin.warning(t('chat.savedChatUnavailable'));
+            toast.warning(t('chat.savedChatUnavailable'));
             return;
         }
         await tdlibSend({
@@ -5305,10 +5309,10 @@ async function handleSaveMessage(msg: message) {
             disable_notification: false,
             send_pinned: false,
         });
-        MessagePlugin.success(t('chat.savedToSaved'));
+        toast.success(t('chat.savedToSaved'));
     } catch (e: any) {
         console.error('saveMessage failed:', e);
-        MessagePlugin.error(e?.message || t('chat.saveFailed'));
+        toast.error(e?.message || t('chat.saveFailed'));
     }
 }
 
@@ -5324,7 +5328,7 @@ async function handleGetViewers(msg: message) {
         }) as any;
         const viewers: Array<{ user_id: number; view_date: number }> = result?.viewers || [];
         if (viewers.length === 0) {
-            MessagePlugin.info(t('lng_context_seen_reacted_none'));
+            toast.info(t('lng_context_seen_reacted_none'));
             return;
         }
         // 批量获取用户信息以显示名称
@@ -5336,10 +5340,10 @@ async function handleGetViewers(msg: message) {
             .filter((u): u is any => u && u._ === 'user')
             .map(u => `${u.first_name}${u.last_name ? ' ' + u.last_name : ''}`);
         const nameList = names.length > 0 ? names.join(', ') : t('chat.userCount', { count: viewers.length });
-        MessagePlugin.success({ content: t('chat.reactorsList', { names: nameList }), duration: 5000 });
+        toast.success({ content: t('chat.reactorsList', { names: nameList }), duration: 5000 });
     } catch (e: any) {
         console.error('getMessageViewers failed:', e);
-        MessagePlugin.error(e?.message || t('chat.getReactorsFailed'));
+        toast.error(e?.message || t('chat.getReactorsFailed'));
     }
 }
 
@@ -5395,11 +5399,11 @@ async function handleGetAuthor(msg: message) {
         if (author && author._ === 'user') {
             router.push({ name: 'user-profile', params: { id: String(author.id) } });
         } else {
-            MessagePlugin.info(t('chat.authorUnavailable'));
+            toast.info(t('chat.authorUnavailable'));
         }
     } catch (e: any) {
         console.error('getMessageAuthor failed:', e);
-        MessagePlugin.error(e?.message || t('chat.getAuthorFailed'));
+        toast.error(e?.message || t('chat.getAuthorFailed'));
     }
 }
 
@@ -5421,13 +5425,13 @@ async function handleRecognizeSpeech(msg: message) {
             message_id: msg.id,
         }) as any;
         if (result && result.text) {
-            MessagePlugin.success(t('chat.transcriptResult', { text: result.text }));
+            toast.success(t('chat.transcriptResult', { text: result.text }));
         } else {
-            MessagePlugin.info(t('chat.transcriptEmpty'));
+            toast.info(t('chat.transcriptEmpty'));
         }
     } catch (e: any) {
         console.error('recognizeSpeech failed:', e);
-        MessagePlugin.error(e?.message || t('chat.transcriptFailed'));
+        toast.error(e?.message || t('chat.transcriptFailed'));
     }
 }
 
@@ -5437,11 +5441,11 @@ async function handleReportMessage(msg: message) {
     if (cid === undefined) return;
     try {
         await confirmReportMessage({ chatId: cid, msg });
-        MessagePlugin.success(t('lng_report_spam_thanks'));
+        toast.success(t('lng_report_spam_thanks'));
     } catch (e: any) {
         if (e?.message !== 'canceled') {
             console.error('reportChat failed:', e);
-            MessagePlugin.error(e?.message || t('chat.reportFailed'));
+            toast.error(e?.message || t('chat.reportFailed'));
         }
     }
 }

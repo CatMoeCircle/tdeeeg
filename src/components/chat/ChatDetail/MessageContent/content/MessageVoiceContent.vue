@@ -57,16 +57,117 @@
     </div>
 
     <!-- Video Note -->
-    <div v-else-if="content._ === 'messageVideoNote'" ref="rootEl" class="relative w-32 h-32">
-        <video v-if="mediaSrc" :src="mediaSrc" controls class="w-full h-full rounded-lg object-cover"></video>
-        <template v-else>
-            <img v-if="previewSrc" :src="previewSrc" class="w-full h-full rounded-lg object-cover opacity-60" />
-            <div v-else class="w-full h-full bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                <VideoIcon class="w-6 h-6 text-gray-500" />
+    <!-- 圆形裁剪（对齐 Unigram VideoNoteContent 的 Ellipse），点击播放/暂停 -->
+    <!-- 圆形视频（官方样式）：无气泡；圆形画面 + 左下倒计时/未看点 + 右下「观看数 · 时间」胶囊。
+         转文字与评论按钮在消息右侧（MessageSideActions）；识别结果显示在画面下方 -->
+    <div v-else-if="content._ === 'messageVideoNote'" ref="rootEl"
+        class="flex min-w-0 max-w-full flex-col transition-all duration-300"
+        :class="transcriptOpen ? 'rounded-2xl bg-white px-2 py-1.5 shadow-sm dark:bg-gray-800' : ''">
+        <div class="flex items-start gap-2">
+            <!-- 圆形画面：关闭时 128px 带覆盖层；转文字后缩小到 48px（语音播放圆圈位置） -->
+            <div class="relative shrink-0 transition-all duration-300 ease-out"
+                :style="{ width: noteSize + 'px', height: noteSize + 'px' }">
+                <div class="relative h-full w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                    <video v-if="mediaSrc" ref="noteVideoEl" :src="mediaSrc" playsinline loop preload="metadata" :muted="noteMuted"
+                        class="h-full w-full cursor-pointer object-cover" @click.stop="toggleNote"
+                        @play="notePlaying = true" @pause="notePlaying = false"
+                        @timeupdate="onNoteTime" @ended="noteEnded"></video>
+                    <template v-else>
+                        <img v-if="previewSrc" :src="previewSrc" class="h-full w-full object-cover opacity-60" />
+                        <div v-else class="flex h-full w-full items-center justify-center">
+                            <VideoIcon class="h-6 w-6 text-gray-500" />
+                        </div>
+                    </template>
+                </div>
+                <!-- 进度环：仅展开显示；只让环形轨道可交互，中央点击仍由视频/播放键接管 -->
+                <!-- 环先随动画挂载但保持透明，300ms 后再显示；避免展开动画未结束就提前出现 -->
+                <svg v-if="!transcriptOpen && noteExpanded" fill="none"
+                    class="pointer-events-none absolute touch-none transition-all duration-300 ease-out"
+                    :class="[ringVisible ? 'opacity-100' : 'opacity-0', ringInteracting ? 'cursor-pointer' : '']"
+                    :style="ringStyle" viewBox="0 0 100 100"
+                    @pointerenter="onRingEnter" @pointerleave="onRingLeave"
+                    @pointerdown="onRingDown" @pointermove="onRingMove" @pointerup="onRingUp" @pointercancel="onRingUp">
+                    <!-- 轨道 -->
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.35)" pointer-events="none"
+                        :stroke-width="ringInteracting ? 1.5 : 1" />
+                    <!-- 加宽的透明命中区：只命中环形轨道；svg 根节点 pointer-events-none，圆心点击穿透到视频 -->
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="transparent" stroke-width="8" pointer-events="stroke" />
+                    <!-- 已播放进度 -->
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="#ffffff" stroke-linecap="round" pathLength="100"
+                        stroke-dasharray="100" :stroke-width="ringInteracting ? 2 : 1.5"
+                        :stroke-dashoffset="100 - noteProgress * 100" transform="rotate(-90 50 50)" pointer-events="none" />
+                    <!-- 端点：仅悬停或拖动时显示，缩小避免遮挡视频 -->
+                    <circle v-if="ringInteracting" :cx="ringKnob.x" :cy="ringKnob.y" :r="ringActive ? 3.5 : 2.75"
+                        fill="#ffffff" pointer-events="none" />
+                </svg>
+                <!-- 展开 / 收起（放大圆形画面） -->
+                <button v-if="!transcriptOpen" type="button"
+                    class="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-white"
+                    @click.stop="noteExpanded = !noteExpanded">
+                    <Minimize2Icon v-if="noteExpanded" class="h-3.5 w-3.5" />
+                    <Maximize2Icon v-else class="h-3.5 w-3.5" />
+                </button>
+                <!-- 未播放时的中央播放键（缩小后同步缩小） -->
+                <button v-if="mediaSrc && !notePlaying" type="button"
+                    class="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white transition-all duration-300"
+                    :class="transcriptOpen ? 'h-6 w-6' : 'h-10 w-10'"
+                    :aria-label="t('content.play')" @click="toggleNote">
+                    <PlayIcon :class="transcriptOpen ? 'ml-px h-3 w-3 fill-current' : 'ml-0.5 h-5 w-5 fill-current'" />
+                </button>
+                <template v-if="!transcriptOpen">
+                    <!-- 左下：倒计时（播放中为剩余时长，未播放为总时长）；未看时带蓝点 -->
+                    <span class="pointer-events-none absolute bottom-1 left-1 flex items-center gap-1.5 rounded-full bg-black/50 px-2 py-0.5 text-xs tabular-nums text-white">
+                        {{ fmtTime(noteRemaining) }}
+                        <span v-if="content._ === 'messageVideoNote' && !content.is_viewed" class="h-1.5 w-1.5 rounded-full bg-white"></span>
+                    </span>
+                    <!-- 右下：观看数 + 发送时间（同官方胶囊） -->
+                    <span class="pointer-events-none absolute bottom-1 right-1 flex items-center gap-1 rounded-full bg-black/50 px-2 py-0.5 text-xs tabular-nums text-white">
+                        <template v-if="viewCount > 0">
+                            <EyeIcon class="h-3 w-3" />
+                            <span>{{ viewCount }}</span>
+                        </template>
+                        <span>{{ timeOfDay }}</span>
+                    </span>
+                </template>
+                <RichMediaDownload v-if="!mediaSrc && noteFile" :file="noteFile" :file-name="`video_note_${noteFile.id}.mp4`"
+                    file-type="video" :chat-id="chatId" :message-id="messageId" overlay />
             </div>
-            <RichMediaDownload v-if="noteFile" :file="noteFile" :file-name="`video_note_${noteFile.id}.mp4`"
-                file-type="video" :chat-id="chatId" :message-id="messageId" overlay />
-        </template>
+            <!-- 展开后：语音式中栏（视频自带波形 + 剩余时长） -->
+            <div v-if="transcriptOpen" class="flex min-w-0 flex-col" :style="{ width: waveWidth + 'px' }">
+                <div class="flex h-6 cursor-pointer items-center gap-[2px]" @click="onNoteWaveClick">
+                    <span v-for="(bar, i) in waveBars" :key="i"
+                        class="w-[2px] shrink-0 rounded-full bg-blue-500 transition-opacity"
+                        :class="[i / waveBars.length < noteProgress ? 'opacity-100' : 'opacity-40', transcribing ? 'animate-pulse' : '']"
+                        :style="{ height: bar + 'px', animationDelay: transcribing ? `${i * 60}ms` : undefined }"></span>
+                </div>
+                <div class="mt-0.5 flex items-center gap-1 text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                    <span>{{ fmtTime(noteRemaining) }}</span>
+                    <span v-if="content._ === 'messageVideoNote' && !content.is_viewed" class="inline-block h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                </div>
+            </div>
+            <!-- 收起按钮：与语音消息的转文字按钮同款（展开后替代右侧小按钮） -->
+            <button v-if="transcriptOpen && canRecognize" type="button"
+                class="relative flex h-6 w-8 shrink-0 items-center justify-center rounded-md bg-blue-500/15 text-blue-500 transition-colors hover:bg-blue-500/25 active:scale-95"
+                :aria-label="t('content.transcribe')" @click="toggleTranscript">
+                <ArrowUpIcon v-if="transcriptState?._ === 'speechRecognitionResultText'" class="h-4 w-4" />
+                <span v-else class="tgico tgico-transcribe text-[16px]" />
+                <span v-if="transcribing"
+                    class="pointer-events-none absolute -inset-0.5 animate-spin rounded-lg border-2 border-blue-500 border-t-transparent" />
+            </button>
+        </div>
+        <!-- 识别结果：气泡内，位于波形行之下 -->
+        <p v-if="transcriptOpen" class="mt-1 whitespace-pre-wrap text-sm"
+            :class="transcriptState?._ === 'speechRecognitionResultError' ? 'text-gray-500 dark:text-gray-400' : ''">
+            {{ transcriptDisplay }}
+        </p>
+        <!-- 展开后底部：观看数 + 时间（与官方一致，位于气泡右下） -->
+        <div v-if="transcriptOpen" class="mt-1 flex items-center justify-end gap-1 text-xs tabular-nums text-gray-400">
+            <template v-if="viewCount > 0">
+                <EyeIcon class="h-3 w-3" />
+                <span>{{ viewCount }}</span>
+            </template>
+            <span>{{ timeOfDay }}</span>
+        </div>
     </div>
 </template>
 
@@ -74,23 +175,26 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { messageVoiceNote, messageVideoNote, file, message } from 'tdlib-types';
 import { useI18n } from 'vue-i18n';
-import { MessagePlugin } from 'tdesign-vue-next';
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
-import { VideoIcon, PlayIcon, PauseIcon, DownloadIcon, ArrowUpIcon } from 'lucide-vue-next';
+import { toast } from '../../../../../utils/toast';
+import { VideoIcon, PlayIcon, PauseIcon, DownloadIcon, EyeIcon, ArrowUpIcon, Maximize2 as Maximize2Icon, Minimize2 as Minimize2Icon } from 'lucide-vue-next';
+import { getMessageProperties } from '../../../../../components/contextMenu/messageActions';
+import { openTranscripts, transcriptKey } from '../../../../../composables/speechTranscript';
 import MessageTextContent from './MessageTextContent.vue';
 import RichMediaDownload from '../rich/RichMediaDownload.vue';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import { shouldAutoDownloadFiles, shouldAutoDownloadVideos } from '../../../../../utils/autoDownload';
 import { useDownloadStore } from '../../../../../store/downloads';
 import { useAudioPlayerStore } from '../../../../../store/audioPlayer';
-import { getMessageProperties } from '../../../../../components/contextMenu/messageActions';
 
 const props = defineProps<{
     content: messageVoiceNote | messageVideoNote;
     chatId?: number;
     messageId?: number;
+    /** 所属消息：圆形视频右下角显示观看数与发送时间 */
+    message?: message;
 }>();
 
 const { t } = useI18n();
@@ -115,6 +219,112 @@ const noteFile = computed<file | undefined>(() => {
 });
 
 const getFile = () => noteFile.value;
+
+/* ---------- 圆形视频留言：原生 video 播放，点击切换 ---------- */
+const noteVideoEl = ref<HTMLVideoElement | null>(null);
+const notePlaying = ref(false);
+function toggleNote() {
+    const v = noteVideoEl.value;
+    if (!v) return;
+    if (v.paused) void v.play();
+    else v.pause();
+}
+/** 播放位置与总时长以 video 元数据为准；TDLib 整数秒只在元数据就绪前兜底 */
+const noteCurrent = ref(0);
+const noteDuration = ref(0);
+const noteRemaining = computed(() => Math.max(0, effectiveDuration.value - noteCurrent.value));
+function onNoteTime(e: Event) {
+    const v = e.currentTarget as HTMLVideoElement;
+    noteCurrent.value = v.currentTime;
+    noteDuration.value = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 0;
+}
+function noteEnded() {
+    notePlaying.value = false;
+    // 环走满后才交给 loop 从头播放，避免 TDLib 秒数与视频真实时长不一致导致提前满环
+    noteCurrent.value = effectiveDuration.value;
+}
+/** 视频真实总时长：优先 video.duration，未加载元数据时退回 TDLib 时长 */
+const effectiveDuration = computed(() => noteDuration.value || duration.value);
+/** 波形进度：视频当前位置占真实总时长的比例（语音走全局音频播放器，视频留言走视频元素） */
+const noteProgress = computed(() => effectiveDuration.value > 0 ? Math.min(1, noteCurrent.value / effectiveDuration.value) : 0);
+/** 圆形画面尺寸：默认 200px，展开 280px，转文字后缩到 48px（语音播放圆圈位置） */
+const noteExpanded = ref(false);
+const noteSize = computed(() => transcriptOpen.value ? 48 : noteExpanded.value ? 280 : 200);
+/** 未放大（含转文字缩小）时静音循环，放大后才出声 */
+const noteMuted = computed(() => !noteExpanded.value || transcriptOpen.value);
+/** 进度环拖动：按指针相对圆心的角度（从 12 点顺时针）计算进度，越过 12 点自然绕回 */
+const ringActive = ref(false);
+/** 进度环悬停：默认窄环无端点，悬停或拖动时才显示拖拽形态 */
+const ringHover = ref(false);
+const ringInteracting = computed(() => ringHover.value || ringActive.value);
+/** 等待 280px 展开动画完成后才显示进度环 */
+const ringVisible = ref(false);
+watch(noteExpanded, (expanded) => {
+    clearTimeout(ringVisibleTimer);
+    if (!expanded) {
+        ringVisible.value = false;
+        return;
+    }
+    // 与模板 transition-all duration-300 对齐
+    ringVisibleTimer = setTimeout(() => {
+        if (noteExpanded.value) ringVisible.value = true;
+    }, 300);
+}, { immediate: true });
+let ringVisibleTimer: ReturnType<typeof setTimeout> | undefined;
+/** 进度环画在圆形画面内侧：与画面同尺寸叠放，轨道半径 45/50 留出约 8px 边距 */
+const ringStyle = computed(() => ({
+    left: '0px', top: '0px',
+    width: noteSize.value + 'px', height: noteSize.value + 'px',
+}));
+/** 端点坐标（viewBox 0-100，从 12 点顺时针，半径 45 与轨道一致） */
+const ringKnob = computed(() => {
+    const a = noteProgress.value * 2 * Math.PI;
+    return { x: 50 + 45 * Math.sin(a), y: 50 - 45 * Math.cos(a) };
+});
+function seekByRing(e: PointerEvent) {
+    // 展开动画期间即使指针误命中也不 seek，中心/画面仍保持正常播放暂停
+    if (!ringVisible.value) return;
+    const v = noteVideoEl.value;
+    if (!v || effectiveDuration.value <= 0) return;
+    const rect = (e.currentTarget as SVGElement).getBoundingClientRect();
+    const dx = e.clientX - (rect.left + rect.width / 2);
+    const dy = e.clientY - (rect.top + rect.height / 2);
+    let a = Math.atan2(dx, -dy);
+    if (a < 0) a += 2 * Math.PI;
+    v.currentTime = (a / (2 * Math.PI)) * effectiveDuration.value;
+    noteCurrent.value = v.currentTime;
+}
+function onRingEnter() {
+    ringHover.value = true;
+}
+function onRingLeave() {
+    if (!ringActive.value) ringHover.value = false;
+}
+function onRingDown(e: PointerEvent) {
+    ringActive.value = true;
+    (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
+    seekByRing(e);
+}
+function onRingMove(e: PointerEvent) {
+    if (ringActive.value) seekByRing(e);
+}
+function onRingUp() {
+    ringActive.value = false;
+}
+/** 点击波形跳转到对应位置 */
+function onNoteWaveClick(e: MouseEvent) {
+    const v = noteVideoEl.value;
+    if (!v || effectiveDuration.value <= 0) return;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    v.currentTime = ratio * effectiveDuration.value;
+    noteCurrent.value = v.currentTime;
+}
+/** 右下胶囊：观看数（TDLib interaction_info，私聊可能没有）与发送时间 HH:mm */
+const viewCount = computed(() => props.message?.interaction_info?.view_count ?? 0);
+const timeOfDay = computed(() => props.message
+    ? new Date(props.message.date * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+    : '');
 
 /** 5-bit 波形解码（TDLib 给 base64，每个采样 5 bit、LSB 优先打包） */
 function decodeWaveform(b64: string): number[] {
@@ -150,8 +360,10 @@ onUnmounted(() => waveResizeObserver?.disconnect());
 
 /** 按宽度重采样为竖条高度（px） */
 const waveBars = computed<number[]>(() => {
-    if (props.content._ !== 'messageVoiceNote') return [];
-    const samples = decodeWaveform(props.content.voice_note.waveform);
+    const b64 = props.content._ === 'messageVoiceNote' ? props.content.voice_note.waveform
+        : props.content._ === 'messageVideoNote' ? props.content.video_note.waveform : '';
+    if (!b64) return Array<number>(Math.max(1, Math.floor(((measuredWidth.value || waveWidth.value) + 2) / 4))).fill(3);
+    const samples = decodeWaveform(b64);
     // 每根竖条 2px + 2px 间距，共 n 根占 4n-2px，取整保证不超出实际宽度
     const n = Math.max(1, Math.floor(((measuredWidth.value || waveWidth.value) + 2) / 4));
     if (!samples.length) return Array<number>(n).fill(3);
@@ -220,16 +432,36 @@ function onWaveClick(e: MouseEvent) {
 const canRecognize = ref(false);
 watch(() => [props.chatId, props.messageId] as const, async ([cid, mid]) => {
     canRecognize.value = false;
-    if (props.content._ !== 'messageVoiceNote' || !cid || !mid) return;
+    if (!cid || !mid) return;
     const p = await getMessageProperties(cid, mid);
     canRecognize.value = p?.can_recognize_speech === true;
 }, { immediate: true });
-const transcriptOpen = ref(false);
+/** 识别文本是否展开（共享状态，与 MessageSideActions 的圆形视频转文字互不冲突） */
+const transcriptOpen = computed(() => props.chatId != null && props.messageId != null
+    && openTranscripts.has(transcriptKey(props.chatId, props.messageId)));
 const transcriptState = computed(() => props.content._ === 'messageVoiceNote'
-    ? props.content.voice_note.speech_recognition_result : undefined);
+    ? props.content.voice_note.speech_recognition_result
+    : props.content._ === 'messageVideoNote' ? props.content.video_note.speech_recognition_result : undefined);
 /** 识别进行中：展开且尚无最终结果（波形闪烁 + 按钮加载环） */
 const transcribing = computed(() => transcriptOpen.value
     && (!transcriptState.value || transcriptState.value._ === 'speechRecognitionResultPending'));
+async function toggleTranscript() {
+    if (!props.chatId || !props.messageId) return;
+    const k = transcriptKey(props.chatId, props.messageId);
+    if (openTranscripts.has(k)) {
+        openTranscripts.delete(k);
+        return;
+    }
+    openTranscripts.add(k);
+    if (transcriptState.value) return;
+    try {
+        await tdlibSend({ _: 'recognizeSpeech', chat_id: props.chatId, message_id: props.messageId });
+    } catch (e: any) {
+        console.error('recognizeSpeech failed:', e);
+        openTranscripts.delete(k); // 失败则收起，避免一直转圈
+        toast.error(e?.message || t('chat.transcriptFailed'));
+    }
+}
 const transcriptDisplay = computed(() => {
     const r = transcriptState.value;
     if (r?._ === 'speechRecognitionResultText') return r.text;
@@ -237,19 +469,6 @@ const transcriptDisplay = computed(() => {
     if (r?._ === 'speechRecognitionResultPending' && r.partial_text) return r.partial_text;
     return t('content.transcribing');
 });
-
-async function toggleTranscript() {
-    if (props.content._ !== 'messageVoiceNote' || !props.chatId || !props.messageId) return;
-    transcriptOpen.value = !transcriptOpen.value;
-    if (!transcriptOpen.value || transcriptState.value) return;
-    try {
-        await tdlibSend({ _: 'recognizeSpeech', chat_id: props.chatId, message_id: props.messageId });
-    } catch (e: any) {
-        console.error('recognizeSpeech failed:', e);
-        transcriptOpen.value = false; // 失败则收起，避免一直转圈
-        MessagePlugin.error(e?.message || t('chat.transcriptFailed'));
-    }
-}
 
 /** 加载代次：content 替换时自增，丢弃过期下载结果，避免视频留言缩略图串图 */
 let noteLoadSeq = 0;
@@ -372,4 +591,5 @@ onMounted(() => {
     applyNoteReadyFromContent();
     startViewportLoad();
 });
+onUnmounted(() => clearTimeout(ringVisibleTimer));
 </script>

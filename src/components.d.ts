@@ -81,6 +81,7 @@ declare module 'vue' {
     MessageReply: typeof import('./components/chat/ChatDetail/MessageContent/content/MessageReply.vue')['default']
     MessageRichMessage: typeof import('./components/chat/ChatDetail/MessageContent/rich/MessageRichMessage.vue')['default']
     MessageServiceContent: typeof import('./components/chat/ChatDetail/MessageContent/content/MessageServiceContent.vue')['default']
+    MessageSideActions: typeof import('./components/chat/ChatDetail/MessageSideActions.vue')['default']
     MessageStatus: typeof import('./components/chat/ChatDetail/MessageContent/content/MessageStatus.vue')['default']
     MessageStickerContent: typeof import('./components/chat/ChatDetail/MessageContent/content/MessageStickerContent.vue')['default']
     MessageTextContent: typeof import('./components/chat/ChatDetail/MessageContent/content/MessageTextContent.vue')['default']
