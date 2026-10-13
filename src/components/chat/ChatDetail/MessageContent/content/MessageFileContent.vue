@@ -162,7 +162,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { FileIcon, DownloadIcon, MusicIcon, PauseIcon, PlayIcon } from 'lucide-vue-next';
 import { useRouter } from 'vue-router';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../../../../utils/toast';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
 import SpoilerSpan from '../spoiler/SpoilerSpan.vue';
 import LoaderIndicator from '../../../../common/LoaderIndicator';
@@ -459,7 +459,7 @@ function isCopyableEntity(entity: textEntity): boolean {
 async function copyToClipboard(text: string) {
     try {
         await navigator.clipboard.writeText(text);
-        await MessagePlugin.success({ content: t('content.copied'), placement: 'top-right' });
+        await toast.success({ content: t('content.copied'), placement: 'top-right' });
     } catch (e) {
         console.error('Copy failed:', e);
     }

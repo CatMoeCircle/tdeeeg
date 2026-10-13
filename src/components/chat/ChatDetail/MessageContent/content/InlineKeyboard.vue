@@ -26,7 +26,7 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../../../../utils/toast';
 import { useI18n } from 'vue-i18n';
 import type { inlineKeyboardButton, LoginUrlInfo, ButtonStyle } from 'tdlib-types';
 import { tdlibSend } from '../../../../../utils/tdlib';
@@ -98,16 +98,16 @@ async function handleClick(button: inlineKeyboardButton, ri: number, bi: number)
             await sendCallback(key, { _: 'callbackQueryPayloadData', data: button.type.data });
             break;
         case 'inlineKeyboardButtonTypeCallbackWithPassword':
-            await MessagePlugin.error({ content: t('content.notSupportedPasswordCallback'), placement: 'top-right' });
+            await toast.error({ content: t('content.notSupportedPasswordCallback'), placement: 'top-right' });
             break;
         case 'inlineKeyboardButtonTypeCallbackGame':
-            await MessagePlugin.error({ content: t('content.notSupportedGameCallback'), placement: 'top-right' });
+            await toast.error({ content: t('content.notSupportedGameCallback'), placement: 'top-right' });
             break;
         case 'inlineKeyboardButtonTypeSwitchInline':
-            await MessagePlugin.error({ content: t('content.notSupportedSwitchInline'), placement: 'top-right' });
+            await toast.error({ content: t('content.notSupportedSwitchInline'), placement: 'top-right' });
             break;
         case 'inlineKeyboardButtonTypeBuy':
-            await MessagePlugin.error({ content: t('content.notSupportedBuy'), placement: 'top-right' });
+            await toast.error({ content: t('content.notSupportedBuy'), placement: 'top-right' });
             break;
         case 'inlineKeyboardButtonTypeUser':
             await openUserButton(button.type.user_id);
@@ -199,9 +199,9 @@ async function sendCallback(key: string, payload: { _: 'callbackQueryPayloadData
         if (answer.text) {
             const options = { content: answer.text, placement: 'top-right' as const, duration: answer.show_alert ? 5000 : 2500 };
             if (answer.show_alert) {
-                await MessagePlugin.error(options);
+                await toast.error(options);
             } else {
-                await MessagePlugin.success(options);
+                await toast.success(options);
             }
         }
     } catch (e) {
@@ -223,7 +223,7 @@ async function openUserButton(userId: number) {
 async function copyButtonText(text: string) {
     try {
         await navigator.clipboard.writeText(text);
-        await MessagePlugin.success({ content: t('content.copied'), placement: 'top-right' });
+        await toast.success({ content: t('content.copied'), placement: 'top-right' });
     } catch (e) {
         console.error('Copy inline keyboard button text failed:', e);
     }

@@ -1,6 +1,6 @@
 import { tdlibSend } from "../../utils/tdlib";
 import { getMessagePlainText } from "../../utils/messageText";
-import { MessagePlugin } from "tdesign-vue-next";
+import { toast } from "../../utils/toast";
 import i18n from "../../i18n";
 
 const t = (key: string, params?: Record<string, unknown>) =>
@@ -374,7 +374,7 @@ export async function editTextMessage(
         return true;
     } catch (e) {
         console.error('editMessageText failed:', e);
-        MessagePlugin.error({ content: t('context.editFailed'), placement: 'center' });
+        toast.error({ content: t('context.editFailed'), placement: 'center' });
         return false;
     }
 }
@@ -399,7 +399,7 @@ export async function editCaptionMessage(
         return true;
     } catch (e) {
         console.error('editMessageCaption failed:', e);
-        MessagePlugin.error({ content: t('context.editDescFailed'), placement: 'center' });
+        toast.error({ content: t('context.editDescFailed'), placement: 'center' });
         return false;
     }
 }
@@ -423,7 +423,7 @@ export async function editMessageMediaContent(
         return true;
     } catch (e) {
         console.error('editMessageMedia failed:', e);
-        MessagePlugin.error({ content: t('context.replaceMediaFailed'), placement: 'center' });
+        toast.error({ content: t('context.replaceMediaFailed'), placement: 'center' });
         return false;
     }
 }
@@ -446,9 +446,9 @@ export async function pinMessage(
             disable_notification: opts?.disableNotification ?? false,
             only_for_self: opts?.onlyForSelf ?? false,
         } as any);
-        MessagePlugin.success(t('lng_quick_dialog_action_toast_pin_success'));
+        toast.success(t('lng_quick_dialog_action_toast_pin_success'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('context.actionFailed'));
+        toast.error(e?.message || t('context.actionFailed'));
     }
 }
 
@@ -460,9 +460,9 @@ export async function unpinMessage(chatId: number, msg: message) {
             chat_id: chatId,
             message_id: msg.id,
         });
-        MessagePlugin.success(t('lng_quick_dialog_action_toast_unpin_success'));
+        toast.success(t('lng_quick_dialog_action_toast_unpin_success'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('context.actionFailed'));
+        toast.error(e?.message || t('context.actionFailed'));
     }
 }
 
@@ -484,9 +484,9 @@ export async function deleteMessages(chatId: number, msg: message, revoke: boole
             message_ids: [msg.id],
             revoke,
         });
-        MessagePlugin.success(t('context.deleted'));
+        toast.success(t('context.deleted'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('context.deleteFailed'));
+        toast.error(e?.message || t('context.deleteFailed'));
     }
 }
 
@@ -501,9 +501,9 @@ export async function deleteChatMessagesBySender(chatId: number, senderId: Messa
             chat_id: chatId,
             sender_id: senderId as any,
         });
-        MessagePlugin.success(t('context.deletedAllFromSender'));
+        toast.success(t('context.deletedAllFromSender'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('context.deleteAllFromSenderFailed'));
+        toast.error(e?.message || t('context.deleteAllFromSenderFailed'));
     }
 }
 
@@ -520,9 +520,9 @@ export async function banChatSender(chatId: number, senderId: MessageSender) {
             banned_until_date: 0, // 0 = 永久封禁
             revoke_messages: true,
         });
-        MessagePlugin.success(t('context.bannedSender'));
+        toast.success(t('context.bannedSender'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('context.banFailed'));
+        toast.error(e?.message || t('context.banFailed'));
     }
 }
 
@@ -557,14 +557,14 @@ export async function executeDeleteActions(
 export async function copyMessageText(msg: message) {
     const text = getMessagePlainText(msg);
     if (!text.trim()) {
-        MessagePlugin.warning(t('context.noCopyableText'));
+        toast.warning(t('context.noCopyableText'));
         return;
     }
     try {
         await navigator.clipboard.writeText(text);
-        MessagePlugin.success(t('context.copied'));
+        toast.success(t('context.copied'));
     } catch {
-        MessagePlugin.error(t('context.copyFailed'));
+        toast.error(t('context.copyFailed'));
     }
 }
 
@@ -572,9 +572,9 @@ export async function copyMessageText(msg: message) {
 export async function copyMessageJson(msg: message) {
     try {
         await navigator.clipboard.writeText(JSON.stringify(msg, null, 2));
-        MessagePlugin.success(t('context.copiedJson'));
+        toast.success(t('context.copiedJson'));
     } catch {
-        MessagePlugin.error(t('context.copyFailed'));
+        toast.error(t('context.copyFailed'));
     }
 }
 
@@ -592,13 +592,13 @@ export async function copyMessageLink(chatId: number, msg: message) {
         }) as any;
         const url = link?.link;
         if (!url) {
-            MessagePlugin.warning(t('context.linkUnavailable'));
+            toast.warning(t('context.linkUnavailable'));
             return;
         }
         await navigator.clipboard.writeText(url);
-        MessagePlugin.success(t('lng_chat_link_copied'));
+        toast.success(t('lng_chat_link_copied'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('context.linkFailed'));
+        toast.error(e?.message || t('context.linkFailed'));
     }
 }
 

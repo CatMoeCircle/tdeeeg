@@ -128,7 +128,7 @@ import {
     Globe as GlobeIcon, Laptop as LaptopIcon, Smartphone as SmartphoneIcon,
     Tablet as TabletIcon, TimerReset as TimerResetIcon,
 } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import SessionTtlDialog, { ttlOptions } from '../../components/settings/SessionTtlDialog.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import type { session, sessions } from 'tdlib-types';
@@ -162,7 +162,7 @@ async function loadSessions() {
         ttlDays.value = res?.inactive_session_ttl_days ?? 365;
     } catch (e) {
         console.error('load sessions failed:', e);
-        MessagePlugin.error(t('devices.loadFailed'));
+        toast.error(t('devices.loadFailed'));
     } finally {
         loading.value = false;
     }
@@ -221,10 +221,10 @@ async function terminateOne(s: session) {
     if (!ok) return;
     try {
         await tdlibSend({ _: 'terminateSession', session_id: s.id });
-        MessagePlugin.success(t('devices.sessionTerminated'));
+        toast.success(t('devices.sessionTerminated'));
         loadSessions();
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('devices.operationFailed'));
+        toast.error(e?.message || t('devices.operationFailed'));
     }
 }
 
@@ -233,10 +233,10 @@ async function terminateOthers() {
     if (!ok) return;
     try {
         await tdlibSend({ _: 'terminateAllOtherSessions' });
-        MessagePlugin.success(t('devices.allOtherTerminated'));
+        toast.success(t('devices.allOtherTerminated'));
         loadSessions();
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('devices.operationFailed'));
+        toast.error(e?.message || t('devices.operationFailed'));
     }
 }
 

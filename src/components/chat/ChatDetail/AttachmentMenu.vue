@@ -40,7 +40,7 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import type { chat, ChatMemberStatus, user } from 'tdlib-types';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../../utils/toast';
 import {
     BarChart2Icon, FileIcon, ImageIcon, ListIcon, MusicIcon, PaperclipIcon, UserIcon,
 } from 'lucide-vue-next';
@@ -101,7 +101,7 @@ async function addFile(path: string, name: string, tempFile = false, forceDocume
         path, name, size, album, isPremium: props.isPremium ?? false, forceDocument,
     });
     if (result.status === 'rejected') {
-        MessagePlugin.warning(result.reason);
+        toast.warning(result.reason);
         if (tempFile) cleanupTemp(path);
         return;
     }
@@ -114,7 +114,7 @@ async function addFile(path: string, name: string, tempFile = false, forceDocume
         probeFailed: result.probeFailed,
     });
     if (result.kind === 'animation') {
-        MessagePlugin.info(t('attachment.gifAsAnimation'));
+        toast.info(t('attachment.gifAsAnimation'));
     }
 }
 
@@ -301,7 +301,7 @@ const attachEmitMap: Record<AttachAction, 'attachPhoto' | 'attachFile' | 'attach
 
 const onAttachItemClick = (item: AttachItem) => {
     if (item.key === 'checklist' && !isPremium.value) {
-        MessagePlugin.warning(t('attachment.todoNeedsPremium'));
+        toast.warning(t('attachment.todoNeedsPremium'));
         closeAttach();
         return;
     }

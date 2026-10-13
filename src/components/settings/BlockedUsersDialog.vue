@@ -43,7 +43,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { Ban as BanIcon } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import { useI18n } from 'vue-i18n';
 import Avatar from '../chat/avatar.vue';
 import ModalDialog from './ModalDialog.vue';
@@ -189,7 +189,7 @@ async function addBlocked() {
             sender_id: resolved.sender,
             block_list: { _: 'blockListMain' },
         });
-        MessagePlugin.success(t('privacy.blocked', { name: resolved.title }));
+        toast.success(t('privacy.blocked', { name: resolved.title }));
         blockInput.value = '';
         emit('changed');
         loadBlocked();
@@ -207,11 +207,11 @@ async function unblock(item: { id: number; title: string; isChat?: boolean }) {
             sender_id: item.isChat ? { _: 'messageSenderChat', chat_id: item.id } : { _: 'messageSenderUser', user_id: item.id },
             block_list: undefined,
         });
-        MessagePlugin.success(t('privacy.unblocked', { name: item.title }));
+        toast.success(t('privacy.unblocked', { name: item.title }));
         emit('changed');
         loadBlocked();
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('privacy.operationFailed'));
+        toast.error(e?.message || t('privacy.operationFailed'));
     }
 }
 

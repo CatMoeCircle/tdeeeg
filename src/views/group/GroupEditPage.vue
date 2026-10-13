@@ -319,7 +319,7 @@ import {
   SmilePlus as SmilePlusIcon,
   LogOut as LogOutIcon,
 } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import Avatar from '../../components/chat/avatar.vue';
 import AvatarEditorDialog from '../../components/settings/AvatarEditorDialog.vue';
 import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
@@ -467,7 +467,7 @@ const autoTranslateLocked = computed(() => boostLevel.value < minAutoTranslate.v
 async function onAutoTranslate(v: boolean) {
   if (!chat.value || chat.value.type._ !== 'chatTypeSupergroup') return;
   if (autoTranslateLocked.value) {
-    MessagePlugin.warning(t('lng_boost_channel_needs_level_autotranslate', { count: minAutoTranslate.value }));
+    toast.warning(t('lng_boost_channel_needs_level_autotranslate', { count: minAutoTranslate.value }));
     return;
   }
   autoTranslate.value = v;
@@ -479,7 +479,7 @@ async function onAutoTranslate(v: boolean) {
     });
   } catch (e: any) {
     autoTranslate.value = !v;
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   }
 }
 
@@ -549,7 +549,7 @@ async function save() {
   if (!chat.value || !canChangeInfo.value) return;
   const name = title.value.trim();
   if (!name) {
-    MessagePlugin.warning(t('groupEdit.titleRequired'));
+    toast.warning(t('groupEdit.titleRequired'));
     return;
   }
   saving.value = true;
@@ -586,10 +586,10 @@ async function save() {
         is_all_history_available: historyVisible.value,
       });
     }
-    MessagePlugin.success(t('groupEdit.saved'));
+    toast.success(t('groupEdit.saved'));
     await reload();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('groupEdit.saveFailed'));
+    toast.error(e?.message || t('groupEdit.saveFailed'));
   } finally {
     saving.value = false;
   }
@@ -606,24 +606,24 @@ function confirmLeave() {
 async function doDelete() {
   try {
     await tdlibSend({ _: 'deleteChat', chat_id: chatId.value });
-    MessagePlugin.success(t('lng_settings_save'));
+    toast.success(t('lng_settings_save'));
     deleteVisible.value = false;
     leaveVisible.value = false;
     router.push('/home/chats');
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   }
 }
 
 async function doLeave() {
   try {
     await tdlibSend({ _: 'leaveChat', chat_id: chatId.value });
-    MessagePlugin.success(t('lng_profile_delete_and_exit'));
+    toast.success(t('lng_profile_delete_and_exit'));
     deleteVisible.value = false;
     leaveVisible.value = false;
     router.push('/home/chats');
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   }
 }
 

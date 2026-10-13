@@ -278,7 +278,7 @@ const { t } = useI18n();
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import type { story, file, photo, chatPhotoInfo, profilePhoto, formattedText } from "tdlib-types";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { MessagePlugin } from "tdesign-vue-next";
+import { toast } from "../../utils/toast";
 import Avatar from "../chat/avatar.vue";
 import { tdlibSend, isFileReady, downloadingFiles } from "../../utils/tdlib";
 import { DL_PRIORITY } from "../../utils/downloadPriority";
@@ -568,10 +568,10 @@ async function onDeleteStory() {
         const nextIdx = Math.min(index.value, nextItems.length - 1);
         items.value = nextItems;
         index.value = nextIdx;
-        MessagePlugin.success(t('story.deleted'));
+        toast.success(t('story.deleted'));
     } catch (e) {
         console.warn("[StoryViewer] deleteStory failed", e);
-        MessagePlugin.error(t('context.deleteFailed'));
+        toast.error(t('context.deleteFailed'));
     }
 }
 
@@ -595,10 +595,10 @@ async function onSendReply() {
             },
         });
         replyText.value = "";
-        MessagePlugin.success(t('lng_stories_reply_sent'));
+        toast.success(t('lng_stories_reply_sent'));
     } catch (e) {
         console.warn("[StoryViewer] send reply failed", e);
-        MessagePlugin.error(t('context.actionFailed'));
+        toast.error(t('context.actionFailed'));
     }
 }
 
@@ -618,10 +618,10 @@ async function onSendLiveReply() {
             },
         });
         liveReplyText.value = "";
-        MessagePlugin.success(t('lng_stories_reply_sent'));
+        toast.success(t('lng_stories_reply_sent'));
     } catch (e) {
         console.warn("[StoryViewer] send live reply failed", e);
-        MessagePlugin.error(t('context.actionFailed'));
+        toast.error(t('context.actionFailed'));
     }
 }
 
@@ -1095,7 +1095,7 @@ async function toggleLike() {
     } catch (e) {
         isLiked.value = !next;
         console.warn("[StoryViewer] setStoryReaction failed", e);
-        MessagePlugin.error(t('context.actionFailed'));
+        toast.error(t('context.actionFailed'));
     }
 }
 
@@ -1122,7 +1122,7 @@ async function resolveStoryPosterUsername(): Promise<string | undefined> {
 function onShare() {
     const st = current.value;
     if (!st) return;
-    MessagePlugin.info(t('story.shareHint'));
+    toast.info(t('story.shareHint'));
 }
 
 // ==================== 隐身模式（隐藏我的浏览记录） ====================
@@ -1186,7 +1186,7 @@ function closeStealthDialog() {
 async function onStealthConfirm() {
     // 非会员：按钮为原版「Unlock Stealth Mode」，点击提示需要订阅
     if (!isPremium.value) {
-        MessagePlugin.warning(t("lng_stealth_mode_unlock_about"));
+        toast.warning(t("lng_stealth_mode_unlock_about"));
         closeStealthDialog();
         return;
     }
@@ -1199,9 +1199,9 @@ async function onStealthConfirm() {
         await tdlibSend({ _: "activateStoryStealthMode" });
         // 服务端 updateStoryStealthMode 随后兜底，这里先乐观更新（官方窗口 25 分钟）
         stealthActiveUntil.value = Math.floor(Date.now() / 1000) + 1500;
-        MessagePlugin.success(t("lng_stealth_mode_enabled_tip_title"));
+        toast.success(t("lng_stealth_mode_enabled_tip_title"));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t("context.actionFailed"));
+        toast.error(e?.message || t("context.actionFailed"));
     }
     closeStealthDialog();
 }
@@ -1209,7 +1209,7 @@ async function onStealthConfirm() {
 function onViewsClick() {
     const st = current.value;
     if (!st) return;
-    MessagePlugin.info(t('lng_stories_views', { count: formatStoryCount(viewCount.value) }));
+    toast.info(t('lng_stories_views', { count: formatStoryCount(viewCount.value) }));
 }
 
 function onMoreClick(e: MouseEvent) {
@@ -1223,7 +1223,7 @@ function onMoreClick(e: MouseEvent) {
             onClick: () => {
                 if (captionText.value) {
                     void navigator.clipboard.writeText(captionText.value);
-                    MessagePlugin.success(t('lng_text_copied'));
+                    toast.success(t('lng_text_copied'));
                 }
             },
         },
@@ -1234,7 +1234,7 @@ function onMoreClick(e: MouseEvent) {
             onClick: async () => {
                 const uname = await resolveStoryPosterUsername();
                 if (!uname) {
-                    MessagePlugin.warning(t('story.noPublicUsername'));
+                    toast.warning(t('story.noPublicUsername'));
                     return;
                 }
                 try {
@@ -1249,13 +1249,13 @@ function onMoreClick(e: MouseEvent) {
                     });
                     const url = link?.url;
                     if (!url) {
-                        MessagePlugin.warning(t('story.linkUnavailable'));
+                        toast.warning(t('story.linkUnavailable'));
                         return;
                     }
                     void navigator.clipboard.writeText(url);
-                    MessagePlugin.success(t('lng_username_copied'));
+                    toast.success(t('lng_username_copied'));
                 } catch (e: any) {
-                    MessagePlugin.error(e?.message || t('context.linkFailed'));
+                    toast.error(e?.message || t('context.linkFailed'));
                 }
             },
         },

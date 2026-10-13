@@ -262,7 +262,7 @@ import { computed, onUnmounted, reactive, ref } from 'vue';
 import type { formattedText, textEntity, linkPreview as LinkPreview } from 'tdlib-types';
 import { resolveInternalLink as resolveInternalLinkUtil } from '../../../../../utils/openInternalLink';
 import { useRouter } from 'vue-router';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../../../../utils/toast';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
 
 import SpoilerSpan from '../spoiler/SpoilerSpan.vue';
@@ -625,7 +625,7 @@ function isCopyableEntity(entity: textEntity): boolean {
 async function copyToClipboard(text: string) {
     try {
         await navigator.clipboard.writeText(text);
-        await MessagePlugin.success({ content: '已复制', placement: 'top-right' });
+        await toast.success({ content: '已复制', placement: 'top-right' });
     } catch (e) {
         console.error('Copy failed:', e);
     }

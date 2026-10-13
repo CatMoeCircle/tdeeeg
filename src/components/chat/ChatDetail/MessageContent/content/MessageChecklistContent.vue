@@ -59,7 +59,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import type { checklistTask, formattedText, messageChecklist, textEntity } from 'tdlib-types';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../../../../utils/toast';
 import { CheckIcon, ListIcon } from 'lucide-vue-next';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
 import SpoilerSpan from '../spoiler/SpoilerSpan.vue';
@@ -183,7 +183,7 @@ async function onToggleTask(task: checklistTask) {
         } as any);
     } catch {
         optimisticDone.value.delete(task.id);
-        MessagePlugin.error('标记任务失败，请重试');
+        toast.error('标记任务失败，请重试');
     } finally {
         pendingTasks.value.delete(task.id);
     }

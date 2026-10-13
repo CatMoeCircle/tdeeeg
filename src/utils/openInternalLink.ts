@@ -1,7 +1,7 @@
 import type { InternalLinkType, proxy, chat, story, stories } from "tdlib-types";
 import { tdlibSend } from "./tdlib";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { MessagePlugin } from "tdesign-vue-next";
+import { toast } from "./toast";
 import { showProxyLinkDialog } from "../store/proxyLink";
 import { refreshProxies } from "../store/proxyList";
 import { openStoryViewer } from "../store/storyViewer";
@@ -86,7 +86,7 @@ export async function resolveInternalLink(href: string, router: Router): Promise
                     username: linkType.channel_username,
                 }) as chat;
                 if (channel.type?._ !== "chatTypeSupergroup") {
-                    await MessagePlugin.warning({ content: i18n.global.t("preview.channelNotFound"), placement: "top-right" });
+                    await toast.warning({ content: i18n.global.t("preview.channelNotFound"), placement: "top-right" });
                     return true;
                 }
                 // 优先取 supergroupFullInfo.direct_messages_chat_id；否则若是私信群自身则直接打开
@@ -132,7 +132,7 @@ export async function resolveInternalLink(href: string, router: Router): Promise
                 // t.me/username/s123 → searchPublicChat → getStory → 故事播放器
                 const { story_poster_username, story_id } = linkType;
                 if (!story_poster_username || !story_id) {
-                    await MessagePlugin.warning({ content: i18n.global.t("preview.invalidStoryLink"), placement: "top-right" });
+                    await toast.warning({ content: i18n.global.t("preview.invalidStoryLink"), placement: "top-right" });
                     return true;
                 }
                 const posterChat = await tdlibSend({
@@ -171,7 +171,7 @@ export async function resolveInternalLink(href: string, router: Router): Promise
                 // proxy.t.me 链接：弹出添加代理小窗，用户确认后再调用 addProxy
                 const proxyInfo = linkType.proxy as proxy | undefined;
                 if (!proxyInfo) {
-                    await MessagePlugin.warning({ content: i18n.global.t("preview.proxyTypeUnsupported"), placement: "top-right" });
+                    await toast.warning({ content: i18n.global.t("preview.proxyTypeUnsupported"), placement: "top-right" });
                     return true;
                 }
                 const action = await showProxyLinkDialog(proxyInfo);
@@ -182,11 +182,11 @@ export async function resolveInternalLink(href: string, router: Router): Promise
                             proxy: { _: "proxy", server: proxyInfo.server, port: proxyInfo.port, type: proxyInfo.type },
                             enable: true,
                         });
-                        await MessagePlugin.success({ content: i18n.global.t("preview.proxyAdded"), placement: "top-right" });
+                        await toast.success({ content: i18n.global.t("preview.proxyAdded"), placement: "top-right" });
                         // 刷新代理列表，让代理设置页跟随更新
                         refreshProxies();
                     } catch (e: any) {
-                        await MessagePlugin.error({ content: e?.message || i18n.global.t("preview.addFailed"), placement: "top-right" });
+                        await toast.error({ content: e?.message || i18n.global.t("preview.addFailed"), placement: "top-right" });
                     }
                 }
                 return true;
@@ -195,7 +195,7 @@ export async function resolveInternalLink(href: string, router: Router): Promise
                 // t.me/setlanguage/xxx：弹出「是否添加本语言包」确认框
                 const packId = linkType.language_pack_id;
                 if (!packId) {
-                    await MessagePlugin.warning({ content: i18n.global.t("preview.invalidLanguagePackLink"), placement: "top-right" });
+                    await toast.warning({ content: i18n.global.t("preview.invalidLanguagePackLink"), placement: "top-right" });
                     return true;
                 }
                 const action = await showLanguagePackDialog(packId);
@@ -204,12 +204,12 @@ export async function resolveInternalLink(href: string, router: Router): Promise
                         // 应用语言：切换 UI + TDLib language_pack_id，并下载缓存
                         const langStore = useLanguageStore();
                         await langStore.setLanguage(packId);
-                        await MessagePlugin.success({
+                        await toast.success({
                             content: i18n.global.t("preview.languagePackEnabled", { id: packId }),
                             placement: "top-right",
                         });
                     } catch (e: any) {
-                        await MessagePlugin.error({
+                        await toast.error({
                             content: e?.message || i18n.global.t("preview.languagePackApplyFailed"),
                             placement: "top-right",
                         });

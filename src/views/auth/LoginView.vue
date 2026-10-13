@@ -7,7 +7,7 @@ import { useI18n } from 'vue-i18n';
 import { tdlibSend } from "../../utils/tdlib";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { onTdlibUpdate } from "../../store/tdlibBus";
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import type { AuthorizationState, countryInfo } from "tdlib-types";
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import LoginSettingsMenu from "./LoginSettingsMenu.vue";
@@ -331,7 +331,7 @@ const login = async () => {
     } catch (e) {
         console.error(e);
         unlockLogin();
-        MessagePlugin.error({ content: mapPhoneLoginError(e), placement: "top-right" });
+        toast.error({ content: mapPhoneLoginError(e), placement: "top-right" });
     }
 };
 
@@ -386,7 +386,7 @@ const AuthState = async (State: AuthorizationState) => {
                     } catch (e) {
                         console.error(e);
                         unlockLogin();
-                        MessagePlugin.error({ content: mapPhoneLoginError(e), placement: "top-right" });
+                        toast.error({ content: mapPhoneLoginError(e), placement: "top-right" });
                     }
                     return;
                 }
@@ -407,15 +407,15 @@ const AuthState = async (State: AuthorizationState) => {
             break;
         case "authorizationStateWaitPremiumPurchase":
             unlockLogin();
-            MessagePlugin.warning({ content: t('login.PremiumWarning'), placement: "top-right", offset: [0, 20] });
+            toast.warning({ content: t('login.PremiumWarning'), placement: "top-right", offset: [0, 20] });
             break;
         case "authorizationStateWaitEmailAddress":
             unlockLogin();
-            MessagePlugin.warning({ content: t('login.SetEmailTips'), placement: "top-right", offset: [0, 20] });
+            toast.warning({ content: t('login.SetEmailTips'), placement: "top-right", offset: [0, 20] });
             break
         case "authorizationStateWaitEmailCode":
             unlockLogin();
-            MessagePlugin.warning({ content: t('login.CheckEmailTips'), placement: "top-right", offset: [0, 20] });
+            toast.warning({ content: t('login.CheckEmailTips'), placement: "top-right", offset: [0, 20] });
             break
         case "authorizationStateWaitCode":
             // 已进入验证码页，本页按钮随路由离开失效
@@ -423,7 +423,7 @@ const AuthState = async (State: AuthorizationState) => {
             break
         case "authorizationStateWaitRegistration":
             unlockLogin();
-            MessagePlugin.warning({ content: t('login.RegisterTips'), placement: "top-right", offset: [0, 20] });
+            toast.warning({ content: t('login.RegisterTips'), placement: "top-right", offset: [0, 20] });
             break;
         case "authorizationStateWaitPassword":
             router.push("/loginPaws");
@@ -431,7 +431,7 @@ const AuthState = async (State: AuthorizationState) => {
         default:
             unlockLogin();
             console.log(State);
-            MessagePlugin.error({ content: t('login.UnknownStateError'), placement: "top-right", offset: [0, 20] });
+            toast.error({ content: t('login.UnknownStateError'), placement: "top-right", offset: [0, 20] });
             break;
     }
 }

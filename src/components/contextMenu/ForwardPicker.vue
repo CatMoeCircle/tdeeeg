@@ -220,7 +220,7 @@ import GlobalEmojiText from "../common/GlobalEmojiText.vue";
 import CustomEmojiInline from "../common/CustomEmojiInline.vue";
 import SlidingTabBar from "../common/SlidingTabBar.vue";
 import { tdlibSend } from "../../utils/tdlib";
-import { MessagePlugin } from "tdesign-vue-next";
+import { toast } from "../../utils/toast";
 import { useChatStore } from "../../store/chat";
 import { useUserStore } from "../../store/user";
 import { settings } from "../../store/settings";
@@ -382,7 +382,7 @@ async function openTopicPicker(c: chat, kind: 'forum' | 'dm') {
             : await loadForumTopics(c.id);
     } catch (e) {
         console.warn('load topics failed:', e);
-        MessagePlugin.error(t('context.actionFailed'));
+        toast.error(t('context.actionFailed'));
     } finally {
         topicPicker.loading = false;
     }
@@ -700,7 +700,7 @@ async function forwardNow() {
     if (sending.value) return;
     if (topicPicker.open) return;
     if (selectedTargets.value.size === 0) {
-        MessagePlugin.info(t("forward.pickChatFirst"));
+        toast.info(t("forward.pickChatFirst"));
         return;
     }
     if (props.messageIds.length === 0) return;
@@ -749,12 +749,12 @@ async function forwardNow() {
         const label = sendCopy
             ? (removeCaption ? t("forward.doneHideBoth") : t("forward.doneHideSender"))
             : t("forward.done");
-        MessagePlugin.success(okCount > 1 ? t('forward.doneMulti', { label, count: okCount }) : label);
+        toast.success(okCount > 1 ? t('forward.doneMulti', { label, count: okCount }) : label);
         close();
         emit("done");
     } catch (e: any) {
         console.error("forward failed:", e);
-        MessagePlugin.error(e?.message || t("context.actionFailed"));
+        toast.error(e?.message || t("context.actionFailed"));
     } finally {
         sending.value = false;
     }

@@ -419,7 +419,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { copyFile } from '@tauri-apps/plugin-fs';
 import { save } from '@tauri-apps/plugin-dialog';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../../../utils/toast';
 import type { formattedText, message, messageVideo, file as TdFile } from 'tdlib-types';
 import { tdlibSend, downloadingFiles, isFileReady, safeDownloadFile, safeAddFileToDownloads } from '../../../../utils/tdlib';
 import { buildVideoQualities } from '../../../../utils/videoQualities';
@@ -646,7 +646,7 @@ async function handleViewerVideoDownload() {
         downloadingFiles.delete(fileId);
         videoDownloading.value = false;
         console.error('MediaViewer video download failed:', e);
-        MessagePlugin.error(t('mediaViewer.videoDownloadFailed'));
+        toast.error(t('mediaViewer.videoDownloadFailed'));
     }
 }
 
@@ -986,7 +986,7 @@ function handleImageManualDownload() {
             downloadingFiles.delete(f.id);
             imageDownloading.value = false;
             console.error('MediaViewer image download failed:', e);
-            MessagePlugin.error(t('mediaViewer.imageDownloadFailed'));
+            toast.error(t('mediaViewer.imageDownloadFailed'));
         }
     })();
 }
@@ -1287,7 +1287,7 @@ async function handleOpenWith() {
         await invoke('open_with_dialog', { path: p });
     } catch (e) {
         console.error('open_with_dialog failed:', e);
-        MessagePlugin.error(t('mediaViewer.openFileFailed'));
+        toast.error(t('mediaViewer.openFileFailed'));
     }
 }
 
@@ -1304,10 +1304,10 @@ async function handleSaveAs() {
         });
         if (!dest) return; // 用户取消
         await copyFile(p, dest);
-        MessagePlugin.success(t('mediaViewer.savedAs'));
+        toast.success(t('mediaViewer.savedAs'));
     } catch (e) {
         console.error('saveAs failed:', e);
-        MessagePlugin.error(t('mediaViewer.saveAsFailed'));
+        toast.error(t('mediaViewer.saveAsFailed'));
     }
 }
 
@@ -1318,7 +1318,7 @@ async function handleCopyImage() {
     if (lp) {
         try {
             await invoke('copy_image_to_clipboard', { path: lp });
-            MessagePlugin.success(t('lng_text_copied'));
+            toast.success(t('lng_text_copied'));
             return;
         } catch (e) {
             console.error('native copy image failed:', e);
@@ -1328,7 +1328,7 @@ async function handleCopyImage() {
     // 回退路径：用已加载的图片元素转 PNG（异步剪贴板 API 仅支持 image/png）
     const img = imageRef.value;
     if (!img || !img.naturalWidth) {
-        MessagePlugin.error(t('context.copyFailed'));
+        toast.error(t('context.copyFailed'));
         return;
     }
     try {
@@ -1343,10 +1343,10 @@ async function handleCopyImage() {
         );
         if (!blob) throw new Error('toBlob returned null');
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-        MessagePlugin.success(t('lng_text_copied'));
+        toast.success(t('lng_text_copied'));
     } catch (e) {
         console.error('copy image failed:', e);
-        MessagePlugin.error(t('context.copyFailed'));
+        toast.error(t('context.copyFailed'));
     }
 }
 

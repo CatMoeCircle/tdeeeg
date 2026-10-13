@@ -294,7 +294,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import { ChevronLeft as ChevronLeftIcon, X as XIcon, KeyRound as KeyRoundIcon, Mail as MailIcon } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import { useI18n } from 'vue-i18n';
 import TgsPlayer from '../../components/common/TgsPlayer.vue';
 import ModalDialog from '../../components/settings/ModalDialog.vue';
@@ -526,7 +526,7 @@ async function submitAuthOrPassword() {
             await loadPasswordState();
         } catch (e: any) {
             authError.value = e?.message || t('lng_cloud_password_wrong');
-            MessagePlugin.error(authError.value);
+            toast.error(authError.value);
         } finally {
             submitting.value = false;
         }
@@ -580,7 +580,7 @@ async function submitHint() {
             set_recovery_email_address: false,
         })) as PasswordState;
         applyPasswordState(res);
-        MessagePlugin.success(t('lng_cloud_password_updated'));
+        toast.success(t('lng_cloud_password_updated'));
         if (isNew) {
             close();
         } else {
@@ -591,7 +591,7 @@ async function submitHint() {
             await loadPasswordState();
         }
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('lng_attach_failed'));
+        toast.error(e?.message || t('lng_attach_failed'));
     } finally {
         submitting.value = false;
     }
@@ -616,7 +616,7 @@ async function submitEmail() {
         step.value = 'email-code';
         startResendCooldown();
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('lng_attach_failed'));
+        toast.error(e?.message || t('lng_attach_failed'));
     } finally {
         submitting.value = false;
     }
@@ -632,13 +632,13 @@ async function submitCode() {
         })) as PasswordState;
         applyPasswordState(res);
         recoveryEmail.value = email.value.trim();
-        MessagePlugin.success(t('lng_cloud_password_updated'));
+        toast.success(t('lng_cloud_password_updated'));
         email.value = '';
         code.value = '';
         step.value = 'menu';
         await loadPasswordState();
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('lng_bad_code'));
+        toast.error(e?.message || t('lng_bad_code'));
     } finally {
         submitting.value = false;
     }
@@ -660,10 +660,10 @@ async function resendCode() {
     if (resendCooldown.value > 0 || submitting.value) return;
     try {
         await tdlibSend({ _: 'resendRecoveryEmailAddressCode' });
-        MessagePlugin.success(t('lng_cloud_password_resent'));
+        toast.success(t('lng_cloud_password_resent'));
         startResendCooldown();
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('lng_attach_failed'));
+        toast.error(e?.message || t('lng_attach_failed'));
     }
 }
 
@@ -679,11 +679,11 @@ async function confirmDisable() {
             set_recovery_email_address: false,
         })) as PasswordState;
         applyPasswordState(res);
-        MessagePlugin.success(t('lng_signin_password_removed'));
+        toast.success(t('lng_signin_password_removed'));
         disableConfirmVisible.value = false;
         close();
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('lng_attach_failed'));
+        toast.error(e?.message || t('lng_attach_failed'));
     } finally {
         submitting.value = false;
     }

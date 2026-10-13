@@ -225,7 +225,7 @@ import {
     RepeatIcon, Repeat1Icon, ShuffleIcon, ListOrderedIcon,
     EyeIcon, FolderOpenIcon, DownloadIcon, BookmarkPlusIcon, Trash2Icon,
 } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { save } from '@tauri-apps/plugin-dialog';
 import { copyFile } from '@tauri-apps/plugin-fs';
@@ -302,7 +302,7 @@ function onTrackContextMenu(e: MouseEvent, track: AudioTrack, idx: number) {
                     await revealItemInDir([localPath]);
                 } catch (err) {
                     console.error('revealItemInDir failed:', err);
-                    MessagePlugin.error(t('context.actionFailed'));
+                    toast.error(t('context.actionFailed'));
                 }
             },
         });
@@ -316,10 +316,10 @@ function onTrackContextMenu(e: MouseEvent, track: AudioTrack, idx: number) {
                     const dest = await save({ title: t('lng_mediaview_save_as'), defaultPath: fileName });
                     if (!dest) return;
                     await copyFile(localPath, dest);
-                    MessagePlugin.success(t('player.savedAs'));
+                    toast.success(t('player.savedAs'));
                 } catch (err) {
                     console.error('saveAs failed:', err);
-                    MessagePlugin.error(t('player.saveAsFailed'));
+                    toast.error(t('player.saveAsFailed'));
                 }
             },
         });
@@ -340,9 +340,9 @@ function onTrackContextMenu(e: MouseEvent, track: AudioTrack, idx: number) {
                 const ok = await player.removeTrackFromMyProfile(track);
                 if (ok) {
                     player.removeTrackAt(idx);
-                    MessagePlugin.success(t('lng_saved_music_removed'));
+                    toast.success(t('lng_saved_music_removed'));
                 } else {
-                    MessagePlugin.error(t('context.actionFailed'));
+                    toast.error(t('context.actionFailed'));
                 }
             },
         });
@@ -353,7 +353,7 @@ function onTrackContextMenu(e: MouseEvent, track: AudioTrack, idx: number) {
             icon: BookmarkPlusIcon,
             onClick: async () => {
                 const ok = await player.saveTrackToMyProfile(track);
-                MessagePlugin.success(ok ? t('lng_saved_music_added') : t('player.saveFailedNotDownloaded'));
+                toast.success(ok ? t('lng_saved_music_added') : t('player.saveFailedNotDownloaded'));
             },
         });
     }

@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from './utils/toast';
 import { tdlibSend } from "./utils/tdlib";
 import { initTdlibBus } from "./store/tdlibBus";
 import { useDownloadStore } from "./store/downloads";
@@ -94,7 +94,7 @@ export async function initTdlib() {
         console.error("TDLib init error event:", event.payload);
         // @ts-ignore
         const errorMsg = event.payload?.message || JSON.stringify(event.payload);
-        MessagePlugin.error({ content: errorMsg, placement: "top-right" });
+        toast.error({ content: errorMsg, placement: "top-right" });
     });
 
     // Listen for debug logs

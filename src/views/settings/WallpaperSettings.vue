@@ -130,7 +130,7 @@ import { onTdlibUpdate } from '../../store/tdlibBus';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useRouter } from 'vue-router';
 import { ChevronLeft as ChevronLeftIcon, Share2 as ShareIcon, Trash2 as TrashIcon } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import { tdlibSend, ensureLocalFilePath, isFileReady, safeDownloadFile } from '../../utils/tdlib';
 import { settings, type ChatWallpaperVisual } from '../../store/settings';
 import { defaultBackgroundFor, emojiChatThemes } from '../../store/chatBackground';
@@ -334,10 +334,10 @@ async function save(opts: {
         hasCustomDefault.value = true;
 
         await loadBackgrounds();
-        MessagePlugin.success(t('wallpaper.updated'));
+        toast.success(t('wallpaper.updated'));
     } catch (err: any) {
         console.error('[WallpaperSettings] save wallpaper failed:', err);
-        MessagePlugin.error(err?.message || err?.error?.message || t('wallpaper.setFailed'));
+        toast.error(err?.message || err?.error?.message || t('wallpaper.setFailed'));
     } finally {
         saving.value = false;
     }
@@ -370,7 +370,7 @@ async function pickLocalWallpaper() {
         });
     } catch (err: any) {
         console.error('[WallpaperSettings] pick local wallpaper failed:', err);
-        MessagePlugin.error(err?.message || t('wallpaper.pickFailed'));
+        toast.error(err?.message || t('wallpaper.pickFailed'));
         saving.value = false;
     }
 }
@@ -410,7 +410,7 @@ async function setRemote(item: background) {
         });
     } catch (err: any) {
         console.error('[WallpaperSettings] wallpaper unavailable:', err);
-        MessagePlugin.error(err?.message || t('wallpaper.notReady'));
+        toast.error(err?.message || t('wallpaper.notReady'));
         saving.value = false;
     }
 }
@@ -452,14 +452,14 @@ async function shareBackground(item: background) {
     try {
         const url = await tdlibSend({ _: 'getBackgroundUrl', name: item.name, type: item.type }) as httpUrl;
         if (url?._ !== 'httpUrl' || !url.url) {
-            MessagePlugin.warning(t('wallpaper.shareUnavailable'));
+            toast.warning(t('wallpaper.shareUnavailable'));
             return;
         }
         await navigator.clipboard.writeText(url.url);
-        MessagePlugin.success(t('wallpaper.shareCopied'));
+        toast.success(t('wallpaper.shareCopied'));
     } catch (err: any) {
         console.error('[WallpaperSettings] getBackgroundUrl failed:', err);
-        MessagePlugin.error(err?.message || t('wallpaper.shareFailed'));
+        toast.error(err?.message || t('wallpaper.shareFailed'));
     }
 }
 
@@ -474,11 +474,11 @@ async function removeBackground(item: background) {
             selectedLabel.value = t('wallpaper.followTelegram');
             hasCustomDefault.value = false;
         }
-        MessagePlugin.success(t('wallpaper.deleted'));
+        toast.success(t('wallpaper.deleted'));
         await loadBackgrounds();
     } catch (err: any) {
         console.error('[WallpaperSettings] removeInstalledBackground failed:', err);
-        MessagePlugin.error(err?.message || t('wallpaper.deleteFailed'));
+        toast.error(err?.message || t('wallpaper.deleteFailed'));
     }
 }
 
@@ -499,10 +499,10 @@ async function resetDefault() {
         selectedKey.value = '';
         selectedLabel.value = t('wallpaper.followTelegram');
         hasCustomDefault.value = false;
-        MessagePlugin.success(t('wallpaper.resetOk'));
+        toast.success(t('wallpaper.resetOk'));
         await loadBackgrounds();
     } catch (err: any) {
-        MessagePlugin.error(err?.message || t('wallpaper.resetFailed'));
+        toast.error(err?.message || t('wallpaper.resetFailed'));
     } finally {
         saving.value = false;
     }

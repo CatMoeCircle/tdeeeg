@@ -208,7 +208,7 @@ import {
 } from '../../utils/senderInfo';
 import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../utils/savedMessages';
 import { tdlibSend } from '../../utils/tdlib';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import { getMessagePlainText } from '../../utils/messageText';
 import { folderTabClass as sharedFolderTabClass, folderTabContainerClass } from '../../utils/folderPillsTabClass';
 import Avatar from './avatar.vue';
@@ -309,7 +309,7 @@ function formatDuration(seconds: number): string {
 }
 
 function goPremium() {
-    MessagePlugin.info(t('search.subscribeInSettings'));
+    toast.info(t('search.subscribeInSettings'));
 }
 
 /** 进入帖子页 / 查询变化时刷新限额并展示状态页（对齐 Unigram：空查询也拉限额，不自动消耗免费次数） */
@@ -370,7 +370,7 @@ async function runPostsSearchNow() {
         postsState.value = list.length > 0 ? 'results' : 'empty';
 
         if (!free && starCount > 0) {
-            MessagePlugin.success(t('lng_posts_paid_spent', { count: starCount }).replace(/\*\*/g, ''));
+            toast.success(t('lng_posts_paid_spent', { count: starCount }).replace(/\*\*/g, ''));
         }
 
         const chatIds = new Set(list.map(m => m.chat_id));
@@ -387,7 +387,7 @@ async function runPostsSearchNow() {
         // Stars 不足等错误：回到限额状态提示
         postsState.value = 'limit-info';
         messageResults.value = [];
-        MessagePlugin.warning(e?.message || t('search.searchFailed'));
+        toast.warning(e?.message || t('search.searchFailed'));
     }
 }
 

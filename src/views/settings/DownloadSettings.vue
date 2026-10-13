@@ -219,7 +219,7 @@ import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import { AppWindowIcon, ChevronLeft as ChevronLeftIcon, FolderOpenIcon, FolderSyncIcon } from 'lucide-vue-next';
 import { settings } from '../../store/settings';
 import type { AutoDownloadByType } from '../../store/settings';
@@ -324,7 +324,7 @@ async function startMigration() {
     } catch (e) {
         console.error('migrate_data_dir failed:', e);
         migrating.value = false;
-        MessagePlugin.error({
+        toast.error({
             content: String(e || t('download.migrateFailed')),
             placement: 'top-right',
         });

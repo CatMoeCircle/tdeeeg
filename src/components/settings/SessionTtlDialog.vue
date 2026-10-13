@@ -28,7 +28,7 @@ export const ttlOptions = [
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Check as CheckIcon } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import ModalDialog from './ModalDialog.vue';
 import { tdlibSend } from '../../utils/tdlib';
 
@@ -65,10 +65,10 @@ async function saveTtl(days: number) {
         await tdlibSend({ _: 'setInactiveSessionTtl', inactive_session_ttl_days: days });
         selectedDays.value = days;
         emit('changed', days);
-        MessagePlugin.success(t('devices.ttlUpdated'));
+        toast.success(t('devices.ttlUpdated'));
         visible.value = false;
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('devices.operationFailed'));
+        toast.error(e?.message || t('devices.operationFailed'));
     }
 }
 </script>

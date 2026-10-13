@@ -112,7 +112,7 @@
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { reactive, ref, watch } from 'vue';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import { X as XIcon } from 'lucide-vue-next';
 import { invoke } from '@tauri-apps/api/core';
 import { settings } from '../../store/settings';
@@ -165,7 +165,7 @@ async function applyMode() {
             proxyId: settings.proxy.selectedProxyId,
         });
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('proxy.applyFailed'));
+        toast.error(e?.message || t('proxy.applyFailed'));
     }
 }
 
@@ -181,12 +181,12 @@ watch(
 async function submitAdd() {
     if (adding.value) return;
     if (!form.server.trim()) {
-        MessagePlugin.warning(t('proxy.enterServer'));
+        toast.warning(t('proxy.enterServer'));
         return;
     }
     const port = Number(form.port);
     if (!port || port <= 0 || port > 65535) {
-        MessagePlugin.warning(t('proxy.enterValidPort'));
+        toast.warning(t('proxy.enterValidPort'));
         return;
     }
     adding.value = true;
@@ -213,9 +213,9 @@ async function submitAdd() {
         }
         close();
         emit('added', added, form.enable);
-        MessagePlugin.success(t('proxy.added'));
+        toast.success(t('proxy.added'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('proxy.addFailed'));
+        toast.error(e?.message || t('proxy.addFailed'));
     } finally {
         adding.value = false;
     }

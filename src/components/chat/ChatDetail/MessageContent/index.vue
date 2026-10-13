@@ -81,7 +81,7 @@
 
         <!-- Voice / Video notes -->
         <MessageVoiceContent v-else-if="content._ === 'messageVoiceNote' || content._ === 'messageVideoNote'"
-            :content="content" :chatId="chatId" :messageId="messageId" />
+            :content="content" :chatId="chatId" :messageId="messageId" :message="message" />
 
         <!-- Document / Audio -->
         <MessageFileContent v-else-if="content._ === 'messageDocument' || content._ === 'messageAudio'"

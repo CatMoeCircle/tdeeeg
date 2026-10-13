@@ -461,7 +461,7 @@ import StoryRing from '../story/StoryRing.vue';
 import type { message, forumTopic, forumTopics, formattedText } from 'tdlib-types';
 import { tdlibSend } from '../../utils/tdlib';
 import type { ContextMenuItem } from '../contextMenu/types';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import {
     isChatArchived, isChatPinned as chatIsPinned, isChatMuted as chatIsMuted,
     canLeaveChat, archiveChat, unarchiveChat, toggleChatPinned, muteChat, unmuteChat,
@@ -919,10 +919,10 @@ const deleteSelectedChats = async () => {
                 revoke,
             } as any);
         }
-        MessagePlugin.success(t('context.deleted'));
+        toast.success(t('context.deleted'));
         exitChatSelectionMode();
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('context.actionFailed'));
+        toast.error(e?.message || t('context.actionFailed'));
     }
 };
 

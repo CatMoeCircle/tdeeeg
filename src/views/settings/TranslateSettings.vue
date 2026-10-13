@@ -235,7 +235,7 @@
 import { computed, defineComponent, h, onMounted, ref, reactive, watch, type Component } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import {
     ChevronLeft as ChevronLeftIcon,
     Languages as LanguageIcon,
@@ -404,10 +404,10 @@ async function runAiModelTest() {
     try {
         const ids = await listAiModels({ ...aiDraft }, aiApiKey.value);
         aiModelOptions.value = ids;
-        await MessagePlugin.success(t('translateSettings.aiTestOk'));
+        await toast.success(t('translateSettings.aiTestOk'));
     } catch (e) {
         aiModelOptions.value = [];
-        await MessagePlugin.error(String(e));
+        await toast.error(String(e));
     } finally {
         aiTesting.value = false;
     }
@@ -420,9 +420,9 @@ async function saveAiSettings() {
         const view = await saveAiConfig({ ...aiDraft }, aiApiKey.value);
         aiHasSavedKey.value = view.hasApiKey;
         aiApiKey.value = '';
-        await MessagePlugin.success(t('translateSettings.aiSaveOk'));
+        await toast.success(t('translateSettings.aiSaveOk'));
     } catch (e) {
-        await MessagePlugin.error(String(e));
+        await toast.error(String(e));
     } finally {
         aiSaving.value = false;
     }
@@ -442,9 +442,9 @@ async function clearAiSettings() {
         aiApiKey.value = '';
         aiHasSavedKey.value = false;
         aiModelOptions.value = [];
-        await MessagePlugin.success(t('translateSettings.aiClearOk'));
+        await toast.success(t('translateSettings.aiClearOk'));
     } catch (e) {
-        await MessagePlugin.error(String(e));
+        await toast.error(String(e));
     } finally {
         aiClearing.value = false;
     }

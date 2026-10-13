@@ -98,7 +98,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Plus as PlusIcon } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import Avatar from '../../components/chat/avatar.vue';
 import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
 import { tdlibSend } from '../../utils/tdlib';
@@ -159,10 +159,10 @@ async function onJoinToSend(v: boolean) {
         join_by_request: false,
       } as any);
     }
-    MessagePlugin.success(t('lng_settings_save'));
+    toast.success(t('lng_settings_save'));
   } catch (e: any) {
     joinToSendMessages.value = prev;
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   }
 }
 
@@ -176,10 +176,10 @@ async function onJoinByRequest(v: boolean) {
       supergroup_id: linkedSupergroupId.value,
       join_by_request: v,
     } as any);
-    MessagePlugin.success(t('lng_settings_save'));
+    toast.success(t('lng_settings_save'));
   } catch (e: any) {
     joinByRequest.value = prev;
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   }
 }
 
@@ -251,10 +251,10 @@ async function createDiscussion() {
       chat_id: isChannel.value ? chatId.value : discussionId,
       discussion_chat_id: discussionId,
     });
-    MessagePlugin.success(t('lng_manage_discussion_group_create'));
+    toast.success(t('lng_manage_discussion_group_create'));
     await reload();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   }
 }
 
@@ -301,10 +301,10 @@ async function linkTo(targetId: number) {
       chat_id: isChannel.value ? chatId.value : targetId,
       discussion_chat_id: discussionId,
     });
-    MessagePlugin.success(t('groupEdit.discussionLinked'));
+    toast.success(t('groupEdit.discussionLinked'));
     await reload();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('groupEdit.saveFailed'));
+    toast.error(e?.message || t('groupEdit.saveFailed'));
   }
 }
 
@@ -315,10 +315,10 @@ async function unlink() {
   try {
     const cid = isChannel.value ? chatId.value : linkedChat.value?.id ?? chatId.value;
     await tdlibSend({ _: 'setChatDiscussionGroup', chat_id: cid, discussion_chat_id: 0 });
-    MessagePlugin.success(t('groupEdit.discussionUnlinked'));
+    toast.success(t('groupEdit.discussionUnlinked'));
     await reload();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('groupEdit.saveFailed'));
+    toast.error(e?.message || t('groupEdit.saveFailed'));
   }
 }
 

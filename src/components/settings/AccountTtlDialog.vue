@@ -17,7 +17,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { Check as CheckIcon } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import ModalDialog from './ModalDialog.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import { tdPlural } from '../../utils/tdLang';
@@ -61,11 +61,11 @@ async function saveAccountTtl(days: number) {
     try {
         await tdlibSend({ _: 'setAccountTtl', ttl: { _: 'accountTtl', days } });
         accountTtlDays.value = days;
-        MessagePlugin.success(t('privacy.accountTtlUpdated'));
+        toast.success(t('privacy.accountTtlUpdated'));
         emit('changed', days);
         visible.value = false;
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('privacy.operationFailed'));
+        toast.error(e?.message || t('privacy.operationFailed'));
     }
 }
 

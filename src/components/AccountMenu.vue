@@ -161,7 +161,7 @@ const { t } = useI18n();
 import { ref, computed, watch } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { UserPlus as UserPlusIcon, Check as CheckIcon, LogOut as LogOutIcon, AlertTriangle as AlertIcon } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../utils/toast';
 import Avatar from './chat/avatar.vue';
 import { useUserStore } from '../store/user';
 import { useAccountsStore, type AccountInfo } from '../store/accounts';
@@ -265,7 +265,7 @@ async function confirmAdd() {
         await accountsStore.addAccount();
     } catch (e: any) {
         adding.value = false;
-        MessagePlugin.error(e?.message || t('systemSettings.addFailed'));
+        toast.error(e?.message || t('systemSettings.addFailed'));
     }
 }
 
@@ -276,12 +276,12 @@ async function confirmAddCustom() {
     const idStr = customApiId.value.trim();
     const hash = customApiHash.value.trim();
     if (!idStr || !hash) {
-        MessagePlugin.warning(t('systemSettings.enterApiCreds'));
+        toast.warning(t('systemSettings.enterApiCreds'));
         return;
     }
     const idNum = Number(idStr);
     if (!Number.isInteger(idNum) || idNum <= 0) {
-        MessagePlugin.warning(t('systemSettings.apiIdInvalid'));
+        toast.warning(t('systemSettings.apiIdInvalid'));
         return;
     }
 
@@ -290,7 +290,7 @@ async function confirmAddCustom() {
         await accountsStore.addAccount(idNum, hash);
     } catch (e: any) {
         adding.value = false;
-        MessagePlugin.error(e?.message || t('systemSettings.addFailed'));
+        toast.error(e?.message || t('systemSettings.addFailed'));
     }
 }
 </script>

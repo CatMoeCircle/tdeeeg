@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import { useI18n } from 'vue-i18n';
 
 /**
@@ -57,10 +57,10 @@ async function handleCopy(e?: Event) {
   if (!value) return;
   try {
     await navigator.clipboard.writeText(value);
-    await MessagePlugin.success({ content: t('lng_text_copied'), placement: 'top-right' });
+    await toast.success({ content: t('lng_text_copied'), placement: 'top-right' });
   } catch (e) {
     console.error('复制失败:', e);
-    MessagePlugin.error({ content: t('dev.copyFailed'), placement: 'top-right' });
+    toast.error({ content: t('dev.copyFailed'), placement: 'top-right' });
   }
 }
 </script>

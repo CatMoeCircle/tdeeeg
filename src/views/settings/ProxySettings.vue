@@ -264,7 +264,7 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, ref, onMounted, onActivated } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { MessagePlugin } from "tdesign-vue-next";
+import { toast } from "../../utils/toast";
 import { useRouter } from 'vue-router';
 import {
     BanIcon, ChevronLeft as ChevronLeftIcon, MonitorIcon, ServerIcon, TrashIcon, RefreshCwIcon, PlusIcon, PlayIcon, Share2Icon, CheckIcon, SmartphoneIcon, ActivityIcon,
@@ -319,13 +319,13 @@ async function selectMode(mode: "auto" | "disabled" | "system" | "custom") {
         try {
             await disableActiveProxy();
         } catch (e: any) {
-            MessagePlugin.error(e?.message || t('proxy.disableFailed'));
+            toast.error(e?.message || t('proxy.disableFailed'));
             return;
         }
     }
     // 所有模式（含 disabled）都同步到 Rust，避免重建客户端时恢复旧代理配置
     await applyMode();
-    MessagePlugin.success(mode === "disabled" ? t('proxy.disabled') : t('proxy.modeSwitched'));
+    toast.success(mode === "disabled" ? t('proxy.disabled') : t('proxy.modeSwitched'));
 }
 
 /** 将当前所选模式同步到 Rust 并应用 */
@@ -336,7 +336,7 @@ async function applyMode() {
             proxyId: settings.proxy.selectedProxyId,
         });
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('proxy.applyFailed'));
+        toast.error(e?.message || t('proxy.applyFailed'));
     }
 }
 
@@ -348,12 +348,12 @@ async function useProxy(p: addedProxy) {
         try {
             await enableProxyById(p.id);
         } catch (e: any) {
-            MessagePlugin.error(e?.message || t('proxy.enableFailed'));
+            toast.error(e?.message || t('proxy.enableFailed'));
             return;
         }
     }
     await applyMode();
-    MessagePlugin.success(t('proxy.usingProxy', { server: p.proxy.server }));
+    toast.success(t('proxy.usingProxy', { server: p.proxy.server }));
 }
 
 /** 该代理是否为当前选用的代理（custom 模式下被勾选） */
@@ -371,9 +371,9 @@ async function confirmRemove(p: addedProxy) {
         if (settings.proxy.selectedProxyId === p.id) {
             settings.proxy.selectedProxyId = null;
         }
-        MessagePlugin.success(t('proxy.deleted'));
+        toast.success(t('proxy.deleted'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('proxy.deleteFailed'));
+        toast.error(e?.message || t('proxy.deleteFailed'));
     }
 }
 
@@ -381,14 +381,14 @@ async function confirmRemove(p: addedProxy) {
 async function shareProxy(p: addedProxy) {
     const link = proxyShareLink(p);
     if (!link) {
-        MessagePlugin.warning(t('proxy.shareUnavailable'));
+        toast.warning(t('proxy.shareUnavailable'));
         return;
     }
     try {
         await navigator.clipboard.writeText(link);
-        MessagePlugin.success(t('proxy.shareCopied'));
+        toast.success(t('proxy.shareCopied'));
     } catch (e: any) {
-        MessagePlugin.error(t('proxy.copyFailed'));
+        toast.error(t('proxy.copyFailed'));
         console.error(e);
     }
 }
@@ -403,8 +403,8 @@ async function pingProxy(p: addedProxy) {
     try {
         const res = await pingProxyOf(p.proxy.server, p.proxy.port, p.proxy.type);
         if (res) {
-            if (res.ok) MessagePlugin.success(`${p.proxy.server}:${p.proxy.port} — ${res.text}`);
-            else MessagePlugin.warning(`${p.proxy.server}:${p.proxy.port} — ${res.text}`);
+            if (res.ok) toast.success(`${p.proxy.server}:${p.proxy.port} — ${res.text}`);
+            else toast.warning(`${p.proxy.server}:${p.proxy.port} — ${res.text}`);
         }
     } finally {
         pinging.value = false;

@@ -1,5 +1,5 @@
 import type { Component } from "vue";
-import { MessagePlugin } from "tdesign-vue-next";
+import { toast } from "../../utils/toast";
 import { Copy as CopyIcon } from "lucide-vue-next";
 import type { ChatType } from "tdlib-types";
 import type { ContextMenuItem } from "./types";
@@ -9,14 +9,14 @@ import { getReactiveUser } from "../../utils/senderInfo";
 /** 将 TDLib 对象 JSON 化并写入剪贴板（开发调试用） */
 export async function copyTdlibJson(data: unknown, label: string): Promise<void> {
   if (data === undefined || data === null) {
-    MessagePlugin.warning(`${label} 数据不可用`);
+    toast.warning(`${label} 数据不可用`);
     return;
   }
   try {
     await navigator.clipboard.writeText(JSON.stringify(data, null, 2));
-    MessagePlugin.success(`${label} 已复制`);
+    toast.success(`${label} 已复制`);
   } catch {
-    MessagePlugin.error("复制失败");
+    toast.error("复制失败");
   }
 }
 
@@ -40,7 +40,7 @@ export function makeCopyJsonItem(opts: {
           const name = opts.label.replace(/^复制\s*/, "") || opts.label;
           await copyTdlibJson(data, name);
         } catch (e: any) {
-          MessagePlugin.error(e?.message || "获取数据失败");
+          toast.error(e?.message || "获取数据失败");
         }
       })();
     },

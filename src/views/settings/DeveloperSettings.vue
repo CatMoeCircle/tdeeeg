@@ -299,7 +299,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, RefreshCw as RefreshCwIcon } from 'lucide-vue-next';
 import { invoke } from '@tauri-apps/api/core';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import {
     logUpdates, setLogUpdates, openDevTools, rawTdlibSend,
     showCopyJsonInMenus, setShowCopyJsonInMenus,
@@ -327,9 +327,9 @@ function formatUpdateTime(t: number): string {
 async function copyUpdate(u: CachedUpdate) {
     try {
         await navigator.clipboard.writeText(JSON.stringify(u.payload, null, 2));
-        MessagePlugin.success({ content: t('dev.copied', { type: u.type }), placement: 'top-right' });
+        toast.success({ content: t('dev.copied', { type: u.type }), placement: 'top-right' });
     } catch (e) {
-        MessagePlugin.error({ content: t('dev.copyFailed'), placement: 'top-right' });
+        toast.error({ content: t('dev.copyFailed'), placement: 'top-right' });
         console.warn('copy update failed', e);
     }
 }

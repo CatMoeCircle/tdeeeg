@@ -74,7 +74,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import {
     ChevronLeft as ChevronLeftIcon,
     RefreshCw as RefreshCwIcon,
@@ -134,13 +134,13 @@ async function select(opt: LanguageOption) {
     if (opt.code === currentCode.value) return;
     try {
         await langStore.setLanguage(opt.code);
-        MessagePlugin.success({
+        toast.success({
             content: t('language.switched', { name: opt.nativeName }),
             placement: 'top-right',
         });
     } catch (e) {
         console.error('[LanguageSettings] switch failed:', e);
-        MessagePlugin.error({ content: t('language.switchFailed'), placement: 'top-right' });
+        toast.error({ content: t('language.switchFailed'), placement: 'top-right' });
     }
 }
 
@@ -188,13 +188,13 @@ async function exportPackAsJson(opt: LanguageOption) {
         if (!dest) return;
         const text = JSON.stringify(payload, null, 2);
         await writeFile(dest, new TextEncoder().encode(text));
-        MessagePlugin.success({
+        toast.success({
             content: t('language.exportSuccess', { count: payload.stringCount }),
             placement: 'top-right',
         });
     } catch (e) {
         console.error('[LanguageSettings] export pack failed:', packId, e);
-        MessagePlugin.error({ content: t('language.exportFailed'), placement: 'top-right' });
+        toast.error({ content: t('language.exportFailed'), placement: 'top-right' });
     } finally {
         exportingPackId.value = null;
     }
@@ -208,13 +208,13 @@ async function copyPackJson(opt: LanguageOption) {
         const payload = await buildLanguagePackExport(packId);
         const text = JSON.stringify(payload, null, 2);
         await navigator.clipboard.writeText(text);
-        MessagePlugin.success({
+        toast.success({
             content: t('language.copySuccess', { count: payload.stringCount }),
             placement: 'top-right',
         });
     } catch (e) {
         console.error('[LanguageSettings] copy pack failed:', packId, e);
-        MessagePlugin.error({ content: t('language.exportFailed'), placement: 'top-right' });
+        toast.error({ content: t('language.exportFailed'), placement: 'top-right' });
     } finally {
         exportingPackId.value = null;
     }

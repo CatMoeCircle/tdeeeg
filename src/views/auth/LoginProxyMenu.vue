@@ -347,7 +347,7 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, onMounted, onUnmounted, ref, reactive } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { MessagePlugin } from "tdesign-vue-next";
+import { toast } from "../../utils/toast";
 import { BanIcon, GlobeIcon, MonitorIcon, ServerIcon, SmartphoneIcon, XIcon, CheckIcon, PlusIcon, TrashIcon, ActivityIcon } from "lucide-vue-next";
 import { settings } from "../../store/settings";
 import { pingProxyOf } from "../../store/proxyLink";
@@ -405,7 +405,7 @@ async function setMode(mode: "auto" | "system" | "disabled") {
         try {
             await disableActiveProxy();
         } catch (e: any) {
-            MessagePlugin.error(e?.message || t('proxy.disableFailed'));
+            toast.error(e?.message || t('proxy.disableFailed'));
             return;
         }
     }
@@ -416,10 +416,10 @@ async function setMode(mode: "auto" | "system" | "disabled") {
             proxyId: settings.proxy.selectedProxyId,
         });
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('proxy.applyFailed'));
+        toast.error(e?.message || t('proxy.applyFailed'));
         return;
     }
-    MessagePlugin.success(mode === "disabled" ? t('proxy.disabled') : t('proxy.modeSwitched'));
+    toast.success(mode === "disabled" ? t('proxy.disabled') : t('proxy.modeSwitched'));
 }
 
 /** 使用自定义代理 */
@@ -430,7 +430,7 @@ async function useProxy(p: addedProxy) {
         try {
             await enableProxyById(p.id);
         } catch (e: any) {
-            MessagePlugin.error(e?.message || t('proxy.enableFailed'));
+            toast.error(e?.message || t('proxy.enableFailed'));
             return;
         }
     }
@@ -440,10 +440,10 @@ async function useProxy(p: addedProxy) {
             proxyId: p.id,
         });
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('proxy.applyFailed'));
+        toast.error(e?.message || t('proxy.applyFailed'));
         return;
     }
-    MessagePlugin.success(t('proxy.usingProxy', { server: p.proxy.server }));
+    toast.success(t('proxy.usingProxy', { server: p.proxy.server }));
     visible.value = false;
 }
 
@@ -482,12 +482,12 @@ function closeAddDialog() {
 async function submitAdd() {
     if (adding.value) return;
     if (!form.server.trim()) {
-        MessagePlugin.warning(t('proxy.enterServer'));
+        toast.warning(t('proxy.enterServer'));
         return;
     }
     const port = Number(form.port);
     if (!port || port <= 0 || port > 65535) {
-        MessagePlugin.warning(t('proxy.enterValidPort'));
+        toast.warning(t('proxy.enterValidPort'));
         return;
     }
     adding.value = true;
@@ -512,9 +512,9 @@ async function submitAdd() {
         await invoke("set_proxy_config", { mode: "custom", proxyId: added.id });
         await refreshProxies();
         closeAddDialog();
-        MessagePlugin.success(t('proxy.added'));
+        toast.success(t('proxy.added'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('proxy.addFailed'));
+        toast.error(e?.message || t('proxy.addFailed'));
     } finally {
         adding.value = false;
     }
@@ -529,9 +529,9 @@ async function confirmRemove(p: addedProxy) {
             settings.proxy.mode = "disabled";
         }
         await refreshProxies();
-        MessagePlugin.success(t('proxy.deleted'));
+        toast.success(t('proxy.deleted'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('proxy.deleteFailed'));
+        toast.error(e?.message || t('proxy.deleteFailed'));
     }
 }
 
@@ -545,8 +545,8 @@ async function pingProxy(p: addedProxy) {
     try {
         const res = await pingProxyOf(p.proxy.server, p.proxy.port, p.proxy.type);
         if (res) {
-            if (res.ok) MessagePlugin.success(`${p.proxy.server}:${p.proxy.port} — ${res.text}`);
-            else MessagePlugin.warning(`${p.proxy.server}:${p.proxy.port} — ${res.text}`);
+            if (res.ok) toast.success(`${p.proxy.server}:${p.proxy.port} — ${res.text}`);
+            else toast.warning(`${p.proxy.server}:${p.proxy.port} — ${res.text}`);
         }
     } finally {
         pinging.value = false;

@@ -77,7 +77,7 @@ import {
     ArrowUp as ArrowUpIcon, ArrowDown as ArrowDownIcon,
     Ban as BanIcon, Check as CheckIcon,
 } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import ModalDialog from './ModalDialog.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import { tdHtml } from '../../utils/tdLang';
@@ -179,11 +179,11 @@ async function saveUsername() {
     savingUsername.value = true;
     try {
         await tdlibSend({ _: 'setUsername', username: name } as any);
-        MessagePlugin.success(t('editProfile.usernameUpdated'));
+        toast.success(t('editProfile.usernameUpdated'));
         usernameCheck.value = '';
         emit('changed');
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('editProfile.usernameSetFailed'));
+        toast.error(e?.message || t('editProfile.usernameSetFailed'));
     } finally {
         savingUsername.value = false;
     }
@@ -198,7 +198,7 @@ async function moveUsername(index: number, dir: -1 | 1) {
         await tdlibSend({ _: 'reorderActiveUsernames', usernames: list } as any);
         emit('changed');
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('editProfile.reorderFailed'));
+        toast.error(e?.message || t('editProfile.reorderFailed'));
     }
 }
 
@@ -207,7 +207,7 @@ async function toggleUsername(name: string, isActive: boolean) {
         await tdlibSend({ _: 'toggleUsernameIsActive', username: name, is_active: isActive } as any);
         emit('changed');
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('editProfile.actionFailed'));
+        toast.error(e?.message || t('editProfile.actionFailed'));
     }
 }
 </script>

@@ -61,7 +61,7 @@
 import { ref, computed, watch, nextTick, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { AtSignIcon, GhostIcon, ChevronRightIcon } from "lucide-vue-next";
-import { MessagePlugin } from "tdesign-vue-next";
+import { toast } from "../../utils/toast";
 import Avatar from "../chat/avatar.vue";
 import GlobalEmojiText from "../common/GlobalEmojiText.vue";
 import {
@@ -85,7 +85,7 @@ async function copyUsername() {
     if (!headerText.value) return;
     try {
         await navigator.clipboard.writeText(headerText.value);
-        await MessagePlugin.success({ content: "已复制用户名", placement: "top-right" });
+        await toast.success({ content: "已复制用户名", placement: "top-right" });
         closeUsernameMenu();
     } catch (e) {
         console.error("Copy username failed:", e);

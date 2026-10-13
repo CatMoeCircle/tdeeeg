@@ -75,7 +75,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import ModalDialog from './ModalDialog.vue';
 import ToggleSwitch from './ToggleSwitch.vue';
 import Avatar from '../chat/avatar.vue';
@@ -251,11 +251,11 @@ async function save() {
         permissions,
       },
     });
-    MessagePlugin.success(t('lng_settings_save'));
+    toast.success(t('lng_settings_save'));
     emit('changed');
     close();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   } finally {
     saving.value = false;
   }
@@ -272,11 +272,11 @@ async function ban() {
       member_id: { _: 'messageSenderUser', user_id: userId },
       revoke_messages: true,
     });
-    MessagePlugin.success(t('lng_rights_group_ban'));
+    toast.success(t('lng_rights_group_ban'));
     emit('changed');
     close();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   } finally {
     saving.value = false;
   }

@@ -151,7 +151,7 @@ import {
   UserPlus as UserPlusIcon,
   Trash2 as Trash2Icon,
 } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import Avatar from '../../components/chat/avatar.vue';
 import GroupAdminRightsDialog from '../../components/settings/GroupAdminRightsDialog.vue';
 import GroupRestrictDialog from '../../components/settings/GroupRestrictDialog.vue';
@@ -298,18 +298,18 @@ async function onPickUser(u: { id: number }) {
         member_id: { _: 'messageSenderUser', user_id: u.id },
         revoke_messages: true,
       });
-      MessagePlugin.success(t('lng_rights_group_ban'));
+      toast.success(t('lng_rights_group_ban'));
     } else {
       await tdlibSend({
         _: 'addChatMember',
         chat_id: chatId.value,
         user_id: u.id,
       } as any);
-      MessagePlugin.success(t('lng_channel_add_members'));
+      toast.success(t('lng_channel_add_members'));
     }
     await reload();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   }
 }
 
@@ -326,10 +326,10 @@ async function onHideMembers(v: boolean) {
       supergroup_id: chat.value.type.supergroup_id,
       has_hidden_members: v,
     });
-    MessagePlugin.success(t('lng_settings_save'));
+    toast.success(t('lng_settings_save'));
   } catch (e: any) {
     hasHiddenMembers.value = prev;
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   }
 }
 const canChangeInfo = computed(() => canChangeGroupInfo(myStatus.value, chat.value));
@@ -359,7 +359,7 @@ async function onSignMessages(v: boolean) {
     });
   } catch (e: any) {
     signMessages.value = prev;
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   }
 }
 
@@ -376,7 +376,7 @@ async function onShowMessageSender(v: boolean) {
     });
   } catch (e: any) {
     showMessageSender.value = prev;
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   }
 }
 
@@ -392,7 +392,7 @@ async function onAntiSpam(v: boolean) {
     });
   } catch (e: any) {
     antiSpam.value = prev;
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   }
 }
 const title = computed(() => {
@@ -478,10 +478,10 @@ async function removeFromChat(m: chatMember) {
       member_id: { _: 'messageSenderUser', user_id: uid },
       status: { _: 'chatMemberStatusBanned', banned_until_date: 0 },
     });
-    MessagePlugin.success(t('groupEdit.removed'));
+    toast.success(t('groupEdit.removed'));
     await reload();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   }
 }
 
@@ -496,10 +496,10 @@ async function addToChat(m: chatMember) {
       member_id: { _: 'messageSenderUser', user_id: uid },
       status: { _: 'chatMemberStatusMember', member_until_date: 0 },
     });
-    MessagePlugin.success(t('lng_context_add_to_group'));
+    toast.success(t('lng_context_add_to_group'));
     await reload();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   }
 }
 
@@ -514,10 +514,10 @@ async function deleteFromList(m: chatMember) {
       member_id: { _: 'messageSenderUser', user_id: uid },
       status: { _: 'chatMemberStatusLeft' },
     });
-    MessagePlugin.success(t('lng_group_invite_context_delete'));
+    toast.success(t('lng_group_invite_context_delete'));
     await reload();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   }
 }
 

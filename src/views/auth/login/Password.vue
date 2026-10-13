@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { tdlibSend } from "../../../utils/tdlib";
-import { MessagePlugin } from "tdesign-vue-next";
+import { toast } from "../../../utils/toast";
 import { useI18n } from "vue-i18n";
 import { invoke } from "@tauri-apps/api/core";
 import { onTdlibUpdate } from "../../../store/tdlibBus";
@@ -99,7 +99,7 @@ const submitPassword = async () => {
         });
     } catch (error: any) {
         console.error(error);
-        MessagePlugin.error({ content: mapPasswordError(error), placement: "top-right" });
+        toast.error({ content: mapPasswordError(error), placement: "top-right" });
         // Unigram：密码错误清空 + 抖动；猴子回到空态
         monkey.resetToEmpty();
         showPassword.value = false;

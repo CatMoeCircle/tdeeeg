@@ -65,7 +65,7 @@ import { useI18n } from 'vue-i18n';
 import { Camera as CameraIcon, ChevronRight as ChevronRightIcon, Users as UsersIcon, X as XIcon } from 'lucide-vue-next';
 import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import ModalDialog from '../settings/ModalDialog.vue';
 import GroupUserPickerDialog from '../settings/GroupUserPickerDialog.vue';
 import { tdlibSend } from '../../utils/tdlib';
@@ -135,14 +135,14 @@ async function pickPhoto() {
     photoPreview.value = convertFileSrc(selected);
   } catch (e) {
     console.error('pick chat photo failed:', e);
-    MessagePlugin.error(t('avatar.pickFailed'));
+    toast.error(t('avatar.pickFailed'));
   }
 }
 
 async function create() {
   const name = title.value.trim();
   if (!name) {
-    MessagePlugin.warning(t('newChat.titleRequired'));
+    toast.warning(t('newChat.titleRequired'));
     return;
   }
   creating.value = true;
@@ -166,7 +166,7 @@ async function create() {
       })) as createdBasicGroupChat;
       chatId = created.chat_id;
       const failed = created.failed_to_add_members?.failed_to_add_members?.length ?? 0;
-      if (failed) MessagePlugin.warning(t('newChat.membersFailed', { count: failed }));
+      if (failed) toast.warning(t('newChat.membersFailed', { count: failed }));
       const description = about.value.trim();
       if (description) {
         await tdlibSend({ _: 'setChatDescription', chat_id: chatId, description });
@@ -182,7 +182,7 @@ async function create() {
     }
 
     emit('update:modelValue', false);
-    MessagePlugin.success(isChannel.value ? t('newChat.channelCreated') : t('newChat.groupCreated'));
+    toast.success(isChannel.value ? t('newChat.channelCreated') : t('newChat.groupCreated'));
     // 频道创建后按 Unigram 流程进入「频道类型」页设置公开/私密
     if (isChannel.value) {
       router.push({ name: 'group-type', params: { id: String(chatId) } });
@@ -191,7 +191,7 @@ async function create() {
     }
   } catch (e: any) {
     console.error('create chat failed:', e);
-    MessagePlugin.error(e?.message || t('newChat.createFailed'));
+    toast.error(e?.message || t('newChat.createFailed'));
   } finally {
     creating.value = false;
   }

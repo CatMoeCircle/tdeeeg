@@ -266,7 +266,8 @@ export interface PrivacyItemDef {
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { onTdlibUpdate } from '../../store/tdlibBus';
 import { Check as CheckIcon } from 'lucide-vue-next';
-import { MessagePlugin, Slider as TSlider } from 'tdesign-vue-next';
+import { Slider as TSlider } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import { useI18n } from 'vue-i18n';
 import starsSvg from '../../assets/stars.svg';
 import ModalDialog from './ModalDialog.vue';
@@ -584,7 +585,7 @@ async function addException(kind: ExceptionKind) {
     try {
         const entry = await resolveEntityFromInput(text);
         if (target.value.some((e) => e.id === entry.id && e.isChat === entry.isChat)) {
-            MessagePlugin.warning(t('privacy.alreadyInList'));
+            toast.warning(t('privacy.alreadyInList'));
             return;
         }
         target.value.push(entry);
@@ -665,7 +666,7 @@ async function loadNewChatSetting() {
 
 function selectNewChatMode(mode: NewChatMode) {
     if (mode === 'paid' && !canEnablePaidMessages.value) {
-        MessagePlugin.warning(t('privacy.paidMessagesUnsupported'));
+        toast.warning(t('privacy.paidMessagesUnsupported'));
         return;
     }
     newChatMode.value = mode;
@@ -923,7 +924,7 @@ async function savePrivacyItem(): Promise<boolean> {
                 || dualRulesChanged(snap);
             if (rulesChanged) {
                 if (!props.isPremium) {
-                    MessagePlugin.warning(t('privacy.premiumRequiredToast'));
+                    toast.warning(t('privacy.premiumRequiredToast'));
                     return false;
                 }
                 await tdlibSend({
@@ -941,7 +942,7 @@ async function savePrivacyItem(): Promise<boolean> {
                 && (!snap || !sameKeyList(snap.newChatExceptionKeys, exceptionKeys(newChatExceptions.value)));
             if (modeChanged || starChanged || excChanged) {
                 if (!props.isPremium) {
-                    MessagePlugin.warning(t('privacy.premiumRequiredToast'));
+                    toast.warning(t('privacy.premiumRequiredToast'));
                     return false;
                 }
                 if (modeChanged || starChanged) {
@@ -987,12 +988,12 @@ async function savePrivacyItem(): Promise<boolean> {
             }
         }
         if (changed) {
-            MessagePlugin.success(t('privacy.settingsUpdated'));
+            toast.success(t('privacy.settingsUpdated'));
             emit('changed');
         }
         return true;
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('privacy.saveFailed'));
+        toast.error(e?.message || t('privacy.saveFailed'));
         return false;
     }
 }

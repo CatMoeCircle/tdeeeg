@@ -125,7 +125,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { TimePicker as TTimePicker, MessagePlugin } from 'tdesign-vue-next';
+import { TimePicker as TTimePicker } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import ModalDialog from './ModalDialog.vue';
 import { tdlibSend } from '../../utils/tdlib';
 
@@ -320,7 +321,7 @@ async function saveBusinessHours() {
                 opening_hours: intervals,
             },
         } as any);
-        MessagePlugin.success(hoursEnabled.value ? t('editProfile.hoursSaved') : t('editProfile.hoursDisabled'));
+        toast.success(hoursEnabled.value ? t('editProfile.hoursSaved') : t('editProfile.hoursDisabled'));
         emit('changed');
         close();
     } catch (e: any) {

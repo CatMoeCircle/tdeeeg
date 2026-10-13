@@ -1,5 +1,5 @@
 import { tdlibSend } from "../../utils/tdlib";
-import { MessagePlugin } from "tdesign-vue-next";
+import { toast } from "../../utils/toast";
 import i18n from "../../i18n";
 import type { Chat } from "../../store/chat";
 
@@ -55,9 +55,9 @@ export function canLeaveChat(chat: Chat): boolean {
 export async function moveChatToList(chatId: number, chatList: { _: string }, successMsg?: string) {
     try {
         await tdlibSend({ _: 'addChatToList', chat_id: chatId, chat_list: chatList as any });
-        if (successMsg) MessagePlugin.success(successMsg);
+        if (successMsg) toast.success(successMsg);
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('context.actionFailed'));
+        toast.error(e?.message || t('context.actionFailed'));
     }
 }
 
@@ -80,9 +80,9 @@ export async function toggleChatPinned(chatId: number, isPinned: boolean, chatLi
             is_pinned: isPinned,
             chat_list: chatList as any,
         });
-        MessagePlugin.success(isPinned ? t('lng_quick_dialog_action_toast_pin_success') : t('lng_quick_dialog_action_toast_unpin_success'));
+        toast.success(isPinned ? t('lng_quick_dialog_action_toast_pin_success') : t('lng_quick_dialog_action_toast_unpin_success'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('context.actionFailed'));
+        toast.error(e?.message || t('context.actionFailed'));
     }
 }
 
@@ -102,13 +102,13 @@ export async function toggleChatInFolder(
         });
         const chat = names?.chat ?? String(chatId);
         const folder = names?.folder ?? String(folderId);
-        MessagePlugin.success(
+        toast.success(
             add
                 ? t('lng_filters_toast_add', { chat, folder })
                 : t('lng_filters_toast_remove', { chat, folder }),
         );
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('context.actionFailed'));
+        toast.error(e?.message || t('context.actionFailed'));
     }
 }
 
@@ -126,9 +126,9 @@ export async function muteChat(chatId: number) {
                 sound_id: '0',
             } as any,
         });
-        MessagePlugin.success(t('lng_quick_dialog_action_toast_mute_success'));
+        toast.success(t('lng_quick_dialog_action_toast_mute_success'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('context.actionFailed'));
+        toast.error(e?.message || t('context.actionFailed'));
     }
 }
 
@@ -146,9 +146,9 @@ export async function unmuteChat(chatId: number) {
                 sound_id: '0',
             } as any,
         });
-        MessagePlugin.success(t('lng_quick_dialog_action_toast_unmute_success'));
+        toast.success(t('lng_quick_dialog_action_toast_unmute_success'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('context.actionFailed'));
+        toast.error(e?.message || t('context.actionFailed'));
     }
 }
 
@@ -156,9 +156,9 @@ export async function unmuteChat(chatId: number) {
 export async function leaveChat(chatId: number) {
     try {
         await tdlibSend({ _: 'leaveChat', chat_id: chatId });
-        MessagePlugin.success(t('context.leftChat'));
+        toast.success(t('context.leftChat'));
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('context.actionFailed'));
+        toast.error(e?.message || t('context.actionFailed'));
     }
 }
 

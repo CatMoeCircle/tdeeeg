@@ -183,7 +183,7 @@ import {
     TimerReset as TimerResetIcon, Trash2 as Trash2Icon,
     Mail as MailIcon, Smartphone as SmartphoneIcon,
 } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import AutoDeleteDialog from '../../components/settings/AutoDeleteDialog.vue';
 import TwoFactorDialog from '../../components/settings/TwoFactorDialog.vue';
 import BlockedUsersDialog from '../../components/settings/BlockedUsersDialog.vue';
@@ -530,7 +530,7 @@ async function saveIgnoreSensitive(v: boolean) {
         });
         ignoreSensitiveContent.value = v;
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('lng_attach_failed'));
+        toast.error(e?.message || t('lng_attach_failed'));
         ignoreSensitiveContent.value = !v;
     }
 }

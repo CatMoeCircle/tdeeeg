@@ -251,7 +251,7 @@ import { useRouter } from 'vue-router';
 import { ChevronLeft as ChevronLeftIcon, Plus as PlusIcon } from 'lucide-vue-next';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import { tdlibSend } from '../../utils/tdlib';
 import { useAccountsStore, type AccountInfo } from '../../store/accounts';
 import { storeToRefs } from 'pinia';
@@ -345,7 +345,7 @@ async function switchAcc(acc: AccountInfo) {
     try {
         await accountsStore.switchAccount(acc.id);
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('systemSettings.switchFailed'));
+        toast.error(e?.message || t('systemSettings.switchFailed'));
     }
 }
 
@@ -356,7 +356,7 @@ async function logoutAcc(acc: AccountInfo) {
     try {
         await accountsStore.logoutAccount(acc.id);
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('systemSettings.logoutFailed'));
+        toast.error(e?.message || t('systemSettings.logoutFailed'));
     }
 }
 
@@ -367,7 +367,7 @@ async function removeAcc(acc: AccountInfo) {
     try {
         await accountsStore.logoutAccount(acc.id);
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('systemSettings.removeFailed'));
+        toast.error(e?.message || t('systemSettings.removeFailed'));
     }
 }
 
@@ -396,7 +396,7 @@ async function confirmAdd() {
         showAddDialog.value = false;
     } catch (e: any) {
         adding.value = false;
-        MessagePlugin.error(e?.message || t('systemSettings.addFailed'));
+        toast.error(e?.message || t('systemSettings.addFailed'));
     }
 }
 
@@ -407,12 +407,12 @@ async function confirmAddCustom() {
     const idStr = customApiId.value.trim();
     const hash = customApiHash.value.trim();
     if (!idStr || !hash) {
-        MessagePlugin.warning(t('systemSettings.enterApiCreds'));
+        toast.warning(t('systemSettings.enterApiCreds'));
         return;
     }
     const idNum = Number(idStr);
     if (!Number.isInteger(idNum) || idNum <= 0) {
-        MessagePlugin.warning(t('systemSettings.apiIdInvalid'));
+        toast.warning(t('systemSettings.apiIdInvalid'));
         return;
     }
 
@@ -422,7 +422,7 @@ async function confirmAddCustom() {
         showAddDialog.value = false;
     } catch (e: any) {
         adding.value = false;
-        MessagePlugin.error(e?.message || t('systemSettings.addFailed'));
+        toast.error(e?.message || t('systemSettings.addFailed'));
     }
 }
 </script>

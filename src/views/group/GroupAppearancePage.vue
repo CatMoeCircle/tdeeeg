@@ -167,7 +167,7 @@ import {
   Smile as SmileIcon,
   Image as ImageIcon,
 } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import { tdlibSend } from '../../utils/tdlib';
 import { accentColorStyle, accentAvatarBackground, useColors } from '../../store/colors';
 import { loadMyChatMemberStatus, isChannelChat } from '../../utils/groupRights';
@@ -229,14 +229,14 @@ function profileColorLocked(id: number): boolean {
 
 function pickNameColor(id: number) {
   if (nameColorLocked(id)) {
-    MessagePlugin.warning(t('lng_boost_channel_needs_level_color', { count: nameColorLevel(id) }));
+    toast.warning(t('lng_boost_channel_needs_level_color', { count: nameColorLevel(id) }));
     return;
   }
   nameColorId.value = id;
 }
 function pickProfileColor(id: number) {
   if (id >= 0 && profileColorLocked(id)) {
-    MessagePlugin.warning(t('lng_boost_channel_needs_level_color', { count: profileColorLevel(id) }));
+    toast.warning(t('lng_boost_channel_needs_level_color', { count: profileColorLevel(id) }));
     return;
   }
   profileColorId.value = id;
@@ -276,10 +276,10 @@ async function save() {
       profile_accent_color_id: profileColorId.value,
       profile_background_custom_emoji_id: 0,
     });
-    MessagePlugin.success(t('lng_settings_save'));
+    toast.success(t('lng_settings_save'));
     await reload();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   } finally {
     saving.value = false;
   }

@@ -49,7 +49,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ChevronLeft as ChevronLeftIcon } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import { tdlibSend } from '../../utils/tdlib';
 
 type InviteLink = {
@@ -106,10 +106,10 @@ async function createLink() {
       member_limit: 0,
       creates_join_request: false,
     } as any);
-    MessagePlugin.success(t('lng_settings_save'));
+    toast.success(t('lng_settings_save'));
     await reload();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   } finally {
     creating.value = false;
   }
@@ -118,19 +118,19 @@ async function createLink() {
 async function revokeLink(link: string) {
   try {
     await tdlibSend({ _: 'revokeChatInviteLink', chat_id: chatId.value, invite_link: link });
-    MessagePlugin.success(t('lng_group_invite_context_revoke'));
+    toast.success(t('lng_group_invite_context_revoke'));
     await reload();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   }
 }
 
 async function copyLink(link: string) {
   try {
     await navigator.clipboard.writeText(link);
-    MessagePlugin.success(t('lng_group_invite_copied'));
+    toast.success(t('lng_group_invite_copied'));
   } catch {
-    MessagePlugin.error(t('lng_settings_save'));
+    toast.error(t('lng_settings_save'));
   }
 }
 

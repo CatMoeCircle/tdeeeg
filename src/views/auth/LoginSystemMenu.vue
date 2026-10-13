@@ -159,7 +159,7 @@
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { ref, watch, onMounted, onUnmounted, computed } from "vue";
-import { MessagePlugin } from "tdesign-vue-next";
+import { toast } from "../../utils/toast";
 import { Settings as SettingsIcon, X as XIcon, Info as InfoIcon } from 'lucide-vue-next';
 import { settings } from "../../store/settings";
 import { reinitTdlibWithSystemParams } from "../../utils/tdlibParams";
@@ -201,12 +201,12 @@ async function apply() {
     if (applying.value) return;
     if (customApiCreds.value) {
         if (!apiId.value.trim() || !apiHash.value.trim()) {
-            MessagePlugin.warning(t('systemSettings.enterApiCreds'));
+            toast.warning(t('systemSettings.enterApiCreds'));
             return;
         }
         const id = Number(apiId.value.trim());
         if (!Number.isInteger(id) || id <= 0) {
-            MessagePlugin.warning(t('systemSettings.apiIdInvalid'));
+            toast.warning(t('systemSettings.apiIdInvalid'));
             return;
         }
     }
@@ -223,10 +223,10 @@ async function apply() {
         window.dispatchEvent(new CustomEvent('login-menu-clear-qr'));
         // 写回 settings.system 的凭据 → 后端 config/账户，并 force 重建客户端
         await reinitTdlibWithSystemParams();
-        MessagePlugin.success(t('systemSettings.appliedReconnecting'));
+        toast.success(t('systemSettings.appliedReconnecting'));
         window.location.reload();
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('systemSettings.applyParamsFailed'));
+        toast.error(e?.message || t('systemSettings.applyParamsFailed'));
         applying.value = false;
     }
 }

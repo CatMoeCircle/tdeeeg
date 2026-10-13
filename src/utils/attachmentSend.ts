@@ -133,7 +133,7 @@ export type ClassifyResult =
 
 /**
  * 对单个待添加文件进行分类并校验。
- * 若返回 rejected，调用方将在聊天框顶部显示 reason（也已用 MessagePlugin 提示）。
+ * 若返回 rejected，调用方将在聊天框顶部显示 reason（也已用 toast 提示）。
  */
 export async function classifyAttachment(input: ClassifyInput): Promise<ClassifyResult> {
     const { path, name, size, album, isPremium, forceDocument } = input;

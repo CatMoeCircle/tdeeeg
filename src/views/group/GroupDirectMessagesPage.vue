@@ -46,7 +46,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ChevronLeft as ChevronLeftIcon } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import { loadGroupFullInfo, loadMyChatMemberStatus } from '../../utils/groupRights';
@@ -106,10 +106,10 @@ async function save() {
       is_enabled: enabled.value,
       paid_message_star_count: enabled.value ? starCount.value : 0,
     });
-    MessagePlugin.success(t('lng_settings_save'));
+    toast.success(t('lng_settings_save'));
     await reload();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   } finally {
     saving.value = false;
   }

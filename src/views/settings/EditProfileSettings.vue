@@ -300,7 +300,8 @@ import {
     ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Clock as ClockIcon,
     MapPin as MapPinIcon, Megaphone as MegaphoneIcon, Phone as PhoneIcon,
 } from 'lucide-vue-next';
-import { DatePicker as TDatePicker, MessagePlugin } from 'tdesign-vue-next';
+import { DatePicker as TDatePicker } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import Avatar from '../../components/chat/avatar.vue';
 import AvatarEditorDialog from '../../components/settings/AvatarEditorDialog.vue';
 import ChangePhoneDialog from '../../components/settings/ChangePhoneDialog.vue';
@@ -427,18 +428,18 @@ const savingProfile = ref(false);
 async function saveProfile() {
     const name = firstName.value.trim();
     if (!name) {
-        MessagePlugin.warning(t('editProfile.nameRequired'));
+        toast.warning(t('editProfile.nameRequired'));
         return;
     }
     savingProfile.value = true;
     try {
         await tdlibSend({ _: 'setName', first_name: name, last_name: lastName.value.trim() });
         await tdlibSend({ _: 'setBio', bio: bio.value });
-        MessagePlugin.success(t('editProfile.profileSaved'));
+        toast.success(t('editProfile.profileSaved'));
         await Promise.all([userStore.fetchUser(), profileStore.refreshProfile(myId.value)]);
         initEditors();
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('editProfile.saveFailed'));
+        toast.error(e?.message || t('editProfile.saveFailed'));
     } finally {
         savingProfile.value = false;
     }
@@ -547,10 +548,10 @@ async function saveBirthdate(value?: string) {
             _: 'setBirthdate',
             birthdate: { _: 'birthdate', day: d, month: m, year: hideYear.value ? 0 : y || 0 },
         } as any);
-        MessagePlugin.success(t('editProfile.birthdaySaved'));
+        toast.success(t('editProfile.birthdaySaved'));
         await profileStore.refreshProfile(myId.value);
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('editProfile.saveFailed'));
+        toast.error(e?.message || t('editProfile.saveFailed'));
     } finally {
         savingBirthdate.value = false;
     }
@@ -561,10 +562,10 @@ async function deleteBirthdate() {
     try {
         await tdlibSend({ _: 'setBirthdate', birthdate: null } as any);
         birthdatePickerValue.value = '';
-        MessagePlugin.success(t('editProfile.birthdayDeleted'));
+        toast.success(t('editProfile.birthdayDeleted'));
         await profileStore.refreshProfile(myId.value);
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('editProfile.deleteFailed'));
+        toast.error(e?.message || t('editProfile.deleteFailed'));
     } finally {
         savingBirthdate.value = false;
     }
@@ -607,7 +608,7 @@ function openBusinessHoursPopup() {
     if (!user.value?.is_premium) {
         const linkText = t('lng_todo_premium_link');
         const msg = t('lng_settings_generic_subscribe', { link: linkText });
-        MessagePlugin.warning(msg);
+        toast.warning(msg);
         return;
     }
     businessHoursVisible.value = true;
@@ -625,7 +626,7 @@ function openLocationPopup() {
     if (!user.value?.is_premium) {
         const linkText = t('lng_todo_premium_link');
         const msg = t('lng_settings_generic_subscribe', { link: linkText });
-        MessagePlugin.warning(msg);
+        toast.warning(msg);
         return;
     }
     locationVisible.value = true;

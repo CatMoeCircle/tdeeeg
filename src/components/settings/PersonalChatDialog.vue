@@ -38,7 +38,7 @@
 import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Ban as BanIcon, Check as CheckIcon } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import ModalDialog from './ModalDialog.vue';
 import Avatar from '../chat/avatar.vue';
 import { tdlibSend } from '../../utils/tdlib';
@@ -90,7 +90,7 @@ async function loadSuitableChats() {
             .filter((c) => c.title);
     } catch (e) {
         console.error('load suitable personal chats failed:', e);
-        MessagePlugin.error(t('editProfile.loadingChannelsFailed'));
+        toast.error(t('editProfile.loadingChannelsFailed'));
     } finally {
         suitableChatsLoading.value = false;
     }
@@ -99,22 +99,22 @@ async function loadSuitableChats() {
 async function setPersonalChat(chatId: number) {
     try {
         await tdlibSend({ _: 'setPersonalChat', chat_id: chatId } as any);
-        MessagePlugin.success(t('editProfile.personalChatUpdated'));
+        toast.success(t('editProfile.personalChatUpdated'));
         emit('changed');
         close();
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('editProfile.setFailed'));
+        toast.error(e?.message || t('editProfile.setFailed'));
     }
 }
 
 async function removePersonalChat() {
     try {
         await tdlibSend({ _: 'setPersonalChat', chat_id: 0 } as any);
-        MessagePlugin.success(t('editProfile.personalChatRemoved'));
+        toast.success(t('editProfile.personalChatRemoved'));
         emit('changed');
         close();
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('editProfile.removeFailed'));
+        toast.error(e?.message || t('editProfile.removeFailed'));
     }
 }
 </script>

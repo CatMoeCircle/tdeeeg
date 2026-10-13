@@ -114,7 +114,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import { tempDir } from '@tauri-apps/api/path';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import { tdlibSend } from '../../utils/tdlib';
 import { downloadFileUrl } from '../../utils/profileMedia';
 import type { chatPhoto, file } from 'tdlib-types';
@@ -293,7 +293,7 @@ async function pickNewPhoto() {
         await loadUploadImage(selected);
     } catch (e) {
         console.error('pick new photo failed:', e);
-        MessagePlugin.error(t('avatar.pickFailed'));
+        toast.error(t('avatar.pickFailed'));
     }
 }
 
@@ -311,7 +311,7 @@ function loadUploadImage(path: string): Promise<void> {
         };
         img.onerror = () => {
             reject(new Error(t('avatar.imageLoadFailed')));
-            MessagePlugin.error(t('avatar.imageLoadFailedHint'));
+            toast.error(t('avatar.imageLoadFailedHint'));
         };
         img.src = convertFileSrc(path);
     });
@@ -349,12 +349,12 @@ async function saveFromHistory() {
         } else {
             await tdlibSend({ _: 'setProfilePhoto', photo });
         }
-        MessagePlugin.success(t('avatar.avatarUpdated'));
+        toast.success(t('avatar.avatarUpdated'));
         emit('changed');
         close();
     } catch (e) {
         console.error('set profile photo from history failed:', e);
-        MessagePlugin.error(t('avatar.setFailed'));
+        toast.error(t('avatar.setFailed'));
     } finally {
         saving.value = false;
     }
@@ -374,12 +374,12 @@ async function saveFromUpload() {
         } else {
             await tdlibSend({ _: 'setProfilePhoto', photo });
         }
-        MessagePlugin.success(t('avatar.avatarUpdated'));
+        toast.success(t('avatar.avatarUpdated'));
         emit('changed');
         close();
     } catch (e) {
         console.error('set profile photo from upload failed:', e);
-        MessagePlugin.error(t('avatar.setFailed'));
+        toast.error(t('avatar.setFailed'));
     } finally {
         saving.value = false;
     }
@@ -395,12 +395,12 @@ async function deleteCurrent() {
         } else {
             return;
         }
-        MessagePlugin.success(t('avatar.deleted'));
+        toast.success(t('avatar.deleted'));
         emit('changed');
         close();
     } catch (e) {
         console.error('delete profile photo failed:', e);
-        MessagePlugin.error(t('avatar.deleteFailed'));
+        toast.error(t('avatar.deleteFailed'));
     } finally {
         saving.value = false;
     }

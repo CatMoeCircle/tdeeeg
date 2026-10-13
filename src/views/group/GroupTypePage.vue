@@ -206,7 +206,7 @@ import {
   Ban as BanIcon,
   Check as CheckIcon,
 } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import {
@@ -255,10 +255,10 @@ async function toggleUsername(name: string, activate: boolean) {
       username: name,
       is_active: activate,
     });
-    MessagePlugin.success(t(activate ? 'lng_usernames_activate_description' : 'lng_usernames_deactivate_description'));
+    toast.success(t(activate ? 'lng_usernames_activate_description' : 'lng_usernames_deactivate_description'));
     await reload();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   }
 }
 
@@ -279,7 +279,7 @@ async function moveUsername(index: number, dir: -1 | 1) {
     });
     activeUsernames.value = next;
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   }
 }
 
@@ -368,12 +368,12 @@ async function save() {
     const next = isPublic.value ? username.value.trim() : '';
     if (isPublic.value) {
       if (!isValidUsername(next)) {
-        MessagePlugin.warning(usernameText.value || t('lng_username_invalid'));
+        toast.warning(usernameText.value || t('lng_username_invalid'));
         return;
       }
       if (checkState.value !== 'ok') await checkUsername();
       if (checkState.value !== 'ok') {
-        MessagePlugin.warning(usernameText.value || t('lng_username_occupied'));
+        toast.warning(usernameText.value || t('lng_username_occupied'));
         return;
       }
     }
@@ -411,10 +411,10 @@ async function save() {
       has_protected_content: hasProtectedContent.value,
     });
 
-    MessagePlugin.success(t('lng_settings_save'));
+    toast.success(t('lng_settings_save'));
     await reload();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   } finally {
     saving.value = false;
   }

@@ -119,7 +119,7 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ChevronRight as ChevronRightIcon } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import ModalDialog from './ModalDialog.vue';
 import ToggleSwitch from './ToggleSwitch.vue';
 import { tdlibSend } from '../../utils/tdlib';
@@ -318,11 +318,11 @@ async function save() {
         /* tag 可选 */
       }
     }
-    MessagePlugin.success(t('lng_settings_save'));
+    toast.success(t('lng_settings_save'));
     emit('changed');
     close();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   } finally {
     saving.value = false;
   }

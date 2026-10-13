@@ -83,7 +83,7 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { CheckIcon, Lock as LockIcon, XIcon } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import type { BackgroundType, BackgroundType$Input, InputBackground$Input, chatBackground } from 'tdlib-types';
 import ChatBackgroundLayers from './ChatBackgroundLayers.vue';
 import { useUserStore } from '../../store/user';
@@ -227,7 +227,7 @@ async function apply(onlyForSelf: boolean) {
     } catch (e) {
         console.error('[wallpaper] setChatBackground failed:', e);
         const detail = (e as { message?: string })?.message;
-        MessagePlugin.error(detail || t('wallpaper.previewApplyFailed'));
+        toast.error(detail || t('wallpaper.previewApplyFailed'));
     } finally {
         applying.value = false;
     }

@@ -84,7 +84,7 @@
 import { computed, ref, watch, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { XIcon, CopyIcon, Languages as LanguagesIcon } from "lucide-vue-next";
-import { MessagePlugin } from "tdesign-vue-next";
+import { toast } from "../../utils/toast";
 import type { textEntity } from "tdlib-types";
 import {
     translateVisible, translateRequest, hideTranslateDialog,
@@ -183,9 +183,9 @@ function copyResult() {
     if (!translatedText.value) return;
     try {
         navigator.clipboard.writeText(translatedText.value);
-        MessagePlugin.success("译文已复制");
+        toast.success("译文已复制");
     } catch {
-        MessagePlugin.error("复制失败");
+        toast.error("复制失败");
     }
 }
 

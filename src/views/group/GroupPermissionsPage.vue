@@ -214,7 +214,7 @@ import {
   MoreHorizontal as MoreHorizontalIcon,
   Trash2 as Trash2Icon,
 } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
 import Avatar from '../../components/chat/avatar.vue';
 import GroupRestrictDialog from '../../components/settings/GroupRestrictDialog.vue';
@@ -424,10 +424,10 @@ async function deleteFromList(m: chatMember) {
       member_id: { _: 'messageSenderUser', user_id: uid },
       status: { _: 'chatMemberStatusLeft' },
     });
-    MessagePlugin.success(t('lng_group_invite_context_delete'));
+    toast.success(t('lng_group_invite_context_delete'));
     await reload();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   }
 }
 
@@ -544,10 +544,10 @@ async function save() {
       });
     }
 
-    MessagePlugin.success(t('lng_settings_save'));
+    toast.success(t('lng_settings_save'));
     await reload();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   } finally {
     saving.value = false;
   }

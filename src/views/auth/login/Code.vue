@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { tdlibSend } from "../../../utils/tdlib";
-import { MessagePlugin } from "tdesign-vue-next";
+import { toast } from "../../../utils/toast";
 import { useI18n } from "vue-i18n";
 import { invoke } from "@tauri-apps/api/core";
 import { onTdlibUpdate } from "../../../store/tdlibBus";
@@ -100,7 +100,7 @@ async function loadCodeInfo() {
 const submitCode = async () => {
     const value = code.value.trim();
     if (!value) {
-        MessagePlugin.warning({ content: t("login.invalidCode"), placement: "top-right" });
+        toast.warning({ content: t("login.invalidCode"), placement: "top-right" });
         return;
     }
     if (loading.value) return;
@@ -114,7 +114,7 @@ const submitCode = async () => {
     } catch (error: any) {
         console.error(error);
         const { msg, goLogin } = mapAuthError(error, "login.codeError");
-        MessagePlugin.error({ content: msg, placement: "top-right" });
+        toast.error({ content: msg, placement: "top-right" });
         loading.value = false;
         if (goLogin) {
             router.push("/login");

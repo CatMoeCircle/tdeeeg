@@ -60,7 +60,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ChevronLeft as ChevronLeftIcon } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import { loadMyChatMemberStatus } from '../../utils/groupRights';
@@ -103,7 +103,7 @@ async function save() {
       }
     }
     if (!target || target.type._ !== 'chatTypeSupergroup') {
-      MessagePlugin.error(t('lng_settings_save'));
+      toast.error(t('lng_settings_save'));
       return;
     }
     await tdlibSend({
@@ -112,10 +112,10 @@ async function save() {
       is_forum: enabled.value,
       has_forum_tabs: useTabs.value,
     });
-    MessagePlugin.success(t('lng_settings_save'));
+    toast.success(t('lng_settings_save'));
     await reload();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('lng_settings_save'));
+    toast.error(e?.message || t('lng_settings_save'));
   } finally {
     saving.value = false;
   }

@@ -130,7 +130,7 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, ref, watch } from 'vue';
 import type { formattedText, messagePoll, MessageSender, pollOption, textEntity } from 'tdlib-types';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../../../../utils/toast';
 import { CheckCircleIcon, CheckIcon } from 'lucide-vue-next';
 import PollMedia from './PollMedia.vue';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
@@ -321,7 +321,7 @@ async function onVote() {
         // 服务端会通过 updateMessageContent 推送最新结果，等待其更新即可
         isRevoting.value = false;
     } catch {
-        MessagePlugin.error(t('content.voteFailed'));
+        toast.error(t('content.voteFailed'));
     } finally {
         voting.value = false;
     }

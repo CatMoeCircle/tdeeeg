@@ -94,7 +94,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 import { ChevronLeft as ChevronLeftIcon, X as XIcon } from 'lucide-vue-next';
-import { MessagePlugin } from 'tdesign-vue-next';
+import { toast } from '../../utils/toast';
 import { useI18n } from 'vue-i18n';
 import TgsPlayer from '../common/TgsPlayer.vue';
 import { tdlibSend } from '../../utils/tdlib';
@@ -188,10 +188,10 @@ async function saveTime(time: number) {
         });
         currentTime.value = time;
         emit('changed', time);
-        MessagePlugin.success(t('privacy.autoDeleteUpdated'));
+        toast.success(t('privacy.autoDeleteUpdated'));
         emit('update:modelValue', false);
     } catch (e: any) {
-        MessagePlugin.error(e?.message || t('privacy.operationFailed'));
+        toast.error(e?.message || t('privacy.operationFailed'));
     } finally {
         saving.value = false;
     }

@@ -1200,7 +1200,7 @@ import formatTime from "../../utils/formatTime";
 import { openContextMenu, closeContextMenu } from "../../store/contextMenu";
 import { confirmReportMessage } from "../../store/reportMessage";
 import type { ContextMenuItem } from "../../components/contextMenu/types";
-import { MessagePlugin } from "tdesign-vue-next";
+import { toast } from "../../utils/toast";
 import { showCopyJsonInMenus } from "../../store/debug";
 import {
   buildChatJsonChildren,
@@ -3008,7 +3008,7 @@ async function startCall() {
   const cid = await getPrivateChatId();
   if (!cid) return;
   router.push({ name: 'chat-detail', params: { id: String(cid) } });
-  MessagePlugin.info(t('user.callsNotSupported'));
+  toast.info(t('user.callsNotSupported'));
 }
 
 /** 搜索聊天中的消息 */
@@ -3024,10 +3024,10 @@ async function joinChat() {
   if (!cid) return;
   try {
     await tdlibSend({ _: 'joinChat', chat_id: cid });
-    MessagePlugin.success(isChatChannel.value ? t('lng_action_you_joined') : t('lng_you_joined_group'));
+    toast.success(isChatChannel.value ? t('lng_action_you_joined') : t('lng_you_joined_group'));
     loadData();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('user.joinFailed'));
+    toast.error(e?.message || t('user.joinFailed'));
   }
 }
 
@@ -3050,7 +3050,7 @@ async function toggleNotifications() {
     });
     isPrivateChatMuted.value = !isPrivateChatMuted.value;
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('user.notifFailed'));
+    toast.error(e?.message || t('user.notifFailed'));
   }
 }
 
@@ -3172,7 +3172,7 @@ async function chatToggleNotifications() {
     });
     chatNotificationMuted.value = !chatNotificationMuted.value;
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('user.notifFailed'));
+    toast.error(e?.message || t('user.notifFailed'));
   }
 }
 
@@ -3189,11 +3189,11 @@ async function reportCurrentChat() {
   if (!cid) return;
   try {
     await confirmReportMessage({ chatId: cid });
-    MessagePlugin.success(t('lng_report_thanks'));
+    toast.success(t('lng_report_thanks'));
   } catch (e: any) {
     if (e?.message !== 'canceled') {
       console.error('reportChat failed:', e);
-      MessagePlugin.error(e?.message || t('chat.reportFailed'));
+      toast.error(e?.message || t('chat.reportFailed'));
     }
   }
 }
@@ -3212,7 +3212,7 @@ function unsubscribeChat() {
         cancelConfirmDialog();
         router.push('/home/chats');
       } catch (e: any) {
-        MessagePlugin.error(e?.message || t('user.leaveFailed'));
+        toast.error(e?.message || t('user.leaveFailed'));
       }
     },
   );
@@ -3372,7 +3372,7 @@ async function applyAutoDelete(seconds: number) {
     if (chatObj.value) chatObj.value.message_auto_delete_time = seconds;
     autoDeleteVisible.value = false;
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('user.autoDeleteFailed'));
+    toast.error(e?.message || t('user.autoDeleteFailed'));
   }
 }
 
@@ -3389,7 +3389,7 @@ const secretChatPartnerName = computed(() => {
 
 function openEncryptionKey() {
   if (!secretKeyHash.value) {
-    MessagePlugin.error(t('secretChat.encryptionKeyUnavailable'));
+    toast.error(t('secretChat.encryptionKeyUnavailable'));
     return;
   }
   encryptionKeyVisible.value = true;
@@ -3435,7 +3435,7 @@ async function saveContact() {
     editContactVisible.value = false;
     loadData();
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('user.saveContactFailed'));
+    toast.error(e?.message || t('user.saveContactFailed'));
   }
 }
 
@@ -3487,7 +3487,7 @@ async function onToggleBlock() {
           cancelConfirmDialog();
           loadData();
         } catch (e: any) {
-          MessagePlugin.error(e?.message || t('user.blockFailed'));
+          toast.error(e?.message || t('user.blockFailed'));
         }
       },
     );
@@ -3506,7 +3506,7 @@ async function onToggleBlock() {
           cancelConfirmDialog();
           loadData();
         } catch (e: any) {
-          MessagePlugin.error(e?.message || t('user.unblockFailed'));
+          toast.error(e?.message || t('user.unblockFailed'));
         }
       },
     );
@@ -3528,7 +3528,7 @@ function onDeleteContact() {
         cancelConfirmDialog();
         loadData();
       } catch (e: any) {
-        MessagePlugin.error(e?.message || t('user.deleteContactFailed'));
+        toast.error(e?.message || t('user.deleteContactFailed'));
       }
     },
   );
