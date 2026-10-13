@@ -145,7 +145,8 @@ export function isStandaloneMessage(msg: message): boolean {
     msg.content._ === "messageSticker" ||
     msg.content._ === "messageAnimatedEmoji" ||
     msg.content._ === "messageDice" ||
-    msg.content._ === "messageVideoNote"
+    msg.content._ === "messageVideoNote" ||
+    msg.content._ === "messageLocation"
   );
 }
 
