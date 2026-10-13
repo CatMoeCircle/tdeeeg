@@ -178,7 +178,7 @@
                                     :senderName="getServiceSenderName(item.msg)"
                                     :senderUserId="senderUserIdOf(item.msg)" :isSelf="isOutgoingMsg(item.msg)"
                                     :messageList="messages" :chatId="chatId" :messageId="item.msg.id"
-                                    @jumpToMessage="handleReplyJumpToMessage" />
+                                    :message="item.msg" @jumpToMessage="handleReplyJumpToMessage" />
                             </div>
                             <div v-else class="flex" :class="[
                                 isSelf(item.msg) ? 'justify-end' : 'justify-start',

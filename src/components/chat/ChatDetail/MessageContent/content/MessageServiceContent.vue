@@ -3,17 +3,24 @@
     <MessageUnsupportedContent v-if="unadapted" :content="content" />
 
     <div v-else class="text-center py-1" :class="clickable ? 'cursor-pointer' : ''" @click="onClick">
-        <!-- 设置新壁纸（messageChatSetBackground）：正方形磨砂卡片，内含圆形壁纸预览、文案与查看按钮 -->
-        <div v-if="wallpaperContent"
+        <!-- 设置新壁纸（messageChatSetBackground）/ 群头像更新（messageChatChangePhoto）：
+             两者显示效果一致，共用这张正方形磨砂卡片（圆形预览 + 文案），只是按钮功能不同 -->
+        <div v-if="cardContent"
             class="mx-auto flex aspect-square w-52 max-w-full flex-col items-center justify-center gap-2 rounded-2xl bg-white/40 px-4 py-4 shadow-sm backdrop-blur-md dark:bg-black/20">
             <div class="h-24 w-24 shrink-0 overflow-hidden rounded-full bg-gray-200/70 dark:bg-gray-700/70">
-                <img v-if="wallpaperThumbSrc" :src="wallpaperThumbSrc" alt="" class="h-full w-full object-cover" />
+                <img v-if="cardThumbSrc" :src="cardThumbSrc" alt="" class="h-full w-full object-cover" />
             </div>
             <span class="text-xs text-gray-600 dark:text-gray-300">
                 {{ serviceText }}
             </span>
+            <!-- 群头像更新：查看照片走媒体查看器（照片 / 视频查看器），而非应用壁纸 -->
+            <button v-if="photoContent" type="button"
+                class="rounded-full bg-white/50 px-4 py-1 text-xs font-medium text-gray-900 backdrop-blur-sm dark:bg-white/15 dark:text-white"
+                @click="openPhotoViewer">
+                {{ t('lng_action_suggested_photo_button') }}
+            </button>
             <!-- 只有对方设置的壁纸才提供预览入口；自己设的壁纸不显示按钮 -->
-            <button v-if="!isSelf" type="button"
+            <button v-else-if="!isSelf" type="button"
                 class="rounded-full bg-white/50 px-4 py-1 text-xs font-medium text-gray-900 backdrop-blur-sm dark:bg-white/15 dark:text-white"
                 @click="wallpaperPreviewOpen = true">
                 {{ t('lng_action_set_wallpaper_button') }}
@@ -37,10 +44,11 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, watch, ref } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import type { MessageContent, message } from 'tdlib-types';
+import type { chatPhoto, file, MessageContent, message, photoSize } from 'tdlib-types';
 import { ensureLocalFilePath, tdlibSend } from '../../../../../utils/tdlib';
 import { ensureUser, getUserDisplayName } from '../../../../../utils/senderInfo';
 import { useChatStore } from '../../../../../store/chat';
+import { openMediaViewer } from '../../../../../store/mediaViewer';
 import WallpaperPreviewDialog from '../../../WallpaperPreviewDialog.vue';
 import MessageUnsupportedContent from './MessageUnsupportedContent.vue';
 
@@ -58,6 +66,8 @@ const props = defineProps<{
     chatId?: number;
     /** 本条服务消息 id（壁纸预览沿用消息里的背景需要） */
     messageId?: number;
+    /** 本条服务消息（群头像更新打开媒体查看器需要） */
+    message?: message;
 }>();
 
 const emit = defineEmits<{
@@ -76,6 +86,15 @@ const wallpaperContent = computed(() => {
     if (c._ !== 'messageChatSetBackground') return null;
     return c.old_background_message_id > 0 ? null : c;
 });
+
+/** 群头像更新消息（messageChatChangePhoto）：与设置壁纸共用卡片，按钮改为「查看照片」 */
+const photoContent = computed(() => {
+    const c = props.content;
+    return c._ === 'messageChatChangePhoto' ? c : null;
+});
+
+/** 需要按卡片渲染的消息：设置新壁纸 / 群头像更新 */
+const cardContent = computed(() => wallpaperContent.value ?? photoContent.value);
 
 /** 已下载就绪的壁纸缩略图 / 原图（asset 地址），未就绪时为空 */
 const wallpaperFileSrc = ref('');
@@ -103,6 +122,73 @@ const wallpaperMiniSrc = computed(() => {
 
 /** 卡片内圆形预览图：就绪的缩略图 / 原图优先，否则内嵌 minithumbnail */
 const wallpaperThumbSrc = computed(() => wallpaperFileSrc.value || wallpaperMiniSrc.value);
+
+/** 已下载就绪的群头像缩略图（asset 地址，取最小尺寸足够圆形预览），未就绪时为空 */
+const photoFileSrc = ref('');
+
+/** 群头像内嵌 minithumbnail（base64，无需下载），作为缩略图就绪前的占位 */
+const photoMiniSrc = computed(() => {
+    const data = photoContent.value?.photo.minithumbnail?.data;
+    return data ? `data:image/jpeg;base64,${data}` : '';
+});
+
+/** 卡片内圆形预览图：壁纸与群头像共用，按消息类型取对应来源 */
+const cardThumbSrc = computed(() =>
+    photoContent.value ? (photoFileSrc.value || photoMiniSrc.value) : wallpaperThumbSrc.value,
+);
+
+/** 按面积挑群头像文件：smallest 取最小（圆形预览用），否则取最大（查看器里的原图） */
+function pickPhotoFile(photo: chatPhoto, smallest: boolean): file | undefined {
+    let best: photoSize | undefined;
+    for (const size of photo.sizes) {
+        if (!size.photo) continue;
+        const better = !best || (smallest
+            ? size.width * size.height < best.width * best.height
+            : size.width * size.height > best.width * best.height);
+        if (better) best = size;
+    }
+    return best?.photo;
+}
+
+/**
+ * 打开群头像的媒体查看器：本消息不是媒体消息，故直接给定 type/file，
+ * 由消息类型决定不拉起附近媒体列表（仅这一张）。
+ *
+ * 查看器的自动下载只认消息媒体（item.message.content），服务消息里的头像
+ * 不在其内，所以必须先备好原图再交给查看器（与 UserProfile 一样只传就绪文件），
+ * 否则查看器会一直停在「加载中」。
+ */
+async function openPhotoViewer() {
+    const c = photoContent.value;
+    if (!c || !props.message) return;
+    const target = pickPhotoFile(c.photo, false);
+    const path = await ensureLocalFilePath(target);
+    void openMediaViewer({
+        messageId: props.messageId,
+        chatId: props.chatId,
+        message: props.message,
+        type: 'photo',
+        file: target,
+        readyPath: path ?? undefined,
+        thumb: photoMiniSrc.value,
+    });
+}
+
+/**
+ * 取群头像预览文件：最小尺寸即可满足圆形预览，体积也最小；
+ * 未下载时先用内嵌 minithumbnail 占位。
+ */
+watch(
+    () => props.content,
+    async (c) => {
+        photoFileSrc.value = '';
+        if (c._ !== 'messageChatChangePhoto') return;
+        const path = await ensureLocalFilePath(pickPhotoFile(c.photo, true));
+        // 期间消息已切换则丢弃结果
+        if (path && props.content === c) photoFileSrc.value = convertFileSrc(path);
+    },
+    { immediate: true },
+);
 
 /**
  * 取壁纸预览文件：缩略图（尺寸足够圆形预览，体积小）优先，

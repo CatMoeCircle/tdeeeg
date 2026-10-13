@@ -10,7 +10,7 @@
 
     <MessageServiceContent v-else-if="isServiceContent(content)" :content="content" :senderName="senderName"
         :senderUserId="senderUserId" :isSelf="isSelf ?? false" :messageList="messageList" :chatId="chatId"
-        :messageId="messageId" @jump="onServiceJump" />
+        :messageId="messageId" :message="message" @jump="onServiceJump" />
 
     <template v-else>
         <!-- Reply preview（媒体消息的回复预览由 MessageMediaContent 在媒体宽度容器内渲染，避免撑宽 w-fit 气泡） -->
