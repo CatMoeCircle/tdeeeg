@@ -221,7 +221,8 @@
                                                 ? 'text-gray-900'
                                                 : !isStandaloneMessage(item.msg)
                                                     ? 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'
-                                                    : ''
+                                                    : '',
+                                        canSummarizeBubble(item.msg) ? 'relative' : ''
                                     ]"
                                         :style="getInlineKeyboard(item.msg) ? { ...bubbleStyle(item), width: '100%' } : bubbleStyle(item)">
                                         <p v-if="showSenderDisplayName(item.msg) && item.isFirstInGroup"
@@ -763,6 +764,7 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { copyFile } from "@tauri-apps/plugin-fs";
 import { save, open as openDialog } from "@tauri-apps/plugin-dialog";
 import { settings } from '../../../store/settings';
+import { canSummarizeMessage } from '../../../store/summary';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useChatWallpaper } from '../../../composables/useChatWallpaper';
 import ChatBackgroundLayers from '../ChatBackgroundLayers.vue';
@@ -4941,6 +4943,9 @@ const isSelf = (msg: message) => {
 /** 是否为「当前账号发送」的消息（用于发送状态/失败/进度展示，与对齐无关）。
  *  频道中 own 消息靠左显示，但仍应有发送状态。 */
 const isOutgoingMsg = (msg: message) => isOutgoingMessageOf(msg, selfDeps());
+/** 可做 AI 摘要的文本气泡：气泡需 relative，摘要按钮才能贴齐气泡顶部、位于气泡外侧 */
+const canSummarizeBubble = (msg: message) =>
+    msg.content._ === 'messageText' && canSummarizeMessage(msg, isOutgoingMsg(msg));
 
 /** `isSelf` 所需依赖（调用时求值以保持响应式） */
 const selfDeps = (): SelfDeps => ({

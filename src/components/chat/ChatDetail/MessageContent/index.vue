@@ -23,7 +23,8 @@
             :messageId="messageId" :linkPreview="content.link_preview" :chatId="chatId" :accentColorId="accentColorId"
             :showInlineTime="inlineTime" :timeDate="date" :timeIsOutgoing="isSelf" :timeSendingState="sendingState"
             :timeIsRead="isRead" :timeViewCount="viewCount" :timeAuthorSignature="authorSignature"
-            :timeColorClass="isSelf ? 'text-gray-600/70 dark:text-gray-400/70' : 'text-gray-400 dark:text-gray-500'">
+            :timeColorClass="isSelf ? 'text-gray-600/70 dark:text-gray-400/70' : 'text-gray-400 dark:text-gray-500'"
+            :summarizable="canSummarize" :summaryOutgoing="!!isSelf">
             <slot />
         </MessageTextContent>
 
@@ -116,6 +117,7 @@ import MessageOtherContent from './content/MessageOtherContent.vue';
 import MessageStatus from './content/MessageStatus.vue';
 import ReactionsBar from '../ReactionsBar.vue';
 import { settings } from '../../../../store/settings';
+import { canSummarizeMessage } from '../../../../store/summary';
 
 const MEDIA_TYPES = new Set([
     'messagePhoto',
@@ -269,6 +271,10 @@ const isStickerLikeContent = computed(
     () => props.content._ === 'messageSticker'
         || props.content._ === 'messageAnimatedEmoji'
         || props.content._ === 'messageDice',
+);
+/** 文本消息是否显示 AI 摘要入口（非自己消息且服务端给出 summary_language_code） */
+const canSummarize = computed(
+    () => props.content._ === 'messageText' && canSummarizeMessage(props.message, props.isSelf),
 );
 /** 贴纸 / 动画表情的窄化内容（供 MessageStickerContent 使用） */
 const stickerContent = computed<messageSticker | messageAnimatedEmoji>(

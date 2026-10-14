@@ -1,6 +1,9 @@
 <template>
     <MessageLinkPreview v-if="linkPreview?.show_above_text" :preview="linkPreview" :accentColorId="accentColorId"
         :chatId="chatId" @open="openLink" />
+    <!-- AI 摘要入口 / 摘要头（对齐 Unigram：摘要块位于正文上方，摘要结果原位替换正文） -->
+    <MessageSummary v-if="summarizable && chatId != null && messageId != null" :chatId="chatId" :messageId="messageId"
+        :outgoing="summaryOutgoing" />
     <!-- 相对定位容器：承载 replace 模式扫光覆盖层。
          flow-root 建立独立格式化上下文，防止 p 的外边距塌陷穿透，
          保证真实正文与覆盖层副本始终对齐（如语音 caption 的 mt-1） -->
@@ -274,7 +277,9 @@ import { openUsernameMenu, openUserMenuById } from '../../../../../store/usernam
 import { openContextMenu } from '../../../../../store/contextMenu';
 import { settings } from '../../../../../store/settings';
 import { getInlineTranslation, isTranslateReplaceDisplay } from '../../../../../store/translate';
+import { getActiveSummaryFormattedText } from '../../../../../store/summary';
 import MessageLinkPreview from './MessageLinkPreview.vue';
+import MessageSummary from './MessageSummary.vue';
 import MessageStatus from './MessageStatus.vue';
 import type { MessageSendingState } from 'tdlib-types';
 // 组件为多根节点（MessageLinkPreview / p / MessageLinkPreview），关闭自动继承，
@@ -302,6 +307,10 @@ const props = defineProps<{
     timeAuthorSignature?: string;
     /** 时间文字颜色 class（如 text-gray-400 ...），默认继承文本色 */
     timeColorClass?: string;
+    /** 是否可做 AI 摘要（非自己消息且有 summary_language_code），由 MessageContent 决策 */
+    summarizable?: boolean;
+    /** 摘要按钮所在侧：自己消息在左，他人消息在右 */
+    summaryOutgoing?: boolean;
 }>();
 
 const router = useRouter();
@@ -385,8 +394,12 @@ const replaceTranslation = computed(() => {
     return getInlineTranslation(props.chatId, props.messageId);
 });
 
-/** 实际渲染的文本：replace 模式且已有译文时原位顶替原文；其余情况为原文 */
+/** 实际渲染的文本：AI 摘要生效时最优先原位顶替；其次 replace 模式的译文；其余为原文 */
 const displayFormattedText = computed<formattedText>(() => {
+    if (props.summarizable && props.chatId != null && props.messageId != null) {
+        const summary = getActiveSummaryFormattedText(props.chatId, props.messageId);
+        if (summary) return summary;
+    }
     const st = replaceTranslation.value;
     if (st?.translatedText) {
         return { _: 'formattedText', text: st.translatedText, entities: st.translatedEntities ?? [] };

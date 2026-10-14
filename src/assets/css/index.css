@@ -298,6 +298,35 @@ body {
 .tgico-transcribe::before {
   content: "\e935";
 }
+/* 摘要按钮：收起（U+E963）/ 展开（U+E98F） */
+.tgico-summary-collapse::before {
+  content: "\e963";
+}
+.tgico-summary-expand::before {
+  content: "\e98f";
+}
+/* 摘要按钮装饰：左下角 / 右上角 ✦ 交替渐变闪烁 */
+.summary-sparkle {
+  position: absolute;
+  font-size: 9px;
+  line-height: 1;
+  pointer-events: none;
+  animation: summary-sparkle 1.6s ease-in-out infinite;
+}
+.summary-sparkle-alt {
+  animation-delay: -0.8s;
+}
+@keyframes summary-sparkle {
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: scale(0.7);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
 
 /* ===== Telegram 官方图标字体 tgico ===== */
 
