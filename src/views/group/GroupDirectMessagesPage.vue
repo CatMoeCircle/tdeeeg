@@ -68,7 +68,7 @@ const isDirty = computed(
 );
 
 function goBack() {
-  // Unigram DirectMessages：未保存更改提示
+  // DirectMessages：未保存更改提示
   if (isDirty.value && !window.confirm(t('lng_forum_discard_sure'))) return;
   router.back();
 }

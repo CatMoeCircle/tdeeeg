@@ -139,7 +139,7 @@ async function readTgs(path: string): Promise<LottieDoc> {
 }
 
 /**
- * 把中、右卷轴并入左卷轴的文档（对应 Unigram 的 MergeReels）：
+ * 把中、右卷轴并入左卷轴的文档（对应 MergeReels）：
  * 资源 id 与 refId 加上卷轴名前缀，避免三份文档的资源互相冲突。
  */
 function mergeReels(left: LottieDoc, center: LottieDoc, right: LottieDoc): LottieDoc {
@@ -241,7 +241,7 @@ async function loadDice() {
 }
 
 function onAnimLoad() {
-    // 已演过的结果：不重播，直接落到末帧（Unigram IsContentUnread=false 的语义）
+    // 已演过的结果：不重播，直接落到末帧（IsContentUnread=false 的语义）
     if (showingResult.value && isResultPlayed()) {
         const total = (playerRef.value?.getProperties() as { frames?: { total?: number } } | null)?.frames?.total;
         if (typeof total === 'number' && total > 0) {

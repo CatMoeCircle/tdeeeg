@@ -1,7 +1,7 @@
 <template>
   <ModalDialog :model-value="modelValue" :title="t('lng_rights_edit_admin')" @update:model-value="close">
     <div class="space-y-4">
-      <!-- 头衔（群组，频道隐藏 — Unigram EditRank） -->
+      <!-- 头衔（群组，频道隐藏 — EditRank） -->
       <div v-if="!isChannel">
         <label class="text-xs text-gray-400">{{ t('lng_rights_edit_admin_rank_name') }}</label>
         <input v-model="customTitle" type="text" maxlength="16"
@@ -136,7 +136,7 @@ const props = defineProps<{
   isOwner?: boolean;
   /** 我自己的管理员权限（非群主时用于限制可改项） */
   myRights?: chatAdministratorRights | null;
-  /** 默认成员权限：已对全员开启的项不可单独关闭（Unigram IsEnabled 逻辑） */
+  /** 默认成员权限：已对全员开启的项不可单独关闭（IsEnabled 逻辑） */
   defaultPermissions?: chatPermissions | null;
 }>();
 const emit = defineEmits<{
@@ -152,7 +152,7 @@ const msgExpanded = ref(false);
 const storyExpanded = ref(false);
 
 const isCreatorSelf = computed(() => props.member?.status?._ === 'chatMemberStatusCreator');
-/** Unigram canBeEdited：创建者=自己，或管理员 can_be_edited；新成员可编辑 */
+/** canBeEdited：创建者=自己，或管理员 can_be_edited；新成员可编辑 */
 const canEdit = computed(() => {
   const st = props.member?.status;
   if (!st) return true;
@@ -190,7 +190,7 @@ function onManageStoryAll(v: boolean) {
   for (const k of manageStoryKeys) rights[k] = v;
 }
 
-/** Unigram UpdateMember 可见性矩阵 */
+/** UpdateMember 可见性矩阵 */
 const rows = computed(() => {
   const list: { key: keyof chatAdministratorRights; label: string; locked?: boolean }[] = [];
   // 封禁用户
@@ -286,7 +286,7 @@ async function save() {
       || rights.can_manage_video_chats
       || rights.can_manage_topics
       || rights.can_manage_direct_messages;
-    // Unigram 保存时按频道/群组掩码
+    // 保存时按频道/群组掩码
     const masked: chatAdministratorRights = {
       ...rights,
       can_post_messages: props.isChannel ? rights.can_post_messages : false,

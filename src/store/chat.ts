@@ -14,6 +14,7 @@ import type {
   chatFolderInfo,
   ChatType,
   MessageSender,
+  emojiStatus,
 } from "tdlib-types";
 
 /** 聊天列表示例项：主列表 | 归档 | 文件夹信息 */
@@ -39,6 +40,8 @@ export interface Chat {
   profile_accent_color_id?: number;
   /** 当前聊天的消息发送身份（频道/匿名群组等可切换身份） */
   message_sender_id?: MessageSender;
+  /** 对话 emoji 状态（超级群/频道的礼物/自定义 emoji 状态） */
+  emoji_status?: emojiStatus;
 }
 
 export interface ChatListState {

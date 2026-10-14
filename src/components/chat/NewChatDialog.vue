@@ -3,7 +3,7 @@
     :title="isChannel ? t('newChat.newChannel') : t('newChat.newGroup')" @update:model-value="close">
     <div class="space-y-4">
       <div class="flex items-start gap-4">
-        <!-- 头像：仅本地预览，创建后用 setChatPhoto 提交（与 Unigram 的创建弹窗一致，不做裁剪） -->
+        <!-- 头像：仅本地预览，创建后用 setChatPhoto 提交（不做裁剪） -->
         <button type="button" :aria-label="t('avatar.pickImage')"
           class="w-16 h-16 shrink-0 rounded-full overflow-hidden flex items-center justify-center bg-gray-100 dark:bg-gray-700 hover:opacity-90 transition-opacity"
           @click="pickPhoto">
@@ -183,7 +183,7 @@ async function create() {
 
     emit('update:modelValue', false);
     toast.success(isChannel.value ? t('newChat.channelCreated') : t('newChat.groupCreated'));
-    // 频道创建后按 Unigram 流程进入「频道类型」页设置公开/私密
+    // 频道创建后进入「频道类型」页设置公开/私密
     if (isChannel.value) {
       router.push({ name: 'group-type', params: { id: String(chatId) } });
     } else {

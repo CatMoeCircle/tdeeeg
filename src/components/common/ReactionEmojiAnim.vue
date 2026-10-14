@@ -1,7 +1,7 @@
 <template>
     <span ref="rootEl" class="reac-anim flex items-center justify-center w-full h-full overflow-hidden select-none"
         :title="emoji">
-        <!-- 动态反应动画（对齐 Unigram：getEmojiReaction → select/activate animation）；
+        <!-- 动态反应动画（getEmojiReaction → select/activate animation）；
              进入视口播一次，离开视口暂停，再次回到视口从头重播 -->
         <TgsPlayer v-if="state.ready && state.format === 'tgs' && state.tgsSrc" ref="tgsRef" :src="state.tgsSrc"
             :loop="false" :autoplay="false" :size="mediaSize" class="reac-anim-media" />

@@ -158,7 +158,7 @@ export function encodeUserPrivacyRules(
     rules.push({ _: "userPrivacySettingRuleAllowContacts" });
   } else {
     // nobody / custom：仅「总是分享给」
-    // 与 Unigram 一致：有 Allow 例外时不写 RestrictAll（TDLib 默认拒绝即可）；
+    // 有 Allow 例外时不写 RestrictAll（TDLib 默认拒绝即可）；
     // 且 TDLib 从服务器读回时会剥掉末尾 RestrictAll，写空基线才有明确 nobody。
     if (allowed.userIds.length) {
       rules.push({ _: "userPrivacySettingRuleAllowUsers", user_ids: [...allowed.userIds] });

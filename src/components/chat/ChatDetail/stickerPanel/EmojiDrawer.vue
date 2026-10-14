@@ -365,7 +365,7 @@ function onPickAvailable(r: availableReaction) {
     emit('pickReaction', r.type);
 }
 
-/** 打开/列表变化时预热反应动画（对齐 Unigram getEmojiReaction） */
+/** 打开/列表变化时预热反应动画（getEmojiReaction） */
 watch(availableList, (list) => {
     if (!props.reactionMode || !list.length) return;
     prefetchEmojiReactionAnims(

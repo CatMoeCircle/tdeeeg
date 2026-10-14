@@ -286,7 +286,7 @@ const chatSections = ref<{ key: string; title: string; items: Chat[] }[]>([]);
 const messageResults = ref<message[]>([]);
 const chatCache = ref<Map<number, chat>>(new Map());
 
-// ---- 帖子搜索 Premium / Star 限制（对齐 Unigram SearchPostsViewModel） ----
+// ---- 帖子搜索 Premium / Star 限制 ----
 type PostsState = 'idle' | 'premium-required' | 'limit-info' | 'loading' | 'results' | 'empty';
 const postsState = ref<PostsState>('idle');
 const postsLimits = ref<publicPostSearchLimits | null>(null);
@@ -312,7 +312,7 @@ function goPremium() {
     toast.info(t('search.subscribeInSettings'));
 }
 
-/** 进入帖子页 / 查询变化时刷新限额并展示状态页（对齐 Unigram：空查询也拉限额，不自动消耗免费次数） */
+/** 进入帖子页 / 查询变化时刷新限额并展示状态页（空查询也拉限额，不自动消耗免费次数） */
 async function refreshPostsLimits() {
     const q = postsQuery.value.trim();
     postsLimits.value = null;
@@ -456,7 +456,7 @@ watch(activeCategory, () => {
     messageHasMore = true;
 });
 
-// ==================== 搜索执行（对齐 Unigram 分层） ====================
+// ==================== 搜索执行（分层进行） ====================
 async function runSearch(loadMore: boolean) {
     const q = props.query.trim();
     if (!q && !isChatCategory.value && !allowEmptyQuery.value && activeCategory.value !== 'posts') {
@@ -523,7 +523,7 @@ async function ensureChatTypeReady(c: chat): Promise<void> {
 }
 
 /**
- * 聊天 / 频道 / 应用搜索（对齐 Unigram SearchChats/Channels/WebAppsViewModel）：
+ * 聊天 / 频道 / 应用搜索：
  * - 空查询：最近找到 + 常用/推荐
  * - 有关键词：最近 → 本地 searchChats/searchContacts → 服务器 searchChatsOnServer
  *   → 公开 searchPublicChats → 消息 searchMessages
@@ -570,7 +570,7 @@ async function runChatSearch(q: string, seq: number) {
         _: 'searchChats', query: q, type_filter: typeFilter, limit: 50,
     } as any).then((r: any) => r.chat_ids ?? []).catch(() => [] as number[]);
 
-    // 联系人：聊天 tab 补充（Unigram ChatsAndContacts 段）
+    // 联系人：聊天 tab 补充
     const contactsP = activeCategory.value === 'chats'
         ? tdlibSend({ _: 'searchContacts', query: q, limit: 50 } as any)
             .then(async (r: any) => {
@@ -592,7 +592,7 @@ async function runChatSearch(q: string, seq: number) {
         _: 'searchPublicChats', query: q,
     } as any).then((r: any) => r.chat_ids ?? []).catch(() => [] as number[]);
 
-    // 收藏消息（用户名/标题前缀命中时插入，Unigram LoadSavedMessages）
+    // 收藏消息（用户名/标题前缀命中时插入）
     const savedP = ((): number[] => {
         if (activeCategory.value !== 'chats') return [];
         const savedTitle = SAVED_MESSAGES_TITLE || 'Saved Messages';
@@ -607,7 +607,7 @@ async function runChatSearch(q: string, seq: number) {
     ]);
     if (seq !== searchSeq) return;
 
-    // 各段独立去重，段间也去重（保持 Unigram 的段落顺序）
+    // 各段独立去重，段间也去重（保持固定的段落顺序）
     push('saved', t('lng_saved_messages'), await resolveChatIds(savedP, seen));
     push('local', t('search.chatsAndContacts'), await resolveChatIds([...localIds, ...contactIds], seen));
     push('server', t('search.serverResults'), await resolveChatIds(serverIds, seen));

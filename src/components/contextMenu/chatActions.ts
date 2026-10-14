@@ -18,7 +18,7 @@ export function isChatArchived(chat: Chat): boolean {
 
 /**
  * 判断对话是否已顶置（按列表作用域）。
- * 与 Unigram chat.GetPosition(chatList).IsPinned 对齐：只看指定列表的
+ * 与 chat.GetPosition(chatList).IsPinned 对齐：只看指定列表的
  * position，避免「在其他分组置顶」误显示到当前分组。
  * listKey 为 'chatListMain' | 'chatListArchive' | 'chat_folder_id{N}'。
  */

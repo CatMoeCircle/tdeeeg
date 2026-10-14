@@ -27,6 +27,9 @@ pub struct Chat {
     /// 头像渐变 profile accent 色 id（-1 表示无）
     #[serde(default)]
     pub profile_accent_color_id: i32,
+    /// 对话 emoji 状态（超级群/频道的礼物/自定义 emoji 状态，可为空）
+    #[serde(default)]
+    pub emoji_status: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -346,6 +349,19 @@ impl ChatStore {
                             serde_json::to_value(chat).unwrap(),
                         ));
                     }
+                }
+            }
+            "updateChatEmojiStatus" => {
+                let chat_id = update["chat_id"].as_i64()?;
+                if let Some(chat) = self.chats.get_mut(&chat_id) {
+                    chat.emoji_status = update
+                        .get("emoji_status")
+                        .filter(|v| !v.is_null())
+                        .cloned();
+                    events.push((
+                        "chat-update".to_string(),
+                        serde_json::to_value(chat).unwrap(),
+                    ));
                 }
             }
             "updateChatViewAsTopics" => {

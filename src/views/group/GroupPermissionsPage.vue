@@ -66,7 +66,7 @@
           </div>
         </section>
 
-        <!-- 付费消息（Unigram：CanEnablePaidMessages || 已开启） -->
+        <!-- 付费消息（CanEnablePaidMessages || 已开启） -->
         <section v-if="showPaidMessages" class="border-b border-gray-200 dark:border-gray-700 pb-8">
           <div class="flex items-center gap-3 mb-1">
             <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -309,7 +309,7 @@ function onMediaAll(v: boolean) {
   for (const k of mediaKeys) (form as any)[k] = v;
 }
 
-/** Unigram 默认权限页仅：邀请 / 置顶 / 修改资料 */
+/** 默认权限页仅：邀请 / 置顶 / 修改资料 */
 const manageRows = computed(() => [
   {
     key: 'can_invite_users',
@@ -393,7 +393,7 @@ function openRestrict(m: chatMember) {
   restrictVisible.value = true;
 }
 
-/** Unigram 权限页例外列表：权限设置 / 从列表移除 */
+/** 权限页例外列表：权限设置 / 从列表移除 */
 function openRestrictedMenu(e: MouseEvent, m: chatMember) {
   e.preventDefault();
   e.stopPropagation();
@@ -472,7 +472,7 @@ async function reload() {
         unrestrictBoostCount.value = (full as any).unrestrict_boost_count ?? 1;
         unrestrictBoosters.value = unrestrictBoostCount.value > 0;
         if (!unrestrictBoosters.value) unrestrictBoostCount.value = 1;
-        // Unigram：PaidMessagesPanel 仅 CanEnablePaidMessages 或已开启付费
+        // PaidMessagesPanel 仅 CanEnablePaidMessages 或已开启付费
         const canEnablePaid = !!(full as any).can_enable_paid_messages;
         paidMessageStarCount.value = (sg as any)?.paid_message_star_count ?? 0;
         chargePerMessage.value = paidMessageStarCount.value > 0;

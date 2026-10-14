@@ -11,7 +11,7 @@ export interface ChatBotCommand {
 }
 
 /**
- * 按需拉取聊天内的 bot 命令列表（同 Unigram 的数据来源）：
+ * 按需拉取聊天内的 bot 命令列表（数据来源同官方客户端）：
  * - 私聊：userFullInfo.bot_info.commands
  * - 基本群 / 超级群：groupFullInfo.bot_commands（各 bot 的命令拍平合并）
  * 其它聊天类型返回 null。

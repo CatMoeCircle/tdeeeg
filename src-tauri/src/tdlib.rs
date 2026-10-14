@@ -423,7 +423,7 @@ async fn shutdown_all_clients(state: &AppState) -> Result<(), String> {
 
 /// 用当前已保存的参数（use_test_dc / api_id / api_hash）重建活动账户的客户端。
 ///
-/// 对齐 Unigram：从二维码授权态切手机号时，先 logOut/close 释放当前会话，
+/// 对齐官方客户端：从二维码授权态切手机号时，先 logOut/close 释放当前会话，
 /// 再 TryInitialize/create。客户端可能已因 logOut 进入 Closed（接收线程退出），
 /// 此时 shutdown 会失败或超时——短超时后强制移除再重建。
 #[tauri::command]
@@ -497,7 +497,7 @@ fn chrono_like_now() -> String {
 ///
 /// TDLib AuthManager 会把二维码 `login_token` 持久化到账户数据库；
 /// 仅 close+create 会从库里恢复出**同一个** WaitOtherDeviceConfirmation。
-/// Unigram 用 logOut 清本地数据；这里在重建前删除该账户 tdlib_db
+/// 官方客户端用 logOut 清本地数据；这里在重建前删除该账户 tdlib_db
 /// （仅用于尚未完成登录的会话切换），确保新客户端回到 WaitPhoneNumber。
 #[tauri::command]
 pub async fn force_reinit_active(

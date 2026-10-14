@@ -1,4 +1,4 @@
-//! setTdlibParameters 用的设备信息采集（对齐 Unigram：真实机型 + 显式系统版本）。
+//! setTdlibParameters 用的设备信息采集（真实机型 + 显式系统版本）。
 
 use std::sync::OnceLock;
 

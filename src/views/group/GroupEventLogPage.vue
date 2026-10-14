@@ -21,7 +21,7 @@
       </button>
     </div>
 
-    <!-- 聊天式时间线：最新在底部，向上滚动加载更早（Unigram EventLog） -->
+    <!-- 聊天式时间线：最新在底部，向上滚动加载更早（EventLog） -->
     <div ref="scrollEl" class="relative z-10 flex-1 min-h-0 overflow-y-auto custom-scrollbar" v-smooth-wheel
       @scroll="onScroll">
       <div class="mx-auto max-w-3xl px-4 py-4 space-y-1">
@@ -32,7 +32,7 @@
           {{ t('lng_admin_log_about') }}
         </div>
 
-        <!-- 旧 → 新，全部左对齐（Unigram：均视为 incoming） -->
+        <!-- 旧 → 新，全部左对齐（均视为 incoming） -->
         <div v-for="item in items" :key="item.id" class="space-y-0.5">
           <!-- 居中服务胶囊（特殊显示） -->
           <div v-if="item.kind !== 'rights'" class="relative flex justify-center my-0.5">

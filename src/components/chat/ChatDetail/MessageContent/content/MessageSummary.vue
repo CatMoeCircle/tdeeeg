@@ -1,5 +1,5 @@
 <template>
-    <!-- 包裹层不定位：按钮相对气泡（已加 relative）定位，贴齐气泡顶部、位于气泡外侧（对齐 Unigram 的 Summary 列位） -->
+    <!-- 包裹层不定位：按钮相对气泡（已加 relative）定位，贴齐气泡顶部、位于气泡外侧（Summary 列位） -->
     <div>
         <!-- 圆形图标按钮：未摘要为缩小图标，已摘要为放大图标；点击请求摘要 / 在摘要与原文间切换 -->
         <button type="button"
@@ -13,7 +13,7 @@
             <span aria-hidden="true" class="summary-sparkle summary-sparkle-alt top-1 right-1 text-blue-500 dark:text-blue-400">✦</span>
         </button>
 
-        <!-- 摘要头（对齐 Unigram MessageSummary）：左侧竖线 + 标题 + 「点击查看原文」；点击切回原文 -->
+        <!-- 摘要头（MessageSummary）：左侧竖线 + 标题 + 「点击查看原文」；点击切回原文 -->
         <div v-if="state?.active"
             class="mb-1.5 cursor-pointer select-none rounded-[4px] border-l-2 border-blue-500 bg-blue-500/10 py-1 pl-2 pr-1 dark:border-blue-400 dark:bg-blue-400/10"
             :title="t('lng_summarize_header_about')" @click.stop="onToggle">

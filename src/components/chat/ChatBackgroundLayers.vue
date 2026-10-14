@@ -74,7 +74,7 @@ const positivePatternStyle = computed<Record<string, string>>(() => {
     style.backgroundImage = `url("${pattern.url}")`;
     style.backgroundSize = `${pattern.tileWidth}px ${pattern.tileHeight}px`;
     style.backgroundRepeat = 'repeat';
-    // 图案叠加在填充之上：soft-light 让白色图案提亮、深色图案压暗（对齐 Unigram BlendEffect）
+    // 图案叠加在填充之上：soft-light 让白色图案提亮、深色图案压暗
     style.mixBlendMode = 'soft-light';
     style.opacity = String(pattern.intensity);
     return style;

@@ -6,7 +6,7 @@
  *         → 表现和普通群组一样，话题选择在对话页标签栏
  * - none：非话题群组 / 非受管理的私信群（普通聊天视图）
  *
- * 对齐 Unigram TdExtensions.HasForumTabs：
+ * 对齐 TdExtensions.HasForumTabs：
  * - 论坛标签：isForum=true → getForumTopics
  * - 私信标签：isForum=false → loadDirectMessagesChatTopics
  * - 非受管理私信群：不显示标签栏
@@ -68,7 +68,7 @@ export async function resolveTopicMode(chat: chat | undefined | null): Promise<T
         return info;
     }
 
-    // 2) 取 supergroup，对齐 Unigram HasForumTabs
+    // 2) 取 supergroup，对齐 HasForumTabs
     try {
         const sg = await tdlibSend({
             _: 'getSupergroup',
@@ -83,7 +83,7 @@ export async function resolveTopicMode(chat: chat | undefined | null): Promise<T
             return info;
         }
 
-        // 频道私聊群组：仅「受管理」时显示标签栏（与 Unigram 一致）
+        // 频道私聊群组：仅「受管理」时显示标签栏
         if (isDm) {
             const info: TopicModeInfo = {
                 mode: isAdministeredDm ? 'tag' : 'none',

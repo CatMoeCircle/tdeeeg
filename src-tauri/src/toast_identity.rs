@@ -116,7 +116,7 @@ pub fn ensure_toast_identity() -> Result<(), String> {
     Ok(())
 }
 
-/// 始终带 AUMID 发送系统通知（Unigram 风格：左侧圆形头像 + 简洁两行文案）。
+/// 始终带 AUMID 发送系统通知（左侧圆形头像 + 简洁两行文案）。
 ///
 /// - `title`：主标题（如「张三 → 李四」或群名）
 /// - `body`：副标题（消息内容 / 「您有一条新消息」）
@@ -169,7 +169,7 @@ fn show_toast_windows(
 
     if let Some(path) = image {
         if !path.is_empty() && Path::new(path).is_file() {
-            // 左侧圆形头像（Unigram / Telegram 桌面样式）
+            // 左侧圆形头像（Telegram 桌面样式）
             toast = toast.icon(Path::new(path), IconCrop::Circular, "");
         }
     }

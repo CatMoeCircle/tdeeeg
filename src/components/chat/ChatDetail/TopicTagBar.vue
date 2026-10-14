@@ -1,6 +1,6 @@
 <template>
     <!-- 话题标签栏（tag 栏话题模式）
-         - left ：图片样式窄栏 72px（对齐 Unigram ForumTopicVerticalCell）
+         - left ：图片样式窄栏 72px（ForumTopicVerticalCell）
          - top  ：悬浮分组栏（Header 与置顶栏之间）
          - bottom：悬浮分组栏（输入条上方）
          列表话题模式不使用本组件（话题在对话列表中展示）。 -->
@@ -245,7 +245,7 @@ interface TagEntry {
 
 const entries = computed<TagEntry[]>(() => {
     // 频道私信：顶部「全部」+ 每条会话一个标签（用户头像 + 名称）
-    // 对齐 Unigram ForumTopicVerticalCell：SenderId==null 显示 AllTopics
+    // ForumTopicVerticalCell：SenderId==null 显示 AllTopics
     if (props.isDm) {
         const list: TagEntry[] = [];
         list.push({

@@ -1,5 +1,5 @@
 /**
- * Shared media count fetching — mirrors Unigram's UpdateSharedCountAsync.
+ * Shared media count fetching — mirrors the official UpdateSharedCountAsync.
  *
  * Calls getChatMessageCount for each media filter type and returns the counts.
  * These counts drive which shared-media tabs appear in the profile page.

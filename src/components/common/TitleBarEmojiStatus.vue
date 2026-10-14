@@ -5,7 +5,7 @@
       :title="readonly ? undefined : t('lng_menu_change_status')" :aria-label="readonly ? undefined : t('lng_menu_change_status')"
       :disabled="readonly" @click.stop="togglePicker">
       <CustomEmojiInline v-if="displayEmojiId" :emojiId="displayEmojiId" :size="22" :loop="false" />
-      <span v-else class="tgico tgico-emoji-status text-[22px]" />
+      <PremiumStatusIcon v-else class="text-[22px]" />
     </button>
     <Teleport to="body">
       <div v-if="pickerOpen" class="fixed inset-0 z-200" @mousedown="onBackdrop">
@@ -29,6 +29,7 @@ import { useI18n } from 'vue-i18n';
 import { useUserStore } from '../../store/user';
 import { tdlibSend } from '../../utils/tdlib';
 import CustomEmojiInline from './CustomEmojiInline.vue';
+import PremiumStatusIcon from './PremiumStatusIcon.vue';
 import EmojiDrawer from '../chat/ChatDetail/stickerPanel/EmojiDrawer.vue';
 
 defineProps<{ readonly?: boolean }>();
@@ -91,10 +92,5 @@ async function setCustomStatus(emojiId: string) {
 <style scoped>
 [data-tauri-drag-region-exclude] {
   -webkit-app-region: no-drag;
-}
-
-.tgico-emoji-status::before {
-  content: "\ea2a";
-  color: var(--app-brand, #2aabee);
 }
 </style>

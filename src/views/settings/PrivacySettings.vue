@@ -540,7 +540,7 @@ async function saveIgnoreSensitive(v: boolean) {
 // =====================================================================
 let unlistenPrivacy: (() => void) | null = null;
 
-/** 其他客户端改了隐私规则时，直接用 update 载荷刷新本地缓存（与 Unigram 一致） */
+/** 其他客户端改了隐私规则时，直接用 update 载荷刷新本地缓存 */
 async function subscribePrivacyUpdates() {
     unlistenPrivacy?.();
     // updateUserPrivacySettingRules 由 Rust 分到 user 通道

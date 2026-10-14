@@ -6,7 +6,7 @@ import type { ChatWallpaperVisual } from '../store/settings';
 /**
  * 对话背景（TDLib `Background`）→ 可渲染模型。
  *
- * 对齐 Unigram 的 ChatBackgroundPresenter / ChatBackgroundBrush / ChatBackgroundFreeform：
+ * 对齐 ChatBackgroundPresenter / ChatBackgroundBrush / ChatBackgroundFreeform：
  *
  * | TDLib 类型               | 渲染                                                        |
  * |--------------------------|-------------------------------------------------------------|
@@ -15,7 +15,7 @@ import type { ChatWallpaperVisual } from '../store/settings';
  * | backgroundTypeWallpaper  | 原图 cover（is_blurred 走模糊）                                |
  * | backgroundTypeChatTheme  | 按主题名查 emoji 主题缓存，取其明/暗背景后递归解析                 |
  *
- * 渐变方向、freeform 位图、图案强度都按 Unigram 的实现搬过来，保证与官方客户端一致。
+ * 渐变方向、freeform 位图、图案强度都按官方客户端的实现搬过来，保证与之一致。
  */
 
 /** 背景图案文档的 MIME（gzip 压缩的 SVG 子集） */
@@ -24,7 +24,7 @@ const TGWALL_PATTERN_MIME = 'application/x-tgwallpattern';
 /**
  * 图案的显示缩放：图案文档按 4 倍尺寸绘制（默认背景的 pattern.tgv / pattern_01.png
  * 都是 1440×2960），客户端一律按 1/4 铺。
- * Unigram 的原生实现是 `ChatBackgroundPattern.ComputeRenderSize = size * 0.25`
+ * 原生实现是 `ChatBackgroundPattern.ComputeRenderSize = size * 0.25`
  * （见 Telegram.Native/ChatBackgroundPattern.h），这里对齐同一规则。
  */
 const PATTERN_SCALE = 0.25;
@@ -109,7 +109,7 @@ function hexToRgb(color: string): [number, number, number] {
   ];
 }
 
-// ─── freeform 渐变（Unigram ChatBackgroundFreeform.GenerateGradient 的移植） ───
+// ─── freeform 渐变（ChatBackgroundFreeform.GenerateGradient 的移植） ───
 
 /** 8 个锚点，按 phase 左旋后每隔一个取 4 个（3 色时只用前 3 个） */
 const FREEFORM_POSITIONS: ReadonlyArray<readonly [number, number]> = [
@@ -117,7 +117,7 @@ const FREEFORM_POSITIONS: ReadonlyArray<readonly [number, number]> = [
   [0.2, 0.9], [0.4, 0.8], [0.65, 0.75], [0.75, 0.4],
 ];
 
-/** 位图尺寸与 Unigram 一致：50×50 拉伸铺开，天然形成柔和 swirl */
+/** 位图尺寸与官方一致：50×50 拉伸铺开，天然形成柔和 swirl */
 const FREEFORM_SIZE = 50;
 
 const freeformCache = new Map<string, string>();
@@ -183,7 +183,7 @@ function renderFreeform(colors: string[], phase: number): string {
 
       const offset = (y * size + x) * 4;
       if (sum > 0) {
-        // canvas ImageData 是 RGBA；官方写的是 BGRA 位图（Unigram ChatBackgroundControl
+        // canvas ImageData 是 RGBA；官方写的是 BGRA 位图（ChatBackgroundControl
         // .GenerateGradient），照搬字节序会把红蓝写反 → 自由渐变整片偏色
         data[offset] = clamp255((r / sum) * 255);
         data[offset + 1] = clamp255((g / sum) * 255);

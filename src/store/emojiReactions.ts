@@ -30,7 +30,7 @@ export interface EmojiReactionAnimState {
 
 /**
  * 全局 emoji reaction 动画缓存。
- * 对齐 Unigram：选择器网格优先用 select_animation（选中态动画），
+ * 选择器网格优先用 select_animation（选中态动画），
  * 不可用时回退 activate_animation；静态 Unicode emoji 仅作加载失败兜底。
  */
 const cache = ref<Record<string, EmojiReactionAnimState>>({});
@@ -52,7 +52,7 @@ function formatOf(st: sticker): EmojiReactionAnimState['format'] {
     return 'webp';
 }
 
-/** Unigram ReactionsMenuFlyout：优先 SelectAnimation；展开网格用 ActivateAnimation */
+/** ReactionsMenuFlyout：优先 SelectAnimation；展开网格用 ActivateAnimation */
 function pickAnimSticker(r: emojiReaction, source: ReactionAnimSource): sticker | undefined {
     if (source === 'select') {
         return r.select_animation ?? r.activate_animation ?? r.appear_animation;

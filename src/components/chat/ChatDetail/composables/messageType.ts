@@ -182,7 +182,7 @@ export function isServiceMessage(msg: message): boolean {
 }
 
 /**
- * 频道消息底部是否显示评论条（参考 Unigram MessageBubble 的 Thread 行）：
+ * 频道消息底部是否显示评论条（MessageBubble 的 Thread 行）：
  * 仅频道帖子（is_channel_post）且已关联讨论组（interaction_info.reply_info 存在）；
  * 服务消息与无气泡的独立消息（贴纸 / 动画表情 / 骰子）不显示。
  */

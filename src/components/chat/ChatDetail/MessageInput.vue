@@ -302,10 +302,10 @@ const attachmentMenuRef = ref<InstanceType<typeof AttachmentMenu> | null>(null);
 /* =========================================================================
  * 机器人命令快捷弹窗：输入以 / 开头 → 输入框顶部弹出命令列表
  * 点击行为跟随设置 message.botCommandInsert：开启→放入输入框；关闭→直接发送
- * 命令来源（同 Unigram）：私聊 = userFullInfo.bot_info.commands；
+ * 命令来源：私聊 = userFullInfo.bot_info.commands；
  * 基本群/超级群 = groupFullInfo.bot_commands（各 bot 命令拍平合并），见 utils/chatBotCommands
  * ========================================================================= */
-/** 当前聊天的 bot 命令列表（null = 未拉取；私聊 + 基本群 + 超级群，来源同 Unigram） */
+/** 当前聊天的 bot 命令列表（null = 未拉取；私聊 + 基本群 + 超级群） */
 const chatCommands = ref<ChatBotCommand[] | null>(null);
 
 /** 命令所属 bot 的用户信息（响应式；未加载时 undefined → 头像回退为姓名首字母） */

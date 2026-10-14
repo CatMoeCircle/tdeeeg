@@ -2,7 +2,7 @@ import { onUnmounted, ref, watch, type Ref } from 'vue';
 import type { TgsPlayerInstance } from '../components/common/TgsPlayer.vue';
 
 /**
- * Unigram 帧标记（文件内无 markers，为其手工约定）：
+ * 帧标记（文件内无 markers，为手工约定）：
  *   Close=40 捂眼；CloseToPeek=56 从指缝偷看
  * 登录页实际语义（与直觉一致）：
  *   隐藏密码 / 有密码未揭示 → 40 捂眼
@@ -184,7 +184,7 @@ export function usePasswordMonkey(password: Ref<string>) {
         resetToFilled() {
             hardStopAt(MONKEY_FILLED_FRAME);
         },
-        /** Unigram Close/CloseToPeek：用 play 过渡，而不是瞬时 seek */
+        /** Close/CloseToPeek：用 play 过渡，而不是瞬时 seek */
         seekMarker(frame: number) {
             playTo(frame);
         },

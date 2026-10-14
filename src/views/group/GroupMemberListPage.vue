@@ -5,14 +5,14 @@
         <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
       </button>
       <h2 class="text-lg font-semibold flex-1">{{ title }}</h2>
-      <!-- Unigram AddNew：添加管理员 / 添加成员 / 封禁用户 -->
+      <!-- AddNew：添加管理员 / 添加成员 / 封禁用户 -->
       <button v-if="showAddButton" type="button" @click="openAddPicker"
         class="px-3 py-1.5 rounded-lg text-sm text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors">
         {{ addButtonText }}
       </button>
     </div>
 
-    <!-- 管理员页顶部：近期操作 / 签名 / 反垃圾（Unigram：事件日志仅超群，签名仅频道+可改资料，反垃圾仅群组） -->
+    <!-- 管理员页顶部：近期操作 / 签名 / 反垃圾（事件日志仅超群，签名仅频道+可改资料，反垃圾仅群组） -->
     <div v-if="mode === 'admins' && showAdminHeader" class="px-6 pt-4 shrink-0 space-y-2">
       <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
         <button v-if="showEventLog" type="button" class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
@@ -47,7 +47,7 @@
       </div>
     </div>
 
-    <!-- 成员页：隐藏成员（Unigram HideMembers，需 can_hide_members） -->
+    <!-- 成员页：隐藏成员（HideMembers，需 can_hide_members） -->
     <div v-if="mode === 'members' && canHideMembers" class="px-6 pt-4 shrink-0">
       <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-3 flex items-center gap-3">
         <div class="min-w-0 flex-1">
@@ -66,7 +66,7 @@
 
     <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
       <div class="max-w-2xl space-y-4">
-        <!-- 成员/订阅者：联系人 → 机器人 → 其他（Unigram ChatMemberGroupedCollection） -->
+        <!-- 成员/订阅者：联系人 → 机器人 → 其他（ChatMemberGroupedCollection） -->
         <template v-if="mode === 'members' && !query.trim() && sections.length">
           <div v-for="sec in sections" :key="sec.key">
             <p class="px-1 pb-2 text-xs font-medium text-gray-400 dark:text-gray-500">{{ sec.title }}</p>
@@ -215,7 +215,7 @@ const isForum = computed(() => !!(chat.value?.type._ === 'chatTypeSupergroup' &&
 
 type MemberSection = { key: string; title: string; members: chatMember[] };
 
-/** 成员/订阅者分组：此频道/群组中的联系人 → 机器人 → 其他（Unigram ChatMemberGroupedCollection） */
+/** 成员/订阅者分组：此频道/群组中的联系人 → 机器人 → 其他（ChatMemberGroupedCollection） */
 const sections = computed<MemberSection[]>(() => {
   if (props.mode !== 'members' || query.value.trim()) return [];
   const seen = new Set<number>();
@@ -456,7 +456,7 @@ function openUserProfile(m: chatMember) {
 
 /** 点击条目：
  *  管理员列表 → 查看/修改管理员权限
- *  成员/订阅者 → 个人主页（Unigram NavigateToSender，无权限限制）
+ *  成员/订阅者 → 个人主页（NavigateToSender，无权限限制）
  *  封禁列表 → 个人资料
  */
 function onRowClick(m: chatMember) {
@@ -467,7 +467,7 @@ function onRowClick(m: chatMember) {
   openUserProfile(m);
 }
 
-/** Unigram RemoveMember：从频道/群组移除（status → Banned） */
+/** RemoveMember：从频道/群组移除（status → Banned） */
 async function removeFromChat(m: chatMember) {
   const uid = memberUserId(m);
   if (!uid) return;
@@ -485,7 +485,7 @@ async function removeFromChat(m: chatMember) {
   }
 }
 
-/** Unigram AddMember：加回群组/频道（status → Member） */
+/** AddMember：加回群组/频道（status → Member） */
 async function addToChat(m: chatMember) {
   const uid = memberUserId(m);
   if (!uid) return;
@@ -503,7 +503,7 @@ async function addToChat(m: chatMember) {
   }
 }
 
-/** Unigram UnbanMember：从列表移除（status → Left，不再出现在黑名单） */
+/** UnbanMember：从列表移除（status → Left，不再出现在黑名单） */
 async function deleteFromList(m: chatMember) {
   const uid = memberUserId(m);
   if (!uid) return;
@@ -531,14 +531,14 @@ const myAdminRights = computed(() =>
   myStatus.value?._ === 'chatMemberStatusAdministrator' ? myStatus.value.rights : undefined
 );
 
-/** Unigram MemberPromote：非创建者、非自己、有 promote 权限 */
+/** MemberPromote：非创建者、非自己、有 promote 权限 */
 function canPromoteTarget(m: chatMember): boolean {
   if (isCreatorStatus(m.status)) return false;
   if (isSelf(m)) return false;
   return canPromoteMembers(myStatus.value);
 }
 
-/** Unigram MemberRestrict：仅群组；创建者/不可编辑管理员/自己不可 */
+/** MemberRestrict：仅群组；创建者/不可编辑管理员/自己不可 */
 function canRestrictTarget(m: chatMember): boolean {
   if (isChannel.value) return false;
   if (isSelf(m)) return false;
@@ -547,7 +547,7 @@ function canRestrictTarget(m: chatMember): boolean {
   return canRestrictMembers(myStatus.value);
 }
 
-/** Unigram MemberRemove：非创建者/不可编辑管理员/自己；有 restrict 权限 */
+/** MemberRemove：非创建者/不可编辑管理员/自己；有 restrict 权限 */
 function canRemoveTarget(m: chatMember): boolean {
   if (isCreatorStatus(m.status)) return false;
   if (isSelf(m)) return false;
@@ -705,7 +705,7 @@ async function reload() {
             : 'recent';
     let list: chatMember[];
     if (props.mode === 'members' && !query.value.trim()) {
-      // Unigram ChatMemberGroupedCollection：联系人 → 机器人 → 其他，服务端过滤后合并去重
+      // ChatMemberGroupedCollection：联系人 → 机器人 → 其他，服务端过滤后合并去重
       const [contacts, bots, recent] = await Promise.all([
         loadGroupMembers(c, 'contacts', '', 0, 100),
         loadGroupMembers(c, 'bots', '', 0, 100),

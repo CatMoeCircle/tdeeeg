@@ -13,7 +13,7 @@
                 <button type="button" @click="emit('openInfo')"
                     class="flex items-center gap-3 min-w-0 text-left flex-1 cursor-pointer rounded-full hover:opacity-80 active:scale-[0.99] transition-[opacity,transform] duration-150">
                     <template v-if="isTopicMode">
-                        <!-- 频道私信话题：对方头像（对齐 Unigram） -->
+                        <!-- 频道私信话题：对方头像 -->
                         <Avatar v-if="dmTopicInfo" :photo="dmTopicInfo.photo" :title="dmTopicInfo.name"
                             :first-name="dmTopicInfo.firstName" :last-name="dmTopicInfo.lastName"
                             sizeClass="!w-10 !h-10" />
@@ -48,10 +48,22 @@
                             <!-- 秘密聊天：名称左侧锁图标（不改标题颜色） -->
                             <span v-if="isSecretChat"
                                 class="tgico tgico-secret shrink-0 text-[15px] leading-none mr-1" />
-                            <GlobalEmojiText :text="headerTitle" /><span v-if="verificationState"
-                                class="text-blue-500 ml-1 shrink-0">
-                                <component :is="verificationState" />
-                            </span>
+                            <!-- 机构认证标识：显示在名称前面 -->
+                            <CustomEmojiInline v-if="headerOrgEmojiId" :emojiId="headerOrgEmojiId" :size="18"
+                                class="shrink-0 mr-1" />
+                            <GlobalEmojiText :text="headerTitle" />
+                            <!-- 名称后标识优先级：诈骗/虚假 > 礼物 > Premium 星标 > 蓝 V -->
+                            <ShieldAlert v-if="headerScamOrFake"
+                                class="ml-1 w-4 h-4 text-red-500 shrink-0"
+                                :title="headerVerification?.is_scam ? t('profileBadges.scam') : t('profileBadges.fake')" />
+                            <CustomEmojiInline v-else-if="headerGiftEmojiId" :emojiId="headerGiftEmojiId" :size="18"
+                                class="ml-1 shrink-0" />
+                            <PremiumStatusIcon v-else-if="headerPremiumStar"
+                                class="ml-1 text-[18px] shrink-0" :title="t('lng_premium_summary_title')" />
+                            <VerifiedFilledIcon v-else-if="headerBlueVerified"
+                                class="text-blue-500 ml-1 shrink-0" :title="t('profileBadges.verified')"
+                                :fillColor="['currentColor', 'transparent']"
+                                :strokeColor="['currentColor', '#0052d9']" :strokeWidth="1.5" />
                         </h2>
                         <span class="text-xs text-gray-400 truncate">
                             <template v-if="isTopicMode">
@@ -100,7 +112,7 @@
 <script setup lang="ts">
 import { SearchIcon, MoreHorizontalIcon, ArrowLeftIcon, ShieldAlert, BookmarkIcon, PanelLeftIcon, PanelTopIcon, PanelBottomIcon } from 'lucide-vue-next';
 import { VerifiedFilledIcon } from 'tdesign-icons-vue-next';
-import { computed, h, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useI18n } from 'vue-i18n';
 import type { chat, user, verificationStatus, forumTopic, basicGroup, supergroup, supergroupFullInfo, chatPhotoInfo, profilePhoto } from "tdlib-types";
@@ -112,7 +124,8 @@ import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../../utils/savedM
 import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
 import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
 import StoryRing from '../../story/StoryRing.vue';
-import { getChatProfileAccentColorId, getChatUserNames, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
+import { getChatProfileAccentColorId, getChatUserNames, isDeletedChat, DELETED_ACCOUNT_LABEL, emojiStatusCustomEmojiId } from '../../../utils/senderInfo';
+import PremiumStatusIcon from '../../common/PremiumStatusIcon.vue';
 import { updateActiveChatTitleBar, clearActiveChatTitleBar } from '../../../store/activeChatTitleBar';
 import { onTdlibUpdates } from '../../../store/tdlibBus';
 
@@ -152,7 +165,6 @@ const topicTagPositionTitle = computed(() => {
 });
 
 const status = ref('');
-const verificationState = ref<null | ReturnType<typeof h>>(null);
 const numberFormatter = new Intl.NumberFormat('zh-CN');
 let statusRequestId = 0;
 
@@ -251,26 +263,49 @@ const formatUserStatus = (currentUser: user) => {
     return formatStatus(currentUser.status);
 };
 
-// 更新验证状态图标
-const updateVerificationState = (status?: verificationStatus) => {
-    if (!status) {
-        verificationState.value = null;
-        return;
-    }
+/** 顶栏认证来源：私聊/密聊取对方用户，超级群/频道取群信息 */
+const headerVerification = computed<verificationStatus | undefined>(() => {
+    const type = props.chat?.type;
+    if (type?._ === 'chatTypePrivate' || type?._ === 'chatTypeSecret') return statusUser.value?.verification_status;
+    if (type?._ === 'chatTypeSupergroup') return statusSuper.value?.verification_status;
+    return undefined;
+});
 
-    if (status.is_scam || status.is_fake) {
-        verificationState.value = h(ShieldAlert, { class: 'text-red-500' });
-    } else if (status.is_verified) {
-        verificationState.value = h(VerifiedFilledIcon, {
-            class: 'text-blue-500',
-            fillColor: ['currentColor', 'transparent'],
-            strokeColor: ['currentColor', '#0052d9'],
-            strokeWidth: 1.5,
-        });
-    } else {
-        verificationState.value = null;
+/** 诈骗/虚假账户：红色盾牌，优先级最高（与列表一致） */
+const headerScamOrFake = computed(() => !!(headerVerification.value?.is_scam || headerVerification.value?.is_fake));
+
+/** 机构认证标识的自定义 emoji id（空或 0 表示未设置） */
+const headerOrgEmojiId = computed(() => {
+    const id = headerVerification.value?.bot_verification_icon_custom_emoji_id;
+    return id && id !== '0' ? id : '';
+});
+
+/** 礼物/emoji 状态：私聊取对方用户，超级群/频道取对话自身；保存的消息与诈骗/虚假账户不显示 */
+const headerGiftEmojiId = computed(() => {
+    if (headerScamOrFake.value || isSavedMessages.value) return '';
+    const type = props.chat?.type;
+    if (type?._ === 'chatTypePrivate' || type?._ === 'chatTypeSecret') {
+        return emojiStatusCustomEmojiId(statusUser.value?.emoji_status);
     }
-};
+    if (type?._ === 'chatTypeSupergroup') return emojiStatusCustomEmojiId(props.chat?.emoji_status);
+    return '';
+});
+
+/** Premium 星标：私聊对方为会员且无礼物时显示 */
+const headerPremiumStar = computed(() => {
+    if (headerScamOrFake.value || isSavedMessages.value || headerGiftEmojiId.value) return false;
+    const type = props.chat?.type;
+    const isPrivate = type?._ === 'chatTypePrivate' || type?._ === 'chatTypeSecret';
+    return isPrivate && !!statusUser.value?.is_premium;
+});
+
+/** 官方蓝 V：有礼物、Premium 星标或机构标识时由其替代 */
+const headerBlueVerified = computed(() =>
+    !!headerVerification.value?.is_verified
+    && !headerOrgEmojiId.value
+    && !headerGiftEmojiId.value
+    && !headerPremiumStar.value
+);
 
 /** 私聊/密聊对方 user_id */
 const peerUserId = computed(() => {
@@ -292,7 +327,6 @@ function rebuildStatusText() {
     const newChat = props.chat;
     if (!newChat || isSavedMessagesChat(newChat, userProfile.value?.id)) {
         status.value = '';
-        verificationState.value = null;
         return;
     }
 
@@ -300,7 +334,6 @@ function rebuildStatusText() {
         const u = statusUser.value;
         if (!u) return;
         status.value = formatUserStatus(u);
-        updateVerificationState(u.verification_status);
         return;
     }
 
@@ -320,7 +353,6 @@ function rebuildStatusText() {
                 ? t('lng_chat_status_subscribers', { count: formatCount(memberCount) })
                 : t('lng_chat_status_members', { count: formatCount(memberCount) }))
             : fallback;
-        updateVerificationState(statusSuper.value?.verification_status);
     }
 }
 
@@ -328,7 +360,6 @@ function rebuildStatusText() {
 watch([() => props.chat, () => userProfile.value?.id], async ([newChat]) => {
     const requestId = ++statusRequestId;
     status.value = '';
-    verificationState.value = null;
     statusUser.value = undefined;
     statusBasic.value = undefined;
     statusSuper.value = undefined;
@@ -415,6 +446,13 @@ onMounted(() => {
             if (uid === peerUserId.value && statusUser.value && next) {
                 statusUser.value.status = next;
                 rebuildStatusText();
+            }
+        } else if (type_ === 'updateUserEmojiStatus') {
+            // 礼物/emoji 状态变更：就地更新，顶栏计算属性随之刷新
+            const uid = (update as { user_id?: number }).user_id;
+            const next = (update as { emoji_status?: user['emoji_status'] }).emoji_status;
+            if (uid === peerUserId.value && statusUser.value) {
+                statusUser.value.emoji_status = next ?? undefined;
             }
         } else if (type_ === 'updateUser') {
             const u = (update as { user?: user }).user;

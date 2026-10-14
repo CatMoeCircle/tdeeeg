@@ -77,7 +77,7 @@
               <p class="text-xs text-gray-400 mt-2 whitespace-pre-line">{{ t('lng_create_channel_link_about') }}</p>
               <p class="text-xs mt-1 min-h-4" :class="usernameClass">{{ usernameText }}</p>
             </div>
-            <!-- 多用户名：启用 / 停用 / 排序（Unigram UsernameInfo 列表） -->
+            <!-- 多用户名：启用 / 停用 / 排序（UsernameInfo 列表） -->
             <div v-if="managedUsernames.length > 1" class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
               <div v-for="(u, idx) in managedUsernames" :key="u.name"
                 class="flex items-center gap-2 px-4 py-3"

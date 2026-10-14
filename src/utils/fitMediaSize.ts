@@ -1,6 +1,6 @@
 /**
  * 媒体等比缩放 + 最大/最小尺寸限制。
- * 对应 Unigram AspectView.MeasureOverride 与 App.xaml 中的
+ * 对应 AspectView.MeasureOverride 与 App.xaml 中的
  * TelegramMediaMaxWidth/Height（432）、TelegramMediaMinWidth/Height（96）。
  *
  * 注意：min 只作「优先尺寸」——在不超过 max 的前提下等比放大；

@@ -243,7 +243,7 @@ function pickProfileColor(id: number) {
 }
 
 function goBack() {
-  // Unigram ProfileColor：未保存更改时确认
+  // ProfileColor：未保存更改时确认
   if (isDirty.value && !window.confirm(t('lng_forum_discard_sure'))) return;
   router.back();
 }

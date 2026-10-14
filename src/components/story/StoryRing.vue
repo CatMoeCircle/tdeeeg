@@ -24,13 +24,13 @@ import { useColors } from "../../store/colors";
  * 动态（Story）渐变描边容器：包住头像（<Avatar> 或 <img>），在外圈画一圈渐变描边，
  * 描边与头像之间留出空隙（空隙是真正透明的，露出所在表面的背景，不是拿底色假装）。
  *
- * 配色（与 Unigram ActiveStoriesSegments 同源，可用用户 accent 的 story_colors 覆盖）：
+ * 配色（可用用户 accent 的 story_colors 覆盖）：
  *   - 未读：绿 → 蓝渐变
  *   - 已查看：灰（透明度 30%）—— 看过后颜色变化
  *   - 直播：红
  *
- * 几何（与 Unigram 一致）：外径恒定，有动态时头像向内收缩，
- * 收缩量 = 描边 + 空隙（Unigram 为 side - 8）。
+ * 几何：外径恒定，有动态时头像向内收缩，
+ * 收缩量 = 描边 + 空隙（为 side - 8）。
  * 描边用 mask 只保留外圈 padding 带，因此中间是透明的；圆角对正圆和圆角方形都成立。
  * 尺寸由调用方决定：给 `diameter` 或 w-/h- class。
  */

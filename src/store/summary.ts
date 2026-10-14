@@ -5,7 +5,7 @@ import { detectInlineEntities } from "../utils/textEntityDetect";
 import { settings } from "./settings";
 
 /**
- * AI 摘要（TDLib summarizeMessage）状态，对齐 Unigram 的 SummarizedText 语义：
+ * AI 摘要（TDLib summarizeMessage）状态，对齐 SummarizedText 语义：
  * - 仅 summary_language_code 非空且非自己发出的文本消息可摘要（CanSummarizeText 发布版判定）
  * - 结果按 `${chatId}:${messageId}` 缓存在内存中
  * - active=true 时摘要原位替换正文，并显示摘要头；点击摘要头切回原文（缓存保留）

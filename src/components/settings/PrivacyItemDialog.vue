@@ -1026,7 +1026,7 @@ watch(() => props.modelValue, (vis) => {
     // 关闭（取消 / 右上角 X / 点击遮罩）均不写回，仅点「保存」才提交
 });
 
-/** 其他客户端修改隐私规则时，同步当前打开的弹窗（与 Unigram 的 UpdateUserPrivacySettingRules 处理一致） */
+/** 其他客户端修改隐私规则时，同步当前打开的弹窗（UpdateUserPrivacySettingRules 处理） */
 async function applyRemotePrivacyUpdate(settingType: string, rules: userPrivacySettingRules) {
     if (!props.modelValue || !activeItem.value) return;
     const item = activeItem.value;

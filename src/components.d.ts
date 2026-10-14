@@ -99,6 +99,7 @@ declare module 'vue' {
     PinMessageConfirm: typeof import('./components/contextMenu/PinMessageConfirm.vue')['default']
     PinnedMessageBar: typeof import('./components/chat/ChatDetail/PinnedMessageBar.vue')['default']
     PollMedia: typeof import('./components/chat/ChatDetail/MessageContent/content/PollMedia.vue')['default']
+    PremiumStatusIcon: typeof import('./components/common/PremiumStatusIcon.vue')['default']
     PreviewCard: typeof import('./components/settings/PreviewCard.vue')['default']
     PrivacyExceptionBlock: typeof import('./components/settings/PrivacyExceptionBlock.vue')['default']
     PrivacyItemDialog: typeof import('./components/settings/PrivacyItemDialog.vue')['default']

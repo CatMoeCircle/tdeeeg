@@ -122,7 +122,7 @@ const joinByRequest = ref(false);
 const linkedSupergroupId = ref(0);
 
 const isChannel = computed(() => isChannelChat(chat.value));
-/** 谁可以发送消息：仅频道 + 已关联讨论组时显示（对齐 Unigram） */
+/** 谁可以发送消息：仅频道 + 已关联讨论组时显示 */
 const showSendSection = computed(() => isChannel.value && !!linkedChat.value && linkedSupergroupId.value > 0);
 
 async function loadLinkedSendRules(discussion: chat | undefined) {
@@ -260,7 +260,7 @@ async function createDiscussion() {
 
 async function linkTo(targetId: number) {
   const title = getReactiveChat(targetId)?.title ?? String(targetId);
-  // Unigram：关联前确认，并提示会打开「新成员可见历史」
+  // 关联前确认，并提示会打开「新成员可见历史」
   const ok = window.confirm(
     `${t('lng_manage_discussion_group_sure', { group: title, channel: chat.value?.title ?? '' })}\n\n${t('lng_manage_discussion_group_warning')}`
   );

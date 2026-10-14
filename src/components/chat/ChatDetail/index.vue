@@ -303,7 +303,7 @@
                                                 </div>
                                             </template>
                                         </MessageContent>
-                                        <!-- 频道评论条（参考 Unigram Thread 行）：无气泡媒体紧跟媒体本体，
+                                        <!-- 频道评论条（评论线程行）：无气泡媒体紧跟媒体本体，
                                              白条直接承接媒体底部（媒体下缘由 commentsBar 压平），回应行再往下 -->
                                         <MessageCommentsBar v-if="showChannelCommentsBar(item.msg) && isBubblelessMedia(item.msg)"
                                             class="bg-white px-2 py-2.5 dark:bg-gray-800"
@@ -356,7 +356,7 @@
                         </div>
                     </template>
 
-                    <!-- 评论线程分隔（参考 Unigram DiscussionStarted/NoComments 服务消息）：
+                    <!-- 评论线程分隔（DiscussionStarted/NoComments 服务消息）：
                          紧跟根帖副本之后、评论之前；0 评论时显示「暂无留言」 -->
                     <div v-if="threadMode && isThreadRootItem(item)" class="msg-list-item flex justify-center my-2">
                         <span
@@ -2869,7 +2869,7 @@ type HistoryMode = 'normal' | 'jump';
 type HistoryFetch = message[] | null;
 
 /**
- * 历史切片参数（对齐 Unigram Constants.HistoryOffset/HistoryLimit）：
+ * 历史切片参数（HistoryOffset/HistoryLimit）：
  * TDLib 约定：offset 为负时 limit 必须严格大于 -offset，否则请求非法。
  * 因此「向更新方向」永远用 limit = HISTORY_NEWER_OFFSET + 1，绝不能 limit === -offset。
  */
@@ -3358,7 +3358,7 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
 // ==================== Data Fetching ====================
 /**
  * 从 TDLib 加载消息，返回 旧→新 顺序。
- * 返回约定（Unigram 风格，区分失败与边界）：
+ * 返回约定（区分失败与边界）：
  * - `message[]`：请求成功（可能为空；空 = 该方向历史边界）
  * - `null`：请求失败 / 代数过期，调用方不得标记 exhausted
  * 注意：fromMessageId 会被 TDLib 包含在返回结果中，调用方需自行去重。
@@ -3570,7 +3570,7 @@ async function alignLatestMessagesInBackground(currentId: number, chatData: chat
 }
 
 /**
- * 跳转切片：围绕目标加载连续窗口（对齐 Unigram LoadMessageSlice）。
+ * 跳转切片：围绕目标加载连续窗口（LoadMessageSlice）。
  * offset=-K, limit=2K+1 → 目标前后大致各 K 条；limit 必须 > -offset。
  */
 async function loadJumpWindow(chatIdNum: number, targetMessageId: number, gen: number): Promise<message[]> {
@@ -6321,7 +6321,7 @@ const canSend = computed(() => {
     if (isSecretChat.value) {
         return secretChatState.value !== 'pending' && secretChatState.value !== 'closed';
     }
-    // 受管理的频道私信群组：未选中话题时不开放发送（对齐 Unigram ForumReplyToMessagesInTopic）
+    // 受管理的频道私信群组：未选中话题时不开放发送（ForumReplyToMessagesInTopic）
     if (isDirectMessagesChat.value && topicDisplayMode.value === 'tag' && !topicId.value) {
         return false;
     }
@@ -6482,7 +6482,7 @@ function refreshKeyboardLock(messageId: number) {
  * “跳到底部”按钮：先拿到真正底部的连续历史，再滚动过去。
  * 列表与真实底部之间可能存在 gap（跳转窗口 / 未读锚点切片）。
  * 不能只 append 最新页——那会在中间留下巨大空洞。
- * 策略（对齐 Unigram ScrollToBottom + LoadMessageSlice）：
+ * 策略（ScrollToBottom + LoadMessageSlice）：
  * 1) from_message_id=0 拉最新一页；
  * 2) 若与当前列表连通/重叠 → 合并去重；
  * 3) 若有中等 gap → 从当前末端向更新方向分页桥接；

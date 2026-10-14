@@ -1,5 +1,5 @@
 <template>
-    <!-- 频道消息底部评论行（参考 Unigram MessageBubble 的 Thread 行）：
+    <!-- 频道消息底部评论行（MessageBubble 的 Thread 行）：
          最近评论者头像 / 评论图标 + 评论数或「发表评论」+ 未读点 + 右箭头 -->
     <!-- 注意：button 是表单控件，width:auto 为 fit-content，负 margin 不会把它拉宽；
          文本气泡要出血请在外层 div 用 -mx-2（块级 div 才会被负 margin 拉伸），本体保持 w-full -->

@@ -50,7 +50,7 @@ export function isAdminStatus(
 
 /**
  * 是否显示「编辑」入口。
- * 超级群/频道：创建者或管理员（Unigram 同款）。
+ * 超级群/频道：创建者或管理员。
  * 基本群：创建者/管理员，或默认权限允许改资料的成员。
  */
 export function canOpenGroupEdit(status?: ChatMemberStatus | null, chat?: chat | null): boolean {
@@ -246,7 +246,7 @@ export async function loadGroupMembers(
         (m) => m.status._ === "chatMemberStatusCreator" || m.status._ === "chatMemberStatusAdministrator"
       );
     } else if (filter === "contacts") {
-      // 基本群无服务端联系人过滤，本地按 is_contact 分组（Unigram ChatMemberGroupedCollection 同思路）
+      // 基本群无服务端联系人过滤，本地按 is_contact 分组（ChatMemberGroupedCollection 同思路）
       members = members.filter((m) => {
         const uid = memberUserId(m);
         const u = uid ? getReactiveUser(uid) : undefined;

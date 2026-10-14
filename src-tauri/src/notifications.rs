@@ -11,7 +11,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::Manager;
 
-/// Unigram 同款：超过 1 小时的历史通知不再弹窗
+/// 超过 1 小时的历史通知不再弹窗
 const MAX_NOTIFICATION_AGE_SEC: i64 = 3600;
 /// 7 秒内同会话连续通知只保留首条弹窗
 const RAPID_SUPPRESS: Duration = Duration::from_secs(7);

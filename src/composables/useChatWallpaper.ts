@@ -16,7 +16,7 @@ import {
 /**
  * 对话背景渲染。
  *
- * 取背景的优先级（对齐 Unigram ChatBackgroundControl）：
+ * 取背景的优先级：
  *   1. 对话专属背景 `chat.background`
  *   2. 纯本地壁纸 `settings.chatWallpaper`（source=local，云端没有记录，必须本地覆盖）
  *   3. TDLib 默认背景 `updateDefaultBackground`（明/暗各一份）

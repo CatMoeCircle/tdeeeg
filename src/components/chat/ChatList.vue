@@ -206,9 +206,32 @@
                                                         <!-- 秘密聊天：名称左侧锁图标 -->
                                                         <span v-if="isSecretChat(chat)"
                                                             class="tgico tgico-secret shrink-0 text-[13px] leading-none" />
+                                                        <!-- 机构认证标识：显示在名称前面 -->
+                                                        <CustomEmojiInline v-if="chatOrgVerifyEmojiId(chat)"
+                                                            :emojiId="chatOrgVerifyEmojiId(chat)" :size="14"
+                                                            class="shrink-0" />
                                                         <span class="truncate">
                                                             <GlobalEmojiText :text="getChatTitle(chat)" />
                                                         </span>
+                                                        <!-- 诈骗/虚假标识：优先级最高，替代其他所有名称后标识（与 Unigram 一致） -->
+                                                        <ShieldAlert v-if="isChatScamOrFake(chat)"
+                                                            class="w-3.5 h-3.5 text-red-500 shrink-0"
+                                                            :title="chatScamOrFakeTitle(chat)" />
+                                                        <!-- 礼物/emoji 状态：显示在名称后面，有礼物时替代蓝 V -->
+                                                        <CustomEmojiInline v-else-if="chatGiftEmojiId(chat)"
+                                                            :emojiId="chatGiftEmojiId(chat)" :size="16"
+                                                            class="shrink-0" />
+                                                        <!-- Premium 星标：无礼物的会员显示在名称后面 -->
+                                                        <PremiumStatusIcon v-else-if="isChatPremiumStar(chat)"
+                                                            class="text-[16px] shrink-0"
+                                                            :title="t('lng_premium_summary_title')" />
+                                                        <!-- 蓝 V 认证标识：显示在名称后面 -->
+                                                        <VerifiedFilledIcon v-else-if="isChatBlueVerified(chat)"
+                                                            class="text-blue-500 text-sm shrink-0"
+                                                            :title="t('profileBadges.verified')"
+                                                            :fillColor="['currentColor', 'transparent']"
+                                                            :strokeColor="['currentColor', '#0052d9']"
+                                                            :strokeWidth="1.5" />
                                                         <!-- 静音图标 -->
                                                         <BellOffIcon v-if="isChatMuted(chat)"
                                                             class="w-3.5 h-3.5 text-gray-400 shrink-0" />
@@ -442,14 +465,18 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, type Component } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon, UserIcon, UsersIcon, MegaphoneIcon, BotIcon, FolderIcon, BellOffIcon, PinIcon, ArchiveIcon, ChevronRightIcon, ArchiveRestore as ArchiveRestoreIcon, PinOff as PinOffIcon, FolderPlus as FolderPlusIcon, FolderMinus as FolderMinusIcon, BellRing as BellRingIcon, LogOut as LogOutIcon, CheckCheck as CheckCheckIcon, Trash2 as Trash2Icon, X as XIcon, Copy as CopyIcon, Plus as PlusIcon } from 'lucide-vue-next';
+import { ShieldAlert, BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon, UserIcon, UsersIcon, MegaphoneIcon, BotIcon, FolderIcon, BellOffIcon, PinIcon, ArchiveIcon, ChevronRightIcon, ArchiveRestore as ArchiveRestoreIcon, PinOff as PinOffIcon, FolderPlus as FolderPlusIcon, FolderMinus as FolderMinusIcon, BellRing as BellRingIcon, LogOut as LogOutIcon, CheckCheck as CheckCheckIcon, Trash2 as Trash2Icon, X as XIcon, Copy as CopyIcon, Plus as PlusIcon } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
 import { settings } from '../../store/settings';
 import {
     getSenderName, getSenderNameParts, getSenderPhoto, ensureSenderLoaded,
     getChatProfileAccentColorId, ensureChatAccentLoaded, getChatUserNames, isDeletedChat,
     isChatGroup, isChatMuted, isChatPinned, DELETED_ACCOUNT_LABEL,
+    getChatVerificationStatus, ensureChatVerificationLoaded,
+    getChatEmojiStatus, emojiStatusCustomEmojiId, isChatPremiumUser,
 } from '../../utils/senderInfo';
+import PremiumStatusIcon from '../common/PremiumStatusIcon.vue';
+import { VerifiedFilledIcon } from 'tdesign-icons-vue-next';
 import { useChatStore } from '../../store/chat';
 import type { Chat } from '../../store/chat';
 import { useUserStore } from '../../store/user';
@@ -712,7 +739,7 @@ function exitSearchMode() {
 const newChatVisible = ref(false);
 const newChatMode = ref<'group' | 'channel'>('group');
 
-/** 搜索框右端「+」：复用全局右键菜单弹出创建选项（Unigram RootDestination.NewGroup / NewChannel） */
+/** 搜索框右端「+」：复用全局右键菜单弹出创建选项（新建群组 / 新建频道） */
 function openNewChatMenu(e: MouseEvent) {
     const el = e.currentTarget as HTMLElement;
     const rect = el.getBoundingClientRect();
@@ -1312,7 +1339,7 @@ const buildChatContextMenu = (chat: Chat, listKey: string): ContextMenuItem[] =>
         label: pinned ? t('lng_context_unpin_from_top') : t('lng_context_pin_to_top'),
         icon: pinned ? PinOffIcon : PinIcon,
         onClick: () => {
-            // 作用域与当前列表一致（Unigram: ToggleChatIsPinned(Items.ChatList, ...)）
+            // 作用域与当前列表一致（toggleChatPinned 需带 chatList）
             const list = buildChatListObject(listKey) ?? (archived ? { _: 'chatListArchive' } : undefined);
             toggleChatPinned(chatId, !pinned, list);
         },
@@ -1426,6 +1453,51 @@ function buildFolderMenu(chat: Chat): ContextMenuItem[] {
     return children;
 }
 
+/** 列表项机构认证标识的自定义 emoji id（无则返回空串；0 表示未设置） */
+function chatOrgVerifyEmojiId(chat: Chat): string {
+    const id = getChatVerificationStatus(chat)?.bot_verification_icon_custom_emoji_id;
+    return id && id !== '0' ? id : '';
+}
+
+/** 列表项是否为诈骗/虚假账户（仅用户和群组/频道有认证状态） */
+function isChatScamOrFake(chat: Chat): boolean {
+    const v = getChatVerificationStatus(chat);
+    return !!(v?.is_scam || v?.is_fake);
+}
+
+/** 诈骗/虚假标识的悬停提示（诈骗优先于虚假） */
+function chatScamOrFakeTitle(chat: Chat): string {
+    return getChatVerificationStatus(chat)?.is_scam
+        ? t('profileBadges.scam')
+        : t('profileBadges.fake');
+}
+
+/**
+ * 列表项礼物/emoji 状态的自定义 emoji id（与 Unigram 一致：诈骗/虚假账户不显示；保存的消息不显示）
+ */
+function chatGiftEmojiId(chat: Chat): string {
+    if (isChatScamOrFake(chat)) return '';
+    if (isSavedMessages(chat)) return '';
+    return emojiStatusCustomEmojiId(getChatEmojiStatus(chat));
+}
+
+/**
+ * 列表项是否显示 Premium 星标（与 Unigram 一致：无礼物时 Premium 优先于蓝 V）
+ * 诈骗/虚假账户和保存的消息不显示；有礼物时由礼物替代
+ */
+function isChatPremiumStar(chat: Chat): boolean {
+    if (isChatScamOrFake(chat) || isSavedMessages(chat)) return false;
+    return isChatPremiumUser(chat) && !chatGiftEmojiId(chat);
+}
+
+/** 列表项是否显示官方蓝 V：有礼物、Premium 星标或机构认证标识时由其替代 */
+function isChatBlueVerified(chat: Chat): boolean {
+    return !!getChatVerificationStatus(chat)?.is_verified
+        && !chatOrgVerifyEmojiId(chat)
+        && !chatGiftEmojiId(chat)
+        && !isChatPremiumStar(chat);
+}
+
 // 列表内容变化时异步加载发送者信息（用户/频道数据，缓存去重）
 watch(tabsWithContent, (list) => {
     list.forEach(({ chats }) => {
@@ -1433,6 +1505,8 @@ watch(tabsWithContent, (list) => {
             ensureSenderLoaded(c.last_message?.sender_id);
             // 私聊需加载用户以取得 accent 色；群组/频道走 chat.accent_color_id
             ensureChatAccentLoaded(c);
+            // 认证标识：私聊取用户、超级群/频道取群信息
+            ensureChatVerificationLoaded(c);
         });
     });
 }, { deep: true });

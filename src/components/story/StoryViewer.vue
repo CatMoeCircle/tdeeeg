@@ -519,7 +519,7 @@ const isChannelOrGroupStory = computed(() => {
 });
 
 /**
- * 互动栏类型（对齐 Unigram StoriesWindow）：
+ * 互动栏类型：
  * - none: Bot 故事 / 无内容
  * - my: 自己的普通故事（观看者 + 观看数 + 点赞 + 删除）
  * - live: 直播故事
@@ -1145,7 +1145,7 @@ void tdlibSend({ _: "getOption", name: "is_premium_available" })
     .catch(() => { });
 
 /**
- * 隐身模式入口显示条件（对齐 Unigram StoriesWindow.PopulateMenuFlyout）：
+ * 隐身模式入口显示条件：
  * - 发布者是私聊用户（个人账号，非频道/超级群）
  * - 不是自己发布的动态
  * - 当前用户是 Premium 或 Premium 仍可购买
@@ -1268,7 +1268,7 @@ function onMoreClick(e: MouseEvent) {
             disabled: currentKind.value !== "video" || isAnimationVideo.value,
         },
     ];
-    // 隐身模式入口：对齐 Unigram，仅私聊用户的非本人动态且 Premium 可用时显示
+    // 隐身模式入口：仅私聊用户的非本人动态且 Premium 可用时显示
     if (stealthMenuVisible.value) {
         itemsMenu[itemsMenu.length - 1].divider = true;
         itemsMenu.push({

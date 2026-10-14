@@ -24,7 +24,7 @@ export interface EventLogItem {
   date: number;
   dateLabel: string;
   /**
-   * Unigram 显示模式：
+   * 显示模式：
    * - service：居中服务胶囊（大多数事件）
    * - rights：左对齐消息气泡（升迁/限制，正文为权限 diff，发送者=操作管理员）
    * - message：居中服务胶囊 + 左对齐消息气泡（删除/编辑/置顶，气泡发送者=原消息作者）
@@ -195,7 +195,7 @@ function dateLabelOf(ts: number): string {
     : d.toLocaleString([], { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-/** 成员限制权限条目（Unigram UserRestrictions / EventLogRestricted*） */
+/** 成员限制权限条目（UserRestrictions / EventLogRestricted*） */
 const MEMBER_PERM_KEYS: { k: string; key: string }[] = [
   { k: "can_send_basic_messages", key: "lng_rights_chat_send_text" },
   { k: "can_send_other_messages", key: "lng_rights_chat_stickers" },
@@ -215,7 +215,7 @@ const MEMBER_PERM_KEYS: { k: string; key: string }[] = [
   { k: "can_create_topics", key: "lng_rights_group_add_topics" },
 ];
 
-/** 管理员权限条目（Unigram EventLogPromoted*） */
+/** 管理员权限条目（EventLogPromoted*） */
 const ADMIN_PERM_KEYS: { k: string; key: string }[] = [
   { k: "can_change_info", key: "lng_admin_log_admin_change_info" },
   { k: "can_delete_messages", key: "lng_admin_log_admin_delete_messages" },
@@ -231,7 +231,7 @@ const ADMIN_PERM_KEYS: { k: string; key: string }[] = [
 ];
 
 /**
- * 权限 diff（Unigram）：
+ * 权限 diff：
  * - 成员限制：两侧缺省视为「全部允许」，这样从普通成员限制时会列出所有被关掉的项
  * - 管理员：两侧缺省视为「全部禁止」，升迁时列出所有被打开的项
  */
@@ -258,7 +258,7 @@ function rightsDiff(
       lines.push(`${after ? "+" : "-"} ${t(key)}`);
     }
   } else {
-    // Unigram：Member → Restricted 时，缺省侧视为「全部允许」，才能列出被关掉的条目
+    // Member → Restricted 时，缺省侧视为「全部允许」，才能列出被关掉的条目
     const o = (oldS?._ === "chatMemberStatusRestricted" ? oldS.permissions : undefined) ?? {};
     const n = (newS?._ === "chatMemberStatusRestricted" ? newS.permissions : undefined) ?? {};
     for (const { k, key } of MEMBER_PERM_KEYS) {
@@ -311,7 +311,7 @@ export function buildChatEventItem(
       text = t("lng_admin_log_invited", { from, user: userName(a.user_id) });
       break;
     case "chatEventMemberPromoted": {
-      // Unigram：左气泡「changed privileges for {user}」+ 权限 diff
+      // 左气泡「changed privileges for {user}」+ 权限 diff
       text = t("lng_admin_log_promoted", { from, user });
       const lines = rightsDiff(t, a.old_status, a.new_status);
       rightsText = lines.length ? `${text}\n\n${lines.join("\n")}` : text;
@@ -320,7 +320,7 @@ export function buildChatEventItem(
     }
     case "chatEventMemberRestricted": {
       const target = a.member_id?._ === "messageSenderUser" ? userName(a.member_id.user_id) : user;
-      // Unigram EventLogRestrictedUntil：changed permissions for X / Duration / + list
+      // EventLogRestrictedUntil：changed permissions for X / Duration / + list
       const untilTs = a.new_status?._ === "chatMemberStatusRestricted" ? a.new_status.restricted_until_date : 0;
       const duration = !untilTs
         ? t("lng_rights_chat_banned_forever")

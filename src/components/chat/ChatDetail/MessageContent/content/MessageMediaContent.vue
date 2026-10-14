@@ -899,7 +899,7 @@ function getOriginalDims(): { width: number; height: number } {
     return { width: 1, height: 1 };
 }
 
-/** Unigram 风格：按原始比例等比缩放，限制在 432×432 / 96×96；窄窗口下随气泡收缩 */
+/** 按原始比例等比缩放，限制在 432×432 / 96×96；窄窗口下随气泡收缩 */
 const mediaDisplaySize = computed(() => {
     const { width, height } = getOriginalDims();
     return fitMediaSize(width, height);

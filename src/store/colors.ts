@@ -291,14 +291,14 @@ export function accentAvatarBackground(profileAccentColorId: number): string {
 }
 
 // ============================================================================
-// 动态（Story）圆环渐变 — 与 Unigram ActiveStoriesSegments 同源
+// 动态（Story）圆环渐变
 // ============================================================================
 
-/** 未读动态圆环：绿 → 蓝（Unigram _storyUnreadTop/BottomColor） */
+/** 未读动态圆环：绿 → 蓝（_storyUnreadTop/BottomColor） */
 const STORY_UNREAD_GRADIENT = "linear-gradient(#34C76F, #3DA1FD)";
-/** 已读动态圆环：半透明灰（Unigram _storyDefaultColor，alpha 77/255） */
+/** 已读动态圆环：半透明灰（_storyDefaultColor，alpha 77/255） */
 const STORY_READ_GRADIENT = "linear-gradient(rgba(128,128,128,0.30), rgba(128,128,128,0.30))";
-/** 直播动态圆环：红色（Unigram _storyLiveColor） */
+/** 直播动态圆环：红色（_storyLiveColor） */
 const STORY_LIVE_GRADIENT = "linear-gradient(#FF2C55, #FF2C55)";
 
 /**

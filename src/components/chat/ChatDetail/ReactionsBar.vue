@@ -11,7 +11,7 @@
             @click.stop="toggleReaction(reaction.type)" @mouseenter="onReactionHover(reaction)"
             @contextmenu.prevent.stop="openReactionList(reaction)"
             :title="getReactionTooltip(reaction)">
-            <!-- Emoji 反应：getEmojiReaction 动态动画（Unigram 同源） -->
+            <!-- Emoji 反应：getEmojiReaction 动态动画 -->
             <ReactionEmojiAnim v-if="isReactionEmoji(reaction.type)" :emoji="reaction.type.emoji" :size="18"
                 :fallback-font="16" />
             <!-- 自定义 Emoji 反应 -->

@@ -1,5 +1,5 @@
 /**
- * Profile tab definitions — mirrors Unigram's ProfileTab system.
+ * Profile tab definitions — mirrors the official ProfileTab system.
  *
  * Each tab type carries a key, label, optional count, and a `visible` predicate
  * that receives the current profile state to decide whether to render the tab.
@@ -60,7 +60,7 @@ export interface ProfileTabContext {
 
 /**
  * Build the ordered tab list for a given profile context.
- * Matches Unigram's UpdateTabsAsync logic.
+ * Matches the official UpdateTabsAsync logic.
  */
 export function buildProfileTabs(ctx: ProfileTabContext): ProfileTab[] {
   const tabs: ProfileTab[] = [];

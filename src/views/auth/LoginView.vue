@@ -277,7 +277,7 @@ function lockLogin(timeoutMs = 20000) {
 }
 
 /**
- * 参考 Unigram AuthorizationViewModel.SendExecute 的错误映射。
+ * 参考 AuthorizationViewModel.SendExecute 的错误映射。
  */
 function mapPhoneLoginError(error: any): string {
     const raw = String(error?.message || "");
@@ -306,7 +306,7 @@ const login = async () => {
     try {
         const state = await tdlibSend({ _: "getAuthorizationState" });
         if (state._ === 'authorizationStateWaitOtherDeviceConfirmation') {
-            // Unigram：WaitOtherDeviceConfirmation 下不能直接 setAuthenticationPhoneNumber。
+            // WaitOtherDeviceConfirmation 下不能直接 setAuthenticationPhoneNumber。
             // 流程：按 settings.system 重建活动客户端 → WaitPhoneNumber 时发出排队手机号
             clearQrCode();
             setPendingPhoneLogin(rawPhone);
@@ -357,7 +357,7 @@ const AuthState = async (State: AuthorizationState) => {
         case "authorizationStateClosing":
         case "authorizationStateLoggingOut":
         case "authorizationStateClosed":
-            // 登录方式切换中（Unigram：logOut → Closing/Closed → 重建）。
+            // 登录方式切换中（logOut → Closing/Closed → 重建）。
             // 保持按钮锁定，等待下一授权态，不要当成错误
             break;
         case "authorizationStateWaitTdlibParameters":
@@ -365,7 +365,7 @@ const AuthState = async (State: AuthorizationState) => {
             // 不是用户可见错误，也不要在这里解锁打断「下一步」流程
             break;
         case "authorizationStateWaitPhoneNumber":
-            // Unigram ContinueOnLogOut：WaitPhoneNumber 时发出排队的手机号登录
+            // ContinueOnLogOut：WaitPhoneNumber 时发出排队的手机号登录
             {
                 const phone = takePendingPhoneLogin();
                 if (phone) {

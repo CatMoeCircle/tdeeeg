@@ -392,7 +392,7 @@ const pageTitle = computed(() =>
 );
 
 const typeSummary = computed(() => {
-  // Unigram：公开 / 私密 / 私密+限制保存
+  // 公开 / 私密 / 私密+限制保存
   const publicish = hasActiveUsername(supergroupLike.value);
   const protectedContent = !!chat.value?.has_protected_content;
   if (isChannel.value) {
@@ -413,7 +413,7 @@ const showDiscussionRow = computed(() => isCreator.value && isChannel.value);
 /** 已关联频道：群组侧展示所关联的频道 */
 const showLinkedChannelRow = computed(() => !isChannel.value && linkedChatId.value > 0);
 const showHistoryRow = computed(() => {
-  // Unigram：基本群仅创建者；超级群 canChangeInfo 且无公开链接、非频道、未关联讨论
+  // 基本群仅创建者；超级群 canChangeInfo 且无公开链接、非频道、未关联讨论
   if (isChannel.value) return false;
   if (isBasicGroupChat(chat.value)) return isCreator.value;
   if (!canChangeInfo.value) return false;
@@ -421,7 +421,7 @@ const showHistoryRow = computed(() => {
   return linkedChatId.value === 0;
 });
 const showInviteLinks = computed(() => {
-  // Unigram：canInviteUsers && !hasActiveUsername（基本群不看 username）
+  // canInviteUsers && !hasActiveUsername（基本群不看 username）
   if (!canInviteUsers(status.value, chat.value)) return false;
   return !hasActiveUsername(supergroupLike.value);
 });
@@ -431,7 +431,7 @@ const showPermissions = computed(() => {
   return canRestrictMembers(status.value);
 });
 const showBlacklist = computed(() => !isBasicGroupChat(chat.value) && canRestrictMembers(status.value));
-// Unigram：超级群 EventLog 恒显示（进入编辑页即可）
+// 超级群 EventLog 恒显示（进入编辑页即可）
 const showEventLog = computed(() => !isBasicGroupChat(chat.value));
 // 外观：仅群主/频道主（创建者）可设
 const showAppearance = computed(() => isCreator.value);

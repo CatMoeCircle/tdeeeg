@@ -9,6 +9,8 @@ import type {
   ChatType,
   basicGroup,
   supergroup,
+  verificationStatus,
+  emojiStatus,
 } from "tdlib-types";
 import { tdlibSend } from "./tdlib";
 import type { Chat } from "../store/chat";
@@ -70,6 +72,16 @@ export async function initSenderInfo(): Promise<void> {
       basicGroups.set((update as any).basic_group.id, (update as any).basic_group);
     } else if (type_ === "updateSupergroup" && (update as any).supergroup) {
       supergroups.set((update as any).supergroup.id, (update as any).supergroup);
+    }
+    // updateUserEmojiStatus：用户礼物/emoji 状态变更，就地更新缓存用户
+    else if (
+      type_ === "updateUserEmojiStatus" &&
+      typeof (update as any).user_id === "number"
+    ) {
+      const u = users.get((update as any).user_id);
+      if (u) {
+        u.emoji_status = (update as any).emoji_status ?? undefined;
+      }
     }
     // updateUserAccentColor / updateUserProfileAccentColor：名称/头像主题色变更
     else if (
@@ -500,6 +512,84 @@ export async function ensureChatAccentLoaded(
   if (uid) await ensureUser(uid);
 }
 
+/**
+ * 对话的认证状态（蓝 V / 机构认证等）：
+ * - 私聊/密聊：取对方用户的 verification_status
+ * - 超级群/频道：取群信息的 verification_status
+ * - 基础群等其他类型不存在认证，返回 undefined
+ */
+export function getChatVerificationStatus(
+  chat: { type?: ChatType } | undefined,
+): verificationStatus | undefined {
+  const t = chat?.type;
+  if (!t) return undefined;
+  if (t._ === "chatTypePrivate" || t._ === "chatTypeSecret") {
+    return users.get(t.user_id)?.verification_status;
+  }
+  if (t._ === "chatTypeSupergroup") {
+    return supergroups.get(t.supergroup_id)?.verification_status;
+  }
+  return undefined;
+}
+
+/** 私聊/密聊对方是否为 Telegram Premium 用户（超级群/频道不适用） */
+export function isChatPremiumUser(
+  chat: { type?: ChatType } | undefined,
+): boolean {
+  const t = chat?.type;
+  if (!t || !(t._ === "chatTypePrivate" || t._ === "chatTypeSecret")) {
+    return false;
+  }
+  return !!users.get(t.user_id)?.is_premium;
+}
+
+/**
+ * 对话的礼物/emoji 状态：
+ * - 私聊/密聊：取对方用户的 emoji_status
+ * - 其他类型：取对话自身的 emoji_status（超级群/频道）
+ */
+export function getChatEmojiStatus(
+  chat: { type?: ChatType; emoji_status?: emojiStatus } | undefined,
+): emojiStatus | undefined {
+  const t = chat?.type;
+  if (!t) return undefined;
+  if (t._ === "chatTypePrivate" || t._ === "chatTypeSecret") {
+    return users.get(t.user_id)?.emoji_status;
+  }
+  return chat?.emoji_status ?? undefined;
+}
+
+/**
+ * emoji 状态对应的自定义 emoji id：
+ * 自定义 emoji 状态取 custom_emoji_id，礼物状态取 model_custom_emoji_id。
+ */
+export function emojiStatusCustomEmojiId(
+  status: emojiStatus | undefined,
+): string {
+  const type = status?.type;
+  if (!type) return "";
+  if (type._ === "emojiStatusTypeCustomEmoji") {
+    return String(type.custom_emoji_id);
+  }
+  if (type._ === "emojiStatusTypeUpgradedGift") {
+    return String(type.model_custom_emoji_id);
+  }
+  return "";
+}
+
+/** 异步确保对话的认证状态可用（私聊加载用户，超级群/频道加载群信息） */
+export async function ensureChatVerificationLoaded(
+  chat: Chat | undefined,
+): Promise<void> {
+  const t = chat?.type;
+  if (!t) return;
+  if (t._ === "chatTypePrivate" || t._ === "chatTypeSecret") {
+    await ensureUser(t.user_id);
+  } else if (t._ === "chatTypeSupergroup") {
+    await ensureSupergroup(t.supergroup_id);
+  }
+}
+
 /** 是否为应显示发送者名称/头像的对话（私聊、频道不显示） */
 export function isChatGroup(chat: Chat): boolean {
   const t = chat.type;
@@ -525,7 +615,7 @@ function chatListKey(list: unknown): string {
 }
 
 /**
- * 是否已顶置。与 Unigram chat.GetPosition(chatList).IsPinned 对齐：
+ * 是否已顶置。与 chat.GetPosition(chatList).IsPinned 对齐：
  * 只看指定列表的 position，避免「在其他分组置顶」误显示到当前分组。
  * listKey 为 'chatListMain' | 'chatListArchive' | 'chat_folder_id{N}'；
  * 不传则退化为任意列表（兼容无列表上下文的调用）。

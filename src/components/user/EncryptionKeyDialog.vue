@@ -98,7 +98,7 @@ const hexRows = computed(() => {
 });
 
 /**
- * Unigram / TDLib Identicon：
+ * TDLib Identicon：
  * - hash 16 字节 → 8×8，否则 12×12
  * - 按顺序每次取 2 bit 作颜色索引（字节内 LSB 优先）
  */

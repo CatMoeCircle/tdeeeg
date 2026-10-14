@@ -14,7 +14,7 @@ import {
     MONKEY_PEEK_FRAME,
 } from "../../../composables/usePasswordMonkey";
 
-/** Unigram AuthorizationPasswordPage：AuthorizationStateWaitPassword.tgs */
+/** AuthorizationPasswordPage：AuthorizationStateWaitPassword.tgs */
 const WAIT_PASSWORD_TGS_URL = new URL(
     "../../../assets/animations/AuthorizationStateWaitPassword.tgs",
     import.meta.url
@@ -58,7 +58,7 @@ function mapPasswordError(error: any): string {
     return raw || t("login.passwordError");
 }
 
-/** Unigram PASSWORD_INVALID：输入框抖动 */
+/** PASSWORD_INVALID：输入框抖动 */
 function shakeInput() {
     shake.value = false;
     requestAnimationFrame(() => {
@@ -100,7 +100,7 @@ const submitPassword = async () => {
     } catch (error: any) {
         console.error(error);
         toast.error({ content: mapPasswordError(error), placement: "top-right" });
-        // Unigram：密码错误清空 + 抖动；猴子回到空态
+        // 密码错误清空 + 抖动；猴子回到空态
         monkey.resetToEmpty();
         showPassword.value = false;
         shakeInput();
@@ -139,7 +139,7 @@ onUnmounted(() => {
 <template>
     <div class="flex justify-center items-center h-full select-none relative">
         <div class="flex flex-col items-center text-center px-8 w-[360px]">
-            <!-- Unigram Header：密码动画与输入联动 -->
+            <!-- Header：密码动画与输入联动 -->
             <div class="mb-2 w-[160px] h-[160px] flex items-center justify-center">
                 <!-- tlottie 官方：reportFrames 供停帧；forceRender 防离屏暂停 -->
                 <TgsPlayer v-if="tgsData" ref="playerRef" :data="tgsData" :loop="false" :autoplay="false"
@@ -166,7 +166,7 @@ onUnmounted(() => {
                             :class="!showPassword ? 'password-masked' : undefined"
                             class="flex-1 min-w-0 text-sm outline-none bg-transparent placeholder-gray-400 text-gray-800 dark:text-gray-100"
                             @keyup.enter="submitPassword" />
-                        <!-- Unigram RevealButton：显示/隐藏密码 → 动画 Close / CloseToPeek -->
+                        <!-- RevealButton：显示/隐藏密码 → 动画 Close / CloseToPeek -->
                         <button type="button" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
                             :title="showPassword ? t('login.hidePassword') : t('login.showPassword')"
                             :aria-pressed="showPassword" @click="toggleReveal">

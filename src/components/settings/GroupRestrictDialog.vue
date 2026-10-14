@@ -89,7 +89,7 @@ const props = defineProps<{
   modelValue: boolean;
   chatId: number;
   member?: chatMember | null;
-  /** 默认成员权限：对应项默认关闭时不可勾选（Unigram IsEnabled = chat.Permissions.X） */
+  /** 默认成员权限：对应项默认关闭时不可勾选（IsEnabled = chat.Permissions.X） */
   defaultPermissions?: chatPermissions | null;
 }>();
 const emit = defineEmits<{
@@ -173,7 +173,7 @@ function selectCustom() {
   }
 }
 
-/** Unigram：每项 IsEnabled 跟随默认权限 */
+/** 每项 IsEnabled 跟随默认权限 */
 function locked(key: keyof chatPermissions): boolean {
   const p = props.defaultPermissions;
   if (!p) return false;
@@ -207,7 +207,7 @@ watch(
       Object.assign(form, defaultMemberPermissions(st.permissions));
       duration.value = Math.max(0, st.restricted_until_date - Math.floor(Date.now() / 1000));
     } else {
-      // Unigram：未限制时取默认权限
+      // 未限制时取默认权限
       Object.assign(form, base);
       duration.value = 0;
     }

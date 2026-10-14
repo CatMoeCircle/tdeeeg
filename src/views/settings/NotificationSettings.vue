@@ -10,7 +10,7 @@
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
             <div class="max-w-2xl space-y-8">
 
-                <!-- ===== 实时预览（Unigram 风格 Toast） ===== -->
+                <!-- ===== 实时预览（Toast 风格） ===== -->
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <div class="flex items-center gap-3 mb-1">
                         <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -82,7 +82,7 @@
                             </div>
                         </div>
 
-                        <!-- 影响显示效果的开关（Unigram 风格 chips） -->
+                        <!-- 影响显示效果的开关（chips 风格） -->
                         <template #footer>
                             <div class="flex flex-wrap items-center gap-2 px-4 py-3 bg-gray-50 dark:bg-gray-800/60 border-t border-gray-200 dark:border-gray-700"
                                 :class="{ 'opacity-50 pointer-events-none': !settings.notifications.enabled }">

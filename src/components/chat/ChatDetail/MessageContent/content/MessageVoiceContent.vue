@@ -57,7 +57,7 @@
     </div>
 
     <!-- Video Note -->
-    <!-- 圆形裁剪（对齐 Unigram VideoNoteContent 的 Ellipse），点击播放/暂停 -->
+    <!-- 圆形裁剪（VideoNoteContent 的 Ellipse），点击播放/暂停 -->
     <!-- 圆形视频（官方样式）：无气泡；圆形画面 + 左下倒计时/未看点 + 右下「观看数 · 时间」胶囊。
          转文字与评论按钮在消息右侧（MessageSideActions）；识别结果显示在画面下方 -->
     <div v-else-if="content._ === 'messageVideoNote'" ref="rootEl"
@@ -339,7 +339,7 @@ function decodeWaveform(b64: string): number[] {
     return out;
 }
 
-/** 波形宽度：与 Unigram ProgressVoice 一致（时长 2s→72px，30s→226px 线性插值） */
+/** 波形宽度：与 ProgressVoice 一致（时长 2s→72px，30s→226px 线性插值） */
 const waveWidth = computed(() => {
     const d = Math.max(2, Math.min(30, duration.value));
     return Math.round(72 + (226 - 72) * (d - 2) / 28);

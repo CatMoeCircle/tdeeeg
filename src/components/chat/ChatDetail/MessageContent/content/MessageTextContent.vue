@@ -1,7 +1,7 @@
 <template>
     <MessageLinkPreview v-if="linkPreview?.show_above_text" :preview="linkPreview" :accentColorId="accentColorId"
         :chatId="chatId" @open="openLink" />
-    <!-- AI 摘要入口 / 摘要头（对齐 Unigram：摘要块位于正文上方，摘要结果原位替换正文） -->
+    <!-- AI 摘要入口 / 摘要头（摘要块位于正文上方，摘要结果原位替换正文） -->
     <MessageSummary v-if="summarizable && chatId != null && messageId != null" :chatId="chatId" :messageId="messageId"
         :outgoing="summaryOutgoing" />
     <!-- 相对定位容器：承载 replace 模式扫光覆盖层。
@@ -136,7 +136,7 @@
     </p>
 
     <!-- replace 模式扫光层：与正文同构的副本（不含回应/时间），仅翻译进行中挂载。
-         渐变光带经 background-clip:text 只落在字形上（对齐 Unigram 的逐行裁剪扫光）；
+         渐变光带经 background-clip:text 只落在字形上（逐行裁剪扫光）；
          原文保持可见，结果到达后本层卸载、正文经 displayFormattedText 原位换成译文 -->
     <p v-if="shimmering" v-bind="$attrs" aria-hidden="true"
         class="replace-shimmer-overlay whitespace-pre-wrap msg-selectable-text overflow-hidden"
@@ -736,7 +736,7 @@ async function resolveInternalLink(href: string) {
 /* ==================== replace 模式翻译扫光 ====================
    覆盖层是正文的同构副本：文字颜色全部透明，露出根节点被
    background-clip:text 裁剪到字形上的渐变光带——光只扫在文字上，
-   气泡空白处不闪（对齐 Unigram FormattedTextBlock.ShowHideSkeleton）。
+   气泡空白处不闪（对齐 FormattedTextBlock.ShowHideSkeleton）。
    原文在下层保持可见；翻译结果到达后覆盖层卸载，正文原位换成译文。 */
 .replace-shimmer-overlay {
     position: absolute;

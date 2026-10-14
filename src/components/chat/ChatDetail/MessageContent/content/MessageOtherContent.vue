@@ -1,7 +1,7 @@
 <template>
     <div>
         <!-- Location -->
-        <!-- 位置地图：TDLib 生成的地图缩略图，中间叠加定位针（针尖位于地图中心，同 Unigram）；未加载时为纯色占位 -->
+        <!-- 位置地图：TDLib 生成的地图缩略图，中间叠加定位针（针尖位于地图中心）；未加载时为纯色占位 -->
         <button v-if="content._ === 'messageLocation'" type="button"
             class="relative block w-80 max-w-full aspect-[8/5] overflow-hidden rounded-2xl bg-gray-100 dark:bg-gray-800"
             @click="openLocation">
@@ -84,7 +84,7 @@ const props = defineProps<{
 const mapSrc = ref('');
 
 /**
- * 通过 getMapThumbnailFile 取地图 PNG（与 Unigram ImageView 一致），
+ * 通过 getMapThumbnailFile 取地图 PNG（与 ImageView 一致），
  * 尺寸按设备像素比取 scale（1-3），下载完成后再显示。
  */
 watch(

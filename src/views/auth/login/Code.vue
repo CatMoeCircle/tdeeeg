@@ -9,7 +9,7 @@ import { onTdlibUpdate } from "../../../store/tdlibBus";
 import TgsPlayer from "../../../components/common/TgsPlayer.vue";
 import type { authenticationCodeInfo } from "tdlib-types";
 
-/** Unigram AuthorizationCodePage：顶部 AuthorizationStateWaitCode.tgs */
+/** AuthorizationCodePage：顶部 AuthorizationStateWaitCode.tgs */
 const WAIT_CODE_TGS_URL = new URL(
     "../../../assets/animations/AuthorizationStateWaitCode.tgs",
     import.meta.url
@@ -23,7 +23,7 @@ const tgsData = ref<Uint8Array | null>(null);
 const { t } = useI18n();
 let unlisten: (() => void) | undefined;
 
-/** Unigram ConvertType：按验证码类型展示说明 */
+/** ConvertType：按验证码类型展示说明 */
 const codeTypeDesc = computed(() => {
     const info = codeInfo.value;
     if (!info) return t("login.codeDesc");
@@ -49,7 +49,7 @@ const codeLength = computed(() => {
 });
 
 /**
- * 参考 Unigram AuthorizationCodeViewModel.SendExecute：
+ * 参考 AuthorizationCodeViewModel.SendExecute：
  * 把 TDLib error.message 映射为用户可读文案。
  */
 function mapAuthError(error: any, fallbackKey: string): { msg: string; goLogin?: boolean } {
@@ -59,7 +59,7 @@ function mapAuthError(error: any, fallbackKey: string): { msg: string; goLogin?:
         return { msg: t("login.invalidCode") };
     }
     if (upper.includes("PHONE_CODE_EXPIRED")) {
-        // Unigram：验证码过期返回重新获取
+        // 验证码过期返回重新获取
         return { msg: t("login.codeExpired"), goLogin: true };
     }
     if (upper.includes("PHONE_NUMBER_INVALID")) {
@@ -122,7 +122,7 @@ const submitCode = async () => {
     }
 };
 
-/** Unigram：输满位数自动提交 */
+/** 输满位数自动提交 */
 function onCodeInput() {
     const digits = code.value.replace(/\D/g, "");
     if (digits !== code.value) code.value = digits;
@@ -167,7 +167,7 @@ onUnmounted(() => {
 <template>
     <div class="flex justify-center items-center h-full select-none relative">
         <div class="flex flex-col items-center text-center px-8 w-[360px]">
-            <!-- Unigram AuthorizationCodePage：顶部 TGS -->
+            <!-- AuthorizationCodePage：顶部 TGS -->
             <div class="mb-2 w-[160px] h-[160px] flex items-center justify-center">
                 <TgsPlayer v-if="tgsData" :data="tgsData" :loop="true" :autoplay="true" :size="160" />
             </div>

@@ -14,7 +14,7 @@ import { openStoryViewer } from "./storyViewer";
  *   - getChatActiveStories    → 按需拉取单个对话（打开动态前补齐）
  *
  * 已读判断：TDLib 只给 max_read_story_id，未读 = 存在 story_id > max_read_story_id 的动态
- * （与 Unigram ChatActiveStoriesExtensions.CountUnread 一致）。查看动态后由 StoryViewer
+ * （与 ChatActiveStoriesExtensions.CountUnread 一致）。查看动态后由 StoryViewer
  * 调用 markStoriesRead 做本地即时反馈（圆环立即变灰），服务端推送随后兜底。
  */
 
@@ -271,7 +271,7 @@ export async function initStoryRing(): Promise<void> {
   //
   // `updateChatActiveStories` 只在状态变化时推一次，TDLib 不重发；前端总线在 bootstrap
   // 之后才订阅，启动时随对话列表下发的那批会永久丢失（loadActiveStories 只翻页、不重发，
-  // 全部加载完还会直接返回 404）。Unigram 不会有这问题，因为它的 update 循环从客户端
+  // 全部加载完还会直接返回 404）。原生客户端不会有这问题，因为它的 update 循环从客户端
   // 启动就订阅。这里用 getCurrentState 的当前全量快照做种子——与 store/colors.ts 播种
   // accent 色是同一套路。
   //

@@ -1355,7 +1355,7 @@ const chatMemberCountText = computed(() => {
 
 // ===== 群组成员列表（资料页「成员」Tab）=====
 /**
- * 「隐藏成员」可见性（对应 Unigram HideMembers / TDLib has_hidden_members）：
+ * 「隐藏成员」可见性（对应 TDLib has_hidden_members）：
  * - 未开启隐藏 → 所有成员可见
  * - 已开启隐藏：
  *   - 创建者 / 管理员 → 仍可见完整成员列表
@@ -1807,7 +1807,7 @@ const activeTab = ref<ProfileTabKey>('stories');
 /** 共享媒体计数（由 getChatMessageCount 获取） */
 const sharedMediaCounts = ref<SharedMediaCounts>({ media: 0, files: 0, links: 0, music: 0, voice: 0, gifs: 0 });
 
-/** 动态生成的 Tab 列表（匹配 Unigram 的 ProfileTab 系统） */
+/** 动态生成的 Tab 列表（按 ProfileTab 体系） */
 const profileTabs = computed<ProfileTab[]>(() => {
   const storyList = chatMode.value ? chatActiveStories.value : activeStoriesList.value;
   const archivedList = chatMode.value ? chatArchivedStories.value : archivedStoriesList.value;
@@ -3231,7 +3231,7 @@ function unsubscribeChat() {
 
 /**
  * 是否显示群组/频道「编辑」按钮：
- * 创建者或管理员（Unigram 超级群同款）；基本群额外允许默认权限可改资料的成员。
+ * 创建者或管理员（超级群）；基本群额外允许默认权限可改资料的成员。
  */
 const canEditGroup = computed(() => {
   if (!chatMode.value || isSecretChat.value) return false;
