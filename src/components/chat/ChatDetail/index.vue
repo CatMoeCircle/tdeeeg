@@ -696,6 +696,8 @@
         <TranslateMessageModal />
         <!-- ===== 置顶消息确认弹窗 ===== -->
         <PinMessageConfirm />
+        <!-- ===== 停止投票确认弹窗 ===== -->
+        <StopPollConfirm />
         <!-- ===== 举报消息确认弹窗 ===== -->
         <ReportMessageConfirm />
         <!-- ===== Reaction 选择器 ===== -->
@@ -729,6 +731,7 @@ import MediaViewer from './MessageContent/MediaViewer.vue';
 import DeleteMessageConfirm from '../../contextMenu/DeleteMessageConfirm.vue';
 import TranslateMessageModal from '../../contextMenu/TranslateMessageModal.vue';
 import PinMessageConfirm from '../../contextMenu/PinMessageConfirm.vue';
+import StopPollConfirm from '../../contextMenu/StopPollConfirm.vue';
 import ReportMessageConfirm from '../../contextMenu/ReportMessageConfirm.vue';
 import PinnedMessageBar from './PinnedMessageBar.vue';
 import TopicTagBar from './TopicTagBar.vue';
@@ -746,7 +749,7 @@ import { useAttachmentStore } from '../../../store/attachment';
 import type { AttachmentItem } from '../../../store/attachment';
 import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
 
-import { MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, Quote as QuoteIcon, Languages as LanguagesIcon, User as UserIcon, Pencil as PencilIcon, FolderOpenIcon, DownloadIcon, BookmarkIcon, EyeIcon, UserCheckIcon, MessageSquareIcon, AudioLinesIcon, FlagIcon } from 'lucide-vue-next';
+import { MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, Quote as QuoteIcon, Languages as LanguagesIcon, User as UserIcon, Pencil as PencilIcon, FolderOpenIcon, DownloadIcon, BookmarkIcon, EyeIcon, UserCheckIcon, MessageSquareIcon, AudioLinesIcon, FlagIcon, Undo2Icon, CircleStopIcon } from 'lucide-vue-next';
 import { toast } from '../../../utils/toast';
 import { useRoute, useRouter } from 'vue-router';
 import { computed, watch, ref, shallowRef, markRaw, onMounted, onBeforeUnmount, onUnmounted, nextTick } from 'vue';
@@ -789,6 +792,7 @@ import {
     canSaveMessage, canGetViewers, canGetReadDate, canGetAuthor,
     canGetMessageThread, canRecognizeSpeech, canReportMessage,
     toggleReaction,
+    canRetractPollVote, canStopPoll, retractPollVote, stopPollMessage,
 } from '../../contextMenu/messageActions';
 import {
     classifyAttachment,
@@ -801,6 +805,7 @@ import { hasReactions } from '../../../utils/reactionHelpers';
 import { confirmDeleteMessage } from '../../../store/deleteMessage';
 import type { DeleteMessageRequest } from '../../../store/deleteMessage';
 import { confirmPinMessage } from '../../../store/pinMessage';
+import { confirmStopPoll } from '../../../store/stopPoll';
 import { confirmReportMessage } from '../../../store/reportMessage';
 import {
     showTranslateDialog,
@@ -5643,6 +5648,32 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
         });
     }
 
+    // —— 投票：撤回投票（已投票）/ 停止投票（发起人或有权限的管理员） ——
+    if (!isService && cid !== undefined) {
+        const canRetract = canRetractPollVote(msg);
+        const canStop = canStopPoll(msg, cid);
+        if (canRetract || canStop) {
+            items.push({ key: 'divider-poll', label: '', divider: true });
+            if (canRetract) {
+                items.push({
+                    key: 'poll-retract',
+                    label: t('lng_polls_retract'),
+                    icon: Undo2Icon,
+                    onClick: () => retractPollVote(cid, msg),
+                });
+            }
+            if (canStop) {
+                items.push({
+                    key: 'poll-stop',
+                    label: t('lng_polls_stop'),
+                    icon: CircleStopIcon,
+                    danger: true,
+                    onClick: () => openStopPollConfirm(cid, msg),
+                });
+            }
+        }
+    }
+
     // —— 置顶 / 取消置顶 ——
     const canPin = !isService && canPinMessage(msg, cid);
     // —— 删除（打开精确权限确认弹窗） ——
@@ -5743,6 +5774,20 @@ async function openPinConfirm(msg: message) {
     } catch {
         // 用户取消，忽略
     }
+}
+
+/**
+ * 打开「停止投票」确认弹窗，确认后调用 stopPoll。
+ * 取消时 confirmStopPoll reject，直接忽略。
+ */
+async function openStopPollConfirm(cid: number, msg: message) {
+    try {
+        await confirmStopPoll({ chatId: cid, msg });
+    } catch {
+        // 用户取消，忽略
+        return;
+    }
+    await stopPollMessage(cid, msg);
 }
 
 // ==================== 删除确认弹窗 ====================

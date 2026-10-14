@@ -48,6 +48,8 @@ async function openMenu(el: HTMLElement, binding: DirectiveBinding<ContextMenuVa
     e.stopPropagation();
 
     const value = binding.value;
+    // 值为 null/undefined（如多选模式下显式禁用）时不打开菜单
+    if (value == null) return;
     const data = (el as any).__contextMenuData ?? undefined;
 
     if (value && typeof value === "object" && !Array.isArray(value) && !(typeof value === "function")) {
@@ -69,9 +71,15 @@ export function setContextMenuData(el: HTMLElement, data: any) {
 
 const vContextMenu: Directive<HTMLElement, ContextMenuValue> = {
     mounted(el, binding) {
-        const handler = (e: MouseEvent) => openMenu(el, binding, e);
+        // 保存最新的 binding：指令值（如消息右键菜单的 makeMsgMenu(msg)）会随重渲染更新，
+        // handler 必须读取最新值，否则会一直使用挂载时的旧消息（如投票前的 is_chosen）
+        (el as any).__contextMenuBinding = binding;
+        const handler = (e: MouseEvent) => openMenu(el, (el as any).__contextMenuBinding, e);
         el.addEventListener("contextmenu", handler);
         (el as any).__contextMenuHandler = handler;
+    },
+    updated(el, binding) {
+        (el as any).__contextMenuBinding = binding;
     },
     unmounted(el) {
         const handler = (el as any).__contextMenuHandler;

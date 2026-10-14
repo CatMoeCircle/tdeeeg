@@ -352,6 +352,55 @@ export function canEditMedia(msg: message, chatId?: number): boolean {
     return false;
 }
 
+/**
+ * 投票消息是否可撤回自己的投票：已投票且投票未关闭。
+ * 撤回即以空选项重新提交 setPollAnswer，TDLib 不对此单独给出权限位。
+ */
+export function canRetractPollVote(msg: message): boolean {
+    if (msg.content._ !== 'messagePoll') return false;
+    const poll = msg.content.poll;
+    return !poll.is_closed && poll.options.some(o => o.is_chosen);
+}
+
+/**
+ * 投票消息是否可停止投票（仅发起人 / 有权限的管理员）。
+ * 以 messageProperties.can_be_edited 为准（投票消息上表示能否调用 stopPoll）；
+ * 属性未加载时不乐观放行，避免普通成员看到无权操作的菜单项。
+ */
+export function canStopPoll(msg: message, chatId?: number): boolean {
+    if (msg.content._ !== 'messagePoll') return false;
+    if (msg.content.poll.is_closed) return false;
+    if (chatId === undefined) return false;
+    return getCachedMessageProperties(chatId, msg.id)?.can_be_edited === true;
+}
+
+/** 撤回投票（setPollAnswer 传空选项） */
+export async function retractPollVote(chatId: number, msg: message) {
+    try {
+        await tdlibSend({
+            _: 'setPollAnswer',
+            chat_id: chatId,
+            message_id: msg.id,
+            option_ids: [],
+        });
+    } catch (e: any) {
+        toast.error(e?.message || t('content.voteFailed'));
+    }
+}
+
+/** 停止投票（stopPoll），停止后任何人都不能再投票 */
+export async function stopPollMessage(chatId: number, msg: message) {
+    try {
+        await tdlibSend({
+            _: 'stopPoll',
+            chat_id: chatId,
+            message_id: msg.id,
+        });
+    } catch (e: any) {
+        toast.error(e?.message || t('context.actionFailed'));
+    }
+}
+
 /** 编辑消息文本（editMessageText + inputMessageText） */
 export async function editTextMessage(
     chatId: number,

@@ -134,6 +134,7 @@ declare module 'vue' {
     StickerMediaItem: typeof import('./components/chat/ChatDetail/stickerPanel/StickerMediaItem.vue')['default']
     StickerPanel: typeof import('./components/chat/ChatDetail/stickerPanel/StickerPanel.vue')['default']
     StickerSetItem: typeof import('./components/chat/ChatDetail/stickerPanel/StickerSetItem.vue')['default']
+    StopPollConfirm: typeof import('./components/contextMenu/StopPollConfirm.vue')['default']
     StoryRing: typeof import('./components/story/StoryRing.vue')['default']
     StoryRingStack: typeof import('./components/story/StoryRingStack.vue')['default']
     StoryViewer: typeof import('./components/story/StoryViewer.vue')['default']
