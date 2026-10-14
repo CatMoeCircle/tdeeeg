@@ -1342,6 +1342,7 @@
   },
   "service": {
     "someone": "有人",
+    "you": "您",
     "setSameWallpaper": "{user} 在此聊天中已为您设置与其相同的壁纸",
     "memberLeft": "有成员离开了群组",
     "topicEdited": "主题信息已更新",

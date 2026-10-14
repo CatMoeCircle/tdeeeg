@@ -52,6 +52,7 @@ import { ensureUser, getUserDisplayName } from '../../../../../utils/senderInfo'
 import { useChatStore } from '../../../../../store/chat';
 import { useCommunityStore } from '../../../../../store/community';
 import { openMediaViewer } from '../../../../../store/mediaViewer';
+import { useUserStore } from '../../../../../store/user';
 import FormattedTextInline from '../../../FormattedTextInline.vue';
 import WallpaperPreviewDialog from '../../../WallpaperPreviewDialog.vue';
 import MessageUnsupportedContent from './MessageUnsupportedContent.vue';
@@ -92,8 +93,13 @@ function userMark(userId: number | undefined, name: string): string {
     return userId ? `${USER_OPEN}${userId}${USER_SEP}${name}${USER_CLOSE}` : name;
 }
 
-/** 带用户链接标记的发送者名称（文案中使用） */
-const sender = computed(() => userMark(props.senderUserId, plainSender.value));
+/**
+ * 文案中的操作者名称：自己发出的服务消息用「您 / You」（与对方视角区分，
+ * 避免显示成自己的名字，如「讨论将群组名称更改为…」）；对方则为带用户链接标记的名称。
+ */
+const sender = computed(() =>
+    props.isSelf ? t('service.you') : userMark(props.senderUserId, plainSender.value),
+);
 
 /**
  * 需要按卡片渲染的「设置新壁纸」消息。
@@ -125,6 +131,16 @@ const wallpaperPreviewOpen = ref(false);
 
 const chatStore = useChatStore();
 const communityStore = useCommunityStore();
+const userStore = useUserStore();
+
+/** 当前登录用户 id：文案中的成员若是自己，显示为「您 / You」而非自己的名字 */
+const myId = computed(() => userStore.userProfile?.id);
+
+/** 文案中的成员名称（带用户链接标记）；成员是自己时用「您 / You」且不可点击 */
+function memberName(userId: number): string {
+    if (myId.value && userId === myId.value) return t('service.you');
+    return userMark(userId, getUserDisplayName(userId) || t('service.someone'));
+}
 const router = useRouter();
 
 /** 点击服务消息中的用户名 → 打开该用户的个人资料页 */
@@ -309,7 +325,7 @@ function memberRemovedText(userId: number): string {
     if (props.senderUserId === userId) return t('lng_action_user_left', { from: sender.value });
     // 被其他成员/管理员移出：带出操作者与被移出的成员
     const actor = sender.value;
-    const user = userMark(userId, getUserDisplayName(userId) || t('service.someone'));
+    const user = memberName(userId);
     return unquoteName(t('lng_action_kick_user', { from: actor, user }), user);
 }
 
@@ -456,7 +472,11 @@ const serviceText = computed<ServicePart[] | string | null>(() => {
             if (userIds.length === 1 && userIds[0] === props.senderUserId) {
                 return t('lng_action_user_joined', { from: sender.value });
             }
-            const names = userIds.map(id => userMark(id, getUserDisplayName(id) || t('service.someone')));
+            // 被添加的是自己（由他人添加）：官方「{from} 将您添加到此群组」
+            if (userIds.length === 1 && myId.value && userIds[0] === myId.value) {
+                return t('lng_action_add_you_group', { from: sender.value });
+            }
+            const names = userIds.map(id => memberName(id));
             // 官方 zh-hans 包里该 key 是 "{from} 添加了“{users}”"，与 en 的 "{user}" 不一致；
             // vue-i18n 会把缺失的具名参数渲染成空串（名字被静默吞掉），故两种写法都传
             if (names.length === 1) {

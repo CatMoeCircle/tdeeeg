@@ -1335,6 +1335,7 @@
   },
   "service": {
     "someone": "Someone",
+    "you": "You",
     "setSameWallpaper": "{user} set the same wallpaper for you in this chat",
     "memberLeft": "A member left the group",
     "topicEdited": "Topic info updated",
