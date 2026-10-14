@@ -673,9 +673,23 @@
           </div>
 
           <!-- 礼物区（仅普通用户）：容器进入视口停留后才拉取列表（视口 + profile 池并发闸门 + store 去重） -->
-          <div v-else-if="activeTab === 'gifts' && !chatMode" ref="giftsSectionEl"
+          <div v-else-if="activeTab === 'gifts'" ref="giftsSectionEl"
             class="py-6 text-center text-sm text-gray-400">
-            <div class="flex items-center justify-between mb-2">
+            <!-- 收藏夹导航：居中胶囊式，第一项为「全部礼物」；无收藏夹时退回普通标题 -->
+            <div v-if="giftCollectionsList.length > 0" class="mb-3 flex flex-wrap items-center justify-center gap-1.5">
+              <button v-for="tab in giftCollectionTabs" :key="tab.id" type="button"
+                class="inline-flex max-w-40 min-w-0 items-center gap-1.5 rounded-xl px-3 py-1 text-sm font-medium transition-colors" :class="selectedGiftCollectionId === tab.id
+                  ? 'bg-gray-200 text-gray-900 dark:bg-white/15 dark:text-white'
+                  : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10'"
+                @click="selectGiftCollection(tab.id)">
+                <!-- 收藏夹图标（Sticker）：有图标时显示在名称前 -->
+                <span v-if="tab.icon" class="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden">
+                  <MessageStickerContent :content="collectionIconContent(tab.icon)" :size="20" />
+                </span>
+                <span class="truncate">{{ tab.name }}</span>
+              </button>
+            </div>
+            <div v-else class="flex items-center justify-between mb-2">
               <span class="px-2 py-0.5 rounded-lg bg-teal-600 text-white text-xs font-medium">{{
                 t('lng_media_type_gifts')
               }}</span>
@@ -687,6 +701,11 @@
                 @click="openGiftDetail(gift)">
                 <GiftDisplay :gift="gift" :size="profileGiftCellSize" :show-sender-avatar="!gift.is_private" />
               </div>
+            </div>
+            <!-- 收藏夹为空：引导文案（仅在选中具体收藏夹时显示） -->
+            <div v-else-if="selectedGiftCollectionId !== 0" class="py-6">
+              <p class="font-semibold text-gray-700 dark:text-gray-200">{{ t('lng_gift_collection_empty_title') }}</p>
+              <p class="mt-1 text-xs">{{ t('lng_gift_collection_empty_text') }}</p>
             </div>
           </div>
 
@@ -1165,17 +1184,18 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, ref, watch, nextTick, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, receivedGift, story, chat, audio as TdAudio, birthdate, file, message, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo, secretChat, SearchMessagesFilter$Input, emojiStatus, emojiStatus$Input, BlockList$Input, chatMember, ChatMemberStatus } from "tdlib-types";
+import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, giftCollection, MessageSender, messageSticker, sticker, receivedGift, story, chat, audio as TdAudio, birthdate, file, message, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo, secretChat, SearchMessagesFilter$Input, emojiStatus, emojiStatus$Input, BlockList$Input, chatMember, ChatMemberStatus } from "tdlib-types";
 import Avatar from "../../components/chat/avatar.vue";
 import CustomEmojiInline from "../../components/common/CustomEmojiInline.vue";
 import GlobalEmojiText from "../../components/common/GlobalEmojiText.vue";
 import EmojiDrawer from "../../components/chat/ChatDetail/stickerPanel/EmojiDrawer.vue";
 import GiftDisplay from "../../components/common/GiftDisplay.vue";
+import MessageStickerContent from "../../components/chat/ChatDetail/MessageContent/content/MessageStickerContent.vue";
 import GiftDetailDialog from "../../components/common/GiftDetailDialog.vue";
 import { buildGiftDetailData, type GiftDetailData } from "../../utils/giftDetail";
 import MediaViewer from "../../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
 import type { MediaViewerItem } from "../../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
-import { useUserProfileStore } from "../../store/userProfile";
+import { useUserProfileStore, giftsKey, giftOwnerKey } from "../../store/userProfile";
 import { useUserStore } from "../../store/user";
 import { accentColorStyle, rgbToCss } from "../../store/colors";
 import { confirmAndOpenExternalLink } from "../../utils/openExternalLink";
@@ -1468,9 +1488,34 @@ const user = computed<TdUser | undefined>(() => profileStore.users.get(userId.va
 /** 使用集中缓存的用户对象（优先 profileStore，其次 senderInfo） */
 const fullInfo = computed<userFullInfo | undefined>(() => profileStore.fullInfos.get(userId.value));
 const photosList = computed<chatPhoto[]>(() => profileStore.photos.get(userId.value) ?? []);
-const giftsList = computed<receivedGift[]>(() => profileStore.gifts.get(userId.value) ?? []);
+/** 当前选中的礼物收藏夹（0 = 全部礼物） */
+const selectedGiftCollectionId = ref(0);
+/** 礼物持有者：普通用户资料页为对方用户，频道/群组资料页为该聊天 */
+const giftOwner = computed<MessageSender>(() => (chatMode.value
+  ? { _: 'messageSenderChat', chat_id: chatId.value ?? 0 }
+  : { _: 'messageSenderUser', user_id: userId.value }));
+/** 礼物收藏夹列表（用于顶部导航；为空时不显示导航） */
+const giftCollectionsList = computed<giftCollection[]>(() => profileStore.giftCollectionsByUser.get(giftOwnerKey(giftOwner.value)) ?? []);
+/** 礼物收藏夹导航项：第一项为「全部礼物」 */
+const giftCollectionTabs = computed(() => [
+  { id: 0, name: t('lng_gift_collection_all'), icon: undefined as sticker | undefined },
+  ...giftCollectionsList.value.map((c) => ({ id: c.id, name: c.name, icon: c.icon })),
+]);
+/** 收藏夹图标（sticker）包装为 messageSticker，供 MessageStickerContent 渲染 */
+function collectionIconContent(icon: sticker): messageSticker {
+  return { _: 'messageSticker', sticker: icon } as messageSticker;
+}
+const giftsList = computed<receivedGift[]>(() =>
+  profileStore.gifts.get(giftsKey(giftOwner.value, selectedGiftCollectionId.value)) ?? []);
 /** 礼物列表是否正在拉取（视口触发的按需加载中） */
-const giftsLoading = computed(() => profileStore.giftsLoading.get(userId.value) ?? false);
+const giftsLoading = computed(() =>
+  profileStore.giftsLoading.get(giftsKey(giftOwner.value, selectedGiftCollectionId.value)) ?? false);
+
+/** 切换收藏夹：拉取该收藏夹的礼物（已加载则复用缓存） */
+function selectGiftCollection(id: number) {
+  selectedGiftCollectionId.value = id;
+  void profileStore.ensureGifts(giftOwner.value, id);
+}
 /** 共同群组：用户模式按 route userId；秘密聊天按对方 user_id（route 上是 chat id） */
 const commonGroupsList = computed<number[]>(() => {
   const uid = isSecretChat.value ? secretChatUserId.value : userId.value;
@@ -1509,7 +1554,8 @@ const hasBottomContent = computed(() => {
       || sharedMediaCounts.value.links > 0 || sharedMediaCounts.value.music > 0
       || sharedMediaCounts.value.voice > 0 || sharedMediaCounts.value.gifs > 0;
   }
-  return isLoading.value || activeStoriesList.value.length > 0 || giftsList.value.length > 0
+  return isLoading.value || activeStoriesList.value.length > 0
+    || (profileStore.gifts.get(giftsKey(giftOwner.value, 0))?.length ?? 0) > 0
     || (fullInfo.value?.gift_count ?? 0) > 0
     || (!isSelf.value && commonGroupsList.value.length > 0)
     || sharedMediaCounts.value.media > 0 || sharedMediaCounts.value.files > 0
@@ -1818,7 +1864,9 @@ const profileTabs = computed<ProfileTab[]>(() => {
     hasPostedStories: storyList.length > 0,
     hasArchivedStories: archivedList.length > 0,
     // 礼物数用 fullInfo.gift_count（首屏即有）；礼物列表本身改为进视口才拉取
-    giftCount: fullInfo.value?.gift_count || giftsList.value.length,
+    giftCount: chatMode.value
+      ? (supergroupFull.value?.gift_count ?? 0)
+      : (fullInfo.value?.gift_count || (profileStore.gifts.get(giftsKey(giftOwner.value, 0))?.length ?? 0)),
     commonGroupCount: commonGroupsList.value.length,
     isBot: isBot.value,
     hasTopics: false,
@@ -2566,8 +2614,13 @@ function clearGiftsDwell() {
   }
 }
 
-// userId 也参与绑定：切资料页时即使礼物区容器未重挂载（礼物恰为首 tab），也重新观察并触发新用户拉取
-watch([giftsSectionEl, userId], ([el]) => {
+// 切换资料页的礼物持有者（用户或频道）时，收藏夹选择回到「全部礼物」
+watch(() => giftOwnerKey(giftOwner.value), () => {
+  selectedGiftCollectionId.value = 0;
+});
+
+// 持有者也参与绑定：切资料页时即使礼物区容器未重挂载（礼物恰为首 tab），也重新观察并触发新持有者拉取
+watch([giftsSectionEl, () => giftOwnerKey(giftOwner.value)], ([el]) => {
   // 离开礼物标签 / 重挂载：解除旧观察并取消未完成的停留计时
   if (giftsObservedEl) {
     unobserveVisibility(giftsObservedEl);
@@ -2582,7 +2635,10 @@ watch([giftsSectionEl, userId], ([el]) => {
       clearGiftsDwell();
       giftsDwellTimer = setTimeout(() => {
         giftsDwellTimer = null;
-        enqueueViewportLoad(() => profileStore.ensureGifts(userId.value), 'profile');
+        enqueueViewportLoad(async () => {
+          await profileStore.ensureGiftCollections(giftOwner.value);
+          await profileStore.ensureGifts(giftOwner.value, selectedGiftCollectionId.value);
+        }, 'profile');
       }, DEFAULT_DWELL_MS);
     },
     clearGiftsDwell,

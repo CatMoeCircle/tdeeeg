@@ -4,6 +4,7 @@ import type {
   user,
   userFullInfo,
   chatPhoto,
+  giftCollection,
   receivedGift,
   MessageSender,
   story,
@@ -14,6 +15,16 @@ import { ensureUser, ensureChat } from "../utils/senderInfo";
 import { useUserStore } from "./user";
 import { onTdlibUpdate } from "./tdlibBus";
 import { fetchSharedMediaCounts, type SharedMediaCounts } from "../utils/sharedMediaCounts";
+
+/** 礼物持有者的缓存标识：用户为 `u{id}`，频道/群组为 `c{id}` */
+export function giftOwnerKey(owner: MessageSender): string {
+  return owner._ === "messageSenderUser" ? `u${owner.user_id}` : `c${owner.chat_id}`;
+}
+
+/** 礼物列表缓存键：`{owner}:{collectionId}`，collectionId 为 0 表示全部礼物 */
+export function giftsKey(owner: MessageSender, collectionId = 0): string {
+  return `${giftOwnerKey(owner)}:${collectionId}`;
+}
 
 /**
  * 个人资料页状态管理（Pinia setup store）。
@@ -35,14 +46,20 @@ export const useUserProfileStore = defineStore("userProfile", () => {
   const fullInfos = reactive(new Map<number, userFullInfo>());
   /** 每个用户的个人照片墙 */
   const photos = reactive(new Map<number, chatPhoto[]>());
-  /** 每个用户的礼物列表 */
-  const gifts = reactive(new Map<number, receivedGift[]>());
+  /** 每个用户的礼物收藏夹列表（getGiftCollections） */
+  const giftCollectionsByUser = reactive(new Map<string, giftCollection[]>());
+  /** 收藏夹列表是否已成功拉取（按 giftOwnerKey） */
+  const giftCollectionsLoaded = new Set<string>();
+  /** 收藏夹列表进行中的请求（并发去重） */
+  const giftCollectionsPending = new Map<string, Promise<void>>();
+  /** 礼物列表，按 giftsKey(owner, collectionId) 缓存；collectionId 为 0 表示全部礼物 */
+  const gifts = reactive(new Map<string, receivedGift[]>());
   /** 礼物列表是否已成功拉取（按需加载去重：已加载则不再请求） */
-  const giftsLoaded = new Set<number>();
+  const giftsLoaded = new Set<string>();
   /** 礼物列表进行中的请求（并发去重：重复触发复用同一 Promise） */
-  const giftsPending = new Map<number, Promise<void>>();
-  /** 礼物列表是否正在拉取（按 userId，供资料页礼物区显示加载态） */
-  const giftsLoading = reactive(new Map<number, boolean>());
+  const giftsPending = new Map<string, Promise<void>>();
+  /** 礼物列表是否正在拉取（按 giftsKey，供资料页礼物区显示加载态） */
+  const giftsLoading = reactive(new Map<string, boolean>());
   /** 每个用户的共同群组（chat id 列表） */
   const commonGroups = reactive(new Map<number, number[]>());
   /** 每个用户的动态列表（普通动态 + 归档动态合并，按日期倒序） */
@@ -99,39 +116,80 @@ export const useUserProfileStore = defineStore("userProfile", () => {
   }
 
   /**
-   * 按需获取用户收到的礼物（保存到个人资料页的）。
-   * - 已加载：直接跳过；
-   * - 进行中：复用同一 Promise（并发去重）；
-   * 供资料页礼物区进入视口后触发，避免打开任意资料页都 eager 拉取。
+   * 按需获取用户的礼物收藏夹列表。已加载或进行中时复用结果，避免重复请求。
    */
-  async function ensureGifts(userId: number): Promise<void> {
-    if (giftsLoaded.has(userId)) return;
-    const inFlight = giftsPending.get(userId);
+  async function ensureGiftCollections(owner: MessageSender): Promise<void> {
+    const key = giftOwnerKey(owner);
+    if (giftCollectionsLoaded.has(key)) return;
+    const inFlight = giftCollectionsPending.get(key);
     if (inFlight) return inFlight;
-    giftsLoading.set(userId, true);
     const p = (async () => {
       try {
-        const owner: MessageSender = { _: "messageSenderUser", user_id: userId };
+        const res = (await tdlibSend({
+          _: "getGiftCollections",
+          owner_id: owner,
+        })) as { collections: giftCollection[] };
+        giftCollectionsByUser.set(key, res.collections ?? []);
+        giftCollectionsLoaded.add(key);
+      } catch (e) {
+        console.error("Failed to fetch gift collections", e);
+      } finally {
+        giftCollectionsPending.delete(key);
+      }
+    })();
+    giftCollectionsPending.set(key, p);
+    return p;
+  }
+
+  /**
+   * 按需获取用户收到的礼物（保存到个人资料页的）。
+   * - collectionId 为 0 时拉取全部礼物，否则只拉取该收藏夹内的礼物；
+   * - 已加载：直接跳过；进行中：复用同一 Promise（并发去重）；
+   * 供资料页礼物区进入视口后触发，避免打开任意资料页都 eager 拉取。
+   */
+  async function ensureGifts(owner: MessageSender, collectionId = 0): Promise<void> {
+    const key = giftsKey(owner, collectionId);
+    if (giftsLoaded.has(key)) return;
+    const inFlight = giftsPending.get(key);
+    if (inFlight) return inFlight;
+    giftsLoading.set(key, true);
+    const p = (async () => {
+      try {
         const res = (await tdlibSend({
           _: "getReceivedGifts",
           owner_id: owner,
+          collection_id: collectionId,
           exclude_unsaved: true,
           exclude_saved: false,
           exclude_unlimited: false,
           offset: "",
           limit: 100,
         })) as { gifts: receivedGift[] };
-        gifts.set(userId, res.gifts ?? []);
-        giftsLoaded.add(userId);
+        gifts.set(key, res.gifts ?? []);
+        giftsLoaded.add(key);
       } catch (e) {
         console.error("Failed to fetch user gifts", e);
       } finally {
-        giftsLoading.set(userId, false);
-        giftsPending.delete(userId);
+        giftsLoading.set(key, false);
+        giftsPending.delete(key);
       }
     })();
-    giftsPending.set(userId, p);
+    giftsPending.set(key, p);
     return p;
+  }
+
+  /** 清空某个持有者的全部礼物缓存（含各收藏夹），供刷新时使用 */
+  function clearGiftsFor(owner: MessageSender) {
+    const ownerKey = giftOwnerKey(owner);
+    const prefix = `${ownerKey}:`;
+    for (const key of [...gifts.keys()]) {
+      if (key.startsWith(prefix)) gifts.delete(key);
+    }
+    for (const key of [...giftsLoaded]) {
+      if (key.startsWith(prefix)) giftsLoaded.delete(key);
+    }
+    giftCollectionsByUser.delete(ownerKey);
+    giftCollectionsLoaded.delete(ownerKey);
   }
 
   /** 获取共同群组 */
@@ -258,8 +316,7 @@ export const useUserProfileStore = defineStore("userProfile", () => {
   async function refreshProfile(userId: number): Promise<void> {
     loaded.delete(userId);
     photos.delete(userId);
-    gifts.delete(userId);
-    giftsLoaded.delete(userId);
+    clearGiftsFor({ _: "messageSenderUser", user_id: userId });
     commonGroups.delete(userId);
     stories.delete(userId);
     await loadProfile(userId);
@@ -335,6 +392,7 @@ export const useUserProfileStore = defineStore("userProfile", () => {
     users,
     fullInfos,
     photos,
+    giftCollectionsByUser,
     gifts,
     giftsLoading,
     commonGroups,
@@ -352,6 +410,7 @@ export const useUserProfileStore = defineStore("userProfile", () => {
     fetchFullInfo,
     fetchCommonGroups,
     fetchPhotos,
+    ensureGiftCollections,
     ensureGifts,
     fetchSharedMediaCountsForChat,
     initUserProfileUpdates,
