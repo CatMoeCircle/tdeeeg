@@ -66,6 +66,7 @@ declare module 'vue' {
     MessageAlbum: typeof import('./components/chat/ChatDetail/MessageContent/content/MessageAlbum.vue')['default']
     MessageChecklistContent: typeof import('./components/chat/ChatDetail/MessageContent/content/MessageChecklistContent.vue')['default']
     MessageCommentsBar: typeof import('./components/chat/ChatDetail/MessageCommentsBar.vue')['default']
+    MessageContactContent: typeof import('./components/chat/ChatDetail/MessageContent/content/MessageContactContent.vue')['default']
     MessageContent: typeof import('./components/chat/ChatDetail/MessageContent/index.vue')['default']
     MessageDiceContent: typeof import('./components/chat/ChatDetail/MessageContent/content/MessageDiceContent.vue')['default']
     MessageFileContent: typeof import('./components/chat/ChatDetail/MessageContent/content/MessageFileContent.vue')['default']

@@ -22,15 +22,6 @@
             <span class="text-gray-500 text-xs ml-6">{{ content.venue.address }}</span>
         </div>
 
-        <!-- Contact -->
-        <div v-else-if="content._ === 'messageContact'" class="flex items-center gap-2 text-sm">
-            <PhoneIcon class="w-4 h-4 text-green-500 shrink-0" />
-            <div class="flex flex-col">
-                <span class="font-medium">{{ content.contact.first_name }} {{ content.contact.last_name }}</span>
-                <span class="text-xs text-gray-500">{{ content.contact.phone_number }}</span>
-            </div>
-        </div>
-
         <!-- Poll -->
         <MessagePollContent v-else-if="content._ === 'messagePoll'" :content="content" :chat-id="chatId"
             :message-id="messageId" />

@@ -90,6 +90,9 @@
         <MessageFileContent v-else-if="content._ === 'messageDocument' || content._ === 'messageAudio'"
             :content="content" :chatId="chatId" :messageId="messageId" />
 
+        <!-- Contact card -->
+        <MessageContactContent v-else-if="content._ === 'messageContact'" :content="content" />
+
         <!-- Other types -->
         <MessageOtherContent v-else :content="content" :chat-id="chatId" :message-id="messageId" :message="message"
             :topic-id="topicId" :sender-name="senderName" />
@@ -114,6 +117,7 @@ import MessageGiftContent from './content/MessageGiftContent.vue';
 import MessageGiveawayContent from './content/MessageGiveawayContent.vue';
 import MessageGiveawayWinnersContent from './content/MessageGiveawayWinnersContent.vue';
 import MessageOtherContent from './content/MessageOtherContent.vue';
+import MessageContactContent from './content/MessageContactContent.vue';
 import MessageStatus from './content/MessageStatus.vue';
 import ReactionsBar from '../ReactionsBar.vue';
 import { settings } from '../../../../store/settings';
