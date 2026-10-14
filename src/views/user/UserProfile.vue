@@ -1150,6 +1150,9 @@
     <EncryptionKeyDialog v-model:visible="encryptionKeyVisible" :key-hash="secretKeyHash"
       :partner-name="secretChatPartnerName" />
 
+    <ProtectedContentDialog v-model="protectedDialog.visible" :chat-id="protectedDialog.chatId"
+      :enable="protectedDialog.enable" />
+
     <ReportMessageConfirm />
 
     <!-- 礼物详情弹窗（普通 / NFT 共用） -->
@@ -1221,6 +1224,7 @@ import { requestCustomEmoji } from "../../store/customEmoji";
 import EncryptionKeyDialog from "../../components/user/EncryptionKeyDialog.vue";
 import { tdPlural } from "../../utils/tdLang";
 import ProfileRoleBadge from "../../components/common/ProfileRoleBadge.vue";
+import ProtectedContentDialog from "../../components/user/ProtectedContentDialog.vue";
 import { getUserRoleBadge, getChatRoleBadge, type ProfileRoleBadgeKind } from "../../utils/profileBadges";
 
 // ===== 图标组件（lucide-vue-next，与项目其余部分一致） =====
@@ -2979,6 +2983,7 @@ async function getPrivateChatId(): Promise<number | undefined> {
       force: false,
     });
     privateChatId.value = res.id;
+    void ensureChat(res.id);
     return res.id;
   } catch (e) {
     console.error('Failed to create private chat', e);
@@ -3070,6 +3075,12 @@ function openMoreMenu(e: MouseEvent) {
       label: t('lng_manage_messages_ttl_menu'),
       icon: TimerReset,
       onClick: () => { openAutoDelete(); },
+    },
+    {
+      key: 'protected-content',
+      label: t(privateChatProtected.value ? 'lng_enable_sharing' : 'lng_disable_sharing'),
+      icon: Ban,
+      onClick: () => { void openProtectedContentDialog(); },
     },
     { key: 'divider-1', label: '', divider: true },
     {
@@ -3511,6 +3522,32 @@ async function onToggleBlock() {
       },
     );
   }
+}
+
+/** 私聊是否已禁用分享（has_protected_content），决定菜单项显示「禁用分享」或「启用分享」 */
+const privateChatProtected = computed(() =>
+  !!(privateChatId.value && getReactiveChat(privateChatId.value)?.has_protected_content));
+/** 禁用/启用分享弹窗状态 */
+const protectedDialog = ref<{ visible: boolean; chatId?: number; enable: boolean }>({ visible: false, enable: false });
+async function openProtectedContentDialog() {
+  closeContextMenu();
+  const cid = await getPrivateChatId();
+  if (!cid) {
+    toast.error(t('user.privateChatUnavailable'));
+    return;
+  }
+  // 启用分享无需确认：直接生效并返回聊天页；仅禁用分享走弹窗确认
+  if (privateChatProtected.value) {
+    try {
+      await tdlibSend({ _: 'toggleChatHasProtectedContent', chat_id: cid, has_protected_content: false });
+      toast.success(t('lng_enable_sharing_toast'));
+      router.push({ name: 'chat-detail', params: { id: String(cid) } });
+    } catch (e: any) {
+      toast.error(e?.message || t('privacy.operationFailed'));
+    }
+    return;
+  }
+  protectedDialog.value = { visible: true, chatId: cid, enable: false };
 }
 
 /** 删除联系人（带二级确认） */

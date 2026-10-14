@@ -235,7 +235,7 @@
                                                             [{{ formatUnreadCount(chat.unread_count) }}]
                                                         </span>
                                                         <!-- 发送者迷你头像 + 名称（群组，私聊/频道不显示） -->
-                                                        <template v-if="isChatGroup(chat) && senderName(chat)">
+                                                        <template v-if="isChatGroup(chat) && senderName(chat) && chat.last_message?.content._ !== 'messageChatHasProtectedContentToggled'">
                                                             <Avatar
                                                                 v-if="settings.chatList.showSenderMiniAvatar && senderMiniAvatar(chat)"
                                                                 :photo="senderMiniAvatar(chat)"
@@ -484,6 +484,7 @@ import {
     stickerBracketPreview,
     bracketTypePreview,
     pollOptionPreviewText,
+    protectedContentTogglePreview,
 } from '../../utils/messagePreview';
 
 const props = defineProps<{
@@ -1209,6 +1210,9 @@ const getMessagePreview = (message: message | undefined): formattedText => {
             content.text.text,
         );
         return plainText(bracketTypePreview(messageContentTypeLabel('messagePoll'), action));
+    }
+    if (content._ === 'messageChatHasProtectedContentToggled') {
+        return plainText(protectedContentTogglePreview(content.new_has_protected_content, !!message.is_outgoing, getSenderName(message.sender_id)));
     }
     return plainText(bracketTypePreview(messageContentTypeLabel('')));
 };

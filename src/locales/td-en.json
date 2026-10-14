@@ -7210,6 +7210,8 @@
     "lng_settings_power_stickers_panel": "Autoplay in panel",
     "lng_admin_log_changed_link_group": "{from} changed group link:",
     "lng_disable_sharing_no_saving_about": "Disable copying text and saving photos or videos.",
+    "lng_disable_sharing_no_screenshots": "No Screenshots",
+    "lng_disable_sharing_no_screenshots_about": "Disable screenshots and screen recording in this chat.",
     "lng_limit_download_title": "Download speed limited",
     "lng_settings_phone_number_privacy": "Phone number",
     "lng_forwarded_date": "Original: {date}",

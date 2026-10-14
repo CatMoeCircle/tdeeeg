@@ -102,6 +102,7 @@ declare module 'vue' {
     PrivacyExceptionBlock: typeof import('./components/settings/PrivacyExceptionBlock.vue')['default']
     PrivacyItemDialog: typeof import('./components/settings/PrivacyItemDialog.vue')['default']
     ProfileRoleBadge: typeof import('./components/common/ProfileRoleBadge.vue')['default']
+    ProtectedContentDialog: typeof import('./components/user/ProtectedContentDialog.vue')['default']
     ProxyLinkConfirm: typeof import('./components/contextMenu/ProxyLinkConfirm.vue')['default']
     ReactionEmojiAnim: typeof import('./components/common/ReactionEmojiAnim.vue')['default']
     ReactionListDialog: typeof import('./components/chat/ChatDetail/ReactionListDialog.vue')['default']

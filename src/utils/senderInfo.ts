@@ -122,6 +122,12 @@ export async function initSenderInfo(): Promise<void> {
           c.profile_accent_color_id = (update as any).profile_accent_color_id;
         }
       }
+    } else if (
+      type_ === "updateChatHasProtectedContent" &&
+      typeof (update as any).chat_id === "number"
+    ) {
+      const c = chats.get((update as any).chat_id);
+      if (c) c.has_protected_content = !!(update as any).has_protected_content;
     } else if (type_ === "updateChatPhoto") {
       if (typeof (update as any).chat_id === "number") {
         const c = chats.get((update as any).chat_id);

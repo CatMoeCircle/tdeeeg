@@ -37,6 +37,7 @@ export const SERVICE_TYPES: ReadonlySet<string> = new Set([
   "messageChatAddedToCommunity",
   "messageChatUpgradeTo",
   "messageChatUpgradeFrom",
+  "messageChatHasProtectedContentToggled",
   "messagePinMessage",
   "messageScreenshotTaken",
   "messageChatSetBackground",

@@ -11,7 +11,7 @@
                 <img v-if="cardThumbSrc" :src="cardThumbSrc" alt="" class="h-full w-full object-cover" />
             </div>
             <span class="text-xs text-gray-600 dark:text-gray-300">
-                {{ serviceText }}
+                <ServiceTextNodes />
             </span>
             <!-- 群头像更新：查看照片走媒体查看器（照片 / 视频查看器），而非应用壁纸 -->
             <button v-if="photoContent" type="button"
@@ -29,8 +29,7 @@
 
         <span v-else
             class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full">
-            <ServiceTextNodes v-if="serviceTextParts" />
-            <template v-else>{{ serviceText }}</template>
+            <ServiceTextNodes />
         </span>
 
         <!-- 壁纸预览弹窗（点击卡片里的查看按钮打开） -->
@@ -46,6 +45,7 @@ const { t } = useI18n();
 import { computed, watch, ref, h, Text } from 'vue';
 import type { VNode } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { useRouter } from 'vue-router';
 import type { chatPhoto, file, formattedText, MessageContent, message, photoSize } from 'tdlib-types';
 import { ensureLocalFilePath, tdlibSend } from '../../../../../utils/tdlib';
 import { ensureUser, getUserDisplayName } from '../../../../../utils/senderInfo';
@@ -79,7 +79,21 @@ const emit = defineEmits<{
 }>();
 
 /** 发送者名称（未解析到时兜底） */
-const sender = computed(() => props.senderName?.trim() || t('service.someone'));
+const plainSender = computed(() => props.senderName?.trim() || t('service.someone'));
+
+/**
+ * 文案里的用户名用私有控制字符包裹「用户 id + 名称」，渲染时还原为可点击链接；
+ * 无用户 id（如频道帖子）则保持纯文本。
+ */
+const USER_OPEN = '\u0002';
+const USER_SEP = '\u0003';
+const USER_CLOSE = '\u0004';
+function userMark(userId: number | undefined, name: string): string {
+    return userId ? `${USER_OPEN}${userId}${USER_SEP}${name}${USER_CLOSE}` : name;
+}
+
+/** 带用户链接标记的发送者名称（文案中使用） */
+const sender = computed(() => userMark(props.senderUserId, plainSender.value));
 
 /**
  * 需要按卡片渲染的「设置新壁纸」消息。
@@ -111,15 +125,21 @@ const wallpaperPreviewOpen = ref(false);
 
 const chatStore = useChatStore();
 const communityStore = useCommunityStore();
+const router = useRouter();
+
+/** 点击服务消息中的用户名 → 打开该用户的个人资料页 */
+function openUserProfile(userId: number) {
+    router.push({ name: 'user-profile', params: { id: String(userId) } });
+}
 
 /**
  * 弹窗里的 {user} 取「对话对方」：对方设的壁纸发送者就是对方，
  * 自己设的壁纸取对话标题（私聊即对方名称），拿不到再退回发送者名。
  */
 const otherUserName = computed(() => {
-    if (!props.isSelf) return sender.value;
+    if (!props.isSelf) return plainSender.value;
     const title = props.chatId != null ? chatStore.chats[props.chatId]?.title?.trim() : '';
-    return title || sender.value;
+    return title || plainSender.value;
 });
 
 /** 内嵌 minithumbnail（base64，无需下载），作为缩略图就绪前的占位 */
@@ -288,8 +308,8 @@ function unquoteName(text: string, name?: string): string {
 function memberRemovedText(userId: number): string {
     if (props.senderUserId === userId) return t('lng_action_user_left', { from: sender.value });
     // 被其他成员/管理员移出：带出操作者与被移出的成员
-    const actor = props.senderName?.trim() || t('service.someone');
-    const user = getUserDisplayName(userId) || t('service.someone');
+    const actor = sender.value;
+    const user = userMark(userId, getUserDisplayName(userId) || t('service.someone'));
     return unquoteName(t('lng_action_kick_user', { from: actor, user }), user);
 }
 
@@ -436,7 +456,7 @@ const serviceText = computed<ServicePart[] | string | null>(() => {
             if (userIds.length === 1 && userIds[0] === props.senderUserId) {
                 return t('lng_action_user_joined', { from: sender.value });
             }
-            const names = userIds.map(id => getUserDisplayName(id) || t('service.someone'));
+            const names = userIds.map(id => userMark(id, getUserDisplayName(id) || t('service.someone')));
             // 官方 zh-hans 包里该 key 是 "{from} 添加了“{users}”"，与 en 的 "{user}" 不一致；
             // vue-i18n 会把缺失的具名参数渲染成空串（名字被静默吞掉），故两种写法都传
             if (names.length === 1) {
@@ -462,6 +482,14 @@ const serviceText = computed<ServicePart[] | string | null>(() => {
             return t('lng_action_group_migrate');
         case 'messageChatUpgradeFrom':
             return t('lng_action_group_migrate');
+        case 'messageChatHasProtectedContentToggled': {
+            // 自己操作用 you 文案（无 {from}），否则带发送者名
+            const enabled = c.new_has_protected_content;
+            if (props.isSelf) {
+                return t(enabled ? 'lng_action_no_forwards_you_enabled' : 'lng_action_no_forwards_you_disabled');
+            }
+            return t(enabled ? 'lng_action_no_forwards_enabled' : 'lng_action_no_forwards_disabled', { from: sender.value });
+        }
         case 'messagePinMessage':
             return pinText.value;
         case 'messageChatSetBackground':
@@ -561,7 +589,8 @@ const ServiceTextNodes = () => serviceTextParts.value ?? [];
 /** 把多段文案（参数里的富文本/嵌套文案渲染成内联自定义 emoji）转成可渲染的 VNode 列表 */
 const serviceTextParts = computed<VNode[] | null>(() => {
     const parts = serviceText.value;
-    if (!parts || typeof parts === 'string') return null;
+    if (parts === null) return null;
+    if (typeof parts === 'string') return renderMarked(parts);
     return parts.flatMap(({ key, params }) => renderServicePart(key, params));
 });
 
@@ -584,8 +613,29 @@ function renderServicePart(key: string, params: Record<string, ServiceParam>): V
     }
     const text = t(key, strParams) as string;
     return text.split(/\u0000(\d+)\u0000/).flatMap((piece, i) =>
-        i % 2 === 0 ? (piece ? [h(Text, null, piece)] : []) : slots[Number(piece)],
+        i % 2 === 0 ? renderMarked(piece) : slots[Number(piece)],
     );
+}
+
+/** 把带用户标记的纯文本切分：普通文本保持 Text 节点，用户名还原为可点击的链接 */
+function renderMarked(text: string): VNode[] {
+    const pieces = text.split(new RegExp(`${USER_OPEN}(\\d+)${USER_SEP}([^${USER_CLOSE}]*)${USER_CLOSE}`));
+    const nodes: VNode[] = [];
+    // split 的捕获组按 [文本, id, 名称] 三元组交错返回
+    for (let i = 0; i < pieces.length; i += 3) {
+        if (pieces[i]) nodes.push(h(Text, null, pieces[i]));
+        if (i + 2 < pieces.length) {
+            const userId = Number(pieces[i + 1]);
+            nodes.push(h('span', {
+                class: 'cursor-pointer hover:underline',
+                onClick: (e: MouseEvent) => {
+                    e.stopPropagation();
+                    openUserProfile(userId);
+                },
+            }, pieces[i + 2]));
+        }
+    }
+    return nodes;
 }
 
 /** 把任意非字符串 ServiceParam 递归转成可渲染的子节点数组 */

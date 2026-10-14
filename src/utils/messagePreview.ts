@@ -81,6 +81,14 @@ export function bracketTypePreview(label: string, extra?: string | null): string
     return x ? `[${label}] ${x}` : `[${label}]`;
 }
 
+/** 内容保护开关预览，与消息气泡文案一致：自己操作用 you 文案，否则带发送者名 */
+export function protectedContentTogglePreview(enabled: boolean, isOutgoing: boolean, from: string): string {
+    if (isOutgoing) {
+        return i18n.global.t(enabled ? 'lng_action_no_forwards_you_enabled' : 'lng_action_no_forwards_you_disabled');
+    }
+    return i18n.global.t(enabled ? 'lng_action_no_forwards_enabled' : 'lng_action_no_forwards_disabled', { from });
+}
+
 /** 投票选项增删预览：`Added option: xxx` / `Removed option: xxx` */
 export function pollOptionPreviewText(
     kind: 'added' | 'deleted',

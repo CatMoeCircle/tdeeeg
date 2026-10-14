@@ -137,6 +137,7 @@ const SERVICE_TYPES = new Set([
     'messageChatAddedToCommunity',
     'messageChatUpgradeTo',
     'messageChatUpgradeFrom',
+    'messageChatHasProtectedContentToggled',
     'messagePinMessage',
     'messageScreenshotTaken',
     'messageChatSetBackground',
