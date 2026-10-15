@@ -636,9 +636,26 @@
         <div v-if="hasBottomContent" ref="mediaContentEl" class="px-4 mt-3 min-h-[70vh] pb-24">
           <!-- 动态区 -->
           <div v-if="activeTab === 'stories'" class="py-6 text-center text-sm text-gray-400">
-            <p v-if="isLoading">{{ t('lng_contacts_loading') }}</p>
-            <div v-else-if="displayActiveStories.length > 0" class="grid grid-cols-3 gap-1.5">
-              <button v-for="s in displayActiveStories" :key="s.id" type="button"
+            <!-- 动态相册导航：居中胶囊式，第一项为「全部动态」，末尾为「添加相册」（仅自己） -->
+            <div v-if="storyAlbumsList.length > 0 || canAddStoryAlbum"
+              class="mb-3 flex flex-wrap items-center justify-center gap-1.5">
+              <button v-for="tab in storyAlbumTabs" :key="tab.id" type="button"
+                class="inline-flex max-w-40 min-w-0 items-center gap-1.5 rounded-xl px-3 py-1 text-sm font-medium transition-colors" :class="selectedStoryAlbumId === tab.id
+                  ? 'bg-gray-200 text-gray-900 dark:bg-white/15 dark:text-white'
+                  : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10'"
+                @click="selectStoryAlbum(tab.id)">
+                <span class="truncate">{{ tab.name }}</span>
+              </button>
+              <button v-if="canAddStoryAlbum" type="button"
+                class="inline-flex items-center gap-1 rounded-xl px-3 py-1 text-sm font-medium text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10 transition-colors"
+                @click="openCreateStoryAlbum">
+                <PlusIcon class="w-3.5 h-3.5" />
+                {{ t('lng_stories_album_add') }}
+              </button>
+            </div>
+            <p v-if="isLoading || albumStoriesLoading">{{ t('lng_contacts_loading') }}</p>
+            <div v-else-if="displayedActiveStories.length > 0" class="grid grid-cols-3 gap-1.5">
+              <button v-for="s in displayedActiveStories" :key="s.id" type="button"
                 class="aspect-3/4 w-full overflow-hidden rounded-lg bg-gray-200 dark:bg-gray-700 relative"
                 @click="openStory(s)">
                 <img v-if="storyUrlOf(s)" :src="storyUrlOf(s)" class="w-full h-full object-cover" />
@@ -649,6 +666,11 @@
                   {{ formatStoryDuration(s) }}
                 </span>
               </button>
+            </div>
+            <!-- 相册为空：引导文案（仅在选中具体相册时显示） -->
+            <div v-else-if="selectedStoryAlbumId !== 0" class="py-6">
+              <p class="font-semibold text-gray-700 dark:text-gray-200">{{ t('lng_stories_album_empty_title') }}</p>
+              <p class="mt-1 text-xs">{{ t('lng_stories_album_empty_text') }}</p>
             </div>
           </div>
 
@@ -688,11 +710,6 @@
                 </span>
                 <span class="truncate">{{ tab.name }}</span>
               </button>
-            </div>
-            <div v-else class="flex items-center justify-between mb-2">
-              <span class="px-2 py-0.5 rounded-lg bg-teal-600 text-white text-xs font-medium">{{
-                t('lng_media_type_gifts')
-              }}</span>
             </div>
             <div v-if="giftsLoading" class="py-6">{{ t('lng_contacts_loading') }}</div>
             <div v-else-if="giftsList.length > 0" class="grid grid-cols-4 gap-1.5">
@@ -1136,6 +1153,42 @@
             </div>
           </div>
         </div>
+
+        <!-- ===== 新建动态相册弹窗 ===== -->
+        <div v-if="storyAlbumDialog.visible"
+          class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          @mousedown.self="closeCreateStoryAlbum">
+          <div
+            class="w-90 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+              <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">{{ t('lng_stories_album_new_title') }}</h3>
+              <button type="button"
+                class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+                @click="closeCreateStoryAlbum">
+                <XIcon class="w-4 h-4" />
+              </button>
+            </div>
+            <div class="px-4 py-4 space-y-3">
+              <p class="text-sm text-gray-600 dark:text-gray-400">{{ t('lng_stories_album_new_text') }}</p>
+              <input v-model="storyAlbumDialog.name" type="text" maxlength="12"
+                :placeholder="t('lng_stories_album_new_ph')"
+                class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent px-3 py-2 text-sm outline-none focus:border-teal-500"
+                @keydown.enter="submitCreateStoryAlbum" />
+            </div>
+            <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
+              <button type="button" @click="closeCreateStoryAlbum"
+                class="px-4 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
+                {{ t('lng_cancel') }}
+              </button>
+              <button type="button"
+                :disabled="!storyAlbumDialog.name.trim() || storyAlbumDialog.creating"
+                class="px-4 py-1.5 rounded-lg text-sm bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                @click="submitCreateStoryAlbum">
+                {{ t('lng_stories_album_new_create') }}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 用户模式未找到 -->
@@ -1184,7 +1237,7 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, ref, watch, nextTick, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, giftCollection, MessageSender, messageSticker, sticker, receivedGift, story, chat, audio as TdAudio, birthdate, file, message, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo, secretChat, SearchMessagesFilter$Input, emojiStatus, emojiStatus$Input, BlockList$Input, chatMember, ChatMemberStatus } from "tdlib-types";
+import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, giftCollection, MessageSender, messageSticker, sticker, receivedGift, story, storyAlbum, chat, audio as TdAudio, birthdate, file, message, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo, secretChat, SearchMessagesFilter$Input, emojiStatus, emojiStatus$Input, BlockList$Input, chatMember, ChatMemberStatus } from "tdlib-types";
 import Avatar from "../../components/chat/avatar.vue";
 import CustomEmojiInline from "../../components/common/CustomEmojiInline.vue";
 import GlobalEmojiText from "../../components/common/GlobalEmojiText.vue";
@@ -1256,6 +1309,7 @@ import {
   Search, Users, Hash, FileText, Link, Mic, Film, KeyRound,
   Info as InfoIcon, Phone as PhoneIcon, AtSign as AtSignIcon,
   Calendar as CalendarIcon, IdCard as IdCardIcon, ShieldAlert,
+  Plus as PlusIcon,
 } from "lucide-vue-next"; import { VerifiedFilledIcon } from "tdesign-icons-vue-next";
 const route = useRoute();
 const router = useRouter();
@@ -1516,6 +1570,63 @@ function selectGiftCollection(id: number) {
   selectedGiftCollectionId.value = id;
   void profileStore.ensureGifts(giftOwner.value, id);
 }
+
+/** 动态相册：所属聊天 id（频道/群组为该聊天本身，用户为动态所在私聊） */
+const storyChatId = computed<number | undefined>(() =>
+  chatMode.value ? chatId.value : profileStore.storyChatIds.get(userId.value));
+/** 动态相册列表 */
+const storyAlbumsList = computed<storyAlbum[]>(() =>
+  storyChatId.value ? profileStore.storyAlbumsByChat.get(storyChatId.value) ?? [] : []);
+/** 当前选中的动态相册（0 = 全部动态） */
+const selectedStoryAlbumId = ref(0);
+/** 动态相册导航项：第一项「全部动态」 */
+const storyAlbumTabs = computed(() => [
+  { id: 0, name: t('lng_stories_album_all') },
+  ...storyAlbumsList.value.map((a) => ({ id: a.id, name: a.name })),
+]);
+/** 能否新建相册：仅自己的资料页（他人/频道的相册不可由当前用户编辑） */
+const canAddStoryAlbum = computed(() => (chatMode.value ? isChatAdminOrCreator.value : isSelf.value));
+/** 当前选中相册内的动态 */
+const albumStoriesList = computed<story[]>(() => {
+  if (!storyChatId.value || selectedStoryAlbumId.value === 0) return [];
+  return profileStore.storyAlbumStories.get(`${storyChatId.value}:${selectedStoryAlbumId.value}`) ?? [];
+});
+const albumStoriesLoading = computed(() => {
+  if (!storyChatId.value || selectedStoryAlbumId.value === 0) return false;
+  return profileStore.storyAlbumStoriesLoading.get(`${storyChatId.value}:${selectedStoryAlbumId.value}`) ?? false;
+});
+
+/** 切换动态相册：0 为全部动态（已有数据），否则拉取该相册内的动态 */
+function selectStoryAlbum(id: number) {
+  selectedStoryAlbumId.value = id;
+  if (id !== 0 && storyChatId.value) {
+    void profileStore.ensureStoryAlbumStories(storyChatId.value, id);
+  }
+}
+
+/** 新建相册弹窗状态 */
+const storyAlbumDialog = ref({ visible: false, name: '', creating: false });
+function openCreateStoryAlbum() {
+  storyAlbumDialog.value = { visible: true, name: '', creating: false };
+}
+function closeCreateStoryAlbum() {
+  storyAlbumDialog.value.visible = false;
+}
+async function submitCreateStoryAlbum() {
+  const cid = storyChatId.value;
+  const name = storyAlbumDialog.value.name.trim();
+  if (!cid || !name || storyAlbumDialog.value.creating) return;
+  storyAlbumDialog.value.creating = true;
+  try {
+    const album = await profileStore.createStoryAlbum(cid, name);
+    storyAlbumDialog.value.visible = false;
+    selectStoryAlbum(album.id);
+  } catch (e) {
+    console.error('Failed to create story album', e);
+  } finally {
+    storyAlbumDialog.value.creating = false;
+  }
+}
 /** 共同群组：用户模式按 route userId；秘密聊天按对方 user_id（route 上是 chat id） */
 const commonGroupsList = computed<number[]>(() => {
   const uid = isSecretChat.value ? secretChatUserId.value : userId.value;
@@ -1549,12 +1660,12 @@ const hasBottomContent = computed(() => {
     // 群组始终有「成员」Tab（基础群 / 非频道超群），须计入底部内容，否则 Tab 栏被整体隐藏
     const hasMembersTab = !isSecretChat.value
       && (isChatSupergroup.value ? !isChatChannel.value : chatObj.value?.type?._ === 'chatTypeBasicGroup');
-    return chatLoading.value || hasMembersTab || chatActiveStories.value.length > 0
+    return chatLoading.value || hasMembersTab || chatActiveStories.value.length > 0 || canAddStoryAlbum.value
       || sharedMediaCounts.value.media > 0 || sharedMediaCounts.value.files > 0
       || sharedMediaCounts.value.links > 0 || sharedMediaCounts.value.music > 0
       || sharedMediaCounts.value.voice > 0 || sharedMediaCounts.value.gifs > 0;
   }
-  return isLoading.value || activeStoriesList.value.length > 0
+  return isLoading.value || activeStoriesList.value.length > 0 || canAddStoryAlbum.value
     || (profileStore.gifts.get(giftsKey(giftOwner.value, 0))?.length ?? 0) > 0
     || (fullInfo.value?.gift_count ?? 0) > 0
     || (!isSelf.value && commonGroupsList.value.length > 0)
@@ -2614,6 +2725,14 @@ function clearGiftsDwell() {
   }
 }
 
+// 动态相册：进入动态标签时拉取相册列表；切换资料页或聊天时相册选择回到「全部动态」
+watch([storyChatId, activeTab], ([cid, tab]) => {
+  if (cid && tab === 'stories') void profileStore.ensureStoryAlbums(cid);
+}, { immediate: true });
+watch(() => userId.value, () => {
+  selectedStoryAlbumId.value = 0;
+});
+
 // 切换资料页的礼物持有者（用户或频道）时，收藏夹选择回到「全部礼物」
 watch(() => giftOwnerKey(giftOwner.value), () => {
   selectedGiftCollectionId.value = 0;
@@ -2737,6 +2856,10 @@ const displayActiveStories = computed<story[]>(() =>
 const displayArchivedStories = computed<story[]>(() =>
   chatMode.value ? chatArchivedStories.value : archivedStoriesList.value,
 );
+/** 动态区当前展示的列表：全部动态或选中相册内的动态 */
+const displayedActiveStories = computed<story[]>(() =>
+  selectedStoryAlbumId.value === 0 ? displayActiveStories.value : albumStoriesList.value,
+);
 
 /** 动态时长角标文案：直播 → 「直播」；视频 → m:ss；照片 → '' */
 function formatStoryDuration(s: story): string {
@@ -2754,7 +2877,7 @@ function formatStoryDuration(s: story): string {
 
 /** 打开动态：在故事播放器中按列表播放 */
 function openStory(s: story) {
-  const list = activeTab.value === 'archived' ? displayArchivedStories.value : displayActiveStories.value;
+  const list = activeTab.value === 'archived' ? displayArchivedStories.value : displayedActiveStories.value;
   const idx = Math.max(0, list.findIndex((x) => x.id === s.id));
   openStoryViewer(list, idx);
 }

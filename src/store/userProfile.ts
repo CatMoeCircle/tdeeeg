@@ -8,6 +8,9 @@ import type {
   receivedGift,
   MessageSender,
   story,
+  stories,
+  storyAlbum,
+  storyAlbums,
   phoneNumberInfo,
 } from "tdlib-types";
 import { tdlibSend } from "../utils/tdlib";
@@ -70,6 +73,18 @@ export const useUserProfileStore = defineStore("userProfile", () => {
   const archivedStories = reactive(new Map<number, story[]>());
   /** 每个用户的共享媒体计数（照片/文件/链接/音乐/语音/GIF） */
   const sharedMediaCounts = reactive(new Map<number, SharedMediaCounts>());
+  /** 每个用户的动态所在私聊 chat id（用于动态相册接口） */
+  const storyChatIds = reactive(new Map<number, number>());
+  /** 动态相册列表（getChatStoryAlbums），按聊天 id 缓存 */
+  const storyAlbumsByChat = reactive(new Map<number, storyAlbum[]>());
+  /** 动态相册列表是否已成功拉取（按聊天 id） */
+  const storyAlbumsLoaded = new Set<number>();
+  /** 动态相册列表进行中的请求（并发去重） */
+  const storyAlbumsPending = new Map<number, Promise<void>>();
+  /** 相册内动态，按 `${chatId}:${albumId}` 缓存 */
+  const storyAlbumStories = reactive(new Map<string, story[]>());
+  /** 相册内动态是否正在拉取（按 `${chatId}:${albumId}`） */
+  const storyAlbumStoriesLoading = reactive(new Map<string, boolean>());
 
   /** 是否正在加载（按 userId） */
   const loading = reactive(new Map<number, boolean>());
@@ -221,6 +236,7 @@ export const useUserProfileStore = defineStore("userProfile", () => {
       }).catch(() => undefined)) as { id?: number } | undefined;
       const chatId = privateChat?.id;
       if (!chatId) return;
+      storyChatIds.set(userId, chatId);
 
       // 1. 普通动态：getChatPostedToChatPageStories 返回用户发布到主页的动态（完整 story[]）
       //    —— 这是个人资料页真正展示的「当前动态区」（对查看他人资料页有效，无需管理员权限）。
@@ -264,6 +280,65 @@ export const useUserProfileStore = defineStore("userProfile", () => {
       // 忽略：无法获取动态时不阻塞
       console.error("Failed to fetch user stories", e);
     }
+  }
+
+  /**
+   * 按需获取某个聊天的动态相册列表（getChatStoryAlbums）。
+   * 已加载则复用缓存；进行中则复用同一 Promise（并发去重）。
+   */
+  async function ensureStoryAlbums(chatId: number): Promise<void> {
+    if (storyAlbumsLoaded.has(chatId)) return;
+    const inFlight = storyAlbumsPending.get(chatId);
+    if (inFlight) return inFlight;
+    const p = (async () => {
+      try {
+        const res = (await tdlibSend({
+          _: "getChatStoryAlbums",
+          chat_id: chatId,
+        })) as storyAlbums;
+        storyAlbumsByChat.set(chatId, res.albums ?? []);
+        storyAlbumsLoaded.add(chatId);
+      } catch (e) {
+        console.error("Failed to fetch story albums", e);
+      } finally {
+        storyAlbumsPending.delete(chatId);
+      }
+    })();
+    storyAlbumsPending.set(chatId, p);
+    return p;
+  }
+
+  /** 按需获取某个动态相册内的动态（已缓存则跳过） */
+  async function ensureStoryAlbumStories(chatId: number, albumId: number): Promise<void> {
+    const key = `${chatId}:${albumId}`;
+    if (storyAlbumStories.has(key)) return;
+    storyAlbumStoriesLoading.set(key, true);
+    try {
+      const res = (await tdlibSend({
+        _: "getStoryAlbumStories",
+        chat_id: chatId,
+        story_album_id: albumId,
+        offset: 0,
+        limit: 100,
+      })) as stories;
+      storyAlbumStories.set(key, res.stories ?? []);
+    } catch (e) {
+      console.error("Failed to fetch story album stories", e);
+    } finally {
+      storyAlbumStoriesLoading.set(key, false);
+    }
+  }
+
+  /** 创建动态相册（名称 1-12 字符，暂不附带动态）；成功后加入列表缓存 */
+  async function createStoryAlbum(chatId: number, name: string): Promise<storyAlbum> {
+    const album = (await tdlibSend({
+      _: "createStoryAlbum",
+      story_poster_chat_id: chatId,
+      name,
+      story_ids: [],
+    })) as storyAlbum;
+    storyAlbumsByChat.set(chatId, [...(storyAlbumsByChat.get(chatId) ?? []), album]);
+    return album;
   }
 
   /** 获取某个聊天的共享媒体计数（照片/文件/链接/音乐/语音/GIF） */
@@ -400,6 +475,10 @@ export const useUserProfileStore = defineStore("userProfile", () => {
     activeStories,
     archivedStories,
     sharedMediaCounts,
+    storyChatIds,
+    storyAlbumsByChat,
+    storyAlbumStories,
+    storyAlbumStoriesLoading,
     loading,
     loaded,
     error,
@@ -413,6 +492,9 @@ export const useUserProfileStore = defineStore("userProfile", () => {
     ensureGiftCollections,
     ensureGifts,
     fetchSharedMediaCountsForChat,
+    ensureStoryAlbums,
+    ensureStoryAlbumStories,
+    createStoryAlbum,
     initUserProfileUpdates,
     getPhoneInfo,
   };
