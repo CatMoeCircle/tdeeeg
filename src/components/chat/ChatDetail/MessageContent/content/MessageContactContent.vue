@@ -1,7 +1,7 @@
 <template>
     <!-- 联系人消息卡片：头像 + 姓名/手机号，底部「消息 / 添加」两个操作，左侧为 accent 彩条 -->
     <div class="relative w-70 max-w-full min-w-0 select-text overflow-hidden rounded-xl" :style="cardStyle">
-        <!-- 左侧斜纹彩条 -->
+        <!-- 左侧彩条：Premium 用户为斜纹双色，普通用户为纯色 -->
         <span class="absolute inset-y-0 left-0 w-0.75" :style="stripeStyle"></span>
 
         <div class="flex items-center gap-3 py-3 pl-4 pr-3">
@@ -43,9 +43,10 @@ import { useRouter } from 'vue-router';
 import type { chat, messageContact, user as TdUser } from 'tdlib-types';
 import Avatar from '../../../avatar.vue';
 import { tdlibSend } from '../../../../../utils/tdlib';
-import { accentColorStyle } from '../../../../../store/colors';
+import { accentColorStyle, rgbToHex } from '../../../../../store/colors';
 import { useUserStore } from '../../../../../store/user';
 import { toast } from '../../../../../utils/toast';
+import { getReactiveUser } from '../../../../../utils/senderInfo';
 
 const props = defineProps<{
     content: messageContact;
@@ -84,17 +85,36 @@ const canSendMessage = computed(() => isKnownUser.value && !isSelf.value);
 const canAddContact = computed(() => canSendMessage.value && !!user.value && !user.value.is_contact);
 const hasActions = computed(() => canSendMessage.value);
 
-/** 卡片配色：优先用对方的 accent，否则按 user_id 稳定取一个 */
+/** 联系人用户的颜色设置（响应式缓存优先，保证用户更新颜色后卡片同步） */
+const contactUser = computed(() => getReactiveUser(contact.value.user_id) ?? user.value);
+
+/**
+ * 卡片配色：与资料页/发送者头像一致 —— profile_accent_color_id（≥0）优先，
+ * 否则 accent_color_id（≥0），都没有（TDLib 的 -1）时按 user_id 稳定取一个内置色
+ */
 const accentId = computed(() => {
-    const a = user.value?.accent_color_id;
-    return typeof a === 'number' && a >= 0 ? a : Math.abs(contact.value.user_id) % 7;
+    const u = contactUser.value;
+    const profile = u?.profile_accent_color_id;
+    if (typeof profile === 'number' && profile >= 0) return profile;
+    const accent = u?.accent_color_id;
+    if (typeof accent === 'number' && accent >= 0) return accent;
+    return Math.abs(contact.value.user_id) % 7;
 });
 const accent = computed(() => accentColorStyle(accentId.value));
 
-const cardStyle = computed(() => ({ backgroundColor: accent.value.soft }));
-const stripeStyle = computed(() => ({
-    background: `repeating-linear-gradient(-45deg, ${accent.value.color} 0 3px, transparent 3px 6px)`,
-}));
+/** 是否为 Premium 用户：只有 Premium 才能自定义名字/资料页颜色，才有彩条与主题色底 */
+const isPremium = computed(() => !!contactUser.value?.is_premium);
+
+const cardStyle = computed(() => (isPremium.value ? { backgroundColor: accent.value.soft } : undefined));
+/** 彩条：Premium 为主色/次色交替的斜纹双色；普通用户为主色纯色条 */
+const stripeStyle = computed(() => {
+    const c1 = accent.value.color;
+    if (!isPremium.value) return { backgroundColor: c1 };
+    const c2 = rgbToHex(accent.value.secondary);
+    return {
+        background: `repeating-linear-gradient(-45deg, ${c1} 0 3px, ${c2} 3px 6px)`,
+    };
+});
 const dividerColor = computed(() => `color-mix(in srgb, ${accent.value.color} 25%, transparent)`);
 
 async function loadUser(userId: number) {
