@@ -290,6 +290,23 @@ body {
 .tgico-key::before {
   content: "\e9ce";
 }
+/* 清单通知图标的公共排版：与文字（text-xs）同高，并垂直居中于文字行 */
+.tgico-todo-icon {
+  font-size: 14px;
+  line-height: 1;
+  vertical-align: middle;
+  margin-right: 2px;
+}
+/* 清单通知：任务已完成 ✓（U+E958）/ 任务已添加（U+E959）/ 任务未完成（U+E95B） */
+.tgico-todo-done::before {
+  content: "\e958";
+}
+.tgico-todo-add::before {
+  content: "\e959";
+}
+.tgico-todo-undone::before {
+  content: "\e95b";
+}
 /* 留言/评论（tgico U+E965，评论条无评论者头像时的图标） */
 .tgico-comments::before {
   content: "\e965";

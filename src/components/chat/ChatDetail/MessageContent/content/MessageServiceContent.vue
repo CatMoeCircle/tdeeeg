@@ -420,6 +420,11 @@ async function resolvePinText(messageId: number) {
         pinText.value = t('lng_action_pinned_message', { from, text: pinnedTextPreview(c.text.text) });
         return;
     }
+    // 清单：「{from} 置顶了 «清单标题»」，文本取清单标题（与文本消息一样做开头预览）
+    if (c._ === 'messageChecklist') {
+        pinText.value = t('lng_action_pinned_message', { from, text: pinnedTextPreview(c.list.title.text) });
+        return;
+    }
     // emoji 类内容（emoji、骰子、带 emoji 的贴纸）：与官方一致，直接显示其 emoji 作为文本
     const emojiText = c._ === 'messageAnimatedEmoji' || c._ === 'messageDice'
         ? c.emoji
@@ -469,8 +474,8 @@ function joinNames(names: string[], oneKey: string, lastKey: string): string {
 /** i18n key 参数值：纯文本，或带自定义 emoji 的富文本（渲染时内联展示），或多段文案嵌套 */
 type ServiceParam = string | formattedText | ServiceParam[] | ServicePart;
 
-/** 一条完整的服务消息文案：i18n key + 参数 */
-type ServicePart = { key: string; params: Record<string, ServiceParam> };
+/** 一条完整的服务消息文案：i18n key + 参数；icon 为可选的 tgico 图标类名，显示在文案最前（发送者名称之前） */
+type ServicePart = { key: string; params: Record<string, ServiceParam>; icon?: string };
 
 const serviceText = computed<ServicePart[] | string | null>(() => {
     const c = props.content;
@@ -583,11 +588,12 @@ const serviceText = computed<ServicePart[] | string | null>(() => {
             const groupPart = (ids: number[], done: boolean): ServicePart | null => {
                 if (ids.length === 0) return null;
                 const key = done ? 'lng_action_todo_marked_done' : 'lng_action_todo_marked_not_done';
+                const icon = done ? 'tgico-todo-done' : 'tgico-todo-undone';
                 const labels = ids.map(id => titles.get(id)).filter((n): n is formattedText => !!n);
                 if (labels.length === ids.length) {
-                    return { key, params: { from: sender.value, tasks: joinNamesFormatted(labels, 'lng_action_todo_tasks_and_one', 'lng_action_todo_tasks_and_last') } };
+                    return { key, icon, params: { from: sender.value, tasks: joinNamesFormatted(labels, 'lng_action_todo_tasks_and_one', 'lng_action_todo_tasks_and_last') } };
                 }
-                return { key, params: { from: sender.value, tasks: t('lng_action_todo_tasks_fallback', { count: ids.length }) } };
+                return { key, icon, params: { from: sender.value, tasks: t('lng_action_todo_tasks_fallback', { count: ids.length }) } };
             };
             const donePart = groupPart(c.marked_as_done_task_ids, true);
             const notDonePart = groupPart(c.marked_as_not_done_task_ids, false);
@@ -602,10 +608,10 @@ const serviceText = computed<ServicePart[] | string | null>(() => {
         case 'messageChecklistTasksAdded': {
             const labels = c.tasks.map(task => task.text.text ? task.text : null).filter((n): n is formattedText => !!n);
             if (labels.length === 0) {
-                return [{ key: 'lng_action_todo_added', params: { from: sender.value, tasks: t('lng_action_todo_tasks_fallback', { count: c.tasks.length }) } }];
+                return [{ key: 'lng_action_todo_added', icon: 'tgico-todo-add', params: { from: sender.value, tasks: t('lng_action_todo_tasks_fallback', { count: c.tasks.length }) } }];
             }
             const tasks = joinNamesFormatted(labels, 'lng_action_todo_tasks_and_one', 'lng_action_todo_tasks_and_last');
-            return [{ key: 'lng_action_todo_added', params: { from: sender.value, tasks } }];
+            return [{ key: 'lng_action_todo_added', icon: 'tgico-todo-add', params: { from: sender.value, tasks } }];
         }
         case 'messageProximityAlertTriggered':
             return t('service.proximityAlert');
@@ -633,8 +639,16 @@ const serviceTextParts = computed<VNode[] | null>(() => {
     const parts = serviceText.value;
     if (parts === null) return null;
     if (typeof parts === 'string') return renderMarked(parts);
-    return parts.flatMap(({ key, params }) => renderServicePart(key, params));
+    return parts.flatMap(partNodes);
 });
+
+/** 渲染一条服务文案；带 icon 时在最前面放 tgico 图标（即发送者名称之前） */
+function partNodes(part: ServicePart): VNode[] {
+  const nodes = renderServicePart(part.key, part.params);
+  return part.icon
+    ? [h('span', { class: ['tgico', 'tgico-todo-icon', part.icon], 'aria-hidden': 'true' }), ...nodes]
+    : nodes;
+}
 
 // ==================== 富文本拼接 / 渲染 ====================
 
@@ -684,7 +698,7 @@ function renderMarked(text: string): VNode[] {
 function paramNodes(v: ServiceParam): VNode[] {
     if (typeof v === 'string') return [h(Text, null, v)];
     if (Array.isArray(v)) return v.flatMap(paramNodes);
-    if ('key' in v) return renderServicePart(v.key, v.params);
+    if ('key' in v) return partNodes(v);
     // formattedText → FormattedTextInline 内联渲染自定义 emoji，其余实体按纯文本展示
     return [h(FormattedTextInline, { formattedText: v, size: 16 })];
 }
