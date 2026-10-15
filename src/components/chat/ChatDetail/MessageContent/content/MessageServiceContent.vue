@@ -48,6 +48,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { useRouter } from 'vue-router';
 import type { chatPhoto, file, formattedText, MessageContent, message, photoSize } from 'tdlib-types';
 import { ensureLocalFilePath, tdlibSend } from '../../../../../utils/tdlib';
+import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
 import { ensureUser, getUserDisplayName } from '../../../../../utils/senderInfo';
 import { useChatStore } from '../../../../../store/chat';
 import { useCommunityStore } from '../../../../../store/community';
@@ -92,6 +93,19 @@ const USER_CLOSE = '\u0004';
 function userMark(userId: number | undefined, name: string): string {
     return userId ? `${USER_OPEN}${userId}${USER_SEP}${name}${USER_CLOSE}` : name;
 }
+
+/** 文案中的网站域名标记（如「在 {domain} 上登录」），渲染为可点击链接，点击后打开 https://{domain} */
+const DOMAIN_OPEN = '\u0005';
+const DOMAIN_CLOSE = '\u0006';
+function domainMark(domain: string): string {
+    return `${DOMAIN_OPEN}${domain}${DOMAIN_CLOSE}`;
+}
+
+/** 匹配用户标记（捕获 id、名称）或域名标记（捕获域名）；renderMarked 据此切分文本 */
+const MARK_RE = new RegExp(
+    `${USER_OPEN}(\\d+)${USER_SEP}([^${USER_CLOSE}]*)${USER_CLOSE}|${DOMAIN_OPEN}([^${DOMAIN_CLOSE}]*)${DOMAIN_CLOSE}`,
+    'g',
+);
 
 /**
  * 文案中的操作者名称：自己发出的服务消息用「您 / You」（与对方视角区分，
@@ -551,6 +565,12 @@ const serviceText = computed<ServicePart[] | string | null>(() => {
                 : props.isSelf
                     ? t('lng_action_set_wallpaper_me')
                     : t('lng_action_set_wallpaper', { user: sender.value });
+        case 'messageBotWriteAccessAllowed':
+            // 用户通过网站登录（Telegram Login Widget）授权机器人发消息：「您在 {domain} 上登录时允许该机器人向您发消息」（文案固定为「您」视角，无需发送者）
+            // 其余授权原因（附件菜单 / Web App / 接受请求）暂未适配，交由未适配卡片兜底
+            return c.reason._ === 'botWriteAccessAllowReasonConnectedWebsite'
+                ? t('lng_action_bot_allowed_from_domain', { domain: domainMark(c.reason.domain_name) })
+                : null;
         case 'messageScreenshotTaken':
             return t('lng_action_took_screenshot', { from: sender.value });
         case 'messageChatSetMessageAutoDeleteTime':
@@ -675,22 +695,33 @@ function renderServicePart(key: string, params: Record<string, ServiceParam>): V
 
 /** 把带用户标记的纯文本切分：普通文本保持 Text 节点，用户名还原为可点击的链接 */
 function renderMarked(text: string): VNode[] {
-    const pieces = text.split(new RegExp(`${USER_OPEN}(\\d+)${USER_SEP}([^${USER_CLOSE}]*)${USER_CLOSE}`));
     const nodes: VNode[] = [];
-    // split 的捕获组按 [文本, id, 名称] 三元组交错返回
-    for (let i = 0; i < pieces.length; i += 3) {
-        if (pieces[i]) nodes.push(h(Text, null, pieces[i]));
-        if (i + 2 < pieces.length) {
-            const userId = Number(pieces[i + 1]);
+    let last = 0;
+    for (const m of text.matchAll(MARK_RE)) {
+        const index = m.index ?? 0;
+        if (index > last) nodes.push(h(Text, null, text.slice(last, index)));
+        if (m[1] !== undefined) {
+            const userId = Number(m[1]);
             nodes.push(h('span', {
                 class: 'cursor-pointer hover:underline',
                 onClick: (e: MouseEvent) => {
                     e.stopPropagation();
                     openUserProfile(userId);
                 },
-            }, pieces[i + 2]));
+            }, m[2]));
+        } else {
+            const domain = m[3];
+            nodes.push(h('span', {
+                class: 'cursor-pointer text-blue-500 hover:underline',
+                onClick: (e: MouseEvent) => {
+                    e.stopPropagation();
+                    void confirmAndOpenExternalLink(`https://${domain}`).catch(() => {});
+                },
+            }, domain));
         }
+        last = index + m[0].length;
     }
+    if (last < text.length) nodes.push(h(Text, null, text.slice(last)));
     return nodes;
 }
 
