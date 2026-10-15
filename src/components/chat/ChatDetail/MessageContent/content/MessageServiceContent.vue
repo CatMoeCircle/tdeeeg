@@ -341,10 +341,6 @@ function pinnedMediaInfo(content: MessageContent): { key: string; params?: Recor
             return { key: 'lng_action_pinned_media_video' };
         case 'messageAnimation':
             return { key: 'lng_action_pinned_media_gif' };
-        case 'messageSticker':
-            return { key: 'lng_action_pinned_media_sticker' };
-        case 'messageAnimatedEmoji':
-            return { key: 'lng_action_pinned_media_emoji_sticker', params: { emoji: content.emoji } };
         case 'messageVoiceNote':
             return { key: 'lng_action_pinned_media_voice' };
         case 'messageVideoNote':
@@ -395,6 +391,18 @@ async function resolvePinText(messageId: number) {
     // 优先在本列表查找被置顶消息，找不到再通过 TDLib 拉取
     let pinned: message | undefined = props.messageList?.find(m => m.id === messageId);
     if (!pinned) {
+        // 服务消息的 reply_to 指向被置顶消息：getRepliedMessage 会从服务端拉取，
+        // 而 getMessage 只查本地缓存，被置顶的贴纸等消息常常查不到
+        const serviceId = props.messageId ?? props.message?.id;
+        if (props.message?.reply_to?._ === 'messageReplyToMessage' && serviceId) {
+            try {
+                pinned = await tdlibSend({ _: 'getRepliedMessage', chat_id: chatId, message_id: serviceId }) as any;
+            } catch {
+                pinned = undefined;
+            }
+        }
+    }
+    if (!pinned) {
         try {
             pinned = await tdlibSend({ _: 'getMessage', chat_id: chatId, message_id: messageId }) as any;
         } catch {
@@ -410,6 +418,20 @@ async function resolvePinText(messageId: number) {
     const c = pinned.content;
     if (c._ === 'messageText') {
         pinText.value = t('lng_action_pinned_message', { from, text: pinnedTextPreview(c.text.text) });
+        return;
+    }
+    // emoji 类内容（emoji、骰子、带 emoji 的贴纸）：与官方一致，直接显示其 emoji 作为文本
+    const emojiText = c._ === 'messageAnimatedEmoji' || c._ === 'messageDice'
+        ? c.emoji
+        : c._ === 'messageSticker' ? c.sticker.emoji : '';
+    if (emojiText) {
+        pinText.value = t('lng_action_pinned_message', { from, text: emojiText });
+        return;
+    }
+    // 投票/测验：用已存在的官方类型名作为媒体描述（lng_polls_public / lng_polls_public_quiz）
+    if (c._ === 'messagePoll') {
+        const media = t(c.poll.type._ === 'pollTypeQuiz' ? 'lng_polls_public_quiz' : 'lng_polls_public');
+        pinText.value = t('lng_action_pinned_media', { from, media });
         return;
     }
     const info = pinnedMediaInfo(c);
