@@ -213,7 +213,7 @@
                                                         <span class="truncate">
                                                             <GlobalEmojiText :text="getChatTitle(chat)" />
                                                         </span>
-                                                        <!-- 诈骗/虚假标识：优先级最高，替代其他所有名称后标识（与 Unigram 一致） -->
+                                                        <!-- 诈骗/虚假标识：优先级最高，替代其他所有名称后标识 -->
                                                         <ShieldAlert v-if="isChatScamOrFake(chat)"
                                                             class="w-3.5 h-3.5 text-red-500 shrink-0"
                                                             :title="chatScamOrFakeTitle(chat)" />
@@ -1473,7 +1473,7 @@ function chatScamOrFakeTitle(chat: Chat): string {
 }
 
 /**
- * 列表项礼物/emoji 状态的自定义 emoji id（与 Unigram 一致：诈骗/虚假账户不显示；保存的消息不显示）
+ * 列表项礼物/emoji 状态的自定义 emoji id（诈骗/虚假账户不显示；保存的消息不显示）
  */
 function chatGiftEmojiId(chat: Chat): string {
     if (isChatScamOrFake(chat)) return '';
@@ -1482,7 +1482,7 @@ function chatGiftEmojiId(chat: Chat): string {
 }
 
 /**
- * 列表项是否显示 Premium 星标（与 Unigram 一致：无礼物时 Premium 优先于蓝 V）
+ * 列表项是否显示 Premium 星标（无礼物时 Premium 优先于蓝 V）
  * 诈骗/虚假账户和保存的消息不显示；有礼物时由礼物替代
  */
 function isChatPremiumStar(chat: Chat): boolean {

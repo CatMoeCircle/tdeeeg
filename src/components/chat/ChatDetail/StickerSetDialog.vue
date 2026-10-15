@@ -75,7 +75,7 @@ const menuOpen = ref(false);
 let reqSeq = 0;
 
 const isEmojiSet = computed(() => set.value?.sticker_type._ === 'stickerTypeCustomEmoji');
-/** 与 Unigram 一致：自定义表情每行 8 个，普通贴纸每行 5 个 */
+/** 自定义表情每行 8 个，普通贴纸每行 5 个 */
 const columns = computed(() => (isEmojiSet.value ? 8 : 5));
 const tileSize = computed(() => (isEmojiSet.value ? 40 : 64));
 

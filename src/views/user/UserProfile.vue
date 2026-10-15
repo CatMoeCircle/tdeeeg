@@ -41,10 +41,15 @@
 
             <!-- 昵称：从左到右 = 认证/诈骗/虚假/自定义标识 → 会员 emoji → 开发者/贡献者标识 -->
             <h1 class="mt-3 text-2xl font-bold flex items-center gap-1.5 max-w-full">
+              <!-- 机构认证标识（bot 自定义验证 emoji）：显示在名称左侧 -->
+              <span v-if="!isDeletedProfile && customVerifyEmojiId" class="inline-flex shrink-0"
+                :title="customVerifyTitle">
+                <CustomEmojiInline :emojiId="customVerifyEmojiId" :size="20" />
+              </span>
               <span class="truncate">
                 <GlobalEmojiText :text="userName" />
               </span>
-              <!-- ① 认证/诈骗/虚假/自定义标识 -->
+              <!-- ① 认证/诈骗/虚假标识 -->
               <VerifiedFilledIcon
                 v-if="!isDeletedProfile && userVerification?.is_verified && !customVerifyEmojiId"
                 class="text-blue-500 text-lg shrink-0" :title="t('profileBadges.verified')"
@@ -56,10 +61,6 @@
               <span v-if="!isDeletedProfile && userVerification?.is_fake"
                 class="inline-flex items-center shrink-0 px-1.5 rounded-sm border border-red-500 text-xs font-semibold leading-5 text-red-500 whitespace-nowrap"
                 :title="t('lng_fake_badge')">{{ t('lng_fake_badge') }}</span>
-              <span v-if="!isDeletedProfile && customVerifyEmojiId" class="inline-flex shrink-0"
-                :title="customVerifyTitle">
-                <CustomEmojiInline :emojiId="customVerifyEmojiId" :size="20" />
-              </span>
               <!-- ② 会员 emoji -->
               <button v-if="!isDeletedProfile && isSelf && user?.is_premium" type="button"
                 class="w-6 h-6 inline-flex items-center justify-center rounded-full hover:bg-blue-500/10 transition-colors shrink-0"
@@ -76,10 +77,13 @@
               <ProfileRoleBadge v-if="!isDeletedProfile && userRoleBadge" :kind="userRoleBadge" />
             </h1>
 
-            <!-- 在线状态 -->
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {{ statusText }}
-            </p>
+            <!-- 评级徽章 + 在线状态：评级在状态左侧 -->
+            <div class="mt-1 flex items-center justify-center gap-1.5 max-w-full text-sm text-gray-500 dark:text-gray-400">
+              <ProfileRatingBadge v-if="userRatingLevel !== null" :level="userRatingLevel" />
+              <p class="truncate">
+                {{ statusText }}
+              </p>
+            </div>
 
             <!-- 操作按钮区：消息 / 通话 / 通知 / 搜索 / 更多（等大方块，单排，灰色半透明） -->
             <div v-if="!isSelf" class="mt-5 flex items-center justify-center gap-2">
@@ -156,6 +160,10 @@
 
             <!-- 名称：从左到右 = 认证/诈骗/虚假/自定义标识 → 官方群组标识 -->
             <h1 class="mt-3 text-2xl font-bold flex items-center gap-1.5 max-w-full">
+              <!-- 机构认证标识（bot 自定义验证 emoji）：显示在名称左侧 -->
+              <span v-if="chatCustomVerifyEmojiId" class="inline-flex shrink-0" :title="chatCustomVerifyTitle">
+                <CustomEmojiInline :emojiId="chatCustomVerifyEmojiId" :size="20" />
+              </span>
               <span class="truncate">
                 <GlobalEmojiText
                   :text="isSecretChat && secretChatUser ? `${secretChatUser.first_name} ${secretChatUser.last_name}`.trim() || t('secretChat.label') : chatTitle" />
@@ -170,9 +178,6 @@
               <span v-if="chatVerification?.is_fake"
                 class="inline-flex items-center shrink-0 px-1.5 rounded-sm border border-red-500 text-xs font-semibold leading-5 text-red-500 whitespace-nowrap"
                 :title="t('lng_fake_badge')">{{ t('lng_fake_badge') }}</span>
-              <span v-if="chatCustomVerifyEmojiId" class="inline-flex shrink-0" :title="chatCustomVerifyTitle">
-                <CustomEmojiInline :emojiId="chatCustomVerifyEmojiId" :size="20" />
-              </span>
               <ProfileRoleBadge v-if="chatRoleBadge" :kind="chatRoleBadge" />
             </h1>
 
@@ -1323,6 +1328,7 @@ import { requestCustomEmoji } from "../../store/customEmoji";
 import EncryptionKeyDialog from "../../components/user/EncryptionKeyDialog.vue";
 import { tdPlural } from "../../utils/tdLang";
 import ProfileRoleBadge from "../../components/common/ProfileRoleBadge.vue";
+import ProfileRatingBadge from "../../components/user/ProfileRatingBadge.vue";
 import ProtectedContentDialog from "../../components/user/ProtectedContentDialog.vue";
 import { getUserRoleBadge, getChatRoleBadge, type ProfileRoleBadgeKind } from "../../utils/profileBadges";
 
@@ -1514,7 +1520,7 @@ function memberStatusOf(m: chatMember): string {
   return u ? formatStatus(u) : '';
 }
 
-/** 成员标签文案：自定义 tag 优先，否则创建者/管理员显示默认角色标签（同 Unigram ChatMember.GetTag） */
+/** 成员标签文案：自定义 tag 优先，否则创建者/管理员显示默认角色标签 */
 function memberTagOf(m: chatMember): string {
   const custom = (m as { tag?: string }).tag;
   if (custom) return custom;
@@ -1809,6 +1815,10 @@ const additionalUsernames = computed<string[]>(() => {
 const isSelf = computed(() => !!user.value && user.value.id === userStore.userProfile?.id);
 const statusText = computed(() =>
   isDeletedProfile.value ? DELETED_ACCOUNT_LABEL : formatStatus(user.value));
+/** 用户评级（userFullInfo.rating）：仅用户模式、非已删除账号时显示 */
+const userRatingInfo = computed(() =>
+  !chatMode.value && !isDeletedProfile.value ? fullInfo.value?.rating ?? null : null);
+const userRatingLevel = computed<number | null>(() => userRatingInfo.value?.level ?? null);
 
 /** 用户主题色样式：主题色文本 + 主题色 10% 透明度背景（用于频道订阅数徽标） */
 const profileAccent = computed(() => {

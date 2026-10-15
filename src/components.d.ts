@@ -104,6 +104,7 @@ declare module 'vue' {
     PreviewCard: typeof import('./components/settings/PreviewCard.vue')['default']
     PrivacyExceptionBlock: typeof import('./components/settings/PrivacyExceptionBlock.vue')['default']
     PrivacyItemDialog: typeof import('./components/settings/PrivacyItemDialog.vue')['default']
+    ProfileRatingBadge: typeof import('./components/user/ProfileRatingBadge.vue')['default']
     ProfileRoleBadge: typeof import('./components/common/ProfileRoleBadge.vue')['default']
     ProtectedContentDialog: typeof import('./components/user/ProtectedContentDialog.vue')['default']
     ProxyLinkConfirm: typeof import('./components/contextMenu/ProxyLinkConfirm.vue')['default']

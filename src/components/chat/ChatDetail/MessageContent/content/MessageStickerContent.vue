@@ -174,7 +174,7 @@ watch([format, mediaSrc, () => props.content], () => {
 }, { flush: 'post' });
 
 /**
- * 点击行为（对齐 Unigram StickerContent.Button_Click）：
+ * 点击行为：
  * - 普通贴纸：打开所属贴纸包信息弹窗
  * - 自定义表情（非普通 emoji）：从头重播并打开所属贴纸包信息弹窗
  * - 普通 emoji：仅从头重播
