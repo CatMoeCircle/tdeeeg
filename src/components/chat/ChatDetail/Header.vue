@@ -53,9 +53,9 @@
                                 class="shrink-0 mr-1" />
                             <GlobalEmojiText :text="headerTitle" />
                             <!-- 名称后标识优先级：诈骗/虚假 > 礼物 > Premium 星标 > 蓝 V -->
-                            <ShieldAlert v-if="headerScamOrFake"
-                                class="ml-1 w-4 h-4 text-red-500 shrink-0"
-                                :title="headerVerification?.is_scam ? t('profileBadges.scam') : t('profileBadges.fake')" />
+                            <span v-if="headerScamOrFake"
+                                class="ml-1 inline-flex items-center shrink-0 px-1.5 rounded-sm border border-red-500 text-xs font-semibold leading-5 text-red-500 whitespace-nowrap"
+                                :title="headerVerification?.is_scam ? t('lng_scam_badge') : t('lng_fake_badge')">{{ headerVerification?.is_scam ? t('lng_scam_badge') : t('lng_fake_badge') }}</span>
                             <CustomEmojiInline v-else-if="headerGiftEmojiId" :emojiId="headerGiftEmojiId" :size="18"
                                 class="ml-1 shrink-0" />
                             <PremiumStatusIcon v-else-if="headerPremiumStar"
@@ -110,7 +110,7 @@
 </template>
 
 <script setup lang="ts">
-import { SearchIcon, MoreHorizontalIcon, ArrowLeftIcon, ShieldAlert, BookmarkIcon, PanelLeftIcon, PanelTopIcon, PanelBottomIcon } from 'lucide-vue-next';
+import { SearchIcon, MoreHorizontalIcon, ArrowLeftIcon, BookmarkIcon, PanelLeftIcon, PanelTopIcon, PanelBottomIcon } from 'lucide-vue-next';
 import { VerifiedFilledIcon } from 'tdesign-icons-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';

@@ -50,10 +50,12 @@
                 class="text-blue-500 text-lg shrink-0" :title="t('profileBadges.verified')"
                 :fill-color='["currentColor", "transparent"]' :stroke-color='["currentColor", "#0052d9"]'
                 :stroke-width="1.5" />
-              <ShieldAlert v-if="!isDeletedProfile && userVerification?.is_scam"
-                class="text-red-500 text-lg shrink-0" :title="t('profileBadges.scam')" />
-              <ShieldAlert v-if="!isDeletedProfile && userVerification?.is_fake"
-                class="text-red-500 text-lg shrink-0" :title="t('profileBadges.fake')" />
+              <span v-if="!isDeletedProfile && userVerification?.is_scam"
+                class="inline-flex items-center shrink-0 px-1.5 rounded-sm border border-red-500 text-xs font-semibold leading-5 text-red-500 whitespace-nowrap"
+                :title="t('lng_scam_badge')">{{ t('lng_scam_badge') }}</span>
+              <span v-if="!isDeletedProfile && userVerification?.is_fake"
+                class="inline-flex items-center shrink-0 px-1.5 rounded-sm border border-red-500 text-xs font-semibold leading-5 text-red-500 whitespace-nowrap"
+                :title="t('lng_fake_badge')">{{ t('lng_fake_badge') }}</span>
               <span v-if="!isDeletedProfile && customVerifyEmojiId" class="inline-flex shrink-0"
                 :title="customVerifyTitle">
                 <CustomEmojiInline :emojiId="customVerifyEmojiId" :size="20" />
@@ -68,7 +70,7 @@
               <!-- 他人资料：有 emoji 状态显示状态；纯会员（无状态）显示 ⭐ -->
               <template v-if="!isDeletedProfile && !isSelf && user?.is_premium">
                 <CustomEmojiInline v-if="emojiStatusDisplayId" :emojiId="emojiStatusDisplayId" :size="22" />
-                <span v-else class="text-base shrink-0" :title="t('lng_premium_summary_title')">⭐</span>
+                <span v-else class="tgico tgico-emoji-status text-[20px] shrink-0" :title="t('lng_premium_summary_title')" />
               </template>
               <!-- ③ 开发者/贡献者标识（硬编码） -->
               <ProfileRoleBadge v-if="!isDeletedProfile && userRoleBadge" :kind="userRoleBadge" />
@@ -162,10 +164,12 @@
                 class="text-blue-500 text-lg shrink-0" :title="t('profileBadges.verified')"
                 :fill-color='["currentColor", "transparent"]' :stroke-color='["currentColor", "#0052d9"]'
                 :stroke-width="1.5" />
-              <ShieldAlert v-if="chatVerification?.is_scam" class="text-red-500 text-lg shrink-0"
-                :title="t('profileBadges.scam')" />
-              <ShieldAlert v-if="chatVerification?.is_fake" class="text-red-500 text-lg shrink-0"
-                :title="t('profileBadges.fake')" />
+              <span v-if="chatVerification?.is_scam"
+                class="inline-flex items-center shrink-0 px-1.5 rounded-sm border border-red-500 text-xs font-semibold leading-5 text-red-500 whitespace-nowrap"
+                :title="t('lng_scam_badge')">{{ t('lng_scam_badge') }}</span>
+              <span v-if="chatVerification?.is_fake"
+                class="inline-flex items-center shrink-0 px-1.5 rounded-sm border border-red-500 text-xs font-semibold leading-5 text-red-500 whitespace-nowrap"
+                :title="t('lng_fake_badge')">{{ t('lng_fake_badge') }}</span>
               <span v-if="chatCustomVerifyEmojiId" class="inline-flex shrink-0" :title="chatCustomVerifyTitle">
                 <CustomEmojiInline :emojiId="chatCustomVerifyEmojiId" :size="20" />
               </span>
@@ -772,12 +776,34 @@
                     sizeClass="!w-10 !h-10" />
                 </div>
                 <div class="min-w-0 flex-1">
-                  <p class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
-                    {{ memberNameOf(m) }}
+                  <p class="flex items-center gap-1 min-w-0 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                    <span class="truncate">{{ memberNameOf(m) }}</span>
+                    <!-- 名称旁标识：诈骗/虚假 > 表情状态（含礼物） > 会员星标 > 蓝 V -->
+                    <span v-if="memberScamOrFake(m) === 'scam'"
+                      class="inline-flex items-center shrink-0 px-1.5 rounded-sm border border-red-500 text-[11px] font-semibold leading-4 text-red-500 whitespace-nowrap"
+                      :title="t('lng_scam_badge')">{{ t('lng_scam_badge') }}</span>
+                    <span v-else-if="memberScamOrFake(m) === 'fake'"
+                      class="inline-flex items-center shrink-0 px-1.5 rounded-sm border border-red-500 text-[11px] font-semibold leading-4 text-red-500 whitespace-nowrap"
+                      :title="t('lng_fake_badge')">{{ t('lng_fake_badge') }}</span>
+                    <CustomEmojiInline v-else-if="memberEmojiStatusId(m)" :emojiId="memberEmojiStatusId(m)" :size="18"
+                      class="shrink-0" />
+                    <span v-else-if="memberUserOf(m)?.is_premium" class="tgico tgico-emoji-status text-[16px] shrink-0"
+                      :title="t('lng_premium_summary_title')" />
+                    <VerifiedFilledIcon v-else-if="memberUserOf(m)?.verification_status?.is_verified"
+                      class="text-blue-500 shrink-0" :title="t('profileBadges.verified')"
+                      :fill-color='["currentColor", "transparent"]' :stroke-color='["currentColor", "#0052d9"]'
+                      :stroke-width="1.5" />
                   </p>
                   <p class="text-xs text-gray-400 mt-0.5 truncate">{{ memberStatusOf(m) }}</p>
                 </div>
+                <!-- 成员标签：右侧；创建者紫色、管理员绿色，其余为自定义标签（灰色） -->
+                <span v-if="memberTagOf(m)"
+                  class="shrink-0 max-w-24 truncate px-1.5 py-0.5 rounded text-[11px] leading-none font-medium"
+                  :class="memberTagClass(m)">{{ memberTagOf(m) }}</span>
               </button>
+              <!-- 成员分页哨兵：滚动到底部自动加载下一页 -->
+              <div ref="membersSentinel" class="h-1" />
+              <div v-if="membersLoadingMore" class="text-center text-sm text-gray-400 py-3">{{ t('lng_contacts_loading') }}</div>
             </div>
             <p v-else class="text-center text-sm text-gray-400 py-6">{{ chatMemberCountText }}</p>
           </div>
@@ -1308,7 +1334,7 @@ import {
   Eye, LogOut, MessageSquareText, PhoneCall, Flag, Pencil,
   Search, Users, Hash, FileText, Link, Mic, Film, KeyRound,
   Info as InfoIcon, Phone as PhoneIcon, AtSign as AtSignIcon,
-  Calendar as CalendarIcon, IdCard as IdCardIcon, ShieldAlert,
+  Calendar as CalendarIcon, IdCard as IdCardIcon,
   Plus as PlusIcon,
 } from "lucide-vue-next"; import { VerifiedFilledIcon } from "tdesign-icons-vue-next";
 const route = useRoute();
@@ -1488,6 +1514,38 @@ function memberStatusOf(m: chatMember): string {
   return u ? formatStatus(u) : '';
 }
 
+/** 成员标签文案：自定义 tag 优先，否则创建者/管理员显示默认角色标签（同 Unigram ChatMember.GetTag） */
+function memberTagOf(m: chatMember): string {
+  const custom = (m as { tag?: string }).tag;
+  if (custom) return custom;
+  if (isCreatorStatus(m.status)) return t('lng_owner_badge');
+  if (isAdminStatus(m.status)) return t('lng_admin_badge');
+  return '';
+}
+
+/** 标签颜色：创建者紫色、管理员绿色（底色 20% 透明），其余为灰色 */
+function memberTagClass(m: chatMember): string {
+  if (isCreatorStatus(m.status)) return 'bg-[#6560F6]/20 text-[#4a44d6] dark:text-[#a5a1ff]';
+  if (isAdminStatus(m.status)) return 'bg-[#75C873]/20 text-[#3c8a39] dark:text-[#9be298]';
+  return 'bg-gray-200/70 text-gray-600 dark:bg-gray-700/70 dark:text-gray-300';
+}
+
+/** 成员诈骗/虚假标识（优先级最高） */
+function memberScamOrFake(m: chatMember): 'scam' | 'fake' | '' {
+  const v = memberUserOf(m)?.verification_status;
+  if (v?.is_scam) return 'scam';
+  if (v?.is_fake) return 'fake';
+  return '';
+}
+
+/** 成员 emoji 状态 custom_emoji_id（含升级礼物的模型表情），无则空串 */
+function memberEmojiStatusId(m: chatMember): string {
+  const st = memberUserOf(m)?.emoji_status?.type;
+  if (st?._ === 'emojiStatusTypeCustomEmoji') return st.custom_emoji_id;
+  if (st?._ === 'emojiStatusTypeUpgradedGift') return st.model_custom_emoji_id;
+  return '';
+}
+
 function openMemberProfile(m: chatMember) {
   const uid = memberUserId(m);
   if (!uid) return;
@@ -1501,6 +1559,24 @@ function openMemberProfile(m: chatMember) {
  * - 否则（未隐藏 / 本人是创建者·管理员）→ 拉最近成员（完整可见）
  * - can_get_members=false → 不展示列表
  */
+/** 成员分页：每页条数、已向服务端请求的原始条数（作为 TDLib offset）、是否还有下一页 */
+const MEMBERS_PAGE_SIZE = 50;
+const membersLoadingMore = ref(false);
+const membersHasMore = ref(false);
+let membersFetchedCount = 0;
+/** 每次重新加载递增，用于丢弃过期的分页响应 */
+let membersGen = 0;
+
+function membersFilterNow(): 'administrators' | 'recent' {
+  // 隐藏成员且本人非管理 → 仅管理员；其余情况拉最近成员
+  return membersHiddenForMe.value ? 'administrators' : 'recent';
+}
+
+function appendMembers(prev: chatMember[], next: chatMember[]): chatMember[] {
+  const seen = new Set(prev.map(memberRowKey));
+  return [...prev, ...next.filter((m) => !seen.has(memberRowKey(m)))];
+}
+
 async function loadChatMembers() {
   const c = chatObj.value;
   if (!c || isSecretChat.value || isChatChannel.value) return;
@@ -1512,24 +1588,54 @@ async function loadChatMembers() {
       membersList.value = [];
       membersUnavailable.value = true;
       membersLoading.value = false;
+      membersHasMore.value = false;
       return;
     }
   }
 
+  const gen = ++membersGen;
   membersLoading.value = true;
+  membersLoadingMore.value = false;
   membersUnavailable.value = false;
+  membersHasMore.value = false;
+  membersFetchedCount = 0;
   try {
-    // 隐藏成员且本人非管理 → 仅管理员；其余情况拉最近成员
-    const filter = membersHiddenForMe.value ? 'administrators' : 'recent';
-    const list = await loadGroupMembers(c, filter, '', 0, 50);
+    const list = await loadGroupMembers(c, membersFilterNow(), '', 0, MEMBERS_PAGE_SIZE);
     await ensureMemberUsers(list);
-    membersList.value = [...list];
+    if (gen !== membersGen) return;
+    membersList.value = appendMembers([], list);
+    membersFetchedCount = list.length;
+    // 基本群一次返回全部成员，仅超群走分页
+    membersHasMore.value = c.type._ === 'chatTypeSupergroup' && list.length >= MEMBERS_PAGE_SIZE;
   } catch (e) {
+    if (gen !== membersGen) return;
     console.error('loadChatMembers failed', e);
     membersList.value = [];
     membersUnavailable.value = true;
   } finally {
-    membersLoading.value = false;
+    if (gen === membersGen) membersLoading.value = false;
+  }
+}
+
+/** 滚动到底部时加载下一页成员（offset 基于已拉取的原始条数，去重后追加） */
+async function loadMoreChatMembers() {
+  const c = chatObj.value;
+  if (!c || !membersHasMore.value || membersLoading.value || membersLoadingMore.value) return;
+  const gen = membersGen;
+  membersLoadingMore.value = true;
+  try {
+    const list = await loadGroupMembers(c, membersFilterNow(), '', membersFetchedCount, MEMBERS_PAGE_SIZE);
+    await ensureMemberUsers(list);
+    if (gen !== membersGen) return;
+    membersList.value = appendMembers(membersList.value, list);
+    membersFetchedCount += list.length;
+    membersHasMore.value = list.length >= MEMBERS_PAGE_SIZE;
+  } catch (e) {
+    if (gen !== membersGen) return;
+    console.error('loadMoreChatMembers failed', e);
+    membersHasMore.value = false;
+  } finally {
+    if (gen === membersGen) membersLoadingMore.value = false;
   }
 }
 
@@ -2237,6 +2343,7 @@ watch([activeTab, sharedMediaChatId], () => {
 onUnmounted(() => {
   cleanupSharedMediaThumbObservers();
   sharedMediaThumbQueue.clear();
+  cleanupMembersObserver();
 });
 
 // =====================================================================
@@ -2272,6 +2379,40 @@ function cleanupLoadMoreObserver() {
 // activeTab 或 sharedMediaItems 变化时重建观察器
 watch([activeTab, sharedMediaItems], () => {
   nextTick(setupLoadMoreObserver);
+});
+
+// =====================================================================
+// 成员列表无限滚动：哨兵进入视口时加载下一页
+// =====================================================================
+const membersSentinel = ref<HTMLElement | null>(null);
+let membersObserver: IntersectionObserver | null = null;
+
+function cleanupMembersObserver() {
+  if (membersObserver) {
+    membersObserver.disconnect();
+    membersObserver = null;
+  }
+}
+
+function setupMembersObserver() {
+  cleanupMembersObserver();
+  const el = membersSentinel.value;
+  if (!el) return;
+  membersObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting && membersHasMore.value && !membersLoadingMore.value && !membersLoading.value) {
+          void loadMoreChatMembers();
+        }
+      }
+    },
+    { root: null, rootMargin: '200px', threshold: 0.01 },
+  );
+  membersObserver.observe(el);
+}
+
+watch([activeTab, membersList, membersHasMore], () => {
+  nextTick(setupMembersObserver);
 });
 
 /** 打开共享媒体查看器 */
@@ -3802,10 +3943,10 @@ watch(
 </script>
 
 <style scoped>
-/* 默认 emoji 状态图标（tgico U+EA2A，指定浅蓝色） */
+/* 默认 emoji 状态图标（tgico U+EA2A，蓝色） */
 .tgico-emoji-status::before {
   content: "\ea2a";
-  color: #FF5288C1;
+  color: #5288C1;
 }
 
 /* ===== 顶部头像/昵称区域（无背景色，随页面背景） ===== */
