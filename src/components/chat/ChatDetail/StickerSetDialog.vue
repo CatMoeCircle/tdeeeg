@@ -1,0 +1,196 @@
+<template>
+    <ModalDialog :model-value="open" :title="title" @update:model-value="close">
+        <template #title>
+            <span>{{ titleName }}</span><span v-if="titleUsername" class="text-blue-500 hover:underline cursor-pointer"
+                @click="openTitleChannel">{{ titleUsername }}</span>
+        </template>
+        <template #header-actions>
+            <div class="relative">
+                <button type="button"
+                    class="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-40"
+                    :disabled="!set" @click.stop="menuOpen = !menuOpen">
+                    <MoreHorizontalIcon class="w-4.5 h-4.5" />
+                </button>
+                <div v-if="menuOpen"
+                    class="absolute right-0 top-full mt-2 z-20 w-48 p-1.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1f2937] shadow-xl">
+                    <button v-for="item in menuItems" :key="item.key" type="button"
+                        class="w-full px-3 py-2 rounded-lg text-left text-sm whitespace-nowrap text-gray-800 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        @click.stop="onMenuSelect(item.key)">
+                        {{ item.label }}
+                    </button>
+                </div>
+            </div>
+        </template>
+
+        <div @click="menuOpen = false">
+            <div v-if="!set && loading" class="py-10 text-center text-sm text-gray-400">
+                {{ t('lng_context_seen_loading') }}
+            </div>
+            <div v-else-if="!set" class="py-10 text-center text-sm text-gray-400">
+                {{ t('lng_stickers_not_found') }}
+            </div>
+            <div v-else class="grid justify-items-center gap-2"
+                :style="{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }">
+                <MessageStickerContent v-for="s in set.stickers" :key="s.id" :content="toContent(s)"
+                    :size="tileSize" />
+            </div>
+        </div>
+
+        <template v-if="set" #footer>
+            <button type="button"
+                class="inline-flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                :class="set.is_installed
+                    ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50'
+                    : 'bg-blue-500 text-white hover:bg-blue-600'"
+                :disabled="busy" @click="toggleInstalled">
+                <span>{{ installLabel }}</span>
+                <span class="tabular-nums opacity-70">{{ set.stickers.length }}</span>
+            </button>
+        </template>
+    </ModalDialog>
+</template>
+
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
+import { MoreHorizontalIcon } from 'lucide-vue-next';
+import ModalDialog from '../../settings/ModalDialog.vue';
+import MessageStickerContent from './MessageContent/content/MessageStickerContent.vue';
+import { tdlibSend } from '../../../utils/tdlib';
+import { toast } from '../../../utils/toast';
+import { stickerSetDialogState, closeStickerSetDialog } from '../../../store/stickerSetDialog';
+import type { messageSticker, sticker, stickerSet } from 'tdlib-types';
+
+const { t } = useI18n();
+
+const open = computed(() => stickerSetDialogState.value.open);
+const setId = computed(() => stickerSetDialogState.value.setId);
+
+const set = ref<stickerSet | null>(null);
+const loading = ref(false);
+const busy = ref(false);
+const menuOpen = ref(false);
+/** 请求代次：快速切换/关闭时丢弃过期响应 */
+let reqSeq = 0;
+
+const isEmojiSet = computed(() => set.value?.sticker_type._ === 'stickerTypeCustomEmoji');
+/** 与 Unigram 一致：自定义表情每行 8 个，普通贴纸每行 5 个 */
+const columns = computed(() => (isEmojiSet.value ? 8 : 5));
+const tileSize = computed(() => (isEmojiSet.value ? 40 : 64));
+
+const title = computed(() => set.value?.title ?? '');
+const router = useRouter();
+
+/** 标题形如「名称 @username」：拆出末尾的 @username 用于跳转频道 */
+const titleParts = computed(() => {
+    const m = title.value.match(/^(.*?)\s*(@\w+)\s*$/);
+    return m ? { name: m[1], username: m[2] } : { name: title.value, username: '' };
+});
+const titleName = computed(() => titleParts.value.name);
+const titleUsername = computed(() => titleParts.value.username);
+
+async function openTitleChannel() {
+    const username = titleUsername.value.replace(/^@/, '');
+    if (!username) return;
+    try {
+        const chat = await tdlibSend({ _: 'searchPublicChat', username });
+        if (chat?.id) {
+            close();
+            router.push({ name: 'chat-detail', params: { id: String(chat.id) } });
+        }
+    } catch (e) {
+        console.warn('open channel from sticker set title failed:', e);
+    }
+}
+const installLabel = computed(() => t(set.value?.is_installed ? 'lng_stickers_remove_pack_button' : 'lng_stickers_add_pack'));
+
+/** 顶部更多菜单：分享表情包 / 复制链接 */
+const menuItems = computed(() => [
+    { key: 'share', label: t('lng_stickers_share_pack') },
+    { key: 'copy', label: t('lng_auction_menu_copy_link') },
+]);
+
+/** 贴纸包 t.me 链接：普通/遮罩贴纸用 addstickers，自定义表情用 addemoji */
+function packLink(s: stickerSet): string {
+    return `https://t.me/${isEmojiSet.value ? 'addemoji' : 'addstickers'}/${s.name}`;
+}
+
+async function onMenuSelect(key: string) {
+    menuOpen.value = false;
+    const s = set.value;
+    if (!s) return;
+    const url = packLink(s);
+    if (key === 'share') {
+        if (navigator.share) {
+            try {
+                await navigator.share({ title: s.title, url });
+                return;
+            } catch {
+                /* 用户取消或不支持，回退复制 */
+            }
+        }
+        await copyText(url);
+    } else if (key === 'copy') {
+        await copyText(url);
+    }
+}
+
+async function copyText(text: string) {
+    try {
+        await navigator.clipboard.writeText(text);
+        toast.success(t('lng_create_channel_link_copied'));
+    } catch (e) {
+        console.error('copy pack link failed:', e);
+    }
+}
+
+async function load(id: string) {
+    const seq = ++reqSeq;
+    if (set.value?.id !== id) set.value = null;
+    loading.value = true;
+    try {
+        const res = await tdlibSend({ _: 'getStickerSet', set_id: id });
+        if (seq !== reqSeq) return;
+        set.value = res._ === 'stickerSet' ? res : null;
+    } catch (e) {
+        if (seq !== reqSeq) return;
+        console.error('getStickerSet failed:', e);
+        set.value = null;
+    } finally {
+        if (seq === reqSeq) loading.value = false;
+    }
+}
+
+async function toggleInstalled() {
+    const s = set.value;
+    if (!s || busy.value) return;
+    busy.value = true;
+    try {
+        await tdlibSend({ _: 'changeStickerSet', set_id: s.id, is_installed: !s.is_installed, is_archived: false });
+        await load(s.id);
+    } catch (e) {
+        console.error('changeStickerSet failed:', e);
+    } finally {
+        busy.value = false;
+    }
+}
+
+function toContent(s: sticker): messageSticker {
+    return { _: 'messageSticker', sticker: s, is_premium: false };
+}
+
+function close() {
+    menuOpen.value = false;
+    closeStickerSetDialog();
+}
+
+watch([open, setId], ([isOpen, id]) => {
+    menuOpen.value = false;
+    if (isOpen && id) {
+        void load(id);
+    } else {
+        reqSeq++;
+    }
+}, { immediate: true });
+</script>

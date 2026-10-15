@@ -691,6 +691,9 @@
             :initial-time="viewerInitialTime" @close="onViewerClose" @jump-to-message="handleViewerJump"
             @forward-message="handleViewerForward" />
 
+        <!-- ===== 贴纸 / 自定义表情所属贴纸包信息弹窗 ===== -->
+        <StickerSetDialog />
+
         <!-- ===== 删除消息确认弹窗 ===== -->
         <DeleteMessageConfirm />
         <!-- ===== 翻译消息弹窗 ===== -->
@@ -729,6 +732,7 @@ import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
 import PaidReactionIcon from '../../common/PaidReactionIcon.vue';
 import ReactionEmojiAnim from '../../common/ReactionEmojiAnim.vue';
 import MediaViewer from './MessageContent/MediaViewer.vue';
+import StickerSetDialog from './StickerSetDialog.vue';
 import DeleteMessageConfirm from '../../contextMenu/DeleteMessageConfirm.vue';
 import TranslateMessageModal from '../../contextMenu/TranslateMessageModal.vue';
 import PinMessageConfirm from '../../contextMenu/PinMessageConfirm.vue';

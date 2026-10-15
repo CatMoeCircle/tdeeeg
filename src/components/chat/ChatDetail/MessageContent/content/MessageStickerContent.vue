@@ -22,6 +22,7 @@ import type { messageAnimatedEmoji, messageSticker } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
 import { useDownloadStore, remoteIdOf } from '../../../../../store/downloads';
 import { settings } from '../../../../../store/settings';
+import { openStickerSetDialog } from '../../../../../store/stickerSetDialog';
 import { useLottiePause } from '../../../../../composables/useLottiePause';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
@@ -172,14 +173,28 @@ watch([format, mediaSrc, () => props.content], () => {
     registerVideo(format.value === 'webm' && mediaSrc.value ? videoRef.value : null);
 }, { flush: 'post' });
 
-/** 点击大号动画表情时从头重播（普通贴纸不受影响） */
+/**
+ * 点击行为（对齐 Unigram StickerContent.Button_Click）：
+ * - 普通贴纸：打开所属贴纸包信息弹窗
+ * - 自定义表情（非普通 emoji）：从头重播并打开所属贴纸包信息弹窗
+ * - 普通 emoji：仅从头重播
+ */
 function onContentClick() {
+    const s = sticker.value;
+    if (props.content._ === 'messageSticker') {
+        openStickerSetDialog(s?.set_id);
+        return;
+    }
     if (!isAnimatedEmoji.value) return;
     const anim = getAnim();
-    if (!anim) return;
     // 若因窗口失焦/离开视口被暂停，重播不受影响
-    anim.stop?.();
-    anim.play();
+    if (anim) {
+        anim.stop?.();
+        anim.play();
+    }
+    if (props.content._ === 'messageAnimatedEmoji' && !props.content.animated_emoji.is_regular_emoji) {
+        openStickerSetDialog(s?.set_id);
+    }
 }
 
 // 挂载后初始化暂停控制器（视口观察 + 窗口聚焦 + 平滑滚动监听）

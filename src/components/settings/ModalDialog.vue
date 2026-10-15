@@ -8,12 +8,15 @@
                     class="relative w-full max-w-lg max-h-[85vh] flex flex-col rounded-2xl bg-white dark:bg-[#1f2937] shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                     <div
                         class="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
-                        <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ title }}</h3>
-                        <button type="button" :aria-label="t('lng_close')"
-                            class="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                            @click="$emit('update:modelValue', false)">
-                            <XIcon class="w-4.5 h-4.5" />
-                        </button>
+                        <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100"><slot name="title">{{ title }}</slot></h3>
+                        <div class="flex items-center gap-1">
+                            <slot name="header-actions" />
+                            <button type="button" :aria-label="t('lng_close')"
+                                class="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                @click="$emit('update:modelValue', false)">
+                                <XIcon class="w-4.5 h-4.5" />
+                            </button>
+                        </div>
                     </div>
                     <div class="flex-1 overflow-y-auto custom-scrollbar p-5">
                         <slot />
