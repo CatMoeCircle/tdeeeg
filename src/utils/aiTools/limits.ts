@@ -22,6 +22,7 @@ export interface LimitSpec {
 /** 与 docs/ai-tools-internal.md 的限额表一一对应 */
 export const TOOL_LIMITS = {
   get_recent_messages: { def: 50, cap: 200 },
+  get_visible_messages: { def: 30, cap: 100 },
   get_reply_chain: { def: 50, cap: 200 },
   search_messages: { def: 30, cap: 100 },
   get_members: { def: 100, cap: 500 },

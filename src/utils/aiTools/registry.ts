@@ -43,6 +43,21 @@ export const TOOLS: readonly ToolMeta[] = [
     params: [chat(), p("thread_id", "number", false, "话题 / 线程 id；不传 = 整个聊天"), p("before_message_id", "number", false, "从这个消息 id 往前翻（分页用）"), lim()],
   },
   {
+    name: "get_visible_messages", kind: "read", returnsList: true,
+    desc: "获取用户当前屏幕上可见的消息 id（正在看的那个聊天、那个滚动位置；按时间升序，相册只给首条 id）。用户说「这条 / 屏幕上这个 / 我正在看的」时用它定位；只给 id，内容再用 get_message 取",
+    params: [lim()],
+  },
+  {
+    name: "get_link_previews", kind: "read",
+    desc: "读取若干条消息里已抓好的链接预览（TDLib 的 link_preview）：标题、简介、站点名、作者、原始 / 展示 URL，以及预览媒体的类型与动画信息（GIF / 视频的时长与宽高、贴纸格式、视频消息…）。正文里只有 URL、看不到预览内容时用它；没有预览的消息 id 列在 no_preview 里",
+    params: [chat(), p("message_ids", "number[]", true, "要读的消息 id，最多 10 条", 10)],
+  },
+  {
+    name: "get_chat_by_username", kind: "read",
+    desc: "用 @用户名 查出它对应的对话（用户 / 群 / 频道）并返回详细信息：对话 id、标题、类型、是否频道、动态头像、简介、成员 / 管理员数、邀请链接、关联群、历史可见性；私聊额外给该用户的用户名、简介、是否机器人 / premium。用户名可以带或不带 @",
+    params: [p("username", "string", true, "公开用户名，如 telegram 或 @telegram")],
+  },
+  {
     name: "get_message", kind: "read",
     desc: "读取单条消息",
     params: [chat(), p("message_id", "number", true, "消息 id")],

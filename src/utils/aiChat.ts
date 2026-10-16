@@ -20,6 +20,7 @@ import { trimHistory, type AiActivityItem, type ChatToolCall, type ChatWireMessa
 // 工具实现在被导入时登记自己；AI 入口必须导入它们，否则工具全是 not_implemented
 import "./aiTools/local.ts";
 import "./aiTools/read.ts";
+import "./aiTools/viewport.ts";
 import "./aiTools/write.ts";
 
 export type { AiActivityItem, ChatToolCall, ChatWireMessage } from "./aiChatHistory.ts";

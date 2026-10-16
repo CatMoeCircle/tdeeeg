@@ -8,7 +8,7 @@
  *   要准确人名让模型调 get_user_info / get_member_rights（一次请求）
  * - 本文件只在应用内加载（依赖 vue / i18n），自检脚本不导入它
  */
-import type { chatMember, message } from "tdlib-types";
+import type { chat, chatMember, message } from "tdlib-types";
 import { tdlibSend } from "../tdlib";
 import { getMessagePlainText } from "../messageText";
 import { ensureChat, ensureUser, getReactiveChat, getReactiveUser, getSenderName } from "../senderInfo";
@@ -16,7 +16,8 @@ import { loadChatAdministrators, loadGroupFullInfo, loadGroupMembers, memberUser
 import { extractTopicNumber } from "../directMessagesTopics";
 import { registerImplementation } from "./call.ts";
 import { clampLimit, collectPaged, listResult, singleResult } from "./limits.ts";
-import type { ToolResult } from "./types.ts";
+import { linkPreviewInfo, type LinkPreviewInfo } from "./linkPreview.ts";
+import type { ToolOutcome, ToolResult } from "./types.ts";
 
 // --- 小工具 ---
 
@@ -366,6 +367,105 @@ registerImplementation("get_members", async (args): Promise<ToolResult<unknown[]
     });
   }
   return listResult("get_members", raw, []);
+});
+
+// --- 链接预览 ---
+
+registerImplementation("get_link_previews", async (args): Promise<ToolResult<unknown>> => {
+  const chatId = num(args.chat_id, "chat_id");
+  const ids = (Array.isArray(args.message_ids) ? args.message_ids : []).map((v) => num(v, "message_ids"));
+  const previews: LinkPreviewInfo[] = [];
+  const noPreview: number[] = [];
+
+  for (const id of ids) {
+    const msg: message = await tdlibSend({ _: "getMessage", chat_id: chatId, message_id: id });
+    const content = msg.content;
+    // 链接预览只挂在文本消息上（TDLib 的 messageText.link_preview）；媒体 caption 里的链接 TDLib 不挂预览
+    if (content?._ === "messageText" && content.link_preview) {
+      previews.push(linkPreviewInfo(msg.id, content.link_preview));
+    } else {
+      noPreview.push(msg.id);
+    }
+  }
+
+  return singleResult("get_link_previews", {
+    chat_id: chatId,
+    previews,
+    ...(noPreview.length ? { no_preview: noPreview } : {}),
+  });
+});
+
+// --- 用户名 → 对话 ---
+
+/** @username → 对话：用户 / 群 / 频道都可能，按类型补各自的全量信息（群类复用 groupRights 的 loadGroupFullInfo） */
+registerImplementation("get_chat_by_username", async (args): Promise<ToolOutcome> => {
+  const username = String(args.username ?? "").trim().replace(/^@+/, "");
+  if (!username) throw new Error("参数 username 不能为空");
+
+  let found: chat;
+  try {
+    found = await tdlibSend({ _: "searchPublicChat", username });
+  } catch (e) {
+    const why = (e as { message?: string })?.message ?? String(e);
+    return {
+      tool: "get_chat_by_username",
+      error: { code: "invalid_args", message: `@${username} 没有对应的公开对话：${why}` },
+    };
+  }
+
+  const base = {
+    username,
+    chat_id: found.id,
+    title: found.title,
+    /** chatTypePrivate / chatTypeBasicGroup / chatTypeSupergroup / chatTypeSecret */
+    type: found.type._,
+    supergroup_id: found.type._ === "chatTypeSupergroup" ? found.type.supergroup_id : undefined,
+    is_channel: found.type._ === "chatTypeSupergroup" ? found.type.is_channel : undefined,
+    /** 头像有动画变体（动态头像） */
+    animated_photo: !!found.photo?.has_animation,
+    has_protected_content: found.has_protected_content,
+  };
+
+  if (found.type._ === "chatTypeSupergroup" || found.type._ === "chatTypeBasicGroup") {
+    const full = await loadGroupFullInfo(found);
+    return singleResult("get_chat_by_username", {
+      ...base,
+      description: full.description,
+      member_count: full.memberCount,
+      administrator_count: full.administratorCount,
+      banned_count: full.bannedCount,
+      is_all_history_available: full.isAllHistoryAvailable,
+      linked_chat_id: full.linkedChatId || undefined,
+      invite_link: full.inviteLink || undefined,
+    });
+  }
+
+  if (found.type._ === "chatTypePrivate" || found.type._ === "chatTypeSecret") {
+    const userId = found.type.user_id;
+    await ensureUser(userId);
+    const u = getReactiveUser(userId);
+    // 简介要 getUserFullInfo 才有；拿不到（privacy / 报错）就不给，不影响其余字段
+    const full = await tdlibSend({ _: "getUserFullInfo", user_id: userId }).catch(() => undefined);
+    return singleResult("get_chat_by_username", {
+      ...base,
+      user: u
+        ? {
+            user_id: u.id,
+            name: `${u.first_name} ${u.last_name}`.trim(),
+            username: u.usernames?.active_usernames?.[0] ?? "",
+            /** userTypeRegular / userTypeBot / userTypeDeleted / userTypeUnknown */
+            type: u.type._,
+            is_contact: u.is_contact,
+            is_premium: u.is_premium,
+            /** 动态头像 */
+            animated_avatar: !!u.profile_photo?.has_animation,
+            bio: full?.bio?.text ?? "",
+          }
+        : undefined,
+    });
+  }
+
+  return singleResult("get_chat_by_username", base);
 });
 
 registerImplementation("get_member_rights", async (args): Promise<ToolResult<unknown>> => {
