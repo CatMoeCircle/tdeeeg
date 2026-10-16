@@ -1,6 +1,7 @@
 <template>
   <span ref="rootEl" class="inline-flex items-center align-middle mx-0.5 overflow-hidden"
-    :style="{ width: size + 'px', height: size + 'px' }">
+    :class="props.clickable ? 'cursor-pointer' : ''"
+    :style="{ width: size + 'px', height: size + 'px' }" @click="onClick">
     <!-- 已下载完成：根据格式渲染 -->
     <template v-if="state.ready && state.filePath && state.sticker">
       <!-- WEBP static -->
@@ -30,6 +31,7 @@ import { computed, ref, shallowRef, watch, onMounted, onUnmounted } from 'vue';
 import { useCustomEmoji, requestCustomEmoji } from '../../store/customEmoji';
 import { useLottiePause } from '../../composables/useLottiePause';
 import { useViewportLoad } from '../../composables/useViewportLoad';
+import { openStickerSetDialog } from '../../store/stickerSetDialog';
 import TgsPlayer, { type TgsPlayerInstance } from './TgsPlayer.vue';
 
 const props = defineProps<{
@@ -39,9 +41,18 @@ const props = defineProps<{
   fallbackText?: string;
   /** 是否循环播放动态 Emoji，默认循环 */
   loop?: boolean;
+  /** 点击打开所属贴纸包信息弹窗（与贴纸详情页复用），仅消息正文等场景开启 */
+  clickable?: boolean;
 }>();
 
 const size = computed(() => props.size || 22);
+
+/** 点击：打开该自定义 emoji 所属的表情包弹窗；未拿到 set_id 时忽略 */
+function onClick(e: MouseEvent) {
+  if (!props.clickable) return;
+  e.stopPropagation();
+  openStickerSetDialog(state.value.sticker?.set_id);
+}
 const rootEl = ref<HTMLElement | null>(null);
 // 创建状态但不立即拉取下载；进入视口后由 requestCustomEmoji 触发（视口懒加载）。
 // 必须随 props.emojiId 重绑：组件被 v-for(index key) 复用时 emojiId 会变，

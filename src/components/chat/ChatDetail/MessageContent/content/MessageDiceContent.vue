@@ -1,5 +1,6 @@
 <template>
-    <div class="relative flex items-center justify-center gap-3" :style="boxStyle">
+    <div ref="rootEl" class="relative flex items-center justify-center gap-3 cursor-pointer" :style="boxStyle"
+        @click.stop="showHint">
         <template v-if="hasAnimation">
             <!-- 老虎机：底图（静态第 1 帧）→ 合并后的三卷轴 → 拉杆，自下而上叠放 -->
             <template v-if="isSlot">
@@ -24,6 +25,19 @@
             <span class="text-4xl">{{ content.value }}</span>
         </template>
     </div>
+    <!-- 点击提示：挂到 body，固定在窗口正中央，文字与"发送"同一行，一段时间后自动消失 -->
+    <Teleport to="body">
+        <div v-if="hintOpen"
+            class="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[1000] pointer-events-auto">
+            <div class="flex items-center gap-2 whitespace-nowrap rounded-xl bg-gray-900 text-white shadow-lg px-3 py-2">
+                <span class="text-sm">{{ t('lng_about_random', { emoji: content.emoji }) }}</span>
+                <button type="button" class="text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors"
+                    @click="sendDice">
+                    {{ t('lng_about_random_send') }}
+                </button>
+            </div>
+        </div>
+    </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -32,9 +46,10 @@
  *   initial，就绪后换源播放结果，观感一致（骰子贴纸通常早已在本地）。
  *   结果动画只演一次：演过的骰子重挂载时直接停在末帧。
  */
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { messageDice, sticker } from 'tdlib-types';
-import { ensureLocalFilePath } from '../../../../../utils/tdlib';
+import { ensureLocalFilePath, tdlibSend } from '../../../../../utils/tdlib';
 import { useDownloadStore, remoteIdOf } from '../../../../../store/downloads';
 import { settings } from '../../../../../store/settings';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
@@ -61,6 +76,47 @@ interface LottieDoc {
     assets?: LottieNode[];
     layers?: LottieNode[];
     [key: string]: unknown;
+}
+
+const { t } = useI18n();
+const rootEl = ref<HTMLElement | null>(null);
+/** 点击骰子后显示的提示气泡 */
+const hintOpen = ref(false);
+/** 提示自动消失的时长（毫秒） */
+const HINT_DURATION = 2500;
+let hintTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** 显示提示：固定居中，一段时间后自动消失；重复点击会重新计时 */
+function showHint() {
+    hintOpen.value = true;
+    if (hintTimer) clearTimeout(hintTimer);
+    hintTimer = setTimeout(() => {
+        hintOpen.value = false;
+        hintTimer = null;
+    }, HINT_DURATION);
+}
+
+function hideHint() {
+    if (hintTimer) clearTimeout(hintTimer);
+    hintTimer = null;
+    hintOpen.value = false;
+}
+
+onBeforeUnmount(hideHint);
+
+/** 发送同款骰子：inputMessageDice(emoji)，与 ChatDetail 的发送流程一致走 tdlibSend */
+async function sendDice() {
+    hideHint();
+    if (props.chatId == null) return;
+    try {
+        await tdlibSend({
+            _: 'sendMessage',
+            chat_id: props.chatId,
+            input_message_content: { _: 'inputMessageDice', emoji: props.content.emoji, clear_draft: false },
+        });
+    } catch (e) {
+        console.error('Failed to send dice:', e);
+    }
 }
 
 const playerRef = ref<TgsPlayerInstance | null>(null);

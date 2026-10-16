@@ -176,8 +176,7 @@ watch([format, mediaSrc, () => props.content], () => {
 /**
  * 点击行为：
  * - 普通贴纸：打开所属贴纸包信息弹窗
- * - 自定义表情（非普通 emoji）：从头重播并打开所属贴纸包信息弹窗
- * - 普通 emoji：仅从头重播
+ * - 大号 emoji（messageAnimatedEmoji，含标准 emoji）：从头重播并打开所属表情包弹窗
  */
 function onContentClick() {
     const s = sticker.value;
@@ -192,9 +191,7 @@ function onContentClick() {
         anim.stop?.();
         anim.play();
     }
-    if (props.content._ === 'messageAnimatedEmoji' && !props.content.animated_emoji.is_regular_emoji) {
-        openStickerSetDialog(s?.set_id);
-    }
+    openStickerSetDialog(s?.set_id);
 }
 
 // 挂载后初始化暂停控制器（视口观察 + 窗口聚焦 + 平滑滚动监听）

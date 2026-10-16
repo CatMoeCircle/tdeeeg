@@ -22,7 +22,7 @@
                     :class="{ 'mask-fade-bottom': !isExpanded(gi) }"
                     :style="{ maxHeight: isExpanded(gi) ? (contentHeights[gi] ?? 9999) + 'px' : '5rem' }">
                     <template v-for="(segment, si) in group.segments" :key="si">
-                        <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId"
+                        <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId" clickable
                             :size="emojiSize" :fallback-text="segment.text" />
                         <a v-else-if="segment.href" :href="segment.href"
                             class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
@@ -41,7 +41,7 @@
                 <!-- 普通引用：全部显示 -->
                 <template v-else>
                     <template v-for="(segment, si) in group.segments" :key="si">
-                        <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId"
+                        <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId" clickable
                             :size="emojiSize" :fallback-text="segment.text" />
                         <a v-else-if="segment.href" :href="segment.href"
                             class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
@@ -92,7 +92,7 @@
                 <!-- 代码区：仅内容横向滚动，头部保持固定；代码文本不可点击（复制由头部按钮统一处理） -->
                 <span class="block overflow-x-auto p-2.5 text-[13px] leading-5 whitespace-pre-wrap">
                     <template v-for="(segment, si) in group.segments" :key="si">
-                        <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId"
+                        <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId" clickable
                             :size="emojiSize" :fallback-text="segment.text" />
                         <a v-else-if="segment.href" :href="segment.href"
                             class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
@@ -105,7 +105,7 @@
             <!-- Normal group -->
             <template v-else>
                 <template v-for="(segment, si) in group.segments" :key="si">
-                    <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId" :size="emojiSize"
+                    <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId" clickable :size="emojiSize"
                         :fallback-text="segment.text" />
                     <a v-else-if="segment.href" :href="segment.href"
                         class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
@@ -152,7 +152,7 @@
                     :class="{ 'mask-fade-bottom': !isExpanded(gi) }"
                     :style="{ maxHeight: isExpanded(gi) ? (contentHeights[gi] ?? 9999) + 'px' : '5rem' }">
                     <template v-for="(segment, si) in group.segments" :key="si">
-                        <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId"
+                        <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId" clickable
                             :size="emojiSize" :fallback-text="segment.text" />
                         <a v-else-if="segment.href" :href="segment.href"
                             class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
@@ -171,7 +171,7 @@
                 <!-- 普通引用：全部显示 -->
                 <template v-else>
                     <template v-for="(segment, si) in group.segments" :key="si">
-                        <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId"
+                        <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId" clickable
                             :size="emojiSize" :fallback-text="segment.text" />
                         <a v-else-if="segment.href" :href="segment.href"
                             class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
@@ -222,7 +222,7 @@
                 <!-- 代码区：仅内容横向滚动，头部保持固定；代码文本不可点击（复制由头部按钮统一处理） -->
                 <span class="block overflow-x-auto p-2.5 text-[13px] leading-5 whitespace-pre-wrap">
                     <template v-for="(segment, si) in group.segments" :key="si">
-                        <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId"
+                        <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId" clickable
                             :size="emojiSize" :fallback-text="segment.text" />
                         <a v-else-if="segment.href" :href="segment.href"
                             class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
@@ -235,7 +235,7 @@
             <!-- Normal group -->
             <template v-else>
                 <template v-for="(segment, si) in group.segments" :key="si">
-                    <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId" :size="emojiSize"
+                    <CustomEmojiInline v-if="segment.customEmojiId" :emojiId="segment.customEmojiId" clickable :size="emojiSize"
                         :fallback-text="segment.text" />
                     <a v-else-if="segment.href" :href="segment.href"
                         class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
