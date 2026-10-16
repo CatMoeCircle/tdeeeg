@@ -277,12 +277,12 @@
                      图像都严格跟随光标 1:1 位移（旋转后也不会变成相对方向移动） -->
                 <img v-if="!isAnimation && currentMediaSrc" :src="currentMediaSrc" ref="imageRef"
                     class="max-w-full max-h-full select-none"
-                    :class="isDragging ? '' : 'transition-transform duration-200 ease-out'"
+                    :class="isDragging || rotationSnap ? '' : 'transition-transform duration-200 ease-out'"
                     :style="{ transform: `translate(${panX}px, ${panY}px) scale(${zoom}) rotate(${rotation}deg)` }"
                     draggable="false" @dblclick="toggleZoom" />
                 <video v-else-if="isAnimation && currentMediaSrc" :src="currentMediaSrc" autoplay loop muted playsinline
                     class="max-w-full max-h-full select-none"
-                    :class="isDragging ? '' : 'transition-transform duration-200 ease-out'"
+                    :class="isDragging || rotationSnap ? '' : 'transition-transform duration-200 ease-out'"
                     :style="{ transform: `translate(${panX}px, ${panY}px) scale(${zoom}) rotate(${rotation}deg)` }"
                     @dblclick="toggleZoom" />
 
@@ -407,7 +407,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { isMediaViewerActive } from '../../../../store/mediaViewer';
 import { pauseAudioForVideo, onVideoStopped } from '../../../../store/videoPlayback';
 import { useDownloadStore, remoteIdOf } from '../../../../store/downloads';
@@ -493,6 +493,8 @@ const zoom = ref(1);
 const panX = ref(0);
 const panY = ref(0);
 const rotation = ref(0);
+/** 切换条目时瞬时复位旋转（不做过渡），避免新图从旧角度反向转回正 */
+const rotationSnap = ref(false);
 
 // Drag state
 const isDragging = ref(false);
@@ -1228,7 +1230,7 @@ watch(currentIndex, () => {
     if (newId != null && newId === lastResetMsgId) return;
     lastResetMsgId = newId;
     resetZoom();
-    rotation.value = 0;
+    snapRotationReset();
     isVideoPlaying.value = false;
     videoMuted.value = false;
     videoHasFrame.value = false;
@@ -1432,12 +1434,8 @@ function zoomIn() {
     zoom.value = Math.min(5, zoom.value * 1.5);
 }
 function zoomOut() {
-    const newZoom = zoom.value / 1.5;
-    if (newZoom < 0.25) {
-        resetZoom();
-        return;
-    }
-    zoom.value = newZoom;
+    // 与滚轮缩放保持一致：最小 0.25，到底后停留在最小值，不再回弹到 1
+    zoom.value = Math.max(0.25, zoom.value / 1.5);
 }
 function resetZoom() {
     zoom.value = 1;
@@ -1453,6 +1451,20 @@ function rotate90() {
     // 表现为第 4 次点击逆时针转回起点。累加则每次都顺时针 +90°，
     // 外观与 mod 360 等价（360 即回到起点）。
     rotation.value += 90;
+}
+/**
+ * 切换图片时把旋转瞬时归零（无过渡）。
+ * 先关闭 transition 并提交 transform=0，强制一次样式计算后再恢复过渡类，
+ * 否则浏览器会把 旋转值 → 0 当作一次过渡动画执行（即"反向转回正"）。
+ */
+function snapRotationReset() {
+    if (rotation.value === 0) return;
+    rotationSnap.value = true;
+    rotation.value = 0;
+    nextTick(() => {
+        void document.documentElement.offsetHeight;
+        rotationSnap.value = false;
+    });
 }
 
 /** 格式化日期：2026/01/03 12:45 */
