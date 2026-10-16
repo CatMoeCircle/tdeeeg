@@ -69,8 +69,8 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-// ponytail: 手掌 TGS 暂用现有动画占位，后续替换为正式素材
-const TGS_URL = new URL('../../assets/animations/TwoFactorSetupIntro.tgs', import.meta.url).href;
+/** 禁用分享提示动画 DisableSharing.tgs */
+const TGS_URL = new URL('../../assets/animations/DisableSharing.tgs', import.meta.url).href;
 
 const tgsData = ref<Uint8Array | null>(null);
 const saving = ref(false);

@@ -20,20 +20,23 @@
 import { computed, ref, watch, onMounted } from 'vue';
 import type { messageAnimatedEmoji, messageSticker } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
-import { useDownloadStore, remoteIdOf } from '../../../../../store/downloads';
+import { useDownloadStore, remoteIdOf, hasTdlibUpdate } from '../../../../../store/downloads';
 import { settings } from '../../../../../store/settings';
 import { openStickerSetDialog } from '../../../../../store/stickerSetDialog';
 import { useLottiePause } from '../../../../../composables/useLottiePause';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
+import type { ViewportLoadScope } from '../../../../../utils/viewportLoadGate';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import TgsPlayer, { type TgsPlayerInstance } from '../../../../common/TgsPlayer.vue';
 import { telegramFitzToFitzModifier } from '../../../../../utils/tlottieFitz';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
     content: messageSticker | messageAnimatedEmoji;
     size?: number;
-}>();
+    /** 视口加载所用的队列池（详情弹窗传 stickerDetail，便于限流并在关闭时清队） */
+    loadScope?: ViewportLoadScope;
+}>(), { loadScope: 'chat' });
 
 const rootEl = ref<HTMLElement | null>(null);
 const playerRef = ref<TgsPlayerInstance | null>(null);
@@ -199,9 +202,33 @@ onMounted(() => {
     setupPause();
 });
 
+/**
+ * 丢弃排队加载时清理下载列表：
+ * 只处理「已登记但尚未真正开下」的条目——从列表移除（only_if_pending 取消）。
+ * 已开始下载的（收到过 update / 有进度 / 在 TDLib 下载列表）不取消、不干预。
+ */
+async function dropQueuedDownloadRow() {
+    const f = getFile();
+    if (!f) return;
+    // 该文件本次会话正在下载（别处已发起）：不干预
+    if (downloadingFiles.has(f.id)) return;
+    const store = useDownloadStore();
+    const info = store.getDownloadInfoForFile(f);
+    if (!info || info.is_completed) return;
+    if (hasTdlibUpdate(info) || info.in_tdlib_list) return;
+    await store.cancelDownload(info.remote_id || info.session_file_id || info.file_id);
+}
+
 // 视口门控：进入视口才下载真实贴纸文件；未进入显示 emoji 占位。
-const { start: startViewportLoad, entered: stickerEntered } = useViewportLoad(rootEl, () => {
+// 详情弹窗（stickerDetail）下额外：离开视口即丢弃尚未开始下载的排队任务，
+// 并清掉它的下载列表条目；聊天页保持原语义（排过队就下完）。
+const { start: startViewportLoad, entered: stickerEntered, requeue: requeueLoad } = useViewportLoad(rootEl, () => {
     return loadMedia();
+}, {
+    scope: props.loadScope,
+    onDrop: props.loadScope === 'stickerDetail'
+        ? () => { void dropQueuedDownloadRow(); }
+        : undefined,
 });
 
 /** 贴纸身份：TDLib 会以新对象引用反复推送同一消息（回执/编辑/更新），身份未变时不能重置播放器 */
@@ -216,8 +243,9 @@ watch(() => props.content, (content) => {
     if (key === contentKey) {
         // 同一贴纸只是消息对象换了引用：不作废在途加载、不销毁重建播放器，
         // 防止同样的贴纸被反复重新渲染（每次重建 = Worker 重新解析 + 重画）。
-        // 仅在还没加载出画面时补一次（如文件刚就绪但没触发过加载）。
-        if (stickerEntered.value && !tgsSrc.value && !mediaSrc.value) loadMedia();
+        // 仅在还没加载出画面时补一次（如文件刚就绪但没触发过加载），
+        // 且补加载重新排队而不直连，保证详情页 1 并发串行。
+        if (stickerEntered.value && !tgsSrc.value && !mediaSrc.value) requeueLoad();
         return;
     }
     contentKey = key;
@@ -227,7 +255,8 @@ watch(() => props.content, (content) => {
     mediaSrc.value = undefined;
     tgsSrc.value = null;
     registerAnim(null);
-    // 已进入视口（此前无内容/已触发过）时新内容到达需补下载
+    // 已进入视口（此前无内容/已触发过）时新内容到达需补下载。
+    // 这里用直连（内容被替换属罕见路径，且旧任务已被 loadSeq 作废）。
     if (stickerEntered.value) loadMedia();
 }, { immediate: true });
 onMounted(() => {

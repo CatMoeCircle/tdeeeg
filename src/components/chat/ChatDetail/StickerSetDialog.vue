@@ -32,7 +32,7 @@
             <div v-else class="grid justify-items-center gap-2"
                 :style="{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }">
                 <MessageStickerContent v-for="s in set.stickers" :key="s.id" :content="toContent(s)"
-                    :size="tileSize" />
+                    :size="tileSize" load-scope="stickerDetail" />
             </div>
         </div>
 
@@ -60,6 +60,7 @@ import MessageStickerContent from './MessageContent/content/MessageStickerConten
 import { tdlibSend } from '../../../utils/tdlib';
 import { toast } from '../../../utils/toast';
 import { stickerSetDialogState, closeStickerSetDialog } from '../../../store/stickerSetDialog';
+import { clearViewportLoadQueue } from '../../../utils/viewportLoadGate';
 import type { messageSticker, sticker, stickerSet } from 'tdlib-types';
 
 const { t } = useI18n();
@@ -111,16 +112,38 @@ const menuItems = computed(() => [
     { key: 'copy', label: t('lng_auction_menu_copy_link') },
 ]);
 
-/** 贴纸包 t.me 链接：普通/遮罩贴纸用 addstickers，自定义表情用 addemoji */
-function packLink(s: stickerSet): string {
-    return `https://t.me/${isEmojiSet.value ? 'addemoji' : 'addstickers'}/${s.name}`;
+/**
+ * 贴纸包分享链接由 TDLib 生成（getInternalLink + internalLinkTypeStickerSet）：
+ * 普通/遮罩贴纸 → https://t.me/addstickers/<name>，自定义表情 → https://t.me/addemoji/<name>。
+ * 不再本地拼接：名称非法时 TDLib 会返回错误，避免产出 .../addstickers/ 这类空名链接。
+ */
+async function resolvePackLink(s: stickerSet): Promise<string | null> {
+    try {
+        const link = await tdlibSend({
+            _: 'getInternalLink',
+            type: {
+                _: 'internalLinkTypeStickerSet',
+                sticker_set_name: s.name,
+                expect_custom_emoji: s.sticker_type._ === 'stickerTypeCustomEmoji',
+            },
+            is_http: true,
+        });
+        return link?._ === 'httpUrl' && link.url ? link.url : null;
+    } catch (e) {
+        console.error('getInternalLink for sticker set failed:', e);
+        return null;
+    }
 }
 
 async function onMenuSelect(key: string) {
     menuOpen.value = false;
     const s = set.value;
     if (!s) return;
-    const url = packLink(s);
+    const url = await resolvePackLink(s);
+    if (!url) {
+        toast.warning(t('context.linkFailed'));
+        return;
+    }
     if (key === 'share') {
         if (navigator.share) {
             try {
@@ -147,7 +170,11 @@ async function copyText(text: string) {
 
 async function load(id: string) {
     const seq = ++reqSeq;
-    if (set.value?.id !== id) set.value = null;
+    if (set.value?.id !== id) {
+        // 切换到另一个套件：旧套件尚未开始的加载没有意义，直接丢弃
+        clearViewportLoadQueue('stickerDetail');
+        set.value = null;
+    }
     loading.value = true;
     try {
         const res = await tdlibSend({ _: 'getStickerSet', set_id: id });
@@ -185,12 +212,24 @@ function close() {
     closeStickerSetDialog();
 }
 
+/**
+ * 退出弹窗：清空详情池的排队加载，并释放当前套件内容。
+ * 弹窗为 v-show 常驻，必须卸载内部贴纸项：否则其视口门控已标记“已加载”，
+ * 被清掉的任务不会再次触发，重新打开时会一直是占位图。
+ */
+function resetDetail() {
+    clearViewportLoadQueue('stickerDetail');
+    reqSeq++;
+    set.value = null;
+    loading.value = false;
+}
+
 watch([open, setId], ([isOpen, id]) => {
     menuOpen.value = false;
     if (isOpen && id) {
         void load(id);
     } else {
-        reqSeq++;
+        resetDetail();
     }
 }, { immediate: true });
 </script>

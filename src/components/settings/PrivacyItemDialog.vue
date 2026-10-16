@@ -286,6 +286,7 @@ import {
 import type { PrivacyPreset, DecodedPrivacy, PrivacyExceptionIds } from '../../utils/profilePrivacy';
 import type { chat as TdChat, UserPrivacySetting$Input, userPrivacySettingRules } from 'tdlib-types';
 import { useUserStore } from '../../store/user';
+import { storeToRefs } from 'pinia';
 import { useUserProfileStore } from '../../store/userProfile';
 
 const props = defineProps<{
@@ -300,6 +301,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const userStore = useUserStore();
+const { userProfile } = storeToRefs(userStore);
 const profileStore = useUserProfileStore();
 
 const visible = computed({
@@ -403,13 +405,38 @@ const phoneFindExceptions = ref<ExceptionEntry[]>([]);
 const newChatInput = ref('');
 const newChatExceptions = ref<ExceptionEntry[]>([]);
 
-/** 当前用户手机号的 t.me 链接（隐私非 nobody 时展示） */
-const myPhoneLink = computed(() => {
-    const phone = userStore.userProfile?.phone_number;
-    if (!phone) return '';
-    const digits = phone.replace(/[^\d]/g, '');
-    return digits ? `https://t.me/+${digits}` : '';
-});
+/**
+ * 当前用户手机号的 t.me 链接（隐私非 nobody 时展示），由 TDLib 生成：
+ * getInternalLink + internalLinkTypeUserPhoneNumber。
+ * TDLib 只接受纯数字号码（带空格/连字符会返回 Invalid phone number specified），故先归一化。
+ */
+const myPhoneLink = ref('');
+
+async function resolveMyPhoneLink() {
+    const digits = userProfile.value?.phone_number?.replace(/[^\d]/g, '') ?? '';
+    if (!digits) {
+        myPhoneLink.value = '';
+        return;
+    }
+    try {
+        const link = await tdlibSend({
+            _: 'getInternalLink',
+            type: {
+                _: 'internalLinkTypeUserPhoneNumber',
+                phone_number: digits,
+                draft_text: '',
+                open_profile: false,
+            },
+            is_http: true,
+        });
+        myPhoneLink.value = link?._ === 'httpUrl' && link.url ? link.url : '';
+    } catch (e) {
+        console.error('getInternalLink for phone number failed:', e);
+        myPhoneLink.value = '';
+    }
+}
+
+watch(() => userProfile.value?.phone_number, () => { void resolveMyPhoneLink(); }, { immediate: true });
 
 const memberCountFormatter = new Intl.NumberFormat('zh-CN');
 
@@ -700,7 +727,7 @@ const giftTypeOptions = [
 async function loadAcceptedGiftTypes() {
     if (!props.isPremium) return;
     try {
-        const myId = userStore.userProfile?.id;
+        const myId = userProfile.value?.id;
         if (!myId) return;
         let info = profileStore.fullInfos.get(myId);
         if (!info?.gift_settings) info = await profileStore.fetchFullInfo(myId);
