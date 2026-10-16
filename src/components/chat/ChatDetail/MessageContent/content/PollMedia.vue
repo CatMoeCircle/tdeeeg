@@ -10,7 +10,7 @@
         <RichAudio v-if="audioMedia" :audio="audioMedia" plain :chat-id="chatId" :message-id="messageId" />
         <MessageFileContent v-if="documentContent" :content="documentContent" :chat-id="chatId"
             :message-id="messageId" />
-        <MessageStickerContent v-if="stickerContent" :content="stickerContent" :size="96" />
+        <MessageStickerContent v-if="stickerContent" :content="stickerContent" :size="96" clickable />
         <MessageLinkPreview v-if="linkPreview" :preview="linkPreview" :chat-id="chatId" @open="openLink" />
         <a v-if="linkUrl && !linkPreview" :href="linkUrl"
             class="break-all text-sm text-blue-500 hover:underline dark:text-blue-400"
@@ -26,7 +26,7 @@
         <div v-if="imageItem" class="h-12 w-12 overflow-hidden rounded-md">
             <RichImage :file="imageItem.file" :format="imageItem.format" square :chat-id="chatId" />
         </div>
-        <MessageStickerContent v-if="stickerContent" :content="stickerContent" :size="48" />
+        <MessageStickerContent v-if="stickerContent" :content="stickerContent" :size="48" clickable />
         <button v-if="linkUrl" type="button" :aria-label="linkUrl"
             class="flex h-12 w-12 items-center justify-center rounded-md bg-blue-500/10 text-blue-500 dark:text-blue-400"
             @click.stop="openLink(linkUrl)">

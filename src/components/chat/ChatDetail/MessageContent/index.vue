@@ -64,7 +64,7 @@
                 <div class="relative inline-block align-bottom">
                     <MessageDiceContent v-if="content._ === 'messageDice'" :content="content" :chat-id="chatId"
                         :message-id="messageId" />
-                    <MessageStickerContent v-else :content="stickerContent" />
+                    <MessageStickerContent v-else :content="stickerContent" clickable />
                     <span v-if="date && !settings.sticker.hideTimestamp"
                         class="absolute right-1.5 bottom-1.5 z-10 bg-black/60 text-white px-1.5 py-0.5 rounded-md leading-none select-none pointer-events-none flex items-center">
                         <MessageStatus :date="date" :isOutgoing="!!isSelf" :sendingState="sendingState" :isRead="isRead"

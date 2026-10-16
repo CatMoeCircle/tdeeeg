@@ -2,7 +2,8 @@
     <div ref="rootEl" class="w-57.5 max-w-full select-text">
         <!-- 1. 居中 图标 + 标题 + 奖品 + 获奖说明 -->
         <div class="flex flex-col items-center">
-            <MessageStickerContent v-if="stickerContent" :content="stickerContent" :size="112" class="shrink-0" />
+            <MessageStickerContent v-if="stickerContent" :content="stickerContent" :size="112" class="shrink-0"
+                clickable />
             <!-- 无纪念贴纸时，播放本地 party.tgs 抽奖动画（只播一次，点击可重播） -->
             <TgsPlayer v-else-if="partyTgsData" ref="partyPlayerRef" :data="partyTgsData" :loop="false" :autoplay="true"
                 :size="112" class="h-28 w-28 shrink-0 cursor-pointer" @click="onPartyClick" @load="onPartyLoad" />

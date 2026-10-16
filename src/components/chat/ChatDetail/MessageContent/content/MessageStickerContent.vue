@@ -36,7 +36,9 @@ const props = withDefaults(defineProps<{
     size?: number;
     /** 视口加载所用的队列池（详情弹窗传 stickerDetail，便于限流并在关闭时清队） */
     loadScope?: ViewportLoadScope;
-}>(), { loadScope: 'chat' });
+    /** 点击打开所属贴纸包信息弹窗：仅对话消息内容开启（资料页/礼物墙/贴纸包弹窗等场景不开启） */
+    clickable?: boolean;
+}>(), { loadScope: 'chat', clickable: false });
 
 const rootEl = ref<HTMLElement | null>(null);
 const playerRef = ref<TgsPlayerInstance | null>(null);
@@ -178,23 +180,18 @@ watch([format, mediaSrc, () => props.content], () => {
 
 /**
  * 点击行为：
- * - 普通贴纸：打开所属贴纸包信息弹窗
- * - 大号 emoji（messageAnimatedEmoji，含标准 emoji）：从头重播并打开所属表情包弹窗
+ * - 大号 emoji（messageAnimatedEmoji，含标准 emoji）：从头重播（与是否可打开弹窗无关）
+ * - clickable（仅对话消息内容）：再打开所属贴纸 / 表情包信息弹窗
  */
 function onContentClick() {
-    const s = sticker.value;
-    if (props.content._ === 'messageSticker') {
-        openStickerSetDialog(s?.set_id);
-        return;
-    }
-    if (!isAnimatedEmoji.value) return;
     const anim = getAnim();
     // 若因窗口失焦/离开视口被暂停，重播不受影响
-    if (anim) {
+    if (isAnimatedEmoji.value && anim) {
         anim.stop?.();
         anim.play();
     }
-    openStickerSetDialog(s?.set_id);
+    if (!props.clickable) return;
+    openStickerSetDialog(sticker.value?.set_id);
 }
 
 // 挂载后初始化暂停控制器（视口观察 + 窗口聚焦 + 平滑滚动监听）

@@ -3,7 +3,7 @@
         <!-- 1. 居中 图标 + 标题 + 奖品 + 获奖说明 -->
         <div class="flex flex-col items-center">
             <div class="relative shrink-0">
-                <MessageStickerContent v-if="stickerContent" :content="stickerContent" :size="112" />
+                <MessageStickerContent v-if="stickerContent" :content="stickerContent" :size="112" clickable />
                 <div v-else class="flex h-28 w-28 items-center justify-center rounded-full" :style="iconStyle">
                     <GiftIcon v-if="isPremium" class="h-14 w-14 text-white" />
                     <StarIcon v-else class="h-14 w-14 fill-current text-white" />
