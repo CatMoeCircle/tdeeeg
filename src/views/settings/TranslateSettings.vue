@@ -146,70 +146,28 @@
                                 </span>
                             </div>
 
-                            <!-- AI 配置（前端填写，后端保存；Key 存系统钥匙串） -->
+                            <!-- AI 翻译目标：供应商 + 模型（供应商在「AI 设置」中配置） -->
                             <div v-if="p.id === 'ai'"
                                 class="px-4 pb-4 space-y-3 border-t border-gray-100 dark:border-gray-700 pt-3">
                                 <div class="grid grid-cols-2 gap-3">
                                     <label class="block">
-                                        <span class="text-xs text-gray-500">{{ t('translateSettings.aiName') }}</span>
-                                        <input v-model="aiDraft.name" type="text"
-                                            :placeholder="t('translateSettings.aiNamePh')"
-                                            class="mt-1 w-full px-3 py-2 rounded-lg text-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-400" />
+                                        <span class="text-xs text-gray-500">{{ t('aiSettings.providerLabel') }}</span>
+                                        <t-select v-model="aiProviderId" :options="aiProviderOptions" size="small"
+                                            :placeholder="t('aiSettings.providerPh')" class="mt-1 w-full" />
                                     </label>
                                     <label class="block">
-                                        <span class="text-xs text-gray-500">{{ t('translateSettings.aiFormat') }}</span>
-                                        <t-select v-model="aiDraft.format" :options="aiFormatOptions" size="small"
+                                        <span class="text-xs text-gray-500">{{ t('aiSettings.modelLabel') }}</span>
+                                        <t-select v-model="aiModel" :options="aiModelOptions" size="small"
+                                            :disabled="!aiModelOptions.length" :placeholder="t('aiSettings.modelPh')"
                                             class="mt-1 w-full" />
                                     </label>
                                 </div>
-                                <label class="block">
-                                    <span class="text-xs text-gray-500">{{ t('translateSettings.endpoint') }}</span>
-                                    <input v-model="aiDraft.endpoint" type="text" :placeholder="aiEndpointPh"
-                                        class="mt-1 w-full px-3 py-2 rounded-lg text-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-400" />
-                                </label>
-                                <div class="grid grid-cols-2 gap-3">
-                                    <label class="block">
-                                        <span class="text-xs text-gray-500">{{ t('translateSettings.apiKey') }}</span>
-                                        <input v-model="aiApiKey" type="password"
-                                            :placeholder="aiHasSavedKey ? t('translateSettings.aiKeySavedPh') : t('translateSettings.apiKeyPh')"
-                                            class="mt-1 w-full px-3 py-2 rounded-lg text-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-400" />
-                                    </label>
-                                    <label class="block">
-                                        <span class="text-xs text-gray-500">{{ t('translateSettings.model') }}</span>
-                                        <div class="mt-1 flex items-center gap-2">
-                                            <input v-model="aiDraft.model" type="text"
-                                                :placeholder="t('translateSettings.modelPh')"
-                                                class="flex-1 min-w-0 px-3 py-2 rounded-lg text-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-400" />
-                                            <button type="button"
-                                                class="text-xs text-blue-500 hover:text-blue-600 shrink-0 disabled:opacity-40"
-                                                :disabled="aiTesting" @click="runAiModelTest">
-                                                {{ aiTesting ? t('translateSettings.aiTesting') :
-                                                    t('translateSettings.aiTest') }}
-                                            </button>
-                                        </div>
-                                    </label>
-                                </div>
-                                <!-- 测试成功后可从列表选；也可直接在上方输入自定义 ID -->
-                                <label v-if="aiModelOptions.length" class="block">
-                                    <span class="text-xs text-gray-500">{{ t('translateSettings.aiPickModel') }}</span>
-                                    <t-select v-model="aiDraft.model" :options="aiModelSelectOptions" filterable
-                                        size="small" class="mt-1 w-full" />
-                                </label>
                                 <div class="flex items-center justify-between gap-3">
-                                    <p class="text-[11px] text-gray-400 leading-4">
-                                        {{ t('translateSettings.aiKeyHint') }}</p>
-                                    <div class="flex items-center gap-2 shrink-0">
-                                        <button v-if="aiHasSavedConfig" type="button"
-                                            class="px-3 py-1.5 rounded-lg text-xs border border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20 disabled:opacity-40"
-                                            :disabled="aiSaving || aiClearing" @click="clearAiSettings">
-                                            {{ t('translateSettings.aiClearBtn') }}
-                                        </button>
-                                        <button type="button"
-                                            class="px-3 py-1.5 rounded-lg text-xs bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40"
-                                            :disabled="aiSaving" @click="saveAiSettings">
-                                            {{ t('translateSettings.aiSaveBtn') }}
-                                        </button>
-                                    </div>
+                                    <p class="text-[11px] text-gray-400 leading-4">{{ t('aiSettings.targetHint') }}</p>
+                                    <button type="button" class="text-xs text-blue-500 hover:text-blue-600 shrink-0"
+                                        @click="goAiSettings">
+                                        {{ t('aiSettings.goConfig') }}
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -230,12 +188,11 @@
  * - 已实现：显示方式、目标语言（空=跟语言包）、消息翻译按钮、不翻译语言
  * - 全部翻译栏：不是设置项，跟随 chat.is_translatable
  * - 提供方：默认官方 TDLib；场景（右键 / 全部翻译）可切换 Telegram / AI（配置完整时）
- * - AI 配置：前端填写、后端保存，API Key 存系统钥匙串（见 store/aiConfig）
+ * - AI：选择「供应商 + 模型」，供应商在 AI 设置页配置（见 store/aiConfig）
  */
-import { computed, defineComponent, h, onMounted, ref, reactive, watch, type Component } from 'vue';
+import { computed, defineComponent, h, onMounted, ref, watch, type Component } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { toast } from '../../utils/toast';
 import {
     ChevronLeft as ChevronLeftIcon,
     Languages as LanguageIcon,
@@ -247,13 +204,10 @@ import {
 } from 'lucide-vue-next';
 import { settings } from '../../store/settings';
 import {
-    aiConfig,
-    aiConfigComplete,
-    loadAiConfig,
-    saveAiConfig,
-    clearAiConfig,
-    listAiModels,
-    type AiTranslateFormat,
+    aiProviders,
+    aiProviderReady,
+    loadAiProviders,
+    resolveAiTarget,
 } from '../../store/aiConfig';
 import { getTranslateTargetLang, clearShouldTranslateCache } from '../../store/translate';
 import {
@@ -313,7 +267,7 @@ const providerChat = computed({
 
 // TG 翻译始终可用，不标注状态；AI 配置完整后才可选，未配置时标注「未配置」
 const providerOptions = computed(() => {
-    const aiReady = aiConfigComplete();
+    const aiReady = resolveAiTarget() !== null;
     return [
         { label: t('translateSettings.providerTdlib'), value: 'tdlib' },
         {
@@ -347,112 +301,49 @@ const providerCards = computed(() => [
         id: 'ai' as const,
         title: t('translateSettings.providerAi'),
         desc: t('translateSettings.providerAiDesc'),
-        available: aiConfigComplete(),
+        available: resolveAiTarget() !== null,
         icon: SparklesIcon as Component,
         iconClass: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600',
     },
 ]);
 
-// ─── AI 配置草稿（提交后由后端保存） ─────────────────────────
+// ─── AI 翻译目标（供应商 + 模型；供应商在「AI 设置」中配置） ─────
 
-const aiDraft = reactive({
-    name: '',
-    endpoint: '',
-    format: 'openai-compatible' as AiTranslateFormat | string,
-    model: '',
+function aiTarget() {
+    if (!settings.translate.ai) settings.translate.ai = { providerId: null, model: '' };
+    return settings.translate.ai;
+}
+
+/** 换供应商时清空模型（模型须属于所选供应商） */
+const aiProviderId = computed({
+    get: () => aiTarget().providerId ?? '',
+    set: (v: string) => {
+        const a = aiTarget();
+        a.providerId = v || null;
+        a.model = '';
+    },
 });
-/** 输入中的 Key：仅内存，保存后清空；已保存状态由后端回传 */
-const aiApiKey = ref('');
-const aiHasSavedKey = ref(false);
-const aiTesting = ref(false);
-const aiSaving = ref(false);
-const aiClearing = ref(false);
-const aiModelOptions = ref<string[]>([]);
 
-/** 后端是否已有保存过的配置（有则显示「删除配置」） */
-const aiHasSavedConfig = computed(() =>
-    !!(aiConfig.endpoint.trim() || aiConfig.model.trim() || aiConfig.name.trim() || aiConfig.hasApiKey),
+const aiModel = computed({
+    get: () => aiTarget().model,
+    set: (v: string) => { aiTarget().model = v; },
+});
+
+const aiProviderOptions = computed(() =>
+    aiProviders.list.filter(aiProviderReady).map((p) => ({ label: p.name, value: p.id })),
 );
 
-const aiFormatOptions = computed(() => [
-    { label: 'OpenAI Responses', value: 'openai-responses' },
-    { label: 'OpenAI Compatible', value: 'openai-compatible' },
-    { label: 'Anthropic', value: 'anthropic' },
-]);
-
-const aiEndpointPh = computed(() =>
-    aiDraft.format === 'anthropic'
-        ? t('translateSettings.aiEndpointAnthropicPh')
-        : t('translateSettings.aiEndpointPh'),
+const aiModelOptions = computed(() =>
+    (aiProviders.list.find((p) => p.id === aiProviderId.value)?.models ?? [])
+        .map((m) => ({ label: m.name || m.id, value: m.id })),
 );
 
-const aiModelSelectOptions = computed(() =>
-    aiModelOptions.value.map((id) => ({ label: id, value: id })),
-);
-
-function syncAiDraftFromStore() {
-    aiDraft.name = aiConfig.name;
-    aiDraft.endpoint = aiConfig.endpoint;
-    aiDraft.format = aiConfig.format;
-    aiDraft.model = aiConfig.model;
-    aiHasSavedKey.value = aiConfig.hasApiKey;
+function goAiSettings() {
+    router.push('/home/settings/ai');
 }
 
-/** 测试：拉取模型列表（成功后可从列表选择；失败给出原因） */
-async function runAiModelTest() {
-    aiTesting.value = true;
-    try {
-        const ids = await listAiModels({ ...aiDraft }, aiApiKey.value);
-        aiModelOptions.value = ids;
-        await toast.success(t('translateSettings.aiTestOk'));
-    } catch (e) {
-        aiModelOptions.value = [];
-        await toast.error(String(e));
-    } finally {
-        aiTesting.value = false;
-    }
-}
-
-/** 保存：非敏感字段写后端 JSON，Key 写系统钥匙串 */
-async function saveAiSettings() {
-    aiSaving.value = true;
-    try {
-        const view = await saveAiConfig({ ...aiDraft }, aiApiKey.value);
-        aiHasSavedKey.value = view.hasApiKey;
-        aiApiKey.value = '';
-        await toast.success(t('translateSettings.aiSaveOk'));
-    } catch (e) {
-        await toast.error(String(e));
-    } finally {
-        aiSaving.value = false;
-    }
-}
-
-/** 清除：删除后端配置与钥匙串 Key，并清空表单 */
-async function clearAiSettings() {
-    const ok = window.confirm(t('translateSettings.aiClearConfirm'));
-    if (!ok) return;
-    aiClearing.value = true;
-    try {
-        await clearAiConfig();
-        aiDraft.name = '';
-        aiDraft.endpoint = '';
-        aiDraft.format = 'openai-compatible';
-        aiDraft.model = '';
-        aiApiKey.value = '';
-        aiHasSavedKey.value = false;
-        aiModelOptions.value = [];
-        await toast.success(t('translateSettings.aiClearOk'));
-    } catch (e) {
-        await toast.error(String(e));
-    } finally {
-        aiClearing.value = false;
-    }
-}
-
-onMounted(async () => {
-    if (!aiConfig.loaded) await loadAiConfig();
-    syncAiDraftFromStore();
+onMounted(() => {
+    if (!aiProviders.loaded) void loadAiProviders();
 });
 
 // ─── 不翻译语言 ───────────────────────────────────────────────

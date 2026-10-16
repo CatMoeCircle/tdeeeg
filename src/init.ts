@@ -17,7 +17,7 @@ import { initChatBackgroundStore } from "./store/chatBackground";
 import { initTheme } from "./store/theme";
 import { initNativeNotifications } from "./store/notifications";
 import { settings } from "./store/settings";
-import { loadAiConfig } from "./store/aiConfig";
+import { loadAiProviders } from "./store/aiConfig";
 import { bindWallpaperAccount, restoreWallpaperFromLocalCache } from "./utils/wallpaper";
 
 /**
@@ -89,8 +89,8 @@ export async function initTdlib() {
         console.error("Error syncing proxy config:", e);
     }
 
-    // AI 翻译配置（后端保存）：非阻塞加载，供提供方可用性判断
-    void loadAiConfig().catch((e) => console.error("Error loading AI translate config:", e));
+    // AI 供应商列表（后端保存）：非阻塞加载，供提供方可用性判断
+    void loadAiProviders().catch((e) => console.error("Error loading AI providers:", e));
 
     // Listen for initialization errors (e.g. invalid API ID/Hash)
     await listen("tdlib-init-error", (event) => {

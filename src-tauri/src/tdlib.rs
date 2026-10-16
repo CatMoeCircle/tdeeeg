@@ -935,7 +935,12 @@ pub fn set_proxy_config(
         .lock()
         .map_err(|e| e.to_string())?
         .clone();
-    let send_fn = shared(state.inner())?.send_fn;
+    // 动态库尚未加载（前端在 init_tdlib 之前同步配置）：暂无客户端可应用，
+    // 配置已存入 state，创建客户端时自动生效，不算错误。
+    let Ok(shared) = shared(state.inner()) else {
+        return Ok(());
+    };
+    let send_fn = shared.send_fn;
     let clients = state.clients.lock().map_err(|e| e.to_string())?;
     for client in clients.values() {
         apply_proxy_to_client(send_fn, client.client, &cfg);

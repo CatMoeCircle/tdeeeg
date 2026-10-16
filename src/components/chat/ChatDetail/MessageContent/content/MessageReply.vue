@@ -1,18 +1,19 @@
 <template>
-    <div ref="rootEl" class="flex items-stretch gap-2 mb-1.5 px-2 py-1.5 rounded-lg overflow-hidden select-none"
+    <!-- ponytail: fixed height so loading/found/thumbnail states don't reflow the bubble -->
+    <div ref="rootEl" class="flex items-stretch gap-2 mb-1.5 px-2 py-1.5 h-13 rounded-lg overflow-hidden select-none"
         :class="status === 'found' ? 'cursor-pointer' : ''" :style="replyBgStyle"
         @click="status === 'found' && jumpToMessage()">
         <!-- Left color bar -->
         <div class="w-0.5 h-8 self-center shrink-0 rounded-full" :style="barStyle"></div>
 
-        <div class="flex-1 min-w-0 py-0.5">
+        <div class="flex-1 min-w-0 py-0.5 flex flex-col justify-center">
             <!-- 被回复方名称 / 占位文案 -->
-            <div class="text-xs font-semibold truncate msg-body-text"
+            <div class="text-xs font-semibold truncate msg-body-text leading-4"
                 :style="senderNameStyle">
                 {{ titleText }}
             </div>
             <!-- 内容预览 -->
-            <div class="text-xs truncate opacity-70 mt-0.5">
+            <div class="text-xs truncate opacity-70 mt-0.5 leading-4">
                 <template v-if="status === 'found' && replyData && replyData.mediaType">[{{ replyData.mediaType }}]
                 </template>
                 <GlobalEmojiText v-if="status === 'found' && replyData" :text="replyData.text" :size="12" />

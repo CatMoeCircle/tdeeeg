@@ -1,0 +1,340 @@
+/**
+ * AI 对话的 agent 循环（前端）：组装 prompt → 流式调用模型（ai_chat_stream）→ 工具调用经
+ * dispatchToolCall（审核在它里面）→ 结果回填 → 再调，直到模型不再要工具或到上限。
+ *
+ * 流式：Rust 一边把 llmsdk 的 StreamPart 推过来（这里只用来画界面：逐字更新文本 / 思考、
+ * 工具参数增量），一边把拼好的整段回复当返回值给回来 —— **业务数据一律用返回值**，
+ * 不靠 IPC 消息顺序（漏一个工具调用就是灾难）。流式完全起不来就退回一次性 ai_chat。
+ *
+ * 历史按**对话**（conversation id）对账并落盘（history.json，见 store/aiConversations），
+ * 所以切对话 / 切聊天 / 重启进程都不会丢上下文。纯逻辑（截断、历史→活动条）在 aiChatHistory.ts。
+ */
+import { Channel, invoke } from "@tauri-apps/api/core";
+import type { AiModel, AiProvider } from "../store/aiProviderRules";
+import { aiConversations, loadHistory, recordAiUsage, saveHistory } from "../store/aiConversations";
+import { dispatchToolCall } from "./aiTools/call.ts";
+import { MARKDOWN_V2_GUIDE } from "./aiTools/format.ts";
+import { TOOLSETS, toolsSchema } from "./aiTools/schema.ts";
+import type { ToolOutcome } from "./aiTools/types.ts";
+import { trimHistory, type AiActivityItem, type ChatToolCall, type ChatWireMessage } from "./aiChatHistory.ts";
+// 工具实现在被导入时登记自己；AI 入口必须导入它们，否则工具全是 not_implemented
+import "./aiTools/local.ts";
+import "./aiTools/read.ts";
+import "./aiTools/write.ts";
+
+export type { AiActivityItem, ChatToolCall, ChatWireMessage } from "./aiChatHistory.ts";
+
+/** ponytail: 单轮最多调用模型 8 次（防跑飞）；可按需调大 */
+const MAX_STEPS = 8;
+
+export interface AiActivitySink {
+  add(entry: AiActivityItem): void;
+  update(id: string, patch: Partial<AiActivityItem>): void;
+}
+
+/** 轮数用尽仍未结束：调用方据此提示用户（不是错误，历史已保留） */
+export class AiTurnLimitError extends Error {}
+
+/** 与 Rust ChatUsage / ChatReply 对齐；null = 接口没返回该项 */
+interface ChatUsage {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cachedTokens: number | null;
+  cacheWriteTokens: number | null;
+}
+
+interface ChatReply {
+  text: string;
+  reasoning: string;
+  toolCalls: ChatToolCall[];
+  usage: ChatUsage;
+}
+
+/** 流式增量块：只声明画界面用得到的字段（其余由 Rust 侧累积，走返回值） */
+interface StreamPart {
+  type: string;
+  /** 增量文本；工具参数分段的 id 与工具调用 id 相同 */
+  delta?: string;
+  id?: string;
+  toolName?: string;
+}
+
+/** 一次模型调用的结果；每个工具调用带上它在活动条里的条目 id（结果回填时更新同一条） */
+interface ModelCall {
+  text: string;
+  reasoning: string;
+  toolCalls: { call: ChatToolCall; entryId: string }[];
+  usage: ChatUsage;
+}
+
+/** 活动条条目 id：时间戳 + 自增，避免同毫秒内重名 */
+let seq = 0;
+const nextId = () => `${Date.now()}-${seq++}`;
+
+/** 已加载的历史：键是对话 id（同一聊天的多个对话各自一条上下文） */
+const histories = new Map<string, ChatWireMessage[]>();
+
+/** 该对话的历史：内存里已有就直接用，否则从 history.json 读回来（读不到 = 空） */
+async function ensureHistory(chatId: number, conversationId: string): Promise<ChatWireMessage[]> {
+  const cached = histories.get(conversationId);
+  if (cached) return cached;
+  const loaded = await loadHistory(chatId, conversationId);
+  histories.set(conversationId, loaded);
+  return loaded;
+}
+
+/** 丢弃内存里某个对话的历史缓存（删对话时调，免得删了还能接着聊） */
+export function dropHistory(conversationId: string): void {
+  histories.delete(conversationId);
+}
+
+/**
+ * system prompt。`title` 是当前会话标题（新建时会先填用户那句话，模型可以改）；
+ * `first` = 这是本会话的第一条消息 → 让模型顺手给会话起个标题。
+ */
+function systemPrompt(
+  chatId: number,
+  title: string,
+  first: boolean,
+  quote?: { chatId: number; messageId: number },
+): string {
+  const lines = [
+    `你是 tdgram（Telegram 客户端）里的 AI 助手。当前聊天 chat_id = ${chatId}。`,
+    "可以调用工具读取聊天内容；需要代用户操作时调用写类工具。",
+    "写类工具（发送、编辑、删除、封禁、直接调用 TDLib）会先请用户审核；被拒绝后不要换参数、换工具或换路径重试同一操作，直接告诉用户。",
+    "写类工具必须填写 reason（一句话说明原因）。",
+    `发送带格式的文本时：${MARKDOWN_V2_GUIDE}`,
+    `当前会话标题：「${title}」。`,
+  ];
+  if (quote) {
+    lines.push(
+      `The user quoted a message: chat_id=${quote.chatId}, message_id=${quote.messageId}. ` +
+        "Call get_message to read it before answering; don't page through get_recent_messages to find it.",
+    );
+  }
+  if (first) {
+    lines.push(
+      "这是本会话的第一条消息：先调用 set_conversation_title 起一个简短标题" +
+        "（不超过 12 个字，概括这次要做什么；现在的标题是直接把用户的话截断来的，太长就换掉），再回答用户。",
+    );
+  }
+  return lines.join("\n");
+}
+
+export interface AiTurnOptions {
+  chatId: number;
+  /** 当前会话 id：历史按它对账、落盘（切会话不会串上下文） */
+  conversationId: string;
+  /** 该会话的标题（进 prompt 用；模型改了会从 store 现读） */
+  title: string;
+  text: string;
+  /**
+   * 本轮用户引用的消息（AI 输入框的「回复」）：只给 id，正文让模型自己 get_message 取。
+   * 走 system prompt —— 用户消息保持原样，活动条 / 历史里显示的就是输入框里那句话。
+   */
+  quote?: { chatId: number; messageId: number };
+  /** 随这条提问一起发给模型的图片（本机路径，Rust 侧读盘转多模态；可空） */
+  images?: string[];
+  provider: AiProvider;
+  model: AiModel;
+  /** 思考等级键：low | medium | high | xhigh；空 = provider 默认 */
+  effort: string | null;
+  sink: AiActivitySink;
+  signal: AbortSignal;
+}
+
+/** 一次性请求（老接口 / 流式不可用时的兜底）：活动条在这里一次性补齐条目 */
+async function callOnce(o: AiTurnOptions, messages: ChatWireMessage[], tools: unknown[]): Promise<ModelCall> {
+  const reply = await invoke<ChatReply>("ai_chat", {
+    providerId: o.provider.id,
+    model: o.model.id,
+    messages,
+    tools,
+    effort: o.effort,
+    maxOutputTokens: o.model.maxOutput,
+  });
+  if (reply.reasoning) o.sink.add({ id: nextId(), kind: "thinking", text: reply.reasoning, status: "ok" });
+  if (reply.text) o.sink.add({ id: nextId(), kind: "output", text: reply.text, status: "ok" });
+  const toolCalls = reply.toolCalls.map((call) => {
+    const entryId = nextId();
+    o.sink.add({
+      id: entryId,
+      kind: "tool",
+      text: call.name,
+      input: JSON.stringify(call.arguments, null, 2),
+      status: "running",
+    });
+    return { call, entryId };
+  });
+  return { text: reply.text, reasoning: reply.reasoning, toolCalls, usage: reply.usage };
+}
+
+/**
+ * 一次模型调用：流式为主。增量块只用来画界面，最终结果用命令的返回值。
+ * 流式一个字都没收到就失败（老二进制 / 供应商不支持）→ 退回 callOnce，不让功能退化。
+ */
+async function callModel(o: AiTurnOptions, messages: ChatWireMessage[], tools: unknown[]): Promise<ModelCall> {
+  const channel = new Channel<StreamPart>();
+  let received = false;
+  /** 界面上的实时文本 / 思考（增量累加，用于逐字更新） */
+  let liveText = "";
+  let liveReason = "";
+  /** 文本 / 思考条目的 id（第一次收到增量时才建条目） */
+  let textId = "";
+  let thinkId = "";
+  /** 流式工具参数：分段 id（= 工具调用 id）→ 活动条条目 id + 已收参数片段 */
+  const toolEntry = new Map<string, { entryId: string; args: string }>();
+
+  channel.onmessage = (p) => {
+    received = true;
+    switch (p.type) {
+      case "text-delta":
+        liveText += p.delta ?? "";
+        if (!textId) {
+          textId = nextId();
+          o.sink.add({ id: textId, kind: "output", text: liveText, status: "running" });
+        } else {
+          o.sink.update(textId, { text: liveText });
+        }
+        break;
+      case "reasoning-delta":
+        liveReason += p.delta ?? "";
+        if (!thinkId) {
+          thinkId = nextId();
+          o.sink.add({ id: thinkId, kind: "thinking", text: liveReason, status: "running" });
+        } else {
+          o.sink.update(thinkId, { text: liveReason });
+        }
+        break;
+      case "tool-input-start": {
+        const entryId = nextId();
+        toolEntry.set(p.id ?? "", { entryId, args: "" });
+        o.sink.add({ id: entryId, kind: "tool", text: p.toolName ?? "", input: "", status: "running" });
+        break;
+      }
+      case "tool-input-delta": {
+        const cur = toolEntry.get(p.id ?? "");
+        if (cur) {
+          cur.args += p.delta ?? "";
+          o.sink.update(cur.entryId, { input: cur.args });
+        }
+        break;
+      }
+      // finish / 工具调用全量块不在这里拼：那些用返回值
+      default:
+        break;
+    }
+  };
+
+  let reply: ChatReply;
+  try {
+    reply = await invoke<ChatReply>("ai_chat_stream", {
+      providerId: o.provider.id,
+      model: o.model.id,
+      messages,
+      tools,
+      effort: o.effort,
+      maxOutputTokens: o.model.maxOutput,
+      onEvent: channel,
+    });
+  } catch (e) {
+    // 已经收到过内容：流中途失败就是失败，重试只会让内容重复一遍
+    if (received) throw e;
+    console.warn("[aiChat] 流式不可用，退回一次性请求:", e);
+    return callOnce(o, messages, tools);
+  }
+
+  // 供应商没给增量（只回了整段）时补上条目，别让回复在活动条里凭空消失
+  if (textId) {
+    o.sink.update(textId, { text: reply.text, status: "ok" });
+  } else if (reply.text) {
+    o.sink.add({ id: nextId(), kind: "output", text: reply.text, status: "ok" });
+  }
+  if (thinkId) {
+    o.sink.update(thinkId, { text: reply.reasoning, status: "ok" });
+  } else if (reply.reasoning) {
+    o.sink.add({ id: nextId(), kind: "thinking", text: reply.reasoning, status: "ok" });
+  }
+
+  const toolCalls = reply.toolCalls.map((call) => {
+    const streamed = toolEntry.get(call.id);
+    const entryId = streamed?.entryId ?? nextId();
+    if (!streamed) o.sink.add({ id: entryId, kind: "tool", text: call.name, input: "", status: "running" });
+    // 流式期间看到的是参数片段，这里补成解析后的完整参数（审核前必须是真参数）
+    o.sink.update(entryId, { text: call.name, input: JSON.stringify(call.arguments, null, 2) });
+    return { call, entryId };
+  });
+  return { text: reply.text, reasoning: reply.reasoning, toolCalls, usage: reply.usage };
+}
+
+/**
+ * 跑一轮对话直到模型给出不带工具调用的回复（或被停止）。返回最后一段正文。
+ * 停止（signal.abort）不抛错：未完成的工具调用会回填「用户已停止」，历史保持可续聊。
+ */
+export async function runAiTurn(o: AiTurnOptions): Promise<string> {
+  const history = await ensureHistory(o.chatId, o.conversationId);
+  if (o.signal.aborted) return "";
+  // 本会话的第一条消息（新建会话时标题先用用户那句话兜底，模型可以改）
+  const first = history.length === 0;
+  history.push({ role: "user", text: o.text, attachments: o.images?.length ? o.images : undefined });
+  // 提问也进活动条：会话里得看得见这句是问什么（与历史回铺时的样子一致）
+  o.sink.add({ id: nextId(), kind: "user", text: o.text, status: "ok" });
+
+  const tools = toolsSchema(TOOLSETS.all);
+  let finalText = "";
+
+  // 每轮之后落盘一次：中途被停止 / 崩了，下次进来还能接着聊
+  const persist = async () => {
+    trimHistory(history);
+    await saveHistory(o.chatId, o.conversationId, history);
+  };
+
+  for (let step = 0; step < MAX_STEPS; step++) {
+    if (o.signal.aborted) break;
+    // 标题每轮现读：模型上一轮可能刚改过（改了就别再催它改）
+    const title = aiConversations.list.find((c) => c.id === o.conversationId)?.title ?? o.title;
+    const prompt: ChatWireMessage[] = [
+      { role: "system", text: systemPrompt(o.chatId, title, first && step === 0, o.quote) },
+      ...history,
+    ];
+    const called = await callModel(o, prompt, tools);
+    // 每次模型调用记一次账（含工具轮），不是每次发送记一次；
+    // 接口没返回 usage 就用 prompt / 回复原文本地估算，次数同样 +1（见 store recordAiUsage）
+    await recordAiUsage(o.chatId, o.conversationId, {
+      ...called.usage,
+      contextLength: o.model.contextLength,
+      promptText: JSON.stringify(prompt),
+      completionText: called.text + called.reasoning,
+    });
+    if (o.signal.aborted) break;
+
+    history.push({
+      role: "assistant",
+      text: called.text,
+      reasoning: called.reasoning,
+      toolCalls: called.toolCalls.map((t) => t.call),
+    });
+    finalText = called.text;
+    if (!called.toolCalls.length) {
+      await persist();
+      return finalText;
+    }
+
+    // 每个调用都必须回填结果（哪怕已停止），否则下一轮接口会报缺 tool 结果
+    for (const { call, entryId } of called.toolCalls) {
+      const outcome: ToolOutcome = o.signal.aborted
+        ? { tool: call.name, error: { code: "internal", message: "用户已停止，未执行" } }
+        : (await dispatchToolCall(call)).outcome;
+      const content = JSON.stringify(outcome);
+      o.sink.update(entryId, { status: "error" in outcome ? "error" : "ok", output: content });
+      history.push({ role: "tool", toolCallId: call.id, toolName: call.name, text: content });
+    }
+    await persist();
+    if (o.signal.aborted) break;
+  }
+
+  await persist();
+  // 循环里只有「已停止」会 break，走到这里又没停 = 轮数用尽
+  if (!o.signal.aborted) throw new AiTurnLimitError(`tool loop exceeded ${MAX_STEPS} steps`);
+  return finalText;
+}

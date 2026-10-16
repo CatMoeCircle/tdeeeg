@@ -138,6 +138,58 @@
                     <p v-else class="mt-3 text-xs text-gray-400">{{ t('dev.noCrashLog') }}</p>
                 </section>
 
+                <!-- AI 活动条预览：贴着输入框顶部，模拟输出 / 工具调用链 / 审核 -->
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
+                        {{ t('dev.aiStrip') }}</h3>
+                    <button type="button"
+                        class="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                        @click="setShowAiStripPreview(!showAiStripPreview)">
+                        <div class="text-left">
+                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('dev.aiStrip') }}</p>
+                            <p class="text-xs text-gray-500 mt-0.5">{{ t('dev.aiStripDesc') }}</p>
+                        </div>
+                        <div class="w-9 h-5 rounded-full transition-colors relative"
+                            :class="showAiStripPreview ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'">
+                            <div class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                                :class="showAiStripPreview ? 'translate-x-4' : ''" />
+                        </div>
+                    </button>
+
+                    <div v-if="showAiStripPreview" class="mt-4">
+                        <PreviewCard :subtitle="t('appearance.preview')"
+                            body-class="p-4 bg-gray-50 dark:bg-[#1c1c1c]">
+                            <!-- 活动条可交互（展开标记 / 审核按钮），下面的输入框是纯展示 -->
+                            <AiActivityStrip :entries="aiStripEntries" :approval="aiStripApproval"
+                                @approve="closeAiStripApproval" @reject="closeAiStripApproval" />
+                            <div inert aria-hidden="true" class="pointer-events-none">
+                                <AiPromptBar :default-effort="t('aiInput.effortMax')" />
+                            </div>
+                        </PreviewCard>
+                        <div class="mt-2 flex justify-end">
+                            <button type="button"
+                                class="px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                                @click="toggleAiStripApproval">
+                                {{ t('dev.aiStripApproval') }}
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 恢复被隐藏的 AI 预设 -->
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
+                        {{ t('dev.aiPresetRestore') }}</h3>
+                    <p class="text-xs text-gray-500 mb-3">
+                        {{ t('dev.aiPresetRestoreDesc') }}
+                    </p>
+                    <button type="button"
+                        class="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50"
+                        :disabled="aiPresetBusy" @click="restoreAiPresets">
+                        {{ aiPresetBusy ? t('dev.loading') : t('dev.aiPresetRestoreRun') }}
+                    </button>
+                </section>
+
                 <!-- 打开开发者工具 -->
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
@@ -337,9 +389,14 @@ import { useRouter } from 'vue-router';
 import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, RefreshCw as RefreshCwIcon } from 'lucide-vue-next';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from '../../utils/toast';
+import { resetDeletedPresets } from '../../store/aiConfig';
+import AiPromptBar from '../../components/ai/AiPromptBar.vue';
+import AiActivityStrip, { type AiActivityEntry, type AiApprovalLine } from '../../components/ai/AiActivityStrip.vue';
+import PreviewCard from '../../components/settings/PreviewCard.vue';
 import {
     logUpdates, setLogUpdates, openDevTools, rawTdlibSend,
     showCopyJsonInMenus, setShowCopyJsonInMenus,
+    showAiStripPreview, setShowAiStripPreview,
     recentUpdates, clearRecentUpdates, type CachedUpdate,
 } from '../../store/debug';
 import { onTdlibUpdate } from '../../store/tdlibBus';
@@ -672,5 +729,79 @@ async function runExportPack(mode: 'json' | 'tdEn') {
     } finally {
         exportPackBusy.value = false;
     }
+}
+
+// ─── 恢复被隐藏的 AI 预设 ─────────────────────
+
+const aiPresetBusy = ref(false);
+
+/** 清空「被删除的预设」名单：AI 设置里被删掉的预设全部恢复显示 */
+async function restoreAiPresets() {
+    if (aiPresetBusy.value) return;
+    aiPresetBusy.value = true;
+    try {
+        const count = await resetDeletedPresets();
+        toast.success({ content: t('dev.aiPresetRestoreDone', { count }), placement: 'top-right' });
+    } catch (e) {
+        toast.error({ content: e && typeof e === 'object' ? JSON.stringify(e) : String(e), placement: 'top-right' });
+        console.warn('[DeveloperSettings] reset_ai_presets failed:', e);
+    } finally {
+        aiPresetBusy.value = false;
+    }
+}
+
+// ─── AI 活动条预览（示例数据，不用真跑 AI） ────
+
+/**
+ * 预览数据：思考、普通输出、工具调用各来几条（工具名 / 参数保持 ASCII，与 registry 一致）。
+ * 思考与工具调用是折叠条目，点开能看完整思考内容与工具输入 / 输出。
+ */
+const AI_STRIP_TOOL_APPROVAL = 'send_message(chat_id=…, text=…)';
+
+const aiStripEntries = computed<AiActivityEntry[]>(() => [
+    { id: 1, kind: 'thinking', text: t('dev.aiStripMock.k1') },
+    { id: 2, kind: 'output', text: t('dev.aiStripMock.o1') },
+    {
+        id: 3,
+        kind: 'tool',
+        text: 'get_chats()',
+        input: '{}',
+        output: '{\n  "chat_ids": [42, 77, 108]\n}',
+        status: 'ok',
+    },
+    { id: 4, kind: 'output', text: t('dev.aiStripMock.o2') },
+    {
+        id: 5,
+        kind: 'tool',
+        text: 'get_chat_history(limit=20)',
+        input: '{ "chat_id": 42, "limit": 20 }',
+        output: '{\n  "error": "CHAT_NOT_FOUND"\n}',
+        status: 'error',
+    },
+    { id: 6, kind: 'thinking', text: t('dev.aiStripMock.k2') },
+    { id: 7, kind: 'output', text: t('dev.aiStripMock.o3') },
+    {
+        id: 8,
+        kind: 'tool',
+        text: AI_STRIP_TOOL_APPROVAL,
+        input: '{ "chat_id": 42, "text": "收到，我看下" }',
+        output: '{ "_": "ok" }',
+        status: 'ok',
+    },
+    { id: 9, kind: 'output', text: t('dev.aiStripMock.o4') },
+]);
+
+const aiStripApproval = ref<AiApprovalLine | null>(null);
+
+/** 审核行：点一下冒出来（折叠时就是两行），再点一下收回去 */
+function toggleAiStripApproval() {
+    aiStripApproval.value = aiStripApproval.value
+        ? null
+        : { title: AI_STRIP_TOOL_APPROVAL, reason: t('dev.aiStripMock.reason') };
+}
+
+/** 允许 / 拒绝都只是把审核行收掉 —— 这里是 UI 预览，不走 utils/aiTools 的审核通道 */
+function closeAiStripApproval() {
+    aiStripApproval.value = null;
 }
 </script>

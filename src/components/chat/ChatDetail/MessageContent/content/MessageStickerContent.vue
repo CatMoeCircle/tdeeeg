@@ -203,7 +203,24 @@ onMounted(() => {
 const { start: startViewportLoad, entered: stickerEntered } = useViewportLoad(rootEl, () => {
     return loadMedia();
 });
-watch(() => props.content, () => {
+
+/** 贴纸身份：TDLib 会以新对象引用反复推送同一消息（回执/编辑/更新），身份未变时不能重置播放器 */
+function stickerIdentity(c: messageSticker | messageAnimatedEmoji): string {
+    const s = c._ === 'messageSticker' ? c.sticker : c.animated_emoji.sticker;
+    return `${c._}:${s?.sticker?.id ?? 0}:${s?.format._ ?? ''}`;
+}
+let contentKey: string | null = null;
+
+watch(() => props.content, (content) => {
+    const key = stickerIdentity(content);
+    if (key === contentKey) {
+        // 同一贴纸只是消息对象换了引用：不作废在途加载、不销毁重建播放器，
+        // 防止同样的贴纸被反复重新渲染（每次重建 = Worker 重新解析 + 重画）。
+        // 仅在还没加载出画面时补一次（如文件刚就绪但没触发过加载）。
+        if (stickerEntered.value && !tgsSrc.value && !mediaSrc.value) loadMedia();
+        return;
+    }
+    contentKey = key;
     // 换内容：作废在途加载并复位 isDownloading，否则新贴纸被旧下载状态挡住
     loadSeq++;
     isDownloading.value = false;

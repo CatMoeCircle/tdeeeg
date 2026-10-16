@@ -29,3 +29,7 @@ src-tauri/TDLib/
 /promo
 # 本地工具目录
 /.serena
+# 内部设计文档，不入库
+/docs/
+# 本地调试脚本
+/.trace_analysis/

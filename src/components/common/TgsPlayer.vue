@@ -2,7 +2,7 @@
     <div class="tgs-player" :class="className" :style="rootStyle">
         <LottiePlayer ref="innerRef" class="tgs-lottie-root" :src="src ?? undefined" :data="data ?? undefined"
             :loop="effectiveLoop" :autoplay="autoplay" :speed="speed" :direction="direction ?? undefined"
-            :fitz-modifier="fitzModifier" :report-frames="reportFrames" :force-render="forceRender"
+            :fitz-modifier="fitzModifier" :report-frames="true" :force-render="forceRender"
             :initial-frame="initialFrame ?? undefined" @load="onLoad" @error="onError" @complete="onComplete" />
     </div>
 </template>
@@ -24,6 +24,7 @@ import { computed, onUnmounted, ref, watch } from 'vue';
 import { LottiePlayer } from 'tlottie/vue';
 import 'tlottie/vue/style.css';
 import type { FitzModifier } from 'tlottie';
+import { acquireSticker, type BudgetHandle } from '../../utils/stickerBudget';
 
 const props = withDefaults(defineProps<{
     /**
@@ -49,7 +50,9 @@ const props = withDefaults(defineProps<{
     class?: string;
     /**
      * 开启后转发底层 frame 事件（约 10Hz），用于按帧暂停/倒放。
-     * 官方 README：默认关闭；密码猴等需要停在指定帧时必须打开。
+     * 官方 README：密码猴等需要停在指定帧时必须打开。
+     * 注意：worker 侧的帧快照恒开（负载预算 stickerBudget 估算渲染帧率所需，
+     * 且仅播放中才有约 10Hz 消息），此开关只控制 @frame 事件是否对外转发。
      */
     reportFrames?: boolean;
     /**
@@ -88,6 +91,64 @@ function engine() {
     return innerRef.value?.tlottie?.() ?? null;
 }
 
+// ─── 负载预算（stickerBudget） ─────────────────────────────────────
+/** 外部门控（业务 play/pause 意图）；autoplay 构造时即为播放意图 */
+let wanted = !!props.autoplay;
+/** 预算 30fps 档的占空比强制停（只压低实际引擎指令，不改外部意图） */
+let dutyOff = false;
+/** 最近一次下发给引擎的指令，避免同一状态重复 postMessage */
+let sent: 'play' | 'pause' | null = null;
+/** 渲染帧率估算（供 30 档豁免原生 ≤30fps 的动画） */
+let fpsPrev = 0;
+let fpsPrevAt = 0;
+let fpsEst: number | null = null;
+let releaseBudget: (() => void) | null = null;
+
+/** 按「外部意图 × 预算占空比」向引擎下发唯一一条 play/pause 指令 */
+function apply() {
+    const eng = engine() as { play?: () => void; pause?: () => void } | null;
+    if (!eng) return;
+    if (wanted && !dutyOff) {
+        if (sent !== 'play') { eng.play?.(); sent = 'play'; }
+    } else if (sent !== 'pause') {
+        eng.pause?.();
+        sent = 'pause';
+    }
+}
+
+function sampleFps(): number | null {
+    const f = (engine() as { frames?: { current: number; total: number } } | null)?.frames;
+    if (!f?.total) return fpsEst;
+    const now = performance.now();
+    if (!fpsPrevAt) { fpsPrev = f.current; fpsPrevAt = now; return null; }
+    if (now - fpsPrevAt >= 400) {
+        let d = f.current - fpsPrev;
+        if (d < 0 && f.total > 0) d += f.total; // loop 回绕
+        fpsEst = (d * 1000) / (now - fpsPrevAt);
+        fpsPrev = f.current;
+        fpsPrevAt = now;
+    }
+    return fpsEst;
+}
+
+/** 负重登记 key：同一 src（或同一份 data 字节流）视为同一动画内容 */
+function budgetKey(): string {
+    if (props.src) return props.src;
+    const d = props.data;
+    if (!d) return 'empty';
+    return typeof d === 'string' ? `json:${d.length}` : `bytes:${d.byteLength}`;
+}
+
+const budgetHandle: BudgetHandle = {
+    isWanted: () => wanted,
+    setDutyOff(off) {
+        if (dutyOff === off) return;
+        dutyOff = off;
+        apply();
+    },
+    sampleFps,
+};
+
 /**
  * 归一化 loop：tlottie Worker 内 `loop ?? false`，undefined/空串都会变成只播一次。
  * Vue 对 `boolean | number` 含 Boolean 时会做布尔形态转换，这里再兜一层。
@@ -115,11 +176,20 @@ watch(effectiveLoop, () => applyLoop());
 function onLoad(payload: unknown) {
     // load 后显式 setLoop：构造时配置偶发未落到 Worker 引擎（默认 false → 只播一次）
     applyLoop();
+    // 新引擎：重置指令缓存与帧率估算，按当前意图同步播放状态并登记负载
+    sent = null;
+    fpsPrevAt = 0;
+    fpsEst = null;
+    releaseBudget?.(); // 幂等：src 重建后再登记不会重复计入负重
+    releaseBudget = acquireSticker(budgetKey(), budgetHandle);
+    apply();
     emit('load', payload);
     // 页首动画：load 后先落到 initialFrame 再交给业务逻辑
     if (props.initialFrame != null) {
+        wanted = false;
         try {
             engine()?.pause?.();
+            sent = 'pause';
             engine()?.seek?.(props.initialFrame);
         } catch { /* ignore */ }
     }
@@ -136,6 +206,8 @@ function onLoad(payload: unknown) {
 }
 function onError(payload: unknown) {
     detachFrameListener();
+    releaseBudget?.();
+    releaseBudget = null;
     console.error('[TgsPlayer] error:', payload, { src: props.src, hasData: !!props.data });
     emit('error', payload);
 }
@@ -147,21 +219,31 @@ function detachFrameListener() {
 }
 function onComplete(payload: unknown) {
     emit('complete', payload);
-    // loop=true 却仍 complete（引擎 loop 未生效）时兜底续播，避免回应动画停在末帧
+    // loop=true 却仍 complete（引擎 loop 未生效）时兜底续播，避免回应动画停在末帧；
+    // 尊重外部门控与预算占空比（不能绕过 play/pause 意图强播）
     if (effectiveLoop.value === true) {
-        engine()?.play();
+        if (wanted && !dutyOff) {
+            engine()?.play();
+            sent = 'play';
+        } else {
+            apply();
+        }
     }
 }
 
 defineExpose({
     play() {
-        engine()?.play();
+        wanted = true;
+        apply();
     },
     pause() {
-        engine()?.pause();
+        wanted = false;
+        apply();
     },
     stop() {
         engine()?.stop();
+        wanted = false;
+        apply();
     },
     seek(frame: number) {
         engine()?.seek(frame);
@@ -180,6 +262,8 @@ defineExpose({
 
 onUnmounted(() => {
     detachFrameListener();
+    releaseBudget?.();
+    releaseBudget = null;
 });
 </script>
 

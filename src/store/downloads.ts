@@ -3,7 +3,6 @@ import { ref, computed } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { DL_PRIORITY } from "../utils/downloadPriority";
-import { onTdlibUpdate } from "./tdlibBus";
 import i18n from "../i18n";
 import {
     DL_TAG,
@@ -497,7 +496,6 @@ export const useDownloadStore = defineStore("downloads", () => {
     const hasHiddenAutoPhotos = computed(() => hiddenStats.value.autoPhotos > 0);
 
     let unlistenProgress: (() => void) | null = null;
-    let unlistenAuth: (() => void) | null = null;
     let unlistenStats: (() => void) | null = null;
     let tdlibListLoaded = false;
     let pendingUpdates = new Map<string, DownloadItem>();
@@ -755,6 +753,18 @@ export const useDownloadStore = defineStore("downloads", () => {
         }
     }
 
+    /** 面板关闭时判断该条目是否已被当前页面注册（items 中已有行） */
+    function hasTrackedItem(item: DownloadItem): boolean {
+        if (item.remote_id && items.value[item.remote_id]) return true;
+        const sid = item.session_file_id ?? item.file_id;
+        if (sid != null) {
+            const mapped = sessionIdMap.value[sid];
+            if (mapped && items.value[mapped]) return true;
+            if (items.value[`session:${sid}`]) return true;
+        }
+        return false;
+    }
+
     /**
      * 应用 TDLib 官方下载列表状态到本地条目。
      * Rust 端同步会经 download-progress-update 回写；这里兜底处理
@@ -930,20 +940,17 @@ export const useDownloadStore = defineStore("downloads", () => {
 
     async function init() {
         loadFilters();
-        await refreshFromRust();
         if (!unlistenProgress) {
             unlistenProgress = await listen<DownloadItem>("download-progress-update", (event) => {
                 const item = event.payload;
-                if (item) scheduleUpdate(item);
-            });
-        }
-        // 授权就绪后加载下载列表，激活 updateFileDownload* 推送
-        if (!unlistenAuth) {
-            unlistenAuth = onTdlibUpdate("auth", (update) => {
-                const st = (update as { authorization_state?: { _?: string } }).authorization_state?._;
-                if (st === "authorizationStateReady") {
-                    void loadTdlibDownloadList();
+                if (!item) return;
+                // 面板关闭：列表由 Rust 权威记账（打开面板时快照读取），
+                // 前端只回写当前页面已注册条目的进度（消息内进度条/完成态）
+                if (!isPanelOpen.value) {
+                    scheduleBadgeRefresh();
+                    if (!hasTrackedItem(item)) return;
                 }
+                scheduleUpdate(item);
             });
         }
         // Rust 侧聚合统计事件（可选增强，与 other 通道并存）
@@ -952,6 +959,8 @@ export const useDownloadStore = defineStore("downloads", () => {
                 if (event.payload) applyTdlibListTotals(event.payload);
             });
         }
+        // 启动时先向 Rust 对一次角标计数（列表快照延迟到面板打开时读取）
+        scheduleBadgeRefresh();
     }
 
     async function refreshFromRust() {
@@ -977,14 +986,14 @@ export const useDownloadStore = defineStore("downloads", () => {
             clearTimeout(throttleTimer);
             throttleTimer = null;
         }
+        if (badgeTimer !== null) {
+            clearTimeout(badgeTimer);
+            badgeTimer = null;
+        }
         pendingUpdates.clear();
         if (unlistenProgress) {
             unlistenProgress();
             unlistenProgress = null;
-        }
-        if (unlistenAuth) {
-            unlistenAuth();
-            unlistenAuth = null;
         }
         if (unlistenStats) {
             unlistenStats();
@@ -1270,6 +1279,9 @@ export const useDownloadStore = defineStore("downloads", () => {
 
         // 无进度且调用方未给语义 → 不补录，避免空壳任务
         if (!existing) {
+            // 面板关闭且调用方未登记元数据 → 不补录前端条目：
+            // 下载列表由 Rust 权威记账（download_store），面板打开时快照读取
+            if (!isPanelOpen.value && !meta) return false;
             const hasActivity = ready || active || downloaded > 0;
             if (!hasActivity && !meta) return false;
 
@@ -1585,9 +1597,33 @@ export const useDownloadStore = defineStore("downloads", () => {
 
     // ─── 下载面板开关 ─────────────────────────────
     const isPanelOpen = ref(false);
-    function openPanel() { isPanelOpen.value = true; }
+    /** 面板关闭时的角标计数：直接问 Rust，不依赖前端列表 */
+    const rustActiveCount = ref(0);
+    let badgeTimer: ReturnType<typeof setTimeout> | null = null;
+    function scheduleBadgeRefresh() {
+        if (badgeTimer !== null) return;
+        badgeTimer = setTimeout(() => {
+            badgeTimer = null;
+            void invoke("get_download_active_count")
+                .then((n) => { if (typeof n === "number") rustActiveCount.value = n; })
+                .catch(() => { /* Rust 不可用时保持上次计数 */ });
+        }, 1000);
+    }
+    const badgeCount = computed(() =>
+        isPanelOpen.value ? activeDownloadingCount.value : rustActiveCount.value);
+
+    function openPanel() {
+        isPanelOpen.value = true;
+        // 打开时读取 Rust 权威快照 + TDLib 官方下载列表；关闭期间前端不维护列表
+        void refreshFromRust();
+        tdlibListLoaded = false;
+        void loadTdlibDownloadList();
+    }
     function closePanel() { isPanelOpen.value = false; }
-    function togglePanel() { isPanelOpen.value = !isPanelOpen.value; }
+    function togglePanel() {
+        if (isPanelOpen.value) closePanel();
+        else openPanel();
+    }
 
     return {
         items,
@@ -1599,6 +1635,7 @@ export const useDownloadStore = defineStore("downloads", () => {
         activeItems,
         activeCount,
         activeDownloadingCount,
+        badgeCount,
         visibleItems,
         completedItems,
         pendingItems,

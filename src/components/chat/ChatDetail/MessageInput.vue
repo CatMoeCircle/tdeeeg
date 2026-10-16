@@ -69,6 +69,10 @@
             </div>
 
             <div class="flex items-center gap-2 ml-2 mb-1.5 shrink-0">
+                <button @click="emit('switchAi')" type="button" :aria-label="t('aiInput.switchToAi')"
+                    class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">
+                    <Sparkles class="w-5 h-5" />
+                </button>
                 <button @click="$emit('sticker')" type="button" :aria-label="t('lng_in_dlg_sticker')"
                     class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">
                     <Smile class="w-5 h-5" />
@@ -90,7 +94,7 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, ref, watch, onMounted, nextTick } from 'vue';
 import type { chat, ChatMemberStatus, user, textEntity, formattedText } from 'tdlib-types';
-import { CornerUpLeftIcon, SendIcon, Smile, XIcon, TypeIcon, Bold, Italic, Underline, Strikethrough, EyeOff, Code2, Quote, Link2, Eraser } from 'lucide-vue-next';
+import { CornerUpLeftIcon, SendIcon, Smile, Sparkles, XIcon, TypeIcon, Bold, Italic, Underline, Strikethrough, EyeOff, Code2, Quote, Link2, Eraser } from 'lucide-vue-next';
 import { sending } from '../../../utils/attachmentSend';
 import { useAttachmentStore } from '../../../store/attachment';
 import { useCustomEmoji } from '../../../store/customEmoji';
@@ -145,7 +149,7 @@ const props = defineProps<{
 const emit = defineEmits([
     'update:modelValue', 'send', 'sticker', 'language', 'attach', 'clearReply', 'clearEdit',
     'attachPhoto', 'attachFile', 'attachMusic', 'attachChecklist', 'attachPoll',
-    'attachContact', 'attachLocation', 'change-sender',
+    'attachContact', 'attachLocation', 'change-sender', 'switchAi',
 ]);
 
 /** 供父组件在进入编辑后写入原始实体（在 modelValue 稳定后调用） */

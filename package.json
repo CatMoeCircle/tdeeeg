@@ -25,6 +25,7 @@
     "@tdesign-vue-next/auto-import-resolver": "^0.1.4",
     "katex": "^0.18.1",
     "libphonenumber-js": "^1.13.10",
+    "motion-v": "^2.7.0",
     "tlottie": "^0.1.22",
     "unplugin-auto-import": "^20.3.0",
     "unplugin-vue-components": "^32.1.0",

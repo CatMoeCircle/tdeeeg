@@ -2,7 +2,7 @@ import type { formattedText } from "tdlib-types";
 import { invoke } from "@tauri-apps/api/core";
 import { tdlibSend } from "./tdlib";
 import { settings } from "../store/settings";
-import { aiConfigComplete } from "../store/aiConfig";
+import { resolveAiTarget } from "../store/aiConfig";
 import i18n from "../i18n";
 
 /**
@@ -120,10 +120,14 @@ export const aiTranslateProvider: TranslateProvider = {
   id: "ai",
   get name() { return i18n.global.t("translate.aiName"); },
   isAvailable: () => true,
-  // 配置在后端（接口/模型/钥匙串 Key），完整才可调用
-  isConfigured: () => aiConfigComplete(),
+  // 供应商 + 模型由设置指定，且完整配置才可调用
+  isConfigured: () => resolveAiTarget() !== null,
   async translate(req) {
+    const target = resolveAiTarget();
+    if (!target) throw new Error(i18n.global.t("aiSettings.notReady"));
     const text = await invoke<string>("ai_translate_text", {
+      providerId: target.provider.id,
+      model: target.model,
       text: req.plainText,
       toLanguageCode: req.toLanguageCode,
     });

@@ -5145,6 +5145,7 @@ version = "0.2.2"
 dependencies = [
  "arboard",
  "dotenv",
+ "futures-util",
  "image",
  "langdetect",
  "libloading 0.9.0",

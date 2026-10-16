@@ -39,10 +39,10 @@
                 :title="downloadStore.isPanelOpen ? t('nav.closeDownloads') : t('nav.openDownloads')">
                 <span class="relative inline-flex">
                     <DownloadIcon :class="iconStyle" />
-                    <!-- 下载角标（红色，右下角） -->
-                    <span v-if="downloadStore.activeDownloadingCount > 0"
+                    <!-- 下载角标（红色，右下角）：面板关闭时计数来自 Rust -->
+                    <span v-if="downloadStore.badgeCount > 0"
                         class="absolute -bottom-1.5 -right-2 min-w-4.5 h-4.5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1 leading-none">
-                        {{ downloadStore.activeDownloadingCount > 99 ? '99+' : downloadStore.activeDownloadingCount }}
+                        {{ downloadStore.badgeCount > 99 ? '99+' : downloadStore.badgeCount }}
                     </span>
                     <!-- 上传角标（绿色，右上角） -->
                     <span v-if="uploadStore.activeCount > 0"

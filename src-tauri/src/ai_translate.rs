@@ -1,8 +1,7 @@
-//! AI 翻译提供方：配置保存（API Key 存系统钥匙串）、模型列表与翻译调用。
+//! AI 供应商：列表配置（名称 / 接口地址 / 协议 / 模型列表）、模型列表与翻译调用。
 //!
-//! 前端负责收集配置，本模块负责持久化与执行：
-//! - 非敏感配置（名称 / 接口 / 格式 / 模型）→ 应用配置目录 JSON
-//! - API Key → tauri-plugin-keyring-store（Windows 凭据管理器等系统钥匙串）
+//! - 供应商列表 → 应用配置目录 JSON（不含 API Key）
+//! - 每个供应商的 API Key → tauri-plugin-keyring-store（系统钥匙串），账号 `ai.provider.{id}.api_key`
 //! - 翻译与模型列表走 llmsdk（OpenAI Responses / OpenAI Compatible / Anthropic）
 
 use std::path::PathBuf;
@@ -11,53 +10,81 @@ use serde::{Deserialize, Serialize};
 use tauri::Manager;
 use tauri_plugin_keyring_store::KeyringExt;
 
-const CONFIG_FILE: &str = "ai_translate_config.json";
-const KEYRING_ACCOUNT: &str = "translate.ai.api_key";
+const CONFIG_FILE: &str = "ai_providers.json";
 
-/// 接口格式：openai-responses | openai-compatible | anthropic
+/// 接口协议：openai-responses | openai-compatible（默认，OpenAI Completions）| anthropic
 const FORMAT_ANTHROPIC: &str = "anthropic";
 
-/// AI 翻译配置（不含 API Key，Key 单独存钥匙串）。
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AiTranslateConfig {
-    /// 配置显示名称
+/// AI 供应商（API Key 不在此结构内，单独存钥匙串）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AiProvider {
+    pub id: String,
+    /// 供应商名称
     pub name: String,
     /// 接口地址（base_url，含版本路径，如 https://api.openai.com/v1）
     pub endpoint: String,
-    /// 接口格式
+    /// 接口协议
     pub format: String,
-    /// 模型 ID
-    pub model: String,
-}
-
-impl Default for AiTranslateConfig {
-    fn default() -> Self {
-        Self {
-            name: String::new(),
-            endpoint: String::new(),
-            format: "openai-compatible".to_string(),
-            model: String::new(),
-        }
-    }
-}
-
-impl AiTranslateConfig {
-    /// 是否已具备发起调用的基本条件
-    fn is_complete(&self) -> bool {
-        !self.endpoint.trim().is_empty() && !self.model.trim().is_empty()
-    }
-}
-
-/// 返回给前端的配置视图（Key 只回传「是否已保存」）。
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AiConfigView {
-    pub name: String,
-    pub endpoint: String,
-    pub format: String,
-    pub model: String,
+    /// 图标：前端图标库的 key（如 kimi）或用户自定义图片的 data URL；空 = 用名称首字母
+    pub icon: String,
+    /// 用户添加到列表中的模型（可带上下文 / 最大输出 / 模态，可在设置里手改）
+    pub models: Vec<AiModel>,
+    /// 返回给前端：钥匙串里是否已保存 API Key（写入时忽略）
     pub has_api_key: bool,
+}
+
+fn key_account(id: &str) -> String {
+    format!("ai.provider.{id}.api_key")
+}
+
+/// 模型条目：`id` 必有，其余字段视接口是否返回（OpenRouter 等才有名称 / 上下文 / 最大输出 / 模态），
+/// 也可在设置里手改。持久化为对象，同时兼容旧版的纯字符串数组。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiModel {
+    pub id: String,
+    /// 展示名（接口的 name / display_name），空 = 直接显示 id
+    pub name: Option<String>,
+    pub context_length: Option<u64>,
+    pub max_output: Option<u64>,
+    pub modality: Option<String>,
+}
+
+impl<'de> Deserialize<'de> for AiModel {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize, Default)]
+        #[serde(rename_all = "camelCase", default)]
+        struct Full {
+            id: String,
+            name: Option<String>,
+            context_length: Option<u64>,
+            max_output: Option<u64>,
+            modality: Option<String>,
+        }
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Repr {
+            Id(String),
+            Full(Full),
+        }
+        Ok(match Repr::deserialize(d)? {
+            Repr::Id(id) => AiModel {
+                id,
+                name: None,
+                context_length: None,
+                max_output: None,
+                modality: None,
+            },
+            Repr::Full(f) => AiModel {
+                id: f.id,
+                name: f.name,
+                context_length: f.context_length,
+                max_output: f.max_output,
+                modality: f.modality,
+            },
+        })
+    }
 }
 
 fn config_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
@@ -69,116 +96,158 @@ fn config_path<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, 
     Ok(dir.join(CONFIG_FILE))
 }
 
-fn load_config<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AiTranslateConfig {
+/// 解析配置文本：新格式是 `{providers, deletedPresets}` 对象，旧格式是裸数组（只有 providers）。
+/// 先按对象解（数组解不成结构体），失败再按裸数组解，避免对象被当成 legacy 丢字段。
+fn parse_config(text: &str) -> AiConfig {
+    if let Ok(config) = serde_json::from_str::<AiConfig>(text) {
+        return config;
+    }
+    if let Ok(providers) = serde_json::from_str::<Vec<AiProvider>>(text) {
+        return AiConfig { providers, deleted_presets: Vec::new() };
+    }
+    AiConfig::default()
+}
+
+pub(crate) fn load_all<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AiConfig {
     config_path(app)
         .ok()
         .and_then(|p| std::fs::read_to_string(p).ok())
-        .and_then(|s| serde_json::from_str(&s).ok())
+        .map(|text| parse_config(&text))
         .unwrap_or_default()
 }
 
-fn write_config<R: tauri::Runtime>(
-    app: &tauri::AppHandle<R>,
-    config: &AiTranslateConfig,
-) -> Result<(), String> {
+fn write_all<R: tauri::Runtime>(app: &tauri::AppHandle<R>, config: &AiConfig) -> Result<(), String> {
     let path = config_path(app)?;
     let content = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
     std::fs::write(path, content).map_err(|e| format!("写入配置失败: {e}"))
 }
 
-fn saved_api_key<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Option<String> {
+pub(crate) fn saved_api_key<R: tauri::Runtime>(app: &tauri::AppHandle<R>, id: &str) -> Option<String> {
     app.keyring()
         .store
-        .get_password(KEYRING_ACCOUNT)
+        .get_password(&key_account(id))
         .ok()
         .flatten()
         .filter(|k| !k.trim().is_empty())
 }
 
-fn to_view<R: tauri::Runtime>(app: &tauri::AppHandle<R>, config: AiTranslateConfig) -> AiConfigView {
-    AiConfigView {
-        name: config.name,
-        endpoint: config.endpoint,
-        format: config.format,
-        model: config.model,
-        has_api_key: saved_api_key(app).is_some(),
+fn with_key_flag<R: tauri::Runtime>(app: &tauri::AppHandle<R>, mut p: AiProvider) -> AiProvider {
+    p.has_api_key = saved_api_key(app, &p.id).is_some();
+    p
+}
+
+/// 供应商列表 + 被用户删掉的预设名（自定义项填同名保存即恢复该预设，见前端 presetForName）。
+/// 旧版本文件是裸数组（只有 providers），由 parse_config 兼容。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AiConfig {
+    pub providers: Vec<AiProvider>,
+    /// 已删除的预设名称；同名供应商保存时由前端移出并复用预设 id
+    pub deleted_presets: Vec<String>,
+}
+
+/// 供应商列表（设置页 / 翻译页进入时调用）。
+#[tauri::command]
+pub fn list_ai_providers(app: tauri::AppHandle) -> Result<AiConfig, String> {
+    let mut config = load_all(&app);
+    for p in config.providers.iter_mut() {
+        p.has_api_key = saved_api_key(&app, &p.id).is_some();
     }
+    Ok(config)
 }
 
-/// 读取当前配置（前端进入设置页时调用）。
+/// 新增或更新供应商：非敏感字段写 JSON；api_key 非空时写入钥匙串（空 = 保持已保存的 Key）。
+/// 该名称若在「已删除预设」里，则一并移出（= 恢复该预设）。
 #[tauri::command]
-pub fn get_ai_translate_config(app: tauri::AppHandle) -> Result<AiConfigView, String> {
-    let config = load_config(&app);
-    Ok(to_view(&app, config))
-}
-
-/// 保存配置：非敏感字段写 JSON；api_key 非空时写入系统钥匙串（空字符串 = 保持已保存的 Key 不变）。
-#[tauri::command]
-pub fn save_ai_translate_config(
+pub fn save_ai_provider(
     app: tauri::AppHandle,
-    config: AiTranslateConfig,
+    provider: AiProvider,
     api_key: String,
-) -> Result<AiConfigView, String> {
-    write_config(&app, &config)?;
+) -> Result<AiProvider, String> {
     let key = api_key.trim();
     if !key.is_empty() {
         app.keyring()
             .store
-            .set_password(KEYRING_ACCOUNT, key)
+            .set_password(&key_account(&provider.id), key)
             .map_err(|e| format!("保存 API Key 到钥匙串失败: {e}"))?;
     }
-    Ok(to_view(&app, config))
-}
-
-/// 清除配置：删除 JSON 与钥匙串中的 API Key，返回空配置视图。
-#[tauri::command]
-pub fn clear_ai_translate_config(app: tauri::AppHandle) -> Result<AiConfigView, String> {
-    if let Ok(path) = config_path(&app) {
-        let _ = std::fs::remove_file(path);
+    let mut config = load_all(&app);
+    match config.providers.iter_mut().find(|p| p.id == provider.id) {
+        Some(p) => *p = provider.clone(),
+        None => config.providers.push(provider.clone()),
     }
-    // Key 不存在时 delete 也视为成功
-    app.keyring().store.delete(KEYRING_ACCOUNT).ok();
-    Ok(AiConfigView {
-        name: String::new(),
-        endpoint: String::new(),
-        format: AiTranslateConfig::default().format,
-        model: String::new(),
-        has_api_key: false,
-    })
+    config
+        .deleted_presets
+        .retain(|n| !n.eq_ignore_ascii_case(provider.name.trim()));
+    write_all(&app, &config)?;
+    Ok(with_key_flag(&app, provider))
 }
 
-/// 拉取模型列表（「测试」链接）。
-/// `api_key` 非空则用入参，否则回退到钥匙串里已保存的 Key。
+/// 删除自定义供应商：移除配置与钥匙串中的 API Key。
+#[tauri::command]
+pub fn delete_ai_provider(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    let mut config = load_all(&app);
+    config.providers.retain(|p| p.id != id);
+    write_all(&app, &config)?;
+    // Key 不存在时 delete 也视为成功
+    app.keyring().store.delete(&key_account(&id)).ok();
+    Ok(())
+}
+
+/// 删除预设：只清除该预设已保存的设置（配置 + Key）并记住它被删过，UI 上不再显示它。
+#[tauri::command]
+pub fn delete_ai_preset(app: tauri::AppHandle, id: String, name: String) -> Result<(), String> {
+    let mut config = load_all(&app);
+    config.providers.retain(|p| p.id != id);
+    let name = name.trim().to_string();
+    if !name.is_empty() && !config.deleted_presets.iter().any(|n| n.eq_ignore_ascii_case(&name)) {
+        config.deleted_presets.push(name);
+    }
+    write_all(&app, &config)?;
+    app.keyring().store.delete(&key_account(&id)).ok();
+    Ok(())
+}
+
+/// 重置「被删除的预设」名单：清空后所有预设恢复显示（开发者选项），返回恢复的预设数。
+#[tauri::command]
+pub fn reset_ai_presets(app: tauri::AppHandle) -> Result<usize, String> {
+    let mut config = load_all(&app);
+    let count = config.deleted_presets.len();
+    config.deleted_presets.clear();
+    write_all(&app, &config)?;
+    Ok(count)
+}
+
+/// 拉取模型列表（「测试连接」「获取模型列表」）。
+/// `api_key` 非空则用入参，否则回退到钥匙串里该供应商已保存的 Key。
 #[tauri::command]
 pub async fn ai_list_models(
     app: tauri::AppHandle,
-    config: AiTranslateConfig,
+    provider: AiProvider,
     api_key: String,
-) -> Result<Vec<String>, String> {
-    if config.endpoint.trim().is_empty() {
+) -> Result<Vec<AiModel>, String> {
+    if provider.endpoint.trim().is_empty() {
         return Err("请先填写接口地址".to_string());
     }
-    let key = {
-        let input = api_key.trim();
-        if input.is_empty() {
-            saved_api_key(&app).ok_or_else(|| "请先填写 API Key".to_string())?
-        } else {
-            input.to_string()
-        }
+    let input = api_key.trim();
+    let key = if input.is_empty() {
+        saved_api_key(&app, &provider.id).ok_or_else(|| "请先填写 API Key".to_string())?
+    } else {
+        input.to_string()
     };
-    fetch_models(&config, &key).await
+    fetch_models(&provider.endpoint, &provider.format, &key).await
 }
 
-/// GET {endpoint}/models 拉取模型 ID 列表。
-/// 三种格式的 endpoint 均含版本路径（…/v1），因此统一拼 {endpoint}/models。
-async fn fetch_models(config: &AiTranslateConfig, api_key: &str) -> Result<Vec<String>, String> {
-    let base = config.endpoint.trim().trim_end_matches('/');
+/// GET {endpoint}/models 拉取模型列表。
+/// 三种协议的 endpoint 均含版本路径（…/v1），因此统一拼 {endpoint}/models。
+async fn fetch_models(endpoint: &str, format: &str, api_key: &str) -> Result<Vec<AiModel>, String> {
+    let base = endpoint.trim().trim_end_matches('/');
     let url = format!("{base}/models");
     let client = reqwest::Client::builder()
         .build()
         .map_err(|e| e.to_string())?;
     let mut req = client.get(&url);
-    req = if config.format == FORMAT_ANTHROPIC {
+    req = if format == FORMAT_ANTHROPIC {
         req.header("x-api-key", api_key)
             .header("anthropic-version", "2023-06-01")
     } else {
@@ -192,57 +261,83 @@ async fn fetch_models(config: &AiTranslateConfig, api_key: &str) -> Result<Vec<S
         return Err(format!("模型列表请求失败 (HTTP {status}): {snippet}"));
     }
     let body: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
-    let ids: Vec<String> = body
+    let models: Vec<AiModel> = body
         .get("data")
         .and_then(|d| d.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|m| m.get("id").and_then(|id| id.as_str()).map(String::from))
-                .collect()
-        })
+        .map(|arr| arr.iter().filter_map(model_from_json).collect())
         .unwrap_or_default();
-    if ids.is_empty() {
+    if models.is_empty() {
         return Err("该接口未返回模型列表，请手动输入模型 ID".to_string());
     }
-    Ok(ids)
+    Ok(models)
 }
 
-/// AI 翻译一段文本（翻译链路入口）。
+/// 单个模型：`id` 必然有；上下文 / 最大输出 / 模态只有部分接口返回（如 OpenRouter），
+/// 字段名各家不一，逐个候选键探测，取不到就留空。
+fn model_from_json(v: &serde_json::Value) -> Option<AiModel> {
+    let num = |keys: &[&str]| {
+        keys.iter()
+            .find_map(|k| v.get(*k).and_then(|x| x.as_u64()))
+    };
+    let nested_num = |parent: &str, key: &str| {
+        v.get(parent).and_then(|p| p.get(key)).and_then(|x| x.as_u64())
+    };
+    let modality = v
+        .get("architecture")
+        .and_then(|a| a.get("modality"))
+        .and_then(|x| x.as_str())
+        .map(String::from)
+        .or_else(|| {
+            v.get("architecture")
+                .and_then(|a| a.get("input_modalities"))
+                .and_then(|x| x.as_array())
+                .map(|a| a.iter().filter_map(|m| m.as_str()).collect::<Vec<_>>().join("+"))
+        })
+        .or_else(|| v.get("modality").and_then(|x| x.as_str()).map(String::from));
+
+    Some(AiModel {
+        id: v.get("id")?.as_str()?.to_string(),
+        name: v
+            .get("name")
+            .or_else(|| v.get("display_name"))
+            .and_then(|x| x.as_str())
+            .filter(|s| !s.trim().is_empty())
+            .map(String::from),
+        context_length: num(&["context_length", "context_window", "max_context_length"]),
+        max_output: num(&["max_output_tokens", "max_completion_tokens"])
+            .or_else(|| nested_num("top_provider", "max_completion_tokens")),
+        modality,
+    })
+}
+
+/// AI 翻译一段文本（翻译链路入口）：指定供应商 + 其列表中的模型。
 #[tauri::command]
 pub async fn ai_translate_text(
     app: tauri::AppHandle,
+    provider_id: String,
+    model: String,
     text: String,
     to_language_code: String,
 ) -> Result<String, String> {
-    let config = load_config(&app);
-    if !config.is_complete() {
-        return Err("AI 翻译未配置，请在设置中完成接口配置".to_string());
-    }
-    let api_key = saved_api_key(&app).ok_or_else(|| "未保存 API Key".to_string())?;
-    translate_via_llmsdk(&config, &api_key, &text, &to_language_code).await
+    let provider = load_all(&app)
+        .providers
+        .into_iter()
+        .find(|p| p.id == provider_id)
+        .ok_or_else(|| "AI 供应商不存在，请在设置中重新配置".to_string())?;
+    let api_key = saved_api_key(&app, &provider_id).ok_or_else(|| "未保存 API Key".to_string())?;
+    translate_via_llmsdk(&provider.endpoint, &provider.format, &api_key, &model, &text, &to_language_code).await
 }
 
-async fn translate_via_llmsdk(
-    config: &AiTranslateConfig,
+/// 按接口协议构造 llmsdk 模型（翻译 / 对话共用）。endpoint、model_id 须已 trim 且非空。
+pub(crate) fn build_language_model(
+    endpoint: &str,
+    format: &str,
     api_key: &str,
-    text: &str,
-    to_language_code: &str,
-) -> Result<String, String> {
-    use llmsdk::{
-        anthropic::Anthropic, openai::OpenAi, CallOptions, Content, LanguageModel, Message,
-        TextPart, UserPart,
-    };
+    model_id: &str,
+) -> Result<Box<dyn llmsdk::LanguageModel>, String> {
+    use llmsdk::{anthropic::Anthropic, openai::OpenAi};
 
-    let endpoint = config.endpoint.trim().trim_end_matches('/');
-    let model_id = config.model.trim();
-    if endpoint.is_empty() {
-        return Err("接口地址为空".to_string());
-    }
-    if model_id.is_empty() {
-        return Err("模型 ID 为空".to_string());
-    }
-
-    let model: Box<dyn LanguageModel> = match config.format.as_str() {
+    let model: Box<dyn llmsdk::LanguageModel> = match format {
         FORMAT_ANTHROPIC => {
             let provider = Anthropic::builder()
                 .api_key(api_key)
@@ -269,6 +364,29 @@ async fn translate_via_llmsdk(
             Box::new(provider.chat(model_id))
         }
     };
+    Ok(model)
+}
+
+async fn translate_via_llmsdk(
+    endpoint: &str,
+    format: &str,
+    api_key: &str,
+    model_id: &str,
+    text: &str,
+    to_language_code: &str,
+) -> Result<String, String> {
+    use llmsdk::{CallOptions, Content, Message, TextPart, UserPart};
+
+    let endpoint = endpoint.trim().trim_end_matches('/');
+    let model_id = model_id.trim();
+    if endpoint.is_empty() {
+        return Err("接口地址为空".to_string());
+    }
+    if model_id.is_empty() {
+        return Err("模型 ID 为空".to_string());
+    }
+
+    let model = build_language_model(endpoint, format, api_key, model_id)?;
 
     let system = format!(
         "You are a professional translation engine. Translate the user's text into the target \
@@ -316,4 +434,93 @@ async fn translate_via_llmsdk(
         return Err("AI 返回了空译文".to_string());
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_openrouter_style_metadata() {
+        let m = model_from_json(&serde_json::json!({
+            "id": "openai/gpt-4o",
+            "name": "GPT-4o",
+            "context_length": 128000,
+            "top_provider": { "max_completion_tokens": 16384 },
+            "architecture": { "modality": "text+image->text" }
+        }))
+        .unwrap();
+        assert_eq!(m.id, "openai/gpt-4o");
+        assert_eq!(m.name.as_deref(), Some("GPT-4o"));
+        assert_eq!(m.context_length, Some(128000));
+        assert_eq!(m.max_output, Some(16384));
+        assert_eq!(m.modality.as_deref(), Some("text+image->text"));
+    }
+
+    #[test]
+    fn reads_anthropic_display_name() {
+        let m = model_from_json(&serde_json::json!({
+            "id": "claude-sonnet-4",
+            "display_name": "Claude Sonnet 4",
+            "type": "model"
+        }))
+        .unwrap();
+        assert_eq!(m.name.as_deref(), Some("Claude Sonnet 4"));
+    }
+
+    #[test]
+    fn parses_bare_model_and_skips_id_less_entries() {
+        let m = model_from_json(&serde_json::json!({ "id": "gpt-4o-mini", "object": "model" })).unwrap();
+        assert_eq!(m.id, "gpt-4o-mini");
+        assert!(m.context_length.is_none() && m.max_output.is_none() && m.modality.is_none());
+        assert!(model_from_json(&serde_json::json!({ "object": "model" })).is_none());
+    }
+
+    #[test]
+    fn parses_legacy_provider_array_and_new_config_object() {
+        // 旧格式：裸数组（只有 providers），没有已删预设
+        let legacy = parse_config(r#"[{"id":"preset-deepseek","name":"DeepSeek"}]"#);
+        assert_eq!(legacy.providers.len(), 1);
+        assert!(legacy.deleted_presets.is_empty());
+
+        // 新格式：对象 + 已删预设名
+        let config = parse_config(
+            r#"{"providers":[{"id":"a","name":"自定义"}],"deletedPresets":["DeepSeek","Kimi"]}"#,
+        );
+        assert_eq!(config.providers[0].id, "a");
+        assert_eq!(config.deleted_presets, vec!["DeepSeek", "Kimi"]);
+
+        // 缺字段 / 坏 JSON 都退回空配置，不 panic
+        assert!(parse_config("{}").providers.is_empty());
+        assert!(parse_config("not json").providers.is_empty());
+    }
+
+    #[test]
+    fn config_round_trips_through_json() {
+        let config = AiConfig {
+            providers: vec![AiProvider { id: "preset-kimi".into(), name: "Kimi".into(), ..Default::default() }],
+            deleted_presets: vec!["DeepSeek".into()],
+        };
+        let text = serde_json::to_string(&config).unwrap();
+        let back = parse_config(&text);
+        assert_eq!(back.providers[0].name, "Kimi");
+        assert_eq!(back.deleted_presets, vec!["DeepSeek"]);
+    }
+
+    #[test]
+    fn reads_legacy_string_and_object_model_lists() {        let legacy: AiProvider = serde_json::from_str(
+            r#"{"id":"p","name":"n","endpoint":"https://x/v1","format":"openai-compatible","models":["gpt-4o","claude-3"]}"#,
+        )
+        .unwrap();
+        assert_eq!(legacy.models.len(), 2);
+        assert_eq!(legacy.models[0].id, "gpt-4o");
+        assert!(legacy.models[0].context_length.is_none());
+
+        let full: AiProvider = serde_json::from_str(
+            r#"{"models":[{"id":"m","contextLength":4096,"maxOutput":1024,"modality":"text"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(full.models[0].context_length, Some(4096));
+        assert_eq!(full.models[0].modality.as_deref(), Some("text"));
+    }
 }

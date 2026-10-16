@@ -241,3 +241,27 @@ export function setShowCopyJsonInMenus(enabled: boolean): void {
         // ignore
     }
 }
+
+const AI_STRIP_PREVIEW_KEY = "tdgram-debug-ai-strip-preview";
+
+/**
+ * 开发者选项里是否展开「AI 活动条」预览（输入框顶部那条输出 / 工具调用链）。
+ * AI 发送还没接，这里只用模拟数据测 UI；持久化到 localStorage。
+ */
+export const showAiStripPreview = ref(false);
+
+try {
+    showAiStripPreview.value = localStorage.getItem(AI_STRIP_PREVIEW_KEY) === "1";
+} catch {
+    showAiStripPreview.value = false;
+}
+
+/** 切换 AI 活动条预览并持久化 */
+export function setShowAiStripPreview(enabled: boolean): void {
+    showAiStripPreview.value = enabled;
+    try {
+        localStorage.setItem(AI_STRIP_PREVIEW_KEY, enabled ? "1" : "0");
+    } catch {
+        // ignore
+    }
+}

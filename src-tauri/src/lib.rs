@@ -1,5 +1,7 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 mod accounts;
+mod ai_chat;
+mod ai_conversations;
 mod ai_translate;
 mod chat_store;
 mod data_loc;
@@ -359,11 +361,26 @@ pub fn run() {
             smtc::smtc_clear,
             notifications::set_notification_prefs,
             notifications::set_active_chat_for_notifications,
-            ai_translate::get_ai_translate_config,
-            ai_translate::save_ai_translate_config,
-            ai_translate::clear_ai_translate_config,
+            ai_translate::list_ai_providers,
+            ai_translate::save_ai_provider,
+            ai_translate::delete_ai_provider,
+            ai_translate::delete_ai_preset,
+            ai_translate::reset_ai_presets,
             ai_translate::ai_list_models,
             ai_translate::ai_translate_text,
+            ai_chat::ai_chat,
+            ai_chat::ai_chat_stream,
+            ai_conversations::ai_conversation_create,
+            ai_conversations::ai_conversation_list,
+            ai_conversations::ai_conversation_list_all,
+            ai_conversations::ai_conversation_set_active,
+            ai_conversations::ai_conversation_rename,
+            ai_conversations::ai_conversation_delete,
+            ai_conversations::ai_conversation_clear_chat,
+            ai_conversations::ai_conversation_usage,
+            ai_conversations::ai_conversation_history,
+            ai_conversations::ai_conversation_save_history,
+            ai_conversations::ai_conversation_estimate_tokens,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

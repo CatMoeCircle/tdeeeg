@@ -212,8 +212,28 @@ interface Settings {
       endpoint: string;
       apiKey: string;
     };
-    // AI 翻译配置已迁移至后端（store/aiConfig + Rust ai_translate），
-    // 接口与 API Key 不再存 localStorage。
+    /**
+     * AI 翻译使用的供应商与模型（供应商列表见 store/aiConfig，后端保存）。
+     * providerId 为 null = 未选择；model 须在该供应商的模型列表中。
+     */
+    ai: {
+      providerId: string | null;
+      model: string;
+    };
+  };
+  /**
+   * 聊天底部用哪一种输入框（见 AiSettings 的「预览 / 修改」）：
+   * - message：普通消息输入框（MessageInput，能发消息）
+   * - ai：AI 输入框（AiPromptBar）
+   * 另含 AI 输入框默认使用的供应商与模型（列表见 store/aiConfig）。
+   * providerId 为 null 或指向已删除的供应商/模型时，输入框显示「未配置」。
+   */
+  ai: {
+    input: "message" | "ai";
+    providerId: string | null;
+    model: string;
+    /** 写类工具的审核策略：ask = 弹审核卡片，never = 需要审核的调用一律拒绝（见 utils/aiTools/call） */
+    approval: "ask" | "never";
   };
   /** 话题标签栏位置：left=左侧图片样式，top/bottom=悬浮分组栏样式 */
   topicTagBar: {
@@ -375,6 +395,16 @@ const defaultSettings: Settings = {
       endpoint: "",
       apiKey: "",
     },
+    ai: {
+      providerId: null,
+      model: "",
+    },
+  },
+  ai: {
+    input: "message",
+    providerId: null,
+    model: "",
+    approval: "ask",
   },
   chatHeaderAvatarPosition: "default",
   topicTagBar: {
@@ -468,9 +498,10 @@ try {
   }
   // 旧版 thirdParty/ai 带 enabled 字段：丢弃，只保留接口配置
   if (tp?.thirdParty && "enabled" in tp.thirdParty) delete tp.thirdParty.enabled;
-  // 旧版 AI 配置（含 API Key）已迁移至后端存储：整块删除，
-  // 停止把接口配置与 Key 留在 localStorage
-  if (tp && "ai" in tp) delete tp.ai;
+  // 旧版 AI 配置（接口 + Key）已迁移至后端存储：只删旧结构（带 endpoint）；
+  // 新版 translate.ai = { providerId, model } 是「翻译用哪个供应商/模型」的选择，
+  // 必须保留——否则每次启动都被清空，AI 翻译永远显示「未配置」。
+  if (tp && tp.ai && typeof tp.ai === "object" && "endpoint" in tp.ai) delete tp.ai;
   // 旧版误把 showTranslateBar 当设置：删除（全部翻译栏跟 chat.is_translatable）
   if (tp && "showTranslateBar" in tp) delete tp.showTranslateBar;
 } catch {

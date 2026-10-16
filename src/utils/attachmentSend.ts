@@ -382,7 +382,7 @@ function baseParams(ctx: SendCtx) {
 export async function sendAttachments(
     attachments: AttachmentItem[],
     ctx: SendCtx,
-    description: string,
+    description: string | formattedCaption,
 ): Promise<boolean> {
     if (!attachments.length) return false;
     let ok = true;
@@ -394,15 +394,16 @@ export async function sendAttachments(
      * - 该文件设置了独立描述 → 用它；
      * - 否则若没有任一带独立描述、且这是（相册的）最后一张媒体 → 用底部输入框的整体描述；
      * - 否则为空。
+     * 描述可以是带实体的富文本（AI 工具带格式的 caption 走这里）。
      */
-    const captionFor = (it: AttachmentItem, isLastMedia: boolean): string => {
+    const captionFor = (it: AttachmentItem, isLastMedia: boolean): string | formattedCaption => {
         if (it.caption) return it.caption;
         if (!hasAnyCaption && isLastMedia) return description;
         return '';
     };
 
     // 根据相册分组类型生成对应 InputMessageContent
-    const buildContent = (it: AttachmentItem, caption: string) => {
+    const buildContent = (it: AttachmentItem, caption: string | formattedCaption) => {
         switch (it.kind) {
             case 'photo': return photoContent(it, caption);
             case 'video': return videoContent(it, caption, it.cover);

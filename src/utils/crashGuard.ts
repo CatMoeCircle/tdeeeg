@@ -99,6 +99,8 @@ export function installCrashGuard(options?: { watchBlankMs?: number }) {
 
   window.addEventListener("error", (e) => {
     const msg = e.message || "unknown error";
+    // 浏览器布局竞态：ResizeObserver 回调内再次触发尺寸变化，属预期噪音，不是应用崩溃
+    if (msg.startsWith("ResizeObserver loop")) return;
     const stack = e.error?.stack ? String(e.error.stack) : undefined;
     appendLog({ type: "error", message: msg, extra: { stack, file: e.filename, line: e.lineno } });
     console.error("[crashGuard] window.onerror:", msg, e.error);

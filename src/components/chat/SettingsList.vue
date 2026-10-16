@@ -106,6 +106,7 @@ import {
     PaletteIcon, ChevronRightIcon, GlobeIcon, DatabaseIcon, NetworkIcon, SendIcon,
     TerminalSquare as TerminalSquareIcon, Settings as SettingsIcon, UserCog as UserCogIcon,
     Shield as ShieldIcon, Laptop as LaptopIcon, Bell as BellIcon, Languages as LanguagesIcon,
+    Sparkles as SparklesIcon,
 } from 'lucide-vue-next';
 import type { Component } from 'vue';
 import avatar from './avatar.vue';
@@ -318,6 +319,14 @@ const menuGroups = computed<SettingsMenuGroup[]>(() => {
                     tile: 'bg-blue-100 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400',
                     title: t('lng_settings_language'),
                     subtitle: t('lng_language_name'),
+                },
+                {
+                    key: 'ai',
+                    to: '/home/settings/ai',
+                    icon: SparklesIcon,
+                    tile: 'bg-purple-100 text-purple-600 dark:bg-purple-500/15 dark:text-purple-400',
+                    title: t('aiSettings.title'),
+                    subtitle: t('aiSettings.listSubtitle'),
                 },
                 {
                     key: 'translate',

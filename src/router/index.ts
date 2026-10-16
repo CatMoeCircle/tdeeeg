@@ -105,6 +105,17 @@ const router = createRouter({
           component: () => import("../views/settings/LanguageSettings.vue"),
         },
         {
+          path: "settings/ai",
+          name: "settings-ai",
+          component: () => import("../views/settings/AiSettings.vue"),
+        },
+        {
+          // AI 会话总管理：账号下全部聊天的对话（从 AI 设置页的入口进）
+          path: "settings/ai/conversations",
+          name: "settings-ai-conversations",
+          component: () => import("../views/settings/AiConversationsSettings.vue"),
+        },
+        {
           path: "settings/translate",
           name: "settings-translate",
           component: () => import("../views/settings/TranslateSettings.vue"),
