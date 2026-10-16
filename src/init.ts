@@ -6,7 +6,7 @@ import { initTdlibBus } from "./store/tdlibBus";
 import { useDownloadStore } from "./store/downloads";
 import { useUploadStore } from "./store/upload";
 import { useConnectionStore } from "./store/connectionState";
-import { useOptionsStore } from "./store/options";
+import { usePresenceStore } from "./store/presence";
 import { useUserStore } from "./store/user";
 import { useCommunityStore } from "./store/community";
 import { useAccountsStore } from "./store/accounts";
@@ -39,7 +39,7 @@ export async function initTdlib() {
     const downloadStore = useDownloadStore();
     const uploadStore = useUploadStore();
     const connectionStore = useConnectionStore();
-    const optionsStore = useOptionsStore();
+    const presenceStore = usePresenceStore();
     const userStore = useUserStore();
     const accountsStore = useAccountsStore();
     const languageStore = useLanguageStore();
@@ -50,8 +50,8 @@ export async function initTdlib() {
     await uploadStore.init();
     // 初始化连接状态监听（connection 通道）
     connectionStore.init();
-    // 初始化 TDLib options 缓存监听（option 通道）
-    optionsStore.init();
+    // 在线状态：窗口可见 + 有操作才在线（隐藏/空闲 5 分钟报离线）
+    presenceStore.init();
     // 初始化发送者缓存监听（user + chat 通道）
     await initSenderInfo();
     // 初始化当前用户信息监听（user 通道）
