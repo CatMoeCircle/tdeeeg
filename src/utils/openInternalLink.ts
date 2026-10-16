@@ -1,4 +1,4 @@
-import type { InternalLinkType, proxy, chat, story, stories } from "tdlib-types";
+import type { InternalLinkType, proxy, chat, story, stories, stickerSet } from "tdlib-types";
 import { tdlibSend } from "./tdlib";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "./toast";
@@ -7,6 +7,7 @@ import { refreshProxies } from "../store/proxyList";
 import { openStoryViewer } from "../store/storyViewer";
 import { showLanguagePackDialog } from "../store/languagePackLink";
 import { useLanguageStore } from "../store/language";
+import { openStickerSetDialog } from "../store/stickerSetDialog";
 import type { Router } from "vue-router";
 import i18n from "../i18n";
 
@@ -19,6 +20,8 @@ import i18n from "../i18n";
  *   - internalLinkTypeProxy      → 弹出「添加代理」确认，确认后 addProxy
  *   - internalLinkTypeBotStart   → searchPublicChat 解析出 bot，跳转其私聊；autostart 时自动发送 /start 深链接
  *   - internalLinkTypeStory      → searchPublicChat + getStory，打开故事播放器
+ *   - internalLinkTypeStickerSet → t.me/addstickers/<name>、t.me/addemoji/<name>：
+ *                                  searchStickerSet 解析出包 id，打开贴纸包弹窗（内含「添加」按钮）
  *   - tg://user?id=N             → 用户资料页（消息中的「名字提及」）
  *   - 其他 / 解析失败            → 外部浏览器打开（openUrl）
  *
@@ -165,6 +168,25 @@ export async function resolveInternalLink(href: string, router: Router): Promise
                     /* 保持单条 */
                 }
                 openStoryViewer(list, startIndex);
+                return true;
+            }
+            case "internalLinkTypeStickerSet": {
+                // t.me/addstickers/<name> / t.me/addemoji/<name>：按 TDLib 建议 searchStickerSet
+                // 解析出包，交给常驻的贴纸包弹窗展示（用户点「添加」即 changeStickerSet）。
+                // 包不存在时 searchStickerSet 抛错，这里必须自行消化，否则会被外层 catch 甩给外部浏览器。
+                try {
+                    const found = await tdlibSend({
+                        _: "searchStickerSet",
+                        name: linkType.sticker_set_name,
+                    }) as stickerSet;
+                    openStickerSetDialog(found?.id);
+                } catch (e) {
+                    console.warn("searchStickerSet for link failed:", e);
+                    await toast.warning({
+                        content: i18n.global.t("lng_stickers_not_found"),
+                        placement: "top-right",
+                    });
+                }
                 return true;
             }
             case "internalLinkTypeProxy": {
