@@ -27,8 +27,12 @@ import { detectInlineEntities } from "../utils/textEntityDetect";
 export interface TranslateRequest {
     /** 源对话 id */
     chatId: number;
-    /** 待翻译的消息 */
-    msg: message;
+    /**
+     * 待翻译的消息。
+     * 缺省时按纯文本翻译（如语音识别文本：它不在消息正文 / caption 里，
+     * 带 messageId 会让 TDLib translateMessageText 翻错内容）。
+     */
+    msg?: message;
     /** 待翻译的富文本（原样传给翻译提供方） */
     text: formattedText;
     /** 纯文本（用于语言检测与原文展示） */

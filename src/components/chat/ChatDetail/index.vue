@@ -325,7 +325,8 @@
                                             <MessageStatus :date="item.msg.date" :isOutgoing="false"
                                                 :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
                                                 :viewCount="item.msg.interaction_info?.view_count"
-                                                :authorSignature="getDisplayAuthorSignature(item.msg)" />
+                                                :authorSignature="getDisplayAuthorSignature(item.msg)"
+                                                :isTranslated="isShowingTranslation(item.msg)" />
                                         </span>
                                         <span
                                             v-else-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isInlineTimeMessage(item.msg) && isOutgoingMsg(item.msg)"
@@ -333,7 +334,8 @@
                                             <MessageStatus :date="item.msg.date" :isOutgoing="true"
                                                 :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
                                                 :viewCount="item.msg.interaction_info?.view_count"
-                                                :authorSignature="getDisplayAuthorSignature(item.msg)" />
+                                                :authorSignature="getDisplayAuthorSignature(item.msg)"
+                                                :isTranslated="isShowingTranslation(item.msg)" />
                                         </span>
                                         <!-- 频道评论条：文本 / 带 caption 媒体放气泡最底部。
                                              文本气泡有 px-2，出血靠外层 div 的 -mx-2（button 自身负 margin 拉不宽）；
@@ -884,10 +886,19 @@ import {
     requestViewportTranslation,
     getTranslateTargetLang,
     isTranslateInlineBlockDisplay,
+    isTranslateReplaceDisplay,
     canShowChatTranslateBar,
     shouldPromptChatTranslatePremium,
 } from '../../../store/translate';
 import { openContextMenu, visible as contextMenuVisible, reactionRow as contextMenuReactionRow, closeContextMenu as closeContextMenuStore } from '../../../store/contextMenu';
+import {
+    openTranscripts,
+    transcriptKey,
+    transcriptTextOf,
+    getTranscriptTranslation,
+    clearTranscriptTranslation,
+    translateTranscript,
+} from '../../../composables/speechTranscript';
 import type { ContextMenuReactionItem, ContextMenuReactionRow } from '../../contextMenu/types';
 import { DEFAULT_TRANSLATE_TARGET } from '../../../utils/translateLanguages';
 
@@ -5516,6 +5527,40 @@ function removeTranslateFor(msg: message) {
     removeInlineTranslation(cid, msg.id);
 }
 
+/**
+ * 气泡底部时间行是否标注「已翻译」：正文（或识别文本）已原位换成译文。
+ * 媒体 caption 由 MessageMediaContent 自己判定，这里覆盖走 ChatDetail 时间行的
+ * 非媒体消息（文件/音乐 caption、语音识别文本等）。
+ */
+function isShowingTranslation(msg: message): boolean {
+    if (!isTranslateReplaceDisplay()) return false;
+    const cid = msg.chat_id || chatId.value;
+    if (cid === undefined) return false;
+    return !!getInlineTranslation(cid, msg.id)?.translatedText
+        || !!getTranscriptTranslation(cid, msg.id)?.text;
+}
+
+/**
+ * 翻译语音 / 圆形视频的识别文本（右键菜单）。
+ * 按「翻译显示设置」分流：弹窗模式走弹窗（不带 msg，见 TranslateRequest.msg），
+ * 内联 / 原位替换写识别文本译文状态（TranscriptBlock 渲染）。
+ */
+function openTranslateForTranscript(msg: message, text: string) {
+    const cid = chatId.value ?? 0;
+    // 译文要有落脚点：先把识别文本展开
+    openTranscripts.add(transcriptKey(cid, msg.id));
+    const mode = settings.translate.displayMode;
+    if (mode === 'inline' || mode === 'replace') {
+        void translateTranscript(cid, msg.id, text);
+    } else {
+        showTranslateDialog({
+            chatId: cid,
+            text: { _: 'formattedText', text, entities: [] },
+            plainText: text,
+        });
+    }
+}
+
 // ==================== 聊天「全部翻译」（仅视口内） ====================
 
 /** 本会话是否隐藏了翻译栏（用户点了 X） */
@@ -6013,8 +6058,29 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
         });
     }
 
-    // —— 语音转文字 ——
-    if (!isService && canRecognizeSpeech(msg, cid)) {
+    // —— 语音转文字 / 识别文本翻译 ——
+    // 识别完成（有识别文本）后不再需要「转文字」，改为提供识别文本的「翻译」
+    const transcriptText = transcriptTextOf(msg);
+    if (!isService && transcriptText) {
+        if (settings.translate.showTranslateButton) {
+            const transcriptTranslation = getTranscriptTranslation(cid ?? 0, msg.id);
+            if (transcriptTranslation) {
+                items.push({
+                    key: 'translate-transcript-original',
+                    label: t('lng_translate_show_original'),
+                    icon: LanguagesIcon,
+                    onClick: () => clearTranscriptTranslation(cid ?? 0, msg.id),
+                });
+            } else {
+                items.push({
+                    key: 'translate-transcript',
+                    label: t('lng_context_translate'),
+                    icon: LanguagesIcon,
+                    onClick: () => openTranslateForTranscript(msg, transcriptText),
+                });
+            }
+        }
+    } else if (!isService && canRecognizeSpeech(msg, cid)) {
         items.push({
             key: 'recognize-speech',
             label: t('lng_feature_transcribe'),

@@ -155,6 +155,7 @@ declare module 'vue' {
     TopicTagBar: typeof import('./components/chat/ChatDetail/TopicTagBar.vue')['default']
     TRadioButton: typeof import('tdesign-vue-next')['RadioButton']
     TRadioGroup: typeof import('tdesign-vue-next')['RadioGroup']
+    TranscriptBlock: typeof import('./components/chat/ChatDetail/MessageContent/content/TranscriptBlock.vue')['default']
     TranslateMessageModal: typeof import('./components/contextMenu/TranslateMessageModal.vue')['default']
     TSelect: typeof import('tdesign-vue-next')['Select']
     TTooltip: typeof import('tdesign-vue-next')['Tooltip']

@@ -47,11 +47,9 @@
             </button>
         </div>
 
-        <!-- 识别结果：整行显示 -->
-        <p v-if="transcriptOpen" class="mt-1 whitespace-pre-wrap text-sm"
-            :class="transcriptState?._ === 'speechRecognitionResultError' ? 'text-gray-500 dark:text-gray-400' : ''">
-            {{ transcriptDisplay }}
-        </p>
+        <!-- 识别结果：整行显示（翻译入口在右键菜单） -->
+        <TranscriptBlock v-if="transcriptOpen" :chat-id="chatId" :message-id="messageId" :text="transcriptDisplay"
+            :error="transcriptState?._ === 'speechRecognitionResultError'" />
         <MessageTextContent v-if="content.caption?.text" :formattedText="content.caption" :chatId="chatId"
             :messageId="messageId" class="mt-1" />
     </div>
@@ -120,13 +118,14 @@
                         {{ fmtTime(noteRemaining) }}
                         <span v-if="content._ === 'messageVideoNote' && !content.is_viewed" class="h-1.5 w-1.5 rounded-full bg-white"></span>
                     </span>
-                    <!-- 右下：观看数 + 发送时间（同官方胶囊） -->
+                    <!-- 右下：观看数 + 发送时间（同官方胶囊）；识别文本已换成译文时标注「已翻译」 -->
                     <span class="pointer-events-none absolute bottom-1 right-1 flex items-center gap-1 rounded-full bg-black/50 px-2 py-0.5 text-xs tabular-nums text-white">
                         <template v-if="viewCount > 0">
                             <EyeIcon class="h-3 w-3" />
                             <span>{{ viewCount }}</span>
                         </template>
                         <span>{{ timeOfDay }}</span>
+                        <LanguagesIcon v-if="transcriptTranslated" class="h-3 w-3" />
                     </span>
                 </template>
                 <RichMediaDownload v-if="!mediaSrc && noteFile" :file="noteFile" :file-name="`video_note_${noteFile.id}.mp4`"
@@ -155,18 +154,17 @@
                     class="pointer-events-none absolute -inset-0.5 animate-spin rounded-lg border-2 border-blue-500 border-t-transparent" />
             </button>
         </div>
-        <!-- 识别结果：气泡内，位于波形行之下 -->
-        <p v-if="transcriptOpen" class="mt-1 whitespace-pre-wrap text-sm"
-            :class="transcriptState?._ === 'speechRecognitionResultError' ? 'text-gray-500 dark:text-gray-400' : ''">
-            {{ transcriptDisplay }}
-        </p>
-        <!-- 展开后底部：观看数 + 时间（与官方一致，位于气泡右下） -->
+        <!-- 识别结果：气泡内，位于波形行之下（翻译入口在右键菜单） -->
+        <TranscriptBlock v-if="transcriptOpen" :chat-id="chatId" :message-id="messageId" :text="transcriptDisplay"
+            :error="transcriptState?._ === 'speechRecognitionResultError'" />
+        <!-- 展开后底部：观看数 + 时间（与官方一致，位于气泡右下；识别文本已换成译文时标注「已翻译」） -->
         <div v-if="transcriptOpen" class="mt-1 flex items-center justify-end gap-1 text-xs tabular-nums text-gray-400">
             <template v-if="viewCount > 0">
                 <EyeIcon class="h-3 w-3" />
                 <span>{{ viewCount }}</span>
             </template>
             <span>{{ timeOfDay }}</span>
+            <LanguagesIcon v-if="transcriptTranslated" class="h-3 w-3" />
         </div>
     </div>
 </template>
@@ -179,10 +177,12 @@ import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/t
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { toast } from '../../../../../utils/toast';
-import { VideoIcon, PlayIcon, PauseIcon, DownloadIcon, EyeIcon, ArrowUpIcon, Maximize2 as Maximize2Icon, Minimize2 as Minimize2Icon } from 'lucide-vue-next';
+import { VideoIcon, PlayIcon, PauseIcon, DownloadIcon, EyeIcon, ArrowUpIcon, Maximize2 as Maximize2Icon, Minimize2 as Minimize2Icon, Languages as LanguagesIcon } from 'lucide-vue-next';
 import { getMessageProperties } from '../../../../../components/contextMenu/messageActions';
-import { openTranscripts, transcriptKey } from '../../../../../composables/speechTranscript';
+import { openTranscripts, transcriptKey, getTranscriptTranslation } from '../../../../../composables/speechTranscript';
+import { isTranslateReplaceDisplay } from '../../../../../store/translate';
 import MessageTextContent from './MessageTextContent.vue';
+import TranscriptBlock from './TranscriptBlock.vue';
 import RichMediaDownload from '../rich/RichMediaDownload.vue';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import { shouldAutoDownloadFiles, shouldAutoDownloadVideos } from '../../../../../utils/autoDownload';
@@ -469,6 +469,10 @@ const transcriptDisplay = computed(() => {
     if (r?._ === 'speechRecognitionResultPending' && r.partial_text) return r.partial_text;
     return t('content.transcribing');
 });
+/** 识别文本已原位显示为译文（replace 模式）→ 时间行旁标注「已翻译」 */
+const transcriptTranslated = computed(() => props.chatId != null && props.messageId != null
+    && isTranslateReplaceDisplay()
+    && !!getTranscriptTranslation(props.chatId, props.messageId)?.text);
 
 /** 加载代次：content 替换时自增，丢弃过期下载结果，避免视频留言缩略图串图 */
 let noteLoadSeq = 0;
