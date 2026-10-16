@@ -81,7 +81,11 @@ export function bracketTypePreview(label: string, extra?: string | null): string
     return x ? `[${label}] ${x}` : `[${label}]`;
 }
 
-/** 内容保护开关预览，与消息气泡文案一致：自己操作用 you 文案，否则带发送者名 */
+/**
+ * 内容保护开关预览，与消息气泡文案一致：自己操作用 you 文案，否则带发送者名。
+ * 频道里没有用户身份（发送者是频道本身），调用方对频道应传 `isOutgoing = false`，
+ * 否则会显示成「您」触发的操作。
+ */
 export function protectedContentTogglePreview(enabled: boolean, isOutgoing: boolean, from: string): string {
     if (isOutgoing) {
         return i18n.global.t(enabled ? 'lng_action_no_forwards_you_enabled' : 'lng_action_no_forwards_you_disabled');

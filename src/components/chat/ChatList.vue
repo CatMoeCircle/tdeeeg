@@ -283,7 +283,7 @@
                                                         <p v-else-if="!isMediaPreviewMsg(chat.last_message)"
                                                             class="min-w-0 truncate text-xs text-gray-500">
                                                             <FormattedTextInline
-                                                                :formattedText="getMessagePreview(chat.last_message)"
+                                                                :formattedText="getMessagePreview(chat.last_message, chat)"
                                                                 :size="14" />
                                                         </p>
                                                     </div>
@@ -1197,7 +1197,7 @@ const plainText = (text: string): formattedText => ({ _: 'formattedText', text, 
 
 const EMPTY_TEXT = plainText('');
 
-const getMessagePreview = (message: message | undefined): formattedText => {
+const getMessagePreview = (message: message | undefined, chat?: Chat): formattedText => {
     if (!message) return EMPTY_TEXT;
     const content = message.content;
     if (!content) return EMPTY_TEXT;
@@ -1239,7 +1239,10 @@ const getMessagePreview = (message: message | undefined): formattedText => {
         return plainText(bracketTypePreview(messageContentTypeLabel('messagePoll'), action));
     }
     if (content._ === 'messageChatHasProtectedContentToggled') {
-        return plainText(protectedContentTogglePreview(content.new_has_protected_content, !!message.is_outgoing, getSenderName(message.sender_id)));
+        // 频道里没有「自己」的操作视角（发送者是频道本身，不是某个用户）：
+        // 与消息气泡文案一致，显示对应的发送者名称而不是「您」。
+        const isChannel = chat?.type?._ === 'chatTypeSupergroup' && !!chat.type.is_channel;
+        return plainText(protectedContentTogglePreview(content.new_has_protected_content, !!message.is_outgoing && !isChannel, getSenderName(message.sender_id)));
     }
     return plainText(bracketTypePreview(messageContentTypeLabel('')));
 };

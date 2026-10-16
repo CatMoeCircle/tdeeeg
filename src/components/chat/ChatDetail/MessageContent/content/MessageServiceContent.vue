@@ -49,7 +49,8 @@ import { useRouter } from 'vue-router';
 import type { chatPhoto, file, formattedText, MessageContent, message, photoSize } from 'tdlib-types';
 import { ensureLocalFilePath, tdlibSend } from '../../../../../utils/tdlib';
 import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
-import { ensureUser, getUserDisplayName } from '../../../../../utils/senderInfo';
+import { ensureUser, getReactiveChat, getUserDisplayName } from '../../../../../utils/senderInfo';
+import { isChannelChat } from '../../../../../utils/groupRights';
 import { useChatStore } from '../../../../../store/chat';
 import { useCommunityStore } from '../../../../../store/community';
 import { openMediaViewer } from '../../../../../store/mediaViewer';
@@ -107,12 +108,25 @@ const MARK_RE = new RegExp(
     'g',
 );
 
+/** 当前对话是否为频道：频道里的服务消息没有用户身份（发送者是频道本身，不是某个用户） */
+const isChannel = computed(() =>
+    isChannelChat(props.chatId != null ? getReactiveChat(props.chatId) : undefined),
+);
+
 /**
- * 文案中的操作者名称：自己发出的服务消息用「您 / You」（与对方视角区分，
- * 避免显示成自己的名字，如「讨论将群组名称更改为…」）；对方则为带用户链接标记的名称。
+ * 人称「您」是否适用：只在群组 / 私聊中用「您」区分自己与对方；
+ * 频道里即使是自己触发的操作，也显示对应的频道名称——与其它管理员触发的同一条
+ * 文案保持一致，不会出现「您将频道名称更改为…」这种没有用户身份的表述。
+ */
+const ownAction = computed(() => !!props.isSelf && !isChannel.value);
+
+/**
+ * 文案中的操作者名称：群组 / 私聊里自己发出的服务消息用「您 / You」（与对方视角区分，
+ * 避免显示成自己的名字，如「讨论将群组名称更改为…」）；频道里固定用发送者名称；
+ * 对方则为带用户链接标记的名称。
  */
 const sender = computed(() =>
-    props.isSelf ? t('service.you') : userMark(props.senderUserId, plainSender.value),
+    ownAction.value ? t('service.you') : userMark(props.senderUserId, plainSender.value),
 );
 
 /**
@@ -544,9 +558,9 @@ const serviceText = computed<ServicePart[] | string | null>(() => {
         case 'messageChatUpgradeFrom':
             return t('lng_action_group_migrate');
         case 'messageChatHasProtectedContentToggled': {
-            // 自己操作用 you 文案（无 {from}），否则带发送者名
+            // 群组 / 私聊里自己操作用 you 文案（无 {from}）；频道里显示对应的频道名称
             const enabled = c.new_has_protected_content;
-            if (props.isSelf) {
+            if (ownAction.value) {
                 return t(enabled ? 'lng_action_no_forwards_you_enabled' : 'lng_action_no_forwards_you_disabled');
             }
             return t(enabled ? 'lng_action_no_forwards_enabled' : 'lng_action_no_forwards_disabled', { from: sender.value });
