@@ -1,7 +1,8 @@
 <template>
-    <!-- 联系人消息卡片：头像 + 姓名/手机号，底部「消息 / 添加」两个操作，左侧为 accent 彩条 -->
-    <div class="relative w-70 max-w-full min-w-0 select-text overflow-hidden rounded-xl" :style="cardStyle">
-        <!-- 左侧彩条：Premium 用户为斜纹双色，普通用户为纯色 -->
+    <!-- 联系人消息卡片：头像 + 姓名/手机号，底部「消息 / 添加」两个操作。
+         背景 = 联系人 accent 多色循环渐变；左侧彩条 = 同一套颜色循环的斜条纹 -->
+    <div class="contact-color-card relative w-70 max-w-full min-w-0 select-text overflow-hidden rounded-xl"
+        :style="cardStyle">
         <span class="absolute inset-y-0 left-0 w-0.75" :style="stripeStyle"></span>
 
         <div class="flex items-center gap-3 py-3 pl-4 pr-3">
@@ -9,7 +10,7 @@
                 :class="canOpenProfile ? 'cursor-pointer' : 'cursor-default'" :disabled="!canOpenProfile"
                 @click="openProfile">
                 <Avatar :photo="user?.profile_photo" :title="displayName" :first-name="contact.first_name"
-                    :last-name="contact.last_name" :accent-color-id="accentId" />
+                    :last-name="contact.last_name" :accent-color-id="avatarAccentId" />
             </button>
             <div class="min-w-0 flex-1">
                 <p class="truncate text-base font-medium" :style="{ color: accent.color }">{{ displayName }}</p>
@@ -43,7 +44,7 @@ import { useRouter } from 'vue-router';
 import type { chat, messageContact, user as TdUser } from 'tdlib-types';
 import Avatar from '../../../avatar.vue';
 import { tdlibSend } from '../../../../../utils/tdlib';
-import { accentColorStyle, rgbToHex } from '../../../../../store/colors';
+import { accentColorStyle, rgbToCss } from '../../../../../store/colors';
 import { useUserStore } from '../../../../../store/user';
 import { toast } from '../../../../../utils/toast';
 import { getReactiveUser } from '../../../../../utils/senderInfo';
@@ -89,31 +90,54 @@ const hasActions = computed(() => canSendMessage.value);
 const contactUser = computed(() => getReactiveUser(contact.value.user_id) ?? user.value);
 
 /**
- * 卡片配色：与资料页/发送者头像一致 —— profile_accent_color_id（≥0）优先，
- * 否则 accent_color_id（≥0），都没有（TDLib 的 -1）时按 user_id 稳定取一个内置色
+ * 卡片文字色 / 背景色 / 左彩条用的 accent 色：TDLib 的 accent_color_id（消息色空间，
+ * 与发送者名称、回复栏一致）；用户只设置了资料页颜色（accent_color_id 为 -1）时，
+ * 退回资料页色 id —— TDLib 两套色板的 id 槽位一致，accentColors 里通常有同一槽位的色值，
+ * 否则会丢成「按 user_id 随机内置色」，看起来就像用户颜色没显示。
+ * 两者都没有时按 user_id 稳定取一个内置色，避免变成统一蓝色。
  */
+const profileAccentId = computed(() => {
+    const profile = contactUser.value?.profile_accent_color_id;
+    return typeof profile === 'number' && profile >= 0 ? profile : undefined;
+});
 const accentId = computed(() => {
-    const u = contactUser.value;
-    const profile = u?.profile_accent_color_id;
-    if (typeof profile === 'number' && profile >= 0) return profile;
-    const accent = u?.accent_color_id;
+    const accent = contactUser.value?.accent_color_id;
     if (typeof accent === 'number' && accent >= 0) return accent;
+    if (profileAccentId.value !== undefined) return profileAccentId.value;
     return Math.abs(contact.value.user_id) % 7;
+});
+/** 头像渐变色：profile_accent_color_id（资料页色空间，与 accent_color_id 是两套 id）；
+ *  未设置时回退 accent_color_id，Avatar 自行处理缺省。 */
+const avatarAccentId = computed(() => {
+    if (profileAccentId.value !== undefined) return profileAccentId.value;
+    const accent = contactUser.value?.accent_color_id;
+    return typeof accent === 'number' && accent >= 0 ? accent : undefined;
 });
 const accent = computed(() => accentColorStyle(accentId.value));
 
-/** 是否为 Premium 用户：只有 Premium 才能自定义名字/资料页颜色，才有彩条与主题色底 */
-const isPremium = computed(() => !!contactUser.value?.is_premium);
+/** 卡片背景：联系人多色色板（TDLib 1~3 色）按首色闭环做渐变，再由 CSS 动画缓慢循环流动。
+ *  单色（未自定义）时退化为纯色底。 */
+const cardStyle = computed(() => {
+    const stops = accent.value.allColors.map((c) => rgbToCss(c, 0.18));
+    if (stops.length <= 1) return { backgroundColor: stops[0] ?? accent.value.soft };
+    return { backgroundImage: `linear-gradient(120deg, ${[...stops, stops[0]].join(', ')})` };
+});
 
-const cardStyle = computed(() => (isPremium.value ? { backgroundColor: accent.value.soft } : undefined));
-/** 彩条：Premium 为主色/次色交替的斜纹双色；普通用户为主色纯色条 */
+/** 左侧彩条：单色=纯色条；多色=对角斜条纹循环排列（与回复栏/链接预览同一画法） */
 const stripeStyle = computed(() => {
-    const c1 = accent.value.color;
-    if (!isPremium.value) return { backgroundColor: c1 };
-    const c2 = rgbToHex(accent.value.secondary);
-    return {
-        background: `repeating-linear-gradient(-45deg, ${c1} 0 3px, ${c2} 3px 6px)`,
-    };
+    const colors = accent.value.allColors;
+    if (colors.length <= 1) return { backgroundColor: accent.value.color };
+    const SEG = 4;
+    const cycle = (colors.length + 1) * SEG;
+    let stops = '';
+    let pos = 0;
+    for (let ci = colors.length - 1; ci >= 0; ci--) {
+        const c = rgbToCss(colors[ci]);
+        stops += `, ${c} ${pos}px, ${c} ${pos + SEG}px`;
+        pos += SEG;
+    }
+    stops += `, transparent ${pos}px, transparent ${cycle}px`;
+    return { background: `repeating-linear-gradient(-45deg${stops})` };
 });
 const dividerColor = computed(() => `color-mix(in srgb, ${accent.value.color} 25%, transparent)`);
 
@@ -183,3 +207,28 @@ async function onAddContact() {
     }
 }
 </script>
+
+<style scoped>
+/* 多色渐变背景缓慢循环流动（单色纯色底不受影响）；尊重系统「减少动态效果」 */
+.contact-color-card {
+    background-size: 240% 240%;
+    animation: contact-color-cycle 16s ease-in-out infinite;
+}
+
+@keyframes contact-color-cycle {
+    0%,
+    100% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .contact-color-card {
+        animation: none;
+    }
+}
+</style>
