@@ -1,6 +1,5 @@
 import { reactive, ref } from 'vue';
-import type { accentColor, profileAccentColor, Update, Updates } from 'tdlib-types';
-import { tdlibSend } from '../utils/tdlib';
+import type { accentColor, profileAccentColor, Update } from 'tdlib-types';
 import { onTdlibUpdate } from './tdlibBus';
 import { isDark as themeIsDark, initTheme } from './theme';
 
@@ -79,39 +78,56 @@ const profileAvailableIds = ref<number[]>([]);
 /** 是否已初始化（防止重复注册监听） */
 let initialized = false;
 
-/** 请求中的去重标识 */
-let fetchPromise: Promise<void> | null = null;
+/**
+ * 色板本地缓存：TDLib 只在 client 启动时推送一次 updateAccentColors /
+ * updateProfileAccentColors，且没有 getAccentColors 请求（1.8.68 报 Unknown class）。
+ * 刷新页面不会重发 —— 不缓存的话，刷新后所有自定义 accent 色都会退回默认蓝。
+ */
+const COLOR_CACHE_KEY = "tdlib.accentColors.v1";
+
+type ColorCache = {
+    accents?: accentColor[];
+    profiles?: profileAccentColor[];
+    available?: number[];
+    profileAvailable?: number[];
+};
+
+function loadCachedColors() {
+    try {
+        const raw = localStorage.getItem(COLOR_CACHE_KEY);
+        if (!raw) return;
+        const data = JSON.parse(raw) as ColorCache;
+        for (const c of data.accents ?? []) if (c && typeof c.id === "number") accentColors.set(c.id, c);
+        for (const c of data.profiles ?? []) if (c && typeof c.id === "number") profileAccentColors.set(c.id, c);
+        if (Array.isArray(data.available)) availableIds.value = data.available;
+        if (Array.isArray(data.profileAvailable)) profileAvailableIds.value = data.profileAvailable;
+    } catch (_) { }
+}
+
+function saveCachedColors() {
+    try {
+        const data: ColorCache = {
+            accents: [...accentColors.values()],
+            profiles: [...profileAccentColors.values()],
+            available: availableIds.value,
+            profileAvailable: profileAvailableIds.value,
+        };
+        localStorage.setItem(COLOR_CACHE_KEY, JSON.stringify(data));
+    } catch (_) { }
+}
 
 /**
- * 初始化：注册 updateAccentColors / updateProfileAccentColors 监听，
- * 并主动调用 getAccentColors / getProfileAccentColors 拉取一次以播种缓存。
+ * 初始化：先恢复上次收到的色板缓存（刷新后不丢），
+ * 再订阅 updateAccentColors / updateProfileAccentColors 更新并回写缓存。
  */
 export async function initColors(): Promise<void> {
     if (initialized) return;
     initialized = true;
-
-    // 订阅总线 colors 通道（updateAccentColors / updateProfileAccentColors）
+    loadCachedColors();
     onTdlibUpdate("colors", (update) => {
-        if (!update || typeof update !== 'object') return;
-        if (update._ === 'updateAccentColors') {
-            if (Array.isArray((update as any).colors)) {
-                for (const c of (update as any).colors) accentColors.set(c.id, c);
-            }
-            if (Array.isArray((update as any).available_accent_color_ids)) {
-                availableIds.value = (update as any).available_accent_color_ids;
-            }
-        } else if (update._ === 'updateProfileAccentColors') {
-            if (Array.isArray((update as any).colors)) {
-                for (const c of (update as any).colors) profileAccentColors.set(c.id, c);
-            }
-            if (Array.isArray((update as any).available_accent_color_ids)) {
-                profileAvailableIds.value = (update as any).available_accent_color_ids;
-            }
-        }
+        seedUpdate(update as Update);
+        saveCachedColors();
     });
-
-    // 主动播种（若 update 未到达或启动时未触发）
-    void fetchAccentColors();
 }
 
 /** 播种某个 update 到对应缓存（updateAccentColors / updateProfileAccentColors） */
@@ -132,40 +148,6 @@ function seedUpdate(update: Update) {
             profileAvailableIds.value = update.available_accent_color_ids;
         }
     }
-}
-
-/** 主动请求一次 accent colors（幂等去重） */
-async function fetchAccentColors(): Promise<void> {
-    if (fetchPromise) return fetchPromise;
-    fetchPromise = (async () => {
-        try {
-            const r = (await tdlibSend({ _: 'getAccentColors' } as unknown as Parameters<typeof tdlibSend>[0])) as { colors?: accentColor[]; available_accent_color_ids?: number[] };
-            if (r?.colors) {
-                for (const c of r.colors) accentColors.set(c.id, c);
-            }
-            if (r?.available_accent_color_ids) {
-                availableIds.value = r.available_accent_color_ids;
-            }
-        } catch (_) { }
-        try {
-            const r = (await tdlibSend({ _: 'getProfileAccentColors' } as unknown as Parameters<typeof tdlibSend>[0])) as { colors?: profileAccentColor[]; available_accent_color_ids?: number[] };
-            if (r?.colors) {
-                for (const c of r.colors) profileAccentColors.set(c.id, c);
-            }
-            if (r?.available_accent_color_ids) {
-                profileAvailableIds.value = r.available_accent_color_ids;
-            }
-        } catch (_) { }
-        if (accentColors.size === 0 && profileAccentColors.size === 0) {
-            try {
-                const st = await tdlibSend({ _: 'getCurrentState' }) as Updates;
-                if (Array.isArray(st?.updates)) {
-                    for (const u of st.updates) seedUpdate(u as Update);
-                }
-            } catch (_) { }
-        }
-    })();
-    return fetchPromise;
 }
 
 // ============================================================================
