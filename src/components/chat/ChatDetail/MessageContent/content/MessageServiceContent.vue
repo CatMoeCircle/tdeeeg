@@ -32,6 +32,11 @@
             <ServiceTextNodes />
         </span>
 
+        <!-- 服务消息本身也可以被回应：沿用消息气泡的回应胶囊，居中放在服务文案下方 -->
+        <div v-if="reactionMessage" class="mt-1 flex justify-center">
+            <ReactionsBar :msg="reactionMessage" :isSelf="false" @toggle-reaction="onToggleReaction" />
+        </div>
+
         <!-- 壁纸预览弹窗（点击卡片里的查看按钮打开） -->
         <WallpaperPreviewDialog :open="wallpaperPreviewOpen" :wallpaper="wallpaperContent?.background ?? null"
             :user-name="otherUserName" :chat-id="chatId" :message-id="messageId"
@@ -46,17 +51,20 @@ import { computed, watch, ref, h, Text } from 'vue';
 import type { VNode } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useRouter } from 'vue-router';
-import type { chatPhoto, file, formattedText, MessageContent, message, photoSize } from 'tdlib-types';
+import type { chatPhoto, file, formattedText, MessageContent, message, photoSize, ReactionType } from 'tdlib-types';
 import { ensureLocalFilePath, tdlibSend } from '../../../../../utils/tdlib';
 import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
 import { ensureUser, getReactiveChat, getUserDisplayName } from '../../../../../utils/senderInfo';
 import { isChannelChat } from '../../../../../utils/groupRights';
+import { hasReactions } from '../../../../../utils/reactionHelpers';
 import { useChatStore } from '../../../../../store/chat';
 import { useCommunityStore } from '../../../../../store/community';
 import { openMediaViewer } from '../../../../../store/mediaViewer';
 import { useUserStore } from '../../../../../store/user';
+import { toggleReaction } from '../../../../contextMenu/messageActions';
 import FormattedTextInline from '../../../FormattedTextInline.vue';
 import WallpaperPreviewDialog from '../../../WallpaperPreviewDialog.vue';
+import ReactionsBar from '../../ReactionsBar.vue';
 import MessageUnsupportedContent from './MessageUnsupportedContent.vue';
 
 const props = defineProps<{
@@ -80,6 +88,16 @@ const props = defineProps<{
 const emit = defineEmits<{
     jump: [messageId: number];
 }>();
+
+/** 带回应的服务消息（回应条渲染在服务文案下方） */
+const reactionMessage = computed(() =>
+    props.message && hasReactions(props.message) ? props.message : null,
+);
+
+function onToggleReaction(type: ReactionType) {
+    if (props.chatId === undefined || !props.message) return;
+    void toggleReaction(props.chatId, props.message, type);
+}
 
 /** 发送者名称（未解析到时兜底） */
 const plainSender = computed(() => props.senderName?.trim() || t('service.someone'));

@@ -97,18 +97,24 @@
 
         <!-- Voice / Video notes -->
         <MessageVoiceContent v-else-if="content._ === 'messageVoiceNote' || content._ === 'messageVideoNote'"
-            :content="content" :chatId="chatId" :messageId="messageId" :message="message" />
+            :content="content" :chatId="chatId" :messageId="messageId" :message="message">
+            <slot />
+        </MessageVoiceContent>
 
         <!-- Document / Audio -->
         <MessageFileContent v-else-if="content._ === 'messageDocument' || content._ === 'messageAudio'"
             :content="content" :chatId="chatId" :messageId="messageId" />
 
         <!-- Contact card -->
-        <MessageContactContent v-else-if="content._ === 'messageContact'" :content="content" />
+        <MessageContactContent v-else-if="content._ === 'messageContact'" :content="content">
+            <slot />
+        </MessageContactContent>
 
         <!-- Other types -->
         <MessageOtherContent v-else :content="content" :chat-id="chatId" :message-id="messageId" :message="message"
-            :topic-id="topicId" :sender-name="senderName" />
+            :topic-id="topicId" :sender-name="senderName">
+            <slot />
+        </MessageOtherContent>
     </template>
 </template>
 

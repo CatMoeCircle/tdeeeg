@@ -345,6 +345,11 @@
                                                 :msg="item.msg" @open="openCommentsThread(item.msg)" />
                                         </div>
                                     </div>
+                                    <!-- 圆形视频（独立消息）：回应放在视频下方，自己靠右、他人靠左 -->
+                                    <ReactionsBar
+                                        v-if="item.msg.content._ === 'messageVideoNote' && hasReactions(item.msg)"
+                                        :msg="item.msg" :isSelf="isSelf(item.msg)"
+                                        @toggle-reaction="(type: ReactionType) => toggleReaction(chatId!, item.msg, type)" />
                                     <InlineKeyboard v-if="getInlineKeyboard(item.msg)" class="mt-1 w-full"
                                         :ref="registerKeyboardRef(item.msg.id)"
                                         :rows="getInlineKeyboard(item.msg)!.rows" :chat-id="chatId"

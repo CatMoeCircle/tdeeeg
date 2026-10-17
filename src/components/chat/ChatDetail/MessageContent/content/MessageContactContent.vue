@@ -1,39 +1,45 @@
 <template>
     <!-- 联系人消息卡片：头像 + 姓名/手机号，底部「消息 / 添加」两个操作。
          背景 = 联系人 accent 多色循环渐变；左侧彩条 = 同一套颜色循环的斜条纹 -->
-    <div class="contact-color-card relative w-70 max-w-full min-w-0 select-text overflow-hidden rounded-xl"
-        :style="cardStyle">
-        <span class="absolute inset-y-0 left-0 w-0.75" :style="stripeStyle"></span>
+    <div class="flex min-w-0 max-w-full flex-col">
+        <div class="contact-color-card relative w-70 max-w-full min-w-0 select-text overflow-hidden rounded-xl"
+            :style="cardStyle">
+            <span class="absolute inset-y-0 left-0 w-0.75" :style="stripeStyle"></span>
 
-        <div class="flex items-center gap-3 py-3 pl-4 pr-3">
-            <button type="button" class="h-12 w-12 shrink-0 overflow-hidden rounded-full"
-                :class="canOpenProfile ? 'cursor-pointer' : 'cursor-default'" :disabled="!canOpenProfile"
-                @click="openProfile">
-                <Avatar :photo="user?.profile_photo" :title="displayName" :first-name="contact.first_name"
-                    :last-name="contact.last_name" :accent-color-id="avatarAccentId" />
-            </button>
-            <div class="min-w-0 flex-1">
-                <p class="truncate text-base font-medium" :style="{ color: accent.color }">{{ displayName }}</p>
-                <p v-if="phoneText" class="truncate text-sm tabular-nums text-gray-900 dark:text-white">{{ phoneText }}
-                </p>
+            <div class="flex items-center gap-3 py-3 pl-4 pr-3">
+                <button type="button" class="h-12 w-12 shrink-0 overflow-hidden rounded-full"
+                    :class="canOpenProfile ? 'cursor-pointer' : 'cursor-default'" :disabled="!canOpenProfile"
+                    @click="openProfile">
+                    <Avatar :photo="user?.profile_photo" :title="displayName" :first-name="contact.first_name"
+                        :last-name="contact.last_name" :accent-color-id="avatarAccentId" />
+                </button>
+                <div class="min-w-0 flex-1">
+                    <p class="truncate text-base font-medium" :style="{ color: accent.color }">{{ displayName }}</p>
+                    <p v-if="phoneText" class="truncate text-sm tabular-nums text-gray-900 dark:text-white">{{
+                        phoneText }}
+                    </p>
+                </div>
             </div>
+
+            <template v-if="hasActions">
+                <div class="mx-4 h-px" :style="{ backgroundColor: dividerColor }"></div>
+                <div class="flex items-stretch">
+                    <button v-if="canSendMessage" type="button"
+                        class="flex-1 py-2.5 text-center text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-60"
+                        :style="{ color: accent.color }" :disabled="opening" @click="onSendMessage">
+                        {{ t('lng_contact_send_message') }}
+                    </button>
+                    <button v-if="canAddContact" type="button"
+                        class="flex-1 py-2.5 text-center text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-60"
+                        :style="{ color: accent.color }" :disabled="adding" @click="onAddContact">
+                        {{ t('lng_contact_add') }}
+                    </button>
+                </div>
+            </template>
         </div>
 
-        <template v-if="hasActions">
-            <div class="mx-4 h-px" :style="{ backgroundColor: dividerColor }"></div>
-            <div class="flex items-stretch">
-                <button v-if="canSendMessage" type="button"
-                    class="flex-1 py-2.5 text-center text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-60"
-                    :style="{ color: accent.color }" :disabled="opening" @click="onSendMessage">
-                    {{ t('lng_contact_send_message') }}
-                </button>
-                <button v-if="canAddContact" type="button"
-                    class="flex-1 py-2.5 text-center text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-60"
-                    :style="{ color: accent.color }" :disabled="adding" @click="onAddContact">
-                    {{ t('lng_contact_add') }}
-                </button>
-            </div>
-        </template>
+        <!-- 回应（由 MessageContent 默认插槽传入）：放在联系人卡片下方 -->
+        <slot />
     </div>
 </template>
 

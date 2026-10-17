@@ -38,6 +38,9 @@
 
         <!-- 未适配的消息类型：统一走卡片，不再用斜体红字兜底 -->
         <MessageUnsupportedContent v-else :content="content" />
+
+        <!-- 回应（由 MessageContent 默认插槽传入）：放在投票等卡片内容下方 -->
+        <slot />
     </div>
 </template>
 

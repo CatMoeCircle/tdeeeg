@@ -52,6 +52,9 @@
             :error="transcriptState?._ === 'speechRecognitionResultError'" />
         <MessageTextContent v-if="content.caption?.text" :formattedText="content.caption" :chatId="chatId"
             :messageId="messageId" class="mt-1" />
+
+        <!-- 回应（由 MessageContent 默认插槽传入）：放在语音播放器/识别文本下方 -->
+        <slot />
     </div>
 
     <!-- Video Note -->
