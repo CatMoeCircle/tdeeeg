@@ -160,7 +160,7 @@
 
             <!-- 消息类结果（媒体 / 文件 / 链接 / 音频 / 语音 / 帖子结果） -->
             <template v-else>
-                <div v-for="msg in messageResults" :key="msg.id" @click="selectMessage(msg)"
+                <div v-for="msg in messageResults" :key="`${msg.chat_id}_${msg.id}`" @click="selectMessage(msg)"
                     class="flex items-start gap-2.5 p-2.5 mb-0.5 hover:bg-white/70 dark:hover:bg-gray-800/70 rounded-xl cursor-pointer transition-colors"
                     style="content-visibility: auto; contain-intrinsic-size: 72px">
                     <Avatar :photo="resultChat(msg.chat_id)?.photo" :title="resultChat(msg.chat_id)?.title"
@@ -191,8 +191,8 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
-import { ref, computed, watch, onMounted, onUnmounted, type Component } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick, type Component } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import {
     SearchIcon, BookmarkIcon,
     MessageCircleIcon, MegaphoneIcon, BotIcon,
@@ -221,11 +221,8 @@ const props = defineProps<{
     query: string;
 }>();
 
-const emit = defineEmits<{
-    (e: 'close'): void;
-}>();
-
 const router = useRouter();
+const route = useRoute();
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
 
@@ -344,6 +341,10 @@ async function runPostsSearchNow() {
     const starCount = free ? 0 : (limits?.star_count ?? 0);
 
     postsState.value = 'loading';
+    postsQueryText = q;
+    messageOffset = '';
+    messageHasMore = false;
+    autoFillBudget = 3;
     try {
         const res = await tdlibSend({
             _: 'searchPublicPosts',
@@ -373,21 +374,43 @@ async function runPostsSearchNow() {
             toast.success(t('lng_posts_paid_spent', { count: starCount }).replace(/\*\*/g, ''));
         }
 
-        const chatIds = new Set(list.map(m => m.chat_id));
-        for (const cid of chatIds) {
-            if (!chatCache.value.has(cid)) {
-                void ensureChat(cid).then(() => {
-                    const c = getReactiveChat(cid);
-                    if (c) chatCache.value.set(cid, c);
-                });
-            }
-        }
+        warmChatCache(list);
     } catch (e: any) {
         console.error('searchPublicPosts failed:', e);
         // Stars 不足等错误：回到限额状态提示
         postsState.value = 'limit-info';
         messageResults.value = [];
         toast.warning(e?.message || t('search.searchFailed'));
+    }
+}
+
+/**
+ * 帖子翻页：同一查询的后续分页用 next_offset 续查，不再消耗免费次数 / Star
+ * （offset 为空才是新一轮搜索，star_count 必须为 0 才免费）
+ */
+async function loadMorePosts() {
+    // 注意：调用方 runSearch 已置 loadingMore=true，这里不能再判它，否则永远直接返回
+    if (!postsQueryText || !messageHasMore) return;
+    loadingMore.value = true;
+    try {
+        const res = await tdlibSend({
+            _: 'searchPublicPosts',
+            query: postsQueryText,
+            offset: messageOffset,
+            limit: 30,
+            star_count: 0,
+        } as any) as { messages: message[]; next_offset: string };
+
+        const list = res.messages || [];
+        messageOffset = res.next_offset || '';
+        messageHasMore = list.length > 0 && !!res.next_offset;
+        messageResults.value = [...messageResults.value, ...list];
+        warmChatCache(list);
+    } catch (e: any) {
+        console.error('searchPublicPosts (load more) failed:', e);
+        toast.warning(e?.message || t('search.searchFailed'));
+    } finally {
+        loadingMore.value = false;
     }
 }
 
@@ -431,6 +454,10 @@ let searchSeq = 0;
 /** 消息搜索 offset（空串首页） */
 let messageOffset = '';
 let messageHasMore = true;
+/** 已发起搜索的帖子查询（翻页必须复用，避免用输入框新文本续查旧 offset） */
+let postsQueryText = '';
+/** 结果不满一屏时的自动补页预算（每轮新搜索重置） */
+let autoFillBudget = 0;
 
 onMounted(() => {
     void runSearch(false);
@@ -473,6 +500,7 @@ async function runSearch(loadMore: boolean) {
         loading.value = true;
         messageOffset = '';
         messageHasMore = true;
+        autoFillBudget = 3;
     }
 
     try {
@@ -480,7 +508,8 @@ async function runSearch(loadMore: boolean) {
             await runChatSearch(q, seq);
         } else if (activeCategory.value === 'posts') {
             // 帖子：仅刷新限额与状态；真正搜索由用户点击按钮触发（避免误耗免费次数）
-            await refreshPostsLimits();
+            if (loadMore) await loadMorePosts();
+            else await refreshPostsLimits();
         } else {
             await runMessageSearch(q, loadMore, seq);
         }
@@ -639,26 +668,48 @@ async function runMessageSearch(q: string, loadMore: boolean, seq: number) {
     messageHasMore = list.length > 0 && !!res.next_offset;
     messageResults.value = loadMore ? [...messageResults.value, ...list] : list;
 
-    const chatIds = new Set(list.map(m => m.chat_id));
-    for (const cid of chatIds) {
-        if (!chatCache.value.has(cid)) {
-            void ensureChat(cid).then(() => {
-                const c = getReactiveChat(cid);
-                if (c) chatCache.value.set(cid, c);
-            });
-        }
+    warmChatCache(list);
+}
+
+/** 预取结果所属对话，供头像/标题渲染 */
+function warmChatCache(list: message[]) {
+    for (const cid of new Set(list.map(m => m.chat_id))) {
+        if (chatCache.value.has(cid)) continue;
+        void ensureChat(cid).then(() => {
+            const c = getReactiveChat(cid);
+            if (c) chatCache.value.set(cid, c);
+        });
     }
 }
 
 /** 滚动到底自动加载更多（消息/帖子） */
 function onResultsScroll() {
     if (isChatCategory.value || !messageHasMore || loading.value || loadingMore.value) return;
+    // 帖子：仅结果页允许翻页，否则会把结果换成限额状态页并重新消耗一次搜索
+    if (activeCategory.value === 'posts' && postsState.value !== 'results') return;
     const el = resultsEl.value;
     if (!el) return;
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 80) {
         void runSearch(true);
     }
 }
+
+/**
+ * 结果不足一屏时容器没有滚动条 → 永远不会产生 scroll 事件 → 也就永远不翻页。
+ * 每次结果变化后补一页，直到撑满容器或没有更多；预算防止极端情况下无限请求。
+ */
+async function fillViewportIfShort() {
+    if (autoFillBudget <= 0) return;
+    if (isChatCategory.value || !messageHasMore || loading.value || loadingMore.value) return;
+    if (activeCategory.value === 'posts' && postsState.value !== 'results') return;
+    await nextTick();
+    const el = resultsEl.value;
+    if (!el || el.scrollHeight > el.clientHeight + 40) return;
+    autoFillBudget--;
+    void runSearch(true);
+}
+
+watch(messageResults, () => { void fillViewportIfShort(); });
 
 // ==================== 结果展示辅助 ====================
 const avatarRadius = computed(() => settings.chatList.avatarCornerRadius);
@@ -720,16 +771,29 @@ function formatTime(timestamp: number | undefined): string {
 }
 
 // ==================== 选择结果 ====================
+/**
+ * 点击对话/频道/应用结果：不退出搜索模式。
+ * 退出会卸载结果区、重建对话列表（看起来像「左边被刷新」，结果也没了）。
+ */
 function selectChat(chat: Chat) {
-    emit('close');
     router.push({
         name: 'chat-detail',
         params: { id: String(chat.id) },
     });
 }
 
+/**
+ * 点击消息类结果（帖子 / 媒体 / 文件 / 链接…）跳转。
+ * - 目标就是当前打开的对话：分发轻量事件，避免 router.push 改 query 触发 ChatDetail 整段重建
+ * - 不退出搜索模式：保留结果列表，否则帖子结果一丢又要重新搜（再扣一次免费次数 / Star）
+ */
 function selectMessage(msg: message) {
-    emit('close');
+    if (route.name === 'chat-detail' && String(route.params.id ?? '') === String(msg.chat_id)) {
+        window.dispatchEvent(new CustomEvent('tdgram:jump-to-message-in-chat', {
+            detail: { messageId: msg.id },
+        }));
+        return;
+    }
     router.push({
         name: 'chat-detail',
         params: { id: String(msg.chat_id) },

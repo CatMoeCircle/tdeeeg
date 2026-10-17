@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref, shallowRef, computed } from "vue";
+import { ref, shallowRef, computed, type ComputedRef } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { onTdlibUpdate } from "./tdlibBus";
@@ -325,11 +325,27 @@ export const useChatStore = defineStore("chat", () => {
     return { id, title: '…', unread_count: 0 };
   }
 
-  const getList = (listKey: string) =>
-    computed(() => {
-      const ids = lists.value[listKey] || [];
-      return ids.map((id) => chats.value[id] ?? createPlaceholderChat(id));
-    });
+  /**
+   * 每个列表的对话数组 computed 缓存。
+   *
+   * 旧实现每次调用都 new 一个 computed：ChatList 的 computed / 模板里的
+   * tabUnread() 会在每次渲染时反复调用它，每次新建都往 lists/chats 的依赖集合里
+   * 注册一个永不回收的 effect（依赖集合越来越大，触发时线性变慢），同时每次都
+   * 重新 map 一遍整份 id 列表。按 listKey 缓存后，只有列表内容真正变化才重算。
+   */
+  const listComputedCache = new Map<string, ComputedRef<Chat[]>>();
+
+  const getList = (listKey: string): ComputedRef<Chat[]> => {
+    let cached = listComputedCache.get(listKey);
+    if (!cached) {
+      cached = computed(() => {
+        const ids = lists.value[listKey] || [];
+        return ids.map((id) => chats.value[id] ?? createPlaceholderChat(id));
+      });
+      listComputedCache.set(listKey, cached);
+    }
+    return cached;
+  };
 
   const isLoading = (listKey: string) => computed(() => getListState(listKey).loading);
   const isFinished = (listKey: string) => computed(() => getListState(listKey).finished);

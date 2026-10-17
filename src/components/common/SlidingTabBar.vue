@@ -71,33 +71,39 @@ const containerClass = computed(() => {
 });
 
 // ---- 滑动指示器（tabs 小蓝条 / soft 浅蓝胶囊底） ----
-const tabRefs = ref<HTMLElement[]>([]);
 const indicatorStyle = ref<Record<string, string>>({});
 
 const container = ref<HTMLElement | null>(null);
 
-function setTabRef(el: any) {
-    if (el) tabRefs.value.push(el as HTMLElement);
+/** 按 data-tab-id 直接查按钮（不维护响应式引用数组，避免每次重渲染反复 push） */
+function findTab(id: string): HTMLElement | undefined {
+    const btns = container.value ? Array.from(container.value.querySelectorAll<HTMLElement>(':scope > button')) : [];
+    return btns.find(b => b.dataset.tabId === id);
 }
 
 /** 计算滑动指示器位置/宽度（先移动后定宽，避免宽度抖动） */
 function updateIndicator() {
-    if (!hasSlidingIndicator.value) return;
-    const el = tabRefs.value?.find(t => t.dataset.tabId === props.activeId)
-        || tabRefs.value?.[0];
-    if (!el || !container.value) return;
+    if (!hasSlidingIndicator.value || !container.value) return;
+    const el = findTab(props.activeId) || container.value.querySelector<HTMLElement>(':scope > button');
+    if (!el) return;
+    // 位置走 transform（合成器动画，不触发布局）；left 固定为 0
+    const transform = `translateX(${el.offsetLeft}px)`;
+    const width = `${el.offsetWidth}px`;
+    // 值未变则不重建 style 对象，避免无谓的响应式补丁
+    if (indicatorStyle.value.transform === transform && indicatorStyle.value.width === width) return;
     indicatorStyle.value = {
-        left: `${el.offsetLeft}px`,
-        width: `${el.offsetWidth}px`,
-        // left 先滑动，width 延迟展开 → 移动动画更自然、不抖动
-        transition: 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.22s cubic-bezier(0.4, 0, 0.2, 1) 0.12s',
+        left: '0',
+        transform,
+        width,
+        // 位置先滑动，宽度延迟展开 → 移动动画更自然、不抖动
+        transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.22s cubic-bezier(0.4, 0, 0.2, 1) 0.12s',
     };
 }
 
 /** 将激活标签横向滚入本容器可视区。
  *  不用 scrollIntoView：它会连带滚动所有可滚动祖先，把外层纵向列表/设置页一起拖走。 */
 function scrollActiveIntoView() {
-    const el = tabRefs.value?.find(t => t.dataset.tabId === props.activeId);
+    const el = findTab(props.activeId);
     const cont = container.value;
     if (!el || !cont) return;
     const elLeft = el.offsetLeft;
@@ -139,9 +145,8 @@ watch(() => props.activeId, () => {
     });
 }, { immediate: true });
 
-// 标签列表变化：v-for 会重建按钮 → 先清空旧引用再重算
+// 标签列表变化：v-for 会重建按钮 → DOM 更新后重算
 watch(() => props.tabs, () => {
-    tabRefs.value = [];
     nextTick(() => {
         updateIndicator();
         scrollActiveIntoView();
@@ -165,7 +170,7 @@ watch(() => props.variant, () => {
                 : 'bottom-0 h-0.5 bg-blue-500'"
             :style="indicatorStyle"></span>
 
-        <button v-for="tab in tabs" :key="tab.id" type="button" :ref="setTabRef" :data-tab-id="tab.id"
+        <button v-for="tab in tabs" :key="tab.id" type="button" :data-tab-id="tab.id"
             @click="onTabClick(tab.id)"
             class="whitespace-nowrap inline-flex items-center transition-colors shrink-0 select-none"
             :class="props.tabClass ? props.tabClass(tab.id, tab.id === props.activeId) : ''">

@@ -408,9 +408,8 @@
                 </div>
             </div>
 
-            <!-- 搜索模式：分类页签 + 结果区 -->
-            <ChatSearchPanel v-else key="search-body" :query="searchQuery"
-                @close="exitSearchMode" />
+            <!-- 搜索模式：分类页签 + 结果区（退出搜索用左上角返回 / Esc） -->
+            <ChatSearchPanel v-else key="search-body" :query="searchQuery" />
             </Transition>
         </div>
 
@@ -644,7 +643,10 @@ watch(() => chatStore.chatLists, async (lists) => {
     setTimeout(() => {
         chatStore.fillPlaceholderChats();
     }, 1500);
-}, { deep: true, once: true });
+}, {
+    // 不用 deep：chatLists 始终整体替换（identity 变化即触发），deep 只会多深遍历一遍。
+    once: true,
+});
 
 /** 分组栏选项卡 */
 type ChatListTab = {
@@ -1502,6 +1504,11 @@ function isChatBlueVerified(chat: Chat): boolean {
 }
 
 // 列表内容变化时异步加载发送者信息（用户/频道数据，缓存去重）
+//
+// 不用 deep：store.chats 是 shallowRef（对话对象是原始对象，没有深层响应式依赖），
+// 列表变了都是整条记录替换 → tabsWithContent 的值身份就变，deep 触发时机完全一样，
+// 只是每次多一次「全量对话对象图」深遍历（对话含 last_message 大对象，实测单次
+// 2ms 起，账号对话多时可达百毫秒级，是下载/更新风暴期间掉帧的主因之一）。
 watch(tabsWithContent, (list) => {
     list.forEach(({ chats }) => {
         chats.forEach(c => {
@@ -1512,7 +1519,7 @@ watch(tabsWithContent, (list) => {
             ensureChatVerificationLoaded(c);
         });
     });
-}, { deep: true });
+});
 
 // 切换 Tab 时重置该列表的加载状态；
 // activeTab 可能来自顶部点击（需 scroll）或原生横滑（已在正确位置）
