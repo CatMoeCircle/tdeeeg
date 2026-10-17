@@ -1,14 +1,15 @@
 import { tdlibSend } from "../../utils/tdlib";
 import { getMessagePlainText } from "../../utils/messageText";
+import { messageSenderKey } from "../../utils/senderInfo";
 import { toast } from "../../utils/toast";
 import i18n from "../../i18n";
 
 const t = (key: string, params?: Record<string, unknown>) =>
     i18n.global.t(key, params as any);
 import { TrashIcon } from "lucide-vue-next";
-import type { message, messageProperties, MessageSender, formattedText$Input, textEntity$Input } from "tdlib-types";
+import type { message, messageProperties, MessageSender, formattedText$Input, textEntity$Input, foundChatMessages } from "tdlib-types";
 import type { ContextMenuItem } from "./types";
-import type { DeleteMessageResult } from "../../store/deleteMessage";
+import type { DeleteMessageResult, DeleteSenderInfo } from "../../store/deleteMessage";
 
 /* =========================================================================
  * 基于 getMessageProperties 的精确权限能力模块
@@ -525,19 +526,24 @@ export async function toggleMessagePinned(chatId: number, msg: message) {
     }
 }
 
-/** 删除消息 */
-export async function deleteMessages(chatId: number, msg: message, revoke: boolean) {
+/** 批量删除消息（多选删除与单选删除共用） */
+export async function deleteMessagesByIds(chatId: number, ids: number[], revoke: boolean) {
     try {
         await tdlibSend({
             _: 'deleteMessages',
             chat_id: chatId,
-            message_ids: [msg.id],
+            message_ids: ids,
             revoke,
         });
         toast.success(t('context.deleted'));
     } catch (e: any) {
         toast.error(e?.message || t('context.deleteFailed'));
     }
+}
+
+/** 删除消息 */
+export async function deleteMessages(chatId: number, msg: message, revoke: boolean) {
+    await deleteMessagesByIds(chatId, [msg.id], revoke);
 }
 
 /**
@@ -577,29 +583,105 @@ export async function banChatSender(chatId: number, senderId: MessageSender) {
 }
 
 /**
+ * 删除某发送者在当前对话中留下的所有回应（reaction）。
+ * 仅基础群/超级群，需 can_delete_messages；TDLib 只支持删除「最近的」reaction。
+ */
+export async function deleteAllReactionsFromSender(chatId: number, sender: MessageSender) {
+    try {
+        await tdlibSend({
+            _: 'deleteAllRecentMessageReactionsFromSender',
+            chat_id: chatId,
+            sender_id: sender as any,
+        });
+        toast.success(t('context.deleted'));
+    } catch (e: any) {
+        toast.error(e?.message || t('context.deleteFailed'));
+    }
+}
+
+/**
  * 按删除弹窗的结果组合执行删除动作：
- *  - deleteMessage        → deleteMessages（删除当前消息，走「为所有人删除」）
- *  - deleteAllFromSender  → deleteChatMessagesBySender（删除该发送者全部消息）
- *  - banSender            → banChatMember（封禁该发送者）
+ *  - deleteMessages          → deleteMessages（删除选中的消息，按 revoke 决定是否对所有人）
+ *  - deleteAllSenderKeys     → deleteChatMessagesBySender（逐个删除发送者的全部消息）
+ *  - deleteReactionsSenderKeys → deleteAllRecentMessageReactionsFromSender（删除其全部回应）
+ *  - banSenderKeys           → banChatMember（逐个封禁发送者，跳过不可封禁的成员）
+ *  - reportSenderKeys        → reportSupergroupSpam（只举报勾选发送者的消息）
  * 逐项执行，单项失败不影响其余项。
  */
 export async function executeDeleteActions(
     chatId: number,
-    msg: message,
-    senderId: MessageSender | undefined,
+    msgs: message[],
+    senders: DeleteSenderInfo[],
     result: DeleteMessageResult,
+    supergroupId?: number,
 ) {
-    // 封禁（优先级最高，通常同时删除消息）
-    if (result.banSender && senderId) {
-        await banChatSender(chatId, senderId);
+    // 封禁（优先级最高，通常同时删除消息）；不可封禁的成员直接跳过
+    const banKeys = new Set(result.banSenderKeys);
+    if (banKeys.size > 0) {
+        for (const s of senders) {
+            if (s.canBan && banKeys.has(s.key)) await banChatSender(chatId, s.sender);
+        }
     }
-    // 删除该发送者的所有消息
-    if (result.deleteAllFromSender && senderId) {
-        await deleteChatMessagesBySender(chatId, senderId);
+    // 删除各发送者的所有消息
+    const deleteAllKeys = new Set(result.deleteAllSenderKeys);
+    if (deleteAllKeys.size > 0) {
+        for (const s of senders) {
+            if (s.canDeleteAll && deleteAllKeys.has(s.key)) await deleteChatMessagesBySender(chatId, s.sender);
+        }
     }
-    // 删除当前消息
-    if (result.deleteMessage) {
-        await deleteMessages(chatId, msg, true);
+    // 删除各发送者的所有回应
+    const reactionKeys = new Set(result.deleteReactionsSenderKeys);
+    if (reactionKeys.size > 0) {
+        for (const s of senders) {
+            if (s.canDeleteReactions && reactionKeys.has(s.key)) await deleteAllReactionsFromSender(chatId, s.sender);
+        }
+    }
+    // 举报勾选发送者的消息
+    if (result.reportSenderKeys.length > 0 && supergroupId) {
+        const reportKeys = new Set(result.reportSenderKeys);
+        const ids = msgs
+            .filter(m => !!m.sender_id && reportKeys.has(messageSenderKey(m.sender_id)))
+            .map(m => m.id);
+        if (ids.length > 0) await reportSupergroupSpam(supergroupId, ids);
+    }
+    // 删除选中的消息
+    if (result.deleteMessages) {
+        await deleteMessagesByIds(chatId, msgs.map(m => m.id), result.revoke);
+    }
+}
+
+/** 举报消息为垃圾信息（仅超级群管理员，需 can_report_supergroup_spam） */
+export async function reportSupergroupSpam(supergroupId: number, messageIds: number[]) {
+    try {
+        await tdlibSend({
+            _: 'reportSupergroupSpam',
+            supergroup_id: supergroupId,
+            message_ids: messageIds,
+        });
+        toast.success(t('lng_report_spam_thanks'));
+    } catch (e: any) {
+        toast.error(e?.message || t('chat.reportFailed'));
+    }
+}
+
+/**
+ * 查询某发送者在对话中的消息总数（searchChatMessages 的 total_count 为近似值）。
+ * 仅用于弹窗标题计数，失败返回 -1 表示未知。
+ */
+export async function searchSenderMessageCount(chatId: number, sender: MessageSender): Promise<number> {
+    try {
+        const res = await tdlibSend({
+            _: 'searchChatMessages',
+            chat_id: chatId,
+            query: '',
+            sender_id: sender as any,
+            from_message_id: 0,
+            offset: 0,
+            limit: 1,
+        }) as foundChatMessages;
+        return typeof res?.total_count === 'number' ? res.total_count : -1;
+    } catch {
+        return -1;
     }
 }
 

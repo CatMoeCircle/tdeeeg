@@ -3,8 +3,17 @@
         <div v-if="layoutItems.length > 0" class="relative" :style="containerStyle">
             <div v-for="item in layoutItems" :key="item.msgId"
                 class="absolute overflow-hidden cursor-pointer bg-gray-200 dark:bg-gray-700"
-                :class="{ 'bg-black': item.isVideo }" :style="item.style" @click="openViewer(item.index)"
+                :class="{
+                    'bg-black': item.isVideo,
+                    'ring-2 ring-inset ring-blue-500': selectionMode && isSelected(item.msgId),
+                }" :style="item.style" @click.stop="onTileClick(item)"
                 @contextmenu.prevent.stop="onTileContextMenu($event, item.index)">
+                <!-- 多选：每块媒体各自的选中标记 -->
+                <div v-if="selectionMode"
+                    class="absolute right-1 top-1 z-10 w-5 h-5 rounded-full border-2 flex items-center justify-center pointer-events-none select-none"
+                    :class="isSelected(item.msgId) ? 'bg-blue-500 border-blue-500' : 'bg-black/30 border-white/80'">
+                    <CheckIcon v-if="isSelected(item.msgId)" class="w-3.5 h-3.5 text-white" />
+                </div>
                 <!-- thumb 垫在下层直到 media 解码完成，避免换源瞬间透出底色 -->
                 <img v-if="item.thumbSrc" :src="item.thumbSrc" decoding="async"
                     class="absolute inset-0 w-full h-full object-cover"
@@ -61,6 +70,7 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive, watch, onMounted } from 'vue';
+import { CheckIcon } from 'lucide-vue-next';
 import type { message } from 'tdlib-types';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { tdlibSend, isFileReady, downloadingFiles, safeDownloadFile } from '../../../../../utils/tdlib';
@@ -88,15 +98,34 @@ const props = defineProps<{
     isRead?: boolean;
     /** 气泡底部是否显示频道评论条：无可见 caption 时需要压平相册下缘承接评论白条 */
     commentsBar?: boolean;
+    /** 多选模式：每块媒体各自独立选中 */
+    selectionMode?: boolean;
+    /** 已选中的消息 id（多选模式下用于标记每块媒体） */
+    selectedIds?: number[];
 }>();
 
 /**
  * 右击相册中的某条具体媒体时向上冒泡该消息与坐标，便于外层针对「被点击的那一条」
- * 而不是相册第一条构造右键菜单。
+ * 而不是相册第一条构造右键菜单；多选模式下点击某块媒体则单独切换它的选中状态。
  */
 const emit = defineEmits<{
     (e: 'messageContextMenu', msg: message, x: number, y: number): void;
+    (e: 'toggleSelect', msgId: number): void;
 }>();
+
+/** 某块媒体是否被选中（仅多选模式） */
+function isSelected(msgId: number): boolean {
+    return props.selectionMode === true && (props.selectedIds ?? []).includes(msgId);
+}
+
+/** 点击单块媒体：多选时切换该条消息，否则打开查看器 */
+function onTileClick(item: LayoutItem) {
+    if (props.selectionMode) {
+        emit('toggleSelect', item.msgId);
+    } else {
+        openViewer(item.index);
+    }
+}
 
 /** 相册某一块媒体被右键：取出对应的那一条消息并冒泡 */
 function onTileContextMenu(e: MouseEvent, idx: number) {

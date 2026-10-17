@@ -54,17 +54,16 @@
                     <template v-else-if="item.type === 'album'">
                         <div :data-msg-id="item.messages[0].id" class="msg-list-item" :class="{
                             'animate-message-in': isNewMessage(item.messages[0].id),
+                            'msg-leaving': leavingMessageIds.has(item.messages[0].id),
                             'animate-flash-highlight': highlightedMessageId === item.messages[0].id,
-                            'relative': selectionMode
-                        }" :style="selectionMode ? { border: '2px solid ' + (isMsgSelected(item.messages[0].id) ? '#3b82f6' : 'transparent'), borderRadius: '0.5rem' } : {}"
-                            v-context-menu="selectionMode ? null : makeMsgMenu(item.messages[0])"
-                            @click="selectionMode && toggleSelectMsg(item.messages[0].id)"
+                        }" v-context-menu="selectionMode ? null : makeMsgMenu(item.messages[0])"
                             @animationend="onMessageAnimEnd($event, item.messages[0].id)">
                             <div class="flex mb-2" :class="isSelfAlbum(item) ? 'justify-end' : 'justify-start'">
                                 <div v-if="selectionMode"
-                                    class="self-center shrink-0 mr-1 z-10 w-5 h-5 rounded-full border-2 flex items-center justify-center pointer-events-none select-none"
-                                    :class="isMsgSelected(item.messages[0].id) ? 'bg-blue-500 border-blue-500' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600'">
-                                    <CheckIcon v-if="isMsgSelected(item.messages[0].id)"
+                                    class="self-center shrink-0 mr-1 z-10 w-5 h-5 rounded-full border-2 flex items-center justify-center cursor-pointer select-none"
+                                    :class="isAlbumSelected(item.messages) ? 'bg-blue-500 border-blue-500' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600'"
+                                    @click.stop="toggleSelectAlbum(item.messages)">
+                                    <CheckIcon v-if="isAlbumSelected(item.messages)"
                                         class="w-3.5 h-3.5 text-white" />
                                 </div>
                                 <div v-if="shouldReserveAvatarColumn(item.messages[0])"
@@ -126,6 +125,9 @@
                                             :commentsBar="!!albumCommentsMsg(item.messages)"
                                             :isRead="isMessageRead(item.messages[item.messages.length - 1])"
                                             :authorSignature="getDisplayAuthorSignature(item.messages[0])"
+                                            :selectionMode="selectionMode"
+                                            :selectedIds="selectedMsgIds"
+                                            @toggle-select="toggleSelectMsgById"
                                             @message-context-menu="onAlbumMessageContextMenu">
                                             <!-- 相册有 caption 时：回应放在 caption 与时间之间（气泡内 named slot） -->
                                             <template
@@ -162,18 +164,14 @@
                     <template v-else-if="item.type === 'single'">
                         <div :data-msg-id="item.msg.id" class="msg-list-item" :class="{
                             'animate-message-in': isNewMessage(item.msg.id),
+                            'msg-leaving': leavingMessageIds.has(item.msg.id),
                             'animate-flash-highlight': highlightedMessageId === item.msg.id,
-                            'relative': selectionMode
-                        }" :style="selectionMode ? { border: '2px solid ' + (isMsgSelected(item.msg.id) ? '#3b82f6' : 'transparent'), borderRadius: '0.5rem' } : {}"
+                            'relative': selectionMode && !isServiceMessage(item.msg)
+                        }" :style="selectionMode && !isServiceMessage(item.msg) ? { border: '2px solid ' + (isMsgSelected(item.msg.id) ? '#3b82f6' : 'transparent'), borderRadius: '0.5rem' } : {}"
                             v-context-menu="selectionMode ? null : makeMsgMenu(item.msg)"
-                            @click="selectionMode && toggleSelectMsg(item.msg.id)"
+                            @click="selectionMode && toggleSelectMsg(item.msg)"
                             @animationend="onMessageAnimEnd($event, item.msg.id)">
                             <div v-if="isServiceMessage(item.msg)" class="relative flex justify-center my-0.5">
-                                <div v-if="selectionMode"
-                                    class="absolute left-1 top-1 z-10 w-5 h-5 rounded-full border-2 flex items-center justify-center pointer-events-none select-none"
-                                    :class="isMsgSelected(item.msg.id) ? 'bg-blue-500 border-blue-500' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600'">
-                                    <CheckIcon v-if="isMsgSelected(item.msg.id)" class="w-3.5 h-3.5 text-white" />
-                                </div>
                                 <MessageContent :content="item.msg.content" :date="item.msg.date"
                                     :senderName="getServiceSenderName(item.msg)"
                                     :senderUserId="senderUserIdOf(item.msg)" :isSelf="isOutgoingMsg(item.msg)"
@@ -854,7 +852,7 @@ import {
 } from '../../../utils/viewportLock';
 import {
     copyMessageText, copyMessageJson, copyMessageLink,
-    toggleMessagePinned, pinMessage, getMessageProperties,
+    toggleMessagePinned, pinMessage, getMessageProperties, getCachedMessageProperties,
     executeDeleteActions,
     canCopyMessage, canForwardMessage, canGetMessageLink, canPinMessage, canDeleteMessage,
     canReplyMessage, canEditMessage, editTextMessage, editCaptionMessage,
@@ -872,8 +870,8 @@ import {
 } from '../../../utils/attachmentSend';
 import { isSavedMessagesChat } from '../../../utils/savedMessages';
 import { hasReactions } from '../../../utils/reactionHelpers';
-import { confirmDeleteMessage } from '../../../store/deleteMessage';
-import type { DeleteMessageRequest } from '../../../store/deleteMessage';
+import { confirmDeleteMessage, visible as deletePopupVisible } from '../../../store/deleteMessage';
+import type { DeleteMessageRequest, DeleteSenderInfo } from '../../../store/deleteMessage';
 import { confirmPinMessage } from '../../../store/pinMessage';
 import { confirmStopPoll } from '../../../store/stopPoll';
 import { confirmReportMessage } from '../../../store/reportMessage';
@@ -902,10 +900,10 @@ import {
 import type { ContextMenuReactionItem, ContextMenuReactionRow } from '../../contextMenu/types';
 import { DEFAULT_TRANSLATE_TARGET } from '../../../utils/translateLanguages';
 
-import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity, textEntity$Input, file as TdFile, ReactionType } from 'tdlib-types';
+import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity, textEntity$Input, file as TdFile, ReactionType, MessageSender } from 'tdlib-types';
 import { getViewerState, closeMediaViewer, isMediaViewerActive, openMediaViewer } from '../../../store/mediaViewer';
 
-import { getSenderAccentColorId, getSenderProfileAccentColorId, getSenderNameParts, getChatProfileAccentColorId, getChatUserNames, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
+import { getSenderAccentColorId, getSenderProfileAccentColorId, getSenderNameParts, getChatProfileAccentColorId, getChatUserNames, isDeletedChat, DELETED_ACCOUNT_LABEL, messageSenderKey } from '../../../utils/senderInfo';
 import { useColors } from '../../../store/colors';
 import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage, isBubblelessMediaMessage, albumHasVisibleCaption, showChannelCommentsBar } from './composables/messageType';
 import { buildDisplayItems } from './composables/messageItems';
@@ -2080,12 +2078,11 @@ const deletableSelectedIds = ref<Set<number>>(new Set());
 /** 权限刷新请求令牌：避免快速切换选择时旧结果覆盖新结果 */
 let selectionPermToken = 0;
 
-/** 切换到多选模式 */
+/** 切换到多选模式（服务消息不可选；相册内单条媒体也各自独立选中） */
 function enterSelectionMode(msg: message) {
+    if (isServiceMessage(msg)) return;
     selectionMode.value = true;
-    if (!selectedMsgIds.value.includes(msg.id)) {
-        selectedMsgIds.value.push(msg.id);
-    }
+    if (!selectedMsgIds.value.includes(msg.id)) selectedMsgIds.value.push(msg.id);
     void refreshSelectionPermissions();
 }
 
@@ -2097,8 +2094,15 @@ function exitSelectionMode() {
     selectionPermToken++;
 }
 
-/** 切换单条消息的选中状态 */
-function toggleSelectMsg(msgId: number) {
+/** 切换单条消息的选中状态（相册内每条媒体各自独立） */
+function toggleSelectMsg(msg: message) {
+    toggleSelectMsgById(msg.id);
+}
+
+/** 按消息 id 切换选中状态；服务消息不可选 */
+function toggleSelectMsgById(msgId: number) {
+    const msg = messages.value.find(m => m.id === msgId);
+    if (!msg || isServiceMessage(msg)) return;
     const idx = selectedMsgIds.value.indexOf(msgId);
     if (idx >= 0) {
         selectedMsgIds.value.splice(idx, 1);
@@ -2108,6 +2112,28 @@ function toggleSelectMsg(msgId: number) {
             return;
         }
         selectedMsgIds.value.push(msgId);
+    }
+    void refreshSelectionPermissions();
+}
+
+/** 相册是否整体被选中（左侧圆点状态） */
+function isAlbumSelected(msgs: message[]): boolean {
+    return msgs.length > 0 && msgs.every(m => selectedMsgIds.value.includes(m.id));
+}
+
+/** 点击相册左侧圆点：全选 / 取消整个相册 */
+function toggleSelectAlbum(msgs: message[]) {
+    if (msgs.length === 0) return;
+    if (isAlbumSelected(msgs)) {
+        const ids = new Set(msgs.map(m => m.id));
+        selectedMsgIds.value = selectedMsgIds.value.filter(id => !ids.has(id));
+    } else {
+        const adding = msgs.filter(m => !selectedMsgIds.value.includes(m.id));
+        if (selectedMsgIds.value.length + adding.length > MAX_SELECTED_MSG_COUNT) {
+            toast.warning(t('chat.selectLimit', { max: MAX_SELECTED_MSG_COUNT }));
+            return;
+        }
+        for (const m of adding) selectedMsgIds.value.push(m.id);
     }
     void refreshSelectionPermissions();
 }
@@ -2148,6 +2174,28 @@ const canDeleteSelected = computed(() =>
     selectedMsgIds.value.length > 0 &&
     selectedMsgIds.value.every((id) => deletableSelectedIds.value.has(id))
 );
+
+/**
+ * 多选模式下的键盘处理：Delete 键走与工具栏删除按钮相同的校验，
+ * Escape 退出多选。输入框内的按键不拦截。
+ */
+function onSelectionKeydown(e: KeyboardEvent) {
+    if (!selectionMode.value || deletePopupVisible.value) return;
+    const el = e.target as HTMLElement | null;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+    if (e.key === 'Escape') {
+        exitSelectionMode();
+        return;
+    }
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (!canDeleteSelected.value) return;
+        e.preventDefault();
+        void onDeleteSelected();
+    }
+}
+
+onMounted(() => window.addEventListener('keydown', onSelectionKeydown));
+onUnmounted(() => window.removeEventListener('keydown', onSelectionKeydown));
 
 // ===== 多选模式：操作 =====
 const forwardPickerVisible = ref(false);
@@ -2345,24 +2393,13 @@ function onCapsuleMoreClick() {
     }
 }
 
-/** 删除所有选中消息 */
+/** 删除所有选中消息（按发送者集合决定弹窗能提供的批量动作） */
 async function onDeleteSelected() {
-    const ids = [...selectedMsgIds.value];
-    if (ids.length === 0) return;
-    const ok = window.confirm(t('lng_selected_delete_sure', { count: ids.length }));
-    if (!ok) return;
-    try {
-        await tdlibSend({
-            _: 'deleteMessages',
-            chat_id: chatId.value,
-            message_ids: ids,
-            revoke: true,
-        });
-        toast.success(t('context.deleted'));
-        exitSelectionMode();
-    } catch (e: any) {
-        toast.error(e?.message || t('context.deleteFailed'));
-    }
+    if (!canDeleteSelected.value) return;
+    const selected = new Set(selectedMsgIds.value);
+    const msgs = messages.value.filter(m => selected.has(m.id));
+    if (msgs.length === 0) return;
+    await openDeletePopup(msgs);
 }
 
 // 点击 bot 命令（/start 等）→ 插入输入框最前面（空格分隔）
@@ -2401,6 +2438,8 @@ const listRevealed = ref(false);
 const unreadBoundaryMessageId = ref<number | null>(null);
 
 const newMessageIds = ref<Set<number>>(new Set());
+/** 正在播放删除消失动画的消息 id：动画结束后才真正从列表移除 */
+const leavingMessageIds = ref<Set<number>>(new Set());
 const showScrollButton = ref(false);
 const newMessageCount = ref(0);
 const notificationsMuted = ref(false);
@@ -2809,7 +2848,7 @@ const handleUpdate = async (update: Update) => {
             if (update.from_cache) break;
             if (!isActiveChat(update.chat_id) || !isReady.value) break;
             const removedSome = update.message_ids.some(id => messages.value.some(m => m.id === id));
-            removeMessagesByIds(update.message_ids);
+            animateRemoveMessages(update.message_ids);
             // 评论被删：TDLib 不一定补发 interaction 更新，主动刷新线程计数
             if (threadMode.value && removedSome) void refreshThreadInfo();
             break;
@@ -5182,6 +5221,7 @@ function resetState() {
     showScrollButton.value = false;
     newMessageCount.value = 0;
     newMessageIds.value = new Set();
+    leavingMessageIds.value = new Set();
     notificationsMuted.value = false;
     isNotificationTogglePending.value = false;
     linkedChatId.value = 0;
@@ -5304,6 +5344,27 @@ function removeMessagesByIds(ids: number[]) {
     const drop = new Set(ids);
     const next = messages.value.filter(m => !drop.has(m.id));
     if (next.length !== messages.value.length) applyMessages(next);
+}
+
+/** 删除消失动画时长（与 .msg-leaving 的 animation-duration 保持一致） */
+const LEAVE_ANIM_MS = 220;
+
+/**
+ * 带消失动画地删除消息：先给消息行加 .msg-leaving（淡出并收起高度），
+ * 动画结束后再从列表移除，避免整段列表瞬间跳变。
+ */
+function animateRemoveMessages(ids: number[]) {
+    if (ids.length === 0) return;
+    const cid = chatId.value;
+    const present = ids.filter(id => messages.value.some(m => m.id === id));
+    if (present.length === 0) return;
+    for (const id of present) leavingMessageIds.value.add(id);
+    window.setTimeout(() => {
+        for (const id of present) leavingMessageIds.value.delete(id);
+        // 动画期间切换了会话：消息 id 在不同会话间会重复，不能误删新会话的消息
+        if (chatId.value !== cid) return;
+        removeMessagesByIds(present);
+    }, LEAVE_ANIM_MS);
 }
 
 /** 整条替换消息对象（发送成功后的最终版本等） */
@@ -6245,54 +6306,43 @@ async function openStopPollConfirm(cid: number, msg: message) {
 // ==================== 删除确认弹窗 ====================
 
 /**
- * 计算当前用户对消息发送者可执行的额外管理操作（删除全部消息 / 封禁）。
- * - 删除该发送者所有消息（deleteChatMessagesBySender）：仅超级群组，需 can_delete_messages 权限；
- * - 封禁（banChatMember）：超级群组/基础群组，需 can_restrict_members 权限；
- * 创建者拥有全部权限；自己发送的消息不可封禁/删除自己全部。
+ * 当前用户在当前对话的成员管理权限（与具体发送者无关）。
+ * - 删除该发送者所有消息（deleteChatMessagesBySender）：仅超级群，需 can_delete_messages；
+ * - 封禁（banChatMember）：超级群 / 基础群，需 can_restrict_members。
  */
-function getSenderModeration(msg: message): { canDeleteAll: boolean; canBan: boolean } {
+function getChatModeration(): { canDeleteAll: boolean; canDeleteReactions: boolean; canBan: boolean } {
     const c = chat.value;
-    if (!c) return { canDeleteAll: false, canBan: false };
-    const sender = msg.sender_id;
-    if (!sender) return { canDeleteAll: false, canBan: false };
-
-    // 自己发的消息不可封禁/删除自己全部。
-    // 私聊/群组里自己发送的 sender 是本人 user；频道里自己发送的消息
-    // sender 是 messageSenderChat（发送者为频道本身），需用 is_outgoing 判断：
-    // 当前账号发送的消息 is_outgoing 为 true。
-    const sentByMe =
-        (sender._ === 'messageSenderUser' && sender.user_id === myId.value) ||
-        msg.is_outgoing === true;
-    if (sentByMe) {
-        return { canDeleteAll: false, canBan: false };
-    }
-
-    let canDeleteAll = false;
-    let canBan = false;
+    if (!c) return { canDeleteAll: false, canDeleteReactions: false, canBan: false };
 
     if (c.type._ === 'chatTypeSupergroup') {
         const sg = supergroups.value[c.type.supergroup_id];
         const status = sg?.status;
-        if (!status) return { canDeleteAll: false, canBan: false };
+        if (!status) return { canDeleteAll: false, canDeleteReactions: false, canBan: false };
         if (status._ === 'chatMemberStatusCreator') {
-            canDeleteAll = true;
-            canBan = true;
-        } else if (status._ === 'chatMemberStatusAdministrator') {
-            canDeleteAll = status.rights.can_delete_messages;
-            canBan = status.rights.can_restrict_members;
+            return { canDeleteAll: true, canDeleteReactions: true, canBan: true };
         }
-    } else if (c.type._ === 'chatTypeBasicGroup') {
-        const bg = basicGroups.value[c.type.basic_group_id];
-        const status = bg?.status;
-        if (!status) return { canDeleteAll: false, canBan: false };
-        // 基础群组管理员拥有全部适用权限；但 deleteChatMessagesBySender 仅超级群组支持
-        if (status._ === 'chatMemberStatusCreator' || status._ === 'chatMemberStatusAdministrator') {
-            canDeleteAll = false;
-            canBan = true;
+        if (status._ === 'chatMemberStatusAdministrator') {
+            return {
+                canDeleteAll: status.rights.can_delete_messages,
+                canDeleteReactions: status.rights.can_delete_messages,
+                canBan: status.rights.can_restrict_members,
+            };
         }
+        return { canDeleteAll: false, canDeleteReactions: false, canBan: false };
     }
 
-    return { canDeleteAll, canBan };
+    if (c.type._ === 'chatTypeBasicGroup') {
+        const bg = basicGroups.value[c.type.basic_group_id];
+        const status = bg?.status;
+        if (!status) return { canDeleteAll: false, canDeleteReactions: false, canBan: false };
+        // 基础群管理员可封禁、可删除回应；deleteChatMessagesBySender 仅超级群支持
+        if (status._ === 'chatMemberStatusCreator' || status._ === 'chatMemberStatusAdministrator') {
+            return { canDeleteAll: false, canDeleteReactions: true, canBan: true };
+        }
+        return { canDeleteAll: false, canDeleteReactions: false, canBan: false };
+    }
+
+    return { canDeleteAll: false, canDeleteReactions: false, canBan: false };
 }
 
 /** 消息发送者（用户类型）的 user_id；其他类型发送者（频道等）返回 undefined */
@@ -6302,31 +6352,119 @@ function senderUserIdOf(msg: message): number | undefined {
 }
 
 /**
- * 打开「删除消息」确认弹窗，并根据用户选择执行删除/删除全部/封禁。
- * 点击删除菜单项时调用。
+ * 当前用户能否封禁/限制该发送者（成员状态感知）：
+ * - 群主不可被封禁；
+ * - 管理员仅当 TDLib 标记 can_be_edited（当前用户可编辑其权限）时才可；
+ * - 频道身份（账号无法封禁）不可。
+ * 取不到成员状态时按可封禁处理，由 TDLib 报错兜底。
  */
-async function openDeleteConfirm(msg: message) {
+async function canRestrictSender(chatId: number, sender: MessageSender): Promise<boolean> {
+    if (sender._ !== 'messageSenderUser') return false;
+    const uid = sender.user_id;
+    let status: ChatMemberStatus | undefined = memberStatus.value[uid]?.status;
+    if (!status) {
+        try {
+            const member = await tdlibSend({
+                _: 'getChatMember',
+                chat_id: chatId,
+                member_id: { _: 'messageSenderUser', user_id: uid },
+            }) as ChatMember;
+            status = member?.status;
+        } catch {
+            return true;
+        }
+    }
+    if (!status) return true;
+    if (status._ === 'chatMemberStatusCreator') return false;
+    if (status._ === 'chatMemberStatusAdministrator') return status.can_be_edited === true;
+    return true;
+}
+
+/**
+ * 收集选中的消息的发送者，按 id 去重，并剔除：
+ * - 自己发送的消息；
+ * - 「以本聊天身份发言」——匿名管理员 / 频道身份（sender 为 messageSenderChat 且就是本聊天）。
+ * 同时逐人判定能否封禁（群主 / 不可编辑的管理员会置灰，但删除消息不受影响）。
+ */
+async function collectDeleteSenders(msgs: message[], chatId: number): Promise<DeleteSenderInfo[]> {
+    const { canDeleteAll, canDeleteReactions, canBan } = getChatModeration();
+    const unique = new Map<string, { sender: MessageSender; msg: message; name: string }>();
+    for (const msg of msgs) {
+        const sender = msg.sender_id;
+        if (!sender) continue;
+        if (msg.is_outgoing === true) continue;
+        if (sender._ === 'messageSenderUser' && sender.user_id === myId.value) continue;
+        if (sender._ === 'messageSenderChat' && sender.chat_id === chatId) continue;
+
+        const key = messageSenderKey(sender);
+        if (unique.has(key)) continue;
+        unique.set(key, {
+            sender,
+            msg,
+            name: getDisplaySenderName(msg) || t('deleteConfirm.thisUser'),
+        });
+    }
+    return Promise.all([...unique.entries()].map(async ([key, info]) => ({
+        key,
+        sender: info.sender,
+        name: info.name,
+        photo: getDisplaySenderPhoto(info.msg),
+        firstName: getDisplaySenderNames(info.msg).first,
+        lastName: getDisplaySenderNames(info.msg).last,
+        accentColorId: getDisplaySenderProfileAccentId(info.msg),
+        isDeleted: getDisplaySenderDeleted(info.msg),
+        canDeleteAll,
+        canDeleteReactions,
+        canBan: canBan && await canRestrictSender(chatId, info.sender),
+    })));
+}
+
+/**
+ * 打开「删除消息」确认弹窗，并根据发送者集合执行删除 / 批量管理动作。
+ * 单选消息与多选删除都走这里。
+ */
+async function openDeletePopup(msgs: message[]) {
     const cid = chatId.value;
-    if (cid === undefined) return;
-    const sender = msg.sender_id;
-    const { canDeleteAll, canBan } = getSenderModeration(msg);
+    if (cid === undefined || msgs.length === 0) return;
+
+    // 删除入口已保证可删；这里补齐精确属性用于判定「对所有人 / 仅自己」与举报
+    await Promise.all(msgs.map(m => getMessageProperties(cid, m.id)));
+    const propsList = msgs.map(m => getCachedMessageProperties(cid, m.id));
+    const canDeleteForAll = propsList.some(p => p?.can_be_deleted_for_all_users === true);
+
+    const senders = await collectDeleteSenders(msgs, cid);
+    const type = chat.value?.type;
+    const showDeleteForAll =
+        type?._ === 'chatTypePrivate' ||
+        type?._ === 'chatTypeSecret' ||
+        type?._ === 'chatTypeBasicGroup';
+    const canReportSpam =
+        senders.length > 0 && propsList.some(p => p?.can_report_supergroup_spam === true);
 
     const req: DeleteMessageRequest = {
         chatId: cid,
-        msg,
-        senderId: sender,
-        senderName: sender ? getDisplaySenderName(msg) || undefined : undefined,
-        canDeleteAllFromSender: canDeleteAll,
-        canBanSender: canBan,
-        canDeleteMessage: canDeleteMessage(msg, cid),
+        msgs,
+        senders,
+        showDeleteForAll,
+        canDeleteForAll,
+        canReportSpam,
+        supportsBan: getChatModeration().canBan,
     };
 
     try {
         const result = await confirmDeleteMessage(req);
-        await executeDeleteActions(cid, msg, sender, result);
+        const supergroupId =
+            type?._ === 'chatTypeSupergroup' ? type.supergroup_id : undefined;
+        await executeDeleteActions(cid, msgs, senders, result, supergroupId);
+        if (selectionMode.value) exitSelectionMode();
     } catch {
         // 用户取消，忽略
     }
+}
+
+/** 单条消息的删除弹窗（右键菜单入口） */
+async function openDeleteConfirm(msg: message) {
+    await openDeletePopup([msg]);
 }
 
 // ==================== 发送者 / 气泡样式（薄封装，逻辑见 composables） ====================
@@ -7249,5 +7387,35 @@ async function handleScrollToBottom() {
 .msg-list-item {
     content-visibility: auto;
     contain-intrinsic-size: auto 88px;
+}
+
+/*
+ * 消息被删除时的消失动画：淡出 + 行高收起（grid 1fr → 0fr）。
+ * JS 在动画结束后才真正移除节点，因此列表是平滑收拢而不是瞬间跳变。
+ * 若 WebView 不支持 grid 轨道动画，则退化为单纯淡出（仍然移除，只是高度不再渐变）。
+ */
+@keyframes message-disappear {
+    from {
+        opacity: 1;
+        grid-template-rows: minmax(0, 1fr);
+    }
+
+    to {
+        opacity: 0;
+        grid-template-rows: minmax(0, 0fr);
+    }
+}
+
+.msg-list-item.msg-leaving {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
+    overflow: hidden;
+    pointer-events: none;
+    animation: message-disappear 0.22s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.msg-list-item.msg-leaving > * {
+    min-height: 0;
+    overflow: hidden;
 }
 </style>

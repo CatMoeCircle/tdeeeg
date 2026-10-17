@@ -343,6 +343,11 @@ export function getUserDisplayName(userId: number): string {
   return `${u.first_name} ${u.last_name}`.trim();
 }
 
+/** 发送者去重 key（用户 / 频道身份各自按 id），用于跨组件按发送者勾选/过滤 */
+export function messageSenderKey(sender: MessageSender): string {
+  return sender._ === "messageSenderUser" ? `u${sender.user_id}` : `c${sender.chat_id}`;
+}
+
 /** 发送者显示名称 */
 export function getSenderName(senderId?: MessageSender): string {
   if (!senderId) return "";
