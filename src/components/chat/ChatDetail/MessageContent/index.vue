@@ -36,6 +36,19 @@
         <MessageChecklistContent v-else-if="content._ === 'messageChecklist'" :content="content" :chat-id="chatId"
             :message-id="messageId" :is-self="isSelf ?? false" />
 
+        <!-- 转发的动态（story）：按带文案的视频消息排布，封面点击打开动态播放器 -->
+        <MessageStoryContent v-else-if="content._ === 'messageStory'" :content="content" :isSelf="isSelf ?? false"
+            :date="date" :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount"
+            :authorSignature="authorSignature" :chatId="chatId" :replyTo="replyTo" :messageList="messageList"
+            :accentColorId="accentColorId" @jumpToMessage="onJumpToMessage">
+            <template #reactions>
+                <slot name="reactions" />
+            </template>
+            <template #translation>
+                <slot name="translation" />
+            </template>
+        </MessageStoryContent>
+
         <!-- Media messages -->
         <MessageMediaContent v-else-if="isMediaContent(content)" :content="content" :isSelf="isSelf ?? false"
             :date="date" :forwardInfo="forwardInfo" :forwardName="forwardName" :forwardNavigable="forwardNavigable"
@@ -118,6 +131,7 @@ import MessageGiveawayContent from './content/MessageGiveawayContent.vue';
 import MessageGiveawayWinnersContent from './content/MessageGiveawayWinnersContent.vue';
 import MessageOtherContent from './content/MessageOtherContent.vue';
 import MessageContactContent from './content/MessageContactContent.vue';
+import MessageStoryContent from './content/MessageStoryContent.vue';
 import MessageStatus from './content/MessageStatus.vue';
 import ReactionsBar from '../ReactionsBar.vue';
 import { settings } from '../../../../store/settings';
@@ -127,6 +141,8 @@ const MEDIA_TYPES = new Set([
     'messagePhoto',
     'messageVideo',
     'messageAnimation',
+    // 动态消息按媒体风格排版：回复预览由 MessageStoryContent 自己在媒体容器内渲染
+    'messageStory',
 ]);
 
 const SERVICE_TYPES = new Set([

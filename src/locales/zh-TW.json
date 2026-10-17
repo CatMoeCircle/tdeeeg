@@ -1586,6 +1586,7 @@
     "downloadFile": "下載檔案",
     "richTextImage": "[圖片]",
     "forwardedMessage": "轉發的訊息",
+    "forwardedStory": "已轉發的動態",
     "jumpToSource": "跳轉到來源",
     "unsupportedTitle": "不支援的訊息",
     "unsupportedNotAdapted": "目前訊息類型尚未適配",

@@ -1579,6 +1579,7 @@
     "downloadFile": "Скачать файл",
     "richTextImage": "[Изображение]",
     "forwardedMessage": "Пересланное сообщение",
+    "forwardedStory": "Пересланная история",
     "jumpToSource": "Перейти к источнику",
     "unsupportedTitle": "Неподдерживаемое сообщение",
     "unsupportedNotAdapted": "Этот тип сообщения пока не поддерживается",

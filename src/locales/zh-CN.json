@@ -1593,6 +1593,7 @@
     "downloadFile": "下载文件",
     "richTextImage": "[图片]",
     "forwardedMessage": "转发的消息",
+    "forwardedStory": "已转发的动态",
     "jumpToSource": "跳转到来源",
     "unsupportedTitle": "不支持的消息",
     "unsupportedNotAdapted": "当前消息类型并未适配",

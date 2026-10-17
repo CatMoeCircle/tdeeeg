@@ -1586,6 +1586,7 @@
     "downloadFile": "Download file",
     "richTextImage": "[Image]",
     "forwardedMessage": "Forwarded message",
+    "forwardedStory": "Forwarded story",
     "jumpToSource": "Jump to source",
     "unsupportedTitle": "Unsupported message",
     "unsupportedNotAdapted": "This message type isn't supported yet",

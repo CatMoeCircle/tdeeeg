@@ -90,6 +90,7 @@ declare module 'vue' {
     MessageSideActions: typeof import('./components/chat/ChatDetail/MessageSideActions.vue')['default']
     MessageStatus: typeof import('./components/chat/ChatDetail/MessageContent/content/MessageStatus.vue')['default']
     MessageStickerContent: typeof import('./components/chat/ChatDetail/MessageContent/content/MessageStickerContent.vue')['default']
+    MessageStoryContent: typeof import('./components/chat/ChatDetail/MessageContent/content/MessageStoryContent.vue')['default']
     MessageSummary: typeof import('./components/chat/ChatDetail/MessageContent/content/MessageSummary.vue')['default']
     MessageTextContent: typeof import('./components/chat/ChatDetail/MessageContent/content/MessageTextContent.vue')['default']
     MessageUnsupportedContent: typeof import('./components/chat/ChatDetail/MessageContent/content/MessageUnsupportedContent.vue')['default']

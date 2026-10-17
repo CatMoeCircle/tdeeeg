@@ -1233,6 +1233,9 @@ const getMessagePreview = (message: message | undefined, chat?: Chat): formatted
     if (content._ === 'messageVideoNote') {
         return plainText(bracketTypePreview(messageContentTypeLabel('messageVideoNote')));
     }
+    if (content._ === 'messageStory') {
+        return plainText(bracketTypePreview(messageContentTypeLabel('messageStory')));
+    }
     if (content._ === 'messagePollOptionAdded' || content._ === 'messagePollOptionDeleted') {
         const action = pollOptionPreviewText(
             content._ === 'messagePollOptionAdded' ? 'added' : 'deleted',
@@ -1721,6 +1724,9 @@ function getTopicPreview(topic: forumTopic): formattedText {
     }
     if (content._ === 'messageVideoNote') {
         return plainText(bracketTypePreview(messageContentTypeLabel('messageVideoNote')));
+    }
+    if (content._ === 'messageStory') {
+        return plainText(bracketTypePreview(messageContentTypeLabel('messageStory')));
     }
     if (content._ === 'messagePollOptionAdded' || content._ === 'messagePollOptionDeleted') {
         const action = pollOptionPreviewText(

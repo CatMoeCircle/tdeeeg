@@ -8,6 +8,8 @@ export const MEDIA_TYPES: ReadonlySet<string> = new Set([
   "messagePhoto",
   "messageVideo",
   "messageAnimation",
+  // 转发的动态：按媒体消息排版（无内边距气泡 + 封面 + 文案）
+  "messageStory",
 ]);
 
 /**
@@ -101,6 +103,9 @@ export function isMediaMessage(msg: message): boolean {
  */
 export function hasMediaCaption(msg: message): boolean {
   const c = msg.content;
+  // 动态消息的文案在动态自身上（story.caption，需 getStory 才知道有无），
+  // 统一按「带文案的媒体」排版：保留气泡背景承载头部与文案。
+  if (c._ === "messageStory") return true;
   return ("caption" in c) && !!(c as { caption?: { text?: string } }).caption?.text;
 }
 
