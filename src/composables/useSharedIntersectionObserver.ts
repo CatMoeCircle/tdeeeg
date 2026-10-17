@@ -30,27 +30,48 @@ import { onUnmounted } from 'vue';
 // ─── 一次性加载注册表（useViewportLoad） ───────────────────────
 type OnceCb = () => void;
 const visibleOnceFlags = new Map<Element, Set<OnceCb>>();
-let onceObserver: IntersectionObserver | null = null;
+// 两张表共用同一个 observer（options 相同，合并后每帧只计算一次交集）
+let sharedObserver: IntersectionObserver | null = null;
 
-function getOnceObserver(): IntersectionObserver {
-  if (!onceObserver) {
-    onceObserver = new IntersectionObserver(
+/** 仅当两张表都不再持有该元素时才真正解除观察；任一表仍持有则保留。 */
+function releaseIfUnused(el: Element) {
+  if (!visibleOnceFlags.has(el) && !visibilityMap.has(el)) sharedObserver?.unobserve(el);
+}
+
+// 回调内按顺序处理：先一次性加载，再持续可见性（visibilityMap 在下方声明）
+function getObserver(): IntersectionObserver {
+  if (!sharedObserver) {
+    sharedObserver = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          const cbs = visibleOnceFlags.get(entry.target);
-          if (!cbs) continue;
-          // 触发全部一次性回调后，从观察中移除该元素
-          for (const cb of [...cbs]) cb();
-          visibleOnceFlags.delete(entry.target);
-          onceObserver?.unobserve(entry.target);
+          const el = entry.target;
+          // 一次性：相交后触发全部回调，再从表中删除
+          if (entry.isIntersecting) {
+            const cbs = visibleOnceFlags.get(el);
+            if (cbs) {
+              for (const cb of [...cbs]) cb();
+              visibleOnceFlags.delete(el);
+            }
+          }
+          // 持续可见性：仅在可见性「边沿」触发；持续相交时不重复 enter，避免无意义重入
+          const e = visibilityMap.get(el);
+          if (e) {
+            if (entry.isIntersecting && !e.visible) {
+              e.visible = true;
+              for (const enter of e.enters) enter();
+            } else if (!entry.isIntersecting && e.visible) {
+              e.visible = false;
+              for (const leave of e.leaves) leave();
+            }
+          }
+          releaseIfUnused(el);
         }
       },
-      // 预取距离：视口上下各扩约一屏，媒体在进入可见区前就开始加载
+      // 预取距离：视口上下各扩约一屏，媒体与播放门控在进入可见区前就开始处理
       { root: null, rootMargin: '800px 0px 800px 0px', threshold: 0.01 },
     );
   }
-  return onceObserver;
+  return sharedObserver;
 }
 
 /**
@@ -67,16 +88,16 @@ export function onVisibleOnce(el: Element | null | undefined, cb: () => void) {
   if (!set) {
     set = new Set();
     visibleOnceFlags.set(el, set);
-    getOnceObserver().observe(el);
+    getObserver().observe(el);
   }
   set.add(cb);
 }
 
-/** 解除一次性加载观察（不影响 visibilityMap）。 */
+/** 解除一次性加载注册（visibilityMap 仍持有时保持观察）。 */
 export function unobserveVisibleOnce(el: Element | null | undefined) {
   if (!el) return;
-  if (onceObserver) onceObserver.unobserve(el);
   visibleOnceFlags.delete(el);
+  releaseIfUnused(el);
 }
 
 // ─── 持续可见性注册表（useLottiePause） ────────────────────────
@@ -86,32 +107,6 @@ interface VisibilityEntry {
   visible: boolean;
 }
 const visibilityMap = new Map<Element, VisibilityEntry>();
-let visibilityObserver: IntersectionObserver | null = null;
-
-function getVisibilityObserver(): IntersectionObserver {
-  if (!visibilityObserver) {
-    visibilityObserver = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          const e = visibilityMap.get(entry.target);
-          if (!e) continue;
-          const isIntersecting = entry.isIntersecting;
-          // 仅在可见性「边沿」触发回调；持续相交时不重复 enter，避免无意义重入
-          if (isIntersecting && !e.visible) {
-            e.visible = true;
-            for (const enter of e.enters) enter();
-          } else if (!isIntersecting && e.visible) {
-            e.visible = false;
-            for (const leave of e.leaves) leave();
-          }
-        }
-      },
-      // 与一次性加载一致：视口外扩约一屏，播放门控与预加载同一预取带
-      { root: null, rootMargin: '800px 0px 800px 0px', threshold: 0.01 },
-    );
-  }
-  return visibilityObserver;
-}
 
 /**
  * 持续监听元素可见性变化：进入可视区调 enter，离开调 leave。
@@ -131,7 +126,7 @@ export function onVisibilityChange(
     // 初始默认不可见：不读布局。IO 首次回调（observe 后一帧内）会纠正状态。
     e = { enters: new Set(), leaves: new Set(), visible: false };
     visibilityMap.set(el, e);
-    getVisibilityObserver().observe(el);
+    getObserver().observe(el);
   }
   e.enters.add(enter);
   e.leaves.add(leave);
@@ -143,11 +138,11 @@ export function onVisibilityChange(
   }
 }
 
-/** 解除持续可见性观察（不影响 visibleOnceMap）。 */
+/** 解除持续可见性注册（visibleOnceFlags 仍持有时保持观察）。 */
 export function unobserveVisibility(el: Element | null | undefined) {
   if (!el) return;
-  if (visibilityObserver) visibilityObserver.unobserve(el);
   visibilityMap.delete(el);
+  releaseIfUnused(el);
 }
 
 /**

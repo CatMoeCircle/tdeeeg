@@ -30,7 +30,7 @@ export const MAX_CONCURRENT_VIEWPORT_LOADS = 3;
  * - profile:     个人资料共享媒体网格 / 礼物列表
  * - stickerDetail: 贴纸/emoji 详情弹窗（独立队列，关闭时清空排队）
  */
-export type ViewportLoadScope = 'chat' | 'sticker' | 'profile' | 'stickerDetail';
+export type ViewportLoadScope = 'chat' | 'sticker' | 'profile' | 'stickerDetail' | 'avatar';
 
 interface ScopeConfig {
     /** 同时执行的 load 上限 */
@@ -43,6 +43,8 @@ const SCOPE_CONFIG: Record<ViewportLoadScope, ScopeConfig> = {
     chat: { max: MAX_CONCURRENT_VIEWPORT_LOADS, minIntervalMs: 0 },
     sticker: { max: MAX_CONCURRENT_VIEWPORT_LOADS, minIntervalMs: 0 },
     profile: { max: MAX_CONCURRENT_VIEWPORT_LOADS, minIntervalMs: 0 },
+    // 头像：小文件但数量多，单独一池限制并发，不与正文媒体互相挤占
+    avatar: { max: 4, minIntervalMs: 0 },
     // 详情弹窗：严格串行，一个下载完成后才启动下一个
     stickerDetail: { max: 1, minIntervalMs: 0 },
 };

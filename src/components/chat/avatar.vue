@@ -5,23 +5,45 @@
             :style="{ background: deletedBackground }">
             <span class="tgico tgico-avatar-deletedaccount" :style="{ fontSize: iconSize }"></span>
         </div>
-        <img v-else-if="avatar && !imgError" :src="avatar" alt="avatar" class="w-full h-full object-cover"
+        <img v-else-if="avatar" :src="avatar" alt="avatar" class="w-full h-full object-cover"
             @error="onImgError" />
         <div v-else class="w-full h-full flex items-center justify-center select-none"
             :class="initialsTextClass" :style="initialsTextStyle">{{ initials }}</div>
     </div>
 </template>
 
+<script lang="ts">
+/**
+ * 模块级共享的 ResizeObserver：所有 Avatar 实例共用一个，按元素分发回调。
+ * 每实例各 new 一个会随头像数量线性增长；无注册者时 disconnect，下次注册再创建。
+ */
+const resizeCbs = new Map<Element, () => void>();
+let sharedResizeObserver: ResizeObserver | null = null;
+
+function observeAvatarResize(el: Element, cb: () => void) {
+    resizeCbs.set(el, cb);
+    if (!sharedResizeObserver) {
+        sharedResizeObserver = new ResizeObserver((entries) => {
+            for (const entry of entries) resizeCbs.get(entry.target)?.();
+        });
+    }
+    sharedResizeObserver.observe(el);
+}
+
+function unobserveAvatarResize(el: Element) {
+    resizeCbs.delete(el);
+    sharedResizeObserver?.unobserve(el);
+    if (resizeCbs.size === 0) {
+        sharedResizeObserver?.disconnect();
+        sharedResizeObserver = null;
+    }
+}
+</script>
+
 <script setup lang="ts">
-import { useI18n } from 'vue-i18n';
-const { t } = useI18n();
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
+import { computed, reactive, ref, watch, onMounted, onUnmounted } from 'vue';
 import type { chatPhotoInfo, profilePhoto } from "tdlib-types";
-import { tdlibSend, isFileReady, downloadingFiles } from '../../utils/tdlib';
-import { convertFileSrc } from "@tauri-apps/api/core";
-import { DL_PRIORITY } from '../../utils/downloadPriority';
-import { useDownloadStore, remoteIdOf } from '../../store/downloads';
-import { DL_TAG } from '../../utils/downloadTags';
+import { avatarUrlOf, requestAvatar } from '../../utils/avatarLoader';
 import { useColors } from '../../store/colors';
 import { useViewportLoad } from '../../composables/useViewportLoad';
 
@@ -59,24 +81,22 @@ const INITIALS_RATIO = 0.38;
 const rootEl = ref<HTMLElement | null>(null);
 /** 实测到的头像容器像素尺寸（宽高取较小者，按正方形处理） */
 const measuredPx = ref<number | null>(null);
-let avatarResizeObserver: ResizeObserver | null = null;
+let observedEl: HTMLElement | null = null;
 
 onMounted(() => {
     const el = rootEl.value;
     if (!el) return;
-    avatarResizeObserver = new ResizeObserver(() => {
+    observedEl = el;
+    observeAvatarResize(el, () => {
         const w = el.clientWidth;
         const h = el.clientHeight;
         measuredPx.value = Math.min(w, h);
     });
-    avatarResizeObserver.observe(el);
 });
 
 onUnmounted(() => {
-    if (avatarResizeObserver) {
-        avatarResizeObserver.disconnect();
-        avatarResizeObserver = null;
-    }
+    if (observedEl) unobserveAvatarResize(observedEl);
+    observedEl = null;
 });
 
 /** 图标尺寸：优先用实测容器尺寸；否则回退到 sizeClass 解析；再回退到 54px */
@@ -88,8 +108,6 @@ const iconSize = computed(() => {
     const size = px ? parseInt(px[1], 10) : 54;
     return `${Math.round(size * GHOST_ICON_RATIO)}px`;
 });
-
-const imgError = ref(false);
 
 /**
  * 无头像时的文字：
@@ -157,113 +175,41 @@ const containerClass = computed(() => {
 });
 
 
-/** base64 缩略图预览（data URL），下载前/下载失败时兜底显示 */
-const previewDataUrl = ref<string | undefined>(undefined);
-/** 已下载的真实头像 URL（convertFileSrc 后的 asset URL） */
-const downloadedUrl = ref<string | undefined>(undefined);
+/** 加载失败的图片地址（响应式）：失败后该地址不再渲染，回退到下一个候选或首字母 */
+const brokenSrcs = reactive(new Set<string>());
 
 /**
- * 当前展示的头像 URL：
- * - 优先用已下载的真实头像；
- * - 未下载完成或下载后的图片加载失败时，回退到 base64 缩略图预览；
- * - 两者都没有（确无头像）才显示颜色 + 文本。
+ * 当前展示的头像（纯派生，不在组件内下载）：
+ * 1. 共享缓存里的真实头像（同一文件所有实例同时切换）；
+ * 2. 否则 base64 缩略图占位；
+ * 3. 都没有则返回 undefined，显示颜色 + 首字母。
  */
-const avatar = computed<string | undefined>(() => downloadedUrl.value ?? previewDataUrl.value);
-
-/** 记录下载后的真实头像是否加载失败，失败则回退到预览图 */
-function onDownloadedError() {
-    if (downloadedUrl.value) {
-        downloadedUrl.value = undefined;
-    }
-}
+const avatar = computed<string | undefined>(() => {
+    const real = avatarUrlOf(props.photo?.small);
+    if (real && !brokenSrcs.has(real)) return real;
+    const mini = props.photo?.minithumbnail;
+    const preview = mini ? 'data:image/jpeg;base64,' + mini.data : undefined;
+    return preview && !brokenSrcs.has(preview) ? preview : undefined;
+});
 
 function onImgError() {
-    if (downloadedUrl.value) {
-        onDownloadedError();
-    } else {
-        imgError.value = true;
-    }
+    if (avatar.value) brokenSrcs.add(avatar.value);
 }
 
-function resetFromPhoto(photo: chatPhotoInfo | profilePhoto | undefined) {
-    imgError.value = false;
-    // 先重置已下载 URL，避免旧文件在新缩略图之上残留
-    downloadedUrl.value = undefined;
-    if (!photo) {
-        previewDataUrl.value = undefined;
-        return;
-    }
-    // 有 base64 缩略图就先展示预览（首次打开也能立即看到头像，而非颜色+文本）
-    previewDataUrl.value = photo.minithumbnail
-        ? `data:image/jpeg;base64,${photo.minithumbnail.data}`
-        : undefined;
-    if (isFileReady(photo.small)) {
-        downloadedUrl.value = convertFileSrc(photo.small.local.path);
-    }
+/** 进入视口后请求头像（共享去重 + 全局并发闸门；同文件多次调用只会下载一次） */
+function ensureAvatar() {
+    if (props.photo?.small) requestAvatar(props.photo.small, props.title || '');
 }
 
-/** 当前要下载的头像照片（供视口进入时懒下载） */
-let pendingPhoto: chatPhotoInfo | profilePhoto | undefined = undefined;
+// 视口门控：仅可见的头像才请求下载；快速划过不触发（停留防抖在 useViewportLoad 内）
+const { start: startViewportLoad, entered } = useViewportLoad(rootEl, ensureAvatar, { enqueue: false });
 
-/**
- * 真正触发头像文件下载（进入视口后由 useViewportLoad 调用一次）。
- * 未进入视口前只展示 base64 预览，不下载真实头像。
- */
-async function downloadCurrentPhoto(photo: chatPhotoInfo | profilePhoto) {
-    const f = photo.small;
-    if (!f?.id) return;
-    if (isFileReady(f) || downloadingFiles.has(f.id)) return;
-    downloadingFiles.add(f.id);
-    // 头像：记录为隐藏资源，不需要来源（chat_id/message_id 留空），分类为 avatar
-    const fileName = `${props.title || t('lng_mediaview_profile_photo')}_${f.id}.jpg`;
-    try {
-        await useDownloadStore().registerDownload(
-            f.id, fileName, props.title || '', 0, 'avatar', undefined,
-            undefined, undefined, true, false, 'avatar', false,
-            [DL_TAG.AVATAR],
-            props.title || undefined,
-            remoteIdOf(f),
-        );
-        const file = await tdlibSend({
-            _: "downloadFile",
-            file_id: f.id,
-            priority: DL_PRIORITY.THUMBNAIL,
-            offset: 0,
-            limit: 0,
-            synchronous: true,
-        });
-        // 下载期间 photo 可能已切换，仅当仍指向同一文件时才替换
-        if (file.local?.path && pendingPhoto?.small?.id === f.id) {
-            downloadedUrl.value = convertFileSrc(file.local.path);
-        }
-    } finally {
-        downloadingFiles.delete(f.id);
-    }
-}
-
-// 视口门控：头像进入视口才下载真实文件；未进入只显示 base64 预览。
-// 注意：必须在 watch 之前声明（immediate watch 会同步执行并读取 entered）。
-const { start: startViewportLoad, entered } = useViewportLoad(
-    rootEl,
-    () => {
-        const photo = pendingPhoto;
-        if (photo && !isFileReady(photo.small)) return downloadCurrentPhoto(photo);
-    }
-);
-
-// photo 引用 + small 文件 id 双维度：store 就地 patch photo 字段时引用可能不变，
-// 但 small.id 变了（换了新头像文件）也必须重置，否则旧头像残留
+// 换了新头像文件（small.id 变化）时：已在视口内则立即请求新文件
 watch(
-    [() => props.photo, () => props.photo?.small?.id],
-    ([photo]) => {
-        pendingPhoto = photo;
-        resetFromPhoto(photo);
-        // 若头像已进入视口（此前无头像/已就绪未触发），新头像到达后应懒加载真实文件
-        if (entered.value && photo && !isFileReady(photo.small)) {
-            void downloadCurrentPhoto(photo);
-        }
-    },
-    { immediate: true }
+    () => props.photo?.small?.id,
+    () => {
+        if (entered.value) ensureAvatar();
+    }
 );
 onMounted(() => {
     startViewportLoad();
