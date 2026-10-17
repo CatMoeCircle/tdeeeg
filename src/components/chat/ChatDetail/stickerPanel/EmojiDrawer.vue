@@ -32,9 +32,11 @@
                 <ClockIcon class="w-4 h-4" />
             </button>
 
-            <!-- 本地胶囊（可展开/收缩；回应模式下隐藏，由可用回应列表替代） -->
-            <div v-if="!showDefaultEmojiStatus && !reactionMode"
-                class="sp-emoji-cats flex items-center gap-0.5 rounded-full px-1 py-0.5">
+            <!-- 本地胶囊（可展开/收缩；回应模式下隐藏，由可用回应列表替代）
+                 展开态只占有限宽度，超出部分在胶囊内部左右滑动 -->
+            <div v-if="!showDefaultEmojiStatus && !reactionMode" ref="localCatsEl"
+                class="sp-emoji-cats flex items-center gap-0.5 rounded-full px-1 py-0.5 shrink-0"
+                :class="isLocalActive ? 'sp-emoji-cats--scroll no-scrollbar' : ''" @wheel="onLocalCatsWheel">
                 <!-- 折叠态：未聚焦本地 emoji 时，只显示代表图标 -->
                 <template v-if="!isLocalActive">
                     <button type="button"
@@ -45,7 +47,7 @@
                 </template>
                 <!-- 展开态：聚焦本地 emoji 之一时，显示全部本地分类 -->
                 <template v-else>
-                    <button v-for="cat in categories" :key="cat.id" type="button"
+                    <button v-for="cat in categories" :key="cat.id" type="button" :data-cat-id="cat.id"
                         class="sp-cat-pill shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-base leading-none transition-colors"
                         :class="activeBlock === cat.id ? 'bg-white dark:bg-gray-700 shadow' : 'hover:bg-black/5 dark:hover:bg-white/10'"
                         @click="scrollToBlock(cat.id)" :title="cat.name">
@@ -56,7 +58,7 @@
 
             <!-- 升级礼物典藏品（回应模式下隐藏） -->
             <button v-if="giftEmojiIds.length > 0 && !reactionMode" type="button"
-                class="sp-cat-pill shrink-0 w-8 h-8 flex items-center justify-center transition-colors"
+                class="sp-cat-pill shrink-0 w-8 h-8 flex items-center justify-center rounded-full transition-colors"
                 :class="activeBlock === 'gift_status' ? 'bg-blue-500/15' : 'text-gray-500 hover:bg-black/5 dark:hover:bg-white/10'"
                 @click="scrollToBlock('gift_status')" :title="t('emojiPanel.collectibles')">
                 <span class="tgico tgico-collectible text-[20px]" />
@@ -64,12 +66,23 @@
 
             <!-- 自定义 emoji 包（自己的）：封面含 TGS 时同样用动画渲染，不再退回首字母 -->
             <button v-for="set in installedSets" :key="`custom_${set.id}`" type="button"
-                class="sp-cat-pill shrink-0 w-8 h-8 flex items-center justify-center transition-colors"
+                class="sp-cat-pill shrink-0 w-8 h-8 flex items-center justify-center rounded-full transition-colors"
                 :class="activeBlock === `custom_${set.id}` ? 'bg-blue-500/15' : 'text-gray-500 hover:bg-black/5 dark:hover:bg-white/10'"
                 @click="scrollToBlock(`custom_${set.id}`)" :title="set.title">
                 <StickerMediaItem v-if="installedIcon(set)" :item="installedIcon(set)" kind="sticker"
                     :size="20" :skin-tone="skinTone" />
                 <span v-else class="text-sm">{{ (set.title || t('emojiPanel.packFallback'))?.[0] ?? '✨' }}</span>
+            </button>
+
+            <!-- 推荐 emoji 包（会员专属）：也放到顶部，右下角带锁标识 -->
+            <button v-for="set in trendingSets" :key="`trending_${set.id}`" type="button"
+                class="sp-cat-pill relative shrink-0 w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+                :class="activeBlock === `trending_${set.id}` ? 'bg-blue-500/15' : 'text-gray-500 hover:bg-black/5 dark:hover:bg-white/10'"
+                @click="scrollToBlock(`trending_${set.id}`)" :title="set.title">
+                <StickerMediaItem v-if="installedIcon(set)" :item="installedIcon(set)" kind="sticker"
+                    :size="20" :skin-tone="skinTone" />
+                <span v-else class="text-sm">{{ (set.title || t('emojiPanel.packFallback'))?.[0] ?? '✨' }}</span>
+                <LockIcon v-if="!isPremium" class="sp-pill-lock" aria-hidden="true" />
             </button>
         </div>
 
@@ -241,12 +254,14 @@
                             +{{ trendingMore(set) }}
                         </button>
                     </div>
-                    <!-- 底部：添加按钮 -->
+                    <!-- 底部：添加按钮（自定义 emoji 属会员功能：非会员左侧显示会员渐变锁，点击提示订阅） -->
                     <div class="flex items-center justify-end px-1 pt-1.5">
                         <button type="button" :disabled="isSetInstalled(set.id)"
-                            class="sp-add-btn shrink-0 ml-2 px-2.5 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50"
+                            class="sp-add-btn shrink-0 ml-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50"
                             :class="isSetInstalled(set.id) ? 'bg-black/5 dark:bg-white/10 text-gray-400 cursor-default' : 'bg-blue-500/15 text-blue-500 hover:bg-blue-500/25'"
                             @click="addTrendingSet(set.id)">
+                            <span v-if="!isPremium" class="tgico tgico-lock shrink-0" style="font-size: 12px"
+                                aria-hidden="true" />
                             {{ isSetInstalled(set.id) ? t('lng_stickers_featured_installed') : t('lng_stickers_featured_add') }}
                         </button>
                     </div>
@@ -281,7 +296,7 @@
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { SearchIcon, XIcon, ClockIcon, ChevronDownIcon } from 'lucide-vue-next';
+import { SearchIcon, XIcon, ClockIcon, ChevronDownIcon, Lock as LockIcon } from 'lucide-vue-next';
 // GlobalEmojiInline removed - using global Apple Color Emoji font
 import StickerMediaItem from './StickerMediaItem.vue';
 import CustomEmojiInline from '../../../common/CustomEmojiInline.vue';
@@ -294,6 +309,7 @@ import { onVisibilityChange, unobserve, setProgrammaticScroll, beginUserScroll, 
 import { enqueueViewportLoad } from '../../../../utils/viewportLoadGate';
 import { stickerPanelState } from './types';
 import { tdlibSend } from '../../../../utils/tdlib';
+import { toast } from '../../../../utils/toast';
 import type { sticker, animation, stickerSetInfo, emojiStatus, availableReaction, ReactionType } from 'tdlib-types';
 import { isReactionEmoji, isReactionCustomEmoji } from '../../../../utils/reactionHelpers';
 
@@ -463,10 +479,36 @@ const localActiveCatEmoji = computed(() => localActiveCat().emoji);
 const scrollEl = ref<HTMLElement | null>(null);
 /** 顶部单行（最近+本地胶囊+自定义包）滚动容器 */
 const catsRowEl = ref<HTMLElement | null>(null);
+/** 内置分类胶囊（展开态自身可横向滚动） */
+const localCatsEl = ref<HTMLElement | null>(null);
+
+/**
+ * 聚焦内置分类时，把该分类图标滑进胶囊与顶部行的可视范围。
+ * block: 'nearest' 保证只做横向移动，不惊动纵向滚动容器。
+ */
+async function revealLocalCat(catId: string) {
+    await nextTick();
+    const el = localCatsEl.value?.querySelector<HTMLElement>(`[data-cat-id="${catId}"]`);
+    el?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+}
+
+watch([isLocalActive, activeBlock], ([local, block]) => {
+    if (local && block) void revealLocalCat(block);
+});
 
 /** 顶部整行：鼠标滚轮 → 横向滚动 */
 function onCatsRowWheel(e: WheelEvent) {
     const el = catsRowEl.value;
+    if (!el) return;
+    el.scrollLeft += e.deltaY || e.deltaX;
+}
+
+/** 内置分类胶囊展开态：滚轮 → 胶囊内部横向滚动；折叠态不拦截（交给外层顶部行） */
+function onLocalCatsWheel(e: WheelEvent) {
+    if (!isLocalActive.value) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const el = e.currentTarget as HTMLElement | null;
     if (!el) return;
     el.scrollLeft += e.deltaY || e.deltaX;
 }
@@ -731,7 +773,18 @@ function onPickLocal(emoji: string) {
     emit('pickEmoji', final);
 }
 
+/**
+ * 自定义 emoji（会员表情）使用门槛：非会员点击时提示订阅，返回 false 表示已拦截。
+ * 用于「添加表情包」与「点击包内 emoji」两条入口。
+ */
+function requireCustomEmojiPremium(): boolean {
+    if (isPremium.value) return true;
+    toast.warning(t('emojiPanel.needsPremium'));
+    return false;
+}
+
 function onPickCustom(s: sticker | animation) {
+    if (!requireCustomEmojiPremium()) return;
     if (s._ !== 'sticker') return;
     const id = String(s.id);
     picker.recordRecentCustom(id);
@@ -760,6 +813,7 @@ function onPickSkinTone(emoji: string, tone: number) {
 
 /** 添加推荐自定义 emoji 包到已安装（TDLib changeStickerSet） */
 function addTrendingSet(setId: string) {
+    if (!requireCustomEmojiPremium()) return;
     const c = customData;
     (async () => {
         try {
@@ -952,6 +1006,40 @@ defineExpose({ activate: picker.activate, deactivate: picker.deactivate });
 /* 顶部分类胶囊条：外圈胶囊背景包裹本地分类图标 */
 .sp-emoji-cats {
     background: rgba(128, 128, 128, 0.12);
+}
+
+/* 顶部胶囊里的包封面：去掉内层自身的底色/圆角形状，避免与胶囊选中底色叠成两层 */
+.sp-cats-row :deep(.sp-media-item),
+.sp-cats-row :deep(.sp-media-ph) {
+    border-radius: 50%;
+    background: transparent;
+}
+
+.sp-cats-row :deep(.sp-media-item:hover) {
+    background: transparent;
+}
+
+/* 展开态：只占约 5 个分类的宽度，其余在胶囊内横向滑动（避免把顶部行撑太长） */
+.sp-emoji-cats--scroll {
+    max-width: 11rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+}
+
+/* 推荐包胶囊：右下角的会员锁标识（浮在 emoji 之上，纯标记不拦截点击） */
+.sp-pill-lock {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    z-index: 2;
+    box-sizing: border-box;
+    width: 14px;
+    height: 14px;
+    padding: 2px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    pointer-events: none;
 }
 
 /* 集分界线样式（复用贴纸抽屉的分界线） */

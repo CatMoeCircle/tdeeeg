@@ -1633,10 +1633,12 @@
     "recommended": "推荐表情包",
     "emojiCount": "{count} 个表情",
     "expandRemaining": "展开剩余 {count} 个",
-    "packFallback": "表情包"
+    "packFallback": "表情包",
+    "needsPremium": "需要订阅 Telegram Premium 会员才能使用"
   },
   "stickerPanel": {
-    "emptyStickers": "还没有贴纸，去表情包商店添加吧"
+    "emptyStickers": "还没有贴纸，去表情包商店添加吧",
+    "needsPremium": "需要订阅 Telegram Premium 会员才能使用"
   },
   "input": {
     "cancelReply": "取消回复",

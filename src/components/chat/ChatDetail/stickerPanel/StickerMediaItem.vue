@@ -13,6 +13,8 @@
         <img v-else-if="thumbSrc" :src="thumbSrc" :alt="alt" draggable="false" :style="imgStyle" loading="lazy" />
         <!-- 占位：灰色背景 -->
         <div v-else class="sp-media-ph" :style="imgStyle"></div>
+        <!-- 会员专属贴纸（premium_animation）：右上角会员星标 -->
+        <PremiumStickerBadge v-if="isPremiumOnly" />
     </div>
 </template>
 
@@ -20,6 +22,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { sticker, animation } from 'tdlib-types';
 import TgsPlayer, { type TgsPlayerInstance } from '../../../common/TgsPlayer.vue';
+import PremiumStickerBadge from '../../../common/PremiumStickerBadge.vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useStickerMedia } from './composables/useStickerMedia';
 import { onVisibilityChange, unobserve, isProgrammaticScroll, deferLoadWhileScrolling, isWindowActive, onWindowActiveChange } from './composables/useStickerVisibility';
@@ -38,10 +41,13 @@ const props = withDefaults(defineProps<{
     alt?: string;
     /** 来源贴纸集/emoji 集标题，写入下载记录 */
     sourceLabel?: string;
+    /** 是否显示右上角会员星标（仅贴纸面板用；emoji 面板不显示） */
+    premiumBadge?: boolean;
 }>(), {
     size: 72,
     skinTone: 0,
     alt: '',
+    premiumBadge: false,
 });
 
 const emit = defineEmits<{
@@ -72,6 +78,14 @@ const imgStyle = computed<Record<string, string>>(() => ({
     height: '100%',
     objectFit: 'cover',
 }));
+
+/** 会员专属贴纸：普通贴纸带 premium_animation（TDLib：有该动画时只有 Premium 能用） */
+const isPremiumOnly = computed(() => {
+    if (!props.premiumBadge) return false;
+    const o = props.item;
+    return !!o && 'full_type' in o
+        && o.full_type?._ === 'stickerFullTypeRegular' && !!o.full_type.premium_animation;
+});
 
 /** 贴纸自带缩略图（已下载时可直接显示，作为加载前的占位） */
 const thumbSrc = computed(() => {
@@ -222,6 +236,7 @@ function onContextMenu(ev: MouseEvent) {
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
     border-radius: 8px;
     overflow: hidden;
     cursor: pointer;

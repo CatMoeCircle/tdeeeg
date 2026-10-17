@@ -62,6 +62,8 @@ const { t } = useI18n();
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { SearchIcon, XIcon, Star, Trash2 } from 'lucide-vue-next';
 import StickerGroupSection from './StickerGroupSection.vue';
+import { stickerPanelState } from './types';
+import { toast } from '../../../../utils/toast';
 import { useStickerPicker } from './composables/useStickerPicker';
 import { setProgrammaticScroll, beginUserScroll, endUserScroll } from './composables/useStickerVisibility';
 import { openContextMenu } from '../../../../store/contextMenu';
@@ -217,6 +219,12 @@ function measureCellSize() {
 }
 
 function onPick(s: sticker) {
+    // 会员专属贴纸（普通贴纸带 premium_animation）：非会员点击给出订阅提示
+    if (!stickerPanelState.value.isPremium
+        && s.full_type?._ === 'stickerFullTypeRegular' && !!s.full_type.premium_animation) {
+        toast.warning(t('stickerPanel.needsPremium'));
+        return;
+    }
     // 发送贴纸需要的是贴纸的【文件 id】(s.sticker.id)，而非贴纸对象 id (s.id)
     const fileId = s.sticker?.id ?? (s as any).id;
     emit('pickSticker', String(fileId));

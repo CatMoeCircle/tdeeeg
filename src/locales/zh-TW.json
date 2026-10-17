@@ -1626,10 +1626,12 @@
     "recommended": "推薦表情包",
     "emojiCount": "{count} 個表情",
     "expandRemaining": "展開其餘 {count} 個",
-    "packFallback": "表情包"
+    "packFallback": "表情包",
+    "needsPremium": "需要訂閱 Telegram Premium 會員才能使用"
   },
   "stickerPanel": {
-    "emptyStickers": "還沒有貼紙，去表情包商店新增吧"
+    "emptyStickers": "還沒有貼紙，去表情包商店新增吧",
+    "needsPremium": "需要訂閱 Telegram Premium 會員才能使用"
   },
   "input": {
     "cancelReply": "取消回覆",

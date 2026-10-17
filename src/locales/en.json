@@ -1626,10 +1626,12 @@
     "recommended": "Recommended emoji packs",
     "emojiCount": "{count} emoji",
     "expandRemaining": "Show {count} more",
-    "packFallback": "Emoji pack"
+    "packFallback": "Emoji pack",
+    "needsPremium": "Subscribe to Telegram Premium to use custom emoji"
   },
   "stickerPanel": {
-    "emptyStickers": "No stickers yet, add some from the sticker store"
+    "emptyStickers": "No stickers yet, add some from the sticker store",
+    "needsPremium": "Subscribe to Telegram Premium to use this sticker"
   },
   "input": {
     "cancelReply": "Cancel reply",

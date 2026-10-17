@@ -31,8 +31,11 @@
             </div>
             <div v-else class="grid justify-items-center gap-2"
                 :style="{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }">
-                <MessageStickerContent v-for="s in set.stickers" :key="s.id" :content="toContent(s)"
-                    :size="tileSize" load-scope="stickerDetail" />
+                <div v-for="s in set.stickers" :key="s.id" class="relative">
+                    <MessageStickerContent :content="toContent(s)" :size="tileSize" load-scope="stickerDetail" />
+                    <!-- 会员专属贴纸：与贴纸面板一致的会员星标 -->
+                    <PremiumStickerBadge v-if="isPremiumOnlySticker(s)" />
+                </div>
             </div>
         </div>
 
@@ -57,6 +60,7 @@ import { useRouter } from 'vue-router';
 import { MoreHorizontalIcon } from 'lucide-vue-next';
 import ModalDialog from '../../settings/ModalDialog.vue';
 import MessageStickerContent from './MessageContent/content/MessageStickerContent.vue';
+import PremiumStickerBadge from '../../common/PremiumStickerBadge.vue';
 import { tdlibSend } from '../../../utils/tdlib';
 import { toast } from '../../../utils/toast';
 import { stickerSetDialogState, closeStickerSetDialog } from '../../../store/stickerSetDialog';
@@ -205,6 +209,11 @@ async function toggleInstalled() {
 
 function toContent(s: sticker): messageSticker {
     return { _: 'messageSticker', sticker: s, is_premium: false };
+}
+
+/** 会员专属贴纸：普通贴纸带 premium_animation（TDLib：有该动画时只有 Premium 能用） */
+function isPremiumOnlySticker(s: sticker): boolean {
+    return s.full_type?._ === 'stickerFullTypeRegular' && !!s.full_type.premium_animation;
 }
 
 function close() {
