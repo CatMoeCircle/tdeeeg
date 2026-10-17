@@ -656,6 +656,8 @@ const serviceText = computed<ServicePart[] | string | null>(() => {
                 ? t('lng_action_community_added_channel', { community: name })
                 : t('lng_action_community_added_unknown_channel');
         }
+        case 'messageChatRemovedFromCommunity':
+            return t('lng_action_community_removed_channel');
         default:
             // null = 本 switch 未覆盖该类型，交由 unadapted 渲染未适配卡片（其余分支均返回非空文案）
             return null;

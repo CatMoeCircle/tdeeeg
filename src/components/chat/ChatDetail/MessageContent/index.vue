@@ -157,6 +157,7 @@ const SERVICE_TYPES = new Set([
     'messageChatJoinFromCommunity',
     'messageChatDeleteMember',
     'messageChatAddedToCommunity',
+    'messageChatRemovedFromCommunity',
     'messageChatUpgradeTo',
     'messageChatUpgradeFrom',
     'messageChatHasProtectedContentToggled',
