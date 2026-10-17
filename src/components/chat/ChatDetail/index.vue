@@ -815,9 +815,8 @@ import { clearActiveChatTitleBar } from '../../../store/activeChatTitleBar';
 import { chatPaneOrigin } from '../../../store/chatPane';
 import { storeToRefs } from 'pinia';
 import { onTdlibUpdates } from "../../../store/tdlibBus";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { copyFile } from "@tauri-apps/plugin-fs";
-import { save, open as openDialog } from "@tauri-apps/plugin-dialog";
+import { saveFileAs, revealFileInDir } from "../../../utils/fileActions";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { settings } from '../../../store/settings';
 import { canSummarizeMessage } from '../../../store/summary';
 import {
@@ -5757,35 +5756,6 @@ function getMessageFileName(msg: message, file: TdFile): string {
     return p ? p.split(/[\\/]/).pop() || 'media' : 'media';
 }
 
-/** 打开目录：在系统文件管理器中定位到该媒体本地文件 */
-async function handleRevealInDir(path: string) {
-    if (!path) return;
-    try {
-        await revealItemInDir([path]);
-    } catch (e) {
-        console.error('revealItemInDir failed:', e);
-        toast.error(t('chat.revealFailed'));
-    }
-}
-
-/** 另存为：弹出保存对话框并把源文件复制到目标位置 */
-async function handleMessageSaveAs(file: TdFile, fileName: string) {
-    const src = file.local.path;
-    if (!src) return;
-    try {
-        const dest = await save({
-            title: t('lng_context_save_file'),
-            defaultPath: fileName,
-        });
-        if (!dest) return;
-        await copyFile(src, dest);
-        toast.success(t('chat.saveAsDone'));
-    } catch (e) {
-        console.error('saveAs failed:', e);
-        toast.error(t('chat.saveAsFailed'));
-    }
-}
-
 /** 保存消息到收藏（Saved Messages） */
 async function handleSaveMessage(msg: message) {
     const cid = chatId.value;
@@ -6047,13 +6017,13 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
             key: 'reveal-in-dir',
             label: t('lng_context_show_in_folder'),
             icon: FolderOpenIcon,
-            onClick: () => handleRevealInDir(mediaFile.local.path),
+            onClick: () => revealFileInDir(mediaFile.local.path),
         });
         items.push({
             key: 'save-as',
             label: t('lng_context_save_image'),
             icon: DownloadIcon,
-            onClick: () => handleMessageSaveAs(mediaFile, getMessageFileName(msg, mediaFile)),
+            onClick: () => saveFileAs(mediaFile, getMessageFileName(msg, mediaFile)),
         });
     }
 

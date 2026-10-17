@@ -60,19 +60,26 @@ const fileId = computed(() => props.file?.id ?? 0);
 
 const state = reactive<{ downloading: boolean; progress: number }>({ downloading: false, progress: 0 });
 
-/** 下载进度（0~1），暴露给模板 */
-const progress = computed(() => state.progress);
+/**
+ * 下载管理器里本文件的条目（按 File + remote.id 校验，避免 session file.id 复用串到别的文件）。
+ * 播放器触发的流式/完整下载只写下载 store，不进 reactiveDownloadingFiles，
+ * 所以下载态/进度必须以 store 为准，否则按钮不跟随。
+ */
+const storeInfo = computed(() => downloadStore.getDownloadInfoForFile(props.file));
 
-/** 是否正在下载（本地发起或全局下载集合中，如被其他路径触发） */
-const isDownloading = computed(() => state.downloading || reactiveDownloadingFiles.value.has(fileId.value));
+/** 下载进度（0~1），暴露给模板：store 条目优先，本地发起的兜底 */
+const progress = computed(() => storeInfo.value?.progress ?? state.progress);
+
+/** 是否正在下载（本地发起、全局下载集合、或下载 store 里的进行中条目） */
+const isDownloading = computed(() => state.downloading
+    || reactiveDownloadingFiles.value.has(fileId.value)
+    || (!!storeInfo.value && !storeInfo.value.is_completed && !storeInfo.value.dismissed));
 
 /** 文件是否已下载就绪（本地状态或下载管理器已标记完成） */
 const ready = computed(() => {
     if (!fileId.value) return false;
     if (isFileReady(props.file)) return true;
-    // 按 File + remote.id 校验，防止 session file.id 复用时误判就绪
-    const info = downloadStore.getDownloadInfoForFile(props.file);
-    return !!info?.is_completed;
+    return !!storeInfo.value?.is_completed;
 });
 
 /** 是否可下载（TDLib 允许下载） */

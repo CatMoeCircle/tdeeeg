@@ -4,7 +4,7 @@
             <button v-for="(button, bi) in row" :key="bi" type="button" class="relative"
                 :class="[
                     baseButtonClass,
-                    buttonColorClass(button.style),
+                    buttonStyleClass(button.style),
                     button.type._ === 'inlineKeyboardButtonTypeBuy' ? 'pr-5' : '',
                 ]" :disabled="pendingKey === buttonKey(ri, bi)"
                 @click.stop="handleClick(button, ri, bi)">
@@ -24,15 +24,8 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { openUrl } from '@tauri-apps/plugin-opener';
-import { toast } from '../../../../../utils/toast';
-import { useI18n } from 'vue-i18n';
-import type { inlineKeyboardButton, LoginUrlInfo, ButtonStyle } from 'tdlib-types';
-import { tdlibSend } from '../../../../../utils/tdlib';
-import { confirmExternalLink } from '../../../../../store/externalLink';
-import { resolveInternalLink } from '../../../../../utils/openInternalLink';
-import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
+import type { inlineKeyboardButton } from 'tdlib-types';
+import { buttonStyleClass, runInlineButtonType } from '../../../../../utils/inlineButton';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
 import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 
@@ -42,8 +35,6 @@ const props = defineProps<{
     messageId?: number;
 }>();
 
-const router = useRouter();
-const { t } = useI18n();
 const pendingKey = ref<string | null>(null);
 
 /**
@@ -66,166 +57,14 @@ function buttonKey(ri: number, bi: number): string {
 const baseButtonClass =
     'flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border px-2 py-1.5 text-sm font-medium transition-colors disabled:cursor-default disabled:opacity-50';
 
-// TDLib ButtonStyle：Default 使用普通灰底；Primary/Danger/Success 使用官方 Telegram 配色（白字）
-function buttonColorClass(style?: ButtonStyle): string {
-    switch (style?._) {
-        case 'buttonStylePrimary':
-            return 'border-transparent bg-[#298ACF] text-white hover:bg-[#3691D2]';
-        case 'buttonStyleDanger':
-            return 'border-transparent bg-[#E05356] text-white hover:bg-[#E25D60]';
-        case 'buttonStyleSuccess':
-            return 'border-transparent bg-[#61C752] text-white hover:bg-[#6ACA5C]';
-        default:
-            return 'border-gray-300/60 bg-gray-100/80 text-gray-800 hover:bg-gray-200/80 dark:border-white/10 dark:bg-white/10 dark:text-gray-100 dark:hover:bg-white/15';
-    }
-}
-
 async function handleClick(button: inlineKeyboardButton, ri: number, bi: number) {
-    const key = buttonKey(ri, bi);
     if (pendingKey.value) return;
-
-    switch (button.type._) {
-        case 'inlineKeyboardButtonTypeUrl':
-            await openButtonUrl(button.type.url);
-            break;
-        case 'inlineKeyboardButtonTypeLoginUrl':
-            await openLoginUrl(button.type.id, button.type.url);
-            break;
-        case 'inlineKeyboardButtonTypeWebApp':
-            await openButtonUrl(button.type.url);
-            break;
-        case 'inlineKeyboardButtonTypeCallback':
-            await sendCallback(key, { _: 'callbackQueryPayloadData', data: button.type.data });
-            break;
-        case 'inlineKeyboardButtonTypeCallbackWithPassword':
-            await toast.error({ content: t('content.notSupportedPasswordCallback'), placement: 'top-right' });
-            break;
-        case 'inlineKeyboardButtonTypeCallbackGame':
-            await toast.error({ content: t('content.notSupportedGameCallback'), placement: 'top-right' });
-            break;
-        case 'inlineKeyboardButtonTypeSwitchInline':
-            await toast.error({ content: t('content.notSupportedSwitchInline'), placement: 'top-right' });
-            break;
-        case 'inlineKeyboardButtonTypeBuy':
-            await toast.error({ content: t('content.notSupportedBuy'), placement: 'top-right' });
-            break;
-        case 'inlineKeyboardButtonTypeUser':
-            await openUserButton(button.type.user_id);
-            break;
-        case 'inlineKeyboardButtonTypeCopyText':
-            await copyButtonText(button.type.text);
-            break;
-    }
-}
-
-async function openButtonUrl(url: string) {
+    // 回调按钮：等 bot 应答期间锁住该按钮，避免重复点击
+    if (button.type._ === 'inlineKeyboardButtonTypeCallback') pendingKey.value = buttonKey(ri, bi);
     try {
-        // Telegram 内部链接（t.me / tg://）先在应用内解析跳转
-        if (url.startsWith('https://t.me/') || url.startsWith('https://proxy.t.me/') || url.startsWith('tg://')) {
-            await resolveInternalLink(url, router);
-            return;
-        }
-        // 外部链接：先询问用户是否跳转外部，确认后再用系统浏览器打开
-        if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('mailto:') || url.startsWith('tel:')) {
-            try {
-                await confirmAndOpenExternalLink(url);
-            } catch (e) {
-                /* 用户取消，不跳转 */
-            }
-            return;
-        }
-        await openUrl(url);
-    } catch (e) {
-        console.error('Open inline keyboard URL failed:', e);
-    }
-}
-
-async function openLoginUrl(buttonId: number, fallbackUrl: string) {
-    if (!props.chatId || !props.messageId) {
-        await openButtonUrl(fallbackUrl);
-        return;
-    }
-
-    try {
-        const info = await tdlibSend({
-            _: 'getLoginUrlInfo',
-            chat_id: props.chatId,
-            message_id: props.messageId,
-            button_id: buttonId,
-        }) as LoginUrlInfo;
-
-        if (info._ === 'loginUrlInfoOpen' && info.skip_confirmation) {
-            await openButtonUrl(info.url);
-            return;
-        }
-
-        try {
-            await confirmExternalLink(info.url);
-        } catch {
-            return;
-        }
-
-        if (info._ === 'loginUrlInfoOpen') {
-            await openButtonUrl(info.url);
-            return;
-        }
-
-        const url = await tdlibSend({
-            _: 'getLoginUrl',
-            chat_id: props.chatId,
-            message_id: props.messageId,
-            button_id: buttonId,
-            allow_write_access: false,
-        }) as { url: string };
-        await openButtonUrl(url.url);
-    } catch (e) {
-        console.warn('Failed to resolve login URL, opening original:', e);
-        await openButtonUrl(fallbackUrl);
-    }
-}
-
-async function sendCallback(key: string, payload: { _: 'callbackQueryPayloadData'; data: string }) {
-    if (!props.chatId || !props.messageId) return;
-    pendingKey.value = key;
-    try {
-        const answer = await tdlibSend({
-            _: 'getCallbackQueryAnswer',
-            chat_id: props.chatId,
-            message_id: props.messageId,
-            payload,
-        }) as { text: string; show_alert: boolean; url: string };
-
-        if (answer.url) await openButtonUrl(answer.url);
-        if (answer.text) {
-            const options = { content: answer.text, placement: 'top-right' as const, duration: answer.show_alert ? 5000 : 2500 };
-            if (answer.show_alert) {
-                await toast.error(options);
-            } else {
-                await toast.success(options);
-            }
-        }
-    } catch (e) {
-        console.error('Callback query failed:', e);
+        await runInlineButtonType(button.type, { chatId: props.chatId, messageId: props.messageId });
     } finally {
         pendingKey.value = null;
-    }
-}
-
-async function openUserButton(userId: number) {
-    try {
-        const chat = await tdlibSend({ _: 'createPrivateChat', user_id: userId, force: false }) as { id: number };
-        await router.push(`/home/chat/${chat.id}`);
-    } catch (e) {
-        console.error('Open inline keyboard user button failed:', e);
-    }
-}
-
-async function copyButtonText(text: string) {
-    try {
-        await navigator.clipboard.writeText(text);
-        await toast.success({ content: t('content.copied'), placement: 'top-right' });
-    } catch (e) {
-        console.error('Copy inline keyboard button text failed:', e);
     }
 }
 </script>

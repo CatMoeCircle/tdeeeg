@@ -31,6 +31,7 @@
         <CopyableText v-else-if="node.type === 'bankCard'" :text="extractText(node.text)" class="font-mono">
             <RichText :text="node.text" />
         </CopyableText>
+        <RichInlineButton v-else-if="node.button" :button="node.button" class="mx-0.5" />
         <a v-else-if="node.href" :href="node.href"
             class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
             @click.prevent.stop="handleClick($event, node)">
@@ -65,8 +66,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { RichText } from 'tdlib-types';
+import type { RichText, inlineButton } from 'tdlib-types';
 import LatexFormula from './LatexFormula.vue';
+import RichInlineButton from './RichInlineButton.vue';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { useRouter } from 'vue-router';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
@@ -95,6 +97,8 @@ type RichNode = {
     href?: string;
     userId?: number;
     emojiId?: string;
+    /** richTextButton：内嵌按钮 */
+    button?: inlineButton;
 };
 
 /** 将 TDLib RichText 转成便于模板渲染的节点树；href/mention 等直接携带 */
@@ -128,7 +132,7 @@ function normalize(rt: RichText): RichNode {
         case 'richTextReference': return { type: 'reference', text: rt.text };
         case 'richTextDiff': return { type: 'diff', text: rt.text };
         case 'richTextIcon': return { type: 'icon', textStr: t('content.richTextImage') };
-        case 'richTextButton': return { type: 'button', text: rt.button.text };
+        case 'richTextButton': return { type: 'button', button: rt.button };
         case 'richTextDateTime': return { type: 'dateTime', text: rt.text };
         case 'richTextPlain':
         default: return { type: 'plain', textStr: rt.text ?? '' };

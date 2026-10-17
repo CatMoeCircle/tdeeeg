@@ -13,16 +13,11 @@
       <video v-else-if="emojiFormat === 'webm'" ref="videoRef" :src="state.filePath" autoplay :loop="props.loop ?? true" muted playsinline
         class="w-full h-full object-contain" />
     </template>
-    <!-- 缩略图预览（模糊） -->
-    <img v-else-if="state.thumbnailUrl" :src="state.thumbnailUrl" class="w-full h-full object-contain rounded"
-      :style="{ filter: 'blur(1.5px)', transform: 'scale(1.2)' }" />
-    <!-- 加载中灰色骨架 -->
-    <div v-else-if="fallbackText" class="w-full h-full flex items-center justify-center select-none"
-      :style="{ fontSize: Math.max(12, size - 2) + 'px', lineHeight: '1' }">
-      {{ fallbackText }}
-    </div>
-    <div v-else class="w-full h-full rounded bg-gray-200 dark:bg-gray-700 animate-pulse">
-    </div>
+    <!-- 官方自带缩略图（本地已有/下载完成） -->
+    <img v-else-if="state.thumbnailUrl" :src="state.thumbnailUrl" class="w-full h-full object-contain rounded" />
+    <!-- 未就绪且无缩略图：灰色骨架打底（不再用 emoji 字符占位，避免“先 emoji 后跳图”的闪烁） -->
+    <div v-else class="w-full h-full rounded bg-gray-200 dark:bg-gray-700"
+      :class="state.loadingFile || state.loadingThumbnail ? 'animate-pulse' : ''" />
   </span>
 </template>
 
@@ -37,7 +32,7 @@ import TgsPlayer, { type TgsPlayerInstance } from './TgsPlayer.vue';
 const props = defineProps<{
   emojiId: string;
   size?: number;
-  /** 未加载完成或加载失败时显示的原始 emoji 兜底 */
+  /** @deprecated 不再使用：未就绪时改为“缩略图 or 灰色骨架”，保留字段仅为兼容既有调用方 */
   fallbackText?: string;
   /** 是否循环播放动态 Emoji，默认循环 */
   loop?: boolean;

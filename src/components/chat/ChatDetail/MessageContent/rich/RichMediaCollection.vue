@@ -1,8 +1,9 @@
 <template>
     <div v-if="items.length" class="group relative mx-auto overflow-hidden rounded-lg bg-gray-200 dark:bg-gray-700"
-        :style="containerStyle" @wheel="onWheel">
+        :style="containerStyle" @wheel="onWheel" @contextmenu="onContainerContextMenu">
         <template v-if="mode === 'grid'">
-            <div v-for="item in items" :key="item.key" class="absolute overflow-hidden" :style="item.style">
+            <div v-for="item in items" :key="item.key" class="absolute overflow-hidden" :style="item.style"
+                @contextmenu="openFileActionsMenu($event, item.menuFile, item.menuName)">
                 <RichImage v-if="item.file" :file="item.file" :format="item.format" :alt="item.alt" fill
                     :chatId="chatId" />
                 <div v-else class="absolute inset-0 flex items-center justify-center text-gray-400">
@@ -52,6 +53,7 @@ import { ChevronLeftIcon, ChevronRightIcon, PlayIcon } from 'lucide-vue-next';
 import RichImage from './RichImage.vue';
 import { layoutMediaGroup } from '../../../../../utils/mediaGroupLayout';
 import { mediaSizeStyle, MEDIA_MAX } from '../../../../../utils/fitMediaSize';
+import { openFileActionsMenu } from '../../../../../utils/fileActions';
 
 const { t } = useI18n();
 
@@ -73,6 +75,10 @@ interface MediaItem {
     width: number;
     height: number;
     style?: string;
+    /** 右键菜单用的原始文件（视频/动画取本体，而不是缩略图） */
+    menuFile?: file;
+    /** 右键菜单用的文件名（发送方可能没给，留空时按本地路径兜底） */
+    menuName?: string;
 }
 
 function mediaItem(block: PageBlock, index: number): MediaItem | null {
@@ -88,6 +94,7 @@ function mediaItem(block: PageBlock, index: number): MediaItem | null {
             isVideo: false,
             width: largest.width,
             height: largest.height,
+            menuFile: largest.photo,
         };
     }
     if (block._ === 'pageBlockVideo' && block.video?.thumbnail?.file) {
@@ -99,6 +106,8 @@ function mediaItem(block: PageBlock, index: number): MediaItem | null {
             isVideo: true,
             width: block.video.width,
             height: block.video.height,
+            menuFile: block.video.video,
+            menuName: block.video.file_name,
         };
     }
     if (block._ === 'pageBlockAnimation' && block.animation?.thumbnail?.file) {
@@ -110,6 +119,8 @@ function mediaItem(block: PageBlock, index: number): MediaItem | null {
             isVideo: false,
             width: block.animation.width,
             height: block.animation.height,
+            menuFile: block.animation.animation,
+            menuName: block.animation.file_name,
         };
     }
     return null;
@@ -140,8 +151,7 @@ const currentIndex = ref(0);
 const currentItem = computed(() => items.value[currentIndex.value] || items.value[0]);
 let lastWheelAt = 0;
 
-function onWheel(e: WheelEvent) {
-    if (props.mode !== 'slideshow' || items.value.length <= 1) return;
+function onWheel(e: WheelEvent) {    if (props.mode !== 'slideshow' || items.value.length <= 1) return;
     e.preventDefault();
     e.stopPropagation();
     const now = Date.now();
@@ -152,6 +162,16 @@ function onWheel(e: WheelEvent) {
     } else if (e.deltaY < 0) {
         currentIndex.value = (currentIndex.value - 1 + items.value.length) % items.value.length;
     }
+}
+
+/**
+ * 右键：网格里每一格自己处理；轮播（一次只显示一张）在这里按当前张处理。
+ * 未下载的文件不拦截事件，继续交给消息右键菜单。
+ */
+function onContainerContextMenu(e: MouseEvent) {
+    if (props.mode === 'grid') return;
+    const item = currentItem.value;
+    if (item) openFileActionsMenu(e, item.menuFile, item.menuName);
 }
 
 const containerStyle = computed(() => {

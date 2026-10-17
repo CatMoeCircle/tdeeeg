@@ -25,8 +25,9 @@
                 <RichText :text="block.kicker" />
             </div>
 
-            <!-- 段落 -->
-            <p v-else-if="block._ === 'pageBlockParagraph'" class="whitespace-pre-wrap">
+            <!-- 段落：空段落也要占一行，否则富文本里的空白行会被吃掉 -->
+            <p v-else-if="block._ === 'pageBlockParagraph'" class="whitespace-pre-wrap"
+                :class="richTextPlainOf(block.text) ? '' : 'min-h-[1.4em]'">
                 <RichText :text="block.text" />
             </p>
 
@@ -89,6 +90,13 @@
                     <RichText :text="block.credit" />
                 </footer>
             </blockquote>
+            <blockquote v-else-if="block._ === 'pageBlockExpandableBlockQuote'"
+                class="my-1.5 border-l-2 border-gray-300 dark:border-gray-600 pl-2 text-gray-700 dark:text-gray-300">
+                <RichText :text="block.text" />
+                <footer v-if="block.credit" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    <RichText :text="block.credit" />
+                </footer>
+            </blockquote>
             <blockquote v-else-if="block._ === 'pageBlockPullQuote'"
                 class="my-1.5 border-l-2 border-gray-300 dark:border-gray-600 pl-2 text-gray-700 dark:text-gray-300">
                 <RichText :text="block.text" />
@@ -101,7 +109,8 @@
             <figure v-else-if="block._ === 'pageBlockPhoto'" class="my-1.5">
                 <SpoilerPhoto :has-spoiler="block.has_spoiler">
                     <div v-if="photoFile(block.photo)?.photo" class="overflow-hidden"
-                        :style="photoBoxStyle(block.photo)">
+                        :style="photoBoxStyle(block.photo)"
+                        @contextmenu="mediaContextMenu($event, photoFile(block.photo)?.photo)">
                         <RichImage :file="photoFile(block.photo)!.photo" :alt="''" square :chatId="chatId" />
                     </div>
                     <div v-else
@@ -114,7 +123,8 @@
             <!-- 视频 -->
             <figure v-else-if="block._ === 'pageBlockVideo'" class="my-1.5">
                 <div class="overflow-hidden rounded-lg bg-black/5 dark:bg-white/10 relative"
-                    :style="videoBoxStyle(block.video)">
+                    :style="videoBoxStyle(block.video)"
+                    @contextmenu="mediaContextMenu($event, block.video?.video, block.video?.file_name)">
                     <RichImage v-if="block.video?.thumbnail?.file" :file="block.video?.thumbnail?.file"
                         :format="block.video?.thumbnail?.format" :alt="''" square :chatId="chatId" />
                     <div v-else class="h-32 flex items-center justify-center text-gray-400">{{ t('content.videoUnavailable') }}</div>
@@ -131,7 +141,8 @@
             <!-- 动画 -->
             <figure v-else-if="block._ === 'pageBlockAnimation'" class="my-1.5">
                 <div class="overflow-hidden rounded-lg bg-black/5 dark:bg-white/10 relative"
-                    :style="animationBoxStyle(block.animation)">
+                    :style="animationBoxStyle(block.animation)"
+                    @contextmenu="mediaContextMenu($event, block.animation?.animation, block.animation?.file_name)">
                     <RichImage v-if="block.animation?.thumbnail?.file" :file="block.animation?.thumbnail?.file"
                         :format="block.animation?.thumbnail?.format" :alt="''" square :chatId="chatId" />
                     <div v-else class="h-32 flex items-center justify-center text-gray-400">{{ t('content.animationUnavailable') }}</div>
@@ -142,13 +153,23 @@
                 <RichCaption v-if="block.caption" :caption="block.caption" />
             </figure>
 
+            <!-- 文档（图片/视频/文件）：走普通文件行，缩略图、下载、打开都与文件消息一致 -->
+            <figure v-else-if="block._ === 'pageBlockDocument'" class="my-1.5"
+                @contextmenu="mediaContextMenu($event, block.document?.document, block.document?.file_name)">
+                <MessageFileContent v-if="block.document" :content="documentContent(block)" :chat-id="chatId"
+                    :message-id="messageId" />
+                <RichCaption v-if="block.caption" :caption="block.caption" />
+            </figure>
+
             <!-- 音频（识别为音乐，可播放，效果与普通音乐消息一致） -->
             <RichAudio v-else-if="block._ === 'pageBlockAudio'" :audio="block.audio" :caption="block.caption"
-                :chat-id="chatId" :message-id="messageId" />
+                :chat-id="chatId" :message-id="messageId"
+                @contextmenu="mediaContextMenu($event, block.audio?.audio, block.audio?.file_name)" />
 
             <!-- 语音 -->
             <figure v-else-if="block._ === 'pageBlockVoiceNote'" class="my-1.5">
-                <div class="rounded-lg bg-black/5 dark:bg-white/10 p-2.5 flex items-center gap-2">
+                <div class="rounded-lg bg-black/5 dark:bg-white/10 p-2.5 flex items-center gap-2"
+                    @contextmenu="mediaContextMenu($event, block.voice_note?.voice)">
                     <MicIcon class="w-4 h-4 text-gray-500 shrink-0" />
                     <span v-if="block.voice_note" class="text-xs text-gray-500">{{
                         formatDuration(block.voice_note.duration)
@@ -176,7 +197,8 @@
                             <tr v-for="(row, ri) in block.cells" :key="ri">
                                 <td v-for="(cell, ci) in row" :key="ci" :colspan="cell.colspan" :rowspan="cell.rowspan"
                                     :class="[
-                                        'px-2 py-1.5 align-top whitespace-pre-wrap border-gray-200 dark:border-gray-700',
+                                        block.is_compact ? 'px-1.5 py-1' : 'px-2 py-1.5',
+                                        'align-top whitespace-pre-wrap border-gray-200 dark:border-gray-700',
                                         block.is_bordered ? 'border' : '',
                                         block.is_striped && ri % 2 === 1 ? 'bg-black/5 dark:bg-white/5' : '',
                                         cell.is_header ? 'bg-gray-100 dark:bg-gray-700' : '',
@@ -260,12 +282,20 @@
                 </div>
             </div>
 
-            <!-- 地图 -->
-            <div v-else-if="block._ === 'pageBlockMap'"
-                class="my-1.5 rounded-lg border border-gray-200 dark:border-gray-700 p-2 text-xs text-gray-500">
-                🗺️ {{ block.location.latitude.toFixed(4) }}, {{ block.location.longitude.toFixed(4) }}
-                <RichCaption v-if="block.caption" :caption="block.caption" />
+            <!-- 地图：比例/缩放取块自身参数，复用位置消息的地图卡片 -->
+            <RichMap v-else-if="block._ === 'pageBlockMap'" :location="block.location" :zoom="block.zoom"
+                :width="block.width" :height="block.height" :caption="block.caption" :chat-id="chatId"
+                class="my-1.5" />
+
+            <!-- 按钮行：富文本消息里的按钮（回调 / 链接等） -->
+            <div v-else-if="block._ === 'pageBlockButtonRow'" class="my-1.5 flex flex-wrap gap-1"
+                :class="rowJustify(block.align)">
+                <RichInlineButton v-for="(btn, bi) in block.buttons" :key="bi" :button="btn" :grow="!block.align"
+                    monochrome />
             </div>
+
+            <!-- 不可见锚点（供链接定位）：不渲染内容 -->
+            <span v-else-if="block._ === 'pageBlockAnchor'" class="hidden" />
 
             <!-- Thinking placeholder -->
             <p v-else-if="block._ === 'pageBlockThinking'" class="my-1 text-gray-400 italic">
@@ -283,19 +313,24 @@
 </template>
 
 <script setup lang="ts">
-import type { PageBlock, photoSize, pageBlockTableCell, PageBlockHorizontalAlignment, PageBlockVerticalAlignment } from 'tdlib-types';
+import type { PageBlock, photoSize, pageBlockTableCell, PageBlockHorizontalAlignment, PageBlockVerticalAlignment, RichText as RichTextNode, formattedText, messageDocument, file as TdFile } from 'tdlib-types';
 import { useI18n } from 'vue-i18n';
+import { provide } from 'vue';
 import RichText from './RichText.vue';
 import RichImage from './RichImage.vue';
 import SpoilerPhoto from '../spoiler/SpoilerPhoto.vue';
 import RichCaption from './RichCaption.vue';
 import RichMediaCollection from './RichMediaCollection.vue';
+import RichInlineButton from './RichInlineButton.vue';
 import RichMediaDownload from './RichMediaDownload.vue';
+import MessageFileContent from '../content/MessageFileContent.vue';
+import RichMap from './RichMap.vue';
 import RichAudio from './RichAudio.vue';
 import LatexFormula from './LatexFormula.vue';
 import Avatar from '../../../avatar.vue';
 import { MicIcon, PlayIcon } from 'lucide-vue-next';
 import { tdlibSend } from '../../../../../utils/tdlib';
+import { openFileActionsMenu } from '../../../../../utils/fileActions';
 
 const { t } = useI18n();
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -303,14 +338,46 @@ import { useRouter } from 'vue-router';
 import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
 import { mediaSizeStyle } from '../../../../../utils/fitMediaSize';
 
-defineProps<{
+const props = defineProps<{
     blocks: PageBlock[];
     isRtl?: boolean;
     chatId?: number;
     messageId?: number;
 }>();
 
+/** 富文本里的按钮（richTextButton / pageBlockButtonRow）需要消息上下文发回调 */
+provide('richMessageContext', {
+    get chatId() { return props.chatId; },
+    get messageId() { return props.messageId; },
+});
+
 const router = useRouter();
+
+const EMPTY_TEXT: formattedText = { _: 'formattedText', text: '', entities: [] };
+
+/**
+ * 文件块要复用普通文件消息组件，需要 messageDocument 包装对象：
+ * 按 block 缓存（WeakMap），否则父组件每次重渲染都换 content 引用，
+ * MessageFileContent 会重置并重新下载缩略图。
+ */
+const wrappedContentCache = new WeakMap<PageBlock, messageDocument>();
+
+/** pageBlockDocument → messageDocument，复用文件行（缩略图 / 下载进度 / 打开） */
+function documentContent(block: Extract<PageBlock, { _: 'pageBlockDocument' }>): messageDocument {
+    const cached = wrappedContentCache.get(block);
+    if (cached) return cached;
+    const content: messageDocument = { _: 'messageDocument', document: block.document, caption: EMPTY_TEXT };
+    wrappedContentCache.set(block, content);
+    return content;
+}
+
+/**
+ * 富文本媒体块右键：文件已下载到本地时弹「在文件夹中显示 / 另存为」；
+ * 未下载则放行，让外层消息右键菜单继续处理（下载入口在块自身的下载按钮上）。
+ */
+function mediaContextMenu(e: MouseEvent, file?: TdFile | null, fileName?: string) {
+    openFileActionsMenu(e, file, fileName);
+}
 
 /** 取 photo 的最大可用尺寸作为展示文件 */
 function photoFile(photo?: { sizes?: photoSize[] } | null): photoSize | undefined {
@@ -401,6 +468,25 @@ function cellAlign(cell: pageBlockTableCell): Record<string, string> {
 function alignValue(a: PageBlockHorizontalAlignment | undefined): string {
     if (!a) return 'left';
     switch (a._) { case 'pageBlockHorizontalAlignmentCenter': return 'center'; case 'pageBlockHorizontalAlignmentRight': return 'right'; default: return 'left'; }
+}
+
+/** 富文本的纯文本拼接（判断段落是否为空用；空段落要保留一整行高度） */
+function richTextPlainOf(rt?: RichTextNode | null): string {
+    if (!rt) return '';
+    if (rt._ === 'richTextPlain') return rt.text;
+    if (rt._ === 'richTexts') return rt.texts.map(richTextPlainOf).join('');
+    if (rt._ === 'richTextCustomEmoji') return rt.alternative_text ?? '';
+    const nested = (rt as { text?: RichTextNode }).text;
+    return nested ? richTextPlainOf(nested) : '';
+}
+
+/** 按钮行的水平对齐；无对齐要求时按钮铺满一行 */
+function rowJustify(a: PageBlockHorizontalAlignment | undefined): string {
+    switch (a?._) {
+        case 'pageBlockHorizontalAlignmentCenter': return 'justify-center';
+        case 'pageBlockHorizontalAlignmentRight': return 'justify-end';
+        default: return 'justify-start';
+    }
 }
 
 function valignValue(v: PageBlockVerticalAlignment | undefined): string {

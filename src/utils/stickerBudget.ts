@@ -10,8 +10,8 @@
  *
  * 两件事：
  * 1. 负重注册表 —— 按动画内容 key 登记实例（同一内容重复注册只累加计数，
- *    同一播放器重复 acquire 幂等）。30fps 档下同 key 的重复实例只保留一个
- *    继续播、其余冻结，防止同样的贴纸被重复渲染。
+ *    同一播放器重复 acquire 幂等）。30fps 档下所有实例（含同 key 重复实例）
+ *    统一走 50% 占空比：都在动，但每帧渲染量减半。
  * 2. FPS 预算 —— 突发式 rAF 实测帧间隔（见下方采样旋钮）。目标 60fps：连续 2 个窗口平均 >19ms
  *    （或单窗口 >34ms 立即）视为预算不足，降为 30fps 档；连续 3 个窗口
  *    平均 <17.5ms 回到 60 档。30 档用 50% 占空比（33ms 播 / 33ms 停）驱动
@@ -124,9 +124,7 @@ function startDuty() {
     if (dutyTimer) return;
     dutyTimer = setInterval(() => {
         dutyPhase = !dutyPhase;
-        // 同 key 的重复实例在 30 档只留一个继续播（占空比），其余冻结
-        const seen = new Set<string>();
-        for (const [key, entry] of registry) {
+        for (const [, entry] of registry) {
             for (const h of entry.handles) {
                 if (!h.isWanted()) {
                     // 外部门控已暂停：不参与占空比，保持其暂停意图
@@ -139,9 +137,11 @@ function startDuty() {
                     h.setDutyOff(false);
                     continue;
                 }
-                const keepFirst = !seen.has(key);
-                seen.add(key);
-                h.setDutyOff(keepFirst ? !dutyPhase : true);
+                // 同内容重复实例（如一条消息里几十个相同自定义 emoji）不再只留一个播、
+                // 其余永久冻结——那会让同一 emoji 有的在动有的静止。统一走 50% 占空比，
+                // 全部都在动、渲染开销仍是一半。
+                // ponytail: 重复实例同相冻结仍是全屏级 33ms 停顿；出现观感抖动再给实例加相位偏移。
+                h.setDutyOff(dutyPhase);
             }
         }
     }, 33);
