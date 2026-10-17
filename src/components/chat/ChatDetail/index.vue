@@ -83,14 +83,18 @@
                                 </div>
                                 <div class="flex min-w-0 max-w-[70%] flex-col"
                                     :class="isSelfAlbum(item) ? 'items-end' : 'items-start'">
-                                    <div class="w-min max-w-full overflow-hidden" :class="isAlbumBubbleless(item)
-                                        ? ''
-                                        : [
-                                            'shadow-sm',
-                                            isSelfAlbum(item)
-                                                ? 'text-gray-900'
-                                                : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'
-                                        ]"
+                                    <div :class="[
+                                        isFileAlbumItem(item) ? 'w-fit min-w-30' : 'w-min',
+                                        'max-w-full overflow-hidden',
+                                        isAlbumBubbleless(item)
+                                            ? ''
+                                            : [
+                                                'shadow-sm',
+                                                isSelfAlbum(item)
+                                                    ? 'text-gray-900'
+                                                    : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200'
+                                            ]
+                                    ]"
                                         :style="getInlineKeyboard(item.messages[0]) ? { ...albumStyle(item), width: '100%' } : albumStyle(item)">
                                         <p v-if="showSenderDisplayName(item.messages[0])"
                                             class="msg-sender-name text-xs font-semibold px-2 pt-2 pb-0.5 flex items-center gap-1.5"
@@ -120,7 +124,8 @@
                                             :self="isSelfAlbum(item)" :text-color="forwardTextColor(item.messages[0])"
                                             media-inline
                                             @open-source="openForwardSource(item.messages[0].forward_info)" />
-                                        <MessageAlbum :messages="item.messages" :isSelf="isOutgoingAlbum(item)"
+                                        <component :is="isFileAlbumItem(item) ? MessageFileAlbum : MessageAlbum"
+                                            :messages="item.messages" :isSelf="isOutgoingAlbum(item)"
                                             :chatId="chatId" :topicId="topicId"
                                             :commentsBar="!!albumCommentsMsg(item.messages)"
                                             :isRead="isMessageRead(item.messages[item.messages.length - 1])"
@@ -129,15 +134,22 @@
                                             :selectedIds="selectedMsgIds"
                                             @toggle-select="toggleSelectMsgById"
                                             @message-context-menu="onAlbumMessageContextMenu">
-                                            <!-- 相册有 caption 时：回应放在 caption 与时间之间（气泡内 named slot） -->
+                                            <!-- 回应放在内容与时间/观看量之间：
+                                                 文件相册始终走组件内 slot（无 caption 也固定在文件下面）；
+                                                 图片/视频相册仅在带 caption 时使用气泡内 slot -->
                                             <template
-                                                v-if="hasReactions(item.messages[0]) && albumHasVisibleCaption(item.messages)"
+                                                v-if="hasReactions(item.messages[0]) && (albumHasVisibleCaption(item.messages) || isFileAlbumItem(item))"
                                                 #reactions>
                                                 <ReactionsBar class="pl-2" :msg="item.messages[0]"
                                                     :isSelf="isSelfAlbum(item)"
                                                     @toggle-reaction="(type: ReactionType) => toggleReaction(chatId!, item.messages[0], type)" />
                                             </template>
-                                        </MessageAlbum>
+                                        </component>
+                                        <!-- 图片/视频相册无 caption 时：回应在评论条之前（文件相册的回应已放在组件内时间上方） -->
+                                        <ReactionsBar class="w-full"
+                                            v-if="hasReactions(item.messages[0]) && !albumHasVisibleCaption(item.messages) && !isFileAlbumItem(item)"
+                                            :msg="item.messages[0]" :isSelf="isSelfAlbum(item)"
+                                            @toggle-reaction="(type: ReactionType) => toggleReaction(chatId!, item.messages[0], type)" />
                                         <!-- 频道评论条（相册）：无可见 caption 时白条承接相册底部（相册下缘由 commentsBar 压平），
                                              有 caption 时回应 / 时间在相册根内，此处即气泡最底部 -->
                                         <MessageCommentsBar v-if="albumCommentsMsg(item.messages)"
@@ -145,11 +157,6 @@
                                             :class="albumHasVisibleCaption(item.messages) ? 'pt-2.5 pb-2.5' : 'py-2.5 bg-white dark:bg-gray-800'"
                                             :msg="albumCommentsMsg(item.messages) || item.messages[0]"
                                             @open="openCommentsThread(albumCommentsMsg(item.messages) || item.messages[0])" />
-                                        <!-- 相册无 caption 时：回应放在气泡外面，自己靠右、他人靠左 -->
-                                        <ReactionsBar class="w-full"
-                                            v-if="hasReactions(item.messages[0]) && !albumHasVisibleCaption(item.messages)"
-                                            :msg="item.messages[0]" :isSelf="isSelfAlbum(item)"
-                                            @toggle-reaction="(type: ReactionType) => toggleReaction(chatId!, item.messages[0], type)" />
                                     </div>
                                     <InlineKeyboard v-if="getInlineKeyboard(item.messages[0])" class="mt-1 w-full"
                                         :ref="registerKeyboardRef(item.messages[0].id)"
@@ -779,6 +786,7 @@ import Avatar from '../avatar.vue';
 import MessageContent from './MessageContent/index.vue';
 import MessageStatus from './MessageContent/content/MessageStatus.vue';
 import MessageAlbum from './MessageContent/content/MessageAlbum.vue';
+import MessageFileAlbum from './MessageContent/content/MessageFileAlbum.vue';
 import ForwardBanner from './MessageContent/content/ForwardBanner.vue';
 import InlineKeyboard from './MessageContent/content/InlineKeyboard.vue';
 import InlineTranslation from './MessageContent/content/InlineTranslation.vue';
@@ -806,7 +814,7 @@ import ReactionPicker from './ReactionPicker.vue';
 import { tdlibSend, isFileReady } from '../../../utils/tdlib';
 import { resolveTopicMode } from '../../../utils/topicDisplayMode';
 import { buildMessageTopicInput, extractTopicNumber, ensureDmTopic, resolveDmSenderName, getSenderPhoto } from '../../../utils/directMessagesTopics';
-import { sendAttachments, sending } from '../../../utils/attachmentSend';
+import { sendAttachments, sending, type SendAttachmentsResult } from '../../../utils/attachmentSend';
 import { useAttachmentStore } from '../../../store/attachment';
 import type { AttachmentItem } from '../../../store/attachment';
 import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
@@ -911,8 +919,9 @@ import { getViewerState, closeMediaViewer, isMediaViewerActive, openMediaViewer 
 
 import { getSenderAccentColorId, getSenderProfileAccentColorId, getSenderNameParts, getChatProfileAccentColorId, getChatUserNames, isDeletedChat, DELETED_ACCOUNT_LABEL, messageSenderKey } from '../../../utils/senderInfo';
 import { useColors } from '../../../store/colors';
-import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage, isBubblelessMediaMessage, albumHasVisibleCaption, showChannelCommentsBar } from './composables/messageType';
+import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage, isBubblelessMediaMessage, albumHasVisibleCaption, isFileAlbum, showChannelCommentsBar } from './composables/messageType';
 import { buildDisplayItems } from './composables/messageItems';
+import { completeAlbumMembers, hasIncompleteAlbum } from './composables/albumHistory';
 import type { DisplayItem, AlbumDisplayItem } from './composables/messageItems';
 import { formatDateLabel } from './composables/dateLabel';
 import {
@@ -3640,7 +3649,11 @@ async function fetchMessages(chatIdNum: number, fromMessageId: number, limit: nu
             });
         // 如果生成代数已过期（聊天已切换），丢弃结果
         if (generation !== undefined && !isGenerationValid(generation)) return null;
-        const msgs: message[] = (result.messages || []).filter((m: any): m is message => !!m);
+        let msgs: message[] = (result.messages || []).filter((m: any): m is message => !!m);
+        // 本地切片不做网络补全；由 isLocalSliceSufficient 判定不完整后走网络分支补全
+        if (msgs.length > 0 && !tid && !onlyLocal) {
+            msgs = await completeAlbumMembers(chatIdNum, msgs);
+        }
         if (msgs.length > 0) {
             await fetchSenders(msgs);
             void fetchMemberStatuses(msgs);
@@ -3669,6 +3682,9 @@ interface PreferLocalOpts {
 function isLocalSliceSufficient(result: HistoryFetch, opts: PreferLocalOpts): boolean {
     if (result == null) return false;
     if (result.length < HISTORY_LOCAL_MIN) return false;
+    // 相册成员可能本地只同步了首尾两条：不完整时强制走网络再取一次，
+    // 否则首屏会长期停留在「一个相册只显示 2 个文件」的状态。
+    if (hasIncompleteAlbum(result)) return false;
     if (opts.anchorId != null && opts.anchorId > 0 && result.length > 0) {
         let minId = result[0].id;
         let maxId = result[0].id;
@@ -4816,8 +4832,9 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
     // 有附件 → 发送附件（文本作为描述）
     if (attachStore.items.length > 0) {
         sending.value = true;
+        let sentResult: SendAttachmentsResult | null = null;
         try {
-            await sendAttachments(
+            sentResult = await sendAttachments(
                 attachStore.items,
                 {
                     chatId: outgoingChatId() ?? chatId.value,
@@ -4833,6 +4850,16 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
             );
         } finally {
             sending.value = false;
+        }
+        // sendMessageAlbum / sendMessage 会返回已发送消息的完整列表。
+        // 立即合并进消息列表，避免仅依赖 updateNewMessage 时相册成员被丢弃或延迟，
+        // 保证一次发送的多个文件全部显示出来。
+        if (sentResult && sentResult.messages.length > 0) {
+            await fetchSenders(sentResult.messages);
+            void fetchMemberStatuses(sentResult.messages);
+            appendMessages(sentResult.messages);
+            // 发送后贴底展示刚发出的文件（与 updateNewMessage 的发送者贴底行为保持一致）
+            scrollToBottom();
         }
         await attachStore.clearWithCleanup();
         messageInput.value = '';
@@ -5461,8 +5488,15 @@ function isBubblelessMedia(msg: message): boolean {
     return isBubblelessMediaMessage(msg);
 }
 
+/** 相册条目是否为文件相册（全部消息都是文档/音频） */
+function isFileAlbumItem(item: { messages: message[] }): boolean {
+    return isFileAlbum(item.messages);
+}
+
 /** 相册无可见 caption → 气泡外渲染 */
 function isAlbumBubbleless(item: { messages: message[] }): boolean {
+    // 文件相册始终需要气泡背景（Telegram 从不把文档/音频组渲染成无气泡媒体）
+    if (isFileAlbumItem(item)) return false;
     return !albumHasVisibleCaption(item.messages);
 }
 

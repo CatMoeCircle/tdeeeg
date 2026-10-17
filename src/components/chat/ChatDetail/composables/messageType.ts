@@ -22,6 +22,16 @@ export const ALBUM_MEDIA_TYPES: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * 可组成「文件相册」（file album）的内容类型集合。TDLib 规定文档只能与文档
+ * 组成相册、音频只能与音频组成相册，二者都属于文件通道，在界面上统一按
+ * 堆叠的文件列表渲染（区别于图片/视频的宫格相册）。
+ */
+export const FILE_ALBUM_MEDIA_TYPES: ReadonlySet<string> = new Set([
+  "messageDocument",
+  "messageAudio",
+]);
+
+/**
  * 服务消息内容类型集合。这类消息非用户实质对话内容，居中显示、自成一组，
  * 不占用头像列，也不参与发送者分组。
  */
@@ -139,6 +149,37 @@ export function albumHasVisibleCaption(messages: readonly message[]): boolean {
  */
 export function isAlbumMedia(msg: message): boolean {
   return ALBUM_MEDIA_TYPES.has(msg.content._);
+}
+
+/**
+ * 判断消息是否可参与「文件相册」分组（仅文档与音频）。
+ *
+ * @param msg - 待判断的 TDLib 消息对象
+ * @returns 可分组为文件相册返回 `true`，否则返回 `false`
+ */
+export function isFileAlbumMedia(msg: message): boolean {
+  return FILE_ALBUM_MEDIA_TYPES.has(msg.content._);
+}
+
+/**
+ * 判断消息是否可参与任意相册分组（图片/视频 或 文档/音频）。
+ * 相册的 media_album_id 在同一组内必然同类型，因此分组时用同一个宽泛判断即可。
+ *
+ * @param msg - 待判断的 TDLib 消息对象
+ * @returns 可分组返回 `true`，否则返回 `false`
+ */
+export function isAnyAlbumMedia(msg: message): boolean {
+  return isAlbumMedia(msg) || isFileAlbumMedia(msg);
+}
+
+/**
+ * 判断一组消息是否构成「文件相册」（全部为文档或音频）。
+ *
+ * @param messages - 相册消息数组
+ * @returns 是文件相册返回 `true`，否则返回 `false`
+ */
+export function isFileAlbum(messages: readonly message[]): boolean {
+  return messages.length > 0 && messages.every(isFileAlbumMedia);
 }
 
 /**

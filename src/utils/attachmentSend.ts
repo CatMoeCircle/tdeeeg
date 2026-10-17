@@ -1,7 +1,7 @@
 import { ref } from 'vue';
 import { tdlibSend } from './tdlib';
 import { probeImage, probeVideo } from './mediaProbe';
-import type { $Function } from 'tdlib-types';
+import type { $Function, message, messages } from 'tdlib-types';
 import type { inputTextQuote, textEntity$Input } from 'tdlib-types';
 import type { AttachmentItem, AttachmentKind } from '../store/attachment';
 import i18n from '../i18n';
@@ -379,13 +379,22 @@ function baseParams(ctx: SendCtx) {
  * 每类相册满 10 个自动再拆一组；单条则单独 sendMessage。
  * description 作为描述附加到（各类相册的）最后一张媒体。
  */
+export interface SendAttachmentsResult {
+    /** 是否全部发送成功 */
+    ok: boolean;
+    /** TDLib 返回的已发送消息（相册为完整成员列表，单条为单条消息） */
+    messages: message[];
+}
+
 export async function sendAttachments(
     attachments: AttachmentItem[],
     ctx: SendCtx,
     description: string | formattedCaption,
-): Promise<boolean> {
-    if (!attachments.length) return false;
+): Promise<SendAttachmentsResult> {
+    if (!attachments.length) return { ok: false, messages: [] };
     let ok = true;
+    /** TDLib 返回的已发送消息（相册返回完整列表，单条返回单条消息） */
+    const sentMessages: message[] = [];
 
     const hasAnyCaption = attachments.some((a) => (a.caption ?? '').length > 0);
 
@@ -417,11 +426,12 @@ export async function sendAttachments(
     const sendSingle = async (it: AttachmentItem) => {
         const cap = captionFor(it, true);
         try {
-            await tdlibSend({
+            const sent = await tdlibSend({
                 ...baseParams(ctx),
                 _: 'sendMessage',
                 input_message_content: buildContent(it, cap),
-            } as $Function);
+            } as $Function) as unknown as message;
+            if (sent) sentMessages.push(sent);
         } catch (e) {
             console.error('sendMessage failed', e);
             ok = false;
@@ -435,11 +445,14 @@ export async function sendAttachments(
             return buildContent(it, cap);
         }).map((c) => c as unknown as never);
         try {
-            await tdlibSend({
+            const result = await tdlibSend({
                 ...baseParams(ctx),
                 _: 'sendMessageAlbum',
                 input_message_contents: contents,
-            } as $Function);
+            } as $Function) as unknown as messages;
+            for (const m of result?.messages ?? []) {
+                if (m) sentMessages.push(m);
+            }
         } catch (e) {
             console.error('sendMessageAlbum failed', e);
             ok = false;
@@ -475,7 +488,7 @@ export async function sendAttachments(
         await sendSingle(it);
     }
 
-    return ok;
+    return { ok, messages: sentMessages };
 }
 
 /** 用于 UI 展示的发送进度简要状态 */

@@ -1,5 +1,5 @@
 import type { message } from 'tdlib-types';
-import { isAlbumMedia, isServiceMessage } from './messageType';
+import { isAnyAlbumMedia, isServiceMessage } from './messageType';
 import { formatDateLabel, isSameCalendarDay } from './dateLabel';
 import { getForwardOriginKey } from '../../../../utils/forwardedMessages';
 
@@ -129,9 +129,9 @@ export function isDisplayBreak(a: message | undefined, b: message | undefined): 
     if (!isSameCalendarDay(a.date, b.date)) return true;
     // 系统消息（居中显示，自成一组）
     if (isServiceMessage(a) || isServiceMessage(b)) return true;
-    // 相册（整体显示，自成一组）
-    if (a.media_album_id && a.media_album_id !== '0' && isAlbumMedia(a)) return true;
-    if (b.media_album_id && b.media_album_id !== '0' && isAlbumMedia(b)) return true;
+    // 相册（整体显示，自成一组）：图片/视频相册与文件（文档/音频）相册都整体成组
+    if (a.media_album_id && a.media_album_id !== '0' && isAnyAlbumMedia(a)) return true;
+    if (b.media_album_id && b.media_album_id !== '0' && isAnyAlbumMedia(b)) return true;
     return false;
 }
 
@@ -220,10 +220,10 @@ export function buildDisplayItems(
         }
 
         // 相册分组（相册整体显示，打断前后的连续消息）
-        if (msg.media_album_id && msg.media_album_id !== '0' && isAlbumMedia(msg)) {
+        if (msg.media_album_id && msg.media_album_id !== '0' && isAnyAlbumMedia(msg)) {
             const albumMsgs: message[] = [msg];
             let j = i + 1;
-            while (j < M.length && M[j].media_album_id === msg.media_album_id && isAlbumMedia(M[j])) {
+            while (j < M.length && M[j].media_album_id === msg.media_album_id && isAnyAlbumMedia(M[j])) {
                 albumMsgs.push(M[j]);
                 j++;
             }

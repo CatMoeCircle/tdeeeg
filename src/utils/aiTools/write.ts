@@ -214,10 +214,10 @@ registerImplementation("send_media", async (args): Promise<ToolOutcome> => {
   const reply = await replyToOf(chatId, optNum(args.reply_to_message_id), String(args.quote ?? ""));
   const cap = await formattedArgs(caption, parseModeOf(args.parse_mode), "send_media");
   if ("error" in cap) return cap.error;
-  const ok = await sendAttachments(items, { chatId, topicId: threadId, isDm, replyTo: reply.replyTo }, cap.text);
+  const result = await sendAttachments(items, { chatId, topicId: threadId, isDm, replyTo: reply.replyTo }, cap.text);
 
-  // sendAttachments 只回布尔值（失败原因在应用日志里），这里照实告诉模型，别假装发成功了
-  if (!ok) {
+  // sendAttachments 返回是否全部成功（失败原因在应用日志里），这里照实告诉模型，别假装发成功了
+  if (!result.ok) {
     return { tool: "send_media", error: { code: "internal", message: "媒体发送失败（部分或全部），详见应用日志" } };
   }
 

@@ -105,7 +105,7 @@
 </div>
 
     <!-- 相对定位容器：承载 replace 模式扫光覆盖层（flow-root 防外边距塌陷，保证两层对齐） -->
-    <div v-if="captionSegments.length" class="relative flow-root mt-2">
+    <div v-if="showCaption && captionSegments.length" class="relative flow-root mt-2">
         <p class="whitespace-pre-wrap"
             :style="{ fontSize: 'var(--msg-font-size, 14px)', lineHeight: '1.4' }">
             <template v-for="(segment, index) in captionSegments" :key="index">
@@ -184,11 +184,15 @@ import { fetchItunesCoverForAudio } from '../../../../../utils/itunesCover';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
     content: messageDocument | messageAudio;
     chatId?: number;
     messageId?: number;
-}>();
+    /** 相册模式下隐藏 caption（由外层 MessageFileAlbum 统一渲染一次） */
+    showCaption?: boolean;
+}>(), {
+    showCaption: true,
+});
 
 const rootEl = ref<HTMLElement | null>(null);
 const mediaSrc = ref<string | undefined>(undefined);

@@ -1,6 +1,6 @@
 import type { message } from 'tdlib-types';
 import type { AccentColorStyle } from '../../../../store/colors';
-import { isStandaloneMessage, isBubblelessMediaMessage, albumHasVisibleCaption } from './messageType';
+import { isStandaloneMessage, isBubblelessMediaMessage, albumHasVisibleCaption, isFileAlbum } from './messageType';
 import {
     customSkinStyle,
     type CustomBubbleSkin,
@@ -206,8 +206,9 @@ export function albumStyle(
         zoom: String(deps.settings.scale),
         borderRadius: deps.settings.cornerRadius + 'px',
     };
-    // 无可见 caption 的相册：媒体在气泡外，不叠加背景
-    if (albumHasVisibleCaption(item.messages)) {
+    // 无可见 caption 的相册：媒体在气泡外，不叠加背景。
+    // 文件相册（文档/音频）始终需要气泡背景（Telegram 从不把文件组渲染成无气泡）。
+    if (isFileAlbum(item.messages) || albumHasVisibleCaption(item.messages)) {
         if (deps.customSkin) {
             // 别人的相册（左侧）镜像皮肤
             Object.assign(style, customSkinStyle(deps.customSkin, !deps.isSelf(item.messages[0])));
