@@ -172,18 +172,22 @@ async function onToggleTask(task: checklistTask) {
     optimisticDone.value = new Map(optimisticDone.value).set(task.id, next);
     pendingTasks.value.add(task.id);
     try {
-        // 注：src/types/tdlib-types.d.ts 中该函数签名有误（误用了更新事件的字段），
-        // 真实 TDLib API 为 task_ids + is_done，故此处断言规避类型错误
+        // TDLib 1.8.68：按「置为完成 / 置为未完成」两个数组分别传，没有 task_ids + is_done
+        // （旧字段会被 TDLib 忽略 → 空操作 → 400 TODO_NOT_MODIFIED）
         await tdlibSend({
             _: 'markChecklistTasksAsDone',
             chat_id: props.chatId,
             message_id: props.messageId,
-            task_ids: [task.id],
-            is_done: next,
-        } as any);
-    } catch {
-        optimisticDone.value.delete(task.id);
-        toast.error('标记任务失败，请重试');
+            marked_as_done_task_ids: next ? [task.id] : [],
+            marked_as_not_done_task_ids: next ? [] : [task.id],
+        });
+    } catch (e) {
+        // TODO_NOT_MODIFIED：目标状态已被其它端写入，服务端与本次意图一致，按成功处理
+        const err = e as { code?: number; message?: string };
+        if (err?.code !== 400 || err.message !== 'TODO_NOT_MODIFIED') {
+            optimisticDone.value.delete(task.id);
+            toast.error('标记任务失败，请重试');
+        }
     } finally {
         pendingTasks.value.delete(task.id);
     }
