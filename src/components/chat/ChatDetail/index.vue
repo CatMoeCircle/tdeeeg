@@ -409,10 +409,12 @@
             :class="[topStackVisible ? '' : 'hidden', topicLayoutAnim ? 'topic-chrome-anim' : '']"
             :style="[topStackTopStyle, tagBarSideInsetStyle]">
             <div class="w-full px-3 relative">
-                <div v-if="showTopCard || showChatTranslateBarUi"
+                <!-- 必须用 v-show 保持 PinnedMessageBar 挂载：visibleChange 是 showTopCard 的来源，
+                     用 v-if 会形成「不显示 → 不挂载 → 永远无法报告已置顶」的循环。 -->
+                <div v-show="showTopCard || showChatTranslateBarUi"
                     class="pointer-events-auto rounded-xl bg-white/70 dark:bg-gray-800/70 backdrop-blur-md shadow-lg border border-gray-200/50 dark:border-gray-700/50 overflow-hidden">
-                    <PinnedMessageBar bare :chatId="chatId" @jumpToMessage="jumpToPinnedMessage"
-                        @visibleChange="onPinnedVisibleChange" />
+                    <PinnedMessageBar bare :chatId="chatId" :refreshToken="pinnedBarRefreshToken"
+                        @jumpToMessage="jumpToPinnedMessage" @visibleChange="onPinnedVisibleChange" />
                     <!-- 全部翻译栏：贴合在置顶/播放器底部；单独显示时占满整卡 -->
                     <div v-if="showChatTranslateBarUi"
                         :class="showTopCard ? 'border-t border-gray-100/50 dark:border-gray-700/30' : ''">
@@ -2994,6 +2996,13 @@ const handleUpdate = async (update: Update) => {
             break;
         }
 
+        case 'updateMessageIsPinned': {
+            // 自己/其他设备置顶或取消置顶：保持消息菜单与顶部置顶栏同步
+            if (!isActiveChat(update.chat_id)) break;
+            onMessagePinnedStateChanged(update.message_id, update.is_pinned);
+            break;
+        }
+
         // ---- 消息回应更新 ----
         case 'updateMessageInteractionInfo': {
             // 评论线程：频道帖子或讨论组内根副本的 interaction_info 变化 → 刷新头部评论计数
@@ -3049,6 +3058,8 @@ let sessionUnreadBaseId = 0;
 
 // ==================== Pinned Messages ====================
 const pinnedBarVisible = ref(false);
+/** 置顶消息发生变化时递增，驱动 PinnedMessageBar 重新拉取 */
+const pinnedBarRefreshToken = ref(0);
 /** 滚动时吸在顶栏底部的日期文案（不占布局空间的浮层）；须在 resetState 之前声明 */
 const stickyDateText = ref<string | null>(null);
 /** 向下滚动时隐藏吸顶日期，向上滚动时重新显示 */
@@ -5349,6 +5360,18 @@ function patchMessage(id: number, patch: Partial<message>) {
     messagesVersion.value++;
 }
 
+/**
+ * 置顶状态变化：同步消息列表中的 is_pinned（右键菜单据此切换「置顶/取消置顶」），
+ * 并让置顶栏重新拉取。主动操作与 TDLib update 会各调用一次，重复拉取无副作用。
+ */
+function onMessagePinnedStateChanged(messageId: number, isPinned: boolean) {
+    const current = messages.value.find(m => m.id === messageId);
+    if (current && current.is_pinned !== isPinned) {
+        patchMessage(messageId, { is_pinned: isPinned });
+    }
+    pinnedBarRefreshToken.value++;
+}
+
 /** 按 id 删除消息 */
 function removeMessagesByIds(ids: number[]) {
     if (ids.length === 0) return;
@@ -6187,7 +6210,9 @@ function buildMessageContextMenu(msg: message): ContextMenuItem[] {
                     label: t('lng_context_unpin_from_top'),
                     icon: PinIcon,
                     onClick: async () => {
-                        await toggleMessagePinned(cid!, msg);
+                        if (await toggleMessagePinned(cid!, msg)) {
+                            onMessagePinnedStateChanged(msg.id, !msg.is_pinned);
+                        }
                     },
                 });
             } else {
@@ -6252,7 +6277,9 @@ async function openPinConfirm(msg: message) {
 
     // 频道（或无法识别类型）：无可选，直接置顶
     if (isChannel || (!isPrivate && !isGroup)) {
-        await pinMessage(cid, msg);
+        if (await pinMessage(cid, msg)) {
+            onMessagePinnedStateChanged(msg.id, true);
+        }
         return;
     }
 
@@ -6262,9 +6289,13 @@ async function openPinConfirm(msg: message) {
     try {
         const result = await confirmPinMessage({ chatId: cid, msg, scope, otherName });
         if (scope === 'private') {
-            await pinMessage(cid, msg, { onlyForSelf: !result.pinForOther });
+            if (await pinMessage(cid, msg, { onlyForSelf: !result.pinForOther })) {
+                onMessagePinnedStateChanged(msg.id, true);
+            }
         } else {
-            await pinMessage(cid, msg, { disableNotification: !result.notifyMembers });
+            if (await pinMessage(cid, msg, { disableNotification: !result.notifyMembers })) {
+                onMessagePinnedStateChanged(msg.id, true);
+            }
         }
     } catch {
         // 用户取消，忽略

@@ -1,6 +1,6 @@
 <template>
     <!-- bare：并入顶部统一卡片时去掉自身圆角/底色，由外层卡片提供贴合样式 -->
-    <div v-if="pinnedMessages.length > 0 || player.showEntry"
+    <div v-if="pinnedMessages.length > 0 || currentPinned || player.showEntry"
         class="overflow-hidden transition-all duration-200"
         :class="[
             bare
@@ -102,6 +102,8 @@ const props = defineProps<{
     chatId: number | undefined;
     /** 并入顶部统一卡片：去掉自身卡片 chrome，仅保留内容分区 */
     bare?: boolean;
+    /** 置顶状态变化时由父组件递增，触发重新拉取 */
+    refreshToken?: number;
 }>();
 
 const emit = defineEmits<{
@@ -115,6 +117,8 @@ const hasPlayer = computed(() => player.showEntry);
 const pinnedMessages = ref<message[]>([]);
 const currentPinned = ref<message | null>(null);
 const expanded = ref(false);
+/** 拉取代次：避免切换会话/连续置顶时旧请求覆盖新结果 */
+let loadSeq = 0;
 /** 获取最新的顶置消息 */
 async function fetchLatestPinned(chatIdNum: number) {
     try {
@@ -151,8 +155,11 @@ async function loadPinnedMessages(chatIdNum: number | undefined) {
         pinnedMessages.value = [];
         currentPinned.value = null;
         expanded.value = false;
+        loadSeq++;
         return;
     }
+
+    const seq = ++loadSeq;
 
     // 先并行获取最新顶置消息和所有顶置消息
     const [latest, all] = await Promise.all([
@@ -160,15 +167,22 @@ async function loadPinnedMessages(chatIdNum: number | undefined) {
         fetchAllPinned(chatIdNum),
     ]);
 
-    // 如果组件已卸载或 chatId 已变更，忽略结果
-    if (props.chatId !== chatIdNum) return;
+    // 组件已卸载、chatId 已变更，或有更新的拉取发起时，忽略旧结果
+    if (seq !== loadSeq || props.chatId !== chatIdNum) return;
 
-    currentPinned.value = latest;
     // searchChatMessages 返回逆序（最新的在前），反转成正序
-    pinnedMessages.value = all.reverse();
+    const list = all.slice().reverse();
+    // 搜索可能不可用（如部分秘密聊天）或尚未收录最新一条；至少保证最新置顶可见
+    if (latest && !list.some(m => m.id === latest.id)) {
+        list.push(latest);
+    }
+
+    pinnedMessages.value = list;
+    currentPinned.value = latest ?? (list.length > 0 ? list[list.length - 1] : null);
+    if (pinnedMessages.value.length <= 1) expanded.value = false;
 
     // 通知父组件可见性变化
-    const visible = pinnedMessages.value.length > 0 || player.showEntry;
+    const visible = pinnedMessages.value.length > 0 || !!currentPinned.value || player.showEntry;
     emit('visibleChange', visible);
 }
 
@@ -245,6 +259,12 @@ watch(() => props.chatId, (newId) => {
     currentPinned.value = null;
     loadPinnedMessages(newId);
 }, { immediate: true });
+
+// 同一会话内置顶/取消置顶：由 updateMessageIsPinned 驱动父组件递增 token
+watch(() => props.refreshToken, () => {
+    if (props.chatId === undefined) return;
+    void loadPinnedMessages(props.chatId);
+});
 </script>
 
 <style scoped>

@@ -517,7 +517,7 @@ export async function pinMessage(
   chatId: number,
   msg: message,
   opts?: { disableNotification?: boolean; onlyForSelf?: boolean },
-) {
+): Promise<boolean> {
   try {
     await tdlibSend({
       _: "pinChatMessage",
@@ -527,13 +527,15 @@ export async function pinMessage(
       only_for_self: opts?.onlyForSelf ?? false,
     } as any);
     toast.success(t("lng_quick_dialog_action_toast_pin_success"));
+    return true;
   } catch (e: any) {
     toast.error(e?.message || t("context.actionFailed"));
+    return false;
   }
 }
 
 /** 取消置顶 */
-export async function unpinMessage(chatId: number, msg: message) {
+export async function unpinMessage(chatId: number, msg: message): Promise<boolean> {
   try {
     await tdlibSend({
       _: "unpinChatMessage",
@@ -541,18 +543,19 @@ export async function unpinMessage(chatId: number, msg: message) {
       message_id: msg.id,
     });
     toast.success(t("lng_quick_dialog_action_toast_unpin_success"));
+    return true;
   } catch (e: any) {
     toast.error(e?.message || t("context.actionFailed"));
+    return false;
   }
 }
 
 /** 开关消息置顶 */
-export async function toggleMessagePinned(chatId: number, msg: message) {
+export async function toggleMessagePinned(chatId: number, msg: message): Promise<boolean> {
   if (msg.is_pinned) {
-    await unpinMessage(chatId, msg);
-  } else {
-    await pinMessage(chatId, msg);
+    return unpinMessage(chatId, msg);
   }
+  return pinMessage(chatId, msg);
 }
 
 /** 批量删除消息（多选删除与单选删除共用） */
