@@ -234,6 +234,13 @@ interface Settings {
     model: string;
     /** 写类工具的审核策略：ask = 弹审核卡片，never = 需要审核的调用一律拒绝（见 utils/aiTools/call） */
     approval: "ask" | "never";
+    /**
+     * 输入框里是否显示「普通 ⇄ AI」互切按钮。
+     * 默认 false：只能在设置页切换；首次切到 AI 输入框后自动置 true，之后不用再进设置。
+     */
+    switchButton: boolean;
+    /** 一次性标记：首次切到 AI 输入框时已自动开过 switchButton，之后尊重用户手动开关 */
+    switchButtonAuto: boolean;
   };
   /** 话题标签栏位置：left=左侧图片样式，top/bottom=悬浮分组栏样式 */
   topicTagBar: {
@@ -405,6 +412,8 @@ const defaultSettings: Settings = {
     providerId: null,
     model: "",
     approval: "ask",
+    switchButton: false,
+    switchButtonAuto: false,
   },
   chatHeaderAvatarPosition: "default",
   topicTagBar: {
@@ -526,6 +535,20 @@ try {
 }
 
 export const settings = reactive<Settings>(initialState);
+
+// 输入框互切按钮：默认隐藏，首次切到 AI 输入框（设置页手动切）后自动开启一次；
+// 之后用户在本页手动关掉的，不再被自动打开。老配置已在用 AI 输入框的，视为已用掉这次自动开启。
+if (initialState.ai.input === "ai" || initialState.ai.switchButton) initialState.ai.switchButtonAuto = true;
+if (initialState.ai.input === "ai") initialState.ai.switchButton = true;
+watch(
+  () => settings.ai.input,
+  (input) => {
+    if (input === "ai" && !settings.ai.switchButtonAuto) {
+      settings.ai.switchButtonAuto = true;
+      settings.ai.switchButton = true;
+    }
+  }
+);
 
 // Save to localStorage on change
 watch(

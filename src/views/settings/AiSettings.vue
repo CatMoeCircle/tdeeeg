@@ -34,6 +34,9 @@
                                 <span
                                     class="flex-1 min-w-0 my-2 px-2 py-2 text-sm text-gray-400 dark:text-gray-500 truncate">{{
                                         t('lng_message_ph') }}</span>
+                                <span v-if="settings.ai.switchButton" class="w-10 h-10 grid place-items-center text-gray-500">
+                                    <SparklesIcon class="w-5 h-5" />
+                                </span>
                                 <span class="w-10 h-10 grid place-items-center text-gray-500">
                                     <SmileIcon class="w-5 h-5" />
                                 </span>
@@ -70,6 +73,16 @@
                     </div>
 
                     <p class="mt-2 text-xs text-gray-400">{{ t('aiSettings.inputModeDesc') }}</p>
+
+                    <!-- 底部：输入框里是否显示「普通 ⇄ AI」互切按钮（关掉后只能在本页切换） -->
+                    <div class="mt-3 flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md">
+                        <div>
+                            <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                {{ t('aiSettings.showSwitchButton') }}</h4>
+                            <p class="text-xs text-gray-500 mt-0.5">{{ t('aiSettings.showSwitchButtonDesc') }}</p>
+                        </div>
+                        <ToggleSwitch v-model="settings.ai.switchButton" />
+                    </div>
                 </section>
 
                 <!-- ===== 会话总管理：跨聊天管理全部对话（新建 / 打开 / 重命名 / 删除） ===== -->
@@ -346,6 +359,7 @@ import {
 } from 'lucide-vue-next';
 import { settings } from '../../store/settings';
 import AiPromptBar from '../../components/ai/AiPromptBar.vue';
+import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
 import PreviewCard from '../../components/settings/PreviewCard.vue';
 import {
     AI_ICONS,

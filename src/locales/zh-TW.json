@@ -1140,6 +1140,8 @@
     "goConfig": "管理供應商",
     "inputSection": "聊天輸入框",
     "inputModeDesc": "下方預覽為通用範本（範例資料），不可點擊。",
+    "showSwitchButton": "顯示互切按鈕",
+    "showSwitchButtonDesc": "在一般輸入框顯示「一般 ⇄ AI」按鈕，一次點擊即可切換；關閉後只能在本頁切換。",
     "inputMessage": "一般輸入框",
     "inputMessageDesc": "收發訊息、附件、表情",
     "inputAi": "AI 輸入框",

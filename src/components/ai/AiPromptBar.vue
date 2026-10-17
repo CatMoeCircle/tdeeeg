@@ -1046,8 +1046,9 @@ defineExpose({ focusInput });
                     <ChevronDownIcon class="w-3 h-3 shrink-0" :stroke-width="2.4" />
                 </button>
                 <span class="flex-auto" />
-                <!-- 切回普通消息输入框（在会话管理左边） -->
-                <button type="button" :class="ICON_BTN" :aria-label="t('aiInput.switchToMessage')"
+                <!-- 切回普通消息输入框（首次切到 AI 输入框后才会出现，见 settings.ai.switchButton） -->
+                <button v-if="settings.ai.switchButton" type="button" :class="ICON_BTN"
+                    :aria-label="t('aiInput.switchToMessage')"
                     :title="t('aiInput.switchToMessage')" @mousedown.prevent @click="emit('switchMessage')">
                     <MessageCircleIcon class="w-4 h-4 shrink-0" :stroke-width="2" />
                 </button>

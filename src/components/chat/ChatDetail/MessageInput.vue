@@ -69,7 +69,8 @@
             </div>
 
             <div class="flex items-center gap-2 ml-2 mb-1.5 shrink-0">
-                <button @click="emit('switchAi')" type="button" :aria-label="t('aiInput.switchToAi')"
+                <button v-if="settings.ai.switchButton" @click="emit('switchAi')" type="button"
+                    :aria-label="t('aiInput.switchToAi')"
                     class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">
                     <Sparkles class="w-5 h-5" />
                 </button>

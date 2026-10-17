@@ -1147,6 +1147,8 @@
     "goConfig": "管理供应商",
     "inputSection": "聊天输入框",
     "inputModeDesc": "下方预览为通用模板（示例数据），不可点击。",
+    "showSwitchButton": "显示互切按钮",
+    "showSwitchButtonDesc": "在普通输入框里显示「普通 ⇄ AI」按钮，一次点击即可切换；关闭后只能在本页切换。",
     "inputMessage": "普通输入框",
     "inputMessageDesc": "收发消息、附件、表情",
     "inputAi": "AI 输入框",

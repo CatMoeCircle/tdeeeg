@@ -1140,6 +1140,8 @@
     "goConfig": "Manage providers",
     "inputSection": "Chat input",
     "inputModeDesc": "The preview below is a generic template with sample data and is not clickable.",
+    "showSwitchButton": "Show switch button",
+    "showSwitchButtonDesc": "Show the message ⇄ AI button in the message bar for one-click switching; when off, switch here instead.",
     "inputMessage": "Message input",
     "inputMessageDesc": "Send messages, attachments, emoji",
     "inputAi": "AI input",
