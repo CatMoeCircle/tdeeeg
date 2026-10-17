@@ -627,13 +627,15 @@ onMounted(() => {
     void loadRecentStatusStickers(recentStatusEmojiIds.value);
 });
 
+// giftEmojiIds / recentStatusEmojiIds 都是「id 字符串数组」的 computed：值变了就是新数组，
+// 深遍历这几个字符串没有任何收益 → 去掉 deep。
 watch(giftEmojiIds, (ids) => {
     void loadGiftStickers(ids);
-}, { deep: true });
+});
 
 watch(recentStatusEmojiIds, (ids) => {
     void loadRecentStatusStickers(ids);
-}, { deep: true });
+});
 
 // ─── 已安装自定义包「滚动进入可视区」懒加载（与贴纸抽屉 StickerGroupSection 一致）───
 // 打开面板时 useEmojiPicker.activate 只 loadSet 首个包，其余包在对应区块
@@ -685,13 +687,19 @@ function observeCustomSet(setId: string) {
     );
 }
 
-watch(installedSets, async () => {
-    // installedSets 由 activate 异步填充，等待区块渲染后再注册观察器
-    await nextTick();
-    for (const set of installedSets.value) {
-        observeCustomSet(set.id);
-    }
-}, { deep: true });
+// 只依赖「已安装包 id 列表」：回调只负责给新出现的包注册可视区观察器。
+// 原 deep watch 会深遍历整份 stickerSetInfo（含 covers/thumbnail，实测 6.4ms/次），
+// 是当前挂载的 deep watch 里最贵的一个。
+watch(
+    () => installedSets.value.map((s) => s.id).join(','),
+    async () => {
+        // installedSets 由 activate 异步填充，等待区块渲染后再注册观察器
+        await nextTick();
+        for (const set of installedSets.value) {
+            observeCustomSet(set.id);
+        }
+    },
+);
 
 onBeforeUnmount(() => {
     for (const t of setDwellTimers.values()) clearTimeout(t);

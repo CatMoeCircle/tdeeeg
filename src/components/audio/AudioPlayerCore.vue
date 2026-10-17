@@ -283,8 +283,9 @@ watch(() => player.currentTrack, (track) => {
 });
 
 // 监听当前曲目封面的异步加载完成 → 封面就绪后重新同步，避免“有歌无封面”
-// artwork 依赖 coverPath / coverSource.buffer / coverSource.file 三者，
-// 三者任意变化都必须强制重新推送（deep watch 覆盖 coverSource 对象本身的变化）。
+// artwork 依赖 coverPath / coverSource.buffer / coverSource.file 三者：
+// getter 里 JSON.stringify 已经把 coverSource 逐字段读了一遍（track 到嵌套变化），
+// 返回的又是字符串 —— deep 在这里只会对一个 primitive 调一次 traverse，纯属摆设。
 watch(
     () => {
         const t = player.currentTrack;
@@ -298,8 +299,7 @@ watch(
         if (val && val !== oldVal) {
             pushSmtc(true);
         }
-    },
-    { deep: true }
+    }
 );
 
 const audioSrc = computed(() => {

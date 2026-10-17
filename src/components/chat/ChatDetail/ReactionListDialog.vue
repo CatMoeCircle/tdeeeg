@@ -188,13 +188,13 @@ const visibleItems = computed<RowItem[]>(() =>
     }),
 );
 
-/** 预加载列表中出现的发送者头像/名称 */
+/** 预加载列表中出现的发送者头像/名称（getter 每次返回新数组，deep 无收益） */
 watch(
     () => items.value.map((a) => a.sender_id).filter(Boolean) as MessageSender[],
     (senders) => {
         for (const s of senders) void ensureSenderLoaded(s);
     },
-    { immediate: true, deep: true },
+    { immediate: true },
 );
 
 async function fetchPage(offset: string, append: boolean) {

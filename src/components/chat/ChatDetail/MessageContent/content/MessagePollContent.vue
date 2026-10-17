@@ -281,12 +281,13 @@ const avatarSenders = computed<MessageSender[]>(() => {
     return list;
 });
 
+// recent_voter_ids 是原始 MessageSender（消息内容整体替换），deep 没有额外依赖可采集
 watch(
     avatarSenders,
     (senders) => {
         for (const s of senders) void ensureSenderLoaded(s);
     },
-    { immediate: true, deep: true },
+    { immediate: true },
 );
 
 // ==================== 勾选与投票 ====================
@@ -337,7 +338,9 @@ function startRevote() {
     isRevoting.value = true;
 }
 
-// 服务端 updateMessageContent 推送新内容后，重置本地临时状态，以服务端为准
+// 服务端 updateMessageContent 推送新内容后，重置本地临时状态，以服务端为准。
+// 内容对象是整体替换的（ChatDetail patchMessage 换新引用，且消息对象 markRaw），
+// 值身份变化即可触发，deep 只会深遍历一遍 poll 内容（原始对象，无依赖可采集）。
 watch(
     () => props.content,
     () => {
@@ -345,6 +348,5 @@ watch(
         isRevoting.value = false;
         voting.value = false;
     },
-    { deep: true },
 );
 </script>

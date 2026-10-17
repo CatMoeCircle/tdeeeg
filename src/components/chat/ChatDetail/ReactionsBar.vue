@@ -158,12 +158,13 @@ const allRecentSenders = computed(() => {
     return list;
 });
 
+// senders 是原始 MessageSender 小对象数组，computed 每次给出新数组 → deep 无收益
 watch(
     allRecentSenders,
     (senders) => {
         for (const s of senders) void ensureSenderLoaded(s);
     },
-    { immediate: true, deep: true },
+    { immediate: true },
 );
 
 // ===== 回应列表（右键） =====

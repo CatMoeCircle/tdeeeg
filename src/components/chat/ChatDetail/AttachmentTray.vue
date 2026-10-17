@@ -240,12 +240,18 @@ const draggableList = computed<AttachmentItem[]>({
     },
 });
 
-watch(() => attachmentStore.items, () => {
-    if (selectedId.value && !attachmentStore.items.some((i) => i.id === selectedId.value)) {
-        selectedId.value = null;
-        selectedCaption.value = '';
-    }
-}, { deep: true });
+// 只关心「选中项还在不在」：依赖 id 列表即可。
+// 附件数组是原地 push/splice 的，不能直接扔掉 deep（同引用不会触发），
+// 而 deep 会遍历每个附件的全部字段（含 caption/路径）——没有意义。
+watch(
+    () => attachmentStore.items.map((i) => i.id).join(','),
+    () => {
+        if (selectedId.value && !attachmentStore.items.some((i) => i.id === selectedId.value)) {
+            selectedId.value = null;
+            selectedCaption.value = '';
+        }
+    },
+);
 </script>
 
 <style scoped>

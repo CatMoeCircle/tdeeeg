@@ -80,12 +80,12 @@ function senderKey(s: MessageSender): string {
     return s._ === 'messageSenderUser' ? `u${s.user_id}` : `c${s.chat_id}`;
 }
 
-/** 预加载最近评论者头像 / 名称 */
+/** 预加载最近评论者头像 / 名称（repliers 每次都是新数组，deep 无收益） */
 watch(
     repliers,
     (list) => {
         for (const s of list) void ensureSenderLoaded(s);
     },
-    { immediate: true, deep: true },
+    { immediate: true },
 );
 </script>
