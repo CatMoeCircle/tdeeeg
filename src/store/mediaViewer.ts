@@ -1,21 +1,47 @@
 import { ref } from "vue";
+import type { Ref } from "vue";
 import type { MediaViewerItem } from "../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
 import { tdlibSend } from "../utils/tdlib";
 import type { message, SearchMessagesFilter$Input } from "tdlib-types";
 
-/** 媒体查看器打开状态，供 TitleBar 等组件感知以调整样式 */
-export const isMediaViewerActive = ref(false);
+/**
+ * 查看器状态挂在 globalThis 上而不是模块作用域：
+ * Vite HMR 重新执行本模块会生成第二份 ref，而已挂载的组件仍持有旧 ref
+ * （相册用新状态、ChatDetail 里的查看器用旧状态），表现为「点相册图片完全没反应」。
+ * 共享同一份状态后，无论模块被热替换多少次都只有一套 ref。
+ */
+interface MediaViewerState {
+    /** 查看器打开状态，供 TitleBar 等组件感知以调整样式 */
+    isActive: Ref<boolean>;
+    visible: Ref<boolean>;
+    index: Ref<number>;
+    initialTime: Ref<number>;
+    items: Ref<MediaViewerItem[]>;
+    /** 当前视频所属消息 ID，用于关闭时同步进度 */
+    currentMsgId: Ref<number>;
+    /** 打开代次：关闭/重开后丢弃过期的 fetchNearbyMedia 结果 */
+    openSeq: number;
+}
+
+const viewerState: MediaViewerState = ((globalThis as any).__tdMediaViewerState ??= {
+    isActive: ref(false),
+    visible: ref(false),
+    index: ref(0),
+    initialTime: ref(0),
+    items: ref<MediaViewerItem[]>([]),
+    currentMsgId: ref(0),
+    openSeq: 0,
+});
+
+export const isMediaViewerActive = viewerState.isActive;
 
 // 查看器状态
-const viewerVisible = ref(false);
-const viewerIndex = ref(0);
-const viewerInitialTime = ref(0);
-const viewerItems = ref<MediaViewerItem[]>([]);
+const viewerVisible = viewerState.visible;
+const viewerIndex = viewerState.index;
+const viewerInitialTime = viewerState.initialTime;
+const viewerItems = viewerState.items;
 /** 当前查看的视频所属消息 ID，用于关闭时同步时长 */
-const viewerCurrentMsgId = ref(0);
-
-/** 打开代次：关闭/重开后丢弃过期的 fetchNearbyMedia 结果 */
-let openSeq = 0;
+const viewerCurrentMsgId = viewerState.currentMsgId;
 
 export function getViewerState() {
     return { viewerVisible, viewerIndex, viewerInitialTime, viewerItems, viewerCurrentMsgId };
@@ -37,7 +63,7 @@ export async function openMediaViewer(
     const msg = initialItem.message;
     if (!msg) return;
 
-    const seq = ++openSeq;
+    const seq = ++viewerState.openSeq;
     const targetId = initialItem.messageId ?? msg.id;
 
     if (siblingItems && siblingItems.length > 0) {
@@ -114,7 +140,7 @@ async function fetchNearbyMedia(initialItem: MediaViewerItem, targetMsg: message
             }) as Promise<{ messages: message[] }>,
         ]);
 
-        if (seq !== openSeq || !viewerVisible.value) return;
+        if (seq !== viewerState.openSeq || !viewerVisible.value) return;
 
         const buildItem = (r: message): MediaViewerItem => {
             const c = r.content;
@@ -175,7 +201,7 @@ async function fetchNearbyMedia(initialItem: MediaViewerItem, targetMsg: message
 
 /** 关闭查看器 */
 export function closeMediaViewer() {
-    openSeq++;
+    viewerState.openSeq++;
     viewerVisible.value = false;
     isMediaViewerActive.value = false;
 }

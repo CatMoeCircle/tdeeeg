@@ -22,7 +22,7 @@
             <div v-if="content._ === 'messagePhoto'"
                 class="relative overflow-hidden bg-gray-200 dark:bg-gray-700 cursor-pointer group"
                 :class="[borderRadiusClass, { 'msg-spoiler-media': hasSpoiler }]" :style="photoSizeStyle"
-                @click="mediaSrc ? openViewer() : undefined">
+                @click="openViewer">
                 <!-- 渐进占位：minithumbnail 高斯模糊 → Small 清晰图；Big 解码完成前一直垫在下层，避免闪空白 -->
                 <img v-if="thumbSrc && !imageLoaded" :src="thumbSrc" decoding="async"
                     class="absolute inset-0 w-full h-full object-cover"
@@ -55,7 +55,8 @@
                     </div>
                 </div>
                 <!-- Loading spinner：下载中 -->
-                <div v-if="photoShowLoader" class="absolute inset-0 flex items-center justify-center bg-black/30">
+                <div v-if="photoShowLoader"
+                    class="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
                     <LoaderIndicator :progress="photoProgress > 0 && photoProgress < 1 ? photoProgress : undefined" size="40"
                         color="#ffffff" />
                 </div>
@@ -170,7 +171,7 @@
             <!-- ===== ANIMATION (GIF) ===== -->
             <div v-else-if="content._ === 'messageAnimation'"
                 class="relative overflow-hidden bg-gray-200 dark:bg-gray-700 cursor-pointer group select-none"
-                :class="borderRadiusClass" :style="animSizeStyle" @click="mediaSrc ? openViewer() : undefined">
+                :class="borderRadiusClass" :style="animSizeStyle" @click="openViewer">
                 <!-- Thumbnail: 静态位图用 <img>，MPEG4/WEBM 动态图用 <video> -->
                 <!-- GIF 封面垫底到 mediaSrc 解码完成前，避免换源瞬间闪空白 -->
                 <img v-if="animThumbSrc && !animThumbIsVideo && !animMediaReady" :src="animThumbSrc" decoding="async"
@@ -951,30 +952,36 @@ function checkPhotoLoaded() {
     });
 }
 
+/**
+ * 打开全屏查看器。
+ * 不依赖内联卡片的 mediaSrc：卡片往往只有缩略图（Big 未下载 / 快照滞后），
+ * 查看器自己会从 message.content / 下载 store 解析源，并自带下载 UI。
+ * 之前 mediaSrc 为空时这里静默 return，表现就是「点图片完全没反应」。
+ */
 function openViewer() {
-    if (props.messageId && mediaSrc.value) {
-        const initialTime = (props.content._ === 'messageVideo' && videoElRef.value)
-            ? videoElRef.value.currentTime : 0;
-        if (props.content._ === 'messageVideo' && videoElRef.value) {
-            wasPlayingBeforeViewer = !videoElRef.value.paused;
-            videoElRef.value.pause();
-            if (videoObserver) videoObserver.unobserve(videoElRef.value);
-            pauseAudioForVideo();
-        }
-        openMediaViewer({
-            messageId: props.messageId,
-            chatId: props.chatId,
-            topicId: props.topicId,
-            senderName: props.senderName,
-            message: props.message,
-            readyPath: mediaSrc.value && !String(mediaSrc.value).includes('tdstream')
-                ? (props.content._ === 'messagePhoto' ? photoBigPath.value
-                    : props.content._ === 'messageVideo' ? videoFilePath.value
-                        : animFilePath.value) || undefined
-                : undefined,
-            file: contentMainFile(),
-        }, initialTime);
+    const messageId = props.messageId ?? props.message?.id;
+    if (!messageId) return;
+    const initialTime = (props.content._ === 'messageVideo' && videoElRef.value)
+        ? videoElRef.value.currentTime : 0;
+    if (props.content._ === 'messageVideo' && videoElRef.value) {
+        wasPlayingBeforeViewer = !videoElRef.value.paused;
+        videoElRef.value.pause();
+        if (videoObserver) videoObserver.unobserve(videoElRef.value);
+        pauseAudioForVideo();
     }
+    // readyPath 直取 content 里的就绪路径，不再经过 mediaSrc 门禁
+    const readyPath = (props.content._ === 'messagePhoto' ? photoBigPath.value
+        : props.content._ === 'messageVideo' ? videoFilePath.value
+            : animFilePath.value) || undefined;
+    openMediaViewer({
+        messageId,
+        chatId: props.chatId,
+        topicId: props.topicId,
+        senderName: props.senderName,
+        message: props.message,
+        readyPath,
+        file: contentMainFile(),
+    }, initialTime);
 }
 
 // ---- Media Loading ----
