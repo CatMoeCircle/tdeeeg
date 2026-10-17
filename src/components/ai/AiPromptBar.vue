@@ -61,6 +61,8 @@ export interface PromptBarSendDetail {
     attachments: string[];
     model?: { key: string; name: string; tag?: string };
     effort?: string;
+    /** 句首的 /命令 key（/菜单插入的裸命令名）；调用方据此给模型追加一段 prompt */
+    command?: string;
 }
 
 type AttachResult = string | string[] | void | Promise<string | string[] | void>;
@@ -752,10 +754,14 @@ const pick = (row: Row) => {
 
 const send = () => {
     if (!canSend.value || props.busy) return;
+    // 句首的 /菜单命令只当 key 传出去，正文仍原样发：怎么理解由 aiChat 的 COMMAND_PROMPTS 决定
+    const head = draft.value.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
+    const command = commandList.value.find((c) => c.name.toLowerCase() === head)?.key;
     emit('send', draft.value.trim(), {
         attachments: attachments.value,
         model: model.value,
         effort: level.value,
+        command,
     });
     draft.value = '';
     attachments.value = [];

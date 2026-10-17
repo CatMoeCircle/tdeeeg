@@ -5007,7 +5007,7 @@ async function pickAiImages(): Promise<string[]> {
  * AI 输入框的发送：跑一轮 agent（utils/aiChat）。活动条实时显示思考 / 输出 / 工具调用；
  * 写类工具先挂审核卡片（见 requestAiApproval），批准后才执行。用量由 aiChat 每次请求后记入当前对话。
  */
-async function onAiPromptSend(text: string, detail: { effort?: string; attachments?: string[] }) {
+async function onAiPromptSend(text: string, detail: { effort?: string; attachments?: string[]; command?: string }) {
     const chatIdNow = currentChatId();
     if (aiBusy.value || !chatIdNow) return;
     // 引用回复：只给模型定位信息（正文让它自己 get_message 取），引用由输入框顶部的蓝色占位芯片承载
@@ -5070,6 +5070,7 @@ async function onAiPromptSend(text: string, detail: { effort?: string; attachmen
             title: conversation.title,
             text: prompt,
             quote: quote ? { chatId: quote.chatId, messageId: quote.messageId } : undefined,
+            command: detail.command,
             images: detail.attachments,
             provider,
             model,

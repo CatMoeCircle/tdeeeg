@@ -90,30 +90,48 @@ export function dropHistory(conversationId: string): void {
 }
 
 /**
- * system prompt。`title` 是当前会话标题（新建时会先填用户那句话，模型可以改）；
- * `first` = 这是本会话的第一条消息 → 让模型顺手给会话起个标题。
+ * 输入框 / 菜单命令 → 追加给模型的一段 prompt（用户消息保持原样，跟引用回复同一套做法：
+ * 活动条 / 历史里显示的就还是用户打的那句）。认不出的 key 当普通提问。
  */
-function systemPrompt(
-  chatId: number,
-  title: string,
-  first: boolean,
-  quote?: { chatId: number; messageId: number },
-): string {
+const COMMAND_PROMPTS: Record<string, string> = {
+  summarize:
+    "用户点了 /summarize：先调 get_recent_messages 读本聊天最近的对话（limit 50 左右，不够再往前翻一页），" +
+    "然后用要点总结：在聊什么、已有结论、还没定的事。没读到的内容不要编。",
+  compare: "用户点了 /compare：把要对比的东西并排列成表格逐项给差异，最后给一句推荐；选项没写清就先问用户。",
+  draft: "用户点了 /draft：写一版可以直接发出去的初稿，短、自然。只在回答里给稿子，不要自己调用发送工具。",
+  explain: "用户点了 /explain：用大白话解释，不堆术语，需要时打比方，控制在几段以内。",
+  tasks: "用户点了 /tasks：从最近的对话里抽出待办，每条一行的勾选清单，带上谁负责、什么时间。",
+};
+
+/**
+ * system prompt。`title` 是当前会话标题（新建时会先填用户那句话，模型可以改）；
+ * `first` = 这是本会话的第一条消息 → 让模型顺手给会话起个标题；
+ * `command` = 用户句首用的是哪个 /命令（见 COMMAND_PROMPTS）。
+ */
+function systemPrompt(o: {
+  chatId: number;
+  title: string;
+  first: boolean;
+  quote?: { chatId: number; messageId: number };
+  command?: string;
+}): string {
   const lines = [
-    `你是 tdgram（Telegram 客户端）里的 AI 助手。当前聊天 chat_id = ${chatId}。`,
+    `你是 tdgram（Telegram 客户端）里的 AI 助手。当前聊天 chat_id = ${o.chatId}。`,
     "可以调用工具读取聊天内容；需要代用户操作时调用写类工具。",
     "写类工具（发送、编辑、删除、封禁、直接调用 TDLib）会先请用户审核；被拒绝后不要换参数、换工具或换路径重试同一操作，直接告诉用户。",
     "写类工具必须填写 reason（一句话说明原因）。",
     `发送带格式的文本时：${MARKDOWN_V2_GUIDE}`,
-    `当前会话标题：「${title}」。`,
+    `当前会话标题：「${o.title}」。`,
   ];
-  if (quote) {
+  if (o.quote) {
     lines.push(
-      `The user quoted a message: chat_id=${quote.chatId}, message_id=${quote.messageId}. ` +
+      `The user quoted a message: chat_id=${o.quote.chatId}, message_id=${o.quote.messageId}. ` +
         "Call get_message to read it before answering; don't page through get_recent_messages to find it.",
     );
   }
-  if (first) {
+  const hint = o.command ? COMMAND_PROMPTS[o.command] : '';
+  if (hint) lines.push(hint);
+  if (o.first) {
     lines.push(
       "这是本会话的第一条消息：先调用 set_conversation_title 起一个简短标题" +
         "（不超过 12 个字，概括这次要做什么；现在的标题是直接把用户的话截断来的，太长就换掉），再回答用户。",
@@ -134,6 +152,8 @@ export interface AiTurnOptions {
    * 走 system prompt —— 用户消息保持原样，活动条 / 历史里显示的就是输入框里那句话。
    */
   quote?: { chatId: number; messageId: number };
+  /** 用户句首的 /命令 key（/菜单那五项）：作为额外一段 prompt 追加进 system prompt */
+  command?: string;
   /** 随这条提问一起发给模型的图片（本机路径，Rust 侧读盘转多模态；可空） */
   images?: string[];
   provider: AiProvider;
@@ -295,7 +315,7 @@ export async function runAiTurn(o: AiTurnOptions): Promise<string> {
     // 标题每轮现读：模型上一轮可能刚改过（改了就别再催它改）
     const title = aiConversations.list.find((c) => c.id === o.conversationId)?.title ?? o.title;
     const prompt: ChatWireMessage[] = [
-      { role: "system", text: systemPrompt(o.chatId, title, first && step === 0, o.quote) },
+      { role: "system", text: systemPrompt({ chatId: o.chatId, title, first: first && step === 0, quote: o.quote, command: o.command }) },
       ...history,
     ];
     const called = await callModel(o, prompt, tools);
