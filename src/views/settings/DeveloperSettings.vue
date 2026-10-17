@@ -138,6 +138,38 @@
                     <p v-else class="mt-3 text-xs text-gray-400">{{ t('dev.noCrashLog') }}</p>
                 </section>
 
+                <!-- Toast（SwipeToast）调试 -->
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
+                        {{ t('dev.toast') }}</h3>
+                    <p class="text-xs text-gray-500 mb-3">
+                        {{ t('dev.toastDesc') }}
+                    </p>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <label class="text-xs text-gray-500">{{ t('dev.toastPlacement') }}</label>
+                        <select :value="toastPlacement"
+                            class="bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 ring-blue-500"
+                            @change="onToastPlacementChange">
+                            <option v-for="p in TOAST_PLACEMENTS" :key="p" :value="p">{{ t(`dev.toastPos.${p}`) }}</option>
+                        </select>
+                        <label class="text-xs text-gray-500 ml-2">{{ t('dev.toastDuration') }}</label>
+                        <input type="number" min="0" step="500" :value="toastDuration"
+                            class="w-28 bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2 text-sm font-mono outline-none focus:ring-1 ring-blue-500"
+                            @change="onToastDurationChange" />
+                        <span class="text-xs text-gray-400">ms（0 = {{ t('dev.toastNoAutoClose') }}）</span>
+                    </div>
+
+                    <p class="mt-3 text-xs text-gray-500">{{ t('dev.toastTest') }}</p>
+                    <div class="mt-1.5 flex flex-wrap gap-2">
+                        <button v-for="type in TOAST_TYPES" :key="type" type="button"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium text-white cursor-pointer"
+                            :style="{ background: TOAST_TEST_COLOR[type] }" @click="testToast(type)">
+                            {{ type }}
+                        </button>
+                    </div>
+                </section>
+
                 <!-- AI 活动条预览：贴着输入框顶部，模拟输出 / 工具调用链 / 审核 -->
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4 uppercase tracking-wider">
@@ -398,6 +430,8 @@ import {
     showCopyJsonInMenus, setShowCopyJsonInMenus,
     showAiStripPreview, setShowAiStripPreview,
     recentUpdates, clearRecentUpdates, type CachedUpdate,
+    TOAST_PLACEMENTS, toastPlacement, setToastPlacement,
+    toastDuration, setToastDuration, type ToastPlacement,
 } from '../../store/debug';
 import { onTdlibUpdate } from '../../store/tdlibBus';
 import { readCrashLog, clearCrashLog } from '../../utils/crashGuard';
@@ -428,6 +462,35 @@ async function copyUpdate(u: CachedUpdate) {
         toast.error({ content: t('dev.copyFailed'), placement: 'top-right' });
         console.warn('copy update failed', e);
     }
+}
+
+// ─── Toast（SwipeToast）调试 ─────────────────
+
+const TOAST_TYPES = ['success', 'error', 'warning', 'info'] as const;
+
+/** 测试按钮底色：走主题语义色，顺带验证主题适配是否生效 */
+const TOAST_TEST_COLOR: Record<(typeof TOAST_TYPES)[number], string> = {
+    success: 'var(--app-success)',
+    error: 'var(--app-error)',
+    warning: 'var(--app-warning)',
+    info: 'var(--app-brand)',
+};
+
+/** 弹一条真实 Toast（走 utils/toast → ToastHost，不是本地假组件） */
+function testToast(type: (typeof TOAST_TYPES)[number]) {
+    const content = t('dev.toastSample');
+    if (type === 'success') void toast.success(content);
+    else if (type === 'error') void toast.error(content);
+    else if (type === 'warning') void toast.warning(content);
+    else void toast.info(content);
+}
+
+function onToastPlacementChange(e: Event) {
+    setToastPlacement((e.target as HTMLSelectElement).value as ToastPlacement);
+}
+
+function onToastDurationChange(e: Event) {
+    setToastDuration(Number((e.target as HTMLInputElement).value));
 }
 
 const crashLogText = ref('');

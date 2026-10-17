@@ -265,3 +265,37 @@ export function setShowAiStripPreview(enabled: boolean): void {
         // ignore
     }
 }
+
+// ─── Toast（SwipeToast）调试项 ─────────────────
+
+/** Toast 显示位置；沿用原 TDesign Message 的七种 placement 命名 */
+export const TOAST_PLACEMENTS = [
+    "top-left",
+    "top",
+    "top-right",
+    "center",
+    "bottom-left",
+    "bottom",
+    "bottom-right",
+] as const;
+
+export type ToastPlacement = (typeof TOAST_PLACEMENTS)[number];
+
+/**
+ * 全局 Toast 位置（所有 toast.xxx 调用共用；原 placement 参数不再生效）。
+ * 纯调试项：只影响当前会话，不落 localStorage —— 重启回到默认左下角。
+ */
+export const toastPlacement = ref<ToastPlacement>("bottom-left");
+
+/** 自动关闭时长（毫秒，0 = 不自动关闭）；同样只影响当前会话 */
+export const toastDuration = ref(3000);
+
+/** 切换 Toast 显示位置（仅当前会话） */
+export function setToastPlacement(placement: ToastPlacement): void {
+    toastPlacement.value = placement;
+}
+
+/** 切换 Toast 自动关闭时长（仅当前会话） */
+export function setToastDuration(ms: number): void {
+    toastDuration.value = Number.isFinite(ms) && ms > 0 ? Math.round(ms) : 0;
+}

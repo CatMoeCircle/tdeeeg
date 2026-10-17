@@ -5,6 +5,7 @@ import ExternalLinkConfirm from "./components/contextMenu/ExternalLinkConfirm.vu
 import ProxyLinkConfirm from "./components/contextMenu/ProxyLinkConfirm.vue";
 import LanguagePackConfirm from "./components/settings/LanguagePackConfirm.vue";
 import StoryViewer from "./components/story/StoryViewer.vue";
+import ToastHost from "./components/common/ToastHost.vue";
 
 // 注意：TDLib 初始化、授权态判定与首屏路由跳转已在 src/main.ts 的
 // bootstrap() 中于 app.mount 之前完成，且窗口在 bootstrap 完成前通过
@@ -37,6 +38,8 @@ import StoryViewer from "./components/story/StoryViewer.vue";
     <ProxyLinkConfirm />
     <!-- 从 t.me/setlanguage 链接添加语言包弹窗（Teleport 到 body） -->
     <LanguagePackConfirm />
+    <!-- 全局 Toast（SwipeToast，位置见设置 → 开发者选项） -->
+    <ToastHost />
     <!-- 故事播放器（Teleport 到 body） -->
     <StoryViewer />
   </div>
