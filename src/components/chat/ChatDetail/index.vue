@@ -1414,7 +1414,8 @@ const showBackBtn = computed(() => true);
 
 /**
  * 返回按钮处理：叠层模式先关闭叠层；评论线程回到所属频道；
- * 其余情况收起聊天面板，并回到「打开该聊天的来源栏目」（对话列表 / 联系人 / 归档 / 设置）。
+ * 从另一个会话跳转进来时返回上一个会话；其余情况收起聊天面板，
+ * 并回到「打开该聊天的来源栏目」（对话列表 / 联系人 / 归档 / 设置）。
  * 聊天面板在联系人、归档等栏目下仍然挂载，此时返回只收起面板、保持当前栏目的路由。
  */
 function handleBack() {
@@ -1423,6 +1424,9 @@ function handleBack() {
     } else if (threadMode.value && chatId.value !== undefined) {
         // 评论线程返回：回到所属频道会话（而不是聊天列表）
         router.push(`/home/chat/${chatId.value}`);
+    } else if (isPreviousRouteChat()) {
+        // 聊天内跳转到另一个会话（动态发布者、转发来源等）：按历史返回原会话
+        router.back();
     } else {
         emit('close');
         // 当前已在栏目页（联系人/归档/设置）时不要再改路由，否则会被带回对话列表
@@ -1430,6 +1434,14 @@ function handleBack() {
             router.push(chatPaneOrigin.value);
         }
     }
+}
+
+/** 上一条历史记录是否为另一个聊天会话 */
+function isPreviousRouteChat(): boolean {
+    const back = router.options.history.state.back;
+    return typeof back === 'string'
+        && back !== route.fullPath
+        && (back === '/home/chat' || back.startsWith('/home/chat/'));
 }
 
 /** 顶部搜索：评论线程内不提供会话级搜索（搜索结果属频道历史，与线程上下文不符） */

@@ -17,13 +17,15 @@
             <span class="block text-[11px] font-medium leading-none" :style="accentTextStyle">
                 {{ t('content.forwardedStory') }}
             </span>
-            <div v-if="posterChat" class="mt-1 flex min-w-0 items-center gap-1.5">
+            <button v-if="posterChat" type="button"
+                class="mt-1 flex min-w-0 max-w-full items-center gap-1.5 text-left transition-opacity hover:opacity-80"
+                :aria-label="posterName" @click.stop="openPosterChat">
                 <Avatar :photo="posterChat.photo" :title="posterName" :first-name="posterNames.first"
                     :last-name="posterNames.last" :accent-color-id="posterAccentId" sizeClass="!w-5 !h-5" />
                 <span class="min-w-0 truncate text-xs font-semibold" :style="accentTextStyle">
                     <GlobalEmojiText :text="posterName" />
                 </span>
-            </div>
+            </button>
         </div>
 
         <!-- 动态封面（照片/视频）：点击打开动态播放器。圆角由气泡裁切，与视频消息一致 -->
@@ -66,6 +68,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import { Play as PlayIcon } from 'lucide-vue-next';
 import type {
     file,
@@ -116,6 +119,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const router = useRouter();
 
 /** 发布者对话（响应式缓存：getChat 返回后头像/名称自动刷新） */
 const posterChatId = computed(() => props.content.story_poster_chat_id);
@@ -211,5 +215,16 @@ function openStory() {
     const st = story.value;
     if (!st) return;
     openStoryViewer([st], 0);
+}
+
+/** 点击发布者头像/名称：跳转到动态来源频道或对话 */
+async function openPosterChat() {
+    const id = posterChatId.value;
+    if (!id) return;
+    try {
+        await router.push({ name: 'chat-detail', params: { id: String(id) } });
+    } catch (error) {
+        console.error('Failed to open story poster chat:', error);
+    }
 }
 </script>
