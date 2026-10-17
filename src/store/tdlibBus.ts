@@ -12,7 +12,8 @@
  * - tdlib-auth / tdlib-connection / tdlib-option / tdlib-language / tdlib-colors
  * - tdlib-user / tdlib-chat / tdlib-message（50ms 批）
  * - tdlib-other（稀有类型立即）
- * - tdlib-update-file（独立高频通道，不进 UpdateManager）
+ * - tdlib-update-file（独立高频通道，不进 UpdateManager；Rust 侧把同一窗口内多个文件的
+ *   里程碑合并成 `{ updates: [...] }`，与批处理通道格式一致）
  */
 
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -66,19 +67,27 @@ const CHANNEL_EVENT: Record<TdlibChannel, string> = {
 let initialized = false;
 const unlisteners: UnlistenFn[] = [];
 
-/** 统一 payload：批处理通道为 `{ updates: TdlibUpdate[] }`，file 通道为单条 */
+/** 统一 payload：批处理通道与合并后的 file 通道均为 `{ updates: TdlibUpdate[] }` */
 interface BatchPayload {
     updates?: TdlibUpdate[];
+}
+
+/** 判断载荷是否为批格式（`{ updates: [...] }` 或裸数组），是则返回其中的条目 */
+function asBatch(payload: unknown): TdlibUpdate[] | null {
+    if (Array.isArray(payload)) return payload as TdlibUpdate[];
+    const batch = payload as BatchPayload | null | undefined;
+    if (batch && typeof batch === "object" && Array.isArray(batch.updates)) return batch.updates;
+    return null;
 }
 
 function dispatch(channel: TdlibChannel, payload: unknown) {
     const set = handlers[channel];
     if (set.size === 0) return;
 
-    // 批格式：{ updates: [...] }
-    const batch = payload as BatchPayload | null | undefined;
-    if (batch && Array.isArray(batch.updates)) {
-        for (const u of batch.updates) {
+    // 批格式：{ updates: [...] }（file 通道的里程碑也走这个格式）
+    const batch = asBatch(payload);
+    if (batch) {
+        for (const u of batch) {
             if (!u || typeof u !== "object") continue;
             for (const h of set) {
                 try {
@@ -91,7 +100,7 @@ function dispatch(channel: TdlibChannel, payload: unknown) {
         return;
     }
 
-    // 单条格式（tdlib-update-file 等）
+    // 单条格式（未合并的通道，如 auth / connection）
     if (payload && typeof payload === "object") {
         const single = payload as TdlibUpdate;
         for (const h of set) {

@@ -2,7 +2,7 @@ use crate::accounts::AccountsStore;
 use crate::chat_store::ChatStore;
 use crate::device_info;
 use crate::download_store::{DownloadItem, DownloadStore};
-use crate::file_gate::{FileGate, Verdict};
+use crate::file_gate::{FileGate, Verdict, RAW_CHANNEL};
 use crate::update_manager::{classify, UpdateManager};
 use libloading::{Library, Symbol};
 use serde_json::json;
@@ -1250,6 +1250,10 @@ fn spawn_receive_loop(
     // UpdateManager：分类 + 批处理，收敛为少量 Tauri 事件（仅活动账户入队）
     let update_mgr = Arc::new(UpdateManager::new());
 
+    // 官方下载列表变更（addFileToDownloads / 暂停 / 移除）的合并缓冲：
+    // 与 FileGate 同窗口、同批格式，避免批量下载时每文件各发一条事件。
+    let mut list_gate = FileGate::new(FILE_GATE_WINDOW);
+
     // updateFile 专用通道 + 处理线程（下载/上传 store 更新、头像路径、独立 IPC）
     //
     // 内存状态逐条更新（下载/上传 store、头像、chat 缓存），只有**下发**过闸门：
@@ -1261,7 +1265,7 @@ fn spawn_receive_loop(
         let client = Arc::clone(&client);
         let session_id = session_id;
         std::thread::Builder::new()
-            .name(format!("tdlib-update-file-{session_id}"))
+            .name(format!("{RAW_CHANNEL}-{session_id}"))
             .spawn(move || {
                 let mut gate = FileGate::new(FILE_GATE_WINDOW);
                 loop {
@@ -1304,19 +1308,21 @@ fn spawn_receive_loop(
                             }
                             // 里程碑（开始/暂停/完成/路径就绪/上传状态变化）才推原始事件：
                             // 壁纸页与消息快照按 file.id 匹配，纯进度 tick 对它们没有意义。
+                            // 但不立即 emit：先入闸门缓冲，同一窗口内多个文件的里程碑合并成
+                            // 一条 `{ updates: [...] }`（Tauri 每条事件都要前端编译一段新脚本）。
                             if milestone {
-                                if let Err(e) = app_handle.emit("tdlib-update-file", &event) {
-                                    eprintln!("Failed to emit updateFile event: {}", e);
-                                }
+                                gate.push_raw(slim_update_file(event));
                             }
                         }
                         Err(mpsc::RecvTimeoutError::Timeout) => {}
                         // 发送端被 drop（接收循环因 closed 退出）→ 本线程结束
                         Err(mpsc::RecvTimeoutError::Disconnected) => break,
                     }
-                    for pending in gate.take_due() {
+                    for batch in gate.take_due() {
                         if state.active.load(Ordering::SeqCst) == session_id {
-                            let _ = app_handle.emit(pending.channel, pending.payload);
+                            // 一个通道一个批次一条事件，前端按 { updates: [...] } 拆回逐条
+                            let _ = app_handle
+                                .emit(batch.channel, json!({ "updates": batch.payloads }));
                         }
                     }
                 }
@@ -1333,6 +1339,7 @@ fn spawn_receive_loop(
                 if res_ptr.is_null() {
                     // 空闲时也冲刷到期批次，避免低流量场景下批一直挂着
                     update_mgr.flush_due(&app_handle);
+                    flush_download_list_updates(&app_handle, &mut list_gate);
                     continue;
                 }
                 let c_str = CStr::from_ptr(res_ptr);
@@ -1520,7 +1527,13 @@ fn spawn_receive_loop(
                         | Some("updateFileRemovedFromDownloads")
                         | Some("updateFileDownloads")
                 ) {
-                    handle_download_list_update(&event, &state, &app_handle, session_id);
+                    handle_download_list_update(
+                        &event,
+                        &state,
+                        &app_handle,
+                        &mut list_gate,
+                        session_id,
+                    );
                 }
 
                 // updateFile 高频事件：转发到专用线程处理并走独立 IPC，
@@ -1623,6 +1636,7 @@ fn spawn_receive_loop(
                         let _ = sender.send(event);
                         // 响应也可能让批处理到期，顺带冲刷
                         update_mgr.flush_due(&app_handle);
+                        flush_download_list_updates(&app_handle, &mut list_gate);
                         continue;
                     }
                 }
@@ -1642,6 +1656,7 @@ fn spawn_receive_loop(
 
                 // 每轮接收后冲刷到期批次（约 50ms 窗口）
                 update_mgr.flush_due(&app_handle);
+                flush_download_list_updates(&app_handle, &mut list_gate);
             }
         }
     });
@@ -1892,6 +1907,22 @@ fn build_accounts_payload_ref(state: &AppStateRef) -> Vec<serde_json::Value> {
             })
         })
         .collect()
+}
+
+/// 下发给前端的 `updateFile` 瘦身：去掉 `file.remote.id`。
+///
+/// `remote.id` 是把 `file_reference` base64 编码后的整串，既占体积又会随消息/上下文
+/// 刷新而变。前端拿到 updateFile 只按 `file.id` 匹配、只读 `local`（完成态/路径），
+/// 稳定身份用 `remote.unique_id`（本函数保留），从不自己拼 `inputFileRemote`。
+fn slim_update_file(mut event: serde_json::Value) -> serde_json::Value {
+    if let Some(remote) = event
+        .get_mut("file")
+        .and_then(|f| f.get_mut("remote"))
+        .and_then(|r| r.as_object_mut())
+    {
+        remote.remove("id");
+    }
+    event
 }
 
 /// 一条待下发的进度载荷（下载/上传共用）。
@@ -2153,10 +2184,13 @@ fn extract_download_file_name(message: &serde_json::Value) -> Option<String> {
 /// `updateFileDownload` / `updateFileAddedToDownloads` / `updateFileRemovedFromDownloads` / `updateFileDownloads`
 ///
 /// 数据写入发起该下载的账户 store；仅活动账户把条目变更推给前端。
+/// 条目变更不直接 emit，而是进 `gate` 缓冲：批量下载时同一窗口内多个文件合并成
+/// 一条 `{ updates: [...] }`（每条事件都要让前端编译一段新脚本）。
 fn handle_download_list_update(
     event: &serde_json::Value,
     state: &AppStateRef,
     app_handle: &tauri::AppHandle,
+    gate: &mut FileGate,
     session_id: i64,
 ) {
     let type_name = event.get("_").and_then(|v| v.as_str()).unwrap_or("");
@@ -2199,7 +2233,7 @@ fn handle_download_list_update(
             };
             if is_active_account {
                 if let Some(item) = updated {
-                    let _ = app_handle.emit("download-progress-update", &item);
+                    gate.push_item(file_id, "download-progress-update", to_progress_value(item));
                 }
             }
         }
@@ -2234,7 +2268,7 @@ fn handle_download_list_update(
             };
             if is_active_account {
                 if let Some(item) = updated {
-                    let _ = app_handle.emit("download-progress-update", &item);
+                    gate.push_item(file_id, "download-progress-update", to_progress_value(item));
                 }
             }
         }
@@ -2248,12 +2282,24 @@ fn handle_download_list_update(
             };
             if is_active_account {
                 if let Some(item) = updated {
-                    let _ = app_handle.emit("download-progress-update", &item);
+                    gate.push_item(file_id, "download-progress-update", to_progress_value(item));
                 }
             }
         }
         _ => {}
     }
+}
+
+/// 冲刷到期的官方下载列表变更批次：同窗口多条合并成一条 `{ updates: [...] }`。
+fn flush_download_list_updates(app_handle: &tauri::AppHandle, gate: &mut FileGate) {
+    for batch in gate.take_due() {
+        let _ = app_handle.emit(batch.channel, json!({ "updates": batch.payloads }));
+    }
+}
+
+/// 进度条目 → 事件载荷（序列化失败时退化为空对象，不让一条脏数据拖垮整批）
+fn to_progress_value(item: DownloadItem) -> serde_json::Value {
+    serde_json::to_value(item).unwrap_or(serde_json::Value::Null)
 }
 
 // --- 初始化入口 ---
@@ -2436,12 +2482,35 @@ pub fn get_chat_list(
 
 // ==================== 下载管理器 Tauri 命令 ====================
 
+/// 下载面板分页快照：打开面板只取第一页，滚动到底再取下一页。
+///
+/// - `completed_offset` / `completed_limit`：已完成区偏移与页大小（默认 0 / 30）；
+/// - `include_generic` / `include_auto_photos`：前端过滤器开关，决定已完成区是否带出头像/
+///   贴纸/emoji/通用缩略图与自动下载图片（它们默认隐藏，却占全表 97%）。
 #[tauri::command]
 pub fn get_downloads(
     state: State<AppState>,
-) -> Result<Vec<crate::download_store::DownloadItem>, String> {
+    completed_offset: Option<usize>,
+    completed_limit: Option<usize>,
+    include_generic: Option<bool>,
+    include_auto_photos: Option<bool>,
+) -> Result<crate::download_store::DownloadPage, String> {
     let store = state.download_store.lock().map_err(|e| e.to_string())?;
-    Ok(store.get_all_items())
+    let mut page = store.get_page(
+        store.active_account(),
+        completed_offset.unwrap_or(0),
+        completed_limit.unwrap_or(30).clamp(1, 500),
+        include_generic.unwrap_or(false),
+        include_auto_photos.unwrap_or(false),
+    );
+    // 面板快照瘦身：`DownloadRow` 只在 photo/video 上渲染缩略图，dismissed 行根本不渲染，
+    // 这两类条目的 `thumbnail_data_url`（base64 data URL，单条可达数 KB）没有任何消费方，直接不带。
+    for item in page.active.iter_mut().chain(page.completed.iter_mut()) {
+        if item.dismissed || (item.file_type != "photo" && item.file_type != "video") {
+            item.thumbnail_data_url = None;
+        }
+    }
+    Ok(page)
 }
 
 #[tauri::command]

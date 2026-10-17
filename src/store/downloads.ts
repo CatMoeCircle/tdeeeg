@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref, computed } from "vue";
+import { ref, computed, reactive, toRaw } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { DL_PRIORITY } from "../utils/downloadPriority";
@@ -9,6 +9,7 @@ import {
     FILTER_KEY,
     DEFAULT_FILTER_KEYS,
     FILTER_OPTIONS,
+    GENERIC_TAGS,
     buildDownloadTags,
     resolveItemTags,
     isGenericItem,
@@ -93,6 +94,31 @@ export interface DownloadItem {
     has_tdlib_update?: boolean;
     /** 是否仍在 TDLib 官方下载列表中（addFileToDownloads） */
     in_tdlib_list?: boolean;
+}
+
+/**
+ * Rust 端 `get_downloads` 分页快照。
+ *
+ * `active` 是全部未完成条目（分区与角标依赖完整集合），`completed` 是已完成区的一页，
+ * `completed_total` 是当前过滤条件下已完成的条数（判断还有没有下一页 / 分区计数）。
+ */
+export interface DownloadsPage {
+    active: DownloadItem[];
+    completed: DownloadItem[];
+    completed_total: number;
+}
+
+/**
+ * 拆进度事件载荷：单条 `DownloadItem`，或 Rust 侧合并后的 `{ updates: [...] }` 批次。
+ *
+ * 批量下载时闸门把同一窗口内多个文件、多个通道各合成一条事件（Tauri 每条事件都会让
+ * 渲染进程编译一段新脚本），这里拆回逐条，消费侧行为与「每条一个」时完全一致。
+ */
+export function progressBatch<T>(payload: T | { updates?: T[] } | null | undefined): T[] {
+    if (!payload) return [];
+    const batch = (payload as { updates?: T[] }).updates;
+    if (Array.isArray(batch)) return batch;
+    return [payload as T];
 }
 
 /** 条目是否真正开始过（收到 TDLib update 或已有进度/完成） */
@@ -309,10 +335,28 @@ export const useDownloadStore = defineStore("downloads", () => {
     /** 会话 file.id → remote_id，供 UI 按 file.id 查询进度 */
     const sessionIdMap = ref<Record<number, string>>({});
 
+    /**
+     * 数据版本号：条目表 / 会话映射的**任何**变化（新增、删除、字段写回）都 +1。
+     *
+     * 为什么需要：条目量可达数千（实测 8394）。全表聚合与热路径扫描若逐条读响应式
+     * 条目，会为每条各走一次 Proxy（实测 8000 条：Object.values 7.5ms、全表过滤
+     * 9.5ms），而 registerDownload/trackDownloadFile 每次都全表扫一遍 → 批量下载时
+     * 每次都撞出长任务。
+     *
+     * 现在改成：
+     *   - 全表只依赖这一个版本号（不再逐条进响应式依赖）；
+     *   - 扫描在 toRaw() 的原始表上做（实测快约 4 倍，2.5ms）；
+     *   - 返回给模板的条目再包回 reactive()，进度条等字段级更新语义不变。
+     * 写入路径统一调 touch()；新增写入点时务必一并调用，否则聚合列表不会刷新。
+     */
+    const revision = ref(0);
+    function touch() { revision.value++; }
+
     /** 标签过滤器已启用集合（默认隐藏通用资源与自动下载图片） */
     const filterKeys = ref<Set<string>>(new Set(DEFAULT_FILTER_KEYS));
 
     function setFilterKey(key: string, enabled: boolean) {
+        const before = completedFilterKey();
         const next = new Set(filterKeys.value);
         if (enabled) next.add(key);
         else next.delete(key);
@@ -320,11 +364,15 @@ export const useDownloadStore = defineStore("downloads", () => {
         try {
             localStorage.setItem("tdgram_dl_filters", JSON.stringify([...next]));
         } catch { /* ignore */ }
+        // 已完成区的过滤在 Rust 侧做（否则每页几乎全是头像/贴纸），开关一变就得重取第一页
+        if (isPanelOpen.value && completedFilterKey() !== before) void loadCompletedPage(true);
     }
 
     function resetFilters() {
+        const before = completedFilterKey();
         filterKeys.value = new Set(DEFAULT_FILTER_KEYS);
         try { localStorage.removeItem("tdgram_dl_filters"); } catch { /* ignore */ }
+        if (isPanelOpen.value && completedFilterKey() !== before) void loadCompletedPage(true);
     }
 
     function loadFilters() {
@@ -389,11 +437,17 @@ export const useDownloadStore = defineStore("downloads", () => {
         return info?.is_completed && info.local_path ? info.local_path : "";
     }
 
-    /** 全部未 dismiss 条目 */
-    const allItems = computed(() => Object.values(items.value));
+    /**
+     * 全部条目（原始对象）。
+     * 唯一依赖是 revision：条目增删/字段写回都会让它失效，但不再逐条建立 Proxy 依赖。
+     */
+    const allItems = computed(() => {
+        void revision.value;
+        return Object.values(toRaw(items.value));
+    });
 
-    /** 过滤后可见项（仅展示真正收到 TDLib update 的任务） */
-    const visibleItems = computed(() =>
+    /** 过滤 + 排序后的可见项（原始对象，供下方分区复用） */
+    const visibleRaw = computed(() =>
         allItems.value
             .filter((item) =>
                 !item.dismissed
@@ -404,12 +458,48 @@ export const useDownloadStore = defineStore("downloads", () => {
     );
 
     /**
+     * 一次遍历把可见项分到各分区。
+     *
+     * 原来是每个分区各自 filter 一遍 visibleItems：面板打开时 6 个 computed 各扫
+     * 全表一遍（实测 8000 条合计 ~110ms）。这里合并成单次扫描。
+     */
+    const visibleGroups = computed(() => {
+        const completed: DownloadItem[] = [];
+        const pending: DownloadItem[] = [];
+        const downloading: DownloadItem[] = [];
+        const paused: DownloadItem[] = [];
+        const streaming: DownloadItem[] = [];
+        for (const item of visibleRaw.value) {
+            if (item.is_completed) {
+                completed.push(item);
+                continue;
+            }
+            pending.push(item);
+            if (isIncompleteStreaming(item as never)) streaming.push(item);
+            else if (item.is_paused) paused.push(item);
+            else downloading.push(item);
+        }
+        // 已完成：按完成时间倒序（缺 completed_at 时回退 created_at）
+        completed.sort((a, b) =>
+            ((b.completed_at ?? b.created_at ?? 0) - (a.completed_at ?? a.created_at ?? 0))
+            || ((b.file_id ?? 0) - (a.file_id ?? 0))
+        );
+        return { completed, pending, downloading, paused, streaming };
+    });
+
+    /** 交回模板的条目重新包成响应式：DownloadRow 直接读 item.progress 等字段 */
+    const asReactiveItems = (list: DownloadItem[]) => list.map((item) => reactive(item));
+
+    /** 过滤后可见项（仅展示真正收到 TDLib update 的任务） */
+    const visibleItems = computed(() => asReactiveItems(visibleRaw.value));
+
+    /**
      * 活跃下载（红点）：排除默认隐藏的通用资源、自动下载图片，
      * 以及未完成的流式传输（流式项只在面板独立分区展示，不计入角标）。
      * 同时排除「已注册但尚未收到 update」的空任务。
      */
     const activeItems = computed(() =>
-        allItems.value.filter(
+        asReactiveItems(allItems.value.filter(
             (item) =>
                 !item.is_completed &&
                 !item.dismissed &&
@@ -417,7 +507,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                 !isGenericItem(item as never) &&
                 !isAutoPhotoItem(item as never) &&
                 !isIncompleteStreaming(item as never)
-        )
+        ))
     );
 
     const activeCount = computed(() => activeItems.value.length);
@@ -428,38 +518,18 @@ export const useDownloadStore = defineStore("downloads", () => {
     );
 
     /** 已完成：按完成时间倒序（缺 completed_at 时回退 created_at） */
-    const completedItems = computed(() =>
-        visibleItems.value
-            .filter((item) => item.is_completed)
-            .slice()
-            .sort((a, b) =>
-                ((b.completed_at ?? b.created_at ?? 0) - (a.completed_at ?? a.created_at ?? 0))
-                || ((b.file_id ?? 0) - (a.file_id ?? 0))
-            )
-    );
+    const completedItems = computed(() => asReactiveItems(visibleGroups.value.completed));
 
-    const pendingItems = computed(() =>
-        visibleItems.value.filter((item) => !item.is_completed)
-    );
+    const pendingItems = computed(() => asReactiveItems(visibleGroups.value.pending));
 
     /** 正在下载：未完成、未暂停、且不是「未完成流式传输」 */
-    const downloadingItems = computed(() =>
-        visibleItems.value.filter(
-            (item) => !item.is_completed && !item.is_paused && !isIncompleteStreaming(item as never)
-        )
-    );
+    const downloadingItems = computed(() => asReactiveItems(visibleGroups.value.downloading));
 
     /** 已暂停：未完成、已暂停、且不是流式传输未完成项 */
-    const pausedItems = computed(() =>
-        visibleItems.value.filter(
-            (item) => !item.is_completed && item.is_paused && !isIncompleteStreaming(item as never)
-        )
-    );
+    const pausedItems = computed(() => asReactiveItems(visibleGroups.value.paused));
 
     /** 流式传输中（未完成）：独立可折叠分区，不进已暂停 */
-    const streamingItems = computed(() =>
-        visibleItems.value.filter((item) => isIncompleteStreaming(item as never))
-    );
+    const streamingItems = computed(() => asReactiveItems(visibleGroups.value.streaming));
 
     /** 默认隐藏中仍有活跃任务（过滤器未打开时提示用） */
     const hasHiddenActive = computed(() =>
@@ -543,13 +613,16 @@ export const useDownloadStore = defineStore("downloads", () => {
             reindexKey(oldKey, remoteId);
         }
         sessionIdMap.value[sessionFileId] = remoteId;
+        touch();
         return remoteId;
     }
 
     /** 键改名后同步 session 映射，避免按 file.id 查到已删除的键 */
     function reindexKey(from: string, to: string) {
-        for (const [sid, mapped] of Object.entries(sessionIdMap.value)) {
-            if (mapped === from) sessionIdMap.value[Number(sid)] = to;
+        // 原始表遍历：sessionIdMap 可达数千条，走响应式代理会为每条建一次 Proxy
+        const raw = toRaw(sessionIdMap.value);
+        for (const sid in raw) {
+            if (raw[sid] === from) sessionIdMap.value[Number(sid)] = to;
         }
     }
 
@@ -562,8 +635,15 @@ export const useDownloadStore = defineStore("downloads", () => {
      */
     function adoptSameFileRow(key: string, probe: SameFileProbe): DownloadItem | undefined {
         if (!key || key.startsWith("session:") || key.startsWith("legacy:")) return undefined;
-        const staleKeys = Object.keys(items.value).filter(
-            (k) => k !== key && isSameFileRecord(items.value[k], probe),
+        // 探针本身不成立（占位名 / 大小未知）时不可能认亲，直接跳过全表扫描
+        if (!probe.file_name || (probe.total_size ?? 0) <= 0 || isPlaceholderFileName(probe.file_name)) {
+            return undefined;
+        }
+        // 在原始表上扫描：这条路径每次 registerDownload/trackDownloadFile 都会走，
+        // 逐条读响应式条目会给全表（数千条）各建一次 Proxy（实测 8000 条 ~9ms/次）
+        const raw = toRaw(items.value);
+        const staleKeys = Object.keys(raw).filter(
+            (k) => k !== key && isSameFileRecord(raw[k], probe),
         );
         if (staleKeys.length === 0) return undefined;
         let merged: DownloadItem | undefined = items.value[key];
@@ -574,6 +654,7 @@ export const useDownloadStore = defineStore("downloads", () => {
             reindexKey(staleKey, key);
         }
         if (merged) items.value[key] = merged;
+        touch();
         return merged;
     }
 
@@ -742,6 +823,7 @@ export const useDownloadStore = defineStore("downloads", () => {
             for (const [, item] of batch) {
                 applyItem(item);
             }
+            touch();
         }
     }
 
@@ -812,6 +894,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                 in_tdlib_list: true,
             };
             sessionIdMap.value[payload.fileId] = key;
+            touch();
             return;
         }
 
@@ -873,9 +956,10 @@ export const useDownloadStore = defineStore("downloads", () => {
         const completedNow = !!existing.is_completed && !!existing.local_path;
         if (completedNow && dirty) {
             items.value[key] = { ...existing };
+            touch();
             return;
         }
-        void dirty;
+        if (dirty) touch();
     }
 
     function applyTdlibCounts(counts: Record<string, unknown> | undefined) {
@@ -941,16 +1025,18 @@ export const useDownloadStore = defineStore("downloads", () => {
     async function init() {
         loadFilters();
         if (!unlistenProgress) {
-            unlistenProgress = await listen<DownloadItem>("download-progress-update", (event) => {
-                const item = event.payload;
-                if (!item) return;
-                // 面板关闭：列表由 Rust 权威记账（打开面板时快照读取），
-                // 前端只回写当前页面已注册条目的进度（消息内进度条/完成态）
-                if (!isPanelOpen.value) {
-                    scheduleBadgeRefresh();
-                    if (!hasTrackedItem(item)) return;
+            unlistenProgress = await listen<DownloadItem | { updates: DownloadItem[] }>("download-progress-update", (event) => {
+                // 同一窗口内多个文件的进度合成一条事件，逐条处理（语义与单条事件相同）
+                for (const item of progressBatch(event.payload)) {
+                    if (!item) continue;
+                    // 面板关闭：列表由 Rust 权威记账（打开面板时快照读取），
+                    // 前端只回写当前页面已注册条目的进度（消息内进度条/完成态）
+                    if (!isPanelOpen.value) {
+                        scheduleBadgeRefresh();
+                        if (!hasTrackedItem(item)) continue;
+                    }
+                    scheduleUpdate(item);
                 }
-                scheduleUpdate(item);
             });
         }
         // Rust 侧聚合统计事件（可选增强，与 other 通道并存）
@@ -963,22 +1049,103 @@ export const useDownloadStore = defineStore("downloads", () => {
         scheduleBadgeRefresh();
     }
 
-    async function refreshFromRust() {
+    // ─── 已完成区分页（打开面板只取第一页，滚动到底再取下一页） ─────────
+    /** 已完成区页大小 */
+    const COMPLETED_PAGE_SIZE = 30;
+    /** 服务端报告的已完成条数（当前过滤条件下） */
+    const completedTotal = ref(0);
+    /** 已完成区已取到的位置，等于下一页的 offset */
+    const completedLoaded = ref(0);
+    /** 已完成区见过的键（去重；dismiss 时据此判断游标要不要回退一行） */
+    const completedKeys = new Set<string>();
+    let completedLoading = false;
+    /** 请求序号：切过滤器/重开面板时丢弃在途的旧页 */
+    let pageSeq = 0;
+    /** 上一次成功分页时的服务端过滤指纹 */
+    let pageFilterKey = "";
+
+    /** 通用资源在已完成区是否可见：通用开关，或任一细分通用标签 / 资料页 / 动态开关 */
+    function completedShowsGeneric(): boolean {
+        return filterKeys.value.has(FILTER_KEY.GENERIC)
+            || filterKeys.value.has(DL_TAG.PROFILE)
+            || filterKeys.value.has(DL_TAG.STORY)
+            || [...GENERIC_TAGS].some((tag) => filterKeys.value.has(tag));
+    }
+
+    /** 服务端过滤指纹：变化时必须重取第一页（结果集变了） */
+    function completedFilterKey(): string {
+        return `${completedShowsGeneric()}|${filterKeys.value.has(FILTER_KEY.AUTO_IMAGE)}`;
+    }
+
+    /** 已完成区是否还有下一页 */
+    const hasMoreCompleted = computed(() => completedLoaded.value < completedTotal.value);
+
+    function mergeDownloadPage(page: DownloadsPage, offset: number) {
+        const completed = page.completed ?? [];
+        const incoming = [...(page.active ?? []), ...completed];
+        for (const item of incoming) {
+            const key = item.remote_id || `session:${item.session_file_id ?? item.file_id}`;
+            // 快照是 Rust 权威记账，直接覆盖（进度事件随后会继续回写）
+            items.value[key] = { ...item, remote_id: key };
+            if (item.session_file_id != null) sessionIdMap.value[item.session_file_id] = key;
+            if (item.file_id) sessionIdMap.value[item.file_id] = key;
+        }
+        for (const item of completed) {
+            completedKeys.add(item.remote_id || `session:${item.session_file_id ?? item.file_id}`);
+        }
+        completedTotal.value = page.completed_total ?? 0;
+        // 游标按「请求位置 + 本页条数」推进：整页都是已加载行时也不会原地打转
+        completedLoaded.value = completed.length > 0
+            ? Math.max(completedLoaded.value, offset + completed.length)
+            // 空页 = 游标已到集合末尾
+            : Math.max(completedLoaded.value, completedTotal.value);
+        if (incoming.length > 0) touch();
+    }
+
+    /**
+     * 取一页面板快照。
+     * @param reset true：重取第一页（打开面板 / 通用·自动图片开关变化）。
+     *   已加载的行不清：面板关闭后消息气泡还要靠它们查进度/完成路径，第一页只覆盖同名键。
+     *   只有过滤条件变了（服务端结果集不同）才把游标拉回起点，否则保留游标直接续下一页，
+     *   免得重开面板后把已加载的几百行重取一遍。
+     */
+    async function loadCompletedPage(reset = false) {
+        if (!reset && (completedLoading || !hasMoreCompleted.value)) return;
+        const filterKey = completedFilterKey();
+        if (reset && filterKey !== pageFilterKey) {
+            completedKeys.clear();
+            completedLoaded.value = 0;
+            completedTotal.value = 0;
+        }
+        const offset = reset ? 0 : completedLoaded.value;
+        const seq = ++pageSeq;
+        completedLoading = true;
         try {
-            const rustItems: DownloadItem[] = await invoke("get_downloads");
-            const map: Record<string, DownloadItem> = {};
-            const sidMap: Record<number, string> = {};
-            for (const item of rustItems) {
-                const key = item.remote_id || `session:${item.session_file_id ?? item.file_id}`;
-                map[key] = { ...item, remote_id: key };
-                if (item.session_file_id != null) sidMap[item.session_file_id] = key;
-                if (item.file_id) sidMap[item.file_id] = key;
-            }
-            items.value = map;
-            sessionIdMap.value = sidMap;
+            const page = await invoke<DownloadsPage>("get_downloads", {
+                completedOffset: offset,
+                completedLimit: COMPLETED_PAGE_SIZE,
+                includeGeneric: completedShowsGeneric(),
+                includeAutoPhotos: filterKeys.value.has(FILTER_KEY.AUTO_IMAGE),
+            });
+            // 期间被重新发起（切过滤器 / 重开面板）：这一页属于旧请求，丢弃
+            if (seq !== pageSeq) return;
+            pageFilterKey = filterKey;
+            mergeDownloadPage(page, offset);
         } catch (e) {
             console.error("Failed to load downloads from Rust:", e);
+        } finally {
+            if (seq === pageSeq) completedLoading = false;
         }
+    }
+
+    /** 兼容旧调用：重取第一页（打开面板时用） */
+    function refreshFromRust() {
+        return loadCompletedPage(true);
+    }
+
+    /** 滚动到底：取下一页已完成 */
+    function loadMoreCompleted() {
+        return loadCompletedPage(false);
     }
 
     function destroy() {
@@ -1017,6 +1184,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                 if (messageId != null && existing.message_id == null) existing.message_id = messageId;
             }
             sessionIdMap.value[fileId] = existing.remote_id || key;
+            touch();
             return;
         }
         items.value[`session:${fileId}`] = {
@@ -1042,6 +1210,7 @@ export const useDownloadStore = defineStore("downloads", () => {
             in_tdlib_list: true,
         };
         sessionIdMap.value[fileId] = `session:${fileId}`;
+        touch();
     }
 
     /**
@@ -1115,6 +1284,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                         };
                     }
                     sessionIdMap.value[fileId] = rid;
+                    touch();
                     return;
                 }
                 const nextStreaming = existing.is_streaming || (isStreaming ?? false);
@@ -1194,6 +1364,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                 };
             }
             sessionIdMap.value[fileId] = rid;
+            touch();
         } catch (e) {
             console.error("registerDownload failed:", e);
         }
@@ -1227,6 +1398,7 @@ export const useDownloadStore = defineStore("downloads", () => {
             completed_at: item.completed_at || now,
             downloaded_size: item.total_size > 0 ? item.total_size : item.downloaded_size,
         };
+        touch();
     }
 
     /**
@@ -1344,6 +1516,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                 in_tdlib_list: false,
             };
             sessionIdMap.value[fileId] = rid;
+            touch();
             return true;
         }
 
@@ -1405,6 +1578,7 @@ export const useDownloadStore = defineStore("downloads", () => {
         }
         if (dirty) {
             items.value[key] = { ...existing };
+            touch();
         }
         return dirty;
     }
@@ -1450,6 +1624,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                     request: { _: "toggleDownloadIsPaused", file_id: sid, is_paused: true },
                 });
                 item.is_paused = true;
+                touch();
             } else {
                 await invoke("tdlib_send", {
                     request: { _: "toggleDownloadIsPaused", file_id: sid, is_paused: false },
@@ -1463,6 +1638,7 @@ export const useDownloadStore = defineStore("downloads", () => {
                     }
                 }).catch(() => { /* ignore */ });
                 item.is_paused = false;
+                touch();
             }
         } catch (e) {
             console.error("toggleDownloadIsPaused failed:", e);
@@ -1563,6 +1739,11 @@ export const useDownloadStore = defineStore("downloads", () => {
             await invoke("dismiss_download", { key: String(key) });
             if (items.value[key]) {
                 items.value[key] = { ...items.value[key], dismissed: true };
+                // 该行从服务端集合里消失：游标回退一行，避免下一页漏掉一行
+                if (completedKeys.delete(key)) {
+                    completedLoaded.value = Math.max(0, completedLoaded.value - 1);
+                }
+                touch();
             }
         } catch (e) {
             console.error("dismiss_download failed:", e);
@@ -1572,11 +1753,20 @@ export const useDownloadStore = defineStore("downloads", () => {
     async function clearCompleted() {
         try {
             await invoke("clear_completed_downloads");
-            for (const key of Object.keys(items.value)) {
-                if (items.value[key]?.is_completed || items.value[key]?.dismissed) {
+            // 原始表遍历：数千条逐条读响应式条目会各建一次 Proxy
+            const raw = toRaw(items.value);
+            let removed = false;
+            for (const key of Object.keys(raw)) {
+                if (raw[key]?.is_completed || raw[key]?.dismissed) {
                     delete items.value[key];
+                    removed = true;
                 }
             }
+            if (removed) touch();
+            // 已完成的都被 Rust 删了：分页游标回到起点
+            completedKeys.clear();
+            completedLoaded.value = 0;
+            completedTotal.value = 0;
         } catch (e) {
             console.error("clear_completed_downloads failed:", e);
         }
@@ -1656,6 +1846,9 @@ export const useDownloadStore = defineStore("downloads", () => {
         init,
         destroy,
         refreshFromRust,
+        loadMoreCompleted,
+        hasMoreCompleted,
+        completedTotal,
         loadTdlibDownloadList,
         registerDownload,
         markInTdlibList,

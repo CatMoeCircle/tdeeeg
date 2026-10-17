@@ -223,7 +223,9 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
             app.manage(tdlib::AppState::new(data_dir));
 
-            // downloads.json 延迟持久化：updateFile 进度只改内存并记账，这里合并写盘。
+            // downloads.json 延迟持久化：updateFile 进度与登记只改内存并记账，这里合并写盘。
+            // 快照在锁内取、序列化与写文件在锁外做——持 Mutex<DownloadStore> 期间写盘会
+            // 把高频进度与下载命令全堵在锁上。
             // 完成/暂停/取消等状态变化仍由 store 立即落盘（DownloadStore::save_now）。
             {
                 let store = app.state::<tdlib::AppState>().download_store.clone();
@@ -233,8 +235,12 @@ pub fn run() {
                         std::thread::sleep(std::time::Duration::from_millis(
                             DOWNLOADS_FLUSH_INTERVAL_MS,
                         ));
-                        if let Ok(mut store) = store.lock() {
-                            store.flush_dirty();
+                        let snapshots = match store.lock() {
+                            Ok(mut store) => store.take_dirty_snapshots(),
+                            Err(_) => continue,
+                        };
+                        for (path, data) in &snapshots {
+                            download_store::write_persisted(path, data);
                         }
                     })
                     .expect("failed to spawn downloads persist thread");

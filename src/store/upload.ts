@@ -3,6 +3,7 @@ import { ref, computed } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import type { DownloadItem } from "./downloads";
+import { progressBatch } from "./downloads";
 
 /**
  * 上传任务 Store：跟踪「发送中的文件/图片/音乐/视频」的上传进度。
@@ -89,10 +90,12 @@ export const useUploadStore = defineStore("uploads", () => {
         await refreshFromRust();
         // 2. 监听实时上传进度
         if (!unlisten) {
-            unlisten = await listen<DownloadItem>("upload-progress-update", (event) => {
-                const item = event.payload;
-                if (item && item.file_id) {
-                    scheduleUpdate(item);
+            unlisten = await listen<DownloadItem | { updates: DownloadItem[] }>("upload-progress-update", (event) => {
+                // Rust 侧把同一窗口内多个文件的上传进度合并成一条事件，这里拆回逐条
+                for (const item of progressBatch(event.payload)) {
+                    if (item && item.file_id) {
+                        scheduleUpdate(item);
+                    }
                 }
             });
         }

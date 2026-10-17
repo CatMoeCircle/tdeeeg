@@ -178,10 +178,10 @@
                     </div>
 
                     <!-- 已完成 -->
-                    <div v-if="store.completedItems.length > 0" class="py-2">
+                    <div v-if="completedCount > 0" class="py-2">
                         <div class="px-4 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wider">
                             {{ t('download.manager.completed') }}
-                            <span class="ml-1 text-[10px] font-normal text-gray-400">{{ store.completedItems.length }}</span>
+                            <span class="ml-1 text-[10px] font-normal text-gray-400">{{ completedCount }}</span>
                         </div>
                         <DownloadRow v-for="item in displayCompletedItems" :key="item.remote_id || item.file_id"
                             :item="item" :can-open-in-player="canOpenInPlayer(item)" @dismiss="store.dismissItem"
@@ -368,23 +368,15 @@ async function confirmCancelAll() {
 
 const hiddenActiveCount = computed(() => store.hiddenActiveCount);
 
-const COMPLETED_PAGE_SIZE = 30;
-const completedLimit = ref(COMPLETED_PAGE_SIZE);
-const completedHasMore = computed(
-    () => store.completedItems.length > completedLimit.value
-);
-const displayCompletedItems = computed(() =>
-    store.completedItems.slice(0, completedLimit.value)
-);
-watch(
-    () => [store.filterKeys, store.completedItems.length] as const,
-    () => {
-        completedLimit.value = COMPLETED_PAGE_SIZE;
-    }
+// 已完成区分页在 Rust 侧（打开面板只取第一页），这里只做展示与触底加载
+const displayCompletedItems = computed(() => store.completedItems);
+const completedHasMore = computed(() => store.hasMoreCompleted);
+/** 分区标题计数用服务端总数：本地只有已加载的那几页 */
+const completedCount = computed(() =>
+    Math.max(store.completedTotal, store.completedItems.length)
 );
 function loadMoreCompleted() {
-    if (!completedHasMore.value) return;
-    completedLimit.value += COMPLETED_PAGE_SIZE;
+    void store.loadMoreCompleted();
 }
 
 /** 列表滚动容器与已完成区哨兵 */

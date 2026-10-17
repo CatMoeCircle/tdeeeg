@@ -222,7 +222,7 @@ fn item_keep_rank(item: &DownloadItem) -> (bool, bool, i64, i64) {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct PersistedData {
+pub(crate) struct PersistedData {
     items: HashMap<String, DownloadItem>,
     #[serde(default)]
     show_hidden: bool,
@@ -480,19 +480,31 @@ impl AccountDownloadData {
         }
     }
 
-    fn save_to_path(&self, path: &Path) {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).ok();
-        }
-        let data = PersistedData {
-            items: self.items.clone(),
+    /// 待落盘快照。
+    ///
+    /// 自动加载的通用资源（头像 / 贴纸 / emoji / 通用缩略图，`is_generic`）与自动下载
+    /// 的图片（`is_auto_photo`）是**按需重建的会话级缓存**：实测某个真实账户 8394 条里
+    /// 占 8237 条、downloads.json 97.2% 的字节，且默认就被下载列表隐藏（需打开
+    /// show_hidden / show_auto_photos 才可见）。它们留在内存里供本次会话读写即可，
+    /// 不再写盘——否则每次登记/合并写盘都要序列化这 9 MB。
+    ///
+    /// 用户手动下载（含 TDLib 官方下载列表里的条目）不受影响，照常落盘。
+    fn to_persisted(&self) -> PersistedData {
+        PersistedData {
+            items: self
+                .items
+                .iter()
+                .filter(|(_, item)| !item.is_generic && !item.is_auto_photo)
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
             show_hidden: self.show_hidden,
             show_auto_photos: self.show_auto_photos,
             dupes_merged: self.dupes_merged,
-        };
-        if let Ok(content) = serde_json::to_string_pretty(&data) {
-            fs::write(path, content).ok();
         }
+    }
+
+    fn save_to_path(&self, path: &Path) {
+        write_persisted(path, &self.to_persisted());
     }
 
     fn resolve_key(&self, id: &str) -> String {
@@ -517,6 +529,34 @@ impl AccountDownloadData {
     }
 }
 
+/// 把一个快照序列化并写盘。
+///
+/// 调用方**不得持有 `Mutex<DownloadStore>`**：`to_string_pretty` + `fs::write` 是整条
+/// 持久化路径最重的部分（9 MB 实测单次 600 ms），持锁执行会把 updateFile 进度和所有
+/// 下载命令排在它后面。
+pub(crate) fn write_persisted(path: &Path, data: &PersistedData) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).ok();
+    }
+    if let Ok(content) = serde_json::to_string_pretty(data) {
+        fs::write(path, content).ok();
+    }
+}
+
+/// 下载面板分页快照。
+///
+/// 未完成项一次全给：面板的下载中/等待/已暂停/流式分区、角标计数和「取消全部」都依赖
+/// 完整集合，而它们数量少、变动频繁，分页只会让计数忽多忽少。已完成项才是大头——某个
+/// 真实账户 8394 条里 8237 条是头像/贴纸/emoji/通用缩略图这类自动加载资源，所以它按
+/// completed_at 倒序分页取，前端滚到底再取下一页。
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct DownloadPage {
+    pub active: Vec<DownloadItem>,
+    pub completed: Vec<DownloadItem>,
+    /// 当前过滤条件下已完成的条数（前端据此判断还有没有下一页、分区标题计数）
+    pub completed_total: usize,
+}
+
 /// 多账户下载存储：每个账户一份独立 downloads.json。
 pub struct DownloadStore {
     data_dir: PathBuf,
@@ -526,9 +566,10 @@ pub struct DownloadStore {
     legacy_migrated: bool,
     /// 有内存改动但还没落盘的账户。
     ///
-    /// 高频进度（updateFile 每几十毫秒一条）只改内存并在这里记账，
-    /// 由 `flush_dirty` 合并成一次写盘；状态变化（完成/暂停/取消/登记）
-    /// 仍走 `save_now` 立即落盘，保证崩溃时不丢最终态。
+    /// 高频写入——updateFile 进度（每几十毫秒一条）与登记（批量下载时前端对每个
+    /// 头像/贴纸/emoji/缩略图都会登记一次）——只改内存并在这里记账，由
+    /// `take_dirty_snapshots` / `flush_dirty` 合并成一次写盘；
+    /// 状态变化（完成/暂停/取消）仍走 `save_now` 立即落盘，保证崩溃时不丢最终态。
     dirty: HashSet<i64>,
 }
 
@@ -608,27 +649,42 @@ impl DownloadStore {
         self.dirty.remove(&account_id);
     }
 
-    /// 只记账不写盘（高频进度）：真正的写盘由 `flush_dirty` 合并完成。
+    /// 只记账不写盘（高频进度 / 登记）：真正的写盘由 `flush_dirty` 合并完成。
     fn mark_dirty(&mut self, account_id: i64) {
         self.dirty.insert(account_id);
     }
 
-    /// 把记过账的账户各写一份最新快照，返回实际写盘的账户数。
+    /// 取走记过账的账户快照，交给调用方**在锁外**序列化 + 写盘。
     ///
-    /// 由持久化线程按 `DOWNLOADS_FLUSH_INTERVAL_MS` 调用；调用方只需短暂持有
-    /// store 锁，且每个账户每轮最多一次完整序列化。
-    pub fn flush_dirty(&mut self) -> usize {
-        if self.dirty.is_empty() {
-            return 0;
-        }
+    /// 锁内只做 clone（每个账户一次），把 `write_persisted` 那段最重的
+    /// 序列化/文件写入挪出临界区——否则一次 9 MB 写盘会把 updateFile 进度
+    /// 全部堵在锁上（实测单次持锁 600 ms、琐碎命令被拖到 2205 ms）。
+    ///
+    /// `ponytail:` 快照在锁外写，若这期间 `save_now`（暂停/取消）先落盘了更新的状态，
+    /// 理论上可能被这份旧快照后写覆盖；窗口只有毫秒级，且 TDLib 官方下载列表会在
+    /// 重启时重发暂停/完成态自愈。要彻底消除得把全部写盘串到单一线程。
+    pub fn take_dirty_snapshots(&mut self) -> Vec<(PathBuf, PersistedData)> {
         let accounts: Vec<i64> = self.dirty.drain().collect();
-        for acct in &accounts {
-            let path = self.path_for(*acct);
-            if let Some(d) = self.accounts.get(acct) {
-                d.save_to_path(&path);
+        let mut jobs = Vec::with_capacity(accounts.len());
+        for acct in accounts {
+            let path = self.path_for(acct);
+            if let Some(d) = self.accounts.get(&acct) {
+                jobs.push((path, d.to_persisted()));
             }
         }
-        accounts.len()
+        jobs
+    }
+
+    /// 在锁内一次性把记过账的账户各写一份最新快照，返回实际写盘的账户数。
+    ///
+    /// 仅用于退出前兜底（`RunEvent::ExitRequested`）与测试；常驻的合并写盘线程
+    /// 走 `take_dirty_snapshots`，写盘在锁外。
+    pub fn flush_dirty(&mut self) -> usize {
+        let jobs = self.take_dirty_snapshots();
+        for (path, data) in &jobs {
+            write_persisted(path, data);
+        }
+        jobs.len()
     }
 
     // ==================== 查询 ====================
@@ -658,6 +714,69 @@ impl DownloadStore {
         let d = self.accounts.get(&account_id)?;
         let k = d.resolve_key(key);
         d.items.get(&k).cloned()
+    }
+
+    // ==================== 分页查询（下载面板） ====================
+
+    /// 面板排序时间：已完成取 completed_at，其余取 created_at（与前端分区排序一致）
+    fn panel_sort_at(item: &DownloadItem) -> i64 {
+        if item.is_completed {
+            item.completed_at
+        } else {
+            item.created_at
+        }
+    }
+
+    /// 面板排序：时间倒序，同值按 file_id、remote_id，保证分页边界稳定（不漏不重）。
+    fn panel_order(a: &DownloadItem, b: &DownloadItem) -> std::cmp::Ordering {
+        Self::panel_sort_at(b)
+            .cmp(&Self::panel_sort_at(a))
+            .then_with(|| b.file_id.cmp(&a.file_id))
+            .then_with(|| b.remote_id.cmp(&a.remote_id))
+    }
+
+    /// 取一页面板快照；`offset` 为已完成列表里的偏移。
+    ///
+    /// `include_generic` / `include_auto_photos` 来自前端过滤器开关：这两类行默认隐藏，
+    /// 若不在排序后滤掉，每页几乎全是头像/贴纸，翻半天看不到一条用户下载。
+    pub fn get_page(
+        &self,
+        account_id: i64,
+        offset: usize,
+        limit: usize,
+        include_generic: bool,
+        include_auto_photos: bool,
+    ) -> DownloadPage {
+        let Some(d) = self.accounts.get(&account_id) else {
+            return DownloadPage::default();
+        };
+        let mut active: Vec<&DownloadItem> = Vec::new();
+        let mut completed: Vec<&DownloadItem> = Vec::new();
+        for item in d.items.values() {
+            if !item.has_tdlib_update || item.dismissed {
+                continue;
+            }
+            if !item.is_completed {
+                active.push(item);
+            } else if (include_generic || !item.is_generic)
+                && (include_auto_photos || !item.is_auto_photo)
+            {
+                completed.push(item);
+            }
+        }
+        // 只排引用、只克隆本页：整表 clone + 序列化正是打开面板卡 300+ ms 的原因
+        active.sort_by(|a, b| Self::panel_order(a, b));
+        completed.sort_by(|a, b| Self::panel_order(a, b));
+        DownloadPage {
+            completed_total: completed.len(),
+            active: active.into_iter().cloned().collect(),
+            completed: completed
+                .into_iter()
+                .skip(offset)
+                .take(limit)
+                .cloned()
+                .collect(),
+        }
     }
 
     pub fn get_active_items(&self) -> Vec<DownloadItem> {
@@ -814,7 +933,11 @@ impl DownloadStore {
         self.data_mut(acct)
             .session_map
             .insert(session_file_id, use_key.clone());
-        self.save_now(acct);
+        // 登记与进度走同一个合并窗口，不逐次全量落盘：批量下载时前端对**每个**
+        // 媒体资源（头像/贴纸/emoji/缩略图…）都会登记一次，逐次整表写盘正是窗口
+        // 卡顿的来源。登记只是「先占键位」，最终态由完成/暂停/取消各自的 save_now
+        // 保证；正常退出时 RunEvent::ExitRequested 还会兜底 flush_dirty。
+        self.mark_dirty(acct);
         use_key
     }
 
@@ -1655,26 +1778,156 @@ mod tests {
         let account = 3;
         let mut store = DownloadStore::new(dir.clone(), account);
         let path = account_downloads_json(&dir, account);
+        // 用户下载（audio，非自动缓存）才有落盘意义
+        store.register_download(
+            None,
+            Some("FILE".to_string()),
+            5,
+            "song.mp3".to_string(),
+            "chat".to_string(),
+            100,
+            "audio".to_string(),
+            None,
+            None,
+            None,
+            false,
+            None,
+            false,
+            false,
+            None,
+            None,
+        );
 
-        store.update_progress(Some(account), "session:5", 10, 100, true, false, None);
+        store.update_progress(Some(account), "FILE", 10, 100, true, false, None);
         assert!(!path.exists(), "纯进度更新不应立即写盘");
 
         assert_eq!(store.flush_dirty(), 1, "记账的账户应被写盘");
         let data: PersistedData =
             serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
-        assert_eq!(data.items["session:5"].downloaded_size, 10);
+        assert_eq!(data.items["FILE"].downloaded_size, 10);
 
-        store.update_progress(Some(account), "session:5", 50, 100, true, false, None);
+        store.update_progress(Some(account), "FILE", 50, 100, true, false, None);
         let data: PersistedData =
             serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
-        assert_eq!(data.items["session:5"].downloaded_size, 10, "合并窗口内不写盘");
+        assert_eq!(data.items["FILE"].downloaded_size, 10, "合并窗口内不写盘");
 
         store.flush_dirty();
         let data: PersistedData =
             serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
-        assert_eq!(data.items["session:5"].downloaded_size, 50);
+        assert_eq!(data.items["FILE"].downloaded_size, 50);
 
         assert_eq!(store.flush_dirty(), 0, "没有新改动时不该重复写盘");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// 登记不逐次全量落盘；自动加载的会话级缓存（头像/贴纸/emoji/通用缩略图、
+    /// 自动下载图片）不进 downloads.json，用户下载照常落盘
+    #[test]
+    fn register_defers_write_and_skips_auto_cache() {
+        let dir = temp_dir("autocache");
+        let account = 3;
+        let mut store = DownloadStore::new(dir.clone(), account);
+        let path = account_downloads_json(&dir, account);
+
+        let register = |store: &mut DownloadStore,
+                            rid: &str,
+                            sid: i32,
+                            name: &str,
+                            file_type: &str,
+                            is_generic: bool,
+                            is_auto_photo: bool| {
+            store.register_download(
+                None,
+                Some(rid.to_string()),
+                sid,
+                name.to_string(),
+                "chat".to_string(),
+                100,
+                file_type.to_string(),
+                None,
+                None,
+                None,
+                is_generic,
+                None,
+                is_auto_photo,
+                false,
+                None,
+                None,
+            )
+        };
+
+        register(&mut store, "USER_FILE", 1, "report.pdf", "document", false, false);
+        register(&mut store, "AVATAR", 2, "avatar.jpg", "avatar", true, false);
+        register(&mut store, "STICKER", 3, "sticker.webp", "sticker", true, false);
+        register(&mut store, "AUTO_PHOTO", 4, "photo_1.jpg", "photo", false, true);
+        assert!(!path.exists(), "登记只记账，不逐次全量写盘");
+
+        store.update_progress(Some(account), "USER_FILE", 50, 100, true, false, None);
+        store.update_progress(Some(account), "AVATAR", 50, 100, true, false, None);
+        assert_eq!(store.flush_dirty(), 1);
+
+        let data: PersistedData =
+            serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert!(data.items.contains_key("USER_FILE"), "用户下载必须落盘");
+        assert!(!data.items.contains_key("AVATAR"), "头像缓存不落盘");
+        assert!(!data.items.contains_key("STICKER"), "贴纸缓存不落盘");
+        assert!(!data.items.contains_key("AUTO_PHOTO"), "自动下载图片不落盘");
+        // 内存里仍然齐全：本次会话的隐藏分类、角标照常工作
+        assert_eq!(store.get_all_items().len(), 4);
+        assert_eq!(store.get_active_count(), 1);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// 分页边界：已完成按 completed_at 倒序分页、默认滤掉头像等通用资源、
+    /// 未完成项一次性全给（面板分区/角标依赖完整集合）
+    #[test]
+    fn page_paginates_completed_and_returns_all_active() {
+        let dir = temp_dir("page");
+        let account = 5;
+        let mut items = HashMap::new();
+        for i in 0..5i32 {
+            let mut it = make_item(
+                &format!("C{}", i),
+                &format!("f{}.mp3", i),
+                100,
+                100,
+                true,
+                Some("/tmp/x"),
+                100 + i,
+            );
+            it.completed_at = (i as i64 + 1) * 1000;
+            items.insert(it.remote_id.clone(), it);
+        }
+        // 已完成但属于默认隐藏的通用资源（头像）：不在默认分页结果里
+        let mut avatar = make_item("AVATAR", "avatar.jpg", 10, 10, true, Some("/tmp/a"), 900);
+        avatar.is_generic = true;
+        avatar.completed_at = 999_999;
+        items.insert(avatar.remote_id.clone(), avatar);
+        // 未完成项：无论分页偏移都全量返回
+        let active = make_item("ACT", "downloading.mp3", 100, 10, false, None, 42);
+        items.insert(active.remote_id.clone(), active);
+        write_account_json(&dir, account, items);
+
+        let store = DownloadStore::new(dir.clone(), account);
+
+        let first = store.get_page(account, 0, 2, false, false);
+        assert_eq!(first.active.len(), 1, "未完成项全量返回");
+        assert_eq!(first.completed_total, 5, "默认隐藏通用资源");
+        assert_eq!(first.completed.len(), 2);
+        assert_eq!(first.completed[0].remote_id, "C4", "已完成按 completed_at 倒序");
+
+        let second = store.get_page(account, 2, 2, false, false);
+        assert_eq!(second.completed[0].remote_id, "C2");
+        let tail = store.get_page(account, 4, 2, false, false);
+        assert_eq!(tail.completed.len(), 1, "最后一页不补空");
+        assert_eq!(tail.completed[0].remote_id, "C0");
+
+        // 打开「隐藏资源」：通用资源参与分页（completed_at 最大 → 第一页第一行）
+        let with_generic = store.get_page(account, 0, 2, true, false);
+        assert_eq!(with_generic.completed_total, 6);
+        assert_eq!(with_generic.completed[0].remote_id, "AVATAR");
+        assert_eq!(with_generic.completed[1].remote_id, "C4");
+
         let _ = fs::remove_dir_all(&dir);
     }
 }
