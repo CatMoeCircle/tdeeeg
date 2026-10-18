@@ -101,7 +101,6 @@ declare module 'vue' {
     MusicPlayerEntry: typeof import('./components/audio/MusicPlayerEntry.vue')['default']
     MusicPlayerOverlay: typeof import('./components/audio/MusicPlayerOverlay.vue')['default']
     NewChatDialog: typeof import('./components/chat/NewChatDialog.vue')['default']
-    OldChatDetail: typeof import('./components/chat/oldChatDetail.vue')['default']
     PaidReactionIcon: typeof import('./components/common/PaidReactionIcon.vue')['default']
     PersonalChatDialog: typeof import('./components/settings/PersonalChatDialog.vue')['default']
     PinMessageConfirm: typeof import('./components/contextMenu/PinMessageConfirm.vue')['default']
