@@ -5,6 +5,7 @@
 //! - 翻译与模型列表走 llmsdk（OpenAI Responses / OpenAI Compatible / Anthropic）
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
@@ -362,6 +363,21 @@ pub async fn ai_translate_text(
     translate_via_llmsdk(&provider.endpoint, &provider.format, &api_key, &model, &text, &to_language_code).await
 }
 
+/// LLM 请求用的 HTTP 客户端：**不设总超时**。
+///
+/// llmsdk 默认的 `HttpClient` 带 `timeout(60s)`（reqwest 的**总**超时，读 body 也算在内），
+/// 流式回复超过一分钟就会被从中间掐断，前端拿到的错误是
+/// 「api call to …/responses failed: stream read failed: error decoding response body」。
+/// 这里只限连接（20s）和单次读取（120s 没有任何新数据才断），长回复 / 思考模型可以一直流。
+pub(crate) fn llm_http_client() -> Result<llmsdk::utils::HttpClient, String> {
+    let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(20))
+        .read_timeout(Duration::from_secs(120))
+        .build()
+        .map_err(|e| format!("HTTP 客户端初始化失败: {e}"))?;
+    Ok(llmsdk::utils::HttpClient::from_reqwest(client))
+}
+
 /// 按接口协议构造 llmsdk 模型（翻译 / 对话共用）。endpoint、model_id 须已 trim 且非空。
 pub(crate) fn build_language_model(
     endpoint: &str,
@@ -371,11 +387,13 @@ pub(crate) fn build_language_model(
 ) -> Result<Box<dyn llmsdk::LanguageModel>, String> {
     use llmsdk::{anthropic::Anthropic, openai::OpenAi};
 
+    let http = llm_http_client()?;
     let model: Box<dyn llmsdk::LanguageModel> = match format {
         FORMAT_ANTHROPIC => {
             let provider = Anthropic::builder()
                 .api_key(api_key)
                 .base_url(endpoint)
+                .http_client(http)
                 .build()
                 .map_err(|e| e.to_string())?;
             Box::new(provider.messages(model_id))
@@ -384,6 +402,7 @@ pub(crate) fn build_language_model(
             let provider = OpenAi::builder()
                 .api_key(api_key)
                 .base_url(endpoint)
+                .http_client(http)
                 .build()
                 .map_err(|e| e.to_string())?;
             Box::new(provider.responses(model_id))
@@ -393,6 +412,7 @@ pub(crate) fn build_language_model(
             let provider = OpenAi::builder()
                 .api_key(api_key)
                 .base_url(endpoint)
+                .http_client(http)
                 .build()
                 .map_err(|e| e.to_string())?;
             Box::new(provider.chat(model_id))
