@@ -822,6 +822,7 @@ import { tdlibSend, isFileReady } from '../../../utils/tdlib';
 import { resolveTopicMode } from '../../../utils/topicDisplayMode';
 import { buildMessageTopicInput, extractTopicNumber, ensureDmTopic, resolveDmSenderName, getSenderPhoto } from '../../../utils/directMessagesTopics';
 import { sendAttachments, sending, type SendAttachmentsResult } from '../../../utils/attachmentSend';
+import { withParsedMarkdown } from '../../../utils/sendText';
 import { useAttachmentStore } from '../../../store/attachment';
 import type { AttachmentItem } from '../../../store/attachment';
 import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
@@ -4807,7 +4808,8 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
         try {
             const richEntities = (typeof input === 'string' ? [] : input.entities || []) as textEntity$Input[];
             const customEmojiEntities = buildCustomEmojiEntities(text);
-            const entities = [...richEntities, ...customEmojiEntities];
+            const parsed = await withParsedMarkdown(text, [...richEntities, ...customEmojiEntities]);
+            const entities = parsed.entities;
             let ok = false;
             if (editMediaReplacement.value) {
                 // 更换资源：按 TDLib 语义解析 kind（文件→document；动画仅 GIF/MPEG4；其余同类型）
@@ -4822,15 +4824,15 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
                 }
                 const content = buildEditMediaContent(
                     { ...editMediaReplacement.value, kind: resolved.kind },
-                    text,
+                    parsed.text,
                     entities,
                 );
                 ok = await editMessageMediaContent(target.chat_id || chatId.value, target.id, content);
             } else if (isMedia) {
                 // 仅改描述
-                ok = await editCaptionMessage(target.chat_id || chatId.value, target.id, text, entities);
+                ok = await editCaptionMessage(target.chat_id || chatId.value, target.id, parsed.text, entities);
             } else {
-                ok = await editTextMessage(target.chat_id || chatId.value, target.id, text, entities);
+                ok = await editTextMessage(target.chat_id || chatId.value, target.id, parsed.text, entities);
             }
             if (ok) {
                 messageInput.value = '';
@@ -4866,6 +4868,8 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
         sending.value = true;
         let sentResult: SendAttachmentsResult | null = null;
         try {
+            // 附件描述也必须过 TDLib 的 Markdown 判断（纯文本输入没有手工实体）
+            const caption = await withParsedMarkdown(text);
             sentResult = await sendAttachments(
                 attachStore.items,
                 {
@@ -4878,7 +4882,7 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
                         ? { _: 'inputMessageReplyToMessage', message_id: replyTargetMsg.value.id, quote: buildReplyQuote(), checklist_task_id: 0, poll_option_id: '' }
                         : null,
                 },
-                text || '',
+                caption,
             );
         } finally {
             sending.value = false;
@@ -4900,16 +4904,16 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
     }
     if (!text.trim()) return;
     try {
-        // 富文本实体（来自输入框格式菜单）与自定义 emoji 实体会并
+        // 富文本实体（来自输入框格式菜单）与自定义 emoji 实体会并，再交给 TDLib 判断 Markdown
         const richEntities = (typeof input === 'string' ? [] : input.entities || []) as textEntity$Input[];
         const customEmojiEntities = buildCustomEmojiEntities(text);
-        const entities = [...richEntities, ...customEmojiEntities];
+        const parsed = await withParsedMarkdown(text, [...richEntities, ...customEmojiEntities]);
         const params: sendMessage = {
             _: 'sendMessage',
             chat_id: outgoingChatId()!,
             input_message_content: {
                 _: 'inputMessageText',
-                text: { _: 'formattedText', text, entities },
+                text: { _: 'formattedText', text: parsed.text, entities: parsed.entities },
                 clear_draft: true,
             },
             reply_to: replyTargetMsg.value
