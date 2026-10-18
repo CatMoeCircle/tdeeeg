@@ -20,7 +20,7 @@ import { resolveTopicMode } from "../topicDisplayMode";
 import { classifyAttachment, sendAttachments } from "../attachmentSend";
 import type { AttachmentItem } from "../../store/attachment";
 import { registerImplementation, registerPrecheck, threadOf } from "./call.ts";
-import { parseModeOf, quotePosition, type AiParseMode } from "./format.ts";
+import { quotePosition } from "./format.ts";
 import { singleResult } from "./limits.ts";
 import { assertTdlibMethodAllowed } from "./policy.ts";
 import type { ToolErrorResult, ToolOutcome, ToolResult } from "./types.ts";
@@ -35,38 +35,45 @@ function optNum(v: unknown): number | undefined {
 }
 
 /**
- * 按 parse_mode 解析文本。
- * markdown 走 TDLib 的 parseTextEntities + textParseModeMarkdown(version 2) = Telegram Bot API
- * **MarkdownV2**（严格模式：标记不合法直接报错）。解析不通过就**不发**，把原因回给模型改，
- * 不静默降级成纯文本 —— 否则模型以为格式生效了，用户看到的却是一堆转义反斜杠。
+ * 发送 / 编辑的文本**统一**走 TDLib parseTextEntities + textParseModeMarkdown(version 2)
+ * = Telegram Bot API **MarkdownV2**（严格模式：标记不合法直接报错）。
+ * 解析不通过就**不发**，把原因回给模型改，不静默降级成纯文本 —— 否则模型以为格式生效了，
+ * 用户看到的却是一堆转义反斜杠。
  */
 async function formattedArgs(
   text: string,
-  parseMode: AiParseMode,
   tool: string,
 ): Promise<{ text: formattedText } | { error: ToolErrorResult }> {
-  if (parseMode !== "markdown" || !text) return { text: { _: "formattedText", text, entities: [] } };
+  if (!text) return { text: { _: "formattedText", text, entities: [] } };
   try {
     const parsed = await tdlibSend({
       _: "parseTextEntities",
       text,
       parse_mode: { _: "textParseModeMarkdown", version: 2 },
     });
+    // TDLib 严格模式解析失败时可能返回空文本而不是 error：非空输入被啃成空 = 解析失败，别发空消息
+    if (!parsed.text) {
+      return markdownError(tool, "解析结果为空（正文只有未展开的标记）");
+    }
     return { text: { _: "formattedText", text: parsed.text, entities: parsed.entities } };
   } catch (e) {
-    return {
-      error: {
-        tool,
-        error: {
-          code: "invalid_args",
-          message:
-            `MarkdownV2 解析失败，消息没有发送：${errText(e)}。` +
-            "请按 Telegram MarkdownV2 修正后重试（标记要成对；正文里的 _ * [ ] ( ) ~ > # + - = | { } . ! 都要转义）。" +
-            "如果本来就不需要格式，去掉 parse_mode 按纯文本发。",
-        },
-      },
-    };
+    return markdownError(tool, errText(e));
   }
+}
+
+/** MarkdownV2 解析失败的统一错误（不发送，回给模型改） */
+function markdownError(tool: string, reason: string): { error: ToolErrorResult } {
+  return {
+    error: {
+      tool,
+      error: {
+        code: "invalid_args",
+        message:
+          `MarkdownV2 解析失败，消息没有发送：${reason}。` +
+          "请按 Telegram MarkdownV2 修正后重试（标记要成对；正文里的 _ * [ ] ( ) ~ > # + - = | { } . ! 都要转义）。",
+      },
+    },
+  };
 }
 
 /**
@@ -74,7 +81,7 @@ async function formattedArgs(
  * 与 formattedArgs 共用同一条解析路径，只提前跑一次，避免用户白批卡片。
  */
 async function markdownPrecheck(text: string, label: string): Promise<string[]> {
-  const check = await formattedArgs(text, "markdown", "");
+  const check = await formattedArgs(text, "");
   return "error" in check ? [`${label}：${check.error.error.message}`] : [];
 }
 
@@ -145,7 +152,7 @@ registerImplementation("send_message", async (args): Promise<ToolOutcome> => {
   const isDm = threadId ? await isDmTopicChat(chatId) : false;
 
   const reply = await replyToOf(chatId, optNum(args.reply_to_message_id), String(args.quote ?? ""));
-  const content = await formattedArgs(text, parseModeOf(args.parse_mode), "send_message");
+  const content = await formattedArgs(text, "send_message");
   if ("error" in content) return content.error;
 
   const sent = await tdlibSend({
@@ -220,7 +227,7 @@ registerImplementation("send_media", async (args): Promise<ToolOutcome> => {
   }
 
   const reply = await replyToOf(chatId, optNum(args.reply_to_message_id), String(args.quote ?? ""));
-  const cap = await formattedArgs(caption, parseModeOf(args.parse_mode), "send_media");
+  const cap = await formattedArgs(caption, "send_media");
   if ("error" in cap) return cap.error;
   const result = await sendAttachments(items, { chatId, topicId: threadId, isDm, replyTo: reply.replyTo }, cap.text);
 
@@ -241,7 +248,7 @@ registerImplementation("send_media", async (args): Promise<ToolOutcome> => {
 });
 
 registerImplementation("edit_message", async (args): Promise<ToolOutcome> => {
-  const content = await formattedArgs(String(args.text ?? ""), parseModeOf(args.parse_mode), "edit_message");
+  const content = await formattedArgs(String(args.text ?? ""), "edit_message");
   if ("error" in content) return content.error;
 
   const edited = await tdlibSend({
@@ -263,15 +270,9 @@ registerImplementation("edit_message", async (args): Promise<ToolOutcome> => {
 
 // MarkdownV2 预校验：解析不过就挡在审核之前（用户不会为一次注定失败的消息白批卡片）。
 // 预校验用的解析路径与实现体完全相同，只是提前跑一次。
-registerPrecheck("send_message", (a) =>
-  parseModeOf(a.parse_mode) === "markdown" ? markdownPrecheck(String(a.text ?? ""), "text") : [],
-);
-registerPrecheck("send_media", (a) =>
-  parseModeOf(a.parse_mode) === "markdown" ? markdownPrecheck(String(a.caption ?? ""), "caption") : [],
-);
-registerPrecheck("edit_message", (a) =>
-  parseModeOf(a.parse_mode) === "markdown" ? markdownPrecheck(String(a.text ?? ""), "text") : [],
-);
+registerPrecheck("send_message", (a) => markdownPrecheck(String(a.text ?? ""), "text"));
+registerPrecheck("send_media", (a) => markdownPrecheck(String(a.caption ?? ""), "caption"));
+registerPrecheck("edit_message", (a) => markdownPrecheck(String(a.text ?? ""), "text"));
 
 registerImplementation("delete_message", async (args): Promise<ToolResult<unknown>> => {
   const chatId = num(args.chat_id, "chat_id");

@@ -179,7 +179,7 @@ function systemPrompt(o: {
     );
   }
   lines.push(
-    `发送带格式的文本时：${MARKDOWN_V2_GUIDE}`,
+    `发送带格式的文本时（send_message / send_media / edit_message 的正文与描述统一按 MarkdownV2 解析，没有纯文本模式）：${MARKDOWN_V2_GUIDE}`,
     `当前会话标题：「${o.title}」。`,
   );
   if (o.thread) {

@@ -26,8 +26,8 @@ const reason = () => p("reason", "string", true, "一句话说明为什么需要
 /** 回复：额外可选引用原消息里的一段原文 */
 const quote = () =>
   p("quote", "string", false, "回复时只引用的原文片段（必须是原消息里连续的一段原文；不传 = 整条回复）");
-/** 文本格式：不传 = 原样纯文本。用法说明是**同一段**常量，别在这儿手写第二份 */
-const parseMode = () => p("parse_mode", "string", false, `传 "markdown" 则${MARKDOWN_V2_GUIDE}不传 = 原样纯文本（不解析）。`);
+/** 文本格式：三个写工具的正文 / 描述**统一**走 TDLib MarkdownV2，用法说明是**同一段**常量，别在这儿手写第二份 */
+const mdText = () => p("text", "string", true, `正文（按 ${MARKDOWN_V2_GUIDE}）`);
 
 /** 摘要里用的短文本，太长就截断 */
 function short(v: unknown, max = 40): string {
@@ -113,30 +113,29 @@ export const TOOLS: readonly ToolMeta[] = [
   // --- 写（全部需要审核） ---
   {
     name: "send_message", kind: "write", needsApproval: true, risk: "send",
-    desc: "发送文本消息（可带 Telegram MarkdownV2 格式、可回复 / 引用某条消息、可发到指定话题）",
+    desc: `发送文本消息（正文按 ${MARKDOWN_V2_GUIDE}；可回复 / 引用某条消息、可发到指定话题）`,
     summary: (a) => `在聊天 ${a.chat_id} 发送消息：「${short(a.text)}」${a.reply_to_message_id ? `（回复 ${a.reply_to_message_id}${a.quote ? `，引用「${short(a.quote)}」` : ""}）` : ""}`,
-    params: [chat(), p("text", "string", true, "消息正文"), p("reply_to_message_id", "number", false, "回复哪条消息"), quote(), p("thread_id", "number", false, "发到哪个话题"), parseMode(), reason()],
+    params: [chat(), mdText(), p("reply_to_message_id", "number", false, "回复哪条消息"), quote(), p("thread_id", "number", false, "发到哪个话题"), reason()],
   },
   {
     name: "send_media", kind: "write", needsApproval: true, risk: "send",
-    desc: "发送本地媒体文件（图片 / 视频 / GIF / 音乐 / 任意文件，可带描述、可回复 / 引用某条消息）",
+    desc: `发送本地媒体文件（图片 / 视频 / GIF / 音乐 / 任意文件，可带描述、可回复 / 引用某条消息；描述按 ${MARKDOWN_V2_GUIDE}）`,
     summary: (a) => `在聊天 ${a.chat_id} 发送 ${Array.isArray(a.files) ? a.files.length : 0} 个媒体文件${a.caption ? `（描述：「${short(a.caption)}」）` : ""}${a.reply_to_message_id ? `（回复 ${a.reply_to_message_id}）` : ""}`,
     params: [
       chat(),
       p("files", "string[]", true, "本地文件的绝对路径，最多 10 个（同类型的多个会自动组成相册）", 10),
-      p("caption", "string", false, "媒体描述（相册时挂在最后一条上）"),
+      p("caption", "string", false, "媒体描述（相册时挂在最后一条上；按 MarkdownV2 解析）"),
       p("reply_to_message_id", "number", false, "回复哪条消息"),
       quote(),
       p("thread_id", "number", false, "发到哪个话题"),
-      parseMode(),
       reason(),
     ],
   },
   {
     name: "edit_message", kind: "write", needsApproval: true, risk: "modify",
-    desc: "编辑消息文本（可带 Telegram MarkdownV2 格式）",
+    desc: `编辑消息文本（正文按 ${MARKDOWN_V2_GUIDE}）`,
     summary: (a) => `把聊天 ${a.chat_id} 的消息 ${a.message_id} 改成：「${short(a.text)}」`,
-    params: [chat(), p("message_id", "number", true, "要编辑的消息 id"), p("text", "string", true, "新的正文"), parseMode(), reason()],
+    params: [chat(), p("message_id", "number", true, "要编辑的消息 id"), mdText(), reason()],
   },
   {
     name: "delete_message", kind: "write", needsApproval: true, risk: "destructive",
