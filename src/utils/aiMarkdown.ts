@@ -2,6 +2,7 @@
  * AI 回复的 Markdown 渲染（活动条里的输出文本）。
  *
  * 行内规则直接复用 tdMarkdown 的 parseTdMarkdown（粗体 / 斜体 / 行内代码 / 链接，
+ * 外面包一层反斜杠转义处理，见 renderInline；
  * 先整体转义再插受控标签），在它之上补块级：标题、无序 / 有序列表、围栏代码块、空行分段。
  * 不做完整 CommonMark —— 模型回复用不到，多写的每条规则都是要维护的坑。
  *
@@ -13,6 +14,20 @@ import { escapeHtml, parseTdMarkdown } from "./tdMarkdown.ts";
 /** 代码块样式（与 AiActivityStrip 里工具输入 / 输出那块保持一致） */
 const PRE_CLASS =
   "custom-scrollbar my-1 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-md bg-black/5 p-1.5 font-mono text-[11px] leading-4 text-gray-600 dark:bg-white/5 dark:text-gray-300";
+
+/** CommonMark 里可以用反斜杠转义的字符：`\*` `\_` `` \` `` `\#` … */
+const ESCAPE_SEQ = /\\([\\`*_{}\[\]()#+\-.!|~>])/g;
+
+/**
+ * 行内渲染：反斜杠转义先换成占位符躲过 parseTdMarkdown（否则 `\*` 照样被吃成斜体，
+ * 反斜杠还留在字面上），解析完再把占位符还原成字面字符。占位符不含任何 markdown 字符，
+ * 也不会被 HTML 转义动到。
+ */
+function renderInline(text: string): string {
+  const literals: string[] = [];
+  const shielded = text.replace(ESCAPE_SEQ, (_m, ch: string) => `\u0000${literals.push(ch) - 1}\u0000`);
+  return parseTdMarkdown(shielded).replace(/\u0000(\d+)\u0000/g, (_m, i: string) => escapeHtml(literals[Number(i)]));
+}
 
 /**
  * Markdown → 受控 HTML。空输入返回空串（调用方不用判断）。
@@ -34,11 +49,11 @@ export function renderAiMarkdown(text: string): string {
   const flushTable = () => {
     if (!table.length) return;
     const cells = (row: string) =>
-      row.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => parseTdMarkdown(c.trim()));
+      row.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => renderInline(c.trim()));
     const isSep = table.length >= 2 && /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(table[1]);
     // 没有分隔行（| --- |）就不是表格，当普通行输出
     if (!isSep) {
-      for (const row of table) inline.push(parseTdMarkdown(row));
+      for (const row of table) inline.push(renderInline(row));
       table.length = 0;
       return;
     }
@@ -102,7 +117,7 @@ export function renderAiMarkdown(text: string): string {
       flushInline();
       flushList();
       const big = heading[1].length <= 2 ? " text-[14px]" : "";
-      out.push(`<div class="mt-1.5 font-semibold${big}">${parseTdMarkdown(heading[2])}</div>`);
+      out.push(`<div class="mt-1.5 font-semibold${big}">${renderInline(heading[2])}</div>`);
       continue;
     }
     if (bullet || numbered) {
@@ -111,17 +126,20 @@ export function renderAiMarkdown(text: string): string {
       // 列表类型变了（无序接有序）要断开，否则会并进上一个列表
       if (items.length && wantOrdered !== ordered) flushList();
       ordered = wantOrdered;
-      items.push(`<li>${parseTdMarkdown((bullet ?? numbered)![1])}</li>`);
+      items.push(`<li>${renderInline((bullet ?? numbered)![1])}</li>`);
       continue;
     }
 
-    flushList();
     if (!line.trim()) {
+      // 列表项之间的空行不结束列表：模型常写「1. 甲 / 空行 / 2. 乙」，
+      // 断开会让每项各起一个 <ol>，编号全渲染成 1（CommonMark 里空行也不拆列表）
+      if (items.length) continue;
       flushInline();
       out.push('<div class="h-1.5"></div>');
       continue;
     }
-    inline.push(parseTdMarkdown(line));
+    flushList();
+    inline.push(renderInline(line));
   }
 
   flushTable();
@@ -138,6 +156,7 @@ export function renderAiMarkdown(text: string): string {
 export function plainPreview(text: string): string {
   const line = text.split(/\r?\n/).find((l) => l.trim()) ?? "";
   return line
+    .replace(ESCAPE_SEQ, "$1")
     .replace(/^\s*#{1,6}\s+/, "")
     .replace(/^\s*(?:[-*+]|\d+[.)])\s+/, "")
     .replace(/\*\*(.+?)\*\*/g, "$1")
