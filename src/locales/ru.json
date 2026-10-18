@@ -1213,6 +1213,7 @@
     "commandDraft": "Написать первый вариант",
     "commandExplain": "Объяснить простыми словами",
     "commandTasks": "Превратить в список задач",
+    "imageUnsupported": "Модель не принимает изображения (включите image в модальности модели в настройках AI)",
     "noMatches": "Нет совпадений для «{query}»",
     "listening": "Слушаю…",
     "removeAttachment": "Удалить {file}",

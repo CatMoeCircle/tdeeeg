@@ -35,7 +35,7 @@ import {
 import { animate, motionValue, useReducedMotion, type AnimationPlaybackControls } from 'motion-v';
 import { settings } from '../../store/settings';
 import { isDark } from '../../store/theme';
-import { aiModelGroups, aiModelThinks, aiProviders, loadAiProviders, type AiModelGroup } from '../../store/aiConfig';
+import { aiModelGroups, aiModelSeesImages, aiModelThinks, aiProviders, loadAiProviders, type AiModelGroup } from '../../store/aiConfig';
 import AiContextInfo from './AiContextInfo.vue';
 import type { ConversationUsage } from '../../store/aiConversations';
 
@@ -46,6 +46,8 @@ export interface PromptBarSource {
     icon?: Component;
     /** 附件行：点了走 onAttach */
     attach?: boolean;
+    /** 当前模型做不到（如不支持图片）：置灰、点了没反应 */
+    disabled?: boolean;
 }
 
 export interface PromptBarCommand {
@@ -127,6 +129,8 @@ type Row = {
     attach?: boolean;
     /** 模型行：缩进 */
     nested?: boolean;
+    /** 当前模型做不到（图片上传）：置灰、点了没反应 */
+    disabled?: boolean;
 };
 type Token = { kind: 'at' | 'slash'; query: string; start: number };
 type Spark = {
@@ -217,11 +221,13 @@ const emit = defineEmits<{
 const { t } = useI18n();
 
 /** 数据源（+ 号与 @ 菜单的清单）：只留本机图片上传（其余占位来源没有后端，已删） */
-const sourceList = computed<PromptBarSource[]>(() =>
-    props.sources ?? [
+const sourceList = computed<PromptBarSource[]>(() => {
+    const rows = props.sources ?? [
         { key: 'files', name: t('aiInput.sourceFiles'), description: t('aiInput.sourceFilesDesc'), icon: PaperclipIcon, attach: true },
-    ],
-);
+    ];
+    // 图片要模型看得懂才能传：不支持的模型把这一行置灰（见 canSeeImages）
+    return canSeeImages.value ? rows : rows.map((s) => (s.attach ? { ...s, disabled: true } : s));
+});
 /** 命令（/ 菜单）：命令名保持 ASCII（机器人命令语义），说明走 i18n */
 const commandList = computed<PromptBarCommand[]>(() =>
     props.commands ?? [
@@ -263,6 +269,8 @@ const current = computed(() => {
  * 拿不到当前模型（没选 / 被删）时不拦。
  */
 const canThink = computed(() => !current.value || aiModelThinks(current.value.model.id));
+/** 当前模型能不能看图：不能则 + 号里的图片上传置灰（拿不到模型时也置灰，免得选完模型才发现白选） */
+const canSeeImages = computed(() => !!current.value && aiModelSeesImages(current.value.model.modality));
 /** 思考等级：关闭（不思考）→ 低 → 最高（最高档用主色 + 粒子）；不会思考的模型没有档位 */
 const effortList = computed(() =>
     !canThink.value
@@ -308,6 +316,10 @@ watch(effortList, (list) => {
 watch(canThink, (ok) => {
     if (!ok) effortOpen.value = false;
 });
+// 换到看不了图的模型：已经选好的图片发过去也没用（接口会拒），直接清空
+watch(canSeeImages, (ok) => {
+    if (!ok) attachments.value = [];
+});
 const dismissed = ref(false);
 const activeKey = ref('');
 const listening = ref(false);
@@ -324,7 +336,7 @@ const list = computed<Row[]>(() => {
     if (open.value === 'at') {
         return sourceList.value
             .filter((s) => s.name.toLowerCase().includes(query.value))
-            .map((s) => ({ key: `s:${s.key}`, name: s.name, description: s.description, icon: s.icon, attach: s.attach }));
+            .map((s) => ({ key: `s:${s.key}`, name: s.name, description: s.description, icon: s.icon, attach: s.attach, disabled: s.disabled }));
     }
     if (open.value === 'slash') {
         return commandList.value
@@ -726,11 +738,14 @@ const setRowRef = (key: string, el: unknown) => {
 const currentRowKey = computed(() => (current.value ? `m:${current.value.group.id}/${current.value.model.id}` : ''));
 
 const pick = (row: Row) => {
+    if (row.disabled) return;
     if (open.value === 'model') {
         if (props.selected) return; // 模板模式：纯展示，不写设置
-        const [groupId, modelId] = row.key.slice(2).split('/');
-        settings.ai.providerId = groupId;
-        settings.ai.model = modelId;
+        // 模型 id 里可能自带 "/"（OpenRouter 的 nvidia/nemotron-…:free）：只切第一个分隔符，否则 id 被截断 → 显示「未配置」
+        const key = row.key.slice(2);
+        const cut = key.indexOf('/');
+        settings.ai.providerId = key.slice(0, cut);
+        settings.ai.model = key.slice(cut + 1);
         modelOpen.value = false;
         focusInput();
         return;
@@ -954,18 +969,19 @@ defineExpose({ focusInput });
                         <span class="ml-auto shrink-0">{{ t('aiSettings.modelCount', { count: Number(row.tag) }) }}</span>
                     </div>
                     <button v-else type="button" role="option" :ref="(el) => setRowRef(row.key, el)"
-                        :aria-selected="row.key === activeKey"
-                        class="z-[1] relative flex items-center gap-2.5 bg-transparent px-2 border-0 rounded-lg outline-none w-full h-9 text-inherit text-left cursor-pointer [font:inherit] [-webkit-tap-highlight-color:transparent]"
-                        :class="row.nested ? 'pl-8' : ''" @mousedown.prevent @pointerenter="activeKey = row.key"
-                        @click="pick(row)">
+                        :aria-selected="row.key === activeKey" :aria-disabled="row.disabled || undefined"
+                        class="z-[1] relative flex items-center gap-2.5 bg-transparent px-2 border-0 rounded-lg outline-none w-full h-9 text-inherit text-left [font:inherit] [-webkit-tap-highlight-color:transparent]"
+                        :class="[row.nested ? 'pl-8' : '', row.disabled ? 'opacity-50 cursor-default' : 'cursor-pointer']"
+                        @mousedown.prevent @pointerenter="activeKey = row.key" @click="pick(row)">
                         <img v-if="row.avatar" :src="row.avatar" alt="" class="w-5 h-5 rounded-full shrink-0" />
                         <span v-else-if="row.icon"
                             class="inline-flex flex-none justify-center [color:color-mix(in_srgb,var(--pb-ink)_70%,transparent)] w-5">
                             <component :is="row.icon" class="w-[15px] h-[15px]" :stroke-width="1.8" />
                         </span>
                         <span class="flex-none font-medium text-[13px]">{{ row.name }}</span>
-                        <span v-if="row.description" class="flex-auto min-w-0 text-[12px] truncate" :class="MUTED">
-                            {{ row.description }}
+                        <span v-if="row.disabled || row.description" class="flex-auto min-w-0 text-[12px] truncate"
+                            :class="MUTED">
+                            {{ row.disabled ? t('aiInput.imageUnsupported') : row.description }}
                         </span>
                         <span v-if="open === 'model' && !row.nested"
                             class="flex-none ml-auto text-[11px]" :class="MUTED">{{ row.tag }}</span>

@@ -1213,6 +1213,7 @@
     "commandDraft": "Write a first version",
     "commandExplain": "A plain-language walkthrough",
     "commandTasks": "Turn this into a to-do list",
+    "imageUnsupported": "This model can't take images (tick image in its modality in AI settings)",
     "noMatches": "No matches for “{query}”",
     "listening": "Listening…",
     "removeAttachment": "Remove {file}",

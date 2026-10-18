@@ -462,7 +462,7 @@ const templateGroups = computed<AiModelGroup[]>(() => [
         id: 'template',
         name: t('aiInput.sampleProvider'),
         icon: AI_ICONS[0]?.src,
-        models: ['A', 'B', 'C'].map((n) => ({ id: `template-${n}`, name: t('aiInput.sampleModel', { n }) })),
+        models: ['A', 'B', 'C'].map((n) => ({ id: `template-${n}`, name: t('aiInput.sampleModel', { n }), modality: 'text+image->text' })),
     },
 ]);
 /** 模板预览里显示的选中项：预览不可点击，固定展示示例模型 A */

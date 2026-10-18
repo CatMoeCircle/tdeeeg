@@ -35,6 +35,7 @@ export {
   addPresetName,
   AI_PRESETS,
   aiModelThinks,
+  aiModelSeesImages,
   hasPresetName,
   isPresetDefault,
   normProviderName,
@@ -92,7 +93,8 @@ export interface AiModelGroup {
   name: string;
   /** 头像地址；空 = 没有图标，界面回退成名称首字母 */
   icon?: string;
-  models: { id: string; name: string }[];
+  /** modality = 模型声明的入参模态（如 `text+image->text`），决定图片上传能不能用 */
+  models: { id: string; name: string; modality: string | null }[];
 }
 
 /**
@@ -106,7 +108,7 @@ export function aiModelGroups(): AiModelGroup[] {
       id: p.id,
       name: p.name.trim(),
       icon: iconSrc(p.icon),
-      models: p.models.map((m) => ({ id: m.id, name: m.name || m.id })),
+      models: p.models.map((m) => ({ id: m.id, name: m.name || m.id, modality: m.modality })),
     }));
 }
 

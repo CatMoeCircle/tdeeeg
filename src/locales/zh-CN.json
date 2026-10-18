@@ -1220,6 +1220,7 @@
     "commandDraft": "写一版初稿",
     "commandExplain": "用大白话讲一遍",
     "commandTasks": "整理成待办清单",
+    "imageUnsupported": "当前模型不支持图片（可在 AI 设置里给它勾上 image）",
     "noMatches": "没有匹配「{query}」的结果",
     "listening": "正在听…",
     "removeAttachment": "移除 {file}",

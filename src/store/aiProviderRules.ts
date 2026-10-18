@@ -131,6 +131,17 @@ export function aiModelThinks(modelId: string): boolean {
   return true;
 }
 
+// ─── 看图能力判定 ───
+
+/**
+ * 该模型能否接收图片（= AI 输入框「+ → 图片」是否可用）。
+ * 接口给的模态形如 `text+image->text`，只看入参那段；没声明模态的按「不支持」处理
+ * （AI 设置里可以给模型手动勾上 image）。
+ */
+export function aiModelSeesImages(modality: string | null | undefined): boolean {
+  return (modality ?? '').split('->')[0].split('+').includes('image');
+}
+
 // ─── 被删预设名单（删预设 = 清设置 + 记一笔；填同名保存即恢复） ───
 
 /** 名单里是否有该名称（同一套归一化规则） */
