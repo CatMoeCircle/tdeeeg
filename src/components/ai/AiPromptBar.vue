@@ -230,13 +230,7 @@ const sourceList = computed<PromptBarSource[]>(() => {
 });
 /** 命令（/ 菜单）：命令名保持 ASCII（机器人命令语义），说明走 i18n */
 const commandList = computed<PromptBarCommand[]>(() =>
-    props.commands ?? [
-        { key: 'summarize', name: '/summarize', description: t('aiInput.commandSummarize') },
-        { key: 'compare', name: '/compare', description: t('aiInput.commandCompare') },
-        { key: 'draft', name: '/draft', description: t('aiInput.commandDraft') },
-        { key: 'explain', name: '/explain', description: t('aiInput.commandExplain') },
-        { key: 'tasks', name: '/tasks', description: t('aiInput.commandTasks') },
-    ],
+    props.commands ?? [{ key: 'summarize', name: '/summarize', description: t('aiInput.commandSummarize') }],
 );
 /** 可选的供应商分组：模板模式用父组件给的示例数据，否则读真实配置 */
 const groupList = computed<PromptBarGroup[]>(() => props.groups ?? aiModelGroups());

@@ -145,16 +145,13 @@ const COMMAND_PROMPTS: Record<string, string> = {
   summarize:
     "用户点了 /summarize：先调 get_recent_messages 读本聊天最近的对话（limit 50 左右，不够再往前翻一页），" +
     "然后用要点总结：在聊什么、已有结论、还没定的事。没读到的内容不要编。",
-  compare: "用户点了 /compare：把要对比的东西并排列成表格逐项给差异，最后给一句推荐；选项没写清就先问用户。",
-  draft: "用户点了 /draft：写一版可以直接发出去的初稿，短、自然。只在回答里给稿子，不要自己调用发送工具。",
-  explain: "用户点了 /explain：用大白话解释，不堆术语，需要时打比方，控制在几段以内。",
-  tasks: "用户点了 /tasks：从最近的对话里抽出待办，每条一行的勾选清单，带上谁负责、什么时间。",
 };
 
 /**
  * system prompt。`title` 是当前会话标题（新建时会先填用户那句话，模型可以改）；
  * `first` = 这是本会话的第一条消息 → 让模型顺手给会话起个标题；
- * `command` = 用户句首用的是哪个 /命令（见 COMMAND_PROMPTS）。
+ * `command` = 用户句首用的是哪个 /命令（见 COMMAND_PROMPTS）；
+ * `search` = 这一轮真的挂上了联网搜索 → 必须明说，否则模型会答「我没有联网功能」。
  */
 function systemPrompt(o: {
   chatId: number;
@@ -209,7 +206,7 @@ export interface AiTurnOptions {
    * 走 system prompt —— 用户消息保持原样，活动条 / 历史里显示的就是输入框里那句话。
    */
   quote?: { chatId: number; messageId: number };
-  /** 用户句首的 /命令 key（/菜单那五项）：作为额外一段 prompt 追加进 system prompt */
+  /** 用户句首的 /命令 key（/ 菜单里列的那项）：作为额外一段 prompt 追加进 system prompt */
   command?: string;
   /** 随这条提问一起发给模型的图片（本机路径，Rust 侧读盘转多模态；可空） */
   images?: string[];
