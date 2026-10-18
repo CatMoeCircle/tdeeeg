@@ -421,8 +421,13 @@ const fitInput = () => {
     if (!el) return;
     el.style.height = '0px';
     const max = LINE * props.maxRows;
-    el.style.height = `${Math.min(el.scrollHeight, max)}px`;
-    el.style.overflowY = el.scrollHeight > max ? 'auto' : 'hidden';
+    const full = el.scrollHeight;
+    el.style.height = `${Math.min(full, max)}px`;
+    const overflow = full > max;
+    el.style.overflowY = overflow ? 'auto' : 'hidden';
+    // 展开到上限后停在最后一行：量高前把高度归零，浏览器会把内部滚动位置丢掉，
+    // 不补回来就从头显示（光标其实在末尾）。光标不在末尾（翻回去改中间）就不抢它的滚动。
+    if (overflow && el.selectionEnd === el.value.length) el.scrollTop = full;
 };
 watch([draft, () => props.maxRows], fitInput, { flush: 'post' });
 
