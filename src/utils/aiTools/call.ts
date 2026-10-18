@@ -28,6 +28,7 @@ import type {
   ToolParam,
 } from "./types.ts";
 import { getTool } from "./registry.ts";
+import { ensureChat } from "../senderInfo";
 
 export interface ToolCall {
   /** 模型侧调用 id，回填 tool 消息时必须带回去 */
@@ -145,6 +146,8 @@ async function resolveApproval(meta: ToolMeta, args: Record<string, unknown>): P
   if (!approvalGate) {
     return { granted: false, reason: "当前没有可用的审核通道，操作已按 fail closed 拒绝" };
   }
+  // 审核卡片要说人话：摘要里的对话 id 由 registry 换成标题，缓存没命中就先拉一次
+  if (typeof args.chat_id === "number") await ensureChat(args.chat_id);
   const req: ApprovalRequest = {
     tool: meta.name,
     args,

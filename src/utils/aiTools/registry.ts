@@ -9,6 +9,7 @@
  */
 import type { ToolMeta, ToolParam, ToolParamType } from "./types.ts";
 import { MARKDOWN_V2_GUIDE } from "./format.ts";
+import { getReactiveChat } from "../senderInfo";
 
 const p = (
   name: string,
@@ -33,6 +34,13 @@ const mdText = () => p("text", "string", true, `正文（按 ${MARKDOWN_V2_GUIDE
 function short(v: unknown, max = 40): string {
   const s = typeof v === "string" ? v : JSON.stringify(v ?? "");
   return s.length > max ? `${s.slice(0, max)}…` : s;
+}
+
+/** 审核卡片上的对话称呼：缓存里有标题就用标题（人看得懂），没有才退回 id */
+function chatName(v: unknown): string {
+  const id = Number(v);
+  const title = Number.isFinite(id) ? getReactiveChat(id)?.title : "";
+  return title ? `「${title}」` : `#${String(v)}`;
 }
 
 export const TOOLS: readonly ToolMeta[] = [
@@ -114,13 +122,13 @@ export const TOOLS: readonly ToolMeta[] = [
   {
     name: "send_message", kind: "write", needsApproval: true, risk: "send",
     desc: `发送文本消息（正文按 ${MARKDOWN_V2_GUIDE}；可回复 / 引用某条消息、可发到指定话题）`,
-    summary: (a) => `在聊天 ${a.chat_id} 发送消息：「${short(a.text)}」${a.reply_to_message_id ? `（回复 ${a.reply_to_message_id}${a.quote ? `，引用「${short(a.quote)}」` : ""}）` : ""}`,
+    summary: (a) => `在聊天 ${chatName(a.chat_id)} 发送消息：「${short(a.text)}」${a.reply_to_message_id ? `（回复 ${a.reply_to_message_id}${a.quote ? `，引用「${short(a.quote)}」` : ""}）` : ""}`,
     params: [chat(), mdText(), p("reply_to_message_id", "number", false, "回复哪条消息"), quote(), p("thread_id", "number", false, "发到哪个话题"), reason()],
   },
   {
     name: "send_media", kind: "write", needsApproval: true, risk: "send",
     desc: `发送本地媒体文件（图片 / 视频 / GIF / 音乐 / 任意文件，可带描述、可回复 / 引用某条消息；描述按 ${MARKDOWN_V2_GUIDE}）`,
-    summary: (a) => `在聊天 ${a.chat_id} 发送 ${Array.isArray(a.files) ? a.files.length : 0} 个媒体文件${a.caption ? `（描述：「${short(a.caption)}」）` : ""}${a.reply_to_message_id ? `（回复 ${a.reply_to_message_id}）` : ""}`,
+    summary: (a) => `在聊天 ${chatName(a.chat_id)} 发送 ${Array.isArray(a.files) ? a.files.length : 0} 个媒体文件${a.caption ? `（描述：「${short(a.caption)}」）` : ""}${a.reply_to_message_id ? `（回复 ${a.reply_to_message_id}）` : ""}`,
     params: [
       chat(),
       p("files", "string[]", true, "本地文件的绝对路径，最多 10 个（同类型的多个会自动组成相册）", 10),
@@ -134,19 +142,19 @@ export const TOOLS: readonly ToolMeta[] = [
   {
     name: "edit_message", kind: "write", needsApproval: true, risk: "modify",
     desc: `编辑消息文本（正文按 ${MARKDOWN_V2_GUIDE}）`,
-    summary: (a) => `把聊天 ${a.chat_id} 的消息 ${a.message_id} 改成：「${short(a.text)}」`,
+    summary: (a) => `把聊天 ${chatName(a.chat_id)} 的消息 ${a.message_id} 改成：「${short(a.text)}」`,
     params: [chat(), p("message_id", "number", true, "要编辑的消息 id"), mdText(), reason()],
   },
   {
     name: "delete_message", kind: "write", needsApproval: true, risk: "destructive",
     desc: "删除消息",
-    summary: (a) => `删除聊天 ${a.chat_id} 的消息 ${a.message_id}${a.revoke === false ? "（只删自己这边）" : "（对所有人撤回）"}`,
+    summary: (a) => `删除聊天 ${chatName(a.chat_id)} 的消息 ${a.message_id}${a.revoke === false ? "（只删自己这边）" : "（对所有人撤回）"}`,
     params: [chat(), p("message_id", "number", true, "要删除的消息 id"), p("revoke", "boolean", false, "true = 对所有人撤回（默认）"), reason()],
   },
   {
     name: "ban_member", kind: "write", needsApproval: true, risk: "destructive",
     desc: "封禁成员（可顺带删除其消息）",
-    summary: (a) => `在聊天 ${a.chat_id} 封禁用户 ${a.member_id}${a.until_date ? `（至 ${new Date(Number(a.until_date) * 1000).toISOString()}）` : "（永久）"}`,
+    summary: (a) => `在聊天 ${chatName(a.chat_id)} 封禁用户 ${a.member_id}${a.until_date ? `（至 ${new Date(Number(a.until_date) * 1000).toISOString()}）` : "（永久）"}`,
     params: [chat(), p("member_id", "number", true, "要封禁的用户 id"), p("until_date", "number", false, "解封时间（Unix 秒）；不传 = 永久"), p("revoke_messages", "boolean", false, "是否同时删除该成员的消息（默认 true）"), reason()],
   },
   {
