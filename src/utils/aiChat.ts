@@ -16,6 +16,7 @@ import { settings } from "../store/settings";
 import { dispatchToolCall, setApprovalSkip } from "./aiTools/call.ts";
 import { MARKDOWN_V2_GUIDE } from "./aiTools/format.ts";
 import { TOOLSETS, toolsSchema } from "./aiTools/schema.ts";
+import { setSearchContext } from "./aiTools/search.ts";
 import type { ToolOutcome } from "./aiTools/types.ts";
 import { trimHistory, type AiActivityItem, type ChatToolCall, type ChatWireMessage } from "./aiChatHistory.ts";
 // 工具实现在被导入时登记自己；AI 入口必须导入它们，否则工具全是 not_implemented
@@ -28,6 +29,52 @@ export type { AiActivityItem, ChatToolCall, ChatWireMessage } from "./aiChatHist
 
 /** ponytail: 单轮最多调用模型 8 次（防跑飞）；可按需调大 */
 const MAX_STEPS = 8;
+
+/**
+ * 托管 web_search 只对**确定支持**的供应商开（与 Rust `hosted_web_search_supported` 同一套判断）：
+ * - OpenAI 自家 Responses、Anthropic ✓
+ * - MiMo 的 /responses 遇到 web_search 直接 400（整轮对话失败）、DeepSeek 收下但不执行、
+ *   Gemini 兼容层没有 /responses、GLM / Kimi / MiniMax 没验证过 → 都不挂，
+ *   要搜索就让用户在「AI 工具」里配搜索接口（客户端调用失败只影响那一次搜索）。
+ */
+function providerHostedSearch(provider: AiProvider): boolean {
+  if (provider.format === "anthropic") return true;
+  if (provider.format !== "openai-responses") return false;
+  try {
+    return new URL(provider.endpoint).host === "api.openai.com";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * DeepSeek 的搜索在独立 Tools API（`{endpoint}/tools/search`）里：Responses 的托管 web_search
+ * 它接受但**不执行**（实测没有 web_search_call，模型直接说查不到），所以必须走客户端工具。
+ */
+const usesToolsApiSearch = (provider: AiProvider) => provider.endpoint.includes("deepseek.com");
+
+/**
+ * 搜索走客户端工具吗：配了独立搜索接口，或当前供应商只认自己的 Tools API（DeepSeek）。
+ * 是 → 前端发 web_search(query) 的函数工具、Rust 去执行；否 → 交给供应商的托管工具。
+ */
+const clientSearch = (provider: AiProvider) =>
+  !!settings.ai.search.endpoint.trim() || usesToolsApiSearch(provider);
+
+/** 发给模型的工具名：设置里关掉的不发（缺省 = 启用）；web_search 只在客户端搜索模式下发 */
+function enabledTools(provider: AiProvider): string[] {
+  return TOOLSETS.all.filter((n) => settings.ai.tools[n] !== false && (n !== "web_search" || clientSearch(provider)));
+}
+
+/** 供应商侧托管搜索是否挂上：工具没关、不走客户端搜索、且这家确定支持托管搜索 */
+function providerSearch(provider: AiProvider): boolean {
+  return settings.ai.tools.web_search !== false && !clientSearch(provider) && providerHostedSearch(provider);
+}
+
+/** 这一轮到底有没有搜索能力（写进 system prompt 用）；没有就别让模型以为自己能搜 */
+function webSearchAvailable(provider: AiProvider): boolean {
+  if (settings.ai.tools.web_search === false) return false;
+  return clientSearch(provider) || providerHostedSearch(provider);
+}
 
 export interface AiActivitySink {
   add(entry: AiActivityItem): void;
@@ -113,6 +160,7 @@ function systemPrompt(o: {
   chatId: number;
   title: string;
   first: boolean;
+  search: boolean;
   quote?: { chatId: number; messageId: number };
   command?: string;
 }): string {
@@ -121,9 +169,17 @@ function systemPrompt(o: {
     "可以调用工具读取聊天内容；需要代用户操作时调用写类工具。",
     "写类工具（发送、编辑、删除、封禁、直接调用 TDLib）会先请用户审核；被拒绝后不要换参数、换工具或换路径重试同一操作，直接告诉用户。",
     "写类工具必须填写 reason（一句话说明原因）。",
+  ];
+  if (o.search) {
+    lines.push(
+      "你有联网搜索能力：需要较新的信息、外部资料或你无法确定的事实时，用 web_search 工具检索后再回答；" +
+        "不要说「我没有联网搜索功能」。",
+    );
+  }
+  lines.push(
     `发送带格式的文本时：${MARKDOWN_V2_GUIDE}`,
     `当前会话标题：「${o.title}」。`,
-  ];
+  );
   if (o.quote) {
     lines.push(
       `The user quoted a message: chat_id=${o.quote.chatId}, message_id=${o.quote.messageId}. ` +
@@ -174,6 +230,7 @@ async function callOnce(o: AiTurnOptions, messages: ChatWireMessage[], tools: un
     tools,
     effort: o.effort,
     maxOutputTokens: o.model.maxOutput,
+    webSearch: providerSearch(o.provider),
   });
   if (reply.reasoning) o.sink.add({ id: nextId(), kind: "thinking", text: reply.reasoning, status: "ok" });
   if (reply.text) o.sink.add({ id: nextId(), kind: "output", text: reply.text, status: "ok" });
@@ -257,6 +314,7 @@ async function callModel(o: AiTurnOptions, messages: ChatWireMessage[], tools: u
       tools,
       effort: o.effort,
       maxOutputTokens: o.model.maxOutput,
+      webSearch: providerSearch(o.provider),
       onEvent: channel,
     });
   } catch (e) {
@@ -302,8 +360,12 @@ export async function runAiTurn(o: AiTurnOptions): Promise<string> {
   // 提问也进活动条：会话里得看得见这句是问什么（与历史回铺时的样子一致）
   o.sink.add({ id: nextId(), kind: "user", text: o.text, status: "ok" });
 
-  const tools = toolsSchema(TOOLSETS.all);
+  const tools = toolsSchema(enabledTools(o.provider));
   let finalText = "";
+
+  // 设置里按工具关掉的审核、以及客户端搜索要用的「这轮是哪个供应商」——每轮现刷一遍
+  setApprovalSkip(settings.ai.skipApproval);
+  setSearchContext({ providerId: o.provider.id, model: o.model.id });
 
   // 每轮之后落盘一次：中途被停止 / 崩了，下次进来还能接着聊
   const persist = async () => {
@@ -316,7 +378,14 @@ export async function runAiTurn(o: AiTurnOptions): Promise<string> {
     // 标题每轮现读：模型上一轮可能刚改过（改了就别再催它改）
     const title = aiConversations.list.find((c) => c.id === o.conversationId)?.title ?? o.title;
     const prompt: ChatWireMessage[] = [
-      { role: "system", text: systemPrompt({ chatId: o.chatId, title, first: first && step === 0, quote: o.quote, command: o.command }) },
+      { role: "system", text: systemPrompt({
+        chatId: o.chatId,
+        title,
+        first: first && step === 0,
+        search: webSearchAvailable(o.provider),
+        quote: o.quote,
+        command: o.command,
+      }) },
       ...history,
     ];
     const called = await callModel(o, prompt, tools);
@@ -330,20 +399,27 @@ export async function runAiTurn(o: AiTurnOptions): Promise<string> {
     });
     if (o.signal.aborted) break;
 
+    // 供应商侧执行的调用（web_search）：结果已在同一次响应里 —— 不 dispatch，也不进历史
+    // （回传时 Anthropic 要求 server_tool_use 紧跟结果块，缺了下一轮直接 400）
+    const clientCalls: ModelCall["toolCalls"] = [];
+    for (const t of called.toolCalls) {
+      if (t.call.providerExecuted) o.sink.update(t.entryId, { status: "ok" });
+      else clientCalls.push(t);
+    }
     history.push({
       role: "assistant",
       text: called.text,
       reasoning: called.reasoning,
-      toolCalls: called.toolCalls.map((t) => t.call),
+      toolCalls: clientCalls.map((t) => t.call),
     });
     finalText = called.text;
-    if (!called.toolCalls.length) {
+    if (!clientCalls.length) {
       await persist();
       return finalText;
     }
 
     // 每个调用都必须回填结果（哪怕已停止），否则下一轮接口会报缺 tool 结果
-    for (const { call, entryId } of called.toolCalls) {
+    for (const { call, entryId } of clientCalls) {
       const outcome: ToolOutcome = o.signal.aborted
         ? { tool: call.name, error: { code: "internal", message: "用户已停止，未执行" } }
         : (await dispatchToolCall(call)).outcome;

@@ -97,6 +97,11 @@ export const TOOLS: readonly ToolMeta[] = [
     desc: "获取某个成员在该聊天里的身份与权限（不传 member_id = 我自己）",
     params: [chat(), p("member_id", "number", false, "成员 id；不传 = 当前登录账户")],
   },
+  {
+    name: "web_search", kind: "read",
+    desc: "联网搜索公开网页（DeepSeek 走自己的搜索接口；其他供应商要么在设置「AI 工具」里配搜索接口，要么支持服务端 web_search）",
+    params: [p("query", "string", true, "搜索词")],
+  },
 
   // --- 本地元数据（不碰 Telegram，不需要审核） ---
   {

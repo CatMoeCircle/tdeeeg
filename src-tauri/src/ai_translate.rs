@@ -136,6 +136,40 @@ fn with_key_flag<R: tauri::Runtime>(app: &tauri::AppHandle<R>, mut p: AiProvider
     p
 }
 
+/// 联网搜索工具的专属 API Key（设置页「AI 工具」里填的）：与供应商 Key 分开存，互不覆盖；
+/// 没配时调用方回退到当前供应商的 Key。
+const SEARCH_KEY_ACCOUNT: &str = "ai.search.api_key";
+
+pub(crate) fn saved_search_key<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Option<String> {
+    app.keyring()
+        .store
+        .get_password(SEARCH_KEY_ACCOUNT)
+        .ok()
+        .flatten()
+        .filter(|k| !k.trim().is_empty())
+}
+
+/// 搜索工具是否已保存专属 Key（设置页用来显示「已保存」）
+#[tauri::command]
+pub fn has_ai_search_key(app: tauri::AppHandle) -> bool {
+    saved_search_key(&app).is_some()
+}
+
+/// 保存搜索工具的专属 Key；传空 = 清掉。返回保存后是否仍有 Key。
+#[tauri::command]
+pub fn save_ai_search_key(app: tauri::AppHandle, api_key: String) -> Result<bool, String> {
+    let key = api_key.trim();
+    if key.is_empty() {
+        app.keyring().store.delete(SEARCH_KEY_ACCOUNT).ok();
+        return Ok(false);
+    }
+    app.keyring()
+        .store
+        .set_password(SEARCH_KEY_ACCOUNT, key)
+        .map_err(|e| format!("保存搜索 API Key 到钥匙串失败: {e}"))?;
+    Ok(true)
+}
+
 /// 供应商列表 + 被用户删掉的预设名（自定义项填同名保存即恢复该预设，见前端 presetForName）。
 /// 旧版本文件是裸数组（只有 providers），由 parse_config 兼容。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

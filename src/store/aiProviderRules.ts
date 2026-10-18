@@ -47,17 +47,22 @@ export interface AiPreset {
   cnOnly?: boolean;
 }
 
+/**
+ * 供应商支持 `POST {endpoint}/responses` 的用 openai-responses，其余用 openai-compatible。
+ * Gemini 的 OpenAI 兼容层只有 /chat/completions（没有 /responses），因此留在 completions；
+ * Claude 走自家 messages 协议。
+ */
 export const AI_PRESETS: readonly AiPreset[] = [
-  { id: 'preset-deepseek', name: 'DeepSeek', endpoint: 'https://api.deepseek.com/v1', format: 'openai-compatible', icon: 'deepseek' },
-  { id: 'preset-openai', name: 'OpenAI', endpoint: 'https://api.openai.com/v1', format: 'openai-compatible', icon: 'openai' },
-  { id: 'preset-xiaomi-mimo', name: 'Xiaomi MiMo', endpoint: 'https://api.xiaomimimo.com/v1', format: 'openai-compatible', icon: 'mimo' },
+  { id: 'preset-deepseek', name: 'DeepSeek', endpoint: 'https://api.deepseek.com/v1', format: 'openai-responses', icon: 'deepseek' },
+  { id: 'preset-openai', name: 'OpenAI', endpoint: 'https://api.openai.com/v1', format: 'openai-responses', icon: 'openai' },
+  { id: 'preset-xiaomi-mimo', name: 'Xiaomi MiMo', endpoint: 'https://api.xiaomimimo.com/v1', format: 'openai-responses', icon: 'mimo' },
   { id: 'preset-claude', name: 'Claude', endpoint: 'https://api.anthropic.com/v1', format: 'anthropic', icon: 'claude' },
-  { id: 'preset-kimi', name: 'Kimi', endpoint: 'https://api.moonshot.ai/v1', format: 'openai-compatible', icon: 'kimi' },
-  { id: 'preset-kimi-cn', name: 'Kimi-CN', endpoint: 'https://api.moonshot.cn/v1', format: 'openai-compatible', icon: 'kimi', cnOnly: true },
-  { id: 'preset-glm', name: '智谱 GLM', endpoint: 'https://api.z.ai/api/paas/v4', format: 'openai-compatible', icon: 'glm' },
-  { id: 'preset-glm-cn', name: '智谱 GLM-CN', endpoint: 'https://open.bigmodel.cn/api/paas/v4', format: 'openai-compatible', icon: 'glm', cnOnly: true },
-  { id: 'preset-minimax', name: 'MiniMax', endpoint: 'https://api.minimax.io/v1', format: 'openai-compatible', icon: 'minimax' },
-  { id: 'preset-minimax-cn', name: 'MiniMax-CN', endpoint: 'https://api.minimaxi.com/v1', format: 'openai-compatible', icon: 'minimax', cnOnly: true },
+  { id: 'preset-kimi', name: 'Kimi', endpoint: 'https://api.moonshot.ai/v1', format: 'openai-responses', icon: 'kimi' },
+  { id: 'preset-kimi-cn', name: 'Kimi-CN', endpoint: 'https://api.moonshot.cn/v1', format: 'openai-responses', icon: 'kimi', cnOnly: true },
+  { id: 'preset-glm', name: '智谱 GLM', endpoint: 'https://api.z.ai/api/paas/v4', format: 'openai-responses', icon: 'glm' },
+  { id: 'preset-glm-cn', name: '智谱 GLM-CN', endpoint: 'https://open.bigmodel.cn/api/paas/v4', format: 'openai-responses', icon: 'glm', cnOnly: true },
+  { id: 'preset-minimax', name: 'MiniMax', endpoint: 'https://api.minimax.io/v1', format: 'openai-responses', icon: 'minimax' },
+  { id: 'preset-minimax-cn', name: 'MiniMax-CN', endpoint: 'https://api.minimaxi.com/v1', format: 'openai-responses', icon: 'minimax', cnOnly: true },
   { id: 'preset-gemini', name: 'Gemini', endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai', format: 'openai-compatible', icon: 'gemini' },
 ];
 

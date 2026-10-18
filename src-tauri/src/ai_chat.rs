@@ -4,12 +4,12 @@
 
 use llmsdk::{
     AssistantPart, CallOptions, Content, FileBytes, FileData, FilePart, FunctionTool, LanguageModel,
-    Message, ReasoningEffort, TextPart, Tool, ToolCallPart, ToolChoice, ToolMessagePart,
-    ToolResultOutput, ToolResultPart, UserPart,
+    Message, ProviderTool, ReasoningEffort, TextPart, Tool, ToolCallPart, ToolChoice,
+    ToolMessagePart, ToolResultOutput, ToolResultPart, UserPart,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::ai_translate::{build_language_model, load_all, saved_api_key};
+use crate::ai_translate::{build_language_model, load_all, saved_api_key, saved_search_key};
 
 /// 前端发来的瘦身消息（形状见 utils/aiChatHistory.ts 的 ChatWireMessage）。
 /// 同时是**落盘历史**的格式（ai_conversation_history / _save_history），所以进出都要能序列化。
@@ -45,6 +45,10 @@ pub struct ChatToolCall {
     pub name: String,
     #[serde(default)]
     pub arguments: serde_json::Value,
+    /// 供应商侧执行（如 web_search）：结果已在同一次响应里，前端不要再 dispatch，
+    /// 也不要写进历史 —— 回传时 Anthropic 要求 server_tool_use 后面紧跟结果，缺了会 400。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_executed: Option<bool>,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -130,7 +134,7 @@ fn to_prompt(messages: Vec<ChatMessage>) -> Result<Vec<Message>, String> {
                             tool_call_id: c.id,
                             tool_name: c.name,
                             input: c.arguments,
-                            provider_executed: None,
+                            provider_executed: c.provider_executed,
                             dynamic: None,
                             provider_options: None,
                         })
@@ -177,6 +181,106 @@ fn to_tools(defs: Vec<serde_json::Value>) -> Result<Vec<Tool>, String> {
         .collect()
 }
 
+/// 联网搜索的供应商侧工具：OpenAI Responses 与 Anthropic 的协议映射。
+/// OpenAI 的 `web_search` 带上 `external_web_access` = 走实时互联网（否则可能只查缓存索引）。
+/// Completions 协议没有服务端工具（返回 None）。
+fn web_search_tool(format: &str) -> Option<Tool> {
+    let (id, args) = match format {
+        "openai-responses" => (
+            "openai.web_search",
+            serde_json::json!({ "external_web_access": true }).as_object().cloned(),
+        ),
+        "anthropic" => ("anthropic.web_search_20250305", None),
+        _ => return None,
+    };
+    Some(Tool::Provider(ProviderTool {
+        id: id.to_string(),
+        name: "web_search".to_string(),
+        args,
+        provider_options: None,
+    }))
+}
+
+/// 托管 web_search 只对**确定支持**的供应商开：OpenAI 自家（Responses）与 Anthropic。
+///
+/// 实测（别删，这条注释就是证据）：
+/// - MiMo 的 `/v1/responses` 遇到 `web_search` 直接 400 `responses_feature_not_supported`
+///   —— 挂上去会让整轮对话失败，比没有搜索坏得多；
+/// - DeepSeek 收下但从不执行（输出里没有 `web_search_call`），它有独立的 `/v1/tools/search`；
+/// - Gemini 的 OpenAI 兼容层压根没有 `/responses`；
+/// - GLM / Kimi / MiniMax 没实测过，不赌 —— 要搜索就让用户在「AI 工具」里配搜索接口
+///   （客户端调用失败只影响那一次搜索，不会毁掉整轮对话）。
+fn hosted_web_search_supported(endpoint: &str, format: &str) -> bool {
+    match format {
+        "anthropic" => true,
+        "openai-responses" => endpoint.contains("api.openai.com"),
+        _ => false,
+    }
+}
+
+/// DeepSeek 的联网搜索**不在** Responses 里：托管 `web_search` 它接受（HTTP 200）但从不执行
+/// （实测输出里没有 `web_search_call`，模型直接答「我无法获取实时数据」），
+/// 真正的搜索是独立的 Tools API：`POST {base}/tools/search`。见 api-docs.deepseek.com/zh-cn/guides/search。
+fn uses_tools_search(base: &str) -> bool {
+    base.contains("deepseek.com")
+}
+
+/// DeepSeek 搜索结果 → 给模型看的文本（标题 / 站点 / 日期 / 摘要 / 链接）。
+fn search_results_text(v: &serde_json::Value) -> Result<String, String> {
+    let results = v
+        .get("results")
+        .and_then(|r| r.as_array())
+        .ok_or_else(|| "搜索接口没有返回 results".to_string())?;
+    if results.is_empty() {
+        return Err("搜索没有结果".to_string());
+    }
+    let mut out = String::new();
+    for (i, r) in results.iter().take(8).enumerate() {
+        let s = |k: &str| r.get(k).and_then(|x| x.as_str()).unwrap_or("");
+        let (title, url, summary, date, site) =
+            (s("title"), s("url"), s("summary"), s("date"), s("site_name"));
+        out.push_str(&format!("{}. {title}", i + 1));
+        if !site.is_empty() {
+            out.push_str(&format!("（{site}）"));
+        }
+        if !date.is_empty() {
+            out.push_str(&format!(" {date}"));
+        }
+        out.push('\n');
+        if !summary.is_empty() {
+            out.push_str(summary.trim());
+            out.push('\n');
+        }
+        if !url.is_empty() {
+            out.push_str(url);
+            out.push('\n');
+        }
+        out.push('\n');
+    }
+    Ok(out.trim_end().to_string())
+}
+
+/// 调 DeepSeek 的 Tools API 搜索，把结果原文给模型（不再多花一次模型调用）。
+async fn tools_search(base: &str, key: &str, query: &str) -> Result<String, String> {
+    let url = format!("{base}/tools/search");
+    let resp = reqwest::Client::new()
+        .post(&url)
+        .bearer_auth(key)
+        .json(&serde_json::json!({ "query": query }))
+        .send()
+        .await
+        .map_err(|e| format!("联网搜索失败: {e}"))?;
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        let snippet: String = body.chars().take(200).collect();
+        return Err(format!("搜索接口请求失败 (HTTP {status}): {snippet}"));
+    }
+    let v: serde_json::Value =
+        serde_json::from_str(&body).map_err(|e| format!("搜索接口返回不合法 JSON: {e}"))?;
+    search_results_text(&v)
+}
+
 /// 思考等级键 → llmsdk；未知值 = provider 默认。
 fn effort_of(key: &str) -> Option<ReasoningEffort> {
     Some(match key {
@@ -190,8 +294,32 @@ fn effort_of(key: &str) -> Option<ReasoningEffort> {
     })
 }
 
+/// Responses 协议的思考开关（`provider_options.openai`）。
+///
+/// llmsdk 0.1.1 的 /responses 适配器**不读** `CallOptions.reasoning`（只有 chat 路径认），
+/// 思考参数只从 provider_options 取；而且模型 id 不是 OpenAI 系（deepseek-flash 这类）时，
+/// 能力探测判为「不会思考」会把 reasoning 块整段丢掉 —— 所以必须显式 `forceReasoning`
+/// 再要 `reasoningSummary`，否则推理模型也只回正文，活动条里一条思考都没有。
+/// `systemMessageMode` 钉成 system：forceReasoning 默认改用 developer 角色，
+/// 非 OpenAI 的 /responses 实现不一定认，保持现在的线上形状。
+fn responses_reasoning(effort: Option<&str>) -> Option<llmsdk::ProviderOptions> {
+    // 关闭档不发思考参数（与 chat 路径的 none 分开：DeepSeek 未必认 effort=none）
+    let effort = effort.filter(|e| !e.is_empty() && *e != "none")?;
+    let openai = serde_json::json!({
+        "forceReasoning": true,
+        "reasoningEffort": effort,
+        "reasoningSummary": "auto",
+        "systemMessageMode": "system",
+    })
+    .as_object()
+    .cloned()?;
+    Some([("openai".to_string(), openai)].into_iter().collect())
+}
+
 /// 单次对话的公共准备：找供应商 / 取钥匙串里的 Key / 建模型 / 转工具与 prompt。
 /// ai_chat（非流式）与 ai_chat_stream（流式）共用这一份，别抄第二遍。
+/// `web_search` = 前端是否要挂供应商侧的联网搜索（设置里关掉、或配了独立搜索接口时为 false）。
+#[allow(clippy::too_many_arguments, reason = "两个命令共用的一次性装配，拆参数结构反而更难读")]
 fn prepare(
     app: &tauri::AppHandle,
     provider_id: &str,
@@ -200,6 +328,7 @@ fn prepare(
     tools: Vec<serde_json::Value>,
     effort: Option<String>,
     max_output_tokens: Option<u32>,
+    web_search: bool,
 ) -> Result<(Box<dyn LanguageModel>, CallOptions), String> {
     let provider = load_all(app)
         .providers
@@ -217,8 +346,19 @@ fn prepare(
     }
 
     let lm = build_language_model(endpoint, &provider.format, &api_key, model_id)?;
-    let tools = to_tools(tools)?;
+    let mut tools = to_tools(tools)?;
+    // 联网搜索由供应商执行；只对确定支持的供应商挂（见 hosted_web_search_supported）
+    if web_search && hosted_web_search_supported(endpoint, &provider.format) {
+        if let Some(search) = web_search_tool(&provider.format) {
+            tools.push(search);
+        }
+    }
     let options = CallOptions {
+        provider_options: if provider.format == "openai-responses" {
+            responses_reasoning(effort.as_deref())
+        } else {
+            None
+        },
         prompt: to_prompt(messages)?,
         tool_choice: (!tools.is_empty()).then_some(ToolChoice::Auto),
         tools: (!tools.is_empty()).then_some(tools),
@@ -240,8 +380,18 @@ pub async fn ai_chat(
     tools: Vec<serde_json::Value>,
     effort: Option<String>,
     max_output_tokens: Option<u32>,
+    web_search: Option<bool>,
 ) -> Result<ChatReply, String> {
-    let (lm, options) = prepare(&app, &provider_id, &model, messages, tools, effort, max_output_tokens)?;
+    let (lm, options) = prepare(
+        &app,
+        &provider_id,
+        &model,
+        messages,
+        tools,
+        effort,
+        max_output_tokens,
+        web_search.unwrap_or(true),
+    )?;
     let result = lm
         .do_generate(options)
         .await
@@ -261,6 +411,7 @@ pub async fn ai_chat(
                 id: c.tool_call_id,
                 name: c.tool_name,
                 arguments: c.input,
+                provider_executed: c.provider_executed,
             }),
             _ => {}
         }
@@ -298,6 +449,7 @@ impl StreamAcc {
                 id: c.tool_call_id,
                 name: c.tool_name,
                 arguments: c.input,
+                provider_executed: c.provider_executed,
             }),
             P::Finish { usage, .. } => {
                 self.usage = ChatUsage {
@@ -336,11 +488,21 @@ pub async fn ai_chat_stream(
     tools: Vec<serde_json::Value>,
     effort: Option<String>,
     max_output_tokens: Option<u32>,
+    web_search: Option<bool>,
     on_event: tauri::ipc::Channel<llmsdk::StreamPart>,
 ) -> Result<ChatReply, String> {
     use futures_util::StreamExt;
 
-    let (lm, options) = prepare(&app, &provider_id, &model, messages, tools, effort, max_output_tokens)?;
+    let (lm, options) = prepare(
+        &app,
+        &provider_id,
+        &model,
+        messages,
+        tools,
+        effort,
+        max_output_tokens,
+        web_search.unwrap_or(true),
+    )?;
     let mut result = lm
         .do_stream(options)
         .await
@@ -354,6 +516,102 @@ pub async fn ai_chat_stream(
         on_event.send(part).map_err(|e| format!("流式推送失败: {e}"))?;
     }
     Ok(acc.into_reply())
+}
+
+/// 搜索工具（前端那个客户端 web_search）的执行出口：把一次检索交给「搜索接口」跑，返回结果文本。
+///
+/// - `endpoint` 非空 = 用搜索自己配的接口：按 OpenAI 兼容的 `/responses` + 服务端 web_search 工具，
+///   Key 用搜索专属 Key（没配就回退当前供应商的 Key），模型用 `search_model`（空 = 会话模型）；
+/// - 空 = 用当前 AI 供应商的地址 / Key / 协议（供应商自己会搜时走这条）。
+#[tauri::command]
+pub async fn ai_web_search(
+    app: tauri::AppHandle,
+    provider_id: String,
+    model: String,
+    query: String,
+    endpoint: String,
+    search_model: String,
+) -> Result<String, String> {
+    let query = query.trim().to_string();
+    if query.is_empty() {
+        return Err("搜索词为空".to_string());
+    }
+    let provider = load_all(&app)
+        .providers
+        .into_iter()
+        .find(|p| p.id == provider_id)
+        .ok_or_else(|| "AI 供应商不存在，请在设置中重新配置".to_string())?;
+    let provider_key =
+        saved_api_key(&app, &provider_id).ok_or_else(|| "未保存 API Key".to_string())?;
+    let custom = endpoint.trim().trim_end_matches('/');
+    let (url, format, model_id, key) = if custom.is_empty() {
+        (
+            provider.endpoint.trim().trim_end_matches('/').to_string(),
+            provider.format.clone(),
+            model.trim().to_string(),
+            provider_key,
+        )
+    } else {
+        (
+            custom.to_string(),
+            "openai-responses".to_string(),
+            search_model.trim().to_string(),
+            saved_search_key(&app).unwrap_or(provider_key),
+        )
+    };
+    // DeepSeek 只认自己的 Tools API：直接搜，不需要搜索模型（也不需要多一次模型调用）
+    if uses_tools_search(&url) {
+        return tools_search(&url, &key, &query).await;
+    }
+    // 搜索模型留空 = 沿用当前会话的模型（两边都空才算真的没模型）
+    let model_id = if model_id.is_empty() {
+        model.trim().to_string()
+    } else {
+        model_id
+    };
+    if model_id.is_empty() {
+        return Err("搜索模型为空：请在设置「AI 工具」里填写搜索模型".to_string());
+    }
+    let Some(tool) = web_search_tool(&format) else {
+        return Err(
+            "当前供应商协议不支持联网搜索：请在设置「AI 工具」里给搜索配置接口地址".to_string(),
+        );
+    };
+    let lm = build_language_model(&url, &format, &key, &model_id)?;
+    let options = CallOptions {
+        prompt: vec![
+            Message::System {
+                content: "你是搜索助手：先用 web_search 检索，再用简洁的中文要点回答，并带上来源链接；\
+                          不要反问、不要编造没搜到的内容。"
+                    .to_string(),
+                provider_options: None,
+            },
+            Message::User {
+                content: vec![UserPart::Text(TextPart { text: query, provider_options: None })],
+                provider_options: None,
+            },
+        ],
+        tools: Some(vec![tool]),
+        tool_choice: Some(ToolChoice::Auto),
+        max_output_tokens: Some(2048),
+        ..Default::default()
+    };
+    let result = lm
+        .do_generate(options)
+        .await
+        .map_err(|e| format!("联网搜索失败: {e}"))?;
+    let text: String = result
+        .content
+        .iter()
+        .filter_map(|c| match c {
+            Content::Text(t) => Some(t.text.as_str()),
+            _ => None,
+        })
+        .collect();
+    if text.trim().is_empty() {
+        return Err("搜索接口没有返回内容".to_string());
+    }
+    Ok(text)
 }
 
 #[cfg(test)]
@@ -482,11 +740,85 @@ mod tests {
     }
 
     /// 流内错误要能报出来（前端据此当本轮失败，而不是当成空回复）
+    /// 思考只挂在 responses 协议上：llmsdk 的 /responses 适配器只认 provider_options，
+    /// 漏了这段推理模型也一条思考都不回（活动条里没有思考条目的根因）。
+    #[test]
+    fn responses_reasoning_options_request_summary() {
+        let po = responses_reasoning(Some("high")).expect("high 要有思考参数");
+        let openai = po.get("openai").expect("键名必须是 openai");
+        assert_eq!(openai.get("reasoningEffort"), Some(&serde_json::json!("high")));
+        assert_eq!(openai.get("reasoningSummary"), Some(&serde_json::json!("auto")));
+        assert_eq!(openai.get("forceReasoning"), Some(&serde_json::json!(true)));
+        // 关闭 / 空 / 未知都不发：不知道的档位宁可不传，也别让接口 400
+        assert!(responses_reasoning(Some("none")).is_none());
+        assert!(responses_reasoning(Some("")).is_none());
+        assert!(responses_reasoning(None).is_none());
+    }
+
     #[test]
     fn stream_error_is_reported() {
         let mut acc = StreamAcc::default();
         let err = acc.push(llmsdk::StreamPart::Error { error: serde_json::json!({ "message": "boom" }) });
         assert!(err.is_some_and(|e| e.contains("boom")));
+    }
+
+    /// 联网搜索只挂在有服务端工具的协议上（Completions 挂上去会被接口当未知工具拒绝），
+    /// 且供应商侧调用要带 provider_executed 标记回前端（否则前端会去 dispatch 它）。
+    #[test]
+    fn web_search_tool_and_provider_executed_flag() {
+        let id = |format: &str| match web_search_tool(format) {
+            Some(Tool::Provider(p)) => Some(p.id),
+            _ => None,
+        };
+        assert_eq!(id("openai-responses").as_deref(), Some("openai.web_search"));
+        assert_eq!(id("anthropic").as_deref(), Some("anthropic.web_search_20250305"));
+        assert!(web_search_tool("openai-compatible").is_none());
+
+        // OpenAI 的 web_search 要显式要实时互联网（external_web_access）
+        let Some(Tool::Provider(openai)) = web_search_tool("openai-responses") else { panic!() };
+        assert_eq!(openai.args.unwrap().get("external_web_access"), Some(&serde_json::json!(true)));
+
+        // 只对确定支持的供应商挂托管搜索：MiMo / DeepSeek 挂上去分别是 400 和静默失效
+        assert!(hosted_web_search_supported("https://api.openai.com/v1", "openai-responses"));
+        assert!(hosted_web_search_supported("https://api.anthropic.com/v1", "anthropic"));
+        assert!(!hosted_web_search_supported("https://api.xiaomimimo.com/v1", "openai-responses"));
+        assert!(!hosted_web_search_supported("https://api.deepseek.com/v1", "openai-responses"));
+        assert!(!hosted_web_search_supported("https://generativelanguage.googleapis.com/v1beta/openai", "openai-compatible"));
+
+        let msgs: Vec<ChatMessage> = serde_json::from_value(serde_json::json!([
+            { "role": "assistant", "text": "", "toolCalls": [
+                { "id": "ws_1", "name": "web_search", "arguments": {}, "providerExecuted": true }
+            ] }
+        ]))
+        .unwrap();
+        let Message::Assistant { content, .. } = &to_prompt(msgs).unwrap()[0] else {
+            panic!("expected assistant")
+        };
+        assert!(matches!(&content[0], AssistantPart::ToolCall(tc) if tc.provider_executed == Some(true)));
+    }
+
+    /// DeepSeek 搜索结果 → 文本：标题 / 站点 / 摘要 / 链接都在；没有结果要报错。
+    /// 顺带钉住「DeepSeek 走 Tools API、别的接口不走」这个判断。
+    #[test]
+    fn formats_search_results_text() {
+        let v = serde_json::json!({
+            "results": [
+                { "title": "成都市天气", "site_name": "墨迹天气",
+                  "date": "2026-10-17T16:00:00+00:00",
+                  "url": "https://tianqi.moji.com/weather/china/sichuan/chengdu",
+                  "summary": "阴 今天12:03更新" }
+            ]
+        });
+        let text = search_results_text(&v).unwrap();
+        assert!(text.contains("成都市天气"));
+        assert!(text.contains("墨迹天气"));
+        assert!(text.contains("tianqi.moji.com"));
+        assert!(text.contains("阴"));
+        assert!(search_results_text(&serde_json::json!({ "results": [] })).is_err());
+        assert!(search_results_text(&serde_json::json!({})).is_err());
+
+        assert!(uses_tools_search("https://api.deepseek.com/v1"));
+        assert!(!uses_tools_search("https://api.openai.com/v1"));
     }
 
     #[test]

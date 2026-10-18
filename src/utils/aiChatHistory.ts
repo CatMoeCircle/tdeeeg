@@ -12,6 +12,8 @@ export interface ChatToolCall {
   id: string;
   name: string;
   arguments: Record<string, unknown>;
+  /** 供应商侧执行（如 web_search）：结果已在响应里，不用前端跑工具、也不进历史 */
+  providerExecuted?: boolean;
 }
 
 /** 与 Rust ChatMessage 对齐（camelCase） */
