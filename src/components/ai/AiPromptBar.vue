@@ -956,9 +956,6 @@ defineExpose({ focusInput });
                     <div v-if="row.header" role="presentation"
                         class="flex items-center gap-2 px-2 pt-2 pb-1 text-[11px] [color:color-mix(in_srgb,var(--pb-ink)_55%,transparent)]">
                         <img v-if="row.avatar" :src="row.avatar" alt="" class="w-4 h-4 rounded-full shrink-0" />
-                        <span v-else
-                            class="w-4 h-4 rounded-full shrink-0 flex items-center justify-center text-[9px] font-semibold [background:color-mix(in_srgb,var(--pb-ink)_12%,transparent)]">{{
-                                row.name[0]?.toUpperCase() }}</span>
                         <span class="truncate font-medium">{{ row.name }}</span>
                         <span class="ml-auto shrink-0">{{ t('aiSettings.modelCount', { count: Number(row.tag) }) }}</span>
                     </div>
@@ -1045,9 +1042,6 @@ defineExpose({ focusInput });
                     @click="toggleModels">
                     <img v-if="current?.group.icon" :src="current.group.icon" alt=""
                         class="w-4 h-4 rounded-full shrink-0" />
-                    <span v-else-if="current"
-                        class="w-4 h-4 rounded-full shrink-0 flex items-center justify-center text-[9px] font-semibold [background:color-mix(in_srgb,var(--pb-ink)_12%,transparent)]">{{
-                            current.group.name[0]?.toUpperCase() }}</span>
                     <span class="max-w-40 truncate">{{ current ? current.model.name : t('aiSettings.unconfigured') }}</span>
                     <ChevronDownIcon class="w-3 h-3 shrink-0" :stroke-width="2.4" />
                 </button>

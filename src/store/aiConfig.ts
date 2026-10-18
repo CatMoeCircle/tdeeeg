@@ -91,7 +91,7 @@ export const aiProviderReady = providerConfigured;
 export interface AiModelGroup {
   id: string;
   name: string;
-  /** 头像地址；空 = 没有图标，界面回退成名称首字母 */
+  /** 头像地址；空 = 没有图标（设置页回退成名称首字母，AI 输入框则不显示头像） */
   icon?: string;
   /** modality = 模型声明的入参模态（如 `text+image->text`），决定图片上传能不能用 */
   models: { id: string; name: string; modality: string | null }[];
