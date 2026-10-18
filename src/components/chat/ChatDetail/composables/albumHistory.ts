@@ -26,9 +26,11 @@ export function groupByAlbum(msgs: message[]): Map<string, message[]> {
     return groups;
 }
 
-/** 相册组是否缺少中间成员（id 跨度 + 1 大于条数即缺成员） */
+/** 相册组是否不完整（sendMessageAlbum 规定相册由 2-10 条消息构成） */
 export function isAlbumGroupIncomplete(group: message[]): boolean {
-    if (group.length < 2) return false;
+    if (group.length === 0) return false;
+    // 相册至少 2 条：只有 1 条时必然被历史切片截断（或其余成员尚未同步）
+    if (group.length < 2) return true;
     let min = group[0].id;
     let max = group[0].id;
     for (const m of group) {
@@ -75,8 +77,10 @@ export async function completeAlbumMembers(chatId: number, msgs: message[]): Pro
                     _: 'getChatHistory',
                     chat_id: chatId,
                     from_message_id: maxId,
-                    offset: 0,
-                    limit: MAX_ALBUM_SIZE,
+                    // 以当前最大 id 为锚点，向更新方向多取 9 条、向后覆盖 9 条：
+                    // 无论缺口在相册前半还是后半，一次请求都能覆盖完整的 2-10 条相册。
+                    offset: -(MAX_ALBUM_SIZE - 1),
+                    limit: MAX_ALBUM_SIZE * 2 - 1,
                     only_local: false,
                 });
                 for (const m of result.messages ?? []) {

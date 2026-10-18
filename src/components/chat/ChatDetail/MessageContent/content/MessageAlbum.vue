@@ -1,6 +1,21 @@
 <template>
     <div ref="rootEl" class="overflow-hidden" :class="borderRadiusClass">
-        <div v-if="layoutItems.length > 0" class="relative" :style="containerStyle">
+        <!-- 文件/音频相册：与图片相册共用同一套组件、footer 与交互，仅内容区用文件行 -->
+        <div v-if="isFileAlbum" class="flex flex-col gap-1 px-1.5">
+            <div v-for="(msg, idx) in messages" :key="msg.id" class="relative min-w-0 w-full max-w-full"
+                :class="{ 'cursor-pointer': selectionMode }" @click.stop="onFileClick(msg)"
+                @contextmenu.prevent.stop="onFileContextMenu($event, idx)">
+                <div v-if="selectionMode"
+                    class="absolute right-1 top-1.5 z-10 w-5 h-5 rounded-full border-2 flex items-center justify-center pointer-events-none select-none"
+                    :class="isSelected(msg.id) ? 'bg-blue-500 border-blue-500' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600'">
+                    <CheckIcon v-if="isSelected(msg.id)" class="w-3.5 h-3.5 text-white" />
+                </div>
+                <MessageFileContent :content="fileContentOf(msg)" :chat-id="chatId" :message-id="msg.id"
+                    :show-caption="false" />
+            </div>
+        </div>
+        <!-- 图片/视频相册：媒体宫格 -->
+        <div v-else-if="layoutItems.length > 0" class="relative" :style="containerStyle">
             <div v-for="item in layoutItems" :key="item.msgId"
                 class="absolute overflow-hidden cursor-pointer bg-gray-200 dark:bg-gray-700"
                 :class="{
@@ -55,28 +70,29 @@
                     :viewCount="lastViewCount" :authorSignature="authorSignature" overMedia />
             </div>
         </div>
-        <!-- 有描述时时间跟在下方，caption 不保留 pb，避免文本与时间之间出现多余边距 -->
-        <div v-if="captionText" class="px-2 pt-1.5 msg-body-text">
-            <MessageTextContent :formattedText="captionFormatted" :chatId="chatId" />
-        </div>
-        <!-- Reactions slot（caption 与时间之间） -->
-        <slot name="reactions" />
-        <span v-if="captionText" class="block text-right px-2 pb-1" :class="isSelf ? 'text-black/50' : 'text-gray-400'">
-            <MessageStatus :date="lastDate" :isOutgoing="isSelf" :sendingState="lastSendingState" :isRead="isRead"
-                :viewCount="lastViewCount" :authorSignature="authorSignature" />
-        </span>
+        <!-- 有描述时 footer 显示 caption + 回应 + 时间；
+             无描述时时间以胶囊悬浮在媒体右下角，footer 只承载回应 -->
+        <AlbumFooter :messages="messages" :isSelf="isSelf" :chatId="chatId" :showTime="isFileAlbum || !!captionText"
+            :isRead="isRead" :authorSignature="authorSignature">
+            <template #reactions>
+                <slot name="reactions" />
+            </template>
+        </AlbumFooter>
     </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, reactive, watch, onMounted } from 'vue';
 import { CheckIcon } from 'lucide-vue-next';
-import type { message } from 'tdlib-types';
+import type { message, messageAudio, messageDocument } from 'tdlib-types';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { tdlibSend, isFileReady, downloadingFiles, safeDownloadFile } from '../../../../../utils/tdlib';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import MessageStatus from './MessageStatus.vue';
-import MessageTextContent from './MessageTextContent.vue';
+import MessageFileContent from './MessageFileContent.vue';
+import AlbumFooter from './AlbumFooter.vue';
+import { useAlbumContent } from '../../composables/useAlbumContent';
+import { isFileAlbum as isFileAlbumMessages } from '../../composables/messageType';
 import { layoutMediaGroup, type MediaGroupSize } from '../../../../../utils/mediaGroupLayout';
 import { openMediaViewer } from '../../../../../store/mediaViewer';
 import { useDownloadStore, remoteIdOf } from '../../../../../store/downloads';
@@ -112,6 +128,26 @@ const emit = defineEmits<{
     (e: 'messageContextMenu', msg: message, x: number, y: number): void;
     (e: 'toggleSelect', msgId: number): void;
 }>();
+
+/** 文件/音频相册：与图片相册共用同一个组件，内容区改用文件行 */
+const isFileAlbum = computed(() => isFileAlbumMessages(props.messages));
+
+/** 文件行内容收窄（分组阶段已保证整组为文档或音频） */
+function fileContentOf(msg: message): messageDocument | messageAudio {
+    return msg.content as messageDocument | messageAudio;
+}
+
+/** 文件相册：多选时点击整行切换选中 */
+function onFileClick(msg: message) {
+    if (props.selectionMode) emit('toggleSelect', msg.id);
+}
+
+/** 文件相册：右键针对被点击的那一条文件 */
+function onFileContextMenu(e: MouseEvent, idx: number) {
+    const msg = props.messages[idx];
+    if (!msg) return;
+    emit('messageContextMenu', msg, e.clientX, e.clientY);
+}
 
 /** 某块媒体是否被选中（仅多选模式） */
 function isSelected(msgId: number): boolean {
@@ -379,6 +415,8 @@ const layoutSize = ref({ width: ALBUM_W, height: ALBUM_W });
 
 // ---- Build layout ----
 function rebuildLayout() {
+    // 文件相册不使用媒体宫格布局，内容区由文件行模板渲染
+    if (isFileAlbum.value) { layoutItems.value = []; return; }
     const msgs = props.messages;
     const n = msgs.length;
     if (n === 0) { layoutItems.value = []; return; }
@@ -844,39 +882,22 @@ function shouldAutoDownloadPhoto(): boolean {
 }
 
 // ---- Computed display helpers ----
-const lastMsg = computed(() => props.messages[props.messages.length - 1]);
-
-// 相册描述显示规则：
-// 仅当相册中【恰好一条】媒体带有非空描述时，才在相册下方显示该描述；
-// 0 条或 2 条及以上媒体带描述时都不显示（否则会显得描述归属不明）。
-const captionedMessages = computed(() =>
-    props.messages.filter((m) => {
-        const c = m.content;
-        return 'caption' in c && !!c.caption?.text;
-    }),
-);
-
-const captionText = computed(() => {
-    if (captionedMessages.value.length !== 1) return '';
-    return (captionedMessages.value[0].content as any).caption?.text || '';
-});
-
-const captionFormatted = computed(() => {
-    if (captionedMessages.value.length !== 1) return { _: 'formattedText' as const, text: '', entities: [] };
-    return (captionedMessages.value[0].content as any).caption || { _: 'formattedText' as const, text: '', entities: [] };
-});
+const { captionText, lastDate, lastSendingState, lastViewCount } = useAlbumContent(() => props.messages);
 
 const borderRadiusClass = computed(() => {
+    // 文件相册始终带气泡，与图片/视频相册的"无 caption 气泡外"规则不同
+    if (isFileAlbum.value) {
+        if (props.isSelf) {
+            return props.commentsBar ? 'rounded-lg rounded-tr-none rounded-b-none' : 'rounded-lg rounded-tr-none';
+        }
+        return props.commentsBar ? 'rounded-lg rounded-tl-none rounded-b-none' : 'rounded-lg rounded-tl-none';
+    }
     // 无可见 caption：相册在气泡外，四角圆角；
     // 底部有频道评论条时下缘压平，由评论白条承接（外层容器 overflow-hidden 收圆角）
     if (!captionText.value) return props.commentsBar ? 'rounded-t-lg rounded-b-none' : 'rounded-lg';
     if (props.isSelf) return 'rounded-lg rounded-tr-none';
     return 'rounded-lg rounded-tl-none';
 });
-
-const lastDate = computed(() => lastMsg.value?.date || 0);
-const lastSendingState = computed(() => lastMsg.value?.sending_state);
-const lastViewCount = computed(() => lastMsg.value?.interaction_info?.view_count);
 
 function formatDuration(seconds: number): string {
     const m = Math.floor(seconds / 60);

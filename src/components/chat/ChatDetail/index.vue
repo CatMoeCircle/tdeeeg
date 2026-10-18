@@ -83,8 +83,9 @@
                                 </div>
                                 <div class="flex min-w-0 max-w-[70%] flex-col"
                                     :class="isSelfAlbum(item) ? 'items-end' : 'items-start'">
+                                    <!-- 文件相册与图片宫格保持相近的固定宽度（MessageAlbum 的 ALBUM_W = 340） -->
                                     <div :class="[
-                                        isFileAlbumItem(item) ? 'w-fit min-w-30' : 'w-min',
+                                        isFileAlbumItem(item) ? 'w-[340px] min-w-30' : 'w-min',
                                         'max-w-full overflow-hidden',
                                         isAlbumBubbleless(item)
                                             ? ''
@@ -124,8 +125,7 @@
                                             :self="isSelfAlbum(item)" :text-color="forwardTextColor(item.messages[0])"
                                             media-inline
                                             @open-source="openForwardSource(item.messages[0].forward_info)" />
-                                        <component :is="isFileAlbumItem(item) ? MessageFileAlbum : MessageAlbum"
-                                            :messages="item.messages" :isSelf="isOutgoingAlbum(item)"
+                                        <MessageAlbum :messages="item.messages" :isSelf="isOutgoingAlbum(item)"
                                             :chatId="chatId" :topicId="topicId"
                                             :commentsBar="!!albumCommentsMsg(item.messages)"
                                             :isRead="isMessageRead(item.messages[item.messages.length - 1])"
@@ -144,7 +144,7 @@
                                                     :isSelf="isSelfAlbum(item)"
                                                     @toggle-reaction="(type: ReactionType) => toggleReaction(chatId!, item.messages[0], type)" />
                                             </template>
-                                        </component>
+                                        </MessageAlbum>
                                         <!-- 图片/视频相册无 caption 时：回应在评论条之前（文件相册的回应已放在组件内时间上方） -->
                                         <ReactionsBar class="w-full"
                                             v-if="hasReactions(item.messages[0]) && !albumHasVisibleCaption(item.messages) && !isFileAlbumItem(item)"
@@ -793,7 +793,6 @@ import Avatar from '../avatar.vue';
 import MessageContent from './MessageContent/index.vue';
 import MessageStatus from './MessageContent/content/MessageStatus.vue';
 import MessageAlbum from './MessageContent/content/MessageAlbum.vue';
-import MessageFileAlbum from './MessageContent/content/MessageFileAlbum.vue';
 import ForwardBanner from './MessageContent/content/ForwardBanner.vue';
 import InlineKeyboard from './MessageContent/content/InlineKeyboard.vue';
 import InlineTranslation from './MessageContent/content/InlineTranslation.vue';

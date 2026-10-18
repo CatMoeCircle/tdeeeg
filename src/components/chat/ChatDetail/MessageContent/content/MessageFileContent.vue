@@ -188,7 +188,7 @@ const props = withDefaults(defineProps<{
     content: messageDocument | messageAudio;
     chatId?: number;
     messageId?: number;
-    /** 相册模式下隐藏 caption（由外层 MessageFileAlbum 统一渲染一次） */
+    /** 相册模式下隐藏 caption（由外层相册组件统一渲染一次） */
     showCaption?: boolean;
 }>(), {
     showCaption: true,
