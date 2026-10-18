@@ -26,6 +26,20 @@ import "./aiTools/read.ts";
 import "./aiTools/viewport.ts";
 import "./aiTools/write.ts";
 
+/**
+ * 开发版热更新的坑：注册表（utils/aiTools/call.ts 的 IMPLEMENTATIONS）是模块级 Map，
+ * 改这几个文件时 Vite 会把 call.ts 换成新实例（空表），而实现模块不重新执行 ——
+ * 于是模型拿着 schema 去调，全返回「工具未实现」。生产包只加载一次，不会遇到。
+ * 这里一改就整页重载，别让「半注册」状态留在正在聊的会话里。
+ */
+if (import.meta.hot) {
+  import.meta.hot.accept(() => window.location.reload());
+  import.meta.hot.accept(
+    ["./aiTools/call.ts", "./aiTools/read.ts", "./aiTools/write.ts", "./aiTools/local.ts", "./aiTools/viewport.ts"],
+    () => window.location.reload(),
+  );
+}
+
 export type { AiActivityItem, ChatToolCall, ChatWireMessage } from "./aiChatHistory.ts";
 
 /** ponytail: 单轮最多调用模型 8 次（防跑飞）；可按需调大 */
