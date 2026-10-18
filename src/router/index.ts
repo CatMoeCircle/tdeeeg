@@ -116,6 +116,12 @@ const router = createRouter({
           component: () => import("../views/settings/AiConversationsSettings.vue"),
         },
         {
+          // AI 工具配置：工具清单 / 开关 / 跳过审核 / 搜索接口（同样从 AI 设置页的入口进）
+          path: "settings/ai/tools",
+          name: "settings-ai-tools",
+          component: () => import("../views/settings/AiToolsSettings.vue"),
+        },
+        {
           path: "settings/translate",
           name: "settings-translate",
           component: () => import("../views/settings/TranslateSettings.vue"),

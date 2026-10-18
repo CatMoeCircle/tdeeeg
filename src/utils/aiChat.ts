@@ -12,7 +12,8 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import type { AiModel, AiProvider } from "../store/aiProviderRules";
 import { aiConversations, loadHistory, recordAiUsage, saveHistory } from "../store/aiConversations";
-import { dispatchToolCall } from "./aiTools/call.ts";
+import { settings } from "../store/settings";
+import { dispatchToolCall, setApprovalSkip } from "./aiTools/call.ts";
 import { MARKDOWN_V2_GUIDE } from "./aiTools/format.ts";
 import { TOOLSETS, toolsSchema } from "./aiTools/schema.ts";
 import type { ToolOutcome } from "./aiTools/types.ts";

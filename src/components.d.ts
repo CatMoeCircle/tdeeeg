@@ -156,6 +156,7 @@ declare module 'vue' {
     SwipeToast: typeof import('./components/common/SwipeToast.vue')['default']
     TButton: typeof import('tdesign-vue-next')['Button']
     TCheckbox: typeof import('tdesign-vue-next')['Checkbox']
+    TDialog: typeof import('tdesign-vue-next')['Dialog']
     TgsPlayer: typeof import('./components/common/TgsPlayer.vue')['default']
     TitleBar: typeof import('./components/TitleBar.vue')['default']
     TitleBarEmojiStatus: typeof import('./components/common/TitleBarEmojiStatus.vue')['default']

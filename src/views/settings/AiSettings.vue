@@ -108,6 +108,29 @@
                     </button>
                 </section>
 
+                <!-- ===== AI 工具：全部工具清单 / 开关 / 跳过审核 / 搜索接口 ===== -->
+                <section class="mb-8">
+                    <div class="flex items-center gap-3 mb-3">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            {{ t('aiSettings.toolsSection') }}</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <button type="button"
+                        class="flex w-full items-center gap-3 px-3 py-2.5 text-left rounded-2xl bg-white/55 dark:bg-gray-800/45 backdrop-blur-md border border-white/50 dark:border-gray-700/40 hover:bg-white/80 dark:hover:bg-gray-800/80 transition-colors"
+                        @click="router.push({ name: 'settings-ai-tools' })">
+                        <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400">
+                            <WrenchIcon class="w-[18px] h-[18px]" />
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                                {{ t('aiSettings.toolsManage') }}</h3>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                                {{ t('aiSettings.toolsDesc') }}</p>
+                        </div>
+                        <ChevronRightIcon class="w-4 h-4 text-gray-400 shrink-0" />
+                    </button>
+                </section>
+
                 <!-- ===== 供应商与模型 ===== -->
                 <div class="flex items-center gap-3 mb-3">
                     <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -355,6 +378,7 @@ import {
     Sparkles as SparklesIcon,
     MessageSquare as MessageSquareIcon,
     Trash2 as Trash2Icon,
+    Wrench as WrenchIcon,
     X as XIcon,
 } from 'lucide-vue-next';
 import { settings } from '../../store/settings';

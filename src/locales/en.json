@@ -1,4 +1,31 @@
 {
+  "aiTools": {
+    "title": "AI tools",
+    "searchSection": "Search tool",
+    "searchDesc": "Search the public web. Leave the endpoint empty to use the current AI provider's endpoint and key (the provider searches for you); fill it in to run searches through that endpoint.",
+    "searchEndpoint": "Endpoint",
+    "searchEndpointPh": "Empty = current AI provider's endpoint and key",
+    "searchModel": "Search model",
+    "searchModelPh": "Empty = the model used in this conversation",
+    "searchKey": "API key",
+    "searchKeyPh": "Empty = current AI provider's key",
+    "searchKeySaved": "Saved (save empty to clear)",
+    "searchKeySave": "Save",
+    "searchKeySavedToast": "Search API key saved",
+    "searchKeyCleared": "Search API key cleared",
+    "searchHint": "Search uses the web_search tool of «endpoint/responses»; DeepSeek uses its own /tools/search. The key is stored in the system keychain.",
+    "toolsSection": "Tools",
+    "toolsDesc": "Disabled tools are not sent to the model. Write tools ask for your approval on every call by default.",
+    "kindRead": "read",
+    "kindWrite": "write",
+    "kindLocal": "local",
+    "skipApproval": "Skip approval",
+    "skipApprovalDesc": "No confirmation card — the AI executes directly",
+    "skipConfirmTitle": "Skip approval for this tool?",
+    "skipConfirmBody": "\"{tool}\" will run without a confirmation card: the AI can execute it without your approval. Only enable this if you fully trust the current model and provider.",
+    "skipConfirmOk": "Enable anyway",
+    "cancel": "Cancel"
+  },
   "login": {
     "title": "Your Phone Number",
     "descLine1": "Please confirm your country code and",
@@ -1164,7 +1191,10 @@
     "inputAiDesc": "Pick a model and ask; the AI reads the chat and sends for you (writes need approval)",
     "conversationsSection": "Sessions",
     "conversationsManage": "Manage all sessions",
-    "conversationsDesc": "Every group's AI sessions: rename, open, delete"
+    "conversationsDesc": "Every group's AI sessions: rename, open, delete",
+    "toolsSection": "Tools",
+    "toolsManage": "AI tools",
+    "toolsDesc": "Full tool list, toggles, approval bypass, and the search endpoint and key"
   },
   "aiInput": {
     "placeholder": "Ask anything",

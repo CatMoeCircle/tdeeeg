@@ -1,4 +1,31 @@
 {
+  "aiTools": {
+    "title": "AI 工具",
+    "searchSection": "搜尋工具",
+    "searchDesc": "聯網搜尋公開網頁。介面位址留空 = 用目前 AI 供應商的介面和 Key（由供應商自己搜）；填了 = 搜尋交給這套介面執行。",
+    "searchEndpoint": "介面位址",
+    "searchEndpointPh": "留空 = 用目前 AI 供應商的介面和 Key",
+    "searchModel": "搜尋模型",
+    "searchModelPh": "留空 = 用目前工作階段的模型",
+    "searchKey": "API Key",
+    "searchKeyPh": "留空 = 用目前 AI 供應商的 Key",
+    "searchKeySaved": "已儲存（留空再儲存 = 清除）",
+    "searchKeySave": "儲存",
+    "searchKeySavedToast": "已儲存搜尋 API Key",
+    "searchKeyCleared": "已清除搜尋 API Key",
+    "searchHint": "搜尋預設走「介面位址/responses」的 web_search 工具；DeepSeek 走它自己的 /tools/search。Key 存在系統鑰匙圈裡。",
+    "toolsSection": "工具清單",
+    "toolsDesc": "關掉的工具不會發給模型。寫入類工具預設每次呼叫都要你確認。",
+    "kindRead": "唯讀",
+    "kindWrite": "寫入",
+    "kindLocal": "本機",
+    "skipApproval": "跳過審核",
+    "skipApprovalDesc": "不再彈確認卡片，AI 會直接執行",
+    "skipConfirmTitle": "確定跳過審核？",
+    "skipConfirmBody": "開啟後「{tool}」被呼叫時不再彈確認卡片，AI 會在你沒有確認的情況下直接執行。只在完全信任目前模型和供應商時開啟。",
+    "skipConfirmOk": "仍然開啟",
+    "cancel": "取消"
+  },
   "login": {
     "title": "您的手機號碼",
     "descLine1": "請確認您的國家區號並",
@@ -1164,7 +1191,10 @@
     "inputAiDesc": "選模型提問；AI 能讀聊天、代你傳訊息（寫入操作先審核）",
     "conversationsSection": "工作階段管理",
     "conversationsManage": "管理全部工作階段",
-    "conversationsDesc": "全部群組的 AI 工作階段：重新命名、開啟、刪除"
+    "conversationsDesc": "全部群組的 AI 工作階段：重新命名、開啟、刪除",
+    "toolsSection": "工具",
+    "toolsManage": "AI 工具",
+    "toolsDesc": "全部工具清單、開關、跳過審核，以及搜尋的介面與 Key"
   },
   "aiInput": {
     "placeholder": "想問什麼…",

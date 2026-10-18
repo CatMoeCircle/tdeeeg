@@ -241,6 +241,25 @@ interface Settings {
     switchButton: boolean;
     /** 一次性标记：首次切到 AI 输入框时已自动开过 switchButton，之后尊重用户手动开关 */
     switchButtonAuto: boolean;
+    /**
+     * 工具开关（见设置页「AI 工具」）：工具名 → 是否启用，缺省 = 启用。
+     * 关掉的工具不进 toolsSchema，模型看不到也就不会调用。
+     */
+    tools: Record<string, boolean>;
+    /**
+     * 跳过审核的工具名：只对 needsApproval 的写类工具有效。
+     * 开启前会弹风险提示（关掉审核 = AI 不经同意直接执行），只在这里加，不按调用放宽。
+     */
+    skipApproval: string[];
+    /**
+     * 联网搜索工具的独立出口：endpoint 非空 = 用这套 OpenAI 兼容 /responses 接口 + 模型执行搜索；
+     * 空 = 用当前 AI 供应商的接口和 Key（由供应商自己执行 web_search）。
+     * API Key 存系统钥匙串（见 ai_translate::save_ai_search_key），不放这里。
+     */
+    search: {
+      endpoint: string;
+      model: string;
+    };
   };
   /** 话题标签栏位置：left=左侧图片样式，top/bottom=悬浮分组栏样式 */
   topicTagBar: {
@@ -414,6 +433,9 @@ const defaultSettings: Settings = {
     approval: "ask",
     switchButton: false,
     switchButtonAuto: false,
+    tools: {},
+    skipApproval: [],
+    search: { endpoint: "", model: "" },
   },
   chatHeaderAvatarPosition: "default",
   topicTagBar: {

@@ -3,6 +3,7 @@
  *
  * 审核（对齐 DSH 的 approval 流程）：
  * - 只读工具不问审核；写类工具一律先要一次审核
+ * - 设置里对某个工具关掉了审核（「AI 工具」页，开启时弹过风险提示）→ 该工具直接放行
  * - 审核是**一次性**的，且绑定这次调用的确切参数：参数变了要重新审核（同 DSH 的 "this exact command once"）
  * - 审核策略 `never` → 需要审核的调用自动拒绝（同 DSH：approval prompts disabled → rejected automatically）
  * - 没有审核通道（UI 没挂 gate）→ fail closed，直接拒绝（同 DSH：without an available answerer, the request fails closed）
@@ -75,6 +76,13 @@ export function registerPrecheck(name: string, check: ToolPrecheck): void {
 
 let approvalPolicy: ApprovalPolicy = "ask";
 let approvalGate: ApprovalGate | null = null;
+/** 跳过审核的工具名（设置页「AI 工具」里开的）：命中的写类调用不再弹卡片 */
+let skippedTools: readonly string[] = [];
+
+/** 设置跳过审核的工具名（每次跑 AI 轮次前按设置刷一遍） */
+export function setApprovalSkip(names: readonly string[]): void {
+  skippedTools = names;
+}
 
 /** 设置审核策略：ask（默认，弹卡片）/ never（需要审核的调用自动拒绝） */
 export function setApprovalPolicy(policy: ApprovalPolicy): void {
@@ -97,6 +105,8 @@ function messageOf(e: unknown): string {
 /** 按策略与通道裁决一次写类调用 */
 async function resolveApproval(meta: ToolMeta, args: Record<string, unknown>): Promise<ApprovalDecision> {
   if (!meta.needsApproval) return { granted: true };
+  // 用户在设置里对这个工具关掉了审核：直接放行（开启时已弹过风险提示）
+  if (skippedTools.includes(meta.name)) return { granted: true };
   if (approvalPolicy === "never") {
     return { granted: false, reason: "当前审核策略为 never：需要审核的调用一律拒绝" };
   }
