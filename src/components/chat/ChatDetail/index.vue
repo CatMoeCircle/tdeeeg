@@ -5135,6 +5135,12 @@ async function onAiPromptSend(text: string, detail: { effort?: string; attachmen
     try {
         await runAiTurn({
             chatId: chatIdNow,
+            // 当前所在线程：论坛话题 / 频道直通消息 / 评论线程。不告诉模型，它读整个聊天、发到 General
+            thread: threadMode.value && threadInfo.value
+                ? { id: threadInfo.value.message_thread_id, chatId: threadInfo.value.chat_id, kind: 'comment' }
+                : topicId.value
+                    ? { id: topicId.value, chatId: chatIdNow, kind: isDirectMessagesChat.value ? 'dm' : 'forum' }
+                    : undefined,
             conversationId: conversation.id,
             title: conversation.title,
             text: prompt,

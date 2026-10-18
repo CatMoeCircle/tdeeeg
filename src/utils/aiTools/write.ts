@@ -16,9 +16,10 @@ import { tdlibSend } from "../tdlib";
 import { getMessagePlainText } from "../messageText";
 import { ensureChat, getReactiveChat } from "../senderInfo";
 import { buildMessageTopicInput } from "../directMessagesTopics";
+import { resolveTopicMode } from "../topicDisplayMode";
 import { classifyAttachment, sendAttachments } from "../attachmentSend";
 import type { AttachmentItem } from "../../store/attachment";
-import { registerImplementation, registerPrecheck } from "./call.ts";
+import { registerImplementation, registerPrecheck, threadOf } from "./call.ts";
 import { parseModeOf, quotePosition, type AiParseMode } from "./format.ts";
 import { singleResult } from "./limits.ts";
 import { assertTdlibMethodAllowed } from "./policy.ts";
@@ -124,15 +125,24 @@ async function replyToOf(
   };
 }
 
+/**
+ * 这个话题所在的会话是不是「频道直通消息（私聊群组）」：这种群的话题要用 messageTopicDirectMessages，
+ * 论坛话题用 messageTopicForum，类型用错 TDLib 直接 400（错误信息还只有 [object Object] 以前那样看不出）。
+ * 判定跟对话页同一套：supergroup 的 is_direct_messages_group，**不是**看 chatType。
+ */
+async function isDmTopicChat(chatId: number): Promise<boolean> {
+  await ensureChat(chatId);
+  return (await resolveTopicMode(getReactiveChat(chatId))).isDirectMessages;
+}
+
 registerImplementation("send_message", async (args): Promise<ToolOutcome> => {
   const chatId = num(args.chat_id, "chat_id");
   const text = String(args.text ?? "");
-  const threadId = optNum(args.thread_id);
+  // 模型没带 thread_id 时跟着当前界面走（不然在话题里问「发一条」会落到 General）
+  const threadId = optNum(args.thread_id) ?? threadOf(chatId);
 
   // 话题输入要区分论坛话题 / 私信话题，沿用应用里的同一套构造
-  await ensureChat(chatId);
-  const chat = getReactiveChat(chatId);
-  const isDm = chat?.type._ === "chatTypePrivate" || chat?.type._ === "chatTypeSecret";
+  const isDm = threadId ? await isDmTopicChat(chatId) : false;
 
   const reply = await replyToOf(chatId, optNum(args.reply_to_message_id), String(args.quote ?? ""));
   const content = await formattedArgs(text, parseModeOf(args.parse_mode), "send_message");
@@ -170,11 +180,9 @@ registerImplementation("send_media", async (args): Promise<ToolOutcome> => {
   const chatId = num(args.chat_id, "chat_id");
   const paths = (Array.isArray(args.files) ? args.files : []).map((f) => String(f));
   const caption = String(args.caption ?? "");
-  const threadId = optNum(args.thread_id);
+  const threadId = optNum(args.thread_id) ?? threadOf(chatId);
 
-  await ensureChat(chatId);
-  const chat = getReactiveChat(chatId);
-  const isDm = chat?.type._ === "chatTypePrivate" || chat?.type._ === "chatTypeSecret";
+  const isDm = threadId ? await isDmTopicChat(chatId) : false;
   // 2GB 以上的文件要 Premium；拿不到登录信息时按非 Premium 保守处理
   const { useUserStore } = await import("../../store/user");
   const isPremium = !!useUserStore().userProfile?.is_premium;

@@ -14,7 +14,8 @@ import { getMessagePlainText } from "../messageText";
 import { ensureChat, ensureUser, getReactiveChat, getReactiveUser, getSenderName } from "../senderInfo";
 import { loadChatAdministrators, loadGroupFullInfo, loadGroupMembers, memberUserId } from "../groupRights";
 import { extractTopicNumber } from "../directMessagesTopics";
-import { registerImplementation } from "./call.ts";
+import { resolveTopicMode } from "../topicDisplayMode";
+import { registerImplementation, threadOf } from "./call.ts";
 import { clampLimit, collectPaged, listResult, singleResult } from "./limits.ts";
 import { linkPreviewInfo, type LinkPreviewInfo } from "./linkPreview.ts";
 import type { ToolOutcome, ToolResult } from "./types.ts";
@@ -116,16 +117,32 @@ async function fetchHistory(opts: {
   fromMessageId?: number;
 }): Promise<{ briefs: MessageBrief[]; truncated: boolean; nextCursor: number }> {
   let from = opts.fromMessageId ?? 0;
+  // 频道直通消息（私聊群组）的话题有自己的历史接口：这种会话 getChatHistory 是空的，
+  // 话题 id 也不是线程根消息 id，getMessageThreadHistory 拿不到 —— 与对话页同一套判定
+  let dmTopic = false;
+  if (opts.threadId) {
+    await ensureChat(opts.chatId);
+    dmTopic = (await resolveTopicMode(getReactiveChat(opts.chatId))).isDirectMessages;
+  }
   const { items, truncated } = await collectPaged<message>(opts.limit, async (size) => {
     const res = opts.threadId
-      ? await tdlibSend({
-          _: "getMessageThreadHistory",
-          chat_id: opts.chatId,
-          message_id: opts.threadId,
-          from_message_id: from,
-          offset: 0,
-          limit: size,
-        })
+      ? dmTopic
+        ? await tdlibSend({
+            _: "getDirectMessagesChatTopicHistory",
+            chat_id: opts.chatId,
+            topic_id: opts.threadId,
+            from_message_id: from,
+            offset: 0,
+            limit: size,
+          })
+        : await tdlibSend({
+            _: "getMessageThreadHistory",
+            chat_id: opts.chatId,
+            message_id: opts.threadId,
+            from_message_id: from,
+            offset: 0,
+            limit: size,
+          })
       : await tdlibSend({
           _: "getChatHistory",
           chat_id: opts.chatId,
@@ -145,9 +162,11 @@ async function fetchHistory(opts: {
 
 registerImplementation("get_recent_messages", async (args): Promise<ToolResult<MessageBrief[]>> => {
   const raw = args.limit as number | undefined;
+  const chatId = num(args.chat_id, "chat_id");
   const { briefs, truncated, nextCursor } = await fetchHistory({
-    chatId: num(args.chat_id, "chat_id"),
-    threadId: optNum(args.thread_id),
+    chatId,
+    // 没传 thread_id 就跟着当前界面：在话题里读历史默认只读这个话题（threadOf 只在同一会话时给值）
+    threadId: optNum(args.thread_id) ?? threadOf(chatId),
     limit: clampLimit("get_recent_messages", raw),
     fromMessageId: optNum(args.before_message_id),
   });

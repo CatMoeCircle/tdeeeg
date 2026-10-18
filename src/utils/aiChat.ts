@@ -14,7 +14,7 @@ import i18n from "../i18n";
 import type { AiModel, AiProvider } from "../store/aiProviderRules";
 import { aiConversations, loadHistory, recordAiUsage, saveHistory } from "../store/aiConversations";
 import { settings } from "../store/settings";
-import { dispatchToolCall, messageOf, setApprovalSkip } from "./aiTools/call.ts";
+import { dispatchToolCall, messageOf, setApprovalSkip, setTurnThread, type TurnThread } from "./aiTools/call.ts";
 import { MARKDOWN_V2_GUIDE } from "./aiTools/format.ts";
 import { TOOLSETS, toolsSchema } from "./aiTools/schema.ts";
 import { setSearchContext } from "./aiTools/search.ts";
@@ -154,7 +154,8 @@ const COMMAND_PROMPTS: Record<string, string> = {
  * system prompt。`title` 是当前会话标题（新建时会先填用户那句话，模型可以改）；
  * `first` = 这是本会话的第一条消息 → 让模型顺手给会话起个标题；
  * `command` = 用户句首用的是哪个 /命令（见 COMMAND_PROMPTS）；
- * `search` = 这一轮真的挂上了联网搜索 → 必须明说，否则模型会答「我没有联网功能」。
+ * `search` = 这一轮真的挂上了联网搜索 → 必须明说，否则模型会答「我没有联网功能」；
+ * `thread` = 当前所在的线程 → 不说清它就把消息发到 General / 别的话题去了。
  */
 function systemPrompt(o: {
   chatId: number;
@@ -163,6 +164,7 @@ function systemPrompt(o: {
   search: boolean;
   quote?: { chatId: number; messageId: number };
   command?: string;
+  thread?: AiTurnThread;
 }): string {
   const lines = [
     `你是 tdgram（Telegram 客户端）里的 AI 助手。当前聊天 chat_id = ${o.chatId}。`,
@@ -180,6 +182,21 @@ function systemPrompt(o: {
     `发送带格式的文本时：${MARKDOWN_V2_GUIDE}`,
     `当前会话标题：「${o.title}」。`,
   );
+  if (o.thread) {
+    // 线程 id 与「消息真正的落脚点」都要给：评论线程在讨论组，话题就在当前聊天
+    const what =
+      o.thread.kind === "dm"
+        ? "频道直通消息（与某人的私信话题）"
+        : o.thread.kind === "comment"
+          ? "频道帖子的评论线程"
+          : "群组论坛话题";
+    lines.push(
+      `用户现在在${what}里：thread_id = ${o.thread.id}。` +
+        (o.thread.chatId === o.chatId ? "" : `这条线程的消息实际在 chat_id = ${o.thread.chatId}（讨论组），读写都用这个 chat_id。`) +
+        "读历史要带这个 thread_id（get_recent_messages 的 thread_id，别读整个聊天）；" +
+        "发送要带同一个 thread_id（send_message / send_media 的 thread_id）—— 不带会落到别的话题或 General。",
+    );
+  }
   if (o.quote) {
     lines.push(
       `The user quoted a message: chat_id=${o.quote.chatId}, message_id=${o.quote.messageId}. ` +
@@ -197,8 +214,16 @@ function systemPrompt(o: {
   return lines.join("\n");
 }
 
+/** 当前线程 + 它是哪种线程（决定 prompt 措辞；工具只需 id / chatId） */
+export interface AiTurnThread extends TurnThread {
+  /** forum = 群组论坛话题；dm = 频道直通消息；comment = 频道帖子的评论线程 */
+  kind: "forum" | "dm" | "comment";
+}
+
 export interface AiTurnOptions {
   chatId: number;
+  /** 当前所在的线程（论坛话题 / 频道直通消息 / 评论线程）：进 prompt，也给工具当默认 thread_id */
+  thread?: AiTurnThread;
   /** 当前会话 id：历史按它对账、落盘（切会话不会串上下文） */
   conversationId: string;
   /** 该会话的标题（进 prompt 用；模型改了会从 store 现读） */
@@ -426,6 +451,8 @@ export async function runAiTurn(o: AiTurnOptions): Promise<string> {
   // 设置里按工具关掉的审核、以及客户端搜索要用的「这轮是哪个供应商」——每轮现刷一遍
   setApprovalSkip(settings.ai.skipApproval);
   setSearchContext({ providerId: o.provider.id, model: o.model.id });
+  // 当前线程：模型忘了带 thread_id 时由工具兜底（写错线程的消息用户是能看见的）
+  setTurnThread(o.thread ?? null);
 
   // 每轮之后落盘一次：中途被停止 / 崩了，下次进来还能接着聊
   const persist = async () => {
@@ -445,6 +472,7 @@ export async function runAiTurn(o: AiTurnOptions): Promise<string> {
         search: webSearchAvailable(o.provider),
         quote: o.quote,
         command: o.command,
+        thread: o.thread,
       }) },
       ...history,
     ];

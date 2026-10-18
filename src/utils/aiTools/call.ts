@@ -112,6 +112,28 @@ export function messageOf(e: unknown): string {
   return String(e);
 }
 
+// --- 当前线程（论坛话题 / 频道直通消息 / 评论线程） ---
+
+/** 这一轮用户所在线程；工具没显式传 thread_id 时用它兜底 */
+export interface TurnThread {
+  /** 话题 / 线程 id */
+  id: number;
+  /** 这些消息真正所在的会话：评论线程 = 讨论组，话题 = 当前聊天 */
+  chatId: number;
+}
+
+let turnThread: TurnThread | null = null;
+
+/** 每轮开始按当前界面刷新（null = 不在任何线程里） */
+export function setTurnThread(thread: TurnThread | null): void {
+  turnThread = thread;
+}
+
+/** thread_id 的默认值：只有 chat_id 正好是线程所在会话时才补，避免读别的聊天时张冠李戴 */
+export function threadOf(chatId: number): number | undefined {
+  return turnThread && turnThread.chatId === chatId ? turnThread.id : undefined;
+}
+
 /** 按策略与通道裁决一次写类调用 */
 async function resolveApproval(meta: ToolMeta, args: Record<string, unknown>): Promise<ApprovalDecision> {
   if (!meta.needsApproval) return { granted: true };
