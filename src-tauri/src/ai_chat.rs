@@ -8,8 +8,15 @@ use llmsdk::{
     ToolMessagePart, ToolResultOutput, ToolResultPart, UserPart,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::Mutex;
+use tokio::sync::oneshot;
 
 use crate::ai_translate::{build_language_model, load_all, saved_api_key, saved_search_key};
+
+/// 正在跑的流式请求：request_id → 取消信号。前端点「停止」时通过 ai_chat_cancel 触发。
+#[derive(Default)]
+pub struct AiCancelState(Mutex<HashMap<String, oneshot::Sender<()>>>);
 
 /// 前端发来的瘦身消息（形状见 utils/aiChatHistory.ts 的 ChatWireMessage）。
 /// 同时是**落盘历史**的格式（ai_conversation_history / _save_history），所以进出都要能序列化。
@@ -60,7 +67,7 @@ pub struct ChatUsage {
     pub cache_write_tokens: Option<u64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatReply {
     pub text: String,
@@ -482,6 +489,7 @@ impl StreamAcc {
 #[tauri::command]
 pub async fn ai_chat_stream(
     app: tauri::AppHandle,
+    state: tauri::State<'_, AiCancelState>,
     provider_id: String,
     model: String,
     messages: Vec<ChatMessage>,
@@ -489,6 +497,7 @@ pub async fn ai_chat_stream(
     effort: Option<String>,
     max_output_tokens: Option<u32>,
     web_search: Option<bool>,
+    request_id: String,
     on_event: tauri::ipc::Channel<llmsdk::StreamPart>,
 ) -> Result<ChatReply, String> {
     use futures_util::StreamExt;
@@ -503,19 +512,44 @@ pub async fn ai_chat_stream(
         max_output_tokens,
         web_search.unwrap_or(true),
     )?;
-    let mut result = lm
-        .do_stream(options)
-        .await
-        .map_err(|e| format!("AI 对话失败: {e}"))?;
-    let mut acc = StreamAcc::default();
-    while let Some(part) = result.stream.next().await {
-        let part = part.map_err(|e| format!("AI 对话失败: {e}"))?;
-        if let Some(err) = acc.push(part.clone()) {
-            return Err(format!("AI 对话失败: {err}"));
+    // 先登记取消信号再开流：前端一按停止（ai_chat_cancel）这里立刻就能收到
+    let (tx, mut rx) = oneshot::channel::<()>();
+    state.0.lock().unwrap().insert(request_id.clone(), tx);
+    let out = async move {
+        let mut result = lm
+            .do_stream(options)
+            .await
+            .map_err(|e| format!("AI 对话失败: {e}"))?;
+        let mut acc = StreamAcc::default();
+        loop {
+            tokio::select! {
+                biased;
+                // 已停止：丢掉 stream（连接随之断开），返回空回复 —— 前端 signal 已 abort，
+                // 这一轮不会被写进历史（见 utils/aiChat.ts runAiTurn）
+                _ = &mut rx => return Ok(ChatReply::default()),
+                part = result.stream.next() => {
+                    let Some(part) = part else { break };
+                    let part = part.map_err(|e| format!("AI 对话失败: {e}"))?;
+                    if let Some(err) = acc.push(part.clone()) {
+                        return Err(format!("AI 对话失败: {err}"));
+                    }
+                    on_event.send(part).map_err(|e| format!("流式推送失败: {e}"))?;
+                }
+            }
         }
-        on_event.send(part).map_err(|e| format!("流式推送失败: {e}"))?;
+        Ok(acc.into_reply())
     }
-    Ok(acc.into_reply())
+    .await;
+    state.0.lock().unwrap().remove(&request_id);
+    out
+}
+
+/// 停止正在跑的流式请求：前端点「停止」时调用。找不到 id = 请求已经结束，忽略。
+#[tauri::command]
+pub fn ai_chat_cancel(state: tauri::State<'_, AiCancelState>, request_id: String) {
+    if let Some(tx) = state.0.lock().unwrap().remove(&request_id) {
+        let _ = tx.send(());
+    }
 }
 
 /// 搜索工具（前端那个客户端 web_search）的执行出口：把一次检索交给「搜索接口」跑，返回结果文本。

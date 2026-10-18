@@ -1241,7 +1241,9 @@
     "output": "Результат",
     "copy": "Копировать",
     "copied": "Скопировано",
-    "copyFailed": "Не удалось скопировать"
+    "copyFailed": "Не удалось скопировать",
+    "retry": "Запрос прерван — повтор ({n}/{max}): {reason}",
+    "requestFailed": "Запрос не выполнен: {reason}"
   },
   "aiConversations": {
     "title": "Сессии",

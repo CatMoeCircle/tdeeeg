@@ -766,7 +766,7 @@ import MessageInput from './MessageInput.vue';
 import AiPromptBar from '../../ai/AiPromptBar.vue';
 import AiActivityStrip, { type AiActivityEntry, type AiApprovalLine } from '../../ai/AiActivityStrip.vue';
 import AiConversationDialog from '../../ai/AiConversationDialog.vue';
-import { runAiTurn, AiTurnLimitError, dropHistory, type AiActivitySink } from '../../../utils/aiChat';
+import { runAiTurn, cancelAiStream, AiTurnLimitError, dropHistory, type AiActivitySink } from '../../../utils/aiChat';
 import { historyToActivity } from '../../../utils/aiChatHistory';
 import { setApprovalGate, setApprovalPolicy } from '../../../utils/aiTools/call';
 import type { ApprovalDecision, ApprovalRequest } from '../../../utils/aiTools/types';
@@ -5126,6 +5126,11 @@ async function onAiPromptSend(text: string, detail: { effort?: string; attachmen
             if (!controller.signal.aborted)
                 aiActivityEntries.value = aiActivityEntries.value.map((e) => (e.id === id ? { ...e, ...patch } : e));
         },
+        // 流式中途失败要重试：把这次尝试画了一半的条目撤掉（见 utils/aiChat 的 callModel）
+        remove: (ids) => {
+            const drop = new Set<string | number>(ids);
+            aiActivityEntries.value = aiActivityEntries.value.filter((e) => !drop.has(e.id));
+        },
     };
     try {
         await runAiTurn({
@@ -5143,8 +5148,19 @@ async function onAiPromptSend(text: string, detail: { effort?: string; attachmen
             signal: controller.signal,
         });
     } catch (e) {
-        if (e instanceof AiTurnLimitError) void toast.warning(t('aiInput.maxSteps'));
-        else await toast.error(String(e));
+        if (e instanceof AiTurnLimitError) {
+            void toast.warning(t('aiInput.maxSteps'));
+        } else {
+            // 失败原因写进活动条（对话里看得见），别只在 toast 里闪一下
+            const reason = e instanceof Error ? e.message : String(e);
+            sink.add({
+                id: `ai-failed-${Date.now()}`,
+                kind: 'output',
+                status: 'error',
+                text: t('aiActivity.requestFailed', { reason }),
+            });
+            void toast.error(reason);
+        }
     } finally {
         // 停止时已经提前收尾（onAiStop），这里只收自己那一轮
         if (aiAbort === controller) {
@@ -5154,9 +5170,10 @@ async function onAiPromptSend(text: string, detail: { effort?: string; attachmen
     }
 }
 
-/** 停止：立即释放输入框（请求本身在后端跑完，结果被丢弃），挂着的审核卡片按拒绝收掉 */
+/** 停止：立即释放输入框，并让 Rust 真正中断请求（abort 只停界面，不传后端），挂着的审核卡片按拒绝收掉 */
 function onAiStop() {
     aiAbort?.abort();
+    cancelAiStream();
     aiAbort = null;
     aiBusy.value = false;
     resolveAiActivity(false);
@@ -5287,6 +5304,7 @@ function resetState() {
     chat.value = undefined;
     // 活动条是聊天内的临时状态：换聊天就清掉，没用过 AI 的聊天不会残留上一条
     aiAbort?.abort();
+    cancelAiStream();
     aiAbort = null;
     aiBusy.value = false;
     aiActivityEntries.value = [];

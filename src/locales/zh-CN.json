@@ -1250,7 +1250,9 @@
     "output": "输出",
     "copy": "复制",
     "copied": "已复制",
-    "copyFailed": "复制失败"
+    "copyFailed": "复制失败",
+    "retry": "请求中断，正在重试（{n}/{max}）：{reason}",
+    "requestFailed": "请求失败：{reason}"
   },
   "aiConversations": {
     "title": "会话管理",

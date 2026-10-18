@@ -1243,7 +1243,9 @@
     "output": "輸出",
     "copy": "複製",
     "copied": "已複製",
-    "copyFailed": "複製失敗"
+    "copyFailed": "複製失敗",
+    "retry": "請求中斷，正在重試（{n}/{max}）：{reason}",
+    "requestFailed": "請求失敗：{reason}"
   },
   "aiConversations": {
     "title": "工作階段管理",

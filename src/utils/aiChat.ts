@@ -10,10 +10,11 @@
  * 所以切对话 / 切聊天 / 重启进程都不会丢上下文。纯逻辑（截断、历史→活动条）在 aiChatHistory.ts。
  */
 import { Channel, invoke } from "@tauri-apps/api/core";
+import i18n from "../i18n";
 import type { AiModel, AiProvider } from "../store/aiProviderRules";
 import { aiConversations, loadHistory, recordAiUsage, saveHistory } from "../store/aiConversations";
 import { settings } from "../store/settings";
-import { dispatchToolCall, setApprovalSkip } from "./aiTools/call.ts";
+import { dispatchToolCall, messageOf, setApprovalSkip } from "./aiTools/call.ts";
 import { MARKDOWN_V2_GUIDE } from "./aiTools/format.ts";
 import { TOOLSETS, toolsSchema } from "./aiTools/schema.ts";
 import { setSearchContext } from "./aiTools/search.ts";
@@ -79,6 +80,8 @@ function webSearchAvailable(provider: AiProvider): boolean {
 export interface AiActivitySink {
   add(entry: AiActivityItem): void;
   update(id: string, patch: Partial<AiActivityItem>): void;
+  /** 丢掉条目：流式中途失败重试时，把这次尝试画了一半的内容撤掉（可选，预览场景可以没有） */
+  remove?(ids: readonly string[]): void;
 }
 
 /** 轮数用尽仍未结束：调用方据此提示用户（不是错误，历史已保留） */
@@ -245,14 +248,38 @@ async function callOnce(o: AiTurnOptions, messages: ChatWireMessage[], tools: un
   return { text: reply.text, reasoning: reply.reasoning, toolCalls, usage: reply.usage };
 }
 
+/** 异常 → 给用户看的一句话（活动条里展示失败原因；TDLib 的报错对象也要能读出来） */
+const errText = messageOf;
+
+/**
+ * 流式断流的重试上限：**已经收到内容**之后才失败（网络抖动）就重试这么多次，每次从头重来。
+ * 首次就失败（一个字都没收到）= 配置 / 参数错，重试没用：仍退回 callOnce，不让功能退化。
+ */
+const MAX_STREAM_RETRIES = 5;
+
+/** 流式请求 id 自增：停止时用它在 Rust 侧定位那次请求（见 ai_chat_cancel） */
+let streamSeq = 0;
+/** 正在跑的流式请求 id（一轮只跑一个） */
+let activeStreamId: string | null = null;
+
+/**
+ * 停止：通知 Rust 真正中断当前流式请求。前端 signal.abort 只停界面，请求本身会在后端跑完 ——
+ * 所以点停止后除了 abort，还必须调这个。找不到 id = 已经结束，忽略。
+ */
+export function cancelAiStream(): void {
+  if (!activeStreamId) return;
+  const id = activeStreamId;
+  activeStreamId = null;
+  void invoke("ai_chat_cancel", { requestId: id }).catch(() => {});
+}
+
 /**
  * 一次模型调用：流式为主。增量块只用来画界面，最终结果用命令的返回值。
- * 流式一个字都没收到就失败（老二进制 / 供应商不支持）→ 退回 callOnce，不让功能退化。
+ * 中途断流会重试（最多 MAX_STREAM_RETRIES 次），半截内容先撤掉再重画，不跟重试输出叠一起。
  */
 async function callModel(o: AiTurnOptions, messages: ChatWireMessage[], tools: unknown[]): Promise<ModelCall> {
-  const channel = new Channel<StreamPart>();
-  let received = false;
-  /** 界面上的实时文本 / 思考（增量累加，用于逐字更新） */
+  let reply: ChatReply | null = null;
+  /** 界面上的实时文本 / 思考（每次尝试各自累加，重试从头来） */
   let liveText = "";
   let liveReason = "";
   /** 文本 / 思考条目的 id（第一次收到增量时才建条目） */
@@ -260,66 +287,102 @@ async function callModel(o: AiTurnOptions, messages: ChatWireMessage[], tools: u
   let thinkId = "";
   /** 流式工具参数：分段 id（= 工具调用 id）→ 活动条条目 id + 已收参数片段 */
   const toolEntry = new Map<string, { entryId: string; args: string }>();
+  /** 这次尝试加进活动条的条目 id：中途失败要整批撤掉 */
+  let added: string[] = [];
 
-  channel.onmessage = (p) => {
-    received = true;
-    switch (p.type) {
-      case "text-delta":
-        liveText += p.delta ?? "";
-        if (!textId) {
-          textId = nextId();
-          o.sink.add({ id: textId, kind: "output", text: liveText, status: "running" });
-        } else {
-          o.sink.update(textId, { text: liveText });
+  for (let attempt = 0; reply === null; attempt++) {
+    liveText = "";
+    liveReason = "";
+    textId = "";
+    thinkId = "";
+    toolEntry.clear();
+    added = [];
+    let received = false;
+
+    const channel = new Channel<StreamPart>();
+    channel.onmessage = (p) => {
+      received = true;
+      switch (p.type) {
+        case "text-delta":
+          liveText += p.delta ?? "";
+          if (!textId) {
+            textId = nextId();
+            added.push(textId);
+            o.sink.add({ id: textId, kind: "output", text: liveText, status: "running" });
+          } else {
+            o.sink.update(textId, { text: liveText });
+          }
+          break;
+        case "reasoning-delta":
+          liveReason += p.delta ?? "";
+          if (!thinkId) {
+            thinkId = nextId();
+            added.push(thinkId);
+            o.sink.add({ id: thinkId, kind: "thinking", text: liveReason, status: "running" });
+          } else {
+            o.sink.update(thinkId, { text: liveReason });
+          }
+          break;
+        case "tool-input-start": {
+          const entryId = nextId();
+          toolEntry.set(p.id ?? "", { entryId, args: "" });
+          added.push(entryId);
+          o.sink.add({ id: entryId, kind: "tool", text: p.toolName ?? "", input: "", status: "running" });
+          break;
         }
-        break;
-      case "reasoning-delta":
-        liveReason += p.delta ?? "";
-        if (!thinkId) {
-          thinkId = nextId();
-          o.sink.add({ id: thinkId, kind: "thinking", text: liveReason, status: "running" });
-        } else {
-          o.sink.update(thinkId, { text: liveReason });
+        case "tool-input-delta": {
+          const cur = toolEntry.get(p.id ?? "");
+          if (cur) {
+            cur.args += p.delta ?? "";
+            o.sink.update(cur.entryId, { input: cur.args });
+          }
+          break;
         }
-        break;
-      case "tool-input-start": {
-        const entryId = nextId();
-        toolEntry.set(p.id ?? "", { entryId, args: "" });
-        o.sink.add({ id: entryId, kind: "tool", text: p.toolName ?? "", input: "", status: "running" });
-        break;
+        // finish / 工具调用全量块不在这里拼：那些用返回值
+        default:
+          break;
       }
-      case "tool-input-delta": {
-        const cur = toolEntry.get(p.id ?? "");
-        if (cur) {
-          cur.args += p.delta ?? "";
-          o.sink.update(cur.entryId, { input: cur.args });
-        }
-        break;
+    };
+
+    const requestId = `ai-${++streamSeq}`;
+    activeStreamId = requestId;
+    try {
+      reply = await invoke<ChatReply>("ai_chat_stream", {
+        providerId: o.provider.id,
+        model: o.model.id,
+        messages,
+        tools,
+        effort: o.effort,
+        maxOutputTokens: o.model.maxOutput,
+        webSearch: providerSearch(o.provider),
+        requestId,
+        onEvent: channel,
+      });
+    } catch (e) {
+      // 用户按了停止：不重试
+      if (o.signal.aborted) throw e;
+      // 首次尝试一个字都没收到：不重试，退回一次性请求
+      if (!received && attempt === 0) {
+        console.warn("[aiChat] 流式不可用，退回一次性请求:", e);
+        return callOnce(o, messages, tools);
       }
-      // finish / 工具调用全量块不在这里拼：那些用返回值
-      default:
-        break;
+      if (attempt >= MAX_STREAM_RETRIES) throw e;
+      // 半截内容已经画在活动条上了：撤掉再重试，否则重试的整段会跟它叠在一起
+      o.sink.remove?.(added);
+      // 重试的原因写进对话里，别只丢控制台
+      o.sink.add({
+        id: nextId(),
+        kind: "output",
+        status: "error",
+        text: i18n.global.t("aiActivity.retry", { n: attempt + 1, max: MAX_STREAM_RETRIES, reason: errText(e) }),
+      });
+      console.warn(`[aiChat] 流式中途失败，重试第 ${attempt + 1}/${MAX_STREAM_RETRIES} 次:`, e);
+    } finally {
+      // 这一轮请求结束（正常 / 停止 / 失败）：别再让停止点到下一次尝试的 id 上
+      if (activeStreamId === requestId) activeStreamId = null;
     }
-  };
-
-  let reply: ChatReply;
-  try {
-    reply = await invoke<ChatReply>("ai_chat_stream", {
-      providerId: o.provider.id,
-      model: o.model.id,
-      messages,
-      tools,
-      effort: o.effort,
-      maxOutputTokens: o.model.maxOutput,
-      webSearch: providerSearch(o.provider),
-      onEvent: channel,
-    });
-  } catch (e) {
-    // 已经收到过内容：流中途失败就是失败，重试只会让内容重复一遍
-    if (received) throw e;
-    console.warn("[aiChat] 流式不可用，退回一次性请求:", e);
-    return callOnce(o, messages, tools);
   }
+  if (!reply) throw new Error("[aiChat] 流式请求没有返回结果");
 
   // 供应商没给增量（只回了整段）时补上条目，别让回复在活动条里凭空消失
   if (textId) {
@@ -386,6 +449,8 @@ export async function runAiTurn(o: AiTurnOptions): Promise<string> {
       ...history,
     ];
     const called = await callModel(o, prompt, tools);
+    // 已停止：这次调用被取消（Rust 返回空回复），不算一次记账、也不写进历史
+    if (o.signal.aborted) break;
     // 每次模型调用记一次账（含工具轮），不是每次发送记一次；
     // 接口没返回 usage 就用 prompt / 回复原文本地估算，次数同样 +1（见 store recordAiUsage）
     await recordAiUsage(o.chatId, o.conversationId, {
@@ -394,7 +459,6 @@ export async function runAiTurn(o: AiTurnOptions): Promise<string> {
       promptText: JSON.stringify(prompt),
       completionText: called.text + called.reasoning,
     });
-    if (o.signal.aborted) break;
 
     // 供应商侧执行的调用（web_search）：结果已在同一次响应里 —— 不 dispatch，也不进历史
     // （回传时 Anthropic 要求 server_tool_use 紧跟结果块，缺了下一轮直接 400）

@@ -1243,7 +1243,9 @@
     "output": "Output",
     "copy": "Copy",
     "copied": "Copied",
-    "copyFailed": "Copy failed"
+    "copyFailed": "Copy failed",
+    "retry": "Request interrupted — retrying ({n}/{max}): {reason}",
+    "requestFailed": "Request failed: {reason}"
   },
   "aiConversations": {
     "title": "Sessions",

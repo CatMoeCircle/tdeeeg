@@ -223,6 +223,7 @@ pub fn run() {
                 data_loc::resolve_current_data_dir(app.handle()).map_err(|e| e.to_string())?;
             std::fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
             app.manage(tdlib::AppState::new(data_dir));
+            app.manage(ai_chat::AiCancelState::default());
 
             // 下载记录延迟写库：updateFile 进度与登记只改内存并记账，这里合并写入 SQLite。
             // 完成/暂停/取消等状态变化仍由 store 立即落库（DownloadStore::save_now）。
@@ -374,6 +375,7 @@ pub fn run() {
             ai_chat::ai_chat,
             ai_chat::ai_chat_stream,
             ai_chat::ai_web_search,
+            ai_chat::ai_chat_cancel,
             ai_conversations::ai_conversation_create,
             ai_conversations::ai_conversation_list,
             ai_conversations::ai_conversation_list_all,

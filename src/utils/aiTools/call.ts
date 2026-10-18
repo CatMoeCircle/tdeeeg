@@ -98,8 +98,18 @@ export function setApprovalGate(gate: ApprovalGate | null): void {
   approvalGate = gate;
 }
 
-function messageOf(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
+/**
+ * 异常 → 一句话。TDLib 的报错不是 Error，而是裸对象 `{_: "error", code, message}`（见 utils/tdlib 的 throw），
+ * 直接 String() 只会得到 "[object Object]"，把真正的原因全藏了 —— 工具报错里必须带上 code 与原话。
+ */
+export function messageOf(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === "object") {
+    const o = e as { message?: unknown; code?: unknown };
+    const text = typeof o.message === "string" ? o.message : JSON.stringify(e);
+    return o.code === undefined ? text : `${text}（code ${String(o.code)}）`;
+  }
+  return String(e);
 }
 
 /** 按策略与通道裁决一次写类调用 */
