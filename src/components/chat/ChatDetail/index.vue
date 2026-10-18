@@ -716,7 +716,14 @@
                 @click="handleScrollToBottom" :title="t('chat.scrollToBottom')">
                 <span v-if="newMessageCount > 0"
                     class="absolute -top-1 -right-1 min-w-4.5 h-4.5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1 leading-none">
-                    {{ newMessageCount > 99 ? '99+' : newMessageCount }}
+                    <template v-if="newMessageCount > 99">99+</template>
+                    <template v-else>
+                        <Counter :value="newMessageCount" :places="newMessageCountPlaces" :font-size="10"
+                            :padding="2" :gap="0" :border-radius="0" :horizontal-padding="0" text-color="#ffffff"
+                            :font-weight="700" :gradient-height="0" aria-hidden="true" />
+                        <!-- 计数器每列叠放 0-9 供视觉滚动，读屏只读这一份真实数字 -->
+                        <span class="sr-only">{{ newMessageCount }}</span>
+                    </template>
                 </span>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
                     <path fill-rule="evenodd"
@@ -796,6 +803,7 @@ import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
 import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
 import PaidReactionIcon from '../../common/PaidReactionIcon.vue';
 import ReactionEmojiAnim from '../../common/ReactionEmojiAnim.vue';
+import Counter from '../../common/Counter.vue';
 import MediaViewer from './MessageContent/MediaViewer.vue';
 import StickerSetDialog from './StickerSetDialog.vue';
 import DeleteMessageConfirm from '../../contextMenu/DeleteMessageConfirm.vue';
@@ -2463,12 +2471,29 @@ const isReady = ref(false);           // 标记初始加载和定位已完成
 /** 列表是否已对用户可见：首屏必须「先定位再露出」，否则会看到无意义的跳动 */
 const listRevealed = ref(false);
 const unreadBoundaryMessageId = ref<number | null>(null);
+/** 已滚动过的新消息上界：比它新且在窗口内的 newMessageIds 才计入跳底按钮徽标 */
+const latestUnreadSeenId = ref(0);
 
 const newMessageIds = ref<Set<number>>(new Set());
+/** 离开底部期间收到的他人新消息 id（不依赖窗口/入场动画，窗口未连到底部时也计数） */
+const pendingNewIds = ref<Set<number>>(new Set());
+/** 跳底按钮徽标：未读新消息实时数（id 超过已看到的底部上界即计入） */
+const newMessageCount = computed(() => {
+    if (!threadMode.value && chat.value) return chat.value.unread_count;
+    let n = 0;
+    for (const id of pendingNewIds.value) {
+        if (id > latestUnreadSeenId.value) n++;
+    }
+    return n;
+});
+/** 未读角标计数器位数：按未读数长度生成（≤99 走滚动数字，>99 仍显示 99+） */
+const newMessageCountPlaces = computed<(number | '.')[]>(() => {
+    const digits = Math.max(1, String(newMessageCount.value).length);
+    return Array.from({ length: digits }, (_, i) => 10 ** (digits - 1 - i));
+});
 /** 正在播放删除消失动画的消息 id：动画结束后才真正从列表移除 */
 const leavingMessageIds = ref<Set<number>>(new Set());
 const showScrollButton = ref(false);
-const newMessageCount = ref(0);
 const notificationsMuted = ref(false);
 const isNotificationTogglePending = ref(false);
 const linkedChatId = ref(0);
@@ -2732,6 +2757,13 @@ function syncEmbeddedFileSnapshot(file: TdFile): void {
 
 const handleUpdate = async (update: Update) => {
     switch (update._) {
+        case 'updateChatReadInbox': {
+            // 未读数实时跟随（进入会话、已读、新消息都会推送）；评论线程用 pendingNewIds 计数
+            if (!chat.value || threadMode.value || update.chat_id !== chat.value.id) break;
+            chat.value.unread_count = update.unread_count;
+            break;
+        }
+
         case 'updateNewMessage': {
             const msg = update.message;
             // 仅处理当前正在渲染的聊天中的消息
@@ -2775,7 +2807,8 @@ const handleUpdate = async (update: Update) => {
                 }
                 if (isNewerThanWindow) {
                     showScrollButton.value = true;
-                    newMessageCount.value++;
+                    newMessageIds.value.add(msg.id);
+                    pendingNewIds.value.add(msg.id);
                 }
                 break;
             }
@@ -2789,7 +2822,6 @@ const handleUpdate = async (update: Update) => {
             newMessageIds.value.add(msg.id);
             if (senderIsMe || atBottom) {
                 showScrollButton.value = false;
-                newMessageCount.value = 0;
                 if (!threadMode.value && chat.value?.last_message && msg.id >= (chat.value.last_message.id || 0)) {
                     chat.value.last_message = msg;
                 }
@@ -2797,7 +2829,7 @@ const handleUpdate = async (update: Update) => {
                 scrollToBottom();
             } else {
                 showScrollButton.value = true;
-                newMessageCount.value++;
+                pendingNewIds.value.add(msg.id);
             }
             break;
         }
@@ -4339,7 +4371,6 @@ const isAtBottom = (threshold = 150): boolean => {
 /** 滚动到底部（标准 flex-col：scrollTop = scrollHeight - clientHeight） */
 const scrollToBottom = () => {
     showScrollButton.value = false;
-    newMessageCount.value = 0;
     stickyDateHidden.value = true;
     nextTick(() => {
         const el = messagesContainer.value;
@@ -4375,8 +4406,9 @@ function scrollToMessageImmediate(messageId: number): boolean {
 
 /** 同步滚到底部（不触碰浏览位置缓存；首屏定位/测量失败回落用） */
 function scrollToBottomPure() {
+    const maxId = messages.value[messages.value.length - 1]?.id ?? 0;
+    if (maxId > latestUnreadSeenId.value) latestUnreadSeenId.value = maxId;
     showScrollButton.value = false;
-    newMessageCount.value = 0;
     stickyDateHidden.value = true;
     const el = messagesContainer.value;
     if (!el) return;
@@ -4705,8 +4737,9 @@ const onScroll = (e: Event) => {
 
     // 底部检测
     showScrollButton.value = !atBottom;
-    if (atBottom && newMessageCount.value > 0) {
-        newMessageCount.value = 0;
+    if (atBottom) {
+        const maxId = messages.value[messages.value.length - 1]?.id ?? 0;
+        if (maxId > latestUnreadSeenId.value) latestUnreadSeenId.value = maxId;
     }
     scheduleVisibleMessagesRead();
 
@@ -5273,9 +5306,10 @@ function resetState() {
     scrollLoadSuppressedUntil = 0;
     loadingDirection.value = null;
     unreadBoundaryMessageId.value = null;
+    latestUnreadSeenId.value = 0;
     showScrollButton.value = false;
-    newMessageCount.value = 0;
     newMessageIds.value = new Set();
+    pendingNewIds.value = new Set();
     leavingMessageIds.value = new Set();
     notificationsMuted.value = false;
     isNotificationTogglePending.value = false;
@@ -7129,7 +7163,6 @@ function refreshKeyboardLock(messageId: number) {
  */
 async function handleScrollToBottom() {
     showScrollButton.value = false;
-    newMessageCount.value = 0;
     // 抑制滚动加载，避免贴底后 loadHistoryNewer 与“加载中”指示器形成高度抖动
     scrollLoadSuppressedUntil = Date.now() + 600;
 
