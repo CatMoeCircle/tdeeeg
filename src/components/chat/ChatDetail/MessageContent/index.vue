@@ -30,7 +30,9 @@
 
         <!-- Rich messages -->
         <MessageRichMessage v-else-if="content._ === 'messageRichMessage'" :blocks="content.message.blocks"
-            :is-rtl="content.message.is_rtl" :chat-id="chatId" :message-id="messageId" />
+            :is-rtl="content.message.is_rtl" :chat-id="chatId" :message-id="messageId">
+            <slot />
+        </MessageRichMessage>
 
         <!-- Checklist messages -->
         <MessageChecklistContent v-else-if="content._ === 'messageChecklist'" :content="content" :chat-id="chatId"
@@ -103,7 +105,9 @@
 
         <!-- Document / Audio -->
         <MessageFileContent v-else-if="content._ === 'messageDocument' || content._ === 'messageAudio'"
-            :content="content" :chatId="chatId" :messageId="messageId" />
+            :content="content" :chatId="chatId" :messageId="messageId">
+            <slot />
+        </MessageFileContent>
 
         <!-- Contact card -->
         <MessageContactContent v-else-if="content._ === 'messageContact'" :content="content">

@@ -309,6 +309,9 @@
             </div>
             <div v-else class="my-0.5 opacity-60">{{ t('content.unsupportedContent') }}</div>
         </template>
+
+        <!-- 回应（由 MessageContent 默认插槽传入）：放在富文本正文末尾、底部时间之前 -->
+        <slot />
     </div>
 </template>
 

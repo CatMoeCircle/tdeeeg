@@ -148,6 +148,9 @@
             </template>
         </p>
     </div>
+
+    <!-- 回应（由 MessageContent 默认插槽传入）：放在文件/音乐与 caption 下方、底部时间之前 -->
+    <slot />
 </div>
 </template>
 
