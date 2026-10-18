@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+use rusqlite::params;
+
+use crate::db::Db;
 
 /// 文件类型分类（与前端 DownloadFileType 对应）
 pub type DownloadFileType = String;
@@ -211,176 +214,150 @@ fn merge_item_into(dst: &mut DownloadItem, src: &DownloadItem) {
     }
 }
 
-/// 条目保留优先级：已完成且有本地路径 > 已完成 > 进度大 > 会话 file.id 大
-fn item_keep_rank(item: &DownloadItem) -> (bool, bool, i64, i64) {
-    (
-        item.is_completed && item.local_path.as_ref().map(|p| !p.is_empty()).unwrap_or(false),
-        item.is_completed,
-        (item.progress * 1000.0) as i64,
-        item.session_file_id.unwrap_or(0) as i64,
-    )
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PersistedData {
-    items: HashMap<String, DownloadItem>,
-    #[serde(default)]
-    show_hidden: bool,
-    #[serde(default)]
-    show_auto_photos: bool,
-    /// 是否已做过「同一文件合并」的一次性清理（旧 remote.id 键造成的重复行）
-    #[serde(default)]
-    dupes_merged: bool,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct PersistedDataV1 {
-    items: HashMap<i32, DownloadItemV1>,
-    #[serde(default)]
-    show_hidden: bool,
-    #[serde(default)]
-    show_auto_photos: bool,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[allow(dead_code)]
-struct DownloadItemV1 {
-    file_id: i32,
-    file_name: String,
-    chat_title: String,
-    #[serde(default)]
-    chat_id: Option<i64>,
-    #[serde(default)]
-    message_id: Option<i64>,
-    #[serde(default)]
-    total_size: i64,
-    #[serde(default)]
-    downloaded_size: i64,
-    #[serde(default)]
-    progress: f64,
-    #[serde(default)]
-    is_paused: bool,
-    #[serde(default)]
-    is_completed: bool,
-    #[serde(default)]
-    local_path: Option<String>,
-    #[serde(default)]
-    thumbnail_data_url: Option<String>,
-    #[serde(default)]
-    file_type: String,
-    #[serde(default)]
-    is_generic: bool,
-    #[serde(default)]
-    hidden_category: Option<String>,
-    #[serde(default)]
-    is_auto_photo: bool,
-    #[serde(default)]
-    is_streaming: bool,
-    #[serde(default)]
-    dismissed: bool,
-    #[serde(default)]
-    is_upload: bool,
-    #[serde(default)]
-    created_at: i64,
-}
-
-/// 单账户的下载/上传数据（独立持久化）
+/// 单账户的下载/上传数据（下载记录持久化在 SQLite，上传任务仅内存）
 #[derive(Default)]
 struct AccountDownloadData {
     items: HashMap<String, DownloadItem>,
     session_map: HashMap<i32, String>,
     show_hidden: bool,
     show_auto_photos: bool,
-    dupes_merged: bool,
     uploads: HashMap<String, DownloadItem>,
     upload_session_map: HashMap<i32, String>,
 }
 
-/// 账户独立 downloads.json 路径：
-/// `data_dir/TDLib/accounts/<account_id>/downloads/downloads.json`
-/// （与 TDLib 账户目录同树，登出删除账户目录时一并清理）
-pub fn account_downloads_json(data_dir: &Path, account_id: i64) -> PathBuf {
-    data_dir
-        .join("TDLib")
-        .join("accounts")
-        .join(account_id.to_string())
-        .join("downloads")
-        .join("downloads.json")
-}
-
-/// 旧版全局路径（迁移用）：`data_dir/downloads/downloads.json`
-fn legacy_downloads_json(data_dir: &Path) -> PathBuf {
-    data_dir.join("downloads").join("downloads.json")
-}
-
 impl AccountDownloadData {
-    fn load_from_path(&mut self, path: &Path) -> bool {
-        if !path.exists() {
-            return false;
+    /// 从 `downloads` / `download_prefs` 表载入该账户。
+    fn load(db: &Db, account_id: i64) -> Self {
+        let mut data = Self::default();
+        let conn = db.conn();
+        if let Ok((show_hidden, show_auto_photos)) = conn.query_row(
+            "SELECT show_hidden, show_auto_photos FROM download_prefs WHERE account_id = ?1",
+            [account_id],
+            |r| Ok((r.get::<_, bool>(0)?, r.get::<_, bool>(1)?)),
+        ) {
+            data.show_hidden = show_hidden;
+            data.show_auto_photos = show_auto_photos;
         }
-        let Ok(content) = fs::read_to_string(path) else {
-            return false;
+        let Ok(mut stmt) = conn.prepare(
+            "SELECT remote_id, session_file_id, file_id, file_name, chat_title, chat_id,
+                    message_id, total_size, downloaded_size, progress, is_paused, is_completed,
+                    local_path, thumbnail_data_url, file_type, is_generic, hidden_category,
+                    is_auto_photo, is_streaming, tags, source_label, dismissed, is_upload,
+                    created_at, completed_at, has_tdlib_update, in_tdlib_list
+             FROM downloads WHERE account_id = ?1",
+        ) else {
+            return data;
         };
-
-        if let Ok(data) = serde_json::from_str::<PersistedData>(&content) {
-            let looks_new = data.items.is_empty()
-                || data.items.values().any(|it| !it.remote_id.is_empty())
-                || data
-                    .items
-                    .keys()
-                    .any(|k| k.contains(':') || !k.chars().all(|c| c.is_ascii_digit()));
-            if looks_new {
-                self.items = data.items;
-                self.show_hidden = data.show_hidden;
-                self.show_auto_photos = data.show_auto_photos;
-                self.dupes_merged = data.dupes_merged;
-                self.rebuild_session_map();
-                return true;
+        let rows = stmt.query_map([account_id], |r| {
+            let tags: String = r.get(19)?;
+            Ok(DownloadItem {
+                remote_id: r.get(0)?,
+                session_file_id: r.get(1)?,
+                file_id: r.get(2)?,
+                file_name: r.get(3)?,
+                chat_title: r.get(4)?,
+                chat_id: r.get(5)?,
+                message_id: r.get(6)?,
+                total_size: r.get(7)?,
+                downloaded_size: r.get(8)?,
+                progress: r.get(9)?,
+                is_paused: r.get(10)?,
+                is_completed: r.get(11)?,
+                local_path: r.get(12)?,
+                thumbnail_data_url: r.get(13)?,
+                file_type: r.get(14)?,
+                is_generic: r.get(15)?,
+                hidden_category: r.get(16)?,
+                is_auto_photo: r.get(17)?,
+                is_streaming: r.get(18)?,
+                tags: serde_json::from_str(&tags).unwrap_or_default(),
+                source_label: r.get(20)?,
+                dismissed: r.get(21)?,
+                is_upload: r.get(22)?,
+                created_at: r.get(23)?,
+                completed_at: r.get(24)?,
+                has_tdlib_update: r.get(25)?,
+                in_tdlib_list: r.get(26)?,
+            })
+        });
+        if let Ok(rows) = rows {
+            for item in rows.flatten() {
+                data.items.insert(item.remote_id.clone(), item);
             }
         }
+        data.rebuild_session_map();
+        data
+    }
 
-        if let Ok(old) = serde_json::from_str::<PersistedDataV1>(&content) {
-            self.show_hidden = old.show_hidden;
-            self.show_auto_photos = old.show_auto_photos;
-            for (fid, o) in old.items {
-                let remote_id = format!("legacy:{}", fid);
-                self.items.insert(
-                    remote_id.clone(),
-                    DownloadItem {
-                        remote_id,
-                        session_file_id: Some(fid),
-                        file_id: fid,
-                        file_name: o.file_name,
-                        chat_title: o.chat_title,
-                        chat_id: o.chat_id,
-                        message_id: o.message_id,
-                        total_size: o.total_size,
-                        downloaded_size: o.downloaded_size,
-                        progress: o.progress,
-                        is_paused: o.is_paused,
-                        is_completed: o.is_completed,
-                        local_path: o.local_path,
-                        thumbnail_data_url: o.thumbnail_data_url,
-                        file_type: o.file_type,
-                        is_generic: o.is_generic,
-                        hidden_category: o.hidden_category,
-                        is_auto_photo: o.is_auto_photo,
-                        is_streaming: o.is_streaming,
-                        tags: Vec::new(),
-                        source_label: None,
-                        dismissed: o.dismissed,
-                        is_upload: o.is_upload,
-                        created_at: o.created_at,
-                        completed_at: if o.is_completed { o.created_at } else { 0 },
-                        has_tdlib_update: o.is_completed || o.downloaded_size > 0,
-                        in_tdlib_list: false,
-                    },
-                );
+    /// 整账户覆盖写：先删后插，语义与旧 JSON 快照一致。
+    ///
+    /// 自动加载的通用资源（头像/贴纸/emoji/通用缩略图，`is_generic`）与自动下载的
+    /// 图片（`is_auto_photo`）是**按需重建的会话级缓存**（实测占全表 97% 以上），
+    /// 只留在内存里供本次会话读写，不写入数据库。
+    fn save(&self, db: &Db, account_id: i64) -> rusqlite::Result<()> {
+        let conn = db.conn();
+        let tx = conn.unchecked_transaction()?;
+        tx.execute("DELETE FROM downloads WHERE account_id = ?1", [account_id])?;
+        tx.execute(
+            "INSERT INTO download_prefs (account_id, show_hidden, show_auto_photos)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT(account_id) DO UPDATE SET
+                 show_hidden = excluded.show_hidden,
+                 show_auto_photos = excluded.show_auto_photos",
+            params![account_id, self.show_hidden, self.show_auto_photos],
+        )?;
+        {
+            let mut stmt = tx.prepare(
+                "INSERT INTO downloads (
+                    account_id, remote_id, session_file_id, file_id, file_name, chat_title,
+                    chat_id, message_id, total_size, downloaded_size, progress, is_paused,
+                    is_completed, local_path, thumbnail_data_url, file_type, is_generic,
+                    hidden_category, is_auto_photo, is_streaming, tags, source_label, dismissed,
+                    is_upload, created_at, completed_at, has_tdlib_update, in_tdlib_list
+                 ) VALUES (
+                    ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
+                    ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28
+                 )",
+            )?;
+            for (key, item) in self
+                .items
+                .iter()
+                .filter(|(_, item)| !item.is_generic && !item.is_auto_photo)
+            {
+                let tags = serde_json::to_string(&item.tags).unwrap_or_else(|_| "[]".to_string());
+                stmt.execute(params![
+                    account_id,
+                    key,
+                    item.session_file_id,
+                    item.file_id,
+                    item.file_name,
+                    item.chat_title,
+                    item.chat_id,
+                    item.message_id,
+                    item.total_size,
+                    item.downloaded_size,
+                    item.progress,
+                    item.is_paused,
+                    item.is_completed,
+                    item.local_path,
+                    item.thumbnail_data_url,
+                    item.file_type,
+                    item.is_generic,
+                    item.hidden_category,
+                    item.is_auto_photo,
+                    item.is_streaming,
+                    tags,
+                    item.source_label,
+                    item.dismissed,
+                    item.is_upload,
+                    item.created_at,
+                    item.completed_at,
+                    item.has_tdlib_update,
+                    item.in_tdlib_list,
+                ])?;
             }
-            self.rebuild_session_map();
-            return true;
         }
-        false
+        tx.commit()
     }
 
     fn rebuild_session_map(&mut self) {
@@ -394,58 +371,7 @@ impl AccountDownloadData {
         }
     }
 
-    /// 一次性清理历史重复行。
-    ///
-    /// 旧版本以 remote.id 为键，而 remote.id 内含 file_reference（会刷新），
-    /// 同一文件因此可能出现多行（下载管理器里就是「两条一样的下载」）。
-    /// 这些老行既没有 unique_id 也反推不出，只能按内容身份（类型+名字+大小）归并。
-    fn merge_duplicate_items(&mut self) {
-        let mut keys: Vec<String> = self
-            .items
-            .iter()
-            .filter(|(_, it)| !it.dismissed)
-            .map(|(k, _)| k.clone())
-            .collect();
-        keys.sort_by(|a, b| {
-            let ra = item_keep_rank(&self.items[a]);
-            let rb = item_keep_rank(&self.items[b]);
-            rb.cmp(&ra).then_with(|| b.cmp(a))
-        });
-
-        // 内容身份 → 保留项键
-        let mut owners: HashMap<String, String> = HashMap::new();
-        for key in keys {
-            let Some(item) = self.items.get(&key) else {
-                continue;
-            };
-            let ck = content_key_of(&item.file_type, &item.file_name, item.total_size);
-            let keeper = ck
-                .as_ref()
-                .and_then(|c| owners.get(c))
-                .cloned()
-                .filter(|k| *k != key && self.items.contains_key(k));
-            match keeper {
-                Some(keeper_key) => {
-                    if let Some(src) = self.items.remove(&key) {
-                        if let Some(dst) = self.items.get_mut(&keeper_key) {
-                            merge_item_into(dst, &src);
-                        }
-                    }
-                    if let Some(c) = ck {
-                        owners.insert(c, keeper_key);
-                    }
-                }
-                None => {
-                    if let Some(c) = ck {
-                        owners.insert(c, key);
-                    }
-                }
-            }
-        }
-        self.rebuild_session_map();
-    }
-
-    /// 同文件的历史条目（旧 remote.id 键，没有稳定身份）——按内容身份认亲
+    /// 同文件的条目（键不稳定 / 换了 remote.id）——按内容身份认亲
     fn find_same_file_key(&self, file_type: &str, file_name: &str, total_size: i64) -> Option<String> {
         let probe = content_key_of(file_type, file_name, total_size)?;
         self.items
@@ -480,33 +406,6 @@ impl AccountDownloadData {
         }
     }
 
-    /// 待落盘快照。
-    ///
-    /// 自动加载的通用资源（头像 / 贴纸 / emoji / 通用缩略图，`is_generic`）与自动下载
-    /// 的图片（`is_auto_photo`）是**按需重建的会话级缓存**：实测某个真实账户 8394 条里
-    /// 占 8237 条、downloads.json 97.2% 的字节，且默认就被下载列表隐藏（需打开
-    /// show_hidden / show_auto_photos 才可见）。它们留在内存里供本次会话读写即可，
-    /// 不再写盘——否则每次登记/合并写盘都要序列化这 9 MB。
-    ///
-    /// 用户手动下载（含 TDLib 官方下载列表里的条目）不受影响，照常落盘。
-    fn to_persisted(&self) -> PersistedData {
-        PersistedData {
-            items: self
-                .items
-                .iter()
-                .filter(|(_, item)| !item.is_generic && !item.is_auto_photo)
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect(),
-            show_hidden: self.show_hidden,
-            show_auto_photos: self.show_auto_photos,
-            dupes_merged: self.dupes_merged,
-        }
-    }
-
-    fn save_to_path(&self, path: &Path) {
-        write_persisted(path, &self.to_persisted());
-    }
-
     fn resolve_key(&self, id: &str) -> String {
         if let Ok(sid) = id.parse::<i32>() {
             if let Some(k) = self.session_map.get(&sid) {
@@ -529,20 +428,6 @@ impl AccountDownloadData {
     }
 }
 
-/// 把一个快照序列化并写盘。
-///
-/// 调用方**不得持有 `Mutex<DownloadStore>`**：`to_string_pretty` + `fs::write` 是整条
-/// 持久化路径最重的部分（9 MB 实测单次 600 ms），持锁执行会把 updateFile 进度和所有
-/// 下载命令排在它后面。
-pub(crate) fn write_persisted(path: &Path, data: &PersistedData) {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).ok();
-    }
-    if let Ok(content) = serde_json::to_string_pretty(data) {
-        fs::write(path, content).ok();
-    }
-}
-
 /// 下载面板分页快照。
 ///
 /// 未完成项一次全给：面板的下载中/等待/已暂停/流式分区、角标计数和「取消全部」都依赖
@@ -557,30 +442,27 @@ pub struct DownloadPage {
     pub completed_total: usize,
 }
 
-/// 多账户下载存储：每个账户一份独立 downloads.json。
+/// 多账户下载存储：记录存放在 SQLite 的 `downloads` / `download_prefs` 表。
 pub struct DownloadStore {
-    data_dir: PathBuf,
+    db: Arc<Db>,
     active_account: i64,
     accounts: HashMap<i64, AccountDownloadData>,
-    /// 旧全局 json 是否已迁移到某个账户
-    legacy_migrated: bool,
-    /// 有内存改动但还没落盘的账户。
+    /// 有内存改动但还没写库的账户。
     ///
     /// 高频写入——updateFile 进度（每几十毫秒一条）与登记（批量下载时前端对每个
     /// 头像/贴纸/emoji/缩略图都会登记一次）——只改内存并在这里记账，由
-    /// `take_dirty_snapshots` / `flush_dirty` 合并成一次写盘；
-    /// 状态变化（完成/暂停/取消）仍走 `save_now` 立即落盘，保证崩溃时不丢最终态。
+    /// `flush_dirty` 合并成一次写库；
+    /// 状态变化（完成/暂停/取消）仍走 `save_now` 立即写库，保证崩溃时不丢最终态。
     dirty: HashSet<i64>,
 }
 
 #[allow(dead_code)]
 impl DownloadStore {
-    pub fn new(data_dir: PathBuf, active_account: i64) -> Self {
+    pub fn new(db: Arc<Db>, active_account: i64) -> Self {
         let mut store = Self {
-            data_dir,
+            db,
             active_account,
             accounts: HashMap::new(),
-            legacy_migrated: false,
             dirty: HashSet::new(),
         };
         store.ensure_loaded(store.active_account);
@@ -597,37 +479,12 @@ impl DownloadStore {
         self.active_account
     }
 
-    fn path_for(&self, account_id: i64) -> PathBuf {
-        account_downloads_json(&self.data_dir, account_id)
-    }
-
-    /// 懒加载账户数据；首次遇到旧全局 json 时迁入活动账户
+    /// 懒加载账户数据
     fn ensure_loaded(&mut self, account_id: i64) {
         if self.accounts.contains_key(&account_id) {
             return;
         }
-        let path = self.path_for(account_id);
-        let mut data = AccountDownloadData::default();
-        let mut loaded = data.load_from_path(&path);
-
-        if !loaded && !self.legacy_migrated {
-            let legacy = legacy_downloads_json(&self.data_dir);
-            if legacy.exists() && data.load_from_path(&legacy) {
-                data.save_to_path(&path);
-                // 旧文件改名备份，避免再次误迁移
-                let _ = fs::rename(&legacy, legacy.with_extension("json.migrated"));
-                self.legacy_migrated = true;
-                loaded = true;
-            }
-        }
-
-        // 每个账户只跑一次：把旧 remote.id 键造成的同一文件重复行并成一行
-        if loaded && !data.dupes_merged {
-            data.merge_duplicate_items();
-            data.dupes_merged = true;
-            data.save_to_path(&path);
-        }
-
+        let data = AccountDownloadData::load(&self.db, account_id);
         self.accounts.insert(account_id, data);
     }
 
@@ -640,51 +497,32 @@ impl DownloadStore {
         self.data_mut(account_id)
     }
 
-    /// 立即写盘：登记 / 完成 / 暂停 / 取消 等低频但重要的状态变化。
+    /// 立即写库：登记 / 完成 / 暂停 / 取消 等低频但重要的状态变化。
     fn save_now(&mut self, account_id: i64) {
-        let path = self.path_for(account_id);
         if let Some(d) = self.accounts.get(&account_id) {
-            d.save_to_path(&path);
+            if let Err(e) = d.save(&self.db, account_id) {
+                eprintln!("[db] 保存下载记录失败: {e}");
+            }
         }
         self.dirty.remove(&account_id);
     }
 
-    /// 只记账不写盘（高频进度 / 登记）：真正的写盘由 `flush_dirty` 合并完成。
+    /// 只记账不写库（高频进度 / 登记）：真正的写库由 `flush_dirty` 合并完成。
     fn mark_dirty(&mut self, account_id: i64) {
         self.dirty.insert(account_id);
     }
 
-    /// 取走记过账的账户快照，交给调用方**在锁外**序列化 + 写盘。
-    ///
-    /// 锁内只做 clone（每个账户一次），把 `write_persisted` 那段最重的
-    /// 序列化/文件写入挪出临界区——否则一次 9 MB 写盘会把 updateFile 进度
-    /// 全部堵在锁上（实测单次持锁 600 ms、琐碎命令被拖到 2205 ms）。
-    ///
-    /// `ponytail:` 快照在锁外写，若这期间 `save_now`（暂停/取消）先落盘了更新的状态，
-    /// 理论上可能被这份旧快照后写覆盖；窗口只有毫秒级，且 TDLib 官方下载列表会在
-    /// 重启时重发暂停/完成态自愈。要彻底消除得把全部写盘串到单一线程。
-    pub fn take_dirty_snapshots(&mut self) -> Vec<(PathBuf, PersistedData)> {
+    /// 把记过账的账户各写一份最新快照，返回实际写库的账户数。
+    pub fn flush_dirty(&mut self) -> usize {
         let accounts: Vec<i64> = self.dirty.drain().collect();
-        let mut jobs = Vec::with_capacity(accounts.len());
-        for acct in accounts {
-            let path = self.path_for(acct);
-            if let Some(d) = self.accounts.get(&acct) {
-                jobs.push((path, d.to_persisted()));
+        for acct in &accounts {
+            if let Some(d) = self.accounts.get(acct) {
+                if let Err(e) = d.save(&self.db, *acct) {
+                    eprintln!("[db] 保存下载记录失败: {e}");
+                }
             }
         }
-        jobs
-    }
-
-    /// 在锁内一次性把记过账的账户各写一份最新快照，返回实际写盘的账户数。
-    ///
-    /// 仅用于退出前兜底（`RunEvent::ExitRequested`）与测试；常驻的合并写盘线程
-    /// 走 `take_dirty_snapshots`，写盘在锁外。
-    pub fn flush_dirty(&mut self) -> usize {
-        let jobs = self.take_dirty_snapshots();
-        for (path, data) in &jobs {
-            write_persisted(path, data);
-        }
-        jobs.len()
+        accounts.len()
     }
 
     // ==================== 查询 ====================
@@ -1580,20 +1418,46 @@ impl DownloadStore {
         d.uploads.remove(id).is_some()
     }
 
-    /// 账户登出：丢弃内存缓存（磁盘已随账户目录删除）
+    /// 账户登出：丢弃内存缓存并删除该账户的下载记录。
     pub fn drop_account(&mut self, account_id: i64) {
         self.accounts.remove(&account_id);
+        self.dirty.remove(&account_id);
+        let conn = self.db.conn();
+        let _ = conn.execute("DELETE FROM downloads WHERE account_id = ?1", [account_id]);
+        let _ = conn.execute("DELETE FROM download_prefs WHERE account_id = ?1", [account_id]);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::path::PathBuf;
 
-    fn temp_dir(tag: &str) -> PathBuf {
+    fn temp_db(tag: &str) -> (PathBuf, Arc<Db>) {
         let dir = std::env::temp_dir().join(format!("tdgram-dl-{}-{}", tag, now_ms()));
         fs::create_dir_all(&dir).expect("create temp dir");
-        dir
+        let db = Arc::new(Db::open(&dir).expect("open db"));
+        (dir, db)
+    }
+
+    fn stored_keys(db: &Db, account_id: i64) -> Vec<String> {
+        let conn = db.conn();
+        let mut stmt = conn
+            .prepare("SELECT remote_id FROM downloads WHERE account_id = ?1 ORDER BY remote_id")
+            .unwrap();
+        let rows = stmt.query_map([account_id], |r| r.get::<_, String>(0)).unwrap();
+        rows.flatten().collect()
+    }
+
+    fn stored_downloaded_size(db: &Db, account_id: i64) -> Option<i64> {
+        db.conn()
+            .query_row(
+                "SELECT downloaded_size FROM downloads WHERE account_id = ?1",
+                [account_id],
+                |r| r.get(0),
+            )
+            .ok()
     }
 
     fn make_item(
@@ -1640,65 +1504,12 @@ mod tests {
         }
     }
 
-    fn write_account_json(dir: &Path, account_id: i64, items: HashMap<String, DownloadItem>) {
-        let path = account_downloads_json(dir, account_id);
-        fs::create_dir_all(path.parent().unwrap()).expect("create dirs");
-        let data = PersistedData {
-            items,
-            show_hidden: false,
-            show_auto_photos: false,
-            dupes_merged: false,
-        };
-        fs::write(&path, serde_json::to_string_pretty(&data).unwrap()).expect("write json");
-    }
-
-    /// 旧 remote.id 键造成的同一文件重复行：加载时并成一行，且不误合其他文件
-    #[test]
-    fn load_merges_duplicate_rows_of_same_file() {
-        let dir = temp_dir("merge");
-        let account = 7;
-        let mut items = HashMap::new();
-        // 同一文件两行：老键（file_reference 刷新前的 remote.id）+ 新键（unique_id）
-        items.insert(
-            "OLD_REMOTE_ID".to_string(),
-            make_item("OLD_REMOTE_ID", "song.mp3", 100, 40, false, None, 101),
-        );
-        items.insert(
-            "NEW_UNIQUE_ID".to_string(),
-            make_item("NEW_UNIQUE_ID", "song.mp3", 100, 0, true, Some("/tmp/song.mp3"), 202),
-        );
-        // 同名不同大小 → 不是同一文件，必须保留
-        items.insert(
-            "OTHER_SIZE".to_string(),
-            make_item("OTHER_SIZE", "song.mp3", 200, 0, false, None, 303),
-        );
-        write_account_json(&dir, account, items);
-
-        let store = DownloadStore::new(dir.clone(), account);
-        let loaded = store.get_all_items();
-        assert_eq!(loaded.len(), 2, "同一文件的两行应合并为一行");
-
-        let merged = loaded
-            .iter()
-            .find(|i| i.file_name == "song.mp3" && i.total_size == 100)
-            .expect("merged item");
-        assert!(merged.is_completed);
-        assert_eq!(merged.local_path.as_deref(), Some("/tmp/song.mp3"));
-        assert_eq!(merged.downloaded_size, 100, "完成态补齐进度");
-        assert!(loaded.iter().any(|i| i.total_size == 200), "不同大小不得合并");
-
-        // 已经合并过就不要再动（幂等）
-        let reloaded = DownloadStore::new(dir.clone(), account);
-        assert_eq!(reloaded.get_all_items().len(), 2);
-        let _ = fs::remove_dir_all(&dir);
-    }
-
     /// 同一文件换了 remote.id：注册时收编老条目，而不是再插一行
     #[test]
-    fn register_adopts_legacy_row_of_same_file() {
-        let dir = temp_dir("adopt");
+    fn register_adopts_row_of_same_file() {
+        let (dir, db) = temp_db("adopt");
         let account = 3;
-        let mut store = DownloadStore::new(dir.clone(), account);
+        let mut store = DownloadStore::new(db.clone(), account);
 
         let old_key = store.register_download(
             None,
@@ -1744,6 +1555,7 @@ mod tests {
         // 老键的会话映射随之指向新键
         let by_session = store.get_item_for(account, "11").expect("resolved by session id");
         assert_eq!(by_session.remote_id, "NEW_UNIQUE_ID");
+        drop(store);
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -1771,14 +1583,13 @@ mod tests {
         assert_eq!(derive_item_key(Some(""), Some(""), 5), "session:5");
     }
 
-    /// 高频进度不写盘：只记账，flush 时合并成一次完整快照
+    /// 高频进度不写库：只记账，flush 时合并成一次完整快照
     #[test]
     fn progress_updates_are_deferred_until_flush() {
-        let dir = temp_dir("deferred");
+        let (dir, db) = temp_db("deferred");
         let account = 3;
-        let mut store = DownloadStore::new(dir.clone(), account);
-        let path = account_downloads_json(&dir, account);
-        // 用户下载（audio，非自动缓存）才有落盘意义
+        let mut store = DownloadStore::new(db.clone(), account);
+        // 用户下载（audio，非自动缓存）才有落库意义
         store.register_download(
             None,
             Some("FILE".to_string()),
@@ -1799,43 +1610,37 @@ mod tests {
         );
 
         store.update_progress(Some(account), "FILE", 10, 100, true, false, None);
-        assert!(!path.exists(), "纯进度更新不应立即写盘");
+        assert!(stored_keys(&db, account).is_empty(), "纯进度更新不应立即写库");
 
-        assert_eq!(store.flush_dirty(), 1, "记账的账户应被写盘");
-        let data: PersistedData =
-            serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
-        assert_eq!(data.items["FILE"].downloaded_size, 10);
+        assert_eq!(store.flush_dirty(), 1, "记账的账户应被写库");
+        assert_eq!(stored_downloaded_size(&db, account), Some(10));
 
         store.update_progress(Some(account), "FILE", 50, 100, true, false, None);
-        let data: PersistedData =
-            serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
-        assert_eq!(data.items["FILE"].downloaded_size, 10, "合并窗口内不写盘");
+        assert_eq!(stored_downloaded_size(&db, account), Some(10), "合并窗口内不写库");
 
         store.flush_dirty();
-        let data: PersistedData =
-            serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
-        assert_eq!(data.items["FILE"].downloaded_size, 50);
+        assert_eq!(stored_downloaded_size(&db, account), Some(50));
 
-        assert_eq!(store.flush_dirty(), 0, "没有新改动时不该重复写盘");
+        assert_eq!(store.flush_dirty(), 0, "没有新改动时不该重复写库");
+        drop(store);
         let _ = fs::remove_dir_all(&dir);
     }
 
-    /// 登记不逐次全量落盘；自动加载的会话级缓存（头像/贴纸/emoji/通用缩略图、
-    /// 自动下载图片）不进 downloads.json，用户下载照常落盘
+    /// 登记不逐次全量落库；自动加载的会话级缓存（头像/贴纸/emoji/通用缩略图、
+    /// 自动下载图片）不进数据库，用户下载照常落库
     #[test]
     fn register_defers_write_and_skips_auto_cache() {
-        let dir = temp_dir("autocache");
+        let (dir, db) = temp_db("autocache");
         let account = 3;
-        let mut store = DownloadStore::new(dir.clone(), account);
-        let path = account_downloads_json(&dir, account);
+        let mut store = DownloadStore::new(db.clone(), account);
 
         let register = |store: &mut DownloadStore,
-                            rid: &str,
-                            sid: i32,
-                            name: &str,
-                            file_type: &str,
-                            is_generic: bool,
-                            is_auto_photo: bool| {
+                        rid: &str,
+                        sid: i32,
+                        name: &str,
+                        file_type: &str,
+                        is_generic: bool,
+                        is_auto_photo: bool| {
             store.register_download(
                 None,
                 Some(rid.to_string()),
@@ -1860,21 +1665,63 @@ mod tests {
         register(&mut store, "AVATAR", 2, "avatar.jpg", "avatar", true, false);
         register(&mut store, "STICKER", 3, "sticker.webp", "sticker", true, false);
         register(&mut store, "AUTO_PHOTO", 4, "photo_1.jpg", "photo", false, true);
-        assert!(!path.exists(), "登记只记账，不逐次全量写盘");
+        assert!(stored_keys(&db, account).is_empty(), "登记只记账，不逐次全量写库");
 
         store.update_progress(Some(account), "USER_FILE", 50, 100, true, false, None);
         store.update_progress(Some(account), "AVATAR", 50, 100, true, false, None);
         assert_eq!(store.flush_dirty(), 1);
 
-        let data: PersistedData =
-            serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
-        assert!(data.items.contains_key("USER_FILE"), "用户下载必须落盘");
-        assert!(!data.items.contains_key("AVATAR"), "头像缓存不落盘");
-        assert!(!data.items.contains_key("STICKER"), "贴纸缓存不落盘");
-        assert!(!data.items.contains_key("AUTO_PHOTO"), "自动下载图片不落盘");
+        assert_eq!(stored_keys(&db, account), vec!["USER_FILE"], "用户下载必须落库");
         // 内存里仍然齐全：本次会话的隐藏分类、角标照常工作
         assert_eq!(store.get_all_items().len(), 4);
         assert_eq!(store.get_active_count(), 1);
+        drop(store);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// 落库的条目能被新进程（新 store）读回来
+    #[test]
+    fn records_survive_reload() {
+        let (dir, db) = temp_db("reload");
+        let account = 9;
+        let mut store = DownloadStore::new(db.clone(), account);
+        store.register_download(
+            None,
+            Some("FILE".to_string()),
+            5,
+            "song.mp3".to_string(),
+            "chat".to_string(),
+            100,
+            "audio".to_string(),
+            None,
+            None,
+            None,
+            false,
+            None,
+            false,
+            false,
+            Some(vec!["音乐".to_string()]),
+            Some("来源".to_string()),
+        );
+        store.update_progress(
+            Some(account),
+            "FILE",
+            100,
+            100,
+            false,
+            true,
+            Some("/tmp/song.mp3".to_string()),
+        );
+        store.flush_dirty();
+
+        let reloaded = DownloadStore::new(db.clone(), account);
+        let item = reloaded.get_item("FILE").expect("reloaded item");
+        assert!(item.is_completed);
+        assert_eq!(item.local_path.as_deref(), Some("/tmp/song.mp3"));
+        assert_eq!(item.tags, vec!["音乐".to_string()]);
+        assert_eq!(item.source_label.as_deref(), Some("来源"));
+        drop(reloaded);
+        drop(db);
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -1882,8 +1729,10 @@ mod tests {
     /// 未完成项一次性全给（面板分区/角标依赖完整集合）
     #[test]
     fn page_paginates_completed_and_returns_all_active() {
-        let dir = temp_dir("page");
+        let (dir, db) = temp_db("page");
         let account = 5;
+        let mut store = DownloadStore::new(db, account);
+
         let mut items = HashMap::new();
         for i in 0..5i32 {
             let mut it = make_item(
@@ -1906,9 +1755,7 @@ mod tests {
         // 未完成项：无论分页偏移都全量返回
         let active = make_item("ACT", "downloading.mp3", 100, 10, false, None, 42);
         items.insert(active.remote_id.clone(), active);
-        write_account_json(&dir, account, items);
-
-        let store = DownloadStore::new(dir.clone(), account);
+        store.accounts.get_mut(&account).expect("account loaded").items = items;
 
         let first = store.get_page(account, 0, 2, false, false);
         assert_eq!(first.active.len(), 1, "未完成项全量返回");
@@ -1928,6 +1775,7 @@ mod tests {
         assert_eq!(with_generic.completed[0].remote_id, "AVATAR");
         assert_eq!(with_generic.completed[1].remote_id, "C4");
 
+        drop(store);
         let _ = fs::remove_dir_all(&dir);
     }
 }

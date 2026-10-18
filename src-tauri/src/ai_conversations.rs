@@ -1,36 +1,20 @@
-//! AI 会话（对话）持久化：分账号 → 分 chat_id → 一个对话一个文件夹。
+//! AI 会话（对话）记录：存放在 SQLite 的 `ai_conversations` / `ai_active` 表。
 //!
-//! 布局与 DSH 的 `~/.dsh/sessions/<workspace>/session-<uuid>/` 同构：
+//! - 一条会话一行：标题 / 时间 / 用量 / 消息正文（history 列，JSON 数组）。
+//! - 每个 Telegram 聊天当前选中的会话记在 `ai_active`（chat_id → conversation id），
+//!   `AiConversation.active` 是每次查询时算出来的派生值，不落库。
+//! - 用量（请求次数 + 每次请求的 token）由真正发请求的一方调 `ai_conversation_usage` 记账；
+//!   **接口没返回 usage 时前端本地估算**，估算结果也走这个入口写进来，两边不打架。
 //!
-//! ```text
-//! <data_dir>/ai_conversations/
-//!   <account_id>/                     # 每个登录账号一棵树（id 用 `default` 兜底）
-//!     active.json                     # chat_id → 当前选中的对话 id
-//!     <chat_id>/                      # 归属维度：一个 Telegram 聊天一组对话
-//!       conversation-<uuid>/
-//!         metadata.json               # 标题 / 时间 / 用量（不含消息正文）
-//!         history.json                # 消息正文（agent 每轮之后覆盖写；见 ai_chat::ChatMessage）
-//! ```
-//!
-//! 会话管理页只做标题 / 重命名 / 删除，不提供消息查看；但对话的**上下文历史**要跨进程保留，
-//! 所以正文单独落 history.json（删对话会连它一起删）。
-//! 用量（请求次数 + 每次请求的 token）由真正发请求的一方调 `ai_conversation_usage` 记账；
-//! **接口没返回 usage 时前端本地估算**，估算结果也走这个入口写进来，两边不打架。
-//!
-//! 文件读不出 / 坏 JSON 一律跳过，不 panic：坏一个对话不该让整个列表消失。
+//! 消息正文原先单独落 history.json；现在和元数据同一行，覆盖写天然原子。
 
-use std::path::{Path, PathBuf};
+use std::collections::HashMap;
 
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
 use crate::ai_chat::ChatMessage;
-
-const DIR: &str = "ai_conversations";
-const META: &str = "metadata.json";
-const HISTORY: &str = "history.json";
-const ACTIVE: &str = "active.json";
-/// 账号 id 取不到时的兜底目录名（未登录 / 老版本没有账号信息）
-const DEFAULT_ACCOUNT: &str = "default";
+use crate::tdlib::AppState;
 
 /// 单次请求的用量（各家接口字段名不同，前端统一成这一套；取不到就是 None）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -98,31 +82,21 @@ impl ConversationUsage {
     }
 }
 
-/// 一个会话的元数据。正文在 history.json。
+/// 一条会话。正文在同表的 `history` 列，由 history 命令单独读写。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AiConversation {
     pub id: String,
-    /// 归属的 Telegram 聊天（= 归属维度，对应 DSH 的 workspace）
+    /// 归属的 Telegram 聊天
     pub chat_id: i64,
     pub title: String,
     /// 创建 / 最后更新时间（毫秒）
     pub created_at: u64,
     pub updated_at: u64,
-    /// 是否该聊天当前选中的会话。由 active.json 决定，**必须发给前端**：
+    /// 是否该聊天当前选中的会话。由 `ai_active` 表决定，**必须发给前端**：
     /// 前端拿它认「当前会话」（底部用量、历史回铺、要不要新建都靠它）。
-    /// 磁盘上那份不可信 —— 落盘时用 [`disk_copy`] 清成 false。
-    ///
-    /// 踩过的坑：这里原来写的是 `#[serde(skip)]`，那是**收发一起掐**，
-    /// 于是前端永远收不到当前会话，表现成「底部用量不显示 / 历史读不出来 / 每次发消息都新建一个会话」。
     pub active: bool,
     pub usage: ConversationUsage,
-}
-
-/// 落盘用的副本：`active` 是派生值（每次由 active.json 算出来），不写进 metadata.json，
-/// 免得以后读到过期的「当前会话」。注意只影响落盘，**发给前端的结构保留 active**。
-fn disk_copy(c: &AiConversation) -> AiConversation {
-    AiConversation { active: false, ..c.clone() }
 }
 
 fn now_ms() -> u64 {
@@ -132,117 +106,164 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-fn account_dir(account_id: &str) -> String {
+/// 账号在主键里的取值（未登录 / 老版本没有账号信息时用 `default` 兜底）。
+fn account_key(account_id: &str) -> String {
     let s = account_id.trim();
     if s.is_empty() {
-        DEFAULT_ACCOUNT.to_string()
+        "default".to_string()
     } else {
-        // 目录名，别让分隔符 / 相对路径逃出去
-        s.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect()
+        s.to_string()
     }
 }
 
-fn root<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
-    let dir = crate::data_loc::resolve_current_data_dir(app)?.join(DIR);
-    std::fs::create_dir_all(&dir).map_err(|e| format!("无法创建 AI 会话目录: {e}"))?;
-    Ok(dir)
+fn db_err(e: rusqlite::Error) -> String {
+    format!("数据库错误: {e}")
 }
 
-fn chat_dir<R: tauri::Runtime>(
-    app: &tauri::AppHandle<R>,
-    account_id: &str,
-    chat_id: i64,
-) -> Result<PathBuf, String> {
-    let dir = root(app)?.join(account_dir(account_id)).join(chat_id.to_string());
-    std::fs::create_dir_all(&dir).map_err(|e| format!("无法创建会话目录: {e}"))?;
-    Ok(dir)
+const COLUMNS: &str = "id, chat_id, title, created_at, updated_at, requests, input_tokens, \
+                       output_tokens, cached_tokens, cache_write_tokens, last_input_tokens, \
+                       last_output_tokens, context_length, last_at";
+
+fn row_to_conversation(row: &rusqlite::Row<'_>) -> rusqlite::Result<AiConversation> {
+    Ok(AiConversation {
+        id: row.get(0)?,
+        chat_id: row.get(1)?,
+        title: row.get(2)?,
+        created_at: row.get(3)?,
+        updated_at: row.get(4)?,
+        active: false,
+        usage: ConversationUsage {
+            requests: row.get(5)?,
+            input_tokens: row.get(6)?,
+            output_tokens: row.get(7)?,
+            cached_tokens: row.get(8)?,
+            cache_write_tokens: row.get(9)?,
+            last_input_tokens: row.get(10)?,
+            last_output_tokens: row.get(11)?,
+            context_length: row.get(12)?,
+            last_at: row.get(13)?,
+        },
+    })
 }
 
-fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Option<T> {
-    std::fs::read_to_string(path).ok().and_then(|t| serde_json::from_str(&t).ok())
-}
-
-/// 写文件：先写 `.tmp` 再 rename，避免中途挂掉留下半个 JSON。
-fn write_atomic(path: &Path, text: &str) -> Result<(), String> {
-    let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, text).map_err(|e| format!("写入失败: {e}"))?;
-    std::fs::rename(&tmp, path).map_err(|e| format!("写入失败: {e}"))
-}
-
-fn write_meta<R: tauri::Runtime>(
-    app: &tauri::AppHandle<R>,
-    account_id: &str,
+fn insert_conversation(
+    conn: &Connection,
+    account: &str,
     c: &AiConversation,
-) -> Result<(), String> {
-    let dir = conv_dir(app, account_id, c.chat_id, &c.id)?;
-    std::fs::create_dir_all(&dir).map_err(|e| format!("无法创建会话目录: {e}"))?;
-    let text = serde_json::to_string_pretty(&disk_copy(c)).map_err(|e| e.to_string())?;
-    write_atomic(&dir.join(META), &text)
+) -> rusqlite::Result<()> {
+    conn.execute(
+        "INSERT INTO ai_conversations (
+            account_id, chat_id, id, title, created_at, updated_at, requests, input_tokens,
+            output_tokens, cached_tokens, cache_write_tokens, last_input_tokens,
+            last_output_tokens, context_length, last_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+        params![
+            account,
+            c.chat_id,
+            c.id,
+            c.title,
+            c.created_at,
+            c.updated_at,
+            c.usage.requests,
+            c.usage.input_tokens,
+            c.usage.output_tokens,
+            c.usage.cached_tokens,
+            c.usage.cache_write_tokens,
+            c.usage.last_input_tokens,
+            c.usage.last_output_tokens,
+            c.usage.context_length,
+            c.usage.last_at,
+        ],
+    )?;
+    Ok(())
 }
 
-/// 当前选中的对话：chat_id → conversation id。
-fn load_active<R: tauri::Runtime>(app: &tauri::AppHandle<R>, account_id: &str) -> serde_json::Map<String, serde_json::Value> {
-    root(app)
-        .ok()
-        .map(|r| r.join(account_dir(account_id)).join(ACTIVE))
-        .and_then(|p| read_json(&p))
+fn list_conversations(
+    conn: &Connection,
+    account: &str,
+    chat_id: i64,
+) -> rusqlite::Result<Vec<AiConversation>> {
+    let sql = format!(
+        "SELECT {COLUMNS} FROM ai_conversations
+         WHERE account_id = ?1 AND chat_id = ?2
+         ORDER BY updated_at DESC, rowid DESC"
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(params![account, chat_id], row_to_conversation)?;
+    rows.collect()
+}
+
+fn all_conversations(conn: &Connection, account: &str) -> rusqlite::Result<Vec<AiConversation>> {
+    let sql = format!(
+        "SELECT {COLUMNS} FROM ai_conversations
+         WHERE account_id = ?1
+         ORDER BY updated_at DESC, rowid DESC"
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map([account], row_to_conversation)?;
+    rows.collect()
+}
+
+fn find_conversation(
+    conn: &Connection,
+    account: &str,
+    chat_id: i64,
+    id: &str,
+) -> rusqlite::Result<AiConversation> {
+    let sql = format!(
+        "SELECT {COLUMNS} FROM ai_conversations
+         WHERE account_id = ?1 AND chat_id = ?2 AND id = ?3"
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    stmt.query_row(params![account, chat_id, id], row_to_conversation)
+}
+
+fn active_for(conn: &Connection, account: &str, chat_id: i64) -> Option<String> {
+    conn.query_row(
+        "SELECT conversation_id FROM ai_active WHERE account_id = ?1 AND chat_id = ?2",
+        params![account, chat_id],
+        |r| r.get(0),
+    )
+    .ok()
+}
+
+fn active_map(conn: &Connection, account: &str) -> HashMap<i64, String> {
+    let Ok(mut stmt) =
+        conn.prepare("SELECT chat_id, conversation_id FROM ai_active WHERE account_id = ?1")
+    else {
+        return HashMap::new();
+    };
+    stmt.query_map([account], |r| Ok((r.get(0)?, r.get(1)?)))
+        .map(|rows| rows.flatten().collect())
         .unwrap_or_default()
 }
 
-fn save_active<R: tauri::Runtime>(
-    app: &tauri::AppHandle<R>,
-    account_id: &str,
-    map: &serde_json::Map<String, serde_json::Value>,
-) -> Result<(), String> {
-    let dir = root(app)?.join(account_dir(account_id));
-    std::fs::create_dir_all(&dir).map_err(|e| format!("无法创建会话目录: {e}"))?;
-    let text = serde_json::to_string_pretty(map).map_err(|e| e.to_string())?;
-    write_atomic(&dir.join(ACTIVE), &text)
-}
-
-/// 该聊天下的全部对话，按最后更新倒序。
-fn list_chat<R: tauri::Runtime>(
-    app: &tauri::AppHandle<R>,
-    account_id: &str,
+fn save_active(
+    conn: &Connection,
+    account: &str,
     chat_id: i64,
-) -> Vec<AiConversation> {
-    let Ok(dir) = chat_dir(app, account_id, chat_id) else {
-        return Vec::new();
-    };
-    let Ok(entries) = std::fs::read_dir(&dir) else {
-        return Vec::new();
-    };
-    let mut out: Vec<AiConversation> = entries
-        .flatten()
-        .filter(|e| e.path().is_dir())
-        .filter_map(|e| read_json::<AiConversation>(&e.path().join(META)))
-        .filter(|c| !c.id.is_empty())
-        .collect();
-    out.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
-    out
+    id: &str,
+) -> rusqlite::Result<()> {
+    conn.execute(
+        "INSERT INTO ai_active (account_id, chat_id, conversation_id) VALUES (?1, ?2, ?3)
+         ON CONFLICT(account_id, chat_id) DO UPDATE SET conversation_id = excluded.conversation_id",
+        params![account, chat_id, id],
+    )?;
+    Ok(())
 }
 
-/// 账号目录下的全部聊天 id。
-fn chat_ids<R: tauri::Runtime>(app: &tauri::AppHandle<R>, account_id: &str) -> Vec<i64> {
-    let Ok(dir) = root(app).map(|r| r.join(account_dir(account_id))) else {
-        return Vec::new();
-    };
-    let Ok(entries) = std::fs::read_dir(&dir) else {
-        return Vec::new();
-    };
-    let mut out: Vec<i64> = entries
-        .flatten()
-        .filter(|e| e.path().is_dir())
-        .filter_map(|e| e.file_name().to_str().and_then(|s| s.parse::<i64>().ok()))
-        .collect();
-    out.sort_unstable();
-    out
+fn clear_active(conn: &Connection, account: &str, chat_id: i64) -> rusqlite::Result<()> {
+    conn.execute(
+        "DELETE FROM ai_active WHERE account_id = ?1 AND chat_id = ?2",
+        params![account, chat_id],
+    )?;
+    Ok(())
 }
 
 /// 新建对话：标题默认「新对话」（前端按语言本地化后写入）。返回新建的对话（已置为当前）。
 #[tauri::command]
 pub fn ai_conversation_create(
-    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
     account_id: String,
     chat_id: i64,
     title: String,
@@ -251,33 +272,36 @@ pub fn ai_conversation_create(
     let c = AiConversation {
         id: uuid(),
         chat_id,
-        title: if title.trim().is_empty() { "New chat".to_string() } else { title.trim().to_string() },
+        title: if title.trim().is_empty() {
+            "New chat".to_string()
+        } else {
+            title.trim().to_string()
+        },
         created_at: now,
         updated_at: now,
         active: true,
         usage: ConversationUsage::default(),
     };
-    write_meta(&app, &account_id, &c)?;
-    let mut map = load_active(&app, &account_id);
-    map.insert(chat_id.to_string(), serde_json::Value::String(c.id.clone()));
-    save_active(&app, &account_id, &map)?;
+    let account = account_key(&account_id);
+    let conn = state.db.conn();
+    insert_conversation(&conn, &account, &c).map_err(db_err)?;
+    save_active(&conn, &account, chat_id, &c.id).map_err(db_err)?;
     Ok(c)
 }
 
 /// 某个聊天的全部对话（带 active 标记，已按更新时间倒序）。
 #[tauri::command]
 pub fn ai_conversation_list(
-    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
     account_id: String,
     chat_id: i64,
 ) -> Result<Vec<AiConversation>, String> {
-    let active = load_active(&app, &account_id)
-        .get(&chat_id.to_string())
-        .and_then(|v| v.as_str())
-        .map(String::from);
-    let mut list = list_chat(&app, &account_id, chat_id);
-    // active.json 里指定的那个优先；没有记录（旧数据 / 手删）就退回最新一个
-    let picked = active.filter(|id| list.iter().any(|c| &c.id == id));
+    let account = account_key(&account_id);
+    let conn = state.db.conn();
+    let mut list = list_conversations(&conn, &account, chat_id).map_err(db_err)?;
+    // ai_active 里指定的那个优先；没有记录（旧数据 / 手删）就退回最新一个
+    let picked = active_for(&conn, &account, chat_id)
+        .filter(|id| list.iter().any(|c| &c.id == id));
     for c in list.iter_mut() {
         c.active = Some(c.id.clone()) == picked;
     }
@@ -290,94 +314,107 @@ pub fn ai_conversation_list(
 /// 账号下全部聊天的全部对话（AI 配置页的「总管理」入口用）。
 #[tauri::command]
 pub fn ai_conversation_list_all(
-    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
     account_id: String,
 ) -> Result<Vec<AiConversation>, String> {
-    let active = load_active(&app, &account_id);
-    let mut out = Vec::new();
-    for chat_id in chat_ids(&app, &account_id) {
-        let picked = active.get(&chat_id.to_string()).and_then(|v| v.as_str()).map(String::from);
-        let mut list = list_chat(&app, &account_id, chat_id);
-        let picked = picked.filter(|id| list.iter().any(|c| &c.id == id));
-        for c in list.iter_mut() {
-            c.active = Some(c.id.clone()) == picked;
-        }
-        if !list.is_empty() && !list.iter().any(|c| c.active) {
-            list[0].active = true;
-        }
-        out.extend(list);
-    }
+    let account = account_key(&account_id);
+    let conn = state.db.conn();
+    let mut out = all_conversations(&conn, &account).map_err(db_err)?;
     // 同聊天内已倒序；跨聊天再按更新时间整体倒序，最新用过的排最前
     out.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    let active = active_map(&conn, &account);
+    let mut marked: HashMap<i64, bool> = HashMap::new();
+    for c in out.iter_mut() {
+        c.active = active.get(&c.chat_id) == Some(&c.id);
+        if c.active {
+            marked.insert(c.chat_id, true);
+        }
+    }
+    // 没有记录（旧数据 / 手删）的聊天退回它的最新一个
+    for c in out.iter_mut() {
+        if c.active || marked.contains_key(&c.chat_id) {
+            continue;
+        }
+        c.active = true;
+        marked.insert(c.chat_id, true);
+    }
     Ok(out)
 }
 
 /// 选中某个对话为当前（切换聊天后接着用同一个）。空 id = 回到该聊天的第一个对话。
 #[tauri::command]
 pub fn ai_conversation_set_active(
-    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
     account_id: String,
     chat_id: i64,
     id: String,
 ) -> Result<(), String> {
+    let account = account_key(&account_id);
+    let conn = state.db.conn();
     let id = if id.trim().is_empty() {
-        list_chat(&app, &account_id, chat_id).first().map(|c| c.id.clone()).unwrap_or_default()
+        list_conversations(&conn, &account, chat_id)
+            .map_err(db_err)?
+            .first()
+            .map(|c| c.id.clone())
+            .unwrap_or_default()
     } else {
         id
     };
-    let mut map = load_active(&app, &account_id);
     if id.is_empty() {
-        map.remove(&chat_id.to_string());
+        clear_active(&conn, &account, chat_id).map_err(db_err)
     } else {
-        map.insert(chat_id.to_string(), serde_json::Value::String(id));
+        save_active(&conn, &account, chat_id, &id).map_err(db_err)
     }
-    save_active(&app, &account_id, &map)
 }
 
 /// 重命名：只改标题 + 更新时间。找不到该对话就报错（前端拿它提示）。
 #[tauri::command]
 pub fn ai_conversation_rename(
-    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
     account_id: String,
     chat_id: i64,
     id: String,
     title: String,
 ) -> Result<AiConversation, String> {
-    let mut list = list_chat(&app, &account_id, chat_id);
-    let c = list
-        .iter_mut()
-        .find(|c| c.id == id)
-        .ok_or_else(|| "对话不存在".to_string())?;
-    c.title = title.trim().to_string();
-    c.updated_at = now_ms();
-    write_meta(&app, &account_id, c)?;
-    Ok(c.clone())
+    let account = account_key(&account_id);
+    let conn = state.db.conn();
+    let changed = conn
+        .execute(
+            "UPDATE ai_conversations SET title = ?1, updated_at = ?2
+             WHERE account_id = ?3 AND chat_id = ?4 AND id = ?5",
+            params![title.trim(), now_ms(), account, chat_id, id],
+        )
+        .map_err(db_err)?;
+    if changed == 0 {
+        return Err("对话不存在".to_string());
+    }
+    find_conversation(&conn, &account, chat_id, &id).map_err(db_err)
 }
 
-/// 删除对话：连它的文件夹一起删。删掉的若是当前选中项，自动改选剩下的第一个。
+/// 删除对话。删掉的若是当前选中项，自动改选剩下的第一个。
 #[tauri::command]
 pub fn ai_conversation_delete(
-    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
     account_id: String,
     chat_id: i64,
     id: String,
 ) -> Result<(), String> {
-    let dir = conv_dir(&app, &account_id, chat_id, &id)?;
-    if dir.is_dir() {
-        std::fs::remove_dir_all(&dir).map_err(|e| format!("删除失败: {e}"))?;
-    }
-    let mut map = load_active(&app, &account_id);
-    if map.get(&chat_id.to_string()).and_then(|v| v.as_str()) == Some(id.as_str()) {
-        let next = list_chat(&app, &account_id, chat_id).first().map(|c| c.id.clone());
+    let account = account_key(&account_id);
+    let conn = state.db.conn();
+    conn.execute(
+        "DELETE FROM ai_conversations WHERE account_id = ?1 AND chat_id = ?2 AND id = ?3",
+        params![account, chat_id, id],
+    )
+    .map_err(db_err)?;
+    if active_for(&conn, &account, chat_id).as_deref() == Some(id.as_str()) {
+        let next = list_conversations(&conn, &account, chat_id)
+            .map_err(db_err)?
+            .first()
+            .map(|c| c.id.clone());
         match next {
-            Some(next) => {
-                map.insert(chat_id.to_string(), serde_json::Value::String(next));
-            }
-            None => {
-                map.remove(&chat_id.to_string());
-            }
+            Some(next) => save_active(&conn, &account, chat_id, &next).map_err(db_err)?,
+            None => clear_active(&conn, &account, chat_id).map_err(db_err)?,
         }
-        save_active(&app, &account_id, &map)?;
     }
     Ok(())
 }
@@ -385,19 +422,19 @@ pub fn ai_conversation_delete(
 /// 清空某个聊天的全部对话。
 #[tauri::command]
 pub fn ai_conversation_clear_chat(
-    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
     account_id: String,
     chat_id: i64,
 ) -> Result<usize, String> {
-    let list = list_chat(&app, &account_id, chat_id);
-    let count = list.len();
-    let dir = chat_dir(&app, &account_id, chat_id)?;
-    if dir.is_dir() {
-        std::fs::remove_dir_all(&dir).map_err(|e| format!("清空失败: {e}"))?;
-    }
-    let mut map = load_active(&app, &account_id);
-    map.remove(&chat_id.to_string());
-    save_active(&app, &account_id, &map)?;
+    let account = account_key(&account_id);
+    let conn = state.db.conn();
+    let count = conn
+        .execute(
+            "DELETE FROM ai_conversations WHERE account_id = ?1 AND chat_id = ?2",
+            params![account, chat_id],
+        )
+        .map_err(db_err)?;
+    clear_active(&conn, &account, chat_id).map_err(db_err)?;
     Ok(count)
 }
 
@@ -412,7 +449,7 @@ pub fn ai_conversation_clear_chat(
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub fn ai_conversation_usage(
-    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
     account_id: String,
     chat_id: i64,
     id: String,
@@ -422,11 +459,9 @@ pub fn ai_conversation_usage(
     cache_write_tokens: Option<u64>,
     context_length: Option<u64>,
 ) -> Result<AiConversation, String> {
-    let mut list = list_chat(&app, &account_id, chat_id);
-    let c = list
-        .iter_mut()
-        .find(|c| c.id == id)
-        .ok_or_else(|| "对话不存在".to_string())?;
+    let account = account_key(&account_id);
+    let conn = state.db.conn();
+    let mut c = find_conversation(&conn, &account, chat_id, &id).map_err(db_err)?;
     c.usage.absorb(
         input_tokens,
         output_tokens,
@@ -436,48 +471,81 @@ pub fn ai_conversation_usage(
         now_ms(),
     );
     c.updated_at = now_ms();
-    write_meta(&app, &account_id, c)?;
-    Ok(c.clone())
+    conn.execute(
+        "UPDATE ai_conversations SET
+            updated_at = ?1, requests = ?2, input_tokens = ?3, output_tokens = ?4,
+            cached_tokens = ?5, cache_write_tokens = ?6, last_input_tokens = ?7,
+            last_output_tokens = ?8, context_length = ?9, last_at = ?10
+         WHERE account_id = ?11 AND chat_id = ?12 AND id = ?13",
+        params![
+            c.updated_at,
+            c.usage.requests,
+            c.usage.input_tokens,
+            c.usage.output_tokens,
+            c.usage.cached_tokens,
+            c.usage.cache_write_tokens,
+            c.usage.last_input_tokens,
+            c.usage.last_output_tokens,
+            c.usage.context_length,
+            c.usage.last_at,
+            account,
+            chat_id,
+            id,
+        ],
+    )
+    .map_err(db_err)?;
+    Ok(c)
 }
 
-/// 某个对话自己的目录（`conversation-<id>`）。
-fn conv_dir<R: tauri::Runtime>(
-    app: &tauri::AppHandle<R>,
-    account_id: &str,
-    chat_id: i64,
-    id: &str,
-) -> Result<PathBuf, String> {
-    Ok(chat_dir(app, account_id, chat_id)?.join(format!("conversation-{id}")))
+fn read_history(conn: &Connection, account: &str, chat_id: i64, id: &str) -> Option<String> {
+    conn.query_row(
+        "SELECT history FROM ai_conversations
+         WHERE account_id = ?1 AND chat_id = ?2 AND id = ?3",
+        params![account, chat_id, id],
+        |r| r.get(0),
+    )
+    .ok()
 }
 
-/// 读某个对话的落盘历史。文件不存在（新对话 / 旧数据）= 空历史，不算错误。
+/// 读某个对话的落盘历史。对话不存在 = 空历史，不算错误。
 #[tauri::command]
 pub fn ai_conversation_history(
-    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
     account_id: String,
     chat_id: i64,
     id: String,
 ) -> Result<Vec<ChatMessage>, String> {
-    let path = conv_dir(&app, &account_id, chat_id, &id)?.join(HISTORY);
-    Ok(read_json(&path).unwrap_or_default())
+    let account = account_key(&account_id);
+    let conn = state.db.conn();
+    Ok(read_history(&conn, &account, chat_id, &id)
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default())
 }
 
 /// 覆盖写某个对话的历史（agent 每轮之后调，见 utils/aiChat.ts）。
-/// 对话不存在直接报错，不给它凭空建目录。
+/// 对话不存在直接报错，不给它凭空建行。
 #[tauri::command]
 pub fn ai_conversation_save_history(
-    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
     account_id: String,
     chat_id: i64,
     id: String,
     messages: Vec<ChatMessage>,
 ) -> Result<(), String> {
-    let dir = conv_dir(&app, &account_id, chat_id, &id)?;
-    if !dir.is_dir() {
+    let text = serde_json::to_string(&messages).map_err(|e| e.to_string())?;
+    let account = account_key(&account_id);
+    let conn = state.db.conn();
+    let changed = conn
+        .execute(
+            "UPDATE ai_conversations SET history = ?1
+             WHERE account_id = ?2 AND chat_id = ?3 AND id = ?4",
+            params![text, account, chat_id, id],
+        )
+        .map_err(db_err)?;
+    if changed == 0 {
         return Err("对话不存在".to_string());
     }
-    let text = serde_json::to_string_pretty(&messages).map_err(|e| e.to_string())?;
-    write_atomic(&dir.join(HISTORY), &text)
+    Ok(())
 }
 
 /// 前端本地估算要用的换算：`value` 是字符数，按当前模型把字符数折成 token。
@@ -494,7 +562,7 @@ pub fn estimate_tokens(chars_cjk: u64, chars_other: u64) -> u64 {
     chars_cjk + chars_other.div_ceil(4)
 }
 
-/// 极简 uuid v4（只用来做文件夹名，不需要密码学强度）。
+/// 极简 uuid v4（只用来做会话 id，不需要密码学强度）。
 fn uuid() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
@@ -520,6 +588,25 @@ fn uuid() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::Db;
+
+    fn temp_db(tag: &str) -> (std::path::PathBuf, Db) {
+        let dir = std::env::temp_dir().join(format!("tdgram-ai-{}-{}", tag, now_ms()));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let db = Db::open(&dir).expect("open db");
+        (dir, db)
+    }
+
+    fn conv(id: &str, chat_id: i64, updated_at: u64) -> AiConversation {
+        AiConversation {
+            id: id.to_string(),
+            chat_id,
+            title: id.to_string(),
+            created_at: updated_at,
+            updated_at,
+            ..Default::default()
+        }
+    }
 
     #[test]
     fn absorbs_usage_and_keeps_last_values() {
@@ -547,18 +634,6 @@ mod tests {
         assert_eq!(u.requests, 1);
     }
 
-    /// active 必须出现在发给前端的 JSON 里（前端靠它认当前会话），但**不能**落盘。
-    /// 这条断言挡住的是「#[serde(skip)] 把收发一起掐掉」那类回归。
-    #[test]
-    fn active_flag_travels_to_frontend_but_stays_out_of_metadata() {
-        let c = AiConversation { id: "x".into(), chat_id: 7, active: true, ..Default::default() };
-        let ipc = serde_json::to_value(&c).unwrap();
-        assert_eq!(ipc["active"], true, "发给前端的那份要带 active");
-        let disk = serde_json::to_value(disk_copy(&c)).unwrap();
-        assert_eq!(disk["active"], false, "落盘的那份不带 active（派生值）");
-        assert_eq!(disk["id"], "x", "其余字段照旧落盘");
-    }
-
     #[test]
     fn estimate_counts_cjk_per_char() {
         assert_eq!(estimate_tokens(100, 0), 100);
@@ -568,11 +643,10 @@ mod tests {
     }
 
     #[test]
-    fn account_dir_is_sanitised() {
-        assert_eq!(account_dir(""), DEFAULT_ACCOUNT);
-        assert_eq!(account_dir("  "), DEFAULT_ACCOUNT);
-        assert_eq!(account_dir("123456"), "123456");
-        assert_eq!(account_dir("../etc"), "___etc");
+    fn account_key_sanitises_empty() {
+        assert_eq!(account_key(""), "default");
+        assert_eq!(account_key("  "), "default");
+        assert_eq!(account_key(" 123456 "), "123456");
     }
 
     #[test]
@@ -585,5 +659,50 @@ mod tests {
         assert_eq!([8, 4, 4, 4, 12], [parts[0].len(), parts[1].len(), parts[2].len(), parts[3].len(), parts[4].len()]);
         assert!(parts[2].starts_with('4'));
         assert!(parts[3].starts_with('a'));
+    }
+
+    /// 会话行能增删改查；active 是 ai_active 的派生值；history 与元数据同表读写
+    #[test]
+    fn conversations_roundtrip_and_active_is_derived() {
+        let (dir, db) = temp_db("roundtrip");
+        let conn = db.conn();
+        let account = account_key("42");
+
+        insert_conversation(&conn, &account, &conv("a", 7, 1)).unwrap();
+        insert_conversation(&conn, &account, &conv("b", 7, 2)).unwrap();
+        save_active(&conn, &account, 7, "a").unwrap();
+
+        let list = list_conversations(&conn, &account, 7).unwrap();
+        assert_eq!(list.len(), 2);
+        assert_eq!(list[0].id, "b", "按更新时间倒序");
+        assert_eq!(active_for(&conn, &account, 7).as_deref(), Some("a"));
+
+        // 历史正文与元数据同表
+        conn.execute(
+            "UPDATE ai_conversations SET history = ?1
+             WHERE account_id = ?2 AND chat_id = 7 AND id = 'b'",
+            params![r#"[{"role":"user"}]"#, account],
+        )
+        .unwrap();
+        assert_eq!(
+            read_history(&conn, &account, 7, "b").as_deref(),
+            Some(r#"[{"role":"user"}]"#)
+        );
+
+        // 删除被选中的会话后不留 active
+        conn.execute(
+            "DELETE FROM ai_conversations WHERE account_id = ?1 AND chat_id = 7 AND id = 'a'",
+            [&account],
+        )
+        .unwrap();
+        clear_active(&conn, &account, 7).unwrap();
+        assert!(active_for(&conn, &account, 7).is_none());
+
+        // 换账号后互不可见
+        insert_conversation(&conn, &account_key("other"), &conv("c", 7, 3)).unwrap();
+        assert_eq!(list_conversations(&conn, &account, 7).unwrap().len(), 1);
+        drop(conn);
+        drop(db);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

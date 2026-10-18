@@ -5,6 +5,7 @@ mod ai_conversations;
 mod ai_translate;
 mod chat_store;
 mod data_loc;
+mod db;
 mod device_info;
 mod download_store;
 mod file_gate;
@@ -16,7 +17,7 @@ mod tdlib;
 mod toast_identity;
 mod update_manager;
 
-/// downloads.json 合并写盘间隔（毫秒）。起始值，按实际压力测试调整。
+/// 下载记录合并写库间隔（毫秒）。起始值，按实际压力测试调整。
 const DOWNLOADS_FLUSH_INTERVAL_MS: u64 = 400;
 
 use tauri::{
@@ -223,10 +224,8 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
             app.manage(tdlib::AppState::new(data_dir));
 
-            // downloads.json 延迟持久化：updateFile 进度与登记只改内存并记账，这里合并写盘。
-            // 快照在锁内取、序列化与写文件在锁外做——持 Mutex<DownloadStore> 期间写盘会
-            // 把高频进度与下载命令全堵在锁上。
-            // 完成/暂停/取消等状态变化仍由 store 立即落盘（DownloadStore::save_now）。
+            // 下载记录延迟写库：updateFile 进度与登记只改内存并记账，这里合并写入 SQLite。
+            // 完成/暂停/取消等状态变化仍由 store 立即落库（DownloadStore::save_now）。
             {
                 let store = app.state::<tdlib::AppState>().download_store.clone();
                 std::thread::Builder::new()
@@ -235,12 +234,8 @@ pub fn run() {
                         std::thread::sleep(std::time::Duration::from_millis(
                             DOWNLOADS_FLUSH_INTERVAL_MS,
                         ));
-                        let snapshots = match store.lock() {
-                            Ok(mut store) => store.take_dirty_snapshots(),
-                            Err(_) => continue,
-                        };
-                        for (path, data) in &snapshots {
-                            download_store::write_persisted(path, data);
+                        if let Ok(mut store) = store.lock() {
+                            store.flush_dirty();
                         }
                     })
                     .expect("failed to spawn downloads persist thread");

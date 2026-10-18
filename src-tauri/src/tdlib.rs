@@ -1,5 +1,6 @@
 use crate::accounts::AccountsStore;
 use crate::chat_store::ChatStore;
+use crate::db::Db;
 use crate::device_info;
 use crate::download_store::{DownloadItem, DownloadStore};
 use crate::file_gate::{FileGate, Verdict, RAW_CHANNEL};
@@ -166,7 +167,9 @@ pub struct AppState {
     pub download_store: Arc<Mutex<DownloadStore>>,
     /// 每个 TDLib file_id 的流式互斥锁
     pub stream_locks: Mutex<HashMap<i32, Arc<Mutex<()>>>>,
-    /// 当前数据根目录（TDLib 数据 + 下载记录都存放于其下）
+    /// 本地 SQLite（下载记录 + AI 对话记录）
+    pub db: Arc<Db>,
+    /// 当前数据根目录（TDLib 数据 + 数据库都存放于其下）
     pub data_dir: PathBuf,
     /// 账户清单（持久化）
     pub accounts: Arc<Mutex<AccountsStore>>,
@@ -178,6 +181,9 @@ impl AppState {
     pub fn new(data_dir: PathBuf) -> Self {
         let accounts = AccountsStore::load(data_dir.join("accounts.json"));
         let active = accounts.active();
+        let db = Arc::new(
+            Db::open(&data_dir).unwrap_or_else(|e| panic!("打开本地数据库失败: {e}")),
+        );
         Self {
             tdlib_shared: Mutex::new(None),
             clients: Mutex::new(HashMap::new()),
@@ -195,8 +201,9 @@ impl AppState {
                 system_language_code: "en".into(),
             })),
             proxy_config: Arc::new(Mutex::new(ProxyConfig::default())),
-            download_store: Arc::new(Mutex::new(DownloadStore::new(data_dir.clone(), active))),
+            download_store: Arc::new(Mutex::new(DownloadStore::new(db.clone(), active))),
             stream_locks: Mutex::new(HashMap::new()),
+            db,
             data_dir,
             accounts: Arc::new(Mutex::new(accounts)),
             account_meta: Arc::new(Mutex::new(HashMap::new())),
@@ -2788,6 +2795,14 @@ pub fn get_data_location(
     if dl_dir.is_dir() {
         downloads_size = dir_size(&dl_dir);
     }
+    // 下载记录 + AI 对话记录都在本地数据库里
+    for suffix in ["", "-wal", "-shm"] {
+        if let Ok(meta) =
+            std::fs::metadata(current_dir.join(format!("{}{}", crate::db::DB_FILE, suffix)))
+        {
+            downloads_size += meta.len();
+        }
+    }
 
     Ok(json!({
         "mode": mode.as_str(),
@@ -2886,6 +2901,24 @@ pub async fn migrate_data_dir(
             failed = Some(e);
         }
     }
+
+    // SQLite 数据库此时仍被本进程打开：先 checkpoint 再复制，进程重启后使用副本。
+    emit_migration_progress(&app, 82, "move", "移动数据库…");
+    let _ = state.db.conn().execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+    for suffix in ["", "-wal", "-shm"] {
+        let src = src_dir.join(format!("{}{}", crate::db::DB_FILE, suffix));
+        if !src.exists() {
+            continue;
+        }
+        let dst = target_dir.join(format!("{}{}", crate::db::DB_FILE, suffix));
+        if let Err(e) = std::fs::copy(&src, &dst) {
+            failed = Some(format!("复制数据库失败 {}: {e}", src.display()));
+            break;
+        }
+        // 文件仍被占用，删不掉也无所谓：配置已指向新目录，重启后用副本。
+        let _ = std::fs::remove_file(&src);
+    }
+
     emit_migration_progress(&app, 90, "config", "保存存储位置配置…");
 
     if let Some(err) = failed {
