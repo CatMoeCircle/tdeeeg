@@ -8,7 +8,7 @@
  *   要准确人名让模型调 get_user_info / get_member_rights（一次请求）
  * - 本文件只在应用内加载（依赖 vue / i18n），自检脚本不导入它
  */
-import type { chat, chatMember, message } from "tdlib-types";
+import type { chat, chatMember, message, user } from "tdlib-types";
 import { tdlibSend } from "../tdlib";
 import { getMessagePlainText } from "../messageText";
 import { ensureChat, ensureUser, getReactiveChat, getReactiveUser, getSenderName } from "../senderInfo";
@@ -79,7 +79,8 @@ interface MessageBrief {
   date: number;
   sender: string;
   sender_id: string;
-  outgoing: boolean;
+  /** 只有用户自己发的（含马甲身份）才带 true；不是自己发的就没这个字段（省 token） */
+  outgoing?: true;
   text: string;
   reply_to_message_id?: number;
   thread_id?: number;
@@ -93,9 +94,10 @@ function toBrief(msg: message): MessageBrief {
     date: msg.date,
     sender: getSenderName(senderId) || senderKey(senderId) || "unknown",
     sender_id: senderKey(senderId),
-    outgoing: !!msg.is_outgoing,
     text: getMessagePlainText(msg),
   };
+  // TDLib 的 is_outgoing 含马甲身份：sender_id 对不上我也是自己发的，所以只看它
+  if (msg.is_outgoing) brief.outgoing = true;
   const reply = replyToId(msg);
   if (reply) brief.reply_to_message_id = reply;
   const topic = msg.topic_id;
@@ -251,11 +253,37 @@ registerImplementation("search_messages", async (args): Promise<ToolResult<Messa
 
 // --- 查信息 ---
 
+/** 用户精简字段（get_user_info / get_me 共用同一份投影） */
+function userSummary(u: user): Record<string, unknown> {
+  return {
+    user_id: u.id,
+    name: `${u.first_name} ${u.last_name}`.trim(),
+    username: u.usernames?.active_usernames?.[0] ?? "",
+    /** userTypeRegular / userTypeBot / userTypeDeleted / userTypeUnknown */
+    type: u.type._,
+    is_contact: u.is_contact,
+    is_mutual_contact: u.is_mutual_contact,
+    is_close_friend: u.is_close_friend,
+    is_premium: u.is_premium,
+    is_support: u.is_support,
+    language_code: u.language_code || undefined,
+    status: u.status?._,   // userStatusOnline / Offline / Recently / LastWeek / LastMonth / Empty
+  };
+}
+
+/** full=true：TDLib 原始 user + getUserFullInfo（字段很全很长；拿不到 FullInfo 不影响 user） */
+async function userFull(u: user): Promise<unknown> {
+  const full = await tdlibSend({ _: "getUserFullInfo", user_id: u.id }).catch(() => undefined);
+  return { user: u, full_info: full };
+}
+
 registerImplementation("get_chat_info", async (args): Promise<ToolResult<unknown>> => {
   const chatId = num(args.chat_id, "chat_id");
   await ensureChat(chatId);
   const chat = getReactiveChat(chatId);
   if (!chat) return singleResult("get_chat_info", {}, { warnings: ["chat_not_loaded"] });
+  // full：整份 TDLib chat（位置、最后一条消息、通知设置、权限位…全在里面）
+  if (args.full === true) return singleResult("get_chat_info", chat);
   return singleResult("get_chat_info", {
     chat_id: chat.id,
     title: chat.title,
@@ -289,6 +317,22 @@ registerImplementation("get_group_info", async (args): Promise<ToolResult<unknow
   if (!chat) return singleResult("get_group_info", {}, { warnings: ["chat_not_loaded"] });
   if (chat.type._ !== "chatTypeBasicGroup" && chat.type._ !== "chatTypeSupergroup") {
     return singleResult("get_group_info", {}, { warnings: ["not_a_group"] });
+  }
+
+  // full：TDLib 原始群对象 + FullInfo（FullInfo 里还有成员、邀请链接详情、话题、统计等全量字段）
+  if (args.full === true) {
+    const t = chat.type;
+    const [group, fullInfo] =
+      t._ === "chatTypeSupergroup"
+        ? await Promise.all([
+            tdlibSend({ _: "getSupergroup", supergroup_id: t.supergroup_id }).catch(() => undefined),
+            tdlibSend({ _: "getSupergroupFullInfo", supergroup_id: t.supergroup_id }).catch(() => undefined),
+          ])
+        : await Promise.all([
+            tdlibSend({ _: "getBasicGroup", basic_group_id: t.basic_group_id }).catch(() => undefined),
+            tdlibSend({ _: "getBasicGroupFullInfo", basic_group_id: t.basic_group_id }).catch(() => undefined),
+          ]);
+    return singleResult("get_group_info", { group, full_info: fullInfo });
   }
 
   const full = await loadGroupFullInfo(chat);
@@ -328,20 +372,15 @@ registerImplementation("get_user_info", async (args): Promise<ToolResult<unknown
   await ensureUser(userId);
   const u = getReactiveUser(userId);
   if (!u) return singleResult("get_user_info", {}, { warnings: ["user_not_loaded"] });
-  return singleResult("get_user_info", {
-    user_id: u.id,
-    name: `${u.first_name} ${u.last_name}`.trim(),
-    username: u.usernames?.active_usernames?.[0] ?? "",
-    /** userTypeRegular / userTypeBot / userTypeDeleted / userTypeUnknown */
-    type: u.type._,
-    is_contact: u.is_contact,
-    is_mutual_contact: u.is_mutual_contact,
-    is_close_friend: u.is_close_friend,
-    is_premium: u.is_premium,
-    is_support: u.is_support,
-    language_code: u.language_code || undefined,
-    status: u.status?._,   // userStatusOnline / Offline / Recently / LastWeek / LastMonth / Empty
-  });
+  if (args.full === true) return singleResult("get_user_info", await userFull(u));
+  return singleResult("get_user_info", userSummary(u));
+});
+
+registerImplementation("get_me", async (args): Promise<ToolResult<unknown>> => {
+  const me: user = await tdlibSend({ _: "getMe" });
+  if (args.full === true) return singleResult("get_me", await userFull(me));
+  // my_sender_id 与消息精简结果里的 sender_id 同一套写法，模型可直接比对「这条是不是我发的」
+  return singleResult("get_me", { ...userSummary(me), my_sender_id: `user:${me.id}` });
 });
 
 registerImplementation("get_members", async (args): Promise<ToolResult<unknown[]>> => {

@@ -23,6 +23,9 @@ const p = (
 const lim = (): ToolParam => p("limit", "number", false, "返回条数上限（默认值与硬顶见 limits.ts）");
 
 const chat = () => p("chat_id", "number", true, "聊天 id（群 / 频道 / 私聊）");
+/** 信息类工具：默认精简摘要，full=true 才回 TDLib 原始完整对象（字段很全但很长、吃上下文） */
+const full = () =>
+  p("full", "boolean", false, "true = 返回 TDLib 原始完整对象（字段多、很长）；默认 false = 精简摘要");
 const reason = () => p("reason", "string", true, "一句话说明为什么需要这个操作（审核卡片上展示给用户）");
 /** 回复：额外可选引用原消息里的一段原文 */
 const quote = () =>
@@ -82,18 +85,23 @@ export const TOOLS: readonly ToolMeta[] = [
   },
   {
     name: "get_chat_info", kind: "read",
-    desc: "获取对话信息（标题、类型、未读数、我的权限、是否受保护等）",
-    params: [chat()],
+    desc: "获取对话信息（标题、类型、未读数、我的权限、是否受保护等）；full=true 返回 TDLib 原始完整对话对象",
+    params: [chat(), full()],
   },
   {
     name: "get_group_info", kind: "read",
-    desc: "获取群聊信息（简介、成员数、管理员、邀请链接、历史可见性）",
-    params: [chat()],
+    desc: "获取群聊信息（简介、成员数、管理员、邀请链接、历史可见性）；full=true 返回 TDLib 原始完整群对象与 FullInfo",
+    params: [chat(), full()],
   },
   {
     name: "get_user_info", kind: "read",
-    desc: "获取用户信息（昵称、用户名、简介性字段、是否联系人、是否机器人、是否 premium）",
-    params: [p("user_id", "number", true, "用户 id")],
+    desc: "获取用户信息（昵称、用户名、简介性字段、是否联系人、是否机器人、是否 premium）；full=true 返回 TDLib 原始完整用户对象与 FullInfo",
+    params: [p("user_id", "number", true, "用户 id"), full()],
+  },
+  {
+    name: "get_me", kind: "read",
+    desc: "获取当前登录账户（我自己）的信息：用户 id、昵称、用户名、账户类型、是否 premium。**用来区分「我」和「他人」**：消息只有自己发的才带 outgoing=true（含马甲身份），拿这里的 my_sender_id（user:<id>）和消息的 sender_id 比就知道是不是本人发的。full=true 返回 TDLib 原始完整用户对象与 FullInfo",
+    params: [full()],
   },
   {
     name: "get_members", kind: "read", returnsList: true,
