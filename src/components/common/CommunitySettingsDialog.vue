@@ -20,7 +20,7 @@
                         </div>
                         <!-- 有未保存改动时右上角出现保存 -->
                         <button v-if="dirty" type="button" :disabled="saving" @click="save"
-                            class="shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold text-[var(--app-brand)] transition-colors hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/10">
+                            class="shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold text-(--app-brand) transition-colors hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/10">
                             {{ t('lng_settings_save') }}
                         </button>
                     </div>
@@ -38,7 +38,7 @@
                         <div class="mb-3 rounded-xl bg-white dark:bg-gray-800 overflow-hidden">
                             <button type="button" @click="pickPhoto"
                                 class="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/60">
-                                <CameraIcon class="h-6 w-6 text-[var(--app-brand)]" />
+                                <CameraIcon class="h-6 w-6 text-(--app-brand)" />
                                 <span class="text-sm font-medium text-gray-900 dark:text-gray-100">
                                     {{ t('lng_settings_upload') }}
                                 </span>
@@ -48,11 +48,11 @@
                         <!-- 社群名称 -->
                         <div class="mb-3 rounded-xl bg-white dark:bg-gray-800 overflow-hidden">
                             <div class="px-4 py-3">
-                                <p class="mb-2 text-sm font-medium text-[var(--app-brand)]">
+                                <p class="mb-2 text-sm font-medium text-(--app-brand)">
                                     {{ t('lng_community_manage_name') }}
                                 </p>
                                 <input v-model="editName" type="text"
-                                    class="w-full rounded-lg border border-gray-200 bg-transparent px-3 py-2 text-sm text-gray-900 focus:border-[var(--app-brand)] focus:outline-none dark:border-gray-700 dark:text-gray-100"
+                                    class="w-full rounded-lg border border-gray-200 bg-transparent px-3 py-2 text-sm text-gray-900 focus:border-(--app-brand) focus:outline-none dark:border-gray-700 dark:text-gray-100"
                                     :placeholder="name" />
                             </div>
                         </div>
@@ -60,7 +60,7 @@
                         <!-- 谁可以添加聊天：直接改社区权限 can_edit_chat_list -->
                         <div class="mb-3 rounded-xl bg-white dark:bg-gray-800 overflow-hidden">
                             <div class="px-4 py-3">
-                                <p class="mb-3 text-sm font-medium text-[var(--app-brand)]">
+                                <p class="mb-3 text-sm font-medium text-(--app-brand)">
                                     {{ t('lng_community_manage_who_add') }}
                                 </p>
                                 <div class="space-y-3">
@@ -99,8 +99,8 @@
                                 <span class="flex-1 text-sm font-medium text-gray-900 dark:text-gray-100">
                                     {{ t('lng_manage_peer_administrators') }}
                                 </span>
-                                <span class="text-sm text-[var(--app-brand)]">{{ fullInfo?.administrator_count ?? 0
-                                    }}</span>
+                                <span class="text-sm text-(--app-brand)">{{ fullInfo?.administrator_count ?? 0
+                                }}</span>
                             </div>
                             <div
                                 class="flex items-center gap-3 border-t border-gray-100 px-4 py-3 dark:border-gray-700">
@@ -108,8 +108,8 @@
                                 <span class="flex-1 text-sm font-medium text-gray-900 dark:text-gray-100">
                                     {{ t('lng_community_requests_title') }}
                                 </span>
-                                <span class="text-sm text-[var(--app-brand)]">{{ fullInfo?.add_chat_request_count ?? 0
-                                    }}</span>
+                                <span class="text-sm text-(--app-brand)">{{ fullInfo?.add_chat_request_count ?? 0
+                                }}</span>
                             </div>
                             <div
                                 class="flex items-center gap-3 border-t border-gray-100 px-4 py-3 dark:border-gray-700">
@@ -117,7 +117,7 @@
                                 <span class="flex-1 text-sm font-medium text-gray-900 dark:text-gray-100">
                                     {{ t('lng_manage_peer_removed_users') }}
                                 </span>
-                                <span class="text-sm text-[var(--app-brand)]">{{ fullInfo?.banned_count ?? 0 }}</span>
+                                <span class="text-sm text-(--app-brand)">{{ fullInfo?.banned_count ?? 0 }}</span>
                             </div>
                         </div>
 
@@ -125,10 +125,12 @@
                         <div class="rounded-xl bg-white dark:bg-gray-800 overflow-hidden">
                             <div v-if="loadingChats" class="p-2">
                                 <div v-for="n in 5" :key="n" class="flex items-center gap-3 px-2 py-2">
-                                    <div class="h-10 w-10 shrink-0 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-700">
+                                    <div
+                                        class="h-10 w-10 shrink-0 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-700">
                                     </div>
                                     <div class="flex-1">
-                                        <div class="mb-1.5 h-3.5 w-3/5 animate-pulse rounded bg-gray-200 dark:bg-gray-700">
+                                        <div
+                                            class="mb-1.5 h-3.5 w-3/5 animate-pulse rounded bg-gray-200 dark:bg-gray-700">
                                         </div>
                                         <div class="h-3 w-2/5 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
                                     </div>
