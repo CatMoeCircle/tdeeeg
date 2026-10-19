@@ -11,7 +11,7 @@
         <!-- 顶置消息部分 -->
         <template v-if="pinnedMessages.length > 0">
             <!-- 单条顶置消息（折叠态） -->
-            <div v-if="!expanded && currentPinned" @click="jumpToMessage(currentPinned.id)"
+            <div v-if="!expanded && currentPinned" @click="cyclePinned"
                 class="flex items-center gap-2.5 px-4 py-1.5 cursor-pointer hover:bg-gray-100/60 dark:hover:bg-gray-700/60 transition-colors select-none group"
                 :class="hasPlayer ? 'rounded-none border-b border-gray-100/50 dark:border-gray-700/30' : (bare ? '' : 'rounded-xl')">
                 <!-- 图钉图标 -->
@@ -21,8 +21,15 @@
                 </div>
                 <!-- 消息预览：标题与正文分两行 -->
                 <div class="flex-1 min-w-0 flex flex-col gap-0.5 leading-tight">
-                    <span class="text-xs font-medium text-blue-500 dark:text-blue-400 leading-tight">{{
-                        t('lng_pinned_message') }}</span>
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        <span class="text-xs font-medium text-blue-500 dark:text-blue-400 leading-tight shrink-0">{{
+                            t('lng_pinned_message') }}</span>
+                        <!-- 多条置顶时显示当前序号，点击可循环到下一条置顶消息 -->
+                        <span v-if="pinnedMessages.length > 1 && cycleIndex >= 0"
+                            class="shrink-0 text-[10px] leading-none text-gray-400 dark:text-gray-500 tabular-nums">
+                            {{ cycleIndex + 1 }}/{{ pinnedMessages.length }}
+                        </span>
+                    </div>
                     <span class="min-w-0 truncate text-xs text-gray-700 dark:text-gray-300 leading-tight">
                         <FormattedTextInline :formattedText="getMessagePreview(currentPinned)" :size="12" />
                     </span>
@@ -104,6 +111,8 @@ const props = defineProps<{
     bare?: boolean;
     /** 置顶状态变化时由父组件递增，触发重新拉取 */
     refreshToken?: number;
+    /** 当前视口内正在查看的消息 ID，用于定位「下一条」置顶消息 */
+    activeMessageId?: number | null;
 }>();
 
 const emit = defineEmits<{
@@ -117,6 +126,8 @@ const hasPlayer = computed(() => player.showEntry);
 const pinnedMessages = ref<message[]>([]);
 const currentPinned = ref<message | null>(null);
 const expanded = ref(false);
+/** 本栏上一次点击跳转的目标：父组件视口锚点更新前（及切换会话后）用于继续循环 */
+let lastJumpedId: number | null = null;
 /** 拉取代次：避免切换会话/连续置顶时旧请求覆盖新结果 */
 let loadSeq = 0;
 /** 获取最新的顶置消息 */
@@ -180,6 +191,8 @@ async function loadPinnedMessages(chatIdNum: number | undefined) {
     pinnedMessages.value = list;
     currentPinned.value = latest ?? (list.length > 0 ? list[list.length - 1] : null);
     if (pinnedMessages.value.length <= 1) expanded.value = false;
+    // 置顶列表刷新后，若上次点击目标已不再是置顶消息，则丢弃该兜底，改由视口锚点判定
+    if (lastJumpedId !== null && !list.some(m => m.id === lastJumpedId)) lastJumpedId = null;
 
     // 通知父组件可见性变化
     const visible = pinnedMessages.value.length > 0 || !!currentPinned.value || player.showEntry;
@@ -189,6 +202,29 @@ async function loadPinnedMessages(chatIdNum: number | undefined) {
 function jumpToMessage(messageId: number) {
     expanded.value = false;
     emit('jumpToMessage', messageId);
+}
+
+/**
+ * 当前查看的顶置消息在列表中的下标（列表为按消息时间正序），-1 表示无法判定。
+ * 优先用父组件上报的视口锚点，其次用「本栏上一次点击跳转的目标」。
+ */
+const cycleIndex = computed(() => {
+    const anchor = props.activeMessageId ?? lastJumpedId;
+    if (anchor === null || anchor === undefined) return -1;
+    return pinnedMessages.value.findIndex(m => m.id === anchor);
+});
+
+/**
+ * 折叠态点击：按时间顺序切到下一条顶置消息；已在最新一条时回到最旧一条，以此循环。
+ * 无法判定当前位置时从最旧一条开始重新往下走。
+ */
+function cyclePinned() {
+    const list = pinnedMessages.value;
+    if (list.length === 0) return;
+    const index = cycleIndex.value;
+    const next = index < 0 ? 0 : (index + 1) % list.length;
+    lastJumpedId = list[next].id;
+    jumpToMessage(list[next].id);
 }
 
 function dismiss() {
@@ -282,6 +318,7 @@ watch(() => props.chatId, (newId) => {
     // 切换会话先清空：否则旧会话的置顶消息会残留显示到新会话，直到 fetch 返回
     pinnedMessages.value = [];
     currentPinned.value = null;
+    lastJumpedId = null;
     loadPinnedMessages(newId);
 }, { immediate: true });
 

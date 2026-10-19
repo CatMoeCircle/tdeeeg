@@ -426,6 +426,7 @@
                 <div v-show="showTopCard || showChatTranslateBarUi"
                     class="pointer-events-auto rounded-xl bg-white/70 dark:bg-gray-800/70 backdrop-blur-md shadow-lg border border-gray-200/50 dark:border-gray-700/50 overflow-hidden">
                     <PinnedMessageBar bare :chatId="chatId" :refreshToken="pinnedBarRefreshToken"
+                        :activeMessageId="visiblePinnedAnchorId"
                         @jumpToMessage="jumpToPinnedMessage" @visibleChange="onPinnedVisibleChange" />
                     <!-- 全部翻译栏：贴合在置顶/播放器底部；单独显示时占满整卡 -->
                     <div v-if="showChatTranslateBarUi"
@@ -3119,6 +3120,58 @@ const stickyDateDisplay = computed(() =>
 
 function onPinnedVisibleChange(visible: boolean) {
     pinnedBarVisible.value = visible;
+    // 置顶栏显隐会改变顶部遮挡高度，锚点测量线需要重算
+    scheduleUpdateVisibleAnchor();
+}
+
+// ==================== Viewport Anchor ====================
+/**
+ * 视口内当前查看的消息 ID。
+ * 置顶栏据此判断「现在停在哪条置顶消息上」，点击时按时间顺序切到下一条。
+ */
+const visibleAnchorMessageId = ref<number | null>(null);
+/** 传给置顶栏的锚点：优先实际视口，其次最近一次跳转/高亮目标 */
+const visiblePinnedAnchorId = computed(() =>
+    visibleAnchorMessageId.value ?? highlightedMessageId.value
+);
+
+/**
+ * 解析视口锚点：取顶部附近偏离最少的一条已渲染消息。
+ * 置顶栏占住顶部时，第一条可见消息即「正在看」的那条。
+ */
+function updateVisibleAnchor() {
+    const el = messagesContainer.value;
+    if (!el || !listRevealed.value) {
+        visibleAnchorMessageId.value = null;
+        return;
+    }
+    const box = el.getBoundingClientRect();
+    const nodes = el.querySelectorAll<HTMLElement>('[data-msg-id]');
+    let bestId: number | null = null;
+    let bestDistance = Infinity;
+    // 测量线取视口顶部往下 1/3，避免被顶部置顶栏遮挡的消息抢到锚点
+    const line = box.top + Math.min(box.height / 3, 160);
+    nodes.forEach((node) => {
+        const rect = node.getBoundingClientRect();
+        if (rect.bottom < box.top || rect.top > box.bottom) return;
+        const distance = Math.abs(rect.top - line);
+        if (distance >= bestDistance) return;
+        const id = Number(node.dataset.msgId);
+        if (!Number.isSafeInteger(id) || id <= 0) return;
+        bestDistance = distance;
+        bestId = id;
+    });
+    visibleAnchorMessageId.value = bestId;
+}
+
+/** 视口锚点更新的 rAF 合帧句柄 */
+let visibleAnchorRaf = 0;
+function scheduleUpdateVisibleAnchor() {
+    if (visibleAnchorRaf) return;
+    visibleAnchorRaf = requestAnimationFrame(() => {
+        visibleAnchorRaf = 0;
+        updateVisibleAnchor();
+    });
 }
 
 type HistoryMode = 'normal' | 'jump';
@@ -4707,6 +4760,7 @@ const onScroll = (e: Event) => {
     // 吸顶日期需在跳底抑制窗口内也更新（程序化滚动同样会改变日期相对顶缘的位置）
     // rAF 合帧，避免高频 scroll 事件每次都触发 DOM 测量
     scheduleUpdateStickyDate(el);
+    scheduleUpdateVisibleAnchor();
 
     if (!scrollMetrics.h || !scrollMetrics.c) refreshScrollMetrics(el);
     const H = scrollMetrics.h;
@@ -5367,6 +5421,7 @@ function resetState() {
         highlightTimer = null;
     }
     highlightedMessageId.value = null;
+    visibleAnchorMessageId.value = null;
 }
 
 /** 冻结单条消息，阻止 Vue 深层代理（TDLib 对象很大且频繁整体替换） */
@@ -6928,6 +6983,9 @@ function scheduleUpdateStickyDate(el?: HTMLElement | null) {
  */
 async function jumpToPinnedMessage(messageId: number) {
     await jumpToMessage(messageId);
+    // 跳转后消息列表被整体替换，重新测量视口锚点，供置顶栏判断「下一条」
+    await nextTick();
+    scheduleUpdateVisibleAnchor();
 }
 
 // ==================== Display Items ====================
