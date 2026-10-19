@@ -24,7 +24,7 @@
                     <span class="text-xs font-medium text-blue-500 dark:text-blue-400 leading-tight">{{
                         t('lng_pinned_message') }}</span>
                     <span class="min-w-0 truncate text-xs text-gray-700 dark:text-gray-300 leading-tight">
-                        <GlobalEmojiText :text="getMessagePreview(currentPinned)" :size="12" />
+                        <FormattedTextInline :formattedText="getMessagePreview(currentPinned)" :size="12" />
                     </span>
                 </div>
                 <!-- 展开按钮 -->
@@ -64,7 +64,7 @@
                                 <span class="text-[10px] text-gray-400">{{ formatPinTime(msg.date) }}</span>
                             </div>
                             <p class="text-sm text-gray-700 dark:text-gray-300 line-clamp-2 leading-snug">
-                                <GlobalEmojiText :text="getMessagePreview(msg)" :size="14" />
+                                <FormattedTextInline :formattedText="getMessagePreview(msg)" :size="14" />
                             </p>
                         </div>
                         <ChevronRightIcon
@@ -88,9 +88,9 @@ const { t } = useI18n();
 import { ref, watch, computed } from 'vue';
 import { PinIcon, ChevronDownIcon, ChevronRightIcon, XIcon } from 'lucide-vue-next';
 import { tdlibSend } from '../../../utils/tdlib';
-import type { message } from 'tdlib-types';
+import type { message, formattedText } from 'tdlib-types';
 import MusicPlayerEntry from '../../audio/MusicPlayerEntry.vue';
-import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
+import FormattedTextInline from '../FormattedTextInline.vue';
 import {
     messageContentTypeLabel,
     bracketTypePreview,
@@ -198,41 +198,66 @@ function dismiss() {
     emit('visibleChange', false);
 }
 
-function getMessagePreview(msg: message): string {
+/** 构造仅含纯文本的 formattedText（与 ChatList 预览一致） */
+function plainText(text: string): formattedText {
+    return { _: 'formattedText', text, entities: [] };
+}
+
+/** 在 formattedText 前拼接纯文本前缀，并平移实体 offset（UTF-16 码元，与 slice 一致） */
+function withPrefix(prefix: string, ft: formattedText): formattedText {
+    const offset = prefix.length;
+    return {
+        _: 'formattedText',
+        text: prefix + ft.text,
+        entities: (ft.entities ?? []).map(e => ({ ...e, offset: e.offset + offset })),
+    };
+}
+
+/** 媒体 caption 预览：`[类型] caption` 保留实体（自定义 emoji / 剧透），无 caption 时仅类型标签 */
+function captionPreview(label: string, caption?: formattedText | null): formattedText {
+    if (caption?.text?.trim()) return withPrefix(`${bracketTypePreview(label)} `, caption);
+    return plainText(bracketTypePreview(label));
+}
+
+/**
+ * 置顶栏消息预览：返回 formattedText，
+ * 由 FormattedTextInline 渲染以保留 textEntityTypeCustomEmoji（自定义 emoji）等实体。
+ */
+function getMessagePreview(msg: message): formattedText {
     const c = msg.content;
     switch (c._) {
         case 'messageText':
-            return c.text?.text || bracketTypePreview(messageContentTypeLabel(''));
+            return c.text?.text ? c.text : plainText(bracketTypePreview(messageContentTypeLabel('')));
         case 'messagePhoto':
-            return (c.caption?.text || '') ? bracketTypePreview(messageContentTypeLabel('messagePhoto'), c.caption.text) : bracketTypePreview(messageContentTypeLabel('messagePhoto'));
+            return captionPreview(messageContentTypeLabel('messagePhoto'), c.caption);
         case 'messageVideo':
-            return (c.caption?.text || '') ? bracketTypePreview(messageContentTypeLabel('messageVideo'), c.caption.text) : bracketTypePreview(messageContentTypeLabel('messageVideo'));
+            return captionPreview(messageContentTypeLabel('messageVideo'), c.caption);
         case 'messageAnimation':
-            return (c.caption?.text || '') ? bracketTypePreview(messageContentTypeLabel('messageAnimation'), c.caption.text) : bracketTypePreview(messageContentTypeLabel('messageAnimation'));
+            return captionPreview(messageContentTypeLabel('messageAnimation'), c.caption);
         case 'messageSticker':
-            return bracketTypePreview(messageContentTypeLabel('messageSticker'));
+            return plainText(bracketTypePreview(messageContentTypeLabel('messageSticker')));
         case 'messageVoiceNote':
-            return bracketTypePreview(messageContentTypeLabel('messageVoiceNote'));
+            return plainText(bracketTypePreview(messageContentTypeLabel('messageVoiceNote')));
         case 'messageVideoNote':
-            return bracketTypePreview(messageContentTypeLabel('messageVideoNote'));
+            return plainText(bracketTypePreview(messageContentTypeLabel('messageVideoNote')));
         case 'messageAudio':
-            return musicBracketPreview(c.audio.title, c.audio.performer);
+            return plainText(musicBracketPreview(c.audio.title, c.audio.performer));
         case 'messageDocument':
-            return bracketTypePreview(messageContentTypeLabel('messageDocument'), c.document.file_name);
+            return plainText(bracketTypePreview(messageContentTypeLabel('messageDocument'), c.document.file_name));
         case 'messagePoll':
-            return bracketTypePreview(messageContentTypeLabel('messagePoll'));
+            return plainText(bracketTypePreview(messageContentTypeLabel('messagePoll')));
         case 'messageLocation':
-            return bracketTypePreview(messageContentTypeLabel('messageLocation'));
+            return plainText(bracketTypePreview(messageContentTypeLabel('messageLocation')));
         case 'messageContact':
-            return bracketTypePreview(messageContentTypeLabel('messageContact'));
+            return plainText(bracketTypePreview(messageContentTypeLabel('messageContact')));
         case 'messageDice':
-            return bracketTypePreview(messageContentTypeLabel('messageDice'));
+            return plainText(bracketTypePreview(messageContentTypeLabel('messageDice')));
         case 'messageGame':
-            return bracketTypePreview(messageContentTypeLabel('messageGame'));
+            return plainText(bracketTypePreview(messageContentTypeLabel('messageGame')));
         case 'messagePinMessage':
-            return t('lng_action_pinned_message', { from: '', text: '' });
+            return plainText(t('lng_action_pinned_message', { from: '', text: '' }));
         default:
-            return bracketTypePreview(messageContentTypeLabel(''));
+            return plainText(bracketTypePreview(messageContentTypeLabel('')));
     }
 }
 
