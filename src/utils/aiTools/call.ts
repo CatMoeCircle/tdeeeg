@@ -28,7 +28,8 @@ import type {
   ToolParam,
 } from "./types.ts";
 import { getTool } from "./registry.ts";
-import { ensureChat } from "../senderInfo";
+import { ensureChat, getReactiveChat } from "../senderInfo";
+import { resolveTopicMode } from "../topicDisplayMode";
 
 export interface ToolCall {
   /** 模型侧调用 id，回填 tool 消息时必须带回去 */
@@ -115,12 +116,17 @@ export function messageOf(e: unknown): string {
 
 // --- 当前线程（论坛话题 / 频道直通消息 / 评论线程） ---
 
+/** 线程类型：forum = 群组论坛话题；dm = 频道直通消息；comment = 频道帖子的评论线程 */
+export type TurnThreadKind = "forum" | "dm" | "comment";
+
 /** 这一轮用户所在线程；工具没显式传 thread_id 时用它兜底 */
 export interface TurnThread {
   /** 话题 / 线程 id */
   id: number;
   /** 这些消息真正所在的会话：评论线程 = 讨论组，话题 = 当前聊天 */
   chatId: number;
+  /** 线程类型：决定 topic_id 形态与读历史的接口 */
+  kind: TurnThreadKind;
 }
 
 let turnThread: TurnThread | null = null;
@@ -130,9 +136,40 @@ export function setTurnThread(thread: TurnThread | null): void {
   turnThread = thread;
 }
 
-/** thread_id 的默认值：只有 chat_id 正好是线程所在会话时才补，避免读别的聊天时张冠李戴 */
-export function threadOf(chatId: number): number | undefined {
-  return turnThread && turnThread.chatId === chatId ? turnThread.id : undefined;
+/** 工具解析出的线程（带类型）；只有三种合法上下文会有值 */
+export interface ResolvedThread {
+  id: number;
+  kind: TurnThreadKind;
+}
+
+/**
+ * 工具要用的 thread_id：**只有线程页**（评论线程 / 频道私信 / 话题对话）才会有值，
+ * 其中获取历史消息（get_recent_messages）与获取当前视口消息（get_visible_messages）
+ * 对它的使用都收敛在这条规则下：
+ * - 当前不在任何线程页 → 不产出任何线程：调用方直接**不携带** thread / topic_id 字段
+ *   （键不出现，而不是返回空值往下传），读整个会话、发送不带 topic；
+ * - 在线程页且目标就是该线程所在会话（没传 id，或带回的就是当前线程 id）→ 用本轮线程，kind 由界面判定；
+ * - 在线程页上操作其他会话 / 同会话的其他话题 → 目标会话必须真的有话题体系（论坛 / 频道私信）才收。
+ */
+export async function resolveToolThread(chatId: number, explicitId?: number): Promise<ResolvedThread | undefined> {
+  const turn = turnThread && turnThread.id ? turnThread : null;
+  // 非线程页：thread_id 一律不传递
+  if (!turn) return undefined;
+  const explicit = typeof explicitId === "number" && explicitId > 0 ? explicitId : undefined;
+  if (turn.chatId === chatId && (explicit === undefined || explicit === turn.id)) {
+    return { id: turn.id, kind: turn.kind };
+  }
+  if (explicit === undefined) return undefined; // 线程页上读别的会话：不把当前线程套过去
+  await ensureChat(chatId);
+  const mode = await resolveTopicMode(getReactiveChat(chatId));
+  if (mode.isDirectMessages) return { id: explicit, kind: "dm" };
+  if (mode.mode !== "none") return { id: explicit, kind: "forum" };
+  return undefined;
+}
+
+/** 当前线程页是否允许涉及该会话的 thread_id（消息摘要 brief 是否输出 thread_id 用）；普通页面恒 false */
+export function turnAllowsThreadId(chatId: number): boolean {
+  return !!turnThread && turnThread.id > 0 && turnThread.chatId === chatId;
 }
 
 /** 按策略与通道裁决一次写类调用 */

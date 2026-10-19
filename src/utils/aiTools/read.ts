@@ -14,8 +14,7 @@ import { getMessagePlainText } from "../messageText";
 import { ensureChat, ensureUser, getReactiveChat, getReactiveUser, getSenderName } from "../senderInfo";
 import { loadChatAdministrators, loadGroupFullInfo, loadGroupMembers, memberUserId } from "../groupRights";
 import { extractTopicNumber } from "../directMessagesTopics";
-import { resolveTopicMode } from "../topicDisplayMode";
-import { registerImplementation, threadOf } from "./call.ts";
+import { registerImplementation, resolveToolThread, turnAllowsThreadId, type ResolvedThread } from "./call.ts";
 import { clampLimit, collectPaged, listResult, singleResult } from "./limits.ts";
 import { linkPreviewInfo, type LinkPreviewInfo } from "./linkPreview.ts";
 import type { ToolOutcome, ToolResult } from "./types.ts";
@@ -83,6 +82,7 @@ interface MessageBrief {
   outgoing?: true;
   text: string;
   reply_to_message_id?: number;
+  /** 仅线程页（评论线程 / 频道私信 / 话题）且消息属于该会话时才输出；普通页面一律不带 */
   thread_id?: number;
   attachments?: string[];
 }
@@ -105,46 +105,54 @@ function toBrief(msg: message): MessageBrief {
     topic?._ === "messageTopicThread"
       ? topic.message_thread_id
       : extractTopicNumber(topic as { _: string } | undefined);
-  if (thread) brief.thread_id = thread;
+  // 非线程页不输出 thread_id（普通超群消息也常带 messageTopicThread，输出了模型会当参数回传）
+  if (thread && turnAllowsThreadId(msg.chat_id)) brief.thread_id = thread;
   const attachments = attachmentsOf(msg);
   if (attachments.length) brief.attachments = attachments;
   return brief;
 }
 
-/** 分页取聊天/话题历史（newest-first），返回精简消息与下一页游标（最旧消息 id） */
+/**
+ * 分页取聊天/线程历史（newest-first），返回精简消息与下一页游标（最旧消息 id）。
+ * 线程类型 → 接口的映射与对话页 fetchMessages 一致：
+ * 评论线程 getMessageThreadHistory、论坛话题 getForumTopicHistory、
+ * 频道私信 getDirectMessagesChatTopicHistory；无线程走整个会话 getChatHistory。
+ */
 async function fetchHistory(opts: {
   chatId: number;
-  threadId?: number;
+  thread?: ResolvedThread;
   limit: number;
   fromMessageId?: number;
 }): Promise<{ briefs: MessageBrief[]; truncated: boolean; nextCursor: number }> {
   let from = opts.fromMessageId ?? 0;
-  // 频道直通消息（私聊群组）的话题有自己的历史接口：这种会话 getChatHistory 是空的，
-  // 话题 id 也不是线程根消息 id，getMessageThreadHistory 拿不到 —— 与对话页同一套判定
-  let dmTopic = false;
-  if (opts.threadId) {
-    await ensureChat(opts.chatId);
-    dmTopic = (await resolveTopicMode(getReactiveChat(opts.chatId))).isDirectMessages;
-  }
   const { items, truncated } = await collectPaged<message>(opts.limit, async (size) => {
-    const res = opts.threadId
-      ? dmTopic
+    const res = opts.thread
+      ? opts.thread.kind === "dm"
         ? await tdlibSend({
             _: "getDirectMessagesChatTopicHistory",
             chat_id: opts.chatId,
-            topic_id: opts.threadId,
+            topic_id: opts.thread.id,
             from_message_id: from,
             offset: 0,
             limit: size,
           })
-        : await tdlibSend({
-            _: "getMessageThreadHistory",
-            chat_id: opts.chatId,
-            message_id: opts.threadId,
-            from_message_id: from,
-            offset: 0,
-            limit: size,
-          })
+        : opts.thread.kind === "forum"
+          ? await tdlibSend({
+              _: "getForumTopicHistory",
+              chat_id: opts.chatId,
+              forum_topic_id: opts.thread.id,
+              from_message_id: from,
+              offset: 0,
+              limit: size,
+            })
+          : await tdlibSend({
+              _: "getMessageThreadHistory",
+              chat_id: opts.chatId,
+              message_id: opts.thread.id,
+              from_message_id: from,
+              offset: 0,
+              limit: size,
+            })
       : await tdlibSend({
           _: "getChatHistory",
           chat_id: opts.chatId,
@@ -165,10 +173,12 @@ async function fetchHistory(opts: {
 registerImplementation("get_recent_messages", async (args): Promise<ToolResult<MessageBrief[]>> => {
   const raw = args.limit as number | undefined;
   const chatId = num(args.chat_id, "chat_id");
+  // thread_id 只在三种线程上下文生效（没带时跟着当前界面走）；
+  // 非线程页不是"传空"，而是直接不携带 thread 字段（键不出现）
+  const thread = await resolveToolThread(chatId, optNum(args.thread_id));
   const { briefs, truncated, nextCursor } = await fetchHistory({
     chatId,
-    // 没传 thread_id 就跟着当前界面：在话题里读历史默认只读这个话题（threadOf 只在同一会话时给值）
-    threadId: optNum(args.thread_id) ?? threadOf(chatId),
+    ...(thread ? { thread } : {}),
     limit: clampLimit("get_recent_messages", raw),
     fromMessageId: optNum(args.before_message_id),
   });
@@ -190,9 +200,10 @@ registerImplementation("get_reply_chain", async (args): Promise<ToolResult<Messa
   const raw = args.limit as number | undefined;
   const limit = clampLimit("get_reply_chain", raw);
 
-  // 1) 是线程（超群回复线程 / 频道评论）→ TDLib 的线程历史一次拿全
+  // 1) 是线程（超群回复线程 / 频道评论）→ getMessageThreadHistory 一次拿全；
+  //    不是线程会抛错，退化为 reply_to 链（kind: comment = 探测，仅决定走线程接口）
   try {
-    const thread = await fetchHistory({ chatId, threadId: messageId, limit });
+    const thread = await fetchHistory({ chatId, thread: { id: messageId, kind: "comment" }, limit });
     if (thread.briefs.length) {
       return listResult("get_reply_chain", raw, thread.briefs, {
         truncated: thread.truncated,

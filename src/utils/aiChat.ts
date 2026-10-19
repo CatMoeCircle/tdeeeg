@@ -208,8 +208,13 @@ function systemPrompt(o: {
     lines.push(
       `用户现在在${what}里：thread_id = ${o.thread.id}。` +
         (o.thread.chatId === o.chatId ? "" : `这条线程的消息实际在 chat_id = ${o.thread.chatId}（讨论组），读写都用这个 chat_id。`) +
-        "读历史要带这个 thread_id（get_recent_messages 的 thread_id，别读整个聊天）；" +
-        "发送要带同一个 thread_id（send_message / send_media 的 thread_id）—— 不带会落到别的话题或 General。",
+        "只在这个会话里用它：读历史带 thread_id（get_recent_messages），发送带同一个 thread_id（send_message / send_media）—— 不带会落到别的话题或 General；" +
+        "操作其他会话时不要传 thread_id。",
+    );
+  } else {
+    lines.push(
+      "当前不在线程里（不是论坛话题、频道私信，也不是评论线程）：" +
+        "读历史、发送都不要传 thread_id，直接针对整个会话。",
     );
   }
   if (o.quote) {
@@ -229,11 +234,8 @@ function systemPrompt(o: {
   return lines.join("\n");
 }
 
-/** 当前线程 + 它是哪种线程（决定 prompt 措辞；工具只需 id / chatId） */
-export interface AiTurnThread extends TurnThread {
-  /** forum = 群组论坛话题；dm = 频道直通消息；comment = 频道帖子的评论线程 */
-  kind: "forum" | "dm" | "comment";
-}
+/** 当前线程（沿用工具层 TurnThread，含 kind：forum / dm / comment，决定 prompt 措辞） */
+export type AiTurnThread = TurnThread;
 
 export interface AiTurnOptions {
   chatId: number;

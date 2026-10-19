@@ -51,7 +51,7 @@ export const TOOLS: readonly ToolMeta[] = [
   {
     name: "get_recent_messages", kind: "read", returnsList: true,
     desc: "拉取某个聊天（或话题）最近的上下文消息",
-    params: [chat(), p("thread_id", "number", false, "话题 / 线程 id；不传 = 整个聊天"), p("before_message_id", "number", false, "从这个消息 id 往前翻（分页用）"), lim()],
+    params: [chat(), p("thread_id", "number", false, "话题 / 线程 id；仅论坛话题、频道私信、评论线程有效，不在这三种场景就别传（不传 = 整个聊天）"), p("before_message_id", "number", false, "从这个消息 id 往前翻（分页用）"), lim()],
   },
   {
     name: "get_visible_messages", kind: "read", returnsList: true,
@@ -131,7 +131,7 @@ export const TOOLS: readonly ToolMeta[] = [
     name: "send_message", kind: "write", needsApproval: true, risk: "send",
     desc: `发送文本消息（正文按 ${MARKDOWN_V2_GUIDE}；可回复 / 引用某条消息、可发到指定话题）`,
     summary: (a) => `在聊天 ${chatName(a.chat_id)} 发送消息：「${short(a.text)}」${a.reply_to_message_id ? `（回复 ${a.reply_to_message_id}${a.quote ? `，引用「${short(a.quote)}」` : ""}）` : ""}`,
-    params: [chat(), mdText(), p("reply_to_message_id", "number", false, "回复哪条消息"), quote(), p("thread_id", "number", false, "发到哪个话题"), reason()],
+    params: [chat(), mdText(), p("reply_to_message_id", "number", false, "回复哪条消息"), quote(), p("thread_id", "number", false, "发到哪个话题 / 线程（仅论坛话题、频道私信、评论线程；其余会话不要传）"), reason()],
   },
   {
     name: "send_media", kind: "write", needsApproval: true, risk: "send",
@@ -143,7 +143,7 @@ export const TOOLS: readonly ToolMeta[] = [
       p("caption", "string", false, "媒体描述（相册时挂在最后一条上；按 MarkdownV2 解析）"),
       p("reply_to_message_id", "number", false, "回复哪条消息"),
       quote(),
-      p("thread_id", "number", false, "发到哪个话题"),
+      p("thread_id", "number", false, "发到哪个话题 / 线程（仅论坛话题、频道私信、评论线程；其余会话不要传）"),
       reason(),
     ],
   },

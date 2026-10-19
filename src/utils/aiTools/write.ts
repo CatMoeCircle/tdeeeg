@@ -14,12 +14,15 @@ import { stat } from "@tauri-apps/plugin-fs";
 import type { formattedText, inputTextQuote } from "tdlib-types";
 import { tdlibSend } from "../tdlib";
 import { getMessagePlainText } from "../messageText";
-import { ensureChat, getReactiveChat } from "../senderInfo";
 import { buildMessageTopicInput } from "../directMessagesTopics";
-import { resolveTopicMode } from "../topicDisplayMode";
 import { classifyAttachment, sendAttachments } from "../attachmentSend";
 import type { AttachmentItem } from "../../store/attachment";
-import { registerImplementation, registerPrecheck, threadOf } from "./call.ts";
+import {
+  registerImplementation,
+  registerPrecheck,
+  resolveToolThread,
+  type ResolvedThread,
+} from "./call.ts";
 import { quotePosition } from "./format.ts";
 import { singleResult } from "./limits.ts";
 import { assertTdlibMethodAllowed } from "./policy.ts";
@@ -133,23 +136,40 @@ async function replyToOf(
 }
 
 /**
- * 这个话题所在的会话是不是「频道直通消息（私聊群组）」：这种群的话题要用 messageTopicDirectMessages，
- * 论坛话题用 messageTopicForum，类型用错 TDLib 直接 400（错误信息还只有 [object Object] 以前那样看不出）。
- * 判定跟对话页同一套：supergroup 的 is_direct_messages_group，**不是**看 chatType。
+ * 线程 → sendMessage 的 topic_id 形态（与对话页 outgoingTopicInput 同一套）：
+ * 评论线程 messageTopicThread；论坛话题 messageTopicForum；频道私信 messageTopicDirectMessages。
+ * 类型用错 TDLib 直接 400（错误信息只有 [object Object] 以前那样看不出）。
  */
-async function isDmTopicChat(chatId: number): Promise<boolean> {
-  await ensureChat(chatId);
-  return (await resolveTopicMode(getReactiveChat(chatId))).isDirectMessages;
+function topicInputOf(t: ResolvedThread) {
+  if (t.kind === "comment") return { _: "messageTopicThread", message_thread_id: t.id } as const;
+  return buildMessageTopicInput(t.kind === "dm", t.id);
+}
+
+/**
+ * thread_id 预校验（审核前挡，见 call.ts registerPrecheck）：
+ * 普通会话上模型硬传 thread_id → 让它去掉参数重试，别让用户批一张带无效参数的卡片。
+ * 合法性判定与实现体共用 resolveToolThread，两边不会打架。
+ */
+async function threadPrecheck(args: Record<string, unknown>): Promise<string[]> {
+  const explicit = optNum(args.thread_id);
+  if (explicit === undefined) return [];
+  const chatId = typeof args.chat_id === "number" ? args.chat_id : NaN;
+  if (!Number.isFinite(chatId)) return []; // chat_id 本身不合法由实现体 num() 报
+  const resolved = await resolveToolThread(chatId, explicit);
+  if (resolved) return [];
+  return [
+    "thread_id 不适用于本次调用：只有处于论坛话题、频道私信、评论线程时才需要 thread_id，" +
+      "当前上下文不满足 —— 去掉 thread_id 后重试（不要改其他参数）。",
+  ];
 }
 
 registerImplementation("send_message", async (args): Promise<ToolOutcome> => {
   const chatId = num(args.chat_id, "chat_id");
   const text = String(args.text ?? "");
-  // 模型没带 thread_id 时跟着当前界面走（不然在话题里问「发一条」会落到 General）
-  const threadId = optNum(args.thread_id) ?? threadOf(chatId);
-
-  // 话题输入要区分论坛话题 / 私信话题，沿用应用里的同一套构造
-  const isDm = threadId ? await isDmTopicChat(chatId) : false;
+  // thread_id 只在三种线程上下文生效（模型没带时跟着当前界面走）；
+  // 非线程页直接不携带 topic_id 字段（TDLib 入参键不出现，不是传空值）
+  const thread = await resolveToolThread(chatId, optNum(args.thread_id));
+  const topic = thread ? topicInputOf(thread) : undefined;
 
   const reply = await replyToOf(chatId, optNum(args.reply_to_message_id), String(args.quote ?? ""));
   const content = await formattedArgs(text, "send_message");
@@ -158,7 +178,7 @@ registerImplementation("send_message", async (args): Promise<ToolOutcome> => {
   const sent = await tdlibSend({
     _: "sendMessage",
     chat_id: chatId,
-    ...(threadId ? { topic_id: buildMessageTopicInput(isDm, threadId) } : {}),
+    ...(topic ? { topic_id: topic } : {}),
     // quote: null（没引用时）要转成缺省字段：TDLib 的入参只接受对象或省略，不接受 null
     ...(reply.replyTo ? { reply_to: { ...reply.replyTo, quote: reply.replyTo.quote ?? undefined } } : {}),
     input_message_content: {
@@ -187,9 +207,14 @@ registerImplementation("send_media", async (args): Promise<ToolOutcome> => {
   const chatId = num(args.chat_id, "chat_id");
   const paths = (Array.isArray(args.files) ? args.files : []).map((f) => String(f));
   const caption = String(args.caption ?? "");
-  const threadId = optNum(args.thread_id) ?? threadOf(chatId);
+  // 与 send_message 同一门控：只在三种线程上下文生效；非线程页直接不携带线程字段（键不出现，不是传空）
+  const thread = await resolveToolThread(chatId, optNum(args.thread_id));
+  const threadCtx = !thread
+    ? {}
+    : thread.kind === "comment"
+      ? { threadId: thread.id }
+      : { topicId: thread.id, isDm: thread.kind === "dm" };
 
-  const isDm = threadId ? await isDmTopicChat(chatId) : false;
   // 2GB 以上的文件要 Premium；拿不到登录信息时按非 Premium 保守处理
   const { useUserStore } = await import("../../store/user");
   const isPremium = !!useUserStore().userProfile?.is_premium;
@@ -229,7 +254,7 @@ registerImplementation("send_media", async (args): Promise<ToolOutcome> => {
   const reply = await replyToOf(chatId, optNum(args.reply_to_message_id), String(args.quote ?? ""));
   const cap = await formattedArgs(caption, "send_media");
   if ("error" in cap) return cap.error;
-  const result = await sendAttachments(items, { chatId, topicId: threadId, isDm, replyTo: reply.replyTo }, cap.text);
+  const result = await sendAttachments(items, { chatId, ...threadCtx, replyTo: reply.replyTo }, cap.text);
 
   // sendAttachments 返回是否全部成功（失败原因在应用日志里），这里照实告诉模型，别假装发成功了
   if (!result.ok) {
@@ -270,8 +295,15 @@ registerImplementation("edit_message", async (args): Promise<ToolOutcome> => {
 
 // MarkdownV2 预校验：解析不过就挡在审核之前（用户不会为一次注定失败的消息白批卡片）。
 // 预校验用的解析路径与实现体完全相同，只是提前跑一次。
-registerPrecheck("send_message", (a) => markdownPrecheck(String(a.text ?? ""), "text"));
-registerPrecheck("send_media", (a) => markdownPrecheck(String(a.caption ?? ""), "caption"));
+// thread_id 合法性也在审核前挡：无效参数不让用户白批，模型去掉后直接重试。
+registerPrecheck("send_message", async (a) => [
+  ...(await threadPrecheck(a)),
+  ...(await markdownPrecheck(String(a.text ?? ""), "text")),
+]);
+registerPrecheck("send_media", async (a) => [
+  ...(await threadPrecheck(a)),
+  ...(await markdownPrecheck(String(a.caption ?? ""), "caption")),
+]);
 registerPrecheck("edit_message", (a) => markdownPrecheck(String(a.text ?? ""), "text"));
 
 registerImplementation("delete_message", async (args): Promise<ToolResult<unknown>> => {
