@@ -201,9 +201,10 @@ src-tauri/
 
 本项目全程使用 AI Agent 辅助开发，主要工具：
 
+- **DeepSeek Harness**
+- **Xiaomi MiMo Desktop**
 - **GitHub Copilot**
 - **Codex**
-- **Claude CLI**
 
 开发流程：
 

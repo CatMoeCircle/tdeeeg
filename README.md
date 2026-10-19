@@ -31,9 +31,9 @@ This project is developed entirely with AI tools, so contributions made with the
 | Frontend framework | Vue 3 + TypeScript + Vite |
 | Telegram protocol | TDLib (via Rust FFI) |
 
-## Recommended IDE
+## Recommended IDE AND TOOLS
 
-- [VS Code](https://code.visualstudio.com/) + [Vue - Official](https://marketplace.visualstudio.com/items?itemName=Vue.volar) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+-[DeepSeek Harness](https://www.deepseek.com/harness) + [VS Code](https://code.visualstudio.com/) + [Vue - Official](https://marketplace.visualstudio.com/items?itemName=Vue.volar) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
 
 ## Feature status
 
@@ -200,9 +200,10 @@ src-tauri/
 
 This project is developed end-to-end with AI agent tooling, mainly:
 
+- **DeepSeek Harness**
+- **Xiaomi MiMo Desktop**
 - **GitHub Copilot**
 - **Codex**
-- **Claude CLI**
 
 Workflow:
 
