@@ -4,6 +4,7 @@ mod ai_chat;
 mod ai_conversations;
 mod ai_translate;
 mod chat_store;
+mod community_store;
 mod data_loc;
 mod db;
 mod device_info;
@@ -328,6 +329,7 @@ pub fn run() {
             tdlib::logout_tdlib,
             tdlib::get_chat_list,
             tdlib::get_chat_lists,
+            tdlib::get_community,
             tdlib::get_downloads,
             tdlib::get_download_active_count,
             tdlib::register_download,

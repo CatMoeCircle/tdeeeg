@@ -1,5 +1,6 @@
 use crate::accounts::AccountsStore;
 use crate::chat_store::ChatStore;
+use crate::community_store::CommunityStore;
 use crate::db::Db;
 use crate::device_info;
 use crate::download_store::{DownloadItem, DownloadStore};
@@ -120,6 +121,7 @@ pub struct TdLibClient {
     pub destroy_fn: TdJsonClientDestroy,
     pub close_signal: Arc<Mutex<Option<oneshot::Sender<()>>>>,
     pub chat_store: Arc<Mutex<ChatStore>>,
+    pub community_store: Arc<Mutex<CommunityStore>>,
     pub connection_state: Arc<Mutex<Option<String>>>,
     pub options: Arc<Mutex<HashMap<String, String>>>,
     /// getMe 返回的 user 对象缓存
@@ -1176,6 +1178,7 @@ fn create_client(
         destroy_fn: sh.destroy_fn,
         close_signal: Arc::new(Mutex::new(None)),
         chat_store: Arc::new(Mutex::new(ChatStore::new())),
+        community_store: Arc::new(Mutex::new(CommunityStore::new())),
         connection_state: Arc::new(Mutex::new(None)),
         options: Arc::new(Mutex::new(HashMap::new())),
         me: Mutex::new(None),
@@ -1251,6 +1254,7 @@ fn spawn_receive_loop(
     let receive_fn = sh.receive_fn;
     let close_signal = client.close_signal.clone();
     let chat_store = client.chat_store.clone();
+    let community_store = client.community_store.clone();
     let connection_state = client.connection_state.clone();
     let options = client.options.clone();
 
@@ -1593,6 +1597,15 @@ fn spawn_receive_loop(
 
                 // 处理聊天缓存（updateChat...），仅活动账户转发衍生事件
                 if let Some(events) = chat_store.lock().unwrap().handle_update(&event) {
+                    if is_active {
+                        for (event_name, payload) in events {
+                            let _ = app_handle.emit(&event_name, &payload);
+                        }
+                    }
+                }
+
+                // 处理社区缓存（updateCommunity），仅活动账户转发衍生事件
+                if let Some(events) = community_store.lock().unwrap().handle_update(&event) {
                     if is_active {
                         for (event_name, payload) in events {
                             let _ = app_handle.emit(&event_name, &payload);
@@ -2935,4 +2948,12 @@ pub async fn migrate_data_dir(
 
     tokio::time::sleep(Duration::from_millis(800)).await;
     app.restart();
+}
+
+#[tauri::command]
+pub fn get_community(state: State<AppState>, community_id: i64) -> Result<serde_json::Value, String> {
+    let client = active_client(state.inner())?;
+    let store = client.community_store.lock().map_err(|e| e.to_string())?;
+    let community = store.get_community(community_id).ok_or("Community not found")?;
+    Ok(serde_json::to_value(community).map_err(|e| e.to_string())?)
 }

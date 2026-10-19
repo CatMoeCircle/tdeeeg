@@ -615,6 +615,9 @@
         </div>
 
 
+        <!-- ===== 社区入口卡片（群/频道/机器人，依据 community_id） ===== -->
+        <CommunityEntryCard v-if="entryCommunityId" :community-id="entryCommunityId" />
+
         <!-- ===== 第四部分：底部功能导航栏（动态 / 归档动态 / 礼物 / 共享媒体） =====
              滚动时粘性置顶；下方内容区保证足够高度，切换标签时标签栏稳定贴顶、内容不闪空 -->
         <div v-if="hasBottomContent" ref="profileTabsEl" class="px-4 mt-5 sticky top-0 z-10 py-2 scroll-mt-0">
@@ -1276,6 +1279,7 @@ import EmojiDrawer from "../../components/chat/ChatDetail/stickerPanel/EmojiDraw
 import GiftDisplay from "../../components/common/GiftDisplay.vue";
 import MessageStickerContent from "../../components/chat/ChatDetail/MessageContent/content/MessageStickerContent.vue";
 import GiftDetailDialog from "../../components/common/GiftDetailDialog.vue";
+import CommunityEntryCard from "../../components/common/CommunityEntryCard.vue";
 import { buildGiftDetailData, type GiftDetailData } from "../../utils/giftDetail";
 import MediaViewer from "../../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
 import type { MediaViewerItem } from "../../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
@@ -1392,6 +1396,11 @@ const basicGroupObj = ref<basicGroup | undefined>(undefined);
 const supergroupFull = ref<supergroupFullInfo | undefined>(undefined);
 /** 基本群组完整信息 */
 const basicGroupFull = ref<basicGroupFullInfo | undefined>(undefined);
+/** 社区入口：群/频道取 supergroupFull，机器人取 userFullInfo；仅以 community_id 判定（0 = 无社区） */
+const entryCommunityId = computed(() => {
+  if (chatMode.value) return supergroupFull.value?.community_id || 0;
+  return isBot.value ? fullInfo.value?.community_id || 0 : 0;
+});
 
 /** 当前聊天是否为频道（is_channel） */
 const isChatChannel = computed(() => {
