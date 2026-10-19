@@ -27,6 +27,20 @@
             </button>
         </div>
 
+        <!-- 频道/群被加入社群：与官方一致用卡片（社群头像 + 文案 + 查看按钮），点击查看打开社群详情 -->
+        <div v-else-if="communityContent"
+            class="mx-auto flex w-52 max-w-full flex-col items-center justify-center gap-2.5 rounded-2xl bg-white/40 px-4 py-5 shadow-sm backdrop-blur-md dark:bg-black/20">
+            <CommunityAvatar :photo="communityPhoto" :title="communityName" size-class="w-20 h-20" />
+            <span class="text-sm leading-snug text-gray-600 dark:text-gray-300">
+                <ServiceTextNodes />
+            </span>
+            <button type="button"
+                class="rounded-full bg-white/50 px-6 py-1.5 text-sm font-medium text-gray-900 backdrop-blur-sm dark:bg-white/15 dark:text-white"
+                @click.stop="communityDialogOpen = true">
+                {{ t('lng_community_view') }}
+            </button>
+        </div>
+
         <span v-else
             class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full">
             <ServiceTextNodes />
@@ -41,6 +55,10 @@
         <WallpaperPreviewDialog :open="wallpaperPreviewOpen" :wallpaper="wallpaperContent?.background ?? null"
             :user-name="otherUserName" :chat-id="chatId" :message-id="messageId"
             @close="wallpaperPreviewOpen = false" />
+
+        <!-- 社群详情弹窗（点击社群卡片里的查看按钮打开） -->
+        <CommunityDetailDialog v-if="communityContent" v-model:open="communityDialogOpen"
+            :community-id="communityContent.community_id" :name="communityName" :photo="communityPhoto" />
     </div>
 </template>
 
@@ -64,6 +82,8 @@ import { useUserStore } from '../../../../../store/user';
 import { toggleReaction } from '../../../../contextMenu/messageActions';
 import FormattedTextInline from '../../../FormattedTextInline.vue';
 import WallpaperPreviewDialog from '../../../WallpaperPreviewDialog.vue';
+import CommunityAvatar from '../../../../common/CommunityAvatar.vue';
+import CommunityDetailDialog from '../../../../common/CommunityDetailDialog.vue';
 import ReactionsBar from '../../ReactionsBar.vue';
 import MessageUnsupportedContent from './MessageUnsupportedContent.vue';
 
@@ -178,6 +198,32 @@ const wallpaperPreviewOpen = ref(false);
 const chatStore = useChatStore();
 const communityStore = useCommunityStore();
 const userStore = useUserStore();
+
+/** 被加入社群的消息（messageChatAddedToCommunity）：渲染为社群卡片，而不是一行系统提示 */
+const communityContent = computed(() => {
+    const c = props.content;
+    return c._ === 'messageChatAddedToCommunity' ? c : null;
+});
+
+/** 社群卡片上的名称 / 头像：来自 updateCommunity 缓存，未缓存时退回「社区」文案 */
+const communityName = computed(() =>
+    (communityContent.value && communityStore.names[communityContent.value.community_id]) || t('lng_community_title'),
+);
+const communityPhoto = computed(() =>
+    communityContent.value ? communityStore.communities[communityContent.value.community_id]?.photo : undefined,
+);
+
+/** 社群详情弹窗开关（卡片里的「查看」按钮） */
+const communityDialogOpen = ref(false);
+
+// 还没收到 updateCommunity 时主动向 Rust 侧要一次，头像/名称就绪后卡片自动更新
+watch(
+    () => communityContent.value?.community_id,
+    (id) => {
+        if (id && !communityStore.communities[id]) void communityStore.fetchCommunity(id);
+    },
+    { immediate: true },
+);
 
 /** 当前登录用户 id：文案中的成员若是自己，显示为「您 / You」而非自己的名字 */
 const myId = computed(() => userStore.userProfile?.id);
