@@ -129,6 +129,9 @@ export function useStickerMedia(
         undefined,
         setLabel,
         remoteIdOf(f as any),
+        // 贴纸有归属集（animation 没有）：面板据此跳回贴纸集
+        isSticker ? 'sticker_set' : undefined,
+        isSticker ? Number((o as any)?.set_id) || undefined : undefined,
       );
     } catch { /* 忽略注册失败 */ }
 

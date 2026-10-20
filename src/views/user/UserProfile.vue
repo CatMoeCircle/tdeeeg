@@ -1366,6 +1366,12 @@ const userId = computed(() => Number(route.params.id));
 const chatMode = computed(() => route.name === 'chat-profile');
 const chatId = computed(() => (chatMode.value ? Number(route.params.id) : undefined));
 
+/** 下载记录溯源目标：用户资料页 → user，频道/群组资料页 → chat（面板据此跳回来） */
+const sourceTarget = computed(() => ({
+  sourceKind: chatMode.value ? 'chat' : 'user',
+  sourceId: Number(route.params.id),
+}));
+
 /** 私密聊天信息（chatTypeSecret 时有值） */
 const secretChatObj = ref<secretChat | undefined>(undefined);
 /** 是否为秘密聊天模式 */
@@ -2582,7 +2588,7 @@ async function loadSharedMediaThumb(item: {
     const audio = item.message.content.audio;
     for (const coverFile of listAlbumCoverFiles(audio)) {
       try {
-        const url = await downloadFileUrl(coverFile, `shared_music_cover_${item.messageId}_${coverFile.id}.jpg`, 'music_cover', { tags: ['音乐封面', '缩略图'], sourceLabel: userName.value || undefined });
+        const url = await downloadFileUrl(coverFile, `shared_music_cover_${item.messageId}_${coverFile.id}.jpg`, 'music_cover', { tags: ['音乐封面', '缩略图'], sourceLabel: userName.value || undefined, ...sourceTarget.value });
         if (url) {
           sharedMediaUrlCache.value = { ...sharedMediaUrlCache.value, [item.messageId]: url };
           return;
@@ -2600,7 +2606,7 @@ async function loadSharedMediaThumb(item: {
   if (item.linkCoverFile) {
     if (!shouldAutoDownloadPhotos(sharedMediaChatId.value)) return;
     try {
-      const url = await downloadFileUrl(item.linkCoverFile, `shared_link_cover_${item.messageId}_${item.linkCoverFile.id}.jpg`, 'avatar');
+      const url = await downloadFileUrl(item.linkCoverFile, `shared_link_cover_${item.messageId}_${item.linkCoverFile.id}.jpg`, 'avatar', { ...sourceTarget.value });
       if (url) {
         sharedMediaUrlCache.value = { ...sharedMediaUrlCache.value, [item.messageId]: url };
       }
@@ -2615,7 +2621,7 @@ async function loadSharedMediaThumb(item: {
       const ext = item.thumbFormat === 'thumbnailFormatMpeg4' || item.thumbFormat === 'thumbnailFormatWebm'
         ? 'mp4'
         : 'jpg';
-      const url = await downloadFileUrl(item.thumbFile, `shared_thumb_${item.messageId}_${item.thumbFile.id}.${ext}`, 'avatar');
+      const url = await downloadFileUrl(item.thumbFile, `shared_thumb_${item.messageId}_${item.thumbFile.id}.${ext}`, 'avatar', { ...sourceTarget.value });
       if (url) {
         sharedMediaUrlCache.value = { ...sharedMediaUrlCache.value, [item.messageId]: url };
         return;
@@ -2632,7 +2638,7 @@ async function loadSharedMediaThumb(item: {
   const smallest = sorted[0]?.photo;
   if (!smallest) return;
   try {
-    const url = await downloadFileUrl(smallest, `shared_${item.messageId}_${smallest.id}.jpg`, 'avatar');
+    const url = await downloadFileUrl(smallest, `shared_${item.messageId}_${smallest.id}.jpg`, 'avatar', { ...sourceTarget.value });
     if (url) {
       sharedMediaUrlCache.value = { ...sharedMediaUrlCache.value, [item.messageId]: url };
     }
@@ -2750,7 +2756,7 @@ async function loadProfileMusicCover() {
   try {
     for (const coverFile of listAlbumCoverFiles(profileAudio.value)) {
       if (token !== profileMusicCoverLoadToken) return;
-      const url = await downloadFileUrl(coverFile, `profile_music_cover_${coverFile.id}.jpg`, 'music_cover', { tags: ['音乐封面', '缩略图', '资料页'], sourceLabel: '资料页' });
+      const url = await downloadFileUrl(coverFile, `profile_music_cover_${coverFile.id}.jpg`, 'music_cover', { tags: ['音乐封面', '缩略图', '资料页'], sourceLabel: '资料页', ...sourceTarget.value });
       if (url) {
         if (token === profileMusicCoverLoadToken) profileMusicCoverHd.value = url;
         return;
@@ -2787,7 +2793,7 @@ async function loadHeaderPhoto() {
   const info = fullInfo.value;
   const biggest = pickLargestPhotoFile(info?.photo);
   if (biggest) {
-    const url = await downloadFileUrl(biggest, `profile_header_${biggest.id}.jpg`, 'avatar');
+    const url = await downloadFileUrl(biggest, `profile_header_${biggest.id}.jpg`, 'avatar', { ...sourceTarget.value });
     if (seq === profileMediaLoadSeq) headerPhotoUrl.value = url;
   }
 }
@@ -2821,6 +2827,7 @@ async function loadPhotoUrls() {
     const url = await downloadFileUrl(biggest, `profile_photo_${biggest.id}.jpg`, 'avatar', {
       tags: ['用户头像', '高清头像'],
       sourceLabel: userName.value || undefined,
+      ...sourceTarget.value,
     });
     // 整批一次写回：任一 await 期间切换了用户就整批作废
     if (seq !== profileMediaLoadSeq) return;
@@ -2963,7 +2970,7 @@ async function loadStoryUrls() {
     const file = pickStoryCoverFile(s);
     if (!file) continue;
     try {
-      const url = await downloadFileUrl(file, `story_${s.id}.jpg`, 'story_cover', { tags: ['动态封面', '缩略图', '动态'], sourceLabel: userName.value || undefined });
+      const url = await downloadFileUrl(file, `story_${s.id}.jpg`, 'story_cover', { tags: ['动态封面', '缩略图', '动态'], sourceLabel: userName.value || undefined, ...sourceTarget.value });
       if (seq !== profileMediaLoadSeq) return;
       if (url) urls[s.id] = url;
     } catch (e) {
@@ -3243,7 +3250,7 @@ async function loadChatStories() {
     const file = pickStoryCoverFile(s);
     if (!file) continue;
     try {
-      const url = await downloadFileUrl(file, `chat_story_${s.id}.jpg`, 'story_cover', { tags: ['动态封面', '缩略图', '动态'], sourceLabel: chatTitle.value || undefined });
+      const url = await downloadFileUrl(file, `chat_story_${s.id}.jpg`, 'story_cover', { tags: ['动态封面', '缩略图', '动态'], sourceLabel: chatTitle.value || undefined, ...sourceTarget.value });
       if (url) urls[s.id] = url;
     } catch { /* 忽略单条失败 */ }
   }

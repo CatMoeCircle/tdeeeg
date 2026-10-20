@@ -51,13 +51,13 @@ async function waitForFileReady(
  * 下载一个文件并返回其本地 asset URL（用于个人资料页的大图 / 照片墙 / 礼物贴纸等）。
  *
  * @param hiddenCategory 隐藏资源的细分类别（"avatar" / "story_cover" 等）
- * @param extra 额外标签 / 来源展示
+ * @param extra 额外标签 / 来源展示 / 溯源目标（sourceKind + sourceId）
  */
 export async function downloadFileUrl(
   f: file | undefined,
   fileName?: string,
   hiddenCategory?: string,
-  extra?: { tags?: string[]; sourceLabel?: string; chatTitle?: string },
+  extra?: { tags?: string[]; sourceLabel?: string; chatTitle?: string; sourceKind?: string; sourceId?: number },
 ): Promise<string | undefined> {
   if (!f || !f.id) return undefined;
   if (isFileReady(f)) return convertFileSrc(f.local.path);
@@ -88,6 +88,8 @@ export async function downloadFileUrl(
       tags.length ? tags : undefined,
       extra?.sourceLabel,
       remoteIdOf(f),
+      extra?.sourceKind,
+      extra?.sourceId,
     );
     const res = await tdlibSend({
       _: "downloadFile",

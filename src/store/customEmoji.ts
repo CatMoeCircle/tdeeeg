@@ -125,6 +125,7 @@ async function downloadThumbnail(emojiId: string, fileId: number) {
     [DL_TAG.EMOJI, DL_TAG.THUMB],
     setLabel,
     remoteIdOf({ id: fileId, remote: undefined } as any) || undefined,
+    'sticker_set', Number(stickerObj?.set_id) || undefined,
   );
   try {
     const result = await tdlibSend({
@@ -171,6 +172,8 @@ async function downloadStickerFile(emojiId: string, fileId: number) {
     undefined, undefined, undefined, true, false, 'emoji', false,
     [DL_TAG.EMOJI],
     setLabel,
+    undefined,
+    'sticker_set', Number(stickerObj?.set_id) || undefined,
   );
 
   try {

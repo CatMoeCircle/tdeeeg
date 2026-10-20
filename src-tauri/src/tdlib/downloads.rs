@@ -58,6 +58,9 @@ pub fn register_download(
     is_streaming: bool,
     tags: Option<Vec<String>>,
     source_label: Option<String>,
+    // 溯源：来源类型（sticker_set / user / chat）+ 目标 id（贴纸集 id / user id / chat id）
+    source_kind: Option<String>,
+    source_id: Option<i64>,
 ) -> Result<(), String> {
     // 写入当前活动账户的独立记录
     state
@@ -81,6 +84,8 @@ pub fn register_download(
             is_streaming,
             tags,
             source_label,
+            source_kind,
+            source_id,
         );
     Ok(())
 }

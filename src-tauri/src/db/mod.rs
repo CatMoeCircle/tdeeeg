@@ -41,6 +41,9 @@ CREATE TABLE IF NOT EXISTS downloads (
     completed_at       INTEGER NOT NULL DEFAULT 0,
     has_tdlib_update   INTEGER NOT NULL DEFAULT 0,
     in_tdlib_list      INTEGER NOT NULL DEFAULT 0,
+    -- 溯源：来源类型（sticker_set / user / chat）+ 对应 id，供下载面板跳回贴纸集/资料页
+    source_kind        TEXT,
+    source_id          INTEGER,
     PRIMARY KEY (account_id, remote_id)
 );
 
@@ -93,6 +96,13 @@ impl Db {
             .map_err(|e| format!("初始化数据库失败: {e}"))?;
         conn.execute_batch(SCHEMA)
             .map_err(|e| format!("创建数据表失败: {e}"))?;
+        // 旧库补列（新库已由 SCHEMA 建好；重复添加报错，忽略即可）
+        for stmt in [
+            "ALTER TABLE downloads ADD COLUMN source_kind TEXT",
+            "ALTER TABLE downloads ADD COLUMN source_id INTEGER",
+        ] {
+            let _ = conn.execute(stmt, []);
+        }
         Ok(Self {
             conn: Mutex::new(conn),
         })

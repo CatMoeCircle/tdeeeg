@@ -94,6 +94,10 @@ export interface DownloadItem {
     has_tdlib_update?: boolean;
     /** 是否仍在 TDLib 官方下载列表中（addFileToDownloads） */
     in_tdlib_list?: boolean;
+    /** 溯源：来源类型（sticker_set / user / chat） */
+    source_kind?: string;
+    /** 溯源目标 id（贴纸集 id / user id / chat id） */
+    source_id?: number;
 }
 
 /**
@@ -264,6 +268,10 @@ function mergeRecords(dst: DownloadItem, src: DownloadItem): DownloadItem {
     if (next.message_id == null) next.message_id = src.message_id;
     if (!next.thumbnail_data_url) next.thumbnail_data_url = src.thumbnail_data_url;
     if (!next.source_label) next.source_label = src.source_label;
+    if (!next.source_kind && src.source_kind) {
+        next.source_kind = src.source_kind;
+        next.source_id = src.source_id;
+    }
     if (next.file_type === "other" && next.is_generic) {
         next.file_type = src.file_type;
         next.is_generic = src.is_generic;
@@ -1235,6 +1243,9 @@ export const useDownloadStore = defineStore("downloads", () => {
         tags?: string[],
         sourceLabel?: string,
         remoteId?: string,
+        /** 溯源：来源类型（sticker_set / user / chat）与目标 id，供面板跳回来源 */
+        sourceKind?: string,
+        sourceId?: number,
     ) {
         const generic = isGeneric ?? (fileType === "sticker" || fileType === "avatar" || fileType === "other");
         const category = hiddenCategory ?? (generic ? inferHiddenCategory(fileType) : undefined);
@@ -1268,6 +1279,8 @@ export const useDownloadStore = defineStore("downloads", () => {
                 isStreaming: isStreaming ?? false,
                 tags: finalTags,
                 sourceLabel: sourceLabel || null,
+                sourceKind: sourceKind || null,
+                sourceId: sourceId ?? null,
             });
             // 重复注册（组件重挂载/列表复用）不得把已完成/进行中状态清零：
             // TDLib 对已完成文件不会再推 updateFile，一旦重置就会永远停在「正在下载」。
@@ -1320,6 +1333,8 @@ export const useDownloadStore = defineStore("downloads", () => {
                         is_streaming: nextStreaming,
                         tags: nextTags,
                         source_label: sourceLabel ?? existing.source_label,
+                        source_kind: sourceKind ?? existing.source_kind,
+                        source_id: sourceId ?? existing.source_id,
                         chat_id: chatId || existing.chat_id,
                         message_id: messageId || existing.message_id,
                         // 保留进度/完成态/本地路径，不因重复注册回退
@@ -1352,6 +1367,8 @@ export const useDownloadStore = defineStore("downloads", () => {
                     is_streaming: isStreaming ?? false,
                     tags: finalTags,
                     source_label: sourceLabel,
+                    source_kind: sourceKind,
+                    source_id: sourceId,
                     dismissed: false,
                     chat_id: chatId,
                     message_id: messageId,

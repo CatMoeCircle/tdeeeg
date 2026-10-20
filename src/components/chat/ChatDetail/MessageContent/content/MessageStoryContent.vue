@@ -168,6 +168,9 @@ async function loadStory(c: messageStory) {
         const url = await downloadFileUrl(cover, `story_${st.poster_chat_id}_${st.id}.jpg`, 'story_cover', {
             tags: ['动态封面', '缩略图', '动态'],
             sourceLabel: posterName.value || undefined,
+            // 动态属于发起者的资料页/频道：面板据此跳回去
+            sourceKind: 'chat',
+            sourceId: st.poster_chat_id ? Number(st.poster_chat_id) : undefined,
         });
         // 期间消息已切换则丢弃结果
         if (seq === loadSeq && url) coverSrc.value = url;

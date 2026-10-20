@@ -42,6 +42,8 @@
             <UsernameMenu />
             <!-- 左下角下载管理器悬浮窗 -->
             <DownloadsModule />
+            <!-- 贴纸/emoji 所属贴纸集弹窗：全局单例（对话、下载面板、内部链接共用） -->
+            <StickerSetDialog />
         </div>
     </div>
 </template>
@@ -61,6 +63,7 @@ import AudioPlayerCore from '../../components/audio/AudioPlayerCore.vue';
 import MusicPlayerOverlay from '../../components/audio/MusicPlayerOverlay.vue';
 import UsernameMenu from '../../components/contextMenu/UsernameMenu.vue';
 import DownloadsModule from '../../components/downloads/DownloadsModule.vue';
+import StickerSetDialog from '../../components/chat/ChatDetail/StickerSetDialog.vue';
 import { useDefaultChatBackground } from '../../composables/useChatWallpaper';
 import ChatBackgroundLayers from '../../components/chat/ChatBackgroundLayers.vue';
 import { setChatPaneVisible, setChatPaneOrigin, chatPaneOrigin } from '../../store/chatPane';

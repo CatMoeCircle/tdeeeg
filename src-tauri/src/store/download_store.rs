@@ -71,6 +71,12 @@ pub struct DownloadItem {
     /// 用户手动下载走该列表；cancel 时需 removeFileFromDownloads，避免重启后续传。
     #[serde(default)]
     pub in_tdlib_list: bool,
+    /// 溯源：来源类型（sticker_set / user / chat），配合 `source_id` 供面板跳回来源
+    #[serde(default)]
+    pub source_kind: Option<String>,
+    /// 溯源目标 id（贴纸集 id / user id / chat id）
+    #[serde(default)]
+    pub source_id: Option<i64>,
 }
 
 fn now_ms() -> i64 {
@@ -122,17 +128,6 @@ fn is_placeholder_file_name(name: &str) -> bool {
         }
     }
     false
-}
-
-/// 仅由文件内容决定的身份（类型 + 文件名 + 大小）。
-///
-/// 用于认领历史条目：旧版本的键是 remote.id（含 file_reference），刷新后同一文件换了 id，
-/// 老条目既没有 unique_id 也无法反推，只能靠内容身份认亲。
-fn content_key_of(file_type: &str, file_name: &str, total_size: i64) -> Option<String> {
-    if total_size <= 0 || is_placeholder_file_name(file_name) {
-        return None;
-    }
-    Some(format!("{}|{}|{}", file_type, file_name, total_size))
 }
 
 /// 把同一文件的另一条记录并入 `dst`：进度/完成态取更完整的一份，元数据互补，标签取并集。
@@ -243,7 +238,7 @@ impl AccountDownloadData {
                     message_id, total_size, downloaded_size, progress, is_paused, is_completed,
                     local_path, thumbnail_data_url, file_type, is_generic, hidden_category,
                     is_auto_photo, is_streaming, tags, source_label, dismissed, is_upload,
-                    created_at, completed_at, has_tdlib_update, in_tdlib_list
+                    created_at, completed_at, has_tdlib_update, in_tdlib_list, source_kind, source_id
              FROM downloads WHERE account_id = ?1",
         ) else {
             return data;
@@ -278,6 +273,8 @@ impl AccountDownloadData {
                 completed_at: r.get(24)?,
                 has_tdlib_update: r.get(25)?,
                 in_tdlib_list: r.get(26)?,
+                source_kind: r.get(27)?,
+                source_id: r.get(28)?,
             })
         });
         if let Ok(rows) = rows {
@@ -313,10 +310,11 @@ impl AccountDownloadData {
                     chat_id, message_id, total_size, downloaded_size, progress, is_paused,
                     is_completed, local_path, thumbnail_data_url, file_type, is_generic,
                     hidden_category, is_auto_photo, is_streaming, tags, source_label, dismissed,
-                    is_upload, created_at, completed_at, has_tdlib_update, in_tdlib_list
+                    is_upload, created_at, completed_at, has_tdlib_update, in_tdlib_list,
+                    source_kind, source_id
                  ) VALUES (
                     ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
-                    ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28
+                    ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30
                  )",
             )?;
             for (key, item) in self
@@ -354,10 +352,39 @@ impl AccountDownloadData {
                     item.completed_at,
                     item.has_tdlib_update,
                     item.in_tdlib_list,
+                    item.source_kind,
+                    item.source_id,
                 ])?;
             }
         }
         tx.commit()
+    }
+
+    /// 缩略图淘汰：面板只在未隐藏的 photo/video 上显示缩略图（见 tdlib.rs get_download_page），
+    /// 其余条目的 base64 data URL 清掉；保留的也只留最新 `THUMB_KEEP` 条。
+    /// ponytail: 按 created_at 截断而非真 LRU，缩略图可由 TDLib 重新登记回填；要按访问淘汰再上 LRU。
+    fn trim_thumbnails(&mut self) {
+        const THUMB_KEEP: usize = 500;
+        let displayed = |i: &DownloadItem| {
+            !i.dismissed && matches!(i.file_type.as_str(), "photo" | "video")
+        };
+        let mut keep: Vec<(i64, String)> = Vec::new();
+        for (key, item) in self.items.iter_mut() {
+            if item.thumbnail_data_url.is_none() {
+                continue;
+            }
+            if displayed(item) {
+                keep.push((item.created_at, key.clone()));
+            } else {
+                item.thumbnail_data_url = None;
+            }
+        }
+        keep.sort_unstable_by(|a, b| b.0.cmp(&a.0));
+        for (_, key) in keep.into_iter().skip(THUMB_KEEP) {
+            if let Some(item) = self.items.get_mut(&key) {
+                item.thumbnail_data_url = None;
+            }
+        }
     }
 
     fn rebuild_session_map(&mut self) {
@@ -371,15 +398,22 @@ impl AccountDownloadData {
         }
     }
 
-    /// 同文件的条目（键不稳定 / 换了 remote.id）——按内容身份认亲
+    /// 同文件的条目（键不稳定 / 换了 remote.id）——按内容身份认亲。
+    ///
+    /// 每次登记新文件都会走这里，表内可能上万条：直接比字段，不再逐条 `format!`
+    /// 造身份串（那是每条一次 String 分配）。
     fn find_same_file_key(&self, file_type: &str, file_name: &str, total_size: i64) -> Option<String> {
-        let probe = content_key_of(file_type, file_name, total_size)?;
+        // 探针不成立（占位名 / 大小未知）时不可能认亲，直接跳过全表扫描
+        if total_size <= 0 || is_placeholder_file_name(file_name) {
+            return None;
+        }
         self.items
             .iter()
             .find(|(_, it)| {
                 !it.dismissed
-                    && content_key_of(&it.file_type, &it.file_name, it.total_size).as_deref()
-                        == Some(probe.as_str())
+                    && it.total_size == total_size
+                    && it.file_type == file_type
+                    && it.file_name == file_name
             })
             .map(|(k, _)| k.clone())
     }
@@ -499,7 +533,8 @@ impl DownloadStore {
 
     /// 立即写库：登记 / 完成 / 暂停 / 取消 等低频但重要的状态变化。
     fn save_now(&mut self, account_id: i64) {
-        if let Some(d) = self.accounts.get(&account_id) {
+        if let Some(d) = self.accounts.get_mut(&account_id) {
+            d.trim_thumbnails();
             if let Err(e) = d.save(&self.db, account_id) {
                 eprintln!("[db] 保存下载记录失败: {e}");
             }
@@ -516,7 +551,8 @@ impl DownloadStore {
     pub fn flush_dirty(&mut self) -> usize {
         let accounts: Vec<i64> = self.dirty.drain().collect();
         for acct in &accounts {
-            if let Some(d) = self.accounts.get(acct) {
+            if let Some(d) = self.accounts.get_mut(acct) {
+                d.trim_thumbnails();
                 if let Err(e) = d.save(&self.db, *acct) {
                     eprintln!("[db] 保存下载记录失败: {e}");
                 }
@@ -705,6 +741,8 @@ impl DownloadStore {
         is_streaming: bool,
         tags: Option<Vec<String>>,
         source_label: Option<String>,
+        source_kind: Option<String>,
+        source_id: Option<i64>,
     ) -> String {
         let acct = account_id.unwrap_or(self.active_account);
         let rid = derive_remote_id(remote_id.as_deref(), session_file_id);
@@ -767,6 +805,8 @@ impl DownloadStore {
             is_streaming,
             tags,
             source_label,
+            source_kind,
+            source_id,
         );
         self.data_mut(acct)
             .session_map
@@ -779,7 +819,6 @@ impl DownloadStore {
         use_key
     }
 
-    #[allow(clippy::too_many_arguments)]
     #[allow(clippy::too_many_arguments)]
     fn merge_register(
         &mut self,
@@ -799,52 +838,60 @@ impl DownloadStore {
         is_streaming: bool,
         tags: Option<Vec<String>>,
         source_label: Option<String>,
+        source_kind: Option<String>,
+        source_id: Option<i64>,
     ) {
         let d = self.data_mut(account_id);
-        if let Some(existing) = d.items.get(key) {
+        if let Some(existing) = d.items.get_mut(key) {
             if !existing.dismissed {
+                // 原地更新：登记在消息列表里每个媒体资源都会走一次，克隆整条
+                // （含 base64 缩略图字符串）纯属浪费
                 let is_fallback = existing.file_type == "other" && existing.is_generic;
-                let mut updated = existing.clone();
                 if is_fallback {
-                    updated.file_type = file_type;
-                    updated.is_generic = is_generic;
-                    updated.hidden_category = hidden_category;
-                    updated.is_auto_photo = is_auto_photo;
-                    if tags.as_ref().map(|t| !t.is_empty()).unwrap_or(false) {
-                        updated.tags = tags.unwrap_or_default();
+                    existing.file_type = file_type;
+                    existing.is_generic = is_generic;
+                    existing.hidden_category = hidden_category;
+                    existing.is_auto_photo = is_auto_photo;
+                    // 占位条目的分类被更具体的一方覆盖，标签同样整组替换
+                    if let Some(incoming) = tags.filter(|t| !t.is_empty()) {
+                        existing.tags = incoming;
                     }
-                } else if tags.as_ref().map(|t| !t.is_empty()).unwrap_or(false) {
-                    let mut merged = updated.tags.clone();
-                    for t in tags.unwrap_or_default() {
+                } else if let Some(incoming) = tags.filter(|t| !t.is_empty()) {
+                    let mut merged = std::mem::take(&mut existing.tags);
+                    for t in incoming {
                         if !merged.contains(&t) {
                             merged.push(t);
                         }
                     }
-                    updated.tags = merged;
+                    existing.tags = merged;
                 }
-                if updated.file_name.starts_with("文件 #") && !file_name.is_empty() {
-                    updated.file_name = file_name;
+                if existing.file_name.starts_with("文件 #") && !file_name.is_empty() {
+                    existing.file_name = file_name;
                 }
-                if updated.chat_title.is_empty() && !chat_title.is_empty() {
-                    updated.chat_title = chat_title;
+                if existing.chat_title.is_empty() && !chat_title.is_empty() {
+                    existing.chat_title = chat_title;
                 }
-                if updated.thumbnail_data_url.is_none() {
-                    updated.thumbnail_data_url = thumbnail_data_url;
+                if existing.thumbnail_data_url.is_none() {
+                    existing.thumbnail_data_url = thumbnail_data_url;
                 }
                 if source_label.is_some() {
-                    updated.source_label = source_label;
+                    existing.source_label = source_label;
                 }
-                if updated.total_size == 0 && total_size > 0 {
-                    updated.total_size = total_size;
+                // 溯源信息只在本次登记带了新值时才覆盖，避免重复登记把来源清空
+                if source_kind.is_some() {
+                    existing.source_kind = source_kind;
+                    existing.source_id = source_id;
                 }
-                updated.is_streaming = updated.is_streaming || is_streaming;
-                updated.session_file_id = Some(session_file_id);
-                updated.file_id = session_file_id;
-                updated.remote_id = key.to_string();
-                if updated.created_at == 0 {
-                    updated.created_at = now_ms();
+                if existing.total_size == 0 && total_size > 0 {
+                    existing.total_size = total_size;
                 }
-                d.items.insert(key.to_string(), updated);
+                existing.is_streaming = existing.is_streaming || is_streaming;
+                existing.session_file_id = Some(session_file_id);
+                existing.file_id = session_file_id;
+                existing.remote_id = key.to_string();
+                if existing.created_at == 0 {
+                    existing.created_at = now_ms();
+                }
                 return;
             }
         }
@@ -879,6 +926,8 @@ impl DownloadStore {
                 completed_at: 0,
                 has_tdlib_update: false,
                 in_tdlib_list: false,
+                source_kind,
+                source_id,
             },
         );
     }
@@ -994,6 +1043,8 @@ impl DownloadStore {
                 completed_at: if is_downloading_completed { now_ms() } else { 0 },
                 has_tdlib_update: true,
                 in_tdlib_list: false,
+                source_kind: None,
+                source_id: None,
             };
             self.data_mut(acct).items.insert(key.clone(), item);
             if session_file_id != 0 {
@@ -1144,6 +1195,8 @@ impl DownloadStore {
             completed_at: completed_at_ms,
             has_tdlib_update: true,
             in_tdlib_list,
+            source_kind: None,
+            source_id: None,
         };
         let snapshot = Some(item.clone());
         d.items.insert(key.clone(), item);
@@ -1338,6 +1391,8 @@ impl DownloadStore {
                     completed_at: 0,
                     has_tdlib_update: false,
                     in_tdlib_list: false,
+                    source_kind: None,
+                    source_id: None,
                 },
             );
             d.upload_session_map.insert(session_file_id, rid);
@@ -1501,6 +1556,8 @@ mod tests {
             completed_at: if is_completed { now_ms() } else { 0 },
             has_tdlib_update: true,
             in_tdlib_list: false,
+            source_kind: None,
+            source_id: None,
         }
     }
 
@@ -1528,6 +1585,8 @@ mod tests {
             false,
             None,
             None,
+            None,
+            None,
         );
         assert_eq!(old_key, "OLD_REMOTE_ID");
 
@@ -1549,6 +1608,8 @@ mod tests {
             false,
             None,
             None,
+            None,
+            None,
         );
         assert_eq!(new_key, "NEW_UNIQUE_ID");
         assert_eq!(store.get_all_items().len(), 1, "同一文件不应出现两行");
@@ -1561,16 +1622,73 @@ mod tests {
 
     #[test]
     fn placeholder_names_are_not_identity() {
-        assert!(content_key_of("audio", "文件 #12", 100).is_none());
-        assert!(content_key_of("audio", "File #12", 100).is_none());
-        assert!(content_key_of("audio", "文件_12", 100).is_none());
-        assert!(content_key_of("audio", "", 100).is_none());
-        assert!(content_key_of("audio", "   ", 100).is_none());
-        assert!(content_key_of("audio", "song.mp3", 0).is_none());
-        assert_eq!(
-            content_key_of("audio", "song.mp3", 100).as_deref(),
-            Some("audio|song.mp3|100")
+        let mut data = AccountDownloadData::default();
+        data.items.insert(
+            "song".to_string(),
+            DownloadItem {
+                remote_id: "song".to_string(),
+                file_name: "song.mp3".to_string(),
+                file_type: "audio".to_string(),
+                total_size: 100,
+                ..Default::default()
+            },
         );
+        // 占位名 / 空名 / 大小未知 都不作为认亲依据（正向也要能认）
+        for name in ["文件 #12", "File #12", "文件_12", "", "   "] {
+            assert_eq!(data.find_same_file_key("audio", name, 100), None, "{name:?}");
+        }
+        assert_eq!(data.find_same_file_key("audio", "song.mp3", 0), None);
+        assert_eq!(
+            data.find_same_file_key("audio", "song.mp3", 100).as_deref(),
+            Some("song")
+        );
+        // 类型/大小不同即不同文件
+        assert_eq!(data.find_same_file_key("video", "song.mp3", 100), None);
+    }
+
+    /// 老库（`downloads` 没有溯源两列）打开后自动补列，旧记录照常读出
+    #[test]
+    fn old_schema_is_migrated_with_source_columns() {
+        let dir = std::env::temp_dir().join(format!(
+            "tdgram-dl-migrate-{}-{}",
+            now_ms(),
+            std::process::id()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        {
+            let conn = rusqlite::Connection::open(dir.join(crate::db::DB_FILE)).unwrap();
+            conn.execute_batch(
+                r#"
+                CREATE TABLE downloads (
+                    account_id INTEGER NOT NULL, remote_id TEXT NOT NULL, session_file_id INTEGER,
+                    file_id INTEGER NOT NULL DEFAULT 0, file_name TEXT NOT NULL DEFAULT '',
+                    chat_title TEXT NOT NULL DEFAULT '', chat_id INTEGER, message_id INTEGER,
+                    total_size INTEGER NOT NULL DEFAULT 0, downloaded_size INTEGER NOT NULL DEFAULT 0,
+                    progress REAL NOT NULL DEFAULT 0, is_paused INTEGER NOT NULL DEFAULT 0,
+                    is_completed INTEGER NOT NULL DEFAULT 0, local_path TEXT, thumbnail_data_url TEXT,
+                    file_type TEXT NOT NULL DEFAULT '', is_generic INTEGER NOT NULL DEFAULT 0,
+                    hidden_category TEXT, is_auto_photo INTEGER NOT NULL DEFAULT 0,
+                    is_streaming INTEGER NOT NULL DEFAULT 0, tags TEXT NOT NULL DEFAULT '[]',
+                    source_label TEXT, dismissed INTEGER NOT NULL DEFAULT 0,
+                    is_upload INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0,
+                    completed_at INTEGER NOT NULL DEFAULT 0,
+                    has_tdlib_update INTEGER NOT NULL DEFAULT 0,
+                    in_tdlib_list INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (account_id, remote_id)
+                );
+                INSERT INTO downloads (account_id, remote_id, file_name, source_label)
+                    VALUES (1, 'OLD', 'x.jpg', '旧来源');
+                "#,
+            )
+            .unwrap();
+        }
+        let db = Arc::new(Db::open(&dir).expect("open old db"));
+        let store = DownloadStore::new(db, 1);
+        let item = store.get_item("OLD").expect("old row survives migration");
+        assert_eq!(item.source_label.as_deref(), Some("旧来源"));
+        assert_eq!(item.source_kind, None);
+        assert_eq!(item.source_id, None);
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -1605,6 +1723,8 @@ mod tests {
             None,
             false,
             false,
+            None,
+            None,
             None,
             None,
         );
@@ -1658,6 +1778,8 @@ mod tests {
                 false,
                 None,
                 None,
+                None,
+                None,
             )
         };
 
@@ -1702,6 +1824,8 @@ mod tests {
             false,
             Some(vec!["音乐".to_string()]),
             Some("来源".to_string()),
+            Some("sticker_set".to_string()),
+            Some(4242),
         );
         store.update_progress(
             Some(account),
@@ -1720,6 +1844,8 @@ mod tests {
         assert_eq!(item.local_path.as_deref(), Some("/tmp/song.mp3"));
         assert_eq!(item.tags, vec!["音乐".to_string()]);
         assert_eq!(item.source_label.as_deref(), Some("来源"));
+        assert_eq!(item.source_kind.as_deref(), Some("sticker_set"));
+        assert_eq!(item.source_id, Some(4242));
         drop(reloaded);
         drop(db);
         let _ = fs::remove_dir_all(&dir);

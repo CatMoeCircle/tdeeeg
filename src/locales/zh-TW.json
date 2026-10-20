@@ -554,6 +554,8 @@
     },
     "menu": {
       "jumpToChat": "@:lng_downloads_view_in_chat",
+      "openStickerSet": "開啟貼圖集",
+      "openProfile": "查看資料頁",
       "playInPlayer": "用播放器播放",
       "openInPlayer": "在播放器中開啟",
       "showInFolder": "@:lng_context_show_in_folder",

@@ -554,6 +554,8 @@
     },
     "menu": {
       "jumpToChat": "@:lng_downloads_view_in_chat",
+      "openStickerSet": "Open sticker set",
+      "openProfile": "Open profile",
       "playInPlayer": "Play in player",
       "openInPlayer": "Open in player",
       "showInFolder": "@:lng_context_show_in_folder",

@@ -236,8 +236,9 @@ import type { ContextMenuItem } from "../../components/contextMenu/types";
 import { revealItemInDir, openPath } from "@tauri-apps/plugin-opener";
 import {
     MessageCircleIcon, FolderOpenIcon, TrashIcon, PauseIcon, PlayIcon, FileIcon, ImageIcon, MusicIcon,
-    UploadCloudIcon,
+    UploadCloudIcon, StickerIcon, UserIcon,
 } from 'lucide-vue-next';
+import { openStickerSetDialog } from "../../store/stickerSetDialog";
 
 const { t } = useI18n();
 const store = useDownloadStore();
@@ -483,6 +484,30 @@ function buildItemMenu(item: DownloadItem): ContextMenuItem[] {
             label: t('download.menu.jumpToChat'),
             icon: MessageCircleIcon,
             onClick: () => openChat(item),
+        });
+    }
+
+    // 溯源：贴纸/emoji → 所属贴纸集；资料页/频道资料页 → 对应页面
+    if (item.source_kind === "sticker_set" && item.source_id) {
+        items.push({
+            key: "stickerSet",
+            label: t('download.menu.openStickerSet'),
+            icon: StickerIcon,
+            onClick: () => openStickerSetDialog(item.source_id),
+        });
+    } else if (item.source_kind === "user" && item.source_id) {
+        items.push({
+            key: "profile",
+            label: t('download.menu.openProfile'),
+            icon: UserIcon,
+            onClick: () => router.push({ name: "user-profile", params: { id: String(item.source_id) } }),
+        });
+    } else if (item.source_kind === "chat" && item.source_id && !item.chat_id) {
+        items.push({
+            key: "chatProfile",
+            label: t('download.menu.openProfile'),
+            icon: UserIcon,
+            onClick: () => router.push({ name: "chat-profile", params: { id: String(item.source_id) } }),
         });
     }
     if (item.file_type === "audio" || item.file_type === "photo" || item.file_type === "video") {

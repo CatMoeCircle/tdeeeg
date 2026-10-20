@@ -121,6 +121,7 @@ const downloadFile = async (fileId: number, seq: number) => {
         fileId, `sticker_${fileId}.${ext}`, setLabel || '', 0, 'sticker',
         undefined, undefined, undefined, true, false, 'sticker', false,
         undefined, setLabel, remoteIdOf(stFile),
+        'sticker_set', Number(st?.set_id) || undefined,
     );
     try {
         const res = await tdlibSend({
