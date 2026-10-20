@@ -3,10 +3,12 @@
         :class="rowClass" @click="onRowClick"
         @contextmenu.prevent.stop="emit('itemContextMenu', $event, item)">
         <div class="w-11 h-11 rounded-lg overflow-hidden shrink-0 relative">
-            <img v-if="item.thumbnail_data_url && (item.file_type === 'photo' || item.file_type === 'video')"
-                :src="item.thumbnail_data_url" class="w-full h-full object-cover bg-gray-100 dark:bg-gray-700" />
-            <img v-else-if="item.local_path && item.file_type === 'photo'" :src="toAssetUrl(item.local_path)"
+            <img v-if="media?.kind === 'img'" :src="media.src"
                 class="w-full h-full object-cover bg-gray-100 dark:bg-gray-700" />
+            <video v-else-if="media?.kind === 'video'" :src="media.src" autoplay loop muted playsinline
+                class="w-full h-full object-cover bg-gray-100 dark:bg-gray-700" />
+            <TgsPlayer v-else-if="media?.kind === 'tgs'" :src="media.src" :loop="true" :autoplay="true"
+                class="w-full h-full" />
             <div v-else class="w-full h-full flex items-center justify-center"
                 :class="iconBgClass(item)">
                 <component :is="fileIcon(item)" class="w-5 h-5" :class="iconColorClass(item)" />
@@ -106,11 +108,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { FileIcon, ImageIcon, VideoIcon, MusicIcon, MicIcon } from "lucide-vue-next";
 import type { Component } from "vue";
 import type { DownloadFileType, DownloadItem } from "../../store/downloads";
 import { resolveItemTags, tagChipClass, tagLabel, DL_TAG, isIncompleteStreaming } from "../../utils/downloadTags";
+import { useItemMedia } from "../../utils/downloadThumb";
+import TgsPlayer from "../common/TgsPlayer.vue";
 
 const { t } = useI18n();
 
@@ -130,6 +133,7 @@ const emit = defineEmits<{
 
 const displayTags = computed(() => resolveItemTags(props.item as never));
 const isStreamingIncomplete = computed(() => isIncompleteStreaming(props.item as never));
+const media = useItemMedia(() => props.item);
 
 const rowClass = computed(() => ({
     "cursor-pointer": props.canOpenInPlayer,
@@ -197,14 +201,6 @@ function iconColorClass(item: { file_type: DownloadFileType }): string {
         case "sticker": return "text-yellow-500";
         case "avatar": return "text-cyan-500";
         default: return "text-blue-500";
-    }
-}
-
-function toAssetUrl(localPath: string): string {
-    try {
-        return convertFileSrc(localPath);
-    } catch {
-        return localPath;
     }
 }
 

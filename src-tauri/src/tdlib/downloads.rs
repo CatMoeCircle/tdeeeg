@@ -25,12 +25,10 @@ pub fn get_downloads(
         include_generic.unwrap_or(false),
         include_auto_photos.unwrap_or(false),
     );
-    // 面板快照瘦身：`DownloadRow` 只在 photo/video 上渲染缩略图，dismissed 行根本不渲染，
-    // 这两类条目的 `thumbnail_data_url`（base64 data URL，单条可达数 KB）没有任何消费方，直接不带。
+    // 面板快照不再下发 `thumbnail_data_url`：base64 data URL 是条目里最大的字段，
+    // 前端改用本地本体 / 源消息封面渲染（见 src/utils/downloadThumb.ts）。
     for item in page.active.iter_mut().chain(page.completed.iter_mut()) {
-        if item.dismissed || (item.file_type != "photo" && item.file_type != "video") {
-            item.thumbnail_data_url = None;
-        }
+        item.thumbnail_data_url = None;
     }
     Ok(page)
 }

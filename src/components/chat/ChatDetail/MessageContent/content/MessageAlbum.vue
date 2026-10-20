@@ -654,7 +654,7 @@ async function loadPhoto(msg: message, seq: number): Promise<boolean> {
             // 自动下载的图片注册到下载管理器（独立隐藏分类：isAutoPhoto）
             const fileName = `photo_${msg.id || ff.id}.jpg`;
             const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
-            await downloadStore.registerDownload(ff.id, fileName, chatTitle, 0, 'photo', thumbCache[msg.id], props.chatId, msg.id, undefined, true, undefined, false, undefined, undefined, remoteIdOf(ff));
+            await downloadStore.registerDownload(ff.id, fileName, chatTitle, 0, 'photo', undefined, props.chatId, msg.id, undefined, true, undefined, false, undefined, undefined, remoteIdOf(ff));
             if (seq !== albumLoadSeq) return false;
             try {
                 // 正常图片 Big：异步下载，不阻塞相册加载/ UI
