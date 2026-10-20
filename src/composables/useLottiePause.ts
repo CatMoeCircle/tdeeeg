@@ -1,4 +1,4 @@
-import { onUnmounted, type Ref } from 'vue';
+import { onBeforeUnmount, type Ref } from 'vue';
 import { onVisibilityChange as sharedOnVisibilityChange, unobserveVisibility } from './useSharedIntersectionObserver';
 
 /**
@@ -161,7 +161,9 @@ export function useLottiePause(
         }
     }
 
-    onUnmounted(cleanup);
+    // onBeforeUnmount：onUnmounted 里 containerRef 已置空，cleanup 的 unobserve 会成为空操作，
+    // 共享 IntersectionObserver 会永久持有该元素（每条消息的自定义 emoji / 贴纸都会漏一棵树）。
+    onBeforeUnmount(cleanup);
 
     return { register, registerVideo, get, apply, setup };
 }

@@ -1,4 +1,4 @@
-import { onUnmounted, ref, type Ref } from 'vue';
+import { onBeforeUnmount, ref, type Ref } from 'vue';
 import { onVisibilityChange, unobserveVisibility } from './useSharedIntersectionObserver';
 import { enqueueViewportLoad, DEFAULT_DWELL_MS } from '../utils/viewportLoadGate';
 import { tdlibSend, isFileReady } from '../utils/tdlib';
@@ -481,7 +481,8 @@ export function useSharedMediaCell(
         );
     }
 
-    onUnmounted(() => {
+    // onBeforeUnmount：onUnmounted 里 elRef 已置空，unobserve 会是空操作
+    onBeforeUnmount(() => {
         clearDwell();
         unobserveVisibility(elRef.value);
     });

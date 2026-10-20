@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { sticker, animation } from 'tdlib-types';
 import TgsPlayer, { type TgsPlayerInstance } from '../../../common/TgsPlayer.vue';
 import PremiumStickerBadge from '../../../common/PremiumStickerBadge.vue';
@@ -210,8 +210,10 @@ onMounted(() => {
 // 源就绪 / 格式确定后（如首次下载完成）若当前在可视区则补一次播放
 watch(src, () => syncPlayback());
 
-// 清理：卸载后解除观察与窗口订阅，避免残留回调
-onUnmounted(() => {
+// 清理：卸载前解除观察与窗口订阅，避免残留回调
+// 必须是 onBeforeUnmount：onUnmounted 里模板 ref 已被置空，unobserve(null) 会直接 return，
+// 于是共享 IntersectionObserver 永久持有该元素 → 整棵已卸载的面板树都无法回收。
+onBeforeUnmount(() => {
     clearDwell();
     unsubscribeWindow?.();
     unsubscribeWindow = null;

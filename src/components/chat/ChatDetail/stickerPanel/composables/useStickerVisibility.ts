@@ -1,4 +1,4 @@
-import { onUnmounted, type Ref } from 'vue';
+import { onBeforeUnmount, type Ref } from 'vue';
 
 /**
  * 共享的 IntersectionObserver 懒加载门控。
@@ -213,6 +213,8 @@ export function unobserve(el: Element | null | undefined) {
 
 /**
  * 组件级封装：元素 ref 进入视口后触发一次 load；组件卸载时解除观察。
+ * 注意清理必须用 onBeforeUnmount：onUnmounted 里 ref 已置空，unobserve(null) 是空操作，
+ * 元素会被共享观察器永久持有（连带整棵已卸载的 DOM 树）。
  */
 export function useVisibleOnce(elRef: Ref<HTMLElement | null>, load: () => void) {
   let started = false;
@@ -223,7 +225,7 @@ export function useVisibleOnce(elRef: Ref<HTMLElement | null>, load: () => void)
     if (el) onVisibleOnce(el, load);
     else load(); // 元素尚未渲染则直接加载（兜底）
   }
-  onUnmounted(() => {
+  onBeforeUnmount(() => {
     unobserve(elRef.value);
   });
   return { start };

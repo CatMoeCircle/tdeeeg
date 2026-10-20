@@ -1,4 +1,4 @@
-import { onUnmounted } from 'vue';
+import { onBeforeUnmount } from 'vue';
 
 /**
  * 共享的 IntersectionObserver 懒加载 / 可见性门控。
@@ -24,7 +24,7 @@ import { onUnmounted } from 'vue';
  *     onVisibleOnce(elRef.value, () => { load(); });   // useViewportLoad
  *     onVisibilityChange(elRef.value, enter, leave);   // useLottiePause
  *   });
- *   onUnmounted(() => unobserve(elRef.value));
+ *   onBeforeUnmount(() => unobserve(elRef.value));   // 必须在卸载前：onUnmounted 时 ref 已为 null
  */
 
 // ─── 一次性加载注册表（useViewportLoad） ───────────────────────
@@ -162,7 +162,8 @@ export function useSharedObserver(elRef: { value: Element | null | undefined }) 
   const visibilityChange = (enter: () => void, leave: () => void) =>
     onVisibilityChange(elRef.value, enter, leave);
 
-  onUnmounted(() => unobserve(elRef.value));
+  // onBeforeUnmount：onUnmounted 时 ref 已置空，unobserve(null) 是空操作 → 元素被观察器永久持有
+  onBeforeUnmount(() => unobserve(elRef.value));
 
   return { onVisibleOnce: visibleOnce, onVisibilityChange: visibilityChange, unobserve };
 }

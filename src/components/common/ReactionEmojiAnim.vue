@@ -16,7 +16,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import TgsPlayer, { type TgsPlayerInstance } from './TgsPlayer.vue';
 import { onVisibilityChange, unobserveVisibility } from '../../composables/useSharedIntersectionObserver';
 import { useEmojiReactionAnim } from '../../store/emojiReactions';
@@ -105,7 +105,9 @@ onMounted(() => {
     );
 });
 
-onUnmounted(() => {
+// 必须在卸载前解除观察：onUnmounted 时模板 ref 已为 null，unobserve(null) 是空操作，
+// 共享 IntersectionObserver 会永久持有该元素。
+onBeforeUnmount(() => {
     unobserveVisibility(rootEl.value);
 });
 
