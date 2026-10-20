@@ -56,34 +56,74 @@ impl Default for AccountsFile {
     }
 }
 
+impl AccountRecord {
+    fn empty(id: i64) -> Self {
+        Self {
+            id,
+            first_name: String::new(),
+            last_name: String::new(),
+            username: String::new(),
+            api_id: None,
+            api_hash: None,
+            use_test_dc: None,
+            custom_api_creds: None,
+        }
+    }
+}
+
 /// 账户清单的内存包装，负责加载 / 保存与账户增删改。
 pub struct AccountsStore {
     path: PathBuf,
     file: AccountsFile,
 }
 
+fn sibling(path: &std::path::Path, suffix: &str) -> PathBuf {
+    PathBuf::from(format!("{}{suffix}", path.display()))
+}
+
+fn read_accounts(path: &std::path::Path) -> Option<AccountsFile> {
+    serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()
+}
+
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
 impl AccountsStore {
-    /// 从 `path` 加载账户清单；文件不存在或损坏时从空清单开始，
-    /// 并保证至少存在一个账户（id=0），以便首次启动即可进入登录流程。
+    /// 从 `path` 加载账户清单。
+    ///
+    /// 主文件无法解析时：改名留证（`.corrupt-<时间戳>`），从 `.bak` 恢复；
+    /// 备份也读不到时从空清单开始，并保证至少存在一个账户（id=0），
+    /// 以便首次启动即可进入登录流程。
     pub fn load(path: PathBuf) -> Self {
-        let file = std::fs::read_to_string(&path)
-            .ok()
-            .and_then(|s| serde_json::from_str::<AccountsFile>(&s).ok())
-            .unwrap_or_default();
-        let mut store = Self { path, file };
+        let backup = sibling(&path, ".bak");
+        let mut file = read_accounts(&path);
+        if file.is_none() {
+            if path.exists() {
+                let corrupt = sibling(&path, &format!(".corrupt-{}", now_secs()));
+                let _ = std::fs::rename(&path, &corrupt);
+                eprintln!(
+                    "[accounts] {} 无法解析，已另存为 {}，尝试从备份恢复",
+                    path.display(),
+                    corrupt.display()
+                );
+            }
+            file = read_accounts(&backup);
+        }
+        let mut store = Self {
+            path,
+            file: file.unwrap_or_default(),
+        };
         if store.file.accounts.is_empty() {
-            store.file.accounts.push(AccountRecord {
-                id: 0,
-                first_name: String::new(),
-                last_name: String::new(),
-                username: String::new(),
-                api_id: None,
-                api_hash: None,
-                use_test_dc: None,
-                custom_api_creds: None,
-            });
+            store.file.accounts.push(AccountRecord::empty(0));
             store.file.active = 0;
-            store.file.next_id = 1;
+            store.file.next_id = store.file.next_id.max(1);
+        }
+        // 主文件不存在（首次启动 / 刚从备份恢复）：立刻落一份完整清单
+        if !store.path.exists() {
             let _ = store.save();
         }
         store
@@ -95,7 +135,14 @@ impl AccountsStore {
         }
         let content = serde_json::to_string_pretty(&self.file)
             .map_err(|e| format!("序列化账户配置失败: {e}"))?;
-        std::fs::write(&self.path, content).map_err(|e| format!("写入账户配置失败: {e}"))
+        // 原子替换：先写临时文件再 rename。直接 write 到目标时被中断会留下半截文件，
+        // 下次启动就会当成损坏的清单（历史事故来源）。
+        let tmp = sibling(&self.path, ".tmp");
+        std::fs::write(&tmp, &content).map_err(|e| format!("写入账户配置失败: {e}"))?;
+        if self.path.exists() {
+            let _ = std::fs::copy(&self.path, sibling(&self.path, ".bak"));
+        }
+        std::fs::rename(&tmp, &self.path).map_err(|e| format!("替换账户配置失败: {e}"))
     }
 
     pub fn active(&self) -> i64 {
@@ -142,16 +189,7 @@ impl AccountsStore {
     pub fn add(&mut self) -> i64 {
         let id = self.file.next_id;
         self.file.next_id += 1;
-        self.file.accounts.push(AccountRecord {
-            id,
-            first_name: String::new(),
-            last_name: String::new(),
-            username: String::new(),
-            api_id: None,
-            api_hash: None,
-            use_test_dc: None,
-            custom_api_creds: None,
-        });
+        self.file.accounts.push(AccountRecord::empty(id));
         id
     }
 
@@ -166,16 +204,7 @@ impl AccountsStore {
             self.file.active = self.file.accounts.iter().map(|a| a.id).min().unwrap_or(0);
         }
         if self.file.accounts.is_empty() {
-            self.file.accounts.push(AccountRecord {
-                id: 0,
-                first_name: String::new(),
-                last_name: String::new(),
-                username: String::new(),
-                api_id: None,
-                api_hash: None,
-                use_test_dc: None,
-                custom_api_creds: None,
-            });
+            self.file.accounts.push(AccountRecord::empty(0));
             self.file.active = 0;
         }
         self.save()
@@ -226,5 +255,66 @@ impl AccountsStore {
     pub fn get_tdlib_params(&self, id: i64) -> Option<(Option<i32>, Option<String>, Option<bool>)> {
         let rec = self.file.accounts.iter().find(|a| a.id == id)?;
         Some((rec.api_id, rec.api_hash.clone(), rec.use_test_dc))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("tdgram-accounts-{tag}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// 多账户清单必须原样往返，且空账户不能被别人的名字污染
+    #[test]
+    fn roundtrips_multiple_accounts() {
+        let dir = temp_dir("roundtrip");
+        let path = dir.join("accounts.json");
+        let mut store = AccountsStore::load(path.clone());
+        let a = store.add();
+        let b = store.add();
+        store.set_active(b).unwrap();
+        store.update_profile(a, "A".into(), String::new(), "ua".into());
+
+        let reloaded = AccountsStore::load(path);
+        assert_eq!(reloaded.ids(), vec![0, a, b]);
+        assert_eq!(reloaded.active(), b);
+        assert_eq!(reloaded.records()[1].first_name, "A");
+        assert!(reloaded.records()[0].first_name.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 主文件写坏（进程被中断）时从 .bak 恢复，绝不抹成单账户 0
+    #[test]
+    fn corrupted_file_recovers_from_backup() {
+        let dir = temp_dir("corrupt");
+        let path = dir.join("accounts.json");
+        let mut store = AccountsStore::load(path.clone());
+        let a = store.add();
+        store.add();
+        store.set_active(a).unwrap();
+        store.update_profile(a, "A".into(), String::new(), String::new());
+        assert!(dir.join("accounts.json.bak").exists(), "每次 save 都应留备份");
+
+        // 模拟写到一半被杀：留下半截 JSON
+        std::fs::write(&path, br#"{"active":0,"next_id":3,"acc"#).unwrap();
+        let recovered = AccountsStore::load(path.clone());
+        assert_eq!(recovered.ids(), vec![0, 1, 2], "多账户清单不能被抹成单账户");
+        assert_eq!(recovered.active(), a);
+        // 备份落后一次保存（update_profile 那次），账户名丢了但清单没丢
+        assert_eq!(recovered.records()[1].first_name, "");
+        // 损坏文件留证，不静默删除
+        let kept = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .any(|e| e.file_name().to_string_lossy().contains(".corrupt-"));
+        assert!(kept, "损坏的主文件应另存留证");
+        // 恢复后主文件立刻重建，下次启动不必再依赖备份
+        assert_eq!(AccountsStore::load(path).ids(), vec![0, 1, 2]);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
