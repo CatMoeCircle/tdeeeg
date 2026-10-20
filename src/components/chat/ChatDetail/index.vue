@@ -1283,6 +1283,42 @@ const MAX_MESSAGE_WINDOW = 180;
 const hiddenOlderIds = ref<Set<number>>(new Set());
 /** 揭示任务代际：切聊天/新加载时 +1，旧的分批揭示循环据此退出 */
 let olderRevealGen = 0;
+/**
+ * 首屏只挂视口附近：无锚点时保留最新这么多条，其余先藏起来逐帧揭示。
+ * 单条消息 DOM 很重，首帧成本应只跟视口条数有关（Unigram 靠 ListView 虚拟化做到这点）。
+ */
+const FIRST_PAINT_TAIL = 12;
+
+/**
+ * 首屏分批挂载：把锚点（无锚点时取尾部 FIRST_PAINT_TAIL 条）以上的旧消息写进
+ * hiddenOlderIds，首帧只挂视口这几条；返回被藏的 id（新的在前），供揭示循环使用。
+ * 相册不能被切开，保留区间会扩展到相册首条。
+ */
+function hideMessagesOutsideFirstPaint(anchorId: number): number[] {
+    const list = messages.value;
+    if (list.length === 0) return [];
+    let keepStart = list.length - FIRST_PAINT_TAIL;
+    if (anchorId > 0) {
+        const idx = list.findIndex(m => m.id === anchorId);
+        if (idx >= 0) keepStart = idx;
+    }
+    keepStart = Math.max(0, keepStart);
+    const albumId = list[keepStart]?.media_album_id;
+    if (albumId && albumId !== '0') {
+        while (keepStart > 0 && list[keepStart - 1].media_album_id === albumId) keepStart--;
+    }
+    const hidden = list.slice(0, keepStart).map(m => m.id);
+    if (hidden.length === 0) return [];
+    hiddenOlderIds.value = new Set(hidden);
+    return hidden;
+}
+
+/** 露出后逐帧揭示首屏藏起来的历史（复用上滚加载那套视口钉扎，不挪视口） */
+function startFirstPaintReveal(ids: number[]) {
+    if (ids.length === 0) return;
+    const hold = holdViewport(messagesContainer.value);
+    void revealOlderMessagesInChunks(ids, olderRevealGen, hold);
+}
 const messagesContainer = ref<HTMLElement | null>(null);
 
 // ===== 表情包面板（StickerPanel emoji/GIF/贴纸） =====
@@ -2057,6 +2093,8 @@ onMounted(async () => {
 // 浏览位置必须在 DOM 卸载前冲刷：onUnmounted 时 messagesContainer 已是 null，flush 会直接 return
 onBeforeUnmount(() => {
     if (chatId.value !== undefined) {
+        // DOM 还在时把窗口存进内存缓存（关闭会话后再打开可立刻铺上）
+        saveCurrentChatWindow(chatId.value, topicId.value, threadRootMsgId.value);
         flushScheduledBrowsePosSave(chatId.value, topicId.value);
     } else {
         cancelScheduledBrowsePosSave();
@@ -2673,12 +2711,16 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
     const [oldChatId, oldTopicId] = oldVals ?? [];
     const switchingChat = oldChatId !== undefined
         && (oldChatId !== newChatId || oldTopicId !== newTopicId);
+    // 切走前把当前窗口留在内存缓存里：下次进入同一会话直接铺上，不再闪骨架屏
+    if (oldChatId !== undefined) {
+        saveCurrentChatWindow(oldChatId, oldTopicId ?? null, oldVals?.[2] ?? null);
+    }
     if (switchingChat) {
         // 切走前冲刷未写入的浏览位置（debounce 窗口内）
         flushScheduledBrowsePosSave(oldChatId!, oldTopicId);
         // 编辑态下的输入框是被编辑消息内容，不是草稿；丢弃编辑并走本地缓存恢复，
         // 绝不能把编辑内容写成草稿，也不要把旧草稿覆盖成空。
-        suppressDraftAutosave = true;
+        suppressDraftAutosave.value = true;
         if (editingMsg.value) {
             editingMsg.value = null;
             editSeedEntities.value = null;
@@ -2686,33 +2728,44 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
             editMediaReplacement.value = null;
             messageInput.value = '';
             pendingCustomEmoji.value = [];
-            if (localDraftTimer !== null) {
-                window.clearTimeout(localDraftTimer);
-                localDraftTimer = null;
-            }
+            cancelLocalDraftTimer();
         } else {
             saveDraft(oldChatId!, oldTopicId);
             // 抑制自动存草稿并立刻清空输入框，避免加载期间看到旧内容、
             // 或防抖回调用新 chatId 把空输入误存成「删除新聊天草稿」。
-            if (localDraftTimer !== null) {
-                window.clearTimeout(localDraftTimer);
-                localDraftTimer = null;
-            }
+            cancelLocalDraftTimer();
             messageInput.value = '';
             pendingCustomEmoji.value = [];
         }
     } else {
-        suppressDraftAutosave = false;
+        suppressDraftAutosave.value = false;
     }
 
     // 重置全部状态
     resetState();
     searchActive.value = false;
+    // 本会话内已打开过的对话：chats 缓存里留有一份完整 chat 对象，先拿回来铺上，
+    // 壁纸/头部标题头像在第一帧就有（getChat 返回后整体覆盖，取数流程完全不变）。
+    // 不这样做的话首帧 chat 为空 → 没有壁纸层 → 内容区露白。
+    const rememberedChat = chats.value[currentId];
+    if (rememberedChat) chat.value = rememberedChat;
+
+    // 读取上次浏览位置（决定首屏加载锚点；导航带 message_id / 评论线程模式时忽略缓存）
+    const savedBrowsePos = requestedMessageId || threadMode.value ? null : getBrowsePosition(currentId, topicId.value);
+
+    // 上次离开时的窗口还在内存里 → 直接铺上并立刻露出，不等 TDLib/网络（后台加载随后覆盖，位置一致）。
+    // 只在「能按同一位置定位」时用：有浏览位置，或会话无未读（否则会先贴底再跳到未读线）。
+    // 评论线程的历史属讨论组，消息归属过滤依赖 threadInfo，仍走原流程。
+    const cachedWindow = !threadMode.value
+        && (savedBrowsePos || (rememberedChat?.unread_count ?? 0) === 0)
+        ? peekChatWindow(chatWindowKey(currentId, topicId.value, threadRootMsgId.value))
+        : null;
+    if (cachedWindow) {
+        applyMessages(cachedWindow.messages);
+        windowReachesLatest.value = cachedWindow.windowReachesLatest;
+    }
 
     try {
-        // 读取上次浏览位置（决定首屏加载锚点；导航带 message_id / 评论线程模式时忽略缓存）
-        const savedBrowsePos = requestedMessageId || threadMode.value ? null : getBrowsePosition(currentId, topicId.value);
-
         // 并行发起：chat 基础信息 + 话题/线程信息 +（可提前确定的）首屏消息
         const chatPromise = tdlibSend({ _: 'getChat', chat_id: currentId }) as Promise<chat>;
         const topicPromise: Promise<unknown> = threadMode.value
@@ -2730,6 +2783,24 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
                 anchorId: savedBrowsePos.anchorId,
             })
             : null;
+
+        // 缓存窗口已经铺在屏幕上了：请求已在飞，这里只做定位 + 露出，不等首屏数据。
+        // 后面的正常流程照旧（首屏数据到达后覆盖列表，再按同一锚点定位，位置不变）。
+        if (cachedWindow) {
+            // 首帧同样只挂视口附近：整窗一次挂载会把缓存省下的时间又还回去
+            const cachedFirstPaintHidden = hideMessagesOutsideFirstPaint(savedBrowsePos?.anchorId ?? 0);
+            await nextTick();
+            if (!isGenerationValid(gen) || chatId.value !== currentId) return;
+            if (savedBrowsePos && savedBrowsePos.anchorId > 0 && messages.value.some(m => m.id === savedBrowsePos.anchorId)) {
+                scrollToBrowseAnchor(savedBrowsePos.anchorId, savedBrowsePos.pixelFromTop);
+            } else {
+                scrollToBottomPure();
+            }
+            // 已读上报与历史预取都由 isReady 挡住（此时仍为 false），等正式首屏数据到达后按原逻辑跑
+            disarmSkeleton();
+            listRevealed.value = true;
+            startFirstPaintReveal(cachedFirstPaintHidden);
+        }
 
         const chatData = await chatPromise;
         if (!isGenerationValid(gen)) return;
@@ -2799,7 +2870,7 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
                 : 0;
         lastReportedReadMessageId = threadMode.value ? 0 : chatData.last_read_inbox_message_id;
         // 记住打开时的已读线，供「滑进未读」兜底比较（不随 markVisible 前进）
-        sessionUnreadBaseId = threadMode.value ? 0 : chatData.last_read_inbox_message_id;
+        sessionUnreadBaseId.value = threadMode.value ? 0 : chatData.last_read_inbox_message_id;
 
         // 浏览位置失效判定（任一命中则删除缓存，改走未读/底部）：
         // 1) 已读线前进（当前 last_read_inbox_message_id > saved.readInboxMaxId，其它端读过/离开期间读过）
@@ -2859,12 +2930,15 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
                 ? { anchorId: lastReadId, requireUnread: true, lastReadId }
                 : {},
         );
-        const [firstBatchResult] = await Promise.all([
-            firstBatchPromise,
+        // 群组信息 / 通知静音 / 发送身份与消息正文无关：不再串在首屏关键路径上。
+        // 消息先到先渲染，这三项后台补（请求本身、顺序、失败处理都不变，
+        // 只是不再让最慢的一个拖住首次露出）。
+        void Promise.allSettled([
             fetchGroupInfo(chatData, gen),
             syncNotificationMuteState(chatData, currentId),
             fetchAvailableSenders(currentId, gen),
         ]);
+        const firstBatchResult = await firstBatchPromise;
         if (!isGenerationValid(gen)) return;
         if (firstBatchResult == null) {
             throw new Error(`Chat ${currentId} history fetch failed`);
@@ -2903,6 +2977,11 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
 
         // 写入首屏数据（此时列表仍 opacity:0 + 骨架遮罩，用户看不到中间态）
         applyMessages(firstBatch);
+        // 首帧只挂视口附近：锚点（或尾部）以上的旧消息先藏起来，露出后逐帧揭示。
+        // 缓存窗口已经铺过的会话不再重藏，避免两轮揭示循环打架。
+        const firstPaintHidden = cachedWindow
+            ? []
+            : hideMessagesOutsideFirstPaint(browsePos?.anchorId ?? unreadBoundaryMessageId.value ?? 0);
         // from_message_id=0 或已包含 last_message → 窗口贴真实底部
         if (lastReadId === 0 && !earlyMessages) {
             windowReachesLatest.value = firstBatch.length > 0;
@@ -2954,6 +3033,8 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
         // 定位与补齐都完成后才露出，避免「先显示再跳到已读/未读」
         listRevealed.value = true;
         isReady.value = true;
+        // 首帧只挂了视口附近：剩下的历史逐帧揭示（视口钉扎，用户看不到跳动）
+        startFirstPaintReveal(firstPaintHidden);
 
         // 媒体布局后再校准一次（此时用户已可见，只做小幅纠偏）；
         // 误差 > 12px 再纠一次，允许残余，禁止死循环
@@ -2961,8 +3042,9 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
             const calAnchorId = browsePos.anchorId;
             const calPixelFromTop = browsePos.pixelFromTop;
             calibrateBrowseAnchor(calAnchorId, calPixelFromTop, true);
+            // 首屏分批揭示还没跑完时不要抢滚动位置（揭示本身持视口钉扎，位置是对的）
             setTimeout(() => {
-                if (isGenerationValid(gen) && chatId.value === currentId) {
+                if (isGenerationValid(gen) && chatId.value === currentId && hiddenOlderIds.value.size === 0) {
                     calibrateBrowseAnchor(calAnchorId, calPixelFromTop, true);
                 }
             }, 250);
@@ -2970,13 +3052,13 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
             // 未读锚点：保持顶对齐 + separator 预留，不要用 45% 居中覆盖
             const unreadId = anchorAfterFill;
             setTimeout(() => {
-                if (isGenerationValid(gen) && chatId.value === currentId) {
+                if (isGenerationValid(gen) && chatId.value === currentId && hiddenOlderIds.value.size === 0) {
                     scrollToUnreadAnchor(unreadId);
                 }
             }, 250);
         } else if (anchorAfterFill > 0) {
             setTimeout(() => {
-                if (isGenerationValid(gen) && chatId.value === currentId) {
+                if (isGenerationValid(gen) && chatId.value === currentId && hiddenOlderIds.value.size === 0) {
                     scrollToMessage(anchorAfterFill);
                 }
             }, 250);
@@ -3342,8 +3424,10 @@ async function loadHistoryOlder(loadChatId: number, gen: number): Promise<boolea
             updateStickyDate(el);
         }
 
-        // 分批揭示：每帧挂载一小块，块内同帧恢复视口；结束后 hold 自行稳定释放
-        void revealOlderMessagesInChunks(newIds, revealGen, hold);
+        // 分批揭示：每帧挂载一小块，块内同帧恢复视口；结束后 hold 自行稳定释放。
+        // 传全部隐藏 id（含首屏分批挂载的剩余部分）：本轮揭示会顶掉上一轮循环，
+        // 不接管这些残留就会永远藏着不显示。
+        void revealOlderMessagesInChunks([...nextHidden], revealGen, hold);
         return true;
     } finally {
         isLoadingMore.value = false;
@@ -3424,6 +3508,10 @@ async function ensureViewportFilled(gen: number, maxRounds = 8): Promise<void> {
         const el = messagesContainer.value;
         if (!el) return;
 
+        // 有「已加载但暂未挂载」的历史（首屏分批挂载）时，DOM 高度不代表内容不足，
+        // 直接视为已够，否则会为了补高度多拉一页网络。
+        if (hiddenOlderIds.value.size > 0) return;
+
         const overflow = el.scrollHeight > el.clientHeight + 2;
         const comfortable = el.scrollHeight >= el.clientHeight * 1.6 && messages.value.length >= 30;
         if (comfortable) return;
@@ -3447,7 +3535,10 @@ async function ensureViewportFilled(gen: number, maxRounds = 8): Promise<void> {
 
         const stillShort = el2.scrollHeight <= el2.clientHeight + 2;
         const atBottomish = el2.scrollTop + el2.clientHeight >= el2.scrollHeight - SCROLL_PREFETCH_PX;
-        if (!isNewerDirectionExhausted() && (stillShort || atBottomish || !overflow)) {
+        // 窗口已贴真实最新：向更新方向必然为空，直接记边界，省掉首屏那次空网络往返
+        if (windowReachesLatest.value) {
+            markNewerExhausted();
+        } else if (!isNewerDirectionExhausted() && (stillShort || atBottomish || !overflow)) {
             if (await loadHistoryNewer(cid, gen)) progressed = true;
         }
 
@@ -4637,6 +4728,15 @@ function applyMessages(next: message[], keep: 'older' | 'newer' = 'newer') {
     }
     messages.value = list;
     messagesVersion.value++;
+}
+
+/** 把当前窗口留在内存缓存里（切走 / 关闭会话时调用），下次进入直接铺上，不再闪骨架屏 */
+function saveCurrentChatWindow(cid: number, tid: number | null | undefined, threadRoot: number | null | undefined) {
+    if (messages.value.length === 0) return;
+    saveChatWindow(chatWindowKey(cid, tid, threadRoot), {
+        messages: messages.value,
+        windowReachesLatest: windowReachesLatest.value,
+    });
 }
 
 /** 列表中已加载的最大消息 id（不依赖数组顺序） */
