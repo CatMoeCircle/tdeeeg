@@ -8,7 +8,6 @@ Guidance for AI coding agents working on **tdeeeg** — a Telegram desktop clien
 |------|------------|
 | Desktop | Tauri 2 (Rust) |
 | UI | Vue 3 + TypeScript + Vite + Tailwind CSS 4 |
-| Design system | TDesign (`tdesign-vue-next`) |
 | State | Pinia |
 | i18n | `vue-i18n` |
 | Protocol | TDLib via Rust FFI |
@@ -86,7 +85,14 @@ src/
   utils/
   views/         # Route pages
 src-tauri/
-  src/           # lib.rs, main.rs, tdlib.rs, chat_store.rs, download_store.rs, media_stream.rs
+  src/
+    lib.rs       # Tauri 装配 + 命令注册，main.rs 进程入口
+    tdlib/       # TDLib FFI 接入：loader/lifecycle/receive/file_events/accounts/downloads/proxy/data_dir
+    db/          # SQLite 底座与 schema
+    store/       # 内存与文件级状态：accounts/chat/community/download
+    updates/     # update 分类批处理 + updateFile 闸门
+    ai/          # LLM 对话/翻译、会话记录、语种检测
+    system/      # 通知、SMTC、Toast、媒体流、设备信息、数据目录策略
   bin/           # TDLib dylibs
   capabilities/  # Tauri capabilities
 scripts/         # One-off / maintenance scripts (esp. i18n patches)
@@ -114,14 +120,9 @@ Prefer the existing layer: put logic in `composables/` or `store/`, UI in `compo
 
 ### TDLib / Tauri
 
-- All Telegram calls go through the existing Rust FFI wrapper (`src-tauri/src/tdlib.rs` and related modules). Do not open raw TDLib from JS.
+- All Telegram calls go through the existing Rust FFI wrapper (`src-tauri/src/tdlib/` and related modules). Do not open raw TDLib from JS.
 - Chat/download persistence and media streaming live on the Rust side — keep that boundary when adding features.
 - Respect `src-tauri/capabilities/` when adding plugins or filesystem/network usage.
-
-### UI
-
-- TDesign + Tailwind; follow patterns already used in `src/components/chat/` and `src/components/layout/`.
-- Avoid introducing a second UI kit or styling system.
 
 ## Hard rules
 
@@ -135,6 +136,6 @@ Prefer the existing layer: put logic in `composables/` or `store/`, UI in `compo
 
 ## When stuck
 
-1. Search the codebase for an analogous flow (e.g. message send → `src-tauri/src/tdlib.rs` + chat UI).
+1. Search the codebase for an analogous flow (e.g. message send → `src-tauri/src/tdlib/` + chat UI).
 2. Typecheck / `cargo check` the change.
 3. If TDLib APIs are unclear, document the uncertainty rather than guessing FFI signatures.

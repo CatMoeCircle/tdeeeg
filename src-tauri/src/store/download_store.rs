@@ -9,7 +9,7 @@ use crate::db::Db;
 /// 文件类型分类（与前端 DownloadFileType 对应）
 pub type DownloadFileType = String;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DownloadItem {
     /// 稳定主键：file.remote.unique_id（不含 file_reference，同一文件恒定）。
     /// remote.unique_id 缺失时回退 file.remote.id，再回退 `session:<file_id>` / `legacy:<file_id>`。

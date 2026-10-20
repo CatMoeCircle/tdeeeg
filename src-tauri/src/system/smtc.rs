@@ -6,7 +6,7 @@
 //! `--disable-features=HardwareMediaKeyHandling`（见 `main.rs`），让 WebView2
 //! 进程根本不创建 SMC。这里在 **宿主进程** 用
 //! `ISystemMediaTransportControlsInterop::GetForWindow` 发布会话，并配合
-//! [`crate::toast_identity`] 的进程 AUMID + 注册表 DisplayName，使系统显示
+//! [`crate::system::toast_identity`] 的进程 AUMID + 注册表 DisplayName，使系统显示
 //! 正确应用名。前端不更新 webview MediaSession。
 
 /// 与前端约定的控制事件名。

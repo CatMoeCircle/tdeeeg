@@ -4,7 +4,7 @@
 //! 以及告知当前打开的聊天 id。TDLib 的 `notification_group_count_max`
 //! 由本模块按开关设置：开启=10，关闭=0。
 
-use crate::toast_identity;
+use crate::system::toast_identity;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -267,7 +267,7 @@ fn sender_name_from_msg(svc: &NotificationService, msg: &Value) -> Option<String
 pub fn handle_update(
     svc: &NotificationService,
     event: &Value,
-    chat_store: &Mutex<crate::chat_store::ChatStore>,
+    chat_store: &Mutex<crate::store::chat_store::ChatStore>,
     app_handle: &tauri::AppHandle,
     is_active_account: bool,
 ) {
@@ -393,7 +393,7 @@ fn should_skip_focus(svc: &NotificationService, app_handle: &tauri::AppHandle) -
 fn handle_notification_group(
     svc: &NotificationService,
     event: &Value,
-    chat_store: &Mutex<crate::chat_store::ChatStore>,
+    chat_store: &Mutex<crate::store::chat_store::ChatStore>,
     app_handle: &tauri::AppHandle,
 ) {
     let Some(chat_id) = event.get("chat_id").and_then(|v| v.as_i64()) else {

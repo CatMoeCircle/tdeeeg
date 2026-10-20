@@ -9,7 +9,7 @@ use langdetect::Detector;
 use serde::Serialize;
 
 /// 模型内嵌字节（源文件：`public/language_detector.tflite`）。
-const MODEL_BYTES: &[u8] = include_bytes!("../../public/language_detector.tflite");
+const MODEL_BYTES: &[u8] = include_bytes!("../../../public/language_detector.tflite");
 
 const TFLITE_LIB_NAMES: &[&str] = &[
     "tensorflowlite_c.dll",

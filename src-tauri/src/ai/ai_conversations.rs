@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
-use crate::ai_chat::ChatMessage;
+use crate::ai::ai_chat::ChatMessage;
 use crate::tdlib::AppState;
 
 /// 单次请求的用量（各家接口字段名不同，前端统一成这一套；取不到就是 None）。

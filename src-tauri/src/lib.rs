@@ -1,22 +1,10 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-mod accounts;
-mod ai_chat;
-mod ai_conversations;
-mod ai_translate;
-mod chat_store;
-mod community_store;
-mod data_loc;
+mod ai;
 mod db;
-mod device_info;
-mod download_store;
-mod file_gate;
-mod lang_detect;
-mod media_stream;
-mod notifications;
-mod smtc;
+mod store;
+mod system;
 mod tdlib;
-mod toast_identity;
-mod update_manager;
+mod updates;
 
 /// 下载记录合并写库间隔（毫秒）。起始值，按实际压力测试调整。
 const DOWNLOADS_FLUSH_INTERVAL_MS: u64 = 400;
@@ -195,7 +183,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_updater::Builder::new().build())
         .register_asynchronous_uri_scheme_protocol("tdstream", |context, request, responder| {
-            media_stream::respond(context.app_handle().clone(), request, responder);
+            system::media_stream::respond(context.app_handle().clone(), request, responder);
         })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -221,10 +209,10 @@ pub fn run() {
 
             // 根据持久化的数据存储模式解析数据根目录（AppData 或应用自带目录）
             let data_dir =
-                data_loc::resolve_current_data_dir(app.handle()).map_err(|e| e.to_string())?;
+                system::data_loc::resolve_current_data_dir(app.handle()).map_err(|e| e.to_string())?;
             std::fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
             app.manage(tdlib::AppState::new(data_dir));
-            app.manage(ai_chat::AiCancelState::default());
+            app.manage(ai::ai_chat::AiCancelState::default());
 
             // 下载记录延迟写库：updateFile 进度与登记只改内存并记账，这里合并写入 SQLite。
             // 完成/暂停/取消等状态变化仍由 store 立即落库（DownloadStore::save_now）。
@@ -245,9 +233,9 @@ pub fn run() {
 
             // 注册 Toast AUMID 身份（未打包时写注册表；MSIX 由清单自动注册）
             // 同时设置进程 AUMID——SMTC/Toast 解析应用显示名依赖它
-            toast_identity::init_toast_identity();
+            system::toast_identity::init_toast_identity();
             // 通知服务状态（Rust 侧处理 updateNotificationGroup）
-            notifications::init(app);
+            system::notifications::init(app);
 
             // 系统媒体控件（SMTC）：宿主进程发布，避免 WebView2 MediaSession 显示「未知应用」
             {
@@ -255,7 +243,7 @@ pub fn run() {
                 #[cfg(target_os = "windows")]
                 if let Some(window) = main {
                     if let Ok(hwnd) = window.hwnd() {
-                        if let Err(e) = smtc::init_with_hwnd(app.handle(), hwnd.0 as isize) {
+                        if let Err(e) = system::smtc::init_with_hwnd(app.handle(), hwnd.0 as isize) {
                             eprintln!("[smtc] init failed: {e}");
                         }
                     }
@@ -356,39 +344,39 @@ pub fn run() {
             open_with_dialog,
             copy_image_to_clipboard,
             read_clipboard_image,
-            lang_detect::detect_language,
-            lang_detect::detect_languages,
-            lang_detect::should_translate_text,
-            toast_identity::show_system_notification,
-            smtc::smtc_update_metadata,
-            smtc::smtc_update_playback,
-            smtc::smtc_clear,
-            notifications::set_notification_prefs,
-            notifications::set_active_chat_for_notifications,
-            ai_translate::list_ai_providers,
-            ai_translate::save_ai_provider,
-            ai_translate::delete_ai_provider,
-            ai_translate::delete_ai_preset,
-            ai_translate::reset_ai_presets,
-            ai_translate::ai_list_models,
-            ai_translate::ai_translate_text,
-            ai_translate::has_ai_search_key,
-            ai_translate::save_ai_search_key,
-            ai_chat::ai_chat,
-            ai_chat::ai_chat_stream,
-            ai_chat::ai_web_search,
-            ai_chat::ai_chat_cancel,
-            ai_conversations::ai_conversation_create,
-            ai_conversations::ai_conversation_list,
-            ai_conversations::ai_conversation_list_all,
-            ai_conversations::ai_conversation_set_active,
-            ai_conversations::ai_conversation_rename,
-            ai_conversations::ai_conversation_delete,
-            ai_conversations::ai_conversation_clear_chat,
-            ai_conversations::ai_conversation_usage,
-            ai_conversations::ai_conversation_history,
-            ai_conversations::ai_conversation_save_history,
-            ai_conversations::ai_conversation_estimate_tokens,
+            ai::lang_detect::detect_language,
+            ai::lang_detect::detect_languages,
+            ai::lang_detect::should_translate_text,
+            system::toast_identity::show_system_notification,
+            system::smtc::smtc_update_metadata,
+            system::smtc::smtc_update_playback,
+            system::smtc::smtc_clear,
+            system::notifications::set_notification_prefs,
+            system::notifications::set_active_chat_for_notifications,
+            ai::ai_translate::list_ai_providers,
+            ai::ai_translate::save_ai_provider,
+            ai::ai_translate::delete_ai_provider,
+            ai::ai_translate::delete_ai_preset,
+            ai::ai_translate::reset_ai_presets,
+            ai::ai_translate::ai_list_models,
+            ai::ai_translate::ai_translate_text,
+            ai::ai_translate::has_ai_search_key,
+            ai::ai_translate::save_ai_search_key,
+            ai::ai_chat::ai_chat,
+            ai::ai_chat::ai_chat_stream,
+            ai::ai_chat::ai_web_search,
+            ai::ai_chat::ai_chat_cancel,
+            ai::ai_conversations::ai_conversation_create,
+            ai::ai_conversations::ai_conversation_list,
+            ai::ai_conversations::ai_conversation_list_all,
+            ai::ai_conversations::ai_conversation_set_active,
+            ai::ai_conversations::ai_conversation_rename,
+            ai::ai_conversations::ai_conversation_delete,
+            ai::ai_conversations::ai_conversation_clear_chat,
+            ai::ai_conversations::ai_conversation_usage,
+            ai::ai_conversations::ai_conversation_history,
+            ai::ai_conversations::ai_conversation_save_history,
+            ai::ai_conversations::ai_conversation_estimate_tokens,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

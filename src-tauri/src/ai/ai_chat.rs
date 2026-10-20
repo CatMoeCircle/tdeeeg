@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use tokio::sync::oneshot;
 
-use crate::ai_translate::{build_language_model, load_all, saved_api_key, saved_search_key};
+use crate::ai::ai_translate::{build_language_model, load_all, saved_api_key, saved_search_key};
 
 /// 正在跑的流式请求：request_id → 取消信号。前端点「停止」时通过 ai_chat_cancel 触发。
 #[derive(Default)]
