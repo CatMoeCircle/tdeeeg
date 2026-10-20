@@ -190,41 +190,39 @@ pub(super) fn spawn_receive_loop(
 
         // 授权状态自动处理；Closed 时释放等待方并退出接收线程
         if event.get("@type").and_then(|v| v.as_str()) == Some("updateAuthorizationState") {
-            // authorization_state 缺失的畸形 update 整条跳过（与拆分前一致）
-            if let Some(auth_state) = event.get("authorization_state") {
-                let auth_kind = auth_state
-                    .get("@type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-                if auth_kind == "authorizationStateClosed" {
-                    if let Ok(mut sig) = close_signal.lock() {
-                        if let Some(tx) = sig.take() {
-                            let _ = tx.send(());
-                        }
+            let auth_kind = event
+                .get("authorization_state")
+                .and_then(|s| s.get("@type"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if auth_kind == "authorizationStateClosed" {
+                if let Ok(mut sig) = close_signal.lock() {
+                    if let Some(tx) = sig.take() {
+                        let _ = tx.send(());
                     }
-                    // 让仍在 await 的 tdlib_send 立即失败，避免前端 logOut 等请求永久挂起
-                    if let Ok(mut map) = state.pending_requests.lock() {
-                        for (_, tx) in map.drain() {
-                            let _ = tx.send(json!({
-                                "_": "error",
-                                "code": 500,
-                                "message": "TDLib client closed"
-                            }));
-                        }
-                    }
-                    break;
                 }
-                on_authorization_state(
-                    auth_kind,
-                    session_id,
-                    send_fn,
-                    &state,
-                    &app_handle,
-                    &client,
-                    &tdlib_db_dir,
-                    &tdlib_files_dir,
-                );
+                // 让仍在 await 的 tdlib_send 立即失败，避免前端 logOut 等请求永久挂起
+                if let Ok(mut map) = state.pending_requests.lock() {
+                    for (_, tx) in map.drain() {
+                        let _ = tx.send(json!({
+                            "_": "error",
+                            "code": 500,
+                            "message": "TDLib client closed"
+                        }));
+                    }
+                }
+                break;
             }
+            on_authorization_state(
+                auth_kind,
+                session_id,
+                send_fn,
+                &state,
+                &app_handle,
+                &client,
+                &tdlib_db_dir,
+                &tdlib_files_dir,
+            );
         }
 
         // 将 @type 转换为 _ 发送给前端

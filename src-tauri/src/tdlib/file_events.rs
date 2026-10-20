@@ -277,6 +277,7 @@ fn apply_me(
         .and_then(|v| v.as_i64())
     {
         let fid = fid as i32;
+        let changed = *client.avatar_file_id.lock().unwrap() != Some(fid);
         *client.avatar_file_id.lock().unwrap() = Some(fid);
         let path = text(user, "/profile_photo/small/local/path").filter(|p| !p.is_empty());
         if let Some(path) = path {
@@ -287,8 +288,8 @@ fn apply_me(
                     m.avatar_path = Some(path);
                 }
             }
-        } else {
-            // 还没下载：请求一次
+        } else if changed {
+            // 还没下载：只在头像文件变化时请求一次
             send_json(
                 send_fn,
                 client_ptr,
@@ -405,6 +406,32 @@ pub(super) fn maybe_update_avatar(
 
 // ==================== TDLib 官方下载列表 ====================
 
+/// 从 fileDownload.message 提取展示用文件名。
+fn extract_download_file_name(message: &serde_json::Value) -> Option<String> {
+    let content = message.get("content")?;
+    for pointer in [
+        "/document/file_name",
+        "/video/file_name",
+        "/audio/title",
+        "/audio/file_name",
+    ] {
+        if let Some(name) = text(content, pointer).filter(|s| !s.is_empty()) {
+            return Some(name);
+        }
+    }
+    let msg_id = message.get("id").and_then(|v| v.as_i64()).unwrap_or(0);
+    let (base, ext) = match content.get("_").and_then(|v| v.as_str())? {
+        "messagePhoto" => ("photo", ".jpg"),
+        "messageVideo" => ("video", ".mp4"),
+        "messageAnimation" => ("animation", ".gif"),
+        "messageVoiceNote" => ("voice", ".ogg"),
+        "messageAudio" => ("audio", ""),
+        "messageDocument" => ("文件", ""),
+        _ => return None,
+    };
+    Some(format!("{base}_{msg_id}{ext}"))
+}
+
 /// 处理 TDLib 官方下载列表 update：
 /// `updateFileDownload` / `updateFileAddedToDownloads` / `updateFileRemovedFromDownloads` / `updateFileDownloads`
 ///
@@ -442,15 +469,16 @@ pub(super) fn handle_download_list_update(
             let Some(file_id) = fd.get("file_id").and_then(|v| v.as_i64()) else {
                 return;
             };
+            let message = fd.get("message");
             store.apply_download_list_state(
                 Some(session_id),
                 file_id as i32,
                 flag(fd, "/is_paused"),
                 number(fd, "/complete_date"),
                 true,
-                None,
-                None,
-                None,
+                message.and_then(extract_download_file_name),
+                message.and_then(|m| m.get("chat_id")).and_then(|v| v.as_i64()),
+                message.and_then(|m| m.get("id")).and_then(|v| v.as_i64()),
             )
         }
         "updateFileRemovedFromDownloads" => {
@@ -474,5 +502,37 @@ pub(super) fn handle_download_list_update(
 pub(super) fn flush_download_list_updates(app_handle: &tauri::AppHandle, gate: &mut FileGate) {
     for batch in gate.take_due() {
         let _ = app_handle.emit(batch.channel, json!({ "updates": batch.payloads }));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn download_file_names_prefer_real_name_then_fall_back_to_message_id() {
+        let doc = json!({
+            "id": 42,
+            "content": { "_": "messageDocument", "document": { "file_name": "报告.pdf" } },
+        });
+        assert_eq!(extract_download_file_name(&doc).as_deref(), Some("报告.pdf"));
+
+        let photo = json!({ "id": 7, "content": { "_": "messagePhoto" } });
+        assert_eq!(
+            extract_download_file_name(&photo).as_deref(),
+            Some("photo_7.jpg")
+        );
+
+        let text = json!({ "id": 9, "content": { "_": "messageText" } });
+        assert_eq!(extract_download_file_name(&text), None);
+    }
+
+    #[test]
+    fn upload_type_follows_extension() {
+        assert_eq!(infer_upload_type("C:\\a\\b.PNG"), "photo");
+        assert_eq!(infer_upload_type("/tmp/clip.mp4"), "video");
+        assert_eq!(infer_upload_type("/tmp/song.flac"), "audio");
+        assert_eq!(infer_upload_type("/tmp/archive.7z"), "document");
+        assert_eq!(infer_upload_type("/tmp/noext"), "document");
     }
 }
