@@ -1,9 +1,11 @@
 <template>
     <template v-for="(seg, i) in segments" :key="i">
         <CustomEmojiInline v-if="seg.customEmojiId" :emojiId="seg.customEmojiId" :size="size"
-            :fallback-text="seg.text" />
+            :fallback-text="seg.text" :eager="alwaysFetch" />
         <span v-else-if="seg.isSpoiler" class="fts-spoiler" :style="{ width: seg.widthPx + 'px' }"></span>
         <template v-else>{{ seg.text }}</template>
+        <!-- 按字数截断时补省略号（不能依赖 CSS ellipsis：内联子节点下 ellipsis 不生效） -->
+        <template v-if="seg.truncated">…</template>
     </template>
 </template>
 
@@ -17,11 +19,28 @@ const props = defineProps<{
     formattedText?: formattedText | null;
     /** 自定义 emoji 尺寸（px） */
     size?: number;
+    /**
+     * 立即拉取自定义 emoji（不走视口懒加载）。
+     * 列表单行等会被复用/滚出视口的场景保持默认 false；置顶栏这类短命预览置 true。
+     */
+    alwaysFetch?: boolean;
+    /**
+     * 最大显示字数：超出后截断并补省略号（按码点计数，自定义 emoji 只占 1 个字）。
+     * 顶部栏需要固定高度时用它代替 CSS truncate —— 见 PinnedMessageBar。
+     */
+    maxChars?: number;
 }>();
 
 const size = computed(() => props.size || 22);
 
-type Segment = { text: string; customEmojiId?: string; isSpoiler?: boolean; widthPx?: number };
+type Segment = { text: string; customEmojiId?: string; isSpoiler?: boolean; widthPx?: number; truncated?: boolean };
+
+/** 按码点截断：迭代器按码点推进，不会切开代理对（emoji 字符本身也不被裁半） */
+function truncateCodePoints(text: string, max: number): { text: string; truncated: boolean } {
+    const chars = Array.from(text);
+    if (chars.length <= max) return { text, truncated: false };
+    return { text: chars.slice(0, Math.max(0, max - 1)).join(''), truncated: true };
+}
 
 /** 剧透遮盖块宽度：按原文长度估算（用当前字号近似），保证遮盖块与原长度大体一致 */
 function spoilerWidthPx(len: number, fontSizePx: number): number {
@@ -33,6 +52,9 @@ function spoilerWidthPx(len: number, fontSizePx: number): number {
  * - textEntityTypeCustomEmoji → 内联表情；
  * - textEntityTypeSpoiler → 剧透段（不显示原文，渲染成遮盖色块，预览不泄露内容）；
  * 其余实体按纯文本显示，适合聊天列表预览、分组标签等小尺寸场景。
+ *
+ * alwaysFetch：预览区域（如置顶栏）不复用长驻的列表单元，离开后不会重新挂载，
+ * 必须立即拉取，否则视口懒加载的 crossed 门控在卸载前可能从未触发，表情永远停在骨架。
  */
 const segments = computed<Segment[]>(() => {
     const ft = props.formattedText;
@@ -49,7 +71,9 @@ const segments = computed<Segment[]>(() => {
         .filter(i => i.entity.type._ === 'textEntityTypeCustomEmoji' || i.entity.type._ === 'textEntityTypeSpoiler');
 
     if (specialEntities.length === 0) {
-        return [{ text }];
+        if (props.maxChars == null) return [{ text }];
+        const whole = truncateCodePoints(text, props.maxChars);
+        return [{ text: whole.text, truncated: whole.truncated }];
     }
 
     const boundaries = new Set<number>([0, text.length]);
@@ -59,21 +83,47 @@ const segments = computed<Segment[]>(() => {
     }
     const offsets = [...boundaries].sort((a, b) => a - b);
 
-    return offsets.slice(0, -1).map((start, index) => {
+    // 按码点预算截断：预留 1 个字给省略号，剩余额度逐段消耗
+    const limit = props.maxChars;
+    let remaining = limit == null ? Infinity : Math.max(0, limit - 1);
+    let overflowed = false;
+
+    const out: Segment[] = [];
+    for (let index = 0; index < offsets.length - 1; index++) {
+        const start = offsets[index];
         const end = offsets[index + 1];
         const segText = text.slice(start, end);
         const entity = specialEntities.find(e => e.start <= start && e.end >= end);
-        if (entity?.entity.type._ === 'textEntityTypeCustomEmoji') {
-            return {
-                text: segText,
-                customEmojiId: String(entity.entity.type.custom_emoji_id),
-            };
+        const type = entity?.entity.type;
+
+        let piece = segText;
+        if (limit != null) {
+            const len = Array.from(segText).length;
+            if (remaining <= 0) {
+                overflowed = true;
+                break;
+            }
+            if (len > remaining) {
+                piece = truncateCodePoints(segText, remaining).text;
+                overflowed = true;
+            }
+            remaining -= Math.min(len, remaining);
         }
-        if (entity?.entity.type._ === 'textEntityTypeSpoiler') {
-            return { text: segText, isSpoiler: true, widthPx: spoilerWidthPx(segText.length, size.value) };
+
+        if (type?._ === 'textEntityTypeCustomEmoji') {
+            out.push({ text: piece, customEmojiId: String(type.custom_emoji_id) });
+        } else if (type?._ === 'textEntityTypeSpoiler') {
+            out.push({ text: piece, isSpoiler: true, widthPx: spoilerWidthPx(piece.length, size.value) });
+        } else {
+            out.push({ text: piece });
         }
-        return { text: segText };
-    });
+
+        if (overflowed) break;
+    }
+
+    if (overflowed && out.length > 0) out[out.length - 1].truncated = true;
+    if (overflowed && out.length === 0) return [{ text: '', truncated: true }];
+    return out;
 });
 </script>
 

@@ -30,9 +30,14 @@
                             {{ currentCycleIndex() + 1 }}/{{ pinnedMessages.length }}
                         </span>
                     </div>
-                    <span class="min-w-0 truncate text-xs text-gray-700 dark:text-gray-300 leading-tight">
-                        <FormattedTextInline :formattedText="getMessagePreview(currentPinned)" :size="12" />
+                    <!-- 预览只占一行：正文已在 collapsedPreview 里按字数截断并补省略号，
+                         这里只做兜底的单行裁切（不依赖 CSS ellipsis，内联表情下它不可靠）。 -->
+                    <span v-if="showPreviewText" class="min-w-0 block truncate text-xs text-gray-700 dark:text-gray-300 leading-tight">
+                        <FormattedTextInline :key="currentPinned.id" :formattedText="collapsedPreview"
+                            :size="12" always-fetch />
                     </span>
+                    <span v-else class="min-w-0 block truncate text-xs text-gray-400 dark:text-gray-500 leading-tight">{{
+                        bracketTypePreview(messageContentTypeLabel(currentPinned.content._)) }}</span>
                 </div>
                 <!-- 展开按钮 -->
                 <button v-if="pinnedMessages.length > 1" @click.stop="expanded = !expanded"
@@ -59,7 +64,7 @@
                     </button>
                 </div>
                 <div class="max-h-80 overflow-y-auto custom-scrollbar">
-                    <div v-for="msg in pinnedMessages" :key="msg.id" @click="jumpToMessage(msg.id)"
+                    <div v-for="msg in pinnedMessages" :key="msg.id" @click="selectPinned(msg)"
                         class="flex items-start gap-2.5 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors group">
                         <div class="shrink-0 mt-0.5">
                             <PinIcon class="w-3.5 h-3.5 text-blue-500 rotate-45" />
@@ -71,7 +76,8 @@
                                 <span class="text-[10px] text-gray-400">{{ formatPinTime(msg.date) }}</span>
                             </div>
                             <p class="text-sm text-gray-700 dark:text-gray-300 line-clamp-2 leading-snug">
-                                <FormattedTextInline :formattedText="getMessagePreview(msg)" :size="14" />
+                                <FormattedTextInline :key="msg.id" :formattedText="getMessagePreview(msg)"
+                                    :size="14" always-fetch />
                             </p>
                         </div>
                         <ChevronRightIcon
@@ -102,6 +108,7 @@ import {
     messageContentTypeLabel,
     bracketTypePreview,
     musicBracketPreview,
+    emojiContentPreview,
 } from '../../../utils/messagePreview';
 import { useAudioPlayerStore } from '../../../store/audioPlayer';
 
@@ -121,6 +128,12 @@ const emit = defineEmits<{
 const player = useAudioPlayerStore();
 const hasPlayer = computed(() => player.showEntry);
 
+/**
+ * 折叠态预览的字数上限：顶部栏必须固定一行高（max-h-14），
+ * 预先截断比依赖 CSS ellipsis 更稳定（内联表情是块渲染，ellipsis 不可靠）。
+ */
+const COLLAPSED_PREVIEW_CHARS = 64;
+
 const pinnedMessages = ref<message[]>([]);
 const currentPinned = ref<message | null>(null);
 const expanded = ref(false);
@@ -128,6 +141,44 @@ const expanded = ref(false);
 const lastJumpedId = ref<number | null>(null);
 /** 拉取代次：避免切换会话/连续置顶时旧请求覆盖新结果 */
 let loadSeq = 0;
+
+/**
+ * 折叠态预览的正文：按码点限量并补省略号。
+ * 截断放在这里而不是 FormattedTextInline，避免每次渲染都按字数重切全部实体。
+ */
+const collapsedPreview = computed<formattedText>(() => {
+    const msg = currentPinned.value;
+    if (!msg) return plainText('');
+    const ft = getMessagePreview(msg);
+    if (!ft.text) return ft;
+
+    // 按码点推进，跳过代理对低位，保证不把 emoji 字符切成两半
+    let budget = COLLAPSED_PREVIEW_CHARS - 1;
+    let utf16Limit = ft.text.length;
+    let truncated = false;
+    for (let i = 0; i < ft.text.length; i++) {
+        if (budget === 0) {
+            utf16Limit = i;
+            truncated = true;
+            break;
+        }
+        if (ft.text.codePointAt(i)! > 0xffff) i++;
+        budget -= 1;
+    }
+    if (!truncated) return ft;
+
+    const text = `${ft.text.slice(0, utf16Limit)}…`;
+    // 只保留被截断片段内的实体；被截掉的自定义表情不保留实体，原字符自然显示为普通 emoji
+    const entities = (ft.entities ?? [])
+        .filter(e => e.offset < text.length)
+        .map(e => ({ ...e, length: Math.min(e.length, text.length - e.offset) }))
+        .filter(e => e.length > 0);
+    return { _: 'formattedText', text, entities };
+});
+
+/** 预览是否有文字：纯媒体（语音、动图、视频消息等）没有可渲染文本时不走内联渲染 */
+const showPreviewText = computed(() => (collapsedPreview.value.text ?? '').trim().length > 0);
+
 /** 获取最新的顶置消息 */
 async function fetchLatestPinned(chatIdNum: number) {
     try {
@@ -202,6 +253,16 @@ function jumpToMessage(messageId: number) {
 }
 
 /**
+ * 展开列表里点选某条置顶：被选中的那条要成为折叠态的预览，
+ * 同时把它记为「当前位置」，序号与后续循环都从这里继续。
+ */
+function selectPinned(msg: message) {
+    lastJumpedId.value = msg.id;
+    currentPinned.value = msg;
+    jumpToMessage(msg.id);
+}
+
+/**
  * 当前所在位置的下标（列表按消息时间正序：0 为最旧一条，末尾为最新一条）。
  * -1 表示本次会话还没有点过。
  *
@@ -220,6 +281,9 @@ function currentCycleIndex(): number {
  *
  * -1 表示尚未点击过：必须与「已在最顶上」（0）区分开，
  * 否则首次点击会走到末尾（最下面），方向就反了。
+ *
+ * 预览内容必须跟着切换：currentPinned 只用来渲染预览，不承担「当前滚动位置」，
+ * 所以这里同步更新它，切置顶时顶栏文案会立刻变化。
  */
 function cyclePinned() {
     const list = pinnedMessages.value;
@@ -228,6 +292,7 @@ function cyclePinned() {
     // -1：首次点击 → 最旧一条；0：已在最顶上 → 回到最下面；其余 → 继续往上
     const next = index < 0 ? 0 : (index - 1 + list.length) % list.length;
     lastJumpedId.value = list[next].id;
+    currentPinned.value = list[next];
     jumpToMessage(list[next].id);
 }
 
@@ -274,16 +339,20 @@ function getMessagePreview(msg: message): formattedText {
             return captionPreview(messageContentTypeLabel('messageVideo'), c.caption);
         case 'messageAnimation':
             return captionPreview(messageContentTypeLabel('messageAnimation'), c.caption);
+        case 'messageDocument':
+            // 有 caption 时保留实体（自定义 emoji），否则显示文件名
+            return c.caption?.text?.trim()
+                ? captionPreview(messageContentTypeLabel('messageDocument'), c.caption)
+                : plainText(bracketTypePreview(messageContentTypeLabel('messageDocument'), c.document.file_name));
         case 'messageSticker':
-            return plainText(bracketTypePreview(messageContentTypeLabel('messageSticker')));
+            return plainText(emojiContentPreview(c) ?? bracketTypePreview(messageContentTypeLabel('messageSticker')));
         case 'messageVoiceNote':
             return plainText(bracketTypePreview(messageContentTypeLabel('messageVoiceNote')));
         case 'messageVideoNote':
             return plainText(bracketTypePreview(messageContentTypeLabel('messageVideoNote')));
         case 'messageAudio':
-            return plainText(musicBracketPreview(c.audio.title, c.audio.performer));
-        case 'messageDocument':
-            return plainText(bracketTypePreview(messageContentTypeLabel('messageDocument'), c.document.file_name));
+            return plainText(musicBracketPreview(c.audio.title, c.audio.performer)
+                || bracketTypePreview(messageContentTypeLabel('messageAudio')));
         case 'messagePoll':
             return plainText(bracketTypePreview(messageContentTypeLabel('messagePoll')));
         case 'messageLocation':
@@ -291,7 +360,11 @@ function getMessagePreview(msg: message): formattedText {
         case 'messageContact':
             return plainText(bracketTypePreview(messageContentTypeLabel('messageContact')));
         case 'messageDice':
-            return plainText(bracketTypePreview(messageContentTypeLabel('messageDice')));
+            // 骰子 / 老虎机等：只显示骰子 emoji（🎲），不显示点数
+            return plainText(emojiContentPreview(c) ?? bracketTypePreview(messageContentTypeLabel('messageDice')));
+        // 单条大号动画表情：正文就是该表情本身，显示 emoji 而不是「[Message]」
+        case 'messageAnimatedEmoji':
+            return plainText(emojiContentPreview(c) ?? c.emoji);
         case 'messageGame':
             return plainText(bracketTypePreview(messageContentTypeLabel('messageGame')));
         case 'messagePinMessage':
@@ -340,5 +413,11 @@ watch(() => props.refreshToken, () => {
     line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+}
+
+/* 折叠态预览：自定义 emoji 是 inline-flex 块盒，默认基线对齐会让行盒底边下沉、顶栏变高；
+   这里把表情盒底边下压一点，让文字基线与表情底边对齐，顶栏高度保持稳定 */
+:deep(.fts-emoji-box) {
+    vertical-align: -0.25em;
 }
 </style>

@@ -82,6 +82,27 @@ export function bracketTypePreview(label: string, extra?: string | null): string
 }
 
 /**
+ * emoji 类内容的消息预览文案。
+ * - 动画表情（messageAnimatedEmoji）：正文就是那个表情，预览直接显示 emoji 本身，不加类型前缀；
+ *   否则会出现 `[Message] 😀` 这种把 emoji 藏在方括号后面的残缺预览。
+ * - 骰子：只显示骰子 emoji（🎲），不显示点数。
+ * - 贴纸：官方 `{emoji} [Sticker]` 写法。
+ */
+export function emojiContentPreview(content: {
+    _: string;
+    emoji?: string | null;
+    sticker?: { emoji?: string | null } | null;
+}): string | null {
+    const emoji = (content.emoji ?? '').trim();
+    if (content._ === 'messageAnimatedEmoji') return emoji || null;
+    if (content._ === 'messageDice') {
+        return emoji || bracketTypePreview(i18n.global.t('lng_sr_message_column_dice'));
+    }
+    if (content._ === 'messageSticker') return stickerBracketPreview(content.sticker?.emoji);
+    return null;
+}
+
+/**
  * 内容保护开关预览，与消息气泡文案一致：自己操作用 you 文案，否则带发送者名。
  * 频道里没有用户身份（发送者是频道本身），调用方对频道应传 `isOutgoing = false`，
  * 否则会显示成「您」触发的操作。

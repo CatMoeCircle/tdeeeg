@@ -1,5 +1,5 @@
 <template>
-  <span ref="rootEl" class="inline-flex items-center align-middle mx-0.5 overflow-hidden"
+  <span ref="rootEl" class="fts-emoji-box inline-flex items-center align-middle mx-0.5 overflow-hidden"
     :class="props.clickable ? 'cursor-pointer' : ''"
     :style="{ width: size + 'px', height: size + 'px' }" @click="onClick">
     <!-- 已下载完成：根据格式渲染 -->
@@ -38,6 +38,8 @@ const props = defineProps<{
   loop?: boolean;
   /** 点击打开所属贴纸包信息弹窗（与贴纸详情页复用），仅消息正文等场景开启 */
   clickable?: boolean;
+  /** 挂载即拉取，不等待视口门控（短命的顶部预览栏用，避免永远停在骨架） */
+  eager?: boolean;
 }>();
 
 const size = computed(() => props.size || 22);
@@ -112,12 +114,14 @@ const { start: startViewportLoad, entered } = useViewportLoad(rootEl, () => {
 watch(() => props.emojiId, (id) => {
   state.value = useCustomEmoji(id, false);
   // once 门控已触发过，不会为新 id 自动拉取，需手动补一次
-  if (entered.value) requestCustomEmoji(id);
+  if (entered.value || props.eager) requestCustomEmoji(id);
 });
 
 onMounted(() => {
   setupPause();
   startViewportLoad();
+  // 立即拉取：不依赖视口门控的 dwell 判定
+  if (props.eager) requestCustomEmoji(props.emojiId);
 });
 
 onUnmounted(() => {
