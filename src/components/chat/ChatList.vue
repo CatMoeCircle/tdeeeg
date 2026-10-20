@@ -495,6 +495,7 @@ import {
 } from '../contextMenu/chatActions';
 import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
 import { chatPaneVisible } from '../../store/chatPane';
+import { markChatNavFromList } from '../../store/chatNav';
 import FormattedTextInline from './FormattedTextInline.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 import { folderTabClass as sharedFolderTabClass, folderTabContainerClass, UI_GLASS_SURFACE } from '../../utils/folderPillsTabClass';
@@ -1037,6 +1038,7 @@ const selectForumChat = async (chat: Chat) => {
     if (!isForumChat(chat)) {
         exitForumMode();
         selectedChatId.value = chat.id;
+        markChatNavFromList();
         await router.push({
             name: 'chat-detail',
             params: { id: String(chat.id) },
@@ -1111,6 +1113,7 @@ const exitForumMode = () => {
 /** 选择话题：导航到话题详情 */
 const selectTopic = (topicId: number) => {
     if (!forumChatId.value) return;
+    markChatNavFromList();
     router.push({
         name: 'chat-topic-detail',
         params: {
@@ -1176,6 +1179,7 @@ const selectChat = async (chat: Chat) => {
     // 导航前先锁 FLIP：openChat 引发的列表重排不能和详情页挂载叠在同一帧
     lockReorderAnim();
     selectedChatId.value = chat.id;
+    markChatNavFromList();
     await router.push({
         name: 'chat-detail',
         params: { id: String(chat.id) },

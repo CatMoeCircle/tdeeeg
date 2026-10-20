@@ -836,6 +836,7 @@ import { useAudioPlayerStore } from '../../../store/audioPlayer';
 import { useAccountsStore } from '../../../store/accounts';
 import { clearActiveChatTitleBar } from '../../../store/activeChatTitleBar';
 import { chatPaneOrigin } from '../../../store/chatPane';
+import { consumeChatNavFromList, isChatPaneSectionPath, isChatRoutePath } from '../../../store/chatNav';
 import { storeToRefs } from 'pinia';
 import { onTdlibUpdates } from "../../../store/tdlibBus";
 import { saveFileAs, revealFileInDir } from "../../../utils/fileActions";
@@ -1437,35 +1438,81 @@ function closeOverlay() {
 const showBackBtn = computed(() => true);
 
 /**
+ * 聊天内跳转栈：按访问顺序记录聊天路由路径。
+ *
+ * 聊天之间互相跳转（转发来源、消息内链接、内联按钮…）时层层压栈，
+ * 顶栏返回按原路逐层回退；从会话列表打开的聊天只保留当前一层，
+ * 返回即收起面板回到空状态。栈随 ChatDetail 卸载清空（面板收起即重新开始）。
+ */
+const chatJumpStack = ref<string[]>([]);
+
+/**
+ * 打开当前聊天会话的入口页（非聊天路由）。
+ * 从资料页（用户主页里的个人频道、频道资料里的关联群组…）进入聊天时，
+ * 返回应回到那个页面；从栏目空页进入则收起面板回到空状态。
+ */
+const chatEntryPath = ref<string | null>(null);
+
+watch(
+    () => route.fullPath,
+    (path, prev) => {
+        // 栏目页 / 资料页不改写栈：回到聊天时仍能接着按原路回退
+        if (!isChatRoutePath(path)) return;
+        const stack = chatJumpStack.value;
+        const idx = stack.indexOf(path);
+        if (idx >= 0) {
+            // 回到栈内已有会话（返回 / 重复跳转）：截断到该层
+            if (idx !== stack.length - 1) chatJumpStack.value = stack.slice(0, idx + 1);
+            return;
+        }
+        const fromList = consumeChatNavFromList();
+        if (fromList || stack.length === 0) {
+            // 新会话（含从列表重新打开）：记录入口页，栈从一层重新开始。
+            // 组件刚挂载时 watcher 没有 prev，退回浏览器历史里的上一跳。
+            const from = fromList ? null : (prev ?? router.options.history.state.back);
+            chatEntryPath.value = typeof from === 'string' && !isChatRoutePath(from) && !isChatPaneSectionPath(from)
+                ? from
+                : null;
+            chatJumpStack.value = [path];
+            return;
+        }
+        // 聊天内跳转：沿用会话入口，只叠加一层
+        chatJumpStack.value = [...stack, path];
+    },
+    { immediate: true },
+);
+
+/**
  * 返回按钮处理：叠层模式先关闭叠层；评论线程回到所属频道；
- * 从另一个会话跳转进来时返回上一个会话；其余情况收起聊天面板，
+ * 聊天内逐层跳转进来的按原路退回上一个会话；其余情况收起聊天面板，
  * 并回到「打开该聊天的来源栏目」（对话列表 / 联系人 / 归档 / 设置）。
  * 聊天面板在联系人、归档等栏目下仍然挂载，此时返回只收起面板、保持当前栏目的路由。
  */
 function handleBack() {
     if (showOverlay.value) {
         closeOverlay();
-    } else if (threadMode.value && chatId.value !== undefined) {
+        return;
+    }
+    if (threadMode.value && chatId.value !== undefined) {
         // 评论线程返回：回到所属频道会话（而不是聊天列表）
         router.push(`/home/chat/${chatId.value}`);
-    } else if (isPreviousRouteChat()) {
-        // 聊天内跳转到另一个会话（动态发布者、转发来源等）：按历史返回原会话
-        router.back();
-    } else {
-        emit('close');
-        // 当前已在栏目页（联系人/归档/设置）时不要再改路由，否则会被带回对话列表
-        if (route.name === 'chat-detail' || route.name === 'chat-topic-detail' || route.name === 'chat-thread-detail') {
-            router.push(chatPaneOrigin.value);
-        }
+        return;
     }
-}
-
-/** 上一条历史记录是否为另一个聊天会话 */
-function isPreviousRouteChat(): boolean {
-    const back = router.options.history.state.back;
-    return typeof back === 'string'
-        && back !== route.fullPath
-        && (back === '/home/chat' || back.startsWith('/home/chat/'));
+    if (chatJumpStack.value.length > 1 && isChatRoutePath(route.fullPath)) {
+        // 聊天内跳转到另一个会话（转发来源、消息内链接等）：按历史退回上一层
+        router.back();
+        return;
+    }
+    if (chatEntryPath.value !== null && isChatRoutePath(route.fullPath)) {
+        // 从资料页等内容页打开的聊天（如用户主页里的个人频道）：返回该页
+        router.back();
+        return;
+    }
+    emit('close');
+    // 当前已在栏目页（联系人/归档/设置）时不要再改路由，否则会被带回对话列表
+    if (route.name === 'chat-detail' || route.name === 'chat-topic-detail' || route.name === 'chat-thread-detail') {
+        router.push(chatPaneOrigin.value);
+    }
 }
 
 /** 顶部搜索：评论线程内不提供会话级搜索（搜索结果属频道历史，与线程上下文不符） */
@@ -2676,6 +2723,9 @@ onBeforeUnmount(() => {
 
 onUnmounted(() => {
     window.removeEventListener('tdgram:jump-to-message-in-chat', onSameChatJump);
+    // 面板收起：聊天内跳转栈与入口页作废，下次打开聊天重新开始
+    chatJumpStack.value = [];
+    chatEntryPath.value = null;
     if (unsubscribeUpdates) {
         unsubscribeUpdates();
         unsubscribeUpdates = null;

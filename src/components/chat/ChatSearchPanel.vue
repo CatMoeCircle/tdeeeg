@@ -209,6 +209,7 @@ import {
 import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../utils/savedMessages';
 import { tdlibSend } from '../../utils/tdlib';
 import { toast } from '../../utils/toast';
+import { markChatNavFromList } from '../../store/chatNav';
 import { getMessagePlainText } from '../../utils/messageText';
 import { folderTabClass as sharedFolderTabClass, folderTabContainerClass } from '../../utils/folderPillsTabClass';
 import Avatar from './avatar.vue';
@@ -776,6 +777,7 @@ function formatTime(timestamp: number | undefined): string {
  * 退出会卸载结果区、重建对话列表（看起来像「左边被刷新」，结果也没了）。
  */
 function selectChat(chat: Chat) {
+    markChatNavFromList();
     router.push({
         name: 'chat-detail',
         params: { id: String(chat.id) },
@@ -794,6 +796,7 @@ function selectMessage(msg: message) {
         }));
         return;
     }
+    markChatNavFromList();
     router.push({
         name: 'chat-detail',
         params: { id: String(msg.chat_id) },

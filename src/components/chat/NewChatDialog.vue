@@ -69,6 +69,7 @@ import { toast } from '../../utils/toast';
 import ModalDialog from '../settings/ModalDialog.vue';
 import GroupUserPickerDialog from '../settings/GroupUserPickerDialog.vue';
 import { tdlibSend } from '../../utils/tdlib';
+import { markChatNavFromList } from '../../store/chatNav';
 import { isDeletedUser, DELETED_ACCOUNT_LABEL } from '../../utils/senderInfo';
 import type { chat, createdBasicGroupChat, user } from 'tdlib-types';
 
@@ -187,6 +188,7 @@ async function create() {
     if (isChannel.value) {
       router.push({ name: 'group-type', params: { id: String(chatId) } });
     } else {
+      markChatNavFromList();
       router.push({ name: 'chat-detail', params: { id: String(chatId) } });
     }
   } catch (e: any) {

@@ -180,7 +180,8 @@ watch(
             else if (isSettingsRouteName(prev)) profileFromSection.value = 'settings';
             // 资料页之间互跳（联系人列表里连点两个联系人）：沿用已记住的来源栏目，
             // 否则第二次点击会把左侧列表切回对话列表。
-            else if (prev === 'user-profile' || prev === 'chat-profile' || prev === 'chat-edit' || (typeof prev === 'string' && prev.startsWith('group-'))) {
+            // 同理，从聊天返回资料页（返回按钮按原路回退）也要沿用原栏目。
+            else if (prev === 'user-profile' || prev === 'chat-profile' || prev === 'chat-edit' || (typeof prev === 'string' && prev.startsWith('group-')) || isChatRoute(prev)) {
                 profileFromSection.value = profileFromSection.value ?? 'chats';
             }
             else profileFromSection.value = 'chats';
