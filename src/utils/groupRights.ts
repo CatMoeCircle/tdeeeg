@@ -83,6 +83,12 @@ export function canRestrictMembers(status?: ChatMemberStatus | null): boolean {
   return isAdminStatus(status) && !!status.rights?.can_restrict_members;
 }
 
+/** 是否可删除**他人**的消息（群 / 频道管理员权限；创建者恒可） */
+export function canDeleteOthersMessages(status?: ChatMemberStatus | null): boolean {
+  if (isCreatorStatus(status)) return true;
+  return isAdminStatus(status) && !!status.rights?.can_delete_messages;
+}
+
 export function canPromoteMembers(status?: ChatMemberStatus | null): boolean {
   if (isCreatorStatus(status)) return true;
   return isAdminStatus(status) && !!status.rights?.can_promote_members;

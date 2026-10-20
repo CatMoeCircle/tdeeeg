@@ -462,7 +462,7 @@
         </Transition>
 
         <!-- ===== Input Area（顶层，磨砂玻璃） ===== -->
-        <div v-if="canSend" ref="inputAnchorEl"
+        <div v-if="showAiInput" ref="inputAnchorEl"
             class="absolute bottom-0 left-0 right-0 z-10 dark:from-gray-900/80 dark:via-gray-900/60 to-transparent"
             :class="topicLayoutAnim ? 'topic-chrome-anim' : ''" :style="tagBarSideInsetStyle">
             <div aria-hidden="true"
@@ -519,6 +519,12 @@
                  两种输入框的高度都不一样，写死常量会对不上） -->
             <div ref="inputAreaRef" class="relative z-10">
                 <div v-if="settings.ai.input === 'ai'" class="px-3 py-2.5">
+                    <!-- 只读会话（不可发言的频道 / 群）：AI 照样能读能总结，只是不能在这里发言 -->
+                    <p v-if="!canSend"
+                        class="mb-2 flex items-start gap-1.5 px-1 text-[12px] leading-4 text-gray-500 dark:text-gray-400">
+                        <CircleStopIcon class="w-3.5 h-3.5 shrink-0 mt-px text-amber-500" />
+                        <span>{{ t('aiInput.noPostPermission') }}</span>
+                    </p>
                     <!-- AI 活动条：用过 AI、有输出 / 工具调用 / 待审核时才在输入框顶部冒出来；
                          没用过 AI 的聊天默认什么都不显示 -->
                     <AiActivityStrip v-if="aiActivityEntries.length > 0 || aiActivityApproval"
@@ -531,7 +537,7 @@
                         @jump-quote="jumpToAiQuote" @remove-quote="aiQuote = null"
                         @switch-message="settings.ai.input = 'message'" />
                 </div>
-                <MessageInput v-else ref="messageInputRef" v-model="messageInput"
+                <MessageInput v-else-if="canSend" ref="messageInputRef" v-model="messageInput"
                     :reply-target="replyTargetInfo" :edit-target="editTargetInfo" :edit-entities="editSeedEntitiesForInput"
                     :chat="chat" :users="users" :supergroups="supergroups" :basic-groups="basicGroups" :my-id="myId"
                     :member-status="currentMemberStatus" :is-premium="isMePremium" :custom-emojis="pendingCustomEmoji"
@@ -610,6 +616,13 @@
                     class="h-12 min-w-32 px-5 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg text-sm font-medium text-blue-500 dark:text-blue-400 hover:bg-white/80 dark:hover:bg-gray-800/90 disabled:opacity-60 disabled:cursor-wait transition-colors"
                     @click="toggleNotifications">
                     {{ notificationsMuted ? t('lng_enable_notifications_from_tray') : t('lng_channel_mute') }}
+                </button>
+                <!-- AI 输入框入口：这里发不了言，但可以让 AI 读 / 总结，再发到别的聊天 -->
+                <button v-if="settings.ai.switchButton" type="button" :title="t('aiInput.switchToAi')"
+                    :aria-label="t('aiInput.switchToAi')"
+                    class="w-12 h-12 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg flex items-center justify-center text-blue-500 dark:text-blue-400 hover:bg-white/80 dark:hover:bg-gray-800/90 transition-colors"
+                    @click="settings.ai.input = 'ai'">
+                    <SparklesIcon class="w-5 h-5" />
                 </button>
                 <button v-if="linkedChatId" type="button" :title="t('lng_profile_view_discussion')" :aria-label="t('lng_profile_view_discussion')"
                     class="w-12 h-12 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg flex items-center justify-center text-blue-500 dark:text-blue-400 hover:bg-white/80 dark:hover:bg-gray-800/90 transition-colors"
@@ -835,6 +848,7 @@ import {
     getDisplayAuthorSignature as getDisplayAuthorSignatureOf,
 } from './composables/messageMeta';
 import type { RoleContext, SelfDeps } from './composables/messageMeta';
+import { canDeleteOthersMessages, canRestrictMembers, isGroupChat } from '../../../utils/groupRights';
 
 // ==================== Route ====================
 const route = useRoute();
@@ -4625,6 +4639,8 @@ async function onAiPromptSend(text: string, detail: { effort?: string; attachmen
             effort,
             sink,
             signal: controller.signal,
+            // 群 / 频道的写权限：没「删他人消息 / 封禁」权限就不给对应工具，只读频道还告诉模型别在此发言
+            perms: aiTurnPermissions.value,
         });
     } catch (e) {
         if (e instanceof AiTurnLimitError) {
@@ -5499,6 +5515,35 @@ async function joinCurrentChat() {
 
 const showChannelActions = computed(() =>
     showChannelActionsOf(chat.value, canSend.value, groupCaches())
+);
+
+/**
+ * AI 写工具的聊天权限（只有群 / 频道才有限制；私聊 / 密聊不传 = 全给）：
+ * 没有「删除他人消息 / 封禁」权限就不下发对应工具（见 utils/aiChat 的 enabledTools、systemPrompt）。
+ */
+const aiTurnPermissions = computed<AiTurnPermissions | undefined>(() => {
+    const c = chat.value;
+    if (!c || !isGroupChat(c)) return undefined;
+    const status = currentMemberStatus.value;
+    return {
+        deleteMessages: canDeleteOthersMessages(status),
+        restrictMembers: canRestrictMembers(status),
+        canPost: canSend.value,
+    };
+});
+
+/**
+ * 底部输入区显示什么：能发言 → 普通 / AI 输入框；**不能发言的群 / 频道**（只读频道、
+ * 被限制发言的群、没加入的频道）→ AI 输入框照样能用：AI 只读 / 总结这里的内容，
+ * 需要产出消息就发到别的聊天或该帖子的评论线程（见 aiTurnPermissions.canPost）。
+ * 加入 / 选话题 / 秘密聊天提示优先，别跟它们抢底部。
+ */
+const showAiInput = computed(() =>
+    canSend.value
+    || (settings.ai.input === 'ai'
+        && isGroupChat(chat.value)
+        && !showMembershipAction.value
+        && !showDmTopicHint.value)
 );
 
 async function syncNotificationMuteState(chatData: chat, guardId?: number) {

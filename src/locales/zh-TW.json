@@ -1221,6 +1221,7 @@
     "stopDictate": "停止語音輸入",
     "switchToAi": "切換到 AI 輸入框",
     "switchToMessage": "切換到訊息輸入框",
+    "noPostPermission": "目前會話不可發言 —— AI 仍可讀取與總結訊息，或把結果傳送到其他聊天。",
     "effort": "思考等級",
     "effortHint": "等級越高，回答前思考越久",
     "effortFaster": "更快",

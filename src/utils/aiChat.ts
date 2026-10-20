@@ -75,9 +75,28 @@ const usesToolsApiSearch = (provider: AiProvider) => provider.endpoint.includes(
 const clientSearch = (provider: AiProvider) =>
   !!settings.ai.search.endpoint.trim() || usesToolsApiSearch(provider);
 
+/**
+ * 当前聊天里 AI 的写权限（只有群 / 频道才传；私聊不传 = 不限制）。
+ * 没权限的写工具**根本不下发**：模型不会瞎试，用户也不用为一次注定失败的调用批审核卡片。
+ */
+export interface AiTurnPermissions {
+  /** 可删除他人的消息（群 / 频道管理员权限） */
+  deleteMessages: boolean;
+  /** 可封禁 / 限制成员 */
+  restrictMembers: boolean;
+  /** 可在此发言（false = 只读会话：AI 只读 / 总结，要发就发到别的聊天） */
+  canPost: boolean;
+}
+
 /** 发给模型的工具名：设置里关掉的不发（缺省 = 启用）；web_search 只在客户端搜索模式下发 */
-function enabledTools(provider: AiProvider): string[] {
-  return TOOLSETS.all.filter((n) => settings.ai.tools[n] !== false && (n !== "web_search" || clientSearch(provider)));
+function enabledTools(provider: AiProvider, perms?: AiTurnPermissions): string[] {
+  return TOOLSETS.all.filter(
+    (n) =>
+      settings.ai.tools[n] !== false &&
+      (n !== "web_search" || clientSearch(provider)) &&
+      (n !== "delete_message" || perms?.deleteMessages !== false) &&
+      (n !== "ban_member" || perms?.restrictMembers !== false),
+  );
 }
 
 /** 供应商侧托管搜索是否挂上：工具没关、不走客户端搜索、且这家确定支持托管搜索 */
@@ -169,7 +188,8 @@ const COMMAND_PROMPTS: Record<string, string> = {
  * `first` = 这是本会话的第一条消息 → 让模型顺手给会话起个标题；
  * `command` = 用户句首用的是哪个 /命令（见 COMMAND_PROMPTS）；
  * `search` = 这一轮真的挂上了联网搜索 → 必须明说，否则模型会答「我没有联网功能」；
- * `thread` = 当前所在的线程 → 不说清它就把消息发到 General / 别的话题去了。
+ * `thread` = 当前所在的线程 → 不说清它就把消息发到 General / 别的话题去了；
+ * `perms` = 群 / 频道里的写权限 → 说明能删谁的消息、能不能封人、能不能在此发言。
  */
 function systemPrompt(o: {
   chatId: number;
@@ -179,6 +199,7 @@ function systemPrompt(o: {
   quote?: { chatId: number; messageId: number };
   command?: string;
   thread?: AiTurnThread;
+  perms?: AiTurnPermissions;
 }): string {
   const lines = [
     `你是 tdgram（Telegram 客户端）里的 AI 助手。当前聊天 chat_id = ${o.chatId}。`,
@@ -187,6 +208,23 @@ function systemPrompt(o: {
     "写类工具（发送、编辑、删除、封禁、直接调用 TDLib）会先请用户审核；被拒绝后不要换参数、换工具或换路径重试同一操作，直接告诉用户。",
     "写类工具必须填写 reason（一句话说明原因）。",
   ];
+  if (o.perms) {
+    // 群 / 频道：把「能干什么」说清楚，没权限的工具没下发，别让模型去猜或换个工具试
+    lines.push(
+      "权限（当前聊天）：" +
+        (o.perms.deleteMessages
+          ? "可以删除他人的消息；"
+          : "不能删除他人的消息（delete_message 未提供；删自己的消息请让用户自己在消息菜单里操作）；") +
+        (o.perms.restrictMembers ? "可以封禁 / 限制成员。" : "不能封禁 / 限制成员（ban_member 未提供）。"),
+    );
+    if (!o.perms.canPost) {
+      lines.push(
+        "用户在当前聊天没有发言权限：不要向本聊天发送任何消息。" +
+          "用户要的是读取 / 总结这里的内容；需要产出消息时发到别的聊天（send_message 传目标 chat_id），" +
+          "例如该频道的关联讨论组；要在某条帖子的评论里发，得让用户先进那条评论线程。",
+      );
+    }
+  }
   if (o.search) {
     lines.push(
       "你有联网搜索能力：需要较新的信息、外部资料或你无法确定的事实时，用 web_search 工具检索后再回答；" +
@@ -241,6 +279,11 @@ export interface AiTurnOptions {
   chatId: number;
   /** 当前所在的线程（论坛话题 / 频道直通消息 / 评论线程）：进 prompt，也给工具当默认 thread_id */
   thread?: AiTurnThread;
+  /**
+   * 当前聊天里 AI 的写权限（群 / 频道才有限制）：影响下发的工具与 prompt 里的权限说明。
+   * 不传 = 私聊 / 无所谓（全部工具照给）。
+   */
+  perms?: AiTurnPermissions;
   /** 当前会话 id：历史按它对账、落盘（切会话不会串上下文） */
   conversationId: string;
   /** 该会话的标题（进 prompt 用；模型改了会从 store 现读） */
@@ -471,7 +514,7 @@ export async function runAiTurn(o: AiTurnOptions): Promise<string> {
   // 提问也进活动条：会话里得看得见这句是问什么（与历史回铺时的样子一致）
   o.sink.add({ id: nextId(), kind: "user", text: o.text, status: "ok" });
 
-  const tools = toolsSchema(enabledTools(o.provider));
+  const tools = toolsSchema(enabledTools(o.provider, o.perms));
   let finalText = "";
 
   // 设置里按工具关掉的审核、以及客户端搜索要用的「这轮是哪个供应商」——每轮现刷一遍

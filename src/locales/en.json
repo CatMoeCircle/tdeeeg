@@ -1221,6 +1221,7 @@
     "stopDictate": "Stop dictation",
     "switchToAi": "Switch to AI input",
     "switchToMessage": "Switch to message input",
+    "noPostPermission": "You can't post in this chat — the AI can still read and summarize messages, or send results to another chat.",
     "effort": "Effort",
     "effortHint": "Higher effort thinks longer before answering",
     "effortFaster": "Faster",
