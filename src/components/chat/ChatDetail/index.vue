@@ -561,7 +561,7 @@
             <div aria-hidden="true"
                 class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
             </div>
-            <div class="relative z-10 flex items-center justify-center p-5">
+            <div ref="inputAreaRef" class="relative z-10 flex items-center justify-center p-5">
                 <button type="button" :disabled="!canJoinCurrentChat || isJoinPending || joinRequestSent"
                     class="h-12 min-w-32 px-5 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg text-sm font-medium text-blue-500 dark:text-blue-400 hover:bg-white/80 dark:hover:bg-gray-800/90 disabled:opacity-60 disabled:cursor-default transition-colors"
                     @click="joinCurrentChat">
@@ -577,7 +577,7 @@
             <div aria-hidden="true"
                 class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
             </div>
-            <div class="relative z-10 flex items-center justify-center p-5">
+            <div ref="inputAreaRef" class="relative z-10 flex items-center justify-center p-5">
                 <div
                     class="min-h-12 max-w-[90%] px-5 py-3 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg flex items-center justify-center text-sm font-medium text-gray-500 dark:text-gray-400 text-center">
                     {{ t('chat.selectDmTopic') }}
@@ -591,7 +591,7 @@
             <div aria-hidden="true"
                 class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
             </div>
-            <div class="relative z-10 flex items-center justify-center p-5">
+            <div ref="inputAreaRef" class="relative z-10 flex items-center justify-center p-5">
                 <div
                     class="min-h-12 max-w-[90%] px-5 py-3 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg flex items-center justify-center text-sm font-medium text-gray-500 dark:text-gray-400 text-center">
                     {{ secretChatNoticeText }}
@@ -605,7 +605,7 @@
             <div aria-hidden="true"
                 class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
             </div>
-            <div class="relative z-10 flex items-center justify-center gap-3 p-5">
+            <div ref="inputAreaRef" class="relative z-10 flex items-center justify-center gap-3 p-5">
                 <button type="button" :disabled="isNotificationTogglePending"
                     class="h-12 min-w-32 px-5 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg text-sm font-medium text-blue-500 dark:text-blue-400 hover:bg-white/80 dark:hover:bg-gray-800/90 disabled:opacity-60 disabled:cursor-wait transition-colors"
                     @click="toggleNotifications">
@@ -1184,6 +1184,11 @@ function toggleTopicTagPosition() {
  * 写死常量必然对不上（之前就是 pb-[90px] 这种估算，最后几条会被输入区挡住）。
  * 直接量「消息区底边 − 输入区顶边」——不管输入区怎么浮、下面还压着别的什么，都对得上。
  * `null` = 还没量过（首帧），先用常量兜底，免得入聊天时闪一下。
+ *
+ * 底部浮层不止输入框：加入群、频道私信选话题、秘密聊天提示、只读频道操作栏都是**替代**输入框的，
+ * 所以它们各自也挂同一个 ref —— 量到的永远是「当前真正压在底部的那个」，不再套固定常量；
+ * 一个都没有（如被限制发言的普通群）就量成 0，别留一截空白。
+ * 只有尺寸变化时才量（ResizeObserver + 浮层切换），不挂 scroll 监听：滚动时零开销。
  */
 const inputAreaRef = ref<HTMLElement | null>(null);
 const inputInset = ref<number | null>(null);
@@ -1191,28 +1196,60 @@ const inputInset = ref<number | null>(null);
 const aiStripExpanded = ref(false);
 const fallbackInset = () => (settings.ai.input === 'ai' ? 100 : 52);
 
-/** 消息区底部留白：盖住的部分 + 8px 余量（最后一条完整露在输入区上方） */
-const messagesBottomPad = computed(() => `${(inputInset.value ?? fallbackInset()) + 8}px`);
+/** 消息区底部留白：只留「被浮层盖住的部分」，不再加额外余量 ——
+ *  浮层自己的内边距（输入框 px-3 py-2.5 / 只读栏 p-5）就是视觉间距，再 +8 会多出一截空。 */
+const messagesBottomPad = computed(() => `${inputInset.value ?? fallbackInset()}px`);
 /** 「回到最底部」按钮：贴在输入区上方（原来固定 7rem，会压在活动条的展开按钮上） */
-const scrollButtonBottom = computed(() => `${(inputInset.value ?? fallbackInset()) + 16}px`);
+const scrollButtonBottom = computed(() => `${(inputInset.value ?? fallbackInset()) + 8}px`);
 
-function measureInputInset() {
-    const area = inputAreaRef.value;
-    const list = messagesContainer.value;
-    if (!area || !list) return;
-    // 活动条展开时不重算：展开只是临时盖在上面看，不该把消息顶走（按钮也钉在原地）
-    if (aiStripExpanded.value && aiActivityEntries.value.length > 0) return;
-    const overlap = Math.round(list.getBoundingClientRect().bottom - area.getBoundingClientRect().top);
-    const next = Math.max(0, overlap);
+/**
+ * 应用新的底部留白。两种语义，别混：
+ * - 本来就在底部（含差一点的，阈值同 isAtBottom）：留白变了要**跟着底走**
+ *   —— 切换输入框 / AI 活动条变高时，钉住视口会把最后一条往上推，滚动条就不再是最底部。
+ * - 不在底部：保持视口不动，正在看历史的人不会被顶得跳位置。
+ */
+function applyInputInset(next: number) {
     if (next === inputInset.value) return;
-    // 留白变了 = 消息被顶来顶去：锁住视口，正在看历史的人不会被顶得跳位置
+    if (isAtBottom()) {
+        inputInset.value = next;
+        void nextTick().then(() => {
+            if (!messagesContainer.value) return;
+            scrollToBottomPure();
+            // 留白变了 = scrollHeight 变了：滚动缓存要跟着刷，别拿旧值判断「在不在底部」
+            refreshScrollMetrics();
+        });
+        return;
+    }
     void withViewportLock(messagesContainer.value, () => { inputInset.value = next; }, nextTick).then(() => {
-        // 留白变了 = scrollHeight 变了：滚动缓存要跟着刷，别拿旧值判断「在不在底部」
         refreshScrollMetrics();
     });
 }
 
-// 输入区和消息区任一边尺寸变了都要重算（窗口缩放、活动条展开、切换输入框类型…）
+function measureInputInset() {
+    const list = messagesContainer.value;
+    if (!list) return;
+    // 活动条展开时不重算：展开只是临时盖在上面看，不该把消息顶走（按钮也钉在原地）
+    if (aiStripExpanded.value && aiActivityEntries.value.length > 0) return;
+    const area = inputAreaRef.value;
+    if (!area) {
+        // 浮层切换的一瞬间 ref 会先变 null 再指到新元素（底部条要等 TDLib 状态）：
+        // 晚一帧再确认，否则底边先被「没有浮层 = 0」压一下再弹回来 —— 又是一次底部丢失。
+        requestAnimationFrame(() => {
+            if (!messagesContainer.value) return;
+            if (inputAreaRef.value) {
+                measureInputInset();
+                return;
+            }
+            applyInputInset(0);
+        });
+        return;
+    }
+    // 量「消息区底边 − 浮层顶边」
+    applyInputInset(Math.max(0, Math.round(list.getBoundingClientRect().bottom - area.getBoundingClientRect().top)));
+}
+
+// 输入区 / 底部浮层 / 消息区任一边尺寸变了都要重算（窗口缩放、活动条展开、
+// 切换输入框类型、切到「加入群 / 只读频道」那种替代栏…）
 watch(inputAreaRef, (el, _old, onCleanup) => {
     const list = messagesContainer.value;
     const ro = new ResizeObserver(() => measureInputInset());
@@ -1896,6 +1933,29 @@ const isNewerExhausted = ref(false);
 const isReady = ref(false);           // 标记初始加载和定位已完成
 /** 列表是否已对用户可见：首屏必须「先定位再露出」，否则会看到无意义的跳动 */
 const listRevealed = ref(false);
+/**
+ * 骨架屏延迟出现：本地读历史常常几十毫秒就定位并露出，骨架屏立刻挂上会「闪一下」
+ * （看起来像白屏）。超过 SKELETON_DELAY_MS 仍未露出才显示，快路径没有任何中间态。
+ */
+const SKELETON_DELAY_MS = 180;
+const skeletonArmed = ref(false);
+let skeletonTimer: number | null = null;
+/** 每次开始加载（resetState）时重新计时 */
+function armSkeleton() {
+    disarmSkeleton();
+    skeletonArmed.value = false;
+    skeletonTimer = window.setTimeout(() => {
+        skeletonTimer = null;
+        skeletonArmed.value = true;
+    }, SKELETON_DELAY_MS);
+}
+function disarmSkeleton() {
+    if (skeletonTimer !== null) {
+        window.clearTimeout(skeletonTimer);
+        skeletonTimer = null;
+    }
+    skeletonArmed.value = false;
+}
 const unreadBoundaryMessageId = ref<number | null>(null);
 /** 已滚动过的新消息上界：比它新且在窗口内的 newMessageIds 才计入跳底按钮徽标 */
 const latestUnreadSeenId = ref(0);
@@ -4351,8 +4411,11 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
         sending.value = true;
         let sentResult: SendAttachmentsResult | null = null;
         try {
-            // 附件描述也必须过 TDLib 的 Markdown 判断（纯文本输入没有手工实体）
-            const caption = await withParsedMarkdown(text);
+            // 附件描述也必须过 TDLib 的 Markdown 判断，且要带上输入框实体
+            // （格式菜单 + 自定义 emoji），否则描述里的 custom emoji 会丢
+            const richEntities = (typeof input === 'string' ? [] : input.entities || []) as textEntity$Input[];
+            const customEmojiEntities = buildCustomEmojiEntities(text);
+            const caption = await withParsedMarkdown(text, [...richEntities, ...customEmojiEntities]);
             sentResult = await sendAttachments(
                 attachStore.items,
                 {
@@ -4380,6 +4443,8 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
         }
         await attachStore.clearWithCleanup();
         messageInput.value = '';
+        // 已随描述发出，清空 emoji 队列，避免残留 id 在后续文本发送中被重复匹配
+        pendingCustomEmoji.value = [];
         clearReply();
         return;
     }
@@ -4624,12 +4689,14 @@ watch(() => settings.ai.approval, (policy) => setApprovalPolicy(policy), { immed
 
 // ==================== State Reset ====================
 function resetState() {
+    // 重新计一次骨架屏延迟：快路径（本地历史几十毫秒）不出现骨架屏
+    armSkeleton();
     if (readVisibilityTimer !== null) {
         window.clearTimeout(readVisibilityTimer);
         readVisibilityTimer = null;
     }
     lastReportedReadMessageId = 0;
-    sessionUnreadBaseId = 0;
+    sessionUnreadBaseId.value = 0;
     applyMessages([]);
     chat.value = undefined;
     // 活动条是聊天内的临时状态：换聊天就清掉，没用过 AI 的聊天不会残留上一条
@@ -5221,7 +5288,7 @@ const shouldReserveAvatarColumn = (msg: message) => {
     return isSavedForwardedMessage(msg) || showAvatarColumn.value;
 };
 
-const showSkeleton = computed(() => !listRevealed.value);
+const showSkeleton = computed(() => !listRevealed.value && skeletonArmed.value);
 
 /** 消息容器样式：定位完成前 opacity:0，保证仍可测量 scrollHeight / 滚动定位 */
 const messagesContainerStyle = computed<Record<string, string>>(() => {
