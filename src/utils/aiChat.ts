@@ -12,7 +12,7 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import i18n from "../i18n";
 import type { AiModel, AiProvider } from "../store/aiProviderRules";
-import { aiConversations, loadHistory, recordAiUsage, saveHistory } from "../store/aiConversations";
+import { aiConversations, currentAiAccount, loadHistory, recordAiUsage, saveHistory } from "../store/aiConversations";
 import { settings } from "../store/settings";
 import { dispatchToolCall, messageOf, setApprovalSkip, setTurnThread, type TurnThread } from "./aiTools/call.ts";
 import { MARKDOWN_V2_GUIDE } from "./aiTools/format.ts";
@@ -263,12 +263,20 @@ export interface AiTurnOptions {
   signal: AbortSignal;
 }
 
+/** 历史不过 IPC：Rust 按 账号 + 会话 id 读落盘的 history，拼在 messages（只含 system）后面 */
+const historyScope = (o: AiTurnOptions) => ({
+  accountId: currentAiAccount(),
+  chatId: o.chatId,
+  conversationId: o.conversationId,
+});
+
 /** 一次性请求（老接口 / 流式不可用时的兜底）：活动条在这里一次性补齐条目 */
 async function callOnce(o: AiTurnOptions, messages: ChatWireMessage[], tools: unknown[]): Promise<ModelCall> {
   const reply = await invoke<ChatReply>("ai_chat", {
     providerId: o.provider.id,
     model: o.model.id,
     messages,
+    ...historyScope(o),
     tools,
     effort: o.effort,
     maxOutputTokens: o.model.maxOutput,
@@ -393,6 +401,7 @@ async function callModel(o: AiTurnOptions, messages: ChatWireMessage[], tools: u
         providerId: o.provider.id,
         model: o.model.id,
         messages,
+        ...historyScope(o),
         tools,
         effort: o.effort,
         maxOutputTokens: o.model.maxOutput,
@@ -471,29 +480,30 @@ export async function runAiTurn(o: AiTurnOptions): Promise<string> {
   // 当前线程：模型忘了带 thread_id 时由工具兜底（写错线程的消息用户是能看见的）
   setTurnThread(o.thread ?? null);
 
-  // 每轮之后落盘一次：中途被停止 / 崩了，下次进来还能接着聊
+  // 每轮之后落盘一次：中途被停止 / 崩了，下次进来还能接着聊。
+  // 发请求前也要落盘：Rust 直接从库里读历史，本轮的用户消息得先写进去。
   const persist = async () => {
     trimHistory(history);
     await saveHistory(o.chatId, o.conversationId, history);
   };
+  await persist();
 
   for (let step = 0; step < MAX_STEPS; step++) {
     if (o.signal.aborted) break;
     // 标题每轮现读：模型上一轮可能刚改过（改了就别再催它改）
     const title = aiConversations.list.find((c) => c.id === o.conversationId)?.title ?? o.title;
-    const prompt: ChatWireMessage[] = [
-      { role: "system", text: systemPrompt({
-        chatId: o.chatId,
-        title,
-        first: first && step === 0,
-        search: webSearchAvailable(o.provider),
-        quote: o.quote,
-        command: o.command,
-        thread: o.thread,
-      }) },
-      ...history,
-    ];
-    const called = await callModel(o, prompt, tools);
+    // 只发 system：历史由 Rust 从落盘记录里取（见 historyScope）
+    const system: ChatWireMessage[] = [{ role: "system", text: systemPrompt({
+      chatId: o.chatId,
+      title,
+      first: first && step === 0,
+      search: webSearchAvailable(o.provider),
+      quote: o.quote,
+      command: o.command,
+      thread: o.thread,
+      perms: o.perms,
+    }) }];
+    const called = await callModel(o, system, tools);
     // 已停止：这次调用被取消（Rust 返回空回复），不算一次记账、也不写进历史
     if (o.signal.aborted) break;
     // 每次模型调用记一次账（含工具轮），不是每次发送记一次；
@@ -501,7 +511,7 @@ export async function runAiTurn(o: AiTurnOptions): Promise<string> {
     await recordAiUsage(o.chatId, o.conversationId, {
       ...called.usage,
       contextLength: o.model.contextLength,
-      promptText: JSON.stringify(prompt),
+      promptText: JSON.stringify([...system, ...history]),
       completionText: called.text + called.reasoning,
     });
 

@@ -507,7 +507,17 @@ fn read_history(conn: &Connection, account: &str, chat_id: i64, id: &str) -> Opt
     .ok()
 }
 
-/// 读某个对话的落盘历史。对话不存在 = 空历史，不算错误。
+/// 某个对话的落盘历史。对话不存在 / 读不出 = 空历史，不算错误。
+/// 模型请求也直接用它（ai_chat 不再让前端把整段历史过 IPC 传回来）。
+pub fn load_history(state: &AppState, account_id: &str, chat_id: i64, id: &str) -> Vec<ChatMessage> {
+    let account = account_key(account_id);
+    let conn = state.db.conn();
+    read_history(&conn, &account, chat_id, id)
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default()
+}
+
+/// 读某个对话的落盘历史（前端回铺 / 调试用）。
 #[tauri::command]
 pub fn ai_conversation_history(
     state: tauri::State<'_, AppState>,
@@ -515,11 +525,7 @@ pub fn ai_conversation_history(
     chat_id: i64,
     id: String,
 ) -> Result<Vec<ChatMessage>, String> {
-    let account = account_key(&account_id);
-    let conn = state.db.conn();
-    Ok(read_history(&conn, &account, chat_id, &id)
-        .and_then(|text| serde_json::from_str(&text).ok())
-        .unwrap_or_default())
+    Ok(load_history(&state, &account_id, chat_id, &id))
 }
 
 /// 覆盖写某个对话的历史（agent 每轮之后调，见 utils/aiChat.ts）。

@@ -657,8 +657,7 @@ import MessageInput from './MessageInput.vue';
 import AiPromptBar from '../../ai/AiPromptBar.vue';
 import AiActivityStrip, { type AiActivityEntry, type AiApprovalLine } from '../../ai/AiActivityStrip.vue';
 import AiConversationDialog from '../../ai/AiConversationDialog.vue';
-import { runAiTurn, cancelAiStream, AiTurnLimitError, dropHistory, type AiActivitySink } from '../../../utils/aiChat';
-import { historyToActivity } from '../../../utils/aiChatHistory';
+import { runAiTurn, cancelAiStream, AiTurnLimitError, type AiActivitySink, type AiTurnPermissions } from '../../../utils/aiChat';
 import { setApprovalGate, setApprovalPolicy } from '../../../utils/aiTools/call';
 import type { ApprovalDecision, ApprovalRequest } from '../../../utils/aiTools/types';
 import { aiProviders, aiProviderReady, loadAiProviders } from '../../../store/aiConfig';
@@ -731,21 +730,14 @@ import {
     aiConversations,
     activeConversation,
     createConversation,
-    deleteConversation,
     loadConversations,
-    loadHistory,
-    openConversation,
-    renameConversation,
-    setAiConversationsAccount,
 } from '../../../store/aiConversations';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useChatWallpaper } from '../../../composables/useChatWallpaper';
 import ChatBackgroundLayers from '../ChatBackgroundLayers.vue';
-import { showCopyJsonInMenus } from '../../../store/debug';
 import { useCommandInsert, clearPendingCommand } from '../../../store/commandInsert';
 import { useHashtagSearch, clearPendingHashtag } from '../../../store/hashtagSearch';
 import { useCustomEmoji } from '../../../store/customEmoji';
-import type { ContextMenuItem } from '../../contextMenu/types';
 import { getMessagePlainText, getMessageFormattedText } from '../../../utils/messageText';
 import { applyTerminalFileToMessages, isTerminalFileUpdate } from '../../../utils/messageFileSnapshot';
 import {
@@ -4511,98 +4503,14 @@ function onAiStop() {
 }
 
 // ==================== AI 会话（对话）管理 ====================
-// 对话跟随当前聊天：一个 chat_id 一组对话，都存在 Rust 后端（见 store/aiConversations）。
-// 会话管理弹窗只做新建 / 打开 / 重命名 / 删除，不提供消息查看。
-const conversationsOpen = ref(false);
-
-/** 对话操作统一走当前聊天 id（undefined = 还没进聊天，用 0 = 不落库） */
-const currentChatId = () => chatId.value ?? 0;
-
-// 换聊天：列表是「当前聊天」的，必须重拉；弹窗顺手关掉，免得停在上一组对话上
-watch(chatId, (id) => {
-    conversationsOpen.value = false;
-    if (id) void loadConversations(id, true);
-}, { immediate: true });
-
-/**
- * 进入聊天**不自动新建对话**：列表拉出来是什么就是什么 —— 后端按 active.json 选中上次那个对话，
- * 没有记录就退回最新的一个。要新对话只有两个入口：会话管理里点「新建对话」，或这边发第一条消息时兜底建一个。
- */
-/** 当前对话的用量（没有对话 / 还没用过 AI 时 null → 底部状态行不显示） */
-const aiUsage = computed(() => activeConversation(currentChatId())?.usage ?? null);
-
-/**
- * 会话管理弹窗的列表。列表是异步拉的，切聊天后它可能还是上一个聊天的，
- * 所以归属对不上就先按空显示，别把上一个群的对话挂到当前输入框上。
- */
-const aiConversationList = computed(() =>
-    aiConversations.chatId === currentChatId() ? aiConversations.list : [],
-);
-
-async function onConversationCreate() {
-    const c = await createConversation(currentChatId(), t('aiConversations.defaultTitle'));
-    if (c) await toast.success(t('aiConversations.created', { title: c.title }));
-}
-
-async function onConversationOpen(id: string) {
-    try {
-        await openConversation(currentChatId(), id);
-    } catch (e) {
-        await toast.error(String(e));
-    }
-}
-
-async function onConversationRename(id: string, title: string) {
-    try {
-        await renameConversation(currentChatId(), id, title);
-    } catch (e) {
-        await toast.error(String(e));
-    }
-}
-
-async function onConversationRemove(id: string) {
-    try {
-        await deleteConversation(currentChatId(), id);
-        // 内存里的上下文缓存也丢掉，否则删了还能接着聊旧上下文
-        dropHistory(id);
-    } catch (e) {
-        await toast.error(String(e));
-    }
-}
-
-/**
- * 换对话（打开 / 新建 / 删除后切走）或重新进入聊天时，把该对话落盘的历史读回来铺进活动条，
- * 这样上次的来回看得见，模型也接着同一份上下文聊（历史缓存在 aiChat 里按对话 id 对账）。
- */
-watch(
-    () => activeConversation(currentChatId())?.id ?? '',
-    async (id) => {
-        // 换会话 = 换上下文：这一轮还在跑就先停掉，别让上一段的输出混进新会话的活动条
-        if (aiBusy.value) onAiStop();
-        aiActivityEntries.value = [];
-        if (!id) return;
-        const chat = currentChatId();
-        const entries = historyToActivity(await loadHistory(chat, id));
-        // 读盘期间又换了会话 / 换了聊天：丢掉这次的旧结果
-        if (activeConversation(currentChatId())?.id !== id) return;
-        aiActivityEntries.value = entries;
-    },
-    { immediate: true },
-);
-
-/**
- * 账号 id：后端按账号分目录存对话，所以切账号要跟着换。
- * 账号比聊天先就绪时这里会同步跑一次（那时 activeChatId 还是 undefined，不拉列表）；
- * 账号就绪晚于聊天的情形，这里补一次重新拉，否则列表会停在「空账号目录」的结果上。
- */
-watch(
-    () => accountsStore.activeAccount?.id,
-    (id) => {
-        setAiConversationsAccount(id);
-        if (currentChatId()) void loadConversations(currentChatId(), true);
-    },
-    { immediate: true },
-);
+const {
+    conversationsOpen, currentChatId, aiUsage, aiConversationList, aiConversationsLoading,
+    onConversationCreate, onConversationOpen, onConversationRename, onConversationRemove,
+} = useAiConversation({
+    chatId,
+    aiActivityEntries,
+    stopTurn: () => { if (aiBusy.value) onAiStop(); },
+});
 
 /** 审核卡片的结果：批准 / 拒绝都 resolve 掉挂起的那次写类工具调用（一次只挂一个） */
 function resolveAiActivity(granted: boolean) {

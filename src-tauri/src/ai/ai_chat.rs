@@ -12,7 +12,11 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use tokio::sync::oneshot;
 
+use tauri::Manager;
+
+use crate::ai::ai_conversations::load_history;
 use crate::ai::ai_translate::{build_language_model, load_all, saved_api_key, saved_search_key};
+use crate::tdlib::AppState;
 
 /// 正在跑的流式请求：request_id → 取消信号。前端点「停止」时通过 ai_chat_cancel 触发。
 #[derive(Default)]
@@ -97,11 +101,31 @@ fn image_media_type(path: &str) -> Option<&'static str> {
 /// 本机图片路径 → UserPart::File。
 /// 读不到 / 认不出类型就跳过：历史里存的是路径，文件被删或改名不该让整段对话从此报错。
 ///
-/// ponytail: agent 每一轮都重建 prompt，所以同一张图会被重复读盘 + base64 编码；
-/// 真嫌慢就在一次 runAiTurn 里按路径缓存 FilePart（别缓存进 history.json）。
+/// 图片字节缓存：路径 → (mtime, 字节)。agent 每轮都重建 prompt，同一张图不再每轮重读盘。
+/// ponytail: 容量满了整表清空而不是 LRU，单会话附件很少超过几张；真占内存再上 LRU。
+static IMAGE_CACHE: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, (std::time::SystemTime, Vec<u8>)>>> =
+    std::sync::OnceLock::new();
+const IMAGE_CACHE_MAX: usize = 8;
+
+fn read_image_cached(path: &str) -> Option<Vec<u8>> {
+    let mtime = std::fs::metadata(path).ok()?.modified().ok()?;
+    let mut cache = IMAGE_CACHE.get_or_init(Default::default).lock().ok()?;
+    if let Some((t, bytes)) = cache.get(path) {
+        if *t == mtime {
+            return Some(bytes.clone());
+        }
+    }
+    let bytes = std::fs::read(path).ok()?;
+    if cache.len() >= IMAGE_CACHE_MAX {
+        cache.clear();
+    }
+    cache.insert(path.to_string(), (mtime, bytes.clone()));
+    Some(bytes)
+}
+
 fn image_part(path: &str) -> Option<UserPart> {
     let media_type = image_media_type(path)?;
-    let bytes = std::fs::read(path).ok()?;
+    let bytes = read_image_cached(path)?;
     Some(UserPart::File(FilePart {
         filename: std::path::Path::new(path).file_name().map(|n| n.to_string_lossy().into_owned()),
         data: FileData::Data { data: FileBytes::Bytes(bytes) },
@@ -379,16 +403,21 @@ fn prepare(
 /// 单次对话请求（可带工具），一次性返回。`tools` 是 toolsSchema() 的结果，`effort` 为思考等级键（可空）。
 /// 流式入口是 ai_chat_stream；这个留着做流式不可用时的兜底。
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn ai_chat(
     app: tauri::AppHandle,
     provider_id: String,
     model: String,
-    messages: Vec<ChatMessage>,
+    mut messages: Vec<ChatMessage>,
+    account_id: String,
+    chat_id: i64,
+    conversation_id: String,
     tools: Vec<serde_json::Value>,
     effort: Option<String>,
     max_output_tokens: Option<u32>,
     web_search: Option<bool>,
 ) -> Result<ChatReply, String> {
+    messages.extend(load_history(&app.state::<AppState>(), &account_id, chat_id, &conversation_id));
     let (lm, options) = prepare(
         &app,
         &provider_id,
@@ -487,12 +516,16 @@ impl StreamAcc {
 /// 两件事都做是有意的：界面要增量，循环要确定的结果。让前端自己拼「最终文本 / 工具调用」的话，
 /// 一旦 IPC 消息比命令返回晚到，就会漏掉工具调用 —— 那种 bug 极难查。
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn ai_chat_stream(
     app: tauri::AppHandle,
     state: tauri::State<'_, AiCancelState>,
     provider_id: String,
     model: String,
-    messages: Vec<ChatMessage>,
+    mut messages: Vec<ChatMessage>,
+    account_id: String,
+    chat_id: i64,
+    conversation_id: String,
     tools: Vec<serde_json::Value>,
     effort: Option<String>,
     max_output_tokens: Option<u32>,
@@ -502,6 +535,7 @@ pub async fn ai_chat_stream(
 ) -> Result<ChatReply, String> {
     use futures_util::StreamExt;
 
+    messages.extend(load_history(&app.state::<AppState>(), &account_id, chat_id, &conversation_id));
     let (lm, options) = prepare(
         &app,
         &provider_id,
