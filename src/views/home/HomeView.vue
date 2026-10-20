@@ -22,7 +22,9 @@
                         <ChatDetail v-if="showActiveChat" :chat-id="activeChatId" :topic-id="activeTopicId"
                             :thread-root-id="activeThreadRootId" @close="closeActiveChat" />
                         <router-view v-else v-slot="{ Component }">
-                            <KeepAlive>
+                            <!-- :max 必须有：这里按 route.fullPath 作 key，访问过的设置页/用户页
+                                 不设上限就永久缓存（每个被缓存的页面都是一整棵常驻 DOM）。 -->
+                            <KeepAlive :max="5">
                                 <component v-if="Component" :is="Component" :key="route.fullPath"
                                     class="relative z-10 h-full" />
                             </KeepAlive>
