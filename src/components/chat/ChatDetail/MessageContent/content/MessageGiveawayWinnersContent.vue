@@ -5,7 +5,7 @@
             <MessageStickerContent v-if="stickerContent" :content="stickerContent" :size="112" class="shrink-0"
                 clickable />
             <!-- 无纪念贴纸时，播放本地 party.tgs 抽奖动画（只播一次，点击可重播） -->
-            <TgsPlayer v-else-if="partyTgsData" ref="partyPlayerRef" :data="partyTgsData" :loop="false" :autoplay="true"
+            <TgsPlayer v-else ref="partyPlayerRef" :src="PARTY_TGS_URL" :loop="false" :autoplay="true"
                 :size="112" class="h-28 w-28 shrink-0 cursor-pointer" @click="onPartyClick" @load="onPartyLoad" />
             <h3 class="mt-3 text-base font-bold text-gray-900 dark:text-white">{{ t('lng_prizes_results_title') }}</h3>
             <p class="mt-1 text-center text-sm text-gray-500 dark:text-gray-400 break-words" v-html="winnersText"></p>
@@ -54,7 +54,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
-import { computed, ref, watch, onMounted, nextTick } from 'vue';
+import { computed, ref, watch, onMounted } from 'vue';
 import type { message, messageGiveaway, messageGiveawayWinners, messageSticker, profilePhoto, sticker, user } from 'tdlib-types';
 import { tdlibSend } from '../../../../../utils/tdlib';
 import { accentColorStyle } from '../../../../../store/colors';
@@ -93,8 +93,6 @@ const PARTY_TGS_URL = new URL('../../../../../assets/animations/party.tgs', impo
 
 const rootEl = ref<HTMLElement | null>(null);
 const partyPlayerRef = ref<TgsPlayerInstance | null>(null);
-/** party.tgs 原始字节（gzip，tlottie Worker 内解压） */
-const partyTgsData = ref<Uint8Array | null>(null);
 
 /** 统一的 Lottie 暂停/恢复控制器：视口离开、窗口失焦、平滑滚动时暂停 */
 const { register: registerPartyAnim, get: getPartyAnim, setup: setupPartyPause } = useLottiePause(rootEl);
@@ -102,17 +100,6 @@ const { register: registerPartyAnim, get: getPartyAnim, setup: setupPartyPause }
 /** TgsPlayer 加载完成回调：把实例注册进暂停/恢复控制器 */
 function onPartyLoad() {
     registerPartyAnim(partyPlayerRef.value);
-}
-
-/** 加载本地 party.tgs 原始字节 */
-async function loadPartyAnimation() {
-    try {
-        partyTgsData.value = null;
-        const resp = await fetch(PARTY_TGS_URL);
-        partyTgsData.value = new Uint8Array(await resp.arrayBuffer());
-    } catch (e) {
-        console.error('Failed to load party.tgs:', e);
-    }
 }
 
 /** 点击时从头重播（只播一次，播放完停在最后一帧） */
@@ -126,19 +113,11 @@ function onPartyClick() {
 
 onMounted(() => {
     setupPartyPause();
-    // 挂载后 DOM 已就绪，尝试播放 party.tgs（无贴纸时 v-else 分支已渲染）
-    loadPartyAnimation();
 });
 
-// 贴纸来源变化时（如有/无纪念贴纸）同步刷新 party 动画
+// 有纪念贴纸时 party 动画由 v-if 卸载，这里注销暂停控制器中的引用
 watch(stickerContent, () => {
-    // 没有纪念贴纸时才渲染 party 动画；否则卸载并清空
-    if (stickerContent.value) {
-        partyTgsData.value = null;
-        registerPartyAnim(null);
-    } else {
-        nextTick(() => loadPartyAnimation());
-    }
+    if (stickerContent.value) registerPartyAnim(null);
 });
 
 /** 获奖者行样式：按用户主题色生成浅色背景与文字色，不同用户颜色不同 */

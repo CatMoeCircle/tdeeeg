@@ -11,18 +11,8 @@
           z-index 必须低于 Header / 置顶栏 / 输入框（均为 z-10 且 DOM 更靠后），
           否则骨架气泡会盖在顶栏、置顶菜单和输入框上方。
         -->
-        <div v-if="showSkeleton"
-            class="absolute inset-0 z-0 pointer-events-none overflow-hidden flex flex-col messages-scroll pb-15"
-            :style="[topPaddingClass, tagBarMessagePadStyle]" aria-hidden="true">
-            <div class="flex-1"></div>
-            <div v-for="n in 8" :key="n" class="flex mb-4" :class="n % 3 === 0 ? 'justify-end' : 'justify-start'">
-                <div v-if="n % 3 !== 0" class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 mr-2 shrink-0"></div>
-                <div class="p-3 rounded-lg"
-                    :class="n % 3 === 0 ? 'bg-blue-200 dark:bg-blue-900' : 'bg-gray-200 dark:bg-gray-700'"
-                    :style="{ width: (120 + (n * 17) % 180) + 'px', height: '48px' }">
-                </div>
-            </div>
-        </div>
+        <MessageListSkeleton v-if="showSkeleton" :top-padding="topPaddingClass" :tag-pad="tagBarMessagePadStyle"
+            :bottom-pad="messagesBottomPad" />
 
         <!-- Messages：始终挂载，定位完成前不可见 -->
         <div ref="messagesContainer"
@@ -451,60 +441,13 @@
         </div>
 
         <!-- ===== 胶囊回应选择器（右键菜单上方的独立浮动栏） ===== -->
-        <Teleport to="body">
-            <Transition name="reaction-picker-fade">
-                <div v-if="reactionCapsuleVisible && reactionCapsuleData && reactionCapsuleData.reactions.length > 0"
-                    ref="reactionCapsuleRef" data-context-menu-ignore
-                    class="fixed z-10001 flex items-center gap-0.5 px-1.5 py-1 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md shadow-lg border border-gray-200/50 dark:border-gray-700/50"
-                    :style="reactionCapsuleStyle" @mousedown.stop @click.stop>
-                    <button v-for="r in reactionCapsuleData.reactions" :key="r.emoji + (r.customEmojiId ?? '')"
-                        type="button"
-                        class="flex items-center justify-center w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-100 select-none shrink-0"
-                        :class="{ 'opacity-50 cursor-not-allowed': r.needsPremium && !(userProfile?.is_premium) }"
-                        :disabled="r.needsPremium && !(userProfile?.is_premium)"
-                        :title="r.needsPremium ? t('chat.needsPremium') : r.type._ === 'reactionTypePaid' ? t('lng_sr_message_column_paid_reactions') : r.emoji"
-                        @click.stop="onCapsuleReactionClick(r)">
-                        <PaidReactionIcon v-if="r.type._ === 'reactionTypePaid'" :size="24" />
-                        <ReactionEmojiAnim v-else-if="!r.customEmojiId" :emoji="r.emoji" :size="26"
-                            :fallback-font="22" />
-                        <CustomEmojiInline v-else :emojiId="r.customEmojiId" :size="24" :fallbackText="r.emoji" />
-                    </button>
-                    <!-- 更多回应按钮 -->
-                    <button v-if="reactionCapsuleData.hasMore" type="button"
-                        class="flex items-center justify-center w-8 h-8 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-100 select-none shrink-0"
-                        @click.stop="onCapsuleMoreClick" :title="t('chat.moreReactions')">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4">
-                            <polyline points="6 9 12 15 18 9"></polyline>
-                        </svg>
-                    </button>
-                </div>
-            </Transition>
-        </Teleport>
+        <ReactionCapsule />
 
         <!-- ===== 多选操作栏（多选模式时叠在输入框上方） ===== -->
         <Transition name="multi-bar">
-            <div v-if="selectionMode"
-                class="absolute left-3 right-3 bottom-3 z-20 flex items-center gap-2 px-3 h-13 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md shadow-lg border border-gray-200/50 dark:border-gray-700/50">
-                <button type="button" :aria-label="t('chat.exitSelection')"
-                    class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800" @click="exitSelectionMode">
-                    <XIcon class="w-5 h-5 text-gray-600 dark:text-gray-300" />
-                </button>
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-200 flex-1 truncate">
-                    {{ t('lng_media_selected_message', { count: selectedMsgIds.length }) }}
-                    <span class="text-xs font-normal text-gray-500 dark:text-gray-400">/ {{ MAX_SELECTED_MSG_COUNT }}</span>
-                </span>
-                <button type="button" :aria-label="t('lng_context_forward_selected')" :title="t('lng_mediaview_forward')"
-                    class="p-2 rounded-full enabled:hover:bg-gray-100 dark:enabled:hover:bg-gray-800 text-gray-600 dark:text-gray-300 disabled:opacity-40"
-                    :disabled="selectedMsgIds.length === 0" @click="openForwardPicker">
-                    <ShareIcon class="w-5 h-5" />
-                </button>
-                <button type="button" :aria-label="t('lng_context_delete_selected')" :title="t('lng_selected_delete')"
-                    class="p-2 rounded-full enabled:hover:bg-red-50 dark:enabled:hover:bg-red-900/30 text-red-500 disabled:opacity-40 disabled:cursor-not-allowed"
-                    :disabled="!canDeleteSelected" @click="onDeleteSelected">
-                    <TrashIcon class="w-5 h-5" />
-                </button>
-            </div>
+            <SelectionToolbar v-if="selectionMode" :count="selectedMsgIds.length" :max="MAX_SELECTED_MSG_COUNT"
+                :can-delete="canDeleteSelected" @close="exitSelectionMode" @forward="openForwardPicker"
+                @delete="onDeleteSelected" />
         </Transition>
 
         <!-- ===== 转发选择器 ===== -->
@@ -513,39 +456,9 @@
 
         <!-- ===== 叠层面板 ===== -->
         <Transition name="overlay-slide">
-            <div v-if="showOverlay && chat"
-                class="absolute inset-0 z-20 bg-white dark:bg-gray-900 overflow-y-auto custom-scrollbar">
-                <div class="p-4 pt-20">
-                    <!-- 对话信息 -->
-                    <div class="flex flex-col items-center mb-6">
-                        <button type="button"
-                            class="w-20 h-20 mb-3 rounded-full overflow-hidden focus:outline-none cursor-pointer"
-                            :disabled="!overlayUserId" @click="openOverlayUserProfile">
-                            <Avatar :photo="chat.photo" :title="chat.title" sizeClass="!w-20 !h-20"
-                                :first-name="getChatUserNames(chat).first" :last-name="getChatUserNames(chat).last"
-                                :accentColorId="getChatProfileAccentColorId(chat)" />
-                        </button>
-                        <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100">
-                            <GlobalEmojiText :text="overlayChatTitle" />
-                        </h2>
-                        <p class="text-sm text-gray-500 mt-1">{{ getChatSubtitle() }}</p>
-                    </div>
-
-                    <!-- 操作按钮 -->
-                    <div class="space-y-2 px-4">
-                        <button v-if="overlayUserId" type="button" @click="openOverlayUserProfile"
-                            class="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left">
-                            <UserIcon class="w-5 h-5 text-blue-500" />
-                            <span class="text-sm font-medium">{{ t('lng_context_view_profile') }}</span>
-                        </button>
-                        <button type="button" @click="openInNewChat"
-                            class="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-left">
-                            <MessageCircleIcon class="w-5 h-5 text-blue-500" />
-                            <span class="text-sm font-medium">{{ t('lng_saved_open_chat') }}</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
+            <ChatOverlayPanel v-if="showOverlay && chat" :chat="chat" :overlay-user-id="overlayUserId"
+                :title="overlayChatTitle" :subtitle="getChatSubtitle()" @profile="openOverlayUserProfile"
+                @open-chat="openInNewChat" />
         </Transition>
 
         <!-- ===== Input Area（顶层，磨砂玻璃） ===== -->
@@ -626,16 +539,14 @@
                     :senders-loading="sendersLoading"
                     :placeholder="threadMode ? t('chat.commentPh') : undefined"
                     @clear-reply="clearReply" @clear-edit="cancelEdit" @send="handleSend"
-                    @attach="handleAttach" @attach-file="handleAttachFile" @attach-music="handleAttachMusic"
-                    @attach-poll="handleAttachPoll" @attach-checklist="handleAttachChecklist"
-                    @attach-contact="handleAttachContact" @change-sender="handleChangeSender" @sticker="openStickerPanel"
+                    @change-sender="handleChangeSender" @sticker="openStickerPanel"
                     @switch-ai="settings.ai.input = 'ai'" />
             </div>
 
             <!-- 会话管理弹窗：管当前聊天下的 AI 对话（新建 / 打开 / 重命名 / 删除，不看消息）。
                  放在输入框 v-if / v-else 之后：插在两者中间会打断这一对分支 -->
             <AiConversationDialog v-model="conversationsOpen" :chat-id="currentChatId()"
-                :items="aiConversationList" :loading="aiConversations.loading" @create="onConversationCreate"
+                :items="aiConversationList" :loading="aiConversationsLoading" @create="onConversationCreate"
                 @open="onConversationOpen" @rename="onConversationRename" @remove="onConversationRemove" />
 
             <!-- 表情包面板（emoji/GIF/贴纸 三合一） -->
@@ -710,27 +621,8 @@
 
         <!-- ===== Floating scroll-to-bottom button ===== -->
         <Transition name="fade">
-            <button v-if="showScrollButton"
-                class="absolute right-4 z-20 w-10 h-10 bg-white dark:bg-gray-700 rounded-full shadow-lg flex items-center justify-center text-gray-500 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
-                :style="{ bottom: scrollButtonBottom }"
-                @click="handleScrollToBottom" :title="t('chat.scrollToBottom')">
-                <span v-if="newMessageCount > 0"
-                    class="absolute -top-1 -right-1 min-w-4.5 h-4.5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1 leading-none">
-                    <template v-if="newMessageCount > 99">99+</template>
-                    <template v-else>
-                        <Counter :value="newMessageCount" :places="newMessageCountPlaces" :font-size="10"
-                            :padding="2" :gap="0" :border-radius="0" :horizontal-padding="0" text-color="#ffffff"
-                            :font-weight="700" :gradient-height="0" aria-hidden="true" />
-                        <!-- 计数器每列叠放 0-9 供视觉滚动，读屏只读这一份真实数字 -->
-                        <span class="sr-only">{{ newMessageCount }}</span>
-                    </template>
-                </span>
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-                    <path fill-rule="evenodd"
-                        d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-                        clip-rule="evenodd" />
-                </svg>
-            </button>
+            <ScrollToBottomButton v-if="showScrollButton" :bottom="scrollButtonBottom" :count="newMessageCount"
+                :places="newMessageCountPlaces" @click="handleScrollToBottom" />
         </Transition>
 
         <!-- ===== 全局媒体查看器 ===== -->
@@ -738,8 +630,7 @@
             :initial-time="viewerInitialTime" @close="onViewerClose" @jump-to-message="handleViewerJump"
             @forward-message="handleViewerForward" />
 
-        <!-- ===== 贴纸 / 自定义表情所属贴纸包信息弹窗 ===== -->
-        <StickerSetDialog />
+        <!-- 贴纸集弹窗已上移到 HomeView（下载面板/内部链接也能打开） -->
 
         <!-- ===== 删除消息确认弹窗 ===== -->
         <DeleteMessageConfirm />
@@ -799,12 +690,7 @@ import InlineTranslation from './MessageContent/content/InlineTranslation.vue';
 import ChatDetailHeader from './Header.vue';
 import ChatTranslateBar from './ChatTranslateBar.vue';
 import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
-import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
-import PaidReactionIcon from '../../common/PaidReactionIcon.vue';
-import ReactionEmojiAnim from '../../common/ReactionEmojiAnim.vue';
-import Counter from '../../common/Counter.vue';
 import MediaViewer from './MessageContent/MediaViewer.vue';
-import StickerSetDialog from './StickerSetDialog.vue';
 import DeleteMessageConfirm from '../../contextMenu/DeleteMessageConfirm.vue';
 import TranslateMessageModal from '../../contextMenu/TranslateMessageModal.vue';
 import PinMessageConfirm from '../../contextMenu/PinMessageConfirm.vue';
@@ -818,7 +704,7 @@ import MessageCommentsBar from './MessageCommentsBar.vue';
 import MessageSideActions from './MessageSideActions.vue';
 import ReactionPicker from './ReactionPicker.vue';
 
-import { tdlibSend, isFileReady } from '../../../utils/tdlib';
+import { tdlibSend } from '../../../utils/tdlib';
 import { resolveTopicMode } from '../../../utils/topicDisplayMode';
 import { buildMessageTopicInput, extractTopicNumber, ensureDmTopic, resolveDmSenderName, getSenderPhoto } from '../../../utils/directMessagesTopics';
 import { sendAttachments, sending, type SendAttachmentsResult } from '../../../utils/attachmentSend';
@@ -827,19 +713,17 @@ import { useAttachmentStore } from '../../../store/attachment';
 import type { AttachmentItem } from '../../../store/attachment';
 import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
 
-import { MessageCircleIcon, ClipboardCopy as ClipboardCopyIcon, XIcon, ShareIcon, TrashIcon, ReplyIcon, PinIcon, LinkIcon, CheckSquareIcon, CopyPlusIcon, CheckIcon, Quote as QuoteIcon, Languages as LanguagesIcon, User as UserIcon, Pencil as PencilIcon, FolderOpenIcon, DownloadIcon, BookmarkIcon, EyeIcon, UserCheckIcon, MessageSquareIcon, AudioLinesIcon, FlagIcon, Undo2Icon, CircleStopIcon } from 'lucide-vue-next';
+import { MessageCircleIcon, XIcon, CheckIcon, Pencil as PencilIcon, CircleStopIcon, Sparkles as SparklesIcon } from 'lucide-vue-next';
 import { toast } from '../../../utils/toast';
 import { useRoute, useRouter } from 'vue-router';
 import { computed, watch, ref, shallowRef, markRaw, onMounted, onBeforeUnmount, onUnmounted, nextTick } from 'vue';
 import { useUserStore } from '../../../store/user';
 import { useAudioPlayerStore } from '../../../store/audioPlayer';
-import { useAccountsStore } from '../../../store/accounts';
 import { clearActiveChatTitleBar } from '../../../store/activeChatTitleBar';
 import { chatPaneOrigin } from '../../../store/chatPane';
 import { consumeChatNavFromList, isChatPaneSectionPath, isChatRoutePath } from '../../../store/chatNav';
 import { storeToRefs } from 'pinia';
 import { onTdlibUpdates } from "../../../store/tdlibBus";
-import { saveFileAs, revealFileInDir } from "../../../utils/fileActions";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { settings } from '../../../store/settings';
 import { canSummarizeMessage } from '../../../store/summary';
@@ -874,16 +758,9 @@ import {
     type ViewportHold,
 } from '../../../utils/viewportLock';
 import {
-    copyMessageText, copyMessageJson, copyMessageLink,
-    toggleMessagePinned, pinMessage, getMessageProperties, getCachedMessageProperties,
-    executeDeleteActions,
-    canCopyMessage, canForwardMessage, canGetMessageLink, canPinMessage, canDeleteMessage,
-    canReplyMessage, canEditMessage, editTextMessage, editCaptionMessage,
+    canEditMessage, editTextMessage, editCaptionMessage,
     editMessageMediaContent,
-    canSaveMessage, canGetViewers, canGetReadDate, canGetAuthor,
-    canGetMessageThread, canRecognizeSpeech, canReportMessage,
     toggleReaction,
-    canRetractPollVote, canStopPoll, retractPollVote, stopPollMessage,
 } from '../../contextMenu/messageActions';
 import {
     classifyAttachment,
@@ -893,46 +770,37 @@ import {
 } from '../../../utils/attachmentSend';
 import { isSavedMessagesChat } from '../../../utils/savedMessages';
 import { hasReactions } from '../../../utils/reactionHelpers';
-import { confirmDeleteMessage, visible as deletePopupVisible } from '../../../store/deleteMessage';
-import type { DeleteMessageRequest, DeleteSenderInfo } from '../../../store/deleteMessage';
-import { confirmPinMessage } from '../../../store/pinMessage';
-import { confirmStopPoll } from '../../../store/stopPoll';
-import { confirmReportMessage } from '../../../store/reportMessage';
 import {
-    showTranslateDialog,
-    translateInlineMessage,
     getInlineTranslation,
-    removeInlineTranslation,
     isChatTranslating,
     requestViewportTranslation,
-    getTranslateTargetLang,
     isTranslateInlineBlockDisplay,
-    isTranslateReplaceDisplay,
     canShowChatTranslateBar,
     shouldPromptChatTranslatePremium,
 } from '../../../store/translate';
-import { openContextMenu, visible as contextMenuVisible, reactionRow as contextMenuReactionRow, closeContextMenu as closeContextMenuStore } from '../../../store/contextMenu';
-import {
-    openTranscripts,
-    transcriptKey,
-    transcriptTextOf,
-    getTranscriptTranslation,
-    clearTranscriptTranslation,
-    translateTranscript,
-} from '../../../composables/speechTranscript';
-import type { ContextMenuReactionItem, ContextMenuReactionRow } from '../../contextMenu/types';
-import { DEFAULT_TRANSLATE_TARGET } from '../../../utils/translateLanguages';
 
-import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity, textEntity$Input, file as TdFile, ReactionType, MessageSender } from 'tdlib-types';
+import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity, textEntity$Input, file as TdFile, ReactionType } from 'tdlib-types';
 import { getViewerState, closeMediaViewer, isMediaViewerActive, openMediaViewer } from '../../../store/mediaViewer';
 
-import { getSenderAccentColorId, getSenderProfileAccentColorId, getSenderNameParts, getChatProfileAccentColorId, getChatUserNames, isDeletedChat, DELETED_ACCOUNT_LABEL, messageSenderKey } from '../../../utils/senderInfo';
+import { getSenderAccentColorId, getSenderProfileAccentColorId, getSenderNameParts, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
 import { useColors } from '../../../store/colors';
 import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage, isBubblelessMediaMessage, albumHasVisibleCaption, isFileAlbum, showChannelCommentsBar } from './composables/messageType';
 import { buildDisplayItems } from './composables/messageItems';
+import { chatWindowKey, peekChatWindow, saveChatWindow } from './composables/chatWindowCache';
 import { completeAlbumMembers, hasIncompleteAlbum } from './composables/albumHistory';
+import { useDraft } from './composables/useDraft';
+import { useBrowsePosition } from './composables/useBrowsePosition';
+import type { BrowsePosition } from './composables/useBrowsePosition';
+import { useMessageSelection } from './composables/useMessageSelection';
+import { useMessageContextMenu } from './composables/useMessageContextMenu';
+import { useStickyDate } from './composables/useStickyDate';
+import { useAiConversation } from './composables/useAiConversation';
+import MessageListSkeleton from './MessageListSkeleton.vue';
+import SelectionToolbar from './SelectionToolbar.vue';
+import ScrollToBottomButton from './ScrollToBottomButton.vue';
+import ChatOverlayPanel from './ChatOverlayPanel.vue';
+import ReactionCapsule from './ReactionCapsule.vue';
 import type { DisplayItem, AlbumDisplayItem } from './composables/messageItems';
-import { formatDateLabel } from './composables/dateLabel';
 import {
     bubbleStyle as computeBubbleStyle, albumStyle as computeAlbumStyle,
     messagesStyleCss,
@@ -989,273 +857,10 @@ const props = defineProps<{
     threadRootId?: number | null;
 }>();
 
-// ==================== 上次浏览位置缓存（模块级 + localStorage） ====================
-// 每个聊天的"上次浏览位置"，按 chatId(+topicId) 缓存。
-// 放在模块级，故跨聊天切换、甚至关闭/重开聊天面板（组件卸载重挂）后依然保留；
-// 同时持久化到 localStorage，应用重启后仍可回到上次阅读位置。
-interface BrowsePosition {
-    /** 视口顶第一条消息 id */
-    anchorId: number;
-    /** 该消息 top 相对容器顶的像素偏移（不是相对 window 视口） */
-    pixelFromTop: number;
-    /** 保存时的 last_read_inbox_message_id，用于失效判断 */
-    readInboxMaxId: number;
-    savedAt: number;
-}
-const BROWSE_POS_STORAGE_KEY = 'tdgram-browse-pos';
-const BROWSE_POS_STORAGE_VERSION = 1;
 /** 校准残余误差阈值（px）；超过则再纠一次，允许残余，禁止死循环 */
 const BROWSE_POS_TOLERANCE_PX = 12;
 /** 未读 separator 预留高度（my-3 上下边距 + 行高），首条未读顶对齐时垫在上方 */
 const UNREAD_SEP_RESERVE_PX = 40;
-
-function lastBrowseCacheKey(id: number, tid?: number | null) {
-    return tid ? `${id}:${tid}` : `${id}`;
-}
-
-function loadBrowsePosStore(): Map<string, BrowsePosition> {
-    const map = new Map<string, BrowsePosition>();
-    try {
-        const raw = localStorage.getItem(BROWSE_POS_STORAGE_KEY);
-        if (!raw) return map;
-        const parsed = JSON.parse(raw) as { v?: number; entries?: Record<string, BrowsePosition> };
-        if (!parsed || parsed.v !== BROWSE_POS_STORAGE_VERSION || !parsed.entries) return map;
-        for (const [key, entry] of Object.entries(parsed.entries)) {
-            if (entry && typeof entry.anchorId === 'number' && entry.anchorId > 0
-                && typeof entry.pixelFromTop === 'number'
-                && typeof entry.readInboxMaxId === 'number'
-                && typeof entry.savedAt === 'number') {
-                map.set(key, entry);
-            }
-        }
-    } catch {
-        // localStorage 损坏：丢弃，走未读/底部逻辑
-    }
-    return map;
-}
-
-function persistBrowsePosStore(map: Map<string, BrowsePosition>) {
-    try {
-        const entries: Record<string, BrowsePosition> = {};
-        for (const [key, entry] of map) entries[key] = entry;
-        localStorage.setItem(BROWSE_POS_STORAGE_KEY, JSON.stringify({
-            v: BROWSE_POS_STORAGE_VERSION,
-            entries,
-        }));
-    } catch {
-        // 配额/隐私模式：仅保留内存缓存
-    }
-}
-
-const lastBrowsePositionCache = loadBrowsePosStore();
-
-/** 读取某聊天的上次浏览位置 */
-const getBrowsePosition = (id: number, tid?: number | null): BrowsePosition | null =>
-    lastBrowsePositionCache.get(lastBrowseCacheKey(id, tid)) ?? null;
-
-/** 写入某聊天的上次浏览位置（内存 + localStorage） */
-const setBrowsePosition = (id: number, tid: number | null | undefined, pos: BrowsePosition) => {
-    lastBrowsePositionCache.set(lastBrowseCacheKey(id, tid), pos);
-    persistBrowsePosStore(lastBrowsePositionCache);
-};
-
-/** 删除某聊天的缓存位置（贴底 / 滑进未读 / 已读线变化 / 失效时使用） */
-const clearLastBrowsePosition = (id: number, tid?: number | null) => {
-    const key = lastBrowseCacheKey(id, tid);
-    if (!lastBrowsePositionCache.delete(key)) return;
-    persistBrowsePosStore(lastBrowsePositionCache);
-};
-
-/**
- * 已读线前进时同步缓存 readInboxMaxId。
- * 否则 capture 与 viewMessages 竞态会让 saved.readInboxMaxId 落后于 last_read_inbox_message_id，
- * 退出再进时被「已读线变化」误失效。
- */
-const bumpBrowsePosReadInboxMaxId = (id: number, tid: number | null | undefined, readInboxMaxId: number) => {
-    const key = lastBrowseCacheKey(id, tid);
-    const entry = lastBrowsePositionCache.get(key);
-    if (!entry || entry.readInboxMaxId >= readInboxMaxId) return;
-    lastBrowsePositionCache.set(key, { ...entry, readInboxMaxId });
-    persistBrowsePosStore(lastBrowsePositionCache);
-};
-
-/**
- * anchor 是否已滑进未读区（capture / 进入会话共用，避免两份判定漂移）。
- * - 有 UI 未读边界（含相册边界）→ 以边界为准
- * - 无边界（首窗不含未读，unreadBoundary 为 null）→ 兜底比较「打开时已读线」
- *   必须用 sessionUnreadBaseId 而非 live last_read / lastReported：
- *   后两者会被 markVisible 推进，用户刚滚进未读时兜底会失效。
- */
-function isAnchorInUnreadZone(anchorId: number): boolean {
-    const unreadBoundary = unreadBoundaryMessageId.value;
-    if (unreadBoundary != null && unreadBoundary > 0) {
-        return anchorId >= unreadBoundary;
-    }
-    return sessionUnreadBaseId > 0 && anchorId > sessionUnreadBaseId;
-}
-
-// ==================== 草稿缓存（模块级） ====================
-// 每个聊天的输入框草稿（文本 + 自定义 emoji 队列），按 chatId(+topicId) 缓存。
-// 切换聊天时用「旧 chatId」保存当前草稿，进入新聊天时恢复；组件卸载时也会保存。
-// 同时同步到 TDLib setChatDraftMessage，使会话列表草稿 / 跨端草稿一致。
-interface DraftEntry {
-    text: string;
-    customEmojis: { id: string; alt: string }[];
-}
-const draftCache = new Map<string, DraftEntry>();
-/** 上次同步到 TDLib 的草稿文本（按 chat(+topic)），用于「无变化则跳过保存」 */
-const lastSyncedDraftText = new Map<string, string>();
-const DRAFT_CACHE_MAX = 50;
-
-function draftCacheKey(id: number, tid?: number | null) {
-    return tid ? `${id}:${tid}` : `${id}`;
-}
-
-/** TDLib setChatDraftMessage 的防抖定时器 */
-let tdlibDraftTimer: number | null = null;
-/** 本地输入变更后写入草稿的防抖定时器 */
-let localDraftTimer: number | null = null;
-/** 切换对话加载期间为 true：抑制自动存草稿，避免清空输入误删新聊天草稿 */
-let suppressDraftAutosave = false;
-/** 待提交到 TDLib 的草稿（防抖窗口内切换聊天时，先冲刷旧聊天草稿，避免被新聊天覆盖丢失） */
-let pendingTdlibDraft: { cid: number; tid?: number | null; text?: string } | null = null;
-
-function draftTopicInput(tid?: number | null) {
-    return buildMessageTopicInput(isDirectMessagesChat.value, tid);
-}
-
-/** 立即把 pendingTdlibDraft 提交到 TDLib；无待提交则不操作 */
-function flushTdlibDraftNow() {
-    if (!pendingTdlibDraft) return;
-    const { cid, tid, text } = pendingTdlibDraft;
-    pendingTdlibDraft = null;
-    const body = text?.trim()
-        ? {
-            _: 'draftMessage' as const,
-            date: Math.floor(Date.now() / 1000),
-            content: {
-                _: 'draftMessageContentText' as const,
-                text: { _: 'formattedText' as const, text: text!, entities: [] },
-            },
-        }
-        : null;
-    void tdlibSend({
-        _: 'setChatDraftMessage',
-        chat_id: cid,
-        topic_id: draftTopicInput(tid),
-        draft_message: body,
-    } as any).catch((e) => {
-        // 草稿同步失败不影响本地输入，仅记录
-        console.warn('setChatDraftMessage failed:', e);
-    });
-}
-
-/**
- * 把草稿同步到 TDLib（setChatDraftMessage）。
- * text 为空时传 null，等价于清除服务端草稿。
- * 防抖执行，避免输入过程中高频调用；若上一次待提交草稿属于其它聊天，先立即冲刷。
- */
-function syncTdlibDraft(cid: number, tid?: number | null, text?: string) {
-    if (tdlibDraftTimer !== null) {
-        window.clearTimeout(tdlibDraftTimer);
-        tdlibDraftTimer = null;
-    }
-    // 跨聊天切换：立刻提交旧聊天草稿，防止被下面的新 pending 覆盖
-    if (pendingTdlibDraft && pendingTdlibDraft.cid !== cid) {
-        flushTdlibDraftNow();
-    }
-    pendingTdlibDraft = { cid, tid, text };
-    tdlibDraftTimer = window.setTimeout(() => {
-        tdlibDraftTimer = null;
-        flushTdlibDraftNow();
-    }, 400);
-}
-
-/**
- * 保存输入框草稿到本地缓存 + TDLib。
- * 跳过条件：
- * - 从未在该聊天输入过且输入框为空（不写空草稿，也不无故 clear）
- * - 输入框为空（仅当此前已同步过草稿时才通知 TDLib 清除）
- * - 与上次已同步草稿内容相同（无变化不重复保存）
- * @param targetChatId 目标聊天（切换时必须传「旧」chatId）；缺省用当前 chatId
- * @param targetTopicId 目标话题（配合 targetChatId）；缺省用当前 topicId
- */
-function saveDraft(targetChatId?: number, targetTopicId?: number | null) {
-    const cid = targetChatId ?? chatId.value;
-    if (cid === undefined) return;
-    const tid = targetTopicId !== undefined ? targetTopicId : topicId.value;
-    const text = messageInput.value;
-    const emojis = pendingCustomEmoji.value;
-    const key = draftCacheKey(cid, tid);
-    const hasContent = !!text.trim() || emojis.length > 0;
-    const prevText = lastSyncedDraftText.get(key);
-
-    // 输入框为空：不保存草稿。仅当该聊天此前已有同步过的草稿时才 clear，
-    // 避免从未输入过的聊天在离开时也发 setChatDraftMessage。
-    if (!hasContent) {
-        draftCache.delete(key);
-        if (prevText !== undefined) {
-            lastSyncedDraftText.delete(key);
-            syncTdlibDraft(cid, tid, '');
-        }
-        return;
-    }
-
-    draftCache.set(key, { text, customEmojis: [...emojis] });
-    while (draftCache.size > DRAFT_CACHE_MAX) {
-        const oldest = draftCache.keys().next().value;
-        if (oldest === undefined) break;
-        draftCache.delete(oldest);
-    }
-
-    // 草稿与上次已同步内容相同：跳过 TDLib 写入
-    if (prevText === text) return;
-
-    lastSyncedDraftText.set(key, text);
-    syncTdlibDraft(cid, tid, text);
-}
-
-/** 仅写入本地缓存（恢复远端草稿时用，避免回写 TDLib 造成无意义更新） */
-function putLocalDraft(cid: number, tid: number | null | undefined, entry: DraftEntry) {
-    const key = draftCacheKey(cid, tid);
-    draftCache.set(key, entry);
-    lastSyncedDraftText.set(key, entry.text);
-}
-
-/**
- * 从缓存 / TDLib 草稿恢复到输入框。
- * 本地缓存优先；否则尝试从 chat.draft_message（TDLib）取文本草稿。
- */
-function restoreDraft(
-    chatIdNum: number,
-    tid?: number | null,
-    remoteDraft?: { content?: { _?: string; text?: { text?: string } } } | null,
-) {
-    const key = draftCacheKey(chatIdNum, tid);
-    const entry = draftCache.get(key);
-    if (entry) {
-        messageInput.value = entry.text;
-        pendingCustomEmoji.value = [...entry.customEmojis];
-        // 标记为已同步内容，避免未改动离开时重复写 TDLib
-        if (!lastSyncedDraftText.has(key)) {
-            lastSyncedDraftText.set(key, entry.text);
-        }
-        return;
-    }
-    const remoteText = remoteDraft?.content?._ === 'draftMessageContentText'
-        ? (remoteDraft.content.text?.text ?? '')
-        : '';
-    if (remoteText) {
-        messageInput.value = remoteText;
-        pendingCustomEmoji.value = [];
-        putLocalDraft(chatIdNum, tid, { text: remoteText, customEmojis: [] });
-        return;
-    }
-    messageInput.value = '';
-    pendingCustomEmoji.value = [];
-}
-
-
 
 const chatId = computed(() => {
     const id = props.chatId ?? route.params.id;
@@ -1669,28 +1274,6 @@ const messageInput = ref('');
 /** 面板插入的自定义 emoji 队列（按插入顺序；发送时据此生成实体） */
 const pendingCustomEmoji = ref<{ id: string; alt: string }[]>([]);
 
-// 输入过程中防抖写入草稿（本地 + TDLib）；编辑模式不写草稿
-watch([messageInput, pendingCustomEmoji], () => {
-    if (suppressDraftAutosave) return;
-    if (editingMsg.value) return;
-    // 评论线程不写会话草稿（key 与主聊天相同，会覆盖主聊天草稿）
-    if (threadMode.value) return;
-    if (chatId.value === undefined) return;
-    if (localDraftTimer !== null) window.clearTimeout(localDraftTimer);
-    localDraftTimer = window.setTimeout(() => {
-        localDraftTimer = null;
-        if (suppressDraftAutosave || editingMsg.value) return;
-        saveDraft();
-    }, 500);
-});
-
-// 线程 ↔ 会话视图切换时清空输入框，避免会话草稿文本被当成评论发出
-// （本 watcher 先于主加载 watcher 触发；load 流程结束的 finally 会解除抑制）
-watch(threadRootMsgId, () => {
-    suppressDraftAutosave = true;
-    messageInput.value = '';
-    pendingCustomEmoji.value = [];
-});
 /**
  * 消息列表使用 shallowRef + markRaw：
  * TDLib message 是深层嵌套大对象，若用 ref 做深度响应式，任意字段变更
@@ -1815,28 +1398,6 @@ function startQuoteReply(msg: message, quoteText: string) {
     replyQuoteText.value = quoteText;
 }
 
-/**
- * 获取当前文档选中文本中属于「该消息气泡」的片段。
- * 仅当用户已用鼠标拖动选中了该消息内容里的一段文本时返回该片段（去除首尾空白），
- * 否则返回 null（用于在消息右键菜单中动态显示「引用回复」）。
- */
-function getSelectedQuoteForMessage(msg: message): string | null {
-    const sel = window.getSelection?.();
-    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
-    const range = sel.getRangeAt(0);
-    if (range.collapsed) return null;
-    // 找到选区所在的最近元素节点
-    let container = range.commonAncestorContainer as Node;
-    if (container.nodeType !== Node.ELEMENT_NODE) {
-        container = container.parentElement as Node;
-    }
-    const el = container as HTMLElement | null;
-    const bubble = el?.closest(`[data-bubble-msg-id="${msg.id}"]`);
-    if (!bubble) return null;
-    const text = sel.toString();
-    return text.trim() ? text.trim() : null;
-}
-
 /** 清除回复/引用状态 */
 function clearReply() {
     replyTargetMsg.value = null;
@@ -1855,6 +1416,18 @@ const editMediaReplacement = ref<AttachmentItem | null>(null);
 /** MessageInput 实例（用于写入编辑实体） */
 const messageInputRef = ref<InstanceType<typeof MessageInput> | null>(null);
 const aiPromptRef = ref<InstanceType<typeof AiPromptBar> | null>(null);
+
+// ==================== 草稿（内存缓存 + TDLib 同步） ====================
+/** 切换对话加载期间为 true：抑制自动存草稿，避免清空输入误删新聊天草稿 */
+const suppressDraftAutosave = ref(false);
+const {
+    saveDraft, restoreDraft, clearDraft, flushTdlibDraftNow, cancelLocalDraftTimer, cancelTdlibDraftTimer,
+} = useDraft({
+    chatId, topicId, threadMode, threadRootMsgId,
+    messageInput, pendingCustomEmoji, editingMsg,
+    isDirectMessagesChat, suppress: suppressDraftAutosave,
+});
+
 /** 传给 MessageInput 的编辑实体（补齐必填字段） */
 const editSeedEntitiesForInput = computed<textEntity[] | null>(() =>
     editSeedEntities.value ? normalizeEditEntities(editSeedEntities.value) : null
@@ -2148,164 +1721,48 @@ function buildReplyQuote(): inputTextQuote | null {
     };
 }
 
-// ===== 多选模式 =====
-/** 多选上限：与 Telegram 官方客户端一致，单次最多选中 100 条消息 */
-const MAX_SELECTED_MSG_COUNT = 100;
-/** 是否处于多选模式 */
-const selectionMode = ref(false);
-/** 多选中选中的消息 id 集合（按加入顺序用数组保持稳定） */
-const selectedMsgIds = ref<number[]>([]);
-/** 选中消息中「可删除」的 id 集合（异步按 messageProperties 刷新） */
-const deletableSelectedIds = ref<Set<number>>(new Set());
-/** 权限刷新请求令牌：避免快速切换选择时旧结果覆盖新结果 */
-let selectionPermToken = 0;
-
-/** 切换到多选模式（服务消息不可选；相册内单条媒体也各自独立选中） */
-function enterSelectionMode(msg: message) {
-    if (isServiceMessage(msg)) return;
-    selectionMode.value = true;
-    if (!selectedMsgIds.value.includes(msg.id)) selectedMsgIds.value.push(msg.id);
-    void refreshSelectionPermissions();
+/** 统一的 inputMessageReplyToMessage（无回复目标返回 undefined） */
+type ReplyToMessage = {
+    _: 'inputMessageReplyToMessage';
+    message_id: number;
+    quote: inputTextQuote | null;
+    checklist_task_id: number;
+    poll_option_id: string;
+};
+function replyToInput(): ReplyToMessage | undefined {
+    const target = replyTargetMsg.value;
+    if (!target) return undefined;
+    return {
+        _: 'inputMessageReplyToMessage',
+        message_id: target.id,
+        quote: buildReplyQuote(),
+        checklist_task_id: 0,
+        poll_option_id: '',
+    };
 }
 
-/** 退出多选模式 */
-function exitSelectionMode() {
-    selectionMode.value = false;
-    selectedMsgIds.value = [];
-    deletableSelectedIds.value = new Set();
-    selectionPermToken++;
+/** 统一的 sendMessage 外壳：补 chat/topic/reply，文本 / 贴纸 / 动画共用 */
+function sendMessageContent(content: sendMessage['input_message_content']) {
+    return tdlibSend({
+        _: 'sendMessage',
+        chat_id: outgoingChatId()!,
+        input_message_content: content,
+        reply_to: replyToInput(),
+        topic_id: outgoingTopicInput(),
+    } as sendMessage as $Function);
 }
 
-/** 切换单条消息的选中状态（相册内每条媒体各自独立） */
-function toggleSelectMsg(msg: message) {
-    toggleSelectMsgById(msg.id);
-}
-
-/** 按消息 id 切换选中状态；服务消息不可选 */
-function toggleSelectMsgById(msgId: number) {
-    const msg = messages.value.find(m => m.id === msgId);
-    if (!msg || isServiceMessage(msg)) return;
-    const idx = selectedMsgIds.value.indexOf(msgId);
-    if (idx >= 0) {
-        selectedMsgIds.value.splice(idx, 1);
-    } else {
-        if (selectedMsgIds.value.length >= MAX_SELECTED_MSG_COUNT) {
-            toast.warning(t('chat.selectLimit', { max: MAX_SELECTED_MSG_COUNT }));
-            return;
-        }
-        selectedMsgIds.value.push(msgId);
-    }
-    void refreshSelectionPermissions();
-}
-
-/** 相册是否整体被选中（左侧圆点状态） */
-function isAlbumSelected(msgs: message[]): boolean {
-    return msgs.length > 0 && msgs.every(m => selectedMsgIds.value.includes(m.id));
-}
-
-/** 点击相册左侧圆点：全选 / 取消整个相册 */
-function toggleSelectAlbum(msgs: message[]) {
-    if (msgs.length === 0) return;
-    if (isAlbumSelected(msgs)) {
-        const ids = new Set(msgs.map(m => m.id));
-        selectedMsgIds.value = selectedMsgIds.value.filter(id => !ids.has(id));
-    } else {
-        const adding = msgs.filter(m => !selectedMsgIds.value.includes(m.id));
-        if (selectedMsgIds.value.length + adding.length > MAX_SELECTED_MSG_COUNT) {
-            toast.warning(t('chat.selectLimit', { max: MAX_SELECTED_MSG_COUNT }));
-            return;
-        }
-        for (const m of adding) selectedMsgIds.value.push(m.id);
-    }
-    void refreshSelectionPermissions();
-}
-
-/** 消息是否被选中 */
-function isMsgSelected(msgId: number): boolean {
-    return selectedMsgIds.value.includes(msgId);
-}
-
-/** 刷新选中消息的删除权限（getMessageProperties 离线预取 + 缓存判定） */
-async function refreshSelectionPermissions() {
-    const token = ++selectionPermToken;
-    const cid = chatId.value;
-    const ids = [...selectedMsgIds.value];
-    const result = new Set<number>();
-    if (cid === undefined) {
-        deletableSelectedIds.value = result;
-        return;
-    }
-    await Promise.all(ids.map(async (id) => {
-        const msg = messages.value.find((m) => m.id === id);
-        if (!msg) return;
-        if (canDeleteMessage(msg, cid)) {
-            result.add(id);
-            return;
-        }
-        // 缓存未命中时预取精确权限后再判定
-        await getMessageProperties(cid, id);
-        if (canDeleteMessage(msg, cid)) result.add(id);
-    }));
-    // 期间选择已变化则丢弃过期结果
-    if (token !== selectionPermToken) return;
-    deletableSelectedIds.value = result;
-}
-
-/** 选中的消息是否全部可删除（多选删除按钮的启用状态） */
-const canDeleteSelected = computed(() =>
-    selectedMsgIds.value.length > 0 &&
-    selectedMsgIds.value.every((id) => deletableSelectedIds.value.has(id))
-);
-
-/**
- * 多选模式下的键盘处理：Delete 键走与工具栏删除按钮相同的校验，
- * Escape 退出多选。输入框内的按键不拦截。
- */
-function onSelectionKeydown(e: KeyboardEvent) {
-    if (!selectionMode.value || deletePopupVisible.value) return;
-    const el = e.target as HTMLElement | null;
-    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
-    if (e.key === 'Escape') {
-        exitSelectionMode();
-        return;
-    }
-    if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (!canDeleteSelected.value) return;
-        e.preventDefault();
-        void onDeleteSelected();
-    }
-}
-
-onMounted(() => window.addEventListener('keydown', onSelectionKeydown));
-onUnmounted(() => window.removeEventListener('keydown', onSelectionKeydown));
-
-// ===== 多选模式：操作 =====
-const forwardPickerVisible = ref(false);
-const forwardMessageIds = ref<number[]>([]);
-
-/** 转发选择器消息快照：供判断是否含媒体说明（相册/图/视/音/GIF/文件 caption） */
-const forwardMessagesSnapshot = computed(() => {
-    const ids = new Set(forwardMessageIds.value);
-    return messages.value.filter((m) => ids.has(m.id));
+// ===== 多选 + 转发 =====
+let menuApi!: ReturnType<typeof useMessageContextMenu>;
+const {
+    MAX_SELECTED_MSG_COUNT, selectionMode, selectedMsgIds, enterSelectionMode, exitSelectionMode,
+    toggleSelectMsg, toggleSelectMsgById, isAlbumSelected, toggleSelectAlbum, isMsgSelected,
+    canDeleteSelected, onDeleteSelected, forwardPickerVisible, forwardMessageIds,
+    forwardMessagesSnapshot, openForwardPicker, startForward, onForwardDone,
+} = useMessageSelection({
+    messages, chatId,
+    openDeletePopup: (msgs) => menuApi.openDeletePopup(msgs),
 });
-
-/** 打开转发选择器（用当前选中消息） */
-function openForwardPicker() {
-    if (selectedMsgIds.value.length === 0) return;
-    forwardMessageIds.value = [...selectedMsgIds.value];
-    forwardPickerVisible.value = true;
-}
-
-/** 右键「转发」：对单条消息打开转发选择器 */
-function startForward(msg: message) {
-    forwardMessageIds.value = [msg.id];
-    forwardPickerVisible.value = true;
-}
-
-/** 转发完成后退出多选 */
-function onForwardDone() {
-    exitSelectionMode();
-}
 
 // ===== Reaction Picker =====
 /** reaction 选择器是否可见 */
@@ -2376,112 +1833,6 @@ function onReactionPickerSelectCustomEmoji(id: string) {
     const type: ReactionType = { _: 'reactionTypeCustomEmoji', custom_emoji_id: id };
     void toggleReaction(chatId.value, msg, type);
     closeReactionPicker();
-}
-
-// ===== 胶囊回应选择器（独立于右键菜单的浮动栏） =====
-import { watch as vueWatch } from 'vue';
-import { state as contextMenuState } from '../../../store/contextMenu';
-const reactionCapsuleRef = ref<HTMLElement | null>(null);
-const reactionCapsuleVisible = ref(false);
-const reactionCapsuleData = ref<ContextMenuReactionRow | null>(null);
-const reactionCapsuleStyle = ref<Record<string, string>>({});
-
-/**
- * 计算胶囊位置：绑定到右键菜单的最终渲染位置，居中对齐菜单顶部，
- * 参与四边夹紧确保不超出视口。
- */
-function updateCapsulePosition() {
-    if (!reactionCapsuleVisible.value) return;
-    nextTick(() => {
-        const menuEl = document.querySelector('.cm-menu') as HTMLElement | null;
-        const capsuleEl = reactionCapsuleRef.value;
-        if (!menuEl || !capsuleEl) return;
-
-        const menuRect = menuEl.getBoundingClientRect();
-        const capsuleRect = capsuleEl.getBoundingClientRect();
-        const margin = 8;
-        const gap = 6; // 胶囊与菜单之间的间距
-
-        // 水平居中对齐菜单，参与左右夹紧
-        let left = menuRect.left + menuRect.width / 2 - capsuleRect.width / 2;
-        if (left < margin) left = margin;
-        if (left + capsuleRect.width > window.innerWidth - margin) {
-            left = window.innerWidth - capsuleRect.width - margin;
-        }
-
-        // 垂直：优先放在菜单上方；若放不下则放在菜单下方
-        let top = menuRect.top - capsuleRect.height - gap;
-        if (top < margin) {
-            top = menuRect.bottom + gap;
-        }
-        // 若下方也放不下，夹紧到顶部
-        if (top < margin) top = margin;
-
-        reactionCapsuleStyle.value = { left: `${left}px`, top: `${top}px` };
-    });
-}
-
-/** 监听右键菜单的 reactionRow 状态 + 菜单位置，同步显示/隐藏胶囊 */
-vueWatch([contextMenuVisible, contextMenuReactionRow, () => contextMenuState.x, () => contextMenuState.y], () => {
-    if (contextMenuVisible.value && contextMenuReactionRow.value && contextMenuReactionRow.value.reactions.length > 0) {
-        // 菜单打开且有回应数据：显示胶囊
-        reactionCapsuleData.value = contextMenuReactionRow.value;
-        reactionCapsuleVisible.value = true;
-        // 菜单已经由 ContextMenu.vue 的 positionMenuInViewport 完成夹紧定位，
-        // 等菜单渲染完毕后再根据菜单最终位置计算胶囊位置
-        nextTick(() => {
-            // 菜单的 positionMenuInViewport 在 nextTick 中执行，再等一帧确保完成
-            nextTick(updateCapsulePosition);
-        });
-    } else {
-        // 菜单关闭或无回应：隐藏胶囊
-        reactionCapsuleVisible.value = false;
-        reactionCapsuleData.value = null;
-    }
-}, { immediate: true });
-
-/** 窗口 resize 时重新定位胶囊 */
-function onCapsuleResize() {
-    if (reactionCapsuleVisible.value) updateCapsulePosition();
-}
-onMounted(() => window.addEventListener('resize', onCapsuleResize));
-onUnmounted(() => window.removeEventListener('resize', onCapsuleResize));
-
-/** 点击胶囊中的某个回应 */
-function onCapsuleReactionClick(r: ContextMenuReactionItem) {
-    if (r.needsPremium && !(userProfile.value?.is_premium)) return;
-    r.onClick?.();
-    reactionCapsuleVisible.value = false;
-    reactionCapsuleData.value = null;
-    // 点击回应后同时关闭右键菜单
-    closeContextMenuStore();
-}
-
-/** 点击胶囊中的更多按钮：关闭胶囊+菜单，打开完整回应选择器 */
-function onCapsuleMoreClick() {
-    // 先获取回调和胶囊位置，再关闭胶囊
-    const onMore = reactionCapsuleData.value?.onMore;
-    const capsuleRect = reactionCapsuleRef.value?.getBoundingClientRect();
-    // 关闭胶囊
-    reactionCapsuleVisible.value = false;
-    reactionCapsuleData.value = null;
-    // 关闭右键菜单（避免菜单残留）
-    closeContextMenuStore();
-    // 传入胶囊位置作为锚点，让选择器在胶囊原位展开
-    if (capsuleRect) {
-        onMore?.({ x: capsuleRect.left, y: capsuleRect.top, width: capsuleRect.width, height: capsuleRect.height });
-    } else {
-        onMore?.();
-    }
-}
-
-/** 删除所有选中消息（按发送者集合决定弹窗能提供的批量动作） */
-async function onDeleteSelected() {
-    if (!canDeleteSelected.value) return;
-    const selected = new Set(selectedMsgIds.value);
-    const msgs = messages.value.filter(m => selected.has(m.id));
-    if (msgs.length === 0) return;
-    await openDeletePopup(msgs);
 }
 
 // 点击 bot 命令（/start 等）→ 插入输入框最前面（空格分隔）
@@ -2583,7 +1934,6 @@ const messagesVersion = ref(0);
 // User Store
 const userStore = useUserStore();
 const player = useAudioPlayerStore();
-const accountsStore = useAccountsStore();
 const { userProfile } = storeToRefs(userStore);
 const myId = computed(() => userProfile.value?.id || 0);
 
@@ -2736,21 +2086,16 @@ onUnmounted(() => {
         measureBubbleRaf = 0;
     }
     cancelHistoryPrefetch();
+    disarmSkeleton();
     if (readVisibilityTimer !== null) window.clearTimeout(readVisibilityTimer);
     if (chatLoadRetryTimer !== null) window.clearTimeout(chatLoadRetryTimer);
-    if (localDraftTimer !== null) {
-        window.clearTimeout(localDraftTimer);
-        localDraftTimer = null;
-    }
+    cancelLocalDraftTimer();
     // 编辑中卸载：编辑文本不是草稿，不要写入；直接冲刷先前已保存的 TDLib 草稿
     if (!editingMsg.value) {
         saveDraft();
     }
     // 无论是否编辑，都把待提交草稿冲刷出队，避免组件卸载后丢草稿
-    if (tdlibDraftTimer !== null) {
-        window.clearTimeout(tdlibDraftTimer);
-        tdlibDraftTimer = null;
-    }
+    cancelTdlibDraftTimer();
     flushTdlibDraftNow();
     // 通知 TDLib 该聊天已关闭（停收推送更新等）
     if (chat.value) {
@@ -3150,22 +2495,30 @@ let lastReportedReadMessageId = 0;
  * 比较「是否滑进未读」用它，而不是会随 markVisible 前进的 live 已读线，
  * 否则用户刚滚进未读、消息被标已读后，兜底判定永远为 false。
  */
-let sessionUnreadBaseId = 0;
+const sessionUnreadBaseId = ref(0);
+
+// ==================== 上次浏览位置缓存 ====================
+const {
+    getBrowsePosition, setBrowsePosition, clearLastBrowsePosition,
+    bumpBrowsePosReadInboxMaxId, isAnchorInUnreadZone,
+} = useBrowsePosition({ unreadBoundaryMessageId, sessionUnreadBaseId });
 
 // ==================== Pinned Messages ====================
 const pinnedBarVisible = ref(false);
 /** 置顶消息发生变化时递增，驱动 PinnedMessageBar 重新拉取 */
 const pinnedBarRefreshToken = ref(0);
-/** 滚动时吸在顶栏底部的日期文案（不占布局空间的浮层）；须在 resetState 之前声明 */
-const stickyDateText = ref<string | null>(null);
-/** 向下滚动时隐藏吸顶日期，向上滚动时重新显示 */
-const stickyDateHidden = ref(false);
 /** 上一次 scrollTop，用于判断滚动方向 */
 let lastStickyScrollTop = 0;
-/** 实际展示的吸顶日期：有日期且未因向下滚动隐藏时才显示 */
-const stickyDateDisplay = computed(() =>
-    stickyDateHidden.value ? null : stickyDateText.value,
-);
+
+// ==================== 吸顶日期 ====================
+const {
+    stickyDateText, stickyDateHidden, stickyDateDisplay,
+    updateStickyDate, scheduleUpdateStickyDate,
+} = useStickyDate({
+    messagesContainer,
+    listRevealed,
+    getMessageItems: () => messageItems.value,
+});
 
 function onPinnedVisibleChange(visible: boolean) {
     pinnedBarVisible.value = visible;
@@ -3656,7 +3009,7 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
         // 仅当仍是当前这一代加载时解除抑制；
         // 若期间又切换了聊天（gen 已更新），交给新一代自行管理。
         if (loadGeneration === gen) {
-            suppressDraftAutosave = false;
+            suppressDraftAutosave.value = false;
         }
     }
 }, { immediate: true });
@@ -4891,18 +4244,15 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
                 editSeedEntities.value = null;
                 editMediaPreviewSrc.value = null;
                 editMediaReplacement.value = null;
-                if (localDraftTimer !== null) {
-                    window.clearTimeout(localDraftTimer);
-                    localDraftTimer = null;
-                }
+                cancelLocalDraftTimer();
                 // 编辑成功后恢复进入编辑前保存的草稿，避免输入框被清空丢失草稿视图
                 // （评论线程不读写会话草稿）
                 if (chatId.value !== undefined && !threadMode.value) {
-                    suppressDraftAutosave = true;
+                    suppressDraftAutosave.value = true;
                     restoreDraft(chatId.value, topicId.value, chat.value?.draft_message);
                     // restore 触发的模型更新在 nextTick 后结束，再解除抑制
                     void nextTick(() => {
-                        suppressDraftAutosave = false;
+                        suppressDraftAutosave.value = false;
                     });
                 }
             }
@@ -4928,9 +4278,7 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
                     // 评论线程：消息发到讨论组的线程（优先于 topicId）
                     threadId: threadMode.value ? threadInfo.value?.message_thread_id : undefined,
                     isDm: isDirectMessagesChat.value,
-                    replyTo: replyTargetMsg.value
-                        ? { _: 'inputMessageReplyToMessage', message_id: replyTargetMsg.value.id, quote: buildReplyQuote(), checklist_task_id: 0, poll_option_id: '' }
-                        : null,
+                    replyTo: replyToInput() ?? null,
                 },
                 caption,
             );
@@ -4958,38 +4306,16 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
         const richEntities = (typeof input === 'string' ? [] : input.entities || []) as textEntity$Input[];
         const customEmojiEntities = buildCustomEmojiEntities(text);
         const parsed = await withParsedMarkdown(text, [...richEntities, ...customEmojiEntities]);
-        const params: sendMessage = {
-            _: 'sendMessage',
-            chat_id: outgoingChatId()!,
-            input_message_content: {
-                _: 'inputMessageText',
-                text: { _: 'formattedText', text: parsed.text, entities: parsed.entities },
-                clear_draft: true,
-            },
-            reply_to: replyTargetMsg.value
-                ? {
-                    _: 'inputMessageReplyToMessage',
-                    message_id: replyTargetMsg.value.id,
-                    quote: buildReplyQuote() ?? undefined,
-                    checklist_task_id: 0,
-                    poll_option_id: '',
-                }
-                : undefined,
-            topic_id: outgoingTopicInput(),
-        };
-        await tdlibSend(params as $Function);
+        await sendMessageContent({
+            _: 'inputMessageText',
+            text: { _: 'formattedText', text: parsed.text, entities: parsed.entities },
+            clear_draft: true,
+        });
         messageInput.value = '';
         pendingCustomEmoji.value = [];
         // 发送成功后清除本地草稿与 TDLib 草稿，并清除回复状态（评论线程不触碰会话草稿）
         if (chatId.value !== undefined && !threadMode.value) {
-            const dKey = draftCacheKey(chatId.value, topicId.value);
-            draftCache.delete(dKey);
-            lastSyncedDraftText.delete(dKey);
-            if (localDraftTimer !== null) {
-                window.clearTimeout(localDraftTimer);
-                localDraftTimer = null;
-            }
-            syncTdlibDraft(chatId.value, topicId.value, '');
+            clearDraft(chatId.value, topicId.value);
         }
         clearReply();
     } catch (e) {
@@ -4998,32 +4324,16 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
 };
 
 // ==================== 表情包面板发送（贴纸 / GIF） ====================
-/** 发送贴纸：InputMessageSticker(InputFileId(stickerId)) */
 /** 发送贴纸：inputMessageSticker(inputSticker(inputFileId(文件id))) */
 async function sendSticker(fileId: number | string) {
     const fid = Number(fileId);
     if (!chatId.value || !fid) return;
     try {
-        const params: sendMessage = {
-            _: 'sendMessage',
-            chat_id: outgoingChatId()!,
-            input_message_content: {
-                _: 'inputMessageSticker',
-                sticker: { _: 'inputSticker', sticker: { _: 'inputFileId', id: fid } },
-                emoji: '',
-            },
-            reply_to: replyTargetMsg.value
-                ? {
-                    _: 'inputMessageReplyToMessage',
-                    message_id: replyTargetMsg.value.id,
-                    quote: buildReplyQuote() ?? undefined,
-                    checklist_task_id: 0,
-                    poll_option_id: '',
-                }
-                : undefined,
-            topic_id: outgoingTopicInput(),
-        };
-        await tdlibSend(params as $Function);
+        await sendMessageContent({
+            _: 'inputMessageSticker',
+            sticker: { _: 'inputSticker', sticker: { _: 'inputFileId', id: fid } },
+            emoji: '',
+        });
         clearReply();
     } catch (e) {
         console.error("Failed to send sticker:", e);
@@ -5035,26 +4345,11 @@ function sendAnimation(fileId: number, _stickerId: string) {
     if (!chatId.value || !fileId) return;
     void (async () => {
         try {
-            const params: sendMessage = {
-                _: 'sendMessage',
-                chat_id: outgoingChatId()!,
-                input_message_content: {
-                    _: 'inputMessageAnimation',
-                    animation: { _: 'inputAnimation', animation: { _: 'inputFileId', id: fileId } },
-                    caption: { _: 'formattedText', text: '', entities: [] },
-                },
-                reply_to: replyTargetMsg.value
-                    ? {
-                        _: 'inputMessageReplyToMessage',
-                        message_id: replyTargetMsg.value.id,
-                        quote: buildReplyQuote() ?? undefined,
-                        checklist_task_id: 0,
-                        poll_option_id: '',
-                    }
-                    : undefined,
-                topic_id: outgoingTopicInput(),
-            };
-            await tdlibSend(params as $Function);
+            await sendMessageContent({
+                _: 'inputMessageAnimation',
+                animation: { _: 'inputAnimation', animation: { _: 'inputFileId', id: fileId } },
+                caption: { _: 'formattedText', text: '', entities: [] },
+            });
             clearReply();
         } catch (e) {
             console.error("Failed to send animation:", e);
@@ -5062,34 +4357,10 @@ function sendAnimation(fileId: number, _stickerId: string) {
     })();
 }
 
-const handleAttach = (files: FileList) => {
-    console.log("Attach files:", files);
-};
-
 // ==================== 附件发送 ====================
 // 图片/视频选择与分类在 MessageInput 内完成（打开系统文件选择器 + 剪贴板粘贴），
 // 通过附件 store 累积；handleSend 统一处理发送。
 const isMePremium = computed(() => !!userProfile.value?.is_premium);
-
-const handleAttachFile = () => {
-    console.log("Attach: 文件");
-};
-
-const handleAttachMusic = () => {
-    console.log("Attach: 音乐");
-};
-
-const handleAttachPoll = () => {
-    console.log("Attach: 投票");
-};
-
-const handleAttachChecklist = () => {
-    console.log("Attach: 清单");
-};
-
-const handleAttachContact = () => {
-    console.log("Attach: 联系人");
-};
 
 /**
  * 思考档位（AiPromptBar 默认六档：关闭 + 低 / 中 / 高 / 极高 / 最高）→ llmsdk 思考强度键。
@@ -5616,197 +4887,6 @@ function albumCommentsMsg(messages: message[]): message | undefined {
     return messages.find(showChannelCommentsBar);
 }
 
-/** 当前右键菜单对应的消息（供获取完成后判断是否需要打开菜单） */
-let currentMenuMsg: message | null = null;
-
-/**
- * 构建消息右键菜单的回应栏数据。
- * 调用 TDLib getMessageAvailableReactions 获取该消息的可用回应，取前 6 个作为快捷行。
- */
-async function buildReactionRow(msg: message): Promise<import('../../contextMenu/types').ContextMenuReactionRow | null> {
-    const cid = msg.chat_id || chatId.value;
-    if (cid === undefined) return null;
-    try {
-        const result = await tdlibSend({
-            _: 'getMessageAvailableReactions',
-            chat_id: cid,
-            message_id: msg.id,
-        });
-        if (result._ !== 'availableReactions') return null;
-        const avail = result;
-        // 合并 top + recent + popular，去重后取前 6 个
-        const seen = new Set<string>();
-        const all: { type: any; emoji: string; customEmojiId?: string; needsPremium: boolean }[] = [];
-        for (const r of [...avail.top_reactions, ...avail.recent_reactions, ...avail.popular_reactions]) {
-            const key = r.type._ === 'reactionTypeEmoji' ? r.type.emoji
-                : r.type._ === 'reactionTypeCustomEmoji' ? `c:${r.type.custom_emoji_id}`
-                    : 'paid';
-            if (seen.has(key)) continue;
-            seen.add(key);
-            const emoji = r.type._ === 'reactionTypeEmoji' ? r.type.emoji
-                : r.type._ === 'reactionTypeCustomEmoji' ? '🏷'
-                    : t('lng_sr_message_column_paid_reactions');
-            all.push({ type: r.type, emoji, customEmojiId: r.type._ === 'reactionTypeCustomEmoji' ? r.type.custom_emoji_id : undefined, needsPremium: r.needs_premium });
-            if (all.length >= 6) break;
-        }
-        if (all.length === 0) return null;
-        // 检测聊天是否允许所有 emoji 回应（chatAvailableReactionsAll）
-        const currentChat = chat.value;
-        const isAllReactions = currentChat?.available_reactions?._ === 'chatAvailableReactionsAll';
-        const totalAvailable = avail.top_reactions.length + avail.recent_reactions.length + avail.popular_reactions.length;
-        return {
-            reactions: all.map(r => ({
-                type: r.type,
-                emoji: r.emoji,
-                customEmojiId: r.customEmojiId,
-                needsPremium: r.needsPremium,
-                onClick: () => void toggleReaction(cid!, msg, r.type),
-            })),
-            hasMore: totalAvailable > 6 || isAllReactions,
-            onMore: (anchorRect?: { x: number; y: number; width: number; height: number }) => openReactionPicker(msg, undefined, isAllReactions, anchorRect),
-        };
-    } catch (e) {
-        console.warn('buildReactionRow failed:', e);
-        return null;
-    }
-}
-
-/** 缓存最近一次构建的回应栏（供 v-context-menu 指令读取） */
-let pendingReactionRow: import('../../contextMenu/types').ContextMenuReactionRow | null = null;
-
-/**
- * 返回消息右键菜单构建函数（指令函数形式受支持）。
- * 用闭包绑定消息，避免在模板内联箭头导致参数无类型/未使用告警。
- *
- * 用户实际右键（调用返回的函数）时先触发 getMessageProperties 离线预取，等待
- * 获取到精确权限后再渲染菜单，避免每个消息气泡渲染时都触发、以及先显示乐观值
- * 再异步重建造成的闪烁/短暂不可用。
- */
-function makeMsgMenu(msg: message): { items: (e: MouseEvent, data?: any) => Promise<ContextMenuItem[]>; reactionRow: import('../../contextMenu/types').ContextMenuReactionRow | null } {
-    return {
-        items: async (e: MouseEvent, data?: any): Promise<ContextMenuItem[]> => {
-            void e;
-            void data;
-            // 属性/权限按消息归属会话查询（评论线程中消息属讨论组，不是当前频道）
-            const cid = msg.chat_id || chatId.value;
-            if (cid !== undefined) {
-                await getMessageProperties(cid, msg.id);
-            }
-            pendingReadDateLabel = await fetchReadDateLabel(msg);
-            // 右键时才加载可用回应列表
-            pendingReactionRow = await buildReactionRow(msg);
-            return buildMessageContextMenu(msg);
-        },
-        get reactionRow() { return pendingReactionRow; },
-    };
-}
-
-/**
- * 针对指定消息在给定坐标处直接打开右键菜单。
- * 相册中右键某一块具体媒体时使用：确保菜单针对「被点击的那一条」而非相册第一条。
- * 先等待 getMessageProperties 获取精确权限，再渲染并打开菜单。
- */
-async function openMessageContextMenu(msg: message, x: number, y: number) {
-    if (selectionMode.value) return;
-    currentMenuMsg = msg;
-    const cid = msg.chat_id || chatId.value;
-    if (cid !== undefined) {
-        await getMessageProperties(cid, msg.id);
-    }
-    // 并行预取阅读状态标签和回应栏
-    const [readLabel, reactionRow] = await Promise.all([
-        fetchReadDateLabel(msg),
-        buildReactionRow(msg),
-    ]);
-    pendingReadDateLabel = readLabel;
-    // 获取完成后若仍对应这条消息则打开菜单，否则忽略（已被其它操作替换）
-    if (currentMenuMsg !== msg) return;
-    openContextMenu(x, y, buildMessageContextMenu(msg), null, null, reactionRow);
-}
-
-/** 相册中某块媒体被右键：以该条消息 + 坐标打开菜单 */
-function onAlbumMessageContextMenu(msg: message, x: number, y: number) {
-    if (selectionMode.value) return;
-    void openMessageContextMenu(msg, x, y);
-}
-
-/** 打开消息翻译弹窗（提取富文本并交给 TranslateMessageModal） */
-function openTranslateDialogFor(msg: message) {
-    const ft = getMessageFormattedText(msg);
-    if (!ft || !ft.text.trim()) return;
-    showTranslateDialog({
-        chatId: chatId.value ?? 0,
-        msg,
-        text: ft,
-        plainText: getMessagePlainText(msg),
-    });
-}
-
-/** 根据「翻译显示设置」选择弹窗 / 内联 / 原位替换（replace 写入同一份内联翻译状态，由正文组件原位顶替） */
-function openTranslateFor(msg: message) {
-    const ft = getMessageFormattedText(msg);
-    if (!ft || !ft.text.trim()) return;
-    const cid = chatId.value ?? 0;
-    const targetLang = getTranslateTargetLang() || DEFAULT_TRANSLATE_TARGET;
-    // 相册消息不提供内联展示槽位，回退到弹窗
-    const isAlbumMember = !!msg.media_album_id && msg.media_album_id !== '0';
-    const mode = settings.translate.displayMode;
-    if ((mode === 'inline' || mode === 'replace') && !isAlbumMember) {
-        // 内联：在原消息气泡中显示译文；replace：正文原位顶替 + 翻译中扫光
-        void translateInlineMessage(
-            cid,
-            msg.id,
-            ft,
-            targetLang,
-            'manual',
-            getMessagePlainText(msg),
-        );
-    } else {
-        // 弹窗：默认行为 / 相册回退
-        openTranslateDialogFor(msg);
-    }
-}
-
-/** 移除该消息的翻译（右键「显示原文」） */
-function removeTranslateFor(msg: message) {
-    const cid = chatId.value ?? 0;
-    removeInlineTranslation(cid, msg.id);
-}
-
-/**
- * 气泡底部时间行是否标注「已翻译」：正文（或识别文本）已原位换成译文。
- * 媒体 caption 由 MessageMediaContent 自己判定，这里覆盖走 ChatDetail 时间行的
- * 非媒体消息（文件/音乐 caption、语音识别文本等）。
- */
-function isShowingTranslation(msg: message): boolean {
-    if (!isTranslateReplaceDisplay()) return false;
-    const cid = msg.chat_id || chatId.value;
-    if (cid === undefined) return false;
-    return !!getInlineTranslation(cid, msg.id)?.translatedText
-        || !!getTranscriptTranslation(cid, msg.id)?.text;
-}
-
-/**
- * 翻译语音 / 圆形视频的识别文本（右键菜单）。
- * 按「翻译显示设置」分流：弹窗模式走弹窗（不带 msg，见 TranslateRequest.msg），
- * 内联 / 原位替换写识别文本译文状态（TranscriptBlock 渲染）。
- */
-function openTranslateForTranscript(msg: message, text: string) {
-    const cid = chatId.value ?? 0;
-    // 译文要有落脚点：先把识别文本展开
-    openTranscripts.add(transcriptKey(cid, msg.id));
-    const mode = settings.translate.displayMode;
-    if (mode === 'inline' || mode === 'replace') {
-        void translateTranscript(cid, msg.id, text);
-    } else {
-        showTranslateDialog({
-            chatId: cid,
-            text: { _: 'formattedText', text, entities: [] },
-            plainText: text,
-        });
-    }
-}
-
 // ==================== 聊天「全部翻译」（仅视口内） ====================
 
 /** 本会话是否隐藏了翻译栏（用户点了 X） */
@@ -5912,724 +4992,6 @@ watch(
 watch(() => messages.value.length, () => {
     if (chatTranslateOn.value) scheduleViewportTranslate(240);
 });
-
-// ==================== 媒体文件「打开目录 / 另存为」 ====================
-
-/** 从文档/图片/视频/音乐消息中提取实际承载内容的 file 对象（无则返回 undefined） */
-function getMessageFile(msg: message): TdFile | undefined {
-    const c = msg.content;
-    if (c._ === 'messagePhoto') {
-        const sizes = c.photo.sizes;
-        if (sizes.length === 0) return undefined;
-        const largest = sizes.reduce((a, b) => (a.width * a.height > b.width * b.height ? a : b));
-        return largest.photo;
-    }
-    if (c._ === 'messageVideo') return c.video.video;
-    if (c._ === 'messageDocument') return c.document.document;
-    if (c._ === 'messageAudio') return c.audio.audio;
-    return undefined;
-}
-
-/** 提取媒体文件建议名称：优先发送方提供的 file_name，图片等无名称时回退本地路径末段 */
-function getMessageFileName(msg: message, file: TdFile): string {
-    const c = msg.content;
-    let name = '';
-    if (c._ === 'messageVideo') name = c.video.file_name;
-    else if (c._ === 'messageDocument') name = c.document.file_name;
-    else if (c._ === 'messageAudio') name = c.audio.file_name;
-    if (name) return name;
-    const p = file.local.path;
-    return p ? p.split(/[\\/]/).pop() || 'media' : 'media';
-}
-
-/** 保存消息到收藏（Saved Messages） */
-async function handleSaveMessage(msg: message) {
-    const cid = chatId.value;
-    if (cid === undefined) return;
-    try {
-        // Saved Messages 是与自己的私聊，chat_id = myId
-        const savedChatId = myId.value;
-        if (!savedChatId) {
-            toast.warning(t('chat.savedChatUnavailable'));
-            return;
-        }
-        await tdlibSend({
-            _: 'forwardMessages',
-            from_chat_id: cid,
-            message_ids: [msg.id],
-            to_chat_id: savedChatId,
-            as_copy: true,
-            disable_notification: false,
-            send_pinned: false,
-        });
-        toast.success(t('chat.savedToSaved'));
-    } catch (e: any) {
-        console.error('saveMessage failed:', e);
-        toast.error(e?.message || t('chat.saveFailed'));
-    }
-}
-
-/** 查看消息回应者 */
-async function handleGetViewers(msg: message) {
-    const cid = chatId.value;
-    if (cid === undefined) return;
-    try {
-        const result = await tdlibSend({
-            _: 'getMessageViewers',
-            chat_id: cid,
-            message_id: msg.id,
-        }) as any;
-        const viewers: Array<{ user_id: number; view_date: number }> = result?.viewers || [];
-        if (viewers.length === 0) {
-            toast.info(t('lng_context_seen_reacted_none'));
-            return;
-        }
-        // 批量获取用户信息以显示名称
-        const userPromises = viewers.map(v =>
-            tdlibSend({ _: 'getUser', user_id: v.user_id } as any).catch(() => null)
-        );
-        const users = await Promise.all(userPromises);
-        const names = users
-            .filter((u): u is any => u && u._ === 'user')
-            .map(u => `${u.first_name}${u.last_name ? ' ' + u.last_name : ''}`);
-        const nameList = names.length > 0 ? names.join(', ') : t('chat.userCount', { count: viewers.length });
-        toast.success({ content: t('chat.reactorsList', { names: nameList }), duration: 5000 });
-    } catch (e: any) {
-        console.error('getMessageViewers failed:', e);
-        toast.error(e?.message || t('chat.getReactorsFailed'));
-    }
-}
-
-/** 当前右键菜单对应的阅读状态标签（异步预取后写入） */
-let pendingReadDateLabel: string | null = null;
-
-/** 预取阅读状态，返回可显示的标签文本（null 表示不显示） */
-async function fetchReadDateLabel(msg: message): Promise<string | null> {
-    const cid = msg.chat_id || chatId.value;
-    if (cid === undefined) return null;
-    if (!canGetReadDate(msg, cid)) return null;
-    try {
-        const result = await tdlibSend({
-            _: 'getMessageReadDate',
-            chat_id: cid,
-            message_id: msg.id,
-        }) as any;
-        switch (result?._) {
-            case 'messageReadDateRead': {
-                const d = new Date(result.read_date * 1000);
-                const timeStr = d.toLocaleString(undefined, {
-                    month: 'short', day: 'numeric',
-                    hour: '2-digit', minute: '2-digit',
-                });
-                return t('chat.readAt', { time: timeStr });
-            }
-            case 'messageReadDateUnread':
-                return t('lng_sr_message_not_seen');
-            case 'messageReadDateTooOld':
-                return t('chat.readDateTooOld');
-            case 'messageReadDateUserPrivacyRestricted':
-                return t('chat.readDatePrivacyOther');
-            case 'messageReadDateMyPrivacyRestricted':
-                return t('chat.readDatePrivacyMe');
-            default:
-                return null;
-        }
-    } catch {
-        return null;
-    }
-}
-
-/** 查看消息真实作者（频道代发消息） */
-async function handleGetAuthor(msg: message) {
-    const cid = chatId.value;
-    if (cid === undefined) return;
-    try {
-        const author = await tdlibSend({
-            _: 'getMessageAuthor',
-            chat_id: cid,
-            message_id: msg.id,
-        }) as any;
-        if (author && author._ === 'user') {
-            router.push({ name: 'user-profile', params: { id: String(author.id) } });
-        } else {
-            toast.info(t('chat.authorUnavailable'));
-        }
-    } catch (e: any) {
-        console.error('getMessageAuthor failed:', e);
-        toast.error(e?.message || t('chat.getAuthorFailed'));
-    }
-}
-
-/** 打开频道帖子的评论线程视图（评论条 / 右键「查看消息线程」共用入口） */
-function openCommentsThread(msg: message) {
-    const cid = chatId.value;
-    if (cid === undefined) return;
-    router.push(`/home/chat/${cid}/thread/${msg.id}`);
-}
-
-/** 语音转文字 */
-async function handleRecognizeSpeech(msg: message) {
-    const cid = chatId.value;
-    if (cid === undefined) return;
-    try {
-        const result = await tdlibSend({
-            _: 'recognizeSpeech',
-            chat_id: cid,
-            message_id: msg.id,
-        }) as any;
-        if (result && result.text) {
-            toast.success(t('chat.transcriptResult', { text: result.text }));
-        } else {
-            toast.info(t('chat.transcriptEmpty'));
-        }
-    } catch (e: any) {
-        console.error('recognizeSpeech failed:', e);
-        toast.error(e?.message || t('chat.transcriptFailed'));
-    }
-}
-
-/** 举报消息（弹出举报原因选择器） */
-async function handleReportMessage(msg: message) {
-    const cid = chatId.value;
-    if (cid === undefined) return;
-    try {
-        await confirmReportMessage({ chatId: cid, msg });
-        toast.success(t('lng_report_spam_thanks'));
-    } catch (e: any) {
-        if (e?.message !== 'canceled') {
-            console.error('reportChat failed:', e);
-            toast.error(e?.message || t('chat.reportFailed'));
-        }
-    }
-}
-
-/** 构建消息右键菜单项（开发环境附带“复制消息原始 JSON”）。
- * 权限已在打开前通过 getMessageProperties 获取完毕，此处仅作纯同步渲染。
- */
-function buildMessageContextMenu(msg: message): ContextMenuItem[] {
-    const items: ContextMenuItem[] = [];
-    const isService = isServiceMessage(msg);
-    // 评论线程中的消息归属讨论组，能力查询用消息自身 chat_id
-    const cid = msg.chat_id || chatId.value;
-
-    // —— 阅读状态（信息项，不可点击）——
-    if (pendingReadDateLabel) {
-        items.push({
-            key: 'read-status',
-            label: pendingReadDateLabel,
-            disabled: true,
-        });
-        items.push({ key: 'divider-read', label: '', divider: true });
-    }
-
-    // —— 回复 ——
-    if (!isService && canReplyMessage(msg, cid)) {
-        items.push({
-            key: 'reply',
-            label: t('lng_context_reply_msg'),
-            icon: ReplyIcon,
-            onClick: () => startReply(msg),
-        });
-    }
-
-    // —— 引用回复（仅当用户已拖动选中了该消息内容的一段文本时出现）——
-    const quotedText = getSelectedQuoteForMessage(msg);
-    if (!isService && quotedText && canReplyMessage(msg, cid)) {
-        items.push({
-            key: 'quote-reply',
-            label: t('lng_context_quote_and_reply'),
-            icon: QuoteIcon,
-            onClick: () => startQuoteReply(msg, quotedText),
-        });
-    }
-
-    // —— 编辑（文本消息编辑内容，媒体消息编辑描述/更换媒体）——
-    // 收藏夹（Saved Messages）内不允许编辑；其余以 TDLib can_be_edited 为准
-    // （普通消息 MessageProperties.can_be_edited / 快捷回复 quickReplyMessage.can_be_edited）
-    if (!isService && !isInSavedMessages.value && canEditMessage(msg, cid)) {
-        items.push({
-            key: 'edit',
-            label: t('lng_theme_edit'),
-            icon: PencilIcon,
-            onClick: () => void startEdit(msg),
-        });
-    }
-
-    // —— 多选 ——
-    if (!isService) {
-        items.push({
-            key: 'multi-select',
-            label: t('lng_context_select_msg'),
-            icon: CheckSquareIcon,
-            onClick: () => enterSelectionMode(msg),
-        });
-    }
-
-    // —— 复制文本 / 媒体描述（禁止复制的频道/消息直接不显示，而非置灰）——
-    if (canCopyMessage(msg, cid)) {
-        items.push({
-            key: 'copy-text',
-            label: t('lng_context_copy_text'),
-            icon: CopyPlusIcon,
-            onClick: () => copyMessageText(msg),
-        });
-    }
-
-    // —— 转发（禁止转发的频道/消息直接不显示，而非置灰）——
-    if (canForwardMessage(msg, cid)) {
-        items.push({
-            key: 'forward',
-            label: t('lng_mediaview_forward'),
-            icon: ShareIcon,
-            onClick: () => startForward(msg),
-        });
-    }
-
-    // —— 保存到收藏 ——
-    if (!isService && canSaveMessage(msg, cid)) {
-        items.push({
-            key: 'save',
-            label: t('chat.saveToSaved'),
-            icon: BookmarkIcon,
-            onClick: () => handleSaveMessage(msg),
-        });
-    }
-
-    // —— 媒体文件：打开目录 / 另存为（仅文件完全下载完成后可用）——
-    const mediaFile = getMessageFile(msg);
-    if (mediaFile && isFileReady(mediaFile)) {
-        items.push({ key: 'divider-file', label: '', divider: true });
-        items.push({
-            key: 'reveal-in-dir',
-            label: t('lng_context_show_in_folder'),
-            icon: FolderOpenIcon,
-            onClick: () => revealFileInDir(mediaFile.local.path),
-        });
-        items.push({
-            key: 'save-as',
-            label: t('lng_context_save_image'),
-            icon: DownloadIcon,
-            onClick: () => saveFileAs(mediaFile, getMessageFileName(msg, mediaFile)),
-        });
-    }
-
-    // —— 翻译 ——
-    const msgFormattedText = getMessageFormattedText(msg);
-    const msgHasTranslatable = !isService && msgFormattedText && msgFormattedText.text.trim().length > 0;
-    if (msgHasTranslatable && settings.translate.showTranslateButton) {
-        const existing = getInlineTranslation(cid ?? 0, msg.id);
-        if (existing) {
-            // 已有译文：显示原文
-            items.push({
-                key: 'translate-original',
-                label: t('lng_translate_show_original'),
-                icon: LanguagesIcon,
-                onClick: () => removeTranslateFor(msg),
-            });
-        } else {
-            items.push({
-                key: 'translate',
-                label: t('lng_context_translate'),
-                icon: LanguagesIcon,
-                onClick: () => openTranslateFor(msg),
-            });
-        }
-    }
-
-    // —— 复制链接 ——
-    items.push({
-        key: 'copy-link',
-        label: t('lng_context_copy_link'),
-        icon: LinkIcon,
-        disabled: !canGetMessageLink(msg, cid),
-        onClick: () => copyMessageLink(cid!, msg),
-    });
-
-    // —— 查看回应者 ——
-    if (!isService && canGetViewers(msg, cid)) {
-        items.push({
-            key: 'viewers',
-            label: t('chat.viewReactors'),
-            icon: EyeIcon,
-            onClick: () => handleGetViewers(msg),
-        });
-    }
-
-    // —— 查看真实作者（频道代发消息） ——
-    if (!isService && canGetAuthor(msg, cid)) {
-        items.push({
-            key: 'author',
-            label: t('chat.viewRealAuthor'),
-            icon: UserCheckIcon,
-            onClick: () => handleGetAuthor(msg),
-        });
-    }
-
-    // —— 查看消息线程（仅当有回复时才显示）——
-    if (!isService && canGetMessageThread(msg, cid) && (msg.interaction_info?.reply_info?.reply_count ?? 0) > 0) {
-        items.push({
-            key: 'thread',
-            label: t('lng_replies_view_thread'),
-            icon: MessageSquareIcon,
-            onClick: () => openCommentsThread(msg),
-        });
-    }
-
-    // —— 语音转文字 / 识别文本翻译 ——
-    // 识别完成（有识别文本）后不再需要「转文字」，改为提供识别文本的「翻译」
-    const transcriptText = transcriptTextOf(msg);
-    if (!isService && transcriptText) {
-        if (settings.translate.showTranslateButton) {
-            const transcriptTranslation = getTranscriptTranslation(cid ?? 0, msg.id);
-            if (transcriptTranslation) {
-                items.push({
-                    key: 'translate-transcript-original',
-                    label: t('lng_translate_show_original'),
-                    icon: LanguagesIcon,
-                    onClick: () => clearTranscriptTranslation(cid ?? 0, msg.id),
-                });
-            } else {
-                items.push({
-                    key: 'translate-transcript',
-                    label: t('lng_context_translate'),
-                    icon: LanguagesIcon,
-                    onClick: () => openTranslateForTranscript(msg, transcriptText),
-                });
-            }
-        }
-    } else if (!isService && canRecognizeSpeech(msg, cid)) {
-        items.push({
-            key: 'recognize-speech',
-            label: t('lng_feature_transcribe'),
-            icon: AudioLinesIcon,
-            onClick: () => handleRecognizeSpeech(msg),
-        });
-    }
-
-    // —— 举报 ——
-    if (!isService && canReportMessage(msg, cid)) {
-        items.push({
-            key: 'report',
-            label: t('lng_context_report_msg'),
-            icon: FlagIcon,
-            danger: true,
-            onClick: () => handleReportMessage(msg),
-        });
-    }
-
-    // —— 投票：撤回投票（已投票）/ 停止投票（发起人或有权限的管理员） ——
-    if (!isService && cid !== undefined) {
-        const canRetract = canRetractPollVote(msg);
-        const canStop = canStopPoll(msg, cid);
-        if (canRetract || canStop) {
-            items.push({ key: 'divider-poll', label: '', divider: true });
-            if (canRetract) {
-                items.push({
-                    key: 'poll-retract',
-                    label: t('lng_polls_retract'),
-                    icon: Undo2Icon,
-                    onClick: () => retractPollVote(cid, msg),
-                });
-            }
-            if (canStop) {
-                items.push({
-                    key: 'poll-stop',
-                    label: t('lng_polls_stop'),
-                    icon: CircleStopIcon,
-                    danger: true,
-                    onClick: () => openStopPollConfirm(cid, msg),
-                });
-            }
-        }
-    }
-
-    // —— 置顶 / 取消置顶 ——
-    const canPin = !isService && canPinMessage(msg, cid);
-    // —— 删除（打开精确权限确认弹窗） ——
-    const canDelete = !isService && cid !== undefined && canDeleteMessage(msg, cid);
-
-    // 管理类操作（置顶/删除）：仅在确有至少一项时才插入【分隔线 + 这些项】，
-    // 避免留出悬空的空槽/分隔线。
-    if (canPin || canDelete) {
-        // 分隔线
-        items.push({ key: 'divider-1', label: '', divider: true });
-
-        if (canPin) {
-            if (msg.is_pinned) {
-                items.push({
-                    key: 'pin',
-                    label: t('lng_context_unpin_from_top'),
-                    icon: PinIcon,
-                    onClick: async () => {
-                        if (await toggleMessagePinned(cid!, msg)) {
-                            onMessagePinnedStateChanged(msg.id, !msg.is_pinned);
-                        }
-                    },
-                });
-            } else {
-                items.push({
-                    key: 'pin',
-                    label: t('lng_context_pin_to_top'),
-                    icon: PinIcon,
-                    onClick: async () => {
-                        await openPinConfirm(msg);
-                    },
-                });
-            }
-        }
-
-        if (canDelete) {
-            items.push({
-                key: 'delete',
-                label: t('lng_selected_delete'),
-                icon: TrashIcon,
-                danger: true,
-                onClick: async () => {
-                    await openDeleteConfirm(msg);
-                },
-            });
-        }
-    }
-
-    // 复制消息原始 JSON（调试用，由「开发者选项」设置页开关控制）
-    if (showCopyJsonInMenus.value) {
-        items.push({
-            key: 'divider-json',
-            label: '',
-            divider: true,
-        });
-        items.push({
-            key: 'copy-json',
-            label: t('chat.copyJson'),
-            icon: ClipboardCopyIcon,
-            onClick: () => copyMessageJson(msg),
-        });
-    }
-
-    return items;
-}
-
-/**
- * 打开「置顶」确认弹窗。
- * - 频道：无可选，直接置顶；
- * - 私聊：弹窗询问是否为对方置顶（对应 pinChatMessage.only_for_self）；
- * - 群组：弹窗询问是否通知群成员（对应 pinChatMessage.disable_notification）。
- */
-async function openPinConfirm(msg: message) {
-    const cid = chatId.value;
-    if (cid === undefined) return;
-
-    const t = chat.value?.type;
-    const isChannel = t?._ === 'chatTypeSupergroup' && t.is_channel;
-    const isPrivate = t?._ === 'chatTypePrivate' || t?._ === 'chatTypeSecret';
-    const isGroup =
-        t?._ === 'chatTypeBasicGroup' ||
-        (t?._ === 'chatTypeSupergroup' && !t.is_channel);
-
-    // 频道（或无法识别类型）：无可选，直接置顶
-    if (isChannel || (!isPrivate && !isGroup)) {
-        if (await pinMessage(cid, msg)) {
-            onMessagePinnedStateChanged(msg.id, true);
-        }
-        return;
-    }
-
-    const scope: 'private' | 'group' = isPrivate ? 'private' : 'group';
-    const otherName = chat.value?.title || '';
-
-    try {
-        const result = await confirmPinMessage({ chatId: cid, msg, scope, otherName });
-        if (scope === 'private') {
-            if (await pinMessage(cid, msg, { onlyForSelf: !result.pinForOther })) {
-                onMessagePinnedStateChanged(msg.id, true);
-            }
-        } else {
-            if (await pinMessage(cid, msg, { disableNotification: !result.notifyMembers })) {
-                onMessagePinnedStateChanged(msg.id, true);
-            }
-        }
-    } catch {
-        // 用户取消，忽略
-    }
-}
-
-/**
- * 打开「停止投票」确认弹窗，确认后调用 stopPoll。
- * 取消时 confirmStopPoll reject，直接忽略。
- */
-async function openStopPollConfirm(cid: number, msg: message) {
-    try {
-        await confirmStopPoll({ chatId: cid, msg });
-    } catch {
-        // 用户取消，忽略
-        return;
-    }
-    await stopPollMessage(cid, msg);
-}
-
-// ==================== 删除确认弹窗 ====================
-
-/**
- * 当前用户在当前对话的成员管理权限（与具体发送者无关）。
- * - 删除该发送者所有消息（deleteChatMessagesBySender）：仅超级群，需 can_delete_messages；
- * - 封禁（banChatMember）：超级群 / 基础群，需 can_restrict_members。
- */
-function getChatModeration(): { canDeleteAll: boolean; canDeleteReactions: boolean; canBan: boolean } {
-    const c = chat.value;
-    if (!c) return { canDeleteAll: false, canDeleteReactions: false, canBan: false };
-
-    if (c.type._ === 'chatTypeSupergroup') {
-        const sg = supergroups.value[c.type.supergroup_id];
-        const status = sg?.status;
-        if (!status) return { canDeleteAll: false, canDeleteReactions: false, canBan: false };
-        if (status._ === 'chatMemberStatusCreator') {
-            return { canDeleteAll: true, canDeleteReactions: true, canBan: true };
-        }
-        if (status._ === 'chatMemberStatusAdministrator') {
-            return {
-                canDeleteAll: status.rights.can_delete_messages,
-                canDeleteReactions: status.rights.can_delete_messages,
-                canBan: status.rights.can_restrict_members,
-            };
-        }
-        return { canDeleteAll: false, canDeleteReactions: false, canBan: false };
-    }
-
-    if (c.type._ === 'chatTypeBasicGroup') {
-        const bg = basicGroups.value[c.type.basic_group_id];
-        const status = bg?.status;
-        if (!status) return { canDeleteAll: false, canDeleteReactions: false, canBan: false };
-        // 基础群管理员可封禁、可删除回应；deleteChatMessagesBySender 仅超级群支持
-        if (status._ === 'chatMemberStatusCreator' || status._ === 'chatMemberStatusAdministrator') {
-            return { canDeleteAll: false, canDeleteReactions: true, canBan: true };
-        }
-        return { canDeleteAll: false, canDeleteReactions: false, canBan: false };
-    }
-
-    return { canDeleteAll: false, canDeleteReactions: false, canBan: false };
-}
-
-/** 消息发送者（用户类型）的 user_id；其他类型发送者（频道等）返回 undefined */
-function senderUserIdOf(msg: message): number | undefined {
-    const s = msg.sender_id;
-    return s?._ === 'messageSenderUser' ? s.user_id : undefined;
-}
-
-/**
- * 当前用户能否封禁/限制该发送者（成员状态感知）：
- * - 群主不可被封禁；
- * - 管理员仅当 TDLib 标记 can_be_edited（当前用户可编辑其权限）时才可；
- * - 频道身份（账号无法封禁）不可。
- * 取不到成员状态时按可封禁处理，由 TDLib 报错兜底。
- */
-async function canRestrictSender(chatId: number, sender: MessageSender): Promise<boolean> {
-    if (sender._ !== 'messageSenderUser') return false;
-    const uid = sender.user_id;
-    let status: ChatMemberStatus | undefined = memberStatus.value[uid]?.status;
-    if (!status) {
-        try {
-            const member = await tdlibSend({
-                _: 'getChatMember',
-                chat_id: chatId,
-                member_id: { _: 'messageSenderUser', user_id: uid },
-            }) as ChatMember;
-            status = member?.status;
-        } catch {
-            return true;
-        }
-    }
-    if (!status) return true;
-    if (status._ === 'chatMemberStatusCreator') return false;
-    if (status._ === 'chatMemberStatusAdministrator') return status.can_be_edited === true;
-    return true;
-}
-
-/**
- * 收集选中的消息的发送者，按 id 去重，并剔除：
- * - 自己发送的消息；
- * - 「以本聊天身份发言」——匿名管理员 / 频道身份（sender 为 messageSenderChat 且就是本聊天）。
- * 同时逐人判定能否封禁（群主 / 不可编辑的管理员会置灰，但删除消息不受影响）。
- */
-async function collectDeleteSenders(msgs: message[], chatId: number): Promise<DeleteSenderInfo[]> {
-    const { canDeleteAll, canDeleteReactions, canBan } = getChatModeration();
-    const unique = new Map<string, { sender: MessageSender; msg: message; name: string }>();
-    for (const msg of msgs) {
-        const sender = msg.sender_id;
-        if (!sender) continue;
-        if (msg.is_outgoing === true) continue;
-        if (sender._ === 'messageSenderUser' && sender.user_id === myId.value) continue;
-        if (sender._ === 'messageSenderChat' && sender.chat_id === chatId) continue;
-
-        const key = messageSenderKey(sender);
-        if (unique.has(key)) continue;
-        unique.set(key, {
-            sender,
-            msg,
-            name: getDisplaySenderName(msg) || t('deleteConfirm.thisUser'),
-        });
-    }
-    return Promise.all([...unique.entries()].map(async ([key, info]) => ({
-        key,
-        sender: info.sender,
-        name: info.name,
-        photo: getDisplaySenderPhoto(info.msg),
-        firstName: getDisplaySenderNames(info.msg).first,
-        lastName: getDisplaySenderNames(info.msg).last,
-        accentColorId: getDisplaySenderProfileAccentId(info.msg),
-        isDeleted: getDisplaySenderDeleted(info.msg),
-        canDeleteAll,
-        canDeleteReactions,
-        canBan: canBan && await canRestrictSender(chatId, info.sender),
-    })));
-}
-
-/**
- * 打开「删除消息」确认弹窗，并根据发送者集合执行删除 / 批量管理动作。
- * 单选消息与多选删除都走这里。
- */
-async function openDeletePopup(msgs: message[]) {
-    const cid = chatId.value;
-    if (cid === undefined || msgs.length === 0) return;
-
-    // 删除入口已保证可删；这里补齐精确属性用于判定「对所有人 / 仅自己」与举报
-    await Promise.all(msgs.map(m => getMessageProperties(cid, m.id)));
-    const propsList = msgs.map(m => getCachedMessageProperties(cid, m.id));
-    const canDeleteForAll = propsList.some(p => p?.can_be_deleted_for_all_users === true);
-
-    const senders = await collectDeleteSenders(msgs, cid);
-    const type = chat.value?.type;
-    const showDeleteForAll =
-        type?._ === 'chatTypePrivate' ||
-        type?._ === 'chatTypeSecret' ||
-        type?._ === 'chatTypeBasicGroup';
-    const canReportSpam =
-        senders.length > 0 && propsList.some(p => p?.can_report_supergroup_spam === true);
-
-    const req: DeleteMessageRequest = {
-        chatId: cid,
-        msgs,
-        senders,
-        showDeleteForAll,
-        canDeleteForAll,
-        canReportSpam,
-        supportsBan: getChatModeration().canBan,
-    };
-
-    try {
-        const result = await confirmDeleteMessage(req);
-        const supergroupId =
-            type?._ === 'chatTypeSupergroup' ? type.supergroup_id : undefined;
-        await executeDeleteActions(cid, msgs, senders, result, supergroupId);
-        if (selectionMode.value) exitSelectionMode();
-    } catch {
-        // 用户取消，忽略
-    }
-}
-
-/** 单条消息的删除弹窗（右键菜单入口） */
-async function openDeleteConfirm(msg: message) {
-    await openDeletePopup([msg]);
-}
 
 // ==================== 发送者 / 气泡样式（薄封装，逻辑见 composables） ====================
 
@@ -6762,6 +5124,20 @@ const getDisplaySenderPhoto = (msg: message): chatPhotoInfo | profilePhoto | und
 const getDisplaySenderDeleted = (msg: message): boolean =>
     computeDisplaySenderDeleted(msg);
 
+// ==================== 消息右键菜单 / 单条消息动作 ====================
+menuApi = useMessageContextMenu({
+    chat, chatId, myId, isInSavedMessages,
+    selectionMode, exitSelectionMode, supergroups, basicGroups, memberStatus,
+    startReply, startQuoteReply, startForward, enterSelectionMode,
+    startEdit, openReactionPicker, onMessagePinnedStateChanged,
+    getDisplaySenderName, getDisplaySenderPhoto, getDisplaySenderNames,
+    getDisplaySenderProfileAccentId, getDisplaySenderDeleted,
+});
+const {
+    makeMsgMenu, onAlbumMessageContextMenu,
+    openCommentsThread, isShowingTranslation, senderUserIdOf,
+} = menuApi;
+
 /**
  * 判断消息发送者是否可点击进入资料页。
  * 支持两类发送者：用户（messageSenderUser）与频道/群组身份（messageSenderChat）。
@@ -6885,92 +5261,6 @@ const topPaddingClass = computed(() => {
     if (translateBarVisible.value) px += showTopCard.value ? 36 : 44;
     return { paddingTop: `${px}px` };
 });
-
-// ==================== Sticky Date ====================
-/**
- * 根据 messageItems 推导的日期区块起点 + 滚动位置，更新吸顶日期。
- *
- * 不依赖「日期分隔是否已渲染」：
- * - 有日期分隔时用分隔节点；分隔尚未挂载时用该日第一条消息兜底；
- * - 首日通常没有分隔条，直接用第一条消息作为区块起点。
- * 起点 top 越过内容区顶缘后显示该日吸顶日期；起点仍可见时隐藏（由内联分隔展示日期）。
- */
-function updateStickyDate(el?: HTMLElement | null) {
-    const container = el ?? messagesContainer.value;
-    if (!container || !listRevealed.value) {
-        stickyDateText.value = null;
-        return;
-    }
-    const paddingTop = parseFloat(getComputedStyle(container).paddingTop) || 0;
-    const threshold = container.getBoundingClientRect().top + paddingTop;
-    const items = messageItems.value;
-
-    // 一次 querySelectorAll 建索引，替代逐条 querySelector（滚动时 O(n) DOM 查询是强制回流热点）
-    const stickyByKey = new Map<string, HTMLElement>();
-    const msgElById = new Map<number, HTMLElement>();
-    for (const node of container.querySelectorAll<HTMLElement>('[data-sticky-key], [data-msg-id]')) {
-        const key = node.dataset.stickyKey;
-        if (key) stickyByKey.set(key, node);
-        const id = node.dataset.msgId;
-        if (id) msgElById.set(Number(id), node);
-    }
-
-    type Section = { text: string; el: Element | null };
-    const sections: Section[] = [];
-    let currentDateText: string | null = null;
-    /** 日期分隔条已出现但 DOM 尚未挂载时，用该日第一条已渲染消息兜底起点 */
-    let pendingSectionText: string | null = null;
-
-    for (const item of items) {
-        if (item.type === 'date') {
-            currentDateText = item.text;
-            const sep = stickyByKey.get(item.key);
-            if (sep) {
-                sections.push({ text: item.text, el: sep });
-                pendingSectionText = null;
-            } else {
-                pendingSectionText = item.text;
-            }
-        } else if (item.type === 'single' || item.type === 'album') {
-            const msg = item.type === 'single' ? item.msg : item.messages[0];
-            const msgEl = msgElById.get(msg.id);
-            if (pendingSectionText) {
-                // 分隔未挂载：等该日第一条能定位到的消息出现再记区块
-                if (msgEl) {
-                    sections.push({ text: pendingSectionText, el: msgEl });
-                    pendingSectionText = null;
-                }
-            } else if (sections.length === 0) {
-                // 首日通常无分隔条：用第一条能定位到的消息作为区块起点
-                currentDateText = currentDateText ?? formatDateLabel(msg.date);
-                if (msgEl) {
-                    sections.push({ text: currentDateText, el: msgEl });
-                }
-            }
-        }
-    }
-
-    let active: string | null = null;
-    for (const s of sections) {
-        if (!s.el) continue;
-        if (s.el.getBoundingClientRect().top < threshold) {
-            active = s.text;
-        } else {
-            break;
-        }
-    }
-    stickyDateText.value = active;
-}
-
-/** 滚动路径上的吸顶日期更新：rAF 合帧，避免每帧 scroll 事件都做一次 DOM 测量 */
-let stickyDateRaf = 0;
-function scheduleUpdateStickyDate(el?: HTMLElement | null) {
-    if (stickyDateRaf) return;
-    stickyDateRaf = requestAnimationFrame(() => {
-        stickyDateRaf = 0;
-        updateStickyDate(el);
-    });
-}
 
 /**
  * 顶置消息跳转：复用统一的 jumpToMessage，
