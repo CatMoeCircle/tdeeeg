@@ -1,16 +1,17 @@
 <template>
     <!-- bare：并入顶部统一卡片时去掉自身圆角/底色，由外层卡片提供贴合样式 -->
+    <!-- 带内联键盘时放宽折叠态的高度上限：右侧按钮区不会被固定行高裁掉 -->
     <div v-if="pinnedMessages.length > 0 || currentPinned || player.showEntry"
         class="overflow-hidden transition-all duration-200"
         :class="[
             bare
                 ? ''
                 : 'rounded-xl bg-white/70 dark:bg-gray-800/70 backdrop-blur-md shadow-lg border border-gray-200/50 dark:border-gray-700/50',
-            expanded ? 'max-h-96' : hasPlayer ? 'max-h-32' : 'max-h-14'
+            expanded ? 'max-h-96' : hasPinnedButtons ? 'max-h-40' : hasPlayer ? 'max-h-32' : 'max-h-14'
         ]">
         <!-- 顶置消息部分 -->
         <template v-if="pinnedMessages.length > 0">
-            <!-- 单条顶置消息（折叠态） -->
+            <!-- 单条顶置消息（折叠态）：右侧为置顶消息自带的内联键盘，独立成区、不与正文挤在同一行文字里 -->
             <div v-if="!expanded && currentPinned" @click="cyclePinned"
                 class="flex items-center gap-2.5 px-4 py-1.5 cursor-pointer hover:bg-gray-100/60 dark:hover:bg-gray-700/60 transition-colors select-none group"
                 :class="hasPlayer ? 'rounded-none border-b border-gray-100/50 dark:border-gray-700/30' : (bare ? '' : 'rounded-xl')">
@@ -32,12 +33,25 @@
                     </div>
                     <!-- 预览只占一行：正文已在 collapsedPreview 里按字数截断并补省略号，
                          这里只做兜底的单行裁切（不依赖 CSS ellipsis，内联表情下它不可靠）。 -->
-                    <span v-if="showPreviewText" class="min-w-0 block truncate text-xs text-gray-700 dark:text-gray-300 leading-tight">
+                    <span v-if="showPreviewText"
+                        class="min-w-0 block truncate text-xs text-gray-700 dark:text-gray-300 leading-tight">
                         <FormattedTextInline :key="currentPinned.id" :formattedText="collapsedPreview"
                             :size="12" always-fetch />
                     </span>
-                    <span v-else class="min-w-0 block truncate text-xs text-gray-400 dark:text-gray-500 leading-tight">{{
-                        bracketTypePreview(messageContentTypeLabel(currentPinned.content._)) }}</span>
+                    <span v-else
+                        class="min-w-0 block truncate text-xs text-gray-400 dark:text-gray-500 leading-tight">{{
+                            bracketTypePreview(messageContentTypeLabel(currentPinned.content._)) }}</span>
+                </div>
+                <!-- 置顶消息自带的内联键盘：右侧独立区域，垂直居中；
+                     行内不换行，放不下时横向滚动，高度由整行内容撑开而不裁切 -->
+                <div v-if="hasPinnedButtons" @click.stop
+                    class="shrink-0 max-w-[60%] flex items-center gap-1 overflow-x-auto no-scrollbar">
+                    <button v-for="(button, bi) in pinnedButtons" :key="bi" type="button"
+                        :class="[PILL_CLASS, pillStyleClass(button)]"
+                        :disabled="pinnedButtonPending === bi || button.type._ === 'inlineKeyboardButtonTypeDisabled'"
+                        @click.stop="handlePinnedButtonClick(button, bi)">
+                        <span class="whitespace-nowrap">{{ pillLabel(button) }}</span>
+                    </button>
                 </div>
                 <!-- 展开按钮 -->
                 <button v-if="pinnedMessages.length > 1" @click.stop="expanded = !expanded"
@@ -101,9 +115,10 @@ const { t } = useI18n();
 import { ref, watch, computed } from 'vue';
 import { PinIcon, ChevronDownIcon, ChevronRightIcon, XIcon } from 'lucide-vue-next';
 import { tdlibSend } from '../../../utils/tdlib';
-import type { message, formattedText } from 'tdlib-types';
+import type { message, formattedText, inlineKeyboardButton } from 'tdlib-types';
 import MusicPlayerEntry from '../../audio/MusicPlayerEntry.vue';
 import FormattedTextInline from '../FormattedTextInline.vue';
+import { buttonStyleClass, runInlineButtonType } from '../../../utils/inlineButton';
 import {
     messageContentTypeLabel,
     bracketTypePreview,
@@ -179,6 +194,59 @@ const collapsedPreview = computed<formattedText>(() => {
 /** 预览是否有文字：纯媒体（语音、动图、视频消息等）没有可渲染文本时不走内联渲染 */
 const showPreviewText = computed(() => (collapsedPreview.value.text ?? '').trim().length > 0);
 
+/**
+ * 顶部栏空间有限：按钮文案里的 emoji 与自定义表情图标一律省略，
+ * 只保留纯文字（也是胶囊里显示的内容）。
+ */
+// 只剥离图形类 emoji 与组合符（变体选择符 / ZWJ / 键帽），不动数字等普通字符
+const EMOJI_RE = /\p{Extended_Pictographic}|\p{Emoji_Modifier}|[\uFE0F\uFE0E\u200D\u20E3]/gu;
+
+function pillLabel(button: inlineKeyboardButton): string {
+    return String(button.text ?? '').replace(EMOJI_RE, '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * 当前置顶消息的内联键盘按钮。
+ * 多行键盘拍平成一排胶囊（横向可滚动），点击行为与消息气泡里的键盘一致；
+ * 去掉 emoji 后文案为空的按钮（纯表情按钮）不展示。
+ */
+const pinnedButtons = computed<inlineKeyboardButton[]>(() => {
+    const markup = currentPinned.value?.reply_markup;
+    if (markup?._ !== 'replyMarkupInlineKeyboard') return [];
+    return markup.rows.flat().filter(b => pillLabel(b).length > 0);
+});
+
+const hasPinnedButtons = computed(() => pinnedButtons.value.length > 0);
+
+/** 回调按钮等待 bot 应答期间锁住对应胶囊，避免重复点击 */
+const pinnedButtonPending = ref<number | null>(null);
+
+const PILL_CLASS =
+    'shrink-0 inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium leading-none whitespace-nowrap transition-colors disabled:cursor-default disabled:opacity-50';
+
+/** 胶囊配色跟随按钮自身的 style 参数；链接样式原本只有文字色，这里补一层底色 */
+function pillStyleClass(button: inlineKeyboardButton): string {
+    const base = buttonStyleClass(button.style);
+    const fill = button.style?._ === 'buttonStyleLink'
+        ? 'border-transparent bg-gray-100/80 hover:bg-gray-200/80 dark:bg-white/10 dark:hover:bg-white/15'
+        : '';
+    return `${base} ${fill}`;
+}
+
+async function handlePinnedButtonClick(button: inlineKeyboardButton, index: number) {
+    if (pinnedButtonPending.value !== null) return;
+    if (button.type._ === 'inlineKeyboardButtonTypeDisabled') return;
+    if (button.type._ === 'inlineKeyboardButtonTypeCallback') pinnedButtonPending.value = index;
+    try {
+        await runInlineButtonType(button.type, {
+            chatId: props.chatId,
+            messageId: currentPinned.value?.id,
+        });
+    } finally {
+        pinnedButtonPending.value = null;
+    }
+}
+
 /** 获取最新的顶置消息 */
 async function fetchLatestPinned(chatIdNum: number) {
     try {
@@ -238,6 +306,7 @@ async function loadPinnedMessages(chatIdNum: number | undefined) {
     }
 
     pinnedMessages.value = list;
+    pinnedButtonPending.value = null;
     currentPinned.value = latest ?? (list.length > 0 ? list[list.length - 1] : null);
     if (pinnedMessages.value.length <= 1) expanded.value = false;
     // 上次点击的置顶消息已被取消置顶时，重置位置
@@ -403,6 +472,11 @@ watch(() => props.chatId, (newId) => {
 watch(() => props.refreshToken, () => {
     if (props.chatId === undefined) return;
     void loadPinnedMessages(props.chatId);
+});
+
+// 切换到另一条置顶（循环/展开列表点选）时释放上一枚按钮的回调锁
+watch(() => currentPinned.value?.id, () => {
+    pinnedButtonPending.value = null;
 });
 </script>
 

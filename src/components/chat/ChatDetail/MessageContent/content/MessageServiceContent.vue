@@ -69,7 +69,7 @@ import { computed, watch, ref, h, Text } from 'vue';
 import type { VNode } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useRouter } from 'vue-router';
-import type { chatPhoto, file, formattedText, MessageContent, message, photoSize, ReactionType } from 'tdlib-types';
+import type { chatPhoto, file, formattedText, MessageContent, message, messageSticker, photoSize, ReactionType } from 'tdlib-types';
 import { ensureLocalFilePath, tdlibSend } from '../../../../../utils/tdlib';
 import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
 import { ensureUser, getReactiveChat, getUserDisplayName } from '../../../../../utils/senderInfo';
@@ -86,6 +86,7 @@ import CommunityAvatar from '../../../../common/CommunityAvatar.vue';
 import CommunityDetailDialog from '../../../../common/CommunityDetailDialog.vue';
 import ReactionsBar from '../../ReactionsBar.vue';
 import MessageUnsupportedContent from './MessageUnsupportedContent.vue';
+import MessageStickerContent from './MessageStickerContent.vue';
 
 const props = defineProps<{
     content: MessageContent;
@@ -421,8 +422,8 @@ function memberRemovedText(userId: number): string {
     return unquoteName(t('lng_action_kick_user', { from: actor, user }), user);
 }
 
-/** 置顶服务消息（messagePinMessage）文案，异步解析被置顶消息类型后填充 */
-const pinText = ref('');
+/** 置顶服务消息（messagePinMessage）文案，异步解析被置顶消息类型后填充；数组形式用于内联贴纸/表情图 */
+const pinText = ref<string | ServicePart[] | null>('');
 
 /** 被置顶消息的媒体描述（对应 lng_action_pinned_media_* 键），无法归类返回 null */
 function pinnedMediaInfo(content: MessageContent): { key: string; params?: Record<string, string> } | null {
@@ -471,6 +472,43 @@ function pinnedTextPreview(text: string): string {
     return cutAt < oneLine.length ? `${oneLine.slice(0, cutAt)}…` : oneLine;
 }
 
+/** 置顶提示里内联贴纸的边长（与 12px 服务文案同一行显示） */
+const INLINE_STICKER_SIZE = 18;
+
+/**
+ * 被置顶文本的开头预览（保留实体）：自定义 emoji 只有带着 textEntityTypeCustomEmoji
+ * 才能内联渲染成表情图，直接取纯文本会退化成 emoji 字符。
+ * 截断按码点推进，控制空白逐字替换为空格（等长），实体偏移保持有效。
+ */
+function pinnedTextPreviewFormatted(ft: formattedText): formattedText {
+    let cutAt = 0;
+    let count = 0;
+    while (cutAt < ft.text.length && count < PINNED_TEXT_PREVIEW_LIMIT) {
+        const code = ft.text.charCodeAt(cutAt);
+        cutAt += code >= 0xd800 && code <= 0xdbff && cutAt + 1 < ft.text.length ? 2 : 1;
+        count++;
+    }
+    const truncated = cutAt < ft.text.length;
+    const text = ft.text.slice(0, cutAt).replace(/[\r\n\t]/g, ' ') + (truncated ? '…' : '');
+    const entities = (ft.entities ?? [])
+        .filter(e => e.offset < text.length)
+        .map(e => ({ ...e, length: Math.min(e.length, text.length - e.offset) }))
+        .filter(e => e.length > 0);
+    return { _: 'formattedText', text, entities };
+}
+
+/**
+ * 被置顶消息里的贴纸：普通贴纸直接用；动画表情自带的贴纸包成贴纸内容，
+ * 复用 MessageStickerContent 的下载 / TGS / WEBM 渲染（贴纸存在时才返回）。
+ */
+function pinnedStickerContent(content: MessageContent): messageSticker | null {
+    if (content._ === 'messageSticker') return content;
+    if (content._ === 'messageAnimatedEmoji' && content.animated_emoji.sticker) {
+        return { _: 'messageSticker', sticker: content.animated_emoji.sticker, is_premium: false };
+    }
+    return null;
+}
+
 /** 解析 messagePinMessage：按被置顶消息类型生成「{from} 置顶了 …」文案 */
 async function resolvePinText(messageId: number) {
     const from = sender.value;
@@ -509,7 +547,11 @@ async function resolvePinText(messageId: number) {
     // 文本消息 → 「{from} 置顶了 "{开头文字}"」；媒体消息 → 「{from} 置顶了 {媒体}」
     const c = pinned.content;
     if (c._ === 'messageText') {
-        pinText.value = t('lng_action_pinned_message', { from, text: pinnedTextPreview(c.text.text) });
+        // 保留实体：文本里的自定义 emoji 内联显示成表情图，而不是退化成 emoji 字符
+        pinText.value = [{
+            key: 'lng_action_pinned_message',
+            params: { from, text: pinnedTextPreviewFormatted(c.text) },
+        }];
         return;
     }
     // 清单：「{from} 置顶了 «清单标题»」，文本取清单标题（与文本消息一样做开头预览）
@@ -517,10 +559,17 @@ async function resolvePinText(messageId: number) {
         pinText.value = t('lng_action_pinned_message', { from, text: pinnedTextPreview(c.list.title.text) });
         return;
     }
-    // emoji 类内容（emoji、骰子、带 emoji 的贴纸）：与官方一致，直接显示其 emoji 作为文本
-    const emojiText = c._ === 'messageAnimatedEmoji' || c._ === 'messageDice'
-        ? c.emoji
-        : c._ === 'messageSticker' ? c.sticker.emoji : '';
+    // 贴纸 / 动画表情：内联显示贴纸图（而不是把贴纸的 emoji 字符当文案）
+    const stickerContent = pinnedStickerContent(c);
+    if (stickerContent) {
+        pinText.value = [{
+            key: 'lng_action_pinned_media',
+            params: { from, media: { inlineSticker: stickerContent } },
+        }];
+        return;
+    }
+    // 没有可渲染的贴纸资源时（骰子、贴纸尚未拉取到的动画表情）：退回 emoji 字符
+    const emojiText = c._ === 'messageAnimatedEmoji' || c._ === 'messageDice' ? c.emoji : '';
     if (emojiText) {
         pinText.value = t('lng_action_pinned_message', { from, text: emojiText });
         return;
@@ -563,8 +612,13 @@ function joinNames(names: string[], oneKey: string, lastKey: string): string {
     return acc;
 }
 
+/** 内联贴纸参数：置顶提示里直接渲染贴纸图，而不是贴纸对应的 emoji 字符 */
+interface InlineStickerParam {
+    inlineSticker: messageSticker;
+}
+
 /** i18n key 参数值：纯文本，或带自定义 emoji 的富文本（渲染时内联展示），或多段文案嵌套 */
-type ServiceParam = string | formattedText | ServiceParam[] | ServicePart;
+type ServiceParam = string | formattedText | ServiceParam[] | ServicePart | InlineStickerParam;
 
 /** 一条完整的服务消息文案：i18n key + 参数；icon 为可选的 tgico 图标类名，显示在文案最前（发送者名称之前） */
 type ServicePart = { key: string; params: Record<string, ServiceParam>; icon?: string };
@@ -810,6 +864,14 @@ function paramNodes(v: ServiceParam): VNode[] {
     if (typeof v === 'string') return [h(Text, null, v)];
     if (Array.isArray(v)) return v.flatMap(paramNodes);
     if ('key' in v) return partNodes(v);
+    // 置顶提示里的贴纸：与文案同一行内联渲染（tgs/webm/webp 由贴纸组件自己加载）
+    if ('inlineSticker' in v) {
+        return [h(MessageStickerContent, {
+            content: v.inlineSticker,
+            size: INLINE_STICKER_SIZE,
+            class: 'inline-block align-middle mx-0.5',
+        })];
+    }
     // formattedText → FormattedTextInline 内联渲染自定义 emoji，其余实体按纯文本展示
     return [h(FormattedTextInline, { formattedText: v, size: 16 })];
 }
