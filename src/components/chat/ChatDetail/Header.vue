@@ -99,9 +99,9 @@
                     :aria-label="t('lng_dlg_filter')">
                     <SearchIcon class="w-5 h-5" />
                 </button>
-                <button type="button"
+                <button type="button" @click="openMoreMenu"
                     class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-200/80 dark:hover:bg-white/20 hover:text-blue-500 active:scale-95 transition-[background-color,color,transform] duration-150"
-                    :aria-label="t('lng_profile_action_short_more')">
+                    :aria-label="t('lng_profile_action_short_more')" :title="t('lng_profile_action_short_more')">
                     <MoreHorizontalIcon class="w-5 h-5" />
                 </button>
             </div>
@@ -110,7 +110,10 @@
 </template>
 
 <script setup lang="ts">
-import { SearchIcon, MoreHorizontalIcon, ArrowLeftIcon, BookmarkIcon, PanelLeftIcon, PanelTopIcon, PanelBottomIcon } from 'lucide-vue-next';
+import {
+    SearchIcon, MoreHorizontalIcon, ArrowLeftIcon, BookmarkIcon, PanelLeftIcon, PanelTopIcon, PanelBottomIcon,
+    BellOffIcon, BellRingIcon, ZapIcon, EraserIcon, CircleQuestionMarkIcon, FlagIcon, BanIcon,
+} from 'lucide-vue-next';
 import { VerifiedFilledIcon } from 'tdesign-icons-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
@@ -128,6 +131,11 @@ import { getChatProfileAccentColorId, getChatUserNames, isDeletedChat, DELETED_A
 import PremiumStatusIcon from '../../common/PremiumStatusIcon.vue';
 import { updateActiveChatTitleBar, clearActiveChatTitleBar } from '../../../store/activeChatTitleBar';
 import { onTdlibUpdates } from '../../../store/tdlibBus';
+import { openContextMenu } from '../../../store/contextMenu';
+import { confirmReportMessage } from '../../../store/reportMessage';
+import { muteChat, unmuteChat } from '../../contextMenu/chatActions';
+import { toast } from '../../../utils/toast';
+import type { ContextMenuItem } from '../../contextMenu/types';
 
 const props = defineProps<{
     chat: chat | undefined;
@@ -192,6 +200,180 @@ const isForumChat = computed(() =>
 
 /** 秘密聊天：标题左侧显示锁图标（不改颜色） */
 const isSecretChat = computed(() => props.chat?.type?._ === 'chatTypeSecret');
+
+// ==================== 顶栏「更多」菜单 ====================
+
+/** 当前用户在群/频道里是否为创建者（群主） */
+const isChatCreator = computed(() =>
+    statusBasic.value?.status?._ === 'chatMemberStatusCreator'
+    || statusSuper.value?.status?._ === 'chatMemberStatusCreator'
+);
+
+/** 助推群组/频道：取自己一个空闲加成位交给 TDLib（无空闲位则提示） */
+async function boostChatById(chatId: number) {
+    try {
+        const slots = await tdlibSend({ _: 'getAvailableChatBoostSlots' });
+        const now = Math.floor(Date.now() / 1000);
+        const free = slots.slots.find((s) => s.currently_boosted_chat_id === 0 && s.cooldown_until_date <= now);
+        if (!free) {
+            toast.error(t('lng_boost_need_more'));
+            return;
+        }
+        await tdlibSend({ _: 'boostChat', chat_id: chatId, slot_ids: [free.slot_id] });
+    } catch (e: any) {
+        toast.error(e?.message || t('lng_sr_chat_failed'));
+    }
+}
+
+/**
+ * 清空历史记录：群主/频道主清空全员历史（revoke），私聊只清自己的。
+ * 保留对话本身（不从列表移除）。
+ */
+async function clearChatHistory(target: chat) {
+    const name = target.title || '';
+    const type = target.type;
+    const ask = type._ === 'chatTypeSupergroup' && type.is_channel
+        ? t('lng_sure_delete_channel_history', { channel: name })
+        : type._ === 'chatTypeSupergroup' || type._ === 'chatTypeBasicGroup'
+            ? t('lng_sure_delete_group_history', { group: name })
+            : t('lng_sure_delete_history', { contact: name });
+    if (!window.confirm(ask)) return;
+    try {
+        await tdlibSend({
+            _: 'deleteChatHistory',
+            chat_id: target.id,
+            remove_from_chat_list: false,
+            // 群主/频道主且 TDLib 允许时才为所有成员删除
+            revoke: isChatCreator.value && target.can_be_deleted_for_all_users,
+        });
+    } catch (e: any) {
+        toast.error(e?.message || t('lng_sr_chat_failed'));
+    }
+}
+
+/** bot 帮助：发送 /help */
+async function sendBotHelp(target: chat) {
+    try {
+        await tdlibSend({
+            _: 'sendMessage',
+            chat_id: target.id,
+            input_message_content: {
+                _: 'inputMessageText',
+                text: { _: 'formattedText', text: '/help', entities: [] },
+                clear_draft: false,
+            },
+        } as any);
+    } catch (e: any) {
+        toast.error(e?.message || t('lng_sr_chat_failed'));
+    }
+}
+
+/** 举报当前会话（原因由 ReportMessageConfirm 弹窗交互） */
+async function reportCurrentChat(target: chat) {
+    try {
+        await confirmReportMessage({ chatId: target.id });
+        toast.success(t('lng_report_thanks'));
+    } catch (e: any) {
+        if (e?.message !== 'canceled') {
+            console.error('reportChat failed:', e);
+            toast.error(e?.message || t('lng_sr_chat_failed'));
+        }
+    }
+}
+
+/** 删除并屏蔽 bot：拉黑后清空历史并从列表移除 */
+async function stopAndBlockBot(target: chat) {
+    if (target.type._ !== 'chatTypePrivate') return;
+    if (!window.confirm(t('lng_blocked_list_confirm_text', { name: target.title || '' }))) return;
+    try {
+        await tdlibSend({
+            _: 'setMessageSenderBlockList',
+            sender_id: { _: 'messageSenderUser', user_id: target.type.user_id },
+            block_list: { _: 'blockListMain' },
+        });
+        await tdlibSend({
+            _: 'deleteChatHistory',
+            chat_id: target.id,
+            remove_from_chat_list: true,
+            revoke: false,
+        });
+        toast.success(t('lng_new_contact_block_done', { user: target.title || '' }));
+        emit('back');
+    } catch (e: any) {
+        toast.error(e?.message || t('lng_sr_chat_failed'));
+    }
+}
+
+/** 顶栏「更多」：按会话类型拼装菜单（通知 / 助推 / 清空历史 / bot 操作） */
+function openMoreMenu(e: MouseEvent) {
+    const target = props.chat;
+    if (!target) return;
+    const type = target.type;
+    const muted = (target.notification_settings?.mute_for ?? 0) > 0;
+    const isGroupOrChannel = type._ === 'chatTypeBasicGroup' || type._ === 'chatTypeSupergroup';
+    const isBot = type._ === 'chatTypePrivate' && statusUser.value?.type?._ === 'userTypeBot';
+    const items: ContextMenuItem[] = [];
+
+    // 静音通知：静音中显示「取消静音」，否则「静音通知」
+    if (!isSavedMessages.value) {
+        items.push({
+            key: 'mute',
+            label: muted ? t('lng_context_unmute') : t('lng_context_mute'),
+            icon: muted ? BellRingIcon : BellOffIcon,
+            onClick: () => (muted ? unmuteChat(target.id) : muteChat(target.id)),
+        });
+    }
+
+    // 群/频道：助推（仅超级群支持 boostChat）
+    if (type._ === 'chatTypeSupergroup') {
+        items.push({
+            key: 'boost',
+            label: type.is_channel ? t('lng_boost_channel_button') : t('lng_boost_group_button'),
+            icon: ZapIcon,
+            onClick: () => { void boostChatById(target.id); },
+        });
+    }
+
+    // 清空历史：群主/频道主可清空全员历史；私聊清自己的聊天记录
+    if ((isGroupOrChannel && isChatCreator.value) || type._ === 'chatTypePrivate') {
+        items.push({
+            key: 'clear-history',
+            label: t('lng_profile_clear_history'),
+            icon: EraserIcon,
+            danger: true,
+            onClick: () => { void clearChatHistory(target); },
+        });
+    }
+
+    // bot：帮助 / 举报 / 删除并屏蔽
+    if (isBot) {
+        items.push({
+            key: 'bot-help',
+            label: t('lng_profile_bot_help'),
+            icon: CircleQuestionMarkIcon,
+            divider: true,
+            onClick: () => { void sendBotHelp(target); },
+        });
+        if (target.can_be_reported) {
+            items.push({
+                key: 'report',
+                label: t('lng_profile_report'),
+                icon: FlagIcon,
+                onClick: () => { void reportCurrentChat(target); },
+            });
+        }
+        items.push({
+            key: 'bot-block',
+            label: t('lng_profile_block_bot'),
+            icon: BanIcon,
+            danger: true,
+            onClick: () => { void stopAndBlockBot(target); },
+        });
+    }
+
+    if (items.length === 0) return;
+    openContextMenu(e.clientX, e.clientY, items, e.currentTarget as HTMLElement);
+}
 
 /** 头部头像的无头像背景色（私聊取用户 profile accent，群组取 chat profile accent） */
 const headerAccentColorId = computed(() => getChatProfileAccentColorId(props.chat));
