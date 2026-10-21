@@ -37,6 +37,12 @@
                     class="absolute inset-0 w-full h-full object-cover" />
                 <video v-if="item.mediaSrc && item.isGif" :src="item.mediaSrc" autoplay loop muted playsinline
                     class="absolute inset-0 w-full h-full object-cover" />
+                <!-- 加载指示器：与普通图片一致，主文件下载中且尚未出主图时显示 -->
+                <div v-if="tileLoader(item.msgId).show"
+                    class="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
+                    <LoaderIndicator :progress="tileLoader(item.msgId).progress > 0 && tileLoader(item.msgId).progress < 1 ? tileLoader(item.msgId).progress : undefined"
+                        size="32" color="#ffffff" />
+                </div>
                 <div v-if="!item.thumbSrc && !item.mediaSrc" class="absolute inset-0 flex items-center justify-center">
                     <svg v-if="item.isVideo" class="w-6 h-6 text-gray-400" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" stroke-width="1.5">
@@ -86,8 +92,9 @@ import { ref, computed, reactive, watch, onMounted } from 'vue';
 import { CheckIcon } from 'lucide-vue-next';
 import type { message, messageAudio, messageDocument } from 'tdlib-types';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { tdlibSend, isFileReady, downloadingFiles, safeDownloadFile } from '../../../../../utils/tdlib';
+import { tdlibSend, isFileReady, downloadingFiles, safeDownloadFile, isFileDownloading, reactivePendingDownloadFiles } from '../../../../../utils/tdlib';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
+import LoaderIndicator from '../../../../common/LoaderIndicator';
 import MessageStatus from './MessageStatus.vue';
 import MessageFileContent from './MessageFileContent.vue';
 import AlbumFooter from './AlbumFooter.vue';
@@ -147,6 +154,25 @@ function onFileContextMenu(e: MouseEvent, idx: number) {
     const msg = props.messages[idx];
     if (!msg) return;
     emit('messageContextMenu', msg, e.clientX, e.clientY);
+}
+
+/**
+ * 某块媒体的加载态（与 MessageMediaContent 的 photoShowLoader 同口径）：
+ * 主文件排队/下载中且尚未出主图 → 显示指示器；进度取下载 store。
+ */
+function tileLoader(msgId: number): { show: boolean; progress: number } {
+    const msg = props.messages.find((m) => m.id === msgId);
+    const c = msg?.content;
+    const f = c?._ === 'messagePhoto' ? pickBigPhotoSize(c.photo)
+        : c?._ === 'messageVideo' ? c.video.video
+            : c?._ === 'messageAnimation' ? c.animation.animation
+                : undefined;
+    if (!f || isFileReady(f)) return { show: false, progress: 0 };
+    const busy = isFileDownloading(f.id) || reactivePendingDownloadFiles.value.has(f.id);
+    if (!busy) return { show: false, progress: 0 };
+    const info = useDownloadStore().getDownloadInfoForFile(f);
+    const progress = typeof info?.progress === 'number' ? Math.min(1, Math.max(0, info.progress)) : 0;
+    return { show: true, progress };
 }
 
 /** 某块媒体是否被选中（仅多选模式） */
