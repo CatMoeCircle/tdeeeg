@@ -315,7 +315,7 @@ import { useUserProfileStore } from '../../store/userProfile';
 import { tdlibSend } from '../../utils/tdlib';
 import { ensureChat, getReactiveChat, getReactiveUser, ensureUser } from '../../utils/senderInfo';
 import { formatBusinessHoursPreview } from '../../utils/businessHours';
-import { parsePhoneNumberFromString } from 'libphonenumber-js';
+import { parsePhoneNumber } from 'awesome-phonenumber';
 import { useI18n } from 'vue-i18n';
 
 import type { user as TdUser, userFullInfo, chatPhoto, chat, birthdate } from 'tdlib-types';
@@ -332,8 +332,8 @@ const user = computed<TdUser | undefined>(() => userStore.userProfile);
 const myId = computed(() => user.value?.id ?? 0);
 
 // TDLib 返回的 phone_number 未必是带 + 号的标准 E.164 格式（可能是匿名号、本国号等），
-// 直接 parsePhoneNumberFromString 解析不出来会返回 undefined。因此优先使用
-// getPhoneNumberInfoSync 的权威本地化格式，parsePhoneNumberFromString 仅作为兜底。
+// 直接 parsePhoneNumber 解析不出来会返回 invalid。因此优先使用
+// getPhoneNumberInfoSync 的权威本地化格式，parsePhoneNumber 仅作为兜底。
 const formattedPhone = ref('');
 const phoneIsAnonymous = ref(false);
 async function loadPhoneDisplay() {
@@ -355,13 +355,13 @@ async function loadPhoneDisplay() {
         phoneIsAnonymous.value = !!info?.is_anonymous;
         return;
     } catch {
-        // 忽略，继续使用原始号码或 parsePhoneNumberFromString 结果
+        // 忽略，继续使用原始号码或 parsePhoneNumber 结果
     }
-    // 兜底：尝试用 parsePhoneNumberFromString 解析（仅对标准 E.164 有效）
+    // 兜底：尝试用 parsePhoneNumber 解析（仅对标准 E.164 有效）
     try {
-        const parsed = parsePhoneNumberFromString(raw);
-        if (parsed) {
-            formattedPhone.value = parsed.formatInternational();
+        const parsed = parsePhoneNumber(raw);
+        if (parsed.valid) {
+            formattedPhone.value = parsed.number.international;
         }
     } catch {
         // 忽略，保留原始号码

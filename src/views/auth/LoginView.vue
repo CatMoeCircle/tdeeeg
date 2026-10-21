@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted, ref, computed, watch, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import QRCodeStyling from "qr-code-styling";
-import { AsYouType, parsePhoneNumberFromString } from "libphonenumber-js";
+import { getAsYouType, parsePhoneNumber } from "awesome-phonenumber";
 import { useI18n } from 'vue-i18n';
 import { tdlibSend } from "../../utils/tdlib";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
@@ -110,8 +110,8 @@ function countryFilter(search: string, option: any): boolean {
 }
 
 /**
- * 用 libphonenumber-js（无参 AsYouType）对号码做格式化显示。
- * 无参 AsYouType 以 `+区号` 开头自动识别国家，删除时也稳定（不会把区号当作本地号码造成 `+86 86`）。
+ * 用 awesome-phonenumber（getAsYouType）对号码做格式化显示。
+ * 以 `+区号` 开头自动识别国家，删除时也稳定（不会把区号当作本地号码造成 `+86 86`）。
  * 若内容无任何数字，则直接清空（避免残留孤立的 `+`）。
  */
 function onPhoneInput() {
@@ -121,8 +121,8 @@ function onPhoneInput() {
         phoneNumber.value = "";
         return;
     }
-    const asYouType = new AsYouType();
-    phoneNumber.value = asYouType.input(withPlus);
+    // reset 会给未完成的区号补尾随空格（如 "+86 "），trimEnd 否则退格会被写回卡死
+    phoneNumber.value = getAsYouType("").reset(withPlus).trimEnd();
 }
 
 /** 国家选择器写进输入框的完整值：输入框 watcher 据此识别「本次变化来自选择器」，不回填覆盖用户选择 */
@@ -130,22 +130,22 @@ let countryDrivenPhone = "";
 
 // 输入框优先：当输入框中的区号变化时，让选择器跟随更新。
 watch(phoneNumber, (newVal) => {
-    // 选择器刚写入的值：国家是用户明确选的，不要再用 libphonenumber 的结果覆盖
-    // （+1 美/加、+7 俄/哈 等共享区号会被 libphonenumber 归到其中一个国家）
+    // 选择器刚写入的值：国家是用户明确选的，不要再用解析结果覆盖
+    // （+1 美/加、+7 俄/哈 等共享区号会被解析归到其中一个国家）
     if (newVal === countryDrivenPhone) return;
 
     const cleanNum = newVal.replace(/[^\d]/g, "");
     if (!cleanNum) return;
 
     let detected: string | null = null;
-    // 优先用 libphonenumber-js 精确识别国家：能区分 +1 共享区号的美加等国家
+    // 优先用 awesome-phonenumber 精确识别国家：能区分 +1 共享区号的美加等国家
     // （如 +1416... 是多伦多=CA，+1202... 是华盛顿=US），而 TDLib 的 calling_codes
     // 对共享区号只返回第一个匹配项，无法区分。
-    const parsed = parsePhoneNumberFromString('+' + cleanNum);
-    if (parsed?.country) {
-        detected = parsed.country;
+    const parsed = parsePhoneNumber('+' + cleanNum);
+    if (parsed.regionCode) {
+        detected = parsed.regionCode;
     } else {
-        // 号码过短（如 +1、+1416）时 libphonenumber 尚无法确定国家，回退用 Countries 匹配最长区号
+        // 号码过短/区号未知时 awesome-phonenumber 尚无法确定国家，回退用 Countries 匹配最长区号
         let best: string | null = null;
         let maxLen = 0;
         for (const c of Countries.value) {
@@ -176,15 +176,16 @@ watch(selectedCountry, (newVal, oldVal) => {
     const country = Countries.value.find((c) => c.country_code === newVal);
     if (!country || country.calling_codes.length === 0) return;
 
-    // 本地号码：优先让 libphonenumber 剥掉旧区号；号码过短/无法识别时退回按旧国家区号前缀裁剪
+    // 本地号码：优先让 awesome-phonenumber 剥掉旧区号；号码过短/无法识别时退回按旧国家区号前缀裁剪
     const digits = phoneNumber.value.replace(/[^\d]/g, "");
-    let national = parsePhoneNumberFromString("+" + digits)?.nationalNumber;
+    const parsed = parsePhoneNumber("+" + digits);
+    let national: string | undefined = parsed.valid ? parsed.number.significant : undefined;
     if (national === undefined) {
         const oldCountry = Countries.value.find((c) => c.country_code === oldVal);
         const oldCode = oldCountry?.calling_codes.find((code) => digits.startsWith(code)) ?? "";
         national = digits.slice(oldCode.length);
     }
-    countryDrivenPhone = new AsYouType().input("+" + country.calling_codes[0] + national);
+    countryDrivenPhone = getAsYouType("").reset("+" + country.calling_codes[0] + national).trimEnd();
     phoneNumber.value = countryDrivenPhone;
 });
 
