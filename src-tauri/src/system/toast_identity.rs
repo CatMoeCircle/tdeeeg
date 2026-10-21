@@ -143,9 +143,6 @@ pub fn show_system_notification(
         n.summary(&title);
         n.body(&body);
         n.appname(APP_DISPLAY_NAME);
-        // app_id 是 Linux（D-Bus）专属，macOS 的 notify-rust 没有这个 setter
-        #[cfg(target_os = "linux")]
-        n.app_id(APP_AUMID);
         n.show()
             .map(|_handle| ())
             .map_err(|e| format!("show notification failed: {e}"))
