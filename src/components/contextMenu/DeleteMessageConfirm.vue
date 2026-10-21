@@ -11,8 +11,8 @@
                         <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
                             <TrashIcon class="w-4 h-4 text-red-500" />
                             {{ t('deleteConfirm.deleteTitle') }}
-                            <span v-if="senderTotalCount > 0" class="font-normal text-xs text-gray-400 dark:text-gray-500">
-                                {{ t('deleteConfirm.totalCount', { count: senderTotalCount }) }}
+                            <span v-if="displayCount > 0" class="font-normal text-xs text-gray-400 dark:text-gray-500">
+                                {{ t('deleteConfirm.totalCount', { count: displayCount }) }}
                             </span>
                         </h3>
                         <button type="button"
@@ -175,6 +175,11 @@ const askText = computed(() => {
 /** 单个发送者时，查其在本对话中的消息总数用于标题计数 */
 const senderTotalCount = ref(0);
 
+/** 标题数量：勾选「删除全部消息」时为发送者全部消息数，否则为实际删除的选中消息数 */
+const displayCount = computed(() =>
+    senders.value.length === 1 && deleteAllSet.value.has(0) ? senderTotalCount.value : msgCount.value
+);
+
 const optRevoke = ref(false);
 
 // 逐人勾选集合（值为 senders 下标）
@@ -298,10 +303,11 @@ const hasAnyOption = computed(() => optionRows.value.some(r => r.show));
 watch(visible, async (v) => {
     if (!v) return;
     optRevoke.value = true;
-    reportSet.value = new Set(reportEligible.value);
-    deleteAllSet.value = new Set(deleteAllEligible.value);
-    reactionsSet.value = new Set(reactionsEligible.value);
-    banSet.value = new Set(banEligible.value);
+    // 默认只删除选中的消息：举报 / 删全部 / 删回应 / 封禁均不勾选
+    reportSet.value = new Set();
+    deleteAllSet.value = new Set();
+    reactionsSet.value = new Set();
+    banSet.value = new Set();
     expandReport.value = false;
     expandDeleteAll.value = false;
     expandReactions.value = false;
