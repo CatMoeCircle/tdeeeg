@@ -386,6 +386,7 @@
                 :dm-topic="dmHeaderTopic" :showBack="showBackBtn" @back="handleBack"
                 @openInfo="handleTopClick" @search="openSearch"
                 :show-topic-tag-toggle="showTopicPanel" :topic-tag-position="topicTagPosition"
+                :show-translate-entry="canReopenChatTranslateBar" @show-translate-bar="reopenChatTranslateBar"
                 @toggle-topic-tag-position="toggleTopicTagPosition" />
         </div>
 
@@ -4986,14 +4987,26 @@ const translateBarHidden = ref(false);
 /** 是否开启全部翻译 */
 const chatTranslateOn = computed(() => isChatTranslating(chatId.value));
 
-/** 全部翻译栏可见性（Premium+is_translatable / 自动翻译 / 非官方提供方 + padding 同步） */
+/** 全部翻译栏门槛（Premium+is_translatable / 自动翻译 / 非官方提供方） */
+function chatTranslateGateOpen(): boolean {
+    return canShowChatTranslateBar({
+        chat: chat.value,
+        isPremium: isMePremium.value,
+        hasAutomaticTranslation: hasAutomaticTranslation.value,
+    });
+}
+
+/** 全部翻译栏可见性（门槛 + 未被用户隐藏） */
 function chatTranslateBarVisible(): boolean {
-    return !translateBarHidden.value
-        && canShowChatTranslateBar({
-            chat: chat.value,
-            isPremium: isMePremium.value,
-            hasAutomaticTranslation: hasAutomaticTranslation.value,
-        });
+    return !translateBarHidden.value && chatTranslateGateOpen();
+}
+
+/** 翻译栏被用户隐藏、但本会话仍可显示 → 顶栏「更多」提供重新打开入口 */
+const canReopenChatTranslateBar = computed(() => translateBarHidden.value && chatTranslateGateOpen());
+
+/** 顶栏「更多」→「全部翻译」：恢复翻译栏 */
+function reopenChatTranslateBar() {
+    translateBarHidden.value = false;
 }
 
 /** 进入群组时的 Premium 提示（每个会话只弹一次） */

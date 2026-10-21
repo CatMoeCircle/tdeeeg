@@ -112,7 +112,7 @@
 <script setup lang="ts">
 import {
     SearchIcon, MoreHorizontalIcon, ArrowLeftIcon, BookmarkIcon, PanelLeftIcon, PanelTopIcon, PanelBottomIcon,
-    BellOffIcon, BellRingIcon, ZapIcon, EraserIcon, CircleQuestionMarkIcon, FlagIcon, BanIcon,
+    BellOffIcon, BellRingIcon, ZapIcon, EraserIcon, CircleQuestionMarkIcon, FlagIcon, BanIcon, LanguagesIcon,
 } from 'lucide-vue-next';
 import { VerifiedFilledIcon } from 'tdesign-icons-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
@@ -147,6 +147,8 @@ const props = defineProps<{
     showTopicTagToggle?: boolean;
     /** 当前话题标签栏位置 */
     topicTagPosition?: 'left' | 'top' | 'bottom';
+    /** 全部翻译栏被隐藏时，在「更多」中提供重新打开入口 */
+    showTranslateEntry?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -154,6 +156,7 @@ const emit = defineEmits<{
     openInfo: [];
     search: [];
     toggleTopicTagPosition: [];
+    showTranslateBar: [];
 }>();
 
 /** 位置切换按钮图标：左栏 / 顶部 / 底部 */
@@ -304,7 +307,7 @@ async function stopAndBlockBot(target: chat) {
     }
 }
 
-/** 顶栏「更多」：按会话类型拼装菜单（通知 / 助推 / 清空历史 / bot 操作） */
+/** 顶栏「更多」：按会话类型拼装菜单（全部翻译 / 通知 / 助推 / 清空历史 / bot 操作） */
 function openMoreMenu(e: MouseEvent) {
     const target = props.chat;
     if (!target) return;
@@ -313,6 +316,16 @@ function openMoreMenu(e: MouseEvent) {
     const isGroupOrChannel = type._ === 'chatTypeBasicGroup' || type._ === 'chatTypeSupergroup';
     const isBot = type._ === 'chatTypePrivate' && statusUser.value?.type?._ === 'userTypeBot';
     const items: ContextMenuItem[] = [];
+
+    // 全部翻译栏被隐藏：在这里重新打开（否则只能重新进入对话）
+    if (props.showTranslateEntry) {
+        items.push({
+            key: 'translate-bar',
+            label: t('translate.showBar'),
+            icon: LanguagesIcon,
+            onClick: () => emit('showTranslateBar'),
+        });
+    }
 
     // 静音通知：静音中显示「取消静音」，否则「静音通知」
     if (!isSavedMessages.value) {

@@ -1120,7 +1120,8 @@
     "premiumHint": "訂閱 Telegram Premium，就可以一次性翻譯聊天中的所有訊息。或者使用第三方提供方",
     "thirdPartyName": "第三方翻譯 API",
     "thirdPartyNotImplemented": "第三方翻譯介面尚未實作，請在設定中改用 Telegram 翻譯",
-    "aiName": "AI 翻譯"
+    "aiName": "AI 翻譯",
+    "showBar": "全部翻譯"
   },
   "aiSettings": {
     "title": "AI 設定",

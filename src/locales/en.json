@@ -1120,7 +1120,8 @@
     "premiumHint": "Subscribe to Telegram Premium to be able to translate all messages in a chat at once. Or use a third-party provider.",
     "thirdPartyName": "Third-party translation API",
     "thirdPartyNotImplemented": "Third-party translation is not implemented yet. Please switch to Telegram translation in Settings.",
-    "aiName": "AI translation"
+    "aiName": "AI translation",
+    "showBar": "Translate All"
   },
   "aiSettings": {
     "title": "AI Settings",
