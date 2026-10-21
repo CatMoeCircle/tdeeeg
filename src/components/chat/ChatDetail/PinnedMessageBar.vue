@@ -206,14 +206,15 @@ function pillLabel(button: inlineKeyboardButton): string {
 }
 
 /**
- * 当前置顶消息的内联键盘按钮。
- * 多行键盘拍平成一排胶囊（横向可滚动），点击行为与消息气泡里的键盘一致；
- * 去掉 emoji 后文案为空的按钮（纯表情按钮）不展示。
+ * 当前置顶消息的内联键盘按钮（顶栏最多只显示一个）。
+ * 只有「去掉 emoji 后仅剩一个可显示按钮」时才在顶栏出胶囊——多按钮键盘顶栏一律不显示按钮，
+ * 只保留消息预览，避免挤压正文；点击行为与消息气泡里的键盘一致。
  */
 const pinnedButtons = computed<inlineKeyboardButton[]>(() => {
     const markup = currentPinned.value?.reply_markup;
     if (markup?._ !== 'replyMarkupInlineKeyboard') return [];
-    return markup.rows.flat().filter(b => pillLabel(b).length > 0);
+    const buttons = markup.rows.flat().filter(b => pillLabel(b).length > 0);
+    return buttons.length === 1 ? buttons : [];
 });
 
 const hasPinnedButtons = computed(() => pinnedButtons.value.length > 0);
