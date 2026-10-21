@@ -187,7 +187,9 @@ jobs:
           set -euo pipefail
           printf '{"version":"%s","bundle":{"createUpdaterArtifacts":false}}' \
             "${{ needs.prep.outputs.version }}" > ci-version.json
-          bun run tauri build --bundles deb,appimage --config ci-version.json
+          # AppImage 走 quick-sharun，在 CI 的非交互 shell 里会挂在 "set: can't
+          # access tty; job control turned off"（上游脚本问题），先只出 deb。
+          bun run tauri build --bundles deb --config ci-version.json
           ls -lR src-tauri/target/release/bundle
 
       # 打包失败也保住已下载的 CEF（1GB，重下很贵）
@@ -202,9 +204,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tdeeeg-${{ needs.prep.outputs.version }}-linux-x86_64
-          path: |
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/appimage/*.AppImage
+          path: src-tauri/target/release/bundle/deb/*.deb
           if-no-files-found: error
           retention-days: 14
 
