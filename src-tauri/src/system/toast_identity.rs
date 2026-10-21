@@ -128,7 +128,8 @@ pub fn show_system_notification(
     image: Option<String>,
     silent: bool,
 ) -> Result<(), String> {
-    if is_windows() {
+    #[cfg(target_os = "windows")]
+    {
         // 便携目录可能被移动：发通知前再确一次注册（幂等，开销可忽略）
         let _ = ensure_toast_identity();
         return show_toast_windows(&title, &body, image.as_deref(), silent);
@@ -136,18 +137,18 @@ pub fn show_system_notification(
 
     #[cfg(not(target_os = "windows"))]
     {
+        // image / silent 只有 Windows 的 Toast 用得上，这里显式忽略
+        let _ = (image, silent);
         let mut n = notify_rust::Notification::new();
         n.summary(&title);
         n.body(&body);
         n.appname(APP_DISPLAY_NAME);
+        // app_id 是 Linux（D-Bus）专属，macOS 的 notify-rust 没有这个 setter
+        #[cfg(target_os = "linux")]
         n.app_id(APP_AUMID);
         n.show()
             .map(|_handle| ())
             .map_err(|e| format!("show notification failed: {e}"))
-    }
-    #[cfg(target_os = "windows")]
-    {
-        unreachable!()
     }
 }
 
