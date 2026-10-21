@@ -1,7 +1,7 @@
 //! AI 供应商：列表配置（名称 / 接口地址 / 协议 / 模型列表）、模型列表与翻译调用。
 //!
 //! - 供应商列表 → 应用配置目录 JSON（不含 API Key）
-//! - 每个供应商的 API Key → tauri-plugin-keyring-store（系统钥匙串），账号 `ai.provider.{id}.api_key`
+//! - 每个供应商的 API Key → 系统钥匙串（`ai::keyring`），账号 `ai.provider.{id}.api_key`
 //! - 翻译与模型列表走 llmsdk（OpenAI Responses / OpenAI Compatible / Anthropic）
 
 use std::path::PathBuf;
@@ -9,7 +9,8 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
-use tauri_plugin_keyring_store::KeyringExt;
+
+use super::keyring;
 
 const CONFIG_FILE: &str = "ai_providers.json";
 
@@ -124,12 +125,7 @@ fn write_all<R: tauri::Runtime>(app: &tauri::AppHandle<R>, config: &AiConfig) ->
 }
 
 pub(crate) fn saved_api_key<R: tauri::Runtime>(app: &tauri::AppHandle<R>, id: &str) -> Option<String> {
-    app.keyring()
-        .store
-        .get_password(&key_account(id))
-        .ok()
-        .flatten()
-        .filter(|k| !k.trim().is_empty())
+    keyring::get(app, &key_account(id)).filter(|k| !k.trim().is_empty())
 }
 
 fn with_key_flag<R: tauri::Runtime>(app: &tauri::AppHandle<R>, mut p: AiProvider) -> AiProvider {
@@ -142,12 +138,7 @@ fn with_key_flag<R: tauri::Runtime>(app: &tauri::AppHandle<R>, mut p: AiProvider
 const SEARCH_KEY_ACCOUNT: &str = "ai.search.api_key";
 
 pub(crate) fn saved_search_key<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Option<String> {
-    app.keyring()
-        .store
-        .get_password(SEARCH_KEY_ACCOUNT)
-        .ok()
-        .flatten()
-        .filter(|k| !k.trim().is_empty())
+    keyring::get(app, SEARCH_KEY_ACCOUNT).filter(|k| !k.trim().is_empty())
 }
 
 /// 搜索工具是否已保存专属 Key（设置页用来显示「已保存」）
@@ -161,12 +152,10 @@ pub fn has_ai_search_key(app: tauri::AppHandle) -> bool {
 pub fn save_ai_search_key(app: tauri::AppHandle, api_key: String) -> Result<bool, String> {
     let key = api_key.trim();
     if key.is_empty() {
-        app.keyring().store.delete(SEARCH_KEY_ACCOUNT).ok();
+        keyring::delete(&app, SEARCH_KEY_ACCOUNT);
         return Ok(false);
     }
-    app.keyring()
-        .store
-        .set_password(SEARCH_KEY_ACCOUNT, key)
+    keyring::set(&app, SEARCH_KEY_ACCOUNT, key)
         .map_err(|e| format!("保存搜索 API Key 到钥匙串失败: {e}"))?;
     Ok(true)
 }
@@ -201,9 +190,7 @@ pub fn save_ai_provider(
 ) -> Result<AiProvider, String> {
     let key = api_key.trim();
     if !key.is_empty() {
-        app.keyring()
-            .store
-            .set_password(&key_account(&provider.id), key)
+        keyring::set(&app, &key_account(&provider.id), key)
             .map_err(|e| format!("保存 API Key 到钥匙串失败: {e}"))?;
     }
     let mut config = load_all(&app);
@@ -225,7 +212,7 @@ pub fn delete_ai_provider(app: tauri::AppHandle, id: String) -> Result<(), Strin
     config.providers.retain(|p| p.id != id);
     write_all(&app, &config)?;
     // Key 不存在时 delete 也视为成功
-    app.keyring().store.delete(&key_account(&id)).ok();
+    keyring::delete(&app, &key_account(&id));
     Ok(())
 }
 
@@ -239,7 +226,7 @@ pub fn delete_ai_preset(app: tauri::AppHandle, id: String, name: String) -> Resu
         config.deleted_presets.push(name);
     }
     write_all(&app, &config)?;
-    app.keyring().store.delete(&key_account(&id)).ok();
+    keyring::delete(&app, &key_account(&id));
     Ok(())
 }
 

@@ -1,0 +1,4 @@
+# Shell / CI 脚本必须是 LF：CRLF 的 #! 行在 Linux/macOS 上无法执行
+*.sh        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf

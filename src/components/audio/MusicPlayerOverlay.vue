@@ -226,7 +226,7 @@ import {
     EyeIcon, FolderOpenIcon, DownloadIcon, BookmarkPlusIcon, Trash2Icon,
 } from 'lucide-vue-next';
 import { toast } from '../../utils/toast';
-import { revealItemInDir } from '@tauri-apps/plugin-opener';
+import { revealItemsInDir } from '@tauri-apps/plugin-opener';
 import { save } from '@tauri-apps/plugin-dialog';
 import { copyFile } from '@tauri-apps/plugin-fs';
 import { useAudioPlayerStore, type AudioTrack } from '../../store/audioPlayer';
@@ -299,9 +299,9 @@ function onTrackContextMenu(e: MouseEvent, track: AudioTrack, idx: number) {
             icon: FolderOpenIcon,
             onClick: async () => {
                 try {
-                    await revealItemInDir([localPath]);
+                    await revealItemsInDir([localPath]);
                 } catch (err) {
-                    console.error('revealItemInDir failed:', err);
+                    console.error('revealItemsInDir failed:', err);
                     toast.error(t('context.actionFailed'));
                 }
             },

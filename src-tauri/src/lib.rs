@@ -168,7 +168,17 @@ async fn read_clipboard_image(state: tauri::State<'_, tdlib::AppState>) -> Resul
 }
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    // Windows 走 wry（WebView2），Linux / macOS 走 CEF（Chromium）。
+    // 链接哪个 runtime crate 由 Cargo.toml 的 target 依赖决定，这里只把初始化参数交给 Builder。
+    let builder = tauri::Builder::default();
+    #[cfg(windows)]
+    let builder = builder.runtime(tauri_runtime_wry::Wry::default());
+    #[cfg(not(windows))]
+    let builder = builder.runtime(tauri_runtime_cef::Cef::default());
+
+    // 单实例 / 自动更新只在 Windows 版提供
+    #[cfg(windows)]
+    let builder = builder
         // 单实例插件必须最先注册
         .plugin(
             tauri_plugin_single_instance::Builder::new()
@@ -181,7 +191,9 @@ pub fn run() {
                 })
                 .build(),
         )
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_updater::Builder::new().build());
+
+    builder
         .register_asynchronous_uri_scheme_protocol("tdstream", |context, request, responder| {
             system::media_stream::respond(context.app_handle().clone(), request, responder);
         })
@@ -189,8 +201,6 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
-        // AI 翻译 API Key 存系统钥匙串（Rust 侧 app.keyring() 使用，无前端 IPC）
-        .plugin(tauri_plugin_keyring_store::init())
         // 不恢复 VISIBLE：插件默认会在 setup 阶段直接 show()，导致 TDLib
         // 授权态尚未确认时窗口就弹出。可见性始终由 tauri.conf.json
         // (visible:false) + 前端 bootstrap 完成后再 show() 控制。

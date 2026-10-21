@@ -15,22 +15,21 @@ name = "tdeeeg_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "3.0.0-alpha.4", features = [] }
 dotenv = "0.15"
 
 [dependencies]
-tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
-tauri-plugin-opener = "2"
-tauri-plugin-window-state = "2"
-tauri-plugin-dialog = "2"
-tauri-plugin-fs = "2"
+tauri = { version = "3.0.0-alpha.5", features = ["protocol-asset", "tray-icon"] }
+tauri-plugin-opener = "3.0.0-alpha.3"
+tauri-plugin-window-state = "3.0.0-alpha.2"
+tauri-plugin-dialog = "3.0.0-alpha.4"
+tauri-plugin-fs = "3.0.0-alpha.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rusqlite = { version = "0.32", features = ["bundled"] }
 futures-util = "0.3"
 libloading = "0.9.0"
 tokio = { version = "1.53.0", features = ["full"] }
-winreg = "0.56"
 arboard = "3"
 image = { version = "0.25", default-features = false, features = [
     "jpeg",
@@ -39,11 +38,12 @@ image = { version = "0.25", default-features = false, features = [
     "webp",
     "bmp",
 ] }
-tauri-plugin-notification = "2"
+tauri-plugin-notification = "3.0.0-alpha.3"
 notify-rust = "4"
 langdetect = { path = "langdetect" }
 llmsdk = { version = "0.1", features = ["openai", "anthropic", "utils"] }
-tauri-plugin-keyring-store = { version = "0.2", default-features = false }
+# 系统钥匙串：直接用 keyring-core + 平台原生后端（tauri-plugin-keyring-store 仅支持 Tauri 2）
+keyring-core = "1"
 # 与 llmsdk 用的 reqwest 同大版本（0.13）：LLM 请求要注入自定义 client（不设总超时，见 ai_translate::llm_http_client）
 reqwest = { version = "0.13", default-features = false, features = [
     "json",
@@ -51,8 +51,12 @@ reqwest = { version = "0.13", default-features = false, features = [
 ] }
 
 [target.'cfg(windows)'.dependencies]
-tauri-plugin-updater = "2.11.0"
-tauri-plugin-single-instance = "2"
+# Windows 继续走 wry（WebView2），其余平台走 CEF
+tauri-runtime-wry = "3.0.0-alpha.5"
+tauri-plugin-updater = "3.0.0-alpha.3"
+tauri-plugin-single-instance = "3.0.0-alpha.3"
+windows-native-keyring-store = "1"
+winreg = "0.56"
 tauri-winrt-notification = "0.7"
 windows = { version = "0.61", features = [
     "Media",
@@ -63,3 +67,13 @@ windows = { version = "0.61", features = [
     "Win32_System_WinRT",
     "Win32_UI_Shell",
 ] }
+
+# Linux / macOS：用 CEF（Chromium）运行时，CLI 依据该依赖决定是否打包 CEF
+[target.'cfg(not(windows))'.dependencies]
+tauri-runtime-cef = "3.0.0-alpha.5"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = "1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+dbus-secret-service-keyring-store = "1"

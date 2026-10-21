@@ -3,4 +3,5 @@
 pub mod ai_chat;
 pub mod ai_conversations;
 pub mod ai_translate;
+pub mod keyring;
 pub mod lang_detect;

@@ -33,14 +33,23 @@ fn tdjson_lib_name() -> &'static str {
     }
 }
 
-/// 候选的 TDLib 动态库搜索路径（可执行文件同级 + bin/ 子目录）。
+/// 候选的 TDLib 动态库搜索路径（可执行文件同级 + bin/ 子目录 + 打包后的资源目录）。
 fn tdjson_candidate_paths(exe_dir: &std::path::Path) -> Vec<std::path::PathBuf> {
     let name = tdjson_lib_name();
-    vec![
+    let mut paths = vec![
         exe_dir.join(name),
         exe_dir.join("bin").join(name),
         exe_dir.join("Resources").join(name),
-    ]
+    ];
+    // 打包布局：macOS 是 Contents/Resources/、Linux 是 /usr/lib/<product>/，
+    // 都由 setup 写进 TURI_RESOURCE_DIR；resources 配的是 "./bin/*"，
+    // 所以库里多一层 bin/。
+    if let Ok(resource) = std::env::var("TURI_RESOURCE_DIR") {
+        let dir = std::path::PathBuf::from(resource);
+        paths.push(dir.join("bin").join(name));
+        paths.push(dir.join(name));
+    }
+    paths
 }
 
 #[cfg(unix)]

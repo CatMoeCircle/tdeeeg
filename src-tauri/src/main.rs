@@ -1,6 +1,10 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+// Linux / macOS 走 CEF：Chromium 会用 `--type=xxx` 把同一个可执行文件重新拉起当作
+// renderer / GPU / utility 进程，入口必须先拦下这些调用。Windows 继续走 wry（WebView2），
+// 入口保持原样。
+#[cfg_attr(not(target_os = "windows"), tauri_runtime_cef::cef_entry_point)]
 fn main() {
     // 设置 WebView2 启动参数
     #[cfg(target_os = "windows")]

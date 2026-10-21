@@ -1,0 +1,312 @@
+name: Build desktop
+
+# 测试分支用：只把安装包上传成 Actions 产物，不创建/更新 Release。
+#
+# 运行时按平台分：
+#   Windows            → wry（WebView2），和现在一样
+#   Linux x86_64       → CEF（Chromium），tauri-runtime-cef
+#   macOS arm64        → CEF（Chromium），tauri-runtime-cef
+#
+# TDLib 全部走 actions/cache：
+#   Windows            沿用现有方式（vcpkg + cmake，缓存 td/build 与 td/tdlib）
+#   Linux / macOS      用 .github/scripts/build-tdlib-*.sh（cmake + 静态 openssl/zlib），
+#                      缓存构建结果 tdlib-out，缓存 key 带平台标识
+#
+# 版本号接受 v0.2.0-alpha.1 / v3.0.0-beta / v3.0.0-RC.1 这类（v 可省略）。
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号，例如 v0.2.0-alpha.1 / v3.0.0-beta / v3.0.0-RC.1"
+        required: true
+        type: string
+      tdlib_commit:
+        description: "TDLib commit（40 位 SHA，用作 TDLib 缓存 key）"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  prep:
+    name: Validate inputs
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      commit: ${{ steps.v.outputs.commit }}
+    steps:
+      - name: Check version / commit
+        id: v
+        env:
+          RAW_VERSION: ${{ inputs.version }}
+          RAW_COMMIT: ${{ inputs.tdlib_commit }}
+        run: |
+          set -euo pipefail
+          V="${RAW_VERSION//[[:space:]]/}"
+          C="${RAW_COMMIT//[[:space:]]/}"
+          V="${V#v}"
+          # SemVer 2.0：major.minor.patch 加可选的 -prerelease（beta / RC.1 / alpha.1 …）和 +build
+          if [[ ! "$V" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?(\+[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$ ]]; then
+            echo "error: 版本号 '$RAW_VERSION' 不是合法 SemVer（示例：v0.2.0-alpha.1 / v3.0.0-beta / v3.0.0-RC.1）" >&2
+            exit 1
+          fi
+          if [[ ! "$C" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "error: tdlib_commit 必须是 40 位 commit SHA" >&2
+            exit 1
+          fi
+          {
+            echo "version=$V"
+            echo "commit=$C"
+          } >> "$GITHUB_OUTPUT"
+          echo "version=$V commit=$C"
+
+  linux:
+    name: linux-x86_64 (cef)
+    needs: prep
+    runs-on: ubuntu-22.04
+    timeout-minutes: 150
+    env:
+      CEF_PATH: ${{ github.workspace }}/.tauri-cef
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install system dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            libgtk-4-dev librsvg2-dev libdbus-1-dev libnss3-dev \
+            libatk1.0-dev libatk-bridge2.0-dev libcups2-dev libexpat1-dev \
+            libx11-dev libxcomposite-dev libxdamage-dev libxext-dev libxfixes-dev \
+            libxrandr-dev libxrender-dev libxtst-dev libxkbcommon-dev libpango1.0-dev \
+            libasound2-dev libgbm-dev libglib2.0-dev pkg-config file
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      # CEF 二进制约 1GB：缓存下来，命中就不再下载
+      - name: Cache CEF distribution
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CEF_PATH }}
+          key: cef-linux-x86_64-v1
+
+      - name: Cache TDLib (linux-x86_64)
+        id: cache_tdlib
+        uses: actions/cache@v4
+        with:
+          path: tdlib-out
+          key: tdlib-${{ needs.prep.outputs.commit }}-linux-x86_64
+
+      - name: Checkout TDLib source
+        if: steps.cache_tdlib.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          rm -rf td-src
+          git clone --filter=blob:none https://github.com/tdlib/td.git td-src
+          git -C td-src fetch --depth 1 origin "${{ needs.prep.outputs.commit }}"
+          git -C td-src checkout --detach "${{ needs.prep.outputs.commit }}"
+
+      - name: Build TDLib (cache miss)
+        if: steps.cache_tdlib.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          bash .github/scripts/build-tdlib-linux.sh \
+            "$GITHUB_WORKSPACE/td-src" \
+            "$GITHUB_WORKSPACE/tdlib-out" \
+            x86_64
+
+      - name: Stage TDLib into src-tauri/bin
+        run: |
+          set -euo pipefail
+          mkdir -p src-tauri/bin
+          cp tdlib-out/tdjson/libtdjson.so src-tauri/bin/libtdjson.so
+          ls -l src-tauri/bin
+
+      - name: Build bundles
+        env:
+          TG_API_ID: ${{ secrets.TG_API_ID }}
+          TG_API_HASH: ${{ secrets.TG_API_HASH }}
+        run: |
+          set -euo pipefail
+          printf '{"version":"%s","bundle":{"createUpdaterArtifacts":false}}' \
+            "${{ needs.prep.outputs.version }}" > ci-version.json
+          bun run tauri build --bundles deb,appimage --config ci-version.json
+          ls -lR src-tauri/target/release/bundle
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tdeeeg-${{ needs.prep.outputs.version }}-linux-x86_64
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
+          retention-days: 14
+
+  macos:
+    name: macos-arm64 (cef)
+    needs: prep
+    runs-on: macos-14
+    timeout-minutes: 150
+    env:
+      CEF_PATH: ${{ github.workspace }}/.tauri-cef
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      # CEF 二进制约 1GB：缓存下来，命中就不再下载
+      - name: Cache CEF distribution
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CEF_PATH }}
+          key: cef-macos-arm64-v1
+
+      - name: Cache TDLib (macos-arm64)
+        id: cache_tdlib
+        uses: actions/cache@v4
+        with:
+          path: tdlib-out
+          key: tdlib-${{ needs.prep.outputs.commit }}-macos-arm64
+
+      - name: Checkout TDLib source
+        if: steps.cache_tdlib.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          rm -rf td-src
+          git clone --filter=blob:none https://github.com/tdlib/td.git td-src
+          git -C td-src fetch --depth 1 origin "${{ needs.prep.outputs.commit }}"
+          git -C td-src checkout --detach "${{ needs.prep.outputs.commit }}"
+
+      - name: Build TDLib (cache miss)
+        if: steps.cache_tdlib.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          bash .github/scripts/build-tdlib-macos.sh \
+            "$GITHUB_WORKSPACE/td-src" \
+            "$GITHUB_WORKSPACE/tdlib-out" \
+            arm64
+
+      - name: Stage TDLib into src-tauri/bin
+        run: |
+          set -euo pipefail
+          mkdir -p src-tauri/bin
+          cp tdlib-out/tdjson/libtdjson.dylib src-tauri/bin/libtdjson.dylib
+          ls -l src-tauri/bin
+
+      - name: Build bundles
+        env:
+          TG_API_ID: ${{ secrets.TG_API_ID }}
+          TG_API_HASH: ${{ secrets.TG_API_HASH }}
+        run: |
+          set -euo pipefail
+          printf '{"version":"%s","bundle":{"createUpdaterArtifacts":false}}' \
+            "${{ needs.prep.outputs.version }}" > ci-version.json
+          bun run tauri build --bundles dmg --config ci-version.json
+          ls -lR src-tauri/target/release/bundle
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tdeeeg-${{ needs.prep.outputs.version }}-macos-arm64
+          path: src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+          retention-days: 14
+
+  windows:
+    name: windows-x86_64 (wry)
+    needs: prep
+    runs-on: windows-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Checkout TDLib source
+        run: |
+          git clone https://github.com/tdlib/td.git
+          cd td
+          git checkout ${{ needs.prep.outputs.commit }}
+        shell: pwsh
+
+      # 现有方式：缓存 cmake 构建目录与安装目录
+      - name: Cache TDLib (windows-x86_64)
+        id: cache_tdlib
+        uses: actions/cache@v4
+        with:
+          path: |
+            td/build
+            td/tdlib
+          key: tdlib-${{ needs.prep.outputs.commit }}-${{ runner.os }}-${{ runner.arch }}
+          restore-keys: |
+            tdlib-${{ needs.prep.outputs.commit }}-${{ runner.os }}-
+
+      - name: Setup vcpkg (cache miss)
+        if: steps.cache_tdlib.outputs.cache-hit != 'true'
+        run: |
+          cd td
+          git clone https://github.com/Microsoft/vcpkg.git
+          cd vcpkg
+          ./bootstrap-vcpkg.bat
+          ./vcpkg.exe install gperf:x64-windows-static openssl:x64-windows-static zlib:x64-windows-static
+        shell: pwsh
+
+      - name: Build TDLib shared library (cache miss)
+        if: steps.cache_tdlib.outputs.cache-hit != 'true'
+        run: |
+          cd td
+          Remove-Item build -Force -Recurse -ErrorAction SilentlyContinue
+          mkdir build
+          cd build
+          cmake -A x64 `
+            -DCMAKE_INSTALL_PREFIX:PATH=../tdlib `
+            -DCMAKE_TOOLCHAIN_FILE:FILEPATH=../vcpkg/scripts/buildsystems/vcpkg.cmake `
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static `
+            -DTD_ENABLE_OPENSSL_STATIC=ON `
+            -DTD_ENABLE_ZLIB_STATIC=ON `
+            -DBUILD_SHARED_LIBS=ON `
+            ..
+          cmake --build . --target install --config Release
+        shell: pwsh
+
+      - name: Stage TDLib into src-tauri/bin
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri/bin | Out-Null
+          Copy-Item td/tdlib/bin/*.dll src-tauri/bin/ -Force
+          if (-not (Test-Path src-tauri/bin/tdjson.dll)) {
+            Write-Host "tdjson.dll NOT found!" -ForegroundColor Red
+            exit 1
+          }
+        shell: pwsh
+
+      - name: Build bundles
+        env:
+          TG_API_ID: ${{ secrets.TG_API_ID }}
+          TG_API_HASH: ${{ secrets.TG_API_HASH }}
+        run: |
+          $v = "${{ needs.prep.outputs.version }}"
+          Set-Content -Path ci-version.json -NoNewline -Value ('{"version":"' + $v + '","bundle":{"createUpdaterArtifacts":false}}')
+          bun run tauri build --bundles nsis --config ci-version.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem src-tauri/target/release/bundle/nsis -ErrorAction SilentlyContinue | Format-Table Name, Length
+        shell: pwsh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tdeeeg-${{ needs.prep.outputs.version }}-windows-x86_64
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 14

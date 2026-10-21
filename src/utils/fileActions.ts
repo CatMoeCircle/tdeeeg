@@ -6,7 +6,7 @@
  */
 import { save } from '@tauri-apps/plugin-dialog';
 import { copyFile } from '@tauri-apps/plugin-fs';
-import { revealItemInDir } from '@tauri-apps/plugin-opener';
+import { revealItemsInDir } from '@tauri-apps/plugin-opener';
 import type { file as TdFile } from 'tdlib-types';
 import { DownloadIcon, FolderOpenIcon } from 'lucide-vue-next';
 import { toast } from './toast';
@@ -43,9 +43,9 @@ export async function saveFileAs(file: TdFile, fileName: string): Promise<void> 
 export async function revealFileInDir(path: string): Promise<void> {
     if (!path) return;
     try {
-        await revealItemInDir([path]);
+        await revealItemsInDir([path]);
     } catch (e) {
-        console.error('revealItemInDir failed:', e);
+        console.error('revealItemsInDir failed:', e);
         toast.error(i18n.global.t('chat.revealFailed'));
     }
 }

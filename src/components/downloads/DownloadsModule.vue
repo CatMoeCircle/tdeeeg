@@ -233,7 +233,7 @@ import { useUploadStore } from "../../store/upload";
 import DownloadRow from "./DownloadRow.vue";
 import { openContextMenu } from "../../store/contextMenu";
 import type { ContextMenuItem } from "../../components/contextMenu/types";
-import { revealItemInDir, openPath } from "@tauri-apps/plugin-opener";
+import { revealItemsInDir, openPath } from "@tauri-apps/plugin-opener";
 import {
     MessageCircleIcon, FolderOpenIcon, TrashIcon, PauseIcon, PlayIcon, FileIcon, ImageIcon, MusicIcon,
     UploadCloudIcon, StickerIcon, UserIcon,
@@ -427,9 +427,9 @@ async function revealFile(item: DownloadItem) {
     const localPath = item.local_path;
     if (!localPath) return;
     try {
-        await revealItemInDir([localPath]);
+        await revealItemsInDir([localPath]);
     } catch (e) {
-        console.error("revealItemInDir failed:", e);
+        console.error("revealItemsInDir failed:", e);
     }
 }
 
