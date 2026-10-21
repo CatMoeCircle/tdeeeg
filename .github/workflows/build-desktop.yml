@@ -65,7 +65,8 @@ jobs:
   linux:
     name: linux-x86_64 (cef)
     needs: prep
-    runs-on: ubuntu-22.04
+    # gdk4-sys 要求 GTK >= 4.14（22.04 只有 4.6），CEF/GTK4 运行时必须用 24.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 150
     env:
       CEF_PATH: ${{ github.workspace }}/.tauri-cef

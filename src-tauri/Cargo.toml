@@ -73,7 +73,7 @@ windows = { version = "0.61", features = [
 tauri-runtime-cef = "3.0.0-alpha.5"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-apple-native-keyring-store = "1"
+apple-native-keyring-store = { version = "1", features = ["keychain"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-dbus-secret-service-keyring-store = "1"
+dbus-secret-service-keyring-store = { version = "1", default-features = false, features = ["crypto-rust"] }
