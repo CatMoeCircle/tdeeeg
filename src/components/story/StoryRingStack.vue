@@ -1,54 +1,44 @@
 <template>
-    <span v-if="ids.length" class="flex items-center -space-x-1.5 shrink-0">
-        <StoryRing v-for="id in ids" :key="id" :chat-id="id" :size="22" :diameter="22" class="shrink-0" no-drag>
-            <Avatar v-if="chatOf(id)" :photo="chatOf(id)!.photo" :title="chatOf(id)!.title"
-                :first-name="getChatUserNames(chatOf(id)).first" :last-name="getChatUserNames(chatOf(id)).last"
-                :accentColorId="accentOf(id)" />
-        </StoryRing>
+    <span v-if="ids.length" class="flex items-center shrink-0">
+        <span class="flex items-center -space-x-1.5 shrink-0">
+            <StoryRingItem v-for="id in ids" :key="id" :chat-id="id" :size="22" no-drag />
+        </span>
+        <!-- 超过 3 个时右边出现箭头：展开/收起对话列表搜索栏上方的「更多动态」 -->
+        <button v-if="overflowIds.length" type="button" data-tauri-drag-region-exclude
+            class="ml-1 w-5 h-5 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-white/70 dark:hover:bg-gray-700/70 transition-colors"
+            :title="storiesExpanded ? t('story.collapseMore') : t('story.expandMore')"
+            :aria-expanded="storiesExpanded" :aria-label="storiesExpanded ? t('story.collapseMore') : t('story.expandMore')"
+            @click.stop="toggleExpanded">
+            <ChevronDownIcon class="w-3.5 h-3.5 transition-transform duration-200"
+                :class="storiesExpanded ? 'rotate-180' : ''" />
+        </button>
     </span>
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from "vue";
-import StoryRing from "./StoryRing.vue";
-import Avatar from "../chat/avatar.vue";
-import { getChatStoryState, getActiveStoryChatIds, getResolvedSelfChatId } from "../../store/storyRing";
+import { computed } from "vue";
+import { useI18n } from "vue-i18n";
+import { ChevronDown as ChevronDownIcon } from "lucide-vue-next";
+import StoryRingItem from "./StoryRingItem.vue";
 import {
-    ensureChat,
-    getReactiveChat,
-    getChatAccentColorId,
-    getChatUserNames,
-    ensureChatAccentLoaded,
-} from "../../utils/senderInfo";
+    MAX_STORY_RINGS,
+    getOrderedStoryChatIds,
+    getOverflowStoryChatIds,
+    storiesExpanded,
+} from "../../store/storyRing";
 
 /**
  * 标题栏右侧的动态头像叠加（最多 3 个），像回应/评论那样叠放，
  * 每个头像自带动态渐变描边（看过后变灰）。点击直接播放对应对话的动态。
+ * 超过 3 个时出现右侧箭头，把剩下的动态展开到对话列表搜索栏上方。
  */
 
-/** 最多展示 3 个，与回应/评论叠加保持一致 */
-const MAX = 3;
+const { t } = useI18n();
 
-const ids = computed(() => {
-    const self = getResolvedSelfChatId();
-    // 含已看完的动态（看完只变灰、不摘除），自己的动态固定排最前
-    const list = getActiveStoryChatIds().filter((id) => id !== self);
-    if (self && getChatStoryState(self)) list.unshift(self);
-    return list.slice(0, MAX);
-});
+const ids = computed(() => getOrderedStoryChatIds().slice(0, MAX_STORY_RINGS));
+const overflowIds = computed(() => getOverflowStoryChatIds());
 
-const chatOf = (id: number) => getReactiveChat(id);
-
-const accentOf = (id: number) => getChatAccentColorId(chatOf(id));
-
-// 头像需要 chat 数据（photo/title）与 accent 色，进入列表时预取
-watch(
-    ids,
-    (list) => {
-        for (const id of list) {
-            void ensureChat(id).then(() => ensureChatAccentLoaded(getReactiveChat(id)));
-        }
-    },
-    { immediate: true },
-);
+function toggleExpanded() {
+    storiesExpanded.value = !storiesExpanded.value;
+}
 </script>

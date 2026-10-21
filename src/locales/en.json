@@ -1434,7 +1434,9 @@
     "deleted": "Story deleted",
     "shareHint": "You can forward this story link in a chat",
     "noPublicUsername": "This account has no public username",
-    "linkUnavailable": "Couldn't get a link to this story"
+    "linkUnavailable": "Couldn't get a link to this story",
+    "expandMore": "Show more stories",
+    "collapseMore": "Collapse stories"
   },
   "mediaViewer": {
     "offlineClickDownload": "Network unavailable, click to download the video",

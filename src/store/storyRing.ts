@@ -158,6 +158,25 @@ export function hasAnyStories(): boolean {
   return byChat.size > 0;
 }
 
+/** 标题栏最多叠加显示几个动态；超出部分折叠到「更多动态」展开条 */
+export const MAX_STORY_RINGS = 3;
+
+/** 「更多动态」是否展开（标题栏箭头 ↔ 对话列表搜索栏上方的展开条共用） */
+export const storiesExpanded = ref(false);
+
+/** 动态排序：自己的动态固定最前，其余按 chatActiveStories.order 倒序 */
+export function getOrderedStoryChatIds(): number[] {
+  const self = getResolvedSelfChatId();
+  const list = getActiveStoryChatIds().filter((id) => id !== self);
+  if (self && getChatStoryState(self)) list.unshift(self);
+  return list;
+}
+
+/** 前 MAX_STORY_RINGS 个之外、需要展开显示的动态 */
+export function getOverflowStoryChatIds(): number[] {
+  return getOrderedStoryChatIds().slice(MAX_STORY_RINGS);
+}
+
 /** 逐条查看动态后本地即时标记（服务端 update 到达前的反馈） */
 export function markStoriesRead(chatId: number, storyIds: number[]) {
   const e = byChat.get(chatId);

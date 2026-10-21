@@ -1434,7 +1434,9 @@
     "deleted": "已刪除動態",
     "shareHint": "可在聊天中轉發該動態連結",
     "noPublicUsername": "該帳號沒有公開用戶名",
-    "linkUnavailable": "無法取得該動態的連結"
+    "linkUnavailable": "無法取得該動態的連結",
+    "expandMore": "顯示更多動態",
+    "collapseMore": "收起動態"
   },
   "mediaViewer": {
     "offlineClickDownload": "網路不可用，點擊下載影片",
