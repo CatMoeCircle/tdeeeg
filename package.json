@@ -26,7 +26,7 @@
     "awesome-phonenumber": "^7.8.0",
     "katex": "^0.18.1",
     "motion-v": "^2.7.0",
-    "tlottie": "^0.1.22",
+    "tlottie": "^0.3.0",
     "unplugin-auto-import": "^20.3.0",
     "unplugin-vue-components": "^32.1.0",
     "vue": "^3.5.13",

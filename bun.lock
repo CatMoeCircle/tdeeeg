@@ -16,7 +16,7 @@
         "awesome-phonenumber": "^7.8.0",
         "katex": "^0.18.1",
         "motion-v": "^2.7.0",
-        "tlottie": "^0.1.22",
+        "tlottie": "^0.3.0",
         "unplugin-auto-import": "^20.3.0",
         "unplugin-vue-components": "^32.1.0",
         "vue": "^3.5.13",
@@ -655,7 +655,7 @@
 
     "tinyglobby": ["tinyglobby@0.2.17", "", { "dependencies": { "fdir": "^6.5.0", "picomatch": "^4.0.4" } }, "sha512-wXR/dYpcqKmfWpEdZjiKJOwCNFndD0DMnrW/cYjVGttEkBfVgcLFHoNrlj47mjOVic9yyNu65alsgF4NQyTa2g=="],
 
-    "tlottie": ["tlottie@0.1.22", "", { "dependencies": { "@neplex/vectorizer": "^0.1.0" }, "peerDependencies": { "react": "^18 || ^19", "react-dom": "^18 || ^19", "solid-js": "^1", "svelte": "^4 || ^5", "vue": "^3" }, "optionalPeers": ["react", "react-dom", "solid-js", "svelte", "vue"], "bin": { "tlottie-outline": "dist/bin/lottie-to-outline.js" } }, "sha512-KAPZrod6CJb68r3mSDcg3tYXgSmhyvqpouQDVbLdZYk3sCrsZ8SkEd8G0TuqPwuS+tAL5QjORNv3PaSaMX4oAw=="],
+    "tlottie": ["tlottie@0.3.0", "", { "dependencies": { "@neplex/vectorizer": "^0.1.0" }, "peerDependencies": { "react": "^18 || ^19", "react-dom": "^18 || ^19", "solid-js": "^1", "svelte": "^5", "vue": "^3" }, "optionalPeers": ["react", "react-dom", "solid-js", "svelte", "vue"], "bin": { "tlottie-outline": "dist/bin/lottie-to-outline.js" } }, "sha512-9GsBsqzn7AePq4izXYIiH/0i6/xjwZE9nRSzO+JvRDhwmzvWsKhaJpgmEucJ+Xfe+jQF+IxUI0TU7sl4krVw2A=="],
 
     "to-regex-range": ["to-regex-range@5.0.1", "", { "dependencies": { "is-number": "^7.0.0" } }, "sha512-65P7iz6X5yEr1cwcgvQxbbIw7Uk3gOy5dIdtZ4rDveLqhrdJP+Li/Hx6tyK0NEb+2GCyneCMJiGqrADCSNk8sQ=="],
 
