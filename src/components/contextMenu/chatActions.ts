@@ -51,6 +51,11 @@ export function canLeaveChat(chat: Chat): boolean {
     );
 }
 
+/** 对话是否为频道（超级群且 is_channel） */
+export function isChannelChat(chat: Chat): boolean {
+    return chat.type?._ === 'chatTypeSupergroup' && chat.type.is_channel === true;
+}
+
 /** 切换对话到某个列表（归档 / 主列表） */
 export async function moveChatToList(chatId: number, chatList: { _: string }, successMsg?: string) {
     try {

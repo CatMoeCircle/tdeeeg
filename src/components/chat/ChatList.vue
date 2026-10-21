@@ -458,6 +458,7 @@
 
         <!-- 新建群组 / 频道 -->
         <NewChatDialog v-model="newChatVisible" :mode="newChatMode" />
+        <DeleteChatConfirm v-if="chatExitTarget" :chat="chatExitTarget" @close="chatExitTarget = null" />
     </div>
 </template>
 
@@ -493,8 +494,8 @@ import type { ContextMenuItem } from '../contextMenu/types';
 import { toast } from '../../utils/toast';
 import {
     isChatArchived, isChatPinned as chatIsPinned, isChatMuted as chatIsMuted,
-    canLeaveChat, archiveChat, unarchiveChat, toggleChatPinned, muteChat, unmuteChat,
-    leaveChat, isChatInFolder, toggleChatInFolder,
+    canLeaveChat, isChannelChat, archiveChat, unarchiveChat, toggleChatPinned, muteChat, unmuteChat,
+    isChatInFolder, toggleChatInFolder,
 } from '../contextMenu/chatActions';
 import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
 import { chatPaneVisible } from '../../store/chatPane';
@@ -508,6 +509,7 @@ import CustomEmojiInline from '../common/CustomEmojiInline.vue';
 import SlidingTabBar from '../common/SlidingTabBar.vue';
 import ChatSearchPanel from './ChatSearchPanel.vue';
 import NewChatDialog from './NewChatDialog.vue';
+import DeleteChatConfirm from './DeleteChatConfirm.vue';
 import { openContextMenu } from '../../store/contextMenu';
 import {
     messageContentTypeLabel,
@@ -1321,6 +1323,8 @@ const senderName = (chat: Chat) => getSenderName(chat.last_message?.sender_id);
 const senderMiniAvatar = (chat: Chat) => getSenderPhoto(chat.last_message?.sender_id);
 
 // ==================== 对话右键菜单 ====================
+const chatExitTarget = ref<Chat | null>(null);
+
 const buildChatContextMenu = (chat: Chat, listKey: string): ContextMenuItem[] => {
     const items: ContextMenuItem[] = [];
     const chatId = chat.id;
@@ -1388,19 +1392,25 @@ const buildChatContextMenu = (chat: Chat, listKey: string): ContextMenuItem[] =>
         });
     }
 
-    // 退出群组（仅群组/超级群组）
+    // 退出群组/频道（仅群组/超级群组）：二级弹窗确认，群主可选「为所有成员删除」
     if (canLeaveChat(chat)) {
         items.push({
             key: 'leave',
-            label: t('lng_profile_leave_group'),
+            label: isChannelChat(chat) ? t('lng_profile_leave_channel') : t('lng_profile_leave_group'),
             icon: LogOutIcon,
             danger: true,
             divider: true,
-            onClick: () => {
-                if (window.confirm(t('lng_sure_leave_group'))) {
-                    leaveChat(chatId);
-                }
-            },
+            onClick: () => { chatExitTarget.value = chat; },
+        });
+    } else {
+        // 私聊：删除对话，弹窗内可选「为对方删除」/「屏蔽 bot」
+        items.push({
+            key: 'delete',
+            label: t('lng_profile_delete_conversation'),
+            icon: Trash2Icon,
+            danger: true,
+            divider: true,
+            onClick: () => { chatExitTarget.value = chat; },
         });
     }
 
