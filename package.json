@@ -33,9 +33,9 @@
     "vue-draggable-plus": "^0.6.1"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.1.17",
+    "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/cli": "^2",
-    "@vitejs/plugin-vue": "^5.2.1",
+    "@vitejs/plugin-vue": "^6.0.10",
     "ldrs": "^1.1.9",
     "lucide-vue-next": "^1.0.0",
     "pinia": "^3.0.4",
@@ -44,7 +44,7 @@
     "tdesign-icons-vue-next": "^0.4.9",
     "tdesign-vue-next": "^1.20.7",
     "typescript": "~5.6.2",
-    "vite": "^6.0.3",
+    "vite": "^8.3.4",
     "vite-plugin-vue-devtools": "^8.2.1",
     "vue-i18n": "^11.2.2",
     "vue-router": "^4.6.3",

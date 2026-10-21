@@ -51,7 +51,7 @@ export default defineConfig(async (): Promise<UserConfig> => ({
   },
   // 单入口：主应用 index.html
   build: {
-    rollupOptions: {
+    rolldownOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
       },
