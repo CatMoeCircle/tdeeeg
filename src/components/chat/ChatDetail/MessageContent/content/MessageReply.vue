@@ -156,20 +156,29 @@ const { start: startViewportLoad, entered: replyEntered } = useViewportLoad(
     { enqueue: false },
 );
 
+/** 在已加载的消息列表中查找被回复消息（命中则无需任何网络请求，也无需等待视口） */
+function findLocalReplyMsg(): message | undefined {
+    const rt = props.replyTo;
+    if (!rt.chat_id || !rt.message_id) return undefined;
+    return props.messageList?.find(m => m.id === rt.message_id && m.chat_id === rt.chat_id);
+}
+
 onMounted(() => {
-    startViewportLoad();
+    // 本地已有：直接复用列表中的消息内容；否则才进入视口门控再 getMessage
+    if (findLocalReplyMsg()) void loadReplyData();
+    else startViewportLoad();
 });
 
 /** 加载代次：replyTo 变化 / 重复加载时自增，丢弃过期异步结果，避免缩略图串到别的回复 */
 let replyLoadSeq = 0;
 
 /** replyTo 目标变化时重新加载（组件可能不重挂载，仅首次加载会漏更新并串图）；
- *  尚未进入视口时不加载——首次触发时会读取最新的 replyTo。 */
+ *  本地无且尚未进入视口时不加载——首次触发时会读取最新的 replyTo。 */
 watch(
     () => [props.replyTo?.chat_id, props.replyTo?.message_id] as const,
     ([chatId, msgId], [prevChatId, prevMsgId]) => {
         if (chatId === prevChatId && msgId === prevMsgId) return;
-        if (!replyEntered.value) return;
+        if (!replyEntered.value && !findLocalReplyMsg()) return;
         void loadReplyData();
     },
 );
@@ -189,13 +198,10 @@ async function loadReplyData() {
     const targetChatId = rt.chat_id;
     const targetMsgId = rt.message_id;
 
-    // 1. 尝试在本地消息列表中查找
-    let foundMsg: message | undefined;
-    if (props.messageList) {
-        foundMsg = props.messageList.find(m => m.id === targetMsgId && m.chat_id === targetChatId);
-    }
+    // 1. 优先复用已加载消息列表中的被回复消息
+    let foundMsg: message | undefined = findLocalReplyMsg();
 
-    // 2. 如果没找到，通过 TDLib 查找
+    // 2. 本地没有，才通过 TDLib 获取（此路径只会在进入视口后触发）
     if (!foundMsg) {
         try {
             foundMsg = await tdlibSend({
