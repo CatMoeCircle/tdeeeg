@@ -164,6 +164,11 @@ jobs:
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
 
+      # CEF 的 libcef_dll_wrapper 与 .app 里的 helper 都要 cmake + ninja，
+      # 跟 TDLib 缓存命中与否无关，所以这里固定装一次。
+      - name: Install build tools
+        run: brew install cmake ninja
+
       # CEF 二进制约 1GB：缓存下来，命中就不再下载
       - name: Cache CEF distribution
         uses: actions/cache@v4
