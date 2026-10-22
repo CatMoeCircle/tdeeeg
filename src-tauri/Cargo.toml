@@ -22,10 +22,7 @@ dotenv = "0.15"
 tauri = { version = "3.0.0-alpha.5", features = ["protocol-asset", "tray-icon"] }
 tauri-plugin-opener = "3.0.0-alpha.3"
 tauri-plugin-window-state = "3.0.0-alpha.2"
-# 默认 features 会打开插件自带的 `gtk3`（经 rfd → gtk-sys → libgtk-3）。
-# 非 Windows 走 CEF/GTK4 运行时，GTK3 会在同进程内与 GTK4 抢同名符号，导致启动即崩。
-# 因此这里关掉默认 features，Linux 单独改用 XDG Desktop Portal 后端（见下方 target 段）。
-tauri-plugin-dialog = { version = "3.0.0-alpha.4", default-features = false }
+tauri-plugin-dialog = "3.0.0-alpha.4"
 tauri-plugin-fs = "3.0.0-alpha.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -80,5 +77,3 @@ apple-native-keyring-store = { version = "1", features = ["keychain"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 dbus-secret-service-keyring-store = { version = "1", default-features = false, features = ["crypto-rust"] }
-# 文件对话框走 XDG Desktop Portal（DBus），彻底避免链入 libgtk-3
-tauri-plugin-dialog = { version = "3.0.0-alpha.4", default-features = false, features = ["xdg-portal"] }
