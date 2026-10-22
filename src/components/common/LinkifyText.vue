@@ -15,8 +15,7 @@ import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import type { textEntity } from 'tdlib-types';
 import { detectInlineEntities } from '../../utils/textEntityDetect';
-import { resolveInternalLink } from '../../utils/openInternalLink';
-import { confirmAndOpenExternalLink } from '../../utils/openExternalLink';
+import { openAnyLink } from '../../utils/openInternalLink';
 
 /**
  * 可点击链接的纯文本：用于资料页简介、群组介绍等非消息场景。
@@ -25,9 +24,8 @@ import { confirmAndOpenExternalLink } from '../../utils/openExternalLink';
  * 所以这里先用 detectInlineEntities 补全识别，再叠加 TDLib 给的实体，
  * 把链接 / 邮箱 / 电话 / @用户名 渲染成可点击片段；其余文字原样输出。
  *
- * 点击行为与消息内链接一致：
- *   - t.me / proxy.t.me / tg:// → resolveInternalLink 内部跳转
- *   - http(s) / mailto / tel → 外部确认框后交系统浏览器打开
+ * 点击行为交给 openAnyLink：先用 getInternalLinkType 询问 TDLib 是否为内部链接
+ * （非内部链接返回 404），内部链接走内部跳转，其余弹外部确认框后交系统浏览器打开。
  */
 const props = defineProps<{
   /** 要渲染的文本 */
@@ -103,15 +101,8 @@ const segments = computed<Segment[]>(() => {
 async function openHref(raw: string) {
   const href = normalizeHref(raw);
   if (!href) return;
-  if (href.startsWith('https://t.me/') || href.startsWith('https://proxy.t.me/') || href.startsWith('tg://')) {
-    await resolveInternalLink(href, router);
-    return;
-  }
-  try {
-    await confirmAndOpenExternalLink(href);
-  } catch {
-    /* 用户取消，不跳转 */
-  }
+  // 是否为内部链接交给 TDLib 判断（getInternalLinkType 非内部链接返回 404），不硬编码前缀
+  await openAnyLink(href, router);
 }
 </script>
 
