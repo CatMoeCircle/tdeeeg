@@ -79,8 +79,9 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
+          # 只装 GTK4：这个二进制里不能出现 GTK3，装 GTK3 头反而会掩盖误链
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-            libgtk-4-dev libgtk-3-dev librsvg2-dev libdbus-1-dev libnss3-dev \
+            libgtk-4-dev librsvg2-dev libdbus-1-dev libnss3-dev \
             libatk1.0-dev libatk-bridge2.0-dev libcups2-dev libexpat1-dev \
             libx11-dev libxcomposite-dev libxdamage-dev libxext-dev libxfixes-dev \
             libxrandr-dev libxrender-dev libxtst-dev libxkbcommon-dev libpango1.0-dev \
@@ -191,6 +192,20 @@ jobs:
           # access tty; job control turned off"（上游脚本问题），先只出 deb。
           bun run tauri build --bundles deb --config ci-version.json
           ls -lR src-tauri/target/release/bundle
+
+      # 这个二进制里 GTK4 由 CEF 运行时带入，再链上 GTK3（rfd 的默认后端）就会
+      # 一启动就 "GTK 2/3 and GTK 4 in the same process is not supported" 退出，
+      # 而链接问题只在运行时才炸，所以这里让 CI 提前红。
+      - name: Assert no GTK3 linkage
+        run: |
+          set -euo pipefail
+          BIN=src-tauri/target/release/tdeeeg
+          if readelf -d "$BIN" | grep -q 'libgtk-3'; then
+            echo "error: GTK3 linked next to the GTK4 (CEF) runtime" >&2
+            readelf -d "$BIN" | grep -i gtk >&2
+            exit 1
+          fi
+          echo "OK: no GTK3 in the binary's NEEDED list"
 
       # 打包失败也保住已下载的 CEF（1GB，重下很贵）
       - name: Save CEF distribution

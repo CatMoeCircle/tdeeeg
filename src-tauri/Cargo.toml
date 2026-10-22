@@ -22,7 +22,11 @@ dotenv = "0.15"
 tauri = { version = "3.0.0-alpha.5", features = ["protocol-asset", "tray-icon"] }
 tauri-plugin-opener = "3.0.0-alpha.3"
 tauri-plugin-window-state = "3.0.0-alpha.2"
-tauri-plugin-dialog = "3.0.0-alpha.4"
+# 关掉默认的 gtk3 feature：它会让 rfd 链 GTK3，和 CEF 运行时的 GTK4 在同一进程里混用
+# （Gtk-ERROR: GTK 2/3 and GTK 4 in the same process is not supported），改用 xdg-portal 后端
+tauri-plugin-dialog = { version = "3.0.0-alpha.4", default-features = false, features = [
+    "xdg-portal",
+] }
 tauri-plugin-fs = "3.0.0-alpha.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
