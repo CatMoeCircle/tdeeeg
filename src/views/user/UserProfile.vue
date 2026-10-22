@@ -365,7 +365,7 @@
                 <InfoIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
                 <div class="min-w-0 flex-1">
                   <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
-                    <GlobalEmojiText :text="secretChatFullInfo.bio.text" />
+                    <LinkifyText :text="secretChatFullInfo.bio.text" :entities="secretChatFullInfo.bio.entities" />
                   </p>
                   <p class="text-xs text-gray-400 mt-0.5">{{ t('lng_info_bio_label') }}</p>
                 </div>
@@ -408,7 +408,7 @@
                 <InfoIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
                 <div class="min-w-0 flex-1">
                   <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
-                    <GlobalEmojiText :text="chatDescription" />
+                    <LinkifyText :text="chatDescription" />
                   </p>
                   <p class="text-xs text-gray-400 mt-0.5">{{ t('lng_info_bio_label') }}</p>
                 </div>
@@ -483,7 +483,7 @@
               <InfoIcon class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
               <div class="min-w-0 flex-1">
                 <p class="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
-                  <GlobalEmojiText :text="bioText" />
+                  <LinkifyText :text="bioText" :entities="bioEntities" />
                 </p>
                 <p class="text-xs text-gray-400 mt-0.5">{{ t('lng_info_bio_label') }}</p>
               </div>
@@ -1275,6 +1275,7 @@ import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, giftCollect
 import Avatar from "../../components/chat/avatar.vue";
 import CustomEmojiInline from "../../components/common/CustomEmojiInline.vue";
 import GlobalEmojiText from "../../components/common/GlobalEmojiText.vue";
+import LinkifyText from "../../components/common/LinkifyText.vue";
 import EmojiDrawer from "../../components/chat/ChatDetail/stickerPanel/EmojiDrawer.vue";
 import GiftDisplay from "../../components/common/GiftDisplay.vue";
 import MessageStickerContent from "../../components/chat/ChatDetail/MessageContent/content/MessageStickerContent.vue";
@@ -2014,6 +2015,8 @@ const userRoleBadge = computed<ProfileRoleBadgeKind | null>(() =>
   chatMode.value ? null : getUserRoleBadge(userId.value),
 );
 const bioText = computed(() => fullInfo.value?.bio?.text || '');
+/** 个人简介实体（含 textUrl / 提及等），供简介里的链接识别使用 */
+const bioEntities = computed(() => fullInfo.value?.bio?.entities ?? []);
 const birthdateInfo = computed<birthdate | undefined>(() => fullInfo.value?.birthdate);
 const birthdateText = computed(() => {
   const b = birthdateInfo.value;

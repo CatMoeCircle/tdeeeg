@@ -72,6 +72,7 @@ declare module 'vue' {
     InlineTranslation: typeof import('./components/chat/ChatDetail/MessageContent/content/InlineTranslation.vue')['default']
     LanguagePackConfirm: typeof import('./components/settings/LanguagePackConfirm.vue')['default']
     LatexFormula: typeof import('./components/chat/ChatDetail/MessageContent/rich/LatexFormula.vue')['default']
+    LinkifyText: typeof import('./components/common/LinkifyText.vue')['default']
     LinkInputDialog: typeof import('./components/chat/ChatDetail/LinkInputDialog.vue')['default']
     LinkPreviewMedia: typeof import('./components/chat/ChatDetail/MessageContent/content/LinkPreviewMedia.vue')['default']
     MediaViewer: typeof import('./components/chat/ChatDetail/MessageContent/MediaViewer.vue')['default']
