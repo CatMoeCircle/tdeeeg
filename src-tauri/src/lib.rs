@@ -267,38 +267,54 @@ pub fn run() {
             let quit_i = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
 
-            let _tray = TrayIconBuilder::with_id("main-tray")
-                .tooltip("tdeeeg")
-                .icon(app.default_window_icon().unwrap().clone())
-                .menu(&menu)
-                .show_menu_on_left_click(false)
-                .on_menu_event(move |app, event| match event.id.as_ref() {
-                    "show" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
+            // 托盘在 Linux 上走 ksni/zbus；zbus 被 dialog 插件的 rfd 带上了 tokio
+            // feature，建 D-Bus 连接时要求当前线程在 tokio runtime 里（否则
+            // "there is no reactor running" panic）。setup 在主线程跑，这里借一下
+            // tauri 的 tokio runtime 给创建过程一个上下文。
+            // ponytail: 这层包装只是为了绕开 rfd 强制的 tokio feature；哪天能
+            // 只用 rfd 的 async-std/xdg-portal（zbus 走 async-io）就可以删掉。
+            // 托盘是可选功能：没有 StatusNotifierWatcher（裸 WM、部分 Wayland 桌面、
+            // 容器里的 WSLg）时只记日志，不能让启动直接失败。
+            let _tray = match tauri::async_runtime::block_on(async {
+                TrayIconBuilder::with_id("main-tray")
+                    .tooltip("tdeeeg")
+                    .icon(app.default_window_icon().unwrap().clone())
+                    .menu(&menu)
+                    .show_menu_on_left_click(false)
+                    .on_menu_event(move |app, event| match event.id.as_ref() {
+                        "show" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
                         }
-                    }
-                    "quit" => {
-                        app.exit(0);
-                    }
-                    _ => {}
-                })
-                .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click {
-                        button_state: MouseButtonState::Down,
-                        button: MouseButton::Left,
-                        ..
-                    } = event
-                    {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
+                        "quit" => {
+                            app.exit(0);
                         }
-                    }
-                })
-                .build(app)?;
+                        _ => {}
+                    })
+                    .on_tray_icon_event(|tray, event| {
+                        if let TrayIconEvent::Click {
+                            button_state: MouseButtonState::Down,
+                            button: MouseButton::Left,
+                            ..
+                        } = event
+                        {
+                            let app = tray.app_handle();
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                    })
+                    .build(app)
+            }) {
+                Ok(tray) => Some(tray),
+                Err(e) => {
+                    eprintln!("[tray] init failed, continuing without tray: {e}");
+                    None
+                }
+            };
 
             // ===== 拦截窗口关闭事件：隐藏而非销毁 =====
             let app_handle = app.handle().clone();
@@ -307,8 +323,13 @@ pub fn run() {
             let _ = main_window.hide();
             main_window.on_window_event(move |event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                    // 阻止默认关闭行为，改为隐藏窗口
                     api.prevent_close();
+                    // 没有托盘（Linux 上没有 StatusNotifierWatcher）时隐藏就再也叫
+                    // 不回来了，直接退出
+                    if app_handle.tray_by_id("main-tray").is_none() {
+                        app_handle.exit(0);
+                        return;
+                    }
                     if let Some(w) = app_handle.get_webview_window("main") {
                         let _ = w.hide();
                     }
