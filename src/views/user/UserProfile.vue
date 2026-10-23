@@ -775,7 +775,7 @@
             <div v-else-if="membersList.length > 0">
               <button v-for="m in membersList" :key="memberRowKey(m)" type="button"
                 class="w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                @click="openMemberProfile(m)">
+                @click="openMemberProfile(m)" @contextmenu.prevent.stop="showMemberContextMenu($event, m)">
                 <div class="w-10 h-10 shrink-0">
                   <Avatar :photo="memberUserOf(m)?.profile_photo" :title="memberNameOf(m)"
                     :first-name="memberUserOf(m)?.first_name" :last-name="memberUserOf(m)?.last_name"
@@ -1259,6 +1259,13 @@
 
     <!-- 礼物详情弹窗（普通 / NFT 共用） -->
     <GiftDetailDialog :open="giftDetailOpen" :data="giftDetailData" @close="closeGiftDetail" />
+
+    <!-- 成员右键菜单：设置为管理员 / 限制 / 移除（与 GroupMemberListPage 同一套弹窗） -->
+    <GroupAdminRightsDialog v-model="memberAdminVisible" :chat-id="chatId ?? 0" :member="memberMenuTarget"
+      :is-channel="isChatChannel" :is-forum="isChatForum" :is-owner="memberIsOwner" :my-rights="memberMyAdminRights"
+      :default-permissions="chatObj?.permissions" @changed="onMemberActionChanged" />
+    <GroupRestrictDialog v-model="memberRestrictVisible" :chat-id="chatId ?? 0" :member="memberMenuTarget"
+      :default-permissions="chatObj?.permissions" @changed="onMemberActionChanged" />
   </div>
 </template>
 
@@ -1302,6 +1309,9 @@ import {
   isDeletedMember,
   isCreatorStatus,
   isAdminStatus,
+  isBasicGroupChat,
+  canPromoteMembers,
+  canRestrictMembers,
 } from "../../utils/groupRights";
 import { useAudioPlayerStore, type AudioTrack } from "../../store/audioPlayer";
 import formatTime from "../../utils/formatTime";
@@ -1327,6 +1337,9 @@ import { enqueueViewportLoad, DEFAULT_DWELL_MS } from "../../utils/viewportLoadG
 import { formatDateLabel, isSameCalendarDay } from "../../components/chat/ChatDetail/composables/dateLabel";
 import { requestCustomEmoji } from "../../store/customEmoji";
 import EncryptionKeyDialog from "../../components/user/EncryptionKeyDialog.vue";
+import GroupAdminRightsDialog from "../../components/settings/GroupAdminRightsDialog.vue";
+import GroupRestrictDialog from "../../components/settings/GroupRestrictDialog.vue";
+import { ShieldAdminIcon, RestrictKeyIcon } from "../../components/common/tgico";
 import { tdPlural } from "../../utils/tdLang";
 import ProfileRoleBadge from "../../components/common/ProfileRoleBadge.vue";
 import ProfileRatingBadge from "../../components/user/ProfileRatingBadge.vue";
@@ -1342,7 +1355,7 @@ import {
   Search, Users, Hash, FileText, Link, Mic, Film, KeyRound,
   Info as InfoIcon, Phone as PhoneIcon, AtSign as AtSignIcon,
   Calendar as CalendarIcon, IdCard as IdCardIcon,
-  Plus as PlusIcon,
+  Plus as PlusIcon, Trash2 as Trash2Icon,
 } from "lucide-vue-next"; import { VerifiedFilledIcon } from "tdesign-icons-vue-next";
 const route = useRoute();
 const router = useRouter();
@@ -1426,6 +1439,10 @@ const chatRoleBadge = computed<ProfileRoleBadgeKind | null>(() =>
 );
 /** 聊天是否为超级群组 */
 const isChatSupergroup = computed(() => chatObj.value?.type?._ === 'chatTypeSupergroup');
+/** 超级群是否为论坛（话题）模式：管理员权限弹窗据此展示「管理话题」 */
+const isChatForum = computed(
+  () => chatObj.value?.type?._ === 'chatTypeSupergroup' && !!(chatObj.value.type as { is_forum?: boolean }).is_forum,
+);
 /** 聊天的展示标题（频道/群组名） */
 const chatTitle = computed(() => chatObj.value?.title || '');
 /** 聊天头像（chat.photo 为 chatPhotoInfo，可直接交给 Avatar 组件） */
@@ -1568,6 +1585,139 @@ function openMemberProfile(m: chatMember) {
   const uid = memberUserId(m);
   if (!uid) return;
   router.push({ name: 'user-profile', params: { id: String(uid) } });
+}
+
+// ===== 成员右键菜单（复用 GroupMemberListPage 的同一套权限判断 + 弹窗）=====
+/** 右键菜单当前操作的成员（管理员权限 / 限制弹窗共用） */
+const memberMenuTarget = ref<chatMember | null>(null);
+const memberAdminVisible = ref(false);
+const memberRestrictVisible = ref(false);
+
+const myUserId = computed(() => userStore.userProfile?.id ?? 0);
+/** 是否群主：仅群主可授予全部管理员权限 */
+const memberIsOwner = computed(() => isCreatorStatus(myChatMemberStatus.value));
+const memberMyAdminRights = computed(() =>
+  myChatMemberStatus.value?._ === 'chatMemberStatusAdministrator' ? myChatMemberStatus.value.rights : undefined,
+);
+
+function isSelfMember(m: chatMember): boolean {
+  return memberUserId(m) === myUserId.value;
+}
+
+/** MemberPromote：非创建者、非自己，且有 promote 权限 */
+function canPromoteTargetMember(m: chatMember): boolean {
+  if (isCreatorStatus(m.status)) return false;
+  if (isSelfMember(m)) return false;
+  return canPromoteMembers(myChatMemberStatus.value);
+}
+
+/** MemberRestrict：仅群组；创建者 / 不可编辑管理员 / 自己不可 */
+function canRestrictTargetMember(m: chatMember): boolean {
+  if (isChatChannel.value) return false;
+  if (isSelfMember(m)) return false;
+  if (isCreatorStatus(m.status)) return false;
+  if (m.status._ === 'chatMemberStatusAdministrator' && !m.status.can_be_edited) return false;
+  return canRestrictMembers(myChatMemberStatus.value);
+}
+
+/** MemberRemove：非创建者/不可编辑管理员/自己；有 restrict 权限 */
+function canRemoveTargetMember(m: chatMember): boolean {
+  if (isCreatorStatus(m.status)) return false;
+  if (isSelfMember(m)) return false;
+  if (m.status._ === 'chatMemberStatusAdministrator' && !m.status.can_be_edited) {
+    // 基本群管理员：仅当自己是邀请人时可移除
+    return isBasicGroupChat(chatObj.value) ? m.inviter_user_id === myUserId.value : false;
+  }
+  return canRestrictMembers(myChatMemberStatus.value);
+}
+
+/** 拉取完整成员状态（列表摘要缺管理员 rights），失败则退回列表项 */
+async function fetchFullMember(m: chatMember): Promise<chatMember> {
+  const uid = memberUserId(m);
+  const cid = chatId.value;
+  if (!uid || !cid) return m;
+  try {
+    return await tdlibSend({
+      _: 'getChatMember',
+      chat_id: cid,
+      member_id: { _: 'messageSenderUser', user_id: uid },
+    });
+  } catch {
+    return m;
+  }
+}
+
+async function openMemberAdminRights(m: chatMember) {
+  memberMenuTarget.value = await fetchFullMember(m);
+  memberAdminVisible.value = true;
+}
+
+async function openMemberRestrict(m: chatMember) {
+  memberMenuTarget.value = await fetchFullMember(m);
+  memberRestrictVisible.value = true;
+}
+
+/** RemoveMember：从群组/频道移除（status → Banned） */
+async function removeMemberFromChat(m: chatMember) {
+  const uid = memberUserId(m);
+  const cid = chatId.value;
+  if (!uid || !cid) return;
+  try {
+    await tdlibSend({
+      _: 'setChatMemberStatus',
+      chat_id: cid,
+      member_id: { _: 'messageSenderUser', user_id: uid },
+      status: { _: 'chatMemberStatusBanned', banned_until_date: 0 },
+    });
+    toast.success(t('groupEdit.removed'));
+    await loadChatMembers();
+  } catch (e: any) {
+    toast.error(e?.message || t('lng_settings_save'));
+  }
+}
+
+/** 管理员权限 / 限制变更后刷新列表（管理员标签、状态可能变化） */
+function onMemberActionChanged() {
+  void loadChatMembers();
+}
+
+/**
+ * 成员右键菜单：
+ *  「设置为管理员」（盾牌）+「限制」（密钥，仅群组）+「从群组/频道中移除」
+ * 无可用操作时不弹菜单（避免空菜单）。
+ */
+function showMemberContextMenu(e: MouseEvent, m: chatMember) {
+  // 阻止冒泡到 main.ts 的全局 contextmenu（那里会 closeContextMenu）
+  e.preventDefault();
+  e.stopPropagation();
+  const items: ContextMenuItem[] = [];
+  if (canPromoteTargetMember(m)) {
+    items.push({
+      key: 'promote',
+      label: t('groupEdit.promote'),
+      icon: ShieldAdminIcon,
+      onClick: () => void openMemberAdminRights(m),
+    });
+  }
+  if (canRestrictTargetMember(m)) {
+    items.push({
+      key: 'restrict',
+      label: t('groupEdit.restrict'),
+      icon: RestrictKeyIcon,
+      onClick: () => void openMemberRestrict(m),
+    });
+  }
+  if (canRemoveTargetMember(m)) {
+    items.push({
+      key: 'remove',
+      label: isChatChannel.value ? t('groupEdit.removeFromChannel') : t('groupEdit.removeFromGroup'),
+      icon: Trash2Icon,
+      danger: true,
+      onClick: () => void removeMemberFromChat(m),
+    });
+  }
+  if (!items.length) return;
+  openContextMenu(e.clientX, e.clientY, items, e.currentTarget as HTMLElement);
 }
 
 /**
