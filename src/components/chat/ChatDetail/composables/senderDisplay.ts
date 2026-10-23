@@ -81,6 +81,18 @@ export function getForwardAuthorSignature(
 }
 
 /**
+ * 转发来源指明的源消息 id：TDLib 只有「频道帖」和 `source`（收藏 / 讨论组等）带 id，
+ * 从用户、群、隐藏用户转发时没有，调用方按「有才显示」处理。
+ */
+export function getForwardMessageId(
+    forwardInfo: messageForwardInfo,
+): number | undefined {
+    if (forwardInfo.source?.message_id) return forwardInfo.source.message_id;
+    const origin = forwardInfo.origin;
+    return origin._ === 'messageOriginChannel' && origin.message_id ? origin.message_id : undefined;
+}
+
+/**
  * 计算转发信息中的来源头像。
  *
  * @param forwardInfo - TDLib 转发信息

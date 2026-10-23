@@ -6,6 +6,7 @@
             :accentColorId="accentColorId" @jump="onReplyJump" />
 
         <ForwardBanner v-if="forwardInfo" :name="forwardName ?? ''" :original-name="forwardOriginalName"
+            :message-id="forwardMessageId"
             :first-name="forwardFirstName" :last-name="forwardLastName" :photo="forwardPhoto"
             :accent-id="forwardAccentId" :navigable="forwardNavigable" :self="isSelf"
             :text-color="forwardTextColor" media-inline @open-source="emit('openForwardSource')" />
@@ -312,6 +313,8 @@ const props = defineProps<{
     forwardAccentId?: number;
     /** 转发原始作者签名（括号内） */
     forwardOriginalName?: string;
+    /** 转发源消息 id（频道帖 / source 转发才有，无则不显示） */
+    forwardMessageId?: number;
     /** 转发来源为用户时的姓名拆分（头像文字用） */
     forwardFirstName?: string;
     forwardLastName?: string;

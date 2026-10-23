@@ -107,6 +107,7 @@
                                             v-if="item.messages[0].forward_info && !isLinkedChannelMessage(item.messages[0])"
                                             :name="getForwardName(item.messages[0].forward_info)"
                                             :original-name="getForwardOriginalName(item.messages[0].forward_info)"
+                                            :message-id="getForwardMessageId(item.messages[0].forward_info)"
                                             :first-name="getForwardNames(item.messages[0].forward_info).first"
                                             :last-name="getForwardNames(item.messages[0].forward_info).last"
                                             :photo="getForwardPhoto(item.messages[0].forward_info)"
@@ -240,6 +241,7 @@
                                             v-if="item.msg.forward_info && !isMediaMessage(item.msg) && !isLinkedChannelMessage(item.msg)"
                                             :name="getForwardName(item.msg.forward_info)"
                                             :original-name="getForwardOriginalName(item.msg.forward_info)"
+                                            :message-id="getForwardMessageId(item.msg.forward_info)"
                                             :first-name="getForwardNames(item.msg.forward_info).first"
                                             :last-name="getForwardNames(item.msg.forward_info).last"
                                             :photo="getForwardPhoto(item.msg.forward_info)"
@@ -254,6 +256,7 @@
                                             :forwardPhoto="getDisplayForwardInfo(item.msg) ? getForwardPhoto(getDisplayForwardInfo(item.msg)!) : undefined"
                                             :forwardAccentId="getDisplayForwardInfo(item.msg) ? getForwardAccentId(getDisplayForwardInfo(item.msg)!) : undefined"
                                             :forwardOriginalName="getDisplayForwardInfo(item.msg) ? getForwardOriginalName(getDisplayForwardInfo(item.msg)!) : undefined"
+                                            :forwardMessageId="getDisplayForwardInfo(item.msg) ? getForwardMessageId(getDisplayForwardInfo(item.msg)!) : undefined"
                                             :forwardFirstName="getDisplayForwardInfo(item.msg) ? getForwardNames(getDisplayForwardInfo(item.msg)!).first : undefined"
                                             :forwardLastName="getDisplayForwardInfo(item.msg) ? getForwardNames(getDisplayForwardInfo(item.msg)!).last : undefined"
                                             :forwardTextColor="forwardTextColor(item.msg)"
@@ -865,6 +868,7 @@ import {
     getForwardPhoto as computeForwardPhoto,
     getForwardProfileAccentId as computeForwardProfileAccentId,
     getForwardAuthorSignature as computeForwardAuthorSignature,
+    getForwardMessageId as computeForwardMessageId,
     isSavedForwardedMessage as computeIsSavedForwardedMessage,
     senderNameColor as computeSenderNameColor,
     showSenderDisplayName as computeShowSenderDisplayName,
@@ -5343,6 +5347,10 @@ const getForwardOriginalName = (forwardInfo: messageForwardInfo): string | undef
     // 与来源名相同时不再重复展示
     return sig === computeForwardName(forwardInfo, senderCaches()) ? undefined : sig;
 };
+
+/** 转发源消息 id（频道帖 / source 转发才有；其余来源为 undefined，不显示） */
+const getForwardMessageId = (forwardInfo: messageForwardInfo): number | undefined =>
+    computeForwardMessageId(forwardInfo);
 
 /** 转发横幅文字色：取发送者 accent 色字符串（自绘消息由 ForwardBanner 自处理浅色） */
 const forwardTextColor = (msg: message): string | undefined => {
