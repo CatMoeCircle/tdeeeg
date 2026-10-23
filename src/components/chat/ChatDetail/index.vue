@@ -827,11 +827,12 @@ import {
 import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity, textEntity$Input, file as TdFile, ReactionType } from 'tdlib-types';
 import { getViewerState, closeMediaViewer, isMediaViewerActive, openMediaViewer } from '../../../store/mediaViewer';
 
-import { getSenderAccentColorId, getSenderProfileAccentColorId, getSenderNameParts, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
+import { getSenderAccentColorId, getSenderProfileAccentColorId, getSenderNameParts, isDeletedChat, DELETED_ACCOUNT_LABEL, ensureUser, ensureChat, getReactiveUser, getReactiveChat } from '../../../utils/senderInfo';
 import { useColors } from '../../../store/colors';
 import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage, isBubblelessMediaMessage, albumHasVisibleCaption, isFileAlbum, showChannelCommentsBar } from './composables/messageType';
 import { buildDisplayItems } from './composables/messageItems';
 import { chatWindowKey, peekChatWindow, saveChatWindow } from './composables/chatWindowCache';
+import { fetchCacheGet, fetchCacheSet } from './composables/fetchCache';
 import { completeAlbumMembers, hasIncompleteAlbum } from './composables/albumHistory';
 import { useDraft } from './composables/useDraft';
 import { useBrowsePosition } from './composables/useBrowsePosition';
@@ -2058,7 +2059,8 @@ const availableSenders = ref<import('tdlib-types').chatMessageSender[]>([]);
 /** 是否正在加载可用发送身份 */
 const sendersLoading = ref(false);
 
-// 缓存
+// 缓存（users/chats 只是全局发送者缓存（utils/senderInfo）的本地视图，
+// 数据由 fetchSenders 从那边拷过来，组件重建时不再重新向后端要一遍）
 const users = ref<Record<number, user>>({});
 const chats = ref<Record<number, chat>>({});
 const supergroups = ref<Record<number, supergroup>>({});
@@ -2070,8 +2072,8 @@ interface MemberInfo {
     tag?: string;
 }
 const memberStatus = ref<Record<number, MemberInfo>>({});
-/** 进行中的 getChatMember 请求去重 */
-const pendingMemberStatus = new Set<number>();
+/** 进行中的 getChatMember 请求去重（key = `${chatId}:${userId}`） */
+const pendingMemberStatus = new Set<string>();
 /** 总线多通道订阅取消函数 */
 let unsubscribeUpdates: (() => void) | null = null;
 
@@ -3745,43 +3747,56 @@ const fetchSenders = async (msgs: message[]) => {
         }
     });
 
+    // 走全局发送者缓存（utils/senderInfo）：同一发送者整个进程只发一次 getUser/getChat，
+    // 请求还在飞的时候也不会重复发；结果再拷进本组件的展示视图
     await Promise.all([
-        ...Array.from(userIds).map(uid =>
-            tdlibSend({ _: 'getUser', user_id: uid })
-                .then(u => { users.value[uid] = u; })
-                .catch(() => { })
-        ),
-        ...Array.from(chatIds).map(cid =>
-            tdlibSend({ _: 'getChat', chat_id: cid })
-                .then(c => { chats.value[cid] = c; })
-                .catch(() => { })
-        )
+        ...Array.from(userIds).map(async uid => {
+            await ensureUser(uid);
+            const u = getReactiveUser(uid);
+            if (u) users.value[uid] = u;
+        }),
+        ...Array.from(chatIds).map(async cid => {
+            await ensureChat(cid);
+            const c = getReactiveChat(cid);
+            if (c) chats.value[cid] = c;
+        })
     ]);
 };
 
 /**
  * 为消息发送者批量拉取群成员信息（角色/标签），用于消息右上角标签。
- * 仅当当前聊天为超级群组/基础群组时有效；私聊/频道发送者不做处理。
- * 每个 user_id 只请求一次（去重）。
+ * 仅群组有效：频道发送者就是频道本身，没有成员角色，别为此发请求。
+ *
+ * 两处收敛（连点/来回切对话时请求量的主要来源）：
+ * - 结果按会话缓存（fetchCache），同一群反复进出不再逐人重发 getChatMember；
+ * - 一批结果合并成一次响应式写入 + 限并发，避免「每人一条响应各触发一轮消息重渲染」。
  */
 const fetchMemberStatuses = async (msgs: message[]) => {
     const c = chat.value;
     if (!c || (c.type._ !== 'chatTypeSupergroup' && c.type._ !== 'chatTypeBasicGroup')) return;
+    if (c.type._ === 'chatTypeSupergroup' && c.type.is_channel) return;
     const cid = chatId.value;
     if (!cid) return;
 
-    const userIds = new Set<number>();
-    msgs.forEach(m => {
-        if (m.sender_id?._ === 'messageSenderUser') {
-            userIds.add(m.sender_id.user_id);
-        }
-    });
+    const cached = fetchCacheGet<Record<number, MemberInfo>>('chatMembers', cid) ?? {};
+    const missing: number[] = [];
+    for (const m of msgs) {
+        const sender = m.sender_id;
+        if (sender?._ !== 'messageSenderUser') continue;
+        const uid = sender.user_id;
+        if (memberStatus.value[uid] !== undefined || cached[uid] !== undefined) continue;
+        if (pendingMemberStatus.has(`${cid}:${uid}`) || missing.includes(uid)) continue;
+        missing.push(uid);
+    }
+    if (missing.length === 0) return;
+    for (const uid of missing) pendingMemberStatus.add(`${cid}:${uid}`);
 
-    await Promise.all(
-        Array.from(userIds).map(async uid => {
-            if (pendingMemberStatus.has(uid)) return;
-            if (memberStatus.value[uid] !== undefined) return;
-            pendingMemberStatus.add(uid);
+    const fetched: Record<number, MemberInfo> = {};
+    const queue = [...missing];
+    const worker = async () => {
+        for (;;) {
+            const uid = queue.shift();
+            if (uid === undefined) return;
             try {
                 const member = await tdlibSend({
                     _: 'getChatMember',
@@ -3789,7 +3804,7 @@ const fetchMemberStatuses = async (msgs: message[]) => {
                     member_id: { _: 'messageSenderUser', user_id: uid },
                 }) as ChatMember;
                 if (member) {
-                    memberStatus.value[uid] = {
+                    fetched[uid] = {
                         status: member.status,
                         tag: typeof member.tag === 'string' && member.tag ? member.tag : undefined,
                     };
@@ -3797,10 +3812,16 @@ const fetchMemberStatuses = async (msgs: message[]) => {
             } catch (e) {
                 /* 忽略：非成员/无权限等 */
             } finally {
-                pendingMemberStatus.delete(uid);
+                pendingMemberStatus.delete(`${cid}:${uid}`);
             }
-        })
-    );
+        }
+    };
+    // 一次开群几十个成员不能同时轰出去
+    await Promise.all(Array.from({ length: Math.min(6, queue.length) }, worker));
+    if (Object.keys(fetched).length === 0) return;
+
+    fetchCacheSet('chatMembers', cid, { ...cached, ...fetched });
+    if (chatId.value === cid) memberStatus.value = { ...memberStatus.value, ...fetched };
 };
 
 /** 发送者角色/标签计算所需依赖（调用时求值以保持响应式） */
@@ -3836,31 +3857,45 @@ const getMessageLabelClass = (msg: message): string =>
 const getDisplayForwardInfo = (msg: message): messageForwardInfo | undefined =>
     getDisplayForwardInfoOf(msg);
 
-/** 获取 supergroup / basicGroup 信息 */
+/** 获取 supergroup / basicGroup 信息（群信息短时间不变，命中缓存就不再发请求） */
 async function fetchGroupInfo(chatData: chat, gen: number) {
     if (chatData.type._ === 'chatTypeSupergroup') {
-        const sg = await tdlibSend({ _: 'getSupergroup', supergroup_id: chatData.type.supergroup_id });
-        if (!isGenerationValid(gen)) return;
-        supergroups.value[chatData.type.supergroup_id] = sg;
+        const sgid = chatData.type.supergroup_id;
+        let sg = fetchCacheGet<supergroup>('supergroup', sgid);
+        if (!sg) {
+            sg = await tdlibSend({ _: 'getSupergroup', supergroup_id: sgid }) as supergroup;
+            if (!isGenerationValid(gen)) return;
+            fetchCacheSet('supergroup', sgid, sg);
+        }
+        supergroups.value[sgid] = sg;
         // 自动翻译字段在 supergroup 上（TDLib has_automatic_translation）
         hasAutomaticTranslation.value = !!sg.has_automatic_translation;
         supergroupFullReady.value = true;
         maybePromptTranslatePremium();
         // fullInfo：关联频道等
         try {
-            const fullInfo = await tdlibSend({
-                _: 'getSupergroupFullInfo',
-                supergroup_id: chatData.type.supergroup_id
-            });
-            if (!isGenerationValid(gen)) return;
+            let fullInfo = fetchCacheGet<{ linked_chat_id: number }>('supergroupFull', sgid);
+            if (!fullInfo) {
+                fullInfo = await tdlibSend({
+                    _: 'getSupergroupFullInfo',
+                    supergroup_id: sgid
+                }) as { linked_chat_id: number };
+                if (!isGenerationValid(gen)) return;
+                fetchCacheSet('supergroupFull', sgid, fullInfo);
+            }
             linkedChatId.value = fullInfo.linked_chat_id;
         } catch (e) {
             console.error('Failed to load supergroup full info:', e);
         }
     } else if (chatData.type._ === 'chatTypeBasicGroup') {
-        const bg = await tdlibSend({ _: 'getBasicGroup', basic_group_id: chatData.type.basic_group_id });
-        if (!isGenerationValid(gen)) return;
-        basicGroups.value[chatData.type.basic_group_id] = bg;
+        const bgid = chatData.type.basic_group_id;
+        let bg = fetchCacheGet<basicGroup>('basicGroup', bgid);
+        if (!bg) {
+            bg = await tdlibSend({ _: 'getBasicGroup', basic_group_id: bgid }) as basicGroup;
+            if (!isGenerationValid(gen)) return;
+            fetchCacheSet('basicGroup', bgid, bg);
+        }
+        basicGroups.value[bgid] = bg;
         hasAutomaticTranslation.value = false;
         supergroupFullReady.value = true;
         maybePromptTranslatePremium();
@@ -3874,13 +3909,20 @@ async function fetchGroupInfo(chatData: chat, gen: number) {
 
 // ==================== Sender Selector ====================
 
-/** 获取当前聊天可用的消息发送身份列表（频道/匿名群组等） */
+/** 获取当前聊天可用的消息发送身份列表（频道/匿名群组等；切回同一会话不再重复要） */
 async function fetchAvailableSenders(cid: number, gen: number) {
+    const cached = fetchCacheGet<import('tdlib-types').chatMessageSender[]>('chatSenders', cid);
+    if (cached) {
+        availableSenders.value = cached;
+        return;
+    }
     sendersLoading.value = true;
     try {
         const result = await tdlibSend({ _: 'getChatAvailableMessageSenders', chat_id: cid });
         if (!isGenerationValid(gen)) return;
-        availableSenders.value = result.senders || [];
+        const senders = result.senders || [];
+        fetchCacheSet('chatSenders', cid, senders);
+        availableSenders.value = senders;
     } catch {
         availableSenders.value = [];
     } finally {
@@ -4844,7 +4886,8 @@ function resetState() {
     dmHeaderTopic.value = undefined;
     threadInfo.value = undefined;
     threadReplyInfo.value = undefined;
-    memberStatus.value = {};
+    // 成员角色/标签按会话缓存：切回同一个群直接铺上，不再逐人重发 getChatMember
+    memberStatus.value = { ...(fetchCacheGet<Record<number, MemberInfo>>('chatMembers', chatId.value ?? 0) ?? {}) };
     isHistoryExhausted.value = false;
     isNewerExhausted.value = false;
     isReady.value = false;
