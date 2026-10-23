@@ -176,10 +176,9 @@
                         </p>
                     </div>
                     <div class="px-4 pb-4 flex items-center justify-end gap-3">
-                        <button type="button" @click="showAddDialog = false"
-                            class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                        <BaseButton type="button" @click="showAddDialog = false" variant="ghost">
                             {{ t('lng_cancel') }}
-                        </button>
+                        </BaseButton>
                         <button type="button" @click="confirmAdd" :disabled="adding"
                             class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:cursor-wait">
                             {{ adding ? t('systemSettings.creating') : t('lng_continue') }}
@@ -215,24 +214,21 @@
                             <div>
                                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API
                                     ID</label>
-                                <input v-model="customApiId" type="text" inputmode="numeric"
-                                    :placeholder="t('systemSettings.apiIdPlaceholder')" spellcheck="false"
-                                    class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+                                <BaseInput v-model="customApiId" type="text" inputmode="numeric"
+                                    :placeholder="t('systemSettings.apiIdPlaceholder')" spellcheck="false" />
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API
                                     Hash</label>
-                                <input v-model="customApiHash" type="text"
-                                    :placeholder="t('systemSettings.apiHashPlaceholder')" spellcheck="false"
-                                    class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+                                <BaseInput v-model="customApiHash" type="text"
+                                    :placeholder="t('systemSettings.apiHashPlaceholder')" spellcheck="false" />
                             </div>
                         </div>
                     </div>
                     <div class="px-4 pb-4 flex items-center justify-end gap-3">
-                        <button type="button" @click="showAddDialog = false"
-                            class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                        <BaseButton type="button" @click="showAddDialog = false" variant="ghost">
                             {{ t('lng_cancel') }}
-                        </button>
+                        </BaseButton>
                         <button type="button" @click="confirmAddCustom" :disabled="adding"
                             class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:cursor-wait">
                             {{ adding ? t('systemSettings.creating') : t('systemSettings.loginWithCustomApi') }}

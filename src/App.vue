@@ -5,7 +5,7 @@ import ExternalLinkConfirm from "./components/contextMenu/ExternalLinkConfirm.vu
 import ProxyLinkConfirm from "./components/contextMenu/ProxyLinkConfirm.vue";
 import LanguagePackConfirm from "./components/settings/LanguagePackConfirm.vue";
 import StoryViewer from "./components/story/StoryViewer.vue";
-import ToastHost from "./components/common/ToastHost.vue";
+import ToastHost from "./components/ui/toast/ToastHost.vue";
 
 // 注意：TDLib 初始化、授权态判定与首屏路由跳转已在 src/main.ts 的
 // bootstrap() 中于 app.mount 之前完成，且窗口在 bootstrap 完成前通过

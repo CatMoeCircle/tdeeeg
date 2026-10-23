@@ -51,10 +51,9 @@
                 </div>
 
                 <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
-                    <button type="button" @click="emit('close')"
-                        class="px-4 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <BaseButton type="button" @click="emit('close')" variant="ghost" size="sm">
                         {{ t('lng_cancel') }}
-                    </button>
+                    </BaseButton>
                     <button type="button" @click="confirm" :disabled="!ready || busy"
                         class="px-4 py-1.5 rounded-lg text-sm bg-red-500 text-white hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed">
                         {{ confirmLabel }}

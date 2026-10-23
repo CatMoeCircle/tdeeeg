@@ -139,7 +139,7 @@ import { showCopyJsonInMenus } from '../../store/debug';
 import type { ContextMenuItem } from '../../components/contextMenu/types';
 import { makeCopyJsonItem } from '../../components/contextMenu/copyJsonActions';
 import PreviewCard from '../../components/settings/PreviewCard.vue';
-import ChatTypeToggle from '../../components/settings/ChatTypeToggle.vue';
+import ChatTypeToggle from '../../components/ui/toggle/ChatTypeToggle.vue';
 import ChatBackgroundLayers from '../../components/chat/ChatBackgroundLayers.vue';
 import { DL_PRIORITY } from '../../utils/downloadPriority';
 import {

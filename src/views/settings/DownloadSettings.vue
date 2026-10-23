@@ -223,10 +223,10 @@ import { toast } from '../../utils/toast';
 import { AppWindowIcon, ChevronLeft as ChevronLeftIcon, FolderOpenIcon, FolderSyncIcon } from 'lucide-vue-next';
 import { settings } from '../../store/settings';
 import type { AutoDownloadByType } from '../../store/settings';
-import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
-import CollapsibleSection from '../../components/settings/CollapsibleSection.vue';
-import ChatTypeToggle from '../../components/settings/ChatTypeToggle.vue';
-import EditableNumber from '../../components/settings/EditableNumber.vue';
+import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
+import CollapsibleSection from '../../components/ui/collapse/CollapsibleSection.vue';
+import ChatTypeToggle from '../../components/ui/toggle/ChatTypeToggle.vue';
+import EditableNumber from '../../components/ui/input/EditableNumber.vue';
 
 const router = useRouter();
 

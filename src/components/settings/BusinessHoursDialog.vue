@@ -112,10 +112,9 @@
             </template>
 
             <div class="flex justify-end gap-2">
-                <button type="button" @click="saveBusinessHours" :disabled="savingHours"
-                    class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50">
+                <BaseButton type="button" @click="saveBusinessHours" :disabled="savingHours" variant="primary">
                     {{ savingHours ? t('editProfile.saving') : t('lng_settings_save') }}
-                </button>
+                </BaseButton>
             </div>
             <p v-if="hoursError" class="text-xs text-red-500">{{ hoursError }}</p>
         </div>
@@ -127,7 +126,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { TimePicker as TTimePicker } from 'tdesign-vue-next';
 import { toast } from '../../utils/toast';
-import ModalDialog from './ModalDialog.vue';
+import ModalDialog from '../ui/modal/ModalDialog.vue';
 import { tdlibSend } from '../../utils/tdlib';
 
 import type { userFullInfo, businessOpeningHoursInterval } from 'tdlib-types';

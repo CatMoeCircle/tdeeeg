@@ -126,7 +126,7 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
 import { ChevronLeft as ChevronLeftIcon } from 'lucide-vue-next';
-import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
+import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
 import { settings } from '../../store/settings';
 import { toast } from '../../utils/toast';
 import { TOOLS } from '../../utils/aiTools/registry.ts';

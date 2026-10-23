@@ -38,11 +38,9 @@
 
             <template v-if="customApiCreds">
                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API ID</label>
-                <input v-model="apiId" type="text" inputmode="numeric" :placeholder="t('systemSettings.apiIdPlaceholder')" spellcheck="false"
-                    class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none mb-3" />
+                <BaseInput v-model="apiId" type="text" inputmode="numeric" :placeholder="t('systemSettings.apiIdPlaceholder')" spellcheck="false" class="mb-3" />
                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API Hash</label>
-                <input v-model="apiHash" type="text" :placeholder="t('systemSettings.apiHashPlaceholder')" spellcheck="false"
-                    class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+                <BaseInput v-model="apiHash" type="text" :placeholder="t('systemSettings.apiHashPlaceholder')" spellcheck="false" />
             </template>
         </div>
 
@@ -126,21 +124,18 @@
                             <template v-if="customApiCreds">
                                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API
                                     ID</label>
-                                <input v-model="apiId" type="text" inputmode="numeric" :placeholder="t('systemSettings.apiIdPlaceholder')"
-                                    spellcheck="false"
-                                    class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none mb-3" />
+                                <BaseInput v-model="apiId" type="text" inputmode="numeric" :placeholder="t('systemSettings.apiIdPlaceholder')"
+                                    spellcheck="false" class="mb-3" />
                                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API
                                     Hash</label>
-                                <input v-model="apiHash" type="text" :placeholder="t('systemSettings.apiHashPlaceholder')" spellcheck="false"
-                                    class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+                                <BaseInput v-model="apiHash" type="text" :placeholder="t('systemSettings.apiHashPlaceholder')" spellcheck="false" />
                             </template>
                         </div>
 
                         <div class="flex items-center justify-end gap-3 pt-1">
-                            <button type="button" @click="visible = false"
-                                class="px-4 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <BaseButton type="button" @click="visible = false" variant="ghost" size="sm">
                                 {{ t('lng_cancel') }}
-                            </button>
+                            </BaseButton>
                             <button type="button" @click="apply"
                                 class="px-4 py-1.5 rounded-lg text-sm font-medium text-white transition-colors"
                                 :class="applying ? 'bg-blue-400 cursor-wait' : 'bg-blue-500 hover:bg-blue-600'"

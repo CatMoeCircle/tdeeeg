@@ -5,10 +5,9 @@
         <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
       </button>
       <h2 class="text-lg font-semibold flex-1">{{ pageTitle }}</h2>
-      <button v-if="canChangeInfo" type="button" @click="save" :disabled="saving"
-        class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 shrink-0">
+      <BaseButton v-if="canChangeInfo" type="button" @click="save" :disabled="saving" variant="primary" class="shrink-0">
         {{ saving ? t('lng_context_seen_loading') : t('lng_settings_save') }}
-      </button>
+      </BaseButton>
     </div>
 
     <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
@@ -279,8 +278,8 @@
             </p>
           </div>
           <div class="px-5 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-2">
-            <button type="button" class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
-              @click="deleteVisible = leaveVisible = false">{{ t('lng_cancel') }}</button>
+            <BaseButton type="button" variant="ghost"
+              @click="deleteVisible = leaveVisible = false">{{ t('lng_cancel') }}</BaseButton>
             <button v-if="deleteVisible" type="button" class="px-4 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
               @click="doLeave">{{ t('lng_profile_delete_and_exit') }}</button>
             <button type="button" class="px-4 py-2 rounded-lg text-sm bg-red-500 text-white hover:bg-red-600"
@@ -322,7 +321,7 @@ import {
 import { toast } from '../../utils/toast';
 import Avatar from '../../components/chat/avatar.vue';
 import AvatarEditorDialog from '../../components/settings/AvatarEditorDialog.vue';
-import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
+import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import { loadChatBoostInfo, minAutoTranslateLevel } from '../../utils/chatBoost';
 import {

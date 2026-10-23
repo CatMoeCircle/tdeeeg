@@ -6,10 +6,9 @@
                 <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
             </button>
             <h2 class="text-lg font-semibold flex-1">{{ t('lng_settings_information') }}</h2>
-            <button type="button" @click="saveProfile" :disabled="savingProfile"
-                class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 shrink-0">
+            <BaseButton type="button" @click="saveProfile" :disabled="savingProfile" variant="primary" class="shrink-0">
                 {{ savingProfile ? t('editProfile.saving') : t('lng_settings_save') }}
-            </button>
+            </BaseButton>
         </div>
 
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>

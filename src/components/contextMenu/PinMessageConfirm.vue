@@ -60,14 +60,12 @@
                     <!-- 底部按钮 -->
                     <div
                         class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
-                        <button type="button" @click="cancel"
-                            class="px-4 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
+                        <BaseButton type="button" @click="cancel" variant="ghost" size="sm">
                             {{ t('lng_cancel') }}
-                        </button>
-                        <button type="button" @click="confirm"
-                            class="px-4 py-1.5 rounded-lg text-sm bg-blue-500 text-white hover:bg-blue-600">
+                        </BaseButton>
+                        <BaseButton type="button" @click="confirm" variant="primary" size="sm">
                             {{ t('lng_pinned_pin') }}
-                        </button>
+                        </BaseButton>
                     </div>
                 </div>
             </div>

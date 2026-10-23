@@ -243,11 +243,10 @@
                 @click="visible = false">
                 {{ t('lng_cancel') }}
             </button>
-            <button type="button" :disabled="!privacyReady || saving"
-                class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50"
+            <BaseButton type="button" :disabled="!privacyReady || saving" variant="primary"
                 @click="handleSave">
                 {{ saving ? t('lng_contacts_loading') : t('lng_settings_save') }}
-            </button>
+            </BaseButton>
         </template>
     </ModalDialog>
 </template>
@@ -270,8 +269,8 @@ import { Slider as TSlider } from 'tdesign-vue-next';
 import { toast } from '../../utils/toast';
 import { useI18n } from 'vue-i18n';
 import starsSvg from '../../assets/stars.svg';
-import ModalDialog from './ModalDialog.vue';
-import ToggleSwitch from './ToggleSwitch.vue';
+import ModalDialog from '../ui/modal/ModalDialog.vue';
+import ToggleSwitch from '../ui/toggle/ToggleSwitch.vue';
 import PrivacyExceptionBlock, { type ExceptionEntry } from './PrivacyExceptionBlock.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import {

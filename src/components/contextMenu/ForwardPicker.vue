@@ -218,7 +218,7 @@ import { XIcon, SearchIcon, BookmarkIcon, CheckIcon, SendIcon, ArrowLeftIcon } f
 import Avatar from "../chat/avatar.vue";
 import GlobalEmojiText from "../common/GlobalEmojiText.vue";
 import CustomEmojiInline from "../common/CustomEmojiInline.vue";
-import SlidingTabBar from "../common/SlidingTabBar.vue";
+import SlidingTabBar from "../ui/tabs/SlidingTabBar.vue";
 import { tdlibSend } from "../../utils/tdlib";
 import { toast } from "../../utils/toast";
 import { useChatStore } from "../../store/chat";

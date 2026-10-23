@@ -285,22 +285,19 @@
                     <div class="grid grid-cols-[1fr_110px] gap-3">
                         <div>
                             <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{{ t('lng_proxy_box_server') }}</label>
-                            <input type="text" v-model.trim="form.server"
-                                :placeholder="t('proxy.serverPlaceholder')"
-                                class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+                            <BaseInput type="text" v-model.trim="form.server"
+                                :placeholder="t('proxy.serverPlaceholder')" />
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{{ t('lng_proxy_box_port') }}</label>
-                            <input type="number" v-model.trim="form.port" placeholder="8080"
-                                class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+                            <BaseInput type="number" v-model.trim="form.port" placeholder="8080" />
                         </div>
                     </div>
 
                     <!-- MTProto 密文 -->
                     <div v-if="form.type === 'mtproto'">
                         <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{{ t('lng_proxy_box_secret') }}</label>
-                        <input type="text" v-model.trim="form.secret" :placeholder="t('proxy.secretPlaceholder')"
-                            class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+                        <BaseInput type="text" v-model.trim="form.secret" :placeholder="t('proxy.secretPlaceholder')" />
                     </div>
 
                     <!-- SOCKS5 / HTTP 用户名密码 -->
@@ -308,13 +305,11 @@
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{{ t('lng_proxy_box_username') }}</label>
-                                <input type="text" v-model="form.username"
-                                    class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+                                <BaseInput type="text" v-model="form.username" />
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{{ t('lng_proxy_box_password') }}</label>
-                                <input type="password" v-model="form.password"
-                                    class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+                                <BaseInput type="password" v-model="form.password" />
                             </div>
                         </div>
                     </template>
@@ -322,16 +317,14 @@
                     <!-- 备注 -->
                     <div>
                         <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{{ t('proxy.commentOptional') }}</label>
-                        <input type="text" v-model.trim="form.comment" :placeholder="t('proxy.commentPlaceholder')"
-                            class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+                        <BaseInput type="text" v-model.trim="form.comment" :placeholder="t('proxy.commentPlaceholder')" />
                     </div>
                 </div>
 
                 <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
-                    <button type="button" @click="closeAddDialog"
-                        class="px-4 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <BaseButton type="button" @click="closeAddDialog" variant="ghost" size="sm">
                         {{ t('lng_cancel') }}
-                    </button>
+                    </BaseButton>
                     <button type="button" @click="submitAdd" :disabled="adding"
                         class="px-4 py-1.5 rounded-lg text-sm bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-60 disabled:cursor-wait">
                         {{ adding ? t('proxy.adding') : t('lng_stickers_featured_add') }}

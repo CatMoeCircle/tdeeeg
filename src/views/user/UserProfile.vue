@@ -1146,14 +1146,12 @@
               <p class="text-xs text-gray-500">{{ t('lng_contact_add_notes_about') }}</p>
             </div>
             <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
-              <button type="button" @click="closeEditContact"
-                class="px-4 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
+              <BaseButton type="button" @click="closeEditContact" variant="ghost" size="sm">
                 {{ t('lng_cancel') }}
-              </button>
-              <button type="button" @click="saveContact"
-                class="px-4 py-1.5 rounded-lg text-sm bg-blue-500 text-white hover:bg-blue-600">
+              </BaseButton>
+              <BaseButton type="button" @click="saveContact" variant="primary" size="sm">
                 {{ t('lng_settings_save') }}
-              </button>
+              </BaseButton>
             </div>
           </div>
         </div>
@@ -1176,10 +1174,9 @@
               <p class="text-sm text-gray-600 dark:text-gray-400">{{ confirmDialog.message }}</p>
             </div>
             <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
-              <button type="button" @click="cancelConfirmDialog"
-                class="px-4 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
+              <BaseButton type="button" @click="cancelConfirmDialog" variant="ghost" size="sm">
                 {{ t('lng_cancel') }}
-              </button>
+              </BaseButton>
               <button type="button" @click="confirmDialog.onConfirm"
                 class="px-4 py-1.5 rounded-lg text-sm bg-red-500 text-white hover:bg-red-600">
                 {{ confirmDialog.confirmText }}
@@ -1210,10 +1207,9 @@
                 @keydown.enter="submitCreateStoryAlbum" />
             </div>
             <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
-              <button type="button" @click="closeCreateStoryAlbum"
-                class="px-4 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
+              <BaseButton type="button" @click="closeCreateStoryAlbum" variant="ghost" size="sm">
                 {{ t('lng_cancel') }}
-              </button>
+              </BaseButton>
               <button type="button"
                 :disabled="!storyAlbumDialog.name.trim() || storyAlbumDialog.creating"
                 class="px-4 py-1.5 rounded-lg text-sm bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1320,7 +1316,7 @@ import {
   makeCopyJsonItem,
 } from "../../components/contextMenu/copyJsonActions";
 import { buildProfileTabs, type ProfileTab, type ProfileTabKey } from "../../utils/profileTabs";
-import SlidingTabBar from "../../components/common/SlidingTabBar.vue";
+import SlidingTabBar from "../../components/ui/tabs/SlidingTabBar.vue";
 import { settings } from "../../store/settings";
 import { shouldAutoDownloadPhotos } from "../../utils/autoDownload";
 import { folderTabClass, folderTabContainerClass } from "../../utils/folderPillsTabClass";

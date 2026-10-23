@@ -119,7 +119,7 @@ import { useI18n } from 'vue-i18n';
 import { ChevronLeft as ChevronLeftIcon, X as XIcon } from 'lucide-vue-next';
 import Avatar from '../../components/chat/avatar.vue';
 import MessageContent from '../../components/chat/ChatDetail/MessageContent/index.vue';
-import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
+import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import {
   defaultEventLogFilters,

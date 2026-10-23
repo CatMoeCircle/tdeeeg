@@ -664,14 +664,14 @@ import {
 import { storeToRefs } from 'pinia';
 import { settings } from '../../store/settings';
 import { useUserStore } from '../../store/user';
-import ChatTypeToggle from '../../components/settings/ChatTypeToggle.vue';
+import ChatTypeToggle from '../../components/ui/toggle/ChatTypeToggle.vue';
 import Avatar from '../../components/chat/avatar.vue';
 import GlobalEmojiText from '../../components/common/GlobalEmojiText.vue';
-import EditableNumber from '../../components/settings/EditableNumber.vue';
-import CollapsibleSection from '../../components/settings/CollapsibleSection.vue';
+import EditableNumber from '../../components/ui/input/EditableNumber.vue';
+import CollapsibleSection from '../../components/ui/collapse/CollapsibleSection.vue';
 import PreviewCard from '../../components/settings/PreviewCard.vue';
 import LoaderIndicator from '../../components/common/LoaderIndicator';
-import SlidingTabBar from '../../components/common/SlidingTabBar.vue';
+import SlidingTabBar from '../../components/ui/tabs/SlidingTabBar.vue';
 import { folderTabContainerClass } from '../../utils/folderPillsTabClass';
 import TitleBarEmojiStatus from '../../components/common/TitleBarEmojiStatus.vue';
 import stickerPreview from '../../assets/sticker.jpg';

@@ -18,7 +18,7 @@
 import { computed, ref, watch } from 'vue';
 import { Check as CheckIcon } from 'lucide-vue-next';
 import { toast } from '../../utils/toast';
-import ModalDialog from './ModalDialog.vue';
+import ModalDialog from '../ui/modal/ModalDialog.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import { tdPlural } from '../../utils/tdLang';
 import { useI18n } from 'vue-i18n';

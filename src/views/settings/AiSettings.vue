@@ -383,7 +383,7 @@ import {
 } from 'lucide-vue-next';
 import { settings } from '../../store/settings';
 import AiPromptBar from '../../components/ai/AiPromptBar.vue';
-import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
+import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
 import PreviewCard from '../../components/settings/PreviewCard.vue';
 import {
     AI_ICONS,

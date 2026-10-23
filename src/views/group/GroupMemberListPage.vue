@@ -157,7 +157,7 @@ import GroupAdminRightsDialog from '../../components/settings/GroupAdminRightsDi
 import GroupRestrictDialog from '../../components/settings/GroupRestrictDialog.vue';
 import GroupUserPickerDialog from '../../components/settings/GroupUserPickerDialog.vue';
 import { ShieldAdminIcon, RestrictKeyIcon } from '../../components/common/tgico';
-import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
+import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
 import { openContextMenu } from '../../store/contextMenu';
 import type { ContextMenuItem } from '../../components/contextMenu/types';
 import { tdlibSend } from '../../utils/tdlib';

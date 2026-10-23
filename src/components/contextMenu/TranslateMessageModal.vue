@@ -69,10 +69,9 @@
                             <CopyIcon class="w-4 h-4" />
                             复制译文
                         </button>
-                        <button type="button" @click="close"
-                            class="px-4 py-1.5 rounded-lg text-sm bg-blue-500 text-white hover:bg-blue-600">
+                        <BaseButton type="button" @click="close" variant="primary" size="sm">
                             关闭
-                        </button>
+                        </BaseButton>
                     </div>
                 </div>
             </div>

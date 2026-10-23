@@ -25,7 +25,7 @@ export interface ToastOptions {
 
 export type ToastArg = string | ToastOptions;
 
-/** 当前待渲染的 Toast 队列，由 components/common/ToastHost.vue 消费 */
+/** 当前待渲染的 Toast 队列，由 components/ui/toast/ToastHost.vue 消费 */
 export const toastQueue = shallowRef<ToastItem[]>([]);
 
 let seq = 0;

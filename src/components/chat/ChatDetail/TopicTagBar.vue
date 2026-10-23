@@ -96,7 +96,7 @@ import { MessageCircleIcon } from 'lucide-vue-next';
 import type { forumTopic, forumTopics, chatPhotoInfo, profilePhoto } from 'tdlib-types';
 import { tdlibSend } from '../../../utils/tdlib';
 import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
-import SlidingTabBar from '../../common/SlidingTabBar.vue';
+import SlidingTabBar from '../../ui/tabs/SlidingTabBar.vue';
 import Avatar from '../avatar.vue';
 import { folderTabClass, folderTabContainerClass, type FolderStyle } from '../../../utils/folderPillsTabClass';
 import { getSenderNameParts } from '../../../utils/senderInfo';

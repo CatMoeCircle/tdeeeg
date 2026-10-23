@@ -5,10 +5,9 @@
         <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
       </button>
       <h2 class="text-lg font-semibold flex-1">{{ t('lng_manage_peer_permissions') }}</h2>
-      <button type="button" @click="save" :disabled="saving"
-        class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 shrink-0">
+      <BaseButton type="button" @click="save" :disabled="saving" variant="primary" class="shrink-0">
         {{ saving ? t('lng_context_seen_loading') : t('lng_settings_save') }}
-      </button>
+      </BaseButton>
     </div>
 
     <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
@@ -215,7 +214,7 @@ import {
   Trash2 as Trash2Icon,
 } from 'lucide-vue-next';
 import { toast } from '../../utils/toast';
-import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
+import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
 import Avatar from '../../components/chat/avatar.vue';
 import GroupRestrictDialog from '../../components/settings/GroupRestrictDialog.vue';
 import { RestrictKeyIcon } from '../../components/common/tgico';

@@ -102,10 +102,9 @@
                     </div>
 
                     <div class="px-4 pb-4 flex items-center justify-end gap-3">
-                        <button type="button" @click="cancel"
-                            class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                        <BaseButton type="button" @click="cancel" variant="ghost">
                             {{ t('language.packCancel') }}
-                        </button>
+                        </BaseButton>
                         <button type="button" @click="confirm" :disabled="loading || !!loadError"
                             class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                             {{ t('language.packConfirm') }}

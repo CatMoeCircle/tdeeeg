@@ -23,7 +23,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import Counter from '../../common/Counter.vue';
+import Counter from '../../ui/counter/Counter.vue';
 
 /** 回到最底部按钮：贴在输入区上方，带未读新消息徽标。 */
 defineProps<{ bottom: string; count: number; places: (number | '.')[] }>();

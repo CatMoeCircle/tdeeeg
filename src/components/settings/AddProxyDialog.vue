@@ -93,10 +93,9 @@
                     </div>
 
                     <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
-                        <button type="button" @click="close"
-                            class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
+                        <BaseButton type="button" @click="close" variant="ghost">
                             {{ t('lng_cancel') }}
-                        </button>
+                        </BaseButton>
                         <button type="button" @click="submitAdd" :disabled="adding"
                             class="px-4 py-2 rounded-lg text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-60 disabled:cursor-wait">
                             {{ adding ? t('proxy.adding') : t('lng_stickers_featured_add') }}

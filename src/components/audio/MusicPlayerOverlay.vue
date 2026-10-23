@@ -234,8 +234,8 @@ import { useUserStore } from '../../store/user';
 import { openContextMenu } from '../../store/contextMenu';
 import type { ContextMenuItem } from '../contextMenu/types';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
-import SmoothSlider from '../common/SmoothSlider.vue';
-import ScrubField from '../common/ScrubField.vue';
+import SmoothSlider from '../ui/slider/SmoothSlider.vue';
+import ScrubField from '../ui/slider/ScrubField.vue';
 
 const player = useAudioPlayerStore();
 const userStore = useUserStore();

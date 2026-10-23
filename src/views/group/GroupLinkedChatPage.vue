@@ -100,7 +100,7 @@ import { useI18n } from 'vue-i18n';
 import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Plus as PlusIcon } from 'lucide-vue-next';
 import { toast } from '../../utils/toast';
 import Avatar from '../../components/chat/avatar.vue';
-import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
+import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import { ensureChat, getReactiveChat, ensureSupergroup, getReactiveSupergroup } from '../../utils/senderInfo';
 import { isChannelChat, loadGroupFullInfo, loadMyChatMemberStatus } from '../../utils/groupRights';

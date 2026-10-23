@@ -297,7 +297,7 @@ import { ChevronLeft as ChevronLeftIcon, X as XIcon, KeyRound as KeyRoundIcon, M
 import { toast } from '../../utils/toast';
 import { useI18n } from 'vue-i18n';
 import TgsPlayer from '../../components/common/TgsPlayer.vue';
-import ModalDialog from '../../components/settings/ModalDialog.vue';
+import ModalDialog from '../ui/modal/ModalDialog.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import { usePasswordMonkey } from '../../composables/usePasswordMonkey';
 import type { PasswordState, RecoveryEmailAddress } from 'tdlib-types';

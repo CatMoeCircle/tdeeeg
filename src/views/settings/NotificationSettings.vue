@@ -162,7 +162,7 @@ import { storeToRefs } from 'pinia';
 import { settings } from '../../store/settings';
 import { useUserStore } from '../../store/user';
 import Avatar from '../../components/chat/avatar.vue';
-import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
+import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
 import PreviewCard from '../../components/settings/PreviewCard.vue';
 import appLogo from '../../assets/logo.png';
 

@@ -6,10 +6,9 @@
                 class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
                 @keydown.enter="emit('add')" />
-            <button type="button" @click="emit('add')" :disabled="adding"
-                class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 shrink-0">
+            <BaseButton type="button" @click="emit('add')" :disabled="adding" variant="primary" class="shrink-0">
                 {{ t('lng_edit_privacy_exceptions_add') }}
-            </button>
+            </BaseButton>
         </div>
         <p v-if="error" class="text-xs text-red-500 mb-2">{{ error }}</p>
         <div v-if="list.length === 0" class="text-sm text-gray-400 py-2 text-center">{{ emptyText }}</div>

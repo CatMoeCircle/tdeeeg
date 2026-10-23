@@ -506,7 +506,7 @@ import { folderTabClass as sharedFolderTabClass, folderTabContainerClass, UI_GLA
 import MessagePreviewMedia from './MessagePreviewMedia.vue';
 import { albumCaptionCache, albumCacheKey } from './albumCaptionCache';
 import CustomEmojiInline from '../common/CustomEmojiInline.vue';
-import SlidingTabBar from '../common/SlidingTabBar.vue';
+import SlidingTabBar from '../ui/tabs/SlidingTabBar.vue';
 import ChatSearchPanel from './ChatSearchPanel.vue';
 import NewChatDialog from './NewChatDialog.vue';
 import DeleteChatConfirm from './DeleteChatConfirm.vue';
