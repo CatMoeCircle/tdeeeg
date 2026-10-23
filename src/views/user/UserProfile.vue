@@ -1291,6 +1291,7 @@ import { useUserProfileStore, giftsKey, giftOwnerKey } from "../../store/userPro
 import { useUserStore } from "../../store/user";
 import { accentColorStyle, rgbToCss } from "../../store/colors";
 import { confirmAndOpenExternalLink } from "../../utils/openExternalLink";
+import { openAnyLink } from "../../utils/openInternalLink";
 import formatStatus from "../../utils/status";
 import { downloadFileUrl, listAlbumCoverFiles } from "../../utils/profileMedia";
 import { fetchItunesCoverForAudio } from "../../utils/itunesCover";
@@ -2624,10 +2625,10 @@ function openSharedMediaViewer(index: number) {
   sharedMediaViewerVisible.value = true;
 }
 
-/** 打开共享链接 */
+/** 打开共享链接：t.me 等 Telegram 链接走内部解析，其余才交给浏览器 */
 function openSharedLink(url?: string) {
   if (!url) return;
-  confirmAndOpenExternalLink(url).catch(() => { });
+  void openAnyLink(url, router);
 }
 
 /** 跳转到聊天中的对应消息 */

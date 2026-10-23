@@ -81,25 +81,36 @@ async function dispatchInternalLink(href: string, linkType: InternalLinkType, ro
             return true;
         }
         case "internalLinkTypeBotStart": {
-            // t.me/xxxbot?start=xxx 深链接：解析出与 bot 的私聊并跳转；autostart 时自动发送 /start 深链接消息
-            const chat = await tdlibSend({ _: "searchPublicChat", username: linkType.bot_username }) as chat;
-            await router.push(`/home/chat/${chat.id}`);
-            if (linkType.autostart && linkType.start_parameter) {
-                const botUserId =
-                    chat.type && (chat.type._ === "chatTypePrivate" || chat.type._ === "chatTypeSecret")
-                        ? chat.type.user_id
-                        : undefined;
-                if (botUserId) {
-                    try {
-                        await tdlibSend({
-                            _: "sendBotStartMessage",
-                            bot_user_id: botUserId,
-                            chat_id: chat.id,
-                            parameter: linkType.start_parameter,
-                        });
-                    } catch (e) {
-                        console.warn("Failed to send bot start message:", e);
-                    }
+            // t.me/<bot>?start=<参数> 深链接：解析出与 bot 的私聊并跳转，然后内部发送
+            // /start <参数>。不能只在 autostart 时发送——「管理此聊天」这类业务深链接
+            // 会把管理参数放在 start 里，参数丢了就等于没跳，且不该交给外部浏览器。
+            const botChat = await tdlibSend({
+                _: "searchPublicChat",
+                username: linkType.bot_username,
+            }) as chat;
+            const botUserId =
+                botChat.type?._ === "chatTypePrivate" || botChat.type?._ === "chatTypeSecret"
+                    ? botChat.type.user_id
+                    : undefined;
+            if (!botUserId) {
+                await toast.warning({
+                    content: i18n.global.t("lng_chatbots_not_found"),
+                    placement: "top-right",
+                });
+                return true;
+            }
+            await router.push(`/home/chat/${botChat.id}`);
+            const parameter = linkType.start_parameter ?? "";
+            if (parameter || linkType.autostart) {
+                try {
+                    await tdlibSend({
+                        _: "sendBotStartMessage",
+                        bot_user_id: botUserId,
+                        chat_id: botChat.id,
+                        parameter,
+                    });
+                } catch (e) {
+                    console.warn("Failed to send bot start message:", e);
                 }
             }
             return true;
