@@ -36,5 +36,11 @@ export function fetchCacheGet<T>(kind: string, id: number): T | undefined {
 
 /** 写缓存（同一个 key 后写覆盖） */
 export function fetchCacheSet(kind: string, id: number, value: unknown): void {
-    bucket(kind).set(id, { at: Date.now(), value });
+    const m = bucket(kind);
+    const now = Date.now();
+    // 写入时顺带清过期项：只读的 key 若从不被 get 再访问，否则会永久留在内存里
+    for (const [k, e] of m) {
+        if (now - e.at > TTL_MS) m.delete(k);
+    }
+    m.set(id, { at: now, value });
 }

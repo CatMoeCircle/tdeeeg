@@ -310,6 +310,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             tdlib::init_tdlib,
             tdlib::tdlib_send,
+            tdlib::get_story_seed_updates,
             tdlib::set_tdlib_parameters,
             tdlib::set_proxy_config,
             tdlib::restart_tdlib,

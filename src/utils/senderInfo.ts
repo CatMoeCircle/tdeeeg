@@ -1,4 +1,4 @@
-import { reactive } from "vue";
+import { reactive, toRaw } from "vue";
 import { onTdlibUpdate, type TdlibUpdate } from "../store/tdlibBus";
 import type {
   MessageSender,
@@ -25,17 +25,62 @@ function getChatUserId(type?: ChatType): number | undefined {
   return undefined;
 }
 
-/** 全局发送者缓存（响应式，加载完成后界面自动更新） */
-const users = reactive(new Map<number, user>());
-const chats = reactive(new Map<number, chat>());
-const basicGroups = reactive(new Map<number, basicGroup>());
-const supergroups = reactive(new Map<number, supergroup>());
-
-/** 进行中的请求，避免重复请求同一对象 */
+/** 进行中的请求，避免重复请求同一对象（需先于缓存声明：缓存淘汰时要查它） */
 const pendingUsers = new Map<number, Promise<void>>();
 const pendingChats = new Map<number, Promise<void>>();
 const pendingBasicGroups = new Map<number, Promise<void>>();
 const pendingSupergroups = new Map<number, Promise<void>>();
+
+/**
+ * 有上限的响应式 LRU 缓存（替代 reactive(new Map)），对外 has/get/set 不变。
+ * - get 把条目挪到 MRU 末尾：update 就地更新的仍是活跃条目，不会被淘汰。
+ * - 排序变动直接操作原始 Map，不触发订阅，避免 get 在渲染中反复刷新。
+ * - 淘汰跳过 pending 中的 id，防止 ensureXxx 反复重发请求。
+ * - 淘汰走原始 Map 不触发订阅：渲染中的条目不会因淘汰而闪烁，代价是已显示条目可能短暂滞后。
+ */
+class SenderCache<T extends object> {
+  private readonly map: Map<number, T>;
+
+  constructor(
+    private readonly limit: number,
+    private readonly pending: Map<number, Promise<void>>,
+  ) {
+    this.map = reactive(new Map<number, T>()) as Map<number, T>;
+  }
+
+  has(id: number): boolean {
+    return this.map.has(id);
+  }
+
+  get(id: number): T | undefined {
+    const v = this.map.get(id); // 走响应式代理，保留依赖收集
+    if (v !== undefined) {
+      const raw = toRaw(this.map);
+      raw.delete(id);
+      raw.set(id, toRaw(v)); // 挪到 MRU 末尾
+    }
+    return v;
+  }
+
+  set(id: number, v: T): void {
+    const raw = toRaw(this.map);
+    raw.delete(id); // 先删再 set，保证新写入的条目位于 MRU 末尾
+    this.map.set(id, v);
+    // ponytail: 基于插入序的近似 LRU（Map 首项即最久未用），够用；要精确可换成双向链表
+    if (raw.size > this.limit) {
+      for (const k of raw.keys()) {
+        if (raw.size <= this.limit) break;
+        if (!this.pending.has(k)) raw.delete(k);
+      }
+    }
+  }
+}
+
+/** 全局发送者缓存（响应式，加载完成后界面自动更新），超限按 LRU 淘汰 */
+const users = new SenderCache<user>(5000, pendingUsers);
+const chats = new SenderCache<chat>(2000, pendingChats);
+const basicGroups = new SenderCache<basicGroup>(1000, pendingBasicGroups);
+const supergroups = new SenderCache<supergroup>(1000, pendingSupergroups);
 
 /** 防止重复注册事件监听器 */
 let initialized = false;

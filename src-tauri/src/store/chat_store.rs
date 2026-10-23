@@ -129,8 +129,8 @@ impl ChatStore {
                 }
             }
             "updateNewChat" => {
-                if let Ok(chat) = serde_json::from_value::<Chat>(update["chat"].clone()) {
-                    self.chats.insert(chat.id, chat.clone());
+                if let Ok(chat) = Chat::deserialize(&update["chat"]) {
+                    let chat_id = chat.id;
 
                     // 关键: 先发出 chat-update，确保前端先收到对话数据
                     events.push((
@@ -151,7 +151,7 @@ impl ChatStore {
                                         .lists
                                         .entry(key.clone())
                                         .or_insert_with(|| ChatListState::new(key.clone()));
-                                    list_state.update_order(chat.id, order);
+                                    list_state.update_order(chat_id, order);
 
                                     events.push((
                                         "chat-list-update".to_string(),
@@ -161,6 +161,7 @@ impl ChatStore {
                             }
                         }
                     }
+                    self.chats.insert(chat_id, chat);
                 }
             }
             "updateChatPosition" => {
@@ -224,10 +225,10 @@ impl ChatStore {
                 if let Some(chat) = self.chats.get_mut(&chat_id) {
                     chat.last_message = Some(update["last_message"].clone());
 
-                    // 先发出 chat-update（clone 避免移动引用）
+                    // 先发出 chat-update（借用序列化，不 clone 整个 chat）
                     events.push((
                         "chat-update".to_string(),
-                        serde_json::to_value(chat.clone()).unwrap(),
+                        serde_json::to_value(&*chat).unwrap(),
                     ));
 
                     // 再更新列表排序
@@ -381,10 +382,10 @@ impl ChatStore {
                 if let Some(chat) = self.chats.get_mut(&chat_id) {
                     chat.draft_message = Some(update["draft_message"].clone());
 
-                    // 先发出 chat-update（clone 避免移动引用）
+                    // 先发出 chat-update（借用序列化，不 clone 整个 chat）
                     events.push((
                         "chat-update".to_string(),
-                        serde_json::to_value(chat.clone()).unwrap(),
+                        serde_json::to_value(&*chat).unwrap(),
                     ));
 
                     // 再更新列表排序

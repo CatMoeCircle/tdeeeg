@@ -17,6 +17,7 @@ use super::{
 use crate::store::accounts::AccountsStore;
 use crate::system::device_info;
 use crate::store::download_store::DownloadStore;
+use crate::updates::derived::DerivedBuffer;
 use crate::updates::file_gate::{FileGate, Verdict, RAW_CHANNEL};
 use crate::updates::update_manager::{classify, UpdateManager};
 use serde_json::json;
@@ -78,6 +79,9 @@ pub(super) fn spawn_receive_loop(
     // 官方下载列表变更（addFileToDownloads / 暂停 / 移除）的合并缓冲：
     // 与 FileGate 同窗口、同批格式，避免批量下载时每文件各发一条事件。
     let mut list_gate = FileGate::new(FILE_GATE_WINDOW);
+
+    // 派生 chat/community 事件合窗：同窗口同 key 只下发最新一份（仅活动账户入队）
+    let mut derived = DerivedBuffer::new();
 
     // updateFile 专用通道 + 处理线程（下载/上传 store 更新、头像路径、独立 IPC）
     //
@@ -155,6 +159,9 @@ pub(super) fn spawn_receive_loop(
             // 空闲时也冲刷到期批次，避免低流量场景下批一直挂着
             update_mgr.flush_due(&app_handle);
             flush_download_list_updates(&app_handle, &mut list_gate);
+            // 派生事件同样要在这里冲：下面 continue 会跳过循环尾部的 flush_derived，
+            // 漏了这句则一批 chat-list-update 会挂到下一条 update 到达才发出（会话列表排序迟滞）
+            flush_derived(&app_handle, &state, session_id, &mut derived);
             continue;
         }
         let json_str = unsafe { CStr::from_ptr(res_ptr) }
@@ -291,16 +298,27 @@ pub(super) fn spawn_receive_loop(
 
         // 处理聊天 / 社区缓存（只转发活动账户的衍生事件）
         // 注意：先取结果再放锁，emit 期间不持有缓存锁（否则阻塞 get_chat_list）
+        // 非活动账户：派生事件不进缓冲、不下发（保持原 is_active 语义）；
+        // 活动账户：进合窗缓冲，由下方 flush_derived 在窗口到期时每 key 下发一次
+        //
+        // 【双发是设计，不是重复，别删】同一条 update 走两条路下发给前端：
+        //   ① 派生事件（chat-update / chat-list-update，本处）—— 整对象快照与列表排序的权威来源；
+        //      列表顺序只有 Rust 的 ChatListState 有，前端无法自行派生。
+        //   ② 原始 update 批（循环尾部的 update_mgr）—— 增量字段的权威来源。
+        //      派生用的 Chat 结构（store/chat_store.rs）是有损投影，缺 background / is_translatable /
+        //      message_sender_id / last_read_outbox_message_id / business_bot_manage_bar /
+        //      has_protected_content；updateChatActiveStories 更是只有原始通道才有。
+        //      删任一条都会静默丢数据（vue-tsc / cargo check 都抓不到）。两条都已按 ~50ms 窗口合窗，代价可控。
         let chat_events = chat_store.lock().unwrap().handle_update(&event);
         if is_active {
-            for (event_name, payload) in chat_events.iter().flatten() {
-                let _ = app_handle.emit(event_name, payload);
+            for (event_name, payload) in chat_events.into_iter().flatten() {
+                derived.push(event_name, payload);
             }
         }
         let community_events = community_store.lock().unwrap().handle_update(&event);
         if is_active {
-            for (event_name, payload) in community_events.iter().flatten() {
-                let _ = app_handle.emit(event_name, payload);
+            for (event_name, payload) in community_events.into_iter().flatten() {
+                derived.push(event_name, payload);
             }
         }
 
@@ -345,6 +363,7 @@ pub(super) fn spawn_receive_loop(
                 // 响应也可能让批处理到期，顺带冲刷
                 update_mgr.flush_due(&app_handle);
                 flush_download_list_updates(&app_handle, &mut list_gate);
+                flush_derived(&app_handle, &state, session_id, &mut derived);
                 continue;
             }
         }
@@ -361,7 +380,24 @@ pub(super) fn spawn_receive_loop(
         // 每轮接收后冲刷到期批次（约 50ms 窗口）
         update_mgr.flush_due(&app_handle);
         flush_download_list_updates(&app_handle, &mut list_gate);
+        flush_derived(&app_handle, &state, session_id, &mut derived);
     });
+}
+
+/// 冲刷派生事件合窗缓冲：窗口到期才取出；非活动账户直接丢弃，不下发。
+fn flush_derived(
+    app_handle: &tauri::AppHandle,
+    state: &AppStateRef,
+    session_id: i64,
+    derived: &mut DerivedBuffer,
+) {
+    let due = derived.take_due();
+    if state.active.load(Ordering::SeqCst) != session_id {
+        return;
+    }
+    for (event_name, payload) in due {
+        let _ = app_handle.emit(&event_name, payload);
+    }
 }
 
 /// 冲刷 worker 侧的合并缓冲：总是清空，只对活动账户下发。

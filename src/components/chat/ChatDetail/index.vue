@@ -2115,17 +2115,36 @@ const { accentTextColor, accentColorStyle, isDark } = useColors();
 /** 记录每条消息气泡的实际渲染宽度（msgId → px），用于判断相邻消息是否同宽 */
 const bubbleWidths = ref<Record<number, number>>({});
 
-/** 重新测量所有消息气泡的宽度 */
+/**
+ * 测量消息气泡宽度。
+ * full=true：全量重测（窗口缩放/布局变化，所有宽度都可能变）。
+ * full=false：增量，只对 bubbleWidths 里没有的新气泡读 offsetWidth；
+ * 已测过的沿用缓存，已删除的消息丢弃。每次 patch 都读全部 offsetWidth 会强制布局，代价太高。
+ */
 let measureBubbleRaf = 0;
-function measureBubbleWidths() {
+let measureBubbleFull = false;
+function measureBubbleWidths(full = false) {
     const container = messagesContainer.value;
     if (!container) return;
     const next: Record<number, number> = {};
-    // 只读 offsetWidth（比 getBoundingClientRect 少一层转换），且一次遍历
-    container.querySelectorAll<HTMLElement>('[data-bubble-msg-id]').forEach((el) => {
-        const id = Number(el.dataset.bubbleMsgId || '0');
-        if (id > 0) next[id] = Math.round(el.offsetWidth);
-    });
+    // 只读 offsetWidth（比 getBoundingClientRect 少一层转换）
+    if (full) {
+        container.querySelectorAll<HTMLElement>('[data-bubble-msg-id]').forEach((el) => {
+            const id = Number(el.dataset.bubbleMsgId || '0');
+            if (id > 0) next[id] = Math.round(el.offsetWidth);
+        });
+    } else {
+        const alive = new Set(messages.value.map((m) => m.id));
+        const cur = bubbleWidths.value;
+        for (const k of Object.keys(cur)) {
+            const id = Number(k);
+            if (alive.has(id)) next[id] = cur[id];
+        }
+        container.querySelectorAll<HTMLElement>('[data-bubble-msg-id]').forEach((el) => {
+            const id = Number(el.dataset.bubbleMsgId || '0');
+            if (id > 0 && !(id in next)) next[id] = Math.round(el.offsetWidth);
+        });
+    }
     // 仅在实际变化时更新，避免触发不必要的重渲染
     const cur = bubbleWidths.value;
     let changed = Object.keys(cur).length !== Object.keys(next).length;
@@ -2138,11 +2157,15 @@ function measureBubbleWidths() {
 }
 
 /** rAF 合帧：短时间多次 messagesVersion 变化只测一次，避免连续强制重排 */
-function scheduleMeasureBubbleWidths() {
+// 合帧期间只要有一次全量请求，本帧就做全量（full 标记不能被后续增量请求覆盖掉）
+function scheduleMeasureBubbleWidths(full = false) {
+    if (full) measureBubbleFull = true;
     if (measureBubbleRaf) return;
     measureBubbleRaf = requestAnimationFrame(() => {
         measureBubbleRaf = 0;
-        measureBubbleWidths();
+        const doFull = measureBubbleFull;
+        measureBubbleFull = false;
+        measureBubbleWidths(doFull);
     });
 }
 
@@ -2169,7 +2192,8 @@ watch(messagesContainer, (el) => {
     if (el) {
         refreshScrollMetrics(el);
         bubbleWidthObserver = new ResizeObserver(() => {
-            scheduleMeasureBubbleWidths();
+            // 容器尺寸变化 → 所有气泡宽度都可能变，必须全量重测
+            scheduleMeasureBubbleWidths(true);
             // clientHeight 随窗口/顶栏变化；scrollHeight 在下一次预取前再读
             scrollMetrics.c = el.clientHeight;
         });
@@ -4890,6 +4914,11 @@ function resetState() {
     dmHeaderTopic.value = undefined;
     threadInfo.value = undefined;
     threadReplyInfo.value = undefined;
+    // users/supergroups/basicGroups 只是全局 senderInfo 缓存的本地视图，清掉不影响取数；
+    // 不清的话同一组件实例逛过的每个群成员对象都会常驻内存。chats 故意保留（见切换会话处的首帧铺底）
+    users.value = {};
+    supergroups.value = {};
+    basicGroups.value = {};
     // 成员角色/标签按会话缓存：切回同一个群直接铺上，不再逐人重发 getChatMember
     memberStatus.value = { ...(fetchCacheGet<Record<number, MemberInfo>>('chatMembers', chatId.value ?? 0) ?? {}) };
     isHistoryExhausted.value = false;
@@ -5024,6 +5053,13 @@ function appendMessages(incoming: message[]) {
 function patchMessage(id: number, patch: Partial<message>) {
     const idx = messages.value.findIndex(m => m.id === id);
     if (idx === -1) return;
+    // 内容变了气泡宽度就可能变：丢掉该 id 的旧宽度，让下一次增量测量重读它。
+    // 增量测量只测新出现的气泡，不丢这里的话编辑后同宽连接会按旧宽度判断。
+    if (patch.content !== undefined && id in bubbleWidths.value) {
+        const nextWidths = { ...bubbleWidths.value };
+        delete nextWidths[id];
+        bubbleWidths.value = nextWidths;
+    }
     const next = messages.value.slice();
     next[idx] = freezeMsg({ ...messages.value[idx], ...patch } as message);
     messages.value = next;

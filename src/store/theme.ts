@@ -294,6 +294,7 @@ export function applyTheme(): void {
   const root = document.documentElement;
   const t = settings.theme;
   const dark = isDark.value;
+  lastAppliedDark = dark;
   themeVarBuffer = [];
   // 浅/深各用一套主题色与背景色
   const brandHex = (dark ? t.brandColorDark : t.brandColorLight) || "#2aabee";
@@ -453,6 +454,8 @@ export function applyTheme(): void {
  * 当前帧渲染之后（圆形过渡期间则延到动画结束）。
  */
 let lastSyncedDark: boolean | null = null;
+/** 最近一次 applyTheme 实际应用的明暗，用于判断是否为明暗切换（需同步应用） */
+let lastAppliedDark: boolean | null = null;
 /** 圆形过渡进行中：acrylic 重设推迟到动画结束，避免打断合成 */
 let revealInProgress = false;
 let pendingWindowDark: boolean | null = null;
@@ -501,10 +504,23 @@ export function initTheme(): void {
   // 首帧前应用，避免主题闪烁
   applyTheme();
 
-  // 设置变更 → 重算（sync，避免切深色后色阶慢一拍）
+  // 设置变更 → 重算。拖颜色滑杆时 input 每次都会触发，合并到下一帧只重算一次。
+  // 明暗切换 / 圆形过渡期间仍同步执行：过渡快照依赖同步写入的变量，否则会慢一拍。
+  let themeFramePending = false;
   watch(
     () => settings.theme,
-    () => applyTheme(),
+    () => {
+      if (revealInProgress || isDark.value !== lastAppliedDark) {
+        applyTheme();
+        return;
+      }
+      if (themeFramePending) return;
+      themeFramePending = true;
+      requestAnimationFrame(() => {
+        themeFramePending = false;
+        applyTheme();
+      });
+    },
     { deep: true, flush: "sync" },
   );
 

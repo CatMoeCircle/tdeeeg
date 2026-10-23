@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { $Function, $FunctionResultByName } from "tdlib-types";
-import { ref } from 'vue';
+import { ref, type Ref } from 'vue';
 import { DL_PRIORITY } from './downloadPriority';
 import type { TrackFileMeta } from '../store/downloads';
 
@@ -81,7 +81,7 @@ export async function ensureLocalFilePath(
   const id = file?.id;
   if (!id || !file?.local?.can_be_downloaded) return null;
   if (downloadingFiles.has(id)) return null;
-  downloadingFiles.add(id);
+  addDownloading(id); // 走 helper，保证响应式镜像同步
   try {
     if (opts?.beforeDownload) await opts.beforeDownload();
     const res = await tdlibSend({
@@ -96,7 +96,7 @@ export async function ensureLocalFilePath(
   } catch {
     return null;
   } finally {
-    downloadingFiles.delete(id);
+    deleteDownloading(id);
   }
 }
 
@@ -122,22 +122,36 @@ export const reactivePendingDownloadFiles = ref<Set<number>>(new Set());
 /** fileId → 仍需要该下载的 owner 集合 */
 const pendingDownloadOwners = new Map<number, Set<symbol>>();
 
-function syncDownloadingReactive() {
-  reactiveDownloadingFiles.value = new Set(downloadingFiles);
+/**
+ * 仅当 ids 对应的成员状态与源 Set 不一致时才替换镜像 ref（无变化直接 return，不唤醒订阅者）。
+ * ponytail: 真实增删仍是整体替换（Set 不支持细粒度通知）；要消除需改为 ref 内 Set 原地 add/delete。
+ */
+function syncReactive(target: Ref<Set<number>>, source: Set<number>, ids: number[]) {
+  // 比 size 是必须的：仓库里还有 ~20 处组件直接改 downloadingFiles，不经过 add/delete 助手。
+  // 只看传入的 ids 会漏掉这些直改，镜像永远追不上；size 一变就全量对齐。
+  if (
+    target.value.size === source.size &&
+    ids.every((id) => target.value.has(id) === source.has(id))
+  ) return;
+  target.value = new Set(source);
 }
 
-function syncPendingReactive() {
-  reactivePendingDownloadFiles.value = new Set(pendingDownloadFiles);
+function syncDownloadingReactive(...ids: number[]) {
+  syncReactive(reactiveDownloadingFiles, downloadingFiles, ids);
+}
+
+function syncPendingReactive(...ids: number[]) {
+  syncReactive(reactivePendingDownloadFiles, pendingDownloadFiles, ids);
 }
 
 function addDownloading(fileId: number) {
   downloadingFiles.add(fileId);
-  syncDownloadingReactive();
+  syncDownloadingReactive(fileId);
 }
 
 function deleteDownloading(fileId: number) {
   downloadingFiles.delete(fileId);
-  syncDownloadingReactive();
+  syncDownloadingReactive(fileId);
 }
 
 /** 检查指定 file_id 是否正在下载中（响应式） */
@@ -169,7 +183,7 @@ export function enqueuePendingDownload(fileId: number, owner: symbol): boolean {
   if (owners.has(owner)) return false;
   owners.add(owner);
   pendingDownloadFiles.add(fileId);
-  syncPendingReactive();
+  syncPendingReactive(fileId);
   return true;
 }
 
@@ -190,7 +204,7 @@ export function releasePendingDownloadOwner(owner: symbol): number[] {
       cancelled.push(fileId);
     }
   }
-  syncPendingReactive();
+  syncPendingReactive(...cancelled);
   return cancelled;
 }
 
@@ -207,7 +221,7 @@ export function takePendingDownload(fileId: number, owner?: symbol): boolean {
   }
   pendingDownloadOwners.delete(fileId);
   pendingDownloadFiles.delete(fileId);
-  syncPendingReactive();
+  syncPendingReactive(fileId);
   return true;
 }
 
