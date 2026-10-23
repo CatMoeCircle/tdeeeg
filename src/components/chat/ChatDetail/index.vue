@@ -2069,6 +2069,18 @@ let unsubscribeUpdates: (() => void) | null = null;
 
 /** 单调递增的加载代数，用于防止异步返回时的竞态条件 */
 let loadGeneration = 0;
+/** 组件已卸载：内联加载流程的 await 回来后一律不再继续（取数/挂载都是白跑） */
+let disposed = false;
+/**
+ * 连点对话合并窗口：窗口内的换聊天不立即加载，等点击停稳后再跑一次。
+ * 每次点击都完整走一遍 getChat + 取历史 + 首屏挂载，连点 5 个对话就是 5 份
+ * 白跑的取数与 DOM 挂载，主线程被塞满才是「连点对话卡顿」的来源。
+ * ponytail: 固定时长启发式，点击节奏更慢但仍卡时按实测调这两个常数。
+ */
+const RAPID_SWITCH_MS = 300;
+/** 留在骨架屏延迟（SKELETON_DELAY_MS=180）以内：有缓存窗口的会话仍能直接铺上、不闪骨架 */
+const RAPID_SWITCH_SETTLE_MS = 120;
+let lastChatSwitchAt = 0;
 
 /** 消息数据版本号，用于 computed 依赖追踪，避免多余重算 */
 const messagesVersion = ref(0);
@@ -2206,6 +2218,8 @@ onMounted(async () => {
 
 // 浏览位置必须在 DOM 卸载前冲刷：onUnmounted 时 messagesContainer 已是 null，flush 会直接 return
 onBeforeUnmount(() => {
+    // 先标记卸载：正在跑的加载流程下一处 await 回来后直接退出
+    disposed = true;
     if (chatId.value !== undefined) {
         // DOM 还在时把窗口存进内存缓存（关闭会话后再打开可立刻铺上）
         saveCurrentChatWindow(chatId.value, topicId.value, threadRootMsgId.value);
@@ -2760,7 +2774,7 @@ function flashMessage(messageId: number) {
 
 /** 检查加载代数是否已过期（聊天已切换），过期则中止后续操作 */
 function isGenerationValid(gen: number): boolean {
-    return gen === loadGeneration;
+    return !disposed && gen === loadGeneration;
 }
 
 /** 是否秘密聊天 */
@@ -2836,6 +2850,10 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
     const [oldChatId, oldTopicId] = oldVals ?? [];
     const switchingChat = oldChatId !== undefined
         && (oldChatId !== newChatId || oldTopicId !== newTopicId);
+    const switchAt = performance.now();
+    /** 上一次换聊天刚发生不久：这次点击很可能只是连点中的一下 */
+    const rapidSwitch = switchingChat && switchAt - lastChatSwitchAt < RAPID_SWITCH_MS;
+    lastChatSwitchAt = switchAt;
     // 切走前把当前窗口留在内存缓存里：下次进入同一会话直接铺上，不再闪骨架屏
     if (oldChatId !== undefined) {
         saveCurrentChatWindow(oldChatId, oldTopicId ?? null, oldVals?.[2] ?? null);
@@ -2885,6 +2903,15 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
         && (savedBrowsePos || (rememberedChat?.unread_count ?? 0) === 0)
         ? peekChatWindow(chatWindowKey(currentId, topicId.value, threadRootMsgId.value))
         : null;
+
+    // 连点对话：只有点击停稳后的那一个才真正加载，中间对话不取数、不挂消息
+    // （上面已清空旧消息、骨架屏照常盖着，用户看不出中间少加载了几次）。
+    if (rapidSwitch) {
+        await new Promise<void>((resolve) => setTimeout(resolve, RAPID_SWITCH_SETTLE_MS));
+        // 等待期间又切走了：本次整份作废，交给新一代加载
+        if (!isGenerationValid(gen) || chatId.value !== currentId) return;
+    }
+
     if (cachedWindow) {
         applyMessages(cachedWindow.messages);
         windowReachesLatest.value = cachedWindow.windowReachesLatest;
