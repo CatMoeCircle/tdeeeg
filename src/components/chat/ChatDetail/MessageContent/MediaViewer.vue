@@ -15,7 +15,7 @@
                     <video ref="videoRef" :src="effectiveVideoSrc" preload="auto" playsinline loop
                         class="absolute inset-0 w-full h-full object-contain transition-opacity duration-200"
                         :class="videoHasFrame ? 'opacity-100' : 'opacity-0'" :poster="currentThumb || undefined"
-                        @timeupdate="onVideoTimeUpdate" @loadedmetadata="onVideoLoaded" @canplay="onVideoFrameReady"
+                        @timeupdate="onVideoTimeUpdate" @progress="updateVideoBuffered" @loadedmetadata="onVideoLoaded" @canplay="onVideoFrameReady"
                         @playing="onVideoFrameReady" @waiting="onVideoWaiting" @error="onVideoError"
                         @ended="onVideoEnded" @click="toggleVideoPlay" />
 
@@ -230,8 +230,8 @@
                                         <span class="text-white/70 text-xs font-mono shrink-0 w-10 text-right">{{
                                             formatTimestamp(videoCurrent) }}</span>
                                         <input type="range" :min="0" :max="videoDuration || 0" :step="0.1"
-                                            :value="videoCurrent" @input="onSeekDrag"
-                                            class="flex-1 h-1.5 accent-white cursor-pointer appearance-none bg-white/20 rounded-full [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md" />
+                                            :value="videoCurrent" @input="onSeekDrag" :style="seekTrackStyle"
+                                            class="flex-1 h-1.5 accent-white cursor-pointer appearance-none rounded-full bg-white/15 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md" />
                                         <span class="text-white/70 text-xs font-mono shrink-0 w-10">{{
                                             formatTimestamp(videoDuration) }}</span>
                                     </div>
@@ -512,13 +512,24 @@ const videoMuted = ref(false);
 const videoVolume = ref(settings.player.mediaVolume);
 const videoCurrent = ref(0);
 const videoDuration = ref(0);
+/** 已缓存到的末尾时间（秒），用于进度条缓冲显示 */
+const videoBuffered = ref(0);
 /** 视频已渲染首帧（canplay/playing）——此前显示封面，不黑屏 */
 const videoHasFrame = ref(false);
 /** 视频加载失败（断网 / 流式源不可用等） */
 const videoLoadFailed = ref(false);
 /** 播放中缓冲（仅首帧后显示轻度指示） */
 const videoBuffering = ref(false);
-// Progress bar computed (videoProgressPct) placeholder for future UI
+
+/** 进度条轨道：已播放（白）+ 已缓存（半透明白）+ 未加载（更淡白） */
+const seekTrackStyle = computed(() => {
+    const d = videoDuration.value || 0;
+    const played = d > 0 ? Math.min(100, (videoCurrent.value / d) * 100) : 0;
+    const buffered = d > 0 ? Math.max(played, Math.min(100, (videoBuffered.value / d) * 100)) : played;
+    return {
+        background: `linear-gradient(to right, rgba(255,255,255,0.95) ${played}%, rgba(255,255,255,0.42) ${played}%, rgba(255,255,255,0.42) ${buffered}%, rgba(255,255,255,0.18) ${buffered}%)`,
+    };
+});
 
 // 播放倍速
 const playbackRate = ref(1);
@@ -591,6 +602,41 @@ const currentCanDownload = computed(() => {
 /** 当前视频有效 src：优先手动下载完成后的本地文件，其次 media 项 src */
 const effectiveVideoSrc = computed(() => videoSrcOverride.value || currentMediaSrc.value);
 
+/**
+ * 查看器打开期间的后台缓存：整文件 downloadFile（USER_PLAYING 优先），
+ * 在原有按需流式之外补一次持续下载，tdstream 之后直接读已落盘部分。
+ * 缓存生命周期跟"查看器是否打开"走，与暂停/播放无关：
+ * 关闭查看器或切到下一条即 cancelDownloadFile，TDLib 停在已下位置，下次续传。
+ * ponytail: 整文件一路下到底，不做分段预读窗口；需要限流再拆窗口。
+ */
+const STREAM_CACHE_MAX_MB = 2048;
+let streamCacheFileId = 0;
+
+function startStreamCache(fileId: number, sizeBytes: number) {
+    if (!fileId || streamCacheFileId === fileId) return;
+    if (sizeBytes > STREAM_CACHE_MAX_MB * 1024 * 1024) return;
+    if (downloadingFiles.has(fileId)) return;
+    streamCacheFileId = fileId;
+    void tdlibSend({
+        _: 'downloadFile',
+        file_id: fileId,
+        priority: DL_PRIORITY.USER_PLAYING,
+        offset: 0,
+        limit: 0,
+        synchronous: false,
+    }).catch((e) => {
+        streamCacheFileId = 0;
+        console.warn('video stream cache failed:', e);
+    });
+}
+
+function stopStreamCache() {
+    const id = streamCacheFileId;
+    if (!id) return;
+    streamCacheFileId = 0;
+    void tdlibSend({ _: 'cancelDownloadFile', file_id: id }).catch(() => {});
+}
+
 /** 手动下载当前视频（未自动下载的视频，用户点击下载按钮触发） */
 async function handleViewerVideoDownload() {
     const c = currentItem.value?.message?.content;
@@ -603,6 +649,7 @@ async function handleViewerVideoDownload() {
     videoDownloadProgress.value = 0;
     videoDownloadBytes.value = { cur: 0, total: c.video.video?.size || c.video.video?.expected_size || 0 };
     downloadingFiles.add(fileId);
+    streamCacheFileId = 0; // 手动下载接管同一文件，不再重复发 downloadFile
     try {
         const fileName = c.video.file_name || `video_${messageId || fileId}.mp4`;
         const chatTitle = chatId ? useChatStore().chats[chatId]?.title || t('download.row.chatFallback', { id: chatId }) : '';
@@ -1206,6 +1253,7 @@ watch(() => props.visible, (v) => {
         clearVideoRetryTimer();
         videoCurrent.value = 0;
         videoDuration.value = 0;
+        videoBuffered.value = 0;
         playbackRate.value = 1;
         videoSrcOverride.value = '';
         videoDownloading.value = false;
@@ -1216,6 +1264,7 @@ watch(() => props.visible, (v) => {
         speedMenuVisible.value = false;
         qualityMenuVisible.value = false;
     } else {
+        stopStreamCache();
         if (videoRef.value) {
             videoRef.value.pause();
             videoRef.value.removeAttribute('src');
@@ -1247,12 +1296,14 @@ watch(currentIndex, () => {
     // 切换条目时清掉 sticky 流式源，让新视频按需重新选择 src
     stickyStreamSrc.value = '';
     stickyStreamFileId.value = 0;
+    stopStreamCache();
     activeQualitySrc.value = currentMediaSrc.value || '';
     speedMenuVisible.value = false;
     qualityMenuVisible.value = false;
 });
 
 function close() {
+    stopStreamCache();
     if (isVideo.value) onVideoStopped();
     emit('close', isVideo.value ? videoCurrent.value : undefined);
 }
@@ -1575,12 +1626,33 @@ function onVolumeChange(e: Event) {
 function onVideoTimeUpdate() {
     if (videoRef.value) {
         videoCurrent.value = videoRef.value.currentTime;
+        updateVideoBuffered();
     }
+}
+
+/** 刷新已缓存末尾时间：优先取包含当前播放位置的时间段 */
+function updateVideoBuffered() {
+    const el = videoRef.value;
+    if (!el) return;
+    const ranges = el.buffered;
+    const t = el.currentTime;
+    let end = 0;
+    for (let i = 0; i < ranges.length; i++) {
+        if (ranges.start(i) <= t + 0.5 && ranges.end(i) >= t) { end = ranges.end(i); break; }
+        end = Math.max(end, ranges.end(i));
+    }
+    videoBuffered.value = end;
 }
 
 function onVideoLoaded() {
     if (videoRef.value) {
         videoDuration.value = videoRef.value.duration;
+        updateVideoBuffered();
+        // 查看器已打开且用的是流式源：补一次持续下载，一路缓存到底
+        if (stickyStreamFileId.value) {
+            const vc = currentContent.value;
+            startStreamCache(stickyStreamFileId.value, vc?._ === 'messageVideo' ? (vc.video.video?.size || 0) : 0);
+        }
         videoLoadFailed.value = false;
         videoRef.value.volume = videoVolume.value;
         videoRef.value.muted = videoMuted.value;
@@ -1701,6 +1773,7 @@ function onSeekDrag(e: Event) {
     const val = parseFloat((e.target as HTMLInputElement).value);
     videoRef.value.currentTime = val;
     videoCurrent.value = val;
+    updateVideoBuffered();
 }
 
 function formatTimestamp(seconds: number): string {
