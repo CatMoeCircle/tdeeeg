@@ -32,6 +32,8 @@ import {
   COMPRESS_BATCH,
   HISTORY_KEEP,
   RECENT_LIMIT,
+  SUMMARY_MAX_TOKENS,
+  STYLE_MAX_TOKENS,
   activationAllows,
   compressSystemPrompt,
   compressUserPromptLines,
@@ -67,8 +69,6 @@ const MAX_ACTIVATION_WAIT_SEC = 2 * 60 * 60;
 const MAX_WAIT_MS = 25_000;
 /** 发出去的一段正文的 token 上限（聊天回复不需要更长） */
 const SEND_MAX_TOKENS = 800;
-/** 压缩摘要的 token 上限 */
-const COMPRESS_MAX_TOKENS = 900;
 /** 10 分钟内最多回几条：两个都是 AI 在接管时不会无限对刷（真人也发不了这么快） */
 const RATE_WINDOW_MS = 10 * 60_000;
 const MAX_REPLIES_PER_WINDOW = 20;
@@ -251,7 +251,7 @@ async function compressHistory(
       { role: "user", text: compressUserPromptLines(cfg.summary, historyLines(head, opts.selfName, opts.partnerName)) },
     ],
     effort: null,
-    maxOutputTokens: COMPRESS_MAX_TOKENS,
+    maxOutputTokens: SUMMARY_MAX_TOKENS,
   });
   const summary = tidySummary(reply.text ?? "");
   if (!summary) return 0;
@@ -609,7 +609,7 @@ export async function summarizeStyleNow(
       { role: "user", text: styleUserPrompt(messages, selfName) },
     ],
     effort: null,
-    maxOutputTokens: 700,
+    maxOutputTokens: STYLE_MAX_TOKENS,
   });
   const style = tidyStyle(reply.text ?? "");
   if (!style) throw new Error("模型没有返回风格总结");

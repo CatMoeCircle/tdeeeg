@@ -70,6 +70,13 @@ export const COMPRESS_BATCH = 60;
 export const SUMMARY_MAX = 1600;
 /** 风格画像长度上限（字符） */
 export const STYLE_MAX = 1200;
+/**
+ * 两次总结（风格画像 / 上下文压缩）的输出 token 上限。
+ * 中文约 1 字 ≈ 1~1.5 token，思考模型还要先花掉一部分 —— 给不够就会说到一半被截断，
+ * 存下来的画像 / 摘要自然「格式不对」。上限不花额外钱，模型自己会停。
+ */
+export const STYLE_MAX_TOKENS = 2000;
+export const SUMMARY_MAX_TOKENS = 2400;
 /** 用户可以选的「总结最近 N 条」档位（上限 500） */
 export const STYLE_LIMITS = [30, 50, 100, 200, 500] as const;
 /** 默认总结最近 50 条 */
@@ -340,6 +347,7 @@ export function styleSystemPrompt(selfName: string, partnerName: string): string
     "2. 条目式列出：称呼对方的方式、句子长短、常用词 / 口头禅、语气（直接 / 委婉 / 玩笑 / 冷淡）、标点与大小写、emoji / 表情 / 拟声词习惯、一次发几条、什么时候不接话。",
     "3. 不复述聊天内容、不评价、不编造；样本不足就写「样本不足」。",
     `4. 输出 200~400 字中文条目，直接可当写作风格说明使用，不超过 ${STYLE_MAX} 字。`,
+    "5. 直接输出条目正文：不要代码块、不要 JSON、不要前言 / 后记。",
   ].join("\n");
 }
 
@@ -352,22 +360,54 @@ export function styleUserPrompt(messages: TranscriptMessage[], selfName = "我")
   ].join("\n\n");
 }
 
-/** 风格画像落库前的收尾（去掉围栏 / 前言，超长截断） */
-export function tidyStyle(raw: string, max = STYLE_MAX): string {
+/** 模型把结果塞进 JSON 对象时（`{"style": "..."}`），把里面的字符串值拼回正文；认不出返回 null */
+function jsonText(raw: string): string | null {
+  let v: unknown;
+  try {
+    v = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const out: string[] = [];
+  for (const val of Object.values(v as Record<string, unknown>)) {
+    if (typeof val === "string") out.push(val);
+    else if (Array.isArray(val)) out.push(...val.filter((x): x is string => typeof x === "string"));
+  }
+  const text = out.join("\n").trim();
+  return text || null;
+}
+
+/** 前言标签：`风格画像：` / `**摘要**:` / 单独占一行的 `风格总结`（`总结一下…` 这种正文不能剥） */
+const PREAMBLE = /^(?:\*\*|__)?\s*(?:风格画像|风格总结|画像|摘要|总结)\s*(?:\*\*|__)?\s*(?:[:：]|\r?\n|$)\s*/;
+
+/**
+ * 模型输出 → 落库的正文（风格画像 / 摘要共用）。
+ * 模型爱加一层代码块、写句「好的，以下是风格画像：」、甚至直接返回 JSON —— 这些都是包装。
+ * 代码围栏只取第一段里面的内容（前言 / 后记都丢掉），JSON 拆成正文，标签剥掉，超长截断。
+ */
+function tidyBlock(raw: string, max: number): string {
   let s = raw.trim();
-  const fenced = /^```[a-zA-Z]*\n([\s\S]*?)\n```$/.exec(s);
+  const fenced = /```[a-zA-Z]*\r?\n([\s\S]*?)(?:\r?\n)?```/.exec(s);
   if (fenced) s = fenced[1].trim();
-  s = s.replace(/^(?:风格画像|风格总结|画像)[:：]\s*/, "");
+  if (s.startsWith("{")) s = jsonText(s) ?? s;
+  s = s.trim();
+  // 剥标签只剥一行：正文第一行本来就叫「总结」时别把内容也剥了
+  if (PREAMBLE.test(s)) {
+    const rest = s.replace(PREAMBLE, "").trim();
+    if (rest) s = rest;
+  }
   return s.length > max ? s.slice(0, max) : s;
 }
 
-/** 摘要落库前的收尾：去掉围栏 / 首尾空白，超长按原顺序截断 */
+/** 风格画像落库前的收尾（去掉围栏 / 前言 / JSON 包装，超长截断） */
+export function tidyStyle(raw: string, max = STYLE_MAX): string {
+  return tidyBlock(raw, max);
+}
+
+/** 摘要落库前的收尾（同上） */
 export function tidySummary(raw: string, max = SUMMARY_MAX): string {
-  let s = raw.trim();
-  const fenced = /^```[a-zA-Z]*\n([\s\S]*?)\n```$/.exec(s);
-  if (fenced) s = fenced[1].trim();
-  s = s.replace(/^摘要[:：]\s*/, "");
-  return s.length > max ? s.slice(0, max) : s;
+  return tidyBlock(raw, max);
 }
 
 /** 本人频繁使用的贴纸 / 自定义表情（id + 代表字符 + 次数） */
