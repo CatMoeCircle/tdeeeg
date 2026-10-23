@@ -1526,6 +1526,7 @@
     "editMediaAttached": "Прикреплено: {type}",
     "editMediaNoPreview": "Нет предпросмотра: {type}",
     "editMediaReplaceHint": "Выбран новый {type}, будет заменён при отправке",
+    "editMediaRestKept": "В редактирование можно добавить только одно медиа; ещё {count} осталось в панели вложений",
     "replaceUnsupported": "Этот тип сообщения не поддерживает замену медиа",
     "pickMediaFailed": "Не удалось выбрать {type}",
     "revealFailed": "Не удалось открыть папку",

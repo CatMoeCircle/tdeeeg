@@ -1657,7 +1657,7 @@ async function startEdit(msg: message) {
     saveDraft();
 
     clearReply();
-    // 编辑不走附件托盘；清空附件避免误发。媒体替换单独用 editMediaReplacement。
+    // 进入编辑时清空草稿附件，避免误带进编辑；编辑期间新粘贴 / 选择的文件会作为新媒体提交
     void useAttachmentStore().clearWithCleanup();
 
     editingMsg.value = msg;
@@ -4395,31 +4395,36 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
     // —— 编辑模式：有新媒体 → editMessageMedia；仅文本 → editMessageText；仅描述 → editMessageCaption ——
     if (editingMsg.value) {
         const target = editingMsg.value;
+        const attachStore = useAttachmentStore();
+        // 编辑期间新粘贴 / 拖入 / 选择的文件：横幅「更换」优先，其次取附件栏第一个
+        const trayMedia = attachStore.items[0] ?? null;
+        const mediaToSend = editMediaReplacement.value ?? trayMedia;
         const isMedia = isMediaMessage(target) || editHasMedia.value;
-        // 文本消息不允许空内容；媒体消息允许清空描述
-        if (!text.trim() && !isMedia && !editMediaReplacement.value) return;
+        // 文本消息不允许空内容；媒体消息（含即将被改成媒体的文本消息）允许清空描述
+        if (!text.trim() && !isMedia && !mediaToSend) return;
         try {
             const richEntities = (typeof input === 'string' ? [] : input.entities || []) as textEntity$Input[];
             const customEmojiEntities = buildCustomEmojiEntities(text);
             const parsed = await withParsedMarkdown(text, [...richEntities, ...customEmojiEntities]);
             const entities = parsed.entities;
             let ok = false;
-            if (editMediaReplacement.value) {
-                // 更换资源：按 TDLib 语义解析 kind（文件→document；动画仅 GIF/MPEG4；其余同类型）
-                const resolved = resolveEditReplaceKind(
-                    target.content._,
-                    editMediaReplacement.value.kind,
-                    editMediaReplacement.value.name,
-                );
-                if (!resolved.ok) {
-                    toast.warning(resolved.reason);
+            if (mediaToSend) {
+                // 原消息已是媒体 → 按原类型校验可替换性（图片↔视频、文件↔音乐…）；
+                // 纯文本消息 → 直接把消息体改成媒体，类型由分类结果决定
+                let kind = mediaToSend.kind;
+                if (editHasMedia.value) {
+                    const resolved = resolveEditReplaceKind(target.content._, mediaToSend.kind, mediaToSend.name);
+                    if (!resolved.ok) {
+                        toast.warning(resolved.reason);
+                        return;
+                    }
+                    kind = resolved.kind;
+                } else if (target.content._ !== 'messageText') {
+                    // 既不是媒体消息、也不是纯文本（投票 / 贴纸 / 位置…）→ 无处安放附件
+                    toast.warning(t('chat.replaceUnsupported'));
                     return;
                 }
-                const content = buildEditMediaContent(
-                    { ...editMediaReplacement.value, kind: resolved.kind },
-                    parsed.text,
-                    entities,
-                );
+                const content = buildEditMediaContent({ ...mediaToSend, kind }, parsed.text, entities);
                 ok = await editMessageMediaContent(target.chat_id || chatId.value, target.id, content);
             } else if (isMedia) {
                 // 仅改描述
@@ -4434,6 +4439,13 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
                 editSeedEntities.value = null;
                 editMediaPreviewSrc.value = null;
                 editMediaReplacement.value = null;
+                // 用掉的附件从托盘移除；编辑期间多选的文件留在托盘，退出编辑后可单独发送
+                if (trayMedia && mediaToSend === trayMedia) {
+                    attachStore.remove(trayMedia.id);
+                    if (attachStore.items.length > 0) {
+                        toast.info(t('chat.editMediaRestKept', { count: attachStore.items.length }));
+                    }
+                }
                 cancelLocalDraftTimer();
                 // 编辑成功后恢复进入编辑前保存的草稿，避免输入框被清空丢失草稿视图
                 // （评论线程不读写会话草稿）
@@ -4445,6 +4457,10 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
                         suppressDraftAutosave.value = false;
                     });
                 }
+            } else {
+                // 编辑失败：文本与实体还回输入框，附件仍留在托盘，避免用户重打
+                messageInput.value = parsed.text;
+                editSeedEntities.value = entities as textEntity$Input[];
             }
         } catch (e) {
             console.error('Failed to edit message:', e);

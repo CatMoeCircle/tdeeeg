@@ -1658,6 +1658,7 @@
     "editMediaAttached": "已附帶{type}",
     "editMediaNoPreview": "無{type}預覽",
     "editMediaReplaceHint": "已選擇新{type}，傳送時將取代",
+    "editMediaRestKept": "編輯只能攜帶一個媒體，其餘 {count} 個已留在附件欄",
     "replaceUnsupported": "該訊息類型不支援更換資源",
     "pickMediaFailed": "選擇{type}失敗",
     "revealFailed": "開啟目錄失敗",

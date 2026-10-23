@@ -1658,6 +1658,7 @@
     "editMediaAttached": "Attached {type}",
     "editMediaNoPreview": "No {type} preview",
     "editMediaReplaceHint": "New {type} selected, will replace on send",
+    "editMediaRestKept": "An edit can carry one media only; {count} more kept in the attachment tray",
     "replaceUnsupported": "This message type does not support replacing media",
     "pickMediaFailed": "Failed to select {type}",
     "revealFailed": "Failed to open folder",

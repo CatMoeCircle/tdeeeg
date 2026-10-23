@@ -1665,6 +1665,7 @@
     "editMediaAttached": "已附带{type}",
     "editMediaNoPreview": "无{type}预览",
     "editMediaReplaceHint": "已选择新{type}，发送时将替换",
+    "editMediaRestKept": "编辑只能携带一个媒体，其余 {count} 个已留在附件栏",
     "replaceUnsupported": "该消息类型不支持更换资源",
     "pickMediaFailed": "选择{type}失败",
     "revealFailed": "打开目录失败",
