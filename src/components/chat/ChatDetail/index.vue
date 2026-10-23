@@ -1540,12 +1540,20 @@ const aiPromptRef = ref<InstanceType<typeof AiPromptBar> | null>(null);
 /** 切换对话加载期间为 true：抑制自动存草稿，避免清空输入误删新聊天草稿 */
 const suppressDraftAutosave = ref(false);
 const {
-    saveDraft, restoreDraft, clearDraft, flushTdlibDraftNow, cancelLocalDraftTimer, cancelTdlibDraftTimer,
+    saveDraft, ownsInput, restoreDraft, clearDraft, flushTdlibDraftNow, cancelLocalDraftTimer, cancelTdlibDraftTimer,
 } = useDraft({
     chatId, topicId, threadMode, threadRootMsgId,
     messageInput, pendingCustomEmoji, editingMsg,
     isDirectMessagesChat, suppress: suppressDraftAutosave,
 });
+
+/**
+ * 切走时该不该存草稿：输入框确实代表这个对话，或者用户在里面留了东西。
+ * 连点对话时中间那些对话从未打开过、输入框是上一次切换清空的 —— 两者都不成立，
+ * 存下去等于拿空输入删掉它自己的草稿缓存和 TDLib 草稿。
+ */
+const hasDraftToSave = (cid: number, tid?: number | null) =>
+    ownsInput(cid, tid) || !!messageInput.value.trim() || pendingCustomEmoji.value.length > 0;
 
 /** 传给 MessageInput 的编辑实体（补齐必填字段） */
 const editSeedEntitiesForInput = computed<textEntity[] | null>(() =>
@@ -2249,7 +2257,8 @@ onUnmounted(() => {
     if (chatLoadRetryTimer !== null) window.clearTimeout(chatLoadRetryTimer);
     cancelLocalDraftTimer();
     // 编辑中卸载：编辑文本不是草稿，不要写入；直接冲刷先前已保存的 TDLib 草稿
-    if (!editingMsg.value) {
+    // 加载中途关掉面板时，输入框可能还不属于这个对话（同上：别拿空输入删草稿）
+    if (!editingMsg.value && chatId.value !== undefined && hasDraftToSave(chatId.value, topicId.value)) {
         saveDraft();
     }
     // 无论是否编辑，都把待提交草稿冲刷出队，避免组件卸载后丢草稿
@@ -2873,7 +2882,8 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
             pendingCustomEmoji.value = [];
             cancelLocalDraftTimer();
         } else {
-            saveDraft(oldChatId!, oldTopicId);
+            // 连点中间对话没真正打开过：不要拿清空后的输入去存（会删掉它的草稿）
+            if (hasDraftToSave(oldChatId!, oldTopicId)) saveDraft(oldChatId!, oldTopicId);
             // 抑制自动存草稿并立刻清空输入框，避免加载期间看到旧内容、
             // 或防抖回调用新 chatId 把空输入误存成「删除新聊天草稿」。
             cancelLocalDraftTimer();
