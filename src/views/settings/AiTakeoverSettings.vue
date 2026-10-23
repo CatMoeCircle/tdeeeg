@@ -451,9 +451,13 @@ function usernameOf(c: Chat): string {
     return id ? getReactiveUser(id)?.usernames?.active_usernames?.[0] ?? '' : '';
 }
 
+/** 候选列表补拉过资料的 user id（防 getUser 反复失败时每次重算都重发请求） */
+const userFetchTried = new Set<number>();
+
 /**
  * 候选聊天：主列表 + 归档里还没被接管的私聊。
- * 用户信息还没缓存时先列出来（加进来时再校验一次），否则机器人也会混进来。
+ * 用户资料没缓存的先补拉一次，拉到之前不列出——机器人只有靠这一步才挡得住，
+ * 等 userTypeBot 落进缓存再过滤，列表里就已经闪出来过了。
  */
 const candidates = computed<Chat[]>(() => {
     const ids = [
@@ -461,18 +465,27 @@ const candidates = computed<Chat[]>(() => {
         ...(chatStore.lists['chatListArchive'] ?? []),
     ];
     const q = query.value.trim().toLowerCase();
-    return ids
-        .map((id) => chatStore.chats[id])
-        .filter((c): c is Chat => !!c && c.title !== '…' && c.type?._ === 'chatTypePrivate')
-        .filter((c) => c.id !== myId.value)
-        .filter((c) => {
-            const u = getReactiveUser(privateUserId(c));
-            // 有缓存就按真实类型过滤；没缓存先放过，运行时不会回机器人
-            return !u || (u.type?._ === 'userTypeRegular' && !u.is_support);
-        })
-        .filter((c) => !takeoverFor(c.id))
-        .filter((c) => !q || c.title.toLowerCase().includes(q) || usernameOf(c).toLowerCase().includes(q))
-        .slice(0, 40);
+    const out: Chat[] = [];
+    for (const id of ids) {
+        const c = chatStore.chats[id];
+        if (!c || c.title === '…' || c.type?._ !== 'chatTypePrivate' || c.id === myId.value) continue;
+        if (takeoverFor(c.id)) continue;
+        const uid = c.type.user_id;
+        const u = uid ? getReactiveUser(uid) : undefined;
+        if (!u) {
+            // 每个 id 只补拉一次；getUser 失败（如已注销拿不到资料）就不进列表
+            if (uid && !userFetchTried.has(uid)) {
+                userFetchTried.add(uid);
+                void ensureUser(uid);
+            }
+            continue;
+        }
+        if (u.type?._ !== 'userTypeRegular' || u.is_support) continue;
+        if (q && !c.title.toLowerCase().includes(q) && !usernameOf(c).toLowerCase().includes(q)) continue;
+        out.push(c);
+        if (out.length >= 40) break;
+    }
+    return out;
 });
 
 function toggleExpanded(chatId: number): void {
