@@ -1292,6 +1292,7 @@ import { useUserStore } from "../../store/user";
 import { accentColorStyle, rgbToCss } from "../../store/colors";
 import { confirmAndOpenExternalLink } from "../../utils/openExternalLink";
 import { openAnyLink } from "../../utils/openInternalLink";
+import { bingMapsLink } from "../../utils/mapLink";
 import formatStatus from "../../utils/status";
 import { downloadFileUrl, listAlbumCoverFiles } from "../../utils/profileMedia";
 import { fetchItunesCoverForAudio } from "../../utils/itunesCover";
@@ -3428,11 +3429,14 @@ function copyChatId() {
   copyText(String(chatId.value ?? ''));
 }
 
-/** 点击位置 → 弹出确认提示后用微软地图网页版打开经纬度 */
+/** 点击位置 → 弹出确认提示后用微软地图网页版打开经纬度（带标记点） */
 function openLocation() {
   const loc = businessLocation.value?.location;
   if (!loc) return;
-  const url = `https://www.bing.com/maps?cp=${loc.latitude}~${loc.longitude}&lvl=16`;
+  const url = bingMapsLink(loc.latitude, loc.longitude, {
+    label: businessLocation.value?.address,
+    title: businessLocation.value?.address,
+  });
   confirmAndOpenExternalLink(url).catch((e) => {
     // 用户取消时不报错
     if (e?.message !== 'canceled') {
