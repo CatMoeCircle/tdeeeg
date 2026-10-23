@@ -90,6 +90,12 @@ const router = createRouter({
           component: () => import("../views/settings/DownloadSettings.vue"),
         },
         {
+          // 存储占用详情（精确统计 getStorageStatistics，从数据设置页进入）
+          path: "settings/storage",
+          name: "settings-storage",
+          component: () => import("../views/settings/StorageSettings.vue"),
+        },
+        {
           path: "settings/notifications",
           name: "settings-notifications",
           component: () => import("../views/settings/NotificationSettings.vue"),
