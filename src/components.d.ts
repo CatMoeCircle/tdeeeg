@@ -29,6 +29,7 @@ declare module 'vue' {
     BaseCheckbox: typeof import('./components/ui/checkbox/BaseCheckbox.vue')['default']
     BaseInput: typeof import('./components/ui/input/BaseInput.vue')['default']
     BlockedUsersDialog: typeof import('./components/settings/BlockedUsersDialog.vue')['default']
+    BotManageBar: typeof import('./components/chat/ChatDetail/BotManageBar.vue')['default']
     BusinessChatbotDialog: typeof import('./components/settings/BusinessChatbotDialog.vue')['default']
     BusinessHoursDialog: typeof import('./components/settings/BusinessHoursDialog.vue')['default']
     BusinessLocationDialog: typeof import('./components/settings/BusinessLocationDialog.vue')['default']

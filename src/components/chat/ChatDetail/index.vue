@@ -390,13 +390,19 @@
                 @toggle-topic-tag-position="toggleTopicTagPosition" />
         </div>
 
+        <!-- ===== 机器人管理条（业务机器人接管当前聊天）：紧贴 Header 下方 ===== -->
+        <div v-if="botManageBar && chatId !== undefined" class="absolute inset-x-0 z-10"
+            :class="topicLayoutAnim ? 'topic-chrome-anim' : ''" :style="[botBarStyle, tagBarSideInsetStyle]">
+            <BotManageBar :chat-id="chatId" :bar="botManageBar" />
+        </div>
+
         <!-- ===== 话题标签栏（话题模式 / 论坛群组） =====
              right/left：图片样式侧栏；top：悬浮在 Header 与置顶栏中间；bottom：悬浮在输入条上方 -->
         <!-- ===== 话题标签栏（tag 栏话题模式）
              位置切换动画由 TopicTagBar 根节点 data-pos 驱动的 CSS keyframes 完成
              （不用 Vue Transition，避免 out-in 卡死导致元素不再挂载） ===== -->
         <TopicTagBar v-if="showTopicPanel && chatId !== undefined" :chat-id="chatId" :topic-id="topicId"
-            :position="topicTagPosition" :top-offset="4" :bottom-offset="76" :data-pos="topicTagPosition"
+            :position="topicTagPosition" :top-offset="4 + botBarSpace" :bottom-offset="76" :data-pos="topicTagPosition"
             :is-dm="isDirectMessagesChat" @select="onTopicTagSelect" />
 
         <!-- ===== 消息搜索栏（覆盖 Header） ===== -->
@@ -742,6 +748,7 @@ import PinMessageConfirm from '../../contextMenu/PinMessageConfirm.vue';
 import StopPollConfirm from '../../contextMenu/StopPollConfirm.vue';
 import ReportMessageConfirm from '../../contextMenu/ReportMessageConfirm.vue';
 import PinnedMessageBar from './PinnedMessageBar.vue';
+import BotManageBar from './BotManageBar.vue';
 import TopicTagBar from './TopicTagBar.vue';
 import SearchBar from './SearchBar.vue';
 import ReactionsBar from './ReactionsBar.vue';
@@ -2462,6 +2469,17 @@ const handleUpdate = async (update: Update) => {
             // 全部翻译栏跟随 chat.is_translatable
             if (update.chat_id !== chatId.value || !chat.value) return;
             chat.value.is_translatable = !!update.is_translatable;
+            break;
+        }
+
+        case 'updateChatBusinessBotManageBar': {
+            // 业务机器人接管状态变更：驱动顶栏管理条显示/隐藏与暂停态
+            if (update.chat_id === chatId.value && chat.value) {
+                chat.value.business_bot_manage_bar = update.business_bot_manage_bar;
+            }
+            if (typeof update.chat_id === 'number' && chats.value[update.chat_id]) {
+                chats.value[update.chat_id].business_bot_manage_bar = update.business_bot_manage_bar;
+            }
             break;
         }
 
@@ -5395,6 +5413,15 @@ const topStackHasCard = computed(() => showTopCard.value || translateBarVisible.
 const showChatTranslateBarUi = computed(() => !translateBarHidden.value && translateBarVisible.value);
 const topStackVisible = computed(() => topStackHasCard.value || !!stickyDateDisplay.value);
 
+/** 业务机器人接管当前聊天时顶部展示的管理条（数据来自 chat.business_bot_manage_bar） */
+const botManageBar = computed(() => chat.value?.business_bot_manage_bar);
+/** 管理条占位高度：卡片 48px + 与 Header 的 4px 间距 */
+const BOT_BAR_SPACE = 52;
+/** Header（64px）下的管理条位置 */
+const botBarStyle = computed(() => ({ top: '64px' }));
+/** 管理条是否存在时占用的顶部空间（并入顶部栈与消息区留白） */
+const botBarSpace = computed(() => (botManageBar.value ? BOT_BAR_SPACE : 0));
+
 /**
  * 用于语言检测的样本文本：最近几条有正文的非自己消息。
  * ChatTranslateBar「不翻译该语言」据此识别源语言并写入排除列表。
@@ -5413,15 +5440,16 @@ const translateSampleText = computed(() => {
 /**
  * 顶部栈 top：置顶/播放器/全部翻译均并入同一圆角卡片，统一贴 Header 下方稍留缝；
  * 仅吸顶日期时紧贴 Header 底边。
+ * 机器人管理条显示时整条顶部栈下移其占用的高度。
  */
 const topStackTopStyle = computed(() => ({
-    top: `${((showTopCard.value || showChatTranslateBarUi.value) ? 70 : 64) + topicTagTopSpace.value}px`,
+    top: `${((showTopCard.value || showChatTranslateBarUi.value) ? 70 : 64) + botBarSpace.value + topicTagTopSpace.value}px`,
 }));
 
 const topPaddingClass = computed(() => {
-    // Header h-16=64px；话题顶部标签栏；顶置/播放器卡片约 +68px
+    // Header h-16=64px；话题顶部标签栏；机器人管理条；顶置/播放器卡片约 +68px
     // 全部翻译与卡片贴合：有置顶/播放器时仅 +36（无额外间隙）；单独成卡时约 +44（含描边）
-    let px = 64 + topicTagTopSpace.value;
+    let px = 64 + botBarSpace.value + topicTagTopSpace.value;
     if (showTopCard.value) px += 68;
     if (translateBarVisible.value) px += showTopCard.value ? 36 : 44;
     return { paddingTop: `${px}px` };

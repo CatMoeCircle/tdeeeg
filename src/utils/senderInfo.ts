@@ -147,6 +147,14 @@ export async function initSenderInfo(): Promise<void> {
           c.photo = (update as any).photo;
         }
       }
+    } else if (type_ === "updateChatBusinessBotManageBar") {
+      // 业务机器人接管状态：顶栏管理条读的是缓存 chat 对象
+      if (typeof (update as any).chat_id === "number") {
+        const c = chats.get((update as any).chat_id);
+        if (c) {
+          c.business_bot_manage_bar = (update as any).business_bot_manage_bar ?? undefined;
+        }
+      }
     } else if (
       type_ === "updateChatLastMessage" ||
       type_ === "updateChatDraftMessage" ||
