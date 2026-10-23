@@ -131,6 +131,29 @@
                     </button>
                 </section>
 
+                <!-- ===== 私聊 AI 接管：逐个选聊天，模仿我 / AI 接管两种方式 ===== -->
+                <section class="mb-8">
+                    <div class="flex items-center gap-3 mb-3">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            {{ t('aiSettings.takeoverSection') }}</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <button type="button"
+                        class="flex w-full items-center gap-3 px-3 py-2.5 text-left rounded-2xl bg-white/55 dark:bg-gray-800/45 backdrop-blur-md border border-white/50 dark:border-gray-700/40 hover:bg-white/80 dark:hover:bg-gray-800/80 transition-colors"
+                        @click="router.push({ name: 'settings-ai-takeover' })">
+                        <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400">
+                            <BotIcon class="w-[18px] h-[18px]" />
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                                {{ t('aiSettings.takeoverManage') }}</h3>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                                {{ t('aiSettings.takeoverDesc') }}</p>
+                        </div>
+                        <ChevronRightIcon class="w-4 h-4 text-gray-400 shrink-0" />
+                    </button>
+                </section>
+
                 <!-- ===== 供应商与模型 ===== -->
                 <div class="flex items-center gap-3 mb-3">
                     <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -365,6 +388,7 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { toast } from '../../utils/toast';
 import {
+    Bot as BotIcon,
     Check as CheckIcon,
     ChevronLeft as ChevronLeftIcon,
     ChevronDown as ChevronDownIcon,

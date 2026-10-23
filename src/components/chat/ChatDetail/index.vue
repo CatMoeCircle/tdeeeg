@@ -519,6 +519,37 @@
                  再包一层 ref：消息区的底部留白按**这一块实测高度**算（活动条折叠 / 展开、
                  两种输入框的高度都不一样，写死常量会对不上） -->
             <div ref="inputAreaRef" class="relative z-10">
+                <!-- 私聊 AI 接管横幅：这个聊天被用户选中接管时提醒一句（可暂停 / 进设置）。
+                     与输入框模式无关：普通输入框和 AI 输入框下都要看得见。 -->
+                <div v-if="takeoverCfg" class="mx-3 mt-3 mb-1">
+                    <div class="flex items-center gap-2 px-3 py-2 rounded-xl border"
+                        :class="takeoverRunning
+                            ? 'bg-rose-50/80 dark:bg-rose-500/10 border-rose-200/70 dark:border-rose-500/25'
+                            : 'bg-gray-100/80 dark:bg-gray-800/60 border-gray-200/70 dark:border-gray-700/50'">
+                        <BotIcon class="w-4 h-4 shrink-0"
+                            :class="takeoverRunning ? 'text-rose-500' : 'text-gray-400'" />
+                        <div class="min-w-0 flex-1">
+                            <p class="text-xs font-medium truncate"
+                                :class="takeoverRunning ? 'text-rose-600 dark:text-rose-400' : 'text-gray-500 dark:text-gray-400'">
+                                {{ takeoverCfg.mode === 'imitate' ? t('aiTakeover.bannerImitate') : t('aiTakeover.bannerAssistant') }}
+                            </p>
+                            <p class="text-[11px] truncate"
+                                :class="takeoverRunning ? 'text-rose-500/80 dark:text-rose-400/70' : 'text-gray-400'">
+                                {{ !aiTakeoverOn ? t('aiTakeover.bannerGlobalOff') : takeoverCfg.enabled ? t('aiTakeover.bannerOn') : t('aiTakeover.bannerPaused') }}
+                            </p>
+                        </div>
+                        <button type="button"
+                            class="shrink-0 px-2 py-1 rounded-lg text-[11px] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                            @click="toggleTakeoverChat">
+                            {{ takeoverCfg.enabled ? t('aiTakeover.pause') : t('aiTakeover.resume') }}
+                        </button>
+                        <button type="button"
+                            class="shrink-0 px-2 py-1 rounded-lg text-[11px] text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
+                            @click="router.push({ name: 'settings-ai-takeover' })">
+                            {{ t('aiTakeover.settings') }}
+                        </button>
+                    </div>
+                </div>
                 <div v-if="settings.ai.input === 'ai'" class="px-3 py-2.5">
                     <!-- 只读会话（不可发言的频道 / 群）：AI 照样能读能总结，只是不能在这里发言 -->
                     <p v-if="!canSend"
@@ -675,6 +706,7 @@ import { runAiTurn, cancelAiStream, AiTurnLimitError, type AiActivitySink, type 
 import { setApprovalGate, setApprovalPolicy } from '../../../utils/aiTools/call';
 import type { ApprovalDecision, ApprovalRequest } from '../../../utils/aiTools/types';
 import { aiProviders, aiProviderReady, loadAiProviders } from '../../../store/aiConfig';
+import { aiTakeover, takeoverFor, updateTakeover } from '../../../store/aiTakeover';
 
 /**
  * AI 活动条（输入框顶部那个窄框）的数据：用过 AI 才有内容，有输出 / 工具调用就往 entries 里追加，
@@ -726,7 +758,7 @@ import { useAttachmentStore } from '../../../store/attachment';
 import type { AttachmentItem } from '../../../store/attachment';
 import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
 
-import { MessageCircleIcon, XIcon, CheckIcon, Pencil as PencilIcon, CircleStopIcon, Sparkles as SparklesIcon } from 'lucide-vue-next';
+import { MessageCircleIcon, XIcon, CheckIcon, Pencil as PencilIcon, CircleStopIcon, Sparkles as SparklesIcon, Bot as BotIcon } from 'lucide-vue-next';
 import { toast } from '../../../utils/toast';
 import { useRoute, useRouter } from 'vue-router';
 import { computed, watch, ref, shallowRef, markRaw, onMounted, onBeforeUnmount, onUnmounted, nextTick } from 'vue';
@@ -4703,6 +4735,19 @@ function requestAiApproval(req: ApprovalRequest): Promise<ApprovalDecision> {
 }
 setApprovalGate(requestAiApproval);
 watch(() => settings.ai.approval, (policy) => setApprovalPolicy(policy), { immediate: true });
+
+// ==================== 私聊 AI 接管 ====================
+/** 这个聊天被用户选中接管了吗（横幅只在选中后出现；暂停 / 总开关关掉也照样显示） */
+const takeoverCfg = computed(() => takeoverFor(currentChatId()));
+const aiTakeoverOn = computed(() => aiTakeover.enabled);
+/** 真的在工作吗：选中 + 单个聊天开关 + 总开关 */
+const takeoverRunning = computed(() => !!takeoverCfg.value?.enabled && aiTakeover.enabled);
+
+/** 横幅上的暂停 / 继续：只切这个聊天的开关，总开关在设置页 */
+function toggleTakeoverChat(): void {
+    const cfg = takeoverCfg.value;
+    if (cfg) updateTakeover(cfg.chatId, { enabled: !cfg.enabled });
+}
 
 // ==================== State Reset ====================
 function resetState() {

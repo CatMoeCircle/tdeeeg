@@ -364,6 +364,7 @@ pub fn run() {
             ai::ai_translate::save_ai_search_key,
             ai::ai_chat::ai_chat,
             ai::ai_chat::ai_chat_stream,
+            ai::ai_chat::ai_complete,
             ai::ai_chat::ai_web_search,
             ai::ai_chat::ai_chat_cancel,
             ai::ai_conversations::ai_conversation_create,

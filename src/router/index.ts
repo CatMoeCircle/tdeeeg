@@ -122,6 +122,12 @@ const router = createRouter({
           component: () => import("../views/settings/AiToolsSettings.vue"),
         },
         {
+          // 私聊 AI 接管：逐个选聊天、选接管方式（模仿我 / AI 接管）、上下文压缩
+          path: "settings/ai/takeover",
+          name: "settings-ai-takeover",
+          component: () => import("../views/settings/AiTakeoverSettings.vue"),
+        },
+        {
           path: "settings/translate",
           name: "settings-translate",
           component: () => import("../views/settings/TranslateSettings.vue"),
