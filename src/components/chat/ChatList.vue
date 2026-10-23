@@ -94,7 +94,7 @@
                         @scrollend="onTrackScrollEnd">
                         <!-- forum 模式只需渲染当前激活分组的单一页面（68px 头像列），
                              避免把全部分组页面并排渲染而露出相邻分组头像 -->
-                        <div v-for="tab in tabsWithContent" :key="tab.id" v-show="!forumMode || tab.id === activeTab"
+                        <div v-for="tab in renderedTabs" :key="tab.id" v-show="!forumMode || tab.id === activeTab"
                             v-smooth-wheel class="swipe-page h-full shrink-0 overflow-y-auto custom-scrollbar"
                             :class="forumMode ? 'w-17 px-0.5 py-1 forum-avatar-column gap-0.5' : 'w-full pl-1.5 pr-0.5 py-1'"
                             @scroll="(e: Event) => onScroll(e, tab.id)"
@@ -102,7 +102,7 @@
                             <!-- Forum Mode: compact avatar only -->
                             <template v-if="forumMode">
                                 <div v-for="chat in tab.chats" :key="chat.id" @click="selectForumChat(chat)"
-                                    v-context-menu="buildChatContextMenu(chat, tab.id)"
+                                    v-context-menu="() => buildChatContextMenu(chat, tab.id)"
                                     class="relative flex items-center justify-center py-2.5 cursor-pointer transition-colors hover:bg-white/70 dark:hover:bg-gray-800/70"
                                     :class="forumChatId === chat.id ? 'bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-lg' : ''"
                                     style="content-visibility: auto; contain-intrinsic-size: 68px">
@@ -169,7 +169,7 @@
                                     </div>
 
                                     <div v-for="chat in tab.chats" :key="chat.id" @click="selectChat(chat)"
-                                        v-context-menu="buildChatContextMenu(chat, tab.id)"
+                                        v-context-menu="() => buildChatContextMenu(chat, tab.id)"
                                         class="chat-list-item flex items-center p-2.5 mb-0.5 hover:bg-white/70 dark:hover:bg-gray-800/70 rounded-xl hover:shadow-(--box-shadow) cursor-pointer transition-colors"
                                         :class="{ 'bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50': selectedChatId === chat.id, 'ring-2 ring-blue-500': chatSelectionMode && selectedChatIds.has(chat.id) }"
                                         style="content-visibility: auto; contain-intrinsic-size: 72px">
@@ -800,6 +800,23 @@ const tabsWithContent = computed(() => {
     }));
 });
 
+/**
+ * 首屏渲染窗口：每个分组页只挂载前 N 条对话，滚到底部再追加一批。
+ * 整份缓存列表一次性挂载时（对话多的账号 + 每个分组各一页）单次渲染可达
+ * 数百毫秒，之后每个 chat-update 都要把整表 patch 一遍、TransitionGroup
+ * 还要对每个子节点做 getBoundingClientRect 做 FLIP 测量。
+ */
+const LIST_WINDOW_INITIAL = 30;
+const LIST_WINDOW_STEP = 50;
+/** 各分组页各自的窗口：某个分组滚得很深，不应该顺手把别页也一起挂满 */
+const renderedLimits = ref<Record<string, number>>({});
+const renderedLimitOf = (tabId: string) => renderedLimits.value[tabId] ?? LIST_WINDOW_INITIAL;
+
+const renderedTabs = computed(() => tabsWithContent.value.map(tab => ({
+    id: tab.id,
+    chats: tab.chats.slice(0, renderedLimitOf(tab.id))
+})));
+
 // ==================== 换位动画节流锁 ====================
 // tdlib 在短时间内涌入大量更新时，lists 会被多次 flush 重建，每次都触发
 // 对话顺序变化 → TransitionGroup 频繁播放 FLIP 移动动画，造成视觉抖动。
@@ -841,7 +858,7 @@ function holdReorderAnimDuringListScroll() {
     }, LIST_SCROLL_REORDER_LOCK_MS);
 }
 
-watch(tabsWithContent, (tabs) => {
+watch(renderedTabs, (tabs) => {
     // 只关心真实顺序变化：内容/未读数更新不会触发 -move 动画，故不消耗锁额度
     let reordered = false;
     for (const tab of tabs) {
@@ -1526,10 +1543,10 @@ function isChatBlueVerified(chat: Chat): boolean {
 // 列表内容变化时异步加载发送者信息（用户/频道数据，缓存去重）
 //
 // 不用 deep：store.chats 是 shallowRef（对话对象是原始对象，没有深层响应式依赖），
-// 列表变了都是整条记录替换 → tabsWithContent 的值身份就变，deep 触发时机完全一样，
+// 列表变了都是整条记录替换 → renderedTabs 的值身份就变，deep 触发时机完全一样，
 // 只是每次多一次「全量对话对象图」深遍历（对话含 last_message 大对象，实测单次
 // 2ms 起，账号对话多时可达百毫秒级，是下载/更新风暴期间掉帧的主因之一）。
-watch(tabsWithContent, (list) => {
+watch(renderedTabs, (list) => {
     list.forEach(({ chats }) => {
         chats.forEach(c => {
             ensureSenderLoaded(c.last_message?.sender_id);
@@ -1564,9 +1581,15 @@ const onScroll = (e: Event, tabId: string) => {
     const target = e.currentTarget as HTMLElement;
     listLoadMoreRaf = requestAnimationFrame(() => {
         listLoadMoreRaf = 0;
-        if (target.scrollHeight - target.scrollTop <= target.clientHeight + 50) {
-            triggerLoadMore(tabId);
+        const remaining = target.scrollHeight - target.scrollTop - target.clientHeight;
+        // 距底部还有一屏时就追加渲染窗口，滚动不会在窗口末尾停顿
+        if (remaining <= target.clientHeight
+            && renderedLimitOf(tabId) < chatStore.getList(tabId).value.length) {
+            renderedLimits.value[tabId] = renderedLimitOf(tabId) + LIST_WINDOW_STEP;
+            return;
         }
+        // 本地已加载的对话都挂完了，才向 TDLib 要下一页
+        if (remaining <= 50) triggerLoadMore(tabId);
     });
 };
 
