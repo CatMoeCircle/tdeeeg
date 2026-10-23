@@ -717,4 +717,44 @@ input::-webkit-credentials-button {
   -webkit-appearance: none;
 }
 
+/*
+ * 明暗切换的圆形蒙版过渡（store/theme.ts → setModeWithReveal）
+ * 关掉默认交叉淡入，只保留 clip-path 动画；透明窗口下不要铺底色。
+ */
+::view-transition {
+  background: transparent;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+  /* clip-path 动画没法完全走合成器，提前提升图层减少每帧重建 */
+  will-change: clip-path;
+}
+
+/*
+ * 主题切换瞬间禁用全部 CSS transition：
+ * 否则蒙版撤掉时底色/文字仍在补间，看着像「跳一下」；
+ * 顺带省掉整页样式重算里成百上千个元素的过渡登记。
+ */
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition: none !important;
+}
+
+/* 进深色：新快照在最上层，从按钮位置扩散 */
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 2;
+}
+
+/* 回浅色：旧快照提到最上层，向按钮位置收缩 */
+html.theme-reveal-shrink::view-transition-old(root) {
+  z-index: 3;
+}
+
 /* tlottie：canvas 铺满容器；尺寸由外层 / TgsPlayer size 控制 */

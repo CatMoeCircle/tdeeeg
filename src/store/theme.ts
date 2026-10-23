@@ -238,33 +238,55 @@ export const isDark = computed(() => {
 
 // ─── 应用主题 ─────────────────────────────────────────────────
 
-function applyTdesignScale(root: HTMLElement, prefix: string, scale: string[]) {
+/**
+ * 主题变量先收集成一段声明，最后一次性写进 html 的 style。
+ * 逐个 `style.setProperty()` 会为每个变量各触发一次失效标记（整页几百个
+ * var() 依赖者要逐个遍历），换主题时能差出十几到几十毫秒。
+ */
+let themeVarBuffer: string[] = [];
+
+function setVar(name: string, value: string) {
+  themeVarBuffer.push(`${name}:${value}`);
+}
+
+/** 把缓冲区写成一次 style 属性变更，保留非主题类的内联样式（如拖拽时的 cursor） */
+function flushThemeVars(root: HTMLElement) {
+  const vars = themeVarBuffer;
+  themeVarBuffer = [];
+  if (!vars.length) return;
+  const kept = root.style.cssText
+    .split(";")
+    .map((s) => s.trim())
+    .filter((s) => s && !s.startsWith("--"));
+  root.style.cssText = [...kept, ...vars].join(";");
+}
+
+function applyTdesignScale(prefix: string, scale: string[]) {
   for (let i = 0; i < 10; i++) {
-    root.style.setProperty(`--td-${prefix}-color-${i + 1}`, scale[i]);
+    setVar(`--td-${prefix}-color-${i + 1}`, scale[i]);
   }
 }
 
 function applySemantic(
-  root: HTMLElement,
   name: "success" | "warning" | "error",
   hex: string,
   dark: boolean,
 ) {
   const scale = generateColorScale(hex, dark);
-  applyTdesignScale(root, name, scale);
+  applyTdesignScale(name, scale);
   // TDesign 语义主色槽位：与品牌色一致，主色=用户设定值
   const primary = hex.toLowerCase();
-  root.style.setProperty(`--td-${name}-color`, primary);
-  root.style.setProperty(`--td-${name}-color-hover`, dark ? scale[4] : scale[6]);
-  root.style.setProperty(`--td-${name}-color-focus`, scale[1]);
-  root.style.setProperty(`--td-${name}-color-active`, dark ? scale[3] : scale[7]);
-  root.style.setProperty(`--td-${name}-color-disabled`, scale[2]);
-  root.style.setProperty(`--td-${name}-color-light`, scale[0]);
-  root.style.setProperty(`--td-${name}-color-light-hover`, scale[1]);
+  setVar(`--td-${name}-color`, primary);
+  setVar(`--td-${name}-color-hover`, dark ? scale[4] : scale[6]);
+  setVar(`--td-${name}-color-focus`, scale[1]);
+  setVar(`--td-${name}-color-active`, dark ? scale[3] : scale[7]);
+  setVar(`--td-${name}-color-disabled`, scale[2]);
+  setVar(`--td-${name}-color-light`, scale[0]);
+  setVar(`--td-${name}-color-light-hover`, scale[1]);
   // 应用侧语义变量（自定义组件可直接用）
-  root.style.setProperty(`--app-${name}`, primary);
-  root.style.setProperty(`--app-${name}-hover`, dark ? scale[4] : scale[6]);
-  root.style.setProperty(`--app-${name}-soft`, withAlpha(primary, 0.16));
+  setVar(`--app-${name}`, primary);
+  setVar(`--app-${name}-hover`, dark ? scale[4] : scale[6]);
+  setVar(`--app-${name}-soft`, withAlpha(primary, 0.16));
 }
 
 export function applyTheme(): void {
@@ -272,6 +294,7 @@ export function applyTheme(): void {
   const root = document.documentElement;
   const t = settings.theme;
   const dark = isDark.value;
+  themeVarBuffer = [];
   // 浅/深各用一套主题色与背景色
   const brandHex = (dark ? t.brandColorDark : t.brandColorLight) || "#2aabee";
   const bgHex = dark
@@ -284,123 +307,123 @@ export function applyTheme(): void {
   root.style.colorScheme = dark ? "dark" : "light";
 
   // ── 界面背景色 ──
-  root.style.setProperty("--app-bg-page", bgHex);
+  setVar("--app-bg-page", bgHex);
   // 比背景略亮/略暗的卡片底，便于层次
   const bgRgb = hexToRgb(bgHex);
   const container = dark
     ? rgbToHex(mixRgb(bgRgb, [255, 255, 255], 0.06))
     : rgbToHex(mixRgb(bgRgb, [255, 255, 255], 0.85));
-  root.style.setProperty("--app-bg-container", container);
+  setVar("--app-bg-container", container);
   // 主面板（对话列表 / 内容区 / 标题栏）铺的就是这一层：浅色直接等于用户选的主背景色，
   // 深色略微提亮以免与弹层底色糊在一起（原浅色写死 #ffffff，导致浅色下改背景色无效果）
-  root.style.setProperty("--app-bg-elevated", dark
+  setVar("--app-bg-elevated", dark
     ? rgbToHex(mixRgb(bgRgb, [255, 255, 255], 0.1))
     : rgbToHex(bgRgb));
-  root.style.setProperty("--app-bg-muted", dark
+  setVar("--app-bg-muted", dark
     ? rgbToHex(mixRgb(bgRgb, [255, 255, 255], 0.04))
     : rgbToHex(mixRgb(bgRgb, [0, 0, 0], 0.04)));
   // 不把 html/body 涂实：侧栏/顶栏保持半透明以露出 acrylic
 
   // ── 品牌色 → TDesign brand 色阶 + Tailwind blue-* ──
   const brand = generateColorScale(brandHex, dark);
-  applyTdesignScale(root, "brand", brand);
+  applyTdesignScale("brand", brand);
   // 主色始终等于当前模式的主题色；hover/active 按明暗向深/浅偏移
   const brandMain = brandHex.toLowerCase();
   const brandHover = dark ? brand[4] : brand[6];
   const brandActive = dark ? brand[3] : brand[7];
-  root.style.setProperty("--td-brand-color", brandMain);
-  root.style.setProperty("--td-brand-color-hover", brandHover);
-  root.style.setProperty("--td-brand-color-focus", brand[1]);
-  root.style.setProperty("--td-brand-color-active", brandActive);
-  root.style.setProperty("--td-brand-color-disabled", brand[2]);
-  root.style.setProperty("--td-brand-color-light", brand[0]);
-  root.style.setProperty("--td-brand-color-light-hover", brand[1]);
-  root.style.setProperty("--td-text-color-brand", brandMain);
-  root.style.setProperty("--td-text-color-link", brandMain);
+  setVar("--td-brand-color", brandMain);
+  setVar("--td-brand-color-hover", brandHover);
+  setVar("--td-brand-color-focus", brand[1]);
+  setVar("--td-brand-color-active", brandActive);
+  setVar("--td-brand-color-disabled", brand[2]);
+  setVar("--td-brand-color-light", brand[0]);
+  setVar("--td-brand-color-light-hover", brand[1]);
+  setVar("--td-text-color-brand", brandMain);
+  setVar("--td-text-color-link", brandMain);
 
   // 应用侧品牌变量（自定义 UI / 预览用）：按 Tailwind 顺序 1=浅 tint … 10=深
   const displayScale = generateTailwindScale(brandHex, dark);
   for (let i = 0; i < 10; i++) {
-    root.style.setProperty(`--app-brand-${i + 1}`, displayScale[i]);
+    setVar(`--app-brand-${i + 1}`, displayScale[i]);
   }
-  root.style.setProperty("--app-brand", brandMain);
-  root.style.setProperty("--app-brand-hover", brandHover);
-  root.style.setProperty("--app-brand-active", brandActive);
-  root.style.setProperty("--app-brand-soft", withAlpha(brandMain, dark ? 0.2 : 0.14));
-  root.style.setProperty("--app-brand-softer", withAlpha(brandMain, dark ? 0.12 : 0.08));
+  setVar("--app-brand", brandMain);
+  setVar("--app-brand-hover", brandHover);
+  setVar("--app-brand-active", brandActive);
+  setVar("--app-brand-soft", withAlpha(brandMain, dark ? 0.2 : 0.14));
+  setVar("--app-brand-softer", withAlpha(brandMain, dark ? 0.12 : 0.08));
 
   // Tailwind 语义重映射（@theme inline 引用这些变量）：
   // 50=浅 tint … 500=主色 … 950=深色；深色模式下 tint 混入深底，不出现纯白
   const twScale = generateTailwindScale(brandHex, dark);
   const twSteps = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
   twSteps.forEach((step, idx) => {
-    root.style.setProperty(`--app-tw-blue-${step}`, twScale[idx] || brandMain);
+    setVar(`--app-tw-blue-${step}`, twScale[idx] || brandMain);
   });
 
   // ── 语义色 ──
-  applySemantic(root, "success", t.successColor || DEFAULT_SUCCESS, dark);
-  applySemantic(root, "warning", t.warningColor || DEFAULT_WARNING, dark);
-  applySemantic(root, "error", t.errorColor || DEFAULT_ERROR, dark);
+  applySemantic("success", t.successColor || DEFAULT_SUCCESS, dark);
+  applySemantic("warning", t.warningColor || DEFAULT_WARNING, dark);
+  applySemantic("error", t.errorColor || DEFAULT_ERROR, dark);
 
   // ── 圆角 ──
   const [rs, rd, rm, rl, rxl] = RADIUS_PRESETS[t.radius] || RADIUS_PRESETS.soft;
   const k = Math.max(0.5, Math.min(2, t.radiusScale || 1));
   const r = (n: number) => `${Math.round(n * k * 10) / 10}px`;
-  root.style.setProperty("--td-radius-small", r(rs));
-  root.style.setProperty("--td-radius-default", r(rd));
-  root.style.setProperty("--td-radius-medium", r(rm));
-  root.style.setProperty("--td-radius-large", r(rl));
-  root.style.setProperty("--td-radius-extraLarge", r(rxl));
-  root.style.setProperty("--app-radius-xs", r(rs));
-  root.style.setProperty("--app-radius-sm", r(rd));
-  root.style.setProperty("--app-radius-md", r(rm));
-  root.style.setProperty("--app-radius-lg", r(rl));
-  root.style.setProperty("--app-radius-xl", r(rxl));
+  setVar("--td-radius-small", r(rs));
+  setVar("--td-radius-default", r(rd));
+  setVar("--td-radius-medium", r(rm));
+  setVar("--td-radius-large", r(rl));
+  setVar("--td-radius-extraLarge", r(rxl));
+  setVar("--app-radius-xs", r(rs));
+  setVar("--app-radius-sm", r(rd));
+  setVar("--app-radius-md", r(rm));
+  setVar("--app-radius-lg", r(rl));
+  setVar("--app-radius-xl", r(rxl));
 
   // ── 阴影 ──
   const sa = SHADOW_ALPHA[t.shadow] ?? 1;
   if (t.shadow === "none") {
-    root.style.setProperty("--td-shadow-1", "none");
-    root.style.setProperty("--td-shadow-2", "none");
-    root.style.setProperty("--td-shadow-3", "none");
-    root.style.setProperty("--app-shadow-1", "none");
-    root.style.setProperty("--app-shadow-2", "none");
-    root.style.setProperty("--app-shadow-3", "none");
-    root.style.setProperty("--box-shadow", "none");
+    setVar("--td-shadow-1", "none");
+    setVar("--td-shadow-2", "none");
+    setVar("--td-shadow-3", "none");
+    setVar("--app-shadow-1", "none");
+    setVar("--app-shadow-2", "none");
+    setVar("--app-shadow-3", "none");
+    setVar("--box-shadow", "none");
   } else if (dark) {
-    root.style.setProperty(
+    setVar(
       "--td-shadow-1",
       `0 4px 6px rgba(0,0,0,${0.2 * sa}), 0 1px 10px rgba(0,0,0,${0.24 * sa}), 0 2px 4px rgba(0,0,0,${0.28 * sa})`,
     );
-    root.style.setProperty(
+    setVar(
       "--td-shadow-2",
       `0 8px 10px rgba(0,0,0,${0.28 * sa}), 0 3px 14px rgba(0,0,0,${0.24 * sa}), 0 5px 5px rgba(0,0,0,${0.32 * sa})`,
     );
-    root.style.setProperty(
+    setVar(
       "--td-shadow-3",
       `0 16px 24px rgba(0,0,0,${0.32 * sa}), 0 6px 30px rgba(0,0,0,${0.28 * sa}), 0 8px 10px rgba(0,0,0,${0.36 * sa})`,
     );
-    root.style.setProperty("--app-shadow-1", `0 1px 10px rgba(0,0,0,${0.22 * sa})`);
-    root.style.setProperty("--app-shadow-2", `0 3px 14px rgba(0,0,0,${0.28 * sa})`);
-    root.style.setProperty("--app-shadow-3", `0 6px 30px rgba(0,0,0,${0.34 * sa})`);
-    root.style.setProperty("--box-shadow", `0 0 3px rgba(0,0,0,${0.45 * sa})`);
+    setVar("--app-shadow-1", `0 1px 10px rgba(0,0,0,${0.22 * sa})`);
+    setVar("--app-shadow-2", `0 3px 14px rgba(0,0,0,${0.28 * sa})`);
+    setVar("--app-shadow-3", `0 6px 30px rgba(0,0,0,${0.34 * sa})`);
+    setVar("--box-shadow", `0 0 3px rgba(0,0,0,${0.45 * sa})`);
   } else {
-    root.style.setProperty(
+    setVar(
       "--td-shadow-1",
       `0 1px 10px rgba(0,0,0,${0.05 * sa}), 0 4px 5px rgba(0,0,0,${0.08 * sa}), 0 2px 4px -1px rgba(0,0,0,${0.12 * sa})`,
     );
-    root.style.setProperty(
+    setVar(
       "--td-shadow-2",
       `0 3px 14px 2px rgba(0,0,0,${0.05 * sa}), 0 8px 10px 1px rgba(0,0,0,${0.06 * sa}), 0 5px 5px -3px rgba(0,0,0,${0.1 * sa})`,
     );
-    root.style.setProperty(
+    setVar(
       "--td-shadow-3",
       `0 6px 30px 5px rgba(0,0,0,${0.05 * sa}), 0 16px 24px 2px rgba(0,0,0,${0.04 * sa}), 0 8px 10px -5px rgba(0,0,0,${0.08 * sa})`,
     );
-    root.style.setProperty("--app-shadow-1", `0 0 3px rgba(0,0,0,${0.22 * sa})`);
-    root.style.setProperty("--app-shadow-2", `0 1px 10px rgba(0,0,0,${0.12 * sa})`);
-    root.style.setProperty("--app-shadow-3", `0 4px 16px rgba(0,0,0,${0.14 * sa})`);
-    root.style.setProperty("--box-shadow", `0 0 3px rgba(0,0,0,${0.25 * sa})`);
+    setVar("--app-shadow-1", `0 0 3px rgba(0,0,0,${0.22 * sa})`);
+    setVar("--app-shadow-2", `0 1px 10px rgba(0,0,0,${0.12 * sa})`);
+    setVar("--app-shadow-3", `0 4px 16px rgba(0,0,0,${0.14 * sa})`);
+    setVar("--box-shadow", `0 0 3px rgba(0,0,0,${0.25 * sa})`);
   }
 
   // ── 密度 / 尺寸（对齐 TDesign size 阶梯）──
@@ -408,21 +431,50 @@ export function applyTheme(): void {
   // TDesign 基础刻度 1..16 = 2,4,6,8,12,16,20,24,28,32,36,40,48,56,64,72
   const sizes = [2, 4, 6, 8, 12, 16, 20, 24, 28, 32, 36, 40, 48, 56, 64, 72];
   sizes.forEach((px, i) => {
-    root.style.setProperty(`--td-size-${i + 1}`, `${Math.round(px * ds * 2) / 2}px`);
+    setVar(`--td-size-${i + 1}`, `${Math.round(px * ds * 2) / 2}px`);
   });
   // 组件常用高度
-  root.style.setProperty("--app-control-height", `${Math.round(32 * ds)}px`);
-  root.style.setProperty("--app-control-height-s", `${Math.round(28 * ds)}px`);
-  root.style.setProperty("--app-control-height-l", `${Math.round(40 * ds)}px`);
+  setVar("--app-control-height", `${Math.round(32 * ds)}px`);
+  setVar("--app-control-height-s", `${Math.round(28 * ds)}px`);
+  setVar("--app-control-height-l", `${Math.round(40 * ds)}px`);
+
+  // 所有主题变量一次性落盘（只触发一轮样式失效）
+  flushThemeVars(root);
 
   // Win11：切换明暗时同步 acrylic 窗口效果与 Theme
-  void syncWindowEffect(dark);
+  scheduleWindowEffect(dark);
 }
 
-/** 主题切换时重设 acrylic / 窗口明暗（Windows 11） */
+/**
+ * 主题切换时重设 acrylic / 窗口明暗（Windows 11）。
+ *
+ * `set_window_effect` 会重建窗口毛玻璃并切 DWM Theme，是原生侧的重组，
+ * 在主题切换的同一帧里同步触发会额外卡一下，所以统一延后到
+ * 当前帧渲染之后（圆形过渡期间则延到动画结束）。
+ */
 let lastSyncedDark: boolean | null = null;
-async function syncWindowEffect(dark: boolean): Promise<void> {
+/** 圆形过渡进行中：acrylic 重设推迟到动画结束，避免打断合成 */
+let revealInProgress = false;
+let pendingWindowDark: boolean | null = null;
+
+function scheduleWindowEffect(dark: boolean): void {
   if (typeof window === "undefined") return;
+  if (revealInProgress) {
+    pendingWindowDark = dark;
+    return;
+  }
+  if (lastSyncedDark === dark) return;
+  pendingWindowDark = dark;
+  requestAnimationFrame(() => {
+    // 这一帧里刚好开始圆形过渡：留着待办，等动画结束再补
+    if (revealInProgress) return;
+    const next = pendingWindowDark;
+    pendingWindowDark = null;
+    if (next !== null) void syncWindowEffect(next);
+  });
+}
+
+async function syncWindowEffect(dark: boolean): Promise<void> {
   try {
     await invoke("set_window_effect", { effect: "acrylic", dark });
     lastSyncedDark = dark;
@@ -526,3 +578,109 @@ export const themeApi = {
     else settings.theme.bgColorLight = "";
   },
 };
+
+// ─── 明暗切换圆形蒙版过渡（View Transitions）─────────────────────
+
+/** 圆形蒙版的圆心（通常取触发按钮中心） */
+export interface RevealOrigin {
+  x: number;
+  y: number;
+}
+
+const REVEAL_DURATION = 340;
+const REVEAL_EASING = "cubic-bezier(0.22, 0.61, 0.36, 1)";
+
+/** 取元素中心作为圆心；拿不到元素时退化为视口中心 */
+export function revealOriginOf(el?: Element | null): RevealOrigin {
+  const rect = el instanceof Element ? el.getBoundingClientRect() : null;
+  if (!rect) {
+    return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  }
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+}
+
+function supportsViewTransition(): boolean {
+  return typeof document !== "undefined" && typeof document.startViewTransition === "function";
+}
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+
+/**
+ * 切换明暗模式，并用圆形蒙版做过渡：
+ * - 进深色：深色像墨滴一样从 origin 向四周扩散到整屏
+ * - 回浅色：深色从四周向 origin 收缩退去，露出浅色
+ * 不支持 View Transitions / 开启「减少动效」时退化为瞬时切换。
+ */
+export async function setModeWithReveal(mode: ThemeMode, origin?: RevealOrigin): Promise<void> {
+  if (mode === settings.theme.mode) return;
+
+  // 上一个过渡还没结束：直接瞬时切换，不去打断它
+  if (revealInProgress || !supportsViewTransition() || prefersReducedMotion()) {
+    themeApi.setMode(mode);
+    return;
+  }
+
+  const root = document.documentElement;
+  const expand = mode === "dark";
+  const center = origin ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  // 半径要覆盖到离圆心最远的那个角
+  const radius = Math.ceil(
+    Math.hypot(
+      Math.max(center.x, window.innerWidth - center.x),
+      Math.max(center.y, window.innerHeight - center.y),
+    ),
+  );
+  const from = `circle(0px at ${center.x}px ${center.y}px)`;
+  const to = `circle(${radius}px at ${center.x}px ${center.y}px)`;
+
+  // 收缩态需要旧快照盖在新快照之上（见 index.css 中的 z-index 规则）
+  root.classList.toggle("theme-reveal-shrink", !expand);
+  // 切换瞬间关掉全局 transition：否则蒙版撤掉后底色/文字还在补间，看着像「跳一下」，
+  // 同时省掉成百上千个元素的过渡状态登记（样式重算更便宜）
+  root.classList.add("theme-switching");
+  revealInProgress = true;
+  const startedAt = performance.now();
+  try {
+    const transition = document.startViewTransition(() => {
+      themeApi.setMode(mode);
+    });
+    await transition.ready;
+    const captureMs = performance.now() - startedAt;
+    if (captureMs > 80) {
+      console.debug(`[theme] 快照准备耗时 ${captureMs.toFixed(1)}ms（页面节点越多越慢）`);
+    }
+    const anim = root.animate(
+      { clipPath: expand ? [from, to] : [to, from] },
+      {
+        duration: REVEAL_DURATION,
+        easing: REVEAL_EASING,
+        fill: "both",
+        pseudoElement: expand
+          ? "::view-transition-new(root)"
+          : "::view-transition-old(root)",
+      },
+    );
+    // 等蒙版自己跑完再拆快照（直接等 transition.finished 可能提前拆，浅色方向会错层）
+    await anim.finished.catch(() => undefined);
+    transition.skipTransition();
+  } catch (e) {
+    console.warn("[theme] view transition failed, fallback to instant switch:", e);
+    themeApi.setMode(mode);
+  } finally {
+    revealInProgress = false;
+    root.classList.remove("theme-reveal-shrink", "theme-switching");
+    // 补上动画期间被推迟的 acrylic 重设
+    const pendingDark = pendingWindowDark;
+    pendingWindowDark = null;
+    if (pendingDark !== null && pendingDark !== lastSyncedDark) {
+      void syncWindowEffect(pendingDark);
+    }
+  }
+}
