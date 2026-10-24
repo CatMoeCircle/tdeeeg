@@ -25,6 +25,7 @@ import { LottiePlayer } from 'tlottie/vue';
 import 'tlottie/vue/style.css';
 import type { FitzModifier } from 'tlottie';
 import { acquireSticker, type BudgetHandle } from '../../utils/stickerBudget';
+import { countLottieCommand, countLottieLoad } from '../../utils/lottieStats';
 
 const props = withDefaults(defineProps<{
     /**
@@ -109,10 +110,11 @@ function apply() {
     const eng = engine() as { play?: () => void; pause?: () => void } | null;
     if (!eng) return;
     if (wanted && !dutyOff) {
-        if (sent !== 'play') { eng.play?.(); sent = 'play'; }
+        if (sent !== 'play') { eng.play?.(); sent = 'play'; countLottieCommand('play'); }
     } else if (sent !== 'pause') {
         eng.pause?.();
         sent = 'pause';
+        countLottieCommand('pause');
     }
 }
 
@@ -174,6 +176,8 @@ const className = computed(() => props.class || undefined);
 watch(effectiveLoop, () => applyLoop());
 
 function onLoad(payload: unknown) {
+    // 装载计数（诊断对照实验：见 utils/lottieStats）
+    countLottieLoad(budgetKey());
     // load 后显式 setLoop：构造时配置偶发未落到 Worker 引擎（默认 false → 只播一次）
     applyLoop();
     // 新引擎：重置指令缓存与帧率估算，按当前意图同步播放状态并登记负载
