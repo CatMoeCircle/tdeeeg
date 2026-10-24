@@ -1011,10 +1011,10 @@ defineExpose({ activate: picker.activate, deactivate: picker.deactivate });
     background: rgba(128, 128, 128, 0.12);
 }
 
-/* 顶部胶囊里的包封面：去掉内层自身的底色/圆角形状，避免与胶囊选中底色叠成两层 */
+/* 顶部胶囊里的包封面：去掉内层自身的底色与圆角，避免与胶囊选中底色叠成两层 */
 .sp-cats-row :deep(.sp-media-item),
 .sp-cats-row :deep(.sp-media-ph) {
-    border-radius: 50%;
+    border-radius: 0;
     background: transparent;
 }
 

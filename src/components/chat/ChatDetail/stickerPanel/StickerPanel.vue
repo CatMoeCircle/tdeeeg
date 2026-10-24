@@ -1,7 +1,10 @@
 <template>
     <Teleport to="body">
+        <!-- v-if 而非 v-show：面板 Teleport 到 body，用 v-show 隐藏等于让三个抽屉
+             （Emoji/Gif/Sticker 的整套格子 + 贴纸播放器）常驻 body 永不销毁；
+             关闭动画里卸载时，节点还会漏在 body 上。 -->
         <Transition name="sp-pop">
-            <div v-show="visible" ref="panelRoot"
+            <div v-if="visible" ref="panelRoot"
                 class="sp-panel fixed z-150 right-2 flex flex-col rounded-2xl shadow-sm border border-black/10 dark:border-white/10 bg-white dark:bg-gray-900 overflow-hidden"
                 :style="panelStyle" @mousedown.self.stop>
                 <!-- 面板内容：三个惰性抽屉 -->
