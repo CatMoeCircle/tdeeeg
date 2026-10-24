@@ -997,9 +997,16 @@ function openViewer() {
  * 视口门控：停留后才触发缩略图/封面 + 主媒体下载。
  * 缩略图 Small / 视频封面也走 500ms 停留——高速滚动时路过的消息不应打 downloadFile。
  * minithumbnail base64 占位仍立刻上屏（无网络）；主媒体下载再经并发闸门排队。
+ *
+ * 缩略图**不占 chat 池槽位**（scope: 'thumb'）：一次 Small/封面下载可能要等网络
+ * 数秒，占着 3 个槽位会把首屏后面几张图的正文下载全堵住，表现就是首屏一直是
+ * 模糊 minithumbnail，滑一下才慢慢清楚。
  */
-const { start: startViewportLoad, entered: mediaViewportEntered } = useViewportLoad(rootEl, () => {
+const { start: startThumbViewportLoad } = useViewportLoad(rootEl, () => {
     void prefetchAuxThumbs();
+}, { scope: 'thumb' });
+
+const { start: startViewportLoad, entered: mediaViewportEntered } = useViewportLoad(rootEl, () => {
     return requestAutoDownloads();
 });
 
@@ -1008,6 +1015,7 @@ onMounted(() => {
     setMediaPreview();
     applyMediaFromContent();
     // 下载（缩略图/封面 + 主媒体）：视口 + 停留后再触发
+    startThumbViewportLoad();
     startViewportLoad();
 });
 

@@ -25,12 +25,13 @@ export const MAX_CONCURRENT_VIEWPORT_LOADS = 3;
 
 /**
  * 界面分池标识：
- * - chat:        聊天消息媒体 / 头像 / 自定义 emoji 等
+ * - chat:        聊天消息媒体 / 自定义 emoji 等
+ * - thumb:       消息缩略图 / 封面（Small）：单独一池，不占正文媒体槽位
  * - sticker:     贴纸 / GIF / 表情抽屉
  * - profile:     个人资料共享媒体网格 / 礼物列表
  * - stickerDetail: 贴纸/emoji 详情弹窗（独立队列，关闭时清空排队）
  */
-export type ViewportLoadScope = 'chat' | 'sticker' | 'profile' | 'stickerDetail' | 'avatar';
+export type ViewportLoadScope = 'chat' | 'thumb' | 'sticker' | 'profile' | 'stickerDetail' | 'avatar';
 
 interface ScopeConfig {
     /** 同时执行的 load 上限 */
@@ -41,6 +42,8 @@ interface ScopeConfig {
 
 const SCOPE_CONFIG: Record<ViewportLoadScope, ScopeConfig> = {
     chat: { max: MAX_CONCURRENT_VIEWPORT_LOADS, minIntervalMs: 0 },
+    // 缩略图：每次下载都可能等网络数秒，跟正文挤同一个池会把首屏后面几张图全堵住
+    thumb: { max: 6, minIntervalMs: 0 },
     sticker: { max: MAX_CONCURRENT_VIEWPORT_LOADS, minIntervalMs: 0 },
     profile: { max: MAX_CONCURRENT_VIEWPORT_LOADS, minIntervalMs: 0 },
     // 头像：小文件但数量多，单独一池限制并发，不与正文媒体互相挤占
