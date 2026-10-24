@@ -725,8 +725,6 @@ const serviceText = computed<ServicePart[] | string | null>(() => {
             return c.text;
         case 'messageContactRegistered':
             return t('lng_action_user_registered', { from: sender.value });
-        case 'messageCall':
-            return c.is_video ? t('service.videoCall') : t('lng_settings_notifications_calls_title');
         case 'messageGameScore':
             return t('lng_action_game_score_no_game', { from: sender.value, count: c.score });
         case 'messagePaymentSuccessful':

@@ -217,7 +217,6 @@ const SERVICE_TYPES = new Set([
     'messageSuggestedPostDeclined',
     'messageSuggestedPostPaid',
     'messageSuggestedPostRefunded',
-    'messageCall',
 ]);
 
 const props = defineProps<{

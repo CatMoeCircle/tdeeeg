@@ -290,6 +290,10 @@ body {
 .tgico-key::before {
   content: "\e9ce";
 }
+/* 通话结束消息（U+EA17），颜色由使用处按主题色控制 */
+.tgico-call::before {
+  content: "\ea17";
+}
 /* 清单通知图标的公共排版：与文字（text-xs）同高，并垂直居中于文字行 */
 .tgico-todo-icon {
   font-size: 14px;

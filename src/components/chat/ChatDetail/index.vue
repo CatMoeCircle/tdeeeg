@@ -318,7 +318,7 @@
                                             :msg="item.msg" :isSelf="isSelf(item.msg)"
                                             @toggle-reaction="(type: ReactionType) => toggleReaction(chatId!, item.msg, type)" />
                                         <span
-                                            v-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isInlineTimeMessage(item.msg) && !isOutgoingMsg(item.msg)"
+                                            v-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isInlineTimeMessage(item.msg) && !hasStatusInContent(item.msg) && !isOutgoingMsg(item.msg)"
                                             class="block text-right text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 leading-none">
                                             <MessageStatus :date="item.msg.date" :isOutgoing="false"
                                                 :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
@@ -327,7 +327,7 @@
                                                 :isTranslated="isShowingTranslation(item.msg)" />
                                         </span>
                                         <span
-                                            v-else-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isInlineTimeMessage(item.msg) && isOutgoingMsg(item.msg)"
+                                            v-else-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isInlineTimeMessage(item.msg) && !hasStatusInContent(item.msg) && isOutgoingMsg(item.msg)"
                                             class="block text-right text-[11px] text-gray-700/70 mt-0.5 leading-none">
                                             <MessageStatus :date="item.msg.date" :isOutgoing="true"
                                                 :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
@@ -832,7 +832,7 @@ import { getViewerState, closeMediaViewer, isMediaViewerActive, openMediaViewer 
 
 import { getSenderAccentColorId, getSenderProfileAccentColorId, getSenderNameParts, isDeletedChat, DELETED_ACCOUNT_LABEL, ensureUser, ensureChat, getReactiveUser, getReactiveChat } from '../../../utils/senderInfo';
 import { useColors } from '../../../store/colors';
-import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage, isBubblelessMediaMessage, albumHasVisibleCaption, isFileAlbum, showChannelCommentsBar } from './composables/messageType';
+import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage, hasStatusInContent, isBubblelessMediaMessage, albumHasVisibleCaption, isFileAlbum, showChannelCommentsBar } from './composables/messageType';
 import { buildDisplayItems } from './composables/messageItems';
 import { chatWindowKey, peekChatWindow, saveChatWindow } from './composables/chatWindowCache';
 import { fetchCacheGet, fetchCacheSet } from './composables/fetchCache';
