@@ -327,8 +327,16 @@
                 {{ channelMemberText }}
               </span>
             </div>
+            <!-- 频道信息未就绪（个人频道 chat 尚未加载）时用骨架占位，避免闪出占位标题 -->
+            <div v-if="!personalChat" class="flex items-center gap-3 px-3.5 py-2.5">
+              <div class="w-10 h-10 shrink-0 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
+              <div class="min-w-0 flex-1">
+                <div class="h-4 w-2/3 rounded bg-gray-200 dark:bg-gray-700 animate-pulse mb-2"></div>
+                <div class="h-3 w-1/2 rounded bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
+              </div>
+            </div>
             <!-- 频道入口行：头像 + 标题/时间 + 最新推送预览 -->
-            <button type="button" @click="openPersonalChat"
+            <button v-else type="button" @click="openPersonalChat"
               class="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
               <div class="w-10 h-10 shrink-0">
                 <Avatar :photo="personalChatPhoto" :title="personalChatTitle"
@@ -2192,8 +2200,12 @@ const channelLastMessage = computed(() => personalChat.value?.last_message);
 const channelMemberCount = ref<number | null>(null);
 async function loadChannelInfo() {
   channelMemberCount.value = null;
+  if (!personalChatId.value) return;
+  // 个人频道 chat 不一定在本机缓存（没进过该聊天时 getReactiveChat 为空）：
+  // 主动补拉，否则头像/标题会一直卡在占位骨架。
+  await ensureChat(personalChatId.value);
   const c = personalChat.value;
-  if (!c || !personalChatId.value) return;
+  if (!c) return;
   // 尝试从 supergroup 拿订阅数
   try {
     const t = c.type;
@@ -2221,9 +2233,8 @@ function channelPreview(msg: message | undefined): string {
 
 /** 频道订阅按钮文本，如「2452 订阅」 */
 const channelMemberText = computed(() => {
-  if (channelMemberCount.value === null || channelMemberCount.value === undefined) {
-    return t('lng_chat_status_subscribers', { count: 0 });
-  }
+  // 未拿到订阅数时不留「0 订阅」占位
+  if (channelMemberCount.value === null || channelMemberCount.value === undefined) return '';
   return t('lng_chat_status_subscribers', { count: channelMemberCount.value.toLocaleString() });
 });
 
