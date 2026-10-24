@@ -26,10 +26,18 @@ async function dispatchInternalLink(href: string, linkType: InternalLinkType, ro
             const info = await tdlibSend({ _: "getMessageLinkInfo", url: linkType.url });
             if (info.chat_id) {
                 const targetChatId = String(info.chat_id);
-                const currentChatId = String(router.currentRoute.value.params.id ?? '');
+                const currentParams = router.currentRoute.value.params;
+                const currentChatId = String(currentParams.id ?? '');
+                // 话题群组（论坛）/ 频道私信的话题链接必须进话题视图：不带话题打开拿的是
+                // 群的整体历史，既不一定包含目标消息，顶栏和输入框也不是那个话题的上下文。
+                const topicId = info.topic_id?._ === "messageTopicForum" ? info.topic_id.forum_topic_id : 0;
+                const currentTopicId = currentParams.topicId ? Number(currentParams.topicId) : 0;
 
-                // 同一聊天内跳转：直接 dispatch 事件，不走路由导航
-                if (targetChatId === currentChatId && info.message) {
+                // 同一聊天、同一话题（且不在评论线程里）内的跳转：dispatch 事件，不走路由
+                const sameView = targetChatId === currentChatId
+                    && topicId === currentTopicId
+                    && !currentParams.threadMsgId;
+                if (sameView && info.message) {
                     window.dispatchEvent(
                         new CustomEvent('tdgram:jump-to-message-in-chat', {
                             detail: { messageId: info.message.id },
@@ -42,11 +50,17 @@ async function dispatchInternalLink(href: string, linkType: InternalLinkType, ro
                 if (info.message) {
                     query.message = String(info.message.id);
                 }
-                await router.push({
-                    name: "chat-detail",
-                    params: { id: targetChatId },
-                    query: Object.keys(query).length > 0 ? query : undefined,
-                });
+                await router.push(topicId > 0
+                    ? {
+                        name: "chat-topic-detail",
+                        params: { id: targetChatId, topicId: String(topicId) },
+                        query,
+                    }
+                    : {
+                        name: "chat-detail",
+                        params: { id: targetChatId },
+                        query,
+                    });
             }
             return true;
         }
@@ -234,7 +248,8 @@ async function dispatchInternalLink(href: string, linkType: InternalLinkType, ro
  * 解析 Telegram 内部链接（t.me / tg://）并跳转。
  *
  * 此工具与「消息中点击 @ 用户名 / 链接」使用完全一致的逻辑（详见 MessageTextContent）：
- *   - internalLinkTypeMessage    → getMessageLinkInfo 解析出 chat，跳转 chat-detail
+ *   - internalLinkTypeMessage    → getMessageLinkInfo 解析出 chat（话题链接再解析出 forum topic，
+ *                                  跳转 chat-topic-detail），带 ?message= 定位到具体消息
  *   - internalLinkTypePublicChat → searchPublicChat 解析用户名，跳转 /home/chat/{id}
  *   - internalLinkTypeProxy      → 弹出「添加代理」确认，确认后 addProxy
  *   - internalLinkTypeBotStart   → searchPublicChat 解析出 bot，跳转其私聊；autostart 时自动发送 /start 深链接

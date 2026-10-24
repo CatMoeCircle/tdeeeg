@@ -58,7 +58,8 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    jump: [messageId: number];
+    /** chatId：被回复消息所属会话（跨对话回复/引用时与当前会话不同，父级据此跨会话跳转） */
+    jump: [messageId: number, chatId: number];
 }>();
 
 interface ReplyDisplayData {
@@ -67,6 +68,7 @@ interface ReplyDisplayData {
     mediaType: string;
     thumbSrc: string | null;
     messageId: number;
+    chatId: number;
 }
 
 const rootEl = ref<HTMLElement | null>(null);
@@ -265,6 +267,7 @@ async function loadReplyData() {
         mediaType,
         thumbSrc,
         messageId: targetMsgId,
+        chatId: targetChatId,
     };
 }
 
@@ -330,7 +333,7 @@ function getMediaInfo(content: MessageContent, _msg: message): { mediaType: stri
 
 function jumpToMessage() {
     if (replyData.value) {
-        emit('jump', replyData.value.messageId);
+        emit('jump', replyData.value.messageId, replyData.value.chatId);
     }
 }
 </script>

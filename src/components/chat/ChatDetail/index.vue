@@ -3077,6 +3077,17 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
             }
         }
 
+        // 群组信息 / 通知静音 / 发送身份：消息正文不需要它们，但「能不能发言 / 用哪个身份发」
+        // 全靠它们，而且它们与消息正文无依赖、可以并行。
+        // 必须放在跳转分支之前：带 ?message= 打开（消息链接 / 转发来源 / 搜索结果）走的正是
+        // 下面那条早退的跳转路径，漏掉这一步会导致 supergroups 缓存为空 → 成员状态未知 →
+        // canSend=false，明明有频道发言权限却只显示订阅者的频道操作栏。
+        void Promise.allSettled([
+            fetchGroupInfo(chatData, gen),
+            syncNotificationMuteState(chatData, currentId),
+            fetchAvailableSenders(currentId, gen),
+        ]);
+
         if (requestedMessageId) {
             const jumped = await jumpToMessageInternal(requestedMessageId, gen);
             if (!isGenerationValid(gen)) return;
@@ -3122,14 +3133,7 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
                 ? { anchorId: lastReadId, requireUnread: true, lastReadId }
                 : {},
         );
-        // 群组信息 / 通知静音 / 发送身份与消息正文无关：不再串在首屏关键路径上。
-        // 消息先到先渲染，这三项后台补（请求本身、顺序、失败处理都不变，
-        // 只是不再让最慢的一个拖住首次露出）。
-        void Promise.allSettled([
-            fetchGroupInfo(chatData, gen),
-            syncNotificationMuteState(chatData, currentId),
-            fetchAvailableSenders(currentId, gen),
-        ]);
+        // 群组信息 / 通知静音 / 发送身份已在跳转分支之上发起（见上）
         const firstBatchResult = await firstBatchPromise;
         if (!isGenerationValid(gen)) return;
         if (firstBatchResult == null) {
@@ -4100,7 +4104,12 @@ const scrollToBottom = () => {
     });
 };
 
-/** 同步滚动到指定消息（调用方需已 await nextTick，DOM 已更新） */
+/**
+ * 同步滚动到指定消息（调用方需已 await nextTick，DOM 已更新）。
+ * 常规消息落在视口 45% 处；但高个消息（大图 / 视频 / 相册组）这样居中会把消息开头
+ * 顶到视口外——用户看到的是目标消息的中段，观感就是「没跳到目标」。
+ * 因此再按「消息顶不能高于顶部栈下沿」夹一次：顶对齐时取更小的 scrollTop。
+ */
 function scrollToMessageImmediate(messageId: number): boolean {
     const el = messagesContainer.value;
     if (!el) return false;
@@ -4114,7 +4123,12 @@ function scrollToMessageImmediate(messageId: number): boolean {
     const containerRect = el.getBoundingClientRect();
     const msgRect = msgEl.getBoundingClientRect();
     const delta = msgRect.top - containerRect.top;
-    const desired = el.scrollTop + delta - el.clientHeight * 0.45 + msgRect.height / 2;
+    // 居中到 45% 需要的位置
+    const centered = el.scrollTop + delta - el.clientHeight * 0.45 + msgRect.height / 2;
+    // 消息顶对齐到顶部栈下沿（container 的 paddingTop = Header + 置顶/翻译/话题栏占位）
+    const paddingTop = parseFloat(getComputedStyle(el).paddingTop) || 0;
+    const topAligned = el.scrollTop + delta - paddingTop;
+    const desired = Math.min(centered, topAligned);
     const max = Math.max(0, el.scrollHeight - el.clientHeight);
     const next = Math.max(0, Math.min(Math.round(desired), max));
     el.scrollTop = next;
@@ -4163,6 +4177,20 @@ async function jumpToMessageInternal(messageId: number, gen: number): Promise<bo
 
     const windowMessages = await loadJumpWindow(currentChatId, messageId, gen);
     if (!isGenerationValid(gen) || chatId.value !== currentChatId || windowMessages.length === 0) {
+        return false;
+    }
+
+    // 目标在论坛话题里而当前视图不是该话题：先换到话题视图再定位。
+    // 消息链接已由 openInternalLink 直接进话题；这里是其余入口（全局搜索、下载、音乐播放器、
+    // 转发来源、跨会话回复…）的兜底——否则拿群的整体历史定位，顶栏与输入框都不是该话题的上下文。
+    const targetTopic = windowMessages.find(m => m.id === messageId)?.topic_id;
+    const targetTopicId = targetTopic?._ === 'messageTopicForum' ? targetTopic.forum_topic_id : 0;
+    if (!threadMode.value && targetTopicId > 0 && targetTopicId !== topicId.value) {
+        void router.replace({
+            name: 'chat-topic-detail',
+            params: { id: String(currentChatId), topicId: String(targetTopicId) },
+            query: { message: String(messageId) },
+        });
         return false;
     }
 
@@ -4244,8 +4272,21 @@ async function autoOpenMediaFromQuery(gen: number) {
     }
 }
 
-/** 滚动到指定消息并触发高亮闪烁（用于回复跳转，目标不在列表时也会先加载） */
-const handleReplyJumpToMessage = (messageId: number) => {
+/**
+ * 回复 / 引用跳转（目标不在列表时也会先加载）。
+ * 被回复消息可能在别的会话里（跨对话回复、频道帖子在讨论组里的副本、转发到群里的频道消息）：
+ * 这时不能拿它的 id 在当前会话里找——id 是各会话自增的，会在当前会话里落到一条毫不相干的消息上。
+ * 带 ?message= 换会话，由本组件的首屏跳转路径负责定位。
+ */
+const handleReplyJumpToMessage = (messageId: number, targetChatId?: number) => {
+    if (targetChatId !== undefined && targetChatId !== chatId.value) {
+        void router.push({
+            name: 'chat-detail',
+            params: { id: String(targetChatId) },
+            query: { message: String(messageId) },
+        });
+        return;
+    }
     void jumpToMessage(messageId);
 };
 

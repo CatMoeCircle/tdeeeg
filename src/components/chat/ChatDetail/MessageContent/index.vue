@@ -272,12 +272,13 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    jumpToMessage: [messageId: number];
+    /** chatId：目标消息不在当前会话时由被回复/被引用方带出，供父级跨会话跳转 */
+    jumpToMessage: [messageId: number, chatId?: number];
     openForwardSource: [];
 }>();
 
-function onJumpToMessage(messageId: number) {
-    emit('jumpToMessage', messageId);
+function onJumpToMessage(messageId: number, chatId?: number) {
+    emit('jumpToMessage', messageId, chatId);
 }
 
 function onServiceJump(messageId: number) {
