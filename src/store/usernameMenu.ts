@@ -195,7 +195,7 @@ export function openUserMenuById(userId: number, px: number, py: number) {
         } catch (e) {
             if (token !== resolveToken || !visible.value) return;
             console.warn("getUser failed:", e);
-            errorMessage.value = i18n.global.t("userInfoLoadFailed");
+            errorMessage.value = i18n.global.t("editProfile.userInfoLoadFailed");
         } finally {
             if (token === resolveToken) {
                 loading.value = false;
