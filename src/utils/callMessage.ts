@@ -11,7 +11,7 @@ import formatTime from "./formatTime";
  */
 
 /** 通话时长：不足一分钟用「x 秒」，否则「x 分钟 x 秒」 */
-function callDurationText(seconds: number): string {
+export function callDurationText(seconds: number): string {
     if (seconds < 60) return tdPlural("lng_duration_seconds", seconds);
     const minutes = Math.floor(seconds / 60);
     const rest = seconds % 60;
