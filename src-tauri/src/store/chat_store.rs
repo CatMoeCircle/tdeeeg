@@ -330,6 +330,38 @@ impl ChatStore {
                     }
                 }
             }
+            // 对话被移出列表/分组：chat.chat_lists 必须同步摘掉，否则「是否在该分组」
+            // 与对话卡片底部的分组标签会一直显示旧值（added 方向在上面处理）。
+            "updateChatRemovedFromList" => {
+                let chat_id = update["chat_id"].as_i64()?;
+                let removed_list = &update["chat_list"];
+                if let Some(chat) = self.chats.get_mut(&chat_id) {
+                    let removed_type = removed_list
+                        .get("_")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let removed_folder_id =
+                        removed_list.get("chat_folder_id").and_then(|v| v.as_i64());
+                    if let Some(lists) = chat.chat_lists.as_mut() {
+                        lists.retain(|list| {
+                            let list_type = list.get("_").and_then(|v| v.as_str()).unwrap_or("");
+                            if list_type != removed_type {
+                                return true;
+                            }
+                            if list_type == "chatListFolder" {
+                                list.get("chat_folder_id").and_then(|v| v.as_i64())
+                                    != removed_folder_id
+                            } else {
+                                false
+                            }
+                        });
+                    }
+                    events.push((
+                        "chat-update".to_string(),
+                        serde_json::to_value(&*chat).unwrap(),
+                    ));
+                }
+            }
             "updateChatPhoto" => {
                 let chat_id = update["chat_id"].as_i64()?;
                 if let Some(chat) = self.chats.get_mut(&chat_id) {

@@ -117,8 +117,8 @@ export function ensureBuiltinTdEnglish(): void {
 
 /**
  * 读取官方词条并解析 Markdown（**bold** / *italic* / `code` / [text](url) / 换行）。
- * 返回受控 HTML，配合 v-html 使用。
+ * 返回受控 HTML，配合 v-html 使用。`params` 用于填充词条占位符（如 {link}）。
  */
-export function tdHtml(key: string): string {
-    return parseTdMarkdown(i18n.global.t(key));
+export function tdHtml(key: string, params?: Record<string, unknown>): string {
+    return parseTdMarkdown(i18n.global.t(key, params ?? {}));
 }

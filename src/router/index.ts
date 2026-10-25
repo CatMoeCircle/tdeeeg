@@ -75,6 +75,24 @@ const router = createRouter({
           component: () => import("../views/settings/AppearanceSettings.vue"),
         },
         {
+          // 聊天分组（文件夹）管理：新建 / 编辑 / 删除
+          path: "settings/folders",
+          name: "settings-folders",
+          component: () => import("../views/settings/FolderSettings.vue"),
+        },
+        {
+          // 新建分组（二级页，非弹窗）
+          path: "settings/folders/new",
+          name: "settings-folder-new",
+          component: () => import("../views/settings/FolderEditPage.vue"),
+        },
+        {
+          // 编辑分组
+          path: "settings/folders/:folderId",
+          name: "settings-folder-edit",
+          component: () => import("../views/settings/FolderEditPage.vue"),
+        },
+        {
           path: "settings/theme",
           name: "settings-theme",
           component: () => import("../views/settings/ThemeSettings.vue"),

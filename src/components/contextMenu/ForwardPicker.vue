@@ -509,10 +509,10 @@ async function prefetchMessageCaptions() {
 type FolderTab = { id: string; name: string };
 
 const folderTabs = computed<FolderTab[]>(() => {
-    const tabs: FolderTab[] = [{ id: "chatListMain", name: t("forward.all") }];
+    const tabs: FolderTab[] = [{ id: "chatListMain", name: t("lng_filters_all_short") }];
     for (const list of chatStore.chatLists) {
         if (list._ === "chatFolderInfo") {
-            const name = (list as any).name?.text?.text || t("forward.folder");
+            const name = (list as any).name?.text?.text || t("lng_sr_chat_folder");
             tabs.push({ id: `chat_folder_id${list.id}`, name });
         }
     }
