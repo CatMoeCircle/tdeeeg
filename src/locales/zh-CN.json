@@ -664,7 +664,7 @@
     "showCopyJson": "显示“复制原始 JSON”",
     "showCopyJsonDesc": "在对话列表、消息右键与资料页「更多」中显示“复制原始 JSON”调试项（chat / user / userFull / 超级群组 / 基本群组 / 加密对话等）",
     "crashLog": "崩溃日志",
-    "crashLogDesc": "记录全局错误、未处理 Promise、bootstrap 失败与 #app 被清空事件（localStorage: tdgram-crash-log）",
+    "crashLogDesc": "记录全局错误、未处理 Promise、bootstrap 失败与 #app 被清空事件（localStorage: tdeeeg-crash-log）",
     "refreshLog": "刷新日志",
     "noCrashLog": "暂无崩溃日志",
     "aiStrip": "AI 活动条（预览）",
@@ -922,7 +922,7 @@
       "_x_custom": "名称以 x 或 X 开头的选项可写，可供应用持久化存储少量数据。"
     },
     "optionDocsHint": "基于官方 TDLib 选项文档的只读字段注释，此处不提供修改功能。",
-    "crashHint": "该浮层来自 crashGuard，说明前端运行时已捕获到致命问题。详情已写入 localStorage['tdgram-crash-log']。",
+    "crashHint": "该浮层来自 crashGuard，说明前端运行时已捕获到致命问题。详情已写入 localStorage['tdeeeg-crash-log']。",
     "crashBlankTitle": "检测到界面被清空",
     "crashBootstrapTitle": "应用启动失败（{step}）",
     "crashBlankDetail": "#app 内容被清空（此前 {count} 个子节点，body={body}）"

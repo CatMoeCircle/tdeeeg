@@ -292,7 +292,7 @@ export function takeoverSystemPrompt(o: ReplyPromptInput): string {
     if (usage) lines.push("", usage);
   } else {
     lines.push(
-      `你是 tdgram 客户端里的 AI，正在代替「${o.selfName}」接管和「${partner}」的私聊。`,
+      `你是 tdeeeg 客户端里的 AI，正在代替「${o.selfName}」接管和「${partner}」的私聊。`,
       "",
       "硬性要求：",
       ...numbered([

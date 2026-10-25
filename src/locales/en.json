@@ -664,7 +664,7 @@
     "showCopyJson": "Show \"Copy raw JSON\"",
     "showCopyJsonDesc": "Show \"Copy raw JSON\" debug items in chat list, message context menu, and profile \"More\" (chat / user / userFull / supergroup / basic group / secret chat, etc.)",
     "crashLog": "Crash log",
-    "crashLogDesc": "Records global errors, unhandled promises, bootstrap failures, and #app cleared events (localStorage: tdgram-crash-log)",
+    "crashLogDesc": "Records global errors, unhandled promises, bootstrap failures, and #app cleared events (localStorage: tdeeeg-crash-log)",
     "refreshLog": "Refresh log",
     "noCrashLog": "No crash logs",
     "aiStrip": "AI activity strip (preview)",
@@ -922,7 +922,7 @@
       "_x_custom": "Any option whose name begins with 'x' or 'X' is writable and can be safely used by the application to persistently store a small amount of data."
     },
     "optionDocsHint": "Read-only field comments based on the official TDLib options documentation. No editing is provided here.",
-    "crashHint": "This overlay is from crashGuard, meaning the frontend has caught a fatal issue. Details have been written to localStorage['tdgram-crash-log'].",
+    "crashHint": "This overlay is from crashGuard, meaning the frontend has caught a fatal issue. Details have been written to localStorage['tdeeeg-crash-log'].",
     "crashBlankTitle": "Detected UI cleared",
     "crashBootstrapTitle": "Application failed to start ({step})",
     "crashBlankDetail": "#app content was cleared (previously {count} child nodes, body={body})"

@@ -783,11 +783,11 @@ export async function buildLanguagePackExport(
     };
 }
 
-/** 生成建议文件名：tdgram-tdesktop-<packId>-<yyyyMMdd-HHmmss>.json */
+/** 生成建议文件名：tdeeeg-tdesktop-<packId>-<yyyyMMdd-HHmmss>.json */
 export function languagePackExportFileName(packId: string): string {
     const safeId = packId.replace(/[^\w.-]+/g, "_") || "pack";
     const d = new Date();
     const pad = (n: number) => String(n).padStart(2, "0");
     const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-    return `tdgram-${LOCALIZATION_TARGET}-${safeId}-${stamp}.json`;
+    return `tdeeeg-${LOCALIZATION_TARGET}-${safeId}-${stamp}.json`;
 }

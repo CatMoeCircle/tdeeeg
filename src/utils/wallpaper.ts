@@ -63,7 +63,7 @@ export async function ensureJpegWallpaper(path: string): Promise<string> {
     if (!jpegBlob) throw new Error(i18n.global.t('wallpaper.jpegConvertFailed'));
 
     const dir = await tempDir();
-    const outPath = `${dir.replace(/[\\/]+$/, '')}\\tdgram_wallpaper_${Date.now()}.jpg`;
+    const outPath = `${dir.replace(/[\\/]+$/, '')}\\tdeeeg_wallpaper_${Date.now()}.jpg`;
     await writeFile(outPath, new Uint8Array(await jpegBlob.arrayBuffer()));
     return outPath;
   } finally {
