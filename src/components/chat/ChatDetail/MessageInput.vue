@@ -98,7 +98,7 @@ import type { chat, ChatMemberStatus, user, textEntity, formattedText } from 'td
 import { CornerUpLeftIcon, SendIcon, Smile, Sparkles, XIcon, TypeIcon, Bold, Italic, Underline, Strikethrough, EyeOff, Code2, Quote, Link2, Eraser } from 'lucide-vue-next';
 import { sending } from '../../../utils/attachmentSend';
 import { useAttachmentStore } from '../../../store/attachment';
-import { useCustomEmoji } from '../../../store/customEmoji';
+import { resolveCustomEmojiSrc } from '../../../utils/customEmojiPreview';
 import { openContextMenu } from '../../../store/contextMenu';
 import type { ContextMenuItem } from '../../contextMenu/types';
 import {
@@ -183,46 +183,6 @@ const previewHTML = computed(() =>
         customEmojis: props.customEmojis,
         customEmojiSrc: (id) => resolveCustomEmojiSrc(id),
     }));
-
-/**
- * 自定义 emoji 图片/动画源缓存（id → store 的响应式 state 引用）。
- * 惰性创建并请求自定义 emoji：首次遇到某 id 时调用 useCustomEmoji(id, true)，
- * 之后复用其引用。由于 state 是 store 里的响应式对象，computed 读取 .filePath/.thumbnailUrl
- * 会自动跟踪，下载完成后 previewHTML 会重新求值并把占位升级为图片/动画。
- */
-const customEmojiCache = new Map<string, ReturnType<typeof useCustomEmoji>>();
-function resolveCustomEmojiSrc(id: string): { src: string; kind: 'img' | 'video' } | null {
-    let st = customEmojiCache.get(id);
-    if (!st && !customEmojiCache.has(id)) {
-        st = useCustomEmoji(id, true);
-        customEmojiCache.set(id, st);
-    }
-    if (!st) return null;
-    const fmt = st.sticker?.format?._;
-    if (fmt === 'stickerFormatWebm') {
-        // webm 动画 → <video>（img 无法播放）；完整文件未就绪时缩略图兜底
-        if (st.filePath) return { src: st.filePath, kind: 'video' };
-        if (st.thumbnailUrl) return { src: st.thumbnailUrl, kind: 'img' };
-        return null;
-    }
-    if (fmt === 'stickerFormatWebp') {
-        // webp 静态 → <img>：优先完整文件；完整体还没下好时先用缩略图兜底，
-        // 避免“先显示系统 emoji → 再切成自定义图”的突兀回退。
-        if (st.filePath) return { src: st.filePath, kind: 'img' };
-        if (st.thumbnailUrl) return { src: st.thumbnailUrl, kind: 'img' };
-        return null;
-    }
-    if (fmt === 'stickerFormatTgs') {
-        // tgs 主文件是 .tgs，无法用 <img>/<video> 直接显示，只能用 (webp) 缩略图；
-        // 绝不能 fallback 到 st.filePath（.tgs）当作图源，否则会渲染破图。
-        if (st.thumbnailUrl) return { src: st.thumbnailUrl, kind: 'img' };
-        return null;
-    }
-    // 未知格式：主文件或缩略图任意可显示源
-    if (st.filePath) return { src: st.filePath, kind: 'img' };
-    if (st.thumbnailUrl) return { src: st.thumbnailUrl, kind: 'img' };
-    return null;
-}
 
 /** textarea 滚动时同步预览层滚动偏移，保证装饰不错位 */
 function syncPreviewScroll() {
