@@ -1,5 +1,7 @@
 # tdeeeg
 
+[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
+
 [English](README.md) | 简体中文 | [Русский](README.ru.md)
 
 > ⚠️ **本项目功能尚未完善，处于积极开发阶段。** 多数核心功能已实现但可能存在不稳定或显示不符合预期的部分，欢迎试用并提交 Issue。
