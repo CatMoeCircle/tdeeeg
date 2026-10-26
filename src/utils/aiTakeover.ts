@@ -53,6 +53,7 @@ import {
   type HistoryTurn,
   type TranscriptMessage,
   type UsageItem,
+  type StickerKind,
 } from "./aiTakeoverPrompt";
 import { messageOf } from "./aiTools/call";
 import { getMessagePlainText } from "./messageText";
@@ -270,6 +271,13 @@ function captionOf(m: message): formattedText | null {
   return cap ?? null;
 }
 
+/** TDLib 的 stickerFormat* → 展示端要的短格式（认不出的按静态图处理） */
+function stickerKindOf(format: string | undefined): StickerKind {
+  if (format === "stickerFormatTgs") return "tgs";
+  if (format === "stickerFormatWebm") return "webm";
+  return "webp";
+}
+
 /** 一条消息里本人用到的贴纸 / 自定义表情 */
 function usagesOf(m: message): { stickers: UsageItem[]; emojis: UsageItem[] } {
   const out: { stickers: UsageItem[]; emojis: UsageItem[] } = { stickers: [], emojis: [] };
@@ -277,7 +285,8 @@ function usagesOf(m: message): { stickers: UsageItem[]; emojis: UsageItem[] } {
   const c = m.content;
   if (c?._ === "messageSticker") {
     const fileId = c.sticker.sticker?.id;
-    if (fileId) out.stickers.push({ id: String(fileId), emoji: c.sticker.emoji || "" });
+    // 只记了文件 id，展示端没法自己判断格式 → 顺手记下
+    if (fileId) out.stickers.push({ id: String(fileId), emoji: c.sticker.emoji || "", format: stickerKindOf(c.sticker.format?._) });
   }
   const ft = captionOf(m);
   if (ft) {

@@ -182,10 +182,12 @@ function normalizeTally(raw: unknown): TallyItem[] {
     const item = v as Partial<TallyItem>;
     const id = String(item.id ?? "").trim();
     if (!id) continue;
+    const format = item.format === "tgs" || item.format === "webm" || item.format === "webp" ? item.format : undefined;
     out.push({
       id,
       emoji: String(item.emoji ?? ""),
       count: Math.max(1, Number(item.count) || 1),
+      ...(format ? { format } : {}),
     });
   }
   return out;

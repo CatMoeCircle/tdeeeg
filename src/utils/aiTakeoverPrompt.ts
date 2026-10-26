@@ -410,6 +410,9 @@ export function tidySummary(raw: string, max = SUMMARY_MAX): string {
   return tidyBlock(raw, max);
 }
 
+/** 贴纸媒体格式（TDLib 的 stickerFormat* 去掉前缀；自定义表情不需要） */
+export type StickerKind = "webp" | "tgs" | "webm";
+
 /** 本人频繁使用的贴纸 / 自定义表情（id + 代表字符 + 次数） */
 export interface TallyItem {
   /** 贴纸 = 文件 id（十进制字符串）；自定义表情 = custom_emoji_id */
@@ -417,12 +420,19 @@ export interface TallyItem {
   /** 贴纸自带的 emoji；自定义表情的代表字符 */
   emoji: string;
   count: number;
+  /**
+   * 贴纸格式（只有贴纸有）。
+   * 展示端只拿得到文件 id，没法从文件本身判断是静态 webp / 动图 tgs / 视频 webm，
+   * 所以在统计时一并记下；旧数据没有这个字段 → 展示端按扩展名猜。
+   */
+  format?: StickerKind;
 }
 
 /** 一次使用记录（没有次数） */
 export interface UsageItem {
   id: string;
   emoji: string;
+  format?: StickerKind;
 }
 
 /**
@@ -443,8 +453,10 @@ export function mergeTally(
     if (cur) {
       cur.count += 1;
       if (!cur.emoji && u.emoji) cur.emoji = u.emoji;
+      // 旧条目没记格式时补上（同一 id 的格式是固定的）
+      if (!cur.format && u.format) cur.format = u.format;
     } else {
-      byId.set(id, { id, emoji: u.emoji || "", count: 1 });
+      byId.set(id, { id, emoji: u.emoji || "", count: 1, ...(u.format ? { format: u.format } : {}) });
     }
   }
   return [...byId.values()].sort((a, b) => b.count - a.count).slice(0, Math.max(1, keep));

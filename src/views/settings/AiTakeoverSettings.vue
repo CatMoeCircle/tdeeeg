@@ -166,7 +166,9 @@
                                             class="px-2.5 py-1 rounded-lg text-xs text-gray-500 border border-gray-200 dark:border-gray-700 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                                             @click="clearStyle(cfg.chatId)">{{ t('aiTakeover.styleClear') }}</button>
                                     </div>
-                                    <p v-if="cfg.style" class="mt-2 whitespace-pre-line text-[11px] leading-5 text-gray-600 dark:text-gray-300 max-h-32 overflow-y-auto custom-scrollbar">{{ cfg.style }}</p>
+                                    <!-- 风格画像是模型输出：走 renderAiMarkdown（先转义再渲染 markdown），不用 {{ }} 露出 ** 等源码 -->
+                                    <div v-if="cfg.style" class="mt-2 break-words text-[11px] leading-5 text-gray-600 dark:text-gray-300 max-h-32 overflow-y-auto custom-scrollbar"
+                                        v-html="renderAiMarkdown(cfg.style)"></div>
                                     <p v-else class="mt-2 text-[11px] text-gray-400">{{ t('aiTakeover.styleEmpty') }}</p>
                                     <p v-if="cfg.style && cfg.styleAt" class="mt-1 text-[11px] text-gray-400">
                                         {{ t('aiTakeover.styleMeta', { n: cfg.styleLimit, time: fmtTime(cfg.styleAt) }) }}</p>
@@ -176,15 +178,19 @@
                                         <p class="text-[11px] text-gray-500">{{ t('aiTakeover.usageHint') }}</p>
                                         <div v-if="cfg.stickers.length || cfg.customEmojis.length"
                                             class="mt-1 flex flex-wrap gap-1">
+                                            <!-- 贴纸：只显示真实贴纸图 + 次数，旁边的原始 emoji 字符不显示 -->
                                             <span v-for="s in cfg.stickers" :key="`s${s.id}`"
-                                                class="px-1.5 py-0.5 rounded-md text-[11px] bg-white/80 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700"
+                                                class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] bg-white/80 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700"
                                                 :title="t('aiTakeover.usageStickerTitle', { count: s.count })">
-                                                {{ s.emoji || '🧩' }} ×{{ s.count }}
+                                                <StickerThumb :file-id="s.id" :format="s.format" :size="18" />
+                                                <span class="text-gray-400">×{{ s.count }}</span>
                                             </span>
+                                            <!-- 自定义表情：只显示对应的自定义表情图 + 次数 -->
                                             <span v-for="e in cfg.customEmojis" :key="`e${e.id}`"
-                                                class="px-1.5 py-0.5 rounded-md text-[11px] bg-white/80 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700"
+                                                class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] bg-white/80 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700"
                                                 :title="t('aiTakeover.usageEmojiTitle', { count: e.count })">
-                                                {{ e.emoji || '🙂' }} ×{{ e.count }}
+                                                <CustomEmojiInline :emoji-id="e.id" :size="18" eager />
+                                                <span class="text-gray-400">×{{ e.count }}</span>
                                             </span>
                                         </div>
                                         <p v-else class="mt-1 text-[11px] text-gray-400">{{ t('aiTakeover.usageEmpty') }}</p>
@@ -297,6 +303,8 @@ import {
     UserRound as UserRoundIcon,
 } from 'lucide-vue-next';
 import Avatar from '../../components/chat/avatar.vue';
+import StickerThumb from '../../components/ai/StickerThumb.vue';
+import CustomEmojiInline from '../../components/common/CustomEmojiInline.vue';
 import SelectMenu from '../../components/ui/dropdown/SelectMenu.vue';
 import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
 import { useAccountsStore } from '../../store/accounts';
@@ -318,6 +326,7 @@ import {
 import { useChatStore, type Chat } from '../../store/chat';
 import { useUserStore } from '../../store/user';
 import { compressTakeoverNow, resolveTakeoverTarget, summarizeStyleNow } from '../../utils/aiTakeover';
+import { renderAiMarkdown } from '../../utils/aiMarkdown';
 import { HISTORY_KEEP, STYLE_LIMITS } from '../../utils/aiTakeoverPrompt';
 import { ensureChat, ensureUser, getReactiveChat, getReactiveUser } from '../../utils/senderInfo';
 import { toast } from '../../utils/toast';
