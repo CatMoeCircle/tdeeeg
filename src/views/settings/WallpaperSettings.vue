@@ -93,8 +93,8 @@
                             {{ t('wallpaper.savedSection') }}</h3>
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
-                    <div v-if="loading" class="mt-5 py-8 text-center text-sm text-gray-400">{{ t('wallpaper.loading')
-                    }}</div>
+                    <LoadingSkeleton v-if="loading" variant="tiles" class="mt-5" :rows="6"
+                        :label="t('wallpaper.loading')" />
                     <div v-else-if="backgrounds.length === 0"
                         class="mt-5 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 py-8 text-center text-sm text-gray-400">
                         {{ t('wallpaper.emptySaved') }}</div>
@@ -131,6 +131,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { useRouter } from 'vue-router';
 import { ChevronLeft as ChevronLeftIcon, Share2 as ShareIcon, Trash2 as TrashIcon } from 'lucide-vue-next';
 import { toast } from '../../utils/toast';
+import LoadingSkeleton from '../../components/common/LoadingSkeleton.vue';
 import { tdlibSend, ensureLocalFilePath, isFileReady, safeDownloadFile } from '../../utils/tdlib';
 import { settings, type ChatWallpaperVisual } from '../../store/settings';
 import { defaultBackgroundFor, emojiChatThemes } from '../../store/chatBackground';

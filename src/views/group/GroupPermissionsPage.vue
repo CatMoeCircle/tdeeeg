@@ -192,7 +192,7 @@
           </div>
         </section>
 
-        <div v-if="loading" class="py-8 text-center text-sm text-gray-400">{{ t('lng_context_seen_loading') }}</div>
+        <LoadingSkeleton v-if="loading" variant="form" :rows="4" :label="t('lng_context_seen_loading')" />
       </div>
     </div>
 
@@ -203,6 +203,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
+import LoadingSkeleton from '../../components/common/LoadingSkeleton.vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import {

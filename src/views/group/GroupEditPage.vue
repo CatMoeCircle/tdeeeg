@@ -253,7 +253,7 @@
           </button>
         </section>
 
-        <div v-if="loading" class="py-10 text-center text-sm text-gray-400">{{ t('groupEdit.loading') }}</div>
+        <LoadingSkeleton v-if="loading" variant="form" :rows="5" :label="t('groupEdit.loading')" />
         <div v-else-if="loadError" class="py-10 text-center text-sm text-red-500">{{ t('groupEdit.loadFailed') }}</div>
       </div>
     </div>
@@ -295,6 +295,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import LoadingSkeleton from '../../components/common/LoadingSkeleton.vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import {

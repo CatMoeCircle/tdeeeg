@@ -24,9 +24,7 @@
                     </BaseButton>
                 </div>
 
-                <div v-if="loading" class="py-10 text-center text-sm text-gray-400">
-                    {{ t('lng_context_seen_loading') }}
-                </div>
+                <LoadingSkeleton v-if="loading" class="py-2" :rows="5" :label="t('lng_context_seen_loading')" />
 
                 <div v-else-if="folders.length === 0"
                     class="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 px-4 py-10 text-center">
@@ -80,6 +78,7 @@
 </template>
 <script setup lang="ts">
 import { computed, onActivated, ref } from 'vue';
+import LoadingSkeleton from '../../components/common/LoadingSkeleton.vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { ChevronLeftIcon, Plus as PlusIcon, Trash2 as Trash2Icon, Folder as FolderIcon } from 'lucide-vue-next';

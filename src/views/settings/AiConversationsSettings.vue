@@ -10,6 +10,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { toast } from '../../utils/toast';
+import LoadingSkeleton from '../../components/common/LoadingSkeleton.vue';
 import {
     ChevronLeft as ChevronLeftIcon,
     MessagesSquare as ChatIcon,
@@ -192,7 +193,7 @@ watch(
 
         <div class="custom-scrollbar flex-1 overflow-y-auto p-6" v-smooth-wheel>
             <div class="mx-auto max-w-3xl">
-                <p v-if="loading" class="py-8 text-center text-sm text-gray-400">{{ t('aiConversations.loading') }}</p>
+                <LoadingSkeleton v-if="loading" class="py-2" :rows="5" :label="t('aiConversations.loading')" />
                 <p v-else-if="!groups.length" class="py-8 text-center text-sm text-gray-400">
                     {{ t('aiConversations.allEmpty') }}</p>
 

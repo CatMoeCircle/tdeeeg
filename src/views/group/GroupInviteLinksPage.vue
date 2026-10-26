@@ -37,7 +37,7 @@
           <div v-if="!loading && links.length === 0" class="px-4 py-8 text-center text-sm text-gray-400">
             {{ t('lng_group_invite_no_joined') }}
           </div>
-          <div v-if="loading" class="px-4 py-8 text-center text-sm text-gray-400">{{ t('lng_context_seen_loading') }}</div>
+          <LoadingSkeleton v-if="loading" class="px-4 py-3" :rows="6" :label="t('lng_context_seen_loading')" />
         </div>
       </div>
     </div>
@@ -51,6 +51,7 @@ import { useI18n } from 'vue-i18n';
 import { ChevronLeft as ChevronLeftIcon } from 'lucide-vue-next';
 import { toast } from '../../utils/toast';
 import { tdlibSend } from '../../utils/tdlib';
+import LoadingSkeleton from '../../components/common/LoadingSkeleton.vue';
 
 type InviteLink = {
   invite_link: string;

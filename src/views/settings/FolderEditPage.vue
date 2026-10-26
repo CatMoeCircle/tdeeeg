@@ -14,9 +14,8 @@
         </div>
 
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
-            <div v-if="loading" class="py-12 text-center text-sm text-gray-400">
-                {{ t('lng_context_seen_loading') }}
-            </div>
+            <LoadingSkeleton v-if="loading" variant="form" class="max-w-2xl" :rows="4"
+                :label="t('lng_context_seen_loading')" />
 
             <!-- 选对话：页内面板，不弹窗 -->
             <div v-else-if="pickerTarget" class="max-w-2xl">
@@ -239,6 +238,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, onActivated } from 'vue';
+import LoadingSkeleton from '../../components/common/LoadingSkeleton.vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import {

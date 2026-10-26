@@ -116,16 +116,15 @@
           <div v-if="!loading && members.length === 0" class="px-4 py-8 text-center text-sm text-gray-400">
             {{ t('groupEdit.empty') }}
           </div>
-          <div v-if="loading" class="px-4 py-8 text-center text-sm text-gray-400">{{ t('groupEdit.loading') }}</div>
+          <LoadingSkeleton v-if="loading" class="px-4 py-3" :rows="8" avatar :label="t('groupEdit.loading')" />
         </div>
         <div v-if="mode === 'members' && !query.trim() && !loading && sections.length === 0"
           class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-8 text-center text-sm text-gray-400">
           {{ t('groupEdit.empty') }}
         </div>
-        <div v-if="mode === 'members' && !query.trim() && loading"
-          class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-8 text-center text-sm text-gray-400">
-          {{ t('groupEdit.loading') }}
-        </div>
+        <LoadingSkeleton v-if="mode === 'members' && !query.trim() && loading"
+          class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-3"
+          :rows="8" avatar :label="t('groupEdit.loading')" />
       </div>
     </div>
 
@@ -141,6 +140,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import LoadingSkeleton from '../../components/common/LoadingSkeleton.vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import {

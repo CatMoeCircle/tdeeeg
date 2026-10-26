@@ -15,10 +15,12 @@
             <div class="max-w-2xl">
                 <div v-if="error" class="text-xs text-red-500 mb-4">{{ t('storage.loadFailed', { error }) }}</div>
 
-                <p v-if="!stats" class="text-xs text-gray-400">
-                    {{ loading ? t('storage.loading') : '' }}
-                    <span class="block mt-1 text-gray-300 dark:text-gray-600">{{ t('storage.loadingHint') }}</span>
-                </p>
+                <div v-if="!stats">
+                    <LoadingSkeleton v-if="loading" class="py-2" :rows="4" :label="t('storage.loading')" />
+                    <p class="mt-3 text-xs text-gray-400">
+                        <span class="block mt-1 text-gray-300 dark:text-gray-600">{{ t('storage.loadingHint') }}</span>
+                    </p>
+                </div>
 
                 <template v-else>
                     <p v-if="!stats.count" class="text-xs text-gray-400 text-center">{{ t('storage.empty') }}</p>
@@ -190,6 +192,7 @@ import {
 } from 'lucide-vue-next';
 import { tdlibSend } from '../../utils/tdlib';
 import { formatSize } from '../../utils/format';
+import LoadingSkeleton from '../../components/common/LoadingSkeleton.vue';
 import { toast } from '../../utils/toast';
 import { useChatStore } from '../../store/chat';
 import Avatar from '../../components/chat/avatar.vue';

@@ -64,8 +64,7 @@
                         <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
                     </div>
                     <div class="mt-5 space-y-3">
-                    <div v-if="loading" class="text-sm text-gray-400 py-8 text-center">{{ t('devices.loadingSessions')
-                    }}</div>
+                    <LoadingSkeleton v-if="loading" class="py-2" :rows="4" avatar :label="t('devices.loadingSessions')" />
                     <div v-else-if="otherSessions.length === 0" class="text-sm text-gray-400 py-8 text-center">{{
                         t('devices.noOtherSessions') }}</div>
                     <div v-else
@@ -131,6 +130,7 @@ import {
 import { toast } from '../../utils/toast';
 import SessionTtlDialog, { ttlOptions } from '../../components/settings/SessionTtlDialog.vue';
 import { tdlibSend } from '../../utils/tdlib';
+import LoadingSkeleton from '../../components/common/LoadingSkeleton.vue';
 import type { session, sessions } from 'tdlib-types';
 
 const { t } = useI18n();
