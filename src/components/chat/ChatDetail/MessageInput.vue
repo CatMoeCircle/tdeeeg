@@ -52,7 +52,7 @@
                 @attach-checklist="emit('attachChecklist')" @attach-poll="emit('attachPoll')"
                 @attach-contact="emit('attachContact')" @attach-location="emit('attachLocation')" />
 
-            <div class="flex-1 min-w-0 rounded-full dark:bg-gray-800 flex items-center my-2 relative">
+            <div class="flex-1 min-w-0 rounded-full flex items-center my-2 relative">
                 <!-- 富文本格式预览层：与 textarea 逐像素重叠，展示实体样式与 emoji 图片。
                      预览层始终显示（含输入法组合期间），textarea 文字保持透明，由预览层统一绘制
                      （含组合中的拼音）。text 的当前值（含拼音）由 onInput 实时从 DOM 读回，
