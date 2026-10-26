@@ -215,6 +215,7 @@ import {
   loadMyChatMemberStatus,
 } from '../../utils/groupRights';
 import type { chat, supergroup, basicGroup } from 'tdlib-types';
+import BaseButton from '../../components/ui/button/BaseButton.vue';
 
 const route = useRoute();
 const router = useRouter();

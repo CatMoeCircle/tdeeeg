@@ -84,6 +84,7 @@ import {
 } from "../../store/reportMessage";
 import { tdlibSend } from "../../utils/tdlib";
 import type { reportOption } from "tdlib-types";
+import BaseButton from "../ui/button/BaseButton.vue";
 
 type Step = 'options' | 'text';
 

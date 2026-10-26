@@ -26,8 +26,9 @@
                         <div class="flex flex-wrap items-center gap-2 text-sm">
                             <span class="text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('lng_translate_menu_to')
                                 }}</span>
-                            <t-select class="z-999" v-model="targetLang" :options="targetOptions" :borderless="true"
-                                filterable size="small" style="width: 220px" :placeholder="t('lng_translate_menu_to')" />
+                            <SelectMenu class="z-999 w-55" size="sm" filterable :model-value="targetLang"
+                                :options="targetOptions" :placeholder="t('lng_translate_menu_to')"
+                                @update:model-value="(v: string) => (targetLang = v)" />
                         </div>
 
                         <!-- 原文 -->
@@ -93,9 +94,11 @@ import { translateViaProvider } from "../../utils/translateProvider";
 import { renderEntitiesHTML } from "../../utils/textFormatters";
 import { detectInlineEntities } from "../../utils/textEntityDetect";
 import LoaderIndicator from "../common/LoaderIndicator";
+import SelectMenu from "../ui/dropdown/SelectMenu.vue";
 import {
     getTranslateLanguageOptions,
 } from "../../utils/translateLanguages";
+import BaseButton from "../ui/button/BaseButton.vue";
 
 const { t } = useI18n();
 const visible = translateVisible;

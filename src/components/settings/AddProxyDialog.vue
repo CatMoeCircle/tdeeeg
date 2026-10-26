@@ -117,6 +117,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { settings } from '../../store/settings';
 import { addProxyTo } from '../../store/proxyList';
 import type { addedProxy } from 'tdlib-types';
+import BaseButton from '../ui/button/BaseButton.vue';
 
 const props = defineProps<{
     modelValue: boolean;

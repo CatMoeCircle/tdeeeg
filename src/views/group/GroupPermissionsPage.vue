@@ -233,6 +233,7 @@ import {
 } from '../../utils/groupRights';
 import { getReactiveUser } from '../../utils/senderInfo';
 import type { chat, chatMember, chatPermissions, supergroup, user } from 'tdlib-types';
+import BaseButton from '../../components/ui/button/BaseButton.vue';
 
 const route = useRoute();
 const router = useRouter();

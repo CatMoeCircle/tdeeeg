@@ -49,6 +49,7 @@ import { toast } from '../../utils/toast';
 import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import { loadGroupFullInfo, loadMyChatMemberStatus } from '../../utils/groupRights';
+import BaseButton from '../../components/ui/button/BaseButton.vue';
 
 const route = useRoute();
 const router = useRouter();

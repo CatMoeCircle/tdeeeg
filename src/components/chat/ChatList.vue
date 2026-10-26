@@ -229,12 +229,9 @@
                                                             class="text-[16px] shrink-0"
                                                             :title="t('lng_premium_summary_title')" />
                                                         <!-- 蓝 V 认证标识：显示在名称后面 -->
-                                                        <VerifiedFilledIcon v-else-if="isChatBlueVerified(chat)"
-                                                            class="text-blue-500 text-sm shrink-0"
-                                                            :title="t('profileBadges.verified')"
-                                                            :fillColor="['currentColor', 'transparent']"
-                                                            :strokeColor="['currentColor', '#0052d9']"
-                                                            :strokeWidth="1.5" />
+                                                        <VerifiedBadge v-else-if="isChatBlueVerified(chat)"
+                                                            class="text-sm"
+                                                            :title="t('profileBadges.verified')" />
                                                         <!-- 静音图标 -->
                                                         <BellOffIcon v-if="isChatMuted(chat)"
                                                             class="w-3.5 h-3.5 text-gray-400 shrink-0" />
@@ -488,7 +485,7 @@ import {
     getChatEmojiStatus, emojiStatusCustomEmojiId, isChatPremiumUser,
 } from '../../utils/senderInfo';
 import PremiumStatusIcon from '../common/PremiumStatusIcon.vue';
-import { VerifiedFilledIcon } from 'tdesign-icons-vue-next';
+import VerifiedBadge from '../common/VerifiedBadge.vue';
 import { useChatStore } from '../../store/chat';
 import type { Chat } from '../../store/chat';
 import { useUserStore } from '../../store/user';

@@ -24,7 +24,8 @@
     "skipConfirmTitle": "確定跳過審核？",
     "skipConfirmBody": "開啟後「{tool}」被呼叫時不再彈確認卡片，AI 會在你沒有確認的情況下直接執行。只在完全信任目前模型和供應商時開啟。",
     "skipConfirmOk": "仍然開啟",
-    "cancel": "取消"
+    "cancel": "取消",
+    "mutualContact": "互為聯絡人"
   },
   "login": {
     "title": "您的手機號碼",
@@ -323,7 +324,7 @@
     "previewLink": "連結文字",
     "brandSection": "主題色",
     "brandCurrent": "目前主題色",
-    "brandDesc": "主題色同時套用到介面高亮與 TDesign 元件品牌色（按鈕、選中態、連結等）。",
+    "brandDesc": "主題色同時套用到介面高亮與自訂控件的品牌色（按鈕、選中態、連結等）。",
     "brandDualHint": "淺色 / 深色各有一套主題色；切換明暗後可分別設定。",
     "bgSection": "背景色",
     "bgCurrent": "目前背景色",

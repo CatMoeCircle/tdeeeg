@@ -129,6 +129,7 @@ import {
     confirmAddLanguagePack,
     cancelAddLanguagePack,
 } from '../../store/languagePackLink';
+import BaseButton from '../ui/button/BaseButton.vue';
 
 const { t } = useI18n();
 

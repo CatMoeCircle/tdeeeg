@@ -53,6 +53,7 @@ import {
     getChatProfileAccentColorId, getChatUserNames,
 } from '../../utils/senderInfo';
 import type { chat as TdChat, MessageSender } from 'tdlib-types';
+import BaseButton from '../ui/button/BaseButton.vue';
 
 const props = defineProps<{ modelValue: boolean }>();
 const emit = defineEmits<{

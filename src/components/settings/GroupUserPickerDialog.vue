@@ -49,6 +49,7 @@ import Avatar from '../chat/avatar.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import { ensureUser, getReactiveUser, isDeletedUser, DELETED_ACCOUNT_LABEL } from '../../utils/senderInfo';
 import type { user } from 'tdlib-types';
+import BaseButton from '../ui/button/BaseButton.vue';
 
 const props = defineProps<{
   modelValue: boolean;

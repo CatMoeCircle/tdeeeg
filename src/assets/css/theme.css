@@ -1,7 +1,7 @@
 /**
  * 主题变量层
  * - --app-*：应用自定义 UI 用
- * - --td-*：TDesign 组件用（由 store/theme.ts 在运行时写入 brand/radius/shadow/size）
+ * - theme-mode="light|dark" 属性由 store/theme.ts 同步，供本文件与组件样式选择
  * - Tailwind dark 变体走 html.dark class（index.css @custom-variant）
  */
 
@@ -68,13 +68,15 @@
   --app-bg-muted: #f3f3f3;
   --app-border: #e7e7e7;
   --app-border-strong: #dcdcdc;
+  /* Telegram 官方语义色：蓝色认证勾底（徽章组件 .chat-verified-badge 用） */
+  --app-blue-verified: #007fea;
   --app-text-primary: rgba(0, 0, 0, 0.9);
   --app-text-secondary: rgba(0, 0, 0, 0.6);
   --app-text-placeholder: rgba(0, 0, 0, 0.4);
   --app-text-disabled: rgba(0, 0, 0, 0.26);
 }
 
-/* 表面色：深色（与 TDesign theme-mode=dark 灰阶对齐）；同时挂 html.dark */
+/* 表面色：深色（theme-mode="dark" 与 html.dark 同时挂） */
 :root[theme-mode="dark"],
 html.dark {
   --app-bg-page: #1e293b;
@@ -83,6 +85,7 @@ html.dark {
   --app-bg-muted: #2c2c2c;
   --app-border: #393939;
   --app-border-strong: #5e5e5e;
+  --app-blue-verified: #4cb2ff;
   /* 三级文本语义色：组件字面量灰统一收敛到这里（见文件末尾「深色模式颜色收敛」） */
   --app-text-primary: rgba(255, 255, 255, 0.9);
   --app-text-secondary: rgba(255, 255, 255, 0.65);

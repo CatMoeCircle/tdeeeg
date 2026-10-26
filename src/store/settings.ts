@@ -288,7 +288,7 @@ interface Settings {
      */
     code: string;
   };
-  /** 主题外观（颜色 / 明暗 / 阴影 / 密度，同步映射到 TDesign 变量） */
+  /** 主题外观（颜色 / 明暗 / 阴影 / 密度，由 store/theme.ts 写成 --app-* 变量） */
   theme: {
     /** 明暗模式：light=浅色，dark=深色，system=跟随系统 */
     mode: "light" | "dark" | "system";

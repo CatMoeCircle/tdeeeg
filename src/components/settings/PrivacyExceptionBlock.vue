@@ -48,6 +48,7 @@ export interface ExceptionEntry {
 <script setup lang="ts">
 import Avatar from '../chat/avatar.vue';
 import { useI18n } from 'vue-i18n';
+import BaseButton from '../ui/button/BaseButton.vue';
 
 const { t } = useI18n();
 defineProps<{

@@ -6,9 +6,10 @@ import { settings } from "./settings";
 /**
  * 主题系统：明暗模式 + 主题色 + 圆角/阴影/密度。
  *
- * 与两套样式体系对齐：
+ * 全部输出为 --app-* 变量（已在 component 层脱离 TDesign）：
  * - Tailwind：html.dark 切换 dark: 变体；@theme inline 将 blue-* 映射到 brand 色阶
- * - TDesign：:root[theme-mode='dark'] + --td-brand-color-* / --td-radius-* / --td-shadow-* / --td-size-*
+ * - 主题 CSS：:root[theme-mode='dark'] 与 html.dark 同时生效，--app-brand / --app-radius-* /
+ *   --app-shadow-* / --app-control-height-* 由这里在运行时写入
  *
  * 启动时尽早调用 initTheme()（main.ts 中 import 即应用），避免闪白/闪黑。
  */
@@ -18,7 +19,7 @@ export type ThemeRadius = "sharp" | "soft" | "round" | "extra";
 export type ThemeShadow = "none" | "subtle" | "normal" | "strong";
 export type ThemeDensity = "compact" | "default" | "large";
 
-/** 圆角风格 → TDesign 五档半径（small/default/medium/large/extraLarge），单位 px */
+/** 圆角风格 → 五档半径（xs/sm/md/lg/xl），单位 px */
 const RADIUS_PRESETS: Record<ThemeRadius, [number, number, number, number, number]> = {
   sharp: [2, 3, 6, 9, 12],
   soft: [4, 6, 10, 14, 18],
@@ -26,7 +27,7 @@ const RADIUS_PRESETS: Record<ThemeRadius, [number, number, number, number, numbe
   extra: [8, 12, 16, 22, 28],
 };
 
-/** 密度 → TDesign 基础尺寸缩放 */
+/** 密度 → 控件高度缩放 */
 const DENSITY_SCALE: Record<ThemeDensity, number> = {
   compact: 0.875,
   default: 1,
@@ -41,7 +42,7 @@ const SHADOW_ALPHA: Record<ThemeShadow, number> = {
   strong: 1.35,
 };
 
-/** 语义色默认值（TDesign 主色） */
+/** 语义色默认值 */
 const DEFAULT_SUCCESS = "#2ba471";
 const DEFAULT_WARNING = "#e37318";
 const DEFAULT_ERROR = "#d54941";
@@ -86,7 +87,7 @@ function mixRgb(
 }
 
 /**
- * 由基础色生成 10 档色阶（对齐 TDesign brand-color-1..10）。
+ * 由基础色生成 10 档色阶（1..10，写成 --app-brand-scale-1..10）。
  * 1 最浅、7≈主色、10 最深；深色模式整体向亮端偏移，主色略提亮。
  */
 export function generateColorScale(hex: string, dark: boolean): string[] {
@@ -262,9 +263,10 @@ function flushThemeVars(root: HTMLElement) {
   root.style.cssText = [...kept, ...vars].join(";");
 }
 
-function applyTdesignScale(prefix: string, scale: string[]) {
+/** 品牌色 10 档色阶（浅 tint → 深）：预览与自定义组件按序号取用 */
+function applyBrandScale(scale: string[]) {
   for (let i = 0; i < 10; i++) {
-    setVar(`--td-${prefix}-color-${i + 1}`, scale[i]);
+    setVar(`--app-brand-scale-${i + 1}`, scale[i]);
   }
 }
 
@@ -274,17 +276,8 @@ function applySemantic(
   dark: boolean,
 ) {
   const scale = generateColorScale(hex, dark);
-  applyTdesignScale(name, scale);
-  // TDesign 语义主色槽位：与品牌色一致，主色=用户设定值
-  const primary = hex.toLowerCase();
-  setVar(`--td-${name}-color`, primary);
-  setVar(`--td-${name}-color-hover`, dark ? scale[4] : scale[6]);
-  setVar(`--td-${name}-color-focus`, scale[1]);
-  setVar(`--td-${name}-color-active`, dark ? scale[3] : scale[7]);
-  setVar(`--td-${name}-color-disabled`, scale[2]);
-  setVar(`--td-${name}-color-light`, scale[0]);
-  setVar(`--td-${name}-color-light-hover`, scale[1]);
   // 应用侧语义变量（自定义组件可直接用）
+  const primary = hex.toLowerCase();
   setVar(`--app-${name}`, primary);
   setVar(`--app-${name}-hover`, dark ? scale[4] : scale[6]);
   setVar(`--app-${name}-soft`, withAlpha(primary, 0.16));
@@ -303,7 +296,7 @@ export function applyTheme(): void {
     ? t.bgColorDark || "#1e293b"
     : t.bgColorLight || "#f5f5f5";
 
-  // 明暗：Tailwind class + TDesign theme-mode + color-scheme
+  // 明暗：Tailwind class + theme-mode 属性（主题 CSS 选择器用）+ color-scheme
   root.classList.toggle("dark", dark);
   root.setAttribute("theme-mode", dark ? "dark" : "light");
   root.style.colorScheme = dark ? "dark" : "light";
@@ -326,23 +319,13 @@ export function applyTheme(): void {
     : rgbToHex(mixRgb(bgRgb, [0, 0, 0], 0.04)));
   // 不把 html/body 涂实：侧栏/顶栏保持半透明以露出 acrylic
 
-  // ── 品牌色 → TDesign brand 色阶 + Tailwind blue-* ──
+  // ── 品牌色 → 应用色阶 + Tailwind blue-* ──
   const brand = generateColorScale(brandHex, dark);
-  applyTdesignScale("brand", brand);
+  applyBrandScale(brand);
   // 主色始终等于当前模式的主题色；hover/active 按明暗向深/浅偏移
   const brandMain = brandHex.toLowerCase();
   const brandHover = dark ? brand[4] : brand[6];
   const brandActive = dark ? brand[3] : brand[7];
-  setVar("--td-brand-color", brandMain);
-  setVar("--td-brand-color-hover", brandHover);
-  setVar("--td-brand-color-focus", brand[1]);
-  setVar("--td-brand-color-active", brandActive);
-  setVar("--td-brand-color-disabled", brand[2]);
-  setVar("--td-brand-color-light", brand[0]);
-  setVar("--td-brand-color-light-hover", brand[1]);
-  setVar("--td-text-color-brand", brandMain);
-  setVar("--td-text-color-link", brandMain);
-
   // 应用侧品牌变量（自定义 UI / 预览用）：按 Tailwind 顺序 1=浅 tint … 10=深
   const displayScale = generateTailwindScale(brandHex, dark);
   for (let i = 0; i < 10; i++) {
@@ -371,11 +354,6 @@ export function applyTheme(): void {
   const [rs, rd, rm, rl, rxl] = RADIUS_PRESETS[t.radius] || RADIUS_PRESETS.soft;
   const k = Math.max(0.5, Math.min(2, t.radiusScale || 1));
   const r = (n: number) => `${Math.round(n * k * 10) / 10}px`;
-  setVar("--td-radius-small", r(rs));
-  setVar("--td-radius-default", r(rd));
-  setVar("--td-radius-medium", r(rm));
-  setVar("--td-radius-large", r(rl));
-  setVar("--td-radius-extraLarge", r(rxl));
   setVar("--app-radius-xs", r(rs));
   setVar("--app-radius-sm", r(rd));
   setVar("--app-radius-md", r(rm));
@@ -385,56 +363,24 @@ export function applyTheme(): void {
   // ── 阴影 ──
   const sa = SHADOW_ALPHA[t.shadow] ?? 1;
   if (t.shadow === "none") {
-    setVar("--td-shadow-1", "none");
-    setVar("--td-shadow-2", "none");
-    setVar("--td-shadow-3", "none");
     setVar("--app-shadow-1", "none");
     setVar("--app-shadow-2", "none");
     setVar("--app-shadow-3", "none");
     setVar("--box-shadow", "none");
   } else if (dark) {
-    setVar(
-      "--td-shadow-1",
-      `0 4px 6px rgba(0,0,0,${0.2 * sa}), 0 1px 10px rgba(0,0,0,${0.24 * sa}), 0 2px 4px rgba(0,0,0,${0.28 * sa})`,
-    );
-    setVar(
-      "--td-shadow-2",
-      `0 8px 10px rgba(0,0,0,${0.28 * sa}), 0 3px 14px rgba(0,0,0,${0.24 * sa}), 0 5px 5px rgba(0,0,0,${0.32 * sa})`,
-    );
-    setVar(
-      "--td-shadow-3",
-      `0 16px 24px rgba(0,0,0,${0.32 * sa}), 0 6px 30px rgba(0,0,0,${0.28 * sa}), 0 8px 10px rgba(0,0,0,${0.36 * sa})`,
-    );
     setVar("--app-shadow-1", `0 1px 10px rgba(0,0,0,${0.22 * sa})`);
     setVar("--app-shadow-2", `0 3px 14px rgba(0,0,0,${0.28 * sa})`);
     setVar("--app-shadow-3", `0 6px 30px rgba(0,0,0,${0.34 * sa})`);
     setVar("--box-shadow", `0 0 3px rgba(0,0,0,${0.45 * sa})`);
   } else {
-    setVar(
-      "--td-shadow-1",
-      `0 1px 10px rgba(0,0,0,${0.05 * sa}), 0 4px 5px rgba(0,0,0,${0.08 * sa}), 0 2px 4px -1px rgba(0,0,0,${0.12 * sa})`,
-    );
-    setVar(
-      "--td-shadow-2",
-      `0 3px 14px 2px rgba(0,0,0,${0.05 * sa}), 0 8px 10px 1px rgba(0,0,0,${0.06 * sa}), 0 5px 5px -3px rgba(0,0,0,${0.1 * sa})`,
-    );
-    setVar(
-      "--td-shadow-3",
-      `0 6px 30px 5px rgba(0,0,0,${0.05 * sa}), 0 16px 24px 2px rgba(0,0,0,${0.04 * sa}), 0 8px 10px -5px rgba(0,0,0,${0.08 * sa})`,
-    );
     setVar("--app-shadow-1", `0 0 3px rgba(0,0,0,${0.22 * sa})`);
     setVar("--app-shadow-2", `0 1px 10px rgba(0,0,0,${0.12 * sa})`);
     setVar("--app-shadow-3", `0 4px 16px rgba(0,0,0,${0.14 * sa})`);
     setVar("--box-shadow", `0 0 3px rgba(0,0,0,${0.25 * sa})`);
   }
 
-  // ── 密度 / 尺寸（对齐 TDesign size 阶梯）──
+  // ── 密度 / 尺寸 ──
   const ds = DENSITY_SCALE[t.density] ?? 1;
-  // TDesign 基础刻度 1..16 = 2,4,6,8,12,16,20,24,28,32,36,40,48,56,64,72
-  const sizes = [2, 4, 6, 8, 12, 16, 20, 24, 28, 32, 36, 40, 48, 56, 64, 72];
-  sizes.forEach((px, i) => {
-    setVar(`--td-size-${i + 1}`, `${Math.round(px * ds * 2) / 2}px`);
-  });
   // 组件常用高度
   setVar("--app-control-height", `${Math.round(32 * ds)}px`);
   setVar("--app-control-height-s", `${Math.round(28 * ds)}px`);
@@ -509,7 +455,7 @@ async function syncWindowEffect(dark: boolean, followSystem: boolean): Promise<v
   }
 }
 
-/** 系统明暗变化：仅 system 模式生效，值没变就什么都不做 */
+/** 系统偏好明暗变化：仅 system 模式生效，值没变就什么都不做 */
 function onSystemThemeChange(dark: boolean): void {
   // 显式 light/dark 时拿到的是「应用自己的选择」而不是系统偏好，不能写进缓存
   if (!followsSystem()) return;

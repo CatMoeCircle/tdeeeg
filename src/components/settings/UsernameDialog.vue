@@ -82,6 +82,7 @@ import { tdlibSend } from '../../utils/tdlib';
 import { tdHtml } from '../../utils/tdLang';
 
 import type { user as TdUser } from 'tdlib-types';
+import BaseButton from '../ui/button/BaseButton.vue';
 
 const props = defineProps<{
     modelValue: boolean;

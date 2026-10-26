@@ -4,8 +4,9 @@
         class="mt-1.5 pt-2 border-t border-black/10 dark:border-white/10">
         <!-- 语言选择 + 关闭（非 compact）：与紧凑徽标同布局（左标签、右关闭），下拉缩至徽标级 -->
         <div v-if="!compact" class="flex items-center justify-between gap-2 mb-1">
-            <t-select class="inline-lang-select z-999" v-model="targetLang" :options="targetOptions" :borderless="true"
-                filterable size="small" :placeholder="t('lng_translate_menu_to')" />
+            <SelectMenu class="inline-lang-select z-999" size="sm" filterable :model-value="targetLang"
+                :options="targetOptions" :placeholder="t('lng_translate_menu_to')"
+                @update:model-value="(v: string) => (targetLang = v)" />
             <button type="button" class="text-gray-400 hover:text-red-500 transition-colors"
                 :title="t('lng_translate_show_original')" @click.stop="removeTranslation">
                 <XIcon class="w-3.5 h-3.5" />
@@ -66,6 +67,7 @@ import {
     getTranslateLanguageOptions,
 } from "../../../../../utils/translateLanguages";
 import LoaderIndicator from "../../../../common/LoaderIndicator";
+import SelectMenu from "../../../../ui/dropdown/SelectMenu.vue";
 
 const props = defineProps<{
     chatId: number;
@@ -143,23 +145,13 @@ function removeTranslation() {
 
 <style scoped>
 /* 非紧凑头部的语言下拉：缩至与 compact 语言徽标同级（小号、大写、蓝字），
-   不再像原来那样占 160px。TDesign 触发器字号由 .t-input 的 font 简写决定，
-   需 :deep 覆盖；下拉弹层 teleport 到 body，选项字号不受影响。 */
+   不再像原来那样占 160px。触发器就是组件根元素，直接用 class 收窄；下拉弹层 teleport 到 body。 */
 .inline-lang-select {
     width: 100px;
-}
-
-.inline-lang-select :deep(.t-input) {
     font-size: 10px;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.03em;
-}
-
-.inline-lang-select :deep(.t-input__inner) {
-    font-size: 10px;
-    font-weight: 500;
-    text-transform: uppercase;
     color: #3b82f6;
 }
 </style>

@@ -81,6 +81,7 @@ import {
     visible, request, confirmPin, cancelPin,
 } from "../../store/pinMessage";
 import type { PinMessageResult } from "../../store/pinMessage";
+import BaseButton from "../ui/button/BaseButton.vue";
 
 const { t } = useI18n();
 

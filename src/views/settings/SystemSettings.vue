@@ -253,6 +253,8 @@ import { useAccountsStore, type AccountInfo } from '../../store/accounts';
 import { storeToRefs } from 'pinia';
 import { useI18n } from 'vue-i18n';
 import packageInfo from '../../../package.json';
+import BaseButton from '../../components/ui/button/BaseButton.vue';
+import BaseInput from '../../components/ui/input/BaseInput.vue';
 
 const router = useRouter();
 const { t } = useI18n();

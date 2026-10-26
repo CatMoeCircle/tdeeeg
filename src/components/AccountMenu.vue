@@ -179,6 +179,8 @@ import { useAccountsStore, type AccountInfo } from '../store/accounts';
 import { storeToRefs } from 'pinia';
 import { useRouter } from 'vue-router';
 import { isDark as themeIsDark, revealOriginOf, setModeWithReveal } from '../store/theme';
+import BaseButton from './ui/button/BaseButton.vue';
+import BaseInput from './ui/input/BaseInput.vue';
 
 const visible = defineModel<boolean>('visible', { default: false });
 const emit = defineEmits<{ (e: 'close'): void }>();

@@ -124,6 +124,7 @@ import ToggleSwitch from '../ui/toggle/ToggleSwitch.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import { emptyAdminRights } from '../../utils/groupRights';
 import type { chatAdministratorRights, chatMember, chatPermissions, MessageSender } from 'tdlib-types';
+import BaseButton from '../ui/button/BaseButton.vue';
 
 const props = defineProps<{
   modelValue: boolean;

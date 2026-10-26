@@ -114,6 +114,7 @@ import SenderSelector from './SenderSelector.vue';
 import { fetchChatBotCommands, type ChatBotCommand } from '../../../utils/chatBotCommands';
 import { getReactiveUser } from '../../../utils/senderInfo';
 import { settings } from '../../../store/settings';
+import Avatar from '../avatar.vue';
 
 export interface ReplyTarget {
     title: string;

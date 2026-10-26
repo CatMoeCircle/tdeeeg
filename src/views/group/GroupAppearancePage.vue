@@ -172,6 +172,7 @@ import { accentColorStyle, accentAvatarBackground, useColors } from '../../store
 import { loadMyChatMemberStatus, isChannelChat } from '../../utils/groupRights';
 import { loadChatBoostInfo, minCustomBackgroundLevel, minEmojiStatusLevel } from '../../utils/chatBoost';
 import type { chat, chatBoostFeatures, accentColor, profileAccentColor } from 'tdlib-types';
+import BaseButton from '../../components/ui/button/BaseButton.vue';
 
 const route = useRoute();
 const router = useRouter();

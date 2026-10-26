@@ -72,6 +72,7 @@ import { tdlibSend } from '../../utils/tdlib';
 import { markChatNavFromList } from '../../store/chatNav';
 import { isDeletedUser, DELETED_ACCOUNT_LABEL } from '../../utils/senderInfo';
 import type { chat, createdBasicGroupChat, user } from 'tdlib-types';
+import BaseButton from '../ui/button/BaseButton.vue';
 
 const props = defineProps<{
   modelValue: boolean;

@@ -24,7 +24,8 @@
     "skipConfirmTitle": "Skip approval for this tool?",
     "skipConfirmBody": "\"{tool}\" will run without a confirmation card: the AI can execute it without your approval. Only enable this if you fully trust the current model and provider.",
     "skipConfirmOk": "Enable anyway",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "mutualContact": "Mutual contact"
   },
   "login": {
     "title": "Your Phone Number",
@@ -323,7 +324,7 @@
     "previewLink": "Link text",
     "brandSection": "Brand color",
     "brandCurrent": "Current brand color",
-    "brandDesc": "Brand color drives UI accents and TDesign brand tokens (buttons, selection, links, etc.).",
+    "brandDesc": "Brand color drives UI accents and the control palette (buttons, selection, links, etc.).",
     "brandDualHint": "Light and dark each have their own brand color; configure them after switching appearance.",
     "bgSection": "Background",
     "bgCurrent": "Current background",

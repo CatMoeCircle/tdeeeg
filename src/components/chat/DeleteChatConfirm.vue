@@ -72,6 +72,7 @@ import { Trash2 as Trash2Icon, LogOut as LogOutIcon, X as XIcon } from 'lucide-v
 import type { Chat } from '../../store/chat';
 import { tdlibSend } from '../../utils/tdlib';
 import { toast } from '../../utils/toast';
+import BaseButton from '../ui/button/BaseButton.vue';
 
 const props = defineProps<{ chat: Chat }>();
 const emit = defineEmits<{ (e: 'close'): void }>();

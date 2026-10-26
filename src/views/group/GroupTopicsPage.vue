@@ -64,6 +64,7 @@ import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import { loadMyChatMemberStatus } from '../../utils/groupRights';
 import type { chat, supergroup } from 'tdlib-types';
+import BaseButton from '../../components/ui/button/BaseButton.vue';
 
 const route = useRoute();
 const router = useRouter();

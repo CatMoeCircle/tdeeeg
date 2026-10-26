@@ -353,6 +353,8 @@ import {
     removeProxyById,
 } from "../../store/proxyList";
 import type { addedProxy } from "tdlib-types";
+import BaseButton from '../../components/ui/button/BaseButton.vue';
+import BaseInput from '../../components/ui/input/BaseInput.vue';
 
 withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
 

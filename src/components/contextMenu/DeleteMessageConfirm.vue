@@ -134,6 +134,7 @@ import {
 import type { DeleteMessageResult, DeleteSenderInfo } from "../../store/deleteMessage";
 import { searchSenderMessageCount } from "./messageActions";
 import Avatar from "../chat/avatar.vue";
+import BaseButton from "../ui/button/BaseButton.vue";
 
 const { t, locale } = useI18n();
 

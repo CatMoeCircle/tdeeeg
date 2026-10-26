@@ -60,6 +60,7 @@ import { ChevronLeft as ChevronLeftIcon } from 'lucide-vue-next';
 import { toast } from '../../utils/toast';
 import { tdlibSend } from '../../utils/tdlib';
 import type { ReactionType } from 'tdlib-types';
+import BaseButton from '../../components/ui/button/BaseButton.vue';
 
 type Mode = 'all' | 'some' | 'none';
 

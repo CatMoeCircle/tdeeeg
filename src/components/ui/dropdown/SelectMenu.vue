@@ -20,7 +20,14 @@
             <Transition name="select-menu">
                 <div v-if="open" ref="panelEl" class="fixed z-[9999] p-1 overflow-y-auto custom-scrollbar rounded-xl border border-gray-200/80 dark:border-gray-700/80 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl shadow-xl shadow-black/10 dark:shadow-black/40"
                     role="listbox" :style="panelStyle" @keydown="onPanelKeydown">
-                    <button v-for="opt in options" :key="opt.value" type="button" role="option" data-option
+                    <!-- 可搜索：输入即过滤（原 TDesign filterable 的替代） -->
+                    <div v-if="filterable" class="sticky top-0 z-1 -m-1 mb-1 p-1 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl">
+                        <input ref="searchEl" v-model="query" type="text" spellcheck="false" :placeholder="placeholder"
+                            class="w-full px-2 py-1 rounded-lg text-xs border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-400"
+                            @keydown.enter.prevent="pickHighlighted" @keydown.esc.prevent="closePanel"
+                            @keydown.down.prevent="focusFirstOption" />
+                    </div>
+                    <button v-for="opt in visibleOptions" :key="opt.value" type="button" role="option" data-option
                         :aria-selected="opt.value === modelValue"
                         class="flex w-full items-center gap-2 px-2.5 py-1.5 rounded-lg text-left text-sm transition-colors focus:outline-none"
                         :class="opt.value === modelValue
@@ -34,7 +41,7 @@
                         <span v-if="opt.hint" class="shrink-0 text-[11px] text-gray-400">{{ opt.hint }}</span>
                         <CheckIcon v-if="opt.value === modelValue" class="w-4 h-4 shrink-0" />
                     </button>
-                    <p v-if="!options.length" class="px-2.5 py-1.5 text-xs text-gray-400">{{ placeholder }}</p>
+                    <p v-if="!visibleOptions.length" class="px-2.5 py-1.5 text-xs text-gray-400">{{ placeholder }}</p>
                 </div>
             </Transition>
         </Teleport>
@@ -70,8 +77,10 @@ const props = withDefaults(
         disabled?: boolean;
         /** sm = 卡片里的小号控件；md = 主设置区 */
         size?: 'sm' | 'md';
+        /** 面板顶部带搜索框，输入即过滤（语言 / 供应商这类长列表用） */
+        filterable?: boolean;
     }>(),
-    { placeholder: '—', disabled: false, size: 'md' },
+    { placeholder: '—', disabled: false, size: 'md', filterable: false },
 );
 
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
@@ -83,6 +92,20 @@ const panelEl = ref<HTMLElement | null>(null);
 const anchor = ref({ top: 0, left: 0, width: 0, height: 320 });
 
 const current = computed(() => props.options.find((o) => o.value === props.modelValue));
+
+/** 搜索框：只在 filterable 时渲染 */
+const query = ref('');
+const searchEl = ref<HTMLInputElement | null>(null);
+/** 搜索命中项：按标签 / hint 模糊匹配，忽略大小写 */
+const visibleOptions = computed(() => {
+    const kw = query.value.trim().toLowerCase();
+    if (!kw) return props.options;
+    return props.options.filter((o) =>
+        o.label.toLowerCase().includes(kw) ||
+        o.value.toLowerCase().includes(kw) ||
+        (o.hint ? o.hint.toLowerCase().includes(kw) : false),
+    );
+});
 
 const triggerClass = computed(() => {
     const base =
@@ -102,6 +125,7 @@ const panelStyle = computed(() => ({
     maxHeight: `${anchor.value.height}px`,
 }));
 
+/** 下拉面板高度上限：可搜索时过滤后条目变少，面板跟着收（但保留一行空提示的空间） */
 function measure(): void {
     const el = triggerEl.value;
     if (!el) return;
@@ -134,8 +158,10 @@ async function openPanel(): Promise<void> {
     // 先量位置再显示：否则首帧会闪一下在左上角
     measure();
     open.value = true;
+    query.value = '';
     await nextTick();
-    focusSelected();
+    if (props.filterable) searchEl.value?.focus();
+    else focusSelected();
     document.addEventListener('mousedown', onDocMouseDown, true);
     window.addEventListener('resize', close);
     window.addEventListener('scroll', onWindowScroll, true);
@@ -164,6 +190,23 @@ function pick(value: string): void {
     triggerEl.value?.focus();
 }
 
+/** 搜索框里按 Enter：选中第一个命中项 */
+function pickHighlighted(): void {
+    const first = visibleOptions.value[0];
+    if (first) pick(first.value);
+}
+
+/** 搜索框里按 ↓：把焦点交给第一个命中项（之后由面板的方向键接管） */
+function focusFirstOption(): void {
+    items()[0]?.focus();
+}
+
+/** Esc：关面板并把焦点还给触发器 */
+function closePanel(): void {
+    close();
+    triggerEl.value?.focus();
+}
+
 function onDocMouseDown(e: MouseEvent): void {
     const target = e.target as Node;
     if (panelEl.value?.contains(target) || triggerEl.value?.contains(target)) return;
@@ -182,8 +225,7 @@ function onPanelKeydown(e: KeyboardEvent): void {
     const index = list.indexOf(document.activeElement as HTMLButtonElement);
     if (e.key === 'Escape') {
         e.preventDefault();
-        close();
-        triggerEl.value?.focus();
+        closePanel();
     } else if (e.key === 'ArrowDown') {
         e.preventDefault();
         list[Math.min(list.length - 1, index + 1)]?.focus();

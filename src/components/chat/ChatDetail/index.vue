@@ -673,6 +673,11 @@
             </div>
         </div>
 
+        <!-- ===== 会话信息未就绪：输入框位置先铺骨架，避免「底部空白 → 输入框弹入」 ===== -->
+        <div v-else-if="!chat" class="absolute bottom-0 left-0 right-0 z-10 px-3 py-2.5" aria-hidden="true">
+            <div class="h-14 rounded-full bg-gray-200/70 dark:bg-gray-800/60 animate-pulse"></div>
+        </div>
+
         <!-- ===== Floating scroll-to-bottom button ===== -->
         <Transition name="fade">
             <ScrollToBottomButton v-if="showScrollButton" :bottom="scrollButtonBottom" :count="newMessageCount"
@@ -894,6 +899,7 @@ import {
 } from './composables/messageMeta';
 import type { RoleContext, SelfDeps } from './composables/messageMeta';
 import { canDeleteOthersMessages, canRestrictMembers, isGroupChat } from '../../../utils/groupRights';
+import ForwardPicker from '../../contextMenu/ForwardPicker.vue';
 
 // ==================== Route ====================
 const route = useRoute();
@@ -2007,14 +2013,24 @@ const listRevealed = ref(false);
 const SKELETON_DELAY_MS = 180;
 const skeletonArmed = ref(false);
 let skeletonTimer: number | null = null;
-/** 每次开始加载（resetState）时重新计时 */
-function armSkeleton() {
+/**
+ * 每次开始加载（resetState / 切换会话确认无缓存窗口）时重新计时。
+ *
+ * delayMs = 0：骨架屏立刻出现。手上没有任何可铺的内容（首次进入某会话）时，
+ * 空白比骨架更糟；有缓存窗口的路径仍用 SKELETON_DELAY_MS，避免「本地几十毫秒
+ * 就露出」的快路径闪一下骨架。
+ */
+function armSkeleton(delayMs: number = SKELETON_DELAY_MS) {
     disarmSkeleton();
     skeletonArmed.value = false;
+    if (delayMs <= 0) {
+        skeletonArmed.value = true;
+        return;
+    }
     skeletonTimer = window.setTimeout(() => {
         skeletonTimer = null;
         skeletonArmed.value = true;
-    }, SKELETON_DELAY_MS);
+    }, delayMs);
 }
 function disarmSkeleton() {
     if (skeletonTimer !== null) {
@@ -2943,6 +2959,10 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
         && (savedBrowsePos || (rememberedChat?.unread_count ?? 0) === 0)
         ? peekChatWindow(chatWindowKey(currentId, topicId.value, threadRootMsgId.value))
         : null;
+
+    // 先出帧：没有任何可铺的内容时骨架屏立即出现，不等 resetState 里那 180ms 防闪延迟。
+    // 有缓存窗口时保留延迟（缓存路径通常一帧内就露出，不该闪骨架）。
+    if (!cachedWindow) armSkeleton(0);
 
     // 连点对话：只有点击停稳后的那一个才真正加载，中间对话不取数、不挂消息
     // （上面已清空旧消息、骨架屏照常盖着，用户看不出中间少加载了几次）。

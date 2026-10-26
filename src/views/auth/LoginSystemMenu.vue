@@ -158,6 +158,8 @@ import { toast } from "../../utils/toast";
 import { Settings as SettingsIcon, X as XIcon, Info as InfoIcon } from 'lucide-vue-next';
 import { settings } from "../../store/settings";
 import { reinitTdlibWithSystemParams } from "../../utils/tdlibParams";
+import BaseButton from '../../components/ui/button/BaseButton.vue';
+import BaseInput from '../../components/ui/input/BaseInput.vue';
 
 withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
 

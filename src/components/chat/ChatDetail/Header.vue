@@ -60,10 +60,8 @@
                                 class="ml-1 shrink-0" />
                             <PremiumStatusIcon v-else-if="headerPremiumStar"
                                 class="ml-1 text-[18px] shrink-0" :title="t('lng_premium_summary_title')" />
-                            <VerifiedFilledIcon v-else-if="headerBlueVerified"
-                                class="text-blue-500 ml-1 shrink-0" :title="t('profileBadges.verified')"
-                                :fillColor="['currentColor', 'transparent']"
-                                :strokeColor="['currentColor', '#0052d9']" :strokeWidth="1.5" />
+                            <VerifiedBadge v-else-if="headerBlueVerified"
+                                class="ml-1" :title="t('profileBadges.verified')" />
                         </h2>
                         <span class="text-xs text-gray-400 truncate">
                             <template v-if="isTopicMode">
@@ -114,7 +112,7 @@ import {
     SearchIcon, MoreHorizontalIcon, ArrowLeftIcon, BookmarkIcon, PanelLeftIcon, PanelTopIcon, PanelBottomIcon,
     BellOffIcon, BellRingIcon, ZapIcon, EraserIcon, CircleQuestionMarkIcon, FlagIcon, BanIcon, LanguagesIcon,
 } from 'lucide-vue-next';
-import { VerifiedFilledIcon } from 'tdesign-icons-vue-next';
+import VerifiedBadge from '../../common/VerifiedBadge.vue';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useI18n } from 'vue-i18n';
@@ -136,6 +134,7 @@ import { confirmReportMessage } from '../../../store/reportMessage';
 import { muteChat, unmuteChat } from '../../contextMenu/chatActions';
 import { toast } from '../../../utils/toast';
 import type { ContextMenuItem } from '../../contextMenu/types';
+import Avatar from '../avatar.vue';
 
 const props = defineProps<{
     chat: chat | undefined;

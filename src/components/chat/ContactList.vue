@@ -27,9 +27,8 @@
                             }}</p>
                     </div>
                     <div class="flex items-center">
-                        <t-tooltip content="互为联系人" placement="bottom">
-                            <ArrowLeftRightIcon v-if="user.is_mutual_contact" class="w-4 h-4 text-gray-400 ml-2" />
-                        </t-tooltip>
+                        <ArrowLeftRightIcon v-if="user.is_mutual_contact" class="w-4 h-4 text-gray-400 ml-2"
+                            :title="t('aiTools.mutualContact')" />
                     </div>
                 </div>
             </div>
@@ -50,6 +49,7 @@ import { chatPaneVisible } from '../../store/chatPane';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 
 import type { user } from 'tdlib-types';
+import Avatar from './avatar.vue';
 
 const router = useRouter();
 

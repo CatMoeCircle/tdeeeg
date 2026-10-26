@@ -76,6 +76,7 @@ import SpoilerSpan from '../spoiler/SpoilerSpan.vue';
 import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
 import { resolveInternalLink as resolveInternalLinkUtil } from '../../../../../utils/openInternalLink';
 import { useI18n } from 'vue-i18n';
+import CopyableText from '../../../../ui/text/CopyableText.vue';
 
 const { t } = useI18n();
 

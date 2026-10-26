@@ -50,11 +50,9 @@
                 <GlobalEmojiText :text="userName" />
               </span>
               <!-- ① 认证/诈骗/虚假标识 -->
-              <VerifiedFilledIcon
+              <VerifiedBadge
                 v-if="!isDeletedProfile && userVerification?.is_verified && !customVerifyEmojiId"
-                class="text-blue-500 text-lg shrink-0" :title="t('profileBadges.verified')"
-                :fill-color='["currentColor", "transparent"]' :stroke-color='["currentColor", "#0052d9"]'
-                :stroke-width="1.5" />
+                class="text-lg" :title="t('profileBadges.verified')" />
               <span v-if="!isDeletedProfile && userVerification?.is_scam"
                 class="inline-flex items-center shrink-0 px-1.5 rounded-sm border border-red-500 text-xs font-semibold leading-5 text-red-500 whitespace-nowrap"
                 :title="t('lng_scam_badge')">{{ t('lng_scam_badge') }}</span>
@@ -168,10 +166,8 @@
                 <GlobalEmojiText
                   :text="isSecretChat && secretChatUser ? `${secretChatUser.first_name} ${secretChatUser.last_name}`.trim() || t('secretChat.label') : chatTitle" />
               </span>
-              <VerifiedFilledIcon v-if="chatVerification?.is_verified && !chatCustomVerifyEmojiId"
-                class="text-blue-500 text-lg shrink-0" :title="t('profileBadges.verified')"
-                :fill-color='["currentColor", "transparent"]' :stroke-color='["currentColor", "#0052d9"]'
-                :stroke-width="1.5" />
+              <VerifiedBadge v-if="chatVerification?.is_verified && !chatCustomVerifyEmojiId"
+                class="text-lg" :title="t('profileBadges.verified')" />
               <span v-if="chatVerification?.is_scam"
                 class="inline-flex items-center shrink-0 px-1.5 rounded-sm border border-red-500 text-xs font-semibold leading-5 text-red-500 whitespace-nowrap"
                 :title="t('lng_scam_badge')">{{ t('lng_scam_badge') }}</span>
@@ -805,10 +801,8 @@
                       class="shrink-0" />
                     <span v-else-if="memberUserOf(m)?.is_premium" class="tgico tgico-emoji-status text-[16px] shrink-0"
                       :title="t('lng_premium_summary_title')" />
-                    <VerifiedFilledIcon v-else-if="memberUserOf(m)?.verification_status?.is_verified"
-                      class="text-blue-500 shrink-0" :title="t('profileBadges.verified')"
-                      :fill-color='["currentColor", "transparent"]' :stroke-color='["currentColor", "#0052d9"]'
-                      :stroke-width="1.5" />
+                    <VerifiedBadge v-else-if="memberUserOf(m)?.verification_status?.is_verified"
+                      :title="t('profileBadges.verified')" />
                   </p>
                   <p class="text-xs text-gray-400 mt-0.5 truncate">{{ memberStatusOf(m) }}</p>
                 </div>
@@ -1244,6 +1238,20 @@
       </div>
     </div>
 
+    <!-- 资料尚未就绪（直接打开 user/:id，本地还没有这个用户）：先铺骨架，不要留白 -->
+    <div v-else class="max-w-2xl mx-auto pb-8 animate-pulse" aria-hidden="true">
+      <div class="relative profile-hero overflow-hidden">
+        <div class="flex flex-col items-center pt-10 pb-3 px-4">
+          <div class="w-24 h-24 rounded-full bg-black/10 dark:bg-white/10"></div>
+          <div class="mt-4 h-5 w-40 rounded bg-black/10 dark:bg-white/10"></div>
+          <div class="mt-2 h-3.5 w-24 rounded bg-black/10 dark:bg-white/10"></div>
+        </div>
+      </div>
+      <div class="px-4 py-4 space-y-3">
+        <div v-for="n in 6" :key="n" class="h-12 rounded-xl bg-gray-200/70 dark:bg-gray-800/60"></div>
+      </div>
+    </div>
+
     <Teleport to="body">
       <div v-if="emojiStatusPickerOpen" class="fixed inset-0 z-200" @mousedown="onEmojiStatusBackdrop">
         <div ref="emojiStatusPanel"
@@ -1366,7 +1374,11 @@ import {
   Info as InfoIcon, Phone as PhoneIcon, AtSign as AtSignIcon,
   Calendar as CalendarIcon, IdCard as IdCardIcon,
   Plus as PlusIcon, Trash2 as Trash2Icon,
-} from "lucide-vue-next"; import { VerifiedFilledIcon } from "tdesign-icons-vue-next";
+} from "lucide-vue-next";
+import VerifiedBadge from "../../components/common/VerifiedBadge.vue";
+import BaseButton from '../../components/ui/button/BaseButton.vue';
+import CopyableText from '../../components/ui/text/CopyableText.vue';
+import ReportMessageConfirm from '../../components/contextMenu/ReportMessageConfirm.vue';
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();

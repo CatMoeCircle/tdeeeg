@@ -85,6 +85,7 @@ import { defaultMemberPermissions, userNameOf, isDeletedMember, memberUserId } f
 import { getReactiveUser } from '../../utils/senderInfo';
 import formatStatus from '../../utils/status';
 import type { chatMember, chatPermissions, MessageSender, user } from 'tdlib-types';
+import BaseButton from '../ui/button/BaseButton.vue';
 
 const props = defineProps<{
   modelValue: boolean;
