@@ -384,7 +384,12 @@ function openMoreMenu(e: MouseEvent) {
     }
 
     if (items.length === 0) return;
-    openContextMenu(e.clientX, e.clientY, items, e.currentTarget as HTMLElement);
+    // 锚定到「更多」按钮：菜单固定弹出在按钮下方、右缘对齐标题栏胶囊（贴齐顶栏右缘），不随鼠标点击位置变化
+    const btn = e.currentTarget as HTMLElement;
+    const rect = btn.getBoundingClientRect();
+    const pill = btn.closest('div.rounded-full');
+    const right = pill ? pill.getBoundingClientRect().right : rect.right;
+    openContextMenu(right, rect.bottom + 6, items, btn, null, null, false, true);
 }
 
 /** 头部头像的无头像背景色（私聊取用户 profile accent，群组取 chat profile accent） */
