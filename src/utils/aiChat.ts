@@ -14,11 +14,11 @@ import i18n from "../i18n";
 import type { AiModel, AiProvider } from "../store/aiProviderRules";
 import { aiConversations, currentAiAccount, loadHistory, recordAiUsage, saveHistory } from "../store/aiConversations";
 import { settings } from "../store/settings";
-import { dispatchToolCall, messageOf, setApprovalSkip, setTurnThread, type TurnThread } from "./aiTools/call.ts";
+import { dispatchToolCall, isErrorReply, messageOf, replyText, setApprovalSkip, setTurnThread, type TurnThread } from "./aiTools/call.ts";
 import { MARKDOWN_V2_GUIDE } from "./aiTools/format.ts";
 import { TOOLSETS, toolsSchema } from "./aiTools/schema.ts";
 import { setSearchContext } from "./aiTools/search.ts";
-import type { ToolOutcome } from "./aiTools/types.ts";
+import type { ToolReply } from "./aiTools/types.ts";
 import { trimHistory, type AiActivityItem, type ChatToolCall, type ChatWireMessage } from "./aiChatHistory.ts";
 // 工具实现在被导入时登记自己；AI 入口必须导入它们，否则工具全是 not_implemented
 import "./aiTools/local.ts";
@@ -579,11 +579,11 @@ export async function runAiTurn(o: AiTurnOptions): Promise<string> {
 
     // 每个调用都必须回填结果（哪怕已停止），否则下一轮接口会报缺 tool 结果
     for (const { call, entryId } of clientCalls) {
-      const outcome: ToolOutcome = o.signal.aborted
+      const outcome: ToolReply = o.signal.aborted
         ? { tool: call.name, error: { code: "internal", message: "用户已停止，未执行" } }
         : (await dispatchToolCall(call)).outcome;
-      const content = JSON.stringify(outcome);
-      o.sink.update(entryId, { status: "error" in outcome ? "error" : "ok", output: content });
+      const content = replyText(outcome);
+      o.sink.update(entryId, { status: isErrorReply(outcome) ? "error" : "ok", output: content });
       history.push({ role: "tool", toolCallId: call.id, toolName: call.name, text: content });
     }
     await persist();

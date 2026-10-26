@@ -24,8 +24,8 @@ import type {
   ToolErrorCode,
   ToolErrorResult,
   ToolMeta,
-  ToolOutcome,
   ToolParam,
+  ToolReply,
 } from "./types.ts";
 import { getTool } from "./registry.ts";
 import { ensureChat, getReactiveChat } from "../senderInfo";
@@ -39,7 +39,7 @@ export interface ToolCall {
 }
 
 /** 工具实现体（read.ts / write.ts 里注册） */
-export type ToolImpl = (args: Record<string, unknown>) => ToolOutcome | Promise<ToolOutcome>;
+export type ToolImpl = (args: Record<string, unknown>) => ToolReply | Promise<ToolReply>;
 
 /**
  * 已实现的工具表。没注册的工具调用一律回 not_implemented。
@@ -271,7 +271,7 @@ function errorResult(tool: string, code: ToolErrorCode, message: string, issues?
  * 统一入口：解析 → 校验 → 审核 → 分发。永不抛异常。
  * 返回 call（解析失败时为 null）与 outcome（结果信封或结构化错误）。
  */
-export async function dispatchToolCall(raw: unknown): Promise<{ call: ToolCall | null; outcome: ToolOutcome }> {
+export async function dispatchToolCall(raw: unknown): Promise<{ call: ToolCall | null; outcome: ToolReply }> {
   let call: ToolCall;
   try {
     call = parseToolCall(raw);
@@ -324,6 +324,16 @@ export async function dispatchToolCall(raw: unknown): Promise<{ call: ToolCall |
   }
 }
 
+/** 工具产出 → 回填文本：裸字符串（如 "OK"）原样返回，其余为 JSON */
+export function replyText(reply: ToolReply): string {
+  return typeof reply === "string" ? reply : JSON.stringify(reply);
+}
+
+/** 是否为错误结果（裸字符串成功不算错误） */
+export function isErrorReply(reply: ToolReply): reply is ToolErrorResult {
+  return typeof reply !== "string" && "error" in reply;
+}
+
 /** 回填给模型的 tool 消息：OpenAI / DeepSeek 与 Anthropic 两种形状 */
 export type ToolMessage =
   | { role: "tool"; tool_call_id: string; content: string }
@@ -332,9 +342,9 @@ export type ToolMessage =
 export type ToolDialect = "openai" | "anthropic";
 
 /** 结果 → tool 消息；content 恒为字符串（结构化结果 JSON） */
-export function toolMessage(call: ToolCall, outcome: ToolOutcome, dialect: ToolDialect = "openai"): ToolMessage {
-  const content = JSON.stringify(outcome);
-  const isError = "error" in outcome;
+export function toolMessage(call: ToolCall, outcome: ToolReply, dialect: ToolDialect = "openai"): ToolMessage {
+  const content = replyText(outcome);
+  const isError = isErrorReply(outcome);
   return dialect === "anthropic"
     ? { type: "tool_result", tool_use_id: call.id, content, ...(isError ? { is_error: true } : {}) }
     : { role: "tool", tool_call_id: call.id, content };

@@ -4,10 +4,9 @@
  */
 import { activeConversation, renameConversation } from "../../store/aiConversations";
 import { registerImplementation } from "./call.ts";
-import { singleResult } from "./limits.ts";
-import type { ToolOutcome } from "./types.ts";
+import type { ToolReply } from "./types.ts";
 
-registerImplementation("set_conversation_title", async (args): Promise<ToolOutcome> => {
+registerImplementation("set_conversation_title", async (args): Promise<ToolReply> => {
   const chatId = Number(args.chat_id);
   const title = String(args.title ?? "").trim();
   if (!Number.isFinite(chatId)) throw new Error("参数 chat_id 必须是数字");
@@ -16,5 +15,6 @@ registerImplementation("set_conversation_title", async (args): Promise<ToolOutco
   const c = activeConversation(chatId);
   if (!c) throw new Error("这个聊天还没有会话，先发一条消息再设置标题");
   await renameConversation(chatId, c.id, title);
-  return singleResult("set_conversation_title", { chat_id: chatId, title });
+  // 成功只回裸 "OK"，不包信封、不回标题
+  return "OK";
 });
