@@ -176,6 +176,16 @@ async fn read_clipboard_image(state: tauri::State<'_, tdlib::AppState>) -> Resul
     .await
     .map_err(|e| format!("clipboard read task failed: {e}"))?
 }
+/// 托盘/单实例等入口统一的「显示主窗口」：先解除最小化，再显示并置于前台。
+/// 只 show()+set_focus() 时，Windows 上最小化窗口不会恢复、被遮挡窗口也可能不提到最前。
+fn reveal_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -184,10 +194,7 @@ pub fn run() {
             tauri_plugin_single_instance::Builder::new()
                 .callback(|app, _argv, _cwd| {
                     // 第二个实例启动时，聚焦已有窗口
-                    if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    }
+                    reveal_main_window(app);
                 })
                 .build(),
         )
@@ -274,10 +281,7 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(move |app, event| match event.id.as_ref() {
                     "show" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
+                        reveal_main_window(app);
                     }
                     "quit" => {
                         app.exit(0);
@@ -291,11 +295,7 @@ pub fn run() {
                         ..
                     } = event
                     {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
+                        reveal_main_window(tray.app_handle());
                     }
                 })
                 .build(app)?;
