@@ -232,6 +232,10 @@
                                                         <VerifiedBadge v-else-if="isChatBlueVerified(chat)"
                                                             class="text-sm"
                                                             :title="t('profileBadges.verified')" />
+                                                        <!-- 频道私信标识：名称后面的灰色 DIRECT 小标 -->
+                                                        <span v-if="isChannelDirectMessagesChat(chat)"
+                                                            class="shrink-0 px-1 py-px rounded bg-gray-400/15 text-gray-500 dark:text-gray-400 text-[9px] font-semibold leading-4 tracking-wide"
+                                                            :title="t('lng_direct_badge')">{{ t('lng_direct_badge') }}</span>
                                                         <!-- 静音图标 -->
                                                         <BellOffIcon v-if="isChatMuted(chat)"
                                                             class="w-3.5 h-3.5 text-gray-400 shrink-0" />
@@ -483,6 +487,7 @@ import {
     isChatGroup, isChatMuted, isChatPinned, DELETED_ACCOUNT_LABEL,
     getChatVerificationStatus, ensureChatVerificationLoaded,
     getChatEmojiStatus, emojiStatusCustomEmojiId, isChatPremiumUser,
+    getReactiveSupergroup,
 } from '../../utils/senderInfo';
 import PremiumStatusIcon from '../common/PremiumStatusIcon.vue';
 import VerifiedBadge from '../common/VerifiedBadge.vue';
@@ -1558,6 +1563,17 @@ function isChatBlueVerified(chat: Chat): boolean {
         && !chatOrgVerifyEmojiId(chat)
         && !chatGiftEmojiId(chat)
         && !isChatPremiumStar(chat);
+}
+
+/**
+ * 是否为频道私信群组对话（超级群的 is_direct_messages_group）→ 显示 DIRECT 灰标。
+ * 群信息由 watch(renderedTabs) 里的 ensureChatVerificationLoaded 一并拉取，
+ * 此处读响应式缓存，数据到达后标记自动出现。
+ */
+function isChannelDirectMessagesChat(chat: Chat): boolean {
+    const t = chat.type;
+    if (t?._ !== 'chatTypeSupergroup') return false;
+    return !!getReactiveSupergroup(t.supergroup_id)?.is_direct_messages_group;
 }
 
 // 列表内容变化时异步加载发送者信息（用户/频道数据，缓存去重）
