@@ -1,5 +1,6 @@
 import { computed, ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { settings } from "./settings";
 
 /**
@@ -454,37 +455,73 @@ export function applyTheme(): void {
  * 当前帧渲染之后（圆形过渡期间则延到动画结束）。
  */
 let lastSyncedDark: boolean | null = null;
+/** 最近一次同步给原生侧的「是否跟随系统」；和 lastSyncedDark 一起决定要不要重设 */
+let lastSyncedFollowSystem: boolean | null = null;
 /** 最近一次 applyTheme 实际应用的明暗，用于判断是否为明暗切换（需同步应用） */
 let lastAppliedDark: boolean | null = null;
 /** 圆形过渡进行中：acrylic 重设推迟到动画结束，避免打断合成 */
 let revealInProgress = false;
 let pendingWindowDark: boolean | null = null;
+let pendingFollowSystem = false;
+
+/**
+ * 当前主题是否「跟随系统」。
+ *
+ * 跟随系统时原生侧绝不能把窗口明暗钉死：窗口 Theme 会经 tauri 同步成 WebView2 的
+ * SetPreferredColorScheme，钉死之后 prefers-color-scheme 描述的是应用自己的选择，
+ * 系统主题变化既不会派发 change，也读不出真实偏好。
+ */
+function followsSystem(): boolean {
+  return settings.theme.mode === "system";
+}
 
 function scheduleWindowEffect(dark: boolean): void {
   if (typeof window === "undefined") return;
+  const followSystem = followsSystem();
   if (revealInProgress) {
     pendingWindowDark = dark;
+    pendingFollowSystem = followSystem;
     return;
   }
-  if (lastSyncedDark === dark) return;
+  if (lastSyncedDark === dark && lastSyncedFollowSystem === followSystem) return;
   pendingWindowDark = dark;
+  pendingFollowSystem = followSystem;
   requestAnimationFrame(() => {
     // 这一帧里刚好开始圆形过渡：留着待办，等动画结束再补
     if (revealInProgress) return;
     const next = pendingWindowDark;
+    const nextFollow = pendingFollowSystem;
     pendingWindowDark = null;
-    if (next !== null) void syncWindowEffect(next);
+    if (next !== null) void syncWindowEffect(next, nextFollow);
   });
 }
 
-async function syncWindowEffect(dark: boolean): Promise<void> {
+async function syncWindowEffect(dark: boolean, followSystem: boolean): Promise<void> {
   try {
-    await invoke("set_window_effect", { effect: "acrylic", dark });
+    await invoke("set_window_effect", { effect: "acrylic", dark, followSystem });
     lastSyncedDark = dark;
+    lastSyncedFollowSystem = followSystem;
+    // 解除钉死之后 WebView2 会自己切到系统的明暗；立刻再读一次，少等一帧
+    if (followSystem) refreshSystemPreference();
   } catch (e) {
     // 非 Windows 或命令失败不阻塞主题切换
     console.warn("[theme] set_window_effect acrylic failed:", e);
   }
+}
+
+/** 系统明暗变化：仅 system 模式生效，值没变就什么都不做 */
+function onSystemThemeChange(dark: boolean): void {
+  // 显式 light/dark 时拿到的是「应用自己的选择」而不是系统偏好，不能写进缓存
+  if (!followsSystem()) return;
+  if (dark === systemDarkRef.value) return;
+  systemDarkRef.value = dark;
+  applyTheme();
+}
+
+/** 重新读一次 WebView2 的 prefers-color-scheme（解除钉死后它才反映系统偏好） */
+function refreshSystemPreference(): void {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+  onSystemThemeChange(window.matchMedia("(prefers-color-scheme: dark)").matches);
 }
 
 /** 当前是否已同步过的明暗（供调试） */
@@ -527,12 +564,18 @@ export function initTheme(): void {
   // 系统明暗变化（仅 system 模式下生效）
   if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
     mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    systemListener = (e: MediaQueryListEvent) => {
-      systemDarkRef.value = e.matches;
-      if (settings.theme.mode === "system") applyTheme();
-    };
+    systemListener = (e: MediaQueryListEvent) => onSystemThemeChange(e.matches);
     mediaQuery.addEventListener("change", systemListener);
   }
+
+  // 原生侧的系统明暗事件：窗口明暗没被钉住时，tao 会随系统 WM_SETTINGCHANGE 派发它，
+  // 比 WebView2 的 media query change 更接近权威来源，用它兜底（两者都是幂等的）。
+  void listen<string>("tauri://theme-changed", (e) => {
+    if (typeof e.payload !== "string") return;
+    onSystemThemeChange(e.payload.toLowerCase() === "dark");
+  }).catch((e) => {
+    console.warn("[theme] listen tauri://theme-changed failed:", e);
+  });
 }
 
 /** 便捷 API */
@@ -694,9 +737,13 @@ export async function setModeWithReveal(mode: ThemeMode, origin?: RevealOrigin):
     root.classList.remove("theme-reveal-shrink", "theme-switching");
     // 补上动画期间被推迟的 acrylic 重设
     const pendingDark = pendingWindowDark;
+    const pendingFollow = pendingFollowSystem;
     pendingWindowDark = null;
-    if (pendingDark !== null && pendingDark !== lastSyncedDark) {
-      void syncWindowEffect(pendingDark);
+    if (
+      pendingDark !== null &&
+      (pendingDark !== lastSyncedDark || pendingFollow !== lastSyncedFollowSystem)
+    ) {
+      void syncWindowEffect(pendingDark, pendingFollow);
     }
   }
 }

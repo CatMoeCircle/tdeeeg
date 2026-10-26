@@ -20,12 +20,22 @@ fn set_window_effect(
     window: tauri::WebviewWindow,
     effect: String,
     dark: Option<bool>,
+    // true = 应用主题「跟随系统」：窗口明暗交还给系统，不要钉死
+    follow_system: Option<bool>,
 ) -> Result<(), String> {
     use tauri::window::{Effect, EffectsBuilder};
     use tauri::Theme;
 
     // Win11 acrylic / mica 的明暗由窗口 Theme 驱动；切换主题时应带 dark 一并设置。
-    if let Some(d) = dark {
+    //
+    // 注意「跟随系统」：窗口 Theme 一经 set_theme(Some(..)) 就被 tao 记为 preferred_theme，
+    // 之后系统主题变化时 tao 的 update_theme 会直接 return，而 tauri 又会把窗口 Theme 同步成
+    // WebView2 的 SetPreferredColorScheme —— 前端 prefers-color-scheme 从此被钉死在应用自己
+    // 选的明暗上，matchMedia 既读不到系统真实偏好，也收不到 change 事件，
+    // 「跟随系统」于是完全失效。所以这里必须传 None 让窗口回到跟随系统。
+    if follow_system.unwrap_or(false) {
+        window.set_theme(None).map_err(|e| e.to_string())?;
+    } else if let Some(d) = dark {
         let theme = if d { Theme::Dark } else { Theme::Light };
         window.set_theme(Some(theme)).map_err(|e| e.to_string())?;
     }
