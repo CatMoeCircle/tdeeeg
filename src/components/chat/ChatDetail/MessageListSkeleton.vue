@@ -1,5 +1,5 @@
 <template>
-    <div class="absolute inset-0 z-0 pointer-events-none overflow-hidden flex flex-col messages-scroll"
+    <div class="absolute inset-0 z-0 pointer-events-none overflow-hidden flex flex-col messages-scroll skeleton-fade-in"
         :style="[topPadding, tagPad, { paddingBottom: bottomPad }]" aria-hidden="true">
         <div class="flex-1"></div>
         <div v-for="n in 8" :key="n" class="flex mb-4" :class="n % 3 === 0 ? 'justify-end' : 'justify-start'">
@@ -20,3 +20,21 @@ defineProps<{
     bottomPad: string;
 }>();
 </script>
+
+<style scoped>
+/* 立刻出现，但用 140ms 淡入：本地读历史几十毫秒就露出时不会「闪一下」骨架，
+   慢路径又不会先看到一段空白。 */
+.skeleton-fade-in {
+    animation: skeleton-fade-in 140ms ease-out both;
+}
+
+@keyframes skeleton-fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+</style>
