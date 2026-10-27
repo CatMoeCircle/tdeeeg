@@ -616,7 +616,6 @@ onUnmounted(() => {
                             </div>
                         </Transition>
                     </div>
-                    </div>
                     <div
                         class="flex items-center border rounded-[0.625rem] h-10 px-3 transition-colors"
                         :class="loginPending
