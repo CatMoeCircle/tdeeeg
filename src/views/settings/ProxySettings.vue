@@ -417,6 +417,7 @@ function proxyTypeLabel(type: any): string {
         case "proxyTypeSocks5": return "SOCKS5";
         case "proxyTypeHttp": return "HTTP";
         case "proxyTypeMtproto": return "MTProto";
+        case "proxyTypeWeb": return "Web";
         default: return t('proxy.unknownType');
     }
 }

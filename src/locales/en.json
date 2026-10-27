@@ -413,6 +413,8 @@
     "type": "Proxy type",
     "secretLabel": "Secret",
     "secretPlaceholder": "Hex secret of the proxy",
+    "pathLabel": "Path",
+    "pathPlaceholder": "Base path of the relay; may be empty",
     "usernameOptional": "Username (optional)",
     "passwordOptional": "Password (optional)",
     "commentOptional": "Comment (optional)",

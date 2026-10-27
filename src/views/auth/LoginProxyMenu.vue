@@ -275,7 +275,7 @@
                                 :class="form.type === t.value
                                     ? 'bg-blue-500 text-white'
                                     : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'"
-                                @click="form.type = t.value">
+                                @click="selectType(t.value)">
                                 {{ t.label }}
                             </button>
                         </div>
@@ -294,14 +294,20 @@
                         </div>
                     </div>
 
-                    <!-- MTProto 密文 -->
-                    <div v-if="form.type === 'mtproto'">
+                    <!-- Web（TDLib 1.8.69）：relay 基础路径 -->
+                    <div v-if="form.type === 'web'">
+                        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{{ t('proxy.pathLabel') }}</label>
+                        <BaseInput type="text" v-model.trim="form.path" :placeholder="t('proxy.pathPlaceholder')" />
+                    </div>
+
+                    <!-- MTProto / Web 密文 -->
+                    <div v-if="form.type === 'mtproto' || form.type === 'web'">
                         <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{{ t('lng_proxy_box_secret') }}</label>
                         <BaseInput type="text" v-model.trim="form.secret" :placeholder="t('proxy.secretPlaceholder')" />
                     </div>
 
                     <!-- SOCKS5 / HTTP 用户名密码 -->
-                    <template v-if="form.type !== 'mtproto'">
+                    <template v-if="form.type === 'http' || form.type === 'socks5'">
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{{ t('lng_proxy_box_username') }}</label>
@@ -388,6 +394,7 @@ function proxyTypeLabel(type: any): string {
         case "proxyTypeSocks5": return "SOCKS5";
         case "proxyTypeHttp": return "HTTP";
         case "proxyTypeMtproto": return "MTProto";
+        case "proxyTypeWeb": return "Web";
         default: return t('proxy.unknownType');
     }
 }
@@ -448,23 +455,35 @@ const proxyTypes = [
     { value: "http", label: "HTTP" },
     { value: "socks5", label: "SOCKS5" },
     { value: "mtproto", label: "MTProto" },
+    { value: "web", label: "Web" },
 ] as const;
 
 const addVisible = ref(false);
 const adding = ref(false);
 const form = reactive({
-    type: "http" as "http" | "socks5" | "mtproto",
+    type: "http" as "http" | "socks5" | "mtproto" | "web",
     server: "",
     port: "",
     username: "",
     password: "",
     secret: "",
+    path: "",
     comment: "",
 });
 
+/** 切换类型：Web 代理的端口固定 443（TDLib 要求） */
+function selectType(type: "http" | "socks5" | "mtproto" | "web") {
+    form.type = type;
+    if (type === "web") {
+        form.port = "443";
+    } else if (form.port === "443" && !form.server) {
+        form.port = "";
+    }
+}
+
 function openAddDialog() {
     Object.assign(form, {
-        type: "http", server: "", port: "", username: "", password: "", secret: "", comment: "",
+        type: "http", server: "", port: "", username: "", password: "", secret: "", path: "", comment: "",
     });
     addVisible.value = true;
 }
@@ -487,13 +506,19 @@ async function submitAdd() {
     }
     adding.value = true;
     try {
-        const type: any = form.type === "mtproto"
-            ? { _: "proxyTypeMtproto", secret: form.secret.trim() }
-            : {
+        let type: any;
+        if (form.type === "mtproto") {
+            type = { _: "proxyTypeMtproto", secret: form.secret.trim() };
+        } else if (form.type === "web") {
+            // proxyTypeWeb：server 必须是域名、端口固定 443，path 可以留空
+            type = { _: "proxyTypeWeb", path: form.path.trim(), secret: form.secret.trim() };
+        } else {
+            type = {
                 _: form.type === "socks5" ? "proxyTypeSocks5" : "proxyTypeHttp",
                 username: form.username,
                 password: form.password,
             };
+        }
         const added = await addProxyTo({
             server: form.server.trim(),
             port,

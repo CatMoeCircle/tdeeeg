@@ -58,6 +58,8 @@ declare module "@tauri-apps/api/core" {
       username?: string;
       password?: string;
       secret?: string;
+      /** proxyTypeWeb 的 relay 基础路径 */
+      path?: string;
       comment?: string;
     }
   ): Promise<void>;

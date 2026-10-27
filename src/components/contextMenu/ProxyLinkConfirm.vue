@@ -50,6 +50,20 @@
                                     <p class="text-gray-800 dark:text-gray-200 break-all">{{ proxy.type.secret }}</p>
                                 </div>
 
+                                <!-- Web（TDLib 1.8.69）：路径 + 密文，没有用户名密码 -->
+                                <template v-else-if="proxy.type._ === 'proxyTypeWeb'">
+                                    <div>
+                                        <p class="text-xs text-gray-400 mb-0.5">{{ t('proxy.pathLabel') }}</p>
+                                        <p class="text-gray-800 dark:text-gray-200 break-all">
+                                            {{ proxy.type.path || '—' }}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-gray-400 mb-0.5">{{ t('lng_proxy_box_secret') }}</p>
+                                        <p class="text-gray-800 dark:text-gray-200 break-all">{{ proxy.type.secret }}</p>
+                                    </div>
+                                </template>
+
                                 <!-- SOCKS5 / HTTP：显示用户名密码 -->
                                 <template v-else>
                                     <div>
@@ -171,6 +185,7 @@ const proxyTypeLabel = computed(() => {
         case "proxyTypeSocks5": return "SOCKS5";
         case "proxyTypeHttp": return "HTTP";
         case "proxyTypeMtproto": return "MTProto";
+        case "proxyTypeWeb": return "Web";
         default: return t('proxy.unknownType');
     }
 });

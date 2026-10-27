@@ -413,6 +413,8 @@
     "type": "代理类型",
     "secretLabel": "密文（Secret）",
     "secretPlaceholder": "代理的十六进制 secret",
+    "pathLabel": "路径（Path）",
+    "pathPlaceholder": "relay 的基础路径，可留空",
     "usernameOptional": "用户名（可选）",
     "passwordOptional": "密码（可选）",
     "commentOptional": "备注（可选）",
