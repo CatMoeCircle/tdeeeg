@@ -12,6 +12,7 @@
         <!-- 顶置消息部分 -->
         <template v-if="pinnedMessages.length > 0">
             <!-- 单条顶置消息（折叠态）：右侧为置顶消息自带的内联键盘，独立成区、不与正文挤在同一行文字里 -->
+            <!-- 右侧动作区默认宽 0 不占位；悬停置顶栏时从右边展开，把内联键盘往左顶回去 -->
             <div v-if="!expanded && currentPinned" @click="cyclePinned"
                 class="flex items-center gap-2.5 px-4 py-1.5 cursor-pointer hover:bg-gray-100/60 dark:hover:bg-gray-700/60 transition-colors select-none group"
                 :class="hasPlayer ? 'rounded-none border-b border-gray-100/50 dark:border-gray-700/30' : (bare ? '' : 'rounded-xl')">
@@ -53,18 +54,26 @@
                         <span class="whitespace-nowrap">{{ pillLabel(button) }}</span>
                     </button>
                 </div>
-                <!-- 展开按钮 -->
-                <button v-if="pinnedMessages.length > 1" @click.stop="expanded = !expanded"
-                    class="shrink-0 w-6 h-6 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors opacity-0 group-hover:opacity-100"
-                    title="查看所有顶置消息">
-                    <ChevronDownIcon class="w-4 h-4 text-gray-500" />
-                </button>
-                <!-- 关闭按钮 -->
-                <button @click.stop="dismiss"
-                    class="shrink-0 w-6 h-6 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors opacity-0 group-hover:opacity-100"
-                    :title="t('lng_close')">
-                    <XIcon class="w-4 h-4 text-gray-400" />
-                </button>
+                <!-- 右侧动作区：默认宽 0（负 margin 抵消 flex gap，不给右侧留空档），
+                     悬停置顶栏时从右边展开，把内联键盘往左顶回去；
+                     宽度目标 = 展开按钮 24 + gap 4 + 关闭按钮 24（仅一条置顶时无展开按钮，24） -->
+                <div :class="[
+                    'shrink-0 w-0 -ml-2.5 overflow-hidden flex items-center gap-1 opacity-0 transition-all duration-200 group-hover:ml-0 group-hover:opacity-100',
+                    pinnedMessages.length > 1 ? 'group-hover:w-[52px]' : 'group-hover:w-6',
+                ]">
+                    <!-- 展开按钮 -->
+                    <button v-if="pinnedMessages.length > 1" @click.stop="expanded = !expanded"
+                        class="shrink-0 w-6 h-6 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                        title="查看所有顶置消息">
+                        <ChevronDownIcon class="w-4 h-4 text-gray-500" />
+                    </button>
+                    <!-- 关闭按钮 -->
+                    <button @click.stop="dismiss"
+                        class="shrink-0 w-6 h-6 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                        :title="t('lng_close')">
+                        <XIcon class="w-4 h-4 text-gray-400" />
+                    </button>
+                </div>
             </div>
 
             <!-- 顶置消息列表（展开态） -->

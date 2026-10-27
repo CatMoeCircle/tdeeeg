@@ -58,10 +58,16 @@
 
         <span v-if="!item.is_completed" class="text-xs text-gray-400 shrink-0 w-10 text-right">{{ percentText }}</span>
 
-        <div class="flex gap-1 shrink-0">
+        <!-- 右侧动作按钮：默认宽 0（负 margin 抵消 row 的 gap-3，不占位），
+             悬停条目时从右边展开，把百分比与正文顶回去；
+             宽度目标 = 每个按钮 28（p-1.5 + 16 图标）+ 按钮间 gap 4 -->
+        <div :class="[
+            'shrink-0 w-0 -ml-3 overflow-hidden flex gap-1 opacity-0 transition-all duration-200 group-hover:ml-0 group-hover:opacity-100',
+            hasTwoActionButtons ? 'group-hover:w-[60px]' : 'group-hover:w-7',
+        ]">
             <template v-if="isUpload">
                 <button type="button" @click.stop="emit('dismiss', item.file_id)"
-                    class="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                    class="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg">
                     <svg class="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                         stroke-width="2">
                         <line x1="18" y1="6" x2="6" y2="18" />
@@ -71,7 +77,7 @@
             </template>
             <template v-else-if="!item.is_completed">
                 <button type="button" @click.stop="emit('togglePause', item.file_id)"
-                    class="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                    class="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg"
                     :title="item.is_paused ? t('lng_continue') : t('lng_mac_menu_player_pause')">
                     <svg v-if="item.is_paused" class="w-4 h-4 text-gray-500" viewBox="0 0 24 24" fill="currentColor">
                         <polygon points="5 3 19 12 5 21 5 3" />
@@ -82,7 +88,7 @@
                     </svg>
                 </button>
                 <button type="button" @click.stop="emit('cancel', item.file_id)"
-                    class="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                    class="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg"
                     :title="t('lng_cancel')">
                     <svg class="w-4 h-4 text-gray-400 hover:text-red-500" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" stroke-width="2">
@@ -93,7 +99,7 @@
             </template>
             <template v-else>
                 <button type="button" @click.stop="emit('dismiss', item.file_id)"
-                    class="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                    class="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg">
                     <svg class="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                         stroke-width="2">
                         <line x1="18" y1="6" x2="6" y2="18" />
@@ -134,6 +140,9 @@ const emit = defineEmits<{
 const displayTags = computed(() => resolveItemTags(props.item as never));
 const isStreamingIncomplete = computed(() => isIncompleteStreaming(props.item as never));
 const media = useItemMedia(() => props.item);
+
+/** 悬停时展开的动作按钮数量：下载中为「暂停 + 取消」两个，上传/已完成只有一个 */
+const hasTwoActionButtons = computed(() => !props.isUpload && !props.item.is_completed);
 
 const rowClass = computed(() => ({
     "cursor-pointer": props.canOpenInPlayer,
