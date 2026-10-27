@@ -211,10 +211,12 @@ pub fn run() {
         // 不恢复 VISIBLE：插件默认会在 setup 阶段直接 show()，导致 TDLib
         // 授权态尚未确认时窗口就弹出。可见性始终由 tauri.conf.json
         // (visible:false) + 前端 bootstrap 完成后再 show() 控制。
+        // Web 代理载体（proxy_carrier）的隐藏窗口是临时的，不进窗口状态文件。
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(tauri_plugin_window_state::StateFlags::all()
                     & !tauri_plugin_window_state::StateFlags::VISIBLE)
+                .with_filter(|label| !label.starts_with(tdlib::WINDOW_LABEL_PREFIX))
                 .build(),
         )
         .setup(|app| {

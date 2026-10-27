@@ -12,7 +12,8 @@ use super::file_events::{
     update_me_from_user,
 };
 use super::{
-    rename_json_key, TdJsonClientSend, TdLibClient, TdLibConfig, TdLibShared, FILE_GATE_WINDOW,
+    proxy_carrier, rename_json_key, TdJsonClientSend, TdLibClient, TdLibConfig, TdLibShared,
+    FILE_GATE_WINDOW,
 };
 use crate::store::accounts::AccountsStore;
 use crate::system::device_info;
@@ -218,6 +219,8 @@ pub(super) fn spawn_receive_loop(
                         }));
                     }
                 }
+                // 客户端已关闭：它名下还挂着的 Web 代理载体没有意义了
+                proxy_carrier::close_session(&app_handle, session_id);
                 break;
             }
             on_authorization_state(
@@ -257,6 +260,18 @@ pub(super) fn spawn_receive_loop(
         // 不进入主更新管道（不缓存 chat、不广播 tdlib-update）。
         if event.get("_").and_then(|v| v.as_str()) == Some("updateFile") {
             let _ = file_tx.send(event);
+            continue;
+        }
+
+        // Web 代理载体（TDLib 1.8.69 的 proxyTypeWeb）：隐藏 webview + 桥对象的
+        // 打开/投递/关闭全部由 Rust 侧独占处理，前端不需要也不应该看到这些 update。
+        if matches!(
+            event.get("_").and_then(|v| v.as_str()),
+            Some("updateWebProxyCarrierOpened")
+                | Some("updateWebProxyCarrierData")
+                | Some("updateWebProxyCarrierClosed")
+        ) {
+            proxy_carrier::handle_update(&app_handle, session_id, &event);
             continue;
         }
 

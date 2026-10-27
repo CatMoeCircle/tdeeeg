@@ -51,6 +51,9 @@ reqwest = { version = "0.13", default-features = false, features = [
 ] }
 
 [target.'cfg(windows)'.dependencies]
+# 与 tauri/wry 依赖的版本保持一致（wry 0.55 → webview2-com 0.38 / windows 0.61），
+# 否则 PlatformWebview::controller() 返回的 COM 接口类型对不上。
+webview2-com = "0.38.2"
 tauri-plugin-updater = "2.11.0"
 tauri-plugin-single-instance = "2"
 tauri-winrt-notification = "0.7"

@@ -5,6 +5,7 @@
 //! - [`lifecycle`]   客户端创建 / 关闭 / 重启 / 强制重建
 //! - [`accounts`]    账户清单命令、init 入口、旧数据迁移
 //! - [`proxy`]       代理配置与系统代理
+//! - [`proxy_carrier`] Web 代理载体（proxyTypeWeb 的隐藏 webview 与桥对象）
 //! - [`receive`]     每账户接收线程（update 分发）
 //! - [`file_events`] updateFile / 官方下载列表 / 自己的资料与头像
 //! - [`downloads`]   下载、上传面板命令
@@ -17,6 +18,7 @@ mod file_events;
 mod lifecycle;
 mod loader;
 mod proxy;
+mod proxy_carrier;
 mod receive;
 
 // 只有 Tauri 命令向外暴露；辅助函数留在各子模块内。
@@ -27,6 +29,8 @@ pub use data_dir::*;
 pub use downloads::*;
 pub use lifecycle::*;
 pub use proxy::*;
+/// 载体隐藏窗口的 label 前缀（lib.rs 注册窗口状态插件时用来排除它们）。
+pub(crate) use proxy_carrier::WINDOW_LABEL_PREFIX;
 
 use crate::store::accounts::AccountsStore;
 use crate::store::chat_store::ChatStore;
