@@ -1236,19 +1236,19 @@
           {{ t('lng_bot_download_retry') }}
         </button>
       </div>
-    </div>
 
-    <!-- 资料尚未就绪（直接打开 user/:id，本地还没有这个用户）：先铺骨架，不要留白 -->
-    <div v-else class="max-w-2xl mx-auto pb-8 animate-pulse" aria-hidden="true">
-      <div class="relative profile-hero overflow-hidden">
-        <div class="flex flex-col items-center pt-10 pb-3 px-4">
-          <div class="w-24 h-24 rounded-full bg-black/10 dark:bg-white/10"></div>
-          <div class="mt-4 h-5 w-40 rounded bg-black/10 dark:bg-white/10"></div>
-          <div class="mt-2 h-3.5 w-24 rounded bg-black/10 dark:bg-white/10"></div>
+      <!-- 资料尚未就绪（直接打开 user/:id，本地还没有这个用户）：先铺骨架，不要留白 -->
+      <div v-else class="max-w-2xl mx-auto pb-8 animate-pulse" aria-hidden="true">
+        <div class="relative profile-hero overflow-hidden">
+          <div class="flex flex-col items-center pt-10 pb-3 px-4">
+            <div class="w-24 h-24 rounded-full bg-black/10 dark:bg-white/10"></div>
+            <div class="mt-4 h-5 w-40 rounded bg-black/10 dark:bg-white/10"></div>
+            <div class="mt-2 h-3.5 w-24 rounded bg-black/10 dark:bg-white/10"></div>
+          </div>
         </div>
-      </div>
-      <div class="px-4 py-4 space-y-3">
-        <div v-for="n in 6" :key="n" class="h-12 rounded-xl bg-gray-200/70 dark:bg-gray-800/60"></div>
+        <div class="px-4 py-4 space-y-3">
+          <div v-for="n in 6" :key="n" class="h-12 rounded-xl bg-gray-200/70 dark:bg-gray-800/60"></div>
+        </div>
       </div>
     </div>
 
