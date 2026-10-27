@@ -22,6 +22,7 @@ import { MapPinIcon } from 'lucide-vue-next';
 import { ensureLocalFilePath, tdlibSend } from '../../../../../utils/tdlib';
 import { mediaSizeStyle } from '../../../../../utils/fitMediaSize';
 import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
+import { bingMapsLink } from '../../../../../utils/mapLink';
 import RichCaption from './RichCaption.vue';
 
 const props = withDefaults(defineProps<{
@@ -77,10 +78,11 @@ watch(
     { immediate: true },
 );
 
-/** 点击地图：外部打开 Google 地图搜索该坐标（外链需先确认） */
+/** 点击地图：与资料页位置一致，统一用微软地图（Bing Maps）打开，并在地图上落下标记点 */
 function openMap() {
     const { latitude, longitude } = props.location;
-    void confirmAndOpenExternalLink(`https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`)
-        .catch(() => { /* 用户取消 */ });
+    void confirmAndOpenExternalLink(
+        bingMapsLink(latitude, longitude, { zoom: props.zoom || 16 }),
+    ).catch(() => { /* 用户取消 */ });
 }
 </script>

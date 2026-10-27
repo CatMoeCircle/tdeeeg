@@ -63,9 +63,7 @@
           </div>
         </div>
 
-        <div v-if="loading" class="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-          {{ t('lng_context_seen_loading') }}
-        </div>
+        <LoadingSkeleton v-if="loading" class="px-4 py-3" :rows="7" :label="t('lng_context_seen_loading')" />
         <div v-else-if="items.length === 0" class="py-12 text-center">
           <p class="text-sm font-medium text-gray-800 dark:text-gray-100">{{ t('lng_admin_log_no_events_title') }}</p>
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 whitespace-pre-line">
@@ -114,12 +112,13 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
+import LoadingSkeleton from '../../components/common/LoadingSkeleton.vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ChevronLeft as ChevronLeftIcon, X as XIcon } from 'lucide-vue-next';
 import Avatar from '../../components/chat/avatar.vue';
 import MessageContent from '../../components/chat/ChatDetail/MessageContent/index.vue';
-import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
+import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import {
   defaultEventLogFilters,

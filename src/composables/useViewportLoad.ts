@@ -1,5 +1,5 @@
 import { onUnmounted, ref, type Ref } from 'vue';
-import { onVisibilityChange, unobserveVisibility } from './useSharedIntersectionObserver';
+import { onVisibilityChange } from './useSharedIntersectionObserver';
 import {
     enqueueViewportLoad,
     DEFAULT_DWELL_MS,
@@ -59,7 +59,8 @@ export function useViewportLoad(
     const pending = ref(false);
     let loaded = false;
     let dwellTimer: ReturnType<typeof setTimeout> | null = null;
-    let observedEl: Element | null = null;
+    /** 本实例的可见性订阅撤销函数：只撤自己那一对，不动同元素上的播放门控 */
+    let offVisibility: (() => void) | null = null;
     /** 当前排队句柄（已开始执行后 cancel 无效） */
     let pendingHandle: ViewportLoadHandle | null = null;
 
@@ -94,9 +95,9 @@ export function useViewportLoad(
             void load();
         }
         // once 模式加载后不再需要持续可见性回调；需要 onDrop 时必须保留观察以感知离开
-        if (once && observedEl && !onDrop) {
-            unobserveVisibility(observedEl);
-            observedEl = null;
+        if (once && offVisibility && !onDrop) {
+            offVisibility();
+            offVisibility = null;
         }
     }
 
@@ -124,9 +125,8 @@ export function useViewportLoad(
     function start() {
         const el = elRef.value;
         if (!el) return;
-        observedEl = el;
 
-        onVisibilityChange(
+        offVisibility = onVisibilityChange(
             el,
             () => {
                 inView.value = true;
@@ -154,20 +154,16 @@ export function useViewportLoad(
 
     function stop() {
         clearDwell();
-        if (observedEl) {
-            unobserveVisibility(observedEl);
-            observedEl = null;
-        }
+        offVisibility?.();
+        offVisibility = null;
     }
 
     onUnmounted(() => {
         clearDwell();
         // 组件销毁：尚未开始的排队加载一并丢弃（进行中的不动）
         if (onDrop) cancelPending();
-        if (observedEl) {
-            unobserveVisibility(observedEl);
-            observedEl = null;
-        }
+        offVisibility?.();
+        offVisibility = null;
     });
 
     return { start, stop, entered, inView, pending, cancelPending, requeue };

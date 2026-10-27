@@ -29,8 +29,8 @@
       </div>
     </div>
     <template #footer>
-      <button type="button" class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
-        @click="close">{{ t('lng_cancel') }}</button>
+      <BaseButton type="button" variant="ghost"
+        @click="close">{{ t('lng_cancel') }}</BaseButton>
       <button v-if="multiple" type="button" :disabled="picked.length === 0"
         class="px-4 py-2 rounded-lg text-sm bg-blue-500 text-white hover:bg-blue-600 transition-colors disabled:opacity-50"
         @click="confirmMany">
@@ -44,11 +44,12 @@
 import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Check as CheckIcon } from 'lucide-vue-next';
-import ModalDialog from './ModalDialog.vue';
+import ModalDialog from '../ui/modal/ModalDialog.vue';
 import Avatar from '../chat/avatar.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import { ensureUser, getReactiveUser, isDeletedUser, DELETED_ACCOUNT_LABEL } from '../../utils/senderInfo';
 import type { user } from 'tdlib-types';
+import BaseButton from '../ui/button/BaseButton.vue';
 
 const props = defineProps<{
   modelValue: boolean;

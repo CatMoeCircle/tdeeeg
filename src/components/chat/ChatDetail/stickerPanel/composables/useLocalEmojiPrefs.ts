@@ -1,21 +1,29 @@
 import { computed } from 'vue';
 import { settings } from '../../../../../store/settings';
-import { EMOJI_PAYLOAD, type EmojiPayloadItem } from '../data/emojiPayload';
+import type { EmojiPayloadItem } from '../data/emojiPayload';
+import { loadEmojiPayload } from '../data/emojiPayloadLoader';
 
 /** 最近使用普通 emoji 上限 */
 const RECENT_LIMIT = 32;
 
-/** 由分类 payload 构建 emoji 快速查找表（原生字符串 → 项） */
-const emojiById = new Map<string, EmojiPayloadItem>();
-for (const cat of EMOJI_PAYLOAD) {
-  for (const it of cat.items) {
-    if (!emojiById.has(it.emoji)) emojiById.set(it.emoji, it);
-  }
+/** 由分类 payload 惰性构建 emoji 快速查找表（原生字符串 → 项），首次查询时才加载数据 */
+let emojiIndex: Promise<Map<string, EmojiPayloadItem>> | null = null;
+function getEmojiIndex() {
+  emojiIndex ??= loadEmojiPayload().then((cats) => {
+    const map = new Map<string, EmojiPayloadItem>();
+    for (const cat of cats) {
+      for (const it of cat.items) {
+        if (!map.has(it.emoji)) map.set(it.emoji, it);
+      }
+    }
+    return map;
+  });
+  return emojiIndex;
 }
 
-/** 查找某个原生 emoji 是否存在于本地数据集 */
-export function findLocalEmoji(emoji: string): EmojiPayloadItem | undefined {
-  return emojiById.get(emoji);
+/** 查找某个原生 emoji 是否存在于本地数据集（改为异步：数据需按需加载） */
+export async function findLocalEmoji(emoji: string): Promise<EmojiPayloadItem | undefined> {
+  return (await getEmojiIndex()).get(emoji);
 }
 
 /**

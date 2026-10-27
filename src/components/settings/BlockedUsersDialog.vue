@@ -6,10 +6,9 @@
                     spellcheck="false"
                     class="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     @keydown.enter="addBlocked" />
-                <button type="button" @click="addBlocked" :disabled="blockingAdd"
-                    class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 shrink-0">
+                <BaseButton type="button" @click="addBlocked" :disabled="blockingAdd" variant="primary" class="shrink-0">
                     {{ t('lng_blocked_list_add') }}
-                </button>
+                </BaseButton>
             </div>
             <p v-if="blockingError" class="text-xs text-red-500">{{ blockingError }}</p>
             <div class="border-t border-gray-200 dark:border-gray-700 pt-3 space-y-1.5">
@@ -46,7 +45,7 @@ import { Ban as BanIcon } from 'lucide-vue-next';
 import { toast } from '../../utils/toast';
 import { useI18n } from 'vue-i18n';
 import Avatar from '../chat/avatar.vue';
-import ModalDialog from './ModalDialog.vue';
+import ModalDialog from '../ui/modal/ModalDialog.vue';
 import { openContextMenu } from '../../store/contextMenu';
 import { tdlibSend } from '../../utils/tdlib';
 import {
@@ -54,6 +53,7 @@ import {
     getChatProfileAccentColorId, getChatUserNames,
 } from '../../utils/senderInfo';
 import type { chat as TdChat, MessageSender } from 'tdlib-types';
+import BaseButton from '../ui/button/BaseButton.vue';
 
 const props = defineProps<{ modelValue: boolean }>();
 const emit = defineEmits<{

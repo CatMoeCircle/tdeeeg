@@ -42,7 +42,9 @@ const SPRING_BOUNCE = 0.4;
 interface Props {
     /** 当前值，配合 @update:modelValue 使用 */
     modelValue?: number;
-    /** 取值范围上界（下界固定为 0） */
+    /** 取值范围下界，默认 0（如出价星数从 1 起） */
+    minValue?: number;
+    /** 取值范围上界 */
     maxValue?: number;
     /** 吸附步长，需同时打开 isStepped */
     stepSize?: number;
@@ -59,6 +61,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
     modelValue: 0,
+    minValue: 0,
     maxValue: 100,
     stepSize: 1,
     isStepped: false,
@@ -73,7 +76,10 @@ const emit = defineEmits<{
 
 const sliderRef = useTemplateRef<HTMLDivElement>('sliderRef');
 
-const value = ref(clamp(props.modelValue, 0, props.maxValue));
+/** 取值区间宽度：下界可非 0（如 1 ~ 10000），轨道比例按区间算 */
+const range = computed(() => Math.max(1, props.maxValue - props.minValue));
+
+const value = ref(clamp(props.modelValue, props.minValue, props.maxValue));
 const scale = ref(1);
 /** 越界位移（px），0 表示未越界 */
 const overflow = ref(0);
@@ -91,12 +97,12 @@ function clamp(input: number, min: number, max: number): number {
 
 // 外部值变化（播放进度推进、切歌归零）时同步内部值
 watch(() => props.modelValue, next => {
-    value.value = clamp(next, 0, props.maxValue);
+    value.value = clamp(next, props.minValue, props.maxValue);
 });
 
 const percentage = computed(() => {
-    if (props.maxValue <= 0) return 0;
-    return clamp((value.value / props.maxValue) * 100, 0, 100);
+    if (props.maxValue <= props.minValue) return 0;
+    return clamp(((value.value - props.minValue) / range.value) * 100, 0, 100);
 });
 
 /** 加粗动画进度 0~1，用于插值轨道厚度与透明度 */
@@ -133,16 +139,16 @@ function decay(input: number, max: number): number {
 /** 按指针横坐标换算取值；拖动过程中持续派发 update:modelValue，保证跟手 */
 function updateValueFromPointer(clientX: number) {
     const el = sliderRef.value;
-    if (!el || props.maxValue <= 0) return;
+    if (!el || props.maxValue <= props.minValue) return;
     const { left, width } = el.getBoundingClientRect();
     if (width <= 0) return;
     trackWidth.value = width;
 
-    // 取值本身始终夹在 [0, maxValue]：拉过头只做视觉拉伸，不改变取值
+    // 取值本身始终夹在 [minValue, maxValue]：拉过头只做视觉拉伸，不改变取值
     const pointerRatio = clamp((clientX - left) / width, 0, 1);
-    let next = pointerRatio * props.maxValue;
+    let next = props.minValue + pointerRatio * range.value;
     if (props.isStepped) next = Math.round(next / props.stepSize) * props.stepSize;
-    next = clamp(next, 0, props.maxValue);
+    next = clamp(next, props.minValue, props.maxValue);
 
     value.value = next;
     emit('update:modelValue', next);

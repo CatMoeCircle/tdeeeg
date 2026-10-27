@@ -6,8 +6,8 @@
 import { computed } from 'vue';
 import { AlertTriangle as AlertTriangleIcon, Check as CheckIcon, Info as InfoIcon, X as XIcon, type LucideIcon } from 'lucide-vue-next';
 import SwipeToast from './SwipeToast.vue';
-import { dismissToast, toastQueue, type ToastType } from '../../utils/toast';
-import { toastPlacement, type ToastPlacement } from '../../store/debug';
+import { dismissToast, toastQueue, type ToastType } from '../../../utils/toast';
+import { toastPlacement, type ToastPlacement } from '../../../store/debug';
 
 /** 各类型图标 + 燃烧线颜色（跟随主题语义色） */
 const ICONS: Record<ToastType, LucideIcon> = {

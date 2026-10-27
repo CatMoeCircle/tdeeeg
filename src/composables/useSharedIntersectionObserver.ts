@@ -118,8 +118,8 @@ export function onVisibilityChange(
   el: Element | null | undefined,
   enter: () => void,
   leave: () => void,
-) {
-  if (!el) return;
+): () => void {
+  if (!el) return () => {};
 
   let e = visibilityMap.get(el);
   if (!e) {
@@ -136,6 +136,24 @@ export function onVisibilityChange(
     // 尚未确认可见：先按离屏处理，避免 Lottie/视频在 IO 纠正前误播
     leave();
   }
+
+  // 返回「只撤销自己这一对」的函数。同一元素上常同时有两个消费者
+  // （useViewportLoad 的懒加载 + useLottiePause 的播放门控），用 unobserveVisibility
+  // 整条删会把另一个的 enter/leave 一起废掉 —— 症状是消息里的动态表情/贴纸
+  // 滚出屏幕后仍在跑，永不暂停。
+  let unsubscribed = false;
+  return () => {
+    if (unsubscribed) return;
+    unsubscribed = true;
+    const cur = visibilityMap.get(el);
+    if (!cur) return;
+    cur.enters.delete(enter);
+    cur.leaves.delete(leave);
+    if (cur.enters.size === 0 && cur.leaves.size === 0) {
+      visibilityMap.delete(el);
+      releaseIfUnused(el);
+    }
+  };
 }
 
 /** 解除持续可见性注册（visibleOnceFlags 仍持有时保持观察）。 */

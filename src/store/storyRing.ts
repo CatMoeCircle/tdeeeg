@@ -1,5 +1,6 @@
 import { reactive, ref } from "vue";
-import type { chatActiveStories, story, Updates } from "tdlib-types";
+import type { chatActiveStories, story } from "tdlib-types";
+import { invoke } from "@tauri-apps/api/core";
 import { tdlibSend } from "../utils/tdlib";
 import { onTdlibUpdate } from "./tdlibBus";
 import { openStoryViewer } from "./storyViewer";
@@ -296,15 +297,11 @@ export async function initStoryRing(): Promise<void> {
   //
   // 只填空缺：订阅之后到达的推送一定比快照新，不覆盖。
   try {
-    const state = (await tdlibSend({ _: "getCurrentState" })) as Updates;
-    for (const update of state?.updates ?? []) {
-      if (
-        update &&
-        (update as any)._ === "updateChatActiveStories" &&
-        (update as any).active_stories &&
-        !byChat.has((update as any).active_stories.chat_id)
-      ) {
-        setActiveStories((update as any).active_stories as chatActiveStories);
+    // Rust 侧已过滤为 updateChatActiveStories 数组，不再整包拉取 getCurrentState
+    const seeds = await invoke<Array<{ active_stories?: chatActiveStories }>>("get_story_seed_updates");
+    for (const update of seeds ?? []) {
+      if (update?.active_stories && !byChat.has(update.active_stories.chat_id)) {
+        setActiveStories(update.active_stories);
       }
     }
   } catch (e) {

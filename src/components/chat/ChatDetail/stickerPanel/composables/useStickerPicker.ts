@@ -139,7 +139,11 @@ export function useStickerPicker(opts: {
 
     /** 懒加载指定 set 的完整 stickers */
     async function loadSetStickers(setId: string) {
-        const group = sets.value.find((g) => g.setId === setId);
+        // 搜索结果（searchInstalled / searchStickerSets）放在 searchGroups，不在 sets 里：
+        // 只查 sets 会让「搜到的贴纸包」永远停在封面+骨架。
+        const group =
+            sets.value.find((g) => g.setId === setId) ??
+            searchGroups.value.find((g) => g.setId === setId);
         if (!group || !group.lazy) return [];
         const res: any = await tdlibSend({ _: 'getStickerSet', set_id: setId as any } as any)
             .catch(() => null);

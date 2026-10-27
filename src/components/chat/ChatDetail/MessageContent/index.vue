@@ -55,6 +55,7 @@
         <MessageMediaContent v-else-if="isMediaContent(content)" :content="content" :isSelf="isSelf ?? false"
             :date="date" :forwardInfo="forwardInfo" :forwardName="forwardName" :forwardNavigable="forwardNavigable"
             :forwardPhoto="forwardPhoto" :forwardAccentId="forwardAccentId" :forwardOriginalName="forwardOriginalName"
+            :forwardMessageId="forwardMessageId"
             :forwardFirstName="forwardFirstName" :forwardLastName="forwardLastName"
             :forwardTextColor="forwardTextColor" :isFirstInGroup="isFirstInGroup" :isLastInGroup="isLastInGroup"
             :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature"
@@ -206,6 +207,9 @@ const SERVICE_TYPES = new Set([
     'messagePassportDataSent',
     'messagePassportDataReceived',
     'messageProximityAlertTriggered',
+    'messageVideoChatStarted',
+    'messageVideoChatEnded',
+    'messageVideoChatScheduled',
     'messagePaidMedia',
     'messageChecklistTasksDone',
     'messageChecklistTasksAdded',
@@ -216,7 +220,6 @@ const SERVICE_TYPES = new Set([
     'messageSuggestedPostDeclined',
     'messageSuggestedPostPaid',
     'messageSuggestedPostRefunded',
-    'messageCall',
 ]);
 
 const props = defineProps<{
@@ -232,6 +235,8 @@ const props = defineProps<{
     forwardAccentId?: number;
     /** 转发原始作者签名（括号内） */
     forwardOriginalName?: string;
+    /** 转发源消息 id（频道帖 / source 转发才有，无则不显示） */
+    forwardMessageId?: number;
     /** 转发来源为用户时的姓名拆分（头像文字用） */
     forwardFirstName?: string;
     forwardLastName?: string;
@@ -270,12 +275,13 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    jumpToMessage: [messageId: number];
+    /** chatId：目标消息不在当前会话时由被回复/被引用方带出，供父级跨会话跳转 */
+    jumpToMessage: [messageId: number, chatId?: number];
     openForwardSource: [];
 }>();
 
-function onJumpToMessage(messageId: number) {
-    emit('jumpToMessage', messageId);
+function onJumpToMessage(messageId: number, chatId?: number) {
+    emit('jumpToMessage', messageId, chatId);
 }
 
 function onServiceJump(messageId: number) {

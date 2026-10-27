@@ -50,6 +50,20 @@
                                     <p class="text-gray-800 dark:text-gray-200 break-all">{{ proxy.type.secret }}</p>
                                 </div>
 
+                                <!-- Web（TDLib 1.8.69）：路径 + 密文，没有用户名密码 -->
+                                <template v-else-if="proxy.type._ === 'proxyTypeWeb'">
+                                    <div>
+                                        <p class="text-xs text-gray-400 mb-0.5">{{ t('proxy.pathLabel') }}</p>
+                                        <p class="text-gray-800 dark:text-gray-200 break-all">
+                                            {{ proxy.type.path || '—' }}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-gray-400 mb-0.5">{{ t('lng_proxy_box_secret') }}</p>
+                                        <p class="text-gray-800 dark:text-gray-200 break-all">{{ proxy.type.secret }}</p>
+                                    </div>
+                                </template>
+
                                 <!-- SOCKS5 / HTTP：显示用户名密码 -->
                                 <template v-else>
                                     <div>
@@ -85,10 +99,9 @@
                     <!-- 底部按钮 -->
                     <div
                         class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
-                        <button type="button" @click="cancel"
-                            class="px-4 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
+                        <BaseButton type="button" @click="cancel" variant="ghost" size="sm">
                             {{ t('lng_cancel') }}
-                        </button>
+                        </BaseButton>
                         <button type="button" @click="confirm" :disabled="!proxy"
                             class="px-4 py-1.5 rounded-lg text-sm bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50">
                             {{ t('lng_continue') }}
@@ -130,10 +143,9 @@
                     <!-- 底部按钮 -->
                     <div
                         class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
-                        <button type="button" @click="cancelWarning"
-                            class="px-4 py-1.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
+                        <BaseButton type="button" @click="cancelWarning" variant="ghost" size="sm">
                             {{ t('lng_cancel') }}
-                        </button>
+                        </BaseButton>
                         <button type="button" @click="confirmWarning"
                             class="px-4 py-1.5 rounded-lg text-sm bg-amber-500 text-white hover:bg-amber-600">
                             {{ t('lng_continue') }}
@@ -163,6 +175,7 @@ import {
     cancelPingWarning,
     pingCurrentProxy,
 } from "../../store/proxyLink";
+import BaseButton from "../ui/button/BaseButton.vue";
 
 const proxy = computed(() => pendingProxy.value);
 
@@ -172,6 +185,7 @@ const proxyTypeLabel = computed(() => {
         case "proxyTypeSocks5": return "SOCKS5";
         case "proxyTypeHttp": return "HTTP";
         case "proxyTypeMtproto": return "MTProto";
+        case "proxyTypeWeb": return "Web";
         default: return t('proxy.unknownType');
     }
 });

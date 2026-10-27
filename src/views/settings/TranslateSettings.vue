@@ -47,8 +47,9 @@
                                     effectiveLangLabel }}</span>
                             </p>
                         </div>
-                        <t-select v-model="settings.translate.to" :options="targetLangOptions" filterable size="small"
-                            style="width: 220px" class="shrink-0" />
+                        <SelectMenu class="w-55 shrink-0" size="sm" filterable
+                            :model-value="settings.translate.to" :options="targetLangOptions"
+                            @update:model-value="(v: string) => (settings.translate.to = v)" />
                     </div>
 
                     <ToggleRow v-model="settings.translate.showTranslateButton"
@@ -77,8 +78,10 @@
                         <span v-if="!settings.translate.doNotTranslate.length" class="text-xs text-gray-400">
                             {{ t('translateSettings.doNotEmpty') }}
                         </span>
-                        <t-select v-model="doNotPick" :options="langOnlyOptions" filterable size="small"
-                            style="width: 180px" :placeholder="t('translateSettings.doNotAdd')" class="ml-auto" />
+                        <SelectMenu class="w-45 ml-auto" size="sm" filterable
+                            :model-value="doNotPick" :options="langOnlyOptions"
+                            :placeholder="t('translateSettings.doNotAdd')"
+                            @update:model-value="(v: string) => (doNotPick = v)" />
                         <button type="button"
                             class="px-3 py-1.5 rounded-lg text-xs bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-40"
                             :disabled="!doNotPick" @click="addDoNot">
@@ -101,8 +104,9 @@
                                     {{ t('translateSettings.providerMessage') }}</p>
                                 <p class="text-xs text-gray-400 mt-0.5">{{ t('translateSettings.providerMessageDesc') }}</p>
                             </div>
-                            <t-select v-model="providerMessage" :options="providerOptions" size="small"
-                                style="width: 200px" class="shrink-0 select-none" />
+                            <SelectMenu class="w-50 shrink-0" size="sm" :model-value="providerMessage"
+                                :options="providerOptions"
+                                @update:model-value="(v: string) => (providerMessage = v as TranslateProviderId)" />
                         </div>
                         <div class="h-px bg-gray-100 dark:bg-gray-700"></div>
                         <div class="flex items-center justify-between gap-4">
@@ -111,8 +115,9 @@
                                     {{ t('translateSettings.providerChat') }}</p>
                                 <p class="text-xs text-gray-400 mt-0.5">{{ t('translateSettings.providerChatDesc') }}</p>
                             </div>
-                            <t-select v-model="providerChat" :options="providerOptions" size="small"
-                                style="width: 200px" class="shrink-0 select-none" />
+                            <SelectMenu class="w-50 shrink-0" size="sm" :model-value="providerChat"
+                                :options="providerOptions"
+                                @update:model-value="(v: string) => (providerChat = v as TranslateProviderId)" />
                         </div>
                     </div>
 
@@ -152,14 +157,17 @@
                                 <div class="grid grid-cols-2 gap-3">
                                     <label class="block">
                                         <span class="text-xs text-gray-500">{{ t('aiSettings.providerLabel') }}</span>
-                                        <t-select v-model="aiProviderId" :options="aiProviderOptions" size="small"
-                                            :placeholder="t('aiSettings.providerPh')" class="mt-1 w-full" />
+                                        <SelectMenu class="mt-1 w-full" size="sm" filterable
+                                            :model-value="aiProviderId" :options="aiProviderOptions"
+                                            :placeholder="t('aiSettings.providerPh')"
+                                            @update:model-value="(v: string) => (aiProviderId = v)" />
                                     </label>
                                     <label class="block">
                                         <span class="text-xs text-gray-500">{{ t('aiSettings.modelLabel') }}</span>
-                                        <t-select v-model="aiModel" :options="aiModelOptions" size="small"
+                                        <SelectMenu class="mt-1 w-full" size="sm" filterable
+                                            :model-value="aiModel" :options="aiModelOptions"
                                             :disabled="!aiModelOptions.length" :placeholder="t('aiSettings.modelPh')"
-                                            class="mt-1 w-full" />
+                                            @update:model-value="(v: string) => (aiModel = v)" />
                                     </label>
                                 </div>
                                 <div class="flex items-center justify-between gap-3">
@@ -202,6 +210,7 @@ import {
     Sparkles as SparklesIcon,
     X as XIcon,
 } from 'lucide-vue-next';
+import SelectMenu from '../../components/ui/dropdown/SelectMenu.vue';
 import { settings } from '../../store/settings';
 import {
     aiProviders,

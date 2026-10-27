@@ -107,6 +107,7 @@
                                             v-if="item.messages[0].forward_info && !isLinkedChannelMessage(item.messages[0])"
                                             :name="getForwardName(item.messages[0].forward_info)"
                                             :original-name="getForwardOriginalName(item.messages[0].forward_info)"
+                                            :message-id="getForwardMessageId(item.messages[0].forward_info)"
                                             :first-name="getForwardNames(item.messages[0].forward_info).first"
                                             :last-name="getForwardNames(item.messages[0].forward_info).last"
                                             :photo="getForwardPhoto(item.messages[0].forward_info)"
@@ -240,6 +241,7 @@
                                             v-if="item.msg.forward_info && !isMediaMessage(item.msg) && !isLinkedChannelMessage(item.msg)"
                                             :name="getForwardName(item.msg.forward_info)"
                                             :original-name="getForwardOriginalName(item.msg.forward_info)"
+                                            :message-id="getForwardMessageId(item.msg.forward_info)"
                                             :first-name="getForwardNames(item.msg.forward_info).first"
                                             :last-name="getForwardNames(item.msg.forward_info).last"
                                             :photo="getForwardPhoto(item.msg.forward_info)"
@@ -254,6 +256,7 @@
                                             :forwardPhoto="getDisplayForwardInfo(item.msg) ? getForwardPhoto(getDisplayForwardInfo(item.msg)!) : undefined"
                                             :forwardAccentId="getDisplayForwardInfo(item.msg) ? getForwardAccentId(getDisplayForwardInfo(item.msg)!) : undefined"
                                             :forwardOriginalName="getDisplayForwardInfo(item.msg) ? getForwardOriginalName(getDisplayForwardInfo(item.msg)!) : undefined"
+                                            :forwardMessageId="getDisplayForwardInfo(item.msg) ? getForwardMessageId(getDisplayForwardInfo(item.msg)!) : undefined"
                                             :forwardFirstName="getDisplayForwardInfo(item.msg) ? getForwardNames(getDisplayForwardInfo(item.msg)!).first : undefined"
                                             :forwardLastName="getDisplayForwardInfo(item.msg) ? getForwardNames(getDisplayForwardInfo(item.msg)!).last : undefined"
                                             :forwardTextColor="forwardTextColor(item.msg)"
@@ -315,7 +318,7 @@
                                             :msg="item.msg" :isSelf="isSelf(item.msg)"
                                             @toggle-reaction="(type: ReactionType) => toggleReaction(chatId!, item.msg, type)" />
                                         <span
-                                            v-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isInlineTimeMessage(item.msg) && !isOutgoingMsg(item.msg)"
+                                            v-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isInlineTimeMessage(item.msg) && !hasStatusInContent(item.msg) && !isOutgoingMsg(item.msg)"
                                             class="block text-right text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 leading-none">
                                             <MessageStatus :date="item.msg.date" :isOutgoing="false"
                                                 :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
@@ -324,7 +327,7 @@
                                                 :isTranslated="isShowingTranslation(item.msg)" />
                                         </span>
                                         <span
-                                            v-else-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isInlineTimeMessage(item.msg) && isOutgoingMsg(item.msg)"
+                                            v-else-if="!isMediaMessage(item.msg) && !isStandaloneMessage(item.msg) && !isInlineTimeMessage(item.msg) && !hasStatusInContent(item.msg) && isOutgoingMsg(item.msg)"
                                             class="block text-right text-[11px] text-gray-700/70 mt-0.5 leading-none">
                                             <MessageStatus :date="item.msg.date" :isOutgoing="true"
                                                 :sendingState="item.msg.sending_state" :isRead="isMessageRead(item.msg)"
@@ -390,13 +393,19 @@
                 @toggle-topic-tag-position="toggleTopicTagPosition" />
         </div>
 
+        <!-- ===== 机器人管理条（业务机器人接管当前聊天）：紧贴 Header 下方 ===== -->
+        <div v-if="botManageBar && chatId !== undefined" class="absolute inset-x-0 z-10"
+            :class="topicLayoutAnim ? 'topic-chrome-anim' : ''" :style="[botBarStyle, tagBarSideInsetStyle]">
+            <BotManageBar :chat-id="chatId" :bar="botManageBar" />
+        </div>
+
         <!-- ===== 话题标签栏（话题模式 / 论坛群组） =====
              right/left：图片样式侧栏；top：悬浮在 Header 与置顶栏中间；bottom：悬浮在输入条上方 -->
         <!-- ===== 话题标签栏（tag 栏话题模式）
              位置切换动画由 TopicTagBar 根节点 data-pos 驱动的 CSS keyframes 完成
              （不用 Vue Transition，避免 out-in 卡死导致元素不再挂载） ===== -->
         <TopicTagBar v-if="showTopicPanel && chatId !== undefined" :chat-id="chatId" :topic-id="topicId"
-            :position="topicTagPosition" :top-offset="4" :bottom-offset="76" :data-pos="topicTagPosition"
+            :position="topicTagPosition" :top-offset="4 + botBarSpace" :bottom-offset="76" :data-pos="topicTagPosition"
             :is-dm="isDirectMessagesChat" @select="onTopicTagSelect" />
 
         <!-- ===== 消息搜索栏（覆盖 Header） ===== -->
@@ -519,6 +528,37 @@
                  再包一层 ref：消息区的底部留白按**这一块实测高度**算（活动条折叠 / 展开、
                  两种输入框的高度都不一样，写死常量会对不上） -->
             <div ref="inputAreaRef" class="relative z-10">
+                <!-- 私聊 AI 接管横幅：这个聊天被用户选中接管时提醒一句（可暂停 / 进设置）。
+                     与输入框模式无关：普通输入框和 AI 输入框下都要看得见。 -->
+                <div v-if="takeoverCfg" class="mx-3 mt-3 mb-1">
+                    <div class="flex items-center gap-2 px-3 py-2 rounded-xl border"
+                        :class="takeoverRunning
+                            ? 'bg-rose-50/80 dark:bg-rose-500/10 border-rose-200/70 dark:border-rose-500/25'
+                            : 'bg-gray-100/80 dark:bg-gray-800/60 border-gray-200/70 dark:border-gray-700/50'">
+                        <BotIcon class="w-4 h-4 shrink-0"
+                            :class="takeoverRunning ? 'text-rose-500' : 'text-gray-400'" />
+                        <div class="min-w-0 flex-1">
+                            <p class="text-xs font-medium truncate"
+                                :class="takeoverRunning ? 'text-rose-600 dark:text-rose-400' : 'text-gray-500 dark:text-gray-400'">
+                                {{ takeoverCfg.mode === 'imitate' ? t('aiTakeover.bannerImitate') : t('aiTakeover.bannerAssistant') }}
+                            </p>
+                            <p class="text-[11px] truncate"
+                                :class="takeoverRunning ? 'text-rose-500/80 dark:text-rose-400/70' : 'text-gray-400'">
+                                {{ !aiTakeoverOn ? t('aiTakeover.bannerGlobalOff') : takeoverCfg.enabled ? t('aiTakeover.bannerOn') : t('aiTakeover.bannerPaused') }}
+                            </p>
+                        </div>
+                        <button type="button"
+                            class="shrink-0 px-2 py-1 rounded-lg text-[11px] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                            @click="toggleTakeoverChat">
+                            {{ takeoverCfg.enabled ? t('aiTakeover.pause') : t('aiTakeover.resume') }}
+                        </button>
+                        <button type="button"
+                            class="shrink-0 px-2 py-1 rounded-lg text-[11px] text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
+                            @click="router.push({ name: 'settings-ai-takeover' })">
+                            {{ t('aiTakeover.settings') }}
+                        </button>
+                    </div>
+                </div>
                 <div v-if="settings.ai.input === 'ai'" class="px-3 py-2.5">
                     <!-- 只读会话（不可发言的频道 / 群）：AI 照样能读能总结，只是不能在这里发言 -->
                     <p v-if="!canSend"
@@ -633,6 +673,11 @@
             </div>
         </div>
 
+        <!-- ===== 会话信息未就绪：输入框位置先铺骨架，避免「底部空白 → 输入框弹入」 ===== -->
+        <div v-else-if="!chat" class="absolute bottom-0 left-0 right-0 z-10 px-3 py-2.5" aria-hidden="true">
+            <div class="h-14 rounded-full bg-gray-200/70 dark:bg-gray-800/60 animate-pulse"></div>
+        </div>
+
         <!-- ===== Floating scroll-to-bottom button ===== -->
         <Transition name="fade">
             <ScrollToBottomButton v-if="showScrollButton" :bottom="scrollButtonBottom" :count="newMessageCount"
@@ -675,6 +720,7 @@ import { runAiTurn, cancelAiStream, AiTurnLimitError, type AiActivitySink, type 
 import { setApprovalGate, setApprovalPolicy } from '../../../utils/aiTools/call';
 import type { ApprovalDecision, ApprovalRequest } from '../../../utils/aiTools/types';
 import { aiProviders, aiProviderReady, loadAiProviders } from '../../../store/aiConfig';
+import { aiTakeover, takeoverFor, updateTakeover } from '../../../store/aiTakeover';
 
 /**
  * AI 活动条（输入框顶部那个窄框）的数据：用过 AI 才有内容，有输出 / 工具调用就往 entries 里追加，
@@ -710,6 +756,7 @@ import PinMessageConfirm from '../../contextMenu/PinMessageConfirm.vue';
 import StopPollConfirm from '../../contextMenu/StopPollConfirm.vue';
 import ReportMessageConfirm from '../../contextMenu/ReportMessageConfirm.vue';
 import PinnedMessageBar from './PinnedMessageBar.vue';
+import BotManageBar from './BotManageBar.vue';
 import TopicTagBar from './TopicTagBar.vue';
 import SearchBar from './SearchBar.vue';
 import ReactionsBar from './ReactionsBar.vue';
@@ -726,7 +773,7 @@ import { useAttachmentStore } from '../../../store/attachment';
 import type { AttachmentItem } from '../../../store/attachment';
 import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
 
-import { MessageCircleIcon, XIcon, CheckIcon, Pencil as PencilIcon, CircleStopIcon, Sparkles as SparklesIcon } from 'lucide-vue-next';
+import { MessageCircleIcon, XIcon, CheckIcon, Pencil as PencilIcon, CircleStopIcon, Sparkles as SparklesIcon, Bot as BotIcon } from 'lucide-vue-next';
 import { toast } from '../../../utils/toast';
 import { useRoute, useRouter } from 'vue-router';
 import { computed, watch, ref, shallowRef, markRaw, onMounted, onBeforeUnmount, onUnmounted, nextTick } from 'vue';
@@ -788,11 +835,12 @@ import {
 import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity, textEntity$Input, file as TdFile, ReactionType } from 'tdlib-types';
 import { getViewerState, closeMediaViewer, isMediaViewerActive, openMediaViewer } from '../../../store/mediaViewer';
 
-import { getSenderAccentColorId, getSenderProfileAccentColorId, getSenderNameParts, isDeletedChat, DELETED_ACCOUNT_LABEL } from '../../../utils/senderInfo';
+import { getSenderAccentColorId, getSenderProfileAccentColorId, getSenderNameParts, isDeletedChat, DELETED_ACCOUNT_LABEL, ensureUser, ensureChat, getReactiveUser, getReactiveChat } from '../../../utils/senderInfo';
 import { useColors } from '../../../store/colors';
-import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage, isBubblelessMediaMessage, albumHasVisibleCaption, isFileAlbum, showChannelCommentsBar } from './composables/messageType';
+import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage, hasStatusInContent, isBubblelessMediaMessage, albumHasVisibleCaption, isFileAlbum, showChannelCommentsBar } from './composables/messageType';
 import { buildDisplayItems } from './composables/messageItems';
 import { chatWindowKey, peekChatWindow, saveChatWindow } from './composables/chatWindowCache';
+import { fetchCacheGet, fetchCacheSet } from './composables/fetchCache';
 import { completeAlbumMembers, hasIncompleteAlbum } from './composables/albumHistory';
 import { useDraft } from './composables/useDraft';
 import { useBrowsePosition } from './composables/useBrowsePosition';
@@ -825,6 +873,7 @@ import {
     getForwardPhoto as computeForwardPhoto,
     getForwardProfileAccentId as computeForwardProfileAccentId,
     getForwardAuthorSignature as computeForwardAuthorSignature,
+    getForwardMessageId as computeForwardMessageId,
     isSavedForwardedMessage as computeIsSavedForwardedMessage,
     senderNameColor as computeSenderNameColor,
     showSenderDisplayName as computeShowSenderDisplayName,
@@ -850,6 +899,7 @@ import {
 } from './composables/messageMeta';
 import type { RoleContext, SelfDeps } from './composables/messageMeta';
 import { canDeleteOthersMessages, canRestrictMembers, isGroupChat } from '../../../utils/groupRights';
+import ForwardPicker from '../../contextMenu/ForwardPicker.vue';
 
 // ==================== Route ====================
 const route = useRoute();
@@ -1501,12 +1551,20 @@ const aiPromptRef = ref<InstanceType<typeof AiPromptBar> | null>(null);
 /** 切换对话加载期间为 true：抑制自动存草稿，避免清空输入误删新聊天草稿 */
 const suppressDraftAutosave = ref(false);
 const {
-    saveDraft, restoreDraft, clearDraft, flushTdlibDraftNow, cancelLocalDraftTimer, cancelTdlibDraftTimer,
+    saveDraft, ownsInput, restoreDraft, clearDraft, flushTdlibDraftNow, cancelLocalDraftTimer, cancelTdlibDraftTimer,
 } = useDraft({
     chatId, topicId, threadMode, threadRootMsgId,
     messageInput, pendingCustomEmoji, editingMsg,
     isDirectMessagesChat, suppress: suppressDraftAutosave,
 });
+
+/**
+ * 切走时该不该存草稿：输入框确实代表这个对话，或者用户在里面留了东西。
+ * 连点对话时中间那些对话从未打开过、输入框是上一次切换清空的 —— 两者都不成立，
+ * 存下去等于拿空输入删掉它自己的草稿缓存和 TDLib 草稿。
+ */
+const hasDraftToSave = (cid: number, tid?: number | null) =>
+    ownsInput(cid, tid) || !!messageInput.value.trim() || pendingCustomEmoji.value.length > 0;
 
 /** 传给 MessageInput 的编辑实体（补齐必填字段） */
 const editSeedEntitiesForInput = computed<textEntity[] | null>(() =>
@@ -1625,7 +1683,7 @@ async function startEdit(msg: message) {
     saveDraft();
 
     clearReply();
-    // 编辑不走附件托盘；清空附件避免误发。媒体替换单独用 editMediaReplacement。
+    // 进入编辑时清空草稿附件，避免误带进编辑；编辑期间新粘贴 / 选择的文件会作为新媒体提交
     void useAttachmentStore().clearWithCleanup();
 
     editingMsg.value = msg;
@@ -1797,6 +1855,9 @@ function buildReplyQuote(): inputTextQuote | null {
     return {
         _: 'inputTextQuote',
         text: { _: 'formattedText', text: quoteText, entities: [] },
+        // TDLib 1.8.69 起 inputTextQuote 多了 rich_texts：从富消息里选出的引用要按块传 RichText，
+        // 这里只会拿到纯文本片段，因此显式传空数组（TDLib 视为「引用不是来自富消息」）。
+        rich_texts: [],
         position: pos >= 0 ? pos : 0,
     };
 }
@@ -1955,14 +2016,24 @@ const listRevealed = ref(false);
 const SKELETON_DELAY_MS = 180;
 const skeletonArmed = ref(false);
 let skeletonTimer: number | null = null;
-/** 每次开始加载（resetState）时重新计时 */
-function armSkeleton() {
+/**
+ * 每次开始加载（resetState / 切换会话确认无缓存窗口）时重新计时。
+ *
+ * delayMs = 0：骨架屏立刻出现。手上没有任何可铺的内容（首次进入某会话）时，
+ * 空白比骨架更糟；有缓存窗口的路径仍用 SKELETON_DELAY_MS，避免「本地几十毫秒
+ * 就露出」的快路径闪一下骨架。
+ */
+function armSkeleton(delayMs: number = SKELETON_DELAY_MS) {
     disarmSkeleton();
     skeletonArmed.value = false;
+    if (delayMs <= 0) {
+        skeletonArmed.value = true;
+        return;
+    }
     skeletonTimer = window.setTimeout(() => {
         skeletonTimer = null;
         skeletonArmed.value = true;
-    }, SKELETON_DELAY_MS);
+    }, delayMs);
 }
 function disarmSkeleton() {
     if (skeletonTimer !== null) {
@@ -2011,7 +2082,8 @@ const availableSenders = ref<import('tdlib-types').chatMessageSender[]>([]);
 /** 是否正在加载可用发送身份 */
 const sendersLoading = ref(false);
 
-// 缓存
+// 缓存（users/chats 只是全局发送者缓存（utils/senderInfo）的本地视图，
+// 数据由 fetchSenders 从那边拷过来，组件重建时不再重新向后端要一遍）
 const users = ref<Record<number, user>>({});
 const chats = ref<Record<number, chat>>({});
 const supergroups = ref<Record<number, supergroup>>({});
@@ -2023,13 +2095,25 @@ interface MemberInfo {
     tag?: string;
 }
 const memberStatus = ref<Record<number, MemberInfo>>({});
-/** 进行中的 getChatMember 请求去重 */
-const pendingMemberStatus = new Set<number>();
+/** 进行中的 getChatMember 请求去重（key = `${chatId}:${userId}`） */
+const pendingMemberStatus = new Set<string>();
 /** 总线多通道订阅取消函数 */
 let unsubscribeUpdates: (() => void) | null = null;
 
 /** 单调递增的加载代数，用于防止异步返回时的竞态条件 */
 let loadGeneration = 0;
+/** 组件已卸载：内联加载流程的 await 回来后一律不再继续（取数/挂载都是白跑） */
+let disposed = false;
+/**
+ * 连点对话合并窗口：窗口内的换聊天不立即加载，等点击停稳后再跑一次。
+ * 每次点击都完整走一遍 getChat + 取历史 + 首屏挂载，连点 5 个对话就是 5 份
+ * 白跑的取数与 DOM 挂载，主线程被塞满才是「连点对话卡顿」的来源。
+ * ponytail: 固定时长启发式，点击节奏更慢但仍卡时按实测调这两个常数。
+ */
+const RAPID_SWITCH_MS = 300;
+/** 留在骨架屏延迟（SKELETON_DELAY_MS=180）以内：有缓存窗口的会话仍能直接铺上、不闪骨架 */
+const RAPID_SWITCH_SETTLE_MS = 120;
+let lastChatSwitchAt = 0;
 
 /** 消息数据版本号，用于 computed 依赖追踪，避免多余重算 */
 const messagesVersion = ref(0);
@@ -2050,17 +2134,36 @@ const { accentTextColor, accentColorStyle, isDark } = useColors();
 /** 记录每条消息气泡的实际渲染宽度（msgId → px），用于判断相邻消息是否同宽 */
 const bubbleWidths = ref<Record<number, number>>({});
 
-/** 重新测量所有消息气泡的宽度 */
+/**
+ * 测量消息气泡宽度。
+ * full=true：全量重测（窗口缩放/布局变化，所有宽度都可能变）。
+ * full=false：增量，只对 bubbleWidths 里没有的新气泡读 offsetWidth；
+ * 已测过的沿用缓存，已删除的消息丢弃。每次 patch 都读全部 offsetWidth 会强制布局，代价太高。
+ */
 let measureBubbleRaf = 0;
-function measureBubbleWidths() {
+let measureBubbleFull = false;
+function measureBubbleWidths(full = false) {
     const container = messagesContainer.value;
     if (!container) return;
     const next: Record<number, number> = {};
-    // 只读 offsetWidth（比 getBoundingClientRect 少一层转换），且一次遍历
-    container.querySelectorAll<HTMLElement>('[data-bubble-msg-id]').forEach((el) => {
-        const id = Number(el.dataset.bubbleMsgId || '0');
-        if (id > 0) next[id] = Math.round(el.offsetWidth);
-    });
+    // 只读 offsetWidth（比 getBoundingClientRect 少一层转换）
+    if (full) {
+        container.querySelectorAll<HTMLElement>('[data-bubble-msg-id]').forEach((el) => {
+            const id = Number(el.dataset.bubbleMsgId || '0');
+            if (id > 0) next[id] = Math.round(el.offsetWidth);
+        });
+    } else {
+        const alive = new Set(messages.value.map((m) => m.id));
+        const cur = bubbleWidths.value;
+        for (const k of Object.keys(cur)) {
+            const id = Number(k);
+            if (alive.has(id)) next[id] = cur[id];
+        }
+        container.querySelectorAll<HTMLElement>('[data-bubble-msg-id]').forEach((el) => {
+            const id = Number(el.dataset.bubbleMsgId || '0');
+            if (id > 0 && !(id in next)) next[id] = Math.round(el.offsetWidth);
+        });
+    }
     // 仅在实际变化时更新，避免触发不必要的重渲染
     const cur = bubbleWidths.value;
     let changed = Object.keys(cur).length !== Object.keys(next).length;
@@ -2073,11 +2176,15 @@ function measureBubbleWidths() {
 }
 
 /** rAF 合帧：短时间多次 messagesVersion 变化只测一次，避免连续强制重排 */
-function scheduleMeasureBubbleWidths() {
+// 合帧期间只要有一次全量请求，本帧就做全量（full 标记不能被后续增量请求覆盖掉）
+function scheduleMeasureBubbleWidths(full = false) {
+    if (full) measureBubbleFull = true;
     if (measureBubbleRaf) return;
     measureBubbleRaf = requestAnimationFrame(() => {
         measureBubbleRaf = 0;
-        measureBubbleWidths();
+        const doFull = measureBubbleFull;
+        measureBubbleFull = false;
+        measureBubbleWidths(doFull);
     });
 }
 
@@ -2104,7 +2211,8 @@ watch(messagesContainer, (el) => {
     if (el) {
         refreshScrollMetrics(el);
         bubbleWidthObserver = new ResizeObserver(() => {
-            scheduleMeasureBubbleWidths();
+            // 容器尺寸变化 → 所有气泡宽度都可能变，必须全量重测
+            scheduleMeasureBubbleWidths(true);
             // clientHeight 随窗口/顶栏变化；scrollHeight 在下一次预取前再读
             scrollMetrics.c = el.clientHeight;
         });
@@ -2167,6 +2275,8 @@ onMounted(async () => {
 
 // 浏览位置必须在 DOM 卸载前冲刷：onUnmounted 时 messagesContainer 已是 null，flush 会直接 return
 onBeforeUnmount(() => {
+    // 先标记卸载：正在跑的加载流程下一处 await 回来后直接退出
+    disposed = true;
     if (chatId.value !== undefined) {
         // DOM 还在时把窗口存进内存缓存（关闭会话后再打开可立刻铺上）
         saveCurrentChatWindow(chatId.value, topicId.value, threadRootMsgId.value);
@@ -2196,7 +2306,8 @@ onUnmounted(() => {
     if (chatLoadRetryTimer !== null) window.clearTimeout(chatLoadRetryTimer);
     cancelLocalDraftTimer();
     // 编辑中卸载：编辑文本不是草稿，不要写入；直接冲刷先前已保存的 TDLib 草稿
-    if (!editingMsg.value) {
+    // 加载中途关掉面板时，输入框可能还不属于这个对话（同上：别拿空输入删草稿）
+    if (!editingMsg.value && chatId.value !== undefined && hasDraftToSave(chatId.value, topicId.value)) {
         saveDraft();
     }
     // 无论是否编辑，都把待提交草稿冲刷出队，避免组件卸载后丢草稿
@@ -2430,6 +2541,17 @@ const handleUpdate = async (update: Update) => {
             // 全部翻译栏跟随 chat.is_translatable
             if (update.chat_id !== chatId.value || !chat.value) return;
             chat.value.is_translatable = !!update.is_translatable;
+            break;
+        }
+
+        case 'updateChatBusinessBotManageBar': {
+            // 业务机器人接管状态变更：驱动顶栏管理条显示/隐藏与暂停态
+            if (update.chat_id === chatId.value && chat.value) {
+                chat.value.business_bot_manage_bar = update.business_bot_manage_bar;
+            }
+            if (typeof update.chat_id === 'number' && chats.value[update.chat_id]) {
+                chats.value[update.chat_id].business_bot_manage_bar = update.business_bot_manage_bar;
+            }
             break;
         }
 
@@ -2710,7 +2832,7 @@ function flashMessage(messageId: number) {
 
 /** 检查加载代数是否已过期（聊天已切换），过期则中止后续操作 */
 function isGenerationValid(gen: number): boolean {
-    return gen === loadGeneration;
+    return !disposed && gen === loadGeneration;
 }
 
 /** 是否秘密聊天 */
@@ -2786,6 +2908,10 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
     const [oldChatId, oldTopicId] = oldVals ?? [];
     const switchingChat = oldChatId !== undefined
         && (oldChatId !== newChatId || oldTopicId !== newTopicId);
+    const switchAt = performance.now();
+    /** 上一次换聊天刚发生不久：这次点击很可能只是连点中的一下 */
+    const rapidSwitch = switchingChat && switchAt - lastChatSwitchAt < RAPID_SWITCH_MS;
+    lastChatSwitchAt = switchAt;
     // 切走前把当前窗口留在内存缓存里：下次进入同一会话直接铺上，不再闪骨架屏
     if (oldChatId !== undefined) {
         saveCurrentChatWindow(oldChatId, oldTopicId ?? null, oldVals?.[2] ?? null);
@@ -2805,7 +2931,8 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
             pendingCustomEmoji.value = [];
             cancelLocalDraftTimer();
         } else {
-            saveDraft(oldChatId!, oldTopicId);
+            // 连点中间对话没真正打开过：不要拿清空后的输入去存（会删掉它的草稿）
+            if (hasDraftToSave(oldChatId!, oldTopicId)) saveDraft(oldChatId!, oldTopicId);
             // 抑制自动存草稿并立刻清空输入框，避免加载期间看到旧内容、
             // 或防抖回调用新 chatId 把空输入误存成「删除新聊天草稿」。
             cancelLocalDraftTimer();
@@ -2835,6 +2962,19 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
         && (savedBrowsePos || (rememberedChat?.unread_count ?? 0) === 0)
         ? peekChatWindow(chatWindowKey(currentId, topicId.value, threadRootMsgId.value))
         : null;
+
+    // 先出帧：没有任何可铺的内容时骨架屏立即出现，不等 resetState 里那 180ms 防闪延迟。
+    // 有缓存窗口时保留延迟（缓存路径通常一帧内就露出，不该闪骨架）。
+    if (!cachedWindow) armSkeleton(0);
+
+    // 连点对话：只有点击停稳后的那一个才真正加载，中间对话不取数、不挂消息
+    // （上面已清空旧消息、骨架屏照常盖着，用户看不出中间少加载了几次）。
+    if (rapidSwitch) {
+        await new Promise<void>((resolve) => setTimeout(resolve, RAPID_SWITCH_SETTLE_MS));
+        // 等待期间又切走了：本次整份作废，交给新一代加载
+        if (!isGenerationValid(gen) || chatId.value !== currentId) return;
+    }
+
     if (cachedWindow) {
         applyMessages(cachedWindow.messages);
         windowReachesLatest.value = cachedWindow.windowReachesLatest;
@@ -2960,6 +3100,17 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
             }
         }
 
+        // 群组信息 / 通知静音 / 发送身份：消息正文不需要它们，但「能不能发言 / 用哪个身份发」
+        // 全靠它们，而且它们与消息正文无依赖、可以并行。
+        // 必须放在跳转分支之前：带 ?message= 打开（消息链接 / 转发来源 / 搜索结果）走的正是
+        // 下面那条早退的跳转路径，漏掉这一步会导致 supergroups 缓存为空 → 成员状态未知 →
+        // canSend=false，明明有频道发言权限却只显示订阅者的频道操作栏。
+        void Promise.allSettled([
+            fetchGroupInfo(chatData, gen),
+            syncNotificationMuteState(chatData, currentId),
+            fetchAvailableSenders(currentId, gen),
+        ]);
+
         if (requestedMessageId) {
             const jumped = await jumpToMessageInternal(requestedMessageId, gen);
             if (!isGenerationValid(gen)) return;
@@ -3005,14 +3156,7 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
                 ? { anchorId: lastReadId, requireUnread: true, lastReadId }
                 : {},
         );
-        // 群组信息 / 通知静音 / 发送身份与消息正文无关：不再串在首屏关键路径上。
-        // 消息先到先渲染，这三项后台补（请求本身、顺序、失败处理都不变，
-        // 只是不再让最慢的一个拖住首次露出）。
-        void Promise.allSettled([
-            fetchGroupInfo(chatData, gen),
-            syncNotificationMuteState(chatData, currentId),
-            fetchAvailableSenders(currentId, gen),
-        ]);
+        // 群组信息 / 通知静音 / 发送身份已在跳转分支之上发起（见上）
         const firstBatchResult = await firstBatchPromise;
         if (!isGenerationValid(gen)) return;
         if (firstBatchResult == null) {
@@ -3658,43 +3802,56 @@ const fetchSenders = async (msgs: message[]) => {
         }
     });
 
+    // 走全局发送者缓存（utils/senderInfo）：同一发送者整个进程只发一次 getUser/getChat，
+    // 请求还在飞的时候也不会重复发；结果再拷进本组件的展示视图
     await Promise.all([
-        ...Array.from(userIds).map(uid =>
-            tdlibSend({ _: 'getUser', user_id: uid })
-                .then(u => { users.value[uid] = u; })
-                .catch(() => { })
-        ),
-        ...Array.from(chatIds).map(cid =>
-            tdlibSend({ _: 'getChat', chat_id: cid })
-                .then(c => { chats.value[cid] = c; })
-                .catch(() => { })
-        )
+        ...Array.from(userIds).map(async uid => {
+            await ensureUser(uid);
+            const u = getReactiveUser(uid);
+            if (u) users.value[uid] = u;
+        }),
+        ...Array.from(chatIds).map(async cid => {
+            await ensureChat(cid);
+            const c = getReactiveChat(cid);
+            if (c) chats.value[cid] = c;
+        })
     ]);
 };
 
 /**
  * 为消息发送者批量拉取群成员信息（角色/标签），用于消息右上角标签。
- * 仅当当前聊天为超级群组/基础群组时有效；私聊/频道发送者不做处理。
- * 每个 user_id 只请求一次（去重）。
+ * 仅群组有效：频道发送者就是频道本身，没有成员角色，别为此发请求。
+ *
+ * 两处收敛（连点/来回切对话时请求量的主要来源）：
+ * - 结果按会话缓存（fetchCache），同一群反复进出不再逐人重发 getChatMember；
+ * - 一批结果合并成一次响应式写入 + 限并发，避免「每人一条响应各触发一轮消息重渲染」。
  */
 const fetchMemberStatuses = async (msgs: message[]) => {
     const c = chat.value;
     if (!c || (c.type._ !== 'chatTypeSupergroup' && c.type._ !== 'chatTypeBasicGroup')) return;
+    if (c.type._ === 'chatTypeSupergroup' && c.type.is_channel) return;
     const cid = chatId.value;
     if (!cid) return;
 
-    const userIds = new Set<number>();
-    msgs.forEach(m => {
-        if (m.sender_id?._ === 'messageSenderUser') {
-            userIds.add(m.sender_id.user_id);
-        }
-    });
+    const cached = fetchCacheGet<Record<number, MemberInfo>>('chatMembers', cid) ?? {};
+    const missing: number[] = [];
+    for (const m of msgs) {
+        const sender = m.sender_id;
+        if (sender?._ !== 'messageSenderUser') continue;
+        const uid = sender.user_id;
+        if (memberStatus.value[uid] !== undefined || cached[uid] !== undefined) continue;
+        if (pendingMemberStatus.has(`${cid}:${uid}`) || missing.includes(uid)) continue;
+        missing.push(uid);
+    }
+    if (missing.length === 0) return;
+    for (const uid of missing) pendingMemberStatus.add(`${cid}:${uid}`);
 
-    await Promise.all(
-        Array.from(userIds).map(async uid => {
-            if (pendingMemberStatus.has(uid)) return;
-            if (memberStatus.value[uid] !== undefined) return;
-            pendingMemberStatus.add(uid);
+    const fetched: Record<number, MemberInfo> = {};
+    const queue = [...missing];
+    const worker = async () => {
+        for (;;) {
+            const uid = queue.shift();
+            if (uid === undefined) return;
             try {
                 const member = await tdlibSend({
                     _: 'getChatMember',
@@ -3702,7 +3859,7 @@ const fetchMemberStatuses = async (msgs: message[]) => {
                     member_id: { _: 'messageSenderUser', user_id: uid },
                 }) as ChatMember;
                 if (member) {
-                    memberStatus.value[uid] = {
+                    fetched[uid] = {
                         status: member.status,
                         tag: typeof member.tag === 'string' && member.tag ? member.tag : undefined,
                     };
@@ -3710,10 +3867,16 @@ const fetchMemberStatuses = async (msgs: message[]) => {
             } catch (e) {
                 /* 忽略：非成员/无权限等 */
             } finally {
-                pendingMemberStatus.delete(uid);
+                pendingMemberStatus.delete(`${cid}:${uid}`);
             }
-        })
-    );
+        }
+    };
+    // 一次开群几十个成员不能同时轰出去
+    await Promise.all(Array.from({ length: Math.min(6, queue.length) }, worker));
+    if (Object.keys(fetched).length === 0) return;
+
+    fetchCacheSet('chatMembers', cid, { ...cached, ...fetched });
+    if (chatId.value === cid) memberStatus.value = { ...memberStatus.value, ...fetched };
 };
 
 /** 发送者角色/标签计算所需依赖（调用时求值以保持响应式） */
@@ -3749,31 +3912,45 @@ const getMessageLabelClass = (msg: message): string =>
 const getDisplayForwardInfo = (msg: message): messageForwardInfo | undefined =>
     getDisplayForwardInfoOf(msg);
 
-/** 获取 supergroup / basicGroup 信息 */
+/** 获取 supergroup / basicGroup 信息（群信息短时间不变，命中缓存就不再发请求） */
 async function fetchGroupInfo(chatData: chat, gen: number) {
     if (chatData.type._ === 'chatTypeSupergroup') {
-        const sg = await tdlibSend({ _: 'getSupergroup', supergroup_id: chatData.type.supergroup_id });
-        if (!isGenerationValid(gen)) return;
-        supergroups.value[chatData.type.supergroup_id] = sg;
+        const sgid = chatData.type.supergroup_id;
+        let sg = fetchCacheGet<supergroup>('supergroup', sgid);
+        if (!sg) {
+            sg = await tdlibSend({ _: 'getSupergroup', supergroup_id: sgid }) as supergroup;
+            if (!isGenerationValid(gen)) return;
+            fetchCacheSet('supergroup', sgid, sg);
+        }
+        supergroups.value[sgid] = sg;
         // 自动翻译字段在 supergroup 上（TDLib has_automatic_translation）
         hasAutomaticTranslation.value = !!sg.has_automatic_translation;
         supergroupFullReady.value = true;
         maybePromptTranslatePremium();
         // fullInfo：关联频道等
         try {
-            const fullInfo = await tdlibSend({
-                _: 'getSupergroupFullInfo',
-                supergroup_id: chatData.type.supergroup_id
-            });
-            if (!isGenerationValid(gen)) return;
+            let fullInfo = fetchCacheGet<{ linked_chat_id: number }>('supergroupFull', sgid);
+            if (!fullInfo) {
+                fullInfo = await tdlibSend({
+                    _: 'getSupergroupFullInfo',
+                    supergroup_id: sgid
+                }) as { linked_chat_id: number };
+                if (!isGenerationValid(gen)) return;
+                fetchCacheSet('supergroupFull', sgid, fullInfo);
+            }
             linkedChatId.value = fullInfo.linked_chat_id;
         } catch (e) {
             console.error('Failed to load supergroup full info:', e);
         }
     } else if (chatData.type._ === 'chatTypeBasicGroup') {
-        const bg = await tdlibSend({ _: 'getBasicGroup', basic_group_id: chatData.type.basic_group_id });
-        if (!isGenerationValid(gen)) return;
-        basicGroups.value[chatData.type.basic_group_id] = bg;
+        const bgid = chatData.type.basic_group_id;
+        let bg = fetchCacheGet<basicGroup>('basicGroup', bgid);
+        if (!bg) {
+            bg = await tdlibSend({ _: 'getBasicGroup', basic_group_id: bgid }) as basicGroup;
+            if (!isGenerationValid(gen)) return;
+            fetchCacheSet('basicGroup', bgid, bg);
+        }
+        basicGroups.value[bgid] = bg;
         hasAutomaticTranslation.value = false;
         supergroupFullReady.value = true;
         maybePromptTranslatePremium();
@@ -3787,13 +3964,20 @@ async function fetchGroupInfo(chatData: chat, gen: number) {
 
 // ==================== Sender Selector ====================
 
-/** 获取当前聊天可用的消息发送身份列表（频道/匿名群组等） */
+/** 获取当前聊天可用的消息发送身份列表（频道/匿名群组等；切回同一会话不再重复要） */
 async function fetchAvailableSenders(cid: number, gen: number) {
+    const cached = fetchCacheGet<import('tdlib-types').chatMessageSender[]>('chatSenders', cid);
+    if (cached) {
+        availableSenders.value = cached;
+        return;
+    }
     sendersLoading.value = true;
     try {
         const result = await tdlibSend({ _: 'getChatAvailableMessageSenders', chat_id: cid });
         if (!isGenerationValid(gen)) return;
-        availableSenders.value = result.senders || [];
+        const senders = result.senders || [];
+        fetchCacheSet('chatSenders', cid, senders);
+        availableSenders.value = senders;
     } catch {
         availableSenders.value = [];
     } finally {
@@ -3943,7 +4127,12 @@ const scrollToBottom = () => {
     });
 };
 
-/** 同步滚动到指定消息（调用方需已 await nextTick，DOM 已更新） */
+/**
+ * 同步滚动到指定消息（调用方需已 await nextTick，DOM 已更新）。
+ * 常规消息落在视口 45% 处；但高个消息（大图 / 视频 / 相册组）这样居中会把消息开头
+ * 顶到视口外——用户看到的是目标消息的中段，观感就是「没跳到目标」。
+ * 因此再按「消息顶不能高于顶部栈下沿」夹一次：顶对齐时取更小的 scrollTop。
+ */
 function scrollToMessageImmediate(messageId: number): boolean {
     const el = messagesContainer.value;
     if (!el) return false;
@@ -3957,7 +4146,12 @@ function scrollToMessageImmediate(messageId: number): boolean {
     const containerRect = el.getBoundingClientRect();
     const msgRect = msgEl.getBoundingClientRect();
     const delta = msgRect.top - containerRect.top;
-    const desired = el.scrollTop + delta - el.clientHeight * 0.45 + msgRect.height / 2;
+    // 居中到 45% 需要的位置
+    const centered = el.scrollTop + delta - el.clientHeight * 0.45 + msgRect.height / 2;
+    // 消息顶对齐到顶部栈下沿（container 的 paddingTop = Header + 置顶/翻译/话题栏占位）
+    const paddingTop = parseFloat(getComputedStyle(el).paddingTop) || 0;
+    const topAligned = el.scrollTop + delta - paddingTop;
+    const desired = Math.min(centered, topAligned);
     const max = Math.max(0, el.scrollHeight - el.clientHeight);
     const next = Math.max(0, Math.min(Math.round(desired), max));
     el.scrollTop = next;
@@ -4006,6 +4200,20 @@ async function jumpToMessageInternal(messageId: number, gen: number): Promise<bo
 
     const windowMessages = await loadJumpWindow(currentChatId, messageId, gen);
     if (!isGenerationValid(gen) || chatId.value !== currentChatId || windowMessages.length === 0) {
+        return false;
+    }
+
+    // 目标在论坛话题里而当前视图不是该话题：先换到话题视图再定位。
+    // 消息链接已由 openInternalLink 直接进话题；这里是其余入口（全局搜索、下载、音乐播放器、
+    // 转发来源、跨会话回复…）的兜底——否则拿群的整体历史定位，顶栏与输入框都不是该话题的上下文。
+    const targetTopic = windowMessages.find(m => m.id === messageId)?.topic_id;
+    const targetTopicId = targetTopic?._ === 'messageTopicForum' ? targetTopic.forum_topic_id : 0;
+    if (!threadMode.value && targetTopicId > 0 && targetTopicId !== topicId.value) {
+        void router.replace({
+            name: 'chat-topic-detail',
+            params: { id: String(currentChatId), topicId: String(targetTopicId) },
+            query: { message: String(messageId) },
+        });
         return false;
     }
 
@@ -4087,8 +4295,21 @@ async function autoOpenMediaFromQuery(gen: number) {
     }
 }
 
-/** 滚动到指定消息并触发高亮闪烁（用于回复跳转，目标不在列表时也会先加载） */
-const handleReplyJumpToMessage = (messageId: number) => {
+/**
+ * 回复 / 引用跳转（目标不在列表时也会先加载）。
+ * 被回复消息可能在别的会话里（跨对话回复、频道帖子在讨论组里的副本、转发到群里的频道消息）：
+ * 这时不能拿它的 id 在当前会话里找——id 是各会话自增的，会在当前会话里落到一条毫不相干的消息上。
+ * 带 ?message= 换会话，由本组件的首屏跳转路径负责定位。
+ */
+const handleReplyJumpToMessage = (messageId: number, targetChatId?: number) => {
+    if (targetChatId !== undefined && targetChatId !== chatId.value) {
+        void router.push({
+            name: 'chat-detail',
+            params: { id: String(targetChatId) },
+            query: { message: String(messageId) },
+        });
+        return;
+    }
     void jumpToMessage(messageId);
 };
 
@@ -4363,31 +4584,36 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
     // —— 编辑模式：有新媒体 → editMessageMedia；仅文本 → editMessageText；仅描述 → editMessageCaption ——
     if (editingMsg.value) {
         const target = editingMsg.value;
+        const attachStore = useAttachmentStore();
+        // 编辑期间新粘贴 / 拖入 / 选择的文件：横幅「更换」优先，其次取附件栏第一个
+        const trayMedia = attachStore.items[0] ?? null;
+        const mediaToSend = editMediaReplacement.value ?? trayMedia;
         const isMedia = isMediaMessage(target) || editHasMedia.value;
-        // 文本消息不允许空内容；媒体消息允许清空描述
-        if (!text.trim() && !isMedia && !editMediaReplacement.value) return;
+        // 文本消息不允许空内容；媒体消息（含即将被改成媒体的文本消息）允许清空描述
+        if (!text.trim() && !isMedia && !mediaToSend) return;
         try {
             const richEntities = (typeof input === 'string' ? [] : input.entities || []) as textEntity$Input[];
             const customEmojiEntities = buildCustomEmojiEntities(text);
             const parsed = await withParsedMarkdown(text, [...richEntities, ...customEmojiEntities]);
             const entities = parsed.entities;
             let ok = false;
-            if (editMediaReplacement.value) {
-                // 更换资源：按 TDLib 语义解析 kind（文件→document；动画仅 GIF/MPEG4；其余同类型）
-                const resolved = resolveEditReplaceKind(
-                    target.content._,
-                    editMediaReplacement.value.kind,
-                    editMediaReplacement.value.name,
-                );
-                if (!resolved.ok) {
-                    toast.warning(resolved.reason);
+            if (mediaToSend) {
+                // 原消息已是媒体 → 按原类型校验可替换性（图片↔视频、文件↔音乐…）；
+                // 纯文本消息 → 直接把消息体改成媒体，类型由分类结果决定
+                let kind = mediaToSend.kind;
+                if (editHasMedia.value) {
+                    const resolved = resolveEditReplaceKind(target.content._, mediaToSend.kind, mediaToSend.name);
+                    if (!resolved.ok) {
+                        toast.warning(resolved.reason);
+                        return;
+                    }
+                    kind = resolved.kind;
+                } else if (target.content._ !== 'messageText') {
+                    // 既不是媒体消息、也不是纯文本（投票 / 贴纸 / 位置…）→ 无处安放附件
+                    toast.warning(t('chat.replaceUnsupported'));
                     return;
                 }
-                const content = buildEditMediaContent(
-                    { ...editMediaReplacement.value, kind: resolved.kind },
-                    parsed.text,
-                    entities,
-                );
+                const content = buildEditMediaContent({ ...mediaToSend, kind }, parsed.text, entities);
                 ok = await editMessageMediaContent(target.chat_id || chatId.value, target.id, content);
             } else if (isMedia) {
                 // 仅改描述
@@ -4402,6 +4628,13 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
                 editSeedEntities.value = null;
                 editMediaPreviewSrc.value = null;
                 editMediaReplacement.value = null;
+                // 用掉的附件从托盘移除；编辑期间多选的文件留在托盘，退出编辑后可单独发送
+                if (trayMedia && mediaToSend === trayMedia) {
+                    attachStore.remove(trayMedia.id);
+                    if (attachStore.items.length > 0) {
+                        toast.info(t('chat.editMediaRestKept', { count: attachStore.items.length }));
+                    }
+                }
                 cancelLocalDraftTimer();
                 // 编辑成功后恢复进入编辑前保存的草稿，避免输入框被清空丢失草稿视图
                 // （评论线程不读写会话草稿）
@@ -4413,6 +4646,10 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
                         suppressDraftAutosave.value = false;
                     });
                 }
+            } else {
+                // 编辑失败：文本与实体还回输入框，附件仍留在托盘，避免用户重打
+                messageInput.value = parsed.text;
+                editSeedEntities.value = entities as textEntity$Input[];
             }
         } catch (e) {
             console.error('Failed to edit message:', e);
@@ -4704,6 +4941,19 @@ function requestAiApproval(req: ApprovalRequest): Promise<ApprovalDecision> {
 setApprovalGate(requestAiApproval);
 watch(() => settings.ai.approval, (policy) => setApprovalPolicy(policy), { immediate: true });
 
+// ==================== 私聊 AI 接管 ====================
+/** 这个聊天被用户选中接管了吗（横幅只在选中后出现；暂停 / 总开关关掉也照样显示） */
+const takeoverCfg = computed(() => takeoverFor(currentChatId()));
+const aiTakeoverOn = computed(() => aiTakeover.enabled);
+/** 真的在工作吗：选中 + 单个聊天开关 + 总开关 */
+const takeoverRunning = computed(() => !!takeoverCfg.value?.enabled && aiTakeover.enabled);
+
+/** 横幅上的暂停 / 继续：只切这个聊天的开关，总开关在设置页 */
+function toggleTakeoverChat(): void {
+    const cfg = takeoverCfg.value;
+    if (cfg) updateTakeover(cfg.chatId, { enabled: !cfg.enabled });
+}
+
 // ==================== State Reset ====================
 function resetState() {
     // 重新计一次骨架屏延迟：快路径（本地历史几十毫秒）不出现骨架屏
@@ -4728,7 +4978,13 @@ function resetState() {
     dmHeaderTopic.value = undefined;
     threadInfo.value = undefined;
     threadReplyInfo.value = undefined;
-    memberStatus.value = {};
+    // users/supergroups/basicGroups 只是全局 senderInfo 缓存的本地视图，清掉不影响取数；
+    // 不清的话同一组件实例逛过的每个群成员对象都会常驻内存。chats 故意保留（见切换会话处的首帧铺底）
+    users.value = {};
+    supergroups.value = {};
+    basicGroups.value = {};
+    // 成员角色/标签按会话缓存：切回同一个群直接铺上，不再逐人重发 getChatMember
+    memberStatus.value = { ...(fetchCacheGet<Record<number, MemberInfo>>('chatMembers', chatId.value ?? 0) ?? {}) };
     isHistoryExhausted.value = false;
     isNewerExhausted.value = false;
     isReady.value = false;
@@ -4861,6 +5117,13 @@ function appendMessages(incoming: message[]) {
 function patchMessage(id: number, patch: Partial<message>) {
     const idx = messages.value.findIndex(m => m.id === id);
     if (idx === -1) return;
+    // 内容变了气泡宽度就可能变：丢掉该 id 的旧宽度，让下一次增量测量重读它。
+    // 增量测量只测新出现的气泡，不丢这里的话编辑后同宽连接会按旧宽度判断。
+    if (patch.content !== undefined && id in bubbleWidths.value) {
+        const nextWidths = { ...bubbleWidths.value };
+        delete nextWidths[id];
+        bubbleWidths.value = nextWidths;
+    }
     const next = messages.value.slice();
     next[idx] = freezeMsg({ ...messages.value[idx], ...patch } as message);
     messages.value = next;
@@ -5185,6 +5448,10 @@ const getForwardOriginalName = (forwardInfo: messageForwardInfo): string | undef
     return sig === computeForwardName(forwardInfo, senderCaches()) ? undefined : sig;
 };
 
+/** 转发源消息 id（频道帖 / source 转发才有；其余来源为 undefined，不显示） */
+const getForwardMessageId = (forwardInfo: messageForwardInfo): number | undefined =>
+    computeForwardMessageId(forwardInfo);
+
 /** 转发横幅文字色：取发送者 accent 色字符串（自绘消息由 ForwardBanner 自处理浅色） */
 const forwardTextColor = (msg: message): string | undefined => {
     if (isSelf(msg)) return undefined;
@@ -5334,6 +5601,15 @@ const topStackHasCard = computed(() => showTopCard.value || translateBarVisible.
 const showChatTranslateBarUi = computed(() => !translateBarHidden.value && translateBarVisible.value);
 const topStackVisible = computed(() => topStackHasCard.value || !!stickyDateDisplay.value);
 
+/** 业务机器人接管当前聊天时顶部展示的管理条（数据来自 chat.business_bot_manage_bar） */
+const botManageBar = computed(() => chat.value?.business_bot_manage_bar);
+/** 管理条占位高度：卡片 48px + 与 Header 的 4px 间距 */
+const BOT_BAR_SPACE = 52;
+/** Header（64px）下的管理条位置 */
+const botBarStyle = computed(() => ({ top: '64px' }));
+/** 管理条是否存在时占用的顶部空间（并入顶部栈与消息区留白） */
+const botBarSpace = computed(() => (botManageBar.value ? BOT_BAR_SPACE : 0));
+
 /**
  * 用于语言检测的样本文本：最近几条有正文的非自己消息。
  * ChatTranslateBar「不翻译该语言」据此识别源语言并写入排除列表。
@@ -5352,15 +5628,16 @@ const translateSampleText = computed(() => {
 /**
  * 顶部栈 top：置顶/播放器/全部翻译均并入同一圆角卡片，统一贴 Header 下方稍留缝；
  * 仅吸顶日期时紧贴 Header 底边。
+ * 机器人管理条显示时整条顶部栈下移其占用的高度。
  */
 const topStackTopStyle = computed(() => ({
-    top: `${((showTopCard.value || showChatTranslateBarUi.value) ? 70 : 64) + topicTagTopSpace.value}px`,
+    top: `${((showTopCard.value || showChatTranslateBarUi.value) ? 70 : 64) + botBarSpace.value + topicTagTopSpace.value}px`,
 }));
 
 const topPaddingClass = computed(() => {
-    // Header h-16=64px；话题顶部标签栏；顶置/播放器卡片约 +68px
+    // Header h-16=64px；话题顶部标签栏；机器人管理条；顶置/播放器卡片约 +68px
     // 全部翻译与卡片贴合：有置顶/播放器时仅 +36（无额外间隙）；单独成卡时约 +44（含描边）
-    let px = 64 + topicTagTopSpace.value;
+    let px = 64 + botBarSpace.value + topicTagTopSpace.value;
     if (showTopCard.value) px += 68;
     if (translateBarVisible.value) px += showTopCard.value ? 36 : 44;
     return { paddingTop: `${px}px` };

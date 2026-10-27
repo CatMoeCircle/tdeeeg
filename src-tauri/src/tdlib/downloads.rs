@@ -10,8 +10,8 @@ use tauri::State;
 /// - `include_generic` / `include_auto_photos`：前端过滤器开关，决定已完成区是否带出头像/
 ///   贴纸/emoji/通用缩略图与自动下载图片（它们默认隐藏，却占全表 97%）。
 #[tauri::command]
-pub fn get_downloads(
-    state: State<AppState>,
+pub async fn get_downloads(
+    state: State<'_, AppState>,
     completed_offset: Option<usize>,
     completed_limit: Option<usize>,
     include_generic: Option<bool>,
@@ -146,7 +146,7 @@ pub fn set_show_auto_photos_downloads(state: State<AppState>, value: bool) -> Re
 // ==================== 上传任务（发送文件）命令 ====================
 
 #[tauri::command]
-pub fn get_uploads(state: State<AppState>) -> Result<Vec<DownloadItem>, String> {
+pub async fn get_uploads(state: State<'_, AppState>) -> Result<Vec<DownloadItem>, String> {
     let store = state.download_store.lock().map_err(|e| e.to_string())?;
     Ok(store.get_uploads())
 }

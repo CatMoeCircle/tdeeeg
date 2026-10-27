@@ -7,10 +7,12 @@
         <div class="w-0.5 h-8 self-center shrink-0 rounded-full" :style="barStyle"></div>
 
         <div class="flex-1 min-w-0 py-0.5 flex flex-col justify-center">
-            <!-- 被回复方名称 / 占位文案 -->
+            <!-- 被回复方名称 / 占位文案；跨对话回复先声明来源对话（取不到就不显示） -->
             <div class="text-xs font-semibold truncate msg-body-text leading-4"
                 :style="senderNameStyle">
-                {{ titleText }}
+                <template v-if="sourceChatTitle">
+                    <span class="opacity-70">{{ sourceChatTitle }}</span><span class="opacity-50 mx-1">›</span>
+                </template>{{ titleText }}
             </div>
             <!-- 内容预览 -->
             <div class="text-xs truncate opacity-70 mt-0.5 leading-4">
@@ -40,7 +42,7 @@ import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { pickSmallPhotoSize } from '../../../../../utils/photoSizes';
 import { isThumbnailImgRenderable } from '../../../../../utils/thumbnail';
 import { useColors, rgbToCss } from '../../../../../store/colors';
-import { getSenderAccentColorId } from '../../../../../utils/senderInfo';
+import { ensureChat, ensureSenderLoaded, getReactiveChat, getSenderAccentColorId, getSenderName } from '../../../../../utils/senderInfo';
 import { messageContentTypeLabel } from '../../../../../utils/messagePreview';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
@@ -56,7 +58,8 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    jump: [messageId: number];
+    /** chatId：被回复消息所属会话（跨对话回复/引用时与当前会话不同，父级据此跨会话跳转） */
+    jump: [messageId: number, chatId: number];
 }>();
 
 interface ReplyDisplayData {
@@ -65,6 +68,7 @@ interface ReplyDisplayData {
     mediaType: string;
     thumbSrc: string | null;
     messageId: number;
+    chatId: number;
 }
 
 const rootEl = ref<HTMLElement | null>(null);
@@ -91,6 +95,13 @@ const subText = computed(() => {
     if (status.value === 'deleted') return t('lng_deleted_message');
     if (status.value === 'loading') return t('preview.loadingMessageContent');
     return '';
+});
+
+/** 被回复消息不在当前对话时，声明它来自哪个对话（引用同理）；拿不到标题就不显示 */
+const sourceChatTitle = computed(() => {
+    const rt = props.replyTo;
+    if (!props.chatId || !rt?.chat_id || rt.chat_id === props.chatId) return undefined;
+    return getReactiveChat(rt.chat_id)?.title || undefined;
 });
 
 // 主题配色工具
@@ -198,6 +209,9 @@ async function loadReplyData() {
     const targetChatId = rt.chat_id;
     const targetMsgId = rt.message_id;
 
+    // 跨对话回复/引用：先补来源对话的标题（本地有缓存时立即命中，算 computed 会自动更新）
+    if (props.chatId && targetChatId !== props.chatId) void ensureChat(targetChatId);
+
     // 1. 优先复用已加载消息列表中的被回复消息
     let foundMsg: message | undefined = findLocalReplyMsg();
 
@@ -231,30 +245,14 @@ async function loadReplyData() {
     // 记录被回复发送者的主题色（回复/引用配色用被回复方颜色）
     replyAccentColorId.value = getSenderAccentColorId(foundMsg.sender_id);
 
-    // 提取发送者名称
-    let senderName = t('preview.unknown');
-    if (foundMsg.sender_id._ === 'messageSenderUser') {
-        try {
-            const u = await tdlibSend({ _: 'getUser', user_id: foundMsg.sender_id.user_id }) as any;
-            if (seq !== replyLoadSeq) return;
-            // 若本地缓存未命中，用接口返回的 accent_color_id 补充被回复方主题色
-            if (replyAccentColorId.value === undefined && typeof u?.accent_color_id === 'number') {
-                replyAccentColorId.value = u.accent_color_id;
-            }
-            senderName = (u.type?._ === 'userTypeDeleted' || u.type?._ === 'userTypeUnknown')
-                ? t('lng_deleted')
-                : `${u.first_name || ''} ${u.last_name || ''}`.trim() || t('preview.user');
-        } catch (_) { }
-    } else if (foundMsg.sender_id._ === 'messageSenderChat') {
-        try {
-            const c = await tdlibSend({ _: 'getChat', chat_id: foundMsg.sender_id.chat_id }) as any;
-            if (seq !== replyLoadSeq) return;
-            if (replyAccentColorId.value === undefined && typeof c?.accent_color_id === 'number') {
-                replyAccentColorId.value = c.accent_color_id;
-            }
-            senderName = c.title || t('lng_notification_groups');
-        } catch (_) { }
+    // 提取发送者名称/主题色：走全局发送者缓存（已加载过的不再发 getUser/getChat，
+    // 同一发送者的并发请求也会合并），未加载时 ensureSenderLoaded 才真正发一次请求
+    await ensureSenderLoaded(foundMsg.sender_id);
+    if (seq !== replyLoadSeq) return;
+    if (replyAccentColorId.value === undefined) {
+        replyAccentColorId.value = getSenderAccentColorId(foundMsg.sender_id);
     }
+    let senderName = getSenderName(foundMsg.sender_id) || t('preview.unknown');
 
     if (seq !== replyLoadSeq) return;
 
@@ -269,6 +267,7 @@ async function loadReplyData() {
         mediaType,
         thumbSrc,
         messageId: targetMsgId,
+        chatId: targetChatId,
     };
 }
 
@@ -334,7 +333,7 @@ function getMediaInfo(content: MessageContent, _msg: message): { mediaType: stri
 
 function jumpToMessage() {
     if (replyData.value) {
-        emit('jump', replyData.value.messageId);
+        emit('jump', replyData.value.messageId, replyData.value.chatId);
     }
 }
 </script>

@@ -4,15 +4,15 @@
       <!-- 用户信息：头像 + 名称 + 状态 -->
       <div class="flex items-center gap-3">
         <Avatar :photo="user?.profile_photo" :title="userName" :first-name="user?.first_name"
-          :last-name="user?.last_name" :deletedAccount="isDeleted"
-          sizeClass="!w-12 !h-12" />
+          :last-name="user?.last_name" :deletedAccount="isDeleted" sizeClass="!w-12 !h-12" />
         <div class="min-w-0 flex-1">
           <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{{ userName }}</p>
           <p class="text-xs text-gray-400 mt-0.5">{{ statusText }}</p>
         </div>
       </div>
 
-      <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+      <div
+        class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
         <div v-for="row in rows" :key="row.key" class="flex items-center gap-3 px-4 py-2.5"
           :class="row.locked ? 'opacity-50' : ''">
           <div class="min-w-0 flex-1">
@@ -25,14 +25,16 @@
       <!-- 限制时长：预设 + 自定义（≥60 秒） -->
       <div>
         <p class="text-xs font-medium text-blue-500 mb-1">{{ t('lng_rights_chat_banned_until_header') }}</p>
-        <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+        <div
+          class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
           <button v-for="opt in presetOptions" :key="opt.value" type="button"
             class="w-full flex items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
             @click="selectPreset(opt.value)">
             <span class="text-sm" :class="!isCustomSelected && duration === opt.value
               ? 'text-blue-500'
               : 'text-gray-800 dark:text-gray-100'">{{ opt.label }}</span>
-            <span class="radio-dot shrink-0" :class="!isCustomSelected && duration === opt.value ? 'radio-dot-on' : ''" />
+            <span class="radio-dot shrink-0"
+              :class="!isCustomSelected && duration === opt.value ? 'radio-dot-on' : ''" />
           </button>
           <button type="button"
             class="w-full flex items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
@@ -60,14 +62,13 @@
     <template #footer>
       <button type="button" @click="ban"
         class="px-4 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors">
-        {{ t('lng_ban_specific_user', { user: userName }) }}
+        {{ t('lng_rights_remove_member') }}
       </button>
-      <button type="button" class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
-        @click="close">{{ t('lng_cancel') }}</button>
-      <button type="button" @click="save" :disabled="saving || (isCustomSelected && !!customError)"
-        class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50">
+      <BaseButton type="button" variant="ghost" @click="close">{{ t('lng_cancel') }}</BaseButton>
+      <BaseButton type="button" @click="save" :disabled="saving || (isCustomSelected && !!customError)"
+        variant="primary">
         {{ saving ? t('lng_context_seen_loading') : t('lng_settings_save') }}
-      </button>
+      </BaseButton>
     </template>
   </ModalDialog>
 </template>
@@ -76,14 +77,15 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { toast } from '../../utils/toast';
-import ModalDialog from './ModalDialog.vue';
-import ToggleSwitch from './ToggleSwitch.vue';
+import ModalDialog from '../ui/modal/ModalDialog.vue';
+import ToggleSwitch from '../ui/toggle/ToggleSwitch.vue';
 import Avatar from '../chat/avatar.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import { defaultMemberPermissions, userNameOf, isDeletedMember, memberUserId } from '../../utils/groupRights';
 import { getReactiveUser } from '../../utils/senderInfo';
 import formatStatus from '../../utils/status';
 import type { chatMember, chatPermissions, MessageSender, user } from 'tdlib-types';
+import BaseButton from '../ui/button/BaseButton.vue';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -307,11 +309,11 @@ async function ban() {
   background: #3b82f6;
 }
 
-:global(html.dark .radio-dot){
+:global(html.dark .radio-dot) {
   border-color: #4b5563;
 }
 
-:global(html.dark .radio-dot-on){
+:global(html.dark .radio-dot-on) {
   border-color: #3b82f6;
 }
 </style>

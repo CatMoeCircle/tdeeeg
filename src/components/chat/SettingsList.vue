@@ -107,6 +107,7 @@ import {
     TerminalSquare as TerminalSquareIcon, Settings as SettingsIcon, UserCog as UserCogIcon,
     Shield as ShieldIcon, Laptop as LaptopIcon, Bell as BellIcon, Languages as LanguagesIcon,
     Sparkles as SparklesIcon,
+    Folder as FolderIcon,
 } from 'lucide-vue-next';
 import type { Component } from 'vue';
 import avatar from './avatar.vue';
@@ -261,6 +262,14 @@ const menuGroups = computed<SettingsMenuGroup[]>(() => {
                     tile: 'bg-purple-100 text-purple-600 dark:bg-purple-500/15 dark:text-purple-400',
                     title: t('lng_edit_channel_color'),
                     subtitle: `${t('lng_settings_section_chat_settings')}, ${t('lng_settings_section_background')}`,
+                },
+                {
+                    key: 'folders',
+                    to: '/home/settings/folders',
+                    icon: FolderIcon,
+                    tile: 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400',
+                    title: t('lng_filters_title'),
+                    subtitle: t('lng_filters_subtitle'),
                 },
                 {
                     key: 'notifications',

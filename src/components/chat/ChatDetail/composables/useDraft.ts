@@ -45,6 +45,12 @@ export function useDraft(deps: {
     let localDraftTimer: number | null = null;
     /** 待提交到 TDLib 的草稿（防抖窗口内切换聊天时，先冲刷旧聊天草稿，避免被新聊天覆盖丢失） */
     let pendingTdlibDraft: { cid: number; tid?: number | null; text?: string } | null = null;
+    /**
+     * 输入框当前内容归属哪个对话的草稿（null = 还没恢复过任何草稿）。
+     * 连点对话时中间那些对话根本没打开过、输入框是上一次切换清空的，
+     * 拿这份空输入去 saveDraft 会删掉它自己的本地缓存和 TDLib 草稿。
+     */
+    let draftOwnerKey: string | null = null;
 
     function draftTopicInput(tid?: number | null) {
         return buildMessageTopicInput(isDirectMessagesChat.value, tid);
@@ -158,6 +164,8 @@ export function useDraft(deps: {
         remoteDraft?: { content?: { _?: string; text?: { text?: string } } } | null,
     ) {
         const key = draftCacheKey(chatIdNum, tid);
+        // 输入框从现在起代表这个对话（无论有没有草稿），切走时据此判断该不该存
+        draftOwnerKey = key;
         const entry = draftCache.get(key);
         if (entry) {
             messageInput.value = entry.text;
@@ -227,8 +235,12 @@ export function useDraft(deps: {
         pendingCustomEmoji.value = [];
     });
 
+    /** 输入框内容当前是否就是该对话的草稿（连点中间对话从未恢复过 → false） */
+    const ownsInput = (cid: number, tid?: number | null) => draftOwnerKey === draftCacheKey(cid, tid);
+
     return {
         saveDraft,
+        ownsInput,
         restoreDraft,
         clearDraft,
         flushTdlibDraftNow,

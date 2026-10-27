@@ -89,3 +89,9 @@ export interface ToolErrorResult {
 
 /** 一次调用的产出：要么是结果信封，要么是结构化错误 */
 export type ToolOutcome = ToolResult<unknown> | ToolErrorResult;
+
+/** 成功时只回一个裸字符串（不包 JSON 信封）的结果，例如 set_conversation_title 只回 "OK" */
+export type ToolRawReply = "OK";
+
+/** 工具实现体的产出：结果信封 / 结构化错误 / 裸字符串成功 */
+export type ToolReply = ToolOutcome | ToolRawReply;

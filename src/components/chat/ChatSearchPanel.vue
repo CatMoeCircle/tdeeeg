@@ -214,7 +214,7 @@ import { getMessagePlainText } from '../../utils/messageText';
 import { folderTabClass as sharedFolderTabClass, folderTabContainerClass } from '../../utils/folderPillsTabClass';
 import Avatar from './avatar.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
-import SlidingTabBar from '../common/SlidingTabBar.vue';
+import SlidingTabBar from '../ui/tabs/SlidingTabBar.vue';
 import type { message, chat, publicPostSearchLimits, SearchMessagesFilter$Input, SearchChatTypeFilter$Input } from 'tdlib-types';
 
 const props = defineProps<{

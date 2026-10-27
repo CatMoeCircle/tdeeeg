@@ -18,6 +18,7 @@ import { initTheme } from "./store/theme";
 import { initNativeNotifications } from "./store/notifications";
 import { settings } from "./store/settings";
 import { loadAiProviders } from "./store/aiConfig";
+import { initAiTakeover } from "./utils/aiTakeover";
 import { bindWallpaperAccount, restoreWallpaperFromLocalCache } from "./utils/wallpaper";
 
 /**
@@ -91,6 +92,9 @@ export async function initTdlib() {
 
     // AI 供应商列表（后端保存）：非阻塞加载，供提供方可用性判断
     void loadAiProviders().catch((e) => console.error("Error loading AI providers:", e));
+
+    // 私聊 AI 接管：订阅新消息，按用户逐个授权的聊天自动回复
+    initAiTakeover();
 
     // Listen for initialization errors (e.g. invalid API ID/Hash)
     await listen("tdlib-init-error", (event) => {

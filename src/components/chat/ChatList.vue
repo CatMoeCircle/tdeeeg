@@ -57,7 +57,8 @@
                         :container-class="folderContainerClass" @select="switchToTab" class="max-h-14 shrink-0">
                         <template #default="{ tab, active }">
                             <!-- 分组图标（全部对话默认对话图标） -->
-                            <component :is="folderIcon(tab)" v-if="settings.showFolderIcons" class="w-3 h-3 shrink-0" />
+                            <component :is="folderIconFor(tab.iconName)" v-if="settings.showFolderIcons"
+                                class="w-3 h-3 shrink-0" />
                             <FormattedTextInline v-if="tab.formattedName" :formattedText="tab.formattedName"
                                 :size="12" />
                             <span v-else>{{ tab.name }}</span>
@@ -94,7 +95,7 @@
                         @scrollend="onTrackScrollEnd">
                         <!-- forum 模式只需渲染当前激活分组的单一页面（68px 头像列），
                              避免把全部分组页面并排渲染而露出相邻分组头像 -->
-                        <div v-for="tab in tabsWithContent" :key="tab.id" v-show="!forumMode || tab.id === activeTab"
+                        <div v-for="tab in renderedTabs" :key="tab.id" v-show="!forumMode || tab.id === activeTab"
                             v-smooth-wheel class="swipe-page h-full shrink-0 overflow-y-auto custom-scrollbar"
                             :class="forumMode ? 'w-17 px-0.5 py-1 forum-avatar-column gap-0.5' : 'w-full pl-1.5 pr-0.5 py-1'"
                             @scroll="(e: Event) => onScroll(e, tab.id)"
@@ -102,7 +103,7 @@
                             <!-- Forum Mode: compact avatar only -->
                             <template v-if="forumMode">
                                 <div v-for="chat in tab.chats" :key="chat.id" @click="selectForumChat(chat)"
-                                    v-context-menu="buildChatContextMenu(chat, tab.id)"
+                                    v-context-menu="() => buildChatContextMenu(chat, tab.id)"
                                     class="relative flex items-center justify-center py-2.5 cursor-pointer transition-colors hover:bg-white/70 dark:hover:bg-gray-800/70"
                                     :class="forumChatId === chat.id ? 'bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-lg' : ''"
                                     style="content-visibility: auto; contain-intrinsic-size: 68px">
@@ -169,7 +170,7 @@
                                     </div>
 
                                     <div v-for="chat in tab.chats" :key="chat.id" @click="selectChat(chat)"
-                                        v-context-menu="buildChatContextMenu(chat, tab.id)"
+                                        v-context-menu="() => buildChatContextMenu(chat, tab.id)"
                                         class="chat-list-item flex items-center p-2.5 mb-0.5 hover:bg-white/70 dark:hover:bg-gray-800/70 rounded-xl hover:shadow-(--box-shadow) cursor-pointer transition-colors"
                                         :class="{ 'bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50': selectedChatId === chat.id, 'ring-2 ring-blue-500': chatSelectionMode && selectedChatIds.has(chat.id) }"
                                         style="content-visibility: auto; contain-intrinsic-size: 72px">
@@ -228,12 +229,13 @@
                                                             class="text-[16px] shrink-0"
                                                             :title="t('lng_premium_summary_title')" />
                                                         <!-- 蓝 V 认证标识：显示在名称后面 -->
-                                                        <VerifiedFilledIcon v-else-if="isChatBlueVerified(chat)"
-                                                            class="text-blue-500 text-sm shrink-0"
-                                                            :title="t('profileBadges.verified')"
-                                                            :fillColor="['currentColor', 'transparent']"
-                                                            :strokeColor="['currentColor', '#0052d9']"
-                                                            :strokeWidth="1.5" />
+                                                        <VerifiedBadge v-else-if="isChatBlueVerified(chat)"
+                                                            class="text-sm"
+                                                            :title="t('profileBadges.verified')" />
+                                                        <!-- 频道私信标识：名称后面的灰色 DIRECT 小标 -->
+                                                        <span v-if="isChannelDirectMessagesChat(chat)"
+                                                            class="shrink-0 px-1 py-px rounded bg-gray-400/15 text-gray-500 dark:text-gray-400 text-[9px] font-semibold leading-4 tracking-wide"
+                                                            :title="t('lng_direct_badge')">{{ t('lng_direct_badge') }}</span>
                                                         <!-- 静音图标 -->
                                                         <BellOffIcon v-if="isChatMuted(chat)"
                                                             class="w-3.5 h-3.5 text-gray-400 shrink-0" />
@@ -294,6 +296,15 @@
                                                         class="shrink-0 min-w-4.5 h-4.5 px-1.5 rounded-full text-white text-[10px] font-semibold leading-4.5 text-center"
                                                         :class="isChatMuted(chat) ? 'bg-gray-400' : 'bg-blue-500'">
                                                         {{ formatUnreadCount(chat.unread_count) }}
+                                                    </span>
+                                                </div>
+                                                <!-- 分组标签：会员 + 分组标签开关打开时显示在预览下方 -->
+                                                <div v-if="folderTagsOf(chat).length"
+                                                    class="flex items-center gap-1 mt-0.5 overflow-hidden">
+                                                    <span v-for="tag in folderTagsOf(chat)" :key="tag.id"
+                                                        class="px-1.5 py-0.5 rounded-md text-[10px] font-medium leading-none truncate"
+                                                        :style="{ color: tag.color, backgroundColor: tag.color + '26' }">
+                                                        {{ tag.name }}
                                                     </span>
                                                 </div>
                                             </div>
@@ -465,9 +476,9 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
-import { ref, computed, watch, onMounted, onUnmounted, nextTick, type Component } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { ShieldAlert, BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon, UserIcon, UsersIcon, MegaphoneIcon, BotIcon, FolderIcon, BellOffIcon, PinIcon, ArchiveIcon, ChevronRightIcon, ArchiveRestore as ArchiveRestoreIcon, PinOff as PinOffIcon, FolderPlus as FolderPlusIcon, FolderMinus as FolderMinusIcon, BellRing as BellRingIcon, LogOut as LogOutIcon, CheckCheck as CheckCheckIcon, Trash2 as Trash2Icon, X as XIcon, Copy as CopyIcon, Plus as PlusIcon } from 'lucide-vue-next';
+import { ShieldAlert, BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon, UsersIcon, MegaphoneIcon, Folders as FoldersIcon, BellOffIcon, PinIcon, ArchiveIcon, ChevronRightIcon, ArchiveRestore as ArchiveRestoreIcon, PinOff as PinOffIcon, FolderPlus as FolderPlusIcon, FolderMinus as FolderMinusIcon, BellRing as BellRingIcon, LogOut as LogOutIcon, CheckCheck as CheckCheckIcon, Trash2 as Trash2Icon, X as XIcon, Copy as CopyIcon, Plus as PlusIcon } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
 import { settings } from '../../store/settings';
 import {
@@ -476,9 +487,10 @@ import {
     isChatGroup, isChatMuted, isChatPinned, DELETED_ACCOUNT_LABEL,
     getChatVerificationStatus, ensureChatVerificationLoaded,
     getChatEmojiStatus, emojiStatusCustomEmojiId, isChatPremiumUser,
+    getReactiveSupergroup,
 } from '../../utils/senderInfo';
 import PremiumStatusIcon from '../common/PremiumStatusIcon.vue';
-import { VerifiedFilledIcon } from 'tdesign-icons-vue-next';
+import VerifiedBadge from '../common/VerifiedBadge.vue';
 import { useChatStore } from '../../store/chat';
 import type { Chat } from '../../store/chat';
 import { useUserStore } from '../../store/user';
@@ -488,7 +500,7 @@ import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../utils/savedMess
 import Avatar from './avatar.vue';
 import StoryRing from '../story/StoryRing.vue';
 import StoryOverflowStrip from '../story/StoryOverflowStrip.vue';
-import type { message, forumTopic, forumTopics, formattedText } from 'tdlib-types';
+import type { message, forumTopic, forumTopics, formattedText, chatFolderInfo } from 'tdlib-types';
 import { tdlibSend } from '../../utils/tdlib';
 import type { ContextMenuItem } from '../contextMenu/types';
 import { toast } from '../../utils/toast';
@@ -503,10 +515,13 @@ import { markChatNavFromList } from '../../store/chatNav';
 import FormattedTextInline from './FormattedTextInline.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 import { folderTabClass as sharedFolderTabClass, folderTabContainerClass, UI_GLASS_SURFACE } from '../../utils/folderPillsTabClass';
+import { folderIconFor } from '../../utils/folderIcons';
+import { FOLDER_TAG_COLORS } from '../../utils/chatFolders';
+import { folderTagsEnabled, initFolderTags } from '../../store/folderTags';
 import MessagePreviewMedia from './MessagePreviewMedia.vue';
 import { albumCaptionCache, albumCacheKey } from './albumCaptionCache';
 import CustomEmojiInline from '../common/CustomEmojiInline.vue';
-import SlidingTabBar from '../common/SlidingTabBar.vue';
+import SlidingTabBar from '../ui/tabs/SlidingTabBar.vue';
 import ChatSearchPanel from './ChatSearchPanel.vue';
 import NewChatDialog from './NewChatDialog.vue';
 import DeleteChatConfirm from './DeleteChatConfirm.vue';
@@ -609,6 +624,8 @@ onMounted(async () => {
     }
     await chatStore.initListener();
     await chatStore.loadChatLists();
+    // 分组标签开关（TDLib option），决定对话卡片底部是否显示分组标签
+    await initFolderTags();
     // 确保初始落在当前 tab（例如从归档返回、恢复状态等）
     nextTick(() => {
         if (!forumMode.value) {
@@ -654,10 +671,27 @@ watch(() => chatStore.chatLists, async (lists) => {
     once: true,
 });
 
+/** 对话所属分组标签：分组标签开关打开、且分组有名称时才显示 */
+function folderTagsOf(chat: Chat): { id: number; name: string; color: string }[] {
+    if (!folderTagsEnabled.value) return [];
+    const folderLists = chat.chat_lists?.filter((l) => l._ === 'chatListFolder') ?? [];
+    if (folderLists.length === 0) return [];
+    const ids = new Set(folderLists.map((l) => (l as { chat_folder_id: number }).chat_folder_id));
+    return chatStore.chatLists
+        .filter((l): l is chatFolderInfo => l._ === 'chatFolderInfo' && ids.has(l.id))
+        .map((f) => ({
+            id: f.id,
+            name: f.name?.text?.text ?? '',
+            color: f.color_id >= 0 ? (FOLDER_TAG_COLORS[f.color_id] ?? '#65AADD') : '#8e8e93',
+        }))
+        .filter((tag) => !!tag.name);
+}
+
 /** 分组栏选项卡 */
 type ChatListTab = {
     id: string;
     name: string;
+    /** TDLib 分组图标名（chatFolderIcon.name） */
     iconName?: string;
     /** 分组名称富文本（含自定义 emoji 实体） */
     formattedName?: formattedText | null;
@@ -667,37 +701,20 @@ const tabs = computed<ChatListTab[]>(() => {
     if (props.isArchive) return [];
     return chatStore.chatLists.filter(list => list._ !== 'chatListArchive').map(list => {
         if (list._ === 'chatListMain') {
-            return { id: 'chatListMain', name: '全部', iconName: 'All' };
+            return { id: 'chatListMain', name: t('lng_filters_all_short'), iconName: 'All' };
         }
         if (list._ === 'chatFolderInfo') {
             const nameText = list.name?.text?.text;
             return {
                 id: `chat_folder_id${list.id}`,
-                name: nameText || '文件夹',
+                name: nameText || t('lng_sr_chat_folder'),
                 formattedName: nameText ? (list.name?.text ?? null) : null,
-                iconName: list.icon?.name
+                iconName: list.icon?.name,
             };
         }
         return { id: 'unknown', name: '未知' }
     });
 });
-
-// 分组图标映射（对应 TDLib chatFolderIcon.name，如 "All"、"Private"、"Groups"、"Channels"）
-const FOLDER_ICON_MAP: Record<string, Component> = {
-    All: MessageCircleIcon,
-    Unread: MessageCircleIcon,
-    Unmuted: MessageCircleIcon,
-    Bots: BotIcon,
-    Channels: MegaphoneIcon,
-    Groups: UsersIcon,
-    Private: UserIcon,
-};
-
-/** 分组选项卡图标：全部对话始终显示对话图标 */
-const folderIcon = (tab: { id: string; iconName?: string }): Component => {
-    if (tab.id === 'chatListMain') return MessageCircleIcon;
-    return FOLDER_ICON_MAP[tab.iconName || ''] || FolderIcon;
-};
 
 /** 分组选项卡按钮类（按样式变体 + 激活态，与 SlidingTabBar 配合） */
 function folderTabClass(id: string, active: boolean): string {
@@ -800,6 +817,23 @@ const tabsWithContent = computed(() => {
     }));
 });
 
+/**
+ * 首屏渲染窗口：每个分组页只挂载前 N 条对话，滚到底部再追加一批。
+ * 整份缓存列表一次性挂载时（对话多的账号 + 每个分组各一页）单次渲染可达
+ * 数百毫秒，之后每个 chat-update 都要把整表 patch 一遍、TransitionGroup
+ * 还要对每个子节点做 getBoundingClientRect 做 FLIP 测量。
+ */
+const LIST_WINDOW_INITIAL = 30;
+const LIST_WINDOW_STEP = 50;
+/** 各分组页各自的窗口：某个分组滚得很深，不应该顺手把别页也一起挂满 */
+const renderedLimits = ref<Record<string, number>>({});
+const renderedLimitOf = (tabId: string) => renderedLimits.value[tabId] ?? LIST_WINDOW_INITIAL;
+
+const renderedTabs = computed(() => tabsWithContent.value.map(tab => ({
+    id: tab.id,
+    chats: tab.chats.slice(0, renderedLimitOf(tab.id))
+})));
+
 // ==================== 换位动画节流锁 ====================
 // tdlib 在短时间内涌入大量更新时，lists 会被多次 flush 重建，每次都触发
 // 对话顺序变化 → TransitionGroup 频繁播放 FLIP 移动动画，造成视觉抖动。
@@ -841,7 +875,7 @@ function holdReorderAnimDuringListScroll() {
     }, LIST_SCROLL_REORDER_LOCK_MS);
 }
 
-watch(tabsWithContent, (tabs) => {
+watch(renderedTabs, (tabs) => {
     // 只关心真实顺序变化：内容/未读数更新不会触发 -move 动画，故不消耗锁额度
     let reordered = false;
     for (const tab of tabs) {
@@ -1369,9 +1403,9 @@ const buildChatContextMenu = (chat: Chat, listKey: string): ContextMenuItem[] =>
     if (folderChildren.length === 0) {
         items.push({
             key: 'folder',
-            label: t('lng_filters_menu_add'),
+            label: t('lng_filters_create'),
             icon: FolderPlusIcon,
-            disabled: true,
+            onClick: () => router.push('/home/settings/folders'),
         });
     } else {
         items.push({
@@ -1448,7 +1482,7 @@ function buildFolderMenu(chat: Chat): ContextMenuItem[] {
         const inFolder = isChatInFolder(chat, folderId);
         // 分组显示名：兼容 chatFolderInfo.name（chatFolderName.text.text）与旧的 title 形态；
         // 用 || 而非 ??，避免空字符串标题渲染成空项。
-        const name = folder.name?.text?.text || folder.title?.text?.text || `分组 ${folderId}`;
+        const name = folder.name?.text?.text || folder.title?.text?.text || t('lng_sr_chat_folder');
         // 加到分组：列出不在其中的分组
         if (!inFolder) {
             children.push({
@@ -1472,9 +1506,17 @@ function buildFolderMenu(chat: Chat): ContextMenuItem[] {
 
     // 若没有"移出"项，则把所有分组都列为"加到分组"供加入
     if (!addedOne && children.length === 0) {
-        // 没有任何可操作的文件夹时返回空数组（上方会显示禁用项）
+        // 没有任何可操作的文件夹时返回空数组（上方会显示「新建分组」）
         return [];
     }
+    // 末尾补一个管理入口（新建 / 编辑 / 删除分组）
+    children.push({
+        key: 'manage-folders',
+        label: t('lng_filters_setup_menu'),
+        icon: FoldersIcon,
+        divider: true,
+        onClick: () => router.push('/home/settings/folders'),
+    });
     return children;
 }
 
@@ -1523,13 +1565,24 @@ function isChatBlueVerified(chat: Chat): boolean {
         && !isChatPremiumStar(chat);
 }
 
+/**
+ * 是否为频道私信群组对话（超级群的 is_direct_messages_group）→ 显示 DIRECT 灰标。
+ * 群信息由 watch(renderedTabs) 里的 ensureChatVerificationLoaded 一并拉取，
+ * 此处读响应式缓存，数据到达后标记自动出现。
+ */
+function isChannelDirectMessagesChat(chat: Chat): boolean {
+    const t = chat.type;
+    if (t?._ !== 'chatTypeSupergroup') return false;
+    return !!getReactiveSupergroup(t.supergroup_id)?.is_direct_messages_group;
+}
+
 // 列表内容变化时异步加载发送者信息（用户/频道数据，缓存去重）
 //
 // 不用 deep：store.chats 是 shallowRef（对话对象是原始对象，没有深层响应式依赖），
-// 列表变了都是整条记录替换 → tabsWithContent 的值身份就变，deep 触发时机完全一样，
+// 列表变了都是整条记录替换 → renderedTabs 的值身份就变，deep 触发时机完全一样，
 // 只是每次多一次「全量对话对象图」深遍历（对话含 last_message 大对象，实测单次
 // 2ms 起，账号对话多时可达百毫秒级，是下载/更新风暴期间掉帧的主因之一）。
-watch(tabsWithContent, (list) => {
+watch(renderedTabs, (list) => {
     list.forEach(({ chats }) => {
         chats.forEach(c => {
             ensureSenderLoaded(c.last_message?.sender_id);
@@ -1564,9 +1617,15 @@ const onScroll = (e: Event, tabId: string) => {
     const target = e.currentTarget as HTMLElement;
     listLoadMoreRaf = requestAnimationFrame(() => {
         listLoadMoreRaf = 0;
-        if (target.scrollHeight - target.scrollTop <= target.clientHeight + 50) {
-            triggerLoadMore(tabId);
+        const remaining = target.scrollHeight - target.scrollTop - target.clientHeight;
+        // 距底部还有一屏时就追加渲染窗口，滚动不会在窗口末尾停顿
+        if (remaining <= target.clientHeight
+            && renderedLimitOf(tabId) < chatStore.getList(tabId).value.length) {
+            renderedLimits.value[tabId] = renderedLimitOf(tabId) + LIST_WINDOW_STEP;
+            return;
         }
+        // 本地已加载的对话都挂完了，才向 TDLib 要下一页
+        if (remaining <= 50) triggerLoadMore(tabId);
     });
 };
 

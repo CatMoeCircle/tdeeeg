@@ -186,8 +186,8 @@
                                     paidStarCount }}
                                 <img :src="starsSvg" alt="" class="w-4 h-4" /></span>
                         </div>
-                        <t-slider v-model="paidStarCount" :min="1" :max="PAID_STAR_MAX" :show-tooltip="true"
-                            :input-number-props="starInputNumberProps" />
+                        <SmoothSlider class="mt-1" v-model="paidStarCount" :min-value="1"
+                            :max-value="PAID_STAR_MAX" is-stepped :step-size="1" />
                         <p class="text-xs text-gray-400 mt-1.5 leading-relaxed">1 - {{
                             t('lng_action_gift_for_stars', { count: PAID_STAR_MAX }) }}</p>
                     </div>
@@ -243,11 +243,10 @@
                 @click="visible = false">
                 {{ t('lng_cancel') }}
             </button>
-            <button type="button" :disabled="!privacyReady || saving"
-                class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50"
+            <BaseButton type="button" :disabled="!privacyReady || saving" variant="primary"
                 @click="handleSave">
                 {{ saving ? t('lng_contacts_loading') : t('lng_settings_save') }}
-            </button>
+            </BaseButton>
         </template>
     </ModalDialog>
 </template>
@@ -266,12 +265,12 @@ export interface PrivacyItemDef {
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { onTdlibUpdate } from '../../store/tdlibBus';
 import { Check as CheckIcon } from 'lucide-vue-next';
-import { Slider as TSlider } from 'tdesign-vue-next';
+import SmoothSlider from '../ui/slider/SmoothSlider.vue';
 import { toast } from '../../utils/toast';
 import { useI18n } from 'vue-i18n';
 import starsSvg from '../../assets/stars.svg';
-import ModalDialog from './ModalDialog.vue';
-import ToggleSwitch from './ToggleSwitch.vue';
+import ModalDialog from '../ui/modal/ModalDialog.vue';
+import ToggleSwitch from '../ui/toggle/ToggleSwitch.vue';
 import PrivacyExceptionBlock, { type ExceptionEntry } from './PrivacyExceptionBlock.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import {
@@ -288,6 +287,7 @@ import type { chat as TdChat, UserPrivacySetting$Input, userPrivacySettingRules 
 import { useUserStore } from '../../store/user';
 import { storeToRefs } from 'pinia';
 import { useUserProfileStore } from '../../store/userProfile';
+import BaseButton from '../ui/button/BaseButton.vue';
 
 const props = defineProps<{
     modelValue: boolean;
@@ -670,7 +670,6 @@ type NewChatMode = 'everyone' | 'contacts_premium' | 'paid';
 const newChatMode = ref<NewChatMode>('everyone');
 const paidStarCount = ref(10);
 const PAID_STAR_MAX = 35000;
-const starInputNumberProps = { min: 1, max: PAID_STAR_MAX };
 const canEnablePaidMessages = ref(true);
 
 const newChatOptions = computed<{ value: NewChatMode; label: string }[]>(() => [

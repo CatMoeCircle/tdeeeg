@@ -8,10 +8,9 @@
       <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-500/10 text-blue-500 shrink-0">
         {{ t('lng_boost_level', { count: boostLevel }) }}
       </span>
-      <button type="button" @click="save" :disabled="saving"
-        class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 shrink-0">
+      <BaseButton type="button" @click="save" :disabled="saving" variant="primary" class="shrink-0">
         {{ t('lng_settings_save') }}
-      </button>
+      </BaseButton>
     </div>
 
     <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
@@ -173,6 +172,7 @@ import { accentColorStyle, accentAvatarBackground, useColors } from '../../store
 import { loadMyChatMemberStatus, isChannelChat } from '../../utils/groupRights';
 import { loadChatBoostInfo, minCustomBackgroundLevel, minEmojiStatusLevel } from '../../utils/chatBoost';
 import type { chat, chatBoostFeatures, accentColor, profileAccentColor } from 'tdlib-types';
+import BaseButton from '../../components/ui/button/BaseButton.vue';
 
 const route = useRoute();
 const router = useRouter();

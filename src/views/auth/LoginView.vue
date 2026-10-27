@@ -11,6 +11,9 @@ import { toast } from '../../utils/toast';
 import type { AuthorizationState, countryInfo } from "tdlib-types";
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import LoginSettingsMenu from "./LoginSettingsMenu.vue";
+import BaseButton from "../../components/ui/button/BaseButton.vue";
+import LoaderIndicator from "../../components/common/LoaderIndicator";
+import { ChevronDown as ChevronDownIcon } from "lucide-vue-next";
 import { useAccountsStore } from "../../store/accounts";
 import { preparePhoneLoginAfterQr } from "../../utils/tdlibParams";
 import { setPendingPhoneLogin, takePendingPhoneLogin } from "../../utils/authPending";
@@ -94,12 +97,15 @@ const selectedCountryFlag = computed(() => {
     return countryFlag(c);
 });
 
-/** 自定义过滤：只匹配 TDLib 返回的国家名 / 区号 / ISO 码 */
-function countryFilter(search: string, option: any): boolean {
-    if (!search) return true;
-    const kw = search.trim().toLowerCase();
-    const c = sortedCountries.value.find(x => x.country_code === option?.value);
-    if (!c) return false;
+// ─── 国家/地区下拉（自绘，替代 TDesign t-select） ───────────────────
+const countryDropdownOpen = ref(false);
+const countryQuery = ref("");
+const countryDropdownRef = ref<HTMLElement | null>(null);
+const countrySearchRef = ref<HTMLInputElement | null>(null);
+
+/** 单个国家是否命中搜索词：TDLib 返回的国家名 / 区号 / ISO 码 */
+function countryMatches(c: countryInfo, kw: string): boolean {
+    if (!kw) return true;
     return (
         c.english_name.toLowerCase().includes(kw) ||
         c.name.toLowerCase().includes(kw) ||
@@ -108,6 +114,37 @@ function countryFilter(search: string, option: any): boolean {
         c.country_code.toLowerCase().includes(kw)
     );
 }
+
+const filteredCountries = computed(() => {
+    const kw = countryQuery.value.trim().toLowerCase();
+    if (!kw) return sortedCountries.value;
+    return sortedCountries.value.filter((c) => countryMatches(c, kw));
+});
+
+function toggleCountryDropdown() {
+    if (loginPending.value) return;
+    countryDropdownOpen.value = !countryDropdownOpen.value;
+}
+
+function selectCountry(code: string) {
+    selectedCountry.value = code;
+    countryDropdownOpen.value = false;
+    countryQuery.value = "";
+}
+
+function onCountryDropdownClickOutside(e: MouseEvent) {
+    if (countryDropdownRef.value && !countryDropdownRef.value.contains(e.target as Node)) {
+        countryDropdownOpen.value = false;
+    }
+}
+
+watch(countryDropdownOpen, (open) => {
+    if (!open) {
+        countryQuery.value = "";
+        return;
+    }
+    nextTick(() => countrySearchRef.value?.focus());
+});
 
 /**
  * 用 awesome-phonenumber（getAsYouType）对号码做格式化显示。
@@ -487,6 +524,8 @@ onMounted(async () => {
 
     // 点击外部关闭账户下拉
     document.addEventListener('click', onDropdownClickOutside, true);
+    // 点击外部关闭国家/地区下拉
+    document.addEventListener('mousedown', onCountryDropdownClickOutside);
 });
 
 onUnmounted(() => {
@@ -504,6 +543,7 @@ onUnmounted(() => {
 
     // 移除点击外部关闭账户下拉
     document.removeEventListener('click', onDropdownClickOutside, true);
+    document.removeEventListener('mousedown', onCountryDropdownClickOutside);
 
     // 取消 TDLib 事件监听
     if (qrlinkupdate) {
@@ -528,36 +568,53 @@ onUnmounted(() => {
                 </p>
 
                 <div class="w-full max-w-xs mb-6 space-y-2">
-                    <div>
-                        <t-select v-model="selectedCountry" :placeholder="t('login.selectCountry')" filterable
-                            :filter="countryFilter" class="country-select" :disabled="loginPending"
-                            :popup-props="{
-                                overlayClassName: 'country-select-popup',
-                                overlayInnerStyle: {
-                                    borderRadius: '0.625rem',
-                                    maxHeight: 'min(240px, 40vh)',
-                                    overflowY: 'auto',
-                                    overflowX: 'hidden',
-                                }
-                            }">
-                            <template #valueDisplay>
-                                <span class="flex items-center gap-1.5 min-w-0">
-                                    <span class="country-flag emoji-font">{{ selectedCountryFlag }}</span>
-                                    <span class="truncate text-sm text-gray-800 dark:text-gray-100">{{ selectedCountryLabel(selectedCountry) }}</span>
-                                </span>
-                            </template>
-                            <t-option v-for="country in sortedCountries" :key="country.country_code"
-                                :value="country.country_code"
-                                :label="`${countryFlag(country)} +${country.calling_codes[0]} ${displayName(country)}`">
-                                <span class="flex items-center gap-1.5 w-full min-w-0">
-                                    <span class="country-flag emoji-font">{{ countryFlag(country) }}</span>
-                                    <span class="flex-1 min-w-0 truncate text-sm text-gray-800 dark:text-gray-100">{{
-                                        displayName(country) }}</span>
-                                    <span class="text-gray-400 text-xs shrink-0 tabular-nums">+{{
-                                        country.calling_codes[0] }}</span>
-                                </span>
-                            </t-option>
-                        </t-select>
+                    <!-- 国家/地区：自绘可搜索下拉（原先用 TDesign t-select + t-option） -->
+                    <div ref="countryDropdownRef" class="relative">
+                        <button type="button" :disabled="loginPending" :aria-expanded="countryDropdownOpen"
+                            aria-haspopup="listbox" @click="toggleCountryDropdown"
+                            class="w-full h-10 px-3 rounded-[0.625rem] border border-gray-300 dark:border-gray-600 bg-transparent flex items-center gap-2 text-left transition-colors hover:border-gray-400 disabled:opacity-60 disabled:cursor-not-allowed"
+                            :class="countryDropdownOpen ? 'border-blue-500' : ''">
+                            <span class="country-flag emoji-font">{{ selectedCountryFlag }}</span>
+                            <span class="flex-1 min-w-0 truncate text-sm" :class="selectedCountry
+                                ? 'text-gray-800 dark:text-gray-100' : 'text-gray-400'">
+                                {{ selectedCountryLabel(selectedCountry) || t('login.selectCountry') }}
+                            </span>
+                            <ChevronDownIcon class="w-4 h-4 shrink-0 text-gray-400 transition-transform duration-150"
+                                :class="countryDropdownOpen ? 'rotate-180' : ''" />
+                        </button>
+
+                        <Transition name="country-menu">
+                            <div v-if="countryDropdownOpen"
+                                class="absolute z-30 mt-1 w-full rounded-[0.625rem] border border-black/8 dark:border-white/10 bg-white dark:bg-gray-800 shadow-[0_8px_24px_rgba(0,0,0,0.12),0_1px_4px_rgba(0,0,0,0.06)] overflow-hidden">
+                                <div class="p-1 pb-0">
+                                    <input ref="countrySearchRef" v-model="countryQuery" type="text" spellcheck="false"
+                                        :placeholder="t('login.selectCountry')"
+                                        class="w-full px-2.5 py-1.5 mb-1 rounded-md text-sm bg-gray-50 dark:bg-gray-700/60 border border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-100 focus:outline-none focus:border-blue-500" />
+                                </div>
+                                <ul class="max-h-60 overflow-y-auto custom-scrollbar p-1 pt-0" role="listbox">
+                                    <li v-for="country in filteredCountries" :key="country.country_code">
+                                        <button type="button" role="option"
+                                            :aria-selected="country.country_code === selectedCountry"
+                                            class="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-left transition-colors"
+                                            :class="country.country_code === selectedCountry
+                                                ? 'bg-blue-50 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400'
+                                                : 'hover:bg-[var(--app-brand-softer)]'"
+                                            @click="selectCountry(country.country_code)">
+                                            <span class="country-flag emoji-font">{{ countryFlag(country) }}</span>
+                                            <span
+                                                class="flex-1 min-w-0 truncate text-sm text-gray-800 dark:text-gray-100">{{
+                                                    displayName(country) }}</span>
+                                            <span class="text-gray-400 text-xs shrink-0 tabular-nums">+{{
+                                                country.calling_codes[0] }}</span>
+                                        </button>
+                                    </li>
+                                    <li v-if="!filteredCountries.length"
+                                        class="px-2 py-3 text-xs text-gray-400 text-center">
+                                        {{ t('lng_settings_empty_bio') }}
+                                    </li>
+                                </ul>
+                            </div>
+                        </Transition>
                     </div>
                     <div
                         class="flex items-center border rounded-[0.625rem] h-10 px-3 transition-colors"
@@ -570,10 +627,11 @@ onUnmounted(() => {
                     </div>
 
                     <!-- 下一步：与输入框同宽同高同圆角；提交中禁用防重复点击 -->
-                    <t-button block class="login-next-btn" theme="primary" :loading="loginPending"
-                        :disabled="loginPending || !phoneNumber.trim()" @click="login">
+                    <BaseButton class="login-next-btn" :disabled="loginPending || !phoneNumber.trim()"
+                        @click="login">
+                        <LoaderIndicator v-if="loginPending" size="16" color="#ffffff" class="mr-1.5" />
                         {{ t('login.next') }}
-                    </t-button>
+                    </BaseButton>
                 </div>
 
                 <!-- 已登录账户切换 -->

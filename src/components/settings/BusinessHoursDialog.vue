@@ -88,10 +88,12 @@
                         </div>
                         <template v-if="d.enabled">
                             <div v-for="(iv, ivIdx) in d.intervals" :key="ivIdx" class="flex items-center gap-2 mt-2 ml-13">
-                                <TTimePicker v-model="iv.start" format="HH:mm" :placeholder="t('lng_auction_starts_label')"
+                                <input v-model="iv.start" type="time" step="60" inputmode="numeric"
+                                    :aria-label="t('lng_auction_starts_label')" :class="timeInputClass"
                                     class="flex-1 min-w-0" />
                                 <span class="text-gray-400 text-xs">-</span>
-                                <TTimePicker v-model="iv.end" format="HH:mm" :placeholder="t('lng_auction_end_label')"
+                                <input v-model="iv.end" type="time" step="60" inputmode="numeric"
+                                    :aria-label="t('lng_auction_end_label')" :class="timeInputClass"
                                     class="flex-1 min-w-0" />
                                 <button v-if="d.intervals.length > 1" type="button" @click="removeInterval(dayIndex, ivIdx)"
                                     class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0">
@@ -112,10 +114,9 @@
             </template>
 
             <div class="flex justify-end gap-2">
-                <button type="button" @click="saveBusinessHours" :disabled="savingHours"
-                    class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50">
+                <BaseButton type="button" @click="saveBusinessHours" :disabled="savingHours" variant="primary">
                     {{ savingHours ? t('editProfile.saving') : t('lng_settings_save') }}
-                </button>
+                </BaseButton>
             </div>
             <p v-if="hoursError" class="text-xs text-red-500">{{ hoursError }}</p>
         </div>
@@ -125,12 +126,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { TimePicker as TTimePicker } from 'tdesign-vue-next';
 import { toast } from '../../utils/toast';
-import ModalDialog from './ModalDialog.vue';
+import ModalDialog from '../ui/modal/ModalDialog.vue';
 import { tdlibSend } from '../../utils/tdlib';
 
 import type { userFullInfo, businessOpeningHoursInterval } from 'tdlib-types';
+import BaseButton from '../ui/button/BaseButton.vue';
 
 const props = defineProps<{
     modelValue: boolean;
@@ -151,6 +152,9 @@ const hoursEnabled = ref(true);
 const days = ref<{ name: string; enabled: boolean; intervals: { start: string; end: string }[] }[]>([]);
 
 const totalIntervals = computed(() => days.value.reduce((sum, d) => sum + (d.enabled ? d.intervals.length : 0), 0));
+
+/** 营业时段输入：原生 time 控件，值与下方 buildIntervals 的 "HH:mm" 字符串一一对应 */
+const timeInputClass = 'px-2 py-1 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500';
 
 function addInterval(dayIndex: number) {
     const d = days.value[dayIndex];

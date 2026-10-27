@@ -74,6 +74,8 @@ import { ensureLocalFilePath, tdlibSend } from '../../../../../utils/tdlib';
 import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
 import { ensureUser, getReactiveChat, getUserDisplayName } from '../../../../../utils/senderInfo';
 import { isChannelChat } from '../../../../../utils/groupRights';
+import { callDurationText } from '../../../../../utils/callMessage';
+import formatTime from '../../../../../utils/formatTime';
 import { hasReactions } from '../../../../../utils/reactionHelpers';
 import { useChatStore } from '../../../../../store/chat';
 import { useCommunityStore } from '../../../../../store/community';
@@ -189,6 +191,29 @@ const cardContent = computed(() => wallpaperContent.value ?? photoContent.value)
 
 /** 是否频道帖子：频道里的操作消息没有用户身份，文案要用 lng_action_*_channel 变体 */
 const isChannelPost = computed(() => props.message?.is_channel_post === true);
+
+/**
+ * 视频聊天 / 直播服务消息（messageVideoChat*）是否用「频道」文案：
+ * 频道里发起的是直播（Live stream），群组里是视频聊天，官方给了两套键。
+ */
+const channelScope = computed(() => isChannelPost.value || isChannel.value);
+
+/**
+ * 视频聊天预定时间文案：今天 / 明天用官方相对日期键，其余用「{date} at {time}」，
+ * 日期取当前语言的月日（与官方客户端一致）。
+ */
+function groupCallDateText(startDate: number): string {
+    if (!startDate) return '';
+    const time = formatTime(startDate);
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const daysAhead = Math.round((startOfDay(new Date(startDate * 1000)) - startOfDay(new Date())) / 86400000);
+    if (daysAhead === 0) return t('lng_group_call_starts_today', { time });
+    if (daysAhead === 1) return t('lng_group_call_starts_tomorrow', { time });
+    return t('lng_group_call_starts_date', {
+        date: new Date(startDate * 1000).toLocaleDateString(undefined, { month: 'long', day: 'numeric' }),
+        time,
+    });
+}
 
 /** 已下载就绪的壁纸缩略图 / 原图（asset 地址），未就绪时为空 */
 const wallpaperFileSrc = ref('');
@@ -725,8 +750,6 @@ const serviceText = computed<ServicePart[] | string | null>(() => {
             return c.text;
         case 'messageContactRegistered':
             return t('lng_action_user_registered', { from: sender.value });
-        case 'messageCall':
-            return c.is_video ? t('service.videoCall') : t('lng_settings_notifications_calls_title');
         case 'messageGameScore':
             return t('lng_action_game_score_no_game', { from: sender.value, count: c.score });
         case 'messagePaymentSuccessful':
@@ -771,6 +794,25 @@ const serviceText = computed<ServicePart[] | string | null>(() => {
             const tasks = joinNamesFormatted(labels, 'lng_action_todo_tasks_and_one', 'lng_action_todo_tasks_and_last');
             return [{ key: 'lng_action_todo_added', icon: 'tgico-todo-add', params: { from: sender.value, tasks } }];
         }
+        case 'messageVideoChatStarted':
+            // 频道里发起的是直播（Live stream），群组里是视频聊天，官方文案分两套键
+            return channelScope.value
+                ? t('lng_action_group_call_started_channel')
+                : t('lng_action_group_call_started_group', { from: sender.value });
+        case 'messageVideoChatEnded':
+            return channelScope.value
+                ? t('lng_action_group_call_finished', { duration: callDurationText(c.duration) })
+                : t('lng_action_group_call_finished_group', {
+                    from: sender.value,
+                    duration: callDurationText(c.duration),
+                });
+        case 'messageVideoChatScheduled':
+            return channelScope.value
+                ? t('lng_action_group_call_scheduled_channel', { date: groupCallDateText(c.start_date) })
+                : t('lng_action_group_call_scheduled_group', {
+                    from: sender.value,
+                    date: groupCallDateText(c.start_date),
+                });
         case 'messageProximityAlertTriggered':
             return t('service.proximityAlert');
         case 'messageChatAddedToCommunity': {

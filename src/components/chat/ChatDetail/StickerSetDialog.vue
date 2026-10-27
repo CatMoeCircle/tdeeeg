@@ -58,7 +58,7 @@ import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { MoreHorizontalIcon } from 'lucide-vue-next';
-import ModalDialog from '../../settings/ModalDialog.vue';
+import ModalDialog from '../../ui/modal/ModalDialog.vue';
 import MessageStickerContent from './MessageContent/content/MessageStickerContent.vue';
 import PremiumStickerBadge from '../../common/PremiumStickerBadge.vue';
 import { tdlibSend } from '../../../utils/tdlib';

@@ -25,6 +25,14 @@
                                 {{ currentUsername ? '@' + currentUsername : '' }}
                             </p>
                         </div>
+                        <!-- 快速切换明暗模式（单图标，无背景） -->
+                        <button type="button"
+                            class="shrink-0 p-1.5 rounded-lg transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                            :title="themeIsDark ? t('themeSettings.modeLight') : t('themeSettings.modeDark')"
+                            @click.stop="toggleMode">
+                            <SunIcon v-if="themeIsDark" class="w-4 h-4" />
+                            <MoonIcon v-else class="w-4 h-4" />
+                        </button>
                     </div>
 
                     <!-- 账户列表 -->
@@ -94,10 +102,9 @@
                             </p>
                         </div>
                         <div class="px-4 pb-4 flex items-center justify-end gap-3">
-                            <button type="button" @click="showAdd = false"
-                                class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                            <BaseButton type="button" @click="showAdd = false" variant="ghost">
                                 {{ t('lng_cancel') }}
-                            </button>
+                            </BaseButton>
                             <button type="button" @click="confirmAdd" :disabled="adding"
                                 class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:cursor-wait">
                                 {{ adding ? t('systemSettings.creating') : t('lng_continue') }}
@@ -127,22 +134,19 @@
                             <div class="space-y-3">
                                 <div>
                                     <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API ID</label>
-                                    <input v-model="customApiId" type="text" inputmode="numeric" :placeholder="t('systemSettings.apiIdPlaceholder')"
-                                        spellcheck="false"
-                                        class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+                                    <BaseInput v-model="customApiId" type="text" inputmode="numeric" :placeholder="t('systemSettings.apiIdPlaceholder')"
+                                        spellcheck="false" />
                                 </div>
                                 <div>
                                     <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API Hash</label>
-                                    <input v-model="customApiHash" type="text" :placeholder="t('systemSettings.apiHashPlaceholder')" spellcheck="false"
-                                        class="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:border-blue-500 focus:outline-none" />
+                                    <BaseInput v-model="customApiHash" type="text" :placeholder="t('systemSettings.apiHashPlaceholder')" spellcheck="false" />
                                 </div>
                             </div>
                         </div>
                         <div class="px-4 pb-4 flex items-center justify-end gap-3">
-                            <button type="button" @click="showAdd = false"
-                                class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                            <BaseButton type="button" @click="showAdd = false" variant="ghost">
                                 {{ t('lng_cancel') }}
-                            </button>
+                            </BaseButton>
                             <button type="button" @click="confirmAddCustom" :disabled="adding"
                                 class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:cursor-wait">
                                 {{ adding ? t('systemSettings.creating') : t('systemSettings.loginWithCustomApi') }}
@@ -160,13 +164,23 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { ref, computed, watch } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { UserPlus as UserPlusIcon, Check as CheckIcon, LogOut as LogOutIcon, AlertTriangle as AlertIcon } from 'lucide-vue-next';
+import {
+    UserPlus as UserPlusIcon,
+    Check as CheckIcon,
+    LogOut as LogOutIcon,
+    AlertTriangle as AlertIcon,
+    Sun as SunIcon,
+    Moon as MoonIcon,
+} from 'lucide-vue-next';
 import { toast } from '../utils/toast';
 import Avatar from './chat/avatar.vue';
 import { useUserStore } from '../store/user';
 import { useAccountsStore, type AccountInfo } from '../store/accounts';
 import { storeToRefs } from 'pinia';
 import { useRouter } from 'vue-router';
+import { isDark as themeIsDark, revealOriginOf, setModeWithReveal } from '../store/theme';
+import BaseButton from './ui/button/BaseButton.vue';
+import BaseInput from './ui/input/BaseInput.vue';
 
 const visible = defineModel<boolean>('visible', { default: false });
 const emit = defineEmits<{ (e: 'close'): void }>();
@@ -191,6 +205,14 @@ const currentName = computed(() => {
     return (userProfile.value.first_name || '') + ' ' + (userProfile.value.last_name || '');
 });
 const currentUsername = computed(() => userProfile.value?.usernames?.active_usernames?.[0] ?? '');
+
+/** 明暗模式快捷切换：深色下显示太阳（切浅色），浅色下显示月亮（切深色），带圆形蒙版过渡 */
+function toggleMode(e: MouseEvent) {
+    void setModeWithReveal(
+        themeIsDark.value ? 'light' : 'dark',
+        revealOriginOf(e.currentTarget as Element | null),
+    );
+}
 
 function avatarSrc(acc: AccountInfo): string | undefined {
     return acc.avatar_path ? convertFileSrc(acc.avatar_path) : undefined;

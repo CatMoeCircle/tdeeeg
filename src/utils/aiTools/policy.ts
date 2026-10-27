@@ -80,6 +80,10 @@ export function deniedTdlibMethod(method: string, params?: Record<string, unknow
       return "把成员设为已离开（退出群组 / 取消订阅）要用户自己操作";
     }
   }
+  // banChatMember 带上 revoke_messages = 顺手批量删该成员的消息，等同绕过上面的批量删除限制
+  if (method === "banChatMember" && params?.revoke_messages === true) {
+    return "封禁时连带删除该成员的全部消息要用户自己操作；请改用 ban_member（只封禁、不删消息）";
+  }
   return null;
 }
 

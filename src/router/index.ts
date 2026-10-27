@@ -75,6 +75,24 @@ const router = createRouter({
           component: () => import("../views/settings/AppearanceSettings.vue"),
         },
         {
+          // 聊天分组（文件夹）管理：新建 / 编辑 / 删除
+          path: "settings/folders",
+          name: "settings-folders",
+          component: () => import("../views/settings/FolderSettings.vue"),
+        },
+        {
+          // 新建分组（二级页，非弹窗）
+          path: "settings/folders/new",
+          name: "settings-folder-new",
+          component: () => import("../views/settings/FolderEditPage.vue"),
+        },
+        {
+          // 编辑分组
+          path: "settings/folders/:folderId",
+          name: "settings-folder-edit",
+          component: () => import("../views/settings/FolderEditPage.vue"),
+        },
+        {
           path: "settings/theme",
           name: "settings-theme",
           component: () => import("../views/settings/ThemeSettings.vue"),
@@ -88,6 +106,12 @@ const router = createRouter({
           path: "settings/download",
           name: "settings-download",
           component: () => import("../views/settings/DownloadSettings.vue"),
+        },
+        {
+          // 存储占用详情（精确统计 getStorageStatistics，从数据设置页进入）
+          path: "settings/storage",
+          name: "settings-storage",
+          component: () => import("../views/settings/StorageSettings.vue"),
         },
         {
           path: "settings/notifications",
@@ -120,6 +144,12 @@ const router = createRouter({
           path: "settings/ai/tools",
           name: "settings-ai-tools",
           component: () => import("../views/settings/AiToolsSettings.vue"),
+        },
+        {
+          // 私聊 AI 接管：逐个选聊天、选接管方式（模仿我 / AI 接管）、上下文压缩
+          path: "settings/ai/takeover",
+          name: "settings-ai-takeover",
+          component: () => import("../views/settings/AiTakeoverSettings.vue"),
         },
         {
           path: "settings/translate",

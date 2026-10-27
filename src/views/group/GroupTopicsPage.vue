@@ -5,10 +5,9 @@
         <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
       </button>
       <h2 class="text-lg font-semibold flex-1">{{ t('lng_edit_topics_enable') }}</h2>
-      <button type="button" @click="save" :disabled="saving"
-        class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 shrink-0">
+      <BaseButton type="button" @click="save" :disabled="saving" variant="primary" class="shrink-0">
         {{ t('lng_settings_save') }}
-      </button>
+      </BaseButton>
     </div>
 
     <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
@@ -61,10 +60,11 @@ import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ChevronLeft as ChevronLeftIcon } from 'lucide-vue-next';
 import { toast } from '../../utils/toast';
-import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
+import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import { loadMyChatMemberStatus } from '../../utils/groupRights';
 import type { chat, supergroup } from 'tdlib-types';
+import BaseButton from '../../components/ui/button/BaseButton.vue';
 
 const route = useRoute();
 const router = useRouter();

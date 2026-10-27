@@ -101,12 +101,19 @@
         </div>
 
         <!-- 跳过审核的风险确认：只在这里放行一次开关，之后按设置生效 -->
-        <t-dialog :visible="!!skipDialog" :header="t('aiTools.skipConfirmTitle')"
-            :confirm-btn="t('aiTools.skipConfirmOk')" :cancel-btn="t('aiTools.cancel')"
-            @update:visible="onSkipDialogVisible" @confirm="confirmSkip">
+        <ModalDialog :model-value="!!skipDialog" :title="t('aiTools.skipConfirmTitle')"
+            @update:model-value="onSkipDialogVisible">
             <p class="text-sm text-gray-600 dark:text-gray-300">
                 {{ t('aiTools.skipConfirmBody', { tool: skipDialog }) }}</p>
-        </t-dialog>
+            <template #footer>
+                <BaseButton variant="ghost" size="sm" @click="onSkipDialogVisible(false)">
+                    {{ t('aiTools.cancel') }}
+                </BaseButton>
+                <BaseButton size="sm" @click="confirmSkip">
+                    {{ t('aiTools.skipConfirmOk') }}
+                </BaseButton>
+            </template>
+        </ModalDialog>
     </div>
 </template>
 
@@ -126,7 +133,9 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { invoke } from '@tauri-apps/api/core';
 import { ChevronLeft as ChevronLeftIcon } from 'lucide-vue-next';
-import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
+import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
+import ModalDialog from '../../components/ui/modal/ModalDialog.vue';
+import BaseButton from '../../components/ui/button/BaseButton.vue';
 import { settings } from '../../store/settings';
 import { toast } from '../../utils/toast';
 import { TOOLS } from '../../utils/aiTools/registry.ts';

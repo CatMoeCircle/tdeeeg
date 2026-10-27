@@ -58,7 +58,7 @@
 import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import ModalDialog from '../../settings/ModalDialog.vue';
+import ModalDialog from '../../ui/modal/ModalDialog.vue';
 import Avatar from '../avatar.vue';
 import { tdlibSend } from '../../../utils/tdlib';
 import {

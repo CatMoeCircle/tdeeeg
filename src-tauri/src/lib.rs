@@ -20,12 +20,22 @@ fn set_window_effect(
     window: tauri::WebviewWindow,
     effect: String,
     dark: Option<bool>,
+    // true = 应用主题「跟随系统」：窗口明暗交还给系统，不要钉死
+    follow_system: Option<bool>,
 ) -> Result<(), String> {
     use tauri::window::{Effect, EffectsBuilder};
     use tauri::Theme;
 
     // Win11 acrylic / mica 的明暗由窗口 Theme 驱动；切换主题时应带 dark 一并设置。
-    if let Some(d) = dark {
+    //
+    // 注意「跟随系统」：窗口 Theme 一经 set_theme(Some(..)) 就被 tao 记为 preferred_theme，
+    // 之后系统主题变化时 tao 的 update_theme 会直接 return，而 tauri 又会把窗口 Theme 同步成
+    // WebView2 的 SetPreferredColorScheme —— 前端 prefers-color-scheme 从此被钉死在应用自己
+    // 选的明暗上，matchMedia 既读不到系统真实偏好，也收不到 change 事件，
+    // 「跟随系统」于是完全失效。所以这里必须传 None 让窗口回到跟随系统。
+    if follow_system.unwrap_or(false) {
+        window.set_theme(None).map_err(|e| e.to_string())?;
+    } else if let Some(d) = dark {
         let theme = if d { Theme::Dark } else { Theme::Light };
         window.set_theme(Some(theme)).map_err(|e| e.to_string())?;
     }
@@ -166,6 +176,16 @@ async fn read_clipboard_image(state: tauri::State<'_, tdlib::AppState>) -> Resul
     .await
     .map_err(|e| format!("clipboard read task failed: {e}"))?
 }
+/// 托盘/单实例等入口统一的「显示主窗口」：先解除最小化，再显示并置于前台。
+/// 只 show()+set_focus() 时，Windows 上最小化窗口不会恢复、被遮挡窗口也可能不提到最前。
+fn reveal_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Windows 走 wry（WebView2），Linux / macOS 走 CEF（Chromium）。
@@ -184,10 +204,7 @@ pub fn run() {
             tauri_plugin_single_instance::Builder::new()
                 .callback(|app, _argv, _cwd| {
                     // 第二个实例启动时，聚焦已有窗口
-                    if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    }
+                    reveal_main_window(app);
                 })
                 .build(),
         )
@@ -204,10 +221,12 @@ pub fn run() {
         // 不恢复 VISIBLE：插件默认会在 setup 阶段直接 show()，导致 TDLib
         // 授权态尚未确认时窗口就弹出。可见性始终由 tauri.conf.json
         // (visible:false) + 前端 bootstrap 完成后再 show() 控制。
+        // Web 代理载体（proxy_carrier）的隐藏窗口是临时的，不进窗口状态文件。
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(tauri_plugin_window_state::StateFlags::all()
                     & !tauri_plugin_window_state::StateFlags::VISIBLE)
+                .with_filter(|label| !label.starts_with(tdlib::WINDOW_LABEL_PREFIX))
                 .build(),
         )
         .setup(|app| {
@@ -271,8 +290,6 @@ pub fn run() {
             // feature，建 D-Bus 连接时要求当前线程在 tokio runtime 里（否则
             // "there is no reactor running" panic）。setup 在主线程跑，这里借一下
             // tauri 的 tokio runtime 给创建过程一个上下文。
-            // ponytail: 这层包装只是为了绕开 rfd 强制的 tokio feature；哪天能
-            // 只用 rfd 的 async-std/xdg-portal（zbus 走 async-io）就可以删掉。
             // 托盘是可选功能：没有 StatusNotifierWatcher（裸 WM、部分 Wayland 桌面、
             // 容器里的 WSLg）时只记日志，不能让启动直接失败。
             let _tray = match tauri::async_runtime::block_on(async {
@@ -283,10 +300,7 @@ pub fn run() {
                     .show_menu_on_left_click(false)
                     .on_menu_event(move |app, event| match event.id.as_ref() {
                         "show" => {
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                            }
+                            reveal_main_window(app);
                         }
                         "quit" => {
                             app.exit(0);
@@ -300,11 +314,7 @@ pub fn run() {
                             ..
                         } = event
                         {
-                            let app = tray.app_handle();
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                            }
+                            reveal_main_window(tray.app_handle());
                         }
                     })
                     .build(app)
@@ -341,6 +351,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             tdlib::init_tdlib,
             tdlib::tdlib_send,
+            tdlib::get_story_seed_updates,
             tdlib::set_tdlib_parameters,
             tdlib::set_proxy_config,
             tdlib::restart_tdlib,
@@ -395,6 +406,7 @@ pub fn run() {
             ai::ai_translate::save_ai_search_key,
             ai::ai_chat::ai_chat,
             ai::ai_chat::ai_chat_stream,
+            ai::ai_chat::ai_complete,
             ai::ai_chat::ai_web_search,
             ai::ai_chat::ai_chat_cancel,
             ai::ai_conversations::ai_conversation_create,

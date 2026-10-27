@@ -6,10 +6,9 @@
                 <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
             </button>
             <h2 class="text-lg font-semibold flex-1">{{ t('lng_settings_information') }}</h2>
-            <button type="button" @click="saveProfile" :disabled="savingProfile"
-                class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 shrink-0">
+            <BaseButton type="button" @click="saveProfile" :disabled="savingProfile" variant="primary" class="shrink-0">
                 {{ savingProfile ? t('editProfile.saving') : t('lng_settings_save') }}
-            </button>
+            </BaseButton>
         </div>
 
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
@@ -138,8 +137,10 @@
                                 </button>
                             </div>
                             <div v-if="birthdayEditing" class="flex flex-wrap items-center gap-3">
-                                <TDatePicker v-model="birthdatePickerValue" mode="date" format="YYYY-MM-DD" clearable
-                                    :style="{ width: '180px' }" @change="(v) => saveBirthdate(v as string)" />
+                                <!-- 原生日期选择：值与 birthdatePickerValue 同为 YYYY-MM-DD，改动即保存（与原清空 = 不提交的行为一致） -->
+                                <input v-model="birthdatePickerValue" type="date" :max="todayIso"
+                                    :class="dateInputClass" class="w-45"
+                                    @change="saveBirthdate(birthdatePickerValue)" />
                                 <label class="flex items-center gap-2 cursor-pointer select-none shrink-0"
                                     @click.prevent="setHideYear(!hideYear)">
                                     <button type="button" role="switch" :aria-checked="hideYear"
@@ -300,7 +301,6 @@ import {
     ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Clock as ClockIcon,
     MapPin as MapPinIcon, Megaphone as MegaphoneIcon, Phone as PhoneIcon,
 } from 'lucide-vue-next';
-import { DatePicker as TDatePicker } from 'tdesign-vue-next';
 import { toast } from '../../utils/toast';
 import Avatar from '../../components/chat/avatar.vue';
 import AvatarEditorDialog from '../../components/settings/AvatarEditorDialog.vue';
@@ -319,6 +319,7 @@ import { parsePhoneNumber } from 'awesome-phonenumber';
 import { useI18n } from 'vue-i18n';
 
 import type { user as TdUser, userFullInfo, chatPhoto, chat, birthdate } from 'tdlib-types';
+import BaseButton from '../../components/ui/button/BaseButton.vue';
 
 const router = useRouter();
 const { t } = useI18n();
@@ -504,6 +505,12 @@ async function onUsernameChanged() {
 const birthdateInfo = computed<birthdate | undefined>(() => fullInfo.value?.birthdate);
 const birthdatePickerValue = ref('');
 const hideYear = ref(false);
+/** 生日只允许过去：今天（本地时区 YYYY-MM-DD）作为 max */
+const todayIso = (() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+})();
+const dateInputClass = 'px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500';
 const birthdayEditing = ref(false);
 const savingBirthdate = ref(false);
 

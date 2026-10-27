@@ -21,6 +21,8 @@ pub struct ProxyConfig {
     pub username: String,
     pub password: String,
     pub secret: String,
+    /// proxyTypeWeb 的 relay 基础路径（不带首尾斜杠，可为空）
+    pub path: String,
     pub comment: String,
 }
 
@@ -35,6 +37,7 @@ impl Default for ProxyConfig {
             username: String::new(),
             password: String::new(),
             secret: String::new(),
+            path: String::new(),
             comment: String::new(),
         }
     }
@@ -91,6 +94,13 @@ fn build_add_proxy_req(cfg: &ProxyConfig) -> serde_json::Value {
         }),
         "mtproto" => json!({
             "@type": "proxyTypeMtproto",
+            "secret": cfg.secret,
+        }),
+        // TDLib 1.8.69：Web 代理（MTProto 走隐藏 webview 里的 HTTPS relay 页面）。
+        // TDLib 要求 server 是域名、port 固定 443、secret 为 16 字节十六进制（可带 0xdd 前缀）。
+        "web" => json!({
+            "@type": "proxyTypeWeb",
+            "path": cfg.path,
             "secret": cfg.secret,
         }),
         _ => json!({
@@ -167,6 +177,7 @@ pub fn set_proxy_config(
     username: Option<String>,
     password: Option<String>,
     secret: Option<String>,
+    path: Option<String>,
     comment: Option<String>,
 ) -> Result<(), String> {
     let cfg = {
@@ -195,6 +206,9 @@ pub fn set_proxy_config(
         }
         if let Some(v) = secret {
             cfg.secret = v;
+        }
+        if let Some(v) = path {
+            cfg.path = v;
         }
         if let Some(v) = comment {
             cfg.comment = v;
@@ -258,5 +272,14 @@ mod tests {
             proxy_requests(&cfg)[0]["proxy"]["type"]["@type"],
             "proxyTypeMtproto"
         );
+
+        // Web 代理：path + secret 都要带过去
+        cfg.proxy_type = "web".into();
+        cfg.path = "relay".into();
+        cfg.secret = "00112233445566778899aabbccddeeff".into();
+        let req = &proxy_requests(&cfg)[0]["proxy"]["type"];
+        assert_eq!(req["@type"], "proxyTypeWeb");
+        assert_eq!(req["path"], "relay");
+        assert_eq!(req["secret"], "00112233445566778899aabbccddeeff");
     }
 }

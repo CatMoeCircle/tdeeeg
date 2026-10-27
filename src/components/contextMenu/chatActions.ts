@@ -1,4 +1,5 @@
 import { tdlibSend } from "../../utils/tdlib";
+import { removeFolderChat } from "../../utils/chatFolders";
 import { toast } from "../../utils/toast";
 import i18n from "../../i18n";
 import type { Chat } from "../../store/chat";
@@ -99,12 +100,16 @@ export async function toggleChatInFolder(
     names?: { chat?: string; folder?: string },
 ) {
     try {
-        await tdlibSend({
-            _: 'addChatToList',
-            chat_id: chatId,
-            // chrome: TDLib 用 chatFolder 列表封装文件夹 id
-            chat_list: { _: 'chatListFolder', chat_folder_id: folderId } as any,
-        });
+        if (add) {
+            await tdlibSend({
+                _: 'addChatToList',
+                chat_id: chatId,
+                // chrome: TDLib 用 chatFolder 列表封装文件夹 id
+                chat_list: { _: 'chatListFolder', chat_folder_id: folderId } as any,
+            });
+        } else {
+            await removeChatFromFolder(chatId, folderId);
+        }
         const chat = names?.chat ?? String(chatId);
         const folder = names?.folder ?? String(folderId);
         toast.success(
@@ -115,6 +120,25 @@ export async function toggleChatInFolder(
     } catch (e: any) {
         toast.error(e?.message || t('context.actionFailed'));
     }
+}
+
+/**
+ * 把对话移出分组：TDLib 没有 removeChatFromList，只能读回 chatFolder 再 editChatFolder。
+ * 数组运算规则见 utils/chatFolders（显式包含直接摘掉，规则隐式包含改写为排除）。
+ */
+async function removeChatFromFolder(chatId: number, folderId: number) {
+    const folder = await tdlibSend({ _: 'getChatFolder', chat_folder_id: folderId } as any) as any;
+    const ids = removeFolderChat(folder, chatId);
+    await tdlibSend({
+        _: 'editChatFolder',
+        chat_folder_id: folderId,
+        folder: {
+            ...folder,
+            pinned_chat_ids: ids.pinned,
+            included_chat_ids: ids.included,
+            excluded_chat_ids: ids.excluded,
+        } as any,
+    });
 }
 
 /** 关闭通知（静音） */
@@ -179,9 +203,11 @@ export async function getChatListsToAdd(chatId: number): Promise<{ id: number; t
                 // 获取文件夹标题
                 try {
                     const folder = await tdlibSend({ _: 'getChatFolder', chat_folder_id: id }) as any;
-                    folders.push({ id, title: folder?.title?.text ?? t('context.folderFallback', { id }) });
+                    // chatFolder.name.text.text 是分组名；老版本返回 title 形态时兜底
+                    const title = folder?.name?.text?.text || folder?.title?.text;
+                    folders.push({ id, title: title || t('lng_sr_chat_folder') });
                 } catch {
-                    folders.push({ id, title: t('context.folderFallback', { id }) });
+                    folders.push({ id, title: t('lng_sr_chat_folder') });
                 }
             }
         }

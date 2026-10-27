@@ -151,6 +151,41 @@
                         </p>
                     </div>
 
+                    <!-- 磁盘占用总览（getStorageStatisticsFast，进入后看精确明细） -->
+                    <div class="mb-6">
+                        <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('storage.overview') }}</h4>
+
+                        <button type="button" @click="openStorageDetail"
+                            class="w-full text-left rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden hover:border-blue-400 dark:hover:border-blue-500/60 transition-colors">
+                            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                                <span class="text-sm text-gray-600 dark:text-gray-300">{{ t('storage.files') }}</span>
+                                <span class="text-xs text-gray-500">{{ fastLabel(fast?.files_size) }}</span>
+                            </div>
+                            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                                <span class="text-sm text-gray-600 dark:text-gray-300">{{ t('storage.database') }}</span>
+                                <span class="text-xs text-gray-500">{{ fastLabel(fast?.database_size) }}</span>
+                            </div>
+                            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                                <span class="text-sm text-gray-600 dark:text-gray-300">{{ t('storage.languagePack') }}</span>
+                                <span class="text-xs text-gray-500">{{ fastLabel(fast?.language_pack_database_size) }}</span>
+                            </div>
+                            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                                <span class="text-sm text-gray-600 dark:text-gray-300">{{ t('storage.log') }}</span>
+                                <span class="text-xs text-gray-500">{{ fastLabel(fast?.log_size) }}</span>
+                            </div>
+                            <div class="flex items-center justify-between px-4 py-3 bg-gray-50/70 dark:bg-gray-900/20">
+                                <div>
+                                    <span class="text-sm font-medium text-gray-700 dark:text-gray-200">{{ t('storage.total') }}</span>
+                                    <p class="text-[11px] text-gray-400 mt-0.5">{{ t('storage.detailHint') }}</p>
+                                </div>
+                                <div class="flex items-center gap-1 shrink-0">
+                                    <span class="text-sm font-medium text-gray-700 dark:text-gray-200">{{ fastLabel(fast ? fastTotal : undefined) }}</span>
+                                    <ChevronRightIcon class="w-4 h-4 text-gray-300 dark:text-gray-600" />
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+
                     <!-- 数据统计 -->
                     <div class="mb-6">
                         <h4 class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">{{ t('download.stats') }}</h4>
@@ -218,15 +253,18 @@ const { t } = useI18n();
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { invoke } from '@tauri-apps/api/core';
+import type { storageStatisticsFast } from 'tdlib-types';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { toast } from '../../utils/toast';
-import { AppWindowIcon, ChevronLeft as ChevronLeftIcon, FolderOpenIcon, FolderSyncIcon } from 'lucide-vue-next';
+import { tdlibSend } from '../../utils/tdlib';
+import { formatSize } from '../../utils/format';
+import { AppWindowIcon, ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, FolderOpenIcon, FolderSyncIcon } from 'lucide-vue-next';
 import { settings } from '../../store/settings';
 import type { AutoDownloadByType } from '../../store/settings';
-import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
-import CollapsibleSection from '../../components/settings/CollapsibleSection.vue';
-import ChatTypeToggle from '../../components/settings/ChatTypeToggle.vue';
-import EditableNumber from '../../components/settings/EditableNumber.vue';
+import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
+import CollapsibleSection from '../../components/ui/collapse/CollapsibleSection.vue';
+import ChatTypeToggle from '../../components/ui/toggle/ChatTypeToggle.vue';
+import EditableNumber from '../../components/ui/input/EditableNumber.vue';
 
 const router = useRouter();
 
@@ -281,15 +319,31 @@ const dataMode = computed(() => dataInfo.value.mode);
 const migrating = ref(false);
 const progressMessage = ref('');
 
-let unlistenFn: UnlistenFn | null = null;
+// ===== 磁盘占用总览（近似值，精确明细见 /home/settings/storage）=====
+const fast = ref<storageStatisticsFast | null>(null);
+const fastTotal = computed(() => {
+    const f = fast.value;
+    return f ? f.files_size + f.database_size + f.language_pack_database_size + f.log_size : 0;
+});
 
-function formatSize(bytes: number): string {
-    if (!bytes) return '0 B';
-    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-    const val = bytes / Math.pow(1024, i);
-    return (val >= 100 ? val.toFixed(0) : val.toFixed(1)) + ' ' + units[i];
+/** 统计未返回时显示占位符，避免误报 0 B */
+function fastLabel(size?: number): string {
+    return size === undefined ? '—' : formatSize(size);
 }
+
+function openStorageDetail() {
+    router.push('/home/settings/storage');
+}
+
+async function loadFastStats() {
+    try {
+        fast.value = await tdlibSend({ _: 'getStorageStatisticsFast' });
+    } catch (e) {
+        console.error('getStorageStatisticsFast failed:', e);
+    }
+}
+
+let unlistenFn: UnlistenFn | null = null;
 
 async function loadDataInfo() {
     try {
@@ -334,6 +388,7 @@ async function startMigration() {
 
 onMounted(async () => {
     await loadDataInfo();
+    loadFastStats();
     unlistenFn = await listen<MigrationProgress>('data-migration-progress', (event) => {
         const p = event.payload;
         progressMessage.value = p.message || t('download.processing');

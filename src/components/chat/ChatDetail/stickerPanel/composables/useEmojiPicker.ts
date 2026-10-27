@@ -1,8 +1,9 @@
-import { computed, ref, watch } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 import type { sticker } from 'tdlib-types';
 import { tdlibSend } from '../../../../../utils/tdlib';
 import { enqueueViewportLoad } from '../../../../../utils/viewportLoadGate';
-import { EMOJI_PAYLOAD } from '../data/emojiPayload';
+import type { EmojiPayloadCategory } from '../data/emojiPayload';
+import { loadEmojiPayload } from '../data/emojiPayloadLoader';
 import { useLocalEmojiPrefs } from './useLocalEmojiPrefs';
 import { useCustomEmojiData } from './useCustomEmojiData';
 
@@ -53,8 +54,8 @@ export function useEmojiPicker(opts: {
   /** 已解析的最近 custom emoji stickers */
   const recentCustomStickers = ref<sticker[]>([]);
 
-  /** 本地 8 大分类（含最近/收藏前置区由渲染层决定） */
-  const categories = EMOJI_PAYLOAD;
+  /** 本地 8 大分类（含最近/收藏前置区由渲染层决定）；activate 时按需加载后填入 */
+  const categories = shallowRef<EmojiPayloadCategory[]>([]);
 
   /** 有搜索词时显示搜索结果 */
   const hasQuery = computed(() => query.value.trim().length > 0);
@@ -62,6 +63,7 @@ export function useEmojiPicker(opts: {
   async function activate() {
     active.value = true;
     opts.activate?.();
+    categories.value = await loadEmojiPayload();
     await loadRecentCustom();
     await customData.ensureInstalledCustomEmoji();
     await customData.ensureTrendingCustomEmoji();
@@ -114,7 +116,8 @@ export function useEmojiPicker(opts: {
     const local: EmojiSearchResult[] = [];
     // 本地：匹配分类里的 emoji（按 native 前缀）
     const lower = q.toLowerCase();
-    for (const cat of categories) {
+    // 搜索可能早于 activate 完成，这里保证数据已就绪（已缓存时为即时 resolve）
+    for (const cat of await loadEmojiPayload()) {
       for (const it of cat.items) {
         if (local.length >= 50) break;
         if (it.emoji.includes(lower) || lower.includes(it.emoji)) {

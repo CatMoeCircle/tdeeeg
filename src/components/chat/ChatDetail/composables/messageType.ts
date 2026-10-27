@@ -86,6 +86,9 @@ export const SERVICE_TYPES: ReadonlySet<string> = new Set([
   "messagePassportDataSent",
   "messagePassportDataReceived",
   "messageProximityAlertTriggered",
+  "messageVideoChatStarted",
+  "messageVideoChatEnded",
+  "messageVideoChatScheduled",
   "messagePaidMedia",
   "messageChecklistTasksDone",
   "messageChecklistTasksAdded",
@@ -96,7 +99,6 @@ export const SERVICE_TYPES: ReadonlySet<string> = new Set([
   "messageSuggestedPostDeclined",
   "messageSuggestedPostPaid",
   "messageSuggestedPostRefunded",
-  "messageCall",
 ]);
 
 /**
@@ -226,6 +228,17 @@ export function isInlineTimeMessage(msg: message): boolean {
  */
 export function isServiceMessage(msg: message): boolean {
   return SERVICE_TYPES.has(msg.content._);
+}
+
+/**
+ * 判断消息是否把状态画在内容里（通话结束消息：类型下方跟着「时间[, 时长]」）。
+ * 这类消息不再渲染气泡底部的状态行（时间 / 已读勾），避免重复。
+ *
+ * @param msg - 待判断的 TDLib 消息对象
+ * @returns 状态在内容里返回 `true`，否则返回 `false`
+ */
+export function hasStatusInContent(msg: message): boolean {
+  return msg.content._ === "messageCall";
 }
 
 /**

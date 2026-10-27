@@ -58,7 +58,7 @@ import { useAudioPlayerStore } from '../../../../../store/audioPlayer';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import RichMediaDownload from './RichMediaDownload.vue';
 import RichCaption from './RichCaption.vue';
-import SmoothSlider from '../../../../common/SmoothSlider.vue';
+import SmoothSlider from '../../../../ui/slider/SmoothSlider.vue';
 
 const props = defineProps<{
     audio?: audio | null;

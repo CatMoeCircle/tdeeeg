@@ -418,7 +418,7 @@ const query = computed({
     set: (v: string) => picker.setQuery(v),
 });
 
-const categories = computed(() => picker.categories);
+const categories = computed(() => picker.categories.value);
 const hasQuery = computed(() => picker.hasQuery.value);
 const searching = computed(() => picker.searching.value);
 const searchResults = computed(() => picker.searchResults.value);
@@ -877,6 +877,9 @@ defineExpose({ activate: picker.activate, deactivate: picker.deactivate });
 /* 每个 emoji 分类/区块：垂直堆叠，上下滑动浏览 */
 .sp-emoji-section {
     margin-bottom: 6px;
+    /* 视口外的分类不参与布局/绘制；占位高度避免滚动条跳动 */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 240px;
 }
 
 .sp-emoji-section:first-child {
@@ -1008,10 +1011,10 @@ defineExpose({ activate: picker.activate, deactivate: picker.deactivate });
     background: rgba(128, 128, 128, 0.12);
 }
 
-/* 顶部胶囊里的包封面：去掉内层自身的底色/圆角形状，避免与胶囊选中底色叠成两层 */
+/* 顶部胶囊里的包封面：去掉内层自身的底色与圆角，避免与胶囊选中底色叠成两层 */
 .sp-cats-row :deep(.sp-media-item),
 .sp-cats-row :deep(.sp-media-ph) {
-    border-radius: 50%;
+    border-radius: 0;
     background: transparent;
 }
 

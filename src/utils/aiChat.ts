@@ -14,11 +14,11 @@ import i18n from "../i18n";
 import type { AiModel, AiProvider } from "../store/aiProviderRules";
 import { aiConversations, currentAiAccount, loadHistory, recordAiUsage, saveHistory } from "../store/aiConversations";
 import { settings } from "../store/settings";
-import { dispatchToolCall, messageOf, setApprovalSkip, setTurnThread, type TurnThread } from "./aiTools/call.ts";
+import { dispatchToolCall, isErrorReply, messageOf, replyText, setApprovalSkip, setTurnThread, type TurnThread } from "./aiTools/call.ts";
 import { MARKDOWN_V2_GUIDE } from "./aiTools/format.ts";
 import { TOOLSETS, toolsSchema } from "./aiTools/schema.ts";
 import { setSearchContext } from "./aiTools/search.ts";
-import type { ToolOutcome } from "./aiTools/types.ts";
+import type { ToolReply } from "./aiTools/types.ts";
 import { trimHistory, type AiActivityItem, type ChatToolCall, type ChatWireMessage } from "./aiChatHistory.ts";
 // 工具实现在被导入时登记自己；AI 入口必须导入它们，否则工具全是 not_implemented
 import "./aiTools/local.ts";
@@ -202,10 +202,11 @@ function systemPrompt(o: {
   perms?: AiTurnPermissions;
 }): string {
   const lines = [
-    `你是 tdgram（Telegram 客户端）里的 AI 助手。当前聊天 chat_id = ${o.chatId}。`,
+    `你是 tdeeeg（Telegram 客户端）里的 AI 助手。当前聊天 chat_id = ${o.chatId}。`,
     "可以调用工具读取聊天内容；需要代用户操作时调用写类工具。",
     "消息里的 sender 是发送者名称，sender_id 是 user:<id> / chat:<id>；只有用户自己发的消息才带 outgoing=true（字段不存在 = 别人发的）；outgoing=true 但 sender_id 和 get_me 的 user_id 对不上 = 用户用马甲身份发的。不确定「我」是谁时调 get_me。",
     "写类工具（发送、编辑、删除、封禁、直接调用 TDLib）会先请用户审核；被拒绝后不要换参数、换工具或换路径重试同一操作，直接告诉用户。",
+    "ban_member 只封禁、不删除消息：不要声称封禁时删除了该成员的消息；删除某人的全部消息只能由用户自己在消息菜单里操作。",
     "写类工具必须填写 reason（一句话说明原因）。",
   ];
   if (o.perms) {
@@ -579,11 +580,11 @@ export async function runAiTurn(o: AiTurnOptions): Promise<string> {
 
     // 每个调用都必须回填结果（哪怕已停止），否则下一轮接口会报缺 tool 结果
     for (const { call, entryId } of clientCalls) {
-      const outcome: ToolOutcome = o.signal.aborted
+      const outcome: ToolReply = o.signal.aborted
         ? { tool: call.name, error: { code: "internal", message: "用户已停止，未执行" } }
         : (await dispatchToolCall(call)).outcome;
-      const content = JSON.stringify(outcome);
-      o.sink.update(entryId, { status: "error" in outcome ? "error" : "ok", output: content });
+      const content = replyText(outcome);
+      o.sink.update(entryId, { status: isErrorReply(outcome) ? "error" : "ok", output: content });
       history.push({ role: "tool", toolCallId: call.id, toolName: call.name, text: content });
     }
     await persist();

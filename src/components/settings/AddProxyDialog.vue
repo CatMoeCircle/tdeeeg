@@ -26,7 +26,7 @@
                                     :class="form.type === pt.value
                                         ? 'bg-blue-500 text-white'
                                         : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'"
-                                    @click="form.type = pt.value as any">
+                                    @click="selectType(pt.value)">
                                     {{ pt.label }}
                                 </button>
                             </div>
@@ -49,8 +49,17 @@
                             </div>
                         </div>
 
-                        <!-- MTProto 密文 -->
-                        <div v-if="form.type === 'mtproto'">
+                        <!-- Web（TDLib 1.8.69）：relay 基础路径 -->
+                        <div v-if="form.type === 'web'">
+                            <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{{
+                                t('proxy.pathLabel') }}</label>
+                            <input type="text" v-model.trim="form.path"
+                                :placeholder="t('proxy.pathPlaceholder')"
+                                class="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        </div>
+
+                        <!-- MTProto / Web 密文 -->
+                        <div v-if="form.type === 'mtproto' || form.type === 'web'">
                             <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{{
                                 t('proxy.secretLabel') }}</label>
                             <input type="text" v-model.trim="form.secret"
@@ -59,7 +68,7 @@
                         </div>
 
                         <!-- SOCKS5 / HTTP 用户名密码 -->
-                        <template v-if="form.type !== 'mtproto'">
+                        <template v-if="form.type === 'http' || form.type === 'socks5'">
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
                                     <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{{
@@ -93,10 +102,9 @@
                     </div>
 
                     <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
-                        <button type="button" @click="close"
-                            class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700">
+                        <BaseButton type="button" @click="close" variant="ghost">
                             {{ t('lng_cancel') }}
-                        </button>
+                        </BaseButton>
                         <button type="button" @click="submitAdd" :disabled="adding"
                             class="px-4 py-2 rounded-lg text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-60 disabled:cursor-wait">
                             {{ adding ? t('proxy.adding') : t('lng_stickers_featured_add') }}
@@ -118,6 +126,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { settings } from '../../store/settings';
 import { addProxyTo } from '../../store/proxyList';
 import type { addedProxy } from 'tdlib-types';
+import BaseButton from '../ui/button/BaseButton.vue';
 
 const props = defineProps<{
     modelValue: boolean;
@@ -133,23 +142,36 @@ const proxyTypes = [
     { value: "http", label: "HTTP" },
     { value: "socks5", label: "SOCKS5" },
     { value: "mtproto", label: "MTProto" },
+    { value: "web", label: "Web" },
 ] as const;
 
 const adding = ref(false);
 const form = reactive({
-    type: "http" as "http" | "socks5" | "mtproto",
+    type: "http" as "http" | "socks5" | "mtproto" | "web",
     server: "",
     port: "",
     username: "",
     password: "",
     secret: "",
+    path: "",
     comment: "",
     enable: true,
 });
 
+/** 切换类型：Web 代理的端口固定 443（TDLib 要求） */
+function selectType(type: "http" | "socks5" | "mtproto" | "web") {
+    form.type = type;
+    if (type === "web") {
+        form.port = "443";
+    } else if (form.port === "443" && !form.server) {
+        // 空表单切走时不要把 443 留下来
+        form.port = "";
+    }
+}
+
 function resetForm() {
     Object.assign(form, {
-        type: "http", server: "", port: "", username: "", password: "", secret: "", comment: "", enable: true,
+        type: "http", server: "", port: "", username: "", password: "", secret: "", path: "", comment: "", enable: true,
     });
 }
 
@@ -191,13 +213,19 @@ async function submitAdd() {
     }
     adding.value = true;
     try {
-        const type: any = form.type === "mtproto"
-            ? { _: "proxyTypeMtproto", secret: form.secret.trim() }
-            : {
+        let type: any;
+        if (form.type === "mtproto") {
+            type = { _: "proxyTypeMtproto", secret: form.secret.trim() };
+        } else if (form.type === "web") {
+            // proxyTypeWeb：server 必须是域名、端口固定 443，path 可以留空
+            type = { _: "proxyTypeWeb", path: form.path.trim(), secret: form.secret.trim() };
+        } else {
+            type = {
                 _: form.type === "socks5" ? "proxyTypeSocks5" : "proxyTypeHttp",
                 username: form.username,
                 password: form.password,
             };
+        }
         const added = await addProxyTo({
             server: form.server.trim(),
             port,

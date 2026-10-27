@@ -44,8 +44,8 @@
     </div>
 
     <template #footer>
-      <button type="button" class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
-        @click="close">{{ t('lng_cancel') }}</button>
+      <BaseButton type="button" variant="ghost"
+        @click="close">{{ t('lng_cancel') }}</BaseButton>
       <button type="button" :disabled="!canCreate || creating"
         class="px-4 py-2 rounded-lg text-sm bg-blue-500 text-white hover:bg-blue-600 transition-colors disabled:opacity-50"
         @click="create">
@@ -66,12 +66,13 @@ import { Camera as CameraIcon, ChevronRight as ChevronRightIcon, Users as UsersI
 import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { toast } from '../../utils/toast';
-import ModalDialog from '../settings/ModalDialog.vue';
+import ModalDialog from '../ui/modal/ModalDialog.vue';
 import GroupUserPickerDialog from '../settings/GroupUserPickerDialog.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import { markChatNavFromList } from '../../store/chatNav';
 import { isDeletedUser, DELETED_ACCOUNT_LABEL } from '../../utils/senderInfo';
 import type { chat, createdBasicGroupChat, user } from 'tdlib-types';
+import BaseButton from '../ui/button/BaseButton.vue';
 
 const props = defineProps<{
   modelValue: boolean;

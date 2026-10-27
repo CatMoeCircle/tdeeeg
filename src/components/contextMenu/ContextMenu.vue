@@ -85,7 +85,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { CheckIcon, ChevronRightIcon } from "lucide-vue-next";
-import { visible, x, y, items, closeContextMenu, closeContextMenuDelayed } from "../../store/contextMenu";
+import { visible, x, y, items, anchored, closeContextMenu, closeContextMenuDelayed } from "../../store/contextMenu";
 import type { ContextMenuItem } from "./types";
 
 const menuRoot = ref<HTMLElement | null>(null);
@@ -249,6 +249,11 @@ function positionMenuInViewport() {
     const h = root.offsetHeight;
     let left = x.value;
     let top = y.value;
+    // 锚定模式（如顶栏「更多」按钮）：x 为菜单右缘、y 为菜单顶部，位置固定，不跟随鼠标点击处
+    if (anchored.value) {
+        left = x.value - w;
+        top = y.value;
+    }
     const margin = 8;
     // 四边夹紧，确保整段菜单位于视口内（含左/上边界）
     if (left + w > window.innerWidth - margin) left = Math.max(margin, window.innerWidth - w - margin);
@@ -258,8 +263,8 @@ function positionMenuInViewport() {
     menuStyle.value = { left: left + 'px', top: top + 'px' };
 }
 
-// 右键坐标或可见性变化时重定位父菜单（响应式单一样式源）
-watch([x, y, visible], () => {
+// 右键坐标、锚点或可见性变化时重定位父菜单（响应式单一样式源）
+watch([x, y, anchored, visible], () => {
     openSubIdx.value = null;
     if (visible.value) {
         nextTick().then(positionMenuInViewport);

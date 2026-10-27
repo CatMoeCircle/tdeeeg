@@ -4,7 +4,7 @@
         <!-- 动态反应动画（getEmojiReaction → select/activate animation）；
              进入视口播一次，离开视口暂停，再次回到视口从头重播 -->
         <TgsPlayer v-if="state.ready && state.format === 'tgs' && state.tgsSrc" ref="tgsRef" :src="state.tgsSrc"
-            :loop="false" :autoplay="false" :size="mediaSize" class="reac-anim-media" />
+            :loop="false" :autoplay="false" :size="mediaSize" class="reac-anim-media" @load="playOnce" />
         <video v-else-if="state.ready && (state.format === 'webm' || state.format === 'mpeg4') && state.src"
             ref="videoRef" :src="state.src" muted playsinline class="reac-anim-media object-contain"
             :style="mediaBoxStyle" />
@@ -111,10 +111,11 @@ onBeforeUnmount(() => {
     unobserveVisibility(rootEl.value);
 });
 
-// 媒体就绪晚于进入视口时，补播一次
+// 媒体就绪晚于进入视口时，补播一次。flush: 'post' 保证 tgsRef/videoRef 已随本轮渲染挂载；
+// TGS 的引擎就绪由 @load="playOnce" 兜底（worker 在 init 前会丢弃 control 指令）。
 watch(() => state.ready, (ready) => {
     if (ready && inView.value) playOnce();
-});
+}, { flush: 'post' });
 </script>
 
 <style scoped>

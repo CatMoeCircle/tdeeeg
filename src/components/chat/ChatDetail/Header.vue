@@ -60,10 +60,8 @@
                                 class="ml-1 shrink-0" />
                             <PremiumStatusIcon v-else-if="headerPremiumStar"
                                 class="ml-1 text-[18px] shrink-0" :title="t('lng_premium_summary_title')" />
-                            <VerifiedFilledIcon v-else-if="headerBlueVerified"
-                                class="text-blue-500 ml-1 shrink-0" :title="t('profileBadges.verified')"
-                                :fillColor="['currentColor', 'transparent']"
-                                :strokeColor="['currentColor', '#0052d9']" :strokeWidth="1.5" />
+                            <VerifiedBadge v-else-if="headerBlueVerified"
+                                class="ml-1" :title="t('profileBadges.verified')" />
                         </h2>
                         <span class="text-xs text-gray-400 truncate">
                             <template v-if="isTopicMode">
@@ -114,7 +112,7 @@ import {
     SearchIcon, MoreHorizontalIcon, ArrowLeftIcon, BookmarkIcon, PanelLeftIcon, PanelTopIcon, PanelBottomIcon,
     BellOffIcon, BellRingIcon, ZapIcon, EraserIcon, CircleQuestionMarkIcon, FlagIcon, BanIcon, LanguagesIcon,
 } from 'lucide-vue-next';
-import { VerifiedFilledIcon } from 'tdesign-icons-vue-next';
+import VerifiedBadge from '../../common/VerifiedBadge.vue';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useI18n } from 'vue-i18n';
@@ -136,6 +134,7 @@ import { confirmReportMessage } from '../../../store/reportMessage';
 import { muteChat, unmuteChat } from '../../contextMenu/chatActions';
 import { toast } from '../../../utils/toast';
 import type { ContextMenuItem } from '../../contextMenu/types';
+import Avatar from '../avatar.vue';
 
 const props = defineProps<{
     chat: chat | undefined;
@@ -385,7 +384,12 @@ function openMoreMenu(e: MouseEvent) {
     }
 
     if (items.length === 0) return;
-    openContextMenu(e.clientX, e.clientY, items, e.currentTarget as HTMLElement);
+    // 锚定到「更多」按钮：菜单固定弹出在按钮下方、右缘对齐标题栏胶囊（贴齐顶栏右缘），不随鼠标点击位置变化
+    const btn = e.currentTarget as HTMLElement;
+    const rect = btn.getBoundingClientRect();
+    const pill = btn.closest('div.rounded-full');
+    const right = pill ? pill.getBoundingClientRect().right : rect.right;
+    openContextMenu(right, rect.bottom + 6, items, btn, null, null, false, true);
 }
 
 /** 头部头像的无头像背景色（私聊取用户 profile accent，群组取 chat profile accent） */

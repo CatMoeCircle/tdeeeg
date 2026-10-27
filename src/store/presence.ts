@@ -17,6 +17,8 @@ const IDLE_TIMEOUT = 300_000; // 5 分钟
 export const usePresenceStore = defineStore("presence", () => {
     /** 最近一次汇报给 TDLib 的状态；null 表示未知（以 TDLib 推送回写为准） */
     const isUserOnline = ref<boolean | null>(null);
+    /** 最近一次用户操作（鼠标 / 键盘 / 触摸）的时间戳；接管时机判定也用这个 */
+    const lastActivityAt = ref(Date.now());
 
     let unlisten: (() => void) | null = null;
     /** 空闲检测定时器句柄 */
@@ -46,6 +48,7 @@ export const usePresenceStore = defineStore("presence", () => {
     // ─── 空闲检测 ──────────────────────────────────────────
 
     function resetIdleTimer(): void {
+        lastActivityAt.value = Date.now();
         if (idleTimer) clearTimeout(idleTimer);
         if (idle) {
             idle = false;
@@ -109,5 +112,5 @@ export const usePresenceStore = defineStore("presence", () => {
         document.removeEventListener("touchstart", resetIdleTimer);
     }
 
-    return { isUserOnline, init, destroy };
+    return { isUserOnline, lastActivityAt, init, destroy };
 });

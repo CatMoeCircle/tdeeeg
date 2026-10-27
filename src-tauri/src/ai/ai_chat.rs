@@ -400,6 +400,32 @@ fn prepare(
     Ok((lm, options))
 }
 
+/// llmsdk 的一次生成结果 → 前端用的 ChatReply（ai_chat / ai_complete 共用，别抄第二遍）。
+fn to_reply(result: llmsdk::GenerateResult) -> ChatReply {
+    let mut reply = ChatReply::default();
+    for part in result.content {
+        match part {
+            Content::Text(t) => reply.text.push_str(&t.text),
+            Content::Reasoning(r) => reply.reasoning.push_str(&r.text),
+            Content::ToolCall(c) => reply.tool_calls.push(ChatToolCall {
+                id: c.tool_call_id,
+                name: c.tool_name,
+                arguments: c.input,
+                provider_executed: c.provider_executed,
+            }),
+            _ => {}
+        }
+    }
+    let u = result.usage;
+    reply.usage = ChatUsage {
+        input_tokens: u.input_tokens.total,
+        output_tokens: u.output_tokens.total,
+        cached_tokens: u.input_tokens.cache_read,
+        cache_write_tokens: u.input_tokens.cache_write,
+    };
+    reply
+}
+
 /// 单次对话请求（可带工具），一次性返回。`tools` 是 toolsSchema() 的结果，`effort` 为思考等级键（可空）。
 /// 流式入口是 ai_chat_stream；这个留着做流式不可用时的兜底。
 #[tauri::command]
@@ -432,34 +458,37 @@ pub async fn ai_chat(
         .do_generate(options)
         .await
         .map_err(|e| format!("AI 对话失败: {e}"))?;
+    Ok(to_reply(result))
+}
 
-    let mut reply = ChatReply {
-        text: String::new(),
-        reasoning: String::new(),
-        tool_calls: Vec::new(),
-        usage: ChatUsage::default(),
-    };
-    for part in result.content {
-        match part {
-            Content::Text(t) => reply.text.push_str(&t.text),
-            Content::Reasoning(r) => reply.reasoning.push_str(&r.text),
-            Content::ToolCall(c) => reply.tool_calls.push(ChatToolCall {
-                id: c.tool_call_id,
-                name: c.tool_name,
-                arguments: c.input,
-                provider_executed: c.provider_executed,
-            }),
-            _ => {}
-        }
-    }
-    let u = result.usage;
-    reply.usage = ChatUsage {
-        input_tokens: u.input_tokens.total,
-        output_tokens: u.output_tokens.total,
-        cached_tokens: u.input_tokens.cache_read,
-        cache_write_tokens: u.input_tokens.cache_write,
-    };
-    Ok(reply)
+/// 一次性补全：`messages` 就是完整 prompt（system 在最前），不带会话历史、不带工具。
+///
+/// 私聊接管（模仿 / AI 接管 / 上下文压缩）用它：接管的会话历史由前端自己攒、自己压缩，
+/// 写进 AI 会话表反而会跟用户在 AI 输入框里的对话互相污染，所以这里直接不碰历史。
+#[tauri::command]
+pub async fn ai_complete(
+    app: tauri::AppHandle,
+    provider_id: String,
+    model: String,
+    messages: Vec<ChatMessage>,
+    effort: Option<String>,
+    max_output_tokens: Option<u32>,
+) -> Result<ChatReply, String> {
+    let (lm, options) = prepare(
+        &app,
+        &provider_id,
+        &model,
+        messages,
+        Vec::new(),
+        effort,
+        max_output_tokens,
+        false,
+    )?;
+    let result = lm
+        .do_generate(options)
+        .await
+        .map_err(|e| format!("AI 对话失败: {e}"))?;
+    Ok(to_reply(result))
 }
 
 /// 流式累积：把 StreamPart 拼回一次完整回复（前端只看增量画界面，业务逻辑用这个结果，

@@ -232,7 +232,7 @@
                     <div class="flex items-center gap-2.5 mb-2.5">
                         <span
                             class="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-                            <UserInvisibleIcon size="18px" />
+                            <UserInvisibleIcon class="w-4.5 h-4.5" />
                         </span>
                         <h3 class="text-[15px] font-semibold text-gray-900 dark:text-white">
                             {{ t('lng_stealth_mode_title') }}</h3>
@@ -297,13 +297,6 @@ import { openContextMenu } from "../../store/contextMenu";
 import { onTdlibUpdate } from "../../store/tdlibBus";
 import type { ContextMenuItem } from "../contextMenu/types";
 import {
-    CopyIcon,
-    LinkIcon,
-    SoundIcon,
-    CloseIcon,
-    UserInvisibleIcon,
-} from "tdesign-icons-vue-next";
-import {
     XIcon,
     ChevronLeftIcon,
     ChevronRightIcon,
@@ -316,6 +309,12 @@ import {
     SendIcon,
     EyeIcon,
     ShareIcon,
+    // 右键菜单项图标（原先来自 tdesign-icons-vue-next）
+    CopyIcon,
+    Link2 as LinkIcon,
+    Volume2 as SoundIcon,
+    X as CloseIcon,
+    EyeOff as UserInvisibleIcon,
 } from "lucide-vue-next";
 
 const PHOTO_DURATION_MS = 5000;

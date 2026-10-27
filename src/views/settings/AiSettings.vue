@@ -131,6 +131,29 @@
                     </button>
                 </section>
 
+                <!-- ===== 私聊 AI 接管：逐个选聊天，模仿我 / AI 接管两种方式 ===== -->
+                <section class="mb-8">
+                    <div class="flex items-center gap-3 mb-3">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            {{ t('aiSettings.takeoverSection') }}</h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <button type="button"
+                        class="flex w-full items-center gap-3 px-3 py-2.5 text-left rounded-2xl bg-white/55 dark:bg-gray-800/45 backdrop-blur-md border border-white/50 dark:border-gray-700/40 hover:bg-white/80 dark:hover:bg-gray-800/80 transition-colors"
+                        @click="router.push({ name: 'settings-ai-takeover' })">
+                        <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400">
+                            <BotIcon class="w-[18px] h-[18px]" />
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                                {{ t('aiSettings.takeoverManage') }}</h3>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                                {{ t('aiSettings.takeoverDesc') }}</p>
+                        </div>
+                        <ChevronRightIcon class="w-4 h-4 text-gray-400 shrink-0" />
+                    </button>
+                </section>
+
                 <!-- ===== 供应商与模型 ===== -->
                 <div class="flex items-center gap-3 mb-3">
                     <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -250,7 +273,9 @@
 
                             <label class="block">
                                 <span class="text-xs text-gray-500">{{ t('aiSettings.protocol') }}</span>
-                                <t-select v-model="draft.format" :options="formatOptions" size="small" class="mt-1 w-full" />
+                                <SelectMenu class="mt-1 w-full" size="sm" :model-value="draft.format"
+                                    :options="formatOptions"
+                                    @update:model-value="(v: string) => (draft.format = v)" />
                             </label>
                         </div>
                     </div>
@@ -309,23 +334,29 @@
                                 <div v-if="m.open" class="grid grid-cols-2 gap-2 px-1 pt-2 pb-0.5">
                                     <label class="flex flex-col gap-1 min-w-0">
                                         <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('aiSettings.metaContextLabel') }}</span>
-                                        <t-select v-model="m.contextLength" :options="contextOptions" size="small"
-                                            class="w-full" filterable creatable
-                                            :placeholder="t('aiSettings.metaUnset')" />
+                                        <SelectMenu class="w-full" size="sm" filterable
+                                            :model-value="String(m.contextLength)" :options="contextOptions"
+                                            :placeholder="t('aiSettings.metaUnset')"
+                                            @update:model-value="(v: string) => (m.contextLength = Number(v) || 0)" />
                                     </label>
                                     <label class="flex flex-col gap-1 min-w-0">
                                         <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('aiSettings.metaOutputLabel') }}</span>
-                                        <t-select v-model="m.maxOutput" :options="outputOptions" size="small"
-                                            class="w-full" filterable creatable
-                                            :placeholder="t('aiSettings.metaUnset')" />
+                                        <SelectMenu class="w-full" size="sm" filterable
+                                            :model-value="String(m.maxOutput)" :options="outputOptions"
+                                            :placeholder="t('aiSettings.metaUnset')"
+                                            @update:model-value="(v: string) => (m.maxOutput = Number(v) || 0)" />
                                     </label>
                                     <fieldset class="col-span-2 min-w-0 m-0 border-0 p-0">
                                         <legend class="mb-1 text-xs text-gray-500 dark:text-gray-400">{{ t('aiSettings.metaModality') }}</legend>
                                         <div class="flex flex-wrap items-center gap-4">
-                                            <t-checkbox v-for="v in MODALITY_PRESETS" :key="v" :label="v"
-                                                :checked="modalitySelected(m).includes(v)"
-                                                :disabled="modalitySelected(m).length === 1 && modalitySelected(m).includes(v)"
-                                                @change="(checked: boolean) => toggleModality(m, v, checked)" />
+                                            <label v-for="v in MODALITY_PRESETS" :key="v"
+                                                class="flex items-center gap-1.5 cursor-pointer select-none">
+                                                <BaseCheckbox
+                                                    :model-value="modalitySelected(m).includes(v)"
+                                                    :disabled="modalitySelected(m).length === 1 && modalitySelected(m).includes(v)"
+                                                    @update:model-value="(checked: boolean) => toggleModality(m, v, checked)" />
+                                                <span class="text-xs text-gray-600 dark:text-gray-300">{{ v }}</span>
+                                            </label>
                                         </div>
                                     </fieldset>
                                 </div>
@@ -365,6 +396,7 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { toast } from '../../utils/toast';
 import {
+    Bot as BotIcon,
     Check as CheckIcon,
     ChevronLeft as ChevronLeftIcon,
     ChevronDown as ChevronDownIcon,
@@ -383,7 +415,9 @@ import {
 } from 'lucide-vue-next';
 import { settings } from '../../store/settings';
 import AiPromptBar from '../../components/ai/AiPromptBar.vue';
-import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
+import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
+import SelectMenu from '../../components/ui/dropdown/SelectMenu.vue';
+import BaseCheckbox from '../../components/ui/checkbox/BaseCheckbox.vue';
 import PreviewCard from '../../components/settings/PreviewCard.vue';
 import {
     AI_ICONS,
@@ -562,7 +596,7 @@ function restorePreset(p: AiProvider, preset: AiPreset) {
 
 // ─── 编辑（当前选中项的就地编辑副本） ─────────────────────────
 
-/** 编辑态模型：0 / '' / 空数组表示未设置（t-select 不接受 null）；长度允许预设之外手输，故可为字符串 */
+/** 编辑态模型：0 / '' / 空数组表示未设置（下拉不接受 null）；容量只从预设里选，故下拉值是字符串 */
 interface ModelDraft {
     id: string;
     /** 展示名，空 = 显示 id */
@@ -648,15 +682,16 @@ const OUTPUT_PRESETS = [32_000, 64_000, 128_000];
 /** 输入模态：多选，持久化时用 '+' 连起来 */
 const MODALITY_PRESETS = ['text', 'image', 'audio', 'video', 'file'];
 
-const withUnset = (opts: { label: string; value: string | number }[]) => [
-    { label: t('aiSettings.metaUnset'), value: 0 as string | number },
+/** 首项「未设置」= 0；可见标签用 K 简写，value 统一是字符串（下拉的取值类型） */
+const withUnset = (opts: { label: string; value: string }[]) => [
+    { label: t('aiSettings.metaUnset'), value: '0' },
     ...opts,
 ];
 const contextOptions = computed(() =>
-    withUnset(CONTEXT_PRESETS.map((n) => ({ label: fmtTokens(n), value: n as string | number }))),
+    withUnset(CONTEXT_PRESETS.map((n) => ({ label: fmtTokens(n), value: String(n) }))),
 );
 const outputOptions = computed(() =>
-    withUnset(OUTPUT_PRESETS.map((n) => ({ label: fmtTokens(n), value: n as string | number }))),
+    withUnset(OUTPUT_PRESETS.map((n) => ({ label: fmtTokens(n), value: String(n) }))),
 );
 
 /** 接口返回的模态写法（如 "text+image->text"）拆成多选值；认不出的原样留着，保存不丢 */

@@ -130,7 +130,13 @@ async function replyToOf(
   return {
     replyTo: {
       ...base,
-      quote: { _: "inputTextQuote", text: { _: "formattedText", text: quoteText, entities: [] }, position },
+      quote: {
+        _: "inputTextQuote",
+        text: { _: "formattedText", text: quoteText, entities: [] },
+        // TDLib 1.8.69 的 inputTextQuote 新增 rich_texts：纯文本片段引用传空数组
+        rich_texts: [],
+        position,
+      },
     },
   };
 }
@@ -318,20 +324,20 @@ registerImplementation("ban_member", async (args): Promise<ToolResult<unknown>> 
   const chatId = num(args.chat_id, "chat_id");
   const memberId = num(args.member_id, "member_id");
   const untilDate = optNum(args.until_date) ?? 0; // 0 = 永久
-  const revokeMessages = args.revoke_messages !== false;
+  // 只封禁、不碰历史消息：banChatMember 的 revoke_messages 在超级群 / 频道会被
+  // TDLib 强制为 true（等于顺手删光该成员的消息），所以这里直接改成员状态。
   await tdlibSend({
-    _: "banChatMember",
+    _: "setChatMemberStatus",
     chat_id: chatId,
     member_id: { _: "messageSenderUser", user_id: memberId },
-    banned_until_date: untilDate,
-    revoke_messages: revokeMessages,
+    status: { _: "chatMemberStatusBanned", banned_until_date: untilDate },
   });
   return singleResult("ban_member", {
     chat_id: chatId,
     member_id: memberId,
     banned_until_date: untilDate,
-    revoke_messages: revokeMessages,
     banned: true,
+    messages_deleted: false,
   });
 });
 

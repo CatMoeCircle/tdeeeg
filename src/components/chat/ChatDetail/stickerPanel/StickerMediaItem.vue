@@ -3,7 +3,7 @@
         @contextmenu.prevent.stop="onContextMenu">
         <!-- TGS 动画贴纸（tlottie） -->
         <TgsPlayer v-if="format === 'tgs' && tgsSrc" ref="playerRef" :src="tgsSrc" :fitz-modifier="fitzModifier"
-            :loop="true" :autoplay="false" @error="onError" />
+            :loop="true" :autoplay="false" @load="syncPlayback" @error="onError" />
         <!-- WEBP / MPEG4 / GIF：<img> 或 <video>（100% 铺满 + object-fit: cover） -->
         <img v-else-if="format === 'webp' && src" :src="src" :alt="alt" draggable="false" :style="imgStyle"
             loading="lazy" />
@@ -120,6 +120,24 @@ function clearDwell() {
  * 预取带内短停留后排队加载。
  * 用户滚动中也允许预加载（预取带已在视口外）；仅程序化跳转途中延迟。
  */
+/**
+ * 真正入队下载。
+ * 完成后仍未就绪就解除 downloadStarted 闩锁：media.download() 在「同 file 已被别的实例
+ * 下载中 / 不可下载」时会直接 return（useStickerMedia.ts:113-114），若一直闩着，
+ * 这个格子会永久停在灰块，再进视口也不会重试。
+ */
+function startDownload() {
+    if (downloadStarted) return;
+    downloadStarted = true;
+    enqueueViewportLoad(async () => {
+        try {
+            await media.download();
+        } finally {
+            if (!media.ready.value) downloadStarted = false;
+        }
+    }, 'sticker');
+}
+
 function scheduleDownload() {
     if (downloadStarted) return;
     clearDwell();
@@ -127,16 +145,10 @@ function scheduleDownload() {
         dwellTimer = null;
         if (downloadStarted) return;
         if (isProgrammaticScroll()) {
-            deferLoadWhileScrolling(() => {
-                if (!downloadStarted) {
-                    downloadStarted = true;
-                    enqueueViewportLoad(() => media.download(), 'sticker');
-                }
-            });
+            deferLoadWhileScrolling(() => { startDownload(); });
             return;
         }
-        downloadStarted = true;
-        enqueueViewportLoad(() => media.download(), 'sticker');
+        startDownload();
     }, PRELOAD_DWELL_MS);
 }
 
@@ -207,8 +219,10 @@ onMounted(() => {
     unsubscribeWindow = onWindowActiveChange(() => applyPlayback());
 });
 
-// 源就绪 / 格式确定后（如首次下载完成）若当前在可视区则补一次播放
-watch(src, () => syncPlayback());
+// 源就绪 / 格式确定后（如首次下载完成）若当前在可视区则补一次播放。
+// TGS 走的是 tgsSrc（useStickerMedia.loadLocal 只写 tgsSrc），只 watch(src) 会让
+// 该贴纸一直停在第 1 帧，直到用户滚出去再滚回来才播。
+watch([src, tgsSrc], () => syncPlayback());
 
 // 清理：卸载前解除观察与窗口订阅，避免残留回调
 // 必须是 onBeforeUnmount：onUnmounted 里模板 ref 已被置空，unobserve(null) 会直接 return，

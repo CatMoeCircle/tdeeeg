@@ -144,6 +144,7 @@ import {
     getSenderProfileAccentColorId,
     isDeletedSender,
 } from '../../../../../utils/senderInfo';
+import Avatar from '../../../avatar.vue';
 
 const props = defineProps<{
     content: messagePoll;

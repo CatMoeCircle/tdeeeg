@@ -32,6 +32,8 @@
                         <span class="min-w-0 max-w-[45%] shrink truncate">{{ originalName }}</span>
                         <span class="shrink-0 opacity-80">)</span>
                     </template>
+                    <!-- 源消息 id：仅频道帖 / source 转发才有（TDLib 其余来源无此字段） -->
+                    <span v-if="messageId" class="shrink-0 ml-1 font-normal opacity-60">#{{ messageId }}</span>
                 </span>
             </span>
         </span>
@@ -55,6 +57,8 @@ const props = defineProps<{
     lastName?: string;
     /** 原始作者签名（频道帖子 / 匿名群管），可为空 */
     originalName?: string;
+    /** 源消息 id（频道帖 / source 转发才有），无则不显示 */
+    messageId?: number;
     /** 来源头像 */
     photo?: chatPhotoInfo | profilePhoto;
     /** 来源头像无照片时的 accent 底色 id */

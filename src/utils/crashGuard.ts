@@ -84,7 +84,7 @@ function showOverlay(title: string, detail: string) {
   hint.style.cssText = "margin-top:16px;opacity:0.6;font-size:12px";
   hint.textContent = safeT(
     "dev.crashHint",
-    "This overlay is from crashGuard, meaning the frontend has caught a fatal issue. Details have been written to localStorage['tdgram-crash-log'].",
+    "This overlay is from crashGuard, meaning the frontend has caught a fatal issue. Details have been written to localStorage['tdeeeg-crash-log'].",
   );
   box.append(h, p, hint);
   document.body.appendChild(box);

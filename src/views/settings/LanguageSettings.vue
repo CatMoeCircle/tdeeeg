@@ -28,9 +28,8 @@
                 </div>
 
                 <!-- 统一语言包列表（不限高） -->
-                <div v-if="loadingList && !filteredLanguages.length" class="py-10 text-center text-sm text-gray-400">
-                    {{ t('language.loadingList') }}
-                </div>
+                <LoadingSkeleton v-if="loadingList && !filteredLanguages.length" class="py-2" :rows="7"
+                    :label="t('language.loadingList')" />
                 <div v-else-if="!filteredLanguages.length" class="py-10 text-center text-sm text-gray-400">
                     {{ t('language.emptyList') }}
                 </div>
@@ -75,6 +74,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { toast } from '../../utils/toast';
+import LoadingSkeleton from '../../components/common/LoadingSkeleton.vue';
 import {
     ChevronLeft as ChevronLeftIcon,
     RefreshCw as RefreshCwIcon,

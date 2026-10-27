@@ -1,9 +1,6 @@
 import { defineConfig, type UserConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
-import AutoImport from "unplugin-auto-import/vite";
-import Components from "unplugin-vue-components/vite";
-import { TDesignResolver } from "@tdesign-vue-next/auto-import-resolver";
 import vueDevTools from 'vite-plugin-vue-devtools'
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,24 +14,6 @@ export default defineConfig(async (): Promise<UserConfig> => ({
   plugins: [
     vue(),
     tailwindcss(),
-    AutoImport({
-      resolvers: [
-        TDesignResolver({
-          library: "vue-next",
-        }),
-      ],
-      // put generated types into src so TypeScript picks them up automatically
-      dts: "src/auto-imports.d.ts",
-    }),
-    Components({
-      resolvers: [
-        TDesignResolver({
-          library: "vue-next",
-        }),
-      ],
-      // put generated component typings into src so IDE/TS finds them
-      dts: "src/components.d.ts",
-    }),
     vueDevTools(),
   ],
   // 把 .tgs 纳入资源处理：默认 assetsInclude 不含 .tgs，导致

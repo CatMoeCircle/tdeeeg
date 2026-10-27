@@ -540,8 +540,12 @@ loadAlbumFn = async (msgs) => {
 
 // 视口门控：停留后才触发缩略图 Small + 主媒体下载；未进入只显示 setAlbumPreview 的 base64。
 // entered 同时供 watch 判断是否应触发下载。缩略图同样走 500ms，高速滚动路过不打 downloadFile。
-const { start: startViewportLoad, entered: albumEntered } = useViewportLoad(rootEl, () => {
+// 缩略图单独走 thumb 池：相册一次要拉多张 Small，跟正文抢 chat 池的 3 个槽位会拖慢首屏。
+const { start: startThumbViewportLoad } = useViewportLoad(rootEl, () => {
     void prefetchAlbumSmallThumbs();
+}, { scope: 'thumb' });
+
+const { start: startViewportLoad, entered: albumEntered } = useViewportLoad(rootEl, () => {
     return runAlbumLoad();
 });
 
@@ -616,6 +620,7 @@ watch(() => props.messages, (msgs, prev) => {
 onMounted(() => {
     setAlbumPreview();
     if (applyAlbumReadyFromContent()) rebuildLayout();
+    startThumbViewportLoad();
     startViewportLoad();
 });
 

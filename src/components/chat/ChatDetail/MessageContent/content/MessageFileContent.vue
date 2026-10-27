@@ -169,7 +169,7 @@ import { toast } from '../../../../../utils/toast';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
 import SpoilerSpan from '../spoiler/SpoilerSpan.vue';
 import LoaderIndicator from '../../../../common/LoaderIndicator';
-import SmoothSlider from '../../../../common/SmoothSlider.vue';
+import SmoothSlider from '../../../../ui/slider/SmoothSlider.vue';
 import { useDownloadStore, type DownloadFileType } from '../../../../../store/downloads';
 import { useUploadStore } from '../../../../../store/upload';
 import { useChatStore } from '../../../../../store/chat';

@@ -98,6 +98,10 @@ export function proxyShareLink(p: addedProxy): string | null {
             if (type.secret) params.set("secret", type.secret);
             return `https://proxy.t.me/mtproto?${params.toString()}`;
         }
+        // Web 代理（TDLib 1.8.69 的 proxyTypeWeb）没有可确认的 proxy.t.me 链接格式：
+        // 与其拼一个对端解析不了的 URL，不如让调用方提示「无法生成分享链接」。
+        case "proxyTypeWeb":
+            return null;
         default:
             return null;
     }

@@ -190,7 +190,7 @@ import BlockedUsersDialog from '../../components/settings/BlockedUsersDialog.vue
 import PrivacyItemDialog from '../../components/settings/PrivacyItemDialog.vue';
 import type { PrivacyItemDef } from '../../components/settings/PrivacyItemDialog.vue';
 import AccountTtlDialog from '../../components/settings/AccountTtlDialog.vue';
-import ToggleSwitch from '../../components/settings/ToggleSwitch.vue';
+import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import { tdPlural } from '../../utils/tdLang';
 import { decodeUserPrivacyRules, PRIVACY_PRESET_KEYS, privacyKeyForSettingType } from '../../utils/profilePrivacy';

@@ -5,6 +5,7 @@
 //! - [`lifecycle`]   客户端创建 / 关闭 / 重启 / 强制重建
 //! - [`accounts`]    账户清单命令、init 入口、旧数据迁移
 //! - [`proxy`]       代理配置与系统代理
+//! - [`proxy_carrier`] Web 代理载体（proxyTypeWeb 的隐藏 webview 与桥对象）
 //! - [`receive`]     每账户接收线程（update 分发）
 //! - [`file_events`] updateFile / 官方下载列表 / 自己的资料与头像
 //! - [`downloads`]   下载、上传面板命令
@@ -17,6 +18,7 @@ mod file_events;
 mod lifecycle;
 mod loader;
 mod proxy;
+mod proxy_carrier;
 mod receive;
 
 // 只有 Tauri 命令向外暴露；辅助函数留在各子模块内。
@@ -27,6 +29,8 @@ pub use data_dir::*;
 pub use downloads::*;
 pub use lifecycle::*;
 pub use proxy::*;
+/// 载体隐藏窗口的 label 前缀（lib.rs 注册窗口状态插件时用来排除它们）。
+pub(crate) use proxy_carrier::WINDOW_LABEL_PREFIX;
 
 use crate::store::accounts::AccountsStore;
 use crate::store::chat_store::ChatStore;
@@ -289,18 +293,44 @@ pub async fn send_request(
         .map_err(|_| "Failed to receive response from TDLib".to_string())
 }
 
+/// 启动补种动态圆环：在 Rust 侧发 getCurrentState 并就地过滤，只回 updateChatActiveStories，
+/// 不把全量 updates 过 IPC / 主线程解析。
+// ponytail: 每次启动拉一次全量 getCurrentState 再过滤，TDLib 无按类型查询接口；ceiling 是后端仍需遍历全量。
+#[tauri::command]
+pub async fn get_story_seed_updates(
+    state: State<'_, AppState>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let mut resp = send_request(state.inner(), json!({ "_": "getCurrentState" })).await?;
+    let updates = resp
+        .get_mut("updates")
+        .and_then(|v| v.as_array_mut())
+        .ok_or("getCurrentState 返回无 updates")?;
+    let mut out: Vec<serde_json::Value> = updates
+        .iter_mut()
+        .filter(|u| {
+            let t = u.get("_").or_else(|| u.get("@type")).and_then(|v| v.as_str());
+            t == Some("updateChatActiveStories") && u.get("active_stories").is_some()
+        })
+        .map(|u| u.take())
+        .collect();
+    for u in &mut out {
+        rename_json_key(u, "@type", "_");
+    }
+    Ok(out)
+}
+
 // ==================== 聊天 / 社区缓存命令 ====================
 
 #[tauri::command]
-pub fn get_chat_lists(state: State<AppState>) -> Result<serde_json::Value, String> {
+pub async fn get_chat_lists(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let client = active_client(state.inner())?;
     let store = client.chat_store.lock().map_err(|e| e.to_string())?;
     Ok(store.get_all_chat_lists_value())
 }
 
 #[tauri::command]
-pub fn get_chat_list(
-    state: State<AppState>,
+pub async fn get_chat_list(
+    state: State<'_, AppState>,
     list: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
     let client = active_client(state.inner())?;
@@ -342,7 +372,7 @@ pub fn get_cached_connection_state(
 }
 
 #[tauri::command]
-pub fn get_cached_options(state: State<AppState>) -> Result<serde_json::Value, String> {
+pub async fn get_cached_options(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let client = active_client(state.inner())?;
     let opts = client.options.lock().map_err(|e| e.to_string())?;
     Ok(serde_json::Value::Object(

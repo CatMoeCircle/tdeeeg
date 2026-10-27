@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { toast } from '../../utils/toast';
+import { toast } from '../../../utils/toast';
 import { useI18n } from 'vue-i18n';
 
 /**

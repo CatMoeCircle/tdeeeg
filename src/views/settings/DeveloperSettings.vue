@@ -730,7 +730,7 @@ const exportPackError = ref('');
 
 /**
  * 输入语言包 ID → getLanguagePackStrings(keys=[]) 拉全量 → 导出。
- * mode=json：保存为 tdgram-tddesktop-<packId>-<时间戳>.json
+ * mode=json：保存为 tdeeeg-tdesktop-<packId>-<时间戳>.json
  * mode=tdEn：仅 en 包，将 flat 写入 src/locales/td-en.json（开发环境更新内置保底）
  */
 async function runExportPack(mode: 'json' | 'tdEn') {

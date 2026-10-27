@@ -105,12 +105,11 @@
     </div>
     <template #footer>
       <!-- 仅保存 / 取消（不放转让、卸任） -->
-      <button type="button" class="px-4 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
-        @click="close">{{ t('lng_cancel') }}</button>
-      <button v-if="canEdit" type="button" @click="save" :disabled="saving"
-        class="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors disabled:opacity-50">
+      <BaseButton type="button" variant="ghost"
+        @click="close">{{ t('lng_cancel') }}</BaseButton>
+      <BaseButton v-if="canEdit" type="button" @click="save" :disabled="saving" variant="primary">
         {{ saving ? t('lng_context_seen_loading') : t('lng_settings_save') }}
-      </button>
+      </BaseButton>
     </template>
   </ModalDialog>
 </template>
@@ -120,11 +119,12 @@ import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ChevronRight as ChevronRightIcon } from 'lucide-vue-next';
 import { toast } from '../../utils/toast';
-import ModalDialog from './ModalDialog.vue';
-import ToggleSwitch from './ToggleSwitch.vue';
+import ModalDialog from '../ui/modal/ModalDialog.vue';
+import ToggleSwitch from '../ui/toggle/ToggleSwitch.vue';
 import { tdlibSend } from '../../utils/tdlib';
 import { emptyAdminRights } from '../../utils/groupRights';
 import type { chatAdministratorRights, chatMember, chatPermissions, MessageSender } from 'tdlib-types';
+import BaseButton from '../ui/button/BaseButton.vue';
 
 const props = defineProps<{
   modelValue: boolean;
