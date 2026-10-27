@@ -60,7 +60,7 @@ When runtime UI debugging is needed, prefer the configured **chrome-devtools** t
   - Windows: `tdjson.dll`
   - macOS: `libtdjson.dylib`
   - Linux: `libtdjson.so`
-  - Recommended version: `1.8.68`
+  - Recommended version: `1.8.69`
 - **`src-tauri/.env`** (never commit secrets):
 
 ```env
@@ -87,7 +87,7 @@ src/
 src-tauri/
   src/
     lib.rs       # Tauri 装配 + 命令注册，main.rs 进程入口
-    tdlib/       # TDLib FFI 接入：loader/lifecycle/receive/file_events/accounts/downloads/proxy/data_dir
+    tdlib/       # TDLib FFI 接入：loader/lifecycle/receive/file_events/accounts/downloads/proxy/proxy_carrier/data_dir
     db/          # SQLite 底座与 schema
     store/       # 内存与文件级状态：accounts/chat/community/download
     updates/     # update 分类批处理 + updateFile 闸门
