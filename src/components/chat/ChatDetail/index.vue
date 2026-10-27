@@ -1855,6 +1855,9 @@ function buildReplyQuote(): inputTextQuote | null {
     return {
         _: 'inputTextQuote',
         text: { _: 'formattedText', text: quoteText, entities: [] },
+        // TDLib 1.8.69 起 inputTextQuote 多了 rich_texts：从富消息里选出的引用要按块传 RichText，
+        // 这里只会拿到纯文本片段，因此显式传空数组（TDLib 视为「引用不是来自富消息」）。
+        rich_texts: [],
         position: pos >= 0 ? pos : 0,
     };
 }

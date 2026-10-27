@@ -130,7 +130,13 @@ async function replyToOf(
   return {
     replyTo: {
       ...base,
-      quote: { _: "inputTextQuote", text: { _: "formattedText", text: quoteText, entities: [] }, position },
+      quote: {
+        _: "inputTextQuote",
+        text: { _: "formattedText", text: quoteText, entities: [] },
+        // TDLib 1.8.69 的 inputTextQuote 新增 rich_texts：纯文本片段引用传空数组
+        rich_texts: [],
+        position,
+      },
     },
   };
 }
