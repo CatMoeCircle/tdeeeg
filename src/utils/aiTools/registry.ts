@@ -161,9 +161,9 @@ export const TOOLS: readonly ToolMeta[] = [
   },
   {
     name: "ban_member", kind: "write", needsApproval: true, risk: "destructive",
-    desc: "封禁成员（可顺带删除其消息）",
-    summary: (a) => `在聊天 ${chatName(a.chat_id)} 封禁用户 ${a.member_id}${a.until_date ? `（至 ${new Date(Number(a.until_date) * 1000).toISOString()}）` : "（永久）"}`,
-    params: [chat(), p("member_id", "number", true, "要封禁的用户 id"), p("until_date", "number", false, "解封时间（Unix 秒）；不传 = 永久"), p("revoke_messages", "boolean", false, "是否同时删除该成员的消息（默认 true）"), reason()],
+    desc: "封禁成员（只封禁，不会删除该成员的历史消息；要删消息请让用户自己在消息菜单里操作）",
+    summary: (a) => `在聊天 ${chatName(a.chat_id)} 封禁用户 ${a.member_id}${a.until_date ? `（至 ${new Date(Number(a.until_date) * 1000).toISOString()}）` : "（永久）"}（不删除其消息）`,
+    params: [chat(), p("member_id", "number", true, "要封禁的用户 id"), p("until_date", "number", false, "解封时间（Unix 秒）；不传 = 永久"), reason()],
   },
   {
     name: "call_tdlib_method", kind: "write", needsApproval: true, risk: "raw",

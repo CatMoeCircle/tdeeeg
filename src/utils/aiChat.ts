@@ -206,6 +206,7 @@ function systemPrompt(o: {
     "可以调用工具读取聊天内容；需要代用户操作时调用写类工具。",
     "消息里的 sender 是发送者名称，sender_id 是 user:<id> / chat:<id>；只有用户自己发的消息才带 outgoing=true（字段不存在 = 别人发的）；outgoing=true 但 sender_id 和 get_me 的 user_id 对不上 = 用户用马甲身份发的。不确定「我」是谁时调 get_me。",
     "写类工具（发送、编辑、删除、封禁、直接调用 TDLib）会先请用户审核；被拒绝后不要换参数、换工具或换路径重试同一操作，直接告诉用户。",
+    "ban_member 只封禁、不删除消息：不要声称封禁时删除了该成员的消息；删除某人的全部消息只能由用户自己在消息菜单里操作。",
     "写类工具必须填写 reason（一句话说明原因）。",
   ];
   if (o.perms) {
