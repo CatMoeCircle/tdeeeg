@@ -11,8 +11,9 @@
  *   输入框底色与普通消息输入框（MessageInput）一致：半透明表面色 + backdrop-blur；
  *   所有颜色 prop 仍可外部覆盖，传实色即可（canvas 不认 CSS var）。
  * - 数据源 / 命令 / 思考等级的名称走 i18n；命令名保持 ASCII（与机器人命令一致）。
- * - 思考等级比原版多一档「关闭」（发给 llmsdk 的 none，关掉思考）；档位点改成压在滑块上的小柱子，
- *   档位越高柱子越高，每一档都看得见；拉满时整排淡出，把主角让给粒子。
+ * - 思考等级固定「关闭」（发 none，永远在顶部）与「默认」（不传思考参数，供应商自己定）两档，
+ *   内置档位只有 low / medium / high；其余档位（minimal / xhigh / max / ultra）要在设置页里加进该模型的档位表才出现。
+ *   档位点改成压在滑块上的小柱子，档位越高柱子越高，每一档都看得见；拉满时整排淡出，把主角让给粒子。
  * - 数据源：原版那组占位来源（网页搜索 / 销售 / 文档 / 邮件 / 日历）背后没有真东西，已删；
  *   只留本机图片上传，图片随请求发给模型（Rust 侧 ai_chat::to_prompt 读盘转多模态）。
  */
@@ -35,7 +36,7 @@ import {
 import { animate, motionValue, useReducedMotion, type AnimationPlaybackControls } from 'motion-v';
 import { settings } from '../../store/settings';
 import { isDark } from '../../store/theme';
-import { aiModelGroups, aiModelSeesImages, aiModelThinks, aiProviders, loadAiProviders, type AiModelGroup } from '../../store/aiConfig';
+import { aiModelGroups, aiModelSeesImages, aiModelThinking, aiModelThinks, aiProviders, loadAiProviders, type AiModelGroup } from '../../store/aiConfig';
 import AiContextInfo from './AiContextInfo.vue';
 import type { ConversationUsage } from '../../store/aiConversations';
 
@@ -63,6 +64,11 @@ export interface PromptBarSendDetail {
     attachments: string[];
     model?: { key: string; name: string; tag?: string };
     effort?: string;
+    /**
+     * 该档位实际发给接口的 API 参数值（模型配了自定义档位表时才有）。
+     * 空字符串 = 该档位不发送思考参数；undefined = 走调用方的内置标准档位映射。
+     */
+    effortValue?: string;
     /** 句首的 /命令 key（/菜单插入的裸命令名）；调用方据此给模型追加一段 prompt */
     command?: string;
 }
@@ -259,25 +265,55 @@ const current = computed(() => {
     return g && m ? { group: g, model: m } : null;
 });
 /**
+ * 内置档位（没配自定义档位表的模型用）：只有 low / medium / high 三档，档位名就是 API 参数值。
+ * 其余档位（off / minimal / xhigh / max / ultra）要在设置页里给该模型加进档位表才会出现。
+ */
+const BUILTIN_EFFORT_LEVELS = ['low', 'medium', 'high'];
+/**
+ * 当前模型自定义的思考档位（设置页里按模型配的档位表）：
+ * null = 没配过（用下面的内置档位），数组 = 用户配的档位（长度不可能为 0，见 aiModelThinks）。
+ */
+const customThinking = computed(() => {
+    const m = current.value?.model;
+    return m && Array.isArray(m.thinking) ? aiModelThinking(m) : null;
+});
+/**
  * 当前模型会不会思考（判定见 store 的 aiModelThinks）：不会则思考等级整个控件不出现。
  * 拿不到当前模型（没选 / 被删）时不拦。
  */
-const canThink = computed(() => !current.value || aiModelThinks(current.value.model.id));
+const canThink = computed(() => !current.value || aiModelThinks(current.value.model.id, current.value.model.thinking));
 /** 当前模型能不能看图：不能则 + 号里的图片上传置灰（拿不到模型时也置灰，免得选完模型才发现白选） */
 const canSeeImages = computed(() => !!current.value && aiModelSeesImages(current.value.model.modality));
-/** 思考等级：关闭（不思考）→ 低 → 最高（最高档用主色 + 粒子）；不会思考的模型没有档位 */
-const effortList = computed(() =>
-    !canThink.value
-        ? []
-        : props.efforts ?? [
-            t('aiInput.effortOff'),
-            t('aiInput.effortLow'),
-            t('aiInput.effortMedium'),
-            t('aiInput.effortHigh'),
-            t('aiInput.effortExtra'),
-            t('aiInput.effortMax'),
-        ],
-);
+/** 档位表里是不是「关闭」档（大小写不敏感，用户可能手改成 Off / OFF） */
+const isOffLevel = (level: string) => level.trim().toLowerCase() === 'off';
+
+/**
+ * 思考等级：关闭（不思考，固定在顶部）→ 默认（不发参数，供应商自己定）→ 越高越聪明。
+ * 不会思考的模型没有档位；模型配了自定义档位表就用那几个档位（关闭档统一由顶部那一档承担）。
+ */
+const effortList = computed<string[]>(() => {
+    if (!canThink.value) return [];
+    if (props.efforts) return props.efforts;
+    const custom = customThinking.value;
+    const levels = custom?.length
+        ? custom.filter((l) => !isOffLevel(l.level)).map((l) => l.level)
+        : BUILTIN_EFFORT_LEVELS;
+    return [t('aiInput.effortOff'), t('aiInput.effortDefault'), ...levels];
+});
+/**
+ * 每个档位发给接口的参数值（与 effortList 一一对应）：
+ * 关闭档 = none，默认档 = ''（不发送），自定义档位用配置的值，内置档位用同名值。
+ * props.efforts（模板预览）只有标签没有值，返回 null 让调用方按标准映射兜底。
+ */
+const effortValues = computed<string[] | null>(() => {
+    if (!canThink.value) return [];
+    if (props.efforts) return null;
+    const custom = customThinking.value;
+    const values = custom?.length
+        ? custom.filter((l) => !isOffLevel(l.level)).map((l) => l.value)
+        : BUILTIN_EFFORT_LEVELS;
+    return ['none', '', ...values];
+});
 /** 对外报告 / 发送详情里的模型：供应商 id + 模型 id 组成唯一 key */
 const model = computed(() =>
     current.value
@@ -294,17 +330,20 @@ const attachments = ref<string[]>([]);
 const plusOpen = ref(false);
 const modelOpen = ref(false);
 const effortOpen = ref(false);
-const effortIndex = ref(
-    (() => {
-        const i = effortList.value.indexOf(props.defaultEffort);
-        // 没指定档位就用正中间那档：档位表加不加「关闭」都不动默认档（六档 → 高）
-        return i >= 0 ? i : Math.floor(effortList.value.length / 2);
-    })(),
-);
+/**
+ * 默认落的档位：先看父组件指定的 defaultEffort，再看档位表里有没有 medium
+ * （内置与默认档位表都有它，别让新增的「关闭 / 默认」两档把默认值挤到 low），最后取正中间。
+ */
+const defaultEffortIndex = (list: string[], preferred: string) => {
+    const i = list.indexOf(preferred);
+    if (i >= 0) return i;
+    const medium = list.indexOf('medium');
+    return medium >= 0 ? medium : Math.floor(list.length / 2);
+};
+const effortIndex = ref(defaultEffortIndex(effortList.value, props.defaultEffort));
 // 换模型会改档位表（不会思考的模型档位表为空）：跟着重挑默认档，免得留在旧下标上
 watch(effortList, (list) => {
-    const i = list.indexOf(props.defaultEffort);
-    effortIndex.value = i >= 0 ? i : Math.floor(list.length / 2);
+    effortIndex.value = defaultEffortIndex(list, props.defaultEffort);
 });
 // 换到不会思考的模型时档位表清空：把还开着的档位浮层收掉，别留一个没有按钮的浮层
 watch(canThink, (ok) => {
@@ -775,6 +814,8 @@ const send = () => {
         attachments: attachments.value,
         model: model.value,
         effort: level.value,
+        // 档位的 API 参数值（空字符串 = 这一档不发思考参数，如「默认」档）
+        effortValue: effortValues.value?.length ? (effortValues.value[effortIndex.value] ?? '') : undefined,
         command,
     });
     draft.value = '';
@@ -941,7 +982,7 @@ defineExpose({ focusInput });
                          拉满时整排淡出，把主角让给粒子 -->
                     <div class="inset-0 absolute pointer-events-none [transition:opacity_260ms_ease] group-data-[max]:opacity-0"
                         aria-hidden="true">
-                        <i v-for="(name, i) in effortList" :key="name"
+                        <i v-for="(name, i) in effortList" :key="`${i}-${name}`"
                             class="top-1/2 absolute -translate-x-1/2 -translate-y-1/2 rounded-full w-[3px] [transition:height_220ms_cubic-bezier(0.23,1,0.32,1),background-color_220ms_ease]"
                             :class="i === effortIndex
                                 ? '[background:var(--pb-menu)]'

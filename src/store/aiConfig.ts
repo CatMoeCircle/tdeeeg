@@ -20,6 +20,7 @@ import {
   type AiModel,
   type AiPreset,
   type AiProvider,
+  type AiThinkingLevel,
 } from "./aiProviderRules";
 
 /**
@@ -30,10 +31,11 @@ import {
  * - 类型 / 预设 / 名称与恢复规则在 ./aiProviderRules（纯逻辑，不依赖资源，可单独跑自检）；这里只做 IO 与状态。
  */
 
-export type { AiModel, AiPreset, AiProvider, AiTranslateFormat } from "./aiProviderRules";
+export type { AiModel, AiPreset, AiProvider, AiThinkingLevel, AiTranslateFormat } from "./aiProviderRules";
 export {
   addPresetName,
   AI_PRESETS,
+  aiModelThinking,
   aiModelThinks,
   aiModelSeesImages,
   hasPresetName,
@@ -94,7 +96,13 @@ export interface AiModelGroup {
   /** 头像地址；空 = 没有图标（设置页回退成名称首字母，AI 输入框则不显示头像） */
   icon?: string;
   /** modality = 模型声明的入参模态（如 `text+image->text`），决定图片上传能不能用 */
-  models: { id: string; name: string; modality: string | null }[];
+  models: {
+    id: string;
+    name: string;
+    modality: string | null;
+    /** 用户给该模型配的思考档位；null / 缺省 = 用内置默认档位 */
+    thinking?: AiThinkingLevel[] | null;
+  }[];
 }
 
 /**
@@ -108,7 +116,12 @@ export function aiModelGroups(): AiModelGroup[] {
       id: p.id,
       name: p.name.trim(),
       icon: iconSrc(p.icon),
-      models: p.models.map((m) => ({ id: m.id, name: m.name || m.id, modality: m.modality })),
+      models: p.models.map((m) => ({
+        id: m.id,
+        name: m.name || m.id,
+        modality: m.modality,
+        thinking: m.thinking ?? null,
+      })),
     }));
 }
 

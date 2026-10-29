@@ -6,6 +6,14 @@
 
 export type AiTranslateFormat = "openai-responses" | "openai-compatible" | "anthropic";
 
+/** 思考档位：档位名（下拉里显示）+ 该档位发给接口的 API 参数值 */
+export interface AiThinkingLevel {
+  /** 档位名：off / low / medium / high（也可自定义，只作显示与排序） */
+  level: string;
+  /** 发给接口的参数值（如 low / 8192 / max）；空 = 该档位不发思考参数（关闭思考） */
+  value: string;
+}
+
 /** 模型条目：id 必然有，其余字段视接口而定（OpenRouter / Anthropic 才有名称、上下文、模态），可在设置里手改 */
 export interface AiModel {
   id: string;
@@ -14,6 +22,13 @@ export interface AiModel {
   contextLength: number | null;
   maxOutput: number | null;
   modality: string | null;
+  /**
+   * 思考档位表（设置页：模型 → 更多选项 → 推理等级）：
+   * - 未配置（undefined / null）= 按模型 id 自动判定，AI 输入框用内置档位（默认 + low / medium / high）；
+   * - `[]` = 该模型不出思考等级（输入框不显示档位）；
+   * - 非空 = 用户自定义档位，输入框只显示这些档位，按 value 发参数。
+   */
+  thinking?: AiThinkingLevel[] | null;
 }
 
 export interface AiProvider {
@@ -123,12 +138,27 @@ export function providerUsable(p: AiProvider): boolean {
  */
 const NON_THINKING_MODEL = /embed|rerank|whisper|tts|audio|image|dall-e|moderation|vision|transcribe|ocr|sd-|stable-diffusion|gpt-3|gpt-4o|gpt-4-turbo|chatgpt-4o/i;
 
-/** 该模型能否思考（= 输入框要不要给思考等级滑杆；不确定的按「能」处理，保住现有行为） */
-export function aiModelThinks(modelId: string): boolean {
+/**
+ * 该模型能否思考（= 输入框要不要给思考等级滑杆；不确定的按「能」处理，保住现有行为）。
+ * 模型配置了档位表就按配置说了算：有档 = 能，空数组 = 明确不要档位。
+ */
+export function aiModelThinks(modelId: string, thinking?: AiThinkingLevel[] | null): boolean {
+  if (Array.isArray(thinking)) return thinking.length > 0;
   const id = modelId.trim();
   if (!id) return false;
   if (NON_THINKING_MODEL.test(id)) return false;
   return true;
+}
+
+/**
+ * 模型配置的思考档位（已清掉空档位名）。没配置时同样返回空数组，
+ * 需要区分「未配置 / 明确关闭」时用 `Array.isArray(model.thinking)` 判断。
+ */
+export function aiModelThinking(model: { thinking?: AiThinkingLevel[] | null }): AiThinkingLevel[] {
+  if (!Array.isArray(model.thinking)) return [];
+  return model.thinking
+    .map((l) => ({ level: l.level.trim(), value: (l.value ?? '').trim() }))
+    .filter((l) => l.level);
 }
 
 // ─── 看图能力判定 ───

@@ -334,8 +334,12 @@ fn effort_of(key: &str) -> Option<ReasoningEffort> {
 /// `systemMessageMode` 钉成 system：forceReasoning 默认改用 developer 角色，
 /// 非 OpenAI 的 /responses 实现不一定认，保持现在的线上形状。
 fn responses_reasoning(effort: Option<&str>) -> Option<llmsdk::ProviderOptions> {
-    // 关闭档不发思考参数（与 chat 路径的 none 分开：DeepSeek 未必认 effort=none）
-    let effort = effort.filter(|e| !e.is_empty() && *e != "none")?;
+    // 关闭档不发思考参数（与 chat 路径的 none 分开：DeepSeek 未必认 effort=none）；
+    // 档位值是设置页里按模型自定义的，这里的 off / none / 空 都当「不发」，
+    // 其余原样透传成 reasoningEffort（如 low / medium / high / xhigh）。
+    let effort = effort
+        .map(str::trim)
+        .filter(|e| !e.is_empty() && !matches!(*e, "none" | "off"))?;
     let openai = serde_json::json!({
         "forceReasoning": true,
         "reasoningEffort": effort,
@@ -344,6 +348,22 @@ fn responses_reasoning(effort: Option<&str>) -> Option<llmsdk::ProviderOptions> 
     })
     .as_object()
     .cloned()?;
+    Some([("openai".to_string(), openai)].into_iter().collect())
+}
+
+/// Chat Completions 兼容路径的自定义思考参数（`provider_options.openai`）。
+///
+/// 标准枚举（low / medium / high…）由 `CallOptions.reasoning` 处理，这里只接「不在枚举里」的
+/// 自定义档位值（设置页里按模型填的，如 xhigh）：chat 路径认 `provider_options.openai.reasoningEffort`，
+/// 能把它原样写进 `reasoning_effort`。Anthropic 没有这种自由透传通道，未知值仍按 provider 默认。
+fn chat_reasoning(effort: Option<&str>, format: &str) -> Option<llmsdk::ProviderOptions> {
+    if format == "anthropic" {
+        return None;
+    }
+    let effort = effort
+        .map(str::trim)
+        .filter(|e| !e.is_empty() && !matches!(*e, "none" | "off"))?;
+    let openai = serde_json::json!({ "reasoningEffort": effort }).as_object().cloned()?;
     Some([("openai".to_string(), openai)].into_iter().collect())
 }
 
@@ -384,16 +404,20 @@ fn prepare(
             tools.push(search);
         }
     }
+    // 标准枚举走 CallOptions.reasoning（跨 provider 可移植）；认不出的值 = 设置页里的自定义档位
+    let reasoning = effort.as_deref().and_then(effort_of);
     let options = CallOptions {
         provider_options: if provider.format == "openai-responses" {
             responses_reasoning(effort.as_deref())
+        } else if reasoning.is_none() {
+            chat_reasoning(effort.as_deref(), &provider.format)
         } else {
             None
         },
         prompt: to_prompt(messages)?,
         tool_choice: (!tools.is_empty()).then_some(ToolChoice::Auto),
         tools: (!tools.is_empty()).then_some(tools),
-        reasoning: effort.as_deref().and_then(effort_of),
+        reasoning,
         max_output_tokens,
         ..Default::default()
     };
@@ -426,7 +450,8 @@ fn to_reply(result: llmsdk::GenerateResult) -> ChatReply {
     reply
 }
 
-/// 单次对话请求（可带工具），一次性返回。`tools` 是 toolsSchema() 的结果，`effort` 为思考等级键（可空）。
+/// 单次对话请求（可带工具），一次性返回。`tools` 是 toolsSchema() 的结果，
+/// `effort` 为该档位的思考参数值（内置枚举键，或设置页里按模型自定义的值；可空 = 不发）。
 /// 流式入口是 ai_chat_stream；这个留着做流式不可用时的兜底。
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
@@ -848,8 +873,26 @@ mod tests {
         assert_eq!(openai.get("forceReasoning"), Some(&serde_json::json!(true)));
         // 关闭 / 空 / 未知都不发：不知道的档位宁可不传，也别让接口 400
         assert!(responses_reasoning(Some("none")).is_none());
+        assert!(responses_reasoning(Some("off")).is_none());
         assert!(responses_reasoning(Some("")).is_none());
+        assert!(responses_reasoning(Some("  ")).is_none());
         assert!(responses_reasoning(None).is_none());
+        // 设置页里按模型自定义的档位值原样透传（不限于内置枚举）
+        let custom = responses_reasoning(Some(" xhigh ")).expect("自定义档位要透传");
+        assert_eq!(custom.get("openai").and_then(|o| o.get("reasoningEffort")), Some(&serde_json::json!("xhigh")));
+    }
+
+    /// Chat Completions 兼容路径：自定义档位值也能透传（标准枚举走 CallOptions.reasoning，
+    /// 调用方用 `reasoning.is_none()` 拦过，不会重复发）；Anthropic 没有自由透传通道。
+    #[test]
+    fn chat_reasoning_passes_custom_values() {
+        let po = chat_reasoning(Some(" xhigh "), "openai-compatible").expect("自定义值要透传");
+        assert_eq!(po.get("openai").and_then(|o| o.get("reasoningEffort")), Some(&serde_json::json!("xhigh")));
+        assert!(chat_reasoning(Some("none"), "openai-compatible").is_none());
+        assert!(chat_reasoning(Some("off"), "openai-compatible").is_none());
+        assert!(chat_reasoning(Some(""), "openai-compatible").is_none());
+        assert!(chat_reasoning(None, "openai-compatible").is_none());
+        assert!(chat_reasoning(Some("xhigh"), "anthropic").is_none());
     }
 
     #[test]

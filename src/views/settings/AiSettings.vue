@@ -24,7 +24,7 @@
                         body-class="p-4 bg-gray-50 dark:bg-[#1c1c1c]">
                         <div inert aria-hidden="true" class="pointer-events-none">
                             <AiPromptBar v-if="settings.ai.input === 'ai'" :groups="templateGroups"
-                                :selected="templatePick" :default-effort="t('aiInput.effortMax')" :on-attach="() => []"
+                                :selected="templatePick" default-effort="high" :on-attach="() => []"
                                 :on-dictate="() => ''" />
                             <div v-else
                                 class="flex items-center gap-2 px-2 rounded-4xl bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg">
@@ -359,6 +359,57 @@
                                             </label>
                                         </div>
                                     </fieldset>
+
+                                    <!-- 推理等级：开关 + 档位表（每排一档：档位名 → 发给接口的 API 参数值） -->
+                                    <div class="col-span-2 min-w-0 rounded-lg border border-gray-200 dark:border-gray-700 px-2 py-1.5">
+                                        <div class="flex items-center justify-between gap-2">
+                                            <span class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                                {{ t('aiSettings.reasoningTitle') }}
+                                                <span class="inline-flex text-gray-400"
+                                                    :title="t('aiSettings.reasoningHint')">
+                                                    <HelpIcon class="w-3.5 h-3.5" />
+                                                </span>
+                                            </span>
+                                            <ToggleSwitch :model-value="m.thinkOn"
+                                                @update:model-value="(v: boolean) => toggleThinking(m, v)" />
+                                        </div>
+
+                                        <template v-if="m.thinkOn">
+                                            <div class="mt-2 grid grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_1.75rem] items-center gap-1.5 text-[11px] text-gray-400">
+                                                <span>{{ t('aiSettings.reasoningLevel') }}</span>
+                                                <span>{{ t('aiSettings.reasoningValue') }}</span>
+                                                <span></span>
+                                            </div>
+                                            <div v-for="(l, li) in m.thinking" :key="li"
+                                                class="mt-1 grid grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_1.75rem] items-center gap-1.5">
+                                                <SelectMenu class="[&_button]:h-8" size="sm"
+                                                    :model-value="l.level" :options="thinkingLevelOptions(l.level)"
+                                                    @update:model-value="(v: string) => (l.level = v)" />
+                                                <input v-model="l.value" type="text"
+                                                    :placeholder="t('aiSettings.reasoningValuePh')"
+                                                    :aria-label="t('aiSettings.reasoningValue')"
+                                                    :class="rowInputClass" />
+                                                <!-- 关闭档（off）固定在顶部、不允许删；其余档位至少留一档 -->
+                                                <button type="button"
+                                                    :class="[dangerIconButtonClass, m.thinking.length <= 1 || l.level === 'off' ? 'opacity-40 cursor-not-allowed' : '']"
+                                                    :disabled="m.thinking.length <= 1 || l.level === 'off'"
+                                                    :title="l.level === 'off' ? t('aiSettings.reasoningOffKeep') : t('aiSettings.reasoningRemove')"
+                                                    :aria-label="t('aiSettings.reasoningRemove')"
+                                                    @click="removeThinkingLevel(m, li)">
+                                                    <Trash2Icon class="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                            <button type="button"
+                                                class="mt-2 inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs border border-gray-200 text-gray-600 transition-colors hover:bg-black/5 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+                                                @click="addThinkingLevel(m)">
+                                                <PlusIcon class="w-3.5 h-3.5" />
+                                                {{ t('aiSettings.reasoningAdd') }}
+                                            </button>
+                                        </template>
+                                        <p v-else class="mt-1 text-[11px] text-gray-400">
+                                            {{ t('aiSettings.reasoningOff') }}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -389,6 +440,7 @@
  * 顶部自带内置预设（DeepSeek / OpenAI / Xiaomi MiMo / Claude / Kimi / 智谱 GLM / MiniMax，含国内站 -cn 版本，
  * 非中文语言包隐藏），预设无 Key，填入 Key 保存后才可用（见 store/aiConfig 的 AI_PRESETS）。
  * 供应商：名称 + API Key + URL 必填；图标与协议在「自定义」中，模型列表独立在「自定义」下方（默认 OpenAI Completions）。
+ * 每个模型的「更多选项」里可配推理等级（档位名 → 发给接口的 API 参数值），AI 输入框按该表给档位。
  * 翻译页通过 settings.translate.ai 选择使用的供应商与模型。
  */
 import { computed, onMounted, reactive, ref, type Component, type Ref } from 'vue';
@@ -401,6 +453,7 @@ import {
     ChevronLeft as ChevronLeftIcon,
     ChevronDown as ChevronDownIcon,
     ChevronRight as ChevronRightIcon,
+    CircleQuestionMark as HelpIcon,
     Copy as CopyIcon,
     MessagesSquare as MessagesSquareIcon,
     Plus as PlusIcon,
@@ -422,6 +475,7 @@ import PreviewCard from '../../components/settings/PreviewCard.vue';
 import {
     AI_ICONS,
     AI_PRESETS,
+    aiModelThinks,
     aiProviders,
     loadAiProviders,
     newAiProvider,
@@ -440,6 +494,7 @@ import {
     type AiModelGroup,
     type AiPreset,
     type AiProvider,
+    type AiThinkingLevel,
 } from '../../store/aiConfig';
 import type { ContextMenuItem } from '../../components/contextMenu/types';
 const router = useRouter();
@@ -604,6 +659,10 @@ interface ModelDraft {
     contextLength: number | string;
     maxOutput: number | string;
     modality: string[];
+    /** 思考档位开关：关 = 该模型不出思考等级（保存成空数组） */
+    thinkOn: boolean;
+    /** 思考档位表（开关关掉时保留，方便再打开） */
+    thinking: AiThinkingLevel[];
     /** 「更多选项」是否展开（仅界面状态，不持久化） */
     open: boolean;
 }
@@ -681,6 +740,16 @@ const CONTEXT_PRESETS = [256_000, 512_000, 1_000_000];
 const OUTPUT_PRESETS = [32_000, 64_000, 128_000];
 /** 输入模态：多选，持久化时用 '+' 连起来 */
 const MODALITY_PRESETS = ['text', 'image', 'audio', 'video', 'file'];
+/** 档位下拉的全部可选档位名（off = 关闭思考，其余从小到大）；用户也可以自己造档位名，下拉里会自动补上已有值 */
+const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
+/**
+ * 默认档位表：顶部固定一档「关闭」（off，参数值留空 = 不发思考参数），下面 low / medium / high；
+ * 其余档位（minimal / xhigh / max / ultra）在下拉里选，或者点「添加档位」加进来。
+ */
+const DEFAULT_THINKING_LEVELS: AiThinkingLevel[] = [
+    { level: 'off', value: '' },
+    ...['low', 'medium', 'high'].map((level) => ({ level, value: level })),
+];
 
 /** 首项「未设置」= 0；可见标签用 K 简写，value 统一是字符串（下拉的取值类型） */
 const withUnset = (opts: { label: string; value: string }[]) => [
@@ -714,14 +783,55 @@ function toggleModality(m: ModelDraft, value: string, checked: boolean) {
     m.modality = MODALITY_PRESETS.filter((v) => (v === value ? checked : current.includes(v)));
 }
 
+// ─── 推理等级：按模型自定义思考档位（档位名 → 发给接口的参数值） ───────
+
+/** 档位下拉的选项：内置全集 + 当前值（自定义档位名不能被下拉吞掉） */
+function thinkingLevelOptions(current: string) {
+    const names = THINKING_LEVELS.includes(current) ? THINKING_LEVELS : [...THINKING_LEVELS, current];
+    return names.filter(Boolean).map((v) => ({ label: v, value: v }));
+}
+
+/** 关闭档固定在档位表顶部：老配置里没有就补一档，有就原样提到最前（值不丢） */
+function withOffLevel(levels: AiThinkingLevel[]): AiThinkingLevel[] {
+    const off = levels.find((l) => l.level === 'off');
+    return [off ?? { level: 'off', value: '' }, ...levels.filter((l) => l !== off)];
+}
+
+/** 开关：打开时没有档位就填默认档位表；关掉只是不出思考等级，档位留着方便再打开 */
+function toggleThinking(m: ModelDraft, on: boolean) {
+    m.thinkOn = on;
+    if (on && !m.thinking.length) m.thinking = withOffLevel(DEFAULT_THINKING_LEVELS.map((l) => ({ ...l })));
+}
+
+/** 加一档：优先用还没占用的内置档位名，占满了就用 level{n} */
+function addThinkingLevel(m: ModelDraft) {
+    const used = new Set(m.thinking.map((l) => l.level));
+    const level = THINKING_LEVELS.find((v) => !used.has(v)) ?? `level${m.thinking.length + 1}`;
+    m.thinking.push({ level, value: level === 'off' ? '' : level });
+}
+
+/** 删一档：关闭档（off）固定保留，其余至少留一档（空表等于关闭，要关用开关） */
+function removeThinkingLevel(m: ModelDraft, index: number) {
+    if (m.thinking.length <= 1 || m.thinking[index]?.level === 'off') return;
+    m.thinking.splice(index, 1);
+}
+
 /** 接口 / 持久化态 → 编辑态：模态拆成多选，容量缺省算未设置 */
 function toDrafts(list: AiModel[]): ModelDraft[] {
+    const thinkOn = (m: AiModel) => aiModelThinks(m.id, m.thinking);
     return list.map((m) => ({
         id: m.id,
         name: m.name ?? '',
         contextLength: m.contextLength ?? 0,
         maxOutput: m.maxOutput ?? 0,
         modality: parseModality(m.modality),
+        thinkOn: thinkOn(m),
+        // 配过就用配的；没配过（老配置）给默认档位表；关闭档固定在顶部，开关关掉的不影响（保存时写空数组）
+        thinking: withOffLevel(
+            m.thinking?.length
+                ? m.thinking.map((l) => ({ level: l.level, value: l.value }))
+                : DEFAULT_THINKING_LEVELS.map((l) => ({ ...l })),
+        ),
         open: false,
     }));
 }
@@ -803,6 +913,12 @@ function toAiModels(list: ModelDraft[]): AiModel[] {
         contextLength: toTokens(m.contextLength) || null,
         maxOutput: toTokens(m.maxOutput) || null,
         modality: m.modality.join('+') || null,
+        // 开关关掉 = 空数组（该模型不出思考等级）；开着 = 用户配的档位（关闭档固定在最前，空档位名丢掉）
+        thinking: m.thinkOn
+            ? withOffLevel(m.thinking)
+                .map((l) => ({ level: l.level.trim(), value: l.value.trim() }))
+                .filter((l) => l.level)
+            : [],
     }));
 }
 

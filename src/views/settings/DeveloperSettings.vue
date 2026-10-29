@@ -195,7 +195,8 @@
                             <AiActivityStrip :entries="aiStripEntries" :approval="aiStripApproval"
                                 @approve="closeAiStripApproval" @reject="closeAiStripApproval" />
                             <div inert aria-hidden="true" class="pointer-events-none">
-                                <AiPromptBar :default-effort="t('aiInput.effortMax')" />
+                                <!-- 预览最满档（档位名 = API 参数值，见 AiPromptBar 的内置档位表） -->
+                                <AiPromptBar default-effort="high" />
                             </div>
                         </PreviewCard>
                         <div class="mt-2 flex justify-end">

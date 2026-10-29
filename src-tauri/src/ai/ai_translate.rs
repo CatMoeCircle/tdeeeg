@@ -39,6 +39,16 @@ fn key_account(id: &str) -> String {
     format!("ai.provider.{id}.api_key")
 }
 
+/// 思考档位：档位名（设置页里显示）+ 该档位发给接口的参数值。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AiThinkingLevel {
+    /// 档位名：off / low / medium / high（也可自定义，只作显示）
+    pub level: String,
+    /// 发给接口的参数值（如 low / 8192 / max）；空 = 该档位不发思考参数
+    pub value: String,
+}
+
 /// 模型条目：`id` 必有，其余字段视接口是否返回（OpenRouter 等才有名称 / 上下文 / 最大输出 / 模态），
 /// 也可在设置里手改。持久化为对象，同时兼容旧版的纯字符串数组。
 #[derive(Debug, Clone, Serialize)]
@@ -50,6 +60,9 @@ pub struct AiModel {
     pub context_length: Option<u64>,
     pub max_output: Option<u64>,
     pub modality: Option<String>,
+    /// 思考档位表：None = 未配置（前端按模型 id 自动判定）；
+    /// Some(vec![]) = 该模型不出思考等级；非空 = 用户自定义档位
+    pub thinking: Option<Vec<AiThinkingLevel>>,
 }
 
 impl<'de> Deserialize<'de> for AiModel {
@@ -62,6 +75,7 @@ impl<'de> Deserialize<'de> for AiModel {
             context_length: Option<u64>,
             max_output: Option<u64>,
             modality: Option<String>,
+            thinking: Option<Vec<AiThinkingLevel>>,
         }
         #[derive(Deserialize)]
         #[serde(untagged)]
@@ -76,6 +90,7 @@ impl<'de> Deserialize<'de> for AiModel {
                 context_length: None,
                 max_output: None,
                 modality: None,
+                thinking: None,
             },
             Repr::Full(f) => AiModel {
                 id: f.id,
@@ -83,6 +98,7 @@ impl<'de> Deserialize<'de> for AiModel {
                 context_length: f.context_length,
                 max_output: f.max_output,
                 modality: f.modality,
+                thinking: f.thinking,
             },
         })
     }
@@ -342,6 +358,8 @@ fn model_from_json(v: &serde_json::Value) -> Option<AiModel> {
         max_output: num(&["max_output_tokens", "max_completion_tokens"])
             .or_else(|| nested_num("top_provider", "max_completion_tokens")),
         modality,
+        // 接口不返回思考档位：这里给 None，用户配的档位随供应商配置一起落盘（见 save_ai_provider）
+        thinking: None,
     })
 }
 

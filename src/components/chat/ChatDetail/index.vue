@@ -4763,11 +4763,12 @@ function sendAnimation(fileId: number, _stickerId: string) {
 const isMePremium = computed(() => !!userProfile.value?.is_premium);
 
 /**
- * 思考档位（AiPromptBar 默认六档：关闭 + 低 / 中 / 高 / 极高 / 最高）→ llmsdk 思考强度键。
- * 顺序必须与 AiPromptBar 的档位表一致；只发标准值（none / minimal / low / medium / high）：
- * llmsdk 还有 xhigh，但 OpenAI / DeepSeek 这类严格校验枚举的接口会直接 400，所以最高两档都落在 high。
+ * 思考档位（AiPromptBar 内置：关闭 + 默认 + low / medium / high）→ 发给后端的思考参数值。
+ * 顺序必须与 AiPromptBar 的档位表一致：关闭档发 none，默认档发空串（不传思考参数，供应商自己定）。
+ * 后端除枚举值外也接受自定义值（xhigh / max / ultra 之类由 OpenAI 系接口透传）。
+ * 模型配了自定义档位表时不用这张表：AiPromptBar 直接把档位的 API 参数值发出来（effortValue）。
  */
-const AI_EFFORT_KEYS = ['none', 'minimal', 'low', 'medium', 'high', 'high'] as const;
+const AI_EFFORT_KEYS = ['none', '', 'low', 'medium', 'high'] as const;
 
 /** 新建会话时的兜底标题：用户这句话的第一行，截断到 24 字（模型之后可以改） */
 function titleFromQuestion(text: string): string {
@@ -4796,7 +4797,7 @@ async function pickAiImages(): Promise<string[]> {
  * AI 输入框的发送：跑一轮 agent（utils/aiChat）。活动条实时显示思考 / 输出 / 工具调用；
  * 写类工具先挂审核卡片（见 requestAiApproval），批准后才执行。用量由 aiChat 每次请求后记入当前对话。
  */
-async function onAiPromptSend(text: string, detail: { effort?: string; attachments?: string[]; command?: string }) {
+async function onAiPromptSend(text: string, detail: { effort?: string; effortValue?: string; attachments?: string[]; command?: string }) {
     const chatIdNow = currentChatId();
     if (aiBusy.value || !chatIdNow) return;
     // 引用回复：只给模型定位信息（正文让它自己 get_message 取），引用由输入框顶部的蓝色占位芯片承载
@@ -4828,16 +4829,13 @@ async function onAiPromptSend(text: string, detail: { effort?: string; attachmen
         void toast.error(t('aiConversations.createFailed'));
         return;
     }
-    const labels = [
-        t('aiInput.effortOff'),
-        t('aiInput.effortLow'),
-        t('aiInput.effortMedium'),
-        t('aiInput.effortHigh'),
-        t('aiInput.effortExtra'),
-        t('aiInput.effortMax'),
-    ];
+    const labels = [t('aiInput.effortOff'), t('aiInput.effortDefault'), 'low', 'medium', 'high'];
     const effortIdx = labels.indexOf(detail.effort ?? '');
-    const effort = effortIdx >= 0 ? AI_EFFORT_KEYS[effortIdx] : null;
+    // 模型配了自定义档位表：档位的 API 参数值直接透传（空 = 这一档不发思考参数）；
+    // 否则按内置档位表的标签反查参数值（见 AI_EFFORT_KEYS）
+    const effort = detail.effortValue !== undefined
+        ? (detail.effortValue.trim() || null)
+        : effortIdx >= 0 ? AI_EFFORT_KEYS[effortIdx] : null;
 
     const controller = new AbortController();
     aiAbort = controller;
