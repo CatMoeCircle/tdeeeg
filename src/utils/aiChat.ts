@@ -13,6 +13,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import i18n from "../i18n";
 import type { AiModel, AiProvider } from "../store/aiProviderRules";
 import { aiConversations, currentAiAccount, loadHistory, recordAiUsage, saveHistory } from "../store/aiConversations";
+import { aiModelSeesImages } from "../store/aiProviderRules";
 import { settings } from "../store/settings";
 import { dispatchToolCall, isErrorReply, messageOf, replyText, setApprovalSkip, setTurnThread, type TurnThread } from "./aiTools/call.ts";
 import { MARKDOWN_V2_GUIDE } from "./aiTools/format.ts";
@@ -21,6 +22,7 @@ import { setSearchContext } from "./aiTools/search.ts";
 import type { ToolReply } from "./aiTools/types.ts";
 import { trimHistory, type AiActivityItem, type ChatToolCall, type ChatWireMessage } from "./aiChatHistory.ts";
 // 工具实现在被导入时登记自己；AI 入口必须导入它们，否则工具全是 not_implemented
+import { takePendingImages } from "./aiTools/image.ts";
 import "./aiTools/local.ts";
 import "./aiTools/read.ts";
 import "./aiTools/viewport.ts";
@@ -35,7 +37,7 @@ import "./aiTools/write.ts";
 if (import.meta.hot) {
   import.meta.hot.accept(() => window.location.reload());
   import.meta.hot.accept(
-    ["./aiTools/call.ts", "./aiTools/read.ts", "./aiTools/write.ts", "./aiTools/local.ts", "./aiTools/viewport.ts"],
+    ["./aiTools/call.ts", "./aiTools/read.ts", "./aiTools/write.ts", "./aiTools/local.ts", "./aiTools/viewport.ts", "./aiTools/image.ts"],
     () => window.location.reload(),
   );
 }
@@ -88,12 +90,16 @@ export interface AiTurnPermissions {
   canPost: boolean;
 }
 
-/** 发给模型的工具名：设置里关掉的不发（缺省 = 启用）；web_search 只在客户端搜索模式下发 */
-function enabledTools(provider: AiProvider, perms?: AiTurnPermissions): string[] {
+/**
+ * 发给模型的工具名：设置里关掉的不发（缺省 = 启用）；web_search 只在客户端搜索模式下发；
+ * read_image 只在当前模型支持图像输入（看图）时下发 —— 看不见图的模型给了它也只拿到 base64 字符串。
+ */
+function enabledTools(provider: AiProvider, perms: AiTurnPermissions | undefined, seesImages: boolean): string[] {
   return TOOLSETS.all.filter(
     (n) =>
       settings.ai.tools[n] !== false &&
       (n !== "web_search" || clientSearch(provider)) &&
+      (n !== "read_image" || seesImages) &&
       (n !== "delete_message" || perms?.deleteMessages !== false) &&
       (n !== "ban_member" || perms?.restrictMembers !== false),
   );
@@ -531,7 +537,7 @@ export async function runAiTurn(o: AiTurnOptions): Promise<string> {
   // 提问也进活动条：会话里得看得见这句是问什么（与历史回铺时的样子一致）
   o.sink.add({ id: nextId(), kind: "user", text: o.text, status: "ok" });
 
-  const tools = toolsSchema(enabledTools(o.provider, o.perms));
+  const tools = toolsSchema(enabledTools(o.provider, o.perms, aiModelSeesImages(o.model.modality)));
   let finalText = "";
 
   // 设置里按工具关掉的审核、以及客户端搜索要用的「这轮是哪个供应商」——每轮现刷一遍
@@ -604,6 +610,12 @@ export async function runAiTurn(o: AiTurnOptions): Promise<string> {
       const content = replyText(outcome);
       o.sink.update(entryId, { status: isErrorReply(outcome) ? "error" : "ok", output: content });
       history.push({ role: "tool", toolCallId: call.id, toolName: call.name, text: content });
+    }
+    // read_image 转好的图片走**独立的图片消息**（工具结果里没有 base64）：
+    // 作为一条 user 消息的附件插进历史，下一轮 Rust 读盘转多模态，与用户手动附图同一条通路
+    const images = takePendingImages();
+    if (images.length && !o.signal.aborted) {
+      history.push({ role: "user", text: "", attachments: images });
     }
     await persist();
     if (o.signal.aborted) break;

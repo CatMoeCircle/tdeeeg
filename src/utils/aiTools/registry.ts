@@ -70,7 +70,7 @@ export const TOOLS: readonly ToolMeta[] = [
   },
   {
     name: "get_message", kind: "read",
-    desc: "读取单条消息",
+    desc: "读取单条消息；消息里的照片 / 贴纸 / 动图 / 图片文档若已下载到本地，会在 image_paths 里给出本地文件路径，可直接交给 read_image 看内容（tgs 贴纸与未下载的文件不会出现在里面）",
     params: [chat(), p("message_id", "number", true, "消息 id")],
   },
   {
@@ -117,6 +117,12 @@ export const TOOLS: readonly ToolMeta[] = [
     name: "web_search", kind: "read",
     desc: "联网搜索公开网页（DeepSeek 走自己的搜索接口；其他供应商要么在设置「AI 工具」里配搜索接口，要么支持服务端 web_search）",
     params: [p("query", "string", true, "搜索词")],
+  },
+  {
+    // 只在当前模型支持图像输入时下发（见 utils/aiChat 的 enabledTools）
+    name: "read_image", kind: "read",
+    desc: "按本地路径读取一张图片：长边超过 720 压缩到 720、质量 80%，转换后的图片会作为一条独立的图片消息直接附上（工具结果只回路径与尺寸，不含 base64），下一轮就能看到画面。支持 jpg / jpeg / png / webp / gif / bmp / webm / mp4 / m4v / mov；动图（webm / mp4 / gif / webp 等）一律只取首帧；tgs 动画贴纸不支持。路径一般来自 get_message 的 image_paths",
+    params: [p("path", "string", true, "本地图片文件的绝对路径（聊天里已下载的图片 / 动图 / 贴纸文件路径）")],
   },
 
   // --- 本地元数据（不碰 Telegram，不需要审核） ---

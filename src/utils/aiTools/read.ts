@@ -8,7 +8,7 @@
  *   要准确人名让模型调 get_user_info / get_member_rights（一次请求）
  * - 本文件只在应用内加载（依赖 vue / i18n），自检脚本不导入它
  */
-import type { chat, chatMember, message, user } from "tdlib-types";
+import type { chat, chatMember, file, message, photo, user } from "tdlib-types";
 import { tdlibSend } from "../tdlib";
 import { getMessagePlainText } from "../messageText";
 import { ensureChat, ensureUser, getReactiveChat, getReactiveUser, getSenderName } from "../senderInfo";
@@ -85,9 +85,64 @@ interface MessageBrief {
   /** 仅线程页（评论线程 / 频道私信 / 话题）且消息属于该会话时才输出；普通页面一律不带 */
   thread_id?: number;
   attachments?: string[];
+  /** 本地已下载、可直接交给 read_image 看的图像路径（仅 get_message 输出；没下载完就不给） */
+  image_paths?: string[];
 }
 
-function toBrief(msg: message): MessageBrief {
+/** 已下载到本地的文件路径（没下载完 / 路径为空 = 拿不到） */
+function downloadedPath(f?: file): string {
+  const local = f?.local;
+  return local && local.is_downloading_completed && local.path ? local.path : "";
+}
+
+/** 最大的已下载图片尺寸（原图优先；原图没下载就退回已下载的较小尺寸） */
+function photoPath(p: photo): string {
+  const sizes = [...p.sizes].sort((a, b) => b.width * b.height - a.width * a.height);
+  for (const s of sizes) {
+    const path = downloadedPath(s.photo);
+    if (path) return path;
+  }
+  return "";
+}
+
+/**
+ * 消息里能直接交给 read_image 的本地图像路径（只收已下载完成的）：
+ * 照片 / 贴纸（tgs 除外，工具读不了）/ 动图 / 图片型文档；
+ * 原文件没下载时退回已下载的缩略图（质量差些但能看内容）。
+ */
+function imagePathsOf(msg: message): string[] {
+  const c = msg.content;
+  if (!c) return [];
+  const out: string[] = [];
+  const add = (path: string) => {
+    if (path && !out.includes(path)) out.push(path);
+  };
+  switch (c._) {
+    case "messagePhoto":
+      add(photoPath(c.photo));
+      break;
+    case "messageSticker":
+      if (c.sticker.format._ !== "stickerFormatTgs") add(downloadedPath(c.sticker.sticker));
+      if (!out.length) add(downloadedPath(c.sticker.thumbnail?.file));
+      break;
+    case "messageAnimation":
+      add(downloadedPath(c.animation.animation));
+      if (!out.length) add(downloadedPath(c.animation.thumbnail?.file));
+      break;
+    case "messageDocument":
+      if (c.document.mime_type.startsWith("image/")) {
+        add(downloadedPath(c.document.document));
+        if (!out.length) add(downloadedPath(c.document.thumbnail?.file));
+      }
+      break;
+    default:
+      break;
+  }
+  return out;
+}
+
+/** `withImages` = 输出 image_paths（只有 get_message 开：整页历史里每条都带路径太吃上下文） */
+function toBrief(msg: message, withImages = false): MessageBrief {
   const senderId = msg.sender_id;
   const brief: MessageBrief = {
     message_id: msg.id,
@@ -109,6 +164,10 @@ function toBrief(msg: message): MessageBrief {
   if (thread && turnAllowsThreadId(msg.chat_id)) brief.thread_id = thread;
   const attachments = attachmentsOf(msg);
   if (attachments.length) brief.attachments = attachments;
+  if (withImages) {
+    const images = imagePathsOf(msg);
+    if (images.length) brief.image_paths = images;
+  }
   return brief;
 }
 
@@ -165,7 +224,7 @@ async function fetchHistory(opts: {
     if (oldest) from = oldest;
     return page;
   });
-  return { briefs: items.map(toBrief), truncated, nextCursor: from };
+  return { briefs: items.map((msg) => toBrief(msg)), truncated, nextCursor: from };
 }
 
 // --- 读历史 ---
@@ -191,7 +250,7 @@ registerImplementation("get_message", async (args): Promise<ToolResult<MessageBr
     chat_id: num(args.chat_id, "chat_id"),
     message_id: num(args.message_id, "message_id"),
   });
-  return singleResult("get_message", toBrief(msg));
+  return singleResult("get_message", toBrief(msg, true));
 });
 
 registerImplementation("get_reply_chain", async (args): Promise<ToolResult<MessageBrief[]>> => {
@@ -255,7 +314,7 @@ registerImplementation("search_messages", async (args): Promise<ToolResult<Messa
     if (oldest) from = oldest;
     return page;
   });
-  return listResult("search_messages", raw, items.map(toBrief), {
+  return listResult("search_messages", raw, items.map((msg) => toBrief(msg)), {
     truncated,
     next_cursor: from,
     ...(warnings.length ? { warnings } : {}),

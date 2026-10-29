@@ -739,6 +739,29 @@ pub async fn ai_web_search(
     Ok(text)
 }
 
+/// 工具图片文件名的去重序号（同一毫秒内多次调用不能互相覆盖）
+static IMAGE_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// AI 工具（read_image）转好的图片落盘：写进**数据目录**（设置里的存储位置，AppData 或便携目录）
+/// 下的 `ai_images/`，不用系统 Temp —— 便携版不该把缓存塞到 C 盘，用户迁移 / 清理数据目录时也能一起带走。
+/// 返回绝对路径：前端把它当作下一条「图片消息」的附件（见 utils/aiChat.ts）。
+#[tauri::command]
+pub fn ai_save_tool_image(state: tauri::State<'_, AppState>, bytes: Vec<u8>) -> Result<String, String> {
+    if bytes.is_empty() {
+        return Err("图片数据为空".to_string());
+    }
+    let dir = state.data_dir.join("ai_images");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("创建图片目录失败: {e}"))?;
+    let ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_millis();
+    let seq = IMAGE_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let path = dir.join(format!("ai_image_{ms}_{seq}.jpg"));
+    std::fs::write(&path, &bytes).map_err(|e| format!("写入图片失败: {e}"))?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

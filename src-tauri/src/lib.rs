@@ -380,6 +380,7 @@ pub fn run() {
             ai::ai_chat::ai_complete,
             ai::ai_chat::ai_web_search,
             ai::ai_chat::ai_chat_cancel,
+            ai::ai_chat::ai_save_tool_image,
             ai::ai_conversations::ai_conversation_create,
             ai::ai_conversations::ai_conversation_list,
             ai::ai_conversations::ai_conversation_list_all,

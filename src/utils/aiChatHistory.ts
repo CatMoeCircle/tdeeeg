@@ -78,7 +78,9 @@ export function historyToActivity(history: ChatWireMessage[]): AiActivityItem[] 
     if (m.role === "system") return;
     // 用户自己发的话也要看得见：会话里得知道这句是问什么
     if (m.role === "user") {
-      out.push({ id: `h${i}-u`, kind: "user", text: m.text ?? "", status: "ok" });
+      // 纯图片消息（read_image 自动附上的）没有文本：显示附件文件名，别留一条空白
+      const text = m.text || (m.attachments ?? []).map((p) => p.split(/[\\/]/).pop() || p).join("、");
+      out.push({ id: `h${i}-u`, kind: "user", text, status: "ok" });
       return;
     }
     if (m.reasoning)
