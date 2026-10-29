@@ -1273,6 +1273,8 @@
     "approval": "Confirm",
     "approve": "Allow",
     "reject": "Deny",
+    "thinking": "Thinking…",
+    "thoughtDone": "Thought for",
     "input": "Input",
     "output": "Output",
     "copy": "Copy",

@@ -20,6 +20,7 @@
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { plainPreview, renderAiMarkdown } from '../../utils/aiMarkdown';
+import ThoughtLine from './ThoughtLine.vue';
 import {
     Brain as BrainIcon,
     ChevronDown as ChevronDownIcon,
@@ -43,6 +44,8 @@ export interface AiActivityEntry {
     /** 工具调用的返回结果（展开后看） */
     output?: string;
     status?: 'running' | 'ok' | 'error';
+    /** 思考条目的耗时（毫秒）：跑完一直显示「已思考 1.2s」，落盘后重进对话也还在 */
+    thoughtMs?: number;
 }
 
 /** 待确认的工具调用（utils/aiTools 的 ApprovalRequest 摘要） */
@@ -56,6 +59,8 @@ export interface AiApprovalLine {
 const props = defineProps<{
     entries: AiActivityEntry[];
     approval?: AiApprovalLine | null;
+    /** AI 正在跑这一轮（与输入框的 busy 同一个状态源）：顶部换成「正在思考」 */
+    busy?: boolean;
 }>();
 const emit = defineEmits<{ approve: []; reject: [] }>();
 
@@ -76,6 +81,44 @@ const latest = computed(() => props.entries[props.entries.length - 1] ?? null);
  * 其余（用户提问 / 思考 / 工具调用）本来就是纯文本。
  */
 const latestText = computed(() => (latest.value && latest.value.kind === 'output' ? plainPreview(latest.value.text) : latest.value?.text ?? ''));
+
+/**
+ * 「正在思考」这一行分两段摆：
+ * - 跑这一轮时就在**标题行**那个位置（图标呼吸 + 实时计时）；
+ * - 响应结束、标题行回到最新一条之后，它**下放**到标题下面那一行，
+ *   收成「已思考 1.2s」并且一直留着（不能跑完就消失）。
+ *
+ * 耗时在这里计（busy 变 true 起算）：下放那一行用 elapsed 受控显示，
+ * 不另外起一个时钟，数字与刚才顶部一秒秒跳的是同一个。
+ */
+const thoughtStartedAt = ref(0);
+const thoughtSeconds = ref(0);
+const thoughtDone = ref(false);
+watch(
+    () => props.busy,
+    (busy) => {
+        if (busy) {
+            thoughtStartedAt.value = performance.now();
+            thoughtDone.value = false;
+            return;
+        }
+        if (!thoughtStartedAt.value) return;
+        thoughtSeconds.value = (performance.now() - thoughtStartedAt.value) / 1000;
+        thoughtStartedAt.value = 0;
+        thoughtDone.value = true;
+    },
+    { immediate: true },
+);
+// 换聊天 / 换会话会清空条目：下放的那一行跟着收，别留着上一段对话的耗时
+watch(
+    () => props.entries.length,
+    (n) => {
+        if (!props.busy && n === 0) {
+            thoughtDone.value = false;
+            thoughtSeconds.value = 0;
+        }
+    },
+);
 
 /** 这条能不能展开：思考有完整内容，工具调用有输入 / 输出 */
 const canOpen = (e: AiActivityEntry) =>
@@ -139,6 +182,13 @@ const rowPadClass = (e: AiActivityEntry, i: number) => {
         .join(' ');
 };
 
+/** 思考耗时文案：1.2s / 1m 3.4s（与顶部 ThoughtLine 的计时落定后同一套写法） */
+function fmtThought(ms: number): string {
+    // 至少 0.1s：思考一闪而过时也别显示「0.0s」
+    const ds = Math.max(1, Math.round(ms / 100));
+    return ds < 600 ? `${(ds / 10).toFixed(1)}s` : `${Math.floor(ds / 600)}m ${((ds % 600) / 10).toFixed(1)}s`;
+}
+
 /** 复制一条正文（AI 输出）：模型回答经常要拿去用，没有复制只能手选 */
 async function copyEntry(e: AiActivityEntry) {
     try {
@@ -178,16 +228,22 @@ watch(
         class="ai-strip select-text mx-auto -mb-px w-[calc(100%-1rem)] overflow-hidden rounded-t-2xl border border-b-0 border-gray-200/50 backdrop-blur-md dark:border-gray-700/50 [background:color-mix(in_srgb,var(--app-bg-container)_70%,transparent)]">
         <!-- 头部行：任何情况下都占一行；展开后仍停在顶部 -->
         <div class="flex h-9 items-center gap-2 px-3 text-[13px] text-gray-700 dark:text-gray-200">
-            <span class="grid h-5 w-5 shrink-0 place-items-center rounded-full"
-                :class="headerNeutral
-                    ? 'bg-gray-200/80 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
-                    : 'bg-[var(--app-brand)] text-white'">
-                <component :is="headerIcon" class="h-3 w-3" :stroke-width="2" />
-            </span>
-            <!-- 失败不提图标，直接把字变红 -->
-            <span class="min-w-0 flex-1 truncate"
-                :class="latest?.status === 'error' ? 'text-red-500 dark:text-red-400' : ''">{{ latest ? latestText
-                    : t('aiActivity.idle') }}</span>
+            <!-- 跑这一轮：标题行先让给「正在思考」（图标呼吸 + 右侧计时），
+                 工具调用不往这里冒，等响应结束标题行再回最新一条 -->
+            <ThoughtLine v-if="busy" class="min-w-0 flex-1" :working="true" :label="t('aiActivity.thinking')"
+                :done-label="t('aiActivity.thoughtDone')" :font-size="13" :collapsible="false" />
+            <template v-else>
+                <span class="grid h-5 w-5 shrink-0 place-items-center rounded-full"
+                    :class="headerNeutral
+                        ? 'bg-gray-200/80 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                        : 'bg-[var(--app-brand)] text-white'">
+                    <component :is="headerIcon" class="h-3 w-3" :stroke-width="2" />
+                </span>
+                <!-- 失败不提图标，直接把字变红 -->
+                <span class="min-w-0 flex-1 truncate"
+                    :class="latest?.status === 'error' ? 'text-red-500 dark:text-red-400' : ''">{{ latest ? latestText
+                        : t('aiActivity.idle') }}</span>
+            </template>
             <button type="button"
                 class="-mr-1 grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-lg text-gray-400 transition-colors hover:bg-black/5 hover:text-gray-600 dark:hover:bg-white/5 dark:hover:text-gray-200"
                 :aria-expanded="expanded" :aria-label="expanded ? t('aiActivity.collapse') : t('aiActivity.expand')"
@@ -195,6 +251,14 @@ watch(
                 <ChevronDownIcon v-if="expanded" class="h-4 w-4" :stroke-width="2" />
                 <ChevronUpIcon v-else class="h-4 w-4" :stroke-width="2" />
             </button>
+        </div>
+
+        <!-- 响应结束：思考那一行从标题行**下放**到标题下面这一行（对话记录区最上面），
+             收成「已思考 1.2s」并一直留着，不随响应完成消失 -->
+        <div v-if="!busy && thoughtDone"
+            class="flex items-center gap-2 px-3 pb-1.5 text-[13px] text-gray-700 [transition:opacity_300ms_ease,transform_300ms_ease] starting:-translate-y-1 starting:opacity-0 dark:text-gray-200">
+            <ThoughtLine :working="false" :elapsed="thoughtSeconds" :label="t('aiActivity.thinking')"
+                :done-label="t('aiActivity.thoughtDone')" :font-size="13" :collapsible="false" />
         </div>
 
         <!-- 展开：完整输出 / 工具调用链。普通输出文本整段换行；思考与工具调用是折叠条目，点开看详情。
@@ -242,6 +306,10 @@ watch(
                         </button>
                     </template>
                     <span v-else class="min-w-0 flex-1 truncate" :class="entryTextClass(e)">{{ e.text }}</span>
+                    <!-- 思考耗时：这条跑完就一直留着（落盘后重进对话也还在），不是只在顶部闪一下 -->
+                    <span v-if="e.kind === 'thinking' && e.thoughtMs"
+                        class="mt-1 shrink-0 text-[11px] tabular-nums text-gray-400 dark:text-gray-500">{{ t('aiActivity.thoughtDone') }}
+                        {{ fmtThought(e.thoughtMs) }}</span>
                     <span v-if="e.status === 'running'" class="mt-1 shrink-0 text-[11px]">…</span>
                 </component>
 

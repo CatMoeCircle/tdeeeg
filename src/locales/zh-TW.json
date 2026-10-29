@@ -1273,6 +1273,8 @@
     "approval": "確認",
     "approve": "允許",
     "reject": "拒絕",
+    "thinking": "正在思考…",
+    "thoughtDone": "已思考",
     "input": "輸入",
     "output": "輸出",
     "copy": "複製",

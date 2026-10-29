@@ -570,7 +570,7 @@
                          没用过 AI 的聊天默认什么都不显示 -->
                     <AiActivityStrip v-if="aiActivityEntries.length > 0 || aiActivityApproval"
                         v-model:expanded="aiStripExpanded"
-                        :entries="aiActivityEntries" :approval="aiActivityApproval"
+                        :entries="aiActivityEntries" :approval="aiActivityApproval" :busy="aiBusy"
                         @approve="resolveAiActivity(true)" @reject="resolveAiActivity(false)" />
                     <AiPromptBar ref="aiPromptRef" v-model:conversations-open="conversationsOpen"
                         :chat-id="currentChatId()" :usage="aiUsage" :on-attach="pickAiImages" :quote="aiQuote"

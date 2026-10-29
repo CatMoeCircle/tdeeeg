@@ -823,7 +823,7 @@ async function restoreAiPresets() {
 const AI_STRIP_TOOL_APPROVAL = 'send_message(chat_id=…, text=…)';
 
 const aiStripEntries = computed<AiActivityEntry[]>(() => [
-    { id: 1, kind: 'thinking', text: t('dev.aiStripMock.k1') },
+    { id: 1, kind: 'thinking', text: t('dev.aiStripMock.k1'), thoughtMs: 2400 },
     { id: 2, kind: 'output', text: t('dev.aiStripMock.o1') },
     {
         id: 3,

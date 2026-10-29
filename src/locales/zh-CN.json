@@ -1273,6 +1273,8 @@
     "approval": "确认",
     "approve": "允许",
     "reject": "拒绝",
+    "thinking": "正在思考…",
+    "thoughtDone": "已思考",
     "input": "输入",
     "output": "输出",
     "copy": "复制",

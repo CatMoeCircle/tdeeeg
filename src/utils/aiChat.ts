@@ -150,6 +150,8 @@ interface ModelCall {
   reasoning: string;
   toolCalls: { call: ChatToolCall; entryId: string }[];
   usage: ChatUsage;
+  /** 这次调用思考了多久（毫秒，没有思考增量时没有）：落盘后列表里显示「已思考 X」 */
+  thoughtMs?: number;
 }
 
 /** 活动条条目 id：时间戳 + 自增，避免同毫秒内重名 */
@@ -383,6 +385,9 @@ async function callModel(o: AiTurnOptions, messages: ChatWireMessage[], tools: u
   const toolEntry = new Map<string, { entryId: string; args: string }>();
   /** 这次尝试加进活动条的条目 id：中途失败要整批撤掉 */
   let added: string[] = [];
+  /** 思考计时：请求发出 → 最后一个思考增量（多轮工具调用各自记各自的） */
+  let sentAt = 0;
+  let lastReasonAt = 0;
 
   for (let attempt = 0; reply === null; attempt++) {
     liveText = "";
@@ -391,6 +396,8 @@ async function callModel(o: AiTurnOptions, messages: ChatWireMessage[], tools: u
     thinkId = "";
     toolEntry.clear();
     added = [];
+    sentAt = 0;
+    lastReasonAt = 0;
     let received = false;
 
     const channel = new Channel<StreamPart>();
@@ -409,6 +416,7 @@ async function callModel(o: AiTurnOptions, messages: ChatWireMessage[], tools: u
           break;
         case "reasoning-delta":
           liveReason += p.delta ?? "";
+          lastReasonAt = performance.now();
           if (!thinkId) {
             thinkId = nextId();
             added.push(thinkId);
@@ -440,6 +448,7 @@ async function callModel(o: AiTurnOptions, messages: ChatWireMessage[], tools: u
 
     const requestId = `ai-${++streamSeq}`;
     activeStreamId = requestId;
+    sentAt = performance.now();
     try {
       reply = await invoke<ChatReply>("ai_chat_stream", {
         providerId: o.provider.id,
@@ -479,6 +488,13 @@ async function callModel(o: AiTurnOptions, messages: ChatWireMessage[], tools: u
   }
   if (!reply) throw new Error("[aiChat] 流式请求没有返回结果");
 
+  /**
+   * 思考耗时：这次请求发出 → 最后一个思考增量。收尾时定下来写进条目，
+   * 列表里那一条就一直留着「已思考 1.2s」（落盘后重进对话还在）。
+   * 一个思考增量都没收到（供应商只回整段）就不记，别拿整段请求时间去冒充。
+   */
+  const thoughtMs = sentAt > 0 && lastReasonAt > 0 ? Math.max(1, Math.round(lastReasonAt - sentAt)) : undefined;
+
   // 供应商没给增量（只回了整段）时补上条目，别让回复在活动条里凭空消失
   if (textId) {
     o.sink.update(textId, { text: reply.text, status: "ok" });
@@ -486,9 +502,9 @@ async function callModel(o: AiTurnOptions, messages: ChatWireMessage[], tools: u
     o.sink.add({ id: nextId(), kind: "output", text: reply.text, status: "ok" });
   }
   if (thinkId) {
-    o.sink.update(thinkId, { text: reply.reasoning, status: "ok" });
+    o.sink.update(thinkId, { text: reply.reasoning, status: "ok", thoughtMs });
   } else if (reply.reasoning) {
-    o.sink.add({ id: nextId(), kind: "thinking", text: reply.reasoning, status: "ok" });
+    o.sink.add({ id: nextId(), kind: "thinking", text: reply.reasoning, status: "ok", thoughtMs });
   }
 
   const toolCalls = reply.toolCalls.map((call) => {
@@ -499,7 +515,7 @@ async function callModel(o: AiTurnOptions, messages: ChatWireMessage[], tools: u
     o.sink.update(entryId, { text: call.name, input: JSON.stringify(call.arguments, null, 2) });
     return { call, entryId };
   });
-  return { text: reply.text, reasoning: reply.reasoning, toolCalls, usage: reply.usage };
+  return { text: reply.text, reasoning: reply.reasoning, toolCalls, usage: reply.usage, thoughtMs };
 }
 
 /**
@@ -571,6 +587,8 @@ export async function runAiTurn(o: AiTurnOptions): Promise<string> {
       text: called.text,
       reasoning: called.reasoning,
       toolCalls: clientCalls.map((t) => t.call),
+      // 思考耗时跟着这条回复落盘：重进对话时活动条里还显示「已思考 X」
+      thoughtMs: called.thoughtMs,
     });
     finalText = called.text;
     if (!clientCalls.length) {

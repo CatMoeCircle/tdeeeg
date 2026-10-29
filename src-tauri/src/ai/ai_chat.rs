@@ -46,6 +46,9 @@ pub struct ChatMessage {
     /// 历史里只留路径：每次请求现读现转，history.json 不会塞进 base64。
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<String>,
+    /// assistant 这一轮思考了多久（毫秒）：只给界面留「已思考 1.2s」，不参与 prompt
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thought_ms: Option<u64>,
 }
 
 /// 工具调用（进出共用）：arguments 为 JSON 对象，与前端 parseToolCall 的 MCP 形状一致。

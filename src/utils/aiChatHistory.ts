@@ -26,6 +26,8 @@ export interface ChatWireMessage {
   toolName?: string;
   /** user 消息附带的图片：本机绝对路径（落盘也只存路径，Rust 每次请求读盘转多模态） */
   attachments?: string[];
+  /** assistant 这一轮思考了多久（毫秒）：只给界面留「已思考 X」，不发给模型 */
+  thoughtMs?: number;
 }
 
 /** 活动条的一条（与 AiActivityStrip 的 AiActivityEntry 结构兼容） */
@@ -37,6 +39,8 @@ export interface AiActivityItem {
   input?: string;
   output?: string;
   status?: "running" | "ok" | "error";
+  /** 思考条目专用的耗时（毫秒）：列表里显示「已思考 1.2s」 */
+  thoughtMs?: number;
 }
 
 /** ponytail: 历史按条数截断，不按 token；超窗摘要等真撞墙再加 */
@@ -77,7 +81,8 @@ export function historyToActivity(history: ChatWireMessage[]): AiActivityItem[] 
       out.push({ id: `h${i}-u`, kind: "user", text: m.text ?? "", status: "ok" });
       return;
     }
-    if (m.reasoning) out.push({ id: `h${i}-r`, kind: "thinking", text: m.reasoning, status: "ok" });
+    if (m.reasoning)
+      out.push({ id: `h${i}-r`, kind: "thinking", text: m.reasoning, status: "ok", thoughtMs: m.thoughtMs });
     if (m.role === "assistant" && m.text) out.push({ id: `h${i}-t`, kind: "output", text: m.text, status: "ok" });
     for (const c of m.toolCalls ?? []) {
       const item: AiActivityItem = {
