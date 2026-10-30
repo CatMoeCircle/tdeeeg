@@ -216,7 +216,10 @@ pub fn run() {
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(tauri_plugin_window_state::StateFlags::all()
                     & !tauri_plugin_window_state::StateFlags::VISIBLE)
-                .with_filter(|label| !label.starts_with(tdlib::WINDOW_LABEL_PREFIX))
+                .with_filter(|label| {
+                    !label.starts_with(tdlib::WINDOW_LABEL_PREFIX)
+                        && !label.starts_with(tdlib::MINIAPP_WINDOW_LABEL_PREFIX)
+                })
                 .build(),
         )
         .setup(|app| {
@@ -328,6 +331,10 @@ pub fn run() {
             tdlib::restart_tdlib,
             tdlib::force_reinit_active,
             tdlib::logout_tdlib,
+            tdlib::open_mini_app,
+            tdlib::miniapp_back,
+            tdlib::miniapp_close,
+            tdlib::miniapp_start_drag,
             tdlib::get_chat_list,
             tdlib::get_chat_lists,
             tdlib::get_community,

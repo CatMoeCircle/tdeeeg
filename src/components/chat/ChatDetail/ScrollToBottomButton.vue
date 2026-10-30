@@ -1,7 +1,8 @@
 <template>
     <button
         class="absolute right-4 z-20 w-10 h-10 bg-white dark:bg-gray-700 rounded-full shadow-lg flex items-center justify-center text-gray-500 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
-        :style="{ bottom }" @click="emit('click')" :title="t('chat.scrollToBottom')">
+        :style="{ bottom }" @click="onClick" @pointerdown="onPointerDown" @pointerup="onPointerUp"
+        @pointerleave="onPointerUp" @contextmenu.prevent="onContextMenu" :title="title">
         <span v-if="count > 0"
             class="absolute -top-1 -right-1 min-w-4.5 h-4.5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1 leading-none">
             <template v-if="count > 99">99+</template>
@@ -22,11 +23,61 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Counter from '../../ui/counter/Counter.vue';
 
-/** 回到最底部按钮：贴在输入区上方，带未读新消息徽标。 */
-defineProps<{ bottom: string; count: number; places: (number | '.')[] }>();
-const emit = defineEmits<{ click: [] }>();
+/**
+ * 回到最底部按钮：贴在输入区上方，带未读新消息徽标。
+ * 有跳转回退历史时（canGoBack）：长按 = 回到上一跳位置（多轮逐级回退）；右键同效。
+ * 短按始终 = 跳到底部。
+ */
+const props = defineProps<{ bottom: string; count: number; places: (number | '.')[]; canGoBack?: boolean }>();
+const emit = defineEmits<{ click: []; back: [] }>();
 const { t } = useI18n();
+
+const title = computed(() =>
+    props.canGoBack
+        ? `${t('chat.scrollToBottom')}（${t('chat.backToPreviousHint')}）`
+        : t('chat.scrollToBottom'));
+
+const LONG_PRESS_MS = 400;
+let pressTimer: number | null = null;
+/** 长按已触发过 back：吞掉随之而来的 click，避免长按松手又跳底 */
+let swallowClick = false;
+
+function onPointerDown() {
+    swallowClick = false;
+    if (!props.canGoBack) return;
+    pressTimer = window.setTimeout(() => {
+        pressTimer = null;
+        swallowClick = true;
+        emit('back');
+    }, LONG_PRESS_MS);
+}
+
+function onPointerUp() {
+    if (pressTimer !== null) {
+        window.clearTimeout(pressTimer);
+        pressTimer = null;
+    }
+}
+
+function onClick() {
+    if (swallowClick) {
+        swallowClick = false;
+        return;
+    }
+    emit('click');
+}
+
+function onContextMenu() {
+    if (pressTimer !== null) {
+        window.clearTimeout(pressTimer);
+        pressTimer = null;
+    }
+    if (!props.canGoBack) return;
+    // 右键不会产生 click，无需吞点击
+    emit('back');
+}
 </script>

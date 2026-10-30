@@ -2,11 +2,13 @@ import type { ButtonStyle, InlineKeyboardButtonType, LoginUrlInfo } from 'tdlib-
 import { openUrl } from '@tauri-apps/plugin-opener';
 import i18n from '../i18n';
 import router from '../router';
-import { tdlibSend } from './tdlib';
+import { tdlibSend, ensureLocalFilePath } from './tdlib';
 import { toast } from './toast';
 import { confirmExternalLink } from '../store/externalLink';
 import { resolveInternalLink } from './openInternalLink';
 import { confirmAndOpenExternalLink } from './openExternalLink';
+import { buildWebAppOpenParameters } from './miniappTheme';
+import { useChatStore } from '../store/chat';
 
 /**
  * 按钮点击的公共实现：行内键盘（inlineKeyboardButton）与富文本消息里的按钮
@@ -17,6 +19,8 @@ import { confirmAndOpenExternalLink } from './openExternalLink';
 export interface InlineButtonContext {
     chatId?: number;
     messageId?: number;
+    /** WebApp 按钮的文案（app 发数据时 sendWebAppData 需要） */
+    buttonText?: string;
 }
 
 /** Telegram 内部链接（t.me / tg://）：在应用内跳转，不会被当作外部链接打开 */
@@ -43,6 +47,57 @@ export async function openButtonUrl(url: string): Promise<void> {
     }
 }
 
+/**
+ * 打开 Telegram Mini App：
+ * 1. openWebApp（TDLib）→ webAppInfo{ launch_id, url }，URL 由 TDLib 提供（含认证数据）
+ * 2. 把 URL + launch_id 交给原生 webview 载体加载（SDK 桥协议见 Rust tdlib/miniapp.rs）
+ */
+export async function openMiniApp(url: string, ctx: InlineButtonContext = {}): Promise<void> {
+    try {
+        const botUserId = resolveWebAppBotUserId(ctx);
+        const res = await tdlibSend({
+            _: 'openWebApp',
+            chat_id: ctx.chatId ?? 0,
+            bot_user_id: botUserId,
+            url,
+            parameters: buildWebAppOpenParameters(),
+        });
+        if (!res.url?.url) throw new Error('openWebApp 返回空 URL');
+        const chat = ctx.chatId ? useChatStore().chats[ctx.chatId] : undefined;
+        const avatarPath = chat?.photo?.small
+            ? await ensureLocalFilePath(chat.photo.small).catch(() => null)
+            : null;
+        const { useMiniAppStore } = await import('../store/miniapp');
+        await useMiniAppStore().open(res.url.url, {
+            launchId: res.launch_id,
+            botUserId,
+            chatId: ctx.chatId,
+            buttonText: ctx.buttonText ?? '',
+            title: chat?.title || 'Mini App',
+            avatarPath: avatarPath ?? undefined,
+        });
+    } catch (e) {
+        const err = e as { message?: string };
+        console.error('Open Mini App failed:', e);
+        await toast.error({
+            content: err?.message || i18n.global.t('content.miniAppOpenFailed'),
+            placement: 'top-right',
+        });
+    }
+}
+
+/**
+ * WebApp 按钮所在的 bot：私聊的 chat.type.user_id 就是 bot id。
+ * 群聊里的 WebApp 按钮 / via-bot 解析留待后续（需要消息 sender 上下文）。
+ */
+function resolveWebAppBotUserId(ctx: InlineButtonContext): number {
+    const chatId = ctx.chatId;
+    if (!chatId) return 0;
+    const chat = useChatStore().chats[chatId];
+    if (chat?.type?._ === 'chatTypePrivate') return chat.type.user_id;
+    return 0;
+}
+
 /** 按 TDLib 按钮类型执行动作 */
 export async function runInlineButtonType(
     type: InlineKeyboardButtonType,
@@ -50,8 +105,10 @@ export async function runInlineButtonType(
 ): Promise<void> {
     switch (type._) {
         case 'inlineKeyboardButtonTypeUrl':
-        case 'inlineKeyboardButtonTypeWebApp':
             await openButtonUrl(type.url);
+            break;
+        case 'inlineKeyboardButtonTypeWebApp':
+            await openMiniApp(type.url, ctx);
             break;
         case 'inlineKeyboardButtonTypeLoginUrl':
             await openLoginUrl(type.id, type.url, ctx);

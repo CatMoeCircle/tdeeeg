@@ -275,6 +275,13 @@ pub(super) fn spawn_receive_loop(
             continue;
         }
 
+        // Mini App：updateWebAppMessageSent 表示 app 已把数据发到聊天，Rust 侧
+        // 按 launch_id 关掉对应 webview 并回执 closeWebApp，前端不需要看到它。
+        if event.get("_").and_then(|v| v.as_str()) == Some("updateWebAppMessageSent") {
+            super::miniapp::handle_update(&app_handle, session_id, &event);
+            continue;
+        }
+
         match event.get("_").and_then(|v| v.as_str()).unwrap_or("") {
             // 缓存 updateConnectionState
             "updateConnectionState" => {

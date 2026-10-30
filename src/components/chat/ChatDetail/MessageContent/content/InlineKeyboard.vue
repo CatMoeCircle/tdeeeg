@@ -62,7 +62,11 @@ async function handleClick(button: inlineKeyboardButton, ri: number, bi: number)
     // 回调按钮：等 bot 应答期间锁住该按钮，避免重复点击
     if (button.type._ === 'inlineKeyboardButtonTypeCallback') pendingKey.value = buttonKey(ri, bi);
     try {
-        await runInlineButtonType(button.type, { chatId: props.chatId, messageId: props.messageId });
+        await runInlineButtonType(button.type, {
+            chatId: props.chatId,
+            messageId: props.messageId,
+            buttonText: button.text,
+        });
     } finally {
         pendingKey.value = null;
     }

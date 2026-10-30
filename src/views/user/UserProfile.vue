@@ -83,6 +83,14 @@
               </p>
             </div>
 
+            <!-- bot 主 Mini App 入口（有主 Web App 的 bot 才显示；文案优先 bot 菜单按钮文字） -->
+            <button v-if="canOpenMiniApp" type="button"
+              class="mt-4 flex w-full max-w-72 items-center justify-center gap-2 rounded-xl bg-[var(--app-brand)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--app-brand-hover)]"
+              @click="openBotMiniApp">
+              <AppWindowIcon class="w-4 h-4 shrink-0" />
+              <span class="truncate">{{ miniAppButtonLabel }}</span>
+            </button>
+
             <!-- 操作按钮区：消息 / 通话 / 通知 / 搜索 / 更多（等大方块，单排，灰色半透明） -->
             <div v-if="!isSelf" class="mt-5 flex items-center justify-center gap-2">
               <!-- 消息 -->
@@ -1316,7 +1324,8 @@ import StoryRing from "../../components/story/StoryRing.vue";
 import { openStoryViewer } from "../../store/storyViewer";
 import { ensureUserStories, getUserStoryState, openChatStories } from "../../store/storyRing";
 import { formatBusinessHours } from "../../utils/businessHours";
-import { tdlibSend } from "../../utils/tdlib";
+import { tdlibSend, ensureLocalFilePath } from "../../utils/tdlib";
+import { buildWebAppOpenParameters } from "../../utils/miniappTheme";
 
 import { ensureChat, getReactiveUser, getReactiveChat, getChatTitle, getChatUserNames, DELETED_ACCOUNT_LABEL } from "../../utils/senderInfo";
 import {
@@ -1374,6 +1383,7 @@ import {
   Info as InfoIcon, Phone as PhoneIcon, AtSign as AtSignIcon,
   Calendar as CalendarIcon, IdCard as IdCardIcon,
   Plus as PlusIcon, Trash2 as Trash2Icon,
+  AppWindow as AppWindowIcon,
 } from "lucide-vue-next";
 import VerifiedBadge from "../../components/common/VerifiedBadge.vue";
 import BaseButton from '../../components/ui/button/BaseButton.vue';
@@ -3529,6 +3539,48 @@ async function openPrivateChat() {
   const cid = await getPrivateChatId();
   if (!cid) return;
   router.push({ name: "chat-detail", params: { id: String(cid) } });
+}
+
+/** bot 是否有主 Mini App（资料页入口条件） */
+const canOpenMiniApp = computed(() => {
+  const u = user.value;
+  return u?.type?._ === 'userTypeBot' && !!(u.type as { has_main_web_app?: boolean }).has_main_web_app;
+});
+
+/** 入口按钮文案：bot 自定义菜单按钮文字优先，兜底通用文案 */
+const miniAppButtonLabel = computed(() => botInfo.value?.menu_button?.text || t('content.miniAppOpen'));
+
+/**
+ * 打开 bot 主 Mini App：getMainWebApp 返回完整 URL（无 launch_id，
+ * 不走 openWebApp 生命周期）；传参与 Unigram 对齐（chat_id=0、start_parameter 空、
+ * theme + application_name + fullsize mode）。
+ */
+async function openBotMiniApp() {
+  const botId = userId.value;
+  if (!botId) return;
+  try {
+    const res = await tdlibSend({
+      _: 'getMainWebApp',
+      chat_id: 0,
+      bot_user_id: botId,
+      start_parameter: '',
+      parameters: buildWebAppOpenParameters(),
+    });
+    if (!res.url?.url) throw new Error('getMainWebApp 返回空 URL');
+    const avatarPath = user.value?.profile_photo?.small
+        ? await ensureLocalFilePath(user.value.profile_photo.small).catch(() => null)
+        : null;
+    const { useMiniAppStore } = await import('../../store/miniapp');
+    await useMiniAppStore().open(res.url.url, {
+      launchId: '0',
+      botUserId: botId,
+      title: userNameOf(botId) || 'Mini App',
+      avatarPath: avatarPath ?? undefined,
+    });
+  } catch (e: any) {
+    console.error('Open bot main mini app failed:', e);
+    toast.error(e?.message || t('content.miniAppOpenFailed'));
+  }
 }
 
 /** 通话（暂未接入 VoIP） */

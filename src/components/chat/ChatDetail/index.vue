@@ -679,9 +679,12 @@
         </div>
 
         <!-- ===== Floating scroll-to-bottom button ===== -->
+        <!-- 回退栈非空时即使已贴底也保持可见（长按回退入口）；计数徽标仍只反映未读 -->
         <Transition name="fade">
-            <ScrollToBottomButton v-if="showScrollButton" :bottom="scrollButtonBottom" :count="newMessageCount"
-                :places="newMessageCountPlaces" @click="handleScrollToBottom" />
+            <ScrollToBottomButton v-if="showScrollButton || jumpBackStack.length > 0"
+                :bottom="scrollButtonBottom" :count="newMessageCount" :places="newMessageCountPlaces"
+                :can-go-back="jumpBackStack.length > 0" @click="handleScrollToBottom"
+                @back="jumpBackInHistory" />
         </Transition>
 
         <!-- ===== 全局媒体查看器 ===== -->
@@ -808,6 +811,7 @@ import {
     endManualAnchor,
     beginLayoutCompensation,
     compensateLayoutShift,
+    captureViewportAnchor,
     type ViewportHold,
 } from '../../../utils/viewportLock';
 import {
@@ -1257,6 +1261,9 @@ function toggleTopicTagPosition() {
  */
 const inputAreaRef = ref<HTMLElement | null>(null);
 const inputInset = ref<number | null>(null);
+/** inputAreaRef 为空时的连续确认帧数（防止换聊天间隙把留白误压成 0 再弹回） */
+let insetNullFrames = 0;
+const INSET_NULL_CONFIRM_FRAMES = 6;
 /** 活动条是否展开（它说了算，见下面 measureInputInset 里的钉住逻辑） */
 const aiStripExpanded = ref(false);
 const fallbackInset = () => (settings.ai.input === 'ai' ? 100 : 52);
@@ -1297,18 +1304,21 @@ function measureInputInset() {
     if (aiStripExpanded.value && aiActivityEntries.value.length > 0) return;
     const area = inputAreaRef.value;
     if (!area) {
-        // 浮层切换的一瞬间 ref 会先变 null 再指到新元素（底部条要等 TDLib 状态）：
-        // 晚一帧再确认，否则底边先被「没有浮层 = 0」压一下再弹回来 —— 又是一次底部丢失。
-        requestAnimationFrame(() => {
-            if (!messagesContainer.value) return;
-            if (inputAreaRef.value) {
+        // 浮层切换的一瞬间 ref 会先变 null 再指到新元素（换聊天时旧输入条卸载、
+        // 新底部条要等 TDLib 状态，中间可能隔好几帧）：
+        // 连续确认多帧仍为空才认定「真的没有浮层」，否则 73→0→88 的底部留白连跳两次。
+        insetNullFrames++;
+        if (insetNullFrames < INSET_NULL_CONFIRM_FRAMES) {
+            requestAnimationFrame(() => {
+                if (!messagesContainer.value) return;
                 measureInputInset();
-                return;
-            }
-            applyInputInset(0);
-        });
+            });
+            return;
+        }
+        applyInputInset(0);
         return;
     }
+    insetNullFrames = 0;
     // 量「消息区底边 − 浮层顶边」
     applyInputInset(Math.max(0, Math.round(list.getBoundingClientRect().bottom - area.getBoundingClientRect().top)));
 }
@@ -1385,6 +1395,31 @@ const MAX_MESSAGE_WINDOW = 180;
 const hiddenOlderIds = ref<Set<number>>(new Set());
 /** 揭示任务代际：切聊天/新加载时 +1，旧的分批揭示循环据此退出 */
 let olderRevealGen = 0;
+/**
+ * 首屏揭示结束后待执行的锚点校准：揭示循环持视口钉扎，期间任何 scrollTo 都会
+ * 与补偿互抢（一帧上一帧下 = 上下抖动）。校准统一挂到 hiddenOlderIds 清空之后。
+ * 用户在 250ms 窗口内发起新跳转时由 clearFirstCalibration() 作废，避免旧锚点把视口拽回去。
+ */
+let pendingFirstCalibration: (() => void) | null = null;
+let firstCalibrationTimer: number | null = null;
+function clearFirstCalibration() {
+    pendingFirstCalibration = null;
+    if (firstCalibrationTimer !== null) {
+        window.clearTimeout(firstCalibrationTimer);
+        firstCalibrationTimer = null;
+    }
+}
+// 揭示循环把 hiddenOlderIds 清空 = 视口钉扎结束，此时才允许执行挂起的校准
+watch(hiddenOlderIds, (ids) => {
+    if (ids.size !== 0 || !pendingFirstCalibration) return;
+    const fn = pendingFirstCalibration;
+    pendingFirstCalibration = null;
+    // 再等一帧让揭示末尾的 releaseAfterStable/媒体落位稳定后校准
+    firstCalibrationTimer = window.setTimeout(() => {
+        firstCalibrationTimer = null;
+        fn();
+    }, 250);
+});
 /**
  * 首屏只挂视口附近：无锚点时保留最新这么多条，其余先藏起来逐帧揭示。
  * 单条消息 DOM 很重，首帧成本应只跟视口条数有关（Unigram 靠 ListView 虚拟化做到这点）。
@@ -2066,6 +2101,16 @@ const newMessageCountPlaces = computed<(number | '.')[]>(() => {
 /** 正在播放删除消失动画的消息 id：动画结束后才真正从列表移除 */
 const leavingMessageIds = ref<Set<number>>(new Set());
 const showScrollButton = ref(false);
+/**
+ * 同对话跳转的来路栈：每次用户发起跳转（回复/置顶/搜索/链接）前压入当前视口锚点，
+ * 贴底按钮长按/右键逐级弹出回退（支持多轮）。切会话时 resetState 清空。
+ */
+interface JumpBackEntry { anchorId: number; pixelFromTop: number }
+const jumpBackStack = ref<JumpBackEntry[]>([]);
+/** 进行中的跳转滚动动画；新的动画/程序化定位/用户输入都会取消它 */
+let scrollAnimRaf = 0;
+let scrollAnimCleanup: (() => void) | null = null;
+let scrollAnimFinish: ((completed: boolean) => void) | null = null;
 const notificationsMuted = ref(false);
 const isNotificationTogglePending = ref(false);
 const linkedChatId = ref(0);
@@ -2277,6 +2322,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
     // 先标记卸载：正在跑的加载流程下一处 await 回来后直接退出
     disposed = true;
+    cancelScrollAnim();
     if (chatId.value !== undefined) {
         // DOM 还在时把窗口存进内存缓存（关闭会话后再打开可立刻铺上）
         saveCurrentChatWindow(chatId.value, topicId.value, threadRootMsgId.value);
@@ -3255,32 +3301,29 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
         // 首帧只挂了视口附近：剩下的历史逐帧揭示（视口钉扎，用户看不到跳动）
         startFirstPaintReveal(firstPaintHidden);
 
-        // 媒体布局后再校准一次（此时用户已可见，只做小幅纠偏）；
-        // 误差 > 12px 再纠一次，允许残余，禁止死循环
+        // 校准一律延后到揭示收敛后（揭示中抢 scrollTo 会与视口锁互抢 = 上下抖动）：
+        // 揭示已结束 → 250ms 后校准（媒体落位）；揭示仍在跑 → 挂起，清空时由 watch 触发。
+        const scheduleFirstCalibration = (fn: () => void) => {
+            const guarded = () => {
+                if (isGenerationValid(gen) && chatId.value === currentId) fn();
+            };
+            if (hiddenOlderIds.value.size === 0) {
+                setTimeout(guarded, 250);
+            } else {
+                pendingFirstCalibration = guarded;
+            }
+        };
         if (anchorAfterFill > 0 && browsePos && anchorAfterFill === browsePos.anchorId) {
             const calAnchorId = browsePos.anchorId;
             const calPixelFromTop = browsePos.pixelFromTop;
-            calibrateBrowseAnchor(calAnchorId, calPixelFromTop, true);
-            // 首屏分批揭示还没跑完时不要抢滚动位置（揭示本身持视口钉扎，位置是对的）
-            setTimeout(() => {
-                if (isGenerationValid(gen) && chatId.value === currentId && hiddenOlderIds.value.size === 0) {
-                    calibrateBrowseAnchor(calAnchorId, calPixelFromTop, true);
-                }
-            }, 250);
+            scheduleFirstCalibration(() => calibrateBrowseAnchor(calAnchorId, calPixelFromTop, true));
         } else if (anchorAfterFill > 0 && unreadBoundaryMessageId.value === anchorAfterFill) {
             // 未读锚点：保持顶对齐 + separator 预留，不要用 45% 居中覆盖
             const unreadId = anchorAfterFill;
-            setTimeout(() => {
-                if (isGenerationValid(gen) && chatId.value === currentId && hiddenOlderIds.value.size === 0) {
-                    scrollToUnreadAnchor(unreadId);
-                }
-            }, 250);
+            scheduleFirstCalibration(() => scrollToUnreadAnchor(unreadId));
         } else if (anchorAfterFill > 0) {
-            setTimeout(() => {
-                if (isGenerationValid(gen) && chatId.value === currentId && hiddenOlderIds.value.size === 0) {
-                    scrollToMessage(anchorAfterFill);
-                }
-            }, 250);
+            const msgId = anchorAfterFill;
+            scheduleFirstCalibration(() => scrollToMessage(msgId));
         }
 
         scheduleVisibleMessagesRead();
@@ -4128,20 +4171,19 @@ const scrollToBottom = () => {
 };
 
 /**
- * 同步滚动到指定消息（调用方需已 await nextTick，DOM 已更新）。
- * 常规消息落在视口 45% 处；但高个消息（大图 / 视频 / 相册组）这样居中会把消息开头
- * 顶到视口外——用户看到的是目标消息的中段，观感就是「没跳到目标」。
- * 因此再按「消息顶不能高于顶部栈下沿」夹一次：顶对齐时取更小的 scrollTop。
+ * 计算「消息落在视口 45% 且顶不高于顶部栈」的目标 scrollTop（纯计算，不写入）。
+ * 高个消息（大图/视频/相册组）45% 居中会把开头顶出视口，因此再与顶对齐取更小值。
+ * 目标未渲染返回 null。
  */
-function scrollToMessageImmediate(messageId: number): boolean {
+function computeMessageScrollTop(messageId: number): number | null {
     const el = messagesContainer.value;
-    if (!el) return false;
+    if (!el) return null;
     const target = messages.value.find(message => message.id === messageId);
     const renderedMessageId = target?.media_album_id && target.media_album_id !== '0'
         ? messages.value.find(message => message.media_album_id === target.media_album_id)?.id || messageId
         : messageId;
     const msgEl = el.querySelector(`[data-msg-id="${renderedMessageId}"]`) as HTMLElement | null;
-    if (!msgEl) return false;
+    if (!msgEl) return null;
 
     const containerRect = el.getBoundingClientRect();
     const msgRect = msgEl.getBoundingClientRect();
@@ -4153,14 +4195,170 @@ function scrollToMessageImmediate(messageId: number): boolean {
     const topAligned = el.scrollTop + delta - paddingTop;
     const desired = Math.min(centered, topAligned);
     const max = Math.max(0, el.scrollHeight - el.clientHeight);
-    const next = Math.max(0, Math.min(Math.round(desired), max));
+    return Math.max(0, Math.min(Math.round(desired), max));
+}
+
+/** 计算「锚点顶恢复到保存时 pixelFromTop」的目标 scrollTop（纯计算，不写入） */
+function computeBrowseScrollTop(el: HTMLElement, anchorId: number, pixelFromTop: number): number | null {
+    const msgEl = findRenderedMsgEl(el, anchorId);
+    if (!msgEl) return null;
+    const refTop = el.getBoundingClientRect().top;
+    const delta = msgEl.getBoundingClientRect().top - refTop;
+    const desired = el.scrollTop + delta - pixelFromTop;
+    const max = Math.max(0, el.scrollHeight - el.clientHeight);
+    return Math.max(0, Math.min(Math.round(desired), max));
+}
+
+// ==================== 跳转滚动动画 ====================
+/** 取消进行中的滚动动画（用户接管或程序化瞬时定位优先），未完成的 Promise 以 false 结算 */
+function cancelScrollAnim() {
+    if (scrollAnimRaf) {
+        cancelAnimationFrame(scrollAnimRaf);
+        scrollAnimRaf = 0;
+    }
+    if (scrollAnimCleanup) {
+        scrollAnimCleanup();
+        scrollAnimCleanup = null;
+    }
+    if (scrollAnimFinish) {
+        const fin = scrollAnimFinish;
+        scrollAnimFinish = null;
+        fin(false);
+    }
+}
+
+/**
+ * 方向感知平滑滚动：目标在上方向上滚、在下方向下滚，easeInOutCubic，
+ * 时长随距离 180–450ms；每帧按实时 DOM 重算目标（媒体落位/补页回流自动跟上）。
+ * 目标点做低通（τ≈100ms）+ 尾段收敛期：content-visibility 估算高→真实高等目标突变
+ * 被摊到多帧渐进，不会在 ease≈1 的尾段一次弹出（实测曾单帧 +400px）。
+ * 用户滚轮/触摸/按下立即取消交还控制权；动画期间逐帧续期 scrollLoadSuppressedUntil，
+ * 避免边缘预取插页与动画互抢。返回 true = 完整走到目标，false = 被取消。
+ */
+function animateScrollTop(el: HTMLElement, computeTarget: () => number | null): Promise<boolean> {
+    cancelScrollAnim();
+    const from = el.scrollTop;
+    const first = computeTarget();
+    if (first === null) return Promise.resolve(false);
+    const delta = first - from;
+    if (Math.abs(delta) < 2) {
+        el.scrollTop = first;
+        lastStickyScrollTop = Math.round(first);
+        return Promise.resolve(true);
+    }
+    const duration = Math.min(450, Math.max(180, Math.abs(delta) * 0.4));
+    const start = performance.now();
+    const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+    /** 目标低通时间常数与尾段收敛上限 */
+    const TARGET_TAU = 100;
+    const SETTLE_LIMIT = 600;
+
+    return new Promise<boolean>(resolve => {
+        scrollAnimFinish = resolve;
+        const onUserInput = () => cancelScrollAnim();
+        el.addEventListener('wheel', onUserInput, { passive: true });
+        el.addEventListener('touchstart', onUserInput, { passive: true });
+        el.addEventListener('pointerdown', onUserInput, { passive: true });
+        scrollAnimCleanup = () => {
+            el.removeEventListener('wheel', onUserInput);
+            el.removeEventListener('touchstart', onUserInput);
+            el.removeEventListener('pointerdown', onUserInput);
+        };
+        let smoothed = first;
+        let lastNow = start;
+        let animTime = 0;
+        const step = (now: number) => {
+            scrollAnimRaf = 0;
+            const live = computeTarget();
+            if (live === null) {
+                cancelScrollAnim();
+                return;
+            }
+            const dt = Math.min(64, Math.max(1, now - lastNow));
+            lastNow = now;
+            smoothed += (live - smoothed) * (1 - Math.exp(-dt / TARGET_TAU));
+            // 按累计虚拟时间推进（单帧上限 32ms）：换窗重渲染造成长帧时，
+            // 墙钟 t 会一步跨过大段缓动 → 单帧数百 px 的硬跳；虚拟时间把这段摊到后续帧。
+            animTime += Math.min(dt, 32);
+            const t = Math.min(1, animTime / duration);
+            const pos = from + (smoothed - from) * ease(t);
+            el.scrollTop = pos;
+            lastStickyScrollTop = Math.round(pos);
+            // 抑制动画期间的边缘预取（onScroll 在抑制窗口内不触发历史加载）
+            scrollLoadSuppressedUntil = Date.now() + 120;
+            // 主段走完后进入收敛期：目标还在漂移就继续小幅跟（指数逼近，逐帧递减），
+            // 收敛到 <1.5px 或超时（超时的残余交给跳转后的 recorrect 兜底）
+            const settled = t >= 1 && Math.abs(live - pos) < 1.5;
+            const expired = now - start > duration + SETTLE_LIMIT;
+            if (!settled && !expired) {
+                scrollAnimRaf = requestAnimationFrame(step);
+                return;
+            }
+            if (Math.abs(live - pos) < 24) {
+                el.scrollTop = live;
+                lastStickyScrollTop = Math.round(live);
+            }
+            if (scrollAnimCleanup) {
+                scrollAnimCleanup();
+                scrollAnimCleanup = null;
+            }
+            scrollAnimFinish = null;
+            // 抑制窗口挡掉了 onScroll 里的按钮/已读状态更新，这里手动结算
+            refreshScrollMetrics(el);
+            showScrollButton.value = !isAtBottom();
+            scheduleVisibleMessagesRead();
+            resolve(true);
+        };
+        scrollAnimRaf = requestAnimationFrame(step);
+    });
+}
+
+/**
+ * 同步滚动到指定消息（调用方需已 await nextTick，DOM 已更新）。
+ * 程序化瞬时定位一律先取消动画（瞬时优先），目标计算见 computeMessageScrollTop。
+ */
+function scrollToMessageImmediate(messageId: number): boolean {
+    cancelScrollAnim();
+    const el = messagesContainer.value;
+    if (!el) return false;
+    const next = computeMessageScrollTop(messageId);
+    if (next === null) return false;
     el.scrollTop = next;
     lastStickyScrollTop = next;
     return true;
 }
 
+/**
+ * 动画滚动到指定消息（同对话跳转专用）：目标已在 45% 位或按 restore 恢复原偏移。
+ * 列表未露出 / 首屏分批揭示进行中退回瞬时（动画会与视口钉扎互抢）。
+ * 返回 'done' = 完整到位；'cancelled' = 用户中途接管（不要再回拽）；'missing' = 目标未渲染。
+ */
+async function scrollToMessageAnimated(
+    messageId: number,
+    restore?: { pixelFromTop: number },
+): Promise<'done' | 'cancelled' | 'missing'> {
+    const el = messagesContainer.value;
+    if (!el) return 'missing';
+    if (!listRevealed.value || hiddenOlderIds.value.size > 0) {
+        if (scrollToMessageImmediate(messageId)) return 'done';
+        // 与瞬时路径相同的 rAF 重试
+        await new Promise<void>(r => requestAnimationFrame(() => r()));
+        return scrollToMessageImmediate(messageId) ? 'done' : 'missing';
+    }
+    const compute = restore
+        ? () => computeBrowseScrollTop(el, messageId, restore.pixelFromTop)
+        : () => computeMessageScrollTop(messageId);
+    if (compute() === null) {
+        // 布局未稳定：rAF 重试一次再退瞬时
+        await new Promise<void>(r => requestAnimationFrame(() => r()));
+        if (compute() === null) return 'missing';
+    }
+    return (await animateScrollTop(el, compute)) ? 'done' : 'cancelled';
+}
+
 /** 同步滚到底部（不触碰浏览位置缓存；首屏定位/测量失败回落用） */
 function scrollToBottomPure() {
+    cancelScrollAnim();
     const maxId = messages.value[messages.value.length - 1]?.id ?? 0;
     if (maxId > latestUnreadSeenId.value) latestUnreadSeenId.value = maxId;
     showScrollButton.value = false;
@@ -4193,8 +4391,13 @@ const scrollToMessage = (messageId: number) => {
 
 /**
  * 统一跳转函数：加载目标为中心的连续切片并定位；随后补齐视口，避免空白与无法继续加载。
+ * restore：回退栈条目——定位改为按保存的原偏移恢复（贴底按钮长按回退用）。
  */
-async function jumpToMessageInternal(messageId: number, gen: number): Promise<boolean> {
+async function jumpToMessageInternal(
+    messageId: number,
+    gen: number,
+    restore?: JumpBackEntry,
+): Promise<boolean> {
     const currentChatId = chatId.value;
     if (!currentChatId) return false;
 
@@ -4217,43 +4420,96 @@ async function jumpToMessageInternal(messageId: number, gen: number): Promise<bo
         return false;
     }
 
-    applyMessages(windowMessages);
-    historyMode.value = 'jump';
-    jumpOlderExhausted.value = false;
-    jumpNewerExhausted.value = false;
-    isHistoryExhausted.value = false;
-    isNewerExhausted.value = false;
+    // 换窗期间关掉原生 scroll anchoring：整窗替换后浏览器会把 scrollTop 锚回旧位置，
+    // 与随后的动画各写各的（实测出现 ±2000px 一帧回摆）。同时抑制边缘预取的视口锁写入。
+    const anchorEl = listRevealed.value ? messagesContainer.value : null;
+    if (anchorEl) {
+        beginManualAnchor(anchorEl);
+        scrollLoadSuppressedUntil = Date.now() + 1000;
+    }
+    try {
+        applyMessages(windowMessages);
+        historyMode.value = 'jump';
+        jumpOlderExhausted.value = false;
+        jumpNewerExhausted.value = false;
+        isHistoryExhausted.value = false;
+        isNewerExhausted.value = false;
 
-    const lastMessageId = chat.value?.last_message?.id ?? 0;
-    windowReachesLatest.value = lastMessageId > 0
-        && windowMessages.some(m => m.id === lastMessageId);
+        const lastMessageId = chat.value?.last_message?.id ?? 0;
+        windowReachesLatest.value = lastMessageId > 0
+            && windowMessages.some(m => m.id === lastMessageId);
 
-    // 会话内跳转（列表已露出）：定位 + 后台补视口
-    // 首屏带 message 打开：只写入数据并定位，由 watch 负责补视口后统一 reveal
-    if (listRevealed.value) {
-        isReady.value = true;
-        await nextTick();
-        scrollToMessageImmediate(messageId);
-        flashMessage(messageId);
-        void ensureViewportFilled(gen).then(() => {
-            if (isGenerationValid(gen) && chatId.value === currentChatId) {
-                scrollToMessage(messageId);
+        // 会话内跳转（列表已露出）：动画定位 + 后台补视口
+        // 首屏带 message 打开：只写入数据并定位，由 watch 负责补视口后统一 reveal
+        if (listRevealed.value) {
+            isReady.value = true;
+            await nextTick();
+            flashMessage(messageId);
+            // 向目标方向平滑滚动；用户中途滚轮/触摸接管则停止，后续不再回拽
+            const landed = await scrollToMessageAnimated(messageId, restore);
+            if (!isGenerationValid(gen) || chatId.value !== currentChatId) return true;
+            // 校准：回退按保存的原偏移纠偏（容差 12px），普通跳转走 45% 居中
+            const recorrect = () => {
+                if (!isGenerationValid(gen) || chatId.value !== currentChatId) return;
+                if (restore) calibrateBrowseAnchor(messageId, restore.pixelFromTop, true);
+                else scrollToMessage(messageId);
+            };
+            void ensureViewportFilled(gen).then(() => {
+                if (landed !== 'cancelled') recorrect();
+            });
+            if (landed !== 'cancelled') {
+                setTimeout(recorrect, 300);
             }
-        });
-        setTimeout(() => {
-            if (isGenerationValid(gen) && chatId.value === currentChatId) {
-                scrollToMessage(messageId);
-            }
-        }, 300);
-    } else {
-        await nextTick();
-        scrollToMessageImmediate(messageId);
+        } else {
+            await nextTick();
+            scrollToMessageImmediate(messageId);
+        }
+    } finally {
+        if (anchorEl) endManualAnchor(anchorEl);
     }
 
     return true;
 }
 
+/**
+ * 记录当前视口锚点进回退栈（跳转前调用）。与栈顶同一锚点则不重复压栈。
+ * 列表未露出（首屏定位中）不记录——那不是用户发起的跳转。
+ */
+function pushJumpHistory() {
+    const el = messagesContainer.value;
+    if (!el || !listRevealed.value) return;
+    const anchor = captureViewportAnchor(el);
+    if (anchor.msgId <= 0) return;
+    const top = jumpBackStack.value[jumpBackStack.value.length - 1];
+    if (top && top.anchorId === anchor.msgId && Math.abs(top.pixelFromTop - anchor.offsetTop) < 4) return;
+    jumpBackStack.value.push({ anchorId: anchor.msgId, pixelFromTop: anchor.offsetTop });
+    // 栈上限：防御性截断，正常跳转轮次远达不到
+    if (jumpBackStack.value.length > 10) jumpBackStack.value.shift();
+}
+
+/**
+ * 回到之前的位置（贴底按钮长按/右键）：弹出回退栈逐级返回，支持多轮跳转。
+ * 目标已不在当前窗口时走完整跳转流程加载（带 restore 恢复原偏移）。
+ */
+async function jumpBackInHistory() {
+    const entry = jumpBackStack.value.pop();
+    if (!entry) return;
+    const el = messagesContainer.value;
+    if (!el) return;
+    if (findRenderedMsgEl(el, entry.anchorId)) {
+        // 还在窗口内：动画滚回原偏移
+        flashMessage(entry.anchorId);
+        await animateScrollTop(el, () => computeBrowseScrollTop(el, entry.anchorId, entry.pixelFromTop));
+        return;
+    }
+    // 已被裁出窗口：重新加载该位置的窗口并按原偏移恢复
+    await jumpToMessageInternal(entry.anchorId, loadGeneration, entry);
+}
+
 async function jumpToMessage(messageId: number) {
+    // 跳转前记录来路（仅用户在已露出列表上发起的跳转）；首屏挂起的校准也作废，别把视口拽回旧锚点
+    pushJumpHistory();
+    clearFirstCalibration();
     await jumpToMessageInternal(messageId, loadGeneration);
 }
 
@@ -4334,6 +4590,7 @@ function findRenderedMsgEl(el: HTMLElement, messageId: number): HTMLElement | nu
  * 恢复时把该偏移重新对齐到容器顶，从而还原同一屏内容。
  */
 function scrollToBrowseAnchor(anchorId: number, pixelFromTop: number): boolean {
+    cancelScrollAnim();
     const el = messagesContainer.value;
     if (!el) return false;
     const msgEl = findRenderedMsgEl(el, anchorId);
@@ -4354,6 +4611,7 @@ function scrollToBrowseAnchor(anchorId: number, pixelFromTop: number): boolean {
  * （separator 在首条未读上方，预留后露出时不会把它顶出视口）。
  */
 function scrollToUnreadAnchor(messageId: number): boolean {
+    cancelScrollAnim();
     const el = messagesContainer.value;
     if (!el) return false;
     const msgEl = findRenderedMsgEl(el, messageId);
@@ -4964,6 +5222,10 @@ function resetState() {
     sessionUnreadBaseId.value = 0;
     applyMessages([]);
     chat.value = undefined;
+    // 切会话：回退栈/进行中的滚动动画/挂起的首屏校准全部作废
+    jumpBackStack.value = [];
+    cancelScrollAnim();
+    clearFirstCalibration();
     // 活动条是聊天内的临时状态：换聊天就清掉，没用过 AI 的聊天不会残留上一条
     aiAbort?.abort();
     cancelAiStream();
@@ -5641,6 +5903,16 @@ const topPaddingClass = computed(() => {
     return { paddingTop: `${px}px` };
 });
 
+// 顶部留白在列表露出后才变（置顶栏 visibleChange / 翻译栏 / 机器人条都是异步上报）：
+// 直接改容器 paddingTop 会把内容整体顶/拽一下，且原生 scroll anchoring 不管容器自身 padding。
+// flush:'pre' 在渲染前进入视口锁，捕获旧锚点 → 渲染 → nextTick 同帧补偿，用户看不到位移。
+watch(() => topPaddingClass.value.paddingTop, () => {
+    if (!listRevealed.value) return;
+    const el = messagesContainer.value;
+    if (!el) return;
+    void withViewportLock(el, () => { /* padding 由渲染管线应用 */ }, nextTick);
+}, { flush: 'pre' });
+
 /**
  * 顶置消息跳转：复用统一的 jumpToMessage，
  * 保证目标消息加载进列表、填补与当前列表的断层，再定位 + 高亮。
@@ -5937,6 +6209,9 @@ function refreshKeyboardLock(messageId: number) {
  * 使用 function 声明以便 updateNewMessage 在 TDZ 外安全引用。
  */
 async function handleScrollToBottom() {
+    cancelScrollAnim();
+    // 跳底也算一次导航：记下来路，长按按钮可回到跳底前的位置（已在底部则不记，避免空栈项）
+    if (!isAtBottom()) pushJumpHistory();
     showScrollButton.value = false;
     // 抑制滚动加载，避免贴底后 loadHistoryNewer 与“加载中”指示器形成高度抖动
     scrollLoadSuppressedUntil = Date.now() + 600;

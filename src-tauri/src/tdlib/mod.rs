@@ -17,6 +17,7 @@ mod downloads;
 mod file_events;
 mod lifecycle;
 mod loader;
+mod miniapp;
 mod proxy;
 mod proxy_carrier;
 mod receive;
@@ -28,6 +29,9 @@ pub use accounts::*;
 pub use data_dir::*;
 pub use downloads::*;
 pub use lifecycle::*;
+/// Mini App 命令 + MINIAPP_WINDOW_LABEL_PREFIX 随 glob 一并再导出
+/// （tauri::command 的 __cmd__* 隐藏项也要经 glob 才能被 generate_handler! 找到）。
+pub use miniapp::*;
 pub use proxy::*;
 /// 载体隐藏窗口的 label 前缀（lib.rs 注册窗口状态插件时用来排除它们）。
 pub(crate) use proxy_carrier::WINDOW_LABEL_PREFIX;

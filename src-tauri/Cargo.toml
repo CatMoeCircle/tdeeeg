@@ -19,7 +19,7 @@ tauri-build = { version = "2", features = [] }
 dotenv = "0.15"
 
 [dependencies]
-tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
+tauri = { version = "2", features = ["protocol-asset", "tray-icon", "unstable"] }
 tauri-plugin-opener = "2"
 tauri-plugin-window-state = "2"
 tauri-plugin-dialog = "2"
@@ -49,6 +49,8 @@ reqwest = { version = "0.13", default-features = false, features = [
     "json",
     "rustls",
 ] }
+# 壳标题栏头像 → data URL（base64 编码）
+base64 = "0.22"
 
 [target.'cfg(windows)'.dependencies]
 # 与 tauri/wry 依赖的版本保持一致（wry 0.55 → webview2-com 0.38 / windows 0.61），
@@ -64,5 +66,7 @@ windows = { version = "0.61", features = [
     "Storage_Streams",
     "Win32_Foundation",
     "Win32_System_WinRT",
+    "Win32_UI_HiDpi",
     "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
 ] }

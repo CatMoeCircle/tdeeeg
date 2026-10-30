@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mini App</title>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; height: 100%; }
+  #bar {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 6px;
+    box-sizing: border-box;
+    background: #1e293b;
+    color: #fff;
+    user-select: none;
+    touch-action: none;
+    /* 与主窗口标题栏一致：WebView2 draggable regions（启动参数 msWebView2EnableDraggableRegions） */
+    -webkit-app-region: drag;
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  .btn {
+    width: 32px;
+    height: 32px;
+    flex: none;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    -webkit-app-region: no-drag;
+  }
+  .btn:hover { background: rgba(127, 127, 127, 0.28); }
+  .btn:active { background: rgba(127, 127, 127, 0.42); }
+  .btn svg { width: 18px; height: 18px; }
+  #avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex: none;
+  }
+  #title {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    line-height: 40px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .right { display: flex; align-items: center; gap: 6px; flex: none; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <button id="back" class="btn" hidden title="返回">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+  </button>
+  <img id="avatar" hidden alt="">
+  <span id="title">Mini App</span>
+  <div class="right">
+    <button id="close" class="btn" title="关闭">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+  // 壳标题栏：状态由 Rust eval window.__miniappChrome.update(<json>) 推送；
+  // 按钮动作走 Tauri IPC（本地 origin 可 invoke；远程 app webview 无此权限）。
+  const internals = window.__TAURI_INTERNALS__;
+  const bar = document.getElementById('bar');
+  const backBtn = document.getElementById('back');
+  const avatar = document.getElementById('avatar');
+  const title = document.getElementById('title');
+  const closeBtn = document.getElementById('close');
+
+  let launchId = null;
+  const invoke = (cmd, args) => {
+    if (!internals || launchId === null) return;
+    try { internals.invoke(cmd, { launchId: Number(launchId), ...args }); } catch (e) { console.error('[miniapp-shell]', cmd, e); }
+  };
+
+  window.__miniappChrome = {
+    update(state) {
+      if (!state) return;
+      if (state.launchId !== undefined) launchId = state.launchId;
+      title.textContent = state.title || '';
+      backBtn.hidden = !state.backVisible;
+      if (state.avatar) { avatar.src = state.avatar; avatar.hidden = false; } else { avatar.hidden = true; }
+      bar.style.background = state.bg || '#1e293b';
+      bar.style.color = state.fg || '#ffffff';
+      const dark = (state.bg || '').length === 7 ? Number.parseInt(state.bg.slice(1), 16) : 0x1e293b;
+      const lum = 0.299 * ((dark >> 16) & 255) + 0.587 * ((dark >> 8) & 255) + 0.114 * (dark & 255);
+      // 菜单是白底黑字的浮层，标题栏换色不影响它
+    }
+  };
+
+  backBtn.addEventListener('click', () => invoke('miniapp_back', {}));
+  closeBtn.addEventListener('click', () => invoke('miniapp_close', {}));
+  // 标题栏空白处按下 → 拖动窗口（按钮区除外）。pointerdown 同时覆盖触摸与鼠标；
+  // 原生 draggable region 生效时页面收不到该事件，此处只作为兜底。
+  bar.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || e.target.closest('button')) return;
+    invoke('miniapp_start_drag', {});
+  });
+</script>
+</body>
+</html>

@@ -95,7 +95,10 @@ async function press() {
     if (pending.value) return;
     pending.value = true;
     try {
-        await runInlineButtonType(props.button.type, ctx);
+        await runInlineButtonType(props.button.type, {
+            ...ctx,
+            buttonText: plainText(props.button.text),
+        });
     } finally {
         pending.value = false;
     }

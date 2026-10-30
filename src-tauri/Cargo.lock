@@ -5155,6 +5155,7 @@ name = "tdeeeg"
 version = "0.2.4"
 dependencies = [
  "arboard",
+ "base64 0.22.1",
  "dotenv",
  "futures-util",
  "image",
