@@ -2676,6 +2676,18 @@ const handleUpdate = async (update: Update) => {
             break;
         }
 
+        case 'updateChatActionBar': {
+            // 陌生私聊操作条（添加联系人 / 举报并拉黑）：加入联系人、拉黑后 TDLib 会推送新的
+            // action_bar，不回填的话顶栏按钮要等重开对话才会消失。
+            if (update.chat_id === chatId.value && chat.value) {
+                chat.value.action_bar = update.action_bar;
+            }
+            if (typeof update.chat_id === 'number' && chats.value[update.chat_id]) {
+                chats.value[update.chat_id].action_bar = update.action_bar;
+            }
+            break;
+        }
+
         case 'updateMessageIsPinned': {
             // 自己/其他设备置顶或取消置顶：保持消息菜单与顶部置顶栏同步
             if (!isActiveChat(update.chat_id)) break;

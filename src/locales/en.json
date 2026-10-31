@@ -1652,7 +1652,11 @@
     "topicBarTop": "Topic tags: top (click to switch to bottom)",
     "topicBarBottom": "Topic tags: bottom (click to switch to left)",
     "topicBarLeft": "Topic tags: left (click to switch to top)",
-    "supergroup": "Supergroup"
+    "supergroup": "Supergroup",
+    "addContact": "Add contact",
+    "reportAndBlock": "Report and block",
+    "addContactDone": "Added {user} to contacts",
+    "reportBlockDone": "Reported and blocked {user}"
   },
   "topicTag": {
     "all": "All",

@@ -92,6 +92,22 @@
                     <component :is="topicTagPositionIcon" class="w-5 h-5" />
                 </button>
                 <slot name="actions" />
+                <!-- 陌生私聊：添加联系人 / 举报并拉黑（由 TDLib chat.action_bar 驱动：
+                     AddContact / ReportAddBlock / ReportSpam） -->
+                <button v-if="showStrangerAddContact" type="button"
+                    class="flex h-8 shrink-0 items-center gap-1 rounded-full bg-blue-500/10 px-2.5 text-xs font-semibold text-blue-500 hover:bg-blue-500/20 active:scale-95 disabled:cursor-default disabled:opacity-50 disabled:active:scale-100 dark:text-blue-400 transition-[background-color,transform] duration-150"
+                    :disabled="addContactBusy" @click="addContactFromHeader"
+                    :title="t('header.addContact')" :aria-label="t('header.addContact')">
+                    <UserPlusIcon class="w-3.5 h-3.5" />
+                    {{ t('header.addContact') }}
+                </button>
+                <button v-if="showStrangerReportBlock" type="button"
+                    class="flex h-8 shrink-0 items-center gap-1 rounded-full bg-red-500/10 px-2.5 text-xs font-semibold text-red-500 hover:bg-red-500/20 active:scale-95 disabled:cursor-default disabled:opacity-50 disabled:active:scale-100 dark:text-red-400 transition-[background-color,transform] duration-150"
+                    :disabled="reportBlockBusy" @click="reportAndBlockFromHeader"
+                    :title="t('header.reportAndBlock')" :aria-label="t('header.reportAndBlock')">
+                    <ShieldAlertIcon class="w-3.5 h-3.5" />
+                    {{ t('header.reportAndBlock') }}
+                </button>
                 <button type="button" @click="emit('search')"
                     class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-200/80 dark:hover:bg-white/20 hover:text-blue-500 active:scale-95 transition-[background-color,color,transform] duration-150"
                     :aria-label="t('lng_dlg_filter')">
@@ -111,6 +127,7 @@
 import {
     SearchIcon, MoreHorizontalIcon, ArrowLeftIcon, BookmarkIcon, PanelLeftIcon, PanelTopIcon, PanelBottomIcon,
     BellOffIcon, BellRingIcon, ZapIcon, EraserIcon, CircleQuestionMarkIcon, FlagIcon, BanIcon, LanguagesIcon,
+    UserPlusIcon, ShieldAlertIcon,
 } from 'lucide-vue-next';
 import VerifiedBadge from '../../common/VerifiedBadge.vue';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
@@ -520,6 +537,95 @@ const peerSupergroupId = computed(() => {
     const type = props.chat?.type;
     return type?._ === 'chatTypeSupergroup' ? type.supergroup_id : undefined;
 });
+
+// ==================== 陌生私聊：顶栏「添加联系人 / 举报并拉黑」 ====================
+/**
+ * 数据源是 TDLib 的 chat.action_bar（会话操作条）。
+ * - chatActionBarAddContact     → 对方可加入联系人
+ * - chatActionBarReportAddBlock → 可举报 + 拉黑，也可加入联系人
+ * - chatActionBarReportSpam     → 可举报（私聊下配合拉黑；群/频道是「举报并退出」，不在此处理）
+ * action_bar 为空即 TDLib 认为该会话是联系人 / 无需操作，顶栏不显示任何按钮。
+ */
+const isPrivateChat = computed(() => peerUserId.value !== undefined);
+
+const showStrangerAddContact = computed(() => {
+    const bar = props.chat?.action_bar;
+    return bar?._ === 'chatActionBarAddContact' || bar?._ === 'chatActionBarReportAddBlock';
+});
+
+const showStrangerReportBlock = computed(() => {
+    const bar = props.chat?.action_bar;
+    if (bar?._ === 'chatActionBarReportAddBlock') return true;
+    return bar?._ === 'chatActionBarReportSpam' && isPrivateChat.value;
+});
+
+const addContactBusy = ref(false);
+const reportBlockBusy = ref(false);
+
+/** 顶栏「添加联系人」：用对方资料直接加入联系人（与联系人卡片上的同名操作一致） */
+async function addContactFromHeader() {
+    const target = props.chat;
+    const peerId = peerUserId.value;
+    if (!target || peerId === undefined || addContactBusy.value) return;
+    // 用户资料可能还没拉到（getUser 未返回）：用对话标题兜底，手机号未知时留空
+    const peer = statusUser.value;
+    // 名称在点击时定格：await 期间切到别的对话也不会报错名字
+    const name = target.title || '';
+    addContactBusy.value = true;
+    try {
+        await tdlibSend({
+            _: 'addContact',
+            user_id: peerId,
+            contact: {
+                _: 'importedContact',
+                phone_number: peer?.phone_number || '',
+                first_name: peer?.first_name || name || '',
+                last_name: peer?.last_name || '',
+            },
+            share_phone_number: false,
+        });
+        toast.success(t('header.addContactDone', { user: name }));
+    } catch (e: any) {
+        toast.error(e?.message || t('lng_sr_chat_failed'));
+    } finally {
+        addContactBusy.value = false;
+    }
+}
+
+/**
+ * 顶栏「举报并拉黑」：先走既有的举报原因弹窗（ReportMessageConfirm），
+ * 确认后拉黑对方（TDLib 会随后把 chat.action_bar 置空，按钮自动消失）。
+ * 拉黑不删对话：历史仍在本地，需要时可在「更多」里清空。
+ */
+async function reportAndBlockFromHeader() {
+    const target = props.chat;
+    const peerId = peerUserId.value;
+    if (!target || peerId === undefined || reportBlockBusy.value) return;
+    const name = target.title || '';
+    reportBlockBusy.value = true;
+    try {
+        await confirmReportMessage({ chatId: target.id, title: t('header.reportAndBlock') });
+    } catch (e: any) {
+        if (e?.message !== 'canceled') {
+            console.error('reportChat failed:', e);
+            toast.error(e?.message || t('lng_sr_chat_failed'));
+        }
+        reportBlockBusy.value = false;
+        return;
+    }
+    try {
+        await tdlibSend({
+            _: 'setMessageSenderBlockList',
+            sender_id: { _: 'messageSenderUser', user_id: peerId },
+            block_list: { _: 'blockListMain' },
+        });
+        toast.success(t('header.reportBlockDone', { user: name }));
+    } catch (e: any) {
+        toast.error(e?.message || t('lng_sr_chat_failed'));
+    } finally {
+        reportBlockBusy.value = false;
+    }
+}
 
 /** 由已缓存的原始数据重算状态文案（update / 相对时间刷新共用） */
 function rebuildStatusText() {

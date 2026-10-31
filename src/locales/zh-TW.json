@@ -1652,7 +1652,11 @@
     "topicBarTop": "話題標籤列：頂部（點擊切換到底部）",
     "topicBarBottom": "話題標籤列：底部（點擊切換到左側）",
     "topicBarLeft": "話題標籤列：左側（點擊切換到頂部）",
-    "supergroup": "超級群組"
+    "supergroup": "超級群組",
+    "addContact": "新增聯絡人",
+    "reportAndBlock": "檢舉並封鎖",
+    "addContactDone": "已將 {user} 加入聯絡人",
+    "reportBlockDone": "已檢舉並封鎖 {user}"
   },
   "topicTag": {
     "all": "全部",

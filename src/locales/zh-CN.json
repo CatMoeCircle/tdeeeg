@@ -1652,7 +1652,11 @@
     "topicBarTop": "话题标签栏：顶部（点击切换到底部）",
     "topicBarBottom": "话题标签栏：底部（点击切换到左侧）",
     "topicBarLeft": "话题标签栏：左侧（点击切换到顶部）",
-    "supergroup": "超级群组"
+    "supergroup": "超级群组",
+    "addContact": "添加联系人",
+    "reportAndBlock": "举报并拉黑",
+    "addContactDone": "已将 {user} 添加到联系人",
+    "reportBlockDone": "已举报并拉黑 {user}"
   },
   "topicTag": {
     "all": "全部",
