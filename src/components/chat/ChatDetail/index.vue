@@ -201,7 +201,7 @@
                                 </div>
                                 <div class="flex min-w-0 max-w-[70%] flex-col"
                                     :class="isSelf(item.msg) ? 'items-end' : 'items-start'">
-                                    <div :data-bubble-msg-id="item.msg.id" v-bubble-size
+                                    <div :data-bubble-msg-id="item.msg.id"
                                         :data-no-bubble-anim="item.msg.content._ === 'messageVideoNote' ? '' : null" :class="[
                                         isMediaMessage(item.msg)
                                             ? [
