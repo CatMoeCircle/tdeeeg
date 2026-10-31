@@ -74,14 +74,18 @@ import { tdlibSend } from '../../utils/tdlib';
 import { toast } from '../../utils/toast';
 import BaseButton from '../ui/button/BaseButton.vue';
 
-const props = defineProps<{ chat: Chat }>();
-const emit = defineEmits<{ (e: 'close'): void }>();
+/** 只用到 id / title：ChatDetail 里传的是 TDLib 原始 chat，不需要整份 Chat 结构 */
+type DeletableChat = Pick<Chat, 'id' | 'title'>;
+const props = defineProps<{ chat: DeletableChat }>();
+const emit = defineEmits<{ (e: 'close'): void; (e: 'deleted'): void }>();
 const { t } = useI18n();
 
 const ready = ref(false);
 const busy = ref(false);
 const peerUserId = ref<number | null>(null);
 const isBot = ref(false);
+/** 对端是否为已注销账户：TDLib 侧 chat.title 为空，问句里用官方「已注销账户」文案兜底 */
+const peerDeleted = ref(false);
 const isOwner = ref(false);
 const deleteForPeer = ref(false);
 const deleteForAll = ref(false);
@@ -109,7 +113,7 @@ const confirmLabel = computed(() => {
 });
 
 const askText = computed(() => {
-    const name = full.value?.title || props.chat.title || '';
+    const name = full.value?.title || props.chat.title || (peerDeleted.value ? t('lng_deleted') : '');
     if (isLeave.value) return isChannel.value ? t('lng_sure_leave_channel') : t('lng_sure_leave_group');
     return t('lng_sure_delete_history', { contact: name });
 });
@@ -122,6 +126,7 @@ onMounted(async () => {
             peerUserId.value = type.user_id;
             const u: any = await tdlibSend({ _: 'getUser', user_id: type.user_id } as any);
             isBot.value = u?.type?._ === 'userTypeBot';
+            peerDeleted.value = u?.type?._ === 'userTypeDeleted' || u?.type?._ === 'userTypeUnknown';
         } else if (type?._ === 'chatTypeBasicGroup') {
             const g: any = await tdlibSend({ _: 'getBasicGroup', basic_group_id: type.basic_group_id } as any);
             isOwner.value = g?.status?._ === 'chatMemberStatusCreator';
@@ -162,6 +167,8 @@ async function confirm() {
             } as any);
         }
         toast.success(isLeave.value ? t('context.leftChat') : t('context.deleted'));
+        // 先通知删除完成（调用方据此关闭对话面板），再走统一的 close
+        emit('deleted');
         emit('close');
     } catch (e: any) {
         toast.error(e?.message || t('context.deleteFailed'));

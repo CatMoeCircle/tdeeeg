@@ -627,6 +627,23 @@
             </div>
         </div>
 
+        <!-- ===== 已注销账户：不能对话，底部只留「删除本聊天」 =====
+             文案走 TDLib 官方语言包（lng_blocked_list_confirm_clear = "Delete this chat"） -->
+        <div v-else-if="isDeletedAccountChat"
+            class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-transparent dark:from-gray-900/80 via-transparent dark:via-gray-900/60 to-transparent"
+            :style="tagBarSideInsetStyle">
+            <div aria-hidden="true"
+                class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
+            </div>
+            <div ref="inputAreaRef" class="relative z-10 flex items-center justify-center p-5">
+                <button type="button"
+                    class="h-12 min-w-32 px-5 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg text-sm font-medium text-red-500 dark:text-red-400 hover:bg-white/80 dark:hover:bg-gray-800/90 transition-colors"
+                    @click="openDeletedAccountChatDelete">
+                    {{ t('lng_blocked_list_confirm_clear') }}
+                </button>
+            </div>
+        </div>
+
         <!-- ===== 只读 ===== -->
         <div v-else-if="showChannelActions"
             class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-transparent dark:from-gray-900/80 via-transparent dark:via-gray-900/60 to-transparent">
@@ -677,6 +694,9 @@
 
         <!-- ===== 删除消息确认弹窗 ===== -->
         <DeleteMessageConfirm />
+        <!-- ===== 已注销账户：底部「删除本聊天」确认弹窗 ===== -->
+        <DeleteChatConfirm v-if="deleteChatTarget" :chat="deleteChatTarget"
+            @close="deleteChatTarget = undefined" @deleted="onDeletedAccountChatDeleted" />
         <!-- ===== 翻译消息弹窗 ===== -->
         <TranslateMessageModal />
         <!-- ===== 置顶消息确认弹窗 ===== -->
@@ -716,6 +736,7 @@ import ChatTranslateBar from './ChatTranslateBar.vue';
 import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
 import MediaViewer from './MessageContent/MediaViewer.vue';
 import DeleteMessageConfirm from '../../contextMenu/DeleteMessageConfirm.vue';
+import DeleteChatConfirm from '../DeleteChatConfirm.vue';
 import TranslateMessageModal from '../../contextMenu/TranslateMessageModal.vue';
 import PinMessageConfirm from '../../contextMenu/PinMessageConfirm.vue';
 import StopPollConfirm from '../../contextMenu/StopPollConfirm.vue';
@@ -5824,7 +5845,42 @@ watch(
     { immediate: true },
 );
 
+/**
+ * 已注销账户（userTypeDeleted / userTypeUnknown）的私聊 / 密聊：
+ * TDLib 禁止对其发起任何主动操作（包括发送消息），因此不显示输入框，
+ * 底部只留「删除本聊天」。
+ */
+const isDeletedAccountChat = computed(() => isDeletedChat(chat.value));
+
+/** 已注销账户对话的删除目标（底部「删除本聊天」→ 复用 DeleteChatConfirm） */
+const deleteChatTarget = ref<chat | undefined>(undefined);
+
+/**
+ * 对端用户进缓存后 isDeletedChat 才会变：切换对话时确保已加载。
+ * 未加载时按「非已注销」渲染，加载完成由 computed 自动刷新。
+ */
+watch(chat, (c) => {
+    // 切换对话时收起可能还开着的删除确认
+    deleteChatTarget.value = undefined;
+    if (!c) return;
+    if (c.type._ === 'chatTypePrivate' || c.type._ === 'chatTypeSecret') {
+        void ensureUser(c.type.user_id);
+    }
+}, { immediate: true });
+
+function openDeletedAccountChatDelete() {
+    deleteChatTarget.value = chat.value;
+}
+
+/** 删除成功：收起确认弹窗并退出该对话 */
+function onDeletedAccountChatDeleted() {
+    deleteChatTarget.value = undefined;
+    handleBack();
+}
+
 const canSend = computed(() => {
+    // 已注销账户无法对话：底部改为「删除本聊天」，这里连 AI 输入框一并挡掉
+    if (isDeletedAccountChat.value) return false;
     const base = canSendChat(chat.value, currentMemberStatus.value, groupCaches());
     if (!base) return false;
     // 秘密聊天：Pending（握手未完成）/ Closed（已取消）禁用输入，底部显示对应提示
