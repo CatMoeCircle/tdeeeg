@@ -137,7 +137,7 @@ const locationText = computed(() => {
 /** 与消息正文一致的通用链接处理：内部链接解析跳转，外部链接先确认 */
 async function openLink(href: string) {
     if (href.startsWith('https://t.me/') || href.startsWith('https://proxy.t.me/') || href.startsWith('tg://')) {
-        await resolveInternalLink(href, router);
+        await resolveInternalLink(href, router, { chatId: props.chatId });
     } else if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:')) {
         try {
             await confirmAndOpenExternalLink(href);

@@ -29,11 +29,11 @@ export function isTelegramInternalUrl(url: string): boolean {
 }
 
 /** 打开按钮 URL：Telegram 内部链接走应用内跳转，外部链接先确认 */
-export async function openButtonUrl(url: string): Promise<void> {
+export async function openButtonUrl(url: string, ctx: InlineButtonContext = {}): Promise<void> {
     try {
         // Telegram 内部链接（t.me / tg://）先在应用内解析跳转
         if (isTelegramInternalUrl(url)) {
-            await resolveInternalLink(url, router);
+            await resolveInternalLink(url, router, { chatId: ctx.chatId });
             return;
         }
         // 外部链接：先询问用户是否跳转外部，确认后再用系统浏览器打开
@@ -105,7 +105,7 @@ export async function runInlineButtonType(
 ): Promise<void> {
     switch (type._) {
         case 'inlineKeyboardButtonTypeUrl':
-            await openButtonUrl(type.url);
+            await openButtonUrl(type.url, ctx);
             break;
         case 'inlineKeyboardButtonTypeWebApp':
             await openMiniApp(type.url, ctx);
@@ -177,7 +177,7 @@ async function notSupported(key: string): Promise<void> {
 
 async function openLoginUrl(buttonId: number, fallbackUrl: string, ctx: InlineButtonContext) {
     if (!ctx.chatId || !ctx.messageId) {
-        await openButtonUrl(fallbackUrl);
+        await openButtonUrl(fallbackUrl, ctx);
         return;
     }
     try {
@@ -189,7 +189,7 @@ async function openLoginUrl(buttonId: number, fallbackUrl: string, ctx: InlineBu
         }) as LoginUrlInfo;
 
         if (info._ === 'loginUrlInfoOpen' && info.skip_confirmation) {
-            await openButtonUrl(info.url);
+            await openButtonUrl(info.url, ctx);
             return;
         }
 
@@ -200,7 +200,7 @@ async function openLoginUrl(buttonId: number, fallbackUrl: string, ctx: InlineBu
         }
 
         if (info._ === 'loginUrlInfoOpen') {
-            await openButtonUrl(info.url);
+            await openButtonUrl(info.url, ctx);
             return;
         }
 
@@ -211,10 +211,10 @@ async function openLoginUrl(buttonId: number, fallbackUrl: string, ctx: InlineBu
             button_id: buttonId,
             allow_write_access: false,
         }) as { url: string };
-        await openButtonUrl(url.url);
+        await openButtonUrl(url.url, ctx);
     } catch (e) {
         console.warn('Failed to resolve login URL, opening original:', e);
-        await openButtonUrl(fallbackUrl);
+        await openButtonUrl(fallbackUrl, ctx);
     }
 }
 
@@ -231,7 +231,7 @@ async function sendCallbackQuery(
             payload,
         }) as { text: string; show_alert: boolean; url: string };
 
-        if (answer.url) await openButtonUrl(answer.url);
+        if (answer.url) await openButtonUrl(answer.url, ctx);
         if (answer.text) {
             const options = {
                 content: answer.text,

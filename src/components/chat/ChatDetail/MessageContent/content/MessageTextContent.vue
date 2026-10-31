@@ -718,7 +718,7 @@ async function openLink(href: string) {
 async function resolveInternalLink(href: string) {
     loadingLinks.value = new Set(loadingLinks.value).add(href);
     try {
-        await resolveInternalLinkUtil(href, router);
+        await resolveInternalLinkUtil(href, router, { chatId: props.chatId });
     } finally {
         const next = new Set(loadingLinks.value);
         next.delete(href);

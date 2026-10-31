@@ -536,7 +536,7 @@ async function resolveCaptionLink(href: string) {
     captionLoadingLinks.value = new Set(captionLoadingLinks.value).add(href);
     try {
         // 复用统一内部链接解析（含 bot start 深链接等，解析失败会自动回退外部打开）
-        await resolveInternalLink(href, router);
+        await resolveInternalLink(href, router, { chatId: props.chatId });
     } catch (e) {
         console.warn('Failed to resolve internal link, opening externally:', e);
         openUrl(href);

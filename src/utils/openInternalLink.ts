@@ -11,6 +11,7 @@ import { openStickerSetDialog } from "../store/stickerSetDialog";
 import type { Router } from "vue-router";
 import i18n from "../i18n";
 import { confirmAndOpenExternalLink } from "./openExternalLink";
+import { openMainMiniAppLink, openWebAppLink, type MiniAppLinkContext } from "./miniappLaunch";
 
 /** tg://user?id=N：消息里的「名字提及」（textEntityTypeMentionName）指向用户 id。
  *  TDLib 的 getInternalLinkType 不认这种深链接（会落到「未知深链接」并被丢给外部浏览器），
@@ -20,7 +21,12 @@ function mentionUserIdFromLink(href: string): string | undefined {
 }
 
 /** 内部链接分发：把 getInternalLinkType 的结果落到具体跳转 */
-async function dispatchInternalLink(href: string, linkType: InternalLinkType, router: Router): Promise<boolean> {
+async function dispatchInternalLink(
+    href: string,
+    linkType: InternalLinkType,
+    router: Router,
+    ctx: MiniAppLinkContext = {},
+): Promise<boolean> {
     switch (linkType._) {
         case "internalLinkTypeMessage": {
             const info = await tdlibSend({ _: "getMessageLinkInfo", url: linkType.url });
@@ -127,6 +133,27 @@ async function dispatchInternalLink(href: string, linkType: InternalLinkType, ro
                     console.warn("Failed to send bot start message:", e);
                 }
             }
+            return true;
+        }
+        case "internalLinkTypeMainWebApp": {
+            // t.me/<bot>?startapp=<参数>：bot 的主 Mini App。必须在应用内的
+            // webview 载体里打开——交给系统浏览器只会落到 Telegram 官网。
+            await openMainMiniAppLink({
+                botUsername: linkType.bot_username,
+                startParameter: linkType.start_parameter,
+                context: ctx,
+            });
+            return true;
+        }
+        case "internalLinkTypeWebApp": {
+            // t.me/<bot>/<app>?startapp=<参数>：按短名指定的 Mini App。
+            // Wallet 等 bot 的分享链接（t.me/wallet/start?startapp=...）解析成这一类。
+            await openWebAppLink({
+                botUsername: linkType.bot_username,
+                webAppShortName: linkType.web_app_short_name,
+                startParameter: linkType.start_parameter,
+                context: ctx,
+            });
             return true;
         }
         case "internalLinkTypeStory": {
@@ -256,6 +283,9 @@ async function dispatchInternalLink(href: string, linkType: InternalLinkType, ro
  *   - internalLinkTypeStory      → searchPublicChat + getStory，打开故事播放器
  *   - internalLinkTypeStickerSet → t.me/addstickers/<name>、t.me/addemoji/<name>：
  *                                  searchStickerSet 解析出包 id，打开贴纸包弹窗（内含「添加」按钮）
+ *   - internalLinkTypeMainWebApp → searchPublicChat + getMainWebApp，打开 bot 的主 Mini App
+ *   - internalLinkTypeWebApp  → searchPublicChat + searchWebApp + getWebAppLinkUrl，
+ *                              打开链接指定的 Mini App（t.me/wallet/start?startapp=… 属于此类）
  *   - tg://user?id=N             → 用户资料页（消息中的「名字提及」）
  *   - 其他 / 解析失败            → 外部浏览器打开（openUrl）
  *
@@ -266,11 +296,16 @@ async function dispatchInternalLink(href: string, linkType: InternalLinkType, ro
  *
  * @param href   t.me / tg:// 链接
  * @param router 当前组件路由实例（配合 returnType 在 setup 中传入）
+ * @param ctx    点击发生的聊天（Mini App 链接需要它绑定「当前聊天」，可省略）
  * @returns      是否已被内部处理（true 表示已内部跳转/已弹出代理框，无需再外部打开）
  *
  * 注意：调用方组件负责自己的加载态（如 MessageTextContent 的 loadingLinks），本函数只负责解析与跳转。
  */
-export async function resolveInternalLink(href: string, router: Router): Promise<boolean> {
+export async function resolveInternalLink(
+    href: string,
+    router: Router,
+    ctx: MiniAppLinkContext = {},
+): Promise<boolean> {
     const mentionUserId = mentionUserIdFromLink(href);
     if (mentionUserId) {
         await router.push({ name: "user-profile", params: { id: mentionUserId } });
@@ -278,7 +313,7 @@ export async function resolveInternalLink(href: string, router: Router): Promise
     }
     try {
         const linkType = await tdlibSend({ _: "getInternalLinkType", link: href }) as InternalLinkType;
-        await dispatchInternalLink(href, linkType, router);
+        await dispatchInternalLink(href, linkType, router, ctx);
         return true;
     } catch (e) {
         console.warn("Failed to resolve internal link, opening externally:", e);
@@ -294,8 +329,13 @@ export async function resolveInternalLink(href: string, router: Router): Promise
  *
  * @param href   已补全协议的链接（裸域名需先补 https://）
  * @param router 当前组件路由实例
+ * @param ctx    点击发生的聊天（Mini App 链接需要它绑定「当前聊天」，可省略）
  */
-export async function openAnyLink(href: string, router: Router): Promise<void> {
+export async function openAnyLink(
+    href: string,
+    router: Router,
+    ctx: MiniAppLinkContext = {},
+): Promise<void> {
     const mentionUserId = mentionUserIdFromLink(href);
     if (mentionUserId) {
         await router.push({ name: "user-profile", params: { id: mentionUserId } });
@@ -312,7 +352,7 @@ export async function openAnyLink(href: string, router: Router): Promise<void> {
 
     if (linkType) {
         try {
-            await dispatchInternalLink(href, linkType, router);
+            await dispatchInternalLink(href, linkType, router, ctx);
         } catch (e) {
             console.warn("Failed to resolve internal link, opening externally:", e);
             await confirmAndOpenExternalLink(href).catch(() => { });
