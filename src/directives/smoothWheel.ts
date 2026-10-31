@@ -68,6 +68,9 @@ interface SmoothWheelState {
 /** 每个容器的滚动状态（WeakMap 避免泄漏） */
 const states = new WeakMap<HTMLElement, SmoothWheelState>();
 
+/** 正在动画中的容器状态（用于一键停止，如右键菜单打开时冻结滚动） */
+const activeStates = new Set<SmoothWheelState>();
+
 /** 滚轮增量放大（略大于 1，让滚幅跟手感；过大反而像“固定大步跳”） */
 const WHEEL_ACCEL = 1.15;
 /** 一段滚动结束后，超过该毫秒再次滚轮则视为新开一段（重新从当前实际位置出发） */
@@ -187,6 +190,7 @@ function endAnimation(state: SmoothWheelState, snapToTarget = false) {
         state.current = state.target;
     }
     state.animating = false;
+    activeStates.delete(state);
     if (state.raf !== null) {
         cancelAnimationFrame(state.raf);
         state.raf = null;
@@ -283,6 +287,7 @@ function trySmoothScroll(el: HTMLElement, e: WheelEvent, deltaPx: number): boole
 
     if (!state.animating) {
         state.animating = true;
+        activeStates.add(state);
         state.lastFrameTime = 0;
         // 首次开启动画：广播「滚动开始」以暂停容器内重型动画（如 Lottie），
         // 滚动结束后统一由 endAnimation 广播「滚动结束」恢复。
@@ -339,6 +344,16 @@ export function installGlobalSmoothWheel(): void {
     installed = true;
     // bubble 阶段：让组件内 @wheel.prevent / @wheel.stop 先处理
     window.addEventListener('wheel', onGlobalWheel, { passive: false });
+}
+
+/**
+ * 立即停止所有正在进行的平滑滚动（停在当前位置，不回弹目标）。
+ * 用于右键菜单打开等需要冻结滚动的场景，避免残留惯性继续滚动。
+ */
+export function cancelAllSmoothScroll(): void {
+    for (const state of Array.from(activeStates)) {
+        endAnimation(state);
+    }
 }
 
 /**

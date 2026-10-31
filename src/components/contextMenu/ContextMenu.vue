@@ -86,6 +86,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { CheckIcon, ChevronRightIcon } from "lucide-vue-next";
 import { visible, x, y, items, anchored, closeContextMenu, closeContextMenuDelayed } from "../../store/contextMenu";
+import { cancelAllSmoothScroll } from "../../directives/smoothWheel";
 import type { ContextMenuItem } from "./types";
 
 const menuRoot = ref<HTMLElement | null>(null);
@@ -242,6 +243,73 @@ function handleResize() {
     positionMenuInViewport();
 }
 
+/**
+ * 菜单打开期间禁止页面滚动。
+ *
+ * 菜单是 position:fixed 且锚定在打开时的视口坐标；若底部内容（聊天消息区、
+ * 会话列表等）还能滚动，菜单就会与内容错位。这里在 window 捕获阶段拦截
+ * 滚轮 / 触摸拖动 / 滚动按键：
+ * - 先于组件自身的 wheel 处理执行，浏览器默认滚动被取消；
+ * - 全局平滑滚动（smoothWheel）检测到 defaultPrevented 会自动跳过；
+ * - 输入框/可编辑区保留自身行为（滚动、空格输入等）。
+ * 不监听 scroll 也无法靠 body overflow 解决——本应用的滚动容器在页面内部。
+ */
+const SCROLL_KEYS = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "]);
+
+/** 输入类元素：保留原生滚动与按键（如 textarea 内空格、Home/End 移动光标） */
+function isTypingTarget(target: EventTarget | null): boolean {
+    const el = target as HTMLElement | null;
+    if (!el || !el.tagName) return false;
+    if (el.isContentEditable) return true;
+    const tag = el.tagName.toLowerCase();
+    return tag === "input" || tag === "textarea" || tag === "select";
+}
+
+function preventWheelScroll(e: WheelEvent) {
+    // Ctrl/Cmd + 滚轮是缩放，交给浏览器
+    if (e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+}
+
+function preventTouchScroll(e: TouchEvent) {
+    e.preventDefault();
+}
+
+function preventKeyScroll(e: KeyboardEvent) {
+    if (!SCROLL_KEYS.has(e.key)) return;
+    if (isTypingTarget(e.target)) return;
+    // 聚焦在按钮/链接上时，空格是激活而非滚动
+    const el = e.target as HTMLElement | null;
+    const tag = el?.tagName?.toLowerCase();
+    if (e.key === " " && (tag === "button" || tag === "a")) return;
+    e.preventDefault();
+}
+
+let scrollLocked = false;
+
+function lockPageScroll() {
+    if (scrollLocked) return;
+    scrollLocked = true;
+    // 先停掉正在进行的平滑滚动惯性，再拦住后续输入
+    cancelAllSmoothScroll();
+    window.addEventListener("wheel", preventWheelScroll, { passive: false, capture: true });
+    window.addEventListener("touchmove", preventTouchScroll, { passive: false, capture: true });
+    window.addEventListener("keydown", preventKeyScroll, true);
+}
+
+function unlockPageScroll() {
+    if (!scrollLocked) return;
+    scrollLocked = false;
+    window.removeEventListener("wheel", preventWheelScroll, true);
+    window.removeEventListener("touchmove", preventTouchScroll, true);
+    window.removeEventListener("keydown", preventKeyScroll, true);
+}
+
+watch(visible, (v) => {
+    if (v) lockPageScroll();
+    else unlockPageScroll();
+});
+
 function positionMenuInViewport() {
     const root = menuRoot.value;
     if (!root) return;
@@ -281,6 +349,7 @@ onUnmounted(() => {
     document.removeEventListener('mousedown', handleOutsideClick, true);
     document.removeEventListener('keydown', handleKeydown);
     window.removeEventListener('resize', handleResize);
+    unlockPageScroll();
 });
 </script>
 
