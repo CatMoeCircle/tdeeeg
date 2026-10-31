@@ -165,6 +165,13 @@ interface Settings {
     apiId: string;
     /** 自定义 API Hash */
     apiHash: string;
+    /**
+     * 后台运行时的资源策略。
+     * Windows 下最小化满 10s 把本进程与 WebView2 子进程标记为 EcoQoS，并降低
+     * WebView2 的内存目标；隐藏到托盘满 60s 则挂起 WebView2 渲染进程。
+     * 窗口回到前台立即恢复；播放音视频期间自动暂停。不暂停 TDLib 收发、通知与下载。
+     */
+    backgroundEfficiency: boolean;
   };
   /** 播放器设置（跨会话记忆） */
   player: {
@@ -397,6 +404,8 @@ const defaultSettings: Settings = {
     customApiCreds: false,
     apiId: "",
     apiHash: "",
+    // 默认开启：开箱即用的是省电行为，不需要的用户可在「系统设置」里关掉
+    backgroundEfficiency: true,
   },
   player: {
     musicVolume: 0.8,

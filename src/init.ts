@@ -16,6 +16,7 @@ import { initColors, watchSystemColorScheme } from "./store/colors";
 import { initChatBackgroundStore } from "./store/chatBackground";
 import { initTheme } from "./store/theme";
 import { initNativeNotifications } from "./store/notifications";
+import { initBackgroundEfficiency } from "./store/efficiency";
 import { settings } from "./store/settings";
 import { loadAiProviders } from "./store/aiConfig";
 import { initAiTakeover } from "./utils/aiTakeover";
@@ -77,6 +78,8 @@ export async function initTdlib() {
     watchSystemColorScheme();
     // 初始化系统原生通知（Windows Toast / 通知中心）
     await initNativeNotifications();
+    // 后台资源策略：把用户偏好推给 Rust（最小化 10s / 隐藏到托盘 60s 由 Rust 侧生效）
+    initBackgroundEfficiency();
     // 语言系统：恢复 UI 语言、监听 language 通道、同步 TDLib language_pack_id
     await languageStore.init();
 

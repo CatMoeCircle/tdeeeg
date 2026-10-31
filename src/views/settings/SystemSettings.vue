@@ -106,6 +106,34 @@
                     </button>
                 </section>
 
+                <!-- 后台行为 -->
+                <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            {{ t('systemSettings.backgroundSection') }}
+                        </h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2">{{ t('systemSettings.backgroundDesc') }}</p>
+
+                    <div
+                        class="mt-5 flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md"
+                        :class="efficiencySupported ? '' : 'opacity-60'">
+                        <div class="min-w-0 pr-4">
+                            <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                {{ t('systemSettings.efficiencyMode') }}
+                            </h4>
+                            <p class="text-xs text-gray-500 mt-0.5">{{ t('systemSettings.efficiencyDesc') }}</p>
+                            <p v-if="!efficiencySupported" class="text-xs text-amber-500 mt-1">
+                                {{ t('systemSettings.efficiencyUnsupported') }}
+                            </p>
+                        </div>
+                        <ToggleSwitch class="shrink-0" :modelValue="settings.system.backgroundEfficiency"
+                            :disabled="!efficiencySupported"
+                            @update:modelValue="onEfficiencyToggle" />
+                    </div>
+                </section>
+
                 <!-- 关于 -->
                 <section>
                     <div class="flex items-center gap-3 mb-1">
@@ -255,6 +283,13 @@ import { useI18n } from 'vue-i18n';
 import packageInfo from '../../../package.json';
 import BaseButton from '../../components/ui/button/BaseButton.vue';
 import BaseInput from '../../components/ui/input/BaseInput.vue';
+import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
+import { settings } from '../../store/settings';
+import {
+    getBackgroundEfficiencyStatus,
+    pushBackgroundEfficiency,
+    type BackgroundEfficiencyStatus,
+} from '../../store/efficiency';
 
 const router = useRouter();
 const { t } = useI18n();
@@ -262,6 +297,22 @@ const { t } = useI18n();
 /** 返回设置列表 */
 function goBack() {
     router.push('/home/settings');
+}
+
+// ─── 后台效率模式 ───
+/** null = 尚未查询到；查询失败时按「可用」处理，开关仍可操作 */
+const efficiency = ref<BackgroundEfficiencyStatus | null>(null);
+const efficiencySupported = computed(() => efficiency.value?.supported ?? true);
+
+async function loadEfficiencyStatus() {
+    efficiency.value = await getBackgroundEfficiencyStatus();
+}
+
+/** 切换开关：先写本地设置（watch 会推给 Rust），再刷新生效状态 */
+async function onEfficiencyToggle(value: boolean) {
+    settings.system.backgroundEfficiency = value;
+    await pushBackgroundEfficiency();
+    await loadEfficiencyStatus();
 }
 
 // ─── 版本信息 ───
@@ -294,6 +345,7 @@ onMounted(() => {
     loadAppVersion();
     loadTdlibVersion();
     accountsStore.init();
+    loadEfficiencyStatus();
 });
 
 // ─── 从活动账户的 Rust 持久化数据读取连接参数（非 localStorage 缓存）───

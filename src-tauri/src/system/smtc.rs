@@ -362,10 +362,13 @@ pub fn smtc_update_playback(
     position_secs: f64,
     duration_secs: f64,
 ) -> Result<(), String> {
+    // 后台效率模式与播放状态互斥：放歌/放视频期间不进低功耗调度档（见 system::efficiency）
+    super::efficiency::set_media_playing(playing);
     imp::update_playback(playing, position_secs, duration_secs)
 }
 
 #[tauri::command]
 pub fn smtc_clear() -> Result<(), String> {
+    super::efficiency::set_media_playing(false);
     imp::clear()
 }

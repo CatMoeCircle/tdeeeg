@@ -168,7 +168,12 @@
     "apiDcTitle": "API & data center",
     "testDcBadge": "Test",
     "appliedReconnecting": "Applied. Reconnecting…",
-    "applyParamsFailed": "Failed to apply parameters"
+    "applyParamsFailed": "Failed to apply parameters",
+    "backgroundSection": "Background",
+    "backgroundDesc": "Messages and notifications keep working while the window is minimized or hidden in the tray.",
+    "efficiencyMode": "Use efficiency mode while running in background",
+    "efficiencyDesc": "After 10 seconds minimized, Windows schedules the app and its UI processes in low-power efficiency mode and lowers the WebView2 memory target; after 60 seconds hidden in the tray, the WebView renderer is suspended to free more memory, and everything resumes as soon as the window is shown again. Messaging and notifications keep working; background transfers may slow down slightly, and this pauses automatically while audio or video is playing.",
+    "efficiencyUnsupported": "Efficiency mode is not supported on this system (requires Windows 10 1709 or newer)."
   },
   "editProfile": {
     "me": "Me",

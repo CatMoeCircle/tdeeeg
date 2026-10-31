@@ -168,7 +168,12 @@
     "apiDcTitle": "API 與資料中心",
     "testDcBadge": "測試",
     "appliedReconnecting": "已套用，正在重新連線…",
-    "applyParamsFailed": "套用參數失敗"
+    "applyParamsFailed": "套用參數失敗",
+    "backgroundSection": "背景執行",
+    "backgroundDesc": "視窗縮到最小或隱藏到系統匣時，應用仍會繼續收發訊息與通知。",
+    "efficiencyMode": "背景執行時啟用效率模式",
+    "efficiencyDesc": "視窗縮到最小 10 秒後，由系統以低耗電方式排程本應用與介面行程，並降低 WebView2 的記憶體目標；隱藏到系統匣 60 秒後會暫停 WebView 轉譯行程以進一步釋放記憶體，回到前景立即恢復。收發訊息與通知照常，背景下載速度可能略降；播放影音期間自動暫停。",
+    "efficiencyUnsupported": "目前系統不支援效率模式（需要 Windows 10 1709 以上）。"
   },
   "editProfile": {
     "me": "我",

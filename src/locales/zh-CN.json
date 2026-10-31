@@ -168,7 +168,12 @@
     "apiDcTitle": "API 与数据中心",
     "testDcBadge": "测试",
     "appliedReconnecting": "已应用，正在重新连接…",
-    "applyParamsFailed": "应用参数失败"
+    "applyParamsFailed": "应用参数失败",
+    "backgroundSection": "后台运行",
+    "backgroundDesc": "窗口隐藏到托盘或最小化时，应用仍保持收发消息与通知。",
+    "efficiencyMode": "后台运行时启用效率模式",
+    "efficiencyDesc": "最小化 10 秒后，由系统按低功耗方式调度本应用与界面进程，并降低 WebView2 的内存目标；隐藏到托盘 60 秒后挂起 WebView 渲染进程，进一步释放内存，回到前台立即恢复。收发消息与通知照常，后台传输速度可能略降；播放音视频期间自动暂停。",
+    "efficiencyUnsupported": "当前系统不支持效率模式（需要 Windows 10 1709 及以上）。"
   },
   "editProfile": {
     "me": "我",

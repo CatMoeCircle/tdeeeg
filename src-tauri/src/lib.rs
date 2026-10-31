@@ -176,11 +176,13 @@ async fn read_clipboard_image(state: tauri::State<'_, tdlib::AppState>) -> Resul
     .await
     .map_err(|e| format!("clipboard read task failed: {e}"))?
 }
-/// 托盘/单实例等入口统一的「显示主窗口」：先解除最小化，再显示并置于前台。
+/// 托盘/单实例等入口统一的「显示主窗口」：先解除最小化，再显示、恢复 WebView 并置于前台。
 /// 只 show()+set_focus() 时，Windows 上最小化窗口不会恢复、被遮挡窗口也可能不提到最前。
 fn reveal_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
+        // 先把被挂起 / 低内存档的 WebView 恢复，再显示窗口，避免空白帧
+        system::efficiency::prepare_show(app);
         let _ = window.show();
         let _ = window.set_focus();
     }
@@ -258,6 +260,10 @@ pub fn run() {
             system::toast_identity::init_toast_identity();
             // 通知服务状态（Rust 侧处理 updateNotificationGroup）
             system::notifications::init(app);
+
+            // 后台资源策略：最小化满 10s 进入效率模式，隐藏到托盘满 60s 挂起
+            // WebView2（开关由前端 set_background_efficiency 写入）
+            system::efficiency::init(app.handle());
 
             // 系统媒体控件（SMTC）：宿主进程发布，避免 WebView2 MediaSession 显示「未知应用」
             {
@@ -373,6 +379,8 @@ pub fn run() {
             system::smtc::smtc_clear,
             system::notifications::set_notification_prefs,
             system::notifications::set_active_chat_for_notifications,
+            system::efficiency::set_background_efficiency,
+            system::efficiency::get_background_efficiency_status,
             ai::ai_translate::list_ai_providers,
             ai::ai_translate::save_ai_provider,
             ai::ai_translate::delete_ai_provider,
@@ -407,6 +415,8 @@ pub fn run() {
                 // 所有窗口关闭时阻止退出（托盘仍在运行）
                 // code.is_none() 表示是窗口全部关闭触发的，非 app.exit() 调用
                 RunEvent::ExitRequested { code, api, .. } => {
+                    // 退出前撤掉效率模式，避免宿主/WebView2 进程在安装器等待期间被压低调度
+                    system::efficiency::clear_on_exit();
                     // 退出前冲刷还没写盘的下载进度，正常退出不丢最终状态
                     if let Some(state) = app_handle.try_state::<tdlib::AppState>() {
                         if let Ok(mut store) = state.download_store.lock() {
