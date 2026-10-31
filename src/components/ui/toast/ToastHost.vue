@@ -6,7 +6,7 @@
 import { computed } from 'vue';
 import { AlertTriangle as AlertTriangleIcon, Check as CheckIcon, Info as InfoIcon, X as XIcon, type LucideIcon } from 'lucide-vue-next';
 import SwipeToast from './SwipeToast.vue';
-import { dismissToast, toastQueue, type ToastType } from '../../../utils/toast';
+import { dismissToast, toastQueue, type ToastItem, type ToastType } from '../../../utils/toast';
 import { toastPlacement, type ToastPlacement } from '../../../store/debug';
 
 /** 各类型图标 + 燃烧线颜色（跟随主题语义色） */
@@ -35,6 +35,11 @@ const POSITION_CLASS: Record<ToastPlacement, string> = {
 };
 
 const anchorClass = computed(() => POSITION_CLASS[toastPlacement.value] ?? POSITION_CLASS['bottom-left']);
+
+/** 点了动作（如「去看看」）：先执行回调（跳转），卡片由 SwipeToast 自己按 action 关闭 */
+function runAction(item: ToastItem) {
+  item.onAction?.();
+}
 </script>
 
 <template>
@@ -49,10 +54,12 @@ const anchorClass = computed(() => POSITION_CLASS[toastPlacement.value] ?? POSIT
         :open="true"
         :title="item.content"
         :duration="item.duration"
+        :action-label="item.actionLabel ?? ''"
         :fuse-color="FUSE[item.type]"
         inline
         close-button
         class-name="pointer-events-auto"
+        @action="runAction(item)"
         @close="dismissToast(item.id)"
       >
         <template #icon>

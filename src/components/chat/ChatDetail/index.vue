@@ -559,25 +559,12 @@
                         </button>
                     </div>
                 </div>
-                <div v-if="settings.ai.input === 'ai'" class="px-3 py-2.5">
-                    <!-- 只读会话（不可发言的频道 / 群）：AI 照样能读能总结，只是不能在这里发言 -->
-                    <p v-if="!canSend"
-                        class="mb-2 flex items-start gap-1.5 px-1 text-[12px] leading-4 text-gray-500 dark:text-gray-400">
-                        <CircleStopIcon class="w-3.5 h-3.5 shrink-0 mt-px text-amber-500" />
-                        <span>{{ t('aiInput.noPostPermission') }}</span>
-                    </p>
-                    <!-- AI 活动条：用过 AI、有输出 / 工具调用 / 待审核时才在输入框顶部冒出来；
-                         没用过 AI 的聊天默认什么都不显示 -->
-                    <AiActivityStrip v-if="aiActivityEntries.length > 0 || aiActivityApproval"
-                        v-model:expanded="aiStripExpanded"
-                        :entries="aiActivityEntries" :approval="aiActivityApproval" :busy="aiBusy"
-                        @approve="resolveAiActivity(true)" @reject="resolveAiActivity(false)" />
-                    <AiPromptBar ref="aiPromptRef" v-model:conversations-open="conversationsOpen"
-                        :chat-id="currentChatId()" :usage="aiUsage" :on-attach="pickAiImages" :quote="aiQuote"
-                        :busy="aiBusy" @send="onAiPromptSend" @stop="onAiStop"
-                        @jump-quote="jumpToAiQuote" @remove-quote="aiQuote = null"
-                        @switch-message="settings.ai.input = 'message'" />
-                </div>
+                <!-- AI 输入区：活动条 + 输入框 + 会话管理。**单独组件**：
+                     流式增量只在这一层重渲染，不会拖着整棵消息列表一起刷（见 AiInputArea 注释）；
+                     轮次状态按 chatId 存在 store/aiRuntime，切走聊天照跑、切回来接着看 / 接着审批 -->
+                <AiInputArea v-if="settings.ai.input === 'ai'" ref="aiInputRef"
+                    :chat-id="chatId ?? null" :thread="aiTurnThread" :perms="aiTurnPermissions"
+                    :read-only="!canSend" v-model:quote="aiQuote"                    @jump-quote="jumpToAiQuote" @switch-message="settings.ai.input = 'message'" />
                 <MessageInput v-else-if="canSend" ref="messageInputRef" v-model="messageInput"
                     :reply-target="replyTargetInfo" :edit-target="editTargetInfo" :edit-entities="editSeedEntitiesForInput"
                     :chat="chat" :users="users" :supergroups="supergroups" :basic-groups="basicGroups" :my-id="myId"
@@ -589,12 +576,6 @@
                     @change-sender="handleChangeSender" @sticker="openStickerPanel"
                     @switch-ai="settings.ai.input = 'ai'" />
             </div>
-
-            <!-- 会话管理弹窗：管当前聊天下的 AI 对话（新建 / 打开 / 重命名 / 删除，不看消息）。
-                 放在输入框 v-if / v-else 之后：插在两者中间会打断这一对分支 -->
-            <AiConversationDialog v-model="conversationsOpen" :chat-id="currentChatId()"
-                :items="aiConversationList" :loading="aiConversationsLoading" @create="onConversationCreate"
-                @open="onConversationOpen" @rename="onConversationRename" @remove="onConversationRemove" />
 
             <!-- 表情包面板（emoji/GIF/贴纸 三合一） -->
             <StickerPanel :anchor="inputAnchorEl" @pick-emoji="insertEmojiIntoInput"
@@ -716,29 +697,10 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { tdPlural } from '../../../utils/tdLang';
 import MessageInput from './MessageInput.vue';
-import AiPromptBar from '../../ai/AiPromptBar.vue';
-import AiActivityStrip, { type AiActivityEntry, type AiApprovalLine } from '../../ai/AiActivityStrip.vue';
-import AiConversationDialog from '../../ai/AiConversationDialog.vue';
-import { runAiTurn, cancelAiStream, AiTurnLimitError, type AiActivitySink, type AiTurnPermissions } from '../../../utils/aiChat';
-import { setApprovalGate, setApprovalPolicy } from '../../../utils/aiTools/call';
-import type { ApprovalDecision, ApprovalRequest } from '../../../utils/aiTools/types';
-import { aiProviders, aiProviderReady, loadAiProviders } from '../../../store/aiConfig';
+import AiInputArea from '../../ai/AiInputArea.vue';
+import type { AiTurnPermissions, AiTurnThread } from '../../../utils/aiChat';
 import { aiTakeover, takeoverFor, updateTakeover } from '../../../store/aiTakeover';
-
-/**
- * AI 活动条（输入框顶部那个窄框）的数据：用过 AI 才有内容，有输出 / 工具调用就往 entries 里追加，
- * 写类工具要审核时挂 approval —— 两个都空时活动条整个不显示（默认情况）。
- *
- * 放最前面：setup 里有些 immediate watcher 会同步跑 loadChat() → resetState()，
- * 而 resetState 要读这两个 ref，挂后面会撞上暂时性死区
- * （Cannot access 'aiActivityEntries' before initialization）。
- */
-const aiActivityEntries = ref<AiActivityEntry[]>([]);
-const aiActivityApproval = ref<AiApprovalLine | null>(null);
-/** 输入框是否在跑一轮 AI；当前这轮的中止句柄；挂起中的审核（resolve 即放行 / 拒绝） */
-const aiBusy = ref(false);
-let aiAbort: AbortController | null = null;
-let pendingApproval: ((d: ApprovalDecision) => void) | null = null;
+import { aiStripExpanded as aiRuntimeStripExpanded, turnState } from '../../../store/aiRuntime';
 
 import StickerPanel from './stickerPanel/StickerPanel.vue';
 import { stickerPanelState, openStickerPanel as openStickerPanelOf, closeStickerPanel as closeStickerPanelOf } from './stickerPanel/types';
@@ -776,7 +738,7 @@ import { useAttachmentStore } from '../../../store/attachment';
 import type { AttachmentItem } from '../../../store/attachment';
 import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
 
-import { MessageCircleIcon, XIcon, CheckIcon, Pencil as PencilIcon, CircleStopIcon, Sparkles as SparklesIcon, Bot as BotIcon } from 'lucide-vue-next';
+import { MessageCircleIcon, XIcon, CheckIcon, Pencil as PencilIcon, Sparkles as SparklesIcon, Bot as BotIcon } from 'lucide-vue-next';
 import { toast } from '../../../utils/toast';
 import { useRoute, useRouter } from 'vue-router';
 import { computed, watch, ref, shallowRef, markRaw, onMounted, onBeforeUnmount, onUnmounted, nextTick } from 'vue';
@@ -790,12 +752,6 @@ import { onTdlibUpdates } from "../../../store/tdlibBus";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { settings } from '../../../store/settings';
 import { canSummarizeMessage } from '../../../store/summary';
-import {
-    aiConversations,
-    activeConversation,
-    createConversation,
-    loadConversations,
-} from '../../../store/aiConversations';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useChatWallpaper } from '../../../composables/useChatWallpaper';
 import ChatBackgroundLayers from '../ChatBackgroundLayers.vue';
@@ -852,7 +808,6 @@ import type { BrowsePosition } from './composables/useBrowsePosition';
 import { useMessageSelection } from './composables/useMessageSelection';
 import { useMessageContextMenu } from './composables/useMessageContextMenu';
 import { useStickyDate } from './composables/useStickyDate';
-import { useAiConversation } from './composables/useAiConversation';
 import MessageListSkeleton from './MessageListSkeleton.vue';
 import SelectionToolbar from './SelectionToolbar.vue';
 import ScrollToBottomButton from './ScrollToBottomButton.vue';
@@ -1265,8 +1220,7 @@ const inputInset = ref<number | null>(null);
 let insetNullFrames = 0;
 const INSET_NULL_CONFIRM_FRAMES = 6;
 /** 活动条是否展开（它说了算，见下面 measureInputInset 里的钉住逻辑） */
-const aiStripExpanded = ref(false);
-const fallbackInset = () => (settings.ai.input === 'ai' ? 100 : 52);
+const aiStripExpanded = aiRuntimeStripExpanded;const fallbackInset = () => (settings.ai.input === 'ai' ? 100 : 52);
 
 /** 消息区底部留白：只留「被浮层盖住的部分」，不再加额外余量 ——
  *  浮层自己的内边距（输入框 px-3 py-2.5 / 只读栏 p-5）就是视觉间距，再 +8 会多出一截空。 */
@@ -1301,7 +1255,7 @@ function measureInputInset() {
     const list = messagesContainer.value;
     if (!list) return;
     // 活动条展开时不重算：展开只是临时盖在上面看，不该把消息顶走（按钮也钉在原地）
-    if (aiStripExpanded.value && aiActivityEntries.value.length > 0) return;
+    if (aiStripExpanded.value && turnState(chatId.value ?? 0).entries.length > 0) return;
     const area = inputAreaRef.value;
     if (!area) {
         // 浮层切换的一瞬间 ref 会先变 null 再指到新元素（换聊天时旧输入条卸载、
@@ -1592,7 +1546,7 @@ const editMediaPreviewSrc = ref<string | null>(null);
 const editMediaReplacement = ref<AttachmentItem | null>(null);
 /** MessageInput 实例（用于写入编辑实体） */
 const messageInputRef = ref<InstanceType<typeof MessageInput> | null>(null);
-const aiPromptRef = ref<InstanceType<typeof AiPromptBar> | null>(null);
+const aiPromptRef = ref<InstanceType<typeof AiInputArea> | null>(null);
 
 // ==================== 草稿（内存缓存 + TDLib 同步） ====================
 /** 切换对话加载期间为 true：抑制自动存草稿，避免清空输入误删新聊天草稿 */
@@ -5032,186 +4986,33 @@ function sendAnimation(fileId: number, _stickerId: string) {
 // 通过附件 store 累积；handleSend 统一处理发送。
 const isMePremium = computed(() => !!userProfile.value?.is_premium);
 
-/**
- * 思考档位（AiPromptBar 内置：关闭 + 默认 + low / medium / high）→ 发给后端的思考参数值。
- * 顺序必须与 AiPromptBar 的档位表一致：关闭档发 none，默认档发空串（不传思考参数，供应商自己定）。
- * 后端除枚举值外也接受自定义值（xhigh / max / ultra 之类由 OpenAI 系接口透传）。
- * 模型配了自定义档位表时不用这张表：AiPromptBar 直接把档位的 API 参数值发出来（effortValue）。
- */
-const AI_EFFORT_KEYS = ['none', '', 'low', 'medium', 'high'] as const;
-
-/** 新建会话时的兜底标题：用户这句话的第一行，截断到 24 字（模型之后可以改） */
-function titleFromQuestion(text: string): string {
-    const line = (text.trim().split(/\r?\n/)[0] ?? '').trim();
-    return line.length > 24 ? `${line.slice(0, 24)}…` : line;
-}
+// ==================== 私聊 AI 接管 ====================
 
 /**
- * AI 输入框「+ → 图片」：只负责选图，不做上传。
- * 选到的本机路径随请求发给 Rust，由 ai_chat::to_prompt 读盘转成多模态图片段。
+ * AI 轮次本身（发送 / 停止 / 审核 / 会话管理）已迁到 `components/ai/AiInputArea.vue`
+ * + `store/aiRuntime`：状态按 chatId 存在组件之外，切走聊天不中断、切回来接着看。
+ * 这里只保留两条聊天页仍需知道的：本轮所在的线程、群 / 频道的写权限。
  */
-async function pickAiImages(): Promise<string[]> {
-    const selected = await openDialog({
-        multiple: true,
-        title: t('chat.choosePhotoOrVideo'),
-        filters: [{
-            name: t('chat.photosAndVideos'),
-            extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'heic', 'heif'],
-        }],
-    });
-    if (!selected) return [];
-    return Array.isArray(selected) ? selected : [selected];
-}
 
 /**
- * AI 输入框的发送：跑一轮 agent（utils/aiChat）。活动条实时显示思考 / 输出 / 工具调用；
- * 写类工具先挂审核卡片（见 requestAiApproval），批准后才执行。用量由 aiChat 每次请求后记入当前对话。
+ * 这一轮 AI 所在的线程（论坛话题 / 频道直信 / 评论线程）：传给输入区，进了 prompt 与工具兜底。
+ * 不告诉模型的话，它在话题里会读整个聊天、把消息发到 General。
  */
-async function onAiPromptSend(text: string, detail: { effort?: string; effortValue?: string; attachments?: string[]; command?: string }) {
-    const chatIdNow = currentChatId();
-    if (aiBusy.value || !chatIdNow) return;
-    // 引用回复：只给模型定位信息（正文让它自己 get_message 取），引用由输入框顶部的蓝色占位芯片承载
-    const quote = aiQuote.value;
-    aiQuote.value = null;
-    const body = text.trim();
-    // 只发图不写字：给请求和活动条一个占位，别出现一句空白提问
-    const asked = body || (detail.attachments?.length ? t('aiInput.imageOnly') : '');
-    // 引用只给模型 id（走 system prompt，正文它自己 get_message 取）：用户消息保持输入框里那句话，
-    // 活动条 / 历史显示的就是原样文本
-    const prompt = asked || text;
-    if (!aiProviders.loaded) await loadAiProviders();
-    const provider = aiProviders.list.find((p) => p.id === settings.ai.providerId);
-    const model = provider?.models.find((m) => m.id === settings.ai.model);
-    if (!provider || !model || !aiProviderReady(provider)) {
-        void toast.warning(t('aiSettings.notReady'));
-        return;
+const aiTurnThread = computed<AiTurnThread | undefined>(() => {
+    const id = chatId.value;
+    if (!id) return undefined;
+    if (threadMode.value && threadInfo.value) {
+        return { id: threadInfo.value.message_thread_id, chatId: threadInfo.value.chat_id, kind: 'comment' };
     }
-    // 历史按会话落盘：先把该聊天的会话列表拉到（可能还在加载），再决定用哪个 / 要不要新建，
-    // 否则列表还没到就发消息会凭空多出一个会话（旧会话看着就「不见了」）
-    if (!aiConversations.loaded || aiConversations.chatId !== chatIdNow) await loadConversations(chatIdNow);
-    let conversation = activeConversation(chatIdNow);
-    if (!conversation) {
-        // 新建会话：标题先用用户这句话兜底（只发图时用文件名），模型在第一轮里可以用 set_conversation_title 换掉
-        const firstImage = ((detail.attachments?.[0] ?? '').split(/[\\/]/).pop() ?? '').replace(/\.[^.]+$/, '');
-        conversation = await createConversation(chatIdNow, titleFromQuestion(body || firstImage || text));
+    if (topicId.value) {
+        return { id: topicId.value, chatId: id, kind: isDirectMessagesChat.value ? 'dm' : 'forum' };
     }
-    if (!conversation) {
-        void toast.error(t('aiConversations.createFailed'));
-        return;
-    }
-    const labels = [t('aiInput.effortOff'), t('aiInput.effortDefault'), 'low', 'medium', 'high'];
-    const effortIdx = labels.indexOf(detail.effort ?? '');
-    // 模型配了自定义档位表：档位的 API 参数值直接透传（空 = 这一档不发思考参数）；
-    // 否则按内置档位表的标签反查参数值（见 AI_EFFORT_KEYS）
-    const effort = detail.effortValue !== undefined
-        ? (detail.effortValue.trim() || null)
-        : effortIdx >= 0 ? AI_EFFORT_KEYS[effortIdx] : null;
-
-    const controller = new AbortController();
-    aiAbort = controller;
-    aiBusy.value = true;
-    // 不清空活动条：刚读回来的历史留在上面，这一轮接着往下追加（看得见上下文）
-    const sink: AiActivitySink = {
-        add: (e) => {
-            if (!controller.signal.aborted) aiActivityEntries.value = [...aiActivityEntries.value, e];
-        },
-        update: (id, patch) => {
-            if (!controller.signal.aborted)
-                aiActivityEntries.value = aiActivityEntries.value.map((e) => (e.id === id ? { ...e, ...patch } : e));
-        },
-        // 流式中途失败要重试：把这次尝试画了一半的条目撤掉（见 utils/aiChat 的 callModel）
-        remove: (ids) => {
-            const drop = new Set<string | number>(ids);
-            aiActivityEntries.value = aiActivityEntries.value.filter((e) => !drop.has(e.id));
-        },
-    };
-    try {
-        await runAiTurn({
-            chatId: chatIdNow,
-            // 当前所在线程：论坛话题 / 频道直通消息 / 评论线程。不告诉模型，它读整个聊天、发到 General
-            thread: threadMode.value && threadInfo.value
-                ? { id: threadInfo.value.message_thread_id, chatId: threadInfo.value.chat_id, kind: 'comment' }
-                : topicId.value
-                    ? { id: topicId.value, chatId: chatIdNow, kind: isDirectMessagesChat.value ? 'dm' : 'forum' }
-                    : undefined,
-            conversationId: conversation.id,
-            title: conversation.title,
-            text: prompt,
-            quote: quote ? { chatId: quote.chatId, messageId: quote.messageId } : undefined,
-            command: detail.command,
-            images: detail.attachments,
-            provider,
-            model,
-            effort,
-            sink,
-            signal: controller.signal,
-            // 群 / 频道的写权限：没「删他人消息 / 封禁」权限就不给对应工具，只读频道还告诉模型别在此发言
-            perms: aiTurnPermissions.value,
-        });
-    } catch (e) {
-        if (e instanceof AiTurnLimitError) {
-            void toast.warning(t('aiInput.maxSteps'));
-        } else {
-            // 失败原因写进活动条（对话里看得见），别只在 toast 里闪一下
-            const reason = e instanceof Error ? e.message : String(e);
-            sink.add({
-                id: `ai-failed-${Date.now()}`,
-                kind: 'output',
-                status: 'error',
-                text: t('aiActivity.requestFailed', { reason }),
-            });
-            void toast.error(reason);
-        }
-    } finally {
-        // 停止时已经提前收尾（onAiStop），这里只收自己那一轮
-        if (aiAbort === controller) {
-            aiAbort = null;
-            aiBusy.value = false;
-        }
-    }
-}
-
-/** 停止：立即释放输入框，并让 Rust 真正中断请求（abort 只停界面，不传后端），挂着的审核卡片按拒绝收掉 */
-function onAiStop() {
-    aiAbort?.abort();
-    cancelAiStream();
-    aiAbort = null;
-    aiBusy.value = false;
-    resolveAiActivity(false);
-}
-
-// ==================== AI 会话（对话）管理 ====================
-const {
-    conversationsOpen, currentChatId, aiUsage, aiConversationList, aiConversationsLoading,
-    onConversationCreate, onConversationOpen, onConversationRename, onConversationRemove,
-} = useAiConversation({
-    chatId,
-    aiActivityEntries,
-    stopTurn: () => { if (aiBusy.value) onAiStop(); },
+    return undefined;
 });
-
-/** 审核卡片的结果：批准 / 拒绝都 resolve 掉挂起的那次写类工具调用（一次只挂一个） */
-function resolveAiActivity(granted: boolean) {
-    const settle = pendingApproval;
-    pendingApproval = null;
-    aiActivityApproval.value = null;
-    settle?.(granted ? { granted: true } : { granted: false, reason: '用户拒绝' });
-}
-
-/** 审核通道（call.ts 在写类工具执行前调用）：挂卡片，等用户点批准 / 拒绝 */
-function requestAiApproval(req: ApprovalRequest): Promise<ApprovalDecision> {
-    resolveAiActivity(false);
-    aiActivityApproval.value = { title: req.summary, reason: req.reason };
-    return new Promise((resolve) => {
-        pendingApproval = resolve;
-    });
-}
-setApprovalGate(requestAiApproval);
-watch(() => settings.ai.approval, (policy) => setApprovalPolicy(policy), { immediate: true });
 
 // ==================== 私聊 AI 接管 ====================
 /** 这个聊天被用户选中接管了吗（横幅只在选中后出现；暂停 / 总开关关掉也照样显示） */
-const takeoverCfg = computed(() => takeoverFor(currentChatId()));
+const takeoverCfg = computed(() => takeoverFor(chatId.value ?? 0));
 const aiTakeoverOn = computed(() => aiTakeover.enabled);
 /** 真的在工作吗：选中 + 单个聊天开关 + 总开关 */
 const takeoverRunning = computed(() => !!takeoverCfg.value?.enabled && aiTakeover.enabled);
@@ -5238,13 +5039,8 @@ function resetState() {
     jumpBackStack.value = [];
     cancelScrollAnim();
     clearFirstCalibration();
-    // 活动条是聊天内的临时状态：换聊天就清掉，没用过 AI 的聊天不会残留上一条
-    aiAbort?.abort();
-    cancelAiStream();
-    aiAbort = null;
-    aiBusy.value = false;
-    aiActivityEntries.value = [];
-    resolveAiActivity(false);
+    // 活动条**不在这里清**：它属于「这个聊天的 AI 会话」，跨页面存活（见 store/aiRuntime）。
+    // 切走聊天 = 这一轮照跑；只有用户主动停止 / 换会话才结束。
     clearActiveChatTitleBar();
     topic.value = undefined;
     dmHeaderTopic.value = undefined;

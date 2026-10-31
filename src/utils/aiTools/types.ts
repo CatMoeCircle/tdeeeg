@@ -37,6 +37,45 @@ export interface ApprovalRequest {
 /** 审核通道：由 UI 注入（弹卡片 / 通知 / 控制台）。没有通道时 fail closed —— 直接拒绝 */
 export type ApprovalGate = (req: ApprovalRequest) => ApprovalDecision | Promise<ApprovalDecision>;
 
+/** 线程类型：forum = 群组论坛话题；dm = 频道直通消息；comment = 频道帖子的评论线程 */
+export type TurnThreadKind = "forum" | "dm" | "comment";
+
+/** 这一轮用户所在线程；工具没显式传 thread_id 时用它兜底 */
+export interface TurnThread {
+  /** 话题 / 线程 id */
+  id: number;
+  /** 这些消息真正所在的会话：评论线程 = 讨论组，话题 = 当前聊天 */
+  chatId: number;
+  /** 线程类型：决定 topic_id 形态与读历史的接口 */
+  kind: TurnThreadKind;
+}
+
+/**
+ * 一次工具调用的上下文：**每一轮显式传参**，不再用模块级全局。
+ *
+ * 为什么必须是参数：AI 轮次是后台托管的（切走聊天不中断，见 store/aiRuntime），
+ * 多个聊天 / 多个会话可能同时在跑。全局变量会被最后开始的那一轮覆盖，
+ * 结果是 A 聊天的工具调用按 B 聊天的线程 / 供应商 / 审核通道执行 —— 数据会写错地方。
+ */
+export interface ToolContext {
+  /** 这一轮所在的聊天（工具结果落盘 / 会话标题等按它定位） */
+  chatId: number;
+  /** 这一轮所在的会话 id：工具层要改「当前会话」时用它，而不是读界面选中项 */
+  conversationId: string;
+  /** 这一轮所在的线程（论坛话题 / 频道直信 / 评论线程）；null = 不在线程里 */
+  thread: TurnThread | null;
+  /** 这一轮真正在用的供应商 / 模型（客户端搜索的 Key 与模型兜底） */
+  search: { providerId: string; model: string };
+  /** 审核策略；缺省 ask。never = 需要审核的调用自动拒绝 */
+  approvalPolicy?: ApprovalPolicy;
+  /** 用户已明确跳过审核的工具名 */
+  skipApproval?: readonly string[];
+  /** 本轮的审核通道；不传 = 没有 answerer（写类调用 fail closed 拒绝） */
+  approvalGate?: ApprovalGate | null;
+  /** 本轮的临时图片路径收集器（read_image 转好的 JPEG 由下一轮请求作为附件发出） */
+  pendingImages: string[];
+}
+
 export type ToolParamType = "string" | "number" | "boolean" | "string[]" | "number[]" | "object";
 
 export interface ToolParam {

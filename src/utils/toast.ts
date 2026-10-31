@@ -9,6 +9,9 @@ export interface ToastItem {
   content: string;
   /** 毫秒；0 = 不自动关闭 */
   duration: number;
+  /** 可选动作（如「去看看」）：点了先执行再用 action 关闭 */
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 /**
@@ -21,6 +24,9 @@ export interface ToastOptions {
   placement?: string;
   offset?: [number, number];
   duration?: number;
+  /** 带动作的提示（AI 后台完成 / 待审批 → 跳到那个聊天） */
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 export type ToastArg = string | ToastOptions;
@@ -40,6 +46,7 @@ function push(type: ToastType, arg: ToastArg): Promise<void> {
     type,
     content: opt.content,
     duration: opt.duration ?? toastDuration.value,
+    ...(opt.actionLabel ? { actionLabel: opt.actionLabel, onAction: opt.onAction } : {}),
   };
   const next = [...toastQueue.value, item];
   toastQueue.value = next.length > MAX_VISIBLE ? next.slice(next.length - MAX_VISIBLE) : next;

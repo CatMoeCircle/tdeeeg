@@ -26,7 +26,7 @@ import {
 import { quotePosition } from "./format.ts";
 import { singleResult } from "./limits.ts";
 import { assertTdlibMethodAllowed } from "./policy.ts";
-import type { ToolErrorResult, ToolOutcome, ToolResult } from "./types.ts";
+import type { ToolContext, ToolErrorResult, ToolOutcome, ToolResult } from "./types.ts";
 
 function num(v: unknown, name: string): number {
   if (typeof v !== "number" || !Number.isFinite(v)) throw new Error(`参数 ${name} 必须是数字`);
@@ -156,12 +156,12 @@ function topicInputOf(t: ResolvedThread) {
  * 普通会话上模型硬传 thread_id → 让它去掉参数重试，别让用户批一张带无效参数的卡片。
  * 合法性判定与实现体共用 resolveToolThread，两边不会打架。
  */
-async function threadPrecheck(args: Record<string, unknown>): Promise<string[]> {
+async function threadPrecheck(args: Record<string, unknown>, ctx: ToolContext): Promise<string[]> {
   const explicit = optNum(args.thread_id);
   if (explicit === undefined) return [];
   const chatId = typeof args.chat_id === "number" ? args.chat_id : NaN;
   if (!Number.isFinite(chatId)) return []; // chat_id 本身不合法由实现体 num() 报
-  const resolved = await resolveToolThread(chatId, explicit);
+  const resolved = await resolveToolThread(ctx, chatId, explicit);
   if (resolved) return [];
   return [
     "thread_id 不适用于本次调用：只有处于论坛话题、频道私信、评论线程时才需要 thread_id，" +
@@ -169,12 +169,12 @@ async function threadPrecheck(args: Record<string, unknown>): Promise<string[]> 
   ];
 }
 
-registerImplementation("send_message", async (args): Promise<ToolOutcome> => {
+registerImplementation("send_message", async (args, ctx): Promise<ToolOutcome> => {
   const chatId = num(args.chat_id, "chat_id");
   const text = String(args.text ?? "");
   // thread_id 只在三种线程上下文生效（模型没带时跟着当前界面走）；
   // 非线程页直接不携带 topic_id 字段（TDLib 入参键不出现，不是传空值）
-  const thread = await resolveToolThread(chatId, optNum(args.thread_id));
+  const thread = await resolveToolThread(ctx, chatId, optNum(args.thread_id));
   const topic = thread ? topicInputOf(thread) : undefined;
 
   const reply = await replyToOf(chatId, optNum(args.reply_to_message_id), String(args.quote ?? ""));
@@ -209,12 +209,12 @@ registerImplementation("send_message", async (args): Promise<ToolOutcome> => {
  * 发送本地媒体：路径 → 附件管线分类 → sendAttachments（相册 / 单条由它决定）。
  * 读不到或分类被拒的文件不整批失败，进 warnings 告诉模型哪些没发出去。
  */
-registerImplementation("send_media", async (args): Promise<ToolOutcome> => {
+registerImplementation("send_media", async (args, ctx): Promise<ToolOutcome> => {
   const chatId = num(args.chat_id, "chat_id");
   const paths = (Array.isArray(args.files) ? args.files : []).map((f) => String(f));
   const caption = String(args.caption ?? "");
   // 与 send_message 同一门控：只在三种线程上下文生效；非线程页直接不携带线程字段（键不出现，不是传空）
-  const thread = await resolveToolThread(chatId, optNum(args.thread_id));
+  const thread = await resolveToolThread(ctx, chatId, optNum(args.thread_id));
   const threadCtx = !thread
     ? {}
     : thread.kind === "comment"
@@ -302,12 +302,12 @@ registerImplementation("edit_message", async (args): Promise<ToolOutcome> => {
 // MarkdownV2 预校验：解析不过就挡在审核之前（用户不会为一次注定失败的消息白批卡片）。
 // 预校验用的解析路径与实现体完全相同，只是提前跑一次。
 // thread_id 合法性也在审核前挡：无效参数不让用户白批，模型去掉后直接重试。
-registerPrecheck("send_message", async (a) => [
-  ...(await threadPrecheck(a)),
+registerPrecheck("send_message", async (a, ctx) => [
+  ...(await threadPrecheck(a, ctx)),
   ...(await markdownPrecheck(String(a.text ?? ""), "text")),
 ]);
-registerPrecheck("send_media", async (a) => [
-  ...(await threadPrecheck(a)),
+registerPrecheck("send_media", async (a, ctx) => [
+  ...(await threadPrecheck(a, ctx)),
   ...(await markdownPrecheck(String(a.caption ?? ""), "caption")),
 ]);
 registerPrecheck("edit_message", (a) => markdownPrecheck(String(a.text ?? ""), "text"));

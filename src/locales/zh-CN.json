@@ -1286,7 +1286,10 @@
     "copied": "已复制",
     "copyFailed": "复制失败",
     "retry": "请求中断，正在重试（{n}/{max}）：{reason}",
-    "requestFailed": "请求失败：{reason}"
+    "requestFailed": "请求失败：{reason}",
+    "backgroundApproval": "AI 在等你确认：{title}",
+    "backgroundDone": "AI 在后台完成了这一轮",
+    "goToChat": "去看看"
   },
   "aiConversations": {
     "title": "会话管理",

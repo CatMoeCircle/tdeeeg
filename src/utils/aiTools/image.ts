@@ -34,12 +34,16 @@ const DECODE_TIMEOUT_MS = 15000;
  * 待附加给模型的图片：转换后的 JPEG 路径（数据目录下的 ai_images/）。
  * 工具结果里只回路径（不含图像数据），真正的图像由 utils/aiChat 在下一轮请求前
  * 作为独立的 user 图片消息插进历史。
+ *
+ * 收集器挂在**这一轮的 ToolContext** 上（ctx.pendingImages），不是模块级数组：
+ * 聊天 A 和 B 同时在跑时，模块级数组会让 A 读到 B 的图。这里只保留一个
+ * 兜底收集器给「没有走 runAiTurn」的调用方（如独立自检脚本）。
  */
-const pendingImages: string[] = [];
+const fallbackPendingImages: string[] = [];
 
-/** 取走待附加的图片路径（aiChat 在下一轮模型调用前调用，取完即清空） */
+/** 取走兜底收集器里的图片（走 runAiTurn 的调用方用 ctx 自带的数组，不需要这个） */
 export function takePendingImages(): string[] {
-  return pendingImages.splice(0, pendingImages.length);
+  return fallbackPendingImages.splice(0, fallbackPendingImages.length);
 }
 
 /** 图片扩展名 → 媒体类型（webm 走视频取帧，tgs 明确不支持） */
@@ -237,7 +241,7 @@ async function encodeJpeg(frame: Frame): Promise<{ bytes: Uint8Array; width: num
   return { bytes: new Uint8Array(await blob.arrayBuffer()), width, height };
 }
 
-registerImplementation("read_image", async (args): Promise<ToolReply> => {
+registerImplementation("read_image", async (args, ctx): Promise<ToolReply> => {
   const path = typeof args.path === "string" ? args.path.trim() : "";
   if (!path) throw new Error("参数 path 不能为空");
   const ext = extOf(path);
@@ -260,7 +264,8 @@ registerImplementation("read_image", async (args): Promise<ToolReply> => {
     const jpeg = await encodeJpeg(frame);
     // 落盘到数据目录（跟随设置里的存储位置），路径就是下一条「图片消息」的附件（base64 不进工具结果）
     const imagePath = await invoke<string>("ai_save_tool_image", { bytes: Array.from(jpeg.bytes) });
-    pendingImages.push(imagePath);
+    // 挂到**这一轮**的收集器上（不再用模块级 pendingImages：多聊天并发会串图）
+    ctx.pendingImages.push(imagePath);
     // 原图尺寸一并给模型：它只看得到 720 长边内的画面，需要判断「是不是大图」时用得上
     return singleResult("read_image", {
       source: path,

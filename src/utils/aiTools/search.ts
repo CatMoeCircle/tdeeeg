@@ -11,21 +11,20 @@ import { settings } from "../../store/settings";
 import { registerImplementation } from "./call.ts";
 import type { ToolOutcome } from "./types.ts";
 
-/** 当前这轮对话的供应商 / 模型：搜索接口没配 Key 或没配模型时按它兜底 */
-let context = { providerId: "", model: "" };
-
-/** 由 runAiTurn 每轮设置（用这轮真正在用的供应商，而不是设置页里选的那个） */
-export function setSearchContext(next: { providerId: string; model: string }): void {
-  context = { ...next };
-}
-
-registerImplementation("web_search", async (args): Promise<ToolOutcome> => {
+/**
+ * 当前这轮对话的供应商 / 模型：搜索接口没配 Key 或没配模型时按它兜底。
+ *
+ * 从**这一轮的 ToolContext** 里读（ctx.search），不再用模块级变量：
+ * 后台托管下两个聊天可能同时在跑，模块级值会被后开始的那一轮覆盖，
+ * A 聊天就会拿 B 的供应商 / Key 去搜索。
+ */
+registerImplementation("web_search", async (args, ctx): Promise<ToolOutcome> => {
   const query = typeof args.query === "string" ? args.query.trim() : "";
   if (!query) return { tool: "web_search", error: { code: "invalid_args", message: "query 不能为空" } };
   try {
     const text = await invoke<string>("ai_web_search", {
-      providerId: context.providerId,
-      model: context.model,
+      providerId: ctx.search.providerId,
+      model: ctx.search.model,
       query,
       endpoint: settings.ai.search.endpoint,
       searchModel: settings.ai.search.model,

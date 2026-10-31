@@ -1286,7 +1286,10 @@
     "copied": "Copied",
     "copyFailed": "Copy failed",
     "retry": "Request interrupted — retrying ({n}/{max}): {reason}",
-    "requestFailed": "Request failed: {reason}"
+    "requestFailed": "Request failed: {reason}",
+    "backgroundApproval": "AI is waiting for your confirmation: {title}",
+    "backgroundDone": "AI finished this turn in the background",
+    "goToChat": "Open chat"
   },
   "aiConversations": {
     "title": "Sessions",

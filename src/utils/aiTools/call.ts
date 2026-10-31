@@ -18,14 +18,15 @@
  */
 import type {
   ApprovalDecision,
-  ApprovalGate,
   ApprovalPolicy,
   ApprovalRequest,
+  ToolContext,
   ToolErrorCode,
   ToolErrorResult,
   ToolMeta,
   ToolParam,
   ToolReply,
+  TurnThreadKind,
 } from "./types.ts";
 import { getTool } from "./registry.ts";
 import { ensureChat, getReactiveChat } from "../senderInfo";
@@ -38,8 +39,15 @@ export interface ToolCall {
   args: Record<string, unknown>;
 }
 
-/** 工具实现体（read.ts / write.ts 里注册） */
-export type ToolImpl = (args: Record<string, unknown>) => ToolReply | Promise<ToolReply>;
+/**
+ * 工具实现体（read.ts / write.ts 里注册）。
+ * `ctx` 是**这一轮**的上下文（线程 / 供应商 / 审核通道…），由 runAiTurn 显式传入：
+ * 后台托管下多个聊天可能同时跑，模块级全局会被串线（见 types.ts 的 ToolContext）。
+ */
+export type ToolImpl = (
+  args: Record<string, unknown>,
+  ctx: ToolContext,
+) => ToolReply | Promise<ToolReply>;
 
 /**
  * 已实现的工具表。没注册的工具调用一律回 not_implemented。
@@ -65,7 +73,10 @@ export function implementedTools(): string[] {
  * （同 call.ts 的顺序约定：参数不合法时不打扰用户）。
  * 返回逐条可读的问题（空数组 = 通过）。
  */
-export type ToolPrecheck = (args: Record<string, unknown>) => string[] | Promise<string[]>;
+export type ToolPrecheck = (
+  args: Record<string, unknown>,
+  ctx: ToolContext,
+) => string[] | Promise<string[]>;
 
 const PRECHECKS = new Map<string, ToolPrecheck>();
 
@@ -74,31 +85,12 @@ export function registerPrecheck(name: string, check: ToolPrecheck): void {
   PRECHECKS.set(name, check);
 }
 
-// --- 审核策略与通道 ---
+// --- 审核策略 ---
+// 策略 / 跳过名单 / 审核通道全部挂在 ToolContext 上按轮传（见 types.ts）：
+// 之前是模块级全局，后台托管下两轮同时跑就会互相覆盖（A 轮被拒、B 轮放行）。
+// 这里只留一个默认值，供「没有 runAiTurn 上下文」的场合（如开发者预览）兜底。
 
-let approvalPolicy: ApprovalPolicy = "ask";
-let approvalGate: ApprovalGate | null = null;
-/** 跳过审核的工具名（设置页「AI 工具」里开的）：命中的写类调用不再弹卡片 */
-let skippedTools: readonly string[] = [];
-
-/** 设置跳过审核的工具名（每次跑 AI 轮次前按设置刷一遍） */
-export function setApprovalSkip(names: readonly string[]): void {
-  skippedTools = names;
-}
-
-/** 设置审核策略：ask（默认，弹卡片）/ never（需要审核的调用自动拒绝） */
-export function setApprovalPolicy(policy: ApprovalPolicy): void {
-  approvalPolicy = policy;
-}
-
-export function getApprovalPolicy(): ApprovalPolicy {
-  return approvalPolicy;
-}
-
-/** 挂/摘审核通道；传 null = 当前没有 answerer（需要审核的调用会被 fail closed 拒绝） */
-export function setApprovalGate(gate: ApprovalGate | null): void {
-  approvalGate = gate;
-}
+const DEFAULT_POLICY: ApprovalPolicy = "ask";
 
 /**
  * 异常 → 一句话。TDLib 的报错不是 Error，而是裸对象 `{_: "error", code, message}`（见 utils/tdlib 的 throw），
@@ -114,27 +106,11 @@ export function messageOf(e: unknown): string {
   return String(e);
 }
 
-// --- 当前线程（论坛话题 / 频道直通消息 / 评论线程） ---
+// --- 当前线程（论坛话题 / 频道直信 / 评论线程） ---
+// 线程跟着 ToolContext 走（见 types.ts）：之前是模块级 `turnThread`，
+// 后台托管下 A 聊天开始新一轮就会把 B 聊天正在跑的工具上下文改掉。
 
-/** 线程类型：forum = 群组论坛话题；dm = 频道直通消息；comment = 频道帖子的评论线程 */
-export type TurnThreadKind = "forum" | "dm" | "comment";
-
-/** 这一轮用户所在线程；工具没显式传 thread_id 时用它兜底 */
-export interface TurnThread {
-  /** 话题 / 线程 id */
-  id: number;
-  /** 这些消息真正所在的会话：评论线程 = 讨论组，话题 = 当前聊天 */
-  chatId: number;
-  /** 线程类型：决定 topic_id 形态与读历史的接口 */
-  kind: TurnThreadKind;
-}
-
-let turnThread: TurnThread | null = null;
-
-/** 每轮开始按当前界面刷新（null = 不在任何线程里） */
-export function setTurnThread(thread: TurnThread | null): void {
-  turnThread = thread;
-}
+export type { TurnThread, TurnThreadKind } from "./types.ts";
 
 /** 工具解析出的线程（带类型）；只有三种合法上下文会有值 */
 export interface ResolvedThread {
@@ -151,8 +127,12 @@ export interface ResolvedThread {
  * - 在线程页且目标就是该线程所在会话（没传 id，或带回的就是当前线程 id）→ 用本轮线程，kind 由界面判定；
  * - 在线程页上操作其他会话 / 同会话的其他话题 → 目标会话必须真的有话题体系（论坛 / 频道私信）才收。
  */
-export async function resolveToolThread(chatId: number, explicitId?: number): Promise<ResolvedThread | undefined> {
-  const turn = turnThread && turnThread.id ? turnThread : null;
+export async function resolveToolThread(
+  ctx: ToolContext,
+  chatId: number,
+  explicitId?: number,
+): Promise<ResolvedThread | undefined> {
+  const turn = ctx.thread && ctx.thread.id ? ctx.thread : null;
   // 非线程页：thread_id 一律不传递
   if (!turn) return undefined;
   const explicit = typeof explicitId === "number" && explicitId > 0 ? explicitId : undefined;
@@ -168,18 +148,24 @@ export async function resolveToolThread(chatId: number, explicitId?: number): Pr
 }
 
 /** 当前线程页是否允许涉及该会话的 thread_id（消息摘要 brief 是否输出 thread_id 用）；普通页面恒 false */
-export function turnAllowsThreadId(chatId: number): boolean {
-  return !!turnThread && turnThread.id > 0 && turnThread.chatId === chatId;
+export function turnAllowsThreadId(ctx: ToolContext, chatId: number): boolean {
+  const turn = ctx.thread;
+  return !!turn && turn.id > 0 && turn.chatId === chatId;
 }
 
-/** 按策略与通道裁决一次写类调用 */
-async function resolveApproval(meta: ToolMeta, args: Record<string, unknown>): Promise<ApprovalDecision> {
+/** 按策略与通道裁决一次写类调用（策略 / 通道 / 跳过名单全来自本轮 ctx） */
+async function resolveApproval(
+  meta: ToolMeta,
+  args: Record<string, unknown>,
+  ctx: ToolContext,
+): Promise<ApprovalDecision> {
   if (!meta.needsApproval) return { granted: true };
   // 用户在设置里对这个工具关掉了审核：直接放行（开启时已弹过风险提示）
-  if (skippedTools.includes(meta.name)) return { granted: true };
-  if (approvalPolicy === "never") {
+  if (ctx.skipApproval?.includes(meta.name)) return { granted: true };
+  if ((ctx.approvalPolicy ?? DEFAULT_POLICY) === "never") {
     return { granted: false, reason: "当前审核策略为 never：需要审核的调用一律拒绝" };
   }
+  const approvalGate = ctx.approvalGate;
   if (!approvalGate) {
     return { granted: false, reason: "当前没有可用的审核通道，操作已按 fail closed 拒绝" };
   }
@@ -270,8 +256,14 @@ function errorResult(tool: string, code: ToolErrorCode, message: string, issues?
 /**
  * 统一入口：解析 → 校验 → 审核 → 分发。永不抛异常。
  * 返回 call（解析失败时为 null）与 outcome（结果信封或结构化错误）。
+ *
+ * `ctx` 必传：线程 / 审核通道 / 搜索供应商全在这一轮自己的上下文里，
+ * 后台托管下多轮并发不会互相覆盖（见 types.ts 的 ToolContext）。
  */
-export async function dispatchToolCall(raw: unknown): Promise<{ call: ToolCall | null; outcome: ToolReply }> {
+export async function dispatchToolCall(
+  raw: unknown,
+  ctx: ToolContext,
+): Promise<{ call: ToolCall | null; outcome: ToolReply }> {
   let call: ToolCall;
   try {
     call = parseToolCall(raw);
@@ -291,7 +283,7 @@ export async function dispatchToolCall(raw: unknown): Promise<{ call: ToolCall |
   if (precheck) {
     let semantic: string[];
     try {
-      semantic = await precheck(call.args);
+      semantic = await precheck(call.args, ctx);
     } catch (e) {
       return { call, outcome: errorResult(call.name, "internal", `预校验失败：${messageOf(e)}`) };
     }
@@ -301,7 +293,7 @@ export async function dispatchToolCall(raw: unknown): Promise<{ call: ToolCall |
   }
 
   // 审核在实现体之前：没通过就什么都不碰（也顺带省掉未实现工具的骚扰）
-  const decision = await resolveApproval(meta, call.args);
+  const decision = await resolveApproval(meta, call.args, ctx);
   if (!decision.granted) {
     const why = decision.reason ?? "用户未同意";
     return {
@@ -318,7 +310,7 @@ export async function dispatchToolCall(raw: unknown): Promise<{ call: ToolCall |
   if (!impl) return { call, outcome: errorResult(call.name, "not_implemented", `[aiTools] 工具未实现：${call.name}`) };
 
   try {
-    return { call, outcome: await impl(call.args) };
+    return { call, outcome: await impl(call.args, ctx) };
   } catch (e) {
     return { call, outcome: errorResult(call.name, "internal", messageOf(e)) };
   }

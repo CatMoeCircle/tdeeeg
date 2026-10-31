@@ -17,7 +17,7 @@ import { extractTopicNumber } from "../directMessagesTopics";
 import { registerImplementation, resolveToolThread, turnAllowsThreadId, type ResolvedThread } from "./call.ts";
 import { clampLimit, collectPaged, listResult, singleResult } from "./limits.ts";
 import { linkPreviewInfo, type LinkPreviewInfo } from "./linkPreview.ts";
-import type { ToolOutcome, ToolResult } from "./types.ts";
+import type { ToolContext, ToolOutcome, ToolResult } from "./types.ts";
 
 // --- 小工具 ---
 
@@ -142,7 +142,7 @@ function imagePathsOf(msg: message): string[] {
 }
 
 /** `withImages` = 输出 image_paths（只有 get_message 开：整页历史里每条都带路径太吃上下文） */
-function toBrief(msg: message, withImages = false): MessageBrief {
+function toBrief(msg: message, ctx: ToolContext, withImages = false): MessageBrief {
   const senderId = msg.sender_id;
   const brief: MessageBrief = {
     message_id: msg.id,
@@ -161,7 +161,7 @@ function toBrief(msg: message, withImages = false): MessageBrief {
       ? topic.message_thread_id
       : extractTopicNumber(topic as { _: string } | undefined);
   // 非线程页不输出 thread_id（普通超群消息也常带 messageTopicThread，输出了模型会当参数回传）
-  if (thread && turnAllowsThreadId(msg.chat_id)) brief.thread_id = thread;
+  if (thread && turnAllowsThreadId(ctx, msg.chat_id)) brief.thread_id = thread;
   const attachments = attachmentsOf(msg);
   if (attachments.length) brief.attachments = attachments;
   if (withImages) {
@@ -178,6 +178,7 @@ function toBrief(msg: message, withImages = false): MessageBrief {
  * 频道私信 getDirectMessagesChatTopicHistory；无线程走整个会话 getChatHistory。
  */
 async function fetchHistory(opts: {
+  ctx: ToolContext;
   chatId: number;
   thread?: ResolvedThread;
   limit: number;
@@ -224,18 +225,19 @@ async function fetchHistory(opts: {
     if (oldest) from = oldest;
     return page;
   });
-  return { briefs: items.map((msg) => toBrief(msg)), truncated, nextCursor: from };
+  return { briefs: items.map((msg) => toBrief(msg, opts.ctx)), truncated, nextCursor: from };
 }
 
 // --- 读历史 ---
 
-registerImplementation("get_recent_messages", async (args): Promise<ToolResult<MessageBrief[]>> => {
+registerImplementation("get_recent_messages", async (args, ctx): Promise<ToolResult<MessageBrief[]>> => {
   const raw = args.limit as number | undefined;
   const chatId = num(args.chat_id, "chat_id");
-  // thread_id 只在三种线程上下文生效（没带时跟着当前界面走）；
+  // thread_id 只在三种线程上下文生效（没带时跟着这一轮的界面走）；
   // 非线程页不是"传空"，而是直接不携带 thread 字段（键不出现）
-  const thread = await resolveToolThread(chatId, optNum(args.thread_id));
+  const thread = await resolveToolThread(ctx, chatId, optNum(args.thread_id));
   const { briefs, truncated, nextCursor } = await fetchHistory({
+    ctx,
     chatId,
     ...(thread ? { thread } : {}),
     limit: clampLimit("get_recent_messages", raw),
@@ -244,16 +246,16 @@ registerImplementation("get_recent_messages", async (args): Promise<ToolResult<M
   return listResult("get_recent_messages", raw, briefs, { truncated, next_cursor: nextCursor });
 });
 
-registerImplementation("get_message", async (args): Promise<ToolResult<MessageBrief>> => {
+registerImplementation("get_message", async (args, ctx): Promise<ToolResult<MessageBrief>> => {
   const msg = await tdlibSend({
     _: "getMessage",
     chat_id: num(args.chat_id, "chat_id"),
     message_id: num(args.message_id, "message_id"),
   });
-  return singleResult("get_message", toBrief(msg, true));
+  return singleResult("get_message", toBrief(msg, ctx, true));
 });
 
-registerImplementation("get_reply_chain", async (args): Promise<ToolResult<MessageBrief[]>> => {
+registerImplementation("get_reply_chain", async (args, ctx): Promise<ToolResult<MessageBrief[]>> => {
   const chatId = num(args.chat_id, "chat_id");
   const messageId = num(args.message_id, "message_id");
   const raw = args.limit as number | undefined;
@@ -262,7 +264,7 @@ registerImplementation("get_reply_chain", async (args): Promise<ToolResult<Messa
   // 1) 是线程（超群回复线程 / 频道评论）→ getMessageThreadHistory 一次拿全；
   //    不是线程会抛错，退化为 reply_to 链（kind: comment = 探测，仅决定走线程接口）
   try {
-    const thread = await fetchHistory({ chatId, thread: { id: messageId, kind: "comment" }, limit });
+    const thread = await fetchHistory({ ctx, chatId, thread: { id: messageId, kind: "comment" }, limit });
     if (thread.briefs.length) {
       return listResult("get_reply_chain", raw, thread.briefs, {
         truncated: thread.truncated,
@@ -279,13 +281,13 @@ registerImplementation("get_reply_chain", async (args): Promise<ToolResult<Messa
   let cursor: number | undefined = messageId;
   while (cursor !== undefined && chain.length < limit) {
     const msg: message = await tdlibSend({ _: "getMessage", chat_id: chatId, message_id: cursor });
-    chain.push(toBrief(msg));
+    chain.push(toBrief(msg, ctx));
     cursor = replyToId(msg);
   }
   return listResult("get_reply_chain", raw, chain, { truncated: cursor !== undefined });
 });
 
-registerImplementation("search_messages", async (args): Promise<ToolResult<MessageBrief[]>> => {
+registerImplementation("search_messages", async (args, ctx): Promise<ToolResult<MessageBrief[]>> => {
   const chatId = num(args.chat_id, "chat_id");
   const raw = args.limit as number | undefined;
   const limit = clampLimit("search_messages", raw);
@@ -314,7 +316,7 @@ registerImplementation("search_messages", async (args): Promise<ToolResult<Messa
     if (oldest) from = oldest;
     return page;
   });
-  return listResult("search_messages", raw, items.map((msg) => toBrief(msg)), {
+  return listResult("search_messages", raw, items.map((msg) => toBrief(msg, ctx)), {
     truncated,
     next_cursor: from,
     ...(warnings.length ? { warnings } : {}),

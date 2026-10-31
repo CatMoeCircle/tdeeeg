@@ -123,7 +123,7 @@
  *
  * - 开关：关掉的工具不进 toolsSchema（见 utils/aiChat 的 enabledTools），模型看不到就不会调；
  * - 跳过审核：只对 needsApproval 的写类工具有效，开启前必须过这道风险弹窗
- *   （审核逻辑在 utils/aiTools/call 的 setApprovalSkip）；
+ *   （跳过名单随每轮的 ToolContext 传给审核逻辑，见 utils/aiTools/call 的 resolveApproval / types.ts 的 ToolContext）；
  * - 搜索：接口地址留空 = 用当前 AI 供应商的地址和 Key、由供应商自己搜；
  *   填了 = 搜索变成客户端工具 web_search(query)，走这套 OpenAI 兼容的 /responses 接口。
  *   Key 存系统钥匙串（ai_translate::save_ai_search_key），这里只显示「已保存」。

@@ -1158,7 +1158,10 @@
     "copied": "Скопировано",
     "copyFailed": "Не удалось скопировать",
     "retry": "Запрос прерван — повтор ({n}/{max}): {reason}",
-    "requestFailed": "Запрос не выполнен: {reason}"
+    "requestFailed": "Запрос не выполнен: {reason}",
+    "backgroundApproval": "AI ждёт подтверждения: {title}",
+    "backgroundDone": "AI завершил этот шаг в фоне",
+    "goToChat": "Открыть чат"
   },
   "aiConversations": {
     "title": "Сессии",

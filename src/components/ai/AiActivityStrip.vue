@@ -182,7 +182,31 @@ const rowPadClass = (e: AiActivityEntry, i: number) => {
         .join(' ');
 };
 
-/** 思考耗时文案：1.2s / 1m 3.4s（与顶部 ThoughtLine 的计时落定后同一套写法） */
+/**
+ * markdown 渲染缓存：正文越长，renderAiMarkdown 越贵（整段重新扫描）。
+ * 活动条里同一条输出在一次流式响应中会被更新几十上百次，等到终态才渲染一次 markdown，
+ * 中途一律按纯文本画（见模板），这样每帧只做一次字符串插值。
+ *
+ * 完成后的条目也不会变，所以按 text 缓存住：切回聊天重铺历史、展开 / 收起都不重算。
+ */
+const mdCache = new Map<string, string>();
+const MD_CACHE_MAX = 200;
+
+/**
+ * 一条输出该不该现在渲染 markdown：
+ * - running：不渲染。半截 markdown（未闭合的 ``` / ** ）渲染出来会闪，且每帧都要重算整段；
+ * - 完成 / 报错：渲染并缓存，之后只读缓存。
+ */
+function htmlOf(e: AiActivityEntry): string {
+  if (e.status === 'running') return '';
+  const hit = mdCache.get(e.text);
+  if (hit !== undefined) return hit;
+  const html = renderAiMarkdown(e.text);
+  if (mdCache.size >= MD_CACHE_MAX) mdCache.delete(mdCache.keys().next().value as string);
+  mdCache.set(e.text, html);
+  return html;
+}
+
 function fmtThought(ms: number): string {
     // 至少 0.1s：思考一闪而过时也别显示「0.0s」
     const ds = Math.max(1, Math.round(ms / 100));
@@ -294,10 +318,13 @@ watch(
                     <!-- 用户提问：靠右的气泡（跟聊天里自己发的消息一个意思） -->
                     <span v-if="e.kind === 'user'"
                         class="ml-auto max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md px-2.5 py-1.5 text-gray-900 [background:color-mix(in_srgb,var(--app-brand)_14%,transparent)] dark:text-gray-100">{{ e.text }}</span>
-                    <!-- 模型输出渲染 markdown（**粗体** / `代码` / 列表要看得见格式）；思考与工具调用是纯文本 / JSON -->
+                    <!-- 模型输出：**跑着的时候按纯文本画**（半截 markdown 会闪，且每帧重算整段很贵），
+                         完成后再一次性渲染并缓存（见 htmlOf）；思考与工具调用本来就是纯文本 / JSON -->
                     <template v-else-if="e.kind === 'output'">
-                        <span class="min-w-0 flex-1 break-words" :class="entryTextClass(e)"
-                            v-html="renderAiMarkdown(e.text)" />
+                        <span v-if="e.status === 'running'" class="min-w-0 flex-1 whitespace-pre-wrap break-words"
+                            :class="entryTextClass(e)">{{ e.text }}</span>
+                        <span v-else class="min-w-0 flex-1 break-words" :class="entryTextClass(e)"
+                            v-html="htmlOf(e)" />
                         <button type="button"
                             class="-mr-1 mt-0.5 grid h-5 w-5 shrink-0 cursor-pointer place-items-center rounded-md text-gray-400 opacity-0 transition-opacity hover:bg-black/5 hover:text-gray-600 focus-visible:opacity-100 group-hover:opacity-100 dark:hover:bg-white/5 dark:hover:text-gray-200"
                             :aria-label="t('aiActivity.copy')" :title="t('aiActivity.copy')"

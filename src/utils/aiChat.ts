@@ -15,14 +15,13 @@ import type { AiModel, AiProvider } from "../store/aiProviderRules";
 import { aiConversations, currentAiAccount, loadHistory, recordAiUsage, saveHistory } from "../store/aiConversations";
 import { aiModelSeesImages } from "../store/aiProviderRules";
 import { settings } from "../store/settings";
-import { dispatchToolCall, isErrorReply, messageOf, replyText, setApprovalSkip, setTurnThread, type TurnThread } from "./aiTools/call.ts";
+import { dispatchToolCall, isErrorReply, messageOf, replyText, type TurnThread } from "./aiTools/call.ts";
 import { MARKDOWN_V2_GUIDE } from "./aiTools/format.ts";
 import { TOOLSETS, toolsSchema } from "./aiTools/schema.ts";
-import { setSearchContext } from "./aiTools/search.ts";
-import type { ToolReply } from "./aiTools/types.ts";
+import type { ApprovalGate, ToolContext, ToolReply } from "./aiTools/types.ts";
 import { trimHistory, type AiActivityItem, type ChatToolCall, type ChatWireMessage } from "./aiChatHistory.ts";
 // 工具实现在被导入时登记自己；AI 入口必须导入它们，否则工具全是 not_implemented
-import { takePendingImages } from "./aiTools/image.ts";
+import "./aiTools/image.ts";
 import "./aiTools/local.ts";
 import "./aiTools/read.ts";
 import "./aiTools/viewport.ts";
@@ -181,8 +180,7 @@ export function dropHistory(conversationId: string): void {
   histories.delete(conversationId);
 }
 
-/**
- * 输入框 / 菜单命令 → 追加给模型的一段 prompt（用户消息保持原样，跟引用回复同一套做法：
+/** 输入框 / 菜单命令 → 追加给模型的一段 prompt（用户消息保持原样，跟引用回复同一套做法：
  * 活动条 / 历史里显示的就还是用户打的那句）。认不出的 key 当普通提问。
  */
 const COMMAND_PROMPTS: Record<string, string> = {
@@ -190,6 +188,13 @@ const COMMAND_PROMPTS: Record<string, string> = {
     "用户点了 /summarize：先调 get_recent_messages 读本聊天最近的对话（limit 50 左右，不够再往前翻一页），" +
     "然后用要点总结：在聊什么、已有结论、还没定的事。没读到的内容不要编。",
 };
+
+/**
+ * 内置思考档位表：索引与 AiPromptBar 的档位标签顺序一致
+ * （关闭 / 默认 / low / medium / high）——「关闭」发 none，「默认」不发思考参数。
+ * 模型在设置里配了自定义档位表时不走这里（档位的 API 参数值直接透传）。
+ */
+export const AI_EFFORT_KEYS = ['none', '', 'low', 'medium', 'high'] as const;
 
 /**
  * system prompt。`title` 是当前会话标题（新建时会先填用户那句话，模型可以改）；
@@ -286,7 +291,7 @@ export type AiTurnThread = TurnThread;
 
 export interface AiTurnOptions {
   chatId: number;
-  /** 当前所在的线程（论坛话题 / 频道直通消息 / 评论线程）：进 prompt，也给工具当默认 thread_id */
+  /** 当前所在的线程（论坛话题 / 频道直信 / 评论线程）：进 prompt，也给工具当默认 thread_id */
   thread?: AiTurnThread;
   /**
    * 当前聊天里 AI 的写权限（群 / 频道才有限制）：影响下发的工具与 prompt 里的权限说明。
@@ -313,6 +318,12 @@ export interface AiTurnOptions {
   effort: string | null;
   sink: AiActivitySink;
   signal: AbortSignal;
+  /**
+   * 本轮的审核通道：写类工具执行前调它等用户批准。
+   * 按轮传（不是全局挂一个）—— 多聊天并发时各问各的用户，不会串。
+   * 不传 = 没有 answerer，写类调用按 fail closed 拒绝。
+   */
+  approvalGate?: ApprovalGate | null;
 }
 
 /** 历史不过 IPC：Rust 按 账号 + 会话 id 读落盘的 history，拼在 messages（只含 system）后面 */
@@ -376,6 +387,18 @@ export function cancelAiStream(): void {
 }
 
 /**
+ * 流式增量的**合并窗口**（毫秒）。
+ *
+ * 供应商（尤其 GPT / MiMo 这类）会按 token 甚至按字符推增量，一秒几十上百条。
+ * 每条都往 Vue 里写一次 = 每秒上百次组件重渲染，界面直接卡死 —— 这是「流式一开整个
+ * 客户端就卡」的根因。这里把增量按帧合并：文本 / 思考只在窗口结束时写一次活动条，
+ * 用户看到的仍然是「逐字出现」（60fps 下肉眼看不出差别），但重渲染次数降到每秒 ~16 次。
+ *
+ * 16ms ≈ 一帧：再小没有视觉收益，再大开始觉得一顿一顿。
+ */
+const STREAM_FLUSH_MS = 16;
+
+/**
  * 一次模型调用：流式为主。增量块只用来画界面，最终结果用命令的返回值。
  * 中途断流会重试（最多 MAX_STREAM_RETRIES 次），半截内容先撤掉再重画，不跟重试输出叠一起。
  */
@@ -395,6 +418,40 @@ async function callModel(o: AiTurnOptions, messages: ChatWireMessage[], tools: u
   let sentAt = 0;
   let lastReasonAt = 0;
 
+  /**
+   * 待写入活动条的增量（按帧合并）：
+   * - text / reason 是**累积后的整段**，不是增量 —— 所以窗口里来多少条都只写最后一次；
+   * - toolArgs 按条目 id 记整段参数（流式工具参数同理）；
+   * - 有内容才起定时器，flush 完就停：不跑空闲的 rAF / interval。
+   */
+  let pendingText = "";
+  let pendingReason = "";
+  const pendingToolArgs = new Map<string, string>();
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** 把攒下的增量写进活动条（**一次**写整段，不是逐条写） */
+  const flushStream = () => {
+    if (flushTimer !== null) {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    }
+    if (pendingText && textId) o.sink.update(textId, { text: pendingText });
+    if (pendingReason && thinkId) o.sink.update(thinkId, { text: pendingReason });
+    for (const [entryId, args] of pendingToolArgs) o.sink.update(entryId, { input: args });
+    pendingToolArgs.clear();
+  };
+  const scheduleFlush = () => {
+    if (flushTimer !== null) return;
+    flushTimer = setTimeout(flushStream, STREAM_FLUSH_MS);
+  };
+  /** 收尾 / 出异常时把定时器清掉（内容已经在 flushStream 里写过，不用再补） */
+  const disposeFlush = () => {
+    if (flushTimer !== null) {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    }
+  };
+
   for (let attempt = 0; reply === null; attempt++) {
     liveText = "";
     liveReason = "";
@@ -404,6 +461,9 @@ async function callModel(o: AiTurnOptions, messages: ChatWireMessage[], tools: u
     added = [];
     sentAt = 0;
     lastReasonAt = 0;
+    pendingText = "";
+    pendingReason = "";
+    pendingToolArgs.clear();
     let received = false;
 
     const channel = new Channel<StreamPart>();
@@ -415,9 +475,11 @@ async function callModel(o: AiTurnOptions, messages: ChatWireMessage[], tools: u
           if (!textId) {
             textId = nextId();
             added.push(textId);
+            // 条目本身只在第一次出现时创建（这一次写有实质内容，不是高频路径）
             o.sink.add({ id: textId, kind: "output", text: liveText, status: "running" });
           } else {
-            o.sink.update(textId, { text: liveText });
+            pendingText = liveText;
+            scheduleFlush();
           }
           break;
         case "reasoning-delta":
@@ -428,7 +490,8 @@ async function callModel(o: AiTurnOptions, messages: ChatWireMessage[], tools: u
             added.push(thinkId);
             o.sink.add({ id: thinkId, kind: "thinking", text: liveReason, status: "running" });
           } else {
-            o.sink.update(thinkId, { text: liveReason });
+            pendingReason = liveReason;
+            scheduleFlush();
           }
           break;
         case "tool-input-start": {
@@ -442,7 +505,8 @@ async function callModel(o: AiTurnOptions, messages: ChatWireMessage[], tools: u
           const cur = toolEntry.get(p.id ?? "");
           if (cur) {
             cur.args += p.delta ?? "";
-            o.sink.update(cur.entryId, { input: cur.args });
+            pendingToolArgs.set(cur.entryId, cur.args);
+            scheduleFlush();
           }
           break;
         }
@@ -468,7 +532,10 @@ async function callModel(o: AiTurnOptions, messages: ChatWireMessage[], tools: u
         requestId,
         onEvent: channel,
       });
+      // 命令返回 = 流已经结束：把窗口里最后一段补进界面，后面的收尾用返回值覆盖成终态
+      flushStream();
     } catch (e) {
+      disposeFlush();
       // 用户按了停止：不重试
       if (o.signal.aborted) throw e;
       // 首次尝试一个字都没收到：不重试，退回一次性请求
@@ -540,11 +607,21 @@ export async function runAiTurn(o: AiTurnOptions): Promise<string> {
   const tools = toolsSchema(enabledTools(o.provider, o.perms, aiModelSeesImages(o.model.modality)));
   let finalText = "";
 
-  // 设置里按工具关掉的审核、以及客户端搜索要用的「这轮是哪个供应商」——每轮现刷一遍
-  setApprovalSkip(settings.ai.skipApproval);
-  setSearchContext({ providerId: o.provider.id, model: o.model.id });
-  // 当前线程：模型忘了带 thread_id 时由工具兜底（写错线程的消息用户是能看见的）
-  setTurnThread(o.thread ?? null);
+  /**
+   * 本轮的工具体上下文：线程 / 供应商 / 审核通道 / 临时图片收集器全在这里，
+   * 按轮创建、按轮传下去 —— 不再写模块级全局（见 aiTools/types.ts 的 ToolContext）。
+   * 后台托管下多个聊天会同时跑，全局变量会被后开始的那一轮覆盖。
+   */
+  const toolCtx: ToolContext = {
+    chatId: o.chatId,
+    conversationId: o.conversationId,
+    thread: o.thread ?? null,
+    search: { providerId: o.provider.id, model: o.model.id },
+    approvalPolicy: settings.ai.approval,
+    skipApproval: settings.ai.skipApproval,
+    approvalGate: o.approvalGate ?? null,
+    pendingImages: [],
+  };
 
   // 每轮之后落盘一次：中途被停止 / 崩了，下次进来还能接着聊。
   // 发请求前也要落盘：Rust 直接从库里读历史，本轮的用户消息得先写进去。
@@ -606,14 +683,14 @@ export async function runAiTurn(o: AiTurnOptions): Promise<string> {
     for (const { call, entryId } of clientCalls) {
       const outcome: ToolReply = o.signal.aborted
         ? { tool: call.name, error: { code: "internal", message: "用户已停止，未执行" } }
-        : (await dispatchToolCall(call)).outcome;
+        : (await dispatchToolCall(call, toolCtx)).outcome;
       const content = replyText(outcome);
       o.sink.update(entryId, { status: isErrorReply(outcome) ? "error" : "ok", output: content });
       history.push({ role: "tool", toolCallId: call.id, toolName: call.name, text: content });
     }
     // read_image 转好的图片走**独立的图片消息**（工具结果里没有 base64）：
     // 作为一条 user 消息的附件插进历史，下一轮 Rust 读盘转多模态，与用户手动附图同一条通路
-    const images = takePendingImages();
+    const images = toolCtx.pendingImages.splice(0, toolCtx.pendingImages.length);
     if (images.length && !o.signal.aborted) {
       history.push({ role: "user", text: "", attachments: images });
     }
