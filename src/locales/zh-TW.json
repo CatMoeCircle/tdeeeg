@@ -1542,7 +1542,6 @@
     "needsPremium": "需要 Premium",
     "selectDmTopic": "請選擇一個私訊會話後回覆",
     "scrollToBottom": "跳到底部",
-    "backToPreviousHint": "長按回到之前的位置",
     "editMediaAttached": "已附帶{type}",
     "editMediaNoPreview": "無{type}預覽",
     "editMediaReplaceHint": "已選擇新{type}，傳送時將取代",

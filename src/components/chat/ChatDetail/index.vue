@@ -677,12 +677,10 @@
         </div>
 
         <!-- ===== Floating scroll-to-bottom button ===== -->
-        <!-- 回退栈非空时即使已贴底也保持可见（长按回退入口）；计数徽标仍只反映未读 -->
         <Transition name="fade">
-            <ScrollToBottomButton v-if="showScrollButton || jumpBackStack.length > 0"
+            <ScrollToBottomButton v-if="showScrollButton || jumpReturnTarget"
                 :bottom="scrollButtonBottom" :count="newMessageCount" :places="newMessageCountPlaces"
-                :can-go-back="jumpBackStack.length > 0" @click="handleScrollToBottom"
-                @back="jumpBackInHistory" />
+                @click="handleScrollToBottom" />
         </Transition>
 
         <!-- ===== 全局媒体查看器 ===== -->
@@ -2088,12 +2086,7 @@ const newMessageCountPlaces = computed<(number | '.')[]>(() => {
 /** 正在播放删除消失动画的消息 id：动画结束后才真正从列表移除 */
 const leavingMessageIds = ref<Set<number>>(new Set());
 const showScrollButton = ref(false);
-/**
- * 同对话跳转的来路栈：每次用户发起跳转（回复/置顶/搜索/链接）前压入当前视口锚点，
- * 贴底按钮长按/右键逐级弹出回退（支持多轮）。切会话时 resetState 清空。
- */
-interface JumpBackEntry { anchorId: number; pixelFromTop: number }
-const jumpBackStack = ref<JumpBackEntry[]>([]);
+const jumpReturnTarget = ref<{ anchorId: number; pixelFromTop: number } | null>(null);
 /** 进行中的跳转滚动动画；新的动画/程序化定位/用户输入都会取消它 */
 let scrollAnimRaf = 0;
 let scrollAnimCleanup: (() => void) | null = null;
@@ -2134,6 +2127,8 @@ let unsubscribeUpdates: (() => void) | null = null;
 
 /** 单调递增的加载代数，用于防止异步返回时的竞态条件 */
 let loadGeneration = 0;
+/** 同会话窗口代数：跳转/跳底后，旧窗口在途的历史请求不得再写入新窗口。 */
+let historyWindowGeneration = 0;
 /** 组件已卸载：内联加载流程的 await 回来后一律不再继续（取数/挂载都是白跑） */
 let disposed = false;
 /**
@@ -2865,14 +2860,20 @@ const highlightedMessageId = ref<number | null>(null);
 let highlightTimer: number | null = null;
 
 function flashMessage(messageId: number) {
-    if (highlightTimer !== null) {
-        window.clearTimeout(highlightTimer);
-    }
+    clearMessageHighlight();
     highlightedMessageId.value = messageId;
     highlightTimer = window.setTimeout(() => {
         highlightedMessageId.value = null;
         highlightTimer = null;
     }, 2000);
+}
+
+function clearMessageHighlight() {
+    if (highlightTimer !== null) {
+        window.clearTimeout(highlightTimer);
+        highlightTimer = null;
+    }
+    highlightedMessageId.value = null;
 }
 
 /** 检查加载代数是否已过期（聊天已切换），过期则中止后续操作 */
@@ -3177,11 +3178,6 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
                 isReady.value = true;
                 scheduleVisibleMessagesRead();
                 void autoOpenMediaFromQuery(gen);
-                setTimeout(() => {
-                    if (isGenerationValid(gen) && chatId.value === currentId) {
-                        scrollToMessage(requestedMessageId);
-                    }
-                }, 250);
                 return;
             }
         }
@@ -3509,13 +3505,14 @@ async function fetchMessagesPreferLocal(
  * 不阻塞 listRevealed，不占用 isLoadingMore（避免与滚动加载互斥打架）。
  */
 async function alignLatestMessagesInBackground(currentId: number, chatData: chat, gen: number): Promise<void> {
+    const windowGen = historyWindowGeneration;
     const lastMessageId = chatData.last_message?.id ?? 0;
     if (lastMessageId <= 0) return;
     // 已含最新：无需补全
     if (messagesMaxId() >= lastMessageId) return;
 
     const newest = await fetchMessages(currentId, 0, HISTORY_BOTTOM_LIMIT, 0, gen, false);
-    if (!isGenerationValid(gen) || chatId.value !== currentId) return;
+    if (!isGenerationValid(gen) || chatId.value !== currentId || windowGen !== historyWindowGeneration) return;
     if (newest == null || newest.length === 0) return;
 
     const currentNewestId = messagesMaxId();
@@ -3543,7 +3540,7 @@ async function alignLatestMessagesInBackground(currentId: number, chatData: chat
         let newestId = currentNewestId;
         let bridged = false;
         for (let i = 0; i < BRIDGE_MAX_PAGES && newestId < batchNewestId; i++) {
-            if (!isGenerationValid(gen) || chatId.value !== currentId) return;
+            if (!isGenerationValid(gen) || chatId.value !== currentId || windowGen !== historyWindowGeneration) return;
             const page = await fetchMessages(
                 currentId,
                 newestId,
@@ -3551,6 +3548,7 @@ async function alignLatestMessagesInBackground(currentId: number, chatData: chat
                 -HISTORY_NEWER_OFFSET,
                 gen,
             );
+            if (!isGenerationValid(gen) || chatId.value !== currentId || windowGen !== historyWindowGeneration) return;
             if (page == null) break;
             const newerOnly = page.filter(m => m.id > newestId);
             if (newerOnly.length === 0) break;
@@ -3631,6 +3629,7 @@ async function revealOlderMessagesInChunks(ids: number[], gen: number, hold?: Vi
 
 async function loadHistoryOlder(loadChatId: number, gen: number): Promise<boolean> {
     if (isLoadingMore.value) return false;
+    const windowGen = historyWindowGeneration;
 
     const oldestId = messages.value.length > 0
         ? messages.value.reduce((min, m) => (m.id < min ? m.id : min), messages.value[0].id)
@@ -3644,7 +3643,7 @@ async function loadHistoryOlder(loadChatId: number, gen: number): Promise<boolea
     loadingDirection.value = 'older';
     try {
         const older = await fetchMessages(loadChatId, oldestId, HISTORY_OLDER_LIMIT, 0, gen);
-        if (!isGenerationValid(gen) || chatId.value !== loadChatId) return false;
+        if (!isGenerationValid(gen) || chatId.value !== loadChatId || windowGen !== historyWindowGeneration) return false;
         if (older == null) return false;
         if (older.length === 0) {
             markOlderExhausted();
@@ -3703,6 +3702,7 @@ async function loadHistoryOlder(loadChatId: number, gen: number): Promise<boolea
  */
 async function loadHistoryNewer(loadChatId: number, gen: number): Promise<boolean> {
     if (isLoadingMore.value) return false;
+    const windowGen = historyWindowGeneration;
 
     const newestId = messagesMaxId();
     if (!newestId) {
@@ -3715,7 +3715,7 @@ async function loadHistoryNewer(loadChatId: number, gen: number): Promise<boolea
     loadingDirection.value = 'newer';
     try {
         const newer = await fetchMessages(loadChatId, newestId, HISTORY_NEWER_LIMIT, -HISTORY_NEWER_OFFSET, gen);
-        if (!isGenerationValid(gen) || chatId.value !== loadChatId) return false;
+        if (!isGenerationValid(gen) || chatId.value !== loadChatId || windowGen !== historyWindowGeneration) return false;
         if (newer == null) {
             newerFetchFailStreak++;
             // 连续失败：停止空转，避免“加载中”指示器无限开关造成跳动
@@ -4234,7 +4234,10 @@ function cancelScrollAnim() {
  * 用户滚轮/触摸/按下立即取消交还控制权；动画期间逐帧续期 scrollLoadSuppressedUntil，
  * 避免边缘预取插页与动画互抢。返回 true = 完整走到目标，false = 被取消。
  */
-function animateScrollTop(el: HTMLElement, computeTarget: () => number | null): Promise<boolean> {
+function animateScrollTop(
+    el: HTMLElement,
+    computeTarget: () => number | null,
+): Promise<boolean> {
     cancelScrollAnim();
     const from = el.scrollTop;
     const first = computeTarget();
@@ -4268,6 +4271,7 @@ function animateScrollTop(el: HTMLElement, computeTarget: () => number | null): 
         let animTime = 0;
         const step = (now: number) => {
             scrollAnimRaf = 0;
+            // 持续跟随真实目标，避免媒体或消息高度变化后落点不准。
             const live = computeTarget();
             if (live === null) {
                 cancelScrollAnim();
@@ -4379,6 +4383,21 @@ function scrollToBottomImmediate() {
     scrollToBottomPure();
 }
 
+/** 用户主动回到底部：与消息跳转共用方向感知动画，且随内容高度变化持续追踪底部。 */
+async function scrollToBottomAnimated() {
+    if (chatId.value !== undefined) {
+        cancelScheduledBrowsePosSave();
+        clearLastBrowsePosition(chatId.value, topicId.value);
+    }
+    const el = messagesContainer.value;
+    if (!el) return;
+    showScrollButton.value = false;
+    stickyDateHidden.value = true;
+    const maxId = messages.value[messages.value.length - 1]?.id ?? 0;
+    if (maxId > latestUnreadSeenId.value) latestUnreadSeenId.value = maxId;
+    await animateScrollTop(el, () => Math.max(0, el.scrollHeight - el.clientHeight));
+}
+
 /** 滚动到指定消息元素，将其放在视口约 45% 位置（基于 getBoundingClientRect，避免 offsetTop 偏差） */
 const scrollToMessage = (messageId: number) => {
     nextTick(() => {
@@ -4390,15 +4409,19 @@ const scrollToMessage = (messageId: number) => {
 
 /**
  * 统一跳转函数：加载目标为中心的连续切片并定位；随后补齐视口，避免空白与无法继续加载。
- * restore：回退栈条目——定位改为按保存的原偏移恢复（贴底按钮长按回退用）。
+ * restore：按保存的原偏移恢复视口位置。
  */
 async function jumpToMessageInternal(
     messageId: number,
     gen: number,
-    restore?: JumpBackEntry,
+    restore?: { pixelFromTop: number },
 ): Promise<boolean> {
     const currentChatId = chatId.value;
     if (!currentChatId) return false;
+
+    // 丢弃尚未执行的滚动预取，并使已发出的旧窗口请求失效。
+    cancelHistoryPrefetch();
+    historyWindowGeneration++;
 
     const windowMessages = await loadJumpWindow(currentChatId, messageId, gen);
     if (!isGenerationValid(gen) || chatId.value !== currentChatId || windowMessages.length === 0) {
@@ -4442,23 +4465,16 @@ async function jumpToMessageInternal(
         // 首屏带 message 打开：只写入数据并定位，由 watch 负责补视口后统一 reveal
         if (listRevealed.value) {
             isReady.value = true;
-            await nextTick();
-            flashMessage(messageId);
-            // 向目标方向平滑滚动；用户中途滚轮/触摸接管则停止，后续不再回拽
-            const landed = await scrollToMessageAnimated(messageId, restore);
+            // 先完成目标附近的视口补齐，再开始动画；动画期间不再并发插入历史页，
+            // 避免目标位置先被滚过、随后又被校正拉回。
+            await ensureViewportFilled(gen);
             if (!isGenerationValid(gen) || chatId.value !== currentChatId) return true;
-            // 校准：回退按保存的原偏移纠偏（容差 12px），普通跳转走 45% 居中
-            const recorrect = () => {
-                if (!isGenerationValid(gen) || chatId.value !== currentChatId) return;
-                if (restore) calibrateBrowseAnchor(messageId, restore.pixelFromTop, true);
-                else scrollToMessage(messageId);
-            };
-            void ensureViewportFilled(gen).then(() => {
-                if (landed !== 'cancelled') recorrect();
-            });
-            if (landed !== 'cancelled') {
-                setTimeout(recorrect, 300);
-            }
+            await nextTick();
+            if (!restore) flashMessage(messageId);
+            // 向目标方向平滑滚动；用户中途滚轮/触摸接管则停止，后续不再回拽
+            await scrollToMessageAnimated(messageId, restore);
+            if (!isGenerationValid(gen) || chatId.value !== currentChatId) return true;
+            // 补齐已在动画前完成；不要在动画落点后再次校正，避免可见回弹。
         } else {
             await nextTick();
             scrollToMessageImmediate(messageId);
@@ -4470,44 +4486,13 @@ async function jumpToMessageInternal(
     return true;
 }
 
-/**
- * 记录当前视口锚点进回退栈（跳转前调用）。与栈顶同一锚点则不重复压栈。
- * 列表未露出（首屏定位中）不记录——那不是用户发起的跳转。
- */
-function pushJumpHistory() {
-    const el = messagesContainer.value;
-    if (!el || !listRevealed.value) return;
-    const anchor = captureViewportAnchor(el);
-    if (anchor.msgId <= 0) return;
-    const top = jumpBackStack.value[jumpBackStack.value.length - 1];
-    if (top && top.anchorId === anchor.msgId && Math.abs(top.pixelFromTop - anchor.offsetTop) < 4) return;
-    jumpBackStack.value.push({ anchorId: anchor.msgId, pixelFromTop: anchor.offsetTop });
-    // 栈上限：防御性截断，正常跳转轮次远达不到
-    if (jumpBackStack.value.length > 10) jumpBackStack.value.shift();
-}
-
-/**
- * 回到之前的位置（贴底按钮长按/右键）：弹出回退栈逐级返回，支持多轮跳转。
- * 目标已不在当前窗口时走完整跳转流程加载（带 restore 恢复原偏移）。
- */
-async function jumpBackInHistory() {
-    const entry = jumpBackStack.value.pop();
-    if (!entry) return;
-    const el = messagesContainer.value;
-    if (!el) return;
-    if (findRenderedMsgEl(el, entry.anchorId)) {
-        // 还在窗口内：动画滚回原偏移
-        flashMessage(entry.anchorId);
-        await animateScrollTop(el, () => computeBrowseScrollTop(el, entry.anchorId, entry.pixelFromTop));
-        return;
-    }
-    // 已被裁出窗口：重新加载该位置的窗口并按原偏移恢复
-    await jumpToMessageInternal(entry.anchorId, loadGeneration, entry);
-}
-
 async function jumpToMessage(messageId: number) {
-    // 跳转前记录来路（仅用户在已露出列表上发起的跳转）；首屏挂起的校准也作废，别把视口拽回旧锚点
-    pushJumpHistory();
+    const el = messagesContainer.value;
+    if (el && listRevealed.value) {
+        const anchor = captureViewportAnchor(el);
+        if (anchor.msgId > 0) jumpReturnTarget.value = { anchorId: anchor.msgId, pixelFromTop: anchor.offsetTop };
+    }
+    // 首屏挂起的校准也作废，避免跳转后回到旧锚点
     clearFirstCalibration();
     await jumpToMessageInternal(messageId, loadGeneration);
 }
@@ -5068,8 +5053,7 @@ function resetState() {
     sessionUnreadBaseId.value = 0;
     applyMessages([]);
     chat.value = undefined;
-    // 切会话：回退栈/进行中的滚动动画/挂起的首屏校准全部作废
-    jumpBackStack.value = [];
+    // 切会话：进行中的滚动动画/挂起的首屏校准全部作废
     cancelScrollAnim();
     clearFirstCalibration();
     // 活动条**不在这里清**：它属于「这个聊天的 AI 会话」，跨页面存活（见 store/aiRuntime）。
@@ -5094,6 +5078,7 @@ function resetState() {
     scrollLoadSuppressedUntil = 0;
     loadingDirection.value = null;
     unreadBoundaryMessageId.value = null;
+    jumpReturnTarget.value = null;
     latestUnreadSeenId.value = 0;
     showScrollButton.value = false;
     newMessageIds.value = new Set();
@@ -6085,9 +6070,41 @@ function refreshKeyboardLock(messageId: number) {
  * 使用 function 声明以便 updateNewMessage 在 TDZ 外安全引用。
  */
 async function handleScrollToBottom() {
+    const returnTarget = jumpReturnTarget.value;
+    if (returnTarget) {
+        jumpReturnTarget.value = null;
+        clearMessageHighlight();
+        cancelScrollAnim();
+        showScrollButton.value = false;
+        const el = messagesContainer.value;
+        if (el && findRenderedMsgEl(el, returnTarget.anchorId)) {
+            await animateScrollTop(el, () => computeBrowseScrollTop(el, returnTarget.anchorId, returnTarget.pixelFromTop));
+        } else {
+            await jumpToMessageInternal(returnTarget.anchorId, loadGeneration, { pixelFromTop: returnTarget.pixelFromTop });
+        }
+        showScrollButton.value = !isAtBottom();
+        return;
+    }
+
+    const unreadId = unreadBoundaryMessageId.value;
+    const viewportAnchor = messagesContainer.value ? captureViewportAnchor(messagesContainer.value) : null;
+    if (unreadId && unreadId > 0 && viewportAnchor && viewportAnchor.msgId > 0 && viewportAnchor.msgId < unreadId) {
+        cancelScrollAnim();
+        cancelHistoryPrefetch();
+        historyWindowGeneration++;
+        showScrollButton.value = false;
+        await jumpToMessageInternal(unreadId, loadGeneration);
+        if (chatId.value && unreadBoundaryMessageId.value === unreadId) {
+            await nextTick();
+            if (!scrollToUnreadAnchor(unreadId)) scrollToMessage(unreadId);
+            showScrollButton.value = !isAtBottom();
+        }
+        return;
+    }
+
     cancelScrollAnim();
-    // 跳底也算一次导航：记下来路，长按按钮可回到跳底前的位置（已在底部则不记，避免空栈项）
-    if (!isAtBottom()) pushJumpHistory();
+    cancelHistoryPrefetch();
+    historyWindowGeneration++;
     showScrollButton.value = false;
     // 抑制滚动加载，避免贴底后 loadHistoryNewer 与“加载中”指示器形成高度抖动
     scrollLoadSuppressedUntil = Date.now() + 600;
@@ -6100,6 +6117,7 @@ async function handleScrollToBottom() {
     }
     isLoadingMore.value = true;
     loadingDirection.value = 'bottom';
+    let replacedWindow = false;
     try {
         const newest = await fetchMessages(loadChat, 0, HISTORY_BOTTOM_LIMIT, 0, gen);
         if (!isGenerationValid(gen) || chatId.value !== loadChat) return;
@@ -6111,6 +6129,10 @@ async function handleScrollToBottom() {
                 jumpNewerExhausted.value = false;
             }
             refreshWindowReachesLatest();
+            isLoadingMore.value = false;
+            loadingDirection.value = null;
+            await nextTick();
+            await scrollToBottomAnimated();
             return;
         }
 
@@ -6127,6 +6149,7 @@ async function handleScrollToBottom() {
 
         if (messages.value.length === 0 || currentNewestId <= 0) {
             applyMessages(newest);
+            replacedWindow = true;
         } else if (currentNewestId >= batchNewestId) {
             // 已在底部，合并可能存在的中间更新消息即可
             mergeIntoList(newest);
@@ -6164,6 +6187,7 @@ async function handleScrollToBottom() {
             } else if (afterNewestId < batchOldestId - 1) {
                 // 桥接失败 / gap 过大：替换为底部连续窗口（用户意图是到最新）
                 applyMessages(newest);
+                replacedWindow = true;
             } else {
                 mergeIntoList(newest);
             }
@@ -6192,19 +6216,11 @@ async function handleScrollToBottom() {
         loadingDirection.value = null;
     }
     await nextTick();
-    scrollToBottomImmediate();
-    // 媒体懒加载后二次校准：高度未变且已贴底则跳过写入，避免无意义二次强制布局
-    setTimeout(() => {
-        const el = messagesContainer.value;
-        if (el) {
-            const top = Math.max(0, el.scrollHeight - el.clientHeight);
-            if (el.scrollTop < top - 1) {
-                el.scrollTop = top;
-                lastStickyScrollTop = top;
-            }
-        }
-        scrollLoadSuppressedUntil = Date.now() + 300;
-    }, 200);
+    // 整窗替换后旧 scrollTop 已不再代表用户原来的视觉位置，强行从新窗口顶部播放
+    // 会制造错误方向的滚动。只有列表连续保留时才做平滑滚动。
+    if (replacedWindow) scrollToBottomImmediate();
+    else await scrollToBottomAnimated();
+    scrollLoadSuppressedUntil = Date.now() + 300;
 }
 </script>
 <style scoped>

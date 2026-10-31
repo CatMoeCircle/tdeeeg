@@ -1542,7 +1542,6 @@
     "needsPremium": "Premium required",
     "selectDmTopic": "Select a direct message chat to reply",
     "scrollToBottom": "Scroll to bottom",
-    "backToPreviousHint": "Long-press to go back",
     "editMediaAttached": "Attached {type}",
     "editMediaNoPreview": "No {type} preview",
     "editMediaReplaceHint": "New {type} selected, will replace on send",
