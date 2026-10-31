@@ -1526,6 +1526,15 @@ const replyTargetInfo = computed<{ title: string; text: string; quote?: string }
     return { title, text, quote: replyQuoteText.value ?? undefined };
 });
 
+/**
+ * 把焦点交给消息输入框，便于「回复 / 引用回复」后直接打字。
+ * 等一帧：回复横幅（Transition）插入、菜单关闭后再聚焦，
+ * 避免布局尚未稳定时 focus 造成输入区滚动跳动。
+ */
+function focusMessageInput() {
+    void nextTick(() => messageInputRef.value?.focusInput());
+}
+
 /** 设置普通回复目标；传入消息 id 对应消息或 null 以清除 */
 function startReply(msg: message | null) {
     // AI 输入框模式下没有消息输入框：回复 = 把这条消息作为引用喂给 AI（见 startAiReply）
@@ -1535,6 +1544,8 @@ function startReply(msg: message | null) {
     }
     replyTargetMsg.value = msg;
     replyQuoteText.value = null;
+    // 取消回复（msg 为 null）时不抢焦点
+    if (msg) focusMessageInput();
 }
 
 /**
@@ -1561,6 +1572,7 @@ function jumpToAiQuote() {
 function startQuoteReply(msg: message, quoteText: string) {
     replyTargetMsg.value = msg;
     replyQuoteText.value = quoteText;
+    focusMessageInput();
 }
 
 /** 清除回复/引用状态 */

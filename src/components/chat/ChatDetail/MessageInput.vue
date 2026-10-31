@@ -159,7 +159,26 @@ function setEntities(ents: textEntity[] | null | undefined) {
     entities.value = (ents ?? []).map((e) => ({ ...e }));
     lastText = localValue.value;
 }
-defineExpose({ setEntities });
+/**
+ * 聚焦输入框：供父组件在“回复 / 引用回复”等操作后调用，
+ * 让用户不必再用鼠标点一次输入框就能直接打字。
+ *
+ * 光标策略：之前没在输入框里（例如刚点完右键菜单）→ 光标落到末尾，
+ * 符合“接着输入回复”的预期；之前就在输入框里 → 交给 focus() 恢复原选区，
+ * 不打断用户原来的编辑位置。
+ */
+function focusInput() {
+    const el = textareaRef.value;
+    if (!el) return;
+    const wasFocused = document.activeElement === el;
+    el.focus();
+    if (!wasFocused) {
+        const len = el.value.length;
+        el.setSelectionRange(len, len);
+    }
+    syncPreviewScroll();
+}
+defineExpose({ setEntities, focusInput });
 
 const attachmentStore = useAttachmentStore();
 const localValue = ref(props.modelValue || '');
