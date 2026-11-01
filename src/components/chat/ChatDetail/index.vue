@@ -50,7 +50,8 @@
                             'animate-message-in': isNewMessage(item.messages[0].id),
                             'msg-leaving': leavingMessageIds.has(item.messages[0].id),
                             'animate-flash-highlight': highlightedMessageId === item.messages[0].id,
-                            'msg-selected-row': selectionMode && isAlbumSelected(item.messages)
+                            'msg-selected-row': selectionMode && isAlbumSelected(item.messages),
+                            'msg-jump-target': jumpTargetRowId === item.messages[0].id,
                         }" v-context-menu="selectionMode ? null : makeMsgMenu(item.messages[0])"
                             @animationend="onMessageAnimEnd($event, item.messages[0].id)">
                             <div class="flex mb-2" :class="isSelfAlbum(item) ? 'justify-end' : 'justify-start'">
@@ -170,9 +171,10 @@
                             'animate-message-in': isNewMessage(item.msg.id),
                             'msg-leaving': leavingMessageIds.has(item.msg.id),
                             'animate-flash-highlight': highlightedMessageId === item.msg.id,
+                            'msg-jump-target': jumpTargetRowId === item.msg.id,
                             'relative': selectionMode && !isServiceMessage(item.msg),
                             'msg-selected-row': selectionMode && !isServiceMessage(item.msg) && isMsgSelected(item.msg.id)
-                        }"
+                        }" :style="selectionMode && !isServiceMessage(item.msg) ? { border: '2px solid ' + (isMsgSelected(item.msg.id) ? '#3b82f6' : 'transparent'), borderRadius: '0.5rem' } : {}"
                             v-context-menu="selectionMode ? null : makeMsgMenu(item.msg)"
                             @click="selectionMode && toggleSelectMsg(item.msg)"
                             @animationend="onMessageAnimEnd($event, item.msg.id)">
@@ -1433,10 +1435,31 @@ function hideMessagesOutsideFirstPaint(anchorId: number): number[] {
 /** 露出后逐帧揭示首屏藏起来的历史（复用上滚加载那套视口钉扎，不挪视口） */
 function startFirstPaintReveal(ids: number[]) {
     if (ids.length === 0) return;
-    const hold = holdViewport(messagesContainer.value);
+    const hold = acquireViewportHold();
     void revealOlderMessagesInChunks(ids, olderRevealGen, hold);
 }
 const messagesContainer = ref<HTMLElement | null>(null);
+
+/**
+ * 组件内所有 holdViewport 的统一入口：记录活跃的视口钉扎，跳转换窗前可以一次性释放。
+ * 若跳转期间旧的前插/揭示 hold 仍在补偿 scrollTop，会和跳转落点互抢，导致落点偏移。
+ */
+const activeViewportHolds = new Set<ViewportHold>();
+
+function acquireViewportHold(): ViewportHold {
+    const hold = holdViewport(messagesContainer.value);
+    activeViewportHolds.add(hold);
+    const release = hold.release;
+    hold.release = () => {
+        activeViewportHolds.delete(hold);
+        release();
+    };
+    return hold;
+}
+
+function releaseAllViewportHolds() {
+    for (const hold of [...activeViewportHolds]) hold.release();
+}
 
 // ===== 表情包面板（StickerPanel emoji/GIF/贴纸） =====
 /** 面板锚点（输入区容器元素），用于定位悬浮面板 */
@@ -2280,6 +2303,14 @@ const jumpReturnTarget = ref<{ anchorId: number; pixelFromTop: number } | null>(
 let scrollAnimRaf = 0;
 let scrollAnimCleanup: (() => void) | null = null;
 let scrollAnimFinish: ((completed: boolean) => void) | null = null;
+/**
+ * 跳转落点校准的定时器 / 取消钩子（用户一接管滚动就停止，不做二次回拽）。
+ * 声明提前到这里（早于 resetState 及首屏 immediate watch）：resetState 会在聊天加载
+ * 的 immediate watch 里调用 cancelJumpSettle()，若声明仍留在下方（4432 附近），
+ * 首次进入即触发 let 的暂时性死区（TDZ），抛 ReferenceError 让整段加载中断卡死。
+ */
+let jumpSettleTimer: number | null = null;
+let jumpSettleCleanup: (() => void) | null = null;
 const notificationsMuted = ref(false);
 const isNotificationTogglePending = ref(false);
 const linkedChatId = ref(0);
@@ -2499,6 +2530,9 @@ onBeforeUnmount(() => {
     // 先标记卸载：正在跑的加载流程下一处 await 回来后直接退出
     disposed = true;
     cancelScrollAnim();
+    cancelJumpSettle();
+    clearJumpTargetRow();
+    releaseAllViewportHolds();
     if (chatId.value !== undefined) {
         // DOM 还在时把窗口存进内存缓存（关闭会话后再打开可立刻铺上）
         saveCurrentChatWindow(chatId.value, topicId.value, threadRootMsgId.value);
@@ -3057,6 +3091,48 @@ function refreshWindowReachesLatest() {
 const highlightedMessageId = ref<number | null>(null);
 let highlightTimer: number | null = null;
 
+/**
+ * 跳转目标所在的消息行（相册取第一条的 data-msg-id）。
+ * content-visibility:auto 会让尚未渲染的目标行只按 88px 估算高度，
+ * 高个消息（大图 / 长文 / 相册）因此量不准、落点偏。跳转期间仅对目标行
+ * 关闭 content-visibility，量到真实高度后即可精确顶对齐；1.5s 后自动恢复，
+ * 不影响列表其余行的虚拟化性能。
+ */
+const jumpTargetRowId = ref<number | null>(null);
+let jumpTargetClearTimer: number | null = null;
+const JUMP_TARGET_LAYOUT_MS = 1500;
+
+/** 解析消息在 DOM 中对应的行 id（相册所有成员都挂在第一条相册消息的行上） */
+function resolveRenderedMessageId(messageId: number, list: message[] = messages.value): number {
+    const target = list.find(m => m.id === messageId);
+    const albumId = target?.media_album_id;
+    if (!albumId || albumId === '0') return messageId;
+    return list.find(m => m.media_album_id === albumId)?.id ?? messageId;
+}
+
+function clearJumpTargetRow() {
+    if (jumpTargetClearTimer !== null) {
+        window.clearTimeout(jumpTargetClearTimer);
+        jumpTargetClearTimer = null;
+    }
+    jumpTargetRowId.value = null;
+}
+
+/** 重新计时：跳转过程中不要清，等落点校准结束后再恢复该行的虚拟化 */
+function scheduleJumpTargetRowClear(delay = JUMP_TARGET_LAYOUT_MS) {
+    if (jumpTargetClearTimer !== null) window.clearTimeout(jumpTargetClearTimer);
+    jumpTargetClearTimer = window.setTimeout(() => {
+        jumpTargetClearTimer = null;
+        jumpTargetRowId.value = null;
+    }, delay);
+}
+
+function markJumpTargetRow(messageId: number, list: message[]) {
+    jumpTargetRowId.value = resolveRenderedMessageId(messageId, list);
+    // 兜底看门狗：正常路径会在落点后改写成 1.5s，异常路径也不让这一行长期失去虚拟化
+    scheduleJumpTargetRowClear(30000);
+}
+
 function flashMessage(messageId: number) {
     clearMessageHighlight();
     highlightedMessageId.value = messageId;
@@ -3370,10 +3446,13 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
                 await ensureViewportFilled(gen);
                 if (!isGenerationValid(gen) || chatId.value !== currentId) return;
                 await nextTick();
+                cancelJumpSettle();
                 scrollToMessageImmediate(requestedMessageId);
                 flashMessage(requestedMessageId);
                 listRevealed.value = true;
                 isReady.value = true;
+                // 首屏路径的最终定位同样做一次落点兜底（目标行已按真实高度布局）
+                settleJumpTargetPosition(requestedMessageId, gen, currentId);
                 scheduleVisibleMessagesRead();
                 void autoOpenMediaFromQuery(gen);
                 return;
@@ -3864,7 +3943,7 @@ async function loadHistoryOlder(loadChatId: number, gen: number): Promise<boolea
         const nextHidden = new Set(hiddenOlderIds.value);
         for (const id of newIds) nextHidden.add(id);
 
-        const hold = holdViewport(messagesContainer.value);
+        const hold = acquireViewportHold();
         try {
             await withViewportLock(messagesContainer.value, () => {
                 hiddenOlderIds.value = nextHidden;
@@ -4355,6 +4434,7 @@ const isAtBottom = (threshold = 150): boolean => {
 
 /** 滚动到底部（标准 flex-col：scrollTop = scrollHeight - clientHeight） */
 const scrollToBottom = () => {
+    cancelJumpSettle();
     showScrollButton.value = false;
     stickyDateHidden.value = true;
     nextTick(() => {
@@ -4375,10 +4455,7 @@ const scrollToBottom = () => {
 function computeMessageScrollTop(messageId: number): number | null {
     const el = messagesContainer.value;
     if (!el) return null;
-    const target = messages.value.find(message => message.id === messageId);
-    const renderedMessageId = target?.media_album_id && target.media_album_id !== '0'
-        ? messages.value.find(message => message.media_album_id === target.media_album_id)?.id || messageId
-        : messageId;
+    const renderedMessageId = resolveRenderedMessageId(messageId);
     const msgEl = el.querySelector(`[data-msg-id="${renderedMessageId}"]`) as HTMLElement | null;
     if (!msgEl) return null;
 
@@ -4557,8 +4634,82 @@ async function scrollToMessageAnimated(
     return (await animateScrollTop(el, compute)) ? 'done' : 'cancelled';
 }
 
+/** 跳转落点校准：取消进行中的校准定时器并执行清理钩子 */
+function cancelJumpSettle() {
+    const cleanup = jumpSettleCleanup;
+    jumpSettleCleanup = null;
+    cleanup?.();
+}
+
+/**
+ * 落点兜底校准：目标行虽然已按真实高度参与测量，但动画收敛超时、媒体/link preview
+ * 在落点后撑高时仍可能有几像素到几十像素误差。只在跳转后 ~320ms 内做最多 3 次
+ * 纯读校验，误差 > 2px 才写一次 scrollTop；任何滚轮/触摸/按下立即放弃，避免与用户抢滚动。
+ * 开销只有一次布局读，无持续 rAF / observer，不影响滚动性能。
+ */
+function settleJumpTargetPosition(
+    messageId: number,
+    gen: number,
+    currentChatId: number,
+    restore?: { pixelFromTop: number },
+) {
+    cancelJumpSettle();
+    const el = messagesContainer.value;
+    if (!el) return;
+    // 定位已完成：目标行的真实高度已经用上，1.5s 后恢复 content-visibility
+    scheduleJumpTargetRowClear();
+
+    const startedAt = performance.now();
+    const compute = restore
+        ? () => computeBrowseScrollTop(el, messageId, restore.pixelFromTop)
+        : () => computeMessageScrollTop(messageId);
+
+    const onUserInput = () => cancelJumpSettle();
+    el.addEventListener('wheel', onUserInput, { passive: true });
+    el.addEventListener('touchstart', onUserInput, { passive: true });
+    el.addEventListener('pointerdown', onUserInput, { passive: true });
+    el.addEventListener('keydown', onUserInput);
+
+    const cleanup = () => {
+        if (jumpSettleTimer !== null) {
+            window.clearTimeout(jumpSettleTimer);
+            jumpSettleTimer = null;
+        }
+        el.removeEventListener('wheel', onUserInput);
+        el.removeEventListener('touchstart', onUserInput);
+        el.removeEventListener('pointerdown', onUserInput);
+        el.removeEventListener('keydown', onUserInput);
+        if (jumpSettleCleanup === cleanup) jumpSettleCleanup = null;
+    };
+    jumpSettleCleanup = cleanup;
+
+    const run = () => {
+        jumpSettleTimer = null;
+        // 新一代加载 / 新一轮滚动动画 / 用户接管：放弃，绝不回拽
+        if (!isGenerationValid(gen) || chatId.value !== currentChatId || scrollAnimRaf) {
+            cleanup();
+            return;
+        }
+        const next = compute();
+        if (next !== null && Math.abs(next - el.scrollTop) > 2) {
+            // 校准也是程序化滚动：短暂压住边缘预取，避免校正后立刻插历史页
+            scrollLoadSuppressedUntil = Date.now() + 300;
+            el.scrollTop = next;
+            lastStickyScrollTop = Math.round(next);
+        }
+        if (performance.now() - startedAt < 320) {
+            jumpSettleTimer = window.setTimeout(run, 140);
+        } else {
+            cleanup();
+        }
+    };
+    // 让动画结束后的媒体/layout 先落一帧，再做两次廉价校准
+    jumpSettleTimer = window.setTimeout(run, 32);
+}
+
 /** 同步滚到底部（不触碰浏览位置缓存；首屏定位/测量失败回落用） */
 function scrollToBottomPure() {
+    cancelJumpSettle();
     cancelScrollAnim();
     const maxId = messages.value[messages.value.length - 1]?.id ?? 0;
     if (maxId > latestUnreadSeenId.value) latestUnreadSeenId.value = maxId;
@@ -4583,6 +4734,7 @@ function scrollToBottomImmediate() {
 
 /** 用户主动回到底部：与消息跳转共用方向感知动画，且随内容高度变化持续追踪底部。 */
 async function scrollToBottomAnimated() {
+    cancelJumpSettle();
     if (chatId.value !== undefined) {
         cancelScheduledBrowsePosSave();
         clearLastBrowsePosition(chatId.value, topicId.value);
@@ -4619,6 +4771,7 @@ async function jumpToMessageInternal(
 
     // 丢弃尚未执行的滚动预取，并使已发出的旧窗口请求失效。
     cancelHistoryPrefetch();
+    cancelJumpSettle();
     historyWindowGeneration++;
 
     const windowMessages = await loadJumpWindow(currentChatId, messageId, gen);
@@ -4639,6 +4792,15 @@ async function jumpToMessageInternal(
         });
         return false;
     }
+
+    // 新窗口接管列表：停掉旧窗口的分批揭示/视口钉扎，并清空隐藏集。
+    // 不清的话旧 hidden id 会继续过滤新高亮目标（跳转后目标不渲染、落点失败）；
+    // 旧 hold 在换窗后继续补偿 scrollTop 也会和跳转动画互抢。
+    olderRevealGen++;
+    releaseAllViewportHolds();
+    if (hiddenOlderIds.value.size > 0) hiddenOlderIds.value = new Set();
+    // 目标行在 content-visibility:auto 下可能只有估算高度，先按真实高度参与测量
+    markJumpTargetRow(messageId, windowMessages);
 
     // 换窗期间关掉原生 scroll anchoring：整窗替换后浏览器会把 scrollTop 锚回旧位置，
     // 与随后的动画各写各的（实测出现 ±2000px 一帧回摆）。同时抑制边缘预取的视口锁写入。
@@ -4670,12 +4832,21 @@ async function jumpToMessageInternal(
             await nextTick();
             if (!restore) flashMessage(messageId);
             // 向目标方向平滑滚动；用户中途滚轮/触摸接管则停止，后续不再回拽
-            await scrollToMessageAnimated(messageId, restore);
+            const landed = await scrollToMessageAnimated(messageId, restore);
             if (!isGenerationValid(gen) || chatId.value !== currentChatId) return true;
-            // 补齐已在动画前完成；不要在动画落点后再次校正，避免可见回弹。
+            // 动画落点已由目标真实高度决定；这里只处理动画收敛超时/落点后撑高的残余误差。
+            if (landed !== 'cancelled') {
+                settleJumpTargetPosition(messageId, gen, currentChatId, restore);
+            } else {
+                // 用户中途接管：不再回拽，但仍按时恢复目标行的虚拟化
+                scheduleJumpTargetRowClear();
+            }
         } else {
             await nextTick();
             scrollToMessageImmediate(messageId);
+            if (isGenerationValid(gen) && chatId.value === currentChatId) {
+                settleJumpTargetPosition(messageId, gen, currentChatId, restore);
+            }
         }
     } finally {
         if (anchorEl) endManualAnchor(anchorEl);
@@ -4685,6 +4856,7 @@ async function jumpToMessageInternal(
 }
 
 async function jumpToMessage(messageId: number) {
+    cancelJumpSettle();
     const el = messagesContainer.value;
     if (el && listRevealed.value) {
         const anchor = captureViewportAnchor(el);
@@ -4756,14 +4928,9 @@ const handleReplyJumpToMessage = (messageId: number, targetChatId?: number) => {
 function findRenderedMsgEl(el: HTMLElement, messageId: number): HTMLElement | null {
     const direct = el.querySelector<HTMLElement>(`[data-msg-id="${messageId}"]`);
     if (direct) return direct;
-    const target = messages.value.find(m => m.id === messageId);
-    if (target?.media_album_id && target.media_album_id !== '0') {
-        const albumFirst = messages.value.find(m => m.media_album_id === target.media_album_id);
-        if (albumFirst) {
-            return el.querySelector<HTMLElement>(`[data-msg-id="${albumFirst.id}"]`);
-        }
-    }
-    return null;
+    const renderedMessageId = resolveRenderedMessageId(messageId);
+    if (renderedMessageId === messageId) return null;
+    return el.querySelector<HTMLElement>(`[data-msg-id="${renderedMessageId}"]`);
 }
 
 /**
@@ -5254,6 +5421,9 @@ function resetState() {
     // 切会话：进行中的滚动动画/挂起的首屏校准全部作废
     cancelScrollAnim();
     clearFirstCalibration();
+    cancelJumpSettle();
+    clearJumpTargetRow();
+    releaseAllViewportHolds();
     // 活动条**不在这里清**：它属于「这个聊天的 AI 会话」，跨页面存活（见 store/aiRuntime）。
     // 切走聊天 = 这一轮照跑；只有用户主动停止 / 换会话才结束。
     clearActiveChatTitleBar();
@@ -6268,6 +6438,7 @@ function refreshKeyboardLock(messageId: number) {
  * 使用 function 声明以便 updateNewMessage 在 TDZ 外安全引用。
  */
 async function handleScrollToBottom() {
+    cancelJumpSettle();
     const returnTarget = jumpReturnTarget.value;
     if (returnTarget) {
         jumpReturnTarget.value = null;
@@ -6637,6 +6808,16 @@ async function handleScrollToBottom() {
 
 .dark .messages-scroll .msg-selected-row {
     background-color: rgb(96 165 250 / 0.13);
+}
+
+/*
+ * 跳转目标行：临时关闭 content-visibility，让 getBoundingClientRect 量到真实高度。
+ * 否则未渲染过的高个消息/相册只有 88px 估算值，45% 居中与顶对齐都会算偏。
+ * 只作用于当前目标这一行，跳转结束后自动移除，不牺牲列表其余行的虚拟化。
+ */
+.msg-list-item.msg-jump-target {
+    content-visibility: visible;
+    contain-intrinsic-size: none;
 }
 
 /*
