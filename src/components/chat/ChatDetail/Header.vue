@@ -2,13 +2,13 @@
     <div class="h-16 px-3 py-1.5 flex items-center justify-center shrink-0">
         <div
             class="flex items-center w-full min-w-0 h-full px-2 sm:px-3 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg transition-[background-color,box-shadow] duration-200">
+            <!-- 返回按钮（叠层模式）：不依赖 chat 是否加载，骨架屏阶段也要可点可返回 -->
+            <button v-if="showBack" type="button" @click="emit('back')"
+                class="w-9 h-9 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-300 bg-gray-100/70 dark:bg-white/10 hover:bg-gray-200/80 dark:hover:bg-white/20 active:scale-95 transition-[background-color,transform] duration-150 shrink-0 -ml-1"
+                :aria-label="t('lng_menu_back')">
+                <ArrowLeftIcon class="w-5 h-5" />
+            </button>
             <div class="flex items-center gap-3 min-w-0 flex-1" v-if="chat">
-                <!-- 返回按钮（叠层模式） -->
-                <button v-if="showBack" type="button" @click="emit('back')"
-                    class="w-9 h-9 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-300 bg-gray-100/70 dark:bg-white/10 hover:bg-gray-200/80 dark:hover:bg-white/20 active:scale-95 transition-[background-color,transform] duration-150 shrink-0 -ml-1"
-                    :aria-label="t('lng_menu_back')">
-                    <ArrowLeftIcon class="w-5 h-5" />
-                </button>
                 <!-- 点击头像/标题区域打开对话信息叠层 -->
                 <button type="button" @click="emit('openInfo')"
                     class="flex items-center gap-3 min-w-0 text-left flex-1 cursor-pointer rounded-full hover:opacity-80 active:scale-[0.99] transition-[opacity,transform] duration-150">
@@ -63,7 +63,8 @@
                             <VerifiedBadge v-else-if="headerBlueVerified"
                                 class="ml-1" :title="t('profileBadges.verified')" />
                         </h2>
-                        <span class="text-xs text-gray-400 truncate">
+                        <span class="text-xs truncate transition-colors duration-150"
+                            :class="isTyping ? 'text-(--app-brand)' : 'text-gray-400'">
                             <template v-if="isTopicMode">
                                 <GlobalEmojiText :text="props.chat?.title || ''" />
                             </template>
@@ -133,7 +134,7 @@ import VerifiedBadge from '../../common/VerifiedBadge.vue';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useI18n } from 'vue-i18n';
-import type { chat, user, verificationStatus, forumTopic, basicGroup, supergroup, supergroupFullInfo, chatPhotoInfo, profilePhoto } from "tdlib-types";
+import type { chat, user, verificationStatus, forumTopic, basicGroup, supergroup, supergroupFullInfo, chatPhotoInfo, profilePhoto, ChatAction, MessageSender } from "tdlib-types";
 import { tdlibSend } from '../../../utils/tdlib';
 import formatStatus from '../../../utils/status';
 import { useUserStore } from '../../../store/user';
@@ -142,7 +143,8 @@ import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../../utils/savedM
 import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
 import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
 import StoryRing from '../../story/StoryRing.vue';
-import { getChatProfileAccentColorId, getChatUserNames, isDeletedChat, DELETED_ACCOUNT_LABEL, emojiStatusCustomEmojiId } from '../../../utils/senderInfo';
+import { getChatProfileAccentColorId, getChatUserNames, isDeletedChat, DELETED_ACCOUNT_LABEL, emojiStatusCustomEmojiId, getSenderName, ensureSenderLoaded, messageSenderKey } from '../../../utils/senderInfo';
+import { tdPlural } from '../../../utils/tdLang';
 import PremiumStatusIcon from '../../common/PremiumStatusIcon.vue';
 import { updateActiveChatTitleBar, clearActiveChatTitleBar } from '../../../store/activeChatTitleBar';
 import { onTdlibUpdates } from '../../../store/tdlibBus';
@@ -200,6 +202,29 @@ const statusUser = ref<user | undefined>(undefined);
 const statusBasic = ref<basicGroup | undefined>(undefined);
 const statusSuper = ref<supergroup | undefined>(undefined);
 const statusSuperFull = ref<supergroupFullInfo | undefined>(undefined);
+
+/** 当前在线成员数（updateChatOnlineMemberCount；0 表示未知，不显示） */
+const onlineMemberCount = ref(0);
+/** 顶部「正在输入/正在动作」副标题（优先于成员数/在线状态） */
+const typingText = ref('');
+/** 当前活动中的发送者动作：senderKey → { sender, action, 过期时间戳 } */
+const activeChatActions = new Map<string, { sender: MessageSender; action: ChatAction; until: number }>();
+/** 动作超时兜底（TDLib 会发 chatActionCancel，这里防漏发导致卡在 typing） */
+const ACTION_TTL_MS = 6000;
+/** 单发送者动作 → 官方词条（群聊多人时统一用 lng_many_typing 泛指） */
+const CHAT_ACTION_LABEL: Record<string, string> = {
+    chatActionTyping: 'lng_user_typing',
+    chatActionRecordingVideo: 'lng_user_action_record_video',
+    chatActionUploadingVideo: 'lng_user_action_upload_video',
+    chatActionRecordingVoiceNote: 'lng_user_action_record_audio',
+    chatActionUploadingVoiceNote: 'lng_user_action_upload_audio',
+    chatActionUploadingPhoto: 'lng_user_action_upload_photo',
+    chatActionUploadingDocument: 'lng_user_action_upload_file',
+    chatActionChoosingSticker: 'lng_user_action_choose_sticker',
+    chatActionStartPlayingGame: 'lng_user_playing_game',
+    chatActionRecordingVideoNote: 'lng_user_action_record_round',
+    chatActionUploadingVideoNote: 'lng_user_action_upload_round',
+};
 
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
@@ -411,6 +436,9 @@ function openMoreMenu(e: MouseEvent) {
 
 /** 头部头像的无头像背景色（私聊取用户 profile accent，群组取 chat profile accent） */
 const headerAccentColorId = computed(() => getChatProfileAccentColorId(props.chat));
+
+/** 是否有人在输入/正在动作（驱动副标题强调色） */
+const isTyping = computed(() => typingText.value !== '');
 
 /** 是否为话题模式（在话题详情页中）：论坛话题或频道私信会话 */
 const isTopicMode = computed(() => !!props.topic || !!props.dmTopic);
@@ -635,6 +663,12 @@ function rebuildStatusText() {
         return;
     }
 
+    // 有输入/动作时，副标题优先显示「正在输入/正在…」
+    if (typingText.value) {
+        status.value = typingText.value;
+        return;
+    }
+
     if (newChat.type._ === 'chatTypePrivate' || newChat.type._ === 'chatTypeSecret') {
         const u = statusUser.value;
         if (!u) return;
@@ -653,12 +687,60 @@ function rebuildStatusText() {
     if (newChat.type._ === 'chatTypeSupergroup') {
         const fallback = newChat.type.is_channel ? t('lng_notification_channels') : t('header.supergroup');
         const memberCount = statusSuperFull.value?.member_count || statusSuper.value?.member_count || 0;
+        // 群组（非频道）有在线人数时，拼到成员数后面："{n} members, {m} online"
+        if (!newChat.type.is_channel && memberCount > 0 && onlineMemberCount.value > 0) {
+            status.value = t('lng_chat_status_members_online', {
+                members_count: formatCount(memberCount),
+                online_count: tdPlural('lng_chat_status_online', onlineMemberCount.value),
+            });
+            return;
+        }
         status.value = memberCount > 0
             ? (newChat.type.is_channel
                 ? t('lng_chat_status_subscribers', { count: formatCount(memberCount) })
                 : t('lng_chat_status_members', { count: formatCount(memberCount) }))
             : fallback;
     }
+}
+
+/** 更新「正在输入/正在动作」文案（发送者动作变化 / 超时 / 切换对话时调用） */
+function rebuildTypingText() {
+    const now = Date.now();
+    // 清理过期动作（未收到 cancel 的兜底）
+    for (const [key, entry] of activeChatActions) {
+        if (entry.until <= now) activeChatActions.delete(key);
+    }
+    if (activeChatActions.size === 0) {
+        if (typingText.value) {
+            typingText.value = '';
+            rebuildStatusText();
+        }
+        return;
+    }
+    // 自己发的动作不显示（sender 是当前账号）
+    const myId = userProfile.value?.id;
+    const entries = [...activeChatActions.values()].filter(
+        (e) => !(myId !== undefined && e.sender._ === 'messageSenderUser' && e.sender.user_id === myId)
+    );
+    if (entries.length === 0) {
+        typingText.value = '';
+        rebuildStatusText();
+        return;
+    }
+    const count = entries.length;
+    if (count === 1) {
+        const sender = entries[0].sender;
+        const name = getSenderName(sender);
+        const labelKey = CHAT_ACTION_LABEL[entries[0].action._] ?? 'lng_user_typing';
+        if (!name) {
+            typingText.value = tdPlural('lng_many_typing', count);
+        } else {
+            typingText.value = t(labelKey, { user: name });
+        }
+    } else {
+        typingText.value = tdPlural('lng_many_typing', count);
+    }
+    rebuildStatusText();
 }
 
 // 对话状态：切换对话时拉一次，后续由 TDLib update 驱动刷新
@@ -669,6 +751,9 @@ watch([() => props.chat, () => userProfile.value?.id], async ([newChat]) => {
     statusBasic.value = undefined;
     statusSuper.value = undefined;
     statusSuperFull.value = undefined;
+    onlineMemberCount.value = 0;
+    activeChatActions.clear();
+    typingText.value = '';
     if (!newChat) {
         clearActiveChatTitleBar();
         return;
@@ -740,6 +825,7 @@ watch(
 
 // TDLib 实时刷新：在线状态 / 成员数 / 认证标识
 let offStatusUpdates: (() => void) | null = null;
+let offChatActionUpdates: (() => void) | null = null;
 let statusTickTimer: number | null = null;
 
 onMounted(() => {
@@ -787,12 +873,43 @@ onMounted(() => {
         }
     });
 
+    // 在线人数 / 正在输入 走 Chat 通道（updateChat* 前缀分类）
+    offChatActionUpdates = onTdlibUpdates(['chat'], (update) => {
+        const type_ = update._;
+        if (type_ === 'updateChatOnlineMemberCount') {
+            const chatId_ = (update as { chat_id?: number }).chat_id;
+            const online = (update as { online_member_count?: number }).online_member_count;
+            if (chatId_ === props.chat?.id) {
+                onlineMemberCount.value = online ?? 0;
+                rebuildStatusText();
+            }
+        } else if (type_ === 'updateChatAction') {
+            const chatId_ = (update as { chat_id?: number }).chat_id;
+            const sender = (update as { sender_id?: MessageSender }).sender_id;
+            const action = (update as { action?: ChatAction }).action;
+            if (chatId_ !== props.chat?.id || !sender || !action) return;
+            const key = messageSenderKey(sender);
+            if (action._ === 'chatActionCancel') {
+                activeChatActions.delete(key);
+            } else {
+                activeChatActions.set(key, { sender, action, until: Date.now() + ACTION_TTL_MS });
+            }
+            // 异步补齐发送者名称（缓存命中则同步，未命中拉取后 rebuild 重算）
+            void ensureSenderLoaded(sender).then(() => {
+                if (props.chat?.id === chatId_ && activeChatActions.has(key)) rebuildTypingText();
+            });
+            rebuildTypingText();
+        }
+    });
+
     // 「x 分钟前上线」随本地时钟推进，定时重算相对时间文案
     statusTickTimer = window.setInterval(() => {
         const type = props.chat?.type;
         if (type?._ === 'chatTypePrivate' || type?._ === 'chatTypeSecret') {
             rebuildStatusText();
         }
+        // 动作超时兜底：TTL 到期的 typing 提示应自动消失
+        if (activeChatActions.size > 0) rebuildTypingText();
     }, 60_000);
 });
 
@@ -800,6 +917,10 @@ onUnmounted(() => {
     if (offStatusUpdates) {
         offStatusUpdates();
         offStatusUpdates = null;
+    }
+    if (offChatActionUpdates) {
+        offChatActionUpdates();
+        offChatActionUpdates = null;
     }
     if (statusTickTimer !== null) {
         window.clearInterval(statusTickTimer);
