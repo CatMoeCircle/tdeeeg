@@ -6,12 +6,68 @@
                 <ChevronLeftIcon class="w-5 h-5 text-gray-500" />
             </button>
             <h2 class="text-lg font-semibold flex-1">{{ t('lng_settings_information') }}</h2>
-            <BaseButton type="button" @click="saveProfile" :disabled="savingProfile" variant="primary" class="shrink-0">
+            <BaseButton type="button" @click="saveProfile" :disabled="savingProfile || loading" variant="primary"
+                class="shrink-0">
                 {{ savingProfile ? t('editProfile.saving') : t('lng_settings_save') }}
             </BaseButton>
         </div>
 
-        <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
+        <!-- 首次进入（本机还没缓存到该用户资料）：先铺与真实表单同形的骨架屏，数据到位后再换成可编辑表单 -->
+        <div v-if="loading" class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
+            <div class="max-w-2xl space-y-6" role="status" :aria-label="t('lng_context_seen_loading')">
+                <div class="animate-pulse select-none" aria-hidden="true">
+                    <!-- 头像 + 姓名 -->
+                    <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                        <div class="flex items-center gap-3 mb-1">
+                            <div class="h-3.5 w-24 rounded bg-gray-200 dark:bg-gray-700"></div>
+                            <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                        </div>
+                        <div
+                            class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-4 flex gap-6">
+                            <div class="flex flex-col items-center gap-3 shrink-0">
+                                <div class="w-20 h-20 rounded-full bg-gray-200 dark:bg-gray-700"></div>
+                                <div class="w-16 h-6 rounded-lg bg-gray-200 dark:bg-gray-700"></div>
+                            </div>
+                            <div class="flex-1 min-w-0 space-y-3">
+                                <div class="h-3 w-16 rounded bg-gray-200 dark:bg-gray-700"></div>
+                                <div class="h-9 rounded-lg bg-gray-100 dark:bg-gray-700/60"></div>
+                                <div class="h-3 w-14 rounded bg-gray-200 dark:bg-gray-700"></div>
+                                <div class="h-9 rounded-lg bg-gray-100 dark:bg-gray-700/60"></div>
+                            </div>
+                        </div>
+                    </section>
+                    <!-- 个人简介 -->
+                    <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
+                        <div class="flex items-center gap-3 mb-1">
+                            <div class="h-3.5 w-20 rounded bg-gray-200 dark:bg-gray-700"></div>
+                            <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                        </div>
+                        <div
+                            class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-4">
+                            <div class="h-18 rounded-lg bg-gray-100 dark:bg-gray-700/60"></div>
+                        </div>
+                    </section>
+                    <!-- 手机号 / 用户名 / 生日 / 主页频道 / 营业时间 / 位置 / 聊天机器人 -->
+                    <section v-for="n in 7" :key="`edit-profile-sk-${n}`"
+                        class="border-b border-gray-200 dark:border-gray-700 pb-8 last:border-0 last:pb-0">
+                        <div class="flex items-center gap-3 mb-1">
+                            <div class="h-3.5 w-20 rounded bg-gray-200 dark:bg-gray-700"></div>
+                            <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                        </div>
+                        <div
+                            class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md p-4 flex items-center gap-3">
+                            <div class="w-5 h-5 shrink-0 rounded bg-gray-200 dark:bg-gray-700"></div>
+                            <div class="min-w-0 flex-1 space-y-2">
+                                <div class="h-3.5 w-2/5 rounded bg-gray-200 dark:bg-gray-700"></div>
+                                <div class="h-3 w-3/5 rounded bg-gray-200 dark:bg-gray-700"></div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </div>
+
+        <div v-else class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
             <div class="max-w-2xl space-y-6">
                 <!-- 头像 + 姓名 -->
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
@@ -373,31 +429,53 @@ async function loadPhoneDisplay() {
 const fullInfo = computed<userFullInfo | undefined>(() => (myId.value ? profileStore.fullInfos.get(myId.value) : undefined));
 const photos = computed<chatPhoto[]>(() => (myId.value ? profileStore.photos.get(myId.value) ?? [] : []));
 
+/**
+ * 首次进入时的骨架屏开关。
+ * 初始值只看本机有没有缓存：已有资料（从个人资料页返回、或 KeepAlive 再次进入）就直接出表单，
+ * 不闪一下骨架；确实没有缓存时才先铺骨架，等 loadAll 拿完数据再换成可编辑表单。
+ */
+const loading = ref(!user.value || !fullInfo.value);
+
 const fullName = computed(() => [user.value?.first_name, user.value?.last_name].filter(Boolean).join(' ').trim() || t('editProfile.me'));
 // =====================================================================
 // 数据加载
 // =====================================================================
+/** 编辑器是否已被首次拿到的数据回填过（回填之后不再跟随 store 的增量更新，见文件末尾的 watch） */
+let editorsInitialized = false;
+
 async function loadAll() {
-    if (!user.value) await userStore.fetchUser();
-    if (myId.value > 0) {
-        await Promise.all([
-            profileStore.fetchFullInfo(myId.value),
-            profileStore.fetchPhotos(myId.value),
-        ]);
-    }
-    initEditors();
-    // 确保 user 已加载后再获取电话号码格式
-    if (myId.value > 0) {
-        await loadPhoneDisplay();
+    try {
+        if (!user.value) await userStore.fetchUser();
+        if (myId.value > 0) {
+            await Promise.all([
+                profileStore.fetchFullInfo(myId.value),
+                profileStore.fetchPhotos(myId.value),
+            ]);
+            // 确保 user 已加载后再获取电话号码格式
+            await loadPhoneDisplay();
+        }
+    } finally {
+        // 成功与否都要回填并收起骨架：拉取失败时不能一直停在骨架屏上
+        initEditors();
+        loading.value = false;
+        // 骨架屏换成真实表单后 textarea 才存在，需要重新按内容自适应高度
+        await nextTick();
+        resizeBioTextarea();
     }
 }
 
-async function initEditors() {
+/**
+ * 用服务端数据回填编辑器。
+ * 只在首次载入 / 保存成功 / 资料刷新后调用：TDLib 会持续推送 updateUser（状态、emoji 状态、用户名等）
+ * 并整体替换 store 里的 user 对象，若无条件回填会把用户正在输入但尚未保存的内容冲掉。
+ */
+function initEditors() {
     firstName.value = user.value?.first_name ?? '';
     lastName.value = user.value?.last_name ?? '';
     bio.value = fullInfo.value?.bio?.text ?? '';
     birthdatePickerValue.value = birthdateToPicker(birthdateInfo.value);
     hideYear.value = !!(birthdateInfo.value && birthdateInfo.value.year <= 0);
+    if (user.value) editorsInitialized = true;
 }
 
 onMounted(() => {
@@ -407,8 +485,8 @@ onMounted(() => {
 });
 
 async function onProfileChanged() {
+    // 这里只换了头像：刷新头像/照片数据即可，不要回填姓名与简介，否则会冲掉未保存的编辑
     await Promise.all([userStore.fetchUser(), profileStore.refreshProfile(myId.value)]);
-    initEditors();
     // 确保 user 已加载后再获取电话号码格式
     if (myId.value > 0) {
         await loadPhoneDisplay();
@@ -660,16 +738,21 @@ async function openChatbotPopup() {
     }
 }
 
-// 同步 user 变化到编辑器
-watch(user, () => initEditors());
+// 首次数据到位时回填（骨架屏阶段 user 与 fullInfo 可能分两次到达）；
+// 回填过一次之后，store 的增量更新不再覆盖本地输入，避免编辑内容被冲掉
+watch(user, () => {
+    if (!editorsInitialized) initEditors();
+});
 watch(fullInfo, () => {
-    bio.value = fullInfo.value?.bio?.text ?? '';
-    birthdatePickerValue.value = birthdateToPicker(birthdateInfo.value);
-    hideYear.value = !!(birthdateInfo.value && birthdateInfo.value.year <= 0);
+    if (!editorsInitialized) initEditors();
 });
 watch(bio, () => {
     void nextTick(resizeBioTextarea);
 });
+
+// 已有缓存（loading 为 false）时在首帧渲染前就把编辑器填好，避免表单先闪一帧空输入框；
+// 冷启动时骨架屏挡着，等 loadAll 拿到数据再回填
+if (!loading.value) initEditors();
 </script>
 
 <style scoped>
