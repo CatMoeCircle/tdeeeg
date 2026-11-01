@@ -1,14 +1,11 @@
 <template>
-    <!-- 顶部留白只给搜索框：话题面板模式没有搜索框，留白会让面板与左分隔线短一截 -->
-    <div class="flex flex-col h-full border-r border-gray-200 dark:border-gray-800"
-        :class="forumMode ? '' : 'pt-1.5'">
+    <!-- 顶部间距由搜索栏自身的 pt-1 提供，整列统一 4px 节奏 -->
+    <div class="flex flex-col h-full border-r border-gray-200 dark:border-gray-800">
         <!-- 「更多动态」展开条：搜索栏上方，标题栏右侧箭头控制展开 / 收起 -->
         <StoryOverflowStrip v-if="!forumMode && !searchMode" />
         <!-- Search Bar (forum mode 时向上滑动隐藏) -->
         <Transition :name="suppressChromeAnim ? 'slide-up-locked' : 'slide-up'">
-            <div v-if="!forumMode" class="overflow-hidden" :class="settings.folderStyle === 'soft'
-                ? 'px-2 pt-0.5 pb-2 max-h-14'
-                : 'px-3 py-1 max-h-14'">
+            <div v-if="!forumMode" class="px-1 pt-1 pb-1 max-h-14">
                 <div class="flex items-center gap-2">
                     <!-- 圆形返回按钮：左侧让出宽度后淡入（平滑撑开） -->
                     <div class="search-back-slot shrink-0" :class="searchMode ? 'search-back-open' : 'search-back-closed'">
@@ -53,7 +50,7 @@
                 <!-- Folder Tabs (forum mode 时向上滑动隐藏) -->
                 <Transition :name="suppressChromeAnim ? 'slide-up-locked' : 'slide-up'">
                     <SlidingTabBar v-if="!forumMode && tabs.length > 1" :tabs="tabs" :active-id="activeTab"
-                        :variant="settings.folderStyle" :tab-class="folderTabClass"
+                        :variant="settings.folderStyle" :tab-class="folderTabClass" full-width
                         :container-class="folderContainerClass" @select="switchToTab" class="max-h-14 shrink-0">
                         <template #default="{ tab, active }">
                             <!-- 分组图标（全部对话默认对话图标） -->
@@ -72,16 +69,19 @@
                     </SlidingTabBar>
                 </Transition>
 
-                <!-- 音乐播放器入口（聊天打开时由 ChatDetail 接管，此处隐藏） -->
+                <!-- 顶部卡片：生日横幅 + 音乐播放器。
+                     打开对话时音乐移到对话页顶部，但生日等卡片仍留在列表里 -->
                 <Transition :name="suppressChromeAnim ? 'slide-up-locked' : 'slide-up'">
-                    <!-- max-h-14：含 mt-1 顶距与 8px 进度热区 -->
-                    <!-- 外边距由 MusicPlayerEntry 自身 mx-2 mt-1 提供，与分组页签对齐 -->
-                    <div v-if="!chatPaneVisible && !forumMode" class="overflow-hidden max-h-14 shrink-0">
-                        <MusicPlayerEntry compact />
+                    <!-- max-h：含 mt-1 顶距；有生日横幅时放宽，折叠动画仍从固定值插值。
+                         不要加 overflow-hidden：会把这几个玻璃卡片的 shadow 切成硬边 -->
+                    <div v-if="!forumMode && (topTipsStore.showBirthdayBanner || listMusicVisible)"
+                        class="shrink-0" :class="topTipsStore.showBirthdayBanner ? 'max-h-48' : 'max-h-14'">
+                        <ChatListTopCard :show-music="listMusicVisible" />
                     </div>
                 </Transition>
 
-                <!-- Main Container: Swipeable Chat List OR Forum Mode -->
+                <!-- Main Container: Swipeable Chat List OR Forum Mode
+                     列表的 4px 间距由 .swipe-page 的 px-1 py-1 提供，这里不再加外边距 -->
                 <div class="flex-1 overflow-hidden relative">
             <!-- 左侧列表宽度瞬时切换（不做宽度过渡，避免内容被横向拉伸成“整页横移”观感），
                  左列内容切换由 forum-avatar-column 淡入柔化 -->
@@ -97,7 +97,7 @@
                              避免把全部分组页面并排渲染而露出相邻分组头像 -->
                         <div v-for="tab in renderedTabs" :key="tab.id" v-show="!forumMode || tab.id === activeTab"
                             v-smooth-wheel class="swipe-page h-full shrink-0 overflow-y-auto custom-scrollbar"
-                            :class="forumMode ? 'w-17 px-0.5 py-1 forum-avatar-column gap-0.5' : 'w-full pl-1.5 pr-0.5 py-1'"
+                            :class="forumMode ? 'w-17 px-0.5 py-1 forum-avatar-column gap-0.5' : 'w-full px-1 py-1'"
                             @scroll="(e: Event) => onScroll(e, tab.id)"
                             @wheel="(e: WheelEvent) => onListWheel(e, tab.id)">
                             <!-- Forum Mode: compact avatar only -->
@@ -146,6 +146,9 @@
                                     注意：每个列表项依赖 :key=chat.id 保持身份稳定，移动动画才有意义。
                                     当 tdlib 更新过于密集时通过 :name 动态锁定动画（见 reorderAnimName）。
                                 -->
+                                <!-- 顶部提示：生日 / 新设备登录 / 账号冻结，仅主列表显示 -->
+                                <ChatListTopTips v-if="tab.id === 'chatListMain' && !props.isArchive" />
+
                                 <TransitionGroup :name="effectiveReorderAnimName" tag="div">
                                     <!-- 归档入口：归档位置为“全部对话顶部”时显示 -->
                                     <div v-if="settings.chatList.archivePosition === 'top' && tab.id === 'chatListMain' && !props.isArchive"
@@ -509,7 +512,9 @@ import {
     canLeaveChat, isChannelChat, archiveChat, unarchiveChat, toggleChatPinned, muteChat, unmuteChat,
     isChatInFolder, toggleChatInFolder,
 } from '../contextMenu/chatActions';
-import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
+import ChatListTopCard from './ChatListTopCard.vue';
+import { useTopTipsStore } from '../../store/topTips';
+import { useAudioPlayerStore } from '../../store/audioPlayer';
 import { chatPaneVisible } from '../../store/chatPane';
 import { markChatNavFromList } from '../../store/chatNav';
 import FormattedTextInline from './FormattedTextInline.vue';
@@ -523,6 +528,7 @@ import { albumCaptionCache, albumCacheKey } from './albumCaptionCache';
 import CustomEmojiInline from '../common/CustomEmojiInline.vue';
 import SlidingTabBar from '../ui/tabs/SlidingTabBar.vue';
 import ChatSearchPanel from './ChatSearchPanel.vue';
+import ChatListTopTips from './ChatListTopTips.vue';
 import NewChatDialog from './NewChatDialog.vue';
 import DeleteChatConfirm from './DeleteChatConfirm.vue';
 import { openContextMenu } from '../../store/contextMenu';
@@ -551,6 +557,10 @@ const isChatOpen = computed(() => {
 });
 
 const chatStore = useChatStore();
+const topTipsStore = useTopTipsStore();
+const player = useAudioPlayerStore();
+/** 列表里的音乐行：打开对话面板时音乐移到对话页顶部，这里让位 */
+const listMusicVisible = computed(() => !chatPaneVisible.value && player.showEntry && !!player.currentTrack);
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
 
@@ -1863,6 +1873,8 @@ function getTopicPreview(topic: forumTopic): formattedText {
     /* 36px = w-9 */
     margin-right: 0;
     opacity: 1;
+    /* 展开后放开裁剪，否则返回按钮的 shadow 会被槽位切成硬边 */
+    overflow: visible;
 }
 
 .search-back-open button {
