@@ -36,6 +36,7 @@ import {
 import {
     beginTurn,
     clearEntries,
+    hydrateTurn,
     isTurnRunning,
     makeSink,
     replaceEntries,
@@ -129,6 +130,8 @@ watch(
         // 读盘期间又切走了：丢掉这次的旧结果
         if (seq !== historySeq) return;
         replaceEntries(chatId, loaded as AiActivityEntry[], conversationId);
+        // 上次 webview 关闭时这一轮还没收尾：把中断现场铺回来（历史里没有这段）
+        void hydrateTurn(chatId, conversationId);
     },
     { immediate: true },
 );

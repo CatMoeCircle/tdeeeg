@@ -15,8 +15,10 @@
  * 这里只管「轮次的存活与状态」，不管 UI 怎么画（那是 components/ai/AiInputArea.vue 的事）。
  */
 import { computed, reactive, ref } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
 import type { AiActivityEntry } from '../components/ai/AiActivityStrip.vue';
 import type { ApprovalDecision, ApprovalGate, ApprovalRequest } from '../utils/aiTools/types';
+import { currentAiAccount } from './aiConversations';
 import i18n from '../i18n';
 import router from '../router';
 import { toast } from '../utils/toast';
@@ -77,6 +79,96 @@ const states = reactive(new Map<number, AiTurnState>());
 /** chatId → 当前这一轮 */
 const running = new Map<number, RunningTurn>();
 let tokenSeq = 0;
+
+/**
+ * 落库节流：流式增量很密，逐条写 SQLite 太贵，800ms 合并一次。
+ * 只写「中断现场」（活动条条目 + 所属会话），正常收尾时删掉 —— 历史仍以
+ * ai_conversations.history 为准，这里只负责 webview 被销毁后还能把输出铺回来。
+ */
+const persistTimers = new Map<number, ReturnType<typeof setTimeout>>();
+
+function snapshotPayload(chatId: number) {
+  const s = states.get(chatId);
+  if (!s) return null;
+  return {
+    accountId: currentAiAccount(),
+    chatId,
+    conversationId: s.conversationId,
+    entries: JSON.parse(JSON.stringify(s.entries)) as unknown[],
+    busy: s.busy,
+    error: s.error ?? '',
+  };
+}
+
+function persistTurn(chatId: number, immediate = false): void {
+  const run = () => {
+    persistTimers.delete(chatId);
+    const payload = snapshotPayload(chatId);
+    if (!payload) return;
+    void invoke('ai_turn_save', payload).catch(() => {
+      /* 落库失败不影响对话本身 */
+    });
+  };
+  if (immediate) {
+    const t = persistTimers.get(chatId);
+    if (t) clearTimeout(t);
+    run();
+    return;
+  }
+  if (persistTimers.has(chatId)) return;
+  persistTimers.set(chatId, setTimeout(run, 800));
+}
+
+function clearPersistedTurn(chatId: number): void {
+  const t = persistTimers.get(chatId);
+  if (t) {
+    clearTimeout(t);
+    persistTimers.delete(chatId);
+  }
+  void invoke('ai_turn_clear', { accountId: currentAiAccount(), chatId }).catch(() => {
+    /* 忽略 */
+  });
+}
+
+/** 落库快照的形状（与 Rust 的 AiTurnSnapshot 对齐） */
+export interface AiTurnSnapshot {
+  conversationId: string;
+  entries: AiActivityEntry[];
+  busy: boolean;
+  error: string;
+  updatedAt: number;
+}
+
+/**
+ * webview 重开后把「中断现场」铺回活动条。
+ *
+ * 只在同时满足时生效：该聊天没有轮次在跑、快照属于当前会话、快照比落盘历史更完整。
+ * 中断时还在 running 的条目改标 error，避免转圈永远转下去。
+ */
+export async function hydrateTurn(chatId: number, conversationId: string): Promise<void> {
+  if (!chatId || !conversationId || running.has(chatId)) return;
+  let snap: AiTurnSnapshot | null = null;
+  try {
+    snap = await invoke<AiTurnSnapshot | null>('ai_turn_load', {
+      accountId: currentAiAccount(),
+      chatId,
+    });
+  } catch {
+    return;
+  }
+  if (!snap || !Array.isArray(snap.entries) || snap.entries.length === 0) return;
+  if (snap.conversationId !== conversationId) return;
+  if (running.has(chatId)) return; // 读库期间又开跑了
+  const s = turnState(chatId);
+  if (s.entries.length >= snap.entries.length) return; // 历史已覆盖，不用旧快照
+  s.entries = snap.entries.map((e) =>
+    e.status === 'running' ? { ...e, status: 'error' as const } : e,
+  ) as AiActivityEntry[];
+  s.busy = false;
+  s.approval = null;
+  s.error = snap.error || null;
+  s.finishedAt = Date.now();
+}
 
 /**
  * 正在看的聊天（由聊天页在路由变化时写进来）。
@@ -191,6 +283,7 @@ export function beginTurn(chatId: number, conversationId: string): {
   s.finishedAt = 0;
   running.set(chatId, { token, controller, settleApproval: null });
   syncRunningIds();
+  persistTurn(chatId, true);
   return { token, controller, gate: makeApprovalGate(chatId, token), state: s };
 }
 
@@ -280,6 +373,10 @@ function finishTurn(chatId: number, token: number, error: string | null, stopped
   s.approval = null;
   s.error = error;
   s.finishedAt = Date.now();
+  // 正常收尾：历史已由 aiChat 落盘，中断现场删掉；出错 / 用户停止则保留现场，
+  // 重开 webview 还能看到已经生成的那部分输出。
+  if (error || stopped) persistTurn(chatId, true);
+  else clearPersistedTurn(chatId);
   // 用户已经离开这个聊天、且不是自己按的停止：给一条带跳转的提示，别让人以为任务丢了
   // （自己停的不用提示 —— 那是用户的主动操作）
   if (!error && !stopped) notifyFinished(chatId);
@@ -323,6 +420,7 @@ export function clearEntries(chatId: number): void {
   s.approval = null;
   s.error = null;
   s.finishedAt = 0;
+  clearPersistedTurn(chatId);
 }
 
 /**
@@ -337,16 +435,19 @@ export function makeSink(chatId: number) {
   return {
     add(entry: AiActivityEntry) {
       s.entries.push(entry);
+      persistTurn(chatId);
     },
     update(id: string, patch: Partial<AiActivityEntry>) {
       const e = s.entries.find((x) => x.id === id);
       if (e) Object.assign(e, patch);
+      persistTurn(chatId);
     },
     remove(ids: readonly string[]) {
       const drop = new Set<string | number>(ids);
       for (let i = s.entries.length - 1; i >= 0; i--) {
         if (drop.has(s.entries[i].id)) s.entries.splice(i, 1);
       }
+      persistTurn(chatId);
     },
   };
 }

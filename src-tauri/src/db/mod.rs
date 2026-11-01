@@ -79,6 +79,19 @@ CREATE TABLE IF NOT EXISTS ai_active (
     conversation_id TEXT    NOT NULL,
     PRIMARY KEY (account_id, chat_id)
 );
+
+-- 一轮 AI 的「中断现场」：webview 被销毁时前端内存里的活动条会丢，
+-- 这里按 (账号, 聊天) 留一份，重开时铺回去；成功收尾即删。
+CREATE TABLE IF NOT EXISTS ai_turn_state (
+    account_id      TEXT    NOT NULL,
+    chat_id         INTEGER NOT NULL,
+    conversation_id TEXT    NOT NULL DEFAULT '',
+    entries         TEXT    NOT NULL DEFAULT '[]',
+    busy            INTEGER NOT NULL DEFAULT 0,
+    error           TEXT    NOT NULL DEFAULT '',
+    updated_at      INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (account_id, chat_id)
+);
 "#;
 
 pub struct Db {

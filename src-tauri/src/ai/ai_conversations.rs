@@ -554,6 +554,119 @@ pub fn ai_conversation_save_history(
     Ok(())
 }
 
+/// 一轮 AI 的「中断现场」：活动条条目 + 所属会话 + 是否还在跑。
+///
+/// 只用于 webview 重开后把输出铺回活动条（不参与模型上下文），
+/// 正常收尾时由前端删掉，历史仍以 `ai_conversations.history` 为准。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AiTurnSnapshot {
+    pub conversation_id: String,
+    pub entries: serde_json::Value,
+    pub busy: bool,
+    pub error: String,
+    pub updated_at: u64,
+}
+
+impl Default for AiTurnSnapshot {
+    fn default() -> Self {
+        Self {
+            conversation_id: String::new(),
+            entries: serde_json::Value::Array(Vec::new()),
+            busy: false,
+            error: String::new(),
+            updated_at: 0,
+        }
+    }
+}
+
+/// 覆盖写某聊天当前这一轮的现场（前端流式过程中节流调用，800ms 一次）。
+#[tauri::command]
+pub fn ai_turn_save(
+    state: tauri::State<'_, AppState>,
+    account_id: String,
+    chat_id: i64,
+    conversation_id: String,
+    entries: serde_json::Value,
+    busy: bool,
+    error: String,
+) -> Result<(), String> {
+    let account = account_key(&account_id);
+    let text = serde_json::to_string(&entries).map_err(|e| e.to_string())?;
+    let conn = state.db.conn();
+    conn.execute(
+        "INSERT INTO ai_turn_state
+            (account_id, chat_id, conversation_id, entries, busy, error, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+         ON CONFLICT(account_id, chat_id) DO UPDATE SET
+            conversation_id = excluded.conversation_id,
+            entries = excluded.entries,
+            busy = excluded.busy,
+            error = excluded.error,
+            updated_at = excluded.updated_at",
+        params![
+            account,
+            chat_id,
+            conversation_id,
+            text,
+            busy as i32,
+            error,
+            now_ms()
+        ],
+    )
+    .map_err(db_err)?;
+    Ok(())
+}
+
+/// 读某聊天的中断现场；没有返回 None。
+#[tauri::command]
+pub fn ai_turn_load(
+    state: tauri::State<'_, AppState>,
+    account_id: String,
+    chat_id: i64,
+) -> Result<Option<AiTurnSnapshot>, String> {
+    let account = account_key(&account_id);
+    let conn = state.db.conn();
+    let row = conn.query_row(
+        "SELECT conversation_id, entries, busy, error, updated_at
+         FROM ai_turn_state WHERE account_id = ?1 AND chat_id = ?2",
+        params![account, chat_id],
+        |r| {
+            let entries: String = r.get(1)?;
+            Ok(AiTurnSnapshot {
+                conversation_id: r.get(0)?,
+                entries: serde_json::from_str(&entries)
+                    .unwrap_or_else(|_| serde_json::Value::Array(Vec::new())),
+                busy: r.get::<_, i32>(2)? != 0,
+                error: r.get(3)?,
+                updated_at: r.get(4)?,
+            })
+        },
+    );
+    match row {
+        Ok(s) => Ok(Some(s)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(db_err(e)),
+    }
+}
+
+/// 删除某聊天的中断现场（正常收尾 / 清空会话时调用）。
+#[tauri::command]
+pub fn ai_turn_clear(
+    state: tauri::State<'_, AppState>,
+    account_id: String,
+    chat_id: i64,
+) -> Result<(), String> {
+    let account = account_key(&account_id);
+    let conn = state.db.conn();
+    conn.execute(
+        "DELETE FROM ai_turn_state WHERE account_id = ?1 AND chat_id = ?2",
+        params![account, chat_id],
+    )
+    .map_err(db_err)?;
+    Ok(())
+}
+
 /// 前端本地估算要用的换算：`value` 是字符数，按当前模型把字符数折成 token。
 ///
 /// 后端不做启发式判断，只存数；估算规则（CJK 1 字符 ≈ 1 token、其余 4 字符 ≈ 1 token）
