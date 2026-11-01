@@ -80,9 +80,47 @@ export interface InlineTranslation {
     error: string;
     /** 来源：关掉「全部翻译」时仅清除 viewport 来源 */
     source: TranslateSource;
+    /**
+     * 是否由 TDLib 官方翻译提供（本地、可免费重取）。
+     * 缓存超限时先淘汰这类条目，把额度留给 AI / 第三方（要花 token / 配额）的译文。
+     */
+    official?: boolean;
 }
 
 export const inlineTranslations = reactive<Record<string, InlineTranslation>>({});
+
+/**
+ * 内联译文缓存上限。
+ *
+ * 官方（TDLib）译文可随时重取，AI / 第三方译文要花 token 或配额：
+ * 超限时先按插入顺序淘汰官方条目，仍然超才动 AI / 第三方 —— 相当于只长期保留贵的那部分。
+ */
+const INLINE_CACHE_LIMIT = 300;
+/** 插入顺序（旧 → 新） */
+const inlineOrder: string[] = [];
+
+function dropInline(key: string) {
+    delete inlineTranslations[key];
+    const i = inlineOrder.indexOf(key);
+    if (i >= 0) inlineOrder.splice(i, 1);
+}
+
+function putInline(key: string, value: InlineTranslation) {
+    if (!(key in inlineTranslations)) inlineOrder.push(key);
+    inlineTranslations[key] = value;
+    evictInline();
+}
+
+/** 超限淘汰：先清官方译文（免费可重取），再按最老顺序清 AI / 第三方 */
+function evictInline() {
+    if (inlineOrder.length <= INLINE_CACHE_LIMIT) return;
+    for (let i = 0; i < inlineOrder.length && inlineOrder.length > INLINE_CACHE_LIMIT; ) {
+        const key = inlineOrder[i];
+        if (inlineTranslations[key]?.official) dropInline(key);
+        else i++;
+    }
+    while (inlineOrder.length > INLINE_CACHE_LIMIT) dropInline(inlineOrder[0]);
+}
 
 function inlineKey(chatId: number, messageId: number): string {
     return `${chatId}:${messageId}`;
@@ -95,7 +133,7 @@ export function getInlineTranslation(chatId: number, messageId: number): InlineT
 
 /** 移除某条消息的内联翻译 */
 export function removeInlineTranslation(chatId: number, messageId: number) {
-    delete inlineTranslations[inlineKey(chatId, messageId)];
+    dropInline(inlineKey(chatId, messageId));
 }
 
 /** 对某条消息执行内联翻译并写入状态。返回最终是否成功。 */
@@ -108,16 +146,18 @@ export async function translateInlineMessage(
     plainText = "",
 ): Promise<boolean> {
     const key = inlineKey(chatId, messageId);
-    inlineTranslations[key] = {
+    // 右键手动翻译走 message 场景提供方；全部翻译视口走 chat 场景
+    const scenario: TranslateScenario = source === "viewport" ? "chat" : "message";
+    const official = isOfficialProvider(scenario);
+    putInline(key, {
         targetLang,
         translatedText: inlineTranslations[key]?.translatedText ?? "",
         translatedEntities: inlineTranslations[key]?.translatedEntities ?? [],
         translating: true,
         error: "",
         source,
-    };
-    // 右键手动翻译走 message 场景提供方；全部翻译视口走 chat 场景
-    const scenario: TranslateScenario = source === "viewport" ? "chat" : "message";
+        official,
+    });
     try {
         const res = await translateViaProvider({
             text,
@@ -137,22 +177,22 @@ export async function translateInlineMessage(
             ft && ft.text === translated ? (ft.entities ?? []) : [],
         );
         // 整对象替换：避免仅改嵌套字段时列表项 computed 不刷新
-        inlineTranslations[key] = {
+        putInline(key, {
             ...cur,
             translatedText: translated,
             translatedEntities: entities,
             translating: false,
             error: translated ? "" : "lng_translate_box_error",
-        };
+        });
         return !!translated;
     } catch (e: any) {
         const cur = inlineTranslations[key];
         if (!cur) return false;
-        inlineTranslations[key] = {
+        putInline(key, {
             ...cur,
             translating: false,
             error: (e?.message as string) || "lng_translate_box_error",
-        };
+        });
         return false;
     }
 }
@@ -208,7 +248,7 @@ export function clearViewportTranslations(chatId: number) {
     for (const key of Object.keys(inlineTranslations)) {
         if (!key.startsWith(prefix)) continue;
         if (inlineTranslations[key]?.source === "viewport") {
-            delete inlineTranslations[key];
+            dropInline(key);
         }
     }
 }
