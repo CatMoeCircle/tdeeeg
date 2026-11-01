@@ -1731,5 +1731,30 @@
     "developer": "Developer",
     "contributor": "Contributor",
     "officialGroup": "Official Group"
+  },
+  "topTips": {
+    "birthdayHideYear": "Don't show the year",
+    "birthdayVisibility": "Who can see: {value}",
+    "visibilityAll": "Everyone",
+    "visibilityContacts": "My contacts",
+    "visibilityPremium": "Premium users",
+    "visibilityNobody": "Nobody",
+    "visibilityCustom": "Custom",
+    "sessionTitle": "New device login",
+    "sessionBody": "{device} · {location}",
+    "sessionBodyNoLocation": "{device}",
+    "sessionHint": "If this wasn't you, terminate the session now.",
+    "sessionConfirm": "It's me",
+    "sessionDeny": "Not me",
+    "sessionConfirmed": "Session confirmed",
+    "sessionTerminated": "Session terminated",
+    "sessionReview": "Review devices",
+    "sessionMore": "{count} more waiting",
+    "frozenTitle": "Account frozen",
+    "frozenBody": "Your account will be deleted on {date}.",
+    "frozenBodyNoDate": "Your account has been frozen.",
+    "frozenAppeal": "Appeal",
+    "frozenDismiss": "Got it",
+    "actionFailed": "Action failed"
   }
 }

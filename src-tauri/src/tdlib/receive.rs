@@ -390,6 +390,12 @@ pub(super) fn spawn_receive_loop(
             }
         }
 
+        // 顶部提示是边沿触发的 update：每个账户各自缓存。
+        // 非活动账户也要写，切号/重建 webview 后才能直接读到最新状态。
+        if let Ok(mut tips) = client.top_tips.lock() {
+            tips.apply(&event);
+        }
+
         // 仅活动账户：分类入队，由 UpdateManager 批处理/立即下发
         // 替代原先「每条 update 都 emit("tdlib-update")」导致的
         // N 个前端 listener × 全量反序列化 × if 过滤

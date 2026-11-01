@@ -21,6 +21,9 @@ mod miniapp;
 mod proxy;
 mod proxy_carrier;
 mod receive;
+mod top_tips;
+
+use top_tips::TopTipsState;
 
 // 只有 Tauri 命令向外暴露；辅助函数留在各子模块内。
 // 用 glob 再导出：`#[tauri::command]` 会额外生成 `__cmd__*` 隐藏项，
@@ -133,6 +136,8 @@ pub struct TdLibClient {
     pub(super) avatar_path: Mutex<Option<String>>,
     /// 最近一次授权态 @type
     pub(super) authorization_state: Mutex<Option<String>>,
+    /// 对话列表顶部提示缓存（suggested actions / 未确认会话 / 冻结 / 近期生日）
+    pub(super) top_tips: Arc<Mutex<TopTipsState>>,
 }
 
 impl Drop for TdLibClient {
@@ -373,6 +378,14 @@ pub fn get_cached_connection_state(
     let client = active_client(state.inner())?;
     let cs = client.connection_state.lock().map_err(|e| e.to_string())?;
     Ok(cs.clone())
+}
+
+/// 对话列表顶部提示的最新状态（webview 重建后用它补齐错过的 update）。
+#[tauri::command]
+pub fn get_cached_top_tips(state: State<AppState>) -> Result<serde_json::Value, String> {
+    let client = active_client(state.inner())?;
+    let tips = client.top_tips.lock().map_err(|e| e.to_string())?;
+    Ok(tips.snapshot())
 }
 
 #[tauri::command]

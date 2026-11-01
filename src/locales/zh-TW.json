@@ -1731,5 +1731,30 @@
     "developer": "開發者",
     "contributor": "貢獻者",
     "officialGroup": "官方群組"
+  },
+  "topTips": {
+    "birthdayHideYear": "不顯示年份",
+    "birthdayVisibility": "誰能看到：{value}",
+    "visibilityAll": "所有人",
+    "visibilityContacts": "我的聯絡人",
+    "visibilityPremium": "Premium 使用者",
+    "visibilityNobody": "沒有人",
+    "visibilityCustom": "自訂",
+    "sessionTitle": "新裝置登入",
+    "sessionBody": "{device} · {location}",
+    "sessionBodyNoLocation": "{device}",
+    "sessionHint": "如果不是你本人，請立即終止該工作階段。",
+    "sessionConfirm": "是我",
+    "sessionDeny": "不是我",
+    "sessionConfirmed": "已確認該工作階段",
+    "sessionTerminated": "已終止該工作階段",
+    "sessionReview": "查看裝置",
+    "sessionMore": "另有 {count} 個待確認",
+    "frozenTitle": "帳號已被凍結",
+    "frozenBody": "你的帳號將於 {date} 被刪除。",
+    "frozenBodyNoDate": "你的帳號已被凍結。",
+    "frozenAppeal": "申訴",
+    "frozenDismiss": "知道了",
+    "actionFailed": "操作失敗"
   }
 }

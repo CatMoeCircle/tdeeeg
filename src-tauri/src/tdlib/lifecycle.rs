@@ -3,6 +3,7 @@
 use super::loader::ensure_shared_loaded;
 use super::proxy::apply_proxy_to_client;
 use super::receive::{spawn_receive_loop, state_snapshot};
+use super::top_tips::TopTipsState;
 use super::{
     account_db_dir, account_files_dir, account_root_dir, shared, AccountRuntimeMeta, AppState,
     TdLibClient,
@@ -112,6 +113,7 @@ pub(super) fn create_client(
         avatar_file_id: Mutex::new(None),
         avatar_path: Mutex::new(None),
         authorization_state: Mutex::new(None),
+        top_tips: Arc::new(Mutex::new(TopTipsState::default())),
     });
 
     state

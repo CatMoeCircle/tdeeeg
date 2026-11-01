@@ -1731,5 +1731,30 @@
     "developer": "开发者",
     "contributor": "贡献者",
     "officialGroup": "官方群组"
+  },
+  "topTips": {
+    "birthdayHideYear": "不显示年份",
+    "birthdayVisibility": "谁能看到：{value}",
+    "visibilityAll": "所有人",
+    "visibilityContacts": "我的联系人",
+    "visibilityPremium": "Premium 用户",
+    "visibilityNobody": "没有人",
+    "visibilityCustom": "自定义",
+    "sessionTitle": "新设备登录",
+    "sessionBody": "{device} · {location}",
+    "sessionBodyNoLocation": "{device}",
+    "sessionHint": "如果不是你本人，请立即终止该会话。",
+    "sessionConfirm": "是我",
+    "sessionDeny": "不是我",
+    "sessionConfirmed": "已确认该会话",
+    "sessionTerminated": "已终止该会话",
+    "sessionReview": "查看设备",
+    "sessionMore": "另有 {count} 个待确认",
+    "frozenTitle": "账号已被冻结",
+    "frozenBody": "你的账号将于 {date} 被删除。",
+    "frozenBodyNoDate": "你的账号已被冻结。",
+    "frozenAppeal": "申诉",
+    "frozenDismiss": "知道了",
+    "actionFailed": "操作失败"
   }
 }

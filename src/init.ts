@@ -6,6 +6,7 @@ import { initTdlibBus } from "./store/tdlibBus";
 import { useDownloadStore } from "./store/downloads";
 import { useUploadStore } from "./store/upload";
 import { useConnectionStore } from "./store/connectionState";
+import { useTopTipsStore } from "./store/topTips";
 import { usePresenceStore } from "./store/presence";
 import { useUserStore } from "./store/user";
 import { useCommunityStore } from "./store/community";
@@ -52,6 +53,8 @@ export async function initTdlib() {
     await uploadStore.init();
     // 初始化连接状态监听（connection 通道）
     connectionStore.init();
+    // 对话列表顶部提示：生日建议 / 新设备登录 / 账号冻结（other 通道 + Rust 缓存快照）
+    void useTopTipsStore().init();
     // 在线状态：窗口可见 + 有操作才在线（隐藏/空闲 5 分钟报离线）
     presenceStore.init();
     // 初始化发送者缓存监听（user + chat 通道）

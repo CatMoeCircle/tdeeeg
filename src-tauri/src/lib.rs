@@ -356,6 +356,7 @@ pub fn run() {
             tdlib::get_uploads,
             tdlib::dismiss_upload,
             tdlib::get_cached_connection_state,
+            tdlib::get_cached_top_tips,
             tdlib::get_cached_options,
             tdlib::get_cached_option,
             tdlib::get_system_proxy,
@@ -407,6 +408,9 @@ pub fn run() {
             ai::ai_conversations::ai_conversation_history,
             ai::ai_conversations::ai_conversation_save_history,
             ai::ai_conversations::ai_conversation_estimate_tokens,
+            ai::ai_conversations::ai_turn_save,
+            ai::ai_conversations::ai_turn_load,
+            ai::ai_conversations::ai_turn_clear,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
