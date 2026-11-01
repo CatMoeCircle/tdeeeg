@@ -17,9 +17,12 @@
         <!-- Messages：始终挂载，定位完成前不可见 -->
         <div ref="messagesContainer"
             class="absolute inset-0 z-10 overflow-y-auto custom-scrollbar flex flex-col messages-scroll"
+            :class="{ 'drag-select-mode': dragSelecting }"
             data-no-smooth-wheel
             :style="[topPaddingClass, tagBarMessagePadStyle, messagesContainerStyle, { paddingBottom: messagesBottomPad }]"
-            @scroll.passive="onScroll">
+            @scroll.passive="onScroll"
+            @pointerdown="onMessagesPointerDown"
+            @click.capture="onMessagesClickCapture">
 
             <!-- 消息列表容器：mt-auto 将消息推到底部 -->
             <div class="mt-auto flex flex-col">
@@ -42,15 +45,18 @@
 
                     <!-- Album group -->
                     <template v-else-if="item.type === 'album'">
-                        <div :data-msg-id="item.messages[0].id" class="msg-list-item" :class="{
+                        <div :data-msg-id="item.messages[0].id"
+                            :data-msg-ids="item.messages.map(m => m.id).join(' ')" class="msg-list-item" :class="{
                             'animate-message-in': isNewMessage(item.messages[0].id),
                             'msg-leaving': leavingMessageIds.has(item.messages[0].id),
                             'animate-flash-highlight': highlightedMessageId === item.messages[0].id,
+                            'msg-selected-row': selectionMode && isAlbumSelected(item.messages)
                         }" v-context-menu="selectionMode ? null : makeMsgMenu(item.messages[0])"
                             @animationend="onMessageAnimEnd($event, item.messages[0].id)">
                             <div class="flex mb-2" :class="isSelfAlbum(item) ? 'justify-end' : 'justify-start'">
                                 <div v-if="selectionMode"
                                     class="self-center shrink-0 mr-1 z-10 w-5 h-5 rounded-full border-2 flex items-center justify-center cursor-pointer select-none"
+                                    data-no-drag-select
                                     :class="isAlbumSelected(item.messages) ? 'bg-blue-500 border-blue-500' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600'"
                                     @click.stop="toggleSelectAlbum(item.messages)">
                                     <CheckIcon v-if="isAlbumSelected(item.messages)"
@@ -164,8 +170,9 @@
                             'animate-message-in': isNewMessage(item.msg.id),
                             'msg-leaving': leavingMessageIds.has(item.msg.id),
                             'animate-flash-highlight': highlightedMessageId === item.msg.id,
-                            'relative': selectionMode && !isServiceMessage(item.msg)
-                        }" :style="selectionMode && !isServiceMessage(item.msg) ? { border: '2px solid ' + (isMsgSelected(item.msg.id) ? '#3b82f6' : 'transparent'), borderRadius: '0.5rem' } : {}"
+                            'relative': selectionMode && !isServiceMessage(item.msg),
+                            'msg-selected-row': selectionMode && !isServiceMessage(item.msg) && isMsgSelected(item.msg.id)
+                        }"
                             v-context-menu="selectionMode ? null : makeMsgMenu(item.msg)"
                             @click="selectionMode && toggleSelectMsg(item.msg)"
                             @animationend="onMessageAnimEnd($event, item.msg.id)">
@@ -1918,11 +1925,193 @@ let menuApi!: ReturnType<typeof useMessageContextMenu>;
 const {
     MAX_SELECTED_MSG_COUNT, selectionMode, selectedMsgIds, enterSelectionMode, exitSelectionMode,
     toggleSelectMsg, toggleSelectMsgById, isAlbumSelected, toggleSelectAlbum, isMsgSelected,
+    dragSelecting, beginDragSelect, updateDragSelect, endDragSelect,
     canDeleteSelected, onDeleteSelected, forwardPickerVisible, forwardMessageIds,
     forwardMessagesSnapshot, openForwardPicker, startForward, onForwardDone,
 } = useMessageSelection({
     messages, chatId,
     openDeletePopup: (msgs) => menuApi.openDeletePopup(msgs),
+});
+
+// ===== 选择模式：按住左键滑动批量选择 =====
+/** 已处于选择模式时，判定为拖动（而非单击）的位移阈值（px） */
+const DRAG_SELECT_THRESHOLD_PX = 4;
+/** 未进入选择模式时，垂直滑动进入选择模式的位移阈值（px）：略大些，避免点击时手抖误触 */
+const DRAG_SELECT_ENTER_THRESHOLD_PX = 8;
+/** 指针进入距列表上下边缘该距离内时自动滚动（px）：按可见消息区估算，覆盖底部输入框/顶部栏遮挡 */
+const DRAG_SELECT_EDGE_PX = 110;
+/** 边缘自动滚动的每帧最大步长（px） */
+const DRAG_SELECT_SCROLL_STEP = 26;
+
+/** 当前拖动指针 id（与 pointerdown 配对，忽略其它指针） */
+let dragPointerId: number | null = null;
+/** 是否已越过阈值进入真正的拖动选择 */
+let dragActive = false;
+let dragStartX = 0;
+let dragStartY = 0;
+let dragLastX = 0;
+let dragLastY = 0;
+/** 按下时所在行的消息 id（相册行取首条作为兜底锚点） */
+let dragStartMsgId: number | null = null;
+/** 边缘自动滚动 RAF 句柄 */
+let dragScrollRaf = 0;
+/** 拖动结束后抑制紧随其后的一次 click，避免把起点消息又切换一次 */
+let suppressClickUntil = 0;
+
+/** 从屏幕坐标解析鼠标下消息行包含的消息 id（相册行可能有多条） */
+function resolveRowMsgIds(x: number, y: number): number[] {
+    const el = document.elementFromPoint(x, y) as HTMLElement | null;
+    const row = el?.closest('[data-msg-id]') as HTMLElement | null;
+    if (!row) return [];
+    const raw = row.dataset.msgIds || row.dataset.msgId;
+    if (!raw) return [];
+    return raw.split(/[\s,]+/)
+        .map(v => Number(v))
+        .filter(v => Number.isFinite(v) && v > 0);
+}
+
+/**
+ * 列表上的 pointerdown：记录拖动起点。
+ * 不要求已进入选择模式——官方做法就是直接按住左键上下滑动即进入多选。
+ */
+function onMessagesPointerDown(e: PointerEvent) {
+    dragPointerId = null;
+    dragActive = false;
+    dragStartMsgId = null;
+    // 新的按下即新的手势：上一次拖动遗留的 click 抑制可以作废
+    suppressClickUntil = 0;
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    // 行内按钮/链接（头像、发送者名、相册圆点、内联键盘等）保留自身行为
+    if (target.closest('button, a, input, textarea, select, [role="button"], [data-no-drag-select]')) return;
+    const row = target.closest('[data-msg-id]') as HTMLElement | null;
+    if (!row) return;
+    const first = Number(row.dataset.msgId);
+    if (!Number.isFinite(first) || first <= 0) return;
+    dragPointerId = e.pointerId;
+    dragStartMsgId = first;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    dragLastX = e.clientX;
+    dragLastY = e.clientY;
+}
+
+/** 指针移动：越过阈值后进入拖动选择，并按当前行更新区间 */
+function onMessagesPointerMove(e: PointerEvent) {
+    if (dragPointerId === null || e.pointerId !== dragPointerId) return;
+    // 指针在窗口外松开时收不到 pointerup：靠 buttons 兜底结束拖动，避免选择继续跟着走
+    if ((e.buttons & 1) === 0) {
+        onMessagesPointerUp(e);
+        return;
+    }
+    dragLastX = e.clientX;
+    dragLastY = e.clientY;
+    if (!dragActive) {
+        if (dragStartMsgId === null) return;
+        const dx = Math.abs(e.clientX - dragStartX);
+        const dy = Math.abs(e.clientY - dragStartY);
+        const threshold = selectionMode.value ? DRAG_SELECT_THRESHOLD_PX : DRAG_SELECT_ENTER_THRESHOLD_PX;
+        if (dx < threshold && dy < threshold) return;
+        // 未进入选择模式时：横向拖动是「框选正文复制」，交还给原生文本选择，
+        // 只有上下滑动才算进入多选（官方手势），两者互不抢占。
+        if (!selectionMode.value && dx > dy) {
+            dragPointerId = null;
+            return;
+        }
+        const startRow = resolveRowMsgIds(dragStartX, dragStartY);
+        const anchorRow = startRow.length > 0 ? startRow : [dragStartMsgId];
+        if (!selectionMode.value) {
+            const anchorMsg = messages.value.find(m => m.id === anchorRow[0]);
+            if (!anchorMsg || isServiceMessage(anchorMsg)) {
+                dragPointerId = null;
+                return;
+            }
+            // 直接滑动即进入多选：锚点消息先被勾选，随后的滑动按区间扩展
+            enterSelectionMode(anchorMsg);
+        }
+        if (!beginDragSelect(anchorRow)) {
+            dragPointerId = null;
+            return;
+        }
+        dragActive = true;
+        // 拖动期间丢掉已有的文本选区，避免正文被一起刷蓝
+        window.getSelection()?.removeAllRanges();
+        // 起点行先纳入区间（阈值被一步跨过时也不会漏掉起点）
+        updateDragSelect(anchorRow);
+    }
+    const rowIds = resolveRowMsgIds(e.clientX, e.clientY);
+    if (rowIds.length > 0) updateDragSelect(rowIds);
+    scheduleDragAutoScroll();
+}
+
+/** 指针抬起 / 取消：结束拖动，并吞掉紧随其后的一次 click */
+function onMessagesPointerUp(e: PointerEvent) {
+    if (dragPointerId === null || e.pointerId !== dragPointerId) return;
+    const wasActive = dragActive;
+    resetDragSelectState();
+    if (wasActive) {
+        suppressClickUntil = performance.now() + 300;
+        window.getSelection()?.removeAllRanges();
+    }
+}
+
+/** 拖动会话状态复位（选中结果保留） */
+function resetDragSelectState() {
+    dragPointerId = null;
+    dragActive = false;
+    dragStartMsgId = null;
+    endDragSelect();
+    if (dragScrollRaf) {
+        cancelAnimationFrame(dragScrollRaf);
+        dragScrollRaf = 0;
+    }
+}
+
+/** 拦截拖动结束后浏览器补发的 click（否则起点消息会被再切换一次） */
+function onMessagesClickCapture(e: MouseEvent) {
+    if (performance.now() > suppressClickUntil) return;
+    suppressClickUntil = 0;
+    e.preventDefault();
+    e.stopPropagation();
+}
+
+/** 边缘自动滚动：指针停在列表上下边缘附近时持续滚动并同步更新区间 */
+function scheduleDragAutoScroll() {
+    if (dragScrollRaf) return;
+    dragScrollRaf = requestAnimationFrame(dragAutoScrollStep);
+}
+
+function dragAutoScrollStep() {
+    dragScrollRaf = 0;
+    if (!dragActive) return;
+    const el = messagesContainer.value;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    // 容器铺满窗口，但顶部栏与底部输入框盖住了可视消息区：按可见高度自适应取滚动触发带，
+    // 这样指针还在消息区里、离边缘尚有一段距离时就已经开始滚，而不是等贴到窗口外沿。
+    const edge = Math.min(DRAG_SELECT_EDGE_PX, Math.max(48, rect.height / 3));
+    let delta = 0;
+    if (dragLastY < rect.top + edge) {
+        const ratio = (rect.top + edge - dragLastY) / edge;
+        delta = -Math.ceil(Math.min(1.4, ratio) * DRAG_SELECT_SCROLL_STEP);
+    } else if (dragLastY > rect.bottom - edge) {
+        const ratio = (dragLastY - (rect.bottom - edge)) / edge;
+        delta = Math.ceil(Math.min(1.4, ratio) * DRAG_SELECT_SCROLL_STEP);
+    }
+    if (delta === 0) return;
+    const before = el.scrollTop;
+    el.scrollTop = before + delta;
+    // 已滚到边界：停止循环，等下一次 pointermove 重新触发
+    if (el.scrollTop === before) return;
+    const rowIds = resolveRowMsgIds(dragLastX, dragLastY);
+    if (rowIds.length > 0) updateDragSelect(rowIds);
+    dragScrollRaf = requestAnimationFrame(dragAutoScrollStep);
+}
+
+// 退出选择模式 / 切换会话时立即结束拖动（避免遗留状态）
+watch(selectionMode, (on) => {
+    if (!on) resetDragSelectState();
 });
 
 // ===== Reaction Picker =====
@@ -2298,6 +2487,11 @@ onMounted(async () => {
     // 同聊天内链接跳转：resolveInternalLink 检测到目标消息在当前聊天时，
     // 分发此事件而非 router.push，避免路由变更导致 ChatDetail 重建/缓存恢复。
     window.addEventListener('tdgram:jump-to-message-in-chat', onSameChatJump);
+    // 拖动批量选择：move/up 挂在 window 上，指针移出列表也不会丢失
+    window.addEventListener('pointermove', onMessagesPointerMove);
+    window.addEventListener('pointerup', onMessagesPointerUp);
+    window.addEventListener('pointercancel', onMessagesPointerUp);
+    window.addEventListener('blur', resetDragSelectState);
 });
 
 // 浏览位置必须在 DOM 卸载前冲刷：onUnmounted 时 messagesContainer 已是 null，flush 会直接 return
@@ -2316,6 +2510,10 @@ onBeforeUnmount(() => {
 
 onUnmounted(() => {
     window.removeEventListener('tdgram:jump-to-message-in-chat', onSameChatJump);
+    window.removeEventListener('pointermove', onMessagesPointerMove);
+    window.removeEventListener('pointerup', onMessagesPointerUp);
+    window.removeEventListener('pointercancel', onMessagesPointerUp);
+    window.removeEventListener('blur', resetDragSelectState);
     // 面板收起：聊天内跳转栈与入口页作废，下次打开聊天重新开始
     chatJumpStack.value = [];
     chatEntryPath.value = null;
@@ -6313,6 +6511,17 @@ async function handleScrollToBottom() {
        content-visibility/图片高度抖动；手动补偿期间由 beginManualAnchor 临时关闭。 */
 }
 
+/* 拖动批量选择进行中：消息区整体禁用文本选中，光标统一为箭头，
+   避免正文 .msg-selectable-text 的选择规则把拖动变成框选复制。 */
+.messages-scroll.drag-select-mode,
+.messages-scroll.drag-select-mode * {
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+    cursor: default !important;
+}
+
 .mi-fade-enter-active,
 .mi-fade-leave-active {
     transition: opacity 0.16s ease, transform 0.16s ease;
@@ -6415,6 +6624,19 @@ async function handleScrollToBottom() {
 .msg-list-item {
     content-visibility: auto;
     contain-intrinsic-size: auto 88px;
+    /* 多选选中态是整行淡色底（见 .msg-selected-row），这里只补过渡 */
+    transition: background-color 0.12s ease;
+}
+
+/* 多选选中行：整行淡色底 + 圆角，配合左侧勾选圈表达选中；
+   不再用 2px 描边（描边会把内容挤动，观感也不如官方）。 */
+.messages-scroll .msg-selected-row {
+    background-color: rgb(59 130 246 / 0.1);
+    border-radius: 0.5rem;
+}
+
+.dark .messages-scroll .msg-selected-row {
+    background-color: rgb(96 165 250 / 0.13);
 }
 
 /*

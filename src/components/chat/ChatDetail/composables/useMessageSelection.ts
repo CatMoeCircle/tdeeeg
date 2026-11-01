@@ -45,6 +45,7 @@ export function useMessageSelection(deps: {
         selectedMsgIds.value = [];
         deletableSelectedIds.value = new Set();
         selectionPermToken++;
+        endDragSelect();
     }
 
     /** 切换单条消息的选中状态（相册内每条媒体各自独立） */
@@ -94,6 +95,114 @@ export function useMessageSelection(deps: {
     /** 消息是否被选中 */
     function isMsgSelected(msgId: number): boolean {
         return selectedMsgIds.value.includes(msgId);
+    }
+
+    // ===== 拖动区间选择（选择模式下按住左键滑动） =====
+    /** 是否正在进行拖动区间选择（沿用到 UI 上禁用文本选中 / 光标样式） */
+    const dragSelecting = ref(false);
+    /**
+     * 起点行覆盖的消息 id（相册行含多条）。
+     * 按 id 而非下标记锚点：拖动到边缘会补载历史/裁剪窗口，数组下标会漂移。
+     */
+    let dragAnchorIds: number[] = [];
+    /** 拖动开始时的选中快照：每帧都基于快照重算，避免来回拖动累积误差 */
+    let dragBaseIds: number[] = [];
+    /** 起点未选中 → 区间选中；起点已选中 → 区间取消选中（与官方一致） */
+    let dragAddRange = true;
+    /** 本次拖动是否已提示过数量上限（拖动中只提示一次） */
+    let dragLimitWarned = false;
+
+    /** 消息 id → messages 中的下标 */
+    function msgIndexById(msgId: number): number {
+        return messages.value.findIndex(m => m.id === msgId);
+    }
+
+    /** 一组消息 id 在 messages 中覆盖的下标区间（相册行会跨多格） */
+    function rowIndexRange(rowMsgIds: number[]): { from: number; to: number } | null {
+        let from = Number.POSITIVE_INFINITY;
+        let to = -1;
+        for (const id of rowMsgIds) {
+            const idx = msgIndexById(id);
+            if (idx < 0) continue;
+            if (idx < from) from = idx;
+            if (idx > to) to = idx;
+        }
+        return to < 0 ? null : { from, to };
+    }
+
+    /**
+     * 开始一次拖动区间选择。
+     * `rowMsgIds` 为按下时鼠标所在消息行的全部消息 id（相册行是多条）。
+     * 返回 false 表示该行不可参与拖动选择。
+     */
+    function beginDragSelect(rowMsgIds: number[]): boolean {
+        if (rowIndexRange(rowMsgIds) === null) return false;
+        const firstId = rowMsgIds[0];
+        if (firstId === undefined) return false;
+        dragAnchorIds = [...rowMsgIds];
+        dragBaseIds = [...selectedMsgIds.value];
+        // 起点落在「已有多选」的行上 → 拖动取消区间选中；否则一律为选中。
+        // 只选了一条时仍走选中：右键「多选」会先选中该条，用户接着从它往下拖是常见手势。
+        dragAddRange = !(dragBaseIds.length > 1 && dragBaseIds.includes(firstId));
+        dragLimitWarned = false;
+        dragSelecting.value = true;
+        return true;
+    }
+
+    /**
+     * 把区间终点更新到鼠标当前所在的消息行。
+     * 区间始终覆盖「起点行 ~ 当前行」的完整消息序列（相册内部消息一并纳入）。
+     */
+    function updateDragSelect(rowMsgIds: number[]) {
+        if (!dragSelecting.value || dragAnchorIds.length === 0 || rowMsgIds.length === 0) return;
+        const anchor = rowIndexRange(dragAnchorIds);
+        const current = rowIndexRange(rowMsgIds);
+        if (!anchor || !current) return;
+        const start = Math.min(anchor.from, current.from);
+        const end = Math.max(anchor.to, current.to);
+        const slice = messages.value.slice(start, end + 1);
+        // 向上拖时从起点朝反向铺：达到 100 上限时停在光标一侧，而不是顿在区间另一端
+        const range = current.from < anchor.from ? slice.reverse() : slice;
+        applyDragRange(range);
+    }
+
+    /** 按起始快照 + 当前区间重算选中集合（服务消息不参与，超出上限即截断） */
+    function applyDragRange(range: message[]) {
+        let next: number[];
+        if (dragAddRange) {
+            const baseSet = new Set(dragBaseIds);
+            next = [...dragBaseIds];
+            for (const m of range) {
+                if (isServiceMessage(m) || baseSet.has(m.id)) continue;
+                if (next.length >= MAX_SELECTED_MSG_COUNT) {
+                    if (!dragLimitWarned) {
+                        dragLimitWarned = true;
+                        toast.warning(t('chat.selectLimit', { max: MAX_SELECTED_MSG_COUNT }));
+                    }
+                    break;
+                }
+                next.push(m.id);
+            }
+        } else {
+            const removeSet = new Set<number>();
+            for (const m of range) {
+                if (!isServiceMessage(m)) removeSet.add(m.id);
+            }
+            next = dragBaseIds.filter(id => !removeSet.has(id));
+        }
+        const prev = selectedMsgIds.value;
+        if (next.length === prev.length && next.every((id, i) => id === prev[i])) return;
+        selectedMsgIds.value = next;
+        void refreshSelectionPermissions();
+    }
+
+    /** 结束拖动区间选择（状态复位，选中结果保留） */
+    function endDragSelect() {
+        if (!dragSelecting.value) return;
+        dragSelecting.value = false;
+        dragAnchorIds = [];
+        dragBaseIds = [];
+        dragLimitWarned = false;
     }
 
     /** 刷新选中消息的删除权限（getMessageProperties 离线预取 + 缓存判定） */
@@ -198,6 +307,10 @@ export function useMessageSelection(deps: {
         isAlbumSelected,
         toggleSelectAlbum,
         isMsgSelected,
+        dragSelecting,
+        beginDragSelect,
+        updateDragSelect,
+        endDragSelect,
         canDeleteSelected,
         onDeleteSelected,
         forwardPickerVisible,
