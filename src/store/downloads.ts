@@ -1179,6 +1179,9 @@ export const useDownloadStore = defineStore("downloads", () => {
     /**
      * UI 发起 addFileToDownloads 成功后标记：该文件在 TDLib 官方下载列表中。
      * cancel 时据此调用 removeFileFromDownloads，避免重启后续传。
+     *
+     * 同时也把条目视为「已开始」：TDLib 已接受入列，此刻起下载面板就应有这一条，
+     * 不必等第一条 updateFile（排队/大文件时可能滞后数秒，用户会以为没登记）。
      */
     function markInTdlibList(fileId: number, chatId?: number, messageId?: number) {
         const key = sessionIdMap.value[fileId]
@@ -1186,6 +1189,7 @@ export const useDownloadStore = defineStore("downloads", () => {
             || `session:${fileId}`;
         const existing = items.value[key] || items.value[`session:${fileId}`];
         if (existing) {
+            if (!existing.has_tdlib_update) existing.has_tdlib_update = true;
             if (!existing.in_tdlib_list || existing.chat_id == null || existing.message_id == null) {
                 existing.in_tdlib_list = true;
                 if (chatId != null && existing.chat_id == null) existing.chat_id = chatId;

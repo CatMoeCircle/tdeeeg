@@ -90,7 +90,7 @@
 <script setup lang="ts">
 import { ref, computed, reactive, watch, onMounted } from 'vue';
 import { CheckIcon } from 'lucide-vue-next';
-import type { message, messageAudio, messageDocument } from 'tdlib-types';
+import type { message, messageAudio, messageDocument, file as TdFile } from 'tdlib-types';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { tdlibSend, isFileReady, downloadingFiles, safeDownloadFile, isFileDownloading, reactivePendingDownloadFiles } from '../../../../../utils/tdlib';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
@@ -156,19 +156,28 @@ function onFileContextMenu(e: MouseEvent, idx: number) {
     emit('messageContextMenu', msg, e.clientX, e.clientY);
 }
 
+/** 某条消息的主媒体文件（图片 Big / 视频 / GIF 本体），与 tileLoader 同口径 */
+function mainFileOf(msg: message): TdFile | undefined {
+    const c = msg.content;
+    if (c._ === 'messagePhoto') return pickBigPhotoSize(c.photo);
+    if (c._ === 'messageVideo') return c.video.video;
+    if (c._ === 'messageAnimation') return c.animation.animation;
+    return undefined;
+}
+
 /**
  * 某块媒体的加载态（与 MessageMediaContent 的 photoShowLoader 同口径）：
  * 主文件排队/下载中且尚未出主图 → 显示指示器；进度取下载 store。
  */
 function tileLoader(msgId: number): { show: boolean; progress: number } {
     const msg = props.messages.find((m) => m.id === msgId);
-    const c = msg?.content;
-    const f = c?._ === 'messagePhoto' ? pickBigPhotoSize(c.photo)
-        : c?._ === 'messageVideo' ? c.video.video
-            : c?._ === 'messageAnimation' ? c.animation.animation
-                : undefined;
+    const f = msg ? mainFileOf(msg) : undefined;
     if (!f || isFileReady(f)) return { show: false, progress: 0 };
-    const busy = isFileDownloading(f.id) || reactivePendingDownloadFiles.value.has(f.id);
+    // inflightMainFiles 补住「RPC 已返回、TDLib 仍在下载」这段空洞：
+    // 异步 downloadFile 一返回，downloadingFiles / reactiveDownloadingFiles 就清空了。
+    const busy = isFileDownloading(f.id)
+        || reactivePendingDownloadFiles.value.has(f.id)
+        || inflightMainFiles.has(f.id);
     if (!busy) return { show: false, progress: 0 };
     const info = useDownloadStore().getDownloadInfoForFile(f);
     const progress = typeof info?.progress === 'number' ? Math.min(1, Math.max(0, info.progress)) : 0;
@@ -199,6 +208,15 @@ function onTileContextMenu(e: MouseEvent, idx: number) {
 // ---- Refs ----
 const thumbCache = reactive<Record<number, string>>({});
 const mediaCache = reactive<Record<number, string>>({});
+
+/**
+ * 相册自己发起、尚未落地的主媒体下载（file.id）。
+ *
+ * 图片 Big / 视频 / GIF 都用异步 downloadFile 发起：RPC 在「下载已开始」时就返回，
+ * downloadingFiles 与响应式镜像随即被清空，但 TDLib 后台仍在下。只按 active 集合判断，
+ * 宫格进度环会在大图/视频真正下载完成前就消失；这里保留到消息内嵌 File 落地。
+ */
+const inflightMainFiles = reactive<Set<number>>(new Set());
 
 /**
  * 加载代次：消息内容引用变化 / 相册重组时自增。
@@ -289,6 +307,9 @@ function applyAlbumReadyFromContent(msgs: message[] = props.messages): boolean {
     if (!msgs?.length) return false;
     let changed = false;
     for (const msg of msgs) {
+        // 主媒体已落地：宫格能换成大图/视频了，收起在途进度环
+        const main = mainFileOf(msg);
+        if (main && isFileReady(main)) inflightMainFiles.delete(main.id);
         const c = msg.content;
         if (c._ === 'messagePhoto') {
             const small = pickSmallPhotoSize(c.photo);
@@ -685,12 +706,16 @@ async function loadPhoto(msg: message, seq: number): Promise<boolean> {
             // 自动下载的图片注册到下载管理器（独立隐藏分类：isAutoPhoto）
             const fileName = `photo_${msg.id || ff.id}.jpg`;
             const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
+            // 先记「在途」再发请求：registerDownload 走一次 IPC，期间不应出现无指示器的空窗
+            inflightMainFiles.add(ff.id);
             await downloadStore.registerDownload(ff.id, fileName, chatTitle, 0, 'photo', undefined, props.chatId, msg.id, undefined, true, undefined, false, undefined, undefined, remoteIdOf(ff));
-            if (seq !== albumLoadSeq) return false;
+            if (seq !== albumLoadSeq) { inflightMainFiles.delete(ff.id); return false; }
             try {
                 // 正常图片 Big：异步下载，不阻塞相册加载/ UI
                 await safeDownloadFile(ff.id, false, DL_PRIORITY.DEFAULT);
-            } catch (_) { }
+            } catch (_) {
+                inflightMainFiles.delete(ff.id);
+            }
         }
     }
     return c;
@@ -726,8 +751,9 @@ async function loadVideo(msg: message, seq: number): Promise<boolean> {
                     // 自动下载的视频注册到下载管理器（正常显示，不隐藏）
                     const fileName = v.file_name || `video_${msg.id || v.video.id}.mp4`;
                     const chatTitle = props.chatId ? (useChatStore().chats[props.chatId]?.title || `对话 #${props.chatId}`) : '';
+                    inflightMainFiles.add(v.video.id);
                     await downloadStore.registerDownload(v.video.id, fileName, chatTitle, v.video.size, 'video', undefined, props.chatId, msg.id, false, false, undefined, false, [DL_TAG.AUTO], undefined, remoteIdOf(v.video));
-                    if (seq !== albumLoadSeq) return false;
+                    if (seq !== albumLoadSeq) { inflightMainFiles.delete(v.video.id); return false; }
                     try {
                         // 视频本体：异步下载，不阻塞相册；完成态由 updateFile/消息快照驱动
                         downloadingFiles.add(v.video.id);
@@ -739,7 +765,9 @@ async function loadVideo(msg: message, seq: number): Promise<boolean> {
                             limit: 0,
                             synchronous: false,
                         });
-                    } catch (_) { } finally {
+                    } catch (_) {
+                        inflightMainFiles.delete(v.video.id);
+                    } finally {
                         downloadingFiles.delete(v.video.id);
                     }
                 }
@@ -846,6 +874,7 @@ async function loadAnimation(msg: message, seq: number): Promise<boolean> {
             if (cfg.enabled && cfg[category]) {
                 const sizeMB = (anim.animation.size || 0) / (1024 * 1024);
                 if (sizeMB <= cfg.maxSize && anim.animation.local.can_be_downloaded && !downloadingFiles.has(anim.animation.id)) {
+                    inflightMainFiles.add(anim.animation.id);
                     try {
                         // GIF/动图：异步下载，不阻塞相册
                         downloadingFiles.add(anim.animation.id);
@@ -857,7 +886,9 @@ async function loadAnimation(msg: message, seq: number): Promise<boolean> {
                             limit: 0,
                             synchronous: false,
                         });
-                    } catch (_) { } finally {
+                    } catch (_) {
+                        inflightMainFiles.delete(anim.animation.id);
+                    } finally {
                         downloadingFiles.delete(anim.animation.id);
                     }
                 }

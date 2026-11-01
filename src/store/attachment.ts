@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { remove, stat } from '@tauri-apps/plugin-fs';
 
 /** 附件最终发送类型 */
@@ -36,8 +36,59 @@ function nextId(): string {
     return `att-${Date.now()}-${uid}`;
 }
 
+/**
+ * 待发送附件的浏览器级缓存（sessionStorage）。
+ *
+ * 只存元数据（路径 / 类型 / 尺寸 / 描述），文件本身还在磁盘上：
+ * webview 刷新、退出聊天再进来，列表都还在；窗口关闭（webview 销毁）随会话消失，
+ * 不落 SQLite —— 这是「还没发出去」的临时状态，不该跨进程留。
+ */
+const STORAGE_KEY = 'tdgram-pending-attachments';
+
+function loadPersistedItems(): AttachmentItem[] {
+    try {
+        const raw = sessionStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const parsed: unknown = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter((it): it is AttachmentItem => {
+            const v = it as AttachmentItem;
+            return !!v && typeof v.id === 'string' && typeof v.path === 'string' && typeof v.name === 'string';
+        });
+    } catch {
+        return [];
+    }
+}
+
+function persistItems(list: AttachmentItem[]) {
+    try {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    } catch {
+        // 隐私模式 / 配额不足：忽略，退化成纯内存
+    }
+}
+
 export const useAttachmentStore = defineStore('attachment', () => {
-    const items = ref<AttachmentItem[]>([]);
+    const items = ref<AttachmentItem[]>(loadPersistedItems());
+
+    // 元数据随变更落 sessionStorage：刷新 / 重进聊天后列表还在
+    watch(items, (list) => persistItems(list), { deep: true });
+
+    /** 恢复后校验文件还在（临时文件可能已被清理 / 用户删了源文件）：不在的条目静默丢掉 */
+    async function pruneMissingFiles() {
+        if (!items.value.length) return;
+        const alive: AttachmentItem[] = [];
+        for (const it of items.value) {
+            try {
+                await stat(it.path);
+                alive.push(it);
+            } catch {
+                // 文件不在了：丢掉这一项（tempFile 也无需清理）
+            }
+        }
+        if (alive.length !== items.value.length) items.value = alive;
+    }
+    void pruneMissingFiles();
 
     function add(item: Omit<AttachmentItem, 'id'>): AttachmentItem {
         const full: AttachmentItem = { id: nextId(), ...item };

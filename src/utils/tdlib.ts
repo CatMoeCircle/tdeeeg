@@ -8,8 +8,10 @@ import type { TrackFileMeta } from '../store/downloads';
  * Sends a request to TDLib.
  * Wraps the request object in the structure expected by the Tauri command.
  *
- * 下载校准：凡是 downloadFile 返回的 file，一律纳入下载管理器（旁路/音乐播放器
- * 等未先 registerDownload 的请求也不漏记）。元数据由 metaDownloadFile 提供。
+ * 下载校准：downloadFile / addFileToDownloads 返回的 file 一律纳入下载管理器
+ * （旁路/音乐播放器/用户手动下载等未先 registerDownload 的请求也不漏记），
+ * 这样下载面板在请求返回的那一刻就有记录，不必等第一条 updateFile。元数据由
+ * metaDownloadFile 提供。
  */
 export async function tdlibSend<T extends $Function>(
   request: T
@@ -18,7 +20,8 @@ export async function tdlibSend<T extends $Function>(
   if (response._ === "error") {
     throw response;
   }
-  if (request._ === "downloadFile" && response && typeof (response as { id?: number }).id === "number") {
+  const startsDownload = request._ === "downloadFile" || request._ === "addFileToDownloads";
+  if (startsDownload && response && typeof (response as { id?: number }).id === "number") {
     await trackDownloadFileResponse(response as never, pendingDownloadMeta.get((response as { id: number }).id));
     pendingDownloadMeta.delete((response as { id: number }).id);
   }
