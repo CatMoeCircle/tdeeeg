@@ -4,9 +4,13 @@
  */
 export type FolderStyle = 'tabs' | 'pills' | 'text' | 'soft';
 
-/** 通用 UI 磨砂玻璃背景（与聊天 Header / 输入区等一致） */
+/**
+ * 通用 UI 磨砂玻璃背景（与聊天 Header / 输入区等一致）。
+ * 阴影刻意收紧：贴边一小圈，不外扩（原先 shadow-lg 的 10px/15px 大范围发散
+ * 会让搜索框、分组胶囊、顶部卡片这几层玻璃糊成一片）。
+ */
 export const UI_GLASS_SURFACE =
-    'bg-white/70 dark:bg-gray-800/70 backdrop-blur-md shadow-lg border border-gray-200/50 dark:border-gray-700/50';
+    'bg-white/70 dark:bg-gray-800/70 backdrop-blur-md shadow-[0_1px_2px_rgba(0,0,0,0.06),0_2px_6px_-1px_rgba(0,0,0,0.10)] border border-gray-200/50 dark:border-gray-700/50';
 
 export function folderTabClass(
     folderStyle: FolderStyle,
@@ -40,7 +44,7 @@ export function folderTabClass(
  * 所有 folderStyle 变体共用同一浮层，仅内部标签按钮样式随变体变化。
  */
 export const FOLDER_TAB_OVERLAY =
-    `w-fit max-w-[calc(100%-1rem)] mx-2 rounded-full ${UI_GLASS_SURFACE} px-1.5 py-1`;
+    `mx-1 rounded-full ${UI_GLASS_SURFACE} px-1.5 py-1`;
 
 /** 容器附加类：全部变体统一带通用磨砂玻璃浮层 */
 export function folderTabContainerClass(_folderStyle: FolderStyle): string {

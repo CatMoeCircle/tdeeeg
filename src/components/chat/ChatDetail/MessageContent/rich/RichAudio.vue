@@ -30,8 +30,8 @@
                 </span>
                 <!-- 当前曲目（含暂停）一直显示进度条，切换到其他曲目才恢复作者名；作者行 py-[3px] 补足到与滑块相同的 22px 行高 -->
                 <SmoothSlider v-if="isCurrentTrack" :model-value="progressValue" :max-value="displayDuration"
-                    :max-overflow="0" :disabled="displayDuration <= 0" @update:model-value="onProgressUpdate"
-                    @change="onProgressCommit" />
+                    :buffered-value="bufferedValue" :max-overflow="0" :disabled="displayDuration <= 0"
+                    @update:model-value="onProgressUpdate" @change="onProgressCommit" />
                 <span v-else class="truncate py-[3px] text-xs text-gray-500 dark:text-gray-400">{{ audio?.performer ||
                     t('content.unknownArtist') }}</span>
                 <div class="mt-1 text-[10px] leading-none tabular-nums text-gray-400 dark:text-gray-500">
@@ -54,7 +54,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
 import { isThumbnailImgRenderable } from '../../../../../utils/thumbnail';
 import { fetchItunesCoverForAudio } from '../../../../../utils/itunesCover';
-import { useAudioPlayerStore } from '../../../../../store/audioPlayer';
+import { useAudioPlayerStore, cachedSeconds } from '../../../../../store/audioPlayer';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import RichMediaDownload from './RichMediaDownload.vue';
 import RichCaption from './RichCaption.vue';
@@ -105,6 +105,11 @@ const dragValue = ref<number | null>(null);
 
 /** 进度条与时间展示值：拖拽时优先用拖拽值 */
 const progressValue = computed(() => dragValue.value ?? displayTime.value);
+
+/** 缓存（已下载、可秒跳）到的秒数：本地完整文件 = 整首，流式播放取缓冲末端 */
+const bufferedValue = computed(() =>
+    isCurrentTrack.value ? cachedSeconds(audioPlayer.currentTrack, audioPlayer.bufferedTime) : 0,
+);
 
 function onProgressUpdate(value: number) {
     dragValue.value = value;

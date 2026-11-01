@@ -87,7 +87,8 @@
                             <div class="shrink-0 w-full pt-4">
                                 <!-- 越界拉伸上限取左栏水平内边距（px-6 = 24px），拉动时不会越出栏外 -->
                                 <SmoothSlider :model-value="progressValue" :max-value="progressMax"
-                                    :max-overflow="24" :disabled="progressMax <= 0" @update:model-value="onProgressUpdate"
+                                    :buffered-value="bufferedValue" :max-overflow="24"
+                                    :disabled="progressMax <= 0" @update:model-value="onProgressUpdate"
                                     @change="onProgressCommit" />
                                 <div class="flex justify-between">
                                     <span class="text-[11px] tabular-nums text-gray-500 dark:text-gray-400">{{
@@ -229,7 +230,7 @@ import { toast } from '../../utils/toast';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { save } from '@tauri-apps/plugin-dialog';
 import { copyFile } from '@tauri-apps/plugin-fs';
-import { useAudioPlayerStore, type AudioTrack } from '../../store/audioPlayer';
+import { useAudioPlayerStore, cachedSeconds, type AudioTrack } from '../../store/audioPlayer';
 import { useUserStore } from '../../store/user';
 import { openContextMenu } from '../../store/contextMenu';
 import type { ContextMenuItem } from '../contextMenu/types';
@@ -379,6 +380,9 @@ const progressMax = computed(() => player.currentTrack?.duration || 0);
 
 /** 实际渲染用的进度值（秒） */
 const progressValue = computed(() => dragValue.value ?? player.currentTime);
+
+/** 已缓存（可秒跳）到的秒数：本地完整文件 = 整首，流式播放取缓冲末端 */
+const bufferedValue = computed(() => cachedSeconds(player.currentTrack, player.bufferedTime));
 
 function onProgressUpdate(value: number) {
     dragValue.value = value;

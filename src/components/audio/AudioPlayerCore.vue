@@ -1,7 +1,8 @@
 <template>
     <!-- 隐藏的 HTML5 Audio 元素，由 store 控制 -->
     <audio ref="audioRef" preload="auto" @timeupdate="onTimeUpdate" @loadedmetadata="onLoaded" @ended="onEnded"
-        @error="onError" @play="onPlay" @pause="onPause" :loop="player.repeatMode === 'one'">
+        @error="onError" @play="onPlay" @pause="onPause" :loop="player.repeatMode === 'one'"
+        @progress="syncBuffered" @durationchange="syncBuffered" @seeked="syncBuffered" @canplay="syncBuffered">
     </audio>
 </template>
 
@@ -320,6 +321,8 @@ function elementMatchesCurrentTrack(): boolean {
 function loadAndPlay(src: string) {
     const audio = audioRef.value;
     if (!audio || !src) return;
+    // 换源即换缓存区间，先清零，等 progress / loadedmetadata 再回填
+    player.bufferedTime = 0;
     audio.src = src;
     loadedSrc = src;
     audio.load();
@@ -338,6 +341,7 @@ watch([audioSrc, () => player.playEpoch], ([newSrc, newEpoch], [, oldEpoch]) => 
         // 暂停旧音频，避免 UI 已显示新曲却仍在播上一首。
         // filePath 落地后 audioSrc 变化会重新走 loadAndPlay。
         audio.pause();
+        player.bufferedTime = 0;
         return;
     }
     // playTrack 准备失败回滚：源切回「元素上已加载的源」且纪元未变 → 不重载，
@@ -402,6 +406,24 @@ function onTimeUpdate() {
     pushPosition();
 }
 
+/**
+ * 缓存进度：与视频播放器同一套取法（优先取包含当前播放位置的连续区间，
+ * 拖动 seek 后可能出现多段缓冲）。只在 progress / durationchange / seeked / canplay
+ * 时同步——这些才是缓冲变化点，比挂在 timeupdate 上更准也更省。
+ */
+function syncBuffered() {
+    const audio = audioRef.value;
+    if (!audio) return;
+    const ranges = audio.buffered;
+    const t = audio.currentTime;
+    let end = 0;
+    for (let i = 0; i < ranges.length; i++) {
+        if (ranges.start(i) <= t + 0.5 && ranges.end(i) >= t) { end = ranges.end(i); break; }
+        end = Math.max(end, ranges.end(i));
+    }
+    player.bufferedTime = Number.isFinite(end) ? end : 0;
+}
+
 function onLoaded() {
     const audio = audioRef.value;
     if (audio && !isNaN(audio.duration)) {
@@ -410,6 +432,7 @@ function onLoaded() {
             audio.play().catch(() => { });
         }
     }
+    syncBuffered();
     pushSmtc();
 }
 

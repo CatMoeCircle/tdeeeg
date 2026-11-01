@@ -44,11 +44,14 @@ const props = withDefaults(defineProps<{
     containerClass?: string;
     /** 是否显示滑动指示器（tabs 小蓝条 / soft 浅蓝胶囊底） */
     showIndicator?: boolean;
+    /** 撑满可用宽度（默认宽度随内容）。对话列表用它和搜索框、顶部卡片对齐 */
+    fullWidth?: boolean;
 }>(), {
     variant: 'tabs',
     tabClass: undefined,
     containerClass: undefined,
     showIndicator: true,
+    fullWidth: false,
 });
 
 const emit = defineEmits<{
@@ -61,9 +64,12 @@ const isSoft = computed(() => props.variant === 'soft');
 /** 需要滑动指示器的变体 */
 const hasSlidingIndicator = computed(() => isTabs.value || isSoft.value);
 
-/** 容器布局类：全部变体共用浮层布局（宽度随内容），调用方附加类再叠浮层外观 */
+/** 容器布局类：全部变体共用浮层布局（默认宽度随内容），调用方附加类再叠浮层外观 */
 const containerClass = computed(() => {
-    const base = 'flex items-center w-fit max-w-[calc(100%-1rem)]';
+    // 外边距由调用方的浮层类提供（mx-1 = 4px），撑满时宽度扣掉两侧留白
+    const base = props.fullWidth
+        ? 'flex items-center w-[calc(100%-0.5rem)]'
+        : 'flex items-center w-fit max-w-[calc(100%-0.5rem)]';
     const gap = props.variant === 'text'
         ? 'gap-3'
         : props.variant === 'soft' ? 'gap-0.5' : 'gap-2';

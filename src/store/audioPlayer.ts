@@ -76,6 +76,23 @@ export type AudioPauseSource = 'user' | 'video';
 export type AudioPauseReason = AudioPauseSource | 'none';
 
 /**
+ * 已缓存（可秒跳）到的秒数，供各处进度条画缓存段：
+ * - 本地完整文件：整首都在磁盘上 → 视为整首已缓存；
+ * - 流式播放（tdstream 边下边播）：取媒体元素已缓冲到的位置（bufferedTime）。
+ * 做成纯函数（而非 store 内的 computed）是为了各处进度条共用同一条规则。
+ */
+export function cachedSeconds(
+    track: AudioTrack | null | undefined,
+    bufferedTime: number,
+): number {
+    if (!track) return 0;
+    const duration = track.duration > 0 ? track.duration : 0;
+    if (track.ready && !track.streaming) return duration;
+    if (!(bufferedTime > 0)) return 0;
+    return duration > 0 ? Math.min(bufferedTime, duration) : bufferedTime;
+}
+
+/**
  * 解析音频的可播放来源：
  * - 已完全下载（path && is_downloading_completed）→ 直接使用本地文件；
  * - 未下载但可流式（有已知大小）→ 使用 tdstream:// 边下边播，无需等完整下载；
@@ -115,6 +132,11 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
     const isPlaying = ref(false);
     const currentTime = ref(0);
     const duration = ref(0);
+    /**
+     * 缓存进度时间点（秒）：流式播放时媒体元素已缓冲到的位置，也就是"已下载、可秒跳"的部分。
+     * 本地完整文件不使用它（整首都在本地，UI 直接按已缓存处理）。
+     */
+    const bufferedTime = ref(0);
     const volume = ref(settings.player.musicVolume);
     const repeatMode = ref<RepeatMode>(settings.player.musicRepeatMode);
     /**
@@ -332,10 +354,12 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         const prevPlaying = isPlaying.value;
         const prevDuration = duration.value;
         const prevTime = currentTime.value;
+        const prevBuffered = bufferedTime.value;
         currentIndex.value = index;
         isPlaying.value = true;
         showEntry.value = true;
         currentTime.value = 0;
+        bufferedTime.value = 0;
         duration.value = track.duration;
         // 自增播放纪元：与 currentIndex 同 tick 合并为一次 audioSrc watch 触发；
         // 同时覆盖「同 index 重播（audioSrc 不变）」的强制重载需求
@@ -346,6 +370,8 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
             isPlaying.value = prevPlaying;
             duration.value = prevDuration;
             currentTime.value = prevTime;
+            // 准备失败时元素仍挂着上一首，缓存区间也一并还原
+            bufferedTime.value = prevBuffered;
         };
 
         // 先确保文件可播放，再继续后续状态：能流式则边下边播，否则完整下载。
@@ -700,6 +726,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         profileAudioUserId.value = null;
         currentTime.value = 0;
         duration.value = 0;
+        bufferedTime.value = 0;
     }
 
     /** 播放指定消息（从外部调用，如 MessageFileContent） */
@@ -1094,6 +1121,7 @@ export const useAudioPlayerStore = defineStore('audioPlayer', () => {
         isPlaying,
         currentTime,
         duration,
+        bufferedTime,
         volume,
         repeatMode,
         playEpoch,

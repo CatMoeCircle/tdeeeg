@@ -88,8 +88,8 @@
         </span>
         <!-- 当前曲目（含暂停）一直显示进度条，切换到其他曲目才恢复作者名；作者行 py-[3px] 补足到与滑块相同的 22px 行高 -->
         <SmoothSlider v-if="isCurrentTrack" :model-value="progressValue" :max-value="displayDuration"
-            :max-overflow="0" :disabled="displayDuration <= 0" @update:model-value="onProgressUpdate"
-            @change="onProgressCommit" />
+            :buffered-value="bufferedValue" :max-overflow="0" :disabled="displayDuration <= 0"
+            @update:model-value="onProgressUpdate" @change="onProgressCommit" />
         <span v-else class="truncate py-[3px] text-xs text-gray-500 dark:text-gray-400">
             <template v-if="uploading">
                 {{ t('content.uploading') }} {{ formatSize(uploadCurrentSize) }} / {{ formatSize(uploadTotalSize) }}
@@ -170,7 +170,7 @@ import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
 import SpoilerSpan from '../spoiler/SpoilerSpan.vue';
 import LoaderIndicator from '../../../../common/LoaderIndicator';
 import SmoothSlider from '../../../../ui/slider/SmoothSlider.vue';
-import { useDownloadStore, type DownloadFileType } from '../../../../../store/downloads';
+import { useDownloadStore, remoteIdOf, type DownloadFileType } from '../../../../../store/downloads';
 import { useUploadStore } from '../../../../../store/upload';
 import { useChatStore } from '../../../../../store/chat';
 import { settings } from '../../../../../store/settings';
@@ -180,7 +180,7 @@ import { requestHashtagSearch } from '../../../../../store/hashtagSearch';
 import { openUsernameMenu, openUserMenuById } from '../../../../../store/usernameMenu';
 import { openContextMenu } from '../../../../../store/contextMenu';
 import { getChatCategory } from '../../../../../utils/autoDownload';
-import { useAudioPlayerStore } from '../../../../../store/audioPlayer';
+import { useAudioPlayerStore, cachedSeconds } from '../../../../../store/audioPlayer';
 import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
 import { isThumbnailImgRenderable, thumbnailToImgSrc } from '../../../../../utils/thumbnail';
 import { fetchItunesCoverForAudio } from '../../../../../utils/itunesCover';
@@ -272,6 +272,11 @@ const dragValue = ref<number | null>(null);
 
 /** 进度条与时间展示值：拖拽时优先用拖拽值 */
 const progressValue = computed(() => dragValue.value ?? displayTime.value);
+
+/** 缓存（已下载、可秒跳）到的秒数：本地完整文件 = 整首，流式播放取缓冲末端 */
+const bufferedValue = computed(() =>
+    isCurrentTrack.value ? cachedSeconds(audioPlayer.currentTrack, audioPlayer.bufferedTime) : 0,
+);
 
 function onProgressUpdate(value: number) {
     dragValue.value = value;
@@ -722,20 +727,31 @@ async function handleDownload(fileId: number) {
     currentFileId.value = fileId;
     downloadingFiles.add(fileId);
 
-    // 获取文件信息用于注册下载
+    // 文件信息：先用消息内 File 兜底，getFile 成功后再用真实大小/身份覆盖
+    const contentFile = getFile();
+    let totalSize = contentFile?.size || contentFile?.expected_size || 0;
+    let remoteId = remoteIdOf(contentFile);
     try {
         const fileInfo = await tdlibSend({ _: 'getFile', file_id: fileId }) as any;
+        totalSize = fileInfo.size || fileInfo.expected_size || totalSize;
+        remoteId = remoteIdOf(fileInfo);
+    } catch (_) { /* getFile 失败也照样登记，避免下载管理器整行缺失 */ }
+
+    try {
         const fileName = props.content._ === 'messageDocument'
             ? props.content.document.file_name
             : props.content._ === 'messageAudio'
                 ? (props.content.audio.title || props.content.audio.file_name)
                 : t('content.fileFallback', { id: fileId });
-        const totalSize = fileInfo.size || fileInfo.expected_size || 0;
         downloadTotalSize.value = totalSize;
         const chatTitle = props.chatId ? getChatTitleById(props.chatId) : '';
         const thumbUrl = getThumbnailDataUrl();
         const fileType = getFileType();
-        await downloadStore.registerDownload(fileId, fileName, chatTitle, totalSize, fileType, thumbUrl, props.chatId, props.messageId, undefined, undefined, undefined, undefined, undefined, undefined, (fileInfo as any)?.remote?.id || undefined);
+        // 登记键必须用稳定身份（remoteIdOf：unique_id 优先）。Rust 端 updateFile 的
+        // 进度/完成态按 unique_id 归键，若这里传编码了 file_reference 的 remote.id，
+        // 会另开一行、永远收不到 updateFile → has_tdlib_update 保持 false，
+        // 下载面板既没有进度也看不到这条（文档下载「没登记」的根因）。
+        await downloadStore.registerDownload(fileId, fileName, chatTitle, totalSize, fileType, thumbUrl, props.chatId, props.messageId, undefined, undefined, undefined, undefined, undefined, undefined, remoteId || undefined);
     } catch (_) { /* ignore */ }
 
     try {

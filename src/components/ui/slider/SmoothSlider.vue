@@ -15,6 +15,9 @@
                 marginBottom: `${-trackBleed}px`,
                 opacity: trackOpacity,
             }">
+                <!-- 已缓存区间（缓冲/下载到的部分）：垫在播放进度下面 -->
+                <div v-if="bufferedPercentage > 0" class="absolute inset-y-0 left-0 rounded-full bg-blue-500/30"
+                    :style="{ width: `${bufferedPercentage}%` }" />
                 <div class="absolute inset-y-0 left-0 rounded-full bg-linear-to-r from-sky-400 to-blue-600"
                     :style="{ width: `${percentage}%` }" />
             </div>
@@ -57,6 +60,11 @@ interface Props {
      * 默认 50；放在窄容器里时可调小，避免拉伸后越出容器边界。
      */
     maxOverflow?: number;
+    /**
+     * 已缓存（可秒跳）到的值，与 modelValue 同单位。
+     * 大于 0 时在轨道上多画一段浅色缓存区，播放进度覆盖其上。
+     */
+    bufferedValue?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -67,6 +75,7 @@ const props = withDefaults(defineProps<Props>(), {
     isStepped: false,
     disabled: false,
     maxOverflow: MAX_OVERFLOW,
+    bufferedValue: 0,
 });
 
 const emit = defineEmits<{
@@ -103,6 +112,13 @@ watch(() => props.modelValue, next => {
 const percentage = computed(() => {
     if (props.maxValue <= props.minValue) return 0;
     return clamp(((value.value - props.minValue) / range.value) * 100, 0, 100);
+});
+
+/** 缓存区百分比：不短于播放进度（播放头越过缓存区时仍显示到播放头） */
+const bufferedPercentage = computed(() => {
+    if (props.maxValue <= props.minValue || props.bufferedValue <= 0) return 0;
+    const raw = ((props.bufferedValue - props.minValue) / range.value) * 100;
+    return clamp(Math.max(raw, percentage.value), 0, 100);
 });
 
 /** 加粗动画进度 0~1，用于插值轨道厚度与透明度 */
