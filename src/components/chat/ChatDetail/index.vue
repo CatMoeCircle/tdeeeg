@@ -71,6 +71,7 @@
                                         class="block w-9 h-9 rounded-full overflow-hidden focus:outline-none"
                                         :class="{ 'cursor-pointer': true }"
                                         @click.stop="openSenderProfile(item.messages[0])"
+                                        @contextmenu="onSenderAvatarContextMenu($event, item.messages[0])"
                                         :disabled="!canOpenSenderProfile(item.messages[0])">
                                         <Avatar :photo="getDisplaySenderPhoto(item.messages[0])"
                                             :title="getDisplaySenderName(item.messages[0])"
@@ -202,6 +203,7 @@
                                     <button type="button"
                                         class="block w-9 h-9 rounded-full overflow-hidden focus:outline-none"
                                         @click.stop="openSenderProfile(item.msg)"
+                                        @contextmenu="onSenderAvatarContextMenu($event, item.msg)"
                                         :disabled="!canOpenSenderProfile(item.msg)">
                                         <Avatar :photo="getDisplaySenderPhoto(item.msg)"
                                             :title="getDisplaySenderName(item.msg)"
@@ -720,6 +722,8 @@
             :isPremium="userProfile?.is_premium ?? false" :fullEmoji="reactionPickerFullEmoji"
             @select="onReactionPickerSelect" @select-emoji="onReactionPickerSelectEmoji"
             @select-custom-emoji="onReactionPickerSelectCustomEmoji" @close="closeReactionPicker" />
+        <!-- ===== 右击消息头像弹出的资料小卡片（Teleport 到 body） ===== -->
+        <ChatSenderProfileCard />
     </div>
 </template>
 <script setup lang="ts">
@@ -735,6 +739,8 @@ import { aiStripExpanded as aiRuntimeStripExpanded, turnState } from '../../../s
 import StickerPanel from './stickerPanel/StickerPanel.vue';
 import { stickerPanelState, openStickerPanel as openStickerPanelOf, closeStickerPanel as closeStickerPanelOf } from './stickerPanel/types';
 import Avatar from '../avatar.vue';
+import ChatSenderProfileCard from '../ChatSenderProfileCard.vue';
+import { openSenderCard } from '../../../store/senderCard';
 import MessageContent from './MessageContent/index.vue';
 import MessageStatus from './MessageContent/content/MessageStatus.vue';
 import MessageAlbum from './MessageContent/content/MessageAlbum.vue';
@@ -794,6 +800,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { useChatWallpaper } from '../../../composables/useChatWallpaper';
 import ChatBackgroundLayers from '../ChatBackgroundLayers.vue';
 import { useCommandInsert, clearPendingCommand } from '../../../store/commandInsert';
+import { useMentionInsert, clearPendingMention } from '../../../store/mentionInsert';
 import { useHashtagSearch, clearPendingHashtag } from '../../../store/hashtagSearch';
 import { useCustomEmoji } from '../../../store/customEmoji';
 import { getMessagePlainText, getMessageFormattedText } from '../../../utils/messageText';
@@ -2324,6 +2331,45 @@ watch(pendingCommand, (cmd) => {
         ? `${cmd} ${messageInput.value}`
         : cmd;
     clearPendingCommand();
+});
+
+/**
+ * 消息头像资料小卡片点「@对方」→ 把 @提及实体插入输入框。
+ * - 卡片只在当前对话内弹出，不需要跨对话跳转；
+ * - AI 输入模式下没有 MessageInput：先切回普通输入框再插入；
+ * - 输入框由 v-else-if="canSend" 控制（只读频道 / 禁言时不渲染）：短暂重试，
+ *   等不到就丢弃，避免下次打开输入框时突然插入。
+ */
+const { pendingMention } = useMentionInsert();
+/** 待插入提及的有效期：超过则视为过期（例如目标对话不可发送） */
+const PENDING_MENTION_TTL_MS = 5000;
+let mentionAttempt = 0;
+async function consumePendingMention() {
+    const m = pendingMention.value;
+    if (!m) return;
+    if (Date.now() - m.at > PENDING_MENTION_TTL_MS) {
+        if (pendingMention.value === m) clearPendingMention();
+        return;
+    }
+    const attempt = ++mentionAttempt;
+    if (settings.ai.input === 'ai') settings.ai.input = 'message';
+    for (let i = 0; i < 30; i++) {
+        await nextTick();
+        if (attempt !== mentionAttempt || !pendingMention.value) return;
+        const input = messageInputRef.value;
+        if (input) {
+            clearPendingMention();
+            input.insertMention({ userId: m.userId, username: m.username, text: m.text });
+            focusMessageInput();
+            return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    // 等不到输入框（禁言 / 频道只读 / 已注销）：丢弃
+    if (pendingMention.value === m) clearPendingMention();
+}
+watch(() => pendingMention.value?.seq, () => {
+    if (pendingMention.value) void consumePendingMention();
 });
 
 // 点击 #标签 → 激活聊天内搜索并预填标签
@@ -6303,6 +6349,22 @@ async function openSenderProfile(msg: message) {
     } else if (sid._ === 'messageSenderChat') {
         router.push({ name: 'chat-profile', params: { id: String(sid.chat_id) } });
     }
+}
+
+/**
+ * 右击消息头像 → 在头像外侧弹出紧凑的资料小卡片（头像 + 名称/状态 + @用户名/简介 +
+ * 「@对方」「查看主页」）。左键仍走原逻辑（打开资料页）；卡片本身不弹右键菜单。
+ * 消息已撤回/发送者缺失时不弹（拿不到 sender_id 就无法定位对象）。
+ */
+function onSenderAvatarContextMenu(e: MouseEvent, msg: message) {
+    const sid = msg.sender_id;
+    if (!sid) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const el = e.currentTarget as HTMLElement | null;
+    const rect = el?.getBoundingClientRect();
+    // 卡片贴在头像右侧，与头像顶对齐；越界由卡片自身夹紧到视口内
+    openSenderCard(rect ? rect.right + 6 : e.clientX, rect ? rect.top : e.clientY, sid, el);
 }
 
 const canNavigateForward = (forwardInfo: messageForwardInfo) =>

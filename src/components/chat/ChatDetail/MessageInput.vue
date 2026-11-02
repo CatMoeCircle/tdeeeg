@@ -178,7 +178,46 @@ function focusInput() {
     }
     syncPreviewScroll();
 }
-defineExpose({ setEntities, focusInput });
+/**
+ * 在光标处插入一条 @提及（供对话列表头像小卡片的「@对方」调用）。
+ *
+ * 实体选择与 Telegram 一致：
+ *   - 有 user_id（用户/密聊对方）→ textEntityTypeMentionName，对方没有公开用户名也能精确 @ 到本人；
+ *   - 仅有 username（群组/频道）→ textEntityTypeMention，按 @用户名 解析。
+ * 插入后追加一个空格，方便继续输入。
+ */
+function insertMention(target: { userId?: number; username?: string; text: string }) {
+    const el = textareaRef.value;
+    const mentionText = target.text.trim();
+    if (!el || !mentionText) return;
+    const old = localValue.value;
+    // 光标在输入框里 → 插到光标处；否则接在末尾
+    const at = document.activeElement === el
+        ? Math.min(el.selectionStart ?? old.length, old.length)
+        : old.length;
+    const insert = `${mentionText} `;
+    const next = old.slice(0, at) + insert + old.slice(at);
+
+    // 先按纯文本改动平移既有实体，再补上这条提及实体
+    entities.value = shiftEntitiesAfterTextChange(entities.value, old, next);
+    const mentionEntity = target.userId !== undefined
+        ? { _: 'textEntity', offset: at, length: mentionText.length, type: { _: 'textEntityTypeMentionName', user_id: target.userId } }
+        : { _: 'textEntity', offset: at, length: mentionText.length, type: { _: 'textEntityTypeMention' } };
+    entities.value = [...entities.value, mentionEntity as textEntity];
+    localValue.value = next;
+    lastText = next;
+    // 等预览层 / textarea 同步后再落光标
+    void nextTick(() => {
+        const ta = textareaRef.value;
+        if (!ta) return;
+        ta.focus();
+        const caret = at + insert.length;
+        ta.setSelectionRange(caret, caret);
+        syncPreviewScroll();
+    });
+}
+
+defineExpose({ setEntities, focusInput, insertMention });
 
 const attachmentStore = useAttachmentStore();
 const localValue = ref(props.modelValue || '');
