@@ -22,6 +22,7 @@
             :style="[topPaddingClass, tagBarMessagePadStyle, messagesContainerStyle, { paddingBottom: messagesBottomPad }]"
             @scroll.passive="onScroll"
             @pointerdown="onMessagesPointerDown"
+            @contextmenu.capture="onMessagesContextMenuCapture"
             @click.capture="onMessagesClickCapture">
 
             <!-- 消息列表容器：mt-auto 将消息推到底部 -->
@@ -787,6 +788,7 @@ import { useCommandInsert, clearPendingCommand } from '../../../store/commandIns
 import { useHashtagSearch, clearPendingHashtag } from '../../../store/hashtagSearch';
 import { useCustomEmoji } from '../../../store/customEmoji';
 import { getMessagePlainText, getMessageFormattedText } from '../../../utils/messageText';
+import { isTouchTextSelection } from '../../../utils/inputModality';
 import { applyTerminalFileToMessages, isTerminalFileUpdate } from '../../../utils/messageFileSnapshot';
 import {
     withViewportLock,
@@ -2095,6 +2097,20 @@ function resetDragSelectState() {
 function onMessagesClickCapture(e: MouseEvent) {
     if (performance.now() > suppressClickUntil) return;
     suppressClickUntil = 0;
+    e.preventDefault();
+    e.stopPropagation();
+}
+
+/**
+ * 消息区右键捕获：触控长按正文时只做「选词」，不弹右键菜单。
+ *
+ * 触控长按会派发 contextmenu（与鼠标右键同事件），若照旧打开消息菜单，
+ * 菜单会盖住刚刚被系统选中的文字和选择手柄，导致无法继续调整选区。
+ * 这里在捕获阶段拦下：跳过消息行的 v-context-menu 指令与“点击外部关闭”逻辑，
+ * 手势完全留给原生文本选择；鼠标右键与长按非正文区域（如媒体）不受影响。
+ */
+function onMessagesContextMenuCapture(e: MouseEvent) {
+    if (!isTouchTextSelection(e)) return;
     e.preventDefault();
     e.stopPropagation();
 }

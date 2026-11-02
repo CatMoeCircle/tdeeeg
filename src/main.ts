@@ -21,6 +21,7 @@ import { initTlottie } from "./utils/tlottiePreload";
 import { installCrashGuard, showBootstrapFailure } from "./utils/crashGuard";
 import { applyTdlibSystemParams } from "./utils/tdlibParams";
 import { initStoryRing } from "./store/storyRing";
+import { isTouchTextSelection } from "./utils/inputModality";
 
 // 尽早安装全局错误/白屏诊断（不依赖 Vue mount）
 installCrashGuard();
@@ -36,6 +37,12 @@ window.addEventListener("contextmenu", (e) => {
     // 关闭上一次打开的菜单
     closeContextMenu();
     if (!target) return;
+    // 触控长按正文只做选词，不弹任何菜单：菜单会盖住刚选中的文字与选择手柄。
+    // 这里兜住没有 v-context-menu 的正文段落（普通选择 / 复制粘贴交给系统）。
+    if (isTouchTextSelection(e)) {
+        e.preventDefault();
+        return;
+    }
     const tag = target.tagName?.toLowerCase();
     // 输入类元素保留原生菜单
     if (

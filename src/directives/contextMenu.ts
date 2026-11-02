@@ -1,6 +1,7 @@
 import type { Directive, DirectiveBinding } from "vue";
 import { openContextMenu } from "../store/contextMenu";
 import type { ContextMenuItem, ContextMenuReactionRow } from "../components/contextMenu/types";
+import { isTouchTextSelection } from "../utils/inputModality";
 
 /**
  * 右键菜单指令：v-context-menu
@@ -44,6 +45,9 @@ function resolveReactionRow(value: ContextMenuValue): ContextMenuReactionRow | n
 }
 
 async function openMenu(el: HTMLElement, binding: DirectiveBinding<ContextMenuValue>, e: MouseEvent) {
+    // 触控长按正文：系统会同时选中文字并派发 contextmenu。此时弹出菜单会盖住
+    // 选区与选择手柄，等于把「长按选词」变成「长按弹菜单」，因此放行给文本选择。
+    if (isTouchTextSelection(e)) return;
     e.preventDefault();
     e.stopPropagation();
 
