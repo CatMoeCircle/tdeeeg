@@ -804,7 +804,7 @@ import { useMentionInsert, clearPendingMention } from '../../../store/mentionIns
 import { useHashtagSearch, clearPendingHashtag } from '../../../store/hashtagSearch';
 import { useCustomEmoji } from '../../../store/customEmoji';
 import { getMessagePlainText, getMessageFormattedText } from '../../../utils/messageText';
-import { isTouchInput, isTouchTextSelection } from '../../../utils/inputModality';
+import { isTouchTextSelection } from '../../../utils/inputModality';
 import { applyTerminalFileToMessages, isTerminalFileUpdate } from '../../../utils/messageFileSnapshot';
 import {
     withViewportLock,
@@ -2001,10 +2001,22 @@ let dragScrollRaf = 0;
 /** 拖动结束后抑制紧随其后的一次 click，避免把起点消息又切换一次 */
 let suppressClickUntil = 0;
 
-/** 触控长按选词时，按下点所在的正文容器：选区只允许在这条正文里扩展 */
-let touchSelectAnchorBox: Element | null = null;
+/**
+ * 文本选择锚点：本次选择起手落在哪条正文（`.msg-selectable-text`）里，
+ * 选区就只允许在这条正文里扩展。鼠标拖选与触控长按共用。
+ *
+ * 生命周期跟随「一次选择手势」：按下正文时记录，选区被收成空选区时清掉。
+ */
+let textSelectAnchorBox: Element | null = null;
 /** 夹紧选区时的重入锁：写入选区会再次触发 selectionchange */
 let clampingSelection = false;
+/**
+ * 指针是否按在消息区里（按下→抬起之间的手势窗口）。
+ *
+ * 鼠标按下时原生选区会先塌缩到落点并触发一次 selectionchange：那只是「落光标」，
+ * 不是选择结束。手势窗口内必须保留锚点，否则紧接着的拖选没有边界可依。
+ */
+let textSelectPointerDown = false;
 
 /** 从屏幕坐标解析鼠标下消息行包含的消息 id（相册行可能有多条） */
 function resolveRowMsgIds(x: number, y: number): number[] {
@@ -2031,11 +2043,18 @@ function onMessagesPointerDown(e: PointerEvent) {
     dragStartMsgId = null;
     // 新的按下即新的手势：上一次拖动遗留的 click 抑制可以作废
     suppressClickUntil = 0;
-    // 上一次长按的正文锚点也随之作废（新的长按会重新记录）
-    touchSelectAnchorBox = null;
+    // 上一次选择的正文锚点也随之作废（本次按下若落在正文上会重新记录）
+    textSelectAnchorBox = null;
+    // 进入「按下→抬起」的手势窗口：这段时间里的选区塌缩不代表选择结束
+    textSelectPointerDown = true;
     if (e.button !== 0) return;
     const target = e.target as HTMLElement | null;
     if (!target) return;
+    // 鼠标/触控笔按在正文上：记下这段正文作为本次文本选择的边界。
+    // 必须在下面的提前 return 之前记录——纯文本拖动不会进入多选分支。
+    if ((e.pointerType || 'mouse') !== 'touch') {
+        textSelectAnchorBox = target.closest('.msg-selectable-text');
+    }
     // 行内按钮/链接（头像、发送者名、相册圆点、内联键盘等）保留自身行为
     if (target.closest('button, a, input, textarea, select, [role="button"], [data-no-drag-select]')) return;
     const row = target.closest('[data-msg-id]') as HTMLElement | null;
@@ -2114,6 +2133,8 @@ function onMessagesPointerMove(e: PointerEvent) {
 
 /** 指针抬起 / 取消：结束拖动，并吞掉紧随其后的一次 click */
 function onMessagesPointerUp(e: PointerEvent) {
+    // 手势窗口先关掉：之后再出现的塌缩才是真正的「选择结束」
+    textSelectPointerDown = false;
     if (dragPointerId === null || e.pointerId !== dragPointerId) return;
     const wasActive = dragActive;
     resetDragSelectState();
@@ -2129,6 +2150,7 @@ function resetDragSelectState() {
     dragPointerType = 'mouse';
     dragActive = false;
     dragStartMsgId = null;
+    textSelectPointerDown = false;
     endDragSelect();
     if (dragScrollRaf) {
         cancelAnimationFrame(dragScrollRaf);
@@ -2154,33 +2176,45 @@ function onMessagesClickCapture(e: MouseEvent) {
  */
 function onMessagesContextMenuCapture(e: MouseEvent) {
     if (!isTouchTextSelection(e)) return;
-    // 记下长按起手的那条正文：随后的拖动选区只允许在这条正文里扩展
+    // 记下起手的那条正文：随后的拖动选区只允许在这条正文里扩展
     const target = e.target as HTMLElement | null;
-    touchSelectAnchorBox = target?.closest?.('.msg-selectable-text') ?? null;
+    textSelectAnchorBox = target?.closest?.('.msg-selectable-text') ?? null;
     e.preventDefault();
     e.stopPropagation();
 }
 
 /**
- * 触控长按选词时把选区夹在当前这条消息的正文里。
+ * 把文本选区夹在当前这条消息的正文里。
  *
- * 原生文本选择在触控下会把整棵可选中树看成一个整体：手指按住第一条消息持续
- * 拖动，选区会一路蔓延到相邻消息，甚至在消息之间滚动复制到别处。这里在
- * `selectionchange` 里检查选区两端，一旦发现端点在别的消息就收回到按下点
- * 所在的那条正文里。
+ * 原生文本选择会把整棵可选中树看成一个整体：从一条消息按下往外拖（鼠标）或
+ * 长按后拖动（触控），选区会一路蔓延到相邻消息里去。这里在 `selectionchange`
+ * 里检查选区两端，一旦发现端点在锚点正文之外就收回到该正文的边界内。
  *
- * 只对触控生效：鼠标拖选正文（横向划过相邻气泡）是桌面端的正常行为，不该被
- * 打断；而且鼠标的拖动选择走的是多选手势，两套逻辑互不干扰。
+ * 锚点取「选择起手的那条正文」——鼠标在 pointerdown 记录、触控在长按
+ * contextmenu 记录，两者共用同一套夹紧逻辑。锚点的生命周期跟着手势走：
+ * 只有指针已抬起时的塌缩、键盘操作、新的按下或卸载才会让它失效
+ * （见 textSelectPointerDown）。
  */
 function clampTextSelectionToBubble() {
-    if (!isTouchInput() || clampingSelection) return;
-    const anchorBox = touchSelectAnchorBox;
+    if (clampingSelection) return;
+    const anchorBox = textSelectAnchorBox;
     if (!anchorBox || !anchorBox.isConnected) return;
     const sel = window.getSelection();
-    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
+    // 选区被收空（点击空白 / 选择结束）：本次手势到此为止，锚点作废。
+    // 但指针还按着时的塌缩不算结束——那是鼠标按下落光标的那一次（见 textSelectPointerDown），
+    // 若在这里清掉锚点，随后拖出来的选区就没有边界可依，会一路蔓延到相邻消息。
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+        if (!sel || sel.isCollapsed) {
+            if (!textSelectPointerDown) textSelectAnchorBox = null;
+        }
+        return;
+    }
     const range = sel.getRangeAt(0);
-    if (range.collapsed) return;
-    /** 端点是否已经落在锚点正文的外面 */
+    if (range.collapsed) {
+        if (!textSelectPointerDown) textSelectAnchorBox = null;
+        return;
+    }
+    /** 端点是否落在锚点正文内 */
     const insideAnchor = (node: Node | null): boolean => {
         if (!node) return false;
         const el = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
@@ -2189,8 +2223,7 @@ function clampTextSelectionToBubble() {
     if (insideAnchor(range.startContainer) && insideAnchor(range.endContainer)) return;
     // 把越界的那一端收回到锚点正文的边界内（而不是沿用越界端点，否则选区依旧蔓延）
     const clamped = document.createRange();
-    const startInside = insideAnchor(range.startContainer);
-    if (startInside) {
+    if (insideAnchor(range.startContainer)) {
         clamped.setStart(range.startContainer, range.startOffset);
         clamped.setEnd(anchorBox, anchorBox.childNodes.length);
     } else {
@@ -2211,6 +2244,16 @@ function clampTextSelectionToBubble() {
     } finally {
         clampingSelection = false;
     }
+}
+
+/**
+ * 键盘手势（Ctrl+A、Shift+方向键等）不属于指针拖选：丢掉锚点，
+ * 没必要再把选区夹回上一条正文。新一次按下会重新记录锚点。
+ */
+function onTextSelectKeyClear() {
+    // 拖动途中按键不改变手势归属
+    if (textSelectPointerDown) return;
+    textSelectAnchorBox = null;
 }
 
 /** 边缘自动滚动：指针停在列表上下边缘附近时持续滚动并同步更新区间 */
@@ -2676,8 +2719,10 @@ onMounted(async () => {
     window.addEventListener('pointerup', onMessagesPointerUp);
     window.addEventListener('pointercancel', onMessagesPointerUp);
     window.addEventListener('blur', resetDragSelectState);
-    // 触控长按选词：把选区夹在当前这条消息的正文里，不让它蔓延到相邻消息
+    // 触控长按选词 / 鼠标拖选：把选区夹在当前这条消息的正文里，不让它蔓延到相邻消息
     document.addEventListener('selectionchange', clampTextSelectionToBubble);
+    // 键盘操作（Ctrl+A 等）不再沿用上一次拖选的锚点
+    window.addEventListener('keydown', onTextSelectKeyClear);
 });
 
 // 浏览位置必须在 DOM 卸载前冲刷：onUnmounted 时 messagesContainer 已是 null，flush 会直接 return
@@ -2704,6 +2749,7 @@ onUnmounted(() => {
     window.removeEventListener('pointercancel', onMessagesPointerUp);
     window.removeEventListener('blur', resetDragSelectState);
     document.removeEventListener('selectionchange', clampTextSelectionToBubble);
+    window.removeEventListener('keydown', onTextSelectKeyClear);
     // 面板收起：聊天内跳转栈与入口页作废，下次打开聊天重新开始
     chatJumpStack.value = [];
     chatEntryPath.value = null;
@@ -7154,8 +7200,8 @@ async function handleScrollToBottom() {
 
 /* 正文 / 媒体描述（MessageTextContent 根 <p> 上的专用类）及其内部链接、代码等
    显式可选中复制。
-   注意：单条消息内限制选区（不让长按选词蔓延到相邻消息）由 JS 的
-   selectionchange 夹紧实现，见 lockTextSelectionToBubble——user-select 没有
+   注意：单条消息内限制选区（不让拖选 / 长按选词蔓延到相邻消息）由 JS 的
+   selectionchange 夹紧实现，见 clampTextSelectionToBubble——user-select 没有
    可靠的「只在本元素内选择」取值（contain 在 Chromium 上未实现，写上去会被
    丢弃并回退成不可选）。 */
 .messages-scroll [data-bubble-msg-id] .msg-selectable-text,
