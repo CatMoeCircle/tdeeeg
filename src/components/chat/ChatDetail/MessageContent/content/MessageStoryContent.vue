@@ -10,7 +10,8 @@
     <div class="message-story relative w-[176px] max-w-full">
         <!-- 回复预览（与媒体消息一致：放在媒体容器内，避免撑宽气泡） -->
         <MessageReply v-if="replyTo" :replyTo="replyTo" :isSelf="isSelf" :chatId="chatId" :messageList="messageList"
-            :accentColorId="accentColorId" @jump="(id) => emit('jumpToMessage', id)" />
+            :accentColorId="accentColorId"
+            @jump="(id, cid, quote) => emit('jumpToMessage', id, cid, quote)" />
 
         <!-- 头部：已转发的动态 + 发布者头像/对话名称 -->
         <div class="px-2 pt-1.5 pb-1">
@@ -95,6 +96,7 @@ import {
     getReactiveChat,
 } from '../../../../../utils/senderInfo';
 import { openStoryViewer } from '../../../../../store/storyViewer';
+import type { ReplyQuoteRef } from '../../../../../store/replyQuote';
 
 /**
  * 转发的动态（messageStory）。内容只有 story_poster_chat_id + story_id，
@@ -115,7 +117,8 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    jumpToMessage: [messageId: number];
+    /** quote：回复栏带出的引用片段，父级跳转后据此在原消息里框选 */
+    jumpToMessage: [messageId: number, chatId?: number, quote?: ReplyQuoteRef];
 }>();
 
 const { t } = useI18n();

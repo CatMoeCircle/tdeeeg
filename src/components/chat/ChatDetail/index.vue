@@ -51,6 +51,7 @@
                             'animate-message-in': isNewMessage(item.messages[0].id),
                             'msg-leaving': leavingMessageIds.has(item.messages[0].id),
                             'animate-flash-highlight': highlightedMessageId === item.messages[0].id,
+                            'msg-quote-box': quoteBoxRowId === item.messages[0].id,
                             'msg-selected-row': selectionMode && isAlbumSelected(item.messages),
                             'msg-jump-target': jumpTargetRowId === item.messages[0].id,
                         }" v-context-menu="selectionMode ? null : makeMsgMenu(item.messages[0])"
@@ -172,6 +173,7 @@
                             'animate-message-in': isNewMessage(item.msg.id),
                             'msg-leaving': leavingMessageIds.has(item.msg.id),
                             'animate-flash-highlight': highlightedMessageId === item.msg.id,
+                            'msg-quote-box': quoteBoxRowId === item.msg.id,
                             'msg-jump-target': jumpTargetRowId === item.msg.id,
                             'relative': selectionMode && !isServiceMessage(item.msg),
                             'msg-selected-row': selectionMode && !isServiceMessage(item.msg) && isMsgSelected(item.msg.id)
@@ -781,6 +783,13 @@ import { onTdlibUpdates } from "../../../store/tdlibBus";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { settings } from '../../../store/settings';
 import { canSummarizeMessage } from '../../../store/summary';
+import {
+    clearReplyQuoteFocus,
+    getReplyQuoteFocusFor,
+    holdReplyQuoteFocus,
+    requestReplyQuoteFocus,
+    type ReplyQuoteRef,
+} from '../../../store/replyQuote';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useChatWallpaper } from '../../../composables/useChatWallpaper';
 import ChatBackgroundLayers from '../ChatBackgroundLayers.vue';
@@ -3108,6 +3117,21 @@ const highlightedMessageId = ref<number | null>(null);
 let highlightTimer: number | null = null;
 
 /**
+ * 「引用回复」跳转时框选原消息的行 id：先给整条消息一个外框，再收缩到被引用的那一段，
+ * 停留片刻后整体淡出（见 CSS 的 .msg-quote-box-*）。与 highlightedMessageId 并存：
+ * 顶层仍会给整条消息一个淡出的底色，这里只负责那个会收拢的框。
+ */
+const quoteBoxRowId = ref<number | null>(null);
+let quoteBoxTimer: number | null = null;
+/**
+ * 收框动画总时长：与 CSS .msg-quote-box::after 的 2.4s、
+ * store/replyQuote 的聚焦保持时长、正文 .msg-quote-focus 的底色淡出保持一致。
+ */
+const QUOTE_BOX_CLEAR_MS = 2400;
+/** 收拢后的框比目标文字外扩的小间距（px），避免贴住字形 */
+const QUOTE_BOX_PAD = 3;
+
+/**
  * 跳转目标所在的消息行（相册取第一条的 data-msg-id）。
  * content-visibility:auto 会让尚未渲染的目标行只按 88px 估算高度，
  * 高个消息（大图 / 长文 / 相册）因此量不准、落点偏。跳转期间仅对目标行
@@ -3156,6 +3180,90 @@ function flashMessage(messageId: number) {
         highlightedMessageId.value = null;
         highlightTimer = null;
     }, 2000);
+}
+
+/** 清掉引用框选的外框（计时器 + 行标记） */
+function clearQuoteBox() {
+    if (quoteBoxTimer !== null) {
+        window.clearTimeout(quoteBoxTimer);
+        quoteBoxTimer = null;
+    }
+    const el = messagesContainer.value;
+    const rowId = quoteBoxRowId.value;
+    if (el && rowId != null) {
+        // 收框几何按行写在内联变量上，行被复用前必须擦掉，否则会框到别的消息
+        const row = el.querySelector<HTMLElement>(`[data-msg-id="${rowId}"]`);
+        if (row) {
+            row.style.removeProperty('--qb-in-top');
+            row.style.removeProperty('--qb-in-bottom');
+            row.style.removeProperty('--qb-in-left');
+            row.style.removeProperty('--qb-in-right');
+        }
+    }
+    quoteBoxRowId.value = null;
+}
+
+/**
+ * 给原消息行套上「框选聚焦」外框：整条消息先出现大框，再收缩到被引用的那一段，
+ * 停留片刻后淡出。没有可用的引用片段时什么都不做（退回整条消息的普通高亮）。
+ */
+function showQuoteBox(messageId: number, list: message[] = messages.value) {
+    clearQuoteBox();
+    quoteBoxRowId.value = resolveRenderedMessageId(messageId, list);
+    // 文字底色与外框同时结束：这里才是动画真正的起点
+    holdReplyQuoteFocus(QUOTE_BOX_CLEAR_MS);
+    quoteBoxTimer = window.setTimeout(() => {
+        quoteBoxTimer = null;
+        quoteBoxRowId.value = null;
+    }, QUOTE_BOX_CLEAR_MS);
+    // 等目标行挂载、正文框出色块后再量收缩目标；还没就绪就下一帧再试（最多几帧）
+    void applyQuoteBoxGeometry(quoteBoxRowId.value, 4);
+}
+
+/**
+ * 把「收拢后」的框写进目标行的 CSS 变量（--qb-in-*）。
+ * 直接用行盒与目标色块的几何差：换行导致的多行片段会包成外接矩形，
+ * 长消息里框会准确停在被引用的那一段上。
+ */
+async function applyQuoteBoxGeometry(rowId: number | null, retries: number): Promise<void> {
+    const el = messagesContainer.value;
+    if (rowId == null || !el) return;
+    const attempt = (left: number) => {
+        if (quoteBoxRowId.value !== rowId) return;
+        const row = el.querySelector<HTMLElement>(`[data-msg-id="${rowId}"]`);
+        const marks = row?.querySelectorAll<HTMLElement>('.msg-quote-focus') ?? null;
+        let rect: { top: number; bottom: number; left: number; right: number } | null = null;
+        if (row && marks && marks.length > 0) {
+            let top = Number.POSITIVE_INFINITY;
+            let bottom = Number.NEGATIVE_INFINITY;
+            let left = Number.POSITIVE_INFINITY;
+            let right = Number.NEGATIVE_INFINITY;
+            for (const mark of marks) {
+                for (const r of mark.getClientRects()) {
+                    if (r.width === 0 && r.height === 0) continue;
+                    top = Math.min(top, r.top);
+                    bottom = Math.max(bottom, r.bottom);
+                    left = Math.min(left, r.left);
+                    right = Math.max(right, r.right);
+                }
+            }
+            if (Number.isFinite(top)) rect = { top, bottom, left, right };
+        }
+        if (!row || !rect) {
+            // 色块还没渲染出来（正文懒挂载 / 译文替换中）：下一帧重试，最终放弃只用大框
+            if (left > 0) requestAnimationFrame(() => attempt(left - 1));
+            return;
+        }
+        const rowRect = row.getBoundingClientRect();
+        const pad = QUOTE_BOX_PAD;
+        const clamp = (v: number) => Math.round(Math.max(0, v));
+        row.style.setProperty('--qb-in-top', `${clamp(rect.top - rowRect.top - pad)}px`);
+        row.style.setProperty('--qb-in-bottom', `${clamp(rowRect.bottom - rect.bottom - pad)}px`);
+        row.style.setProperty('--qb-in-left', `${clamp(rect.left - rowRect.left - pad)}px`);
+        row.style.setProperty('--qb-in-right', `${clamp(rowRect.right - rect.right - pad)}px`);
+    };
+    await nextTick();
+    attempt(retries);
 }
 
 function clearMessageHighlight() {
@@ -3448,6 +3556,12 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
         ]);
 
         if (requestedMessageId) {
+            // 跨会话「引用回复」：先把待框选的片段挂上，后续落点才能对准那一段
+            if (pendingQuoteFocus.value) {
+                const quote = pendingQuoteFocus.value;
+                pendingQuoteFocus.value = null;
+                applyReplyQuoteFocus(requestedMessageId, currentId, quote);
+            }
             const jumped = await jumpToMessageInternal(requestedMessageId, gen);
             if (!isGenerationValid(gen)) return;
             if (jumped) {
@@ -3464,7 +3578,9 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
                 await nextTick();
                 cancelJumpSettle();
                 scrollToMessageImmediate(requestedMessageId);
-                flashMessage(requestedMessageId);
+                // 引用跳转只用会收拢的框；普通跳转仍用整条消息的闪烁高亮
+                if (getReplyQuoteFocusFor(requestedMessageId, currentId)) showQuoteBox(requestedMessageId);
+                else flashMessage(requestedMessageId);
                 listRevealed.value = true;
                 isReady.value = true;
                 // 首屏路径的最终定位同样做一次落点兜底（目标行已按真实高度布局）
@@ -4488,6 +4604,36 @@ function computeMessageScrollTop(messageId: number): number | null {
     return Math.max(0, Math.min(Math.round(desired), max));
 }
 
+/**
+ * 计算「被引用的那一段落在视口 ~35%」的目标 scrollTop（纯计算，不写入）。
+ * 片段比整条消息小得多，用整条消息的 45% 居中会把长消息里的引用段落顶出视口；
+ * 这里直接对齐片段本身，并夹在「顶不高于顶部栈 / 底不高于视口下沿」之间。
+ * 片段尚未渲染（正文懒挂载、译文替换中）时返回 null，调用方回退到整条消息定位。
+ */
+function computeQuoteFocusScrollTop(messageId: number): number | null {
+    const el = messagesContainer.value;
+    if (!el) return null;
+    const rect = measureQuoteFocusRect(messageId);
+    if (!rect) return null;
+
+    const containerRect = el.getBoundingClientRect();
+    const paddingTop = parseFloat(getComputedStyle(el).paddingTop) || 0;
+    const viewport = el.clientHeight;
+    const height = Math.max(1, rect.bottom - rect.top);
+
+    // 片段高度超过可用视口时退化为顶对齐，避免上下都露不全
+    const usable = viewport - paddingTop;
+    let desired: number;
+    if (height >= usable) {
+        desired = el.scrollTop + (rect.top - containerRect.top) - paddingTop;
+    } else {
+        const target = paddingTop + Math.max(0, (usable - height) * 0.35);
+        desired = el.scrollTop + (rect.top - containerRect.top) - target;
+    }
+    const max = Math.max(0, el.scrollHeight - el.clientHeight);
+    return Math.max(0, Math.min(Math.round(desired), max));
+}
+
 /** 计算「锚点顶恢复到保存时 pixelFromTop」的目标 scrollTop（纯计算，不写入） */
 function computeBrowseScrollTop(el: HTMLElement, anchorId: number, pixelFromTop: number): number | null {
     const msgEl = findRenderedMsgEl(el, anchorId);
@@ -4639,9 +4785,12 @@ async function scrollToMessageAnimated(
         await new Promise<void>(r => requestAnimationFrame(() => r()));
         return scrollToMessageImmediate(messageId) ? 'done' : 'missing';
     }
-    const compute = restore
+    const base = restore
         ? () => computeBrowseScrollTop(el, messageId, restore.pixelFromTop)
         : () => computeMessageScrollTop(messageId);
+    const focusChatId = chatId.value;
+    const activeFocus = getReplyQuoteFocusFor(messageId, focusChatId);
+    const compute = () => (activeFocus ? computeQuoteFocusScrollTop(messageId) : null) ?? base();
     if (compute() === null) {
         // 布局未稳定：rAF 重试一次再退瞬时
         await new Promise<void>(r => requestAnimationFrame(() => r()));
@@ -4679,6 +4828,9 @@ function settleJumpTargetPosition(
     const compute = restore
         ? () => computeBrowseScrollTop(el, messageId, restore.pixelFromTop)
         : () => computeMessageScrollTop(messageId);
+    // 引用跳转：优先把「被框出的那一段」放进视口，而不是整条消息的 45% 点
+    const activeFocus = getReplyQuoteFocusFor(messageId, currentChatId);
+    const computeAligned = () => (activeFocus ? computeQuoteFocusScrollTop(messageId) : null) ?? compute();
 
     const onUserInput = () => cancelJumpSettle();
     el.addEventListener('wheel', onUserInput, { passive: true });
@@ -4706,7 +4858,7 @@ function settleJumpTargetPosition(
             cleanup();
             return;
         }
-        const next = compute();
+        const next = computeAligned();
         if (next !== null && Math.abs(next - el.scrollTop) > 2) {
             // 校准也是程序化滚动：短暂压住边缘预取，避免校正后立刻插历史页
             scrollLoadSuppressedUntil = Date.now() + 300;
@@ -4846,7 +4998,11 @@ async function jumpToMessageInternal(
             await ensureViewportFilled(gen);
             if (!isGenerationValid(gen) || chatId.value !== currentChatId) return true;
             await nextTick();
-            if (!restore) flashMessage(messageId);
+            if (!restore) {
+                // 引用跳转只用会收拢的框；普通跳转仍用整条消息的闪烁高亮
+                if (getReplyQuoteFocusFor(messageId, currentChatId)) showQuoteBox(messageId);
+                else flashMessage(messageId);
+            }
             // 向目标方向平滑滚动；用户中途滚轮/触摸接管则停止，后续不再回拽
             const landed = await scrollToMessageAnimated(messageId, restore);
             if (!isGenerationValid(gen) || chatId.value !== currentChatId) return true;
@@ -4921,14 +5077,64 @@ async function autoOpenMediaFromQuery(gen: number) {
     }
 }
 
+/** 跨会话「引用回复」待框选的片段：等目标会话首屏跳转完成后消费 */
+const pendingQuoteFocus = ref<ReplyQuoteRef | null>(null);
+
+/**
+ * 登记「引用回复」跳转要框选的片段。
+ * 只有真正能定位到原消息里的那一段时才登记：文本找不到就什么都不做，
+ * 让原消息只走普通的整条高亮，绝不框错一段文字。
+ */
+function applyReplyQuoteFocus(messageId: number, targetChatId?: number, quote?: ReplyQuoteRef) {
+    if (!quote?.text) {
+        clearReplyQuoteFocus();
+        return;
+    }
+    requestReplyQuoteFocus({
+        messageId,
+        chatId: targetChatId,
+        text: quote.text,
+        position: quote.position,
+        isManual: quote.isManual,
+    });
+}
+
+/**
+ * 被引用片段在页面上的位置（绝对坐标），供跳转落点对准它而不是整条消息的 45% 点。
+ * 片段可能跨行：取所有被框出的文字盒子的并集。找不到返回 null。
+ */
+function measureQuoteFocusRect(messageId: number): { top: number; bottom: number } | null {
+    const el = messagesContainer.value;
+    if (!el) return null;
+    const rowId = resolveRenderedMessageId(messageId);
+    const rowEl = el.querySelector<HTMLElement>(`[data-msg-id="${rowId}"]`);
+    if (!rowEl) return null;
+    // 正文组件只在被引用消息上渲染 .msg-quote-focus
+    const marks = rowEl.querySelectorAll<HTMLElement>('.msg-quote-focus');
+    if (marks.length === 0) return null;
+    let top = Number.POSITIVE_INFINITY;
+    let bottom = Number.NEGATIVE_INFINITY;
+    for (const mark of marks) {
+        for (const rect of mark.getClientRects()) {
+            if (rect.width === 0 && rect.height === 0) continue;
+            top = Math.min(top, rect.top);
+            bottom = Math.max(bottom, rect.bottom);
+        }
+    }
+    if (!Number.isFinite(top) || !Number.isFinite(bottom)) return null;
+    return { top, bottom };
+}
+
 /**
  * 回复 / 引用跳转（目标不在列表时也会先加载）。
  * 被回复消息可能在别的会话里（跨对话回复、频道帖子在讨论组里的副本、转发到群里的频道消息）：
  * 这时不能拿它的 id 在当前会话里找——id 是各会话自增的，会在当前会话里落到一条毫不相干的消息上。
  * 带 ?message= 换会话，由本组件的首屏跳转路径负责定位。
  */
-const handleReplyJumpToMessage = (messageId: number, targetChatId?: number) => {
+const handleReplyJumpToMessage = (messageId: number, targetChatId?: number, quote?: ReplyQuoteRef) => {
     if (targetChatId !== undefined && targetChatId !== chatId.value) {
+        // 跨会话：片段先登记，目标会话首屏跳转完成时再框选（见下方 watch 的跳转分支）
+        pendingQuoteFocus.value = quote ?? null;
         void router.push({
             name: 'chat-detail',
             params: { id: String(targetChatId) },
@@ -4936,6 +5142,8 @@ const handleReplyJumpToMessage = (messageId: number, targetChatId?: number) => {
         });
         return;
     }
+    // 同会话：先让目标消息拿到片段，再走统一跳转（落点会对准被引用的那一段）
+    applyReplyQuoteFocus(messageId, targetChatId ?? chatId.value, quote);
     void jumpToMessage(messageId);
 };
 
@@ -5497,6 +5705,10 @@ function resetState() {
         highlightTimer = null;
     }
     highlightedMessageId.value = null;
+    clearQuoteBox();
+    // 会话已切换：残留的引用框选请求不再有意义（否则会框到新会话里同 id 的消息）
+    clearReplyQuoteFocus();
+    pendingQuoteFocus.value = null;
 }
 
 /** 冻结单条消息，阻止 Vue 深层代理（TDLib 对象很大且频繁整体替换） */
@@ -6655,6 +6867,68 @@ async function handleScrollToBottom() {
 .animate-flash-highlight {
     animation: flash-highlight 1.4s ease-in-out 0.15s;
     border-radius: 10px;
+}
+
+/* ==================== 引用回复：框选聚焦 ====================
+   点击回复栏跳回原消息时，先给整条消息一个大框，再收缩到被引用的那一段，
+   停稳后**直接消失**（不做淡出：框里是正文，淡出会连文字一起变淡）。
+   时间线（与 store/replyQuote 的 2.4s 保持时长一致）：
+     0–260ms     大框出现并停住（此时它正好覆盖整条消息行）
+     260–760ms   收拢到被引用的那一段
+     760–2400ms  保持不动
+     2400ms      外框与被引用文字的底色同时瞬间移除
+   两个可动画属性叠在伪元素上：inset 做收框、border/background 只在开头淡入。
+   收拢目标由脚本按目标文字的实际位置写成内联 --qb-in-*。 */
+@keyframes msg-quote-box-inset {
+    0%,
+    11% {
+        inset: var(--qb-out-top, 0) var(--qb-out-right, 0) var(--qb-out-bottom, 0) var(--qb-out-left, 0);
+    }
+
+    32%,
+    100% {
+        /* 相对行盒的偏移：把框缩到被引用文字的外接矩形 */
+        inset: var(--qb-in-top, 0) var(--qb-in-right, 0) var(--qb-in-bottom, 0) var(--qb-in-left, 0);
+    }
+}
+
+@keyframes msg-quote-box-fade-in {
+    0% {
+        border-color: rgba(59, 130, 246, 0);
+        background-color: rgba(59, 130, 246, 0);
+    }
+
+    6%,
+    100% {
+        border-color: rgba(59, 130, 246, 0.9);
+        background-color: rgba(59, 130, 246, 0.1);
+    }
+}
+
+.msg-quote-box {
+    position: relative;
+    border-radius: 10px;
+}
+
+.msg-quote-box::after {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+    z-index: 1;
+    box-sizing: border-box;
+    border: 2px solid rgba(59, 130, 246, 0.9);
+    border-radius: 8px;
+    animation:
+        msg-quote-box-inset 2.4s cubic-bezier(0.22, 1, 0.36, 1) both,
+        msg-quote-box-fade-in 0.26s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .msg-quote-box::after {
+        /* 弱动效偏好：不收缩，直接框住被引用的那一段，到点同样瞬间消失 */
+        animation: none;
+        inset: var(--qb-in-top, 0) var(--qb-in-right, 0) var(--qb-in-bottom, 0) var(--qb-in-left, 0);
+    }
 }
 
 /* 叠层面板滑动动画 */

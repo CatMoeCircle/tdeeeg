@@ -13,7 +13,8 @@
 
         <!-- Caption above media：字色跟气泡走（.msg-bubble-self 内强制深色，否则主题正文字色） -->
         <div v-if="showCaptionAbove && captionText" class="caption-text px-2 pt-2 pb-1 msg-body-text">
-            <MessageTextContent :formattedText="captionFormatted" :chatId="chatId" :messageId="messageId" />
+            <MessageTextContent :formattedText="captionFormatted" :chatId="chatId" :messageId="messageId"
+                :quoteFocus="quoteFocus" />
         </div>
 
         <!-- Media element -->
@@ -243,7 +244,8 @@
         <!-- Caption below：字色跟气泡走 -->
         <div v-if="!showCaptionAbove && captionText" class="caption-text px-2 pt-1 msg-body-text"
             :class="!(captionBelow && date) && 'pb-2'">
-            <MessageTextContent :formattedText="captionFormatted" :chatId="chatId" :messageId="messageId" />
+            <MessageTextContent :formattedText="captionFormatted" :chatId="chatId" :messageId="messageId"
+                :quoteFocus="quoteFocus" />
         </div>
 
         <!-- Reactions slot（caption 与时间之间） -->
@@ -272,6 +274,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { VideoIcon } from 'lucide-vue-next';
 import ForwardBanner from './ForwardBanner.vue';
 import MessageTextContent from './MessageTextContent.vue';
+import { getReplyQuoteFocusFor, type ReplyQuoteRef } from '../../../../../store/replyQuote';
 import SpoilerMedia from '../spoiler/SpoilerMedia.vue';
 import MessageStatus from './MessageStatus.vue';
 import LoaderIndicator from '../../../../common/LoaderIndicator';
@@ -346,16 +349,22 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     openForwardSource: [];
-    jumpToMessage: [messageId: number];
+    /** quote：回复栏带出的引用片段，父级跳转后据此在原消息里框选 */
+    jumpToMessage: [messageId: number, chatId?: number, quote?: ReplyQuoteRef];
 }>();
 
 // 下载/上传 store：提前初始化，供 content 就绪 watch 立即对账完成态
 const downloadStore = useDownloadStore();
 const uploadStore = useUploadStore();
 
-/** 点击回复预览：向上冒泡跳转到被回复消息 */
-function onReplyJump(messageId: number) {
-    emit('jumpToMessage', messageId);
+/** 「引用回复」跳转聚焦：本条消息是被引用目标时给出片段（媒体 caption 也要框出来） */
+const quoteFocus = computed(() => (
+    props.messageId != null ? getReplyQuoteFocusFor(props.messageId, props.chatId) ?? undefined : undefined
+));
+
+/** 点击回复预览：向上冒泡跳转到被回复消息（带上引用的那一段，便于回跳后框选） */
+function onReplyJump(messageId: number, chatId?: number, quote?: ReplyQuoteRef) {
+    emit('jumpToMessage', messageId, chatId, quote);
 }
 
 const mediaSrc = ref<string | undefined>(undefined);

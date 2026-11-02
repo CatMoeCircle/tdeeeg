@@ -28,13 +28,24 @@
                             class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
                             :class="[segment.className, loadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
                             @click.prevent.stop="handleSegmentClick($event, segment)"
-                            @contextmenu="handleSegmentContextMenu($event, segment)">{{ segment.text }}</a>
+                            @contextmenu="handleSegmentContextMenu($event, segment)">
+                            <template v-for="(piece, pi) in quotePieces(gi, si, segment)" :key="pi">
+                                <span v-if="piece.highlight" class="msg-quote-focus">{{ piece.text }}</span>
+                                <template v-else>{{ piece.text }}</template>
+                            </template>
+                        </a>
                         <span v-else
                             :class="[segment.className, (segment.copyable || segment.isHashtag) ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
                             @click="(segment.copyable || segment.isCommand || segment.isHashtag) ? handleSegmentClick($event, segment) : undefined"
                             @contextmenu="segment.isHashtag ? handleSegmentContextMenu($event, segment) : undefined">
-                            <SpoilerSpan v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template v-else>{{
-                                segment.text }}</template>
+                            <template v-for="(piece, pi) in quotePieces(gi, si, segment)" :key="pi">
+                                <span v-if="piece.highlight" class="msg-quote-focus">
+                                    <SpoilerSpan v-if="segment.isSpoiler">{{ piece.text }}</SpoilerSpan><template v-else>{{ piece.text }}</template>
+                                </span>
+                                <template v-else>
+                                    <SpoilerSpan v-if="segment.isSpoiler">{{ piece.text }}</SpoilerSpan><template v-else>{{ piece.text }}</template>
+                                </template>
+                            </template>
                         </span>
                     </template>
                 </span>
@@ -47,13 +58,24 @@
                             class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
                             :class="[segment.className, loadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
                             @click.prevent.stop="handleSegmentClick($event, segment)"
-                            @contextmenu="handleSegmentContextMenu($event, segment)">{{ segment.text }}</a>
+                            @contextmenu="handleSegmentContextMenu($event, segment)">
+                            <template v-for="(piece, pi) in quotePieces(gi, si, segment)" :key="pi">
+                                <span v-if="piece.highlight" class="msg-quote-focus">{{ piece.text }}</span>
+                                <template v-else>{{ piece.text }}</template>
+                            </template>
+                        </a>
                         <span v-else
                             :class="[segment.className, (segment.copyable || segment.isHashtag) ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
                             @click="(segment.copyable || segment.isCommand || segment.isHashtag) ? handleSegmentClick($event, segment) : undefined"
                             @contextmenu="segment.isHashtag ? handleSegmentContextMenu($event, segment) : undefined">
-                            <SpoilerSpan v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template v-else>{{
-                                segment.text }}</template>
+                            <template v-for="(piece, pi) in quotePieces(gi, si, segment)" :key="pi">
+                                <span v-if="piece.highlight" class="msg-quote-focus">
+                                    <SpoilerSpan v-if="segment.isSpoiler">{{ piece.text }}</SpoilerSpan><template v-else>{{ piece.text }}</template>
+                                </span>
+                                <template v-else>
+                                    <SpoilerSpan v-if="segment.isSpoiler">{{ piece.text }}</SpoilerSpan><template v-else>{{ piece.text }}</template>
+                                </template>
+                            </template>
                         </span>
                     </template>
                 </template>
@@ -96,8 +118,12 @@
                             :size="emojiSize" :fallback-text="segment.text" />
                         <a v-else-if="segment.href" :href="segment.href"
                             class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
-                            :class="[segment.className]" @click.prevent.stop="handleSegmentClick($event, segment)">{{
-                                segment.text }}</a>
+                            :class="[segment.className]" @click.prevent.stop="handleSegmentClick($event, segment)">
+                            <template v-for="(piece, pi) in quotePieces(gi, si, segment)" :key="pi">
+                                <span v-if="piece.highlight" class="msg-quote-focus">{{ piece.text }}</span>
+                                <template v-else>{{ piece.text }}</template>
+                            </template>
+                        </a>
                         <span v-else class="font-mono" :class="[segment.className]">{{ segment.text }}</span>
                     </template>
                 </span>
@@ -111,13 +137,24 @@
                         class="text-blue-500 hover:underline dark:text-blue-400 transition-colors"
                         :class="[segment.className, loadingLinks.has(segment.href) ? 'animate-pulse bg-blue-400/20 dark:bg-blue-300/20 rounded' : '']"
                         @click.prevent.stop="handleSegmentClick($event, segment)"
-                        @contextmenu="handleSegmentContextMenu($event, segment)">{{ segment.text }}</a>
+                        @contextmenu="handleSegmentContextMenu($event, segment)">
+                        <template v-for="(piece, pi) in quotePieces(gi, si, segment)" :key="pi">
+                            <span v-if="piece.highlight" class="msg-quote-focus">{{ piece.text }}</span>
+                            <template v-else>{{ piece.text }}</template>
+                        </template>
+                    </a>
                     <span v-else
                         :class="[segment.className, (segment.copyable || segment.isHashtag) ? 'cursor-pointer transition-colors duration-150 hover:text-blue-500 dark:hover:text-blue-400' : (segment.isCommand ? 'cursor-pointer' : '')]"
                         @click="(segment.copyable || segment.isCommand || segment.isHashtag) ? handleSegmentClick($event, segment) : undefined"
                         @contextmenu="segment.isHashtag ? handleSegmentContextMenu($event, segment) : undefined">
-                        <SpoilerSpan v-if="segment.isSpoiler">{{ segment.text }}</SpoilerSpan><template v-else>{{
-                            segment.text }}</template>
+                        <template v-for="(piece, pi) in quotePieces(gi, si, segment)" :key="pi">
+                            <span v-if="piece.highlight" class="msg-quote-focus">
+                                <SpoilerSpan v-if="segment.isSpoiler">{{ piece.text }}</SpoilerSpan><template v-else>{{ piece.text }}</template>
+                            </span>
+                            <template v-else>
+                                <SpoilerSpan v-if="segment.isSpoiler">{{ piece.text }}</SpoilerSpan><template v-else>{{ piece.text }}</template>
+                            </template>
+                        </template>
                     </span>
                 </template>
             </template>
@@ -278,6 +315,7 @@ import { openContextMenu } from '../../../../../store/contextMenu';
 import { settings } from '../../../../../store/settings';
 import { getInlineTranslation, isTranslateReplaceDisplay } from '../../../../../store/translate';
 import { getActiveSummaryFormattedText } from '../../../../../store/summary';
+import { locateQuoteRange, type QuoteTextRange } from '../../../../../store/replyQuote';
 import MessageLinkPreview from './MessageLinkPreview.vue';
 import MessageSummary from './MessageSummary.vue';
 import MessageStatus from './MessageStatus.vue';
@@ -311,6 +349,11 @@ const props = defineProps<{
     summarizable?: boolean;
     /** 摘要按钮所在侧：自己消息在左，他人消息在右 */
     summaryOutgoing?: boolean;
+    /**
+     * 「引用回复」跳回来后要框选的原文字段（TDLib `textQuote`）。
+     * 为空时渲染与之前完全一致。
+     */
+    quoteFocus?: { text: string; position: number };
 }>();
 
 const router = useRouter();
@@ -350,6 +393,8 @@ type Segment = {
     text: string;
     href?: string;
     className: string;
+    /** 该段在整段纯文本中的起始下标（引用框选切片用，不参与渲染） */
+    start?: number;
     /** 自定义 emoji ID（有值时表示这是一个自定义 emoji 段） */
     customEmojiId?: string;
     /** 是否可点击复制 */
@@ -448,6 +493,7 @@ const segments = computed<Segment[]>(() => {
             const hasNormalBq = activeEntities.some(e => e.type._ === 'textEntityTypeBlockQuote');
             return {
                 text: segmentText,
+                start,
                 href: undefined,
                 className: '',
                 customEmojiId: emojiId,
@@ -494,7 +540,7 @@ const segments = computed<Segment[]>(() => {
         const isHashtag = activeEntities.some(e => e.type._ === 'textEntityTypeHashtag');
         // 是否为剧透：点击后揭示显示（仿 Web Telegram）
         const isSpoiler = activeEntities.some(e => e.type._ === 'textEntityTypeSpoiler');
-        return { text: segmentText, href, className, copyable, isCommand, isMention, isMentionName: !!mentionUserId, mentionUserId, isHashtag, isBlockquote, blockquoteType, isCodeBlock, codeLanguage, isSpoiler };
+        return { text: segmentText, start, href, className, copyable, isCommand, isMention, isMentionName: !!mentionUserId, mentionUserId, isHashtag, isBlockquote, blockquoteType, isCodeBlock, codeLanguage, isSpoiler };
     });
 });
 
@@ -539,6 +585,41 @@ const renderGroups = computed<RenderGroup[]>(() => {
     }
     return groups;
 });
+
+// ==================== 引用框选：框出被引用的那一段原文 ====================
+
+/** 被引用片段在**显示文本**中的范围。
+ *  译文/摘要原位顶替时按显示文本重新定位：position 是原文坐标系，与译文无关。 */
+const quoteRange = computed<QuoteTextRange | null>(() => {
+    const q = props.quoteFocus;
+    if (!q?.text) return null;
+    return locateQuoteRange(displayFormattedText.value.text, { text: q.text, position: q.position });
+});
+
+/** 片段切片：`text` 为该片文字，highlight 表示落在被引用范围内 */
+interface QuotePiece {
+    text: string;
+    highlight?: boolean;
+}
+
+/**
+ * 把一个 segment 切成「前 / 被引用 / 后」三片，用于只给被引用的文字套框选样式。
+ * 没有引用或该段完全不在范围内时返回单片段 —— 与改造前的渲染结果逐字一致。
+ */
+function quotePieces(_gi: number, _si: number, segment: Segment): QuotePiece[] {
+    const range = quoteRange.value;
+    const start = segment.start;
+    if (!range || start === undefined) return [{ text: segment.text }];
+    const end = start + segment.text.length;
+    const from = Math.max(start, range.start);
+    const to = Math.min(end, range.end);
+    if (to <= from) return [{ text: segment.text }];
+    const pieces: QuotePiece[] = [];
+    if (from > start) pieces.push({ text: segment.text.slice(0, from - start) });
+    pieces.push({ text: segment.text.slice(from - start, to - start), highlight: true });
+    if (to < end) pieces.push({ text: segment.text.slice(to - start) });
+    return pieces;
+}
 
 /** 可折叠引用展开状态：group 索引 -> 是否展开 */
 const expandedGroups = reactive<Set<number>>(new Set());
@@ -728,6 +809,21 @@ async function resolveInternalLink(href: string) {
 </script>
 
 <style scoped>
+/* ==================== 引用框选聚焦 ====================
+   从「引用回复」跳回原消息时，被引用的那一段加一层仿选区底色，用来承托外层
+   「大框 → 收拢到这一段」的收框动画（见 ChatDetail 的 .msg-quote-box）。
+   注意：底色必须在**不改透明度**的前提下消失 —— 这段 span 包着文字本身，
+   任何 opacity/颜色过渡都会连字一起淡掉，看起来就是字闪一下白。
+   所以这里只给静态底色，到点由会话列表清掉聚焦请求，连同外框一起瞬间消失。 */
+.msg-quote-focus {
+    background-color: rgba(59, 130, 246, 0.22);
+    border-radius: 3px;
+    color: inherit;
+    /* box-decoration-break 让跨行的底逐行断开，而不是包成一整个大矩形 */
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+
 .mask-fade-bottom {
     -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
     mask-image: linear-gradient(to bottom, black 70%, transparent 100%);

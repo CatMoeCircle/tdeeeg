@@ -14,11 +14,12 @@
                     <span class="opacity-70">{{ sourceChatTitle }}</span><span class="opacity-50 mx-1">›</span>
                 </template>{{ titleText }}
             </div>
-            <!-- 内容预览 -->
+            <!-- 内容预览：选中片段引用（quote）时只显示被引用的那一段，而不是整条消息 -->
             <div class="text-xs truncate opacity-70 mt-0.5 leading-4">
-                <template v-if="status === 'found' && replyData && replyData.mediaType">[{{ replyData.mediaType }}]
-                </template>
-                <GlobalEmojiText v-if="status === 'found' && replyData" :text="replyData.text" :size="12" />
+                <template v-if="status === 'found' && replyData && replyData.mediaType && !quotePreview">[{{
+                    replyData.mediaType }}]</template>
+                <GlobalEmojiText v-if="status === 'found' && replyData"
+                    :text="quotePreview || replyData.text" :size="12" />
                 <template v-else>{{ subText }}</template>
             </div>
         </div>
@@ -34,6 +35,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
+import type { ReplyQuoteRef } from '../../../../../store/replyQuote';
 import { ref, computed, watch, onMounted } from 'vue';
 import type { message, MessageContent, messageReplyToMessage } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
@@ -58,8 +60,9 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    /** chatId：被回复消息所属会话（跨对话回复/引用时与当前会话不同，父级据此跨会话跳转） */
-    jump: [messageId: number, chatId: number];
+    /** chatId：被回复消息所属会话（跨对话回复/引用时与当前会话不同，父级据此跨会话跳转）
+     *  quote：本条回复引用的原文片段，父级跳转后据此在原消息里框选聚焦那一段 */
+    jump: [messageId: number, chatId: number, quote?: ReplyQuoteRef];
 }>();
 
 interface ReplyDisplayData {
@@ -102,6 +105,17 @@ const sourceChatTitle = computed(() => {
     const rt = props.replyTo;
     if (!props.chatId || !rt?.chat_id || rt.chat_id === props.chatId) return undefined;
     return getReactiveChat(rt.chat_id)?.title || undefined;
+});
+
+/** 被引用（选中片段）的原文：有 quote 时回复栏内容行只显示这一段 */
+const quotePreview = computed(() => props.replyTo?.quote?.text?.text?.trim() || '');
+
+/** 跳转时携带的引用片段信息（供原消息框选聚焦；富文本引用无纯文本时不带） */
+const jumpQuote = computed<ReplyQuoteRef | undefined>(() => {
+    const quote = props.replyTo?.quote;
+    const text = quote?.text?.text;
+    if (!quote || !text) return undefined;
+    return { text, position: quote.position ?? 0, isManual: quote.is_manual === true };
 });
 
 // 主题配色工具
@@ -332,8 +346,7 @@ function getMediaInfo(content: MessageContent, _msg: message): { mediaType: stri
 }
 
 function jumpToMessage() {
-    if (replyData.value) {
-        emit('jump', replyData.value.messageId, replyData.value.chatId);
-    }
+    if (!replyData.value) return;
+    emit('jump', replyData.value.messageId, replyData.value.chatId, jumpQuote.value);
 }
 </script>

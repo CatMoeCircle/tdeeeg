@@ -16,11 +16,12 @@
         <!-- Reply preview（媒体消息的回复预览由 MessageMediaContent 在媒体宽度容器内渲染，避免撑宽 w-fit 气泡） -->
         <MessageReply v-if="replyTo && !isStickerLikeContent && !isMediaContent(content)" :replyTo="replyTo"
             :isSelf="isSelf ?? false" :chatId="chatId" :messageList="messageList" :accentColorId="accentColorId"
-            @jump="onJumpToMessage" />
+            @jump="onReplyJump" />
 
         <!-- Text messages -->
         <MessageTextContent v-if="content._ === 'messageText'" :formattedText="content.text"
             :messageId="messageId" :linkPreview="content.link_preview" :chatId="chatId" :accentColorId="accentColorId"
+            :quoteFocus="messageId != null ? quoteFocusFor(messageId, chatId) ?? undefined : undefined"
             :showInlineTime="inlineTime" :timeDate="date" :timeIsOutgoing="isSelf" :timeSendingState="sendingState"
             :timeIsRead="isRead" :timeViewCount="viewCount" :timeAuthorSignature="authorSignature"
             :timeColorClass="isSelf ? 'text-gray-600/70 dark:text-gray-400/70' : 'text-gray-400 dark:text-gray-500'"
@@ -42,7 +43,7 @@
         <MessageStoryContent v-else-if="content._ === 'messageStory'" :content="content" :isSelf="isSelf ?? false"
             :date="date" :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount"
             :authorSignature="authorSignature" :chatId="chatId" :replyTo="replyTo" :messageList="messageList"
-            :accentColorId="accentColorId" @jumpToMessage="onJumpToMessage">
+            :accentColorId="accentColorId" @jumpToMessage="onReplyJump">
             <template #reactions>
                 <slot name="reactions" />
             </template>
@@ -62,7 +63,7 @@
             :chatId="chatId" :messageId="messageId" :message="message" :topicId="topicId" :senderName="senderName"
             :replyTo="replyTo" :messageList="messageList" :accentColorId="accentColorId"
             :commentsBar="commentsBar"
-            @openForwardSource="onOpenForwardSource" @jumpToMessage="onJumpToMessage">
+            @openForwardSource="onOpenForwardSource" @jumpToMessage="onReplyJump">
             <template #reactions>
                 <slot name="reactions" />
             </template>
@@ -94,7 +95,7 @@
             <!-- 回复预览：自己消息在左，他人在右 -->
             <div v-if="replyTo" class="w-40 shrink-0 self-end" :class="isSelf ? 'order-1' : 'order-2'">
                 <MessageReply :replyTo="replyTo" :isSelf="!!isSelf" :chatId="chatId" :messageList="messageList"
-                    :accentColorId="accentColorId" @jump="onJumpToMessage" />
+                    :accentColorId="accentColorId" @jump="onReplyJump" />
             </div>
         </div>
 
@@ -147,6 +148,7 @@ import MessageStatus from './content/MessageStatus.vue';
 import ReactionsBar from '../ReactionsBar.vue';
 import { settings } from '../../../../store/settings';
 import { canSummarizeMessage } from '../../../../store/summary';
+import { getReplyQuoteFocusFor, type ReplyQuoteRef } from '../../../../store/replyQuote';
 
 const MEDIA_TYPES = new Set([
     'messagePhoto',
@@ -275,13 +277,15 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    /** chatId：目标消息不在当前会话时由被回复/被引用方带出，供父级跨会话跳转 */
-    jumpToMessage: [messageId: number, chatId?: number];
+    /** chatId：目标消息不在当前会话时由被回复/被引用方带出，供父级跨会话跳转
+     *  quote：本条消息引用的原文片段，跳转后由父级在原消息里框选聚焦 */
+    jumpToMessage: [messageId: number, chatId?: number, quote?: ReplyQuoteRef];
     openForwardSource: [];
 }>();
 
-function onJumpToMessage(messageId: number, chatId?: number) {
-    emit('jumpToMessage', messageId, chatId);
+/** 回复/引用跳转：把片段带给会话列表（顶层据此定位并框选） */
+function onReplyJump(messageId: number, chatId?: number, quote?: ReplyQuoteRef) {
+    emit('jumpToMessage', messageId, chatId, quote);
 }
 
 function onServiceJump(messageId: number) {
@@ -309,6 +313,11 @@ const isStickerLikeContent = computed(
         || props.content._ === 'messageAnimatedEmoji'
         || props.content._ === 'messageDice',
 );
+/** 「引用回复」跳转聚焦：仅被引用的那条消息拿到片段，其余消息为 null */
+function quoteFocusFor(msgId: number, cid?: number) {
+    return getReplyQuoteFocusFor(msgId, cid);
+}
+
 /** 文本消息是否显示 AI 摘要入口（非自己消息且服务端给出 summary_language_code） */
 const canSummarize = computed(
     () => props.content._ === 'messageText' && canSummarizeMessage(props.message, props.isSelf),
