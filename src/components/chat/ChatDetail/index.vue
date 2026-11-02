@@ -1537,6 +1537,15 @@ const replyQuoteText = ref<string | null>(null);
  * 让它自己调 get_message 读（发送后清空）
  */
 const aiQuote = ref<{ name: string; chatId: number; messageId: number } | null>(null);
+/**
+ * 跨会话「引用回复」待框选的片段：等目标会话首屏跳转完成后消费。
+ *
+ * 声明必须早于加载会话的 watch：那个 watch 是 immediate 的，setup 阶段就可能
+ * 同步跑 resetState()，而 resetState 里会清这个 ref——放到下面
+ * applyReplyQuoteFocus 旁边会在那时踩到 const 的 TDZ
+ * （Cannot access 'pendingQuoteFocus' before initialization）。
+ */
+const pendingQuoteFocus = ref<ReplyQuoteRef | null>(null);
 
 /** 回复目标摘要（发送者名 + 文本 + 引用片段），供 MessageInput 显示 */
 const replyTargetInfo = computed<{ title: string; text: string; quote?: string } | null>(() => {
@@ -5253,9 +5262,6 @@ async function autoOpenMediaFromQuery(gen: number) {
         await player.playMessageAudio(msg);
     }
 }
-
-/** 跨会话「引用回复」待框选的片段：等目标会话首屏跳转完成后消费 */
-const pendingQuoteFocus = ref<ReplyQuoteRef | null>(null);
 
 /**
  * 登记「引用回复」跳转要框选的片段。
