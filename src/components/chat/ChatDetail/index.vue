@@ -1957,10 +1957,10 @@ const {
 });
 
 // ===== 选择模式：按住左键滑动批量选择 =====
-/** 已处于选择模式时，判定为拖动（而非单击）的位移阈值（px） */
+/** 判定为拖动（而非单击）的位移阈值（px） */
 const DRAG_SELECT_THRESHOLD_PX = 4;
-/** 未进入选择模式时，垂直滑动进入选择模式的位移阈值（px）：略大些，避免点击时手抖误触 */
-const DRAG_SELECT_ENTER_THRESHOLD_PX = 8;
+/** 触控下的拖动阈值：手指按下时的抖动比鼠标大，避免一次点按被误判成拖动 */
+const DRAG_SELECT_TOUCH_THRESHOLD_PX = 8;
 /** 指针进入距列表上下边缘该距离内时自动滚动（px）：按可见消息区估算，覆盖底部输入框/顶部栏遮挡 */
 const DRAG_SELECT_EDGE_PX = 110;
 /** 边缘自动滚动的每帧最大步长（px） */
@@ -1968,6 +1968,8 @@ const DRAG_SELECT_SCROLL_STEP = 26;
 
 /** 当前拖动指针 id（与 pointerdown 配对，忽略其它指针） */
 let dragPointerId: number | null = null;
+/** 当前拖动的指针类型（mouse / touch / pen）：触控的按钮位与抖动阈值都和鼠标不同 */
+let dragPointerType = 'mouse';
 /** 是否已越过阈值进入真正的拖动选择 */
 let dragActive = false;
 let dragStartX = 0;
@@ -1995,7 +1997,8 @@ function resolveRowMsgIds(x: number, y: number): number[] {
 
 /**
  * 列表上的 pointerdown：记录拖动起点。
- * 不要求已进入选择模式——官方做法就是直接按住左键上下滑动即进入多选。
+ * 只有已经处于多选模式（右键「多选」或点选了一条消息）时才开始跟踪：
+ * 未进入多选时按住滑动必须交还给列表原生滚动，不能抢占触控手势。
  */
 function onMessagesPointerDown(e: PointerEvent) {
     dragPointerId = null;
@@ -2003,7 +2006,7 @@ function onMessagesPointerDown(e: PointerEvent) {
     dragStartMsgId = null;
     // 新的按下即新的手势：上一次拖动遗留的 click 抑制可以作废
     suppressClickUntil = 0;
-    if (e.button !== 0) return;
+    if (!selectionMode.value || e.button !== 0) return;
     const target = e.target as HTMLElement | null;
     if (!target) return;
     // 行内按钮/链接（头像、发送者名、相册圆点、内联键盘等）保留自身行为
@@ -2012,7 +2015,12 @@ function onMessagesPointerDown(e: PointerEvent) {
     if (!row) return;
     const first = Number(row.dataset.msgId);
     if (!Number.isFinite(first) || first <= 0) return;
+    const pointerType = e.pointerType || 'mouse';
+    // 触控：只有「从已选中的消息起手」才算区间选择，其余位置的滑动继续交给列表滚动。
+    // 对应的 touch-action: none 由 .msg-selected-row 在渲染期就带好，手势开始前即生效。
+    if (pointerType === 'touch' && !row.classList.contains('msg-selected-row')) return;
     dragPointerId = e.pointerId;
+    dragPointerType = pointerType;
     dragStartMsgId = first;
     dragStartX = e.clientX;
     dragStartY = e.clientY;
@@ -2020,11 +2028,12 @@ function onMessagesPointerDown(e: PointerEvent) {
     dragLastY = e.clientY;
 }
 
-/** 指针移动：越过阈值后进入拖动选择，并按当前行更新区间 */
+/** 指针移动：多选模式下按住滑动，越过阈值后按当前行更新区间 */
 function onMessagesPointerMove(e: PointerEvent) {
     if (dragPointerId === null || e.pointerId !== dragPointerId) return;
-    // 指针在窗口外松开时收不到 pointerup：靠 buttons 兜底结束拖动，避免选择继续跟着走
-    if ((e.buttons & 1) === 0) {
+    // 指针在窗口外松开时收不到 pointerup：靠 buttons 兜底结束拖动，避免选择继续跟着走。
+    // 触控的 pointermove 事件不总带 buttons，只有鼠标才用这个兜底。
+    if (dragPointerType === 'mouse' && (e.buttons & 1) === 0) {
         onMessagesPointerUp(e);
         return;
     }
@@ -2032,27 +2041,17 @@ function onMessagesPointerMove(e: PointerEvent) {
     dragLastY = e.clientY;
     if (!dragActive) {
         if (dragStartMsgId === null) return;
-        const dx = Math.abs(e.clientX - dragStartX);
-        const dy = Math.abs(e.clientY - dragStartY);
-        const threshold = selectionMode.value ? DRAG_SELECT_THRESHOLD_PX : DRAG_SELECT_ENTER_THRESHOLD_PX;
-        if (dx < threshold && dy < threshold) return;
-        // 未进入选择模式时：横向拖动是「框选正文复制」，交还给原生文本选择，
-        // 只有上下滑动才算进入多选（官方手势），两者互不抢占。
-        if (!selectionMode.value && dx > dy) {
+        // 手势期间退出/切换了多选：立即放弃这次拖动
+        if (!selectionMode.value) {
             dragPointerId = null;
             return;
         }
+        const dx = Math.abs(e.clientX - dragStartX);
+        const dy = Math.abs(e.clientY - dragStartY);
+        const threshold = dragPointerType === 'touch' ? DRAG_SELECT_TOUCH_THRESHOLD_PX : DRAG_SELECT_THRESHOLD_PX;
+        if (dx < threshold && dy < threshold) return;
         const startRow = resolveRowMsgIds(dragStartX, dragStartY);
         const anchorRow = startRow.length > 0 ? startRow : [dragStartMsgId];
-        if (!selectionMode.value) {
-            const anchorMsg = messages.value.find(m => m.id === anchorRow[0]);
-            if (!anchorMsg || isServiceMessage(anchorMsg)) {
-                dragPointerId = null;
-                return;
-            }
-            // 直接滑动即进入多选：锚点消息先被勾选，随后的滑动按区间扩展
-            enterSelectionMode(anchorMsg);
-        }
         if (!beginDragSelect(anchorRow)) {
             dragPointerId = null;
             return;
@@ -2082,6 +2081,7 @@ function onMessagesPointerUp(e: PointerEvent) {
 /** 拖动会话状态复位（选中结果保留） */
 function resetDragSelectState() {
     dragPointerId = null;
+    dragPointerType = 'mouse';
     dragActive = false;
     dragStartMsgId = null;
     endDragSelect();
@@ -6804,6 +6804,17 @@ async function handleScrollToBottom() {
 .messages-scroll .msg-selected-row {
     background-color: rgb(59 130 246 / 0.1);
     border-radius: 0.5rem;
+}
+
+/*
+ * 触控下「按住已选中的消息滑动」才进入区间选择，其余位置必须照常滚动。
+ * 触控滚动的手势裁决发生在 touchstart 时（早于 JS 的 pointermove），
+ * 只有从选中行起手的那一次能在这里关掉纵向平移，其它消息行保持 auto，
+ * 聊天列表因此在未起手于选中行时依旧可以正常滚动。
+ * 该属性只作用于触控/笔输入，鼠标拖动与滚轮滚动不受影响，故不设媒体查询。
+ */
+.messages-scroll .msg-selected-row {
+    touch-action: none;
 }
 
 .dark .messages-scroll .msg-selected-row {
