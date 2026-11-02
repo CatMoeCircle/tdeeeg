@@ -1,6 +1,9 @@
 <template>
-    <!-- 多根组件无法自动继承 class，手动合并到气泡条根节点 -->
-    <div class="reactions-bar flex flex-wrap gap-1 mt-1"
+    <!-- 多根组件无法自动继承 class，手动合并到气泡条根节点。
+         msg-noselect：文本消息的回应栏渲染在 <p class="msg-selectable-text"> 内部
+         （正文末尾 slot），它属于交互控件而非正文，必须排除出文本选择范围，
+         否则长按选词 / 拖动选择会把底部回应标签一起选进去。 -->
+    <div class="reactions-bar msg-noselect flex flex-wrap gap-1 mt-1"
         :class="[isSelf ? 'justify-end' : 'justify-start', $attrs.class]">
         <!-- 已有 reaction 按钮 -->
         <button v-for="reaction in visibleReactions" :key="getReactionKey(reaction)" type="button"

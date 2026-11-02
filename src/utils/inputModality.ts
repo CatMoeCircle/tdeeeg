@@ -44,6 +44,17 @@ export function isTouchLongPress(e: Event): boolean {
 }
 
 /**
+ * 当前交互是否来自触控（看最近一次 pointerdown）。
+ *
+ * 用于「只约束触控手势」的判断：`selectionchange` 之类的回调不带指针类型，
+ * 只能靠最近一次按下推断。
+ */
+export function isTouchInput(): boolean {
+    ensureTracking();
+    return lastPointerDownType === 'touch';
+}
+
+/**
  * 该 contextmenu 是否是「触控长按可选中正文」。
  *
  * 命中时调用方不应打开任何菜单：消息右键菜单会浮在选区之上，把「长按选词」
