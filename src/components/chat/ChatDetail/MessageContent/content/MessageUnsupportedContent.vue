@@ -1,6 +1,8 @@
 <template>
-    <!-- 未适配消息卡片（对齐官方客户端 Unsupported message 的版式：图标 + 标题/说明 + 按钮） -->
-    <div class="flex max-w-[320px] min-w-0 items-center gap-2.5 rounded-2xl bg-white/40 px-3 py-2.5 backdrop-blur-md dark:bg-black/20">
+    <!-- 未适配消息卡片（对齐官方客户端 Unsupported message 的版式：图标 + 标题/说明 + 按钮）。
+         卡片只负责排版，底色/内边距由外层消息气泡提供（theme.css 里气泡铺服务消息通用底色），
+         不再自己叠一层，避免「白气泡里套一张半透明卡片」；服务消息里没有气泡，由外层补一层底。 -->
+    <div class="msg-unsupported-card flex w-fit max-w-[320px] min-w-0 items-center gap-2.5">
         <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full" :style="accentStyle">
             <SendIcon class="h-5 w-5" />
         </div>

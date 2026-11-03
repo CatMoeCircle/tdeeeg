@@ -133,6 +133,45 @@ html[theme-mode="dark"] ::selection {
 }
 
 /*
+ * 消息列表里居中提示的统一底色：日期分隔、系统消息 / 服务消息文案、评论线程分隔，
+ * 以及服务消息里的卡片（壁纸 / 群头像 / 社群）。
+ * 沿用服务卡片原来的半透明磨砂观感（浅色白 40% / 深色黑 20% + 12px 背景模糊），
+ * 几处原先各写一套 bg-*，改一处容易漏另一处；要调整观感只改这里。
+ *
+ * 未适配消息（TDLib 不认识 / 本端没适配）的整条消息同样走这一层：
+ * 外层消息气泡就是那张半透明卡片，内层卡片不再单独上色，
+ * 避免「白气泡里再套一张半透明卡片」两层叠着。
+ */
+.msg-notice-surface,
+[data-bubble-msg-id]:has(.msg-unsupported-card) {
+  /* 底色收在变量里：悬停 / 按下只改这个变量，转发横幅两行（同一个形状）一起提亮 */
+  --msg-notice-bg: rgb(255 255 255 / 0.4);
+  background-color: var(--msg-notice-bg);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+html.dark .msg-notice-surface,
+html.dark [data-bubble-msg-id]:has(.msg-unsupported-card),
+:root[theme-mode="dark"] .msg-notice-surface,
+:root[theme-mode="dark"] [data-bubble-msg-id]:has(.msg-unsupported-card) {
+  --msg-notice-bg: rgb(0 0 0 / 0.2);
+}
+
+/*
+ * 未适配消息的气泡：用 :has() 从卡片反推气泡，省得在 ChatDetail 里再复制一份
+ * 「哪些内容类型没适配」的判断。气泡底可能来自内联样式（自己消息的绿底 / 自定义皮肤），
+ * 普通规则压不住，所以关键属性用 !important；内边距按普通气泡的 px-2 py-1.5 补回来。
+ */
+[data-bubble-msg-id]:has(.msg-unsupported-card) {
+  background-color: var(--msg-notice-bg) !important;
+  padding: 0.375rem 0.5rem !important;
+  border: 0 !important;
+  border-image: none !important;
+  box-shadow: none;
+}
+
+/*
  * ===== 深色模式颜色收敛 =====
  * 组件里有大量颜色字面量只写了浅色档、没有 dark: 兄弟（text-gray-400/500 约 700 处，
  * 以及浅色 hover 底色、浅色描边），深色下这些文本会和背景糊在一起，hover 还会把整行刷亮。

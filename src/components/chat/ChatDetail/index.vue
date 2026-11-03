@@ -31,7 +31,7 @@
                     <!-- Date separator -->
                     <div v-if="item.type === 'date'" class="msg-list-item flex justify-center my-2" :data-sticky-key="item.key">
                         <span
-                            class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2.5 py-1 rounded-full leading-none select-none">
+                            class="msg-notice-surface text-xs text-gray-500 dark:text-gray-400 px-2.5 py-1 rounded-full leading-none select-none">
                             {{ item.text }}
                         </span>
                     </div>
@@ -379,7 +379,7 @@
                          紧跟根帖副本之后、评论之前；0 评论时显示「暂无留言」 -->
                     <div v-if="threadMode && isThreadRootItem(item)" class="msg-list-item flex justify-center my-2">
                         <span
-                            class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2.5 py-1 rounded-full leading-none select-none">
+                            class="msg-notice-surface text-xs text-gray-500 dark:text-gray-400 px-2.5 py-1 rounded-full leading-none select-none">
                             {{ threadHasComments ? t('lng_replies_discussion_started') : t('lng_replies_no_comments') }}
                         </span>
                     </div>
@@ -456,7 +456,7 @@
                         class="absolute inset-x-3 flex justify-center pointer-events-none"
                         :class="topStackHasCard ? 'top-full mt-1' : 'top-1'">
                         <span
-                            class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100/90 dark:bg-gray-800/90 backdrop-blur-sm px-2.5 py-1 rounded-full leading-none select-none shadow-sm">
+                            class="msg-notice-surface text-xs text-gray-500 dark:text-gray-400 px-2.5 py-1 rounded-full leading-none select-none shadow-sm">
                             {{ stickyDateDisplay }}
                         </span>
                     </div>

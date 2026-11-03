@@ -1,12 +1,17 @@
 <template>
-    <!-- switch 未覆盖的服务消息类型（TDLib 有、本端未适配）：用未适配卡片替代兜底文案 -->
-    <MessageUnsupportedContent v-if="unadapted" :content="content" />
+    <!-- switch 未覆盖的服务消息类型（TDLib 有、本端未适配）：用未适配卡片替代兜底文案。
+         服务消息没有气泡托底，这里补一层服务消息通用底色，和气泡里那张卡是同一套观感 -->
+    <div v-if="unadapted"
+        class="msg-notice-surface mx-auto w-fit max-w-full rounded-2xl px-3 py-2.5 shadow-sm">
+        <MessageUnsupportedContent :content="content" />
+    </div>
 
     <div v-else class="text-center py-1" :class="clickable ? 'cursor-pointer' : ''" @click="onClick">
         <!-- 设置新壁纸（messageChatSetBackground）/ 群头像更新（messageChatChangePhoto）：
-             两者显示效果一致，共用这张正方形磨砂卡片（圆形预览 + 文案），只是按钮功能不同 -->
+             两者显示效果一致，共用这张正方形卡片（圆形预览 + 文案），只是按钮功能不同；
+             底色与日期 / 服务文案统一走 msg-notice-surface -->
         <div v-if="cardContent"
-            class="mx-auto flex aspect-square w-52 max-w-full flex-col items-center justify-center gap-2 rounded-2xl bg-white/40 px-4 py-4 shadow-sm backdrop-blur-md dark:bg-black/20">
+            class="msg-notice-surface mx-auto flex aspect-square w-52 max-w-full flex-col items-center justify-center gap-2 rounded-2xl px-4 py-4 shadow-sm">
             <div class="h-24 w-24 shrink-0 overflow-hidden rounded-full bg-gray-200/70 dark:bg-gray-700/70">
                 <img v-if="cardThumbSrc" :src="cardThumbSrc" alt="" class="h-full w-full object-cover" />
             </div>
@@ -29,7 +34,7 @@
 
         <!-- 频道/群被加入社群：与官方一致用卡片（社群头像 + 文案 + 查看按钮），点击查看打开社群详情 -->
         <div v-else-if="communityContent"
-            class="mx-auto flex w-52 max-w-full flex-col items-center justify-center gap-2.5 rounded-2xl bg-white/40 px-4 py-5 shadow-sm backdrop-blur-md dark:bg-black/20">
+            class="msg-notice-surface mx-auto flex w-52 max-w-full flex-col items-center justify-center gap-2.5 rounded-2xl px-4 py-5 shadow-sm">
             <CommunityAvatar :photo="communityPhoto" :title="communityName" size-class="w-20 h-20" />
             <span class="text-sm leading-snug text-gray-600 dark:text-gray-300">
                 <ServiceTextNodes />
@@ -42,7 +47,7 @@
         </div>
 
         <span v-else
-            class="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full">
+            class="msg-notice-surface text-xs text-gray-500 dark:text-gray-400 px-3 py-1 rounded-full">
             <ServiceTextNodes />
         </span>
 
