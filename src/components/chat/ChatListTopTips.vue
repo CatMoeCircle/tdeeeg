@@ -26,41 +26,6 @@
                 </div>
             </section>
 
-            <!-- 新设备登录待确认 -->
-            <section v-else-if="store.topTip === 'unconfirmed'" key="unconfirmed"
-                class="flex flex-col gap-2 rounded-xl border border-amber-200/70 dark:border-amber-500/30 bg-amber-50/80 dark:bg-amber-500/10 backdrop-blur-md px-3 py-2.5 mb-1.5">
-                <div class="flex items-start gap-2.5">
-                    <div
-                        class="w-8 h-8 shrink-0 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-                        <ShieldAlert class="w-4.5 h-4.5" />
-                    </div>
-                    <div class="min-w-0 flex-1">
-                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                            {{ t('topTips.sessionTitle') }}
-                        </p>
-                        <p v-if="sessionText" class="text-xs text-gray-600 dark:text-gray-300 mt-0.5 truncate">{{ sessionText }}</p>
-                        <p v-if="sessionDate" class="text-xs text-gray-400 dark:text-gray-500">{{ sessionDate }}</p>
-                        <p v-if="store.unconfirmedCount > 1" class="text-xs text-gray-400 dark:text-gray-500">
-                            {{ t('topTips.sessionMore', { count: store.unconfirmedCount - 1 }) }}
-                        </p>
-                        <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{{ t('topTips.sessionHint') }}</p>
-                    </div>
-                </div>
-                <div v-if="store.unconfirmedSessionId" class="flex items-center justify-end gap-2">
-                    <BaseButton type="button" variant="ghost" size="sm" :disabled="busy" @click="denySession">
-                        {{ t('topTips.sessionDeny') }}
-                    </BaseButton>
-                    <BaseButton type="button" size="sm" :disabled="busy" @click="confirmSession">
-                        {{ t('topTips.sessionConfirm') }}
-                    </BaseButton>
-                </div>
-                <div v-else class="flex items-center justify-end">
-                    <BaseButton type="button" variant="ghost" size="sm" @click="openDevices">
-                        {{ t('topTips.sessionReview') }}
-                    </BaseButton>
-                </div>
-            </section>
-
             <!-- 生日 -->
             <section v-else-if="store.topTip === 'birthday'" key="birthday" role="button" tabindex="0"
                 class="relative flex items-center gap-2.5 rounded-xl border border-gray-200/70 dark:border-gray-700/70 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-3 py-2.5 mb-1.5 cursor-pointer transition-colors hover:bg-white/90 dark:hover:bg-gray-800/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
@@ -92,7 +57,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
 import { Cake, ShieldAlert, X } from 'lucide-vue-next';
 import BaseButton from '../ui/button/BaseButton.vue';
 import BirthdayPopup from './BirthdayPopup.vue';
@@ -101,28 +65,9 @@ import { confirmAndOpenExternalLink } from '../../utils/openExternalLink';
 import { useTopTipsStore } from '../../store/topTips';
 
 const { t } = useI18n();
-const router = useRouter();
 const store = useTopTipsStore();
 
 const birthdayOpen = ref(false);
-/** 会话操作进行中，避免重复发请求 */
-const busy = ref(false);
-
-const sessionText = computed(() => {
-    const session = store.unconfirmed;
-    if (!session) return '';
-    const device = session.device_model?.trim() ?? '';
-    const location = session.location?.trim() ?? '';
-    if (device && location) return t('topTips.sessionBody', { device, location });
-    if (device) return t('topTips.sessionBodyNoLocation', { device });
-    return location;
-});
-
-const sessionDate = computed(() => {
-    const session = store.unconfirmed;
-    if (!session?.date) return '';
-    return new Date(session.date * 1000).toLocaleString();
-});
 
 const frozenBody = computed(() => {
     const state = store.freeze;
@@ -141,36 +86,6 @@ async function dismissBirthday() {
     } catch (e: any) {
         toast.error(e?.message || t('topTips.actionFailed'));
     }
-}
-
-async function confirmSession() {
-    if (busy.value) return;
-    busy.value = true;
-    try {
-        await store.confirmUnconfirmedSession();
-        toast.success(t('topTips.sessionConfirmed'));
-    } catch (e: any) {
-        toast.error(e?.message || t('topTips.actionFailed'));
-    } finally {
-        busy.value = false;
-    }
-}
-
-async function denySession() {
-    if (busy.value) return;
-    busy.value = true;
-    try {
-        await store.terminateUnconfirmedSession();
-        toast.success(t('topTips.sessionTerminated'));
-    } catch (e: any) {
-        toast.error(e?.message || t('topTips.actionFailed'));
-    } finally {
-        busy.value = false;
-    }
-}
-
-function openDevices() {
-    void router.push({ name: 'settings-devices' });
 }
 
 function appeal() {

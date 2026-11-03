@@ -69,13 +69,14 @@
                     </SlidingTabBar>
                 </Transition>
 
-                <!-- 顶部卡片：生日横幅 + 音乐播放器。
+                <!-- 顶部卡片：新设备登录提示 + 生日横幅 + 音乐播放器。
                      打开对话时音乐移到对话页顶部，但生日等卡片仍留在列表里 -->
                 <Transition :name="suppressChromeAnim ? 'slide-up-locked' : 'slide-up'">
                     <!-- max-h：含 mt-1 顶距；有生日横幅时放宽，折叠动画仍从固定值插值。
                          不要加 overflow-hidden：会把这几个玻璃卡片的 shadow 切成硬边 -->
-                    <div v-if="!forumMode && (topTipsStore.showBirthdayBanner || listMusicVisible)"
-                        class="shrink-0" :class="topTipsStore.showBirthdayBanner ? 'max-h-48' : 'max-h-14'">
+                    <div v-if="!forumMode && (topTipsStore.unconfirmed || topTipsStore.showBirthdayBanner || listMusicVisible)"
+                        class="shrink-0"
+                        :class="topTipsStore.unconfirmed || topTipsStore.showBirthdayBanner ? 'max-h-48' : 'max-h-14'">
                         <ChatListTopCard :show-music="listMusicVisible" />
                     </div>
                 </Transition>
