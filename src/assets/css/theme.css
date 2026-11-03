@@ -172,6 +172,54 @@ html.dark [data-bubble-msg-id]:has(.msg-unsupported-card),
 }
 
 /*
+ * 转发来源横幅由上下两块拼成（第一行窄、第二行宽），
+ * 两块各自带背景模糊时，接缝处会断成一条线、看着像两个分开的标签，所以这里只取底色不做模糊。
+ */
+.msg-forward-flat.msg-notice-surface {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/*
+ * 台阶交接处的向外弯口：第一行右缘底部顺势向外弯到第二行上缘，
+ * 让台阶的转角也是圆角，而不是一个直角。只画圆外那片、不与已有底色重叠，颜色完全一致。
+ */
+.msg-forward-step::after {
+  content: '';
+  position: absolute;
+  left: 100%;
+  bottom: 0;
+  width: 6px;
+  height: 6px;
+  pointer-events: none;
+  background: radial-gradient(circle at 100% 0, transparent 5px, var(--msg-notice-bg) 6px);
+}
+
+/*
+ * 无气泡消息上的转发来源横幅：两块底色（第一行贴文字、第二行含头像）拼成一整块，
+ * 悬停 / 按下时两块一起改 --msg-notice-bg。
+ * .msg-notice-surface 与 Tailwind 的 hover:bg-* 不同层（无层级），会直接压过后者的背景色，
+ * 所以反馈档位写在这里，而不是组件里的 utility 类。
+ */
+.msg-forward-source:hover .msg-notice-surface {
+  --msg-notice-bg: rgb(255 255 255 / 0.62);
+}
+
+.msg-forward-source:active .msg-notice-surface {
+  --msg-notice-bg: rgb(255 255 255 / 0.78);
+}
+
+html.dark .msg-forward-source:hover .msg-notice-surface,
+:root[theme-mode="dark"] .msg-forward-source:hover .msg-notice-surface {
+  --msg-notice-bg: rgb(0 0 0 / 0.32);
+}
+
+html.dark .msg-forward-source:active .msg-notice-surface,
+:root[theme-mode="dark"] .msg-forward-source:active .msg-notice-surface {
+  --msg-notice-bg: rgb(0 0 0 / 0.42);
+}
+
+/*
  * ===== 深色模式颜色收敛 =====
  * 组件里有大量颜色字面量只写了浅色档、没有 dark: 兄弟（text-gray-400/500 约 700 处，
  * 以及浅色 hover 底色、浅色描边），深色下这些文本会和背景糊在一起，hover 还会把整行刷亮。

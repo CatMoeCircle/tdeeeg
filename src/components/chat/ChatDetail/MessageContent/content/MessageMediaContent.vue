@@ -9,7 +9,8 @@
             :message-id="forwardMessageId"
             :first-name="forwardFirstName" :last-name="forwardLastName" :photo="forwardPhoto"
             :accent-id="forwardAccentId" :navigable="forwardNavigable" :self="isSelf"
-            :text-color="forwardTextColor" media-inline @open-source="emit('openForwardSource')" />
+            :text-color="forwardTextColor" :bubbleless="!captionText" media-inline
+            @open-source="emit('openForwardSource')" />
 
         <!-- Caption above media：字色跟气泡走（.msg-bubble-self 内强制深色，否则主题正文字色） -->
         <div v-if="showCaptionAbove && captionText" class="caption-text px-2 pt-2 pb-1 msg-body-text">

@@ -124,7 +124,7 @@
                                             :accent-id="getForwardAccentId(item.messages[0].forward_info)"
                                             :navigable="canNavigateForward(item.messages[0].forward_info)"
                                             :self="isSelfAlbum(item)" :text-color="forwardTextColor(item.messages[0])"
-                                            media-inline
+                                            :bubbleless="isAlbumBubbleless(item)" media-inline
                                             @open-source="openForwardSource(item.messages[0].forward_info)" />
                                         <MessageAlbum :messages="item.messages" :isSelf="isOutgoingAlbum(item)"
                                             :chatId="chatId" :topicId="topicId"
@@ -262,6 +262,7 @@
                                             :accent-id="getForwardAccentId(item.msg.forward_info)"
                                             :navigable="canNavigateForward(item.msg.forward_info)"
                                             :self="isSelf(item.msg)" :text-color="forwardTextColor(item.msg)"
+                                            :bubbleless="isStandaloneMessage(item.msg)"
                                             @open-source="openForwardSource(item.msg.forward_info)" />
                                         <MessageContent :content="item.msg.content" :isSelf="isOutgoingMsg(item.msg)"
                                             :date="item.msg.date" :forwardInfo="getDisplayForwardInfo(item.msg)"
