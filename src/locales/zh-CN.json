@@ -1467,7 +1467,10 @@
     "saveAsFailed": "另存为失败",
     "downloadProgressFull": "下载中 {percent}% · {current}/{total}",
     "downloadProgressPartial": "下载中 {percent}% · {current}",
-    "downloadProgress": "下载中 {percent}%"
+    "downloadProgress": "下载中 {percent}%",
+    "originalQuality": "原画",
+    "videoCodec": "解码器",
+    "fileSize": "文件大小"
   },
   "player": {
     "title": "音乐播放器",

@@ -52,19 +52,20 @@ function buildAltSrc(file: SimpleFile | undefined, mime: string): string {
  * @param altVideos 消息的 alternative_videos 数组
  * @param mainSrc 当前播放的主视频 src（作为默认画质之一）
  * @param mainResolution 主视频分辨率 { width, height }
- * @param mainMime 主视频 mime 类型（用于 alternate 无本地文件时的流式）
+ * @param mainSize 主视频文件大小（字节）
  * @returns 画质列表；无可选画质时返回空数组
  */
 export function buildVideoQualities(
     altVideos: Array<{ id: string; width: number; height: number; codec: string; video?: unknown }> | undefined,
     mainSrc: string,
     mainResolution: { width: number; height: number },
+    mainSize = 0,
 ): MediaViewerVideoQuality[] {
     const list: MediaViewerVideoQuality[] = [];
     const alts = altVideos || [];
     if (!alts.length) return list;
 
-    // 主画质作为一项（用当前播放的 mainSrc）
+    // 主画质作为一项（用当前播放的 mainSrc）；主文件即原画，codec 由查看器探测
     if (mainSrc) {
         list.push({
             id: 'main',
@@ -72,6 +73,7 @@ export function buildVideoQualities(
             height: mainResolution?.height || 0,
             src: mainSrc,
             label: resolutionLabel(mainResolution?.width || 0, mainResolution?.height || 0),
+            size: mainSize > 0 ? mainSize : 0,
         });
     }
 
@@ -85,6 +87,8 @@ export function buildVideoQualities(
             height: alt.height,
             src,
             label: resolutionLabel(alt.width, alt.height),
+            codec: alt.codec,
+            size: (alt.video as SimpleFile | undefined)?.size || 0,
         });
     }
 

@@ -1339,7 +1339,10 @@
     "saveAsFailed": "Не удалось сохранить как",
     "downloadProgressFull": "Загрузка {percent}% · {current}/{total}",
     "downloadProgressPartial": "Загрузка {percent}% · {current}",
-    "downloadProgress": "Загрузка {percent}%"
+    "downloadProgress": "Загрузка {percent}%",
+    "originalQuality": "Оригинал",
+    "videoCodec": "Кодек",
+    "fileSize": "Размер файла"
   },
   "player": {
     "title": "Музыкальный плеер",

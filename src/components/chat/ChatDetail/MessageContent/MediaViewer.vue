@@ -130,9 +130,9 @@
                                 <!-- Control card -->
                                 <div class="w-full bg-black/60 backdrop-blur-md rounded-2xl px-4 py-2.5" @click.stop>
                                     <!-- Row 1: volume / play-pause / speed + quality + fullscreen -->
-                                    <div class="flex items-center justify-between gap-2 mb-1">
+                                    <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 mb-1">
                                         <!-- Left: volume -->
-                                        <div class="flex items-center gap-2 w-37 shrink-0">
+                                        <div class="flex items-center gap-2 min-w-0">
                                             <button @click="toggleVideoMute"
                                                 class="w-7 h-7 flex items-center justify-center text-white/70 hover:text-white shrink-0">
                                                 <svg v-if="!videoMuted" viewBox="0 0 24 24" fill="none"
@@ -152,7 +152,7 @@
                                         </div>
                                         <!-- Center: play/pause -->
                                         <button @click="toggleVideoPlay"
-                                            class="w-9 h-9 flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 text-white transition-colors shrink-0">
+                                            class="w-9 h-9 flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 text-white transition-colors shrink-0 justify-self-center">
                                             <svg v-if="!isVideoPlaying" viewBox="0 0 24 24" fill="currentColor"
                                                 class="w-5 h-5 ml-0.5">
                                                 <path d="M8 5v14l11-7z" />
@@ -162,7 +162,7 @@
                                             </svg>
                                         </button>
                                         <!-- Right: speed + quality + fullscreen -->
-                                        <div class="flex items-center gap-1 w-37 shrink-0 justify-end">
+                                        <div class="flex items-center gap-1 justify-end min-w-0">
                                             <!-- Speed -->
                                             <div class="relative">
                                                 <button @click.stop="toggleSpeedMenu"
@@ -186,25 +186,38 @@
                                                     </div>
                                                 </Transition>
                                             </div>
-                                            <!-- Quality -->
-                                            <div v-if="currentQualities.length > 1" class="relative">
-                                                <button @click.stop="toggleQualityMenu"
+                                            <!-- Quality：未压缩原档显示原画、压缩档显示分辨率；解码器与文件大小跟随画质菜单 -->
+                                            <div class="relative shrink-0">
+                                                <button v-if="canSwitchQuality" @click.stop="toggleQualityMenu"
                                                     class="h-7 px-2 flex items-center justify-center text-white/80 hover:text-white rounded-md hover:bg-white/10 transition-colors text-sm font-medium">
-                                                    {{ qualityLabel }}
+                                                    {{ activeResolutionLabel }}
                                                 </button>
+                                                <span v-else-if="activeResolutionLabel"
+                                                    class="h-7 px-2 flex items-center text-white/80 text-sm font-medium">{{
+                                                        activeResolutionLabel }}</span>
                                                 <Transition name="fade-ui">
                                                     <div v-if="qualityMenuVisible"
-                                                        class="absolute bottom-full mb-2 right-0 bg-black/85 backdrop-blur-md rounded-xl py-1.5 px-1 shadow-xl min-w-22">
+                                                        class="absolute bottom-full mb-2 right-0 bg-black/85 backdrop-blur-md rounded-xl py-1.5 px-1 shadow-xl min-w-40">
                                                         <button v-for="q in currentQualities" :key="q.id"
                                                             @click="selectQuality(q)"
-                                                            class="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors"
+                                                            class="w-full flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-lg text-sm transition-colors whitespace-nowrap"
                                                             :class="q.src === activeQualitySrc ? 'text-white bg-white/15' : 'text-white/70 hover:text-white hover:bg-white/10'">
-                                                            <span>{{ q.label }}</span>
-                                                            <svg v-if="q.src === activeQualitySrc" viewBox="0 0 24 24"
-                                                                fill="none" stroke="currentColor" stroke-width="2.5"
-                                                                class="w-3.5 h-3.5">
-                                                                <polyline points="20 6 9 17 4 12" />
-                                                            </svg>
+                                                            <div class="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                                                                <span class="shrink-0">{{ qualityResolutionLabel(q) }}</span>
+                                                                <!-- 解码器小气泡：跟随每一档画质 -->
+                                                                <span v-if="qualityCodecLabel(q)"
+                                                                    class="shrink-0 px-1.5 py-px rounded-full bg-white/15 text-[10px] leading-tight font-medium text-white/85 whitespace-nowrap"
+                                                                    :title="t('mediaViewer.videoCodec')">{{ qualityCodecLabel(q) }}</span>
+                                                                <svg v-if="q.src === activeQualitySrc" viewBox="0 0 24 24"
+                                                                    fill="none" stroke="currentColor" stroke-width="2.5"
+                                                                    class="w-3.5 h-3.5 shrink-0">
+                                                                    <polyline points="20 6 9 17 4 12" />
+                                                                </svg>
+                                                            </div>
+                                                            <!-- 文件大小：分辨率下面一点 -->
+                                                            <span v-if="qualitySizeLabel(q)"
+                                                                class="text-[10px] leading-tight text-white/55 whitespace-nowrap"
+                                                                :title="t('mediaViewer.fileSize')">{{ qualitySizeLabel(q) }}</span>
                                                         </button>
                                                     </div>
                                                 </Transition>
@@ -423,6 +436,7 @@ import { toast } from '../../../../utils/toast';
 import type { formattedText, message, messageVideo, file as TdFile } from 'tdlib-types';
 import { tdlibSend, downloadingFiles, isFileReady, safeDownloadFile, safeAddFileToDownloads } from '../../../../utils/tdlib';
 import { buildVideoQualities } from '../../../../utils/videoQualities';
+import { formatVideoCodec, probeVideoCodec } from '../../../../utils/videoCodec';
 import { DL_PRIORITY } from '../../../../utils/downloadPriority';
 import { settings } from '../../../../store/settings';
 import { pickBigPhotoSize, pickSmallPhotoSize } from '../../../../utils/photoSizes';
@@ -442,6 +456,10 @@ export interface MediaViewerVideoQuality {
     src: string;
     /** 显示标签，如 1080p */
     label: string;
+    /** 编码 codec（TDLib alternative video 提供，如 h264 / h265 / av1） */
+    codec?: string;
+    /** 该档位文件大小（字节） */
+    size?: number;
 }
 
 export interface MediaViewerItem {
@@ -543,19 +561,78 @@ const speedMenuVisible = ref(false);
 const isFullscreen = ref(false);
 const videoContainerRef = ref<HTMLElement | null>(null);
 
+/** 主视频（原文件）文件大小（字节） */
+const mainVideoSize = computed(() => {
+    const c = currentContent.value;
+    if (!c || c._ !== 'messageVideo') return 0;
+    return c.video.video?.size || c.video.video?.expected_size || 0;
+});
+
 /** 当前视频项的可选画质列表（从 alternative_videos 构建） */
 const currentQualities = computed<MediaViewerVideoQuality[]>(() => {
     const c = currentItem.value?.message?.content;
     if (!c || c._ !== 'messageVideo' || !currentMediaSrc.value) return [];
-    return buildVideoQualities(c.alternative_videos, currentMediaSrc.value, { width: c.video.width, height: c.video.height });
+    return buildVideoQualities(c.alternative_videos, currentMediaSrc.value, { width: c.video.width, height: c.video.height }, mainVideoSize.value);
 });
 /** 当前选中的画质项 */
 const activeQuality = computed(() =>
     currentQualities.value.find((q) => q.src === activeQualitySrc.value)
     || currentQualities.value[currentQualities.value.length - 1]
 );
-/** 画质标签，如 1080p */
-const qualityLabel = computed(() => activeQuality.value?.label || '');
+
+/** 是否可在多档画质间切换（单档时只展示信息，不弹菜单） */
+const canSwitchQuality = computed(() => currentQualities.value.length > 1);
+
+/**
+ * 画质档位的分辨率标签：
+ * 主文件是发送方原档（未被服务端重编码）→ 原画；alternative 档位是被压缩过的，显示实际分辨率。
+ */
+function qualityResolutionLabel(q: MediaViewerVideoQuality): string {
+    if (q.id === 'main') return t('mediaViewer.originalQuality');
+    return q.label || '';
+}
+
+/** 当前选中画质的分辨率标签（原档 → 原画；压缩档 → 1080p / 720p …） */
+const activeResolutionLabel = computed(() => {
+    const q = activeQuality.value;
+    // 无 alternative 档位时，唯一的主文件就是原档
+    if (!q || q.id === 'main') return t('mediaViewer.originalQuality');
+    return q.label || '';
+});
+
+/** 主文件解码器探测结果（TDLib 只给 alternative 档位 codec，原画需自己嗅探） */
+const probedCodec = ref('');
+
+/** 画质菜单里每档的解码器：alternative 档用 TDLib codec，主画质（原画）用探测结果 */
+function qualityCodecLabel(q: MediaViewerVideoQuality): string {
+    if (q.codec) return formatVideoCodec(q.codec);
+    return q.id === 'main' ? probedCodec.value : '';
+}
+
+/** 画质菜单里每档的文件大小 */
+function qualitySizeLabel(q: MediaViewerVideoQuality): string {
+    const size = q.size || (q.id === 'main' ? mainVideoSize.value : 0);
+    return size > 0 ? formatSize(size) : '';
+}
+
+/**
+ * 探测主文件解码器。
+ * TDLib 只给 alternative 档位 codec，原画（主文件）没有该字段，
+ * 这里读已缓存字节嗅探容器头；画质菜单展开时也要用它给主画质列打标。
+ */
+let codecProbeSeq = 0;
+function probeMainVideoCodec() {
+    const c = currentContent.value;
+    if (!c || c._ !== 'messageVideo') return;
+    const f = c.video.video;
+    if (!f?.id) return;
+    const seq = ++codecProbeSeq;
+    void probeVideoCodec(f.id, f.size || f.expected_size || 0).then((codec) => {
+        // 探测期间可能已切到下一条/换档，结果只写给发起时的条目
+        if (seq !== codecProbeSeq) return;
+        probedCodec.value = codec || '';
+    });
+}
 
 // ---- 视频未下载时的手动下载（未自动下载的视频显示下载按钮） ----
 /** 查看器内手动下载完成后的本地 src */
@@ -1263,6 +1340,9 @@ watch(() => props.visible, (v) => {
         activeQualitySrc.value = currentMediaSrc.value || '';
         speedMenuVisible.value = false;
         qualityMenuVisible.value = false;
+        // 丢弃上一轮探测结果（进行中的请求按 seq 自动作废）
+        codecProbeSeq++;
+        probedCodec.value = '';
     } else {
         stopStreamCache();
         if (videoRef.value) {
@@ -1300,6 +1380,9 @@ watch(currentIndex, () => {
     activeQualitySrc.value = currentMediaSrc.value || '';
     speedMenuVisible.value = false;
     qualityMenuVisible.value = false;
+    // 切条目：作废上一轮解码器探测
+    codecProbeSeq++;
+    probedCodec.value = '';
 });
 
 function close() {
@@ -1648,6 +1731,8 @@ function onVideoLoaded() {
     if (videoRef.value) {
         videoDuration.value = videoRef.value.duration;
         updateVideoBuffered();
+        // 元数据就绪时头部字节通常已缓存：补一次解码器探测
+        probeMainVideoCodec();
         // 查看器已打开且用的是流式源：补一次持续下载，一路缓存到底
         if (stickyStreamFileId.value) {
             const vc = currentContent.value;
@@ -1684,6 +1769,8 @@ function onVideoFrameReady() {
     videoHasFrame.value = true;
     videoBuffering.value = false;
     videoLoadFailed.value = false;
+    // 出帧即代表头部字节已缓存：解码器探测在这里兜底（loadedmetadata 时可能还没缓存）
+    probeMainVideoCodec();
     // 恢复成功：清零瞬时错误重试计数
     videoErrorRetries = 0;
     clearVideoRetryTimer();
@@ -1846,6 +1933,8 @@ function selectQuality(q: MediaViewerVideoQuality) {
 function toggleQualityMenu() {
     qualityMenuVisible.value = !qualityMenuVisible.value;
     speedMenuVisible.value = false;
+    // 展开菜单时补一次主画质解码器探测（原画档没展开过菜单也能显示 codec）
+    if (qualityMenuVisible.value) probeMainVideoCodec();
 }
 function toggleSpeedMenu() {
     speedMenuVisible.value = !speedMenuVisible.value;
