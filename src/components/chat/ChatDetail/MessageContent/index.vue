@@ -8,6 +8,10 @@
     <MessageGiftContent v-else-if="content._ === 'messageGift' || content._ === 'messageUpgradedGift'"
         :content="content" :date="date" :is-self="isSelf" />
 
+    <!-- TON 钱包转账（Gram）：官方按「服务消息 + 钻石卡片」排布，走独立卡片组件 -->
+    <MessageTonWalletTransferContent v-else-if="content._ === 'messageTonWalletTransfer'" :content="content"
+        :message="message" :is-self="isSelf" :chat-id="chatId" />
+
     <MessageServiceContent v-else-if="isServiceContent(content)" :content="content" :senderName="senderName"
         :senderUserId="senderUserId" :isSelf="isSelf ?? false" :messageList="messageList" :chatId="chatId"
         :messageId="messageId" :message="message" @jump="onServiceJump" />
@@ -138,6 +142,7 @@ import MessageVoiceContent from './content/MessageVoiceContent.vue';
 import MessageFileContent from './content/MessageFileContent.vue';
 import MessageServiceContent from './content/MessageServiceContent.vue';
 import MessageGiftContent from './content/MessageGiftContent.vue';
+import MessageTonWalletTransferContent from './content/MessageTonWalletTransferContent.vue';
 import MessageGiveawayContent from './content/MessageGiveawayContent.vue';
 import MessageGiveawayWinnersContent from './content/MessageGiveawayWinnersContent.vue';
 import MessageOtherContent from './content/MessageOtherContent.vue';
@@ -195,6 +200,7 @@ const SERVICE_TYPES = new Set([
     'messageGiveawayCompleted',
     'messageGiftedStars',
     'messageGiftedGrams',
+    'messageTonWalletTransfer',
     'messageGiveawayPrizeStars',
     'messageGift',
     'messageUpgradedGift',

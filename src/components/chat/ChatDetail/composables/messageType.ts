@@ -73,6 +73,8 @@ export const SERVICE_TYPES: ReadonlySet<string> = new Set([
   "messageGiveawayCompleted",
   "messageGiftedStars",
   "messageGiftedGrams",
+  // TON 钱包转账：官方按服务消息排布（居中、不占头像列），卡片自带气泡视觉
+  "messageTonWalletTransfer",
   "messageGiveawayPrizeStars",
   "messageGift",
   "messageUpgradedGift",
