@@ -1,42 +1,47 @@
 <template>
-    <!-- Gram 转账卡片：尺寸与排版逐条对齐 Telegram Android 的 WalletActionLayout
-         （卡片 198×132dp、圆角 16dp、钻石 42dp 位于顶部 +8dp、金额中心 +55dp、
+    <!-- Gram 转账卡片：尺寸与排版对齐 Telegram Android 的 WalletActionLayout
+         （卡片 220×148dp、圆角 16dp、钻石放大到 56dp 位于顶部 +6dp、金额顶边 +66dp、
          地址底边 -7dp），背景是程序化生成的八阶光场，不引用任何位图资产。 -->
-    <div class="ton-card" :style="cardStyle">
-        <div class="ton-card-sheen" :style="sheenStyle" />
+    <!-- 钻石放在裁剪盒（.ton-card）外面：卡片需要 overflow:hidden 裁缎带外角，
+         但按压放大的石头必须能溢出卡片边界显示，所以它挂在不会裁剪的外层上 -->
+    <div ref="hostEl" class="ton-card-host" @pointermove="onSheenMove" @pointerleave="resetSheen">
+        <!-- 整块蓝色卡面就是「交易详情」的入口：点卡面开弹窗。
+             钻石是卡面的兄弟节点且盖在上面，按压 / 拖拽石头不会触发这里的 click -->
+        <div class="ton-card" :style="cardStyle" role="button" tabindex="0"
+            @click="emit('details')" @keydown.enter.prevent="emit('details')" @keydown.space.prevent="emit('details')">
+            <div class="ton-card-sheen" :style="sheenStyle" />
 
-        <!-- 右上角斜切缎带：GiftSheet.RibbonDrawable 的 48×48 贝塞尔原值，
-             被卡片 16dp 圆角裁掉外角，所以它永远不会把卡角顶成直角 -->
-        <svg class="ton-card-ribbon" viewBox="0 0 48 48" aria-hidden="true">
-            <path :d="RIBBON_PATH" :fill="ribbonColor" />
-            <text class="ton-card-ribbon-label" x="30" y="18" transform="rotate(45 30 18)"
-                :style="{ fontSize: `${ribbonFontSize}px` }">{{ label }}</text>
-        </svg>
+            <!-- 右上角斜切缎带：GiftSheet.RibbonDrawable 的 48×48 贝塞尔原值，
+                 被卡片 16dp 圆角裁掉外角，所以它永远不会把卡角顶成直角 -->
+            <svg class="ton-card-ribbon" viewBox="0 0 48 48" aria-hidden="true">
+                <path :d="RIBBON_PATH" :fill="ribbonColor" />
+                <text class="ton-card-ribbon-label" x="30" y="18" transform="rotate(45 30 18)"
+                    :style="{ fontSize: `${ribbonFontSize}px` }">{{ label }}</text>
+            </svg>
+
+            <div class="ton-card-amount">
+                <span class="ton-card-amount-number">{{ amount.sign }}{{ amount.whole }}<span
+                        class="ton-card-amount-fraction">{{ amount.fraction }}</span></span>
+                <span class="ton-card-amount-unit">{{ t('lng_action_gram_transfer_ticker', 1) }}</span>
+            </div>
+
+            <div class="ton-card-name">{{ name }}</div>
+
+            <div class="ton-card-address">{{ addressText }}</div>
+        </div>
 
         <!-- 钻石：单例 WebGL 上下文离屏渲染后逐帧贴到这块画布上 -->
         <canvas ref="stoneEl" class="ton-card-stone" @pointerdown="onPointerDown"
             @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerUp"
             @lostpointercapture="onPointerUp" />
-
-        <div class="ton-card-amount">
-            <span class="ton-card-amount-number">{{ amount.sign }}{{ amount.whole }}<span
-                    class="ton-card-amount-fraction">{{ amount.fraction }}</span></span>
-            <span class="ton-card-amount-unit">{{ t('lng_action_gram_transfer_ticker', 1) }}</span>
-        </div>
-
-        <div class="ton-card-name">{{ name }}</div>
-
-        <div class="ton-card-address">{{ addressText }}</div>
     </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { getCardBackgroundUrl } from '../../../../../utils/diamond/cardBackground';
-import { mountDiamond, type DiamondHandle } from '../../../../../utils/diamond/stage';
-import { onVisibilityChange } from '../../../../../composables/useSharedIntersectionObserver';
-import { DIAMOND_MOTION } from '../../../../../utils/diamond/motion';
+import { useDiamondDrag } from '../../../../../composables/useDiamondDrag';
 import {
     formatGramAddress,
     formatGramAmount,
@@ -51,8 +56,6 @@ const { t } = useI18n();
 
 /** 底色位图的生成倍率：平滑光场 2× 足够，再高只是白白多算一遍 */
 const BACKGROUND_SCALE = 2;
-/** 按压放大的视觉上限：官方 3× 会把整张卡盖住，聊天里收一点 */
-const PRESS_LIMIT = 2.2;
 
 /** GiftSheet.RibbonDrawable.fillRibbonPath 的原始路径（48×48 坐标系） */
 const RIBBON_PATH = 'M46.83 24.5 L23.5 1.17 C22.75 .42 21.73 0 20.68 0 '
@@ -70,16 +73,27 @@ const props = defineProps<{
     status: TonTransferStatus;
     /** 缎带文案（已本地化） */
     label: string;
+    /** 消息由自己发出：金额强制显示负号 */
+    outgoing?: boolean;
+}>();
+
+const emit = defineEmits<{
+    /** 点击蓝色卡面：打开交易详情弹窗 */
+    details: [];
 }>();
 
 const stoneEl = ref<HTMLCanvasElement | null>(null);
-let diamond: DiamondHandle | null = null;
-let releaseVisibility: (() => void) | null = null;
-let pointerId: number | null = null;
-let lastX = 0;
-let lastY = 0;
 
-const amount = computed(() => formatGramAmount(props.amount));
+/** 按压放大 + 拖拽：与交易详情弹窗共用同一套交互（卡片小，放大上限收到 2.2×） */
+const {
+    mount: mountStone,
+    invalidate: invalidateStone,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+} = useDiamondDrag({ canvas: stoneEl, viewportGate: true });
+
+const amount = computed(() => formatGramAmount(props.amount, props.outgoing === true));
 const addressText = computed(() => formatGramAddress(props.address));
 const ribbonColor = computed(() => TON_RIBBON_COLORS[props.status]);
 
@@ -101,84 +115,67 @@ const ribbonFontSize = computed(() => {
     return Math.min(9, (40 / width) * 0.98);
 });
 
-/** 上一次写进 DOM 的缩放值：静置时始终是 1，没必要每帧都碰 style 触发样式重算 */
-let appliedScale = Number.NaN;
+/** 光影跟随鼠标的最大倾角（度）：.ton-card-sheen 用 1.22 倍铺底，±8° 内四角不会露空 */
+const SHEEN_MAX_TILT = 8;
 
-function applyPressTransform(motion: { pressScale: number; pressOrigin: { x: number; y: number } }) {
-    const canvas = stoneEl.value;
-    if (!canvas) return;
-    const scale = Math.min(motion.pressScale, PRESS_LIMIT);
-    if (scale === appliedScale) return;
-    appliedScale = scale;
-    canvas.style.transformOrigin = `${motion.pressOrigin.x * 100}% ${motion.pressOrigin.y * 100}%`;
-    canvas.style.transform = `scale(${scale.toFixed(4)})`;
+function prefersReducedMotion(): boolean {
+    return typeof window !== 'undefined'
+        && typeof window.matchMedia === 'function'
+        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-function onPointerDown(event: PointerEvent) {
-    const canvas = stoneEl.value;
-    if (!canvas || pointerId !== null || !diamond) return;
-    pointerId = event.pointerId;
-    canvas.setPointerCapture(pointerId);
-    lastX = event.clientX;
-    lastY = event.clientY;
-    diamond.motion.beginDrag();
-    diamond.motion.setPressed(true);
-    diamond.setUrgent(true);
-    event.preventDefault();
+const hostEl = ref<HTMLElement | null>(null);
+/** 当前写进 CSS 变量的倾角，用来滤掉亚度级抖动，避免每次 pointermove 都动样式 */
+let sheenAngle = 0;
+const reduceMotion = prefersReducedMotion();
+
+/**
+ * 鼠标在卡片上移动时，把黑胶光场绕着卡片中心轻微转一点：
+ * 越靠右顺时针、越靠左逆时针，鼠标离开时回正（CSS transition 负责平滑）。
+ */
+function onSheenMove(event: PointerEvent) {
+    const host = hostEl.value;
+    if (!host || reduceMotion) return;
+    const rect = host.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const offset = (event.clientX - (rect.left + rect.width / 2)) / (rect.width / 2);
+    const angle = Math.max(-1, Math.min(1, offset)) * SHEEN_MAX_TILT;
+    if (Math.abs(angle - sheenAngle) < 0.4) return;
+    sheenAngle = angle;
+    host.style.setProperty('--sheen-rotate', `${angle.toFixed(2)}deg`);
 }
 
-function onPointerMove(event: PointerEvent) {
-    if (pointerId === null || event.pointerId !== pointerId || !diamond) return;
-    // DOM 报的就是 CSS 像素，与 Unigram 传入的逻辑像素同一量纲
-    diamond.motion.drag(event.clientX - lastX, event.clientY - lastY);
-    lastX = event.clientX;
-    lastY = event.clientY;
-}
-
-function onPointerUp(event: PointerEvent) {
-    const canvas = stoneEl.value;
-    if (pointerId === null || event.pointerId !== pointerId) return;
-    if (canvas?.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
-    pointerId = null;
-    diamond?.motion.endDrag();
-    diamond?.motion.setPressed(false);
-    diamond?.setUrgent(false);
-}
-
-function mountStone() {
-    const canvas = stoneEl.value;
-    if (!canvas || diamond) return;
-    diamond = mountDiamond({
-        target: canvas,
-        // 卡片在聊天里只有 42dp，按压放大到 3× 会盖住整张卡
-        onFrame: applyPressTransform,
-    });
-    applyPressTransform({ pressScale: 1, pressOrigin: DIAMOND_MOTION.pressScaleOrigin });
-    releaseVisibility = onVisibilityChange(
-        canvas,
-        () => diamond?.setVisible(true),
-        () => diamond?.setVisible(false),
-    );
+function resetSheen() {
+    const host = hostEl.value;
+    if (!host || sheenAngle === 0) return;
+    sheenAngle = 0;
+    host.style.setProperty('--sheen-rotate', '0deg');
 }
 
 onMounted(mountStone);
 
-watch(() => props.amount, () => diamond?.invalidate());
-
-onBeforeUnmount(() => {
-    releaseVisibility?.();
-    releaseVisibility = null;
-    diamond?.dispose();
-    diamond = null;
-});
+watch(() => props.amount, invalidateStone);
 </script>
 
 <style scoped>
+/* 不裁剪的外层：卡片本身要裁缎带外角，石头要能溢出，只能分成两层 */
+.ton-card-host {
+    position: relative;
+    flex: none;
+}
+
 .ton-card {
     position: relative;
     overflow: hidden;
     flex: none;
     isolation: isolate;
+    cursor: pointer;
+}
+
+/* 键盘可达：卡面是「交易详情」的入口，聚焦时给一圈贴边的白描边（蓝底上最清楚） */
+.ton-card:focus-visible {
+    outline: 2px solid rgb(255 255 255 / 0.9);
+    outline-offset: 2px;
 }
 
 .ton-card-sheen {
@@ -188,6 +185,9 @@ onBeforeUnmount(() => {
     background-size: 100% 100%;
     background-repeat: no-repeat;
     pointer-events: none;
+    /* 跟随鼠标轻微旋转：先放大 1.22 倍铺底，±8° 内四角不会被卡片圆角裁出空隙 */
+    transform: scale(1.22) rotate(var(--sheen-rotate, 0deg));
+    transition: transform 140ms ease-out;
 }
 
 .ton-card-ribbon {
@@ -209,29 +209,36 @@ onBeforeUnmount(() => {
     dominant-baseline: central;
 }
 
-/* iconSize dp(42)，restingTop = cardRect.top + dp(8) */
+/* iconSize dp(56)，restingTop = cardRect.top + dp(6) */
 .ton-card-stone {
     position: absolute;
     left: 50%;
-    top: 8px;
-    width: 42px;
-    height: 42px;
-    margin-left: -21px;
+    top: 6px;
+    width: 56px;
+    height: 56px;
+    margin-left: -28px;
     cursor: grab;
     touch-action: none;
     user-select: none;
+    /* 按压缩放只切 class，缩放交给合成器：不依赖渲染循环，掉帧也照样放大 */
+    transition: transform 170ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 官方 3× 会盖住整张卡，聊天里收在 2.2×（与交易详情弹窗一致） */
+.ton-card-stone.is-diamond-pressed {
+    transform: scale(2.2);
 }
 
 .ton-card-stone:active {
     cursor: grabbing;
 }
 
-/* amountCenterY = cardRect.top + dp(55) + height/2（16sp 行高约 18dp） */
+/* amountCenterY = cardRect.top + dp(66) + height/2（16sp 行高约 18dp） */
 .ton-card-amount {
     position: absolute;
     left: 0;
     right: 0;
-    top: 55px;
+    top: 66px;
     height: 18px;
     line-height: 18px;
     text-align: center;
@@ -253,11 +260,12 @@ onBeforeUnmount(() => {
     color: #5de3ff;
 }
 
+/* 名字下移 2px 贴近地址：与地址首行的盒间距由 11px 收到 7px */
 .ton-card-name {
     position: absolute;
     left: 0;
     right: 0;
-    top: 79px;
+    top: 90px;
     height: 12px;
     line-height: 12px;
     text-align: center;
@@ -270,7 +278,7 @@ onBeforeUnmount(() => {
     pointer-events: none;
 }
 
-/* addressTop = cardRect.bottom - dp(7) - height（两行 9.3sp 等宽） */
+/* addressTop = cardRect.bottom - dp(7) - height（两行 11px 等宽，行高 16px） */
 .ton-card-address {
     position: absolute;
     left: 0;
@@ -278,8 +286,8 @@ onBeforeUnmount(() => {
     bottom: 7px;
     text-align: center;
     font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
-    font-size: 9.5px;
-    line-height: 15px;
+    font-size: 11px;
+    line-height: 16px;
     letter-spacing: 0.01em;
     white-space: pre;
     color: #0145d0;
