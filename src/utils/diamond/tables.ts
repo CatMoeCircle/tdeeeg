@@ -4,11 +4,23 @@
  * 9 张 `.bin` 是 Telegram 官方烘焙好的几何 / 光照数据（Unigram
  * `Telegram/Assets/Models/Diamond/`，GPL-3.0，与本项目一致），共约 524 KB。
  *
- * 数据在构建期就被内联成 base64（见 `scripts/build-diamond-assets.mjs` 与
- * `assets.generated.ts`）
+ * 读取方式：这 9 个文件随前端一起打包，**从本地读**——生产包里它们被内嵌进
+ * 可执行文件，由 Tauri 的资源协议直接从内存取出；开发时由本地 Vite 服务提供。
+ * 这里不存在联网下载。一次懒加载把它们并行读进来，`arrayBuffer()` 的结果直接开
+ * `Float32Array` 视图，不做 base64、也不做逐表拷贝，全程只驻留一份 524 KB。
+ * （旧实现把同样这些字节以 base64 内联在 TS 里：字符串 + Uint8Array + 9 张表
+ * 同时存在，常驻约 1.2 MB，还得多花几毫秒 atob。）
  */
 
-import { DIAMOND_TABLE_BASE64 } from './assets.generated';
+import anchorsUrl from '../../assets/diamond/models/anchors.bin?url';
+import cameraUrl from '../../assets/diamond/models/camera.bin?url';
+import facetProjectionUrl from '../../assets/diamond/models/facetProjection.bin?url';
+import framesUrl from '../../assets/diamond/models/frames.bin?url';
+import mainUrl from '../../assets/diamond/models/main.bin?url';
+import planesUrl from '../../assets/diamond/models/planes.bin?url';
+import smallUrl from '../../assets/diamond/models/small.bin?url';
+import verticesUrl from '../../assets/diamond/models/vertices.bin?url';
+import widthsUrl from '../../assets/diamond/models/widths.bin?url';
 
 import diamondVertex from '../../assets/diamond/shaders/diamondVertex.glsl?raw';
 import diamondFragment from '../../assets/diamond/shaders/diamondFragment.glsl?raw';
@@ -55,41 +67,21 @@ export interface DiamondTables {
     small: Float32Array;
 }
 
-type TableName = keyof DiamondTables;
+/** 每张表的本地地址（构建期由 Vite 改写成打包后的路径） */
+const TABLE_URLS: Readonly<Record<keyof DiamondTables, string>> = {
+    frames: framesUrl,
+    planes: planesUrl,
+    anchors: anchorsUrl,
+    widths: widthsUrl,
+    facetProjection: facetProjectionUrl,
+    camera: cameraUrl,
+    vertices: verticesUrl,
+    main: mainUrl,
+    small: smallUrl,
+};
 
-/** base64 → little-endian float32 表 */
-function decodeTable(name: TableName): Float32Array {
-    const binary = atob(DIAMOND_TABLE_BASE64[name]);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    if (bytes.byteLength % 4 !== 0) {
-        throw new Error(`diamond table ${name}: length ${bytes.byteLength} is not float32 aligned`);
-    }
-    return new Float32Array(bytes.buffer);
-}
-
-let cache: DiamondTables | null = null;
-
-/**
- * 解码并校验钻石模型表（幂等，同步）。
- *
- * @returns 全部 9 张表；长度与官方数据不符时抛错，避免拿错数据静默渲染
- */
-export function loadDiamondTables(): DiamondTables {
-    if (cache) return cache;
-
-    const tables: DiamondTables = {
-        frames: decodeTable('frames'),
-        planes: decodeTable('planes'),
-        anchors: decodeTable('anchors'),
-        widths: decodeTable('widths'),
-        facetProjection: decodeTable('facetProjection'),
-        camera: decodeTable('camera'),
-        vertices: decodeTable('vertices'),
-        main: decodeTable('main'),
-        small: decodeTable('small'),
-    };
-
+/** 校验各表的语义长度，拿错数据时立刻报错而不是静默渲染 */
+function validate(tables: DiamondTables): void {
     if (tables.anchors.length !== 64 || tables.widths.length !== 91
         || tables.facetProjection.length !== 4 || tables.camera.length !== 3) {
         throw new Error('unexpected diamond camera data');
@@ -97,7 +89,60 @@ export function loadDiamondTables(): DiamondTables {
     if (tables.frames.length !== FRAME_COUNT * FRAME_FLOATS || tables.planes.length !== 17 * 4) {
         throw new Error('unexpected diamond animation data');
     }
+    // 顶点按 12 / 8 / 8 个 float 一组解释，长度对不上说明文件与代码版本不匹配
+    if (tables.vertices.length % 12 !== 0 || tables.main.length % 8 !== 0
+        || tables.small.length % 8 !== 0) {
+        throw new Error('unexpected diamond mesh data');
+    }
+}
 
-    cache = tables;
+/** 读一个 .bin：返回的视图直接落在 ArrayBuffer 上，没有中间拷贝 */
+async function fetchTable(name: keyof DiamondTables, url: string): Promise<Float32Array> {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`diamond ${name}: HTTP ${response.status}`);
+    const buffer = await response.arrayBuffer();
+    if (buffer.byteLength % 4 !== 0) {
+        throw new Error(`diamond ${name}: 长度 ${buffer.byteLength} 不是 float32 对齐`);
+    }
+    return new Float32Array(buffer);
+}
+
+async function fetchTables(): Promise<DiamondTables> {
+    const names = Object.keys(TABLE_URLS) as (keyof DiamondTables)[];
+    // 9 个文件互不依赖，并行读；它们都是本地资源，没有串行等待的必要
+    const arrays = await Promise.all(names.map((name) => fetchTable(name, TABLE_URLS[name])));
+
+    const tables = {} as DiamondTables;
+    const record = tables as unknown as Record<string, Float32Array>;
+    names.forEach((name, index) => {
+        record[name] = arrays[index];
+    });
+
+    validate(tables);
     return tables;
+}
+
+let cache: DiamondTables | null = null;
+let pending: Promise<DiamondTables> | null = null;
+
+/**
+ * 取钻石模型表（懒加载，全进程一份）。
+ *
+ * 首次调用才会去读这 9 个文件；失败不缓存，调用方可以退避重试。
+ *
+ * @returns 9 张表的视图；各自持有一份 524 KB 总量里属于自己的那段
+ */
+export function loadDiamondTables(): Promise<DiamondTables> {
+    if (cache) return Promise.resolve(cache);
+    if (!pending) {
+        pending = fetchTables()
+            .then((tables) => {
+                cache = tables;
+                return tables;
+            })
+            .finally(() => {
+                pending = null;
+            });
+    }
+    return pending;
 }

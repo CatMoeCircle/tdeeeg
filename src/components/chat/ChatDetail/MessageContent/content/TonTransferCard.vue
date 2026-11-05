@@ -101,10 +101,15 @@ const ribbonFontSize = computed(() => {
     return Math.min(9, (40 / width) * 0.98);
 });
 
+/** 上一次写进 DOM 的缩放值：静置时始终是 1，没必要每帧都碰 style 触发样式重算 */
+let appliedScale = Number.NaN;
+
 function applyPressTransform(motion: { pressScale: number; pressOrigin: { x: number; y: number } }) {
     const canvas = stoneEl.value;
     if (!canvas) return;
     const scale = Math.min(motion.pressScale, PRESS_LIMIT);
+    if (scale === appliedScale) return;
+    appliedScale = scale;
     canvas.style.transformOrigin = `${motion.pressOrigin.x * 100}% ${motion.pressOrigin.y * 100}%`;
     canvas.style.transform = `scale(${scale.toFixed(4)})`;
 }

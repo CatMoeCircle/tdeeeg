@@ -122,14 +122,14 @@ class DiamondStage {
                 this.stop();
             });
 
-            // 渲染器与模型表（约 750 KB，构建期内联的 base64）单独成 chunk：
-            // 只有真的出现 Gram 转账消息时才下载，普通聊天不会背上这份体积。
-            // 模型表是同步解码（约 5 ms），不走网络。
+            // 渲染器（着色器源码）单独成 chunk；模型表是 9 个本地 .bin
+            // （共 524 KB），只有真的出现 Gram 转账消息时才读取，普通聊天
+            // 不会背上这份体积；读进来直接开 Float32Array 视图，零拷贝共享。
             const [{ DiamondScene: SceneClass }, { loadDiamondTables }] = await Promise.all([
                 import('./scene'),
                 import('./tables'),
             ]);
-            const tables = loadDiamondTables();
+            const tables = await loadDiamondTables();
             const scene = SceneClass.create(gl, tables, 4);
             this.canvas = canvas;
             this.gl = gl;

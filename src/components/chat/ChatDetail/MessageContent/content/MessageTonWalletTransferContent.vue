@@ -1,13 +1,7 @@
 <template>
-    <!-- Gram 转账（messageTonWalletTransfer）分两块：
-         1. 上方是独立的一条横向服务消息（服务消息通用底色 + 胶囊圆角）；
-         2. 下面是卡片：底色比卡片四周各外扩 6dp，卡片浮在底色上面，
-            卡片底下的备注落在同一块底色上；底色只锁宽度，高度随备注生长。 -->
-    <!-- 上方那条「谁转了多少 Gram」的服务消息离上面远、离下面的卡片近：
-         整块留 8px 上边距，文案与卡片之间只留 4px -->
-    <div class="mx-auto mt-2 flex w-fit max-w-full flex-col items-center gap-1 select-text">
-        <!-- 与 MessageServiceContent 的服务消息胶囊完全同一套类：
-             msg-notice-surface + text-xs + 灰字 + px-3 py-1 + rounded-full -->
+    <!-- Gram 转账（messageTonWalletTransfer） -->
+    <div class="mx-auto mt-1 flex w-fit max-w-full flex-col items-center gap-1 select-text">
+        <!-- 与 MessageServiceContent -->
         <p v-if="actionText"
             class="msg-notice-surface max-w-full rounded-full px-3 py-1 text-center text-xs text-gray-500 dark:text-gray-400">
             {{ actionText }}
@@ -15,12 +9,13 @@
 
         <div class="msg-notice-surface flex flex-col items-center rounded-2xl"
             :style="{ width: `${TON_CARD_WIDTH + TON_CARD_INSET * 2}px`, padding: `${TON_CARD_INSET}px` }">
-            <TonTransferCard :amount="content.amount" :address="content.peer_address" :name="peerName"
-                :status="status" :label="ribbonLabel" />
+            <TonTransferCard :amount="content.amount" :address="content.peer_address" :name="peerName" :status="status"
+                :label="ribbonLabel" />
 
-            <!-- 备注：官方画在卡片下方 12sp、居中；加密备注在解开之前只给剧透遮罩 -->
-            <p v-if="hasComment" class="px-1 pt-1 pb-0.5 text-center text-xs leading-snug text-gray-600 dark:text-gray-300">
-                <SpoilerSpan v-if="content.is_comment_encrypted">{{ t('lng_action_gram_transfer_encrypted_comment') }}</SpoilerSpan>
+            <p v-if="hasComment"
+                class="px-1 pt-1 pb-0.5 text-center text-xs leading-snug text-gray-600 dark:text-gray-300">
+                <SpoilerSpan v-if="content.is_comment_encrypted">{{ t('lng_action_gram_transfer_encrypted_comment') }}
+                </SpoilerSpan>
                 <template v-else>{{ content.comment }}</template>
             </p>
         </div>
