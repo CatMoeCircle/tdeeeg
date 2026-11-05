@@ -1748,5 +1748,9 @@
     "frozenAppeal": "Обжаловать",
     "frozenDismiss": "Понятно",
     "actionFailed": "Не удалось выполнить действие"
+  },
+  "protectedContent": {
+    "noScreenshots": "Без скриншотов",
+    "noScreenshotsAbout": "Скриншоты и запись экрана ограничиваются в клиентах, где это поддерживается."
   }
 }

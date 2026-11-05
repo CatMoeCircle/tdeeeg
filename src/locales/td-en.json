@@ -3143,7 +3143,7 @@
     "lng_archive_hint_section_2_info": "Hide the Archive from your Main screen by swiping on it.",
     "lng_manage_peer_reactions_paid": "Enable Paid Reactions",
     "cloud_lng_language_ko": "Korean",
-    "lng_action_no_forwards_request_you": "You suggested to enable sharing in this chat, which includes:",
+    "lng_action_no_forwards_request_you": "You requested to enable sharing in this chat, which includes:",
     "lng_unsupported_message_update": "Update",
     "lng_community_requests_add_all_title": "Add All Chats",
     "lng_replies_add_placeholder": "Shortcut",
@@ -5073,7 +5073,7 @@
     "lng_proxy_credentials": "Credentials",
     "lng_polls_create": "Create poll",
     "lng_gift_send_message_preview": "Your message…",
-    "lng_action_no_forwards_request_expired": "Sharing request has expired",
+    "lng_action_no_forwards_request_expired": "Sharing enable request has expired",
     "lng_forward_action_show_captions": "Show Captions",
     "lng_request_channel_post_messages": "post messages",
     "lng_video_quality_original": "Original",
@@ -6351,7 +6351,7 @@
     "lng_stickers_bot_more_options": "Check the {bot} bot for more options",
     "lng_settings_power_stickers_panel": "Autoplay in panel",
     "lng_admin_log_changed_link_group": "{from} changed group link:",
-    "lng_disable_sharing_no_saving_about": "Disable copying text and saving photos or videos.",
+    "lng_disable_sharing_no_saving_about": "Disable copying texts and saving photos and videos to gallery.",
     "lng_limit_download_title": "Download speed limited",
     "lng_settings_phone_number_privacy": "Phone number",
     "lng_forwarded_date": "Original: {date}",
@@ -8859,9 +8859,7 @@
     "lng_many_typing": "{count} people are typing",
     "lng_filter_pin_limit1": "Sorry, you can't pin more than **{count}** chats to the top.",
     "lng_limit_upload_increase_times": "**{count}** times",
-    "lng_action_game_score_no_game": "{from} scored {count}",
-    "lng_disable_sharing_no_screenshots": "No Screenshots",
-    "lng_disable_sharing_no_screenshots_about": "Disable screenshots and screen recording in this chat."
+    "lng_action_game_score_no_game": "{from} scored {count}"
   },
   "plurals": {
     "lng_boost_channel_needs_level_autotranslate": {

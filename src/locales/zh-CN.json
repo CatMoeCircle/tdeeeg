@@ -1750,5 +1750,9 @@
     "frozenAppeal": "申诉",
     "frozenDismiss": "知道了",
     "actionFailed": "操作失败"
+  },
+  "protectedContent": {
+    "noScreenshots": "禁止截屏",
+    "noScreenshotsAbout": "截屏与录屏会在支持该限制的客户端中受限。"
   }
 }

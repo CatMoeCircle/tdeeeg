@@ -1750,5 +1750,9 @@
     "frozenAppeal": "申訴",
     "frozenDismiss": "知道了",
     "actionFailed": "操作失敗"
+  },
+  "protectedContent": {
+    "noScreenshots": "禁止截圖",
+    "noScreenshotsAbout": "截圖與螢幕錄影會在支援此限制的用戶端中受限。"
   }
 }

@@ -76,7 +76,9 @@ const tgsData = ref<Uint8Array | null>(null);
 const saving = ref(false);
 
 const rows = [
-    { icon: CameraOff, title: 'lng_disable_sharing_no_screenshots', about: 'lng_disable_sharing_no_screenshots_about' },
+    // 官方「Disable Sharing」只有转发与保存两项，截图限制在官方是 protected content 的隐含效果；
+    // 这里保留该行，但用内部 protectedContent.* 文案，不再占用不存在的 lng_disable_sharing_no_screenshots。
+    { icon: CameraOff, title: 'protectedContent.noScreenshots', about: 'protectedContent.noScreenshotsAbout' },
     { icon: Ban, title: 'lng_disable_sharing_no_forwarding', about: 'lng_disable_sharing_no_forwarding_about' },
     { icon: Save, title: 'lng_disable_sharing_no_saving', about: 'lng_disable_sharing_no_saving_about' },
 ];

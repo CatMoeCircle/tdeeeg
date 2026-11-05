@@ -1750,5 +1750,9 @@
     "frozenAppeal": "Appeal",
     "frozenDismiss": "Got it",
     "actionFailed": "Action failed"
+  },
+  "protectedContent": {
+    "noScreenshots": "No Screenshots",
+    "noScreenshotsAbout": "Screenshots and screen recording are restricted in clients that support it."
   }
 }
