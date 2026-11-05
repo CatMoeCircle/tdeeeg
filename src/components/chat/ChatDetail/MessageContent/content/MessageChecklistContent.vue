@@ -58,12 +58,20 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { storeToRefs } from 'pinia';
+import { useI18n } from 'vue-i18n';
 import type { checklistTask, formattedText, messageChecklist, textEntity } from 'tdlib-types';
 import { toast } from '../../../../../utils/ui/toast';
 import { CheckIcon, ListIcon } from 'lucide-vue-next';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
 import SpoilerSpan from '../spoiler/SpoilerSpan.vue';
 import { tdlibSend } from '../../../../../utils/session/tdlib';
+import { useUserStore } from '../../../../../store/session/user';
+
+const { t } = useI18n();
+const { userProfile } = storeToRefs(useUserStore());
+/** 当前用户是否订阅了 Telegram Premium：勾选任务本身是 Premium 功能 */
+const isPremium = computed(() => !!userProfile.value?.is_premium);
 
 const props = defineProps<{
     content: messageChecklist;
@@ -167,6 +175,11 @@ watch(
 
 async function onToggleTask(task: checklistTask) {
     if (!canMarkDone.value || pendingTasks.value.has(task.id)) return;
+    // 勾选任务需要 Telegram Premium：直接给官方提示，不发注定被拒的请求
+    if (!isPremium.value) {
+        toast.warning(t('lng_todo_mark_premium', { link: t('lng_todo_premium_link') }));
+        return;
+    }
     const next = !isTaskDone(task);
     // 乐观更新，立即反馈 UI
     optimisticDone.value = new Map(optimisticDone.value).set(task.id, next);
@@ -182,11 +195,15 @@ async function onToggleTask(task: checklistTask) {
             marked_as_not_done_task_ids: next ? [] : [task.id],
         });
     } catch (e) {
-        // TODO_NOT_MODIFIED：目标状态已被其它端写入，服务端与本次意图一致，按成功处理
         const err = e as { code?: number; message?: string };
-        if (err?.code !== 400 || err.message !== 'TODO_NOT_MODIFIED') {
-            optimisticDone.value.delete(task.id);
-            toast.error('标记任务失败，请重试');
+        // TODO_NOT_MODIFIED：目标状态已被其它端写入，服务端与本次意图一致，按成功处理
+        if (err?.code === 400 && err.message === 'TODO_NOT_MODIFIED') return;
+        optimisticDone.value.delete(task.id);
+        // 订阅状态本地过期时服务端仍会拒绝：同样提示官方 Premium 文案
+        if (err?.message === 'PREMIUM_ACCOUNT_REQUIRED') {
+            toast.warning(t('lng_todo_mark_premium', { link: t('lng_todo_premium_link') }));
+        } else {
+            console.warn('[checklist] mark task failed:', e);
         }
     } finally {
         pendingTasks.value.delete(task.id);
