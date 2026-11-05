@@ -23,10 +23,10 @@
 
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch, onMounted, onUnmounted } from 'vue';
-import { useCustomEmoji, requestCustomEmoji } from '../../store/customEmoji';
+import { useCustomEmoji, requestCustomEmoji } from '../../store/media/customEmoji';
 import { useLottiePause } from '../../composables/useLottiePause';
 import { useViewportLoad } from '../../composables/useViewportLoad';
-import { openStickerSetDialog } from '../../store/stickerSetDialog';
+import { openStickerSetDialog } from '../../store/media/stickerSetDialog';
 import TgsPlayer, { type TgsPlayerInstance } from './TgsPlayer.vue';
 
 const props = defineProps<{

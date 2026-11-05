@@ -130,12 +130,12 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, ref, watch } from 'vue';
 import type { formattedText, messagePoll, MessageSender, pollOption, textEntity } from 'tdlib-types';
-import { toast } from '../../../../../utils/toast';
+import { toast } from '../../../../../utils/ui/toast';
 import { CheckCircleIcon, CheckIcon } from 'lucide-vue-next';
 import PollMedia from './PollMedia.vue';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
 import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
-import { tdlibSend } from '../../../../../utils/tdlib';
+import { tdlibSend } from '../../../../../utils/session/tdlib';
 import {
     ensureSenderLoaded,
     getSenderName,
@@ -143,7 +143,7 @@ import {
     getSenderPhoto,
     getSenderProfileAccentColorId,
     isDeletedSender,
-} from '../../../../../utils/senderInfo';
+} from '../../../../../utils/profile/senderInfo';
 import Avatar from '../../../avatar.vue';
 
 const props = defineProps<{

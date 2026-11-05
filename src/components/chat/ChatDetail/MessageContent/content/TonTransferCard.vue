@@ -45,7 +45,7 @@ import {
     TON_CARD_WIDTH,
     TON_RIBBON_COLORS,
     type TonTransferStatus,
-} from '../../../../../utils/tonTransfer';
+} from '../../../../../utils/message/tonTransfer';
 
 const { t } = useI18n();
 

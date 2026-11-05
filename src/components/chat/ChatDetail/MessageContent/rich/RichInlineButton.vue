@@ -17,7 +17,7 @@
 import { computed, inject, ref } from 'vue';
 import type { inlineButton } from 'tdlib-types';
 import { CopyIcon, ExternalLinkIcon, AppWindowIcon, UserRoundIcon } from 'lucide-vue-next';
-import { buttonStyleClass, isTelegramInternalUrl, runInlineButtonType, type InlineButtonContext } from '../../../../../utils/inlineButton';
+import { buttonStyleClass, isTelegramInternalUrl, runInlineButtonType, type InlineButtonContext } from '../../../../../utils/message/inlineButton';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
 import RichMonoEmoji from './RichMonoEmoji.vue';
 

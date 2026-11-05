@@ -24,10 +24,10 @@
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { message } from 'tdlib-types';
-import { toast } from '../../../utils/toast';
+import { toast } from '../../../utils/ui/toast';
 import { ArrowUpIcon } from 'lucide-vue-next';
-import { tdlibSend } from '../../../utils/tdlib';
-import { tdPlural } from '../../../utils/tdLang';
+import { tdlibSend } from '../../../utils/session/tdlib';
+import { tdPlural } from '../../../utils/i18n/tdLang';
 import { getMessageProperties } from '../../contextMenu/messageActions';
 import { openTranscripts, transcriptKey, speechResultOf } from '../../../composables/speechTranscript';
 

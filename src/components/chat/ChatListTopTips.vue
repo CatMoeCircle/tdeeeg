@@ -60,9 +60,9 @@ import { useI18n } from 'vue-i18n';
 import { Cake, ShieldAlert, X } from 'lucide-vue-next';
 import BaseButton from '../ui/button/BaseButton.vue';
 import BirthdayPopup from './BirthdayPopup.vue';
-import { toast } from '../../utils/toast';
-import { confirmAndOpenExternalLink } from '../../utils/openExternalLink';
-import { useTopTipsStore } from '../../store/topTips';
+import { toast } from '../../utils/ui/toast';
+import { confirmAndOpenExternalLink } from '../../utils/link/openExternalLink';
+import { useTopTipsStore } from '../../store/chat/topTips';
 
 const { t } = useI18n();
 const store = useTopTipsStore();

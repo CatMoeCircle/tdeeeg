@@ -21,8 +21,8 @@ import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ChevronRight } from 'lucide-vue-next';
 import type { communityFullInfo } from 'tdlib-types';
-import { tdlibSend } from '../../utils/tdlib';
-import { useCommunityStore } from '../../store/community';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { useCommunityStore } from '../../store/session/community';
 import CommunityAvatar from './CommunityAvatar.vue';
 import CommunityDetailDialog from './CommunityDetailDialog.vue';
 

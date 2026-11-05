@@ -58,10 +58,10 @@ import type {
     chat,
     chatPhotoInfo,
 } from 'tdlib-types';
-import { tdlibSend } from '../../utils/tdlib';
+import { tdlibSend } from '../../utils/session/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import MessageStickerContent from '../chat/ChatDetail/MessageContent/content/MessageStickerContent.vue';
-import { intToRgb, rgbToCss } from '../../store/colors';
+import { intToRgb, rgbToCss } from '../../store/settings/colors';
 
 const props = withDefaults(defineProps<{
     gift: receivedGift;

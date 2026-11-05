@@ -73,7 +73,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import LoadingSkeleton from '../../components/common/LoadingSkeleton.vue';
 import {
     ChevronLeft as ChevronLeftIcon,
@@ -89,13 +89,13 @@ import { useI18n } from 'vue-i18n';
 import { storeToRefs } from 'pinia';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
-import { useLanguageStore } from '../../store/language';
+import { useLanguageStore } from '../../store/settings/language';
 import {
     loadCachedPack,
     buildLanguagePackExport,
     languagePackExportFileName,
     type LanguageOption,
-} from '../../utils/languagePacks';
+} from '../../utils/i18n/languagePacks';
 import type { ContextMenuItem } from '../../components/contextMenu/types';
 
 defineOptions({ inheritAttrs: false });

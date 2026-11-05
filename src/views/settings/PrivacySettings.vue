@@ -175,7 +175,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { computed, onActivated, onMounted, onUnmounted, reactive, ref } from 'vue';
-import { onTdlibUpdate } from '../../store/tdlibBus';
+import { onTdlibUpdate } from '../../store/session/tdlibBus';
 import { useRouter } from 'vue-router';
 import {
     ChevronLeft as ChevronLeftIcon, Ban as BanIcon,
@@ -183,7 +183,7 @@ import {
     TimerReset as TimerResetIcon, Trash2 as Trash2Icon,
     Mail as MailIcon, Smartphone as SmartphoneIcon,
 } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import AutoDeleteDialog from '../../components/settings/AutoDeleteDialog.vue';
 import TwoFactorDialog from '../../components/settings/TwoFactorDialog.vue';
 import BlockedUsersDialog from '../../components/settings/BlockedUsersDialog.vue';
@@ -191,10 +191,10 @@ import PrivacyItemDialog from '../../components/settings/PrivacyItemDialog.vue';
 import type { PrivacyItemDef } from '../../components/settings/PrivacyItemDialog.vue';
 import AccountTtlDialog from '../../components/settings/AccountTtlDialog.vue';
 import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
-import { tdlibSend } from '../../utils/tdlib';
-import { tdPlural } from '../../utils/tdLang';
-import { decodeUserPrivacyRules, PRIVACY_PRESET_KEYS, privacyKeyForSettingType } from '../../utils/profilePrivacy';
-import type { DecodedPrivacy } from '../../utils/profilePrivacy';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { tdPlural } from '../../utils/i18n/tdLang';
+import { decodeUserPrivacyRules, PRIVACY_PRESET_KEYS, privacyKeyForSettingType } from '../../utils/profile/profilePrivacy';
+import type { DecodedPrivacy } from '../../utils/profile/profilePrivacy';
 import type { UserPrivacySetting$Input } from 'tdlib-types';
 
 const router = useRouter();

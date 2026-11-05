@@ -57,7 +57,7 @@
 import { computed, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { XIcon, GlobeIcon } from "lucide-vue-next";
-import { visible, pendingUrl, confirmOpenLink, cancelExternalLink } from "../../store/externalLink";
+import { visible, pendingUrl, confirmOpenLink, cancelExternalLink } from "../../store/session/externalLink";
 import BaseButton from "../ui/button/BaseButton.vue";
 
 const { t } = useI18n();

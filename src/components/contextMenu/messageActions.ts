@@ -1,7 +1,7 @@
-import { tdlibSend } from "../../utils/tdlib";
-import { getMessagePlainText } from "../../utils/messageText";
-import { messageSenderKey } from "../../utils/senderInfo";
-import { toast } from "../../utils/toast";
+import { tdlibSend } from "../../utils/session/tdlib";
+import { getMessagePlainText } from "../../utils/message/messageText";
+import { messageSenderKey } from "../../utils/profile/senderInfo";
+import { toast } from "../../utils/ui/toast";
 import i18n from "../../i18n";
 
 const t = (key: string, params?: Record<string, unknown>) =>
@@ -19,7 +19,7 @@ import type { ContextMenuItem } from "./types";
 import type {
   DeleteMessageResult,
   DeleteSenderInfo,
-} from "../../store/deleteMessage";
+} from "../../store/chat/deleteMessage";
 
 /* =========================================================================
  * 基于 getMessageProperties 的精确权限能力模块
@@ -797,7 +797,7 @@ export async function copyMessageLink(chatId: number, msg: message) {
 // ==================== Reactions ====================
 
 import type { ReactionType, ReactionType$Input } from "tdlib-types";
-import { isSameReactionType } from "../../utils/reactionHelpers";
+import { isSameReactionType } from "../../utils/message/reactionHelpers";
 
 /** 检查消息是否可以添加回应（非服务消息即可） */
 export function canAddReaction(msg: message, _chatId?: number): boolean {

@@ -83,18 +83,18 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { CheckIcon, Lock as LockIcon, XIcon } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import type { BackgroundType, BackgroundType$Input, InputBackground$Input, chatBackground } from 'tdlib-types';
 import ChatBackgroundLayers from './ChatBackgroundLayers.vue';
-import { useUserStore } from '../../store/user';
-import { isDark } from '../../store/theme';
-import { emojiChatThemes } from '../../store/chatBackground';
+import { useUserStore } from '../../store/session/user';
+import { isDark } from '../../store/settings/theme';
+import { emojiChatThemes } from '../../store/chat/chatBackground';
 import {
     backgroundDocumentFile,
     resolveChatBackground,
     type ChatBackgroundRender,
-} from '../../utils/chatBackground';
-import { ensureLocalFilePath, tdlibSend } from '../../utils/tdlib';
+} from '../../utils/chat/chatBackground';
+import { ensureLocalFilePath, tdlibSend } from '../../utils/session/tdlib';
 
 const props = defineProps<{
     open: boolean;

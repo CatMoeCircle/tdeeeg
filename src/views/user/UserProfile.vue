@@ -1308,26 +1308,26 @@ import GiftDisplay from "../../components/common/GiftDisplay.vue";
 import MessageStickerContent from "../../components/chat/ChatDetail/MessageContent/content/MessageStickerContent.vue";
 import GiftDetailDialog from "../../components/common/GiftDetailDialog.vue";
 import CommunityEntryCard from "../../components/common/CommunityEntryCard.vue";
-import { buildGiftDetailData, type GiftDetailData } from "../../utils/giftDetail";
+import { buildGiftDetailData, type GiftDetailData } from "../../utils/message/giftDetail";
 import MediaViewer from "../../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
 import type { MediaViewerItem } from "../../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
-import { useUserProfileStore, giftsKey, giftOwnerKey } from "../../store/userProfile";
-import { useUserStore } from "../../store/user";
-import { accentColorStyle, rgbToCss } from "../../store/colors";
-import { confirmAndOpenExternalLink } from "../../utils/openExternalLink";
-import { openAnyLink } from "../../utils/openInternalLink";
-import { bingMapsLink } from "../../utils/mapLink";
-import formatStatus from "../../utils/status";
-import { downloadFileUrl, listAlbumCoverFiles } from "../../utils/profileMedia";
-import { fetchItunesCoverForAudio } from "../../utils/itunesCover";
+import { useUserProfileStore, giftsKey, giftOwnerKey } from "../../store/profile/userProfile";
+import { useUserStore } from "../../store/session/user";
+import { accentColorStyle, rgbToCss } from "../../store/settings/colors";
+import { confirmAndOpenExternalLink } from "../../utils/link/openExternalLink";
+import { openAnyLink } from "../../utils/link/openInternalLink";
+import { bingMapsLink } from "../../utils/link/mapLink";
+import formatStatus from "../../utils/profile/status";
+import { downloadFileUrl, listAlbumCoverFiles } from "../../utils/profile/profileMedia";
+import { fetchItunesCoverForAudio } from "../../utils/media/itunesCover";
 import StoryRing from "../../components/story/StoryRing.vue";
-import { openStoryViewer } from "../../store/storyViewer";
-import { ensureUserStories, getUserStoryState, openChatStories } from "../../store/storyRing";
-import { formatBusinessHours } from "../../utils/businessHours";
-import { tdlibSend, ensureLocalFilePath } from "../../utils/tdlib";
-import { buildWebAppOpenParameters } from "../../utils/miniappTheme";
+import { openStoryViewer } from "../../store/profile/storyViewer";
+import { ensureUserStories, getUserStoryState, openChatStories } from "../../store/profile/storyRing";
+import { formatBusinessHours } from "../../utils/profile/businessHours";
+import { tdlibSend, ensureLocalFilePath } from "../../utils/session/tdlib";
+import { buildWebAppOpenParameters } from "../../utils/link/miniappTheme";
 
-import { ensureChat, getReactiveUser, getReactiveChat, getChatTitle, getChatUserNames, DELETED_ACCOUNT_LABEL } from "../../utils/senderInfo";
+import { ensureChat, getReactiveUser, getReactiveChat, getChatTitle, getChatUserNames, DELETED_ACCOUNT_LABEL } from "../../utils/profile/senderInfo";
 import {
   loadGroupMembers,
   ensureMemberUsers,
@@ -1339,39 +1339,39 @@ import {
   isBasicGroupChat,
   canPromoteMembers,
   canRestrictMembers,
-} from "../../utils/groupRights";
-import { useAudioPlayerStore, type AudioTrack } from "../../store/audioPlayer";
-import formatTime from "../../utils/formatTime";
-import { openContextMenu, closeContextMenu } from "../../store/contextMenu";
-import { confirmReportMessage } from "../../store/reportMessage";
+} from "../../utils/chat/groupRights";
+import { useAudioPlayerStore, type AudioTrack } from "../../store/media/audioPlayer";
+import formatTime from "../../utils/ui/formatTime";
+import { openContextMenu, closeContextMenu } from "../../store/chat/contextMenu";
+import { confirmReportMessage } from "../../store/chat/reportMessage";
 import type { ContextMenuItem } from "../../components/contextMenu/types";
-import { toast } from "../../utils/toast";
-import { showCopyJsonInMenus } from "../../store/debug";
+import { toast } from "../../utils/ui/toast";
+import { showCopyJsonInMenus } from "../../store/settings/debug";
 import {
   buildChatJsonChildren,
   buildCopyJsonParentItem,
   makeCopyJsonItem,
 } from "../../components/contextMenu/copyJsonActions";
-import { buildProfileTabs, type ProfileTab, type ProfileTabKey } from "../../utils/profileTabs";
+import { buildProfileTabs, type ProfileTab, type ProfileTabKey } from "../../utils/profile/profileTabs";
 import SlidingTabBar from "../../components/ui/tabs/SlidingTabBar.vue";
-import { settings } from "../../store/settings";
-import { shouldAutoDownloadPhotos } from "../../utils/autoDownload";
-import { folderTabClass, folderTabContainerClass } from "../../utils/folderPillsTabClass";
-import type { SharedMediaCounts } from "../../utils/sharedMediaCounts";
+import { settings } from "../../store/settings/settings";
+import { shouldAutoDownloadPhotos } from "../../utils/media/autoDownload";
+import { folderTabClass, folderTabContainerClass } from "../../utils/ui/folderPillsTabClass";
+import type { SharedMediaCounts } from "../../utils/profile/sharedMediaCounts";
 import { useProfileSharedMedia } from "../../composables/useProfileSharedMedia";
 import { onVisibilityChange, unobserveVisibility } from "../../composables/useSharedIntersectionObserver";
-import { enqueueViewportLoad, DEFAULT_DWELL_MS } from "../../utils/viewportLoadGate";
+import { enqueueViewportLoad, DEFAULT_DWELL_MS } from "../../utils/ui/viewportLoadGate";
 import { formatDateLabel, isSameCalendarDay } from "../../components/chat/ChatDetail/composables/dateLabel";
-import { requestCustomEmoji } from "../../store/customEmoji";
+import { requestCustomEmoji } from "../../store/media/customEmoji";
 import EncryptionKeyDialog from "../../components/user/EncryptionKeyDialog.vue";
 import GroupAdminRightsDialog from "../../components/settings/GroupAdminRightsDialog.vue";
 import GroupRestrictDialog from "../../components/settings/GroupRestrictDialog.vue";
 import { ShieldAdminIcon, RestrictKeyIcon } from "../../components/common/tgico";
-import { tdPlural } from "../../utils/tdLang";
+import { tdPlural } from "../../utils/i18n/tdLang";
 import ProfileRoleBadge from "../../components/common/ProfileRoleBadge.vue";
 import ProfileRatingBadge from "../../components/user/ProfileRatingBadge.vue";
 import ProtectedContentDialog from "../../components/user/ProtectedContentDialog.vue";
-import { getUserRoleBadge, getChatRoleBadge, type ProfileRoleBadgeKind } from "../../utils/profileBadges";
+import { getUserRoleBadge, getChatRoleBadge, type ProfileRoleBadgeKind } from "../../utils/profile/profileBadges";
 
 // ===== 图标组件（lucide-vue-next，与项目其余部分一致） =====
 import {
@@ -2718,8 +2718,8 @@ async function playSharedMusic(clickedIndex: number) {
   // 但为了获得完整的列表体验，我们用 setPlaylist 替换整个播放列表。
   // 对话/群资料：必须传递消息快照 + audio，播放器从 audio 取封面与曲目信息。
   const { convertFileSrc } = await import('@tauri-apps/api/core');
-  const { isFileReady } = await import('../../utils/tdlib');
-  const { trackMetaFromAudio } = await import('../../store/audioPlayer');
+  const { isFileReady } = await import('../../utils/session/tdlib');
+  const { trackMetaFromAudio } = await import('../../store/media/audioPlayer');
 
   const tracks = musicItems.map((item): AudioTrack | undefined => {
     const msg = item.message!;
@@ -3570,7 +3570,7 @@ async function openBotMiniApp() {
     const avatarPath = user.value?.profile_photo?.small
         ? await ensureLocalFilePath(user.value.profile_photo.small).catch(() => null)
         : null;
-    const { useMiniAppStore } = await import('../../store/miniapp');
+    const { useMiniAppStore } = await import('../../store/session/miniapp');
     await useMiniAppStore().open(res.url.url, {
       launchId: '0',
       botUserId: botId,

@@ -5,7 +5,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { useCustomEmoji, requestCustomEmoji } from '../../../../../store/customEmoji';
+import { useCustomEmoji, requestCustomEmoji } from '../../../../../store/media/customEmoji';
 
 /**
  * 按钮内的图标跟随按钮文字颜色（不是 emoji 原色）。

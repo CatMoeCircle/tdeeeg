@@ -150,9 +150,9 @@ import MessageContactContent from './content/MessageContactContent.vue';
 import MessageStoryContent from './content/MessageStoryContent.vue';
 import MessageStatus from './content/MessageStatus.vue';
 import ReactionsBar from '../ReactionsBar.vue';
-import { settings } from '../../../../store/settings';
-import { canSummarizeMessage } from '../../../../store/summary';
-import { getReplyQuoteFocusFor, type ReplyQuoteRef } from '../../../../store/replyQuote';
+import { settings } from '../../../../store/settings/settings';
+import { canSummarizeMessage } from '../../../../store/ai/summary';
+import { getReplyQuoteFocusFor, type ReplyQuoteRef } from '../../../../store/chat/replyQuote';
 
 const MEDIA_TYPES = new Set([
     'messagePhoto',

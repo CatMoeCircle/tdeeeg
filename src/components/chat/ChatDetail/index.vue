@@ -727,18 +727,18 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
-import { tdPlural } from '../../../utils/tdLang';
+import { tdPlural } from '../../../utils/i18n/tdLang';
 import MessageInput from './MessageInput.vue';
 import AiInputArea from '../../ai/AiInputArea.vue';
-import type { AiTurnPermissions, AiTurnThread } from '../../../utils/aiChat';
-import { aiTakeover, takeoverFor, updateTakeover } from '../../../store/aiTakeover';
-import { aiStripExpanded as aiRuntimeStripExpanded, turnState } from '../../../store/aiRuntime';
+import type { AiTurnPermissions, AiTurnThread } from '../../../utils/ai/aiChat';
+import { aiTakeover, takeoverFor, updateTakeover } from '../../../store/ai/aiTakeover';
+import { aiStripExpanded as aiRuntimeStripExpanded, turnState } from '../../../store/ai/aiRuntime';
 
 import StickerPanel from './stickerPanel/StickerPanel.vue';
 import { stickerPanelState, openStickerPanel as openStickerPanelOf, closeStickerPanel as closeStickerPanelOf } from './stickerPanel/types';
 import Avatar from '../avatar.vue';
 import ChatSenderProfileCard from '../ChatSenderProfileCard.vue';
-import { openSenderCard } from '../../../store/senderCard';
+import { openSenderCard } from '../../../store/chat/senderCard';
 import MessageContent from './MessageContent/index.vue';
 import MessageStatus from './MessageContent/content/MessageStatus.vue';
 import MessageAlbum from './MessageContent/content/MessageAlbum.vue';
@@ -764,46 +764,46 @@ import MessageCommentsBar from './MessageCommentsBar.vue';
 import MessageSideActions from './MessageSideActions.vue';
 import ReactionPicker from './ReactionPicker.vue';
 
-import { tdlibSend } from '../../../utils/tdlib';
-import { resolveTopicMode } from '../../../utils/topicDisplayMode';
-import { buildMessageTopicInput, extractTopicNumber, ensureDmTopic, resolveDmSenderName, getSenderPhoto } from '../../../utils/directMessagesTopics';
-import { sendAttachments, sending, type SendAttachmentsResult } from '../../../utils/attachmentSend';
-import { withParsedMarkdown } from '../../../utils/sendText';
-import { useAttachmentStore } from '../../../store/attachment';
-import type { AttachmentItem } from '../../../store/attachment';
-import { getForwardNavigationTarget } from '../../../utils/forwardedMessages';
+import { tdlibSend } from '../../../utils/session/tdlib';
+import { resolveTopicMode } from '../../../utils/chat/topicDisplayMode';
+import { buildMessageTopicInput, extractTopicNumber, ensureDmTopic, resolveDmSenderName, getSenderPhoto } from '../../../utils/chat/directMessagesTopics';
+import { sendAttachments, sending, type SendAttachmentsResult } from '../../../utils/media/attachmentSend';
+import { withParsedMarkdown } from '../../../utils/message/sendText';
+import { useAttachmentStore } from '../../../store/media/attachment';
+import type { AttachmentItem } from '../../../store/media/attachment';
+import { getForwardNavigationTarget } from '../../../utils/message/forwardedMessages';
 
 import { MessageCircleIcon, XIcon, CheckIcon, Pencil as PencilIcon, Sparkles as SparklesIcon, Bot as BotIcon } from 'lucide-vue-next';
-import { toast } from '../../../utils/toast';
+import { toast } from '../../../utils/ui/toast';
 import { useRoute, useRouter } from 'vue-router';
 import { computed, watch, ref, shallowRef, markRaw, onMounted, onBeforeUnmount, onUnmounted, nextTick } from 'vue';
-import { useUserStore } from '../../../store/user';
-import { useAudioPlayerStore } from '../../../store/audioPlayer';
-import { clearActiveChatTitleBar } from '../../../store/activeChatTitleBar';
-import { chatPaneOrigin } from '../../../store/chatPane';
-import { consumeChatNavFromList, isChatPaneSectionPath, isChatRoutePath } from '../../../store/chatNav';
+import { useUserStore } from '../../../store/session/user';
+import { useAudioPlayerStore } from '../../../store/media/audioPlayer';
+import { clearActiveChatTitleBar } from '../../../store/chat/activeChatTitleBar';
+import { chatPaneOrigin } from '../../../store/chat/chatPane';
+import { consumeChatNavFromList, isChatPaneSectionPath, isChatRoutePath } from '../../../store/chat/chatNav';
 import { storeToRefs } from 'pinia';
-import { onTdlibUpdates } from "../../../store/tdlibBus";
+import { onTdlibUpdates } from "../../../store/session/tdlibBus";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { settings } from '../../../store/settings';
-import { canSummarizeMessage } from '../../../store/summary';
+import { settings } from '../../../store/settings/settings';
+import { canSummarizeMessage } from '../../../store/ai/summary';
 import {
     clearReplyQuoteFocus,
     getReplyQuoteFocusFor,
     holdReplyQuoteFocus,
     requestReplyQuoteFocus,
     type ReplyQuoteRef,
-} from '../../../store/replyQuote';
+} from '../../../store/chat/replyQuote';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useChatWallpaper } from '../../../composables/useChatWallpaper';
 import ChatBackgroundLayers from '../ChatBackgroundLayers.vue';
-import { useCommandInsert, clearPendingCommand } from '../../../store/commandInsert';
-import { useMentionInsert, clearPendingMention } from '../../../store/mentionInsert';
-import { useHashtagSearch, clearPendingHashtag } from '../../../store/hashtagSearch';
-import { useCustomEmoji } from '../../../store/customEmoji';
-import { getMessagePlainText, getMessageFormattedText } from '../../../utils/messageText';
-import { isTouchTextSelection } from '../../../utils/inputModality';
-import { applyTerminalFileToMessages, isTerminalFileUpdate } from '../../../utils/messageFileSnapshot';
+import { useCommandInsert, clearPendingCommand } from '../../../store/chat/commandInsert';
+import { useMentionInsert, clearPendingMention } from '../../../store/chat/mentionInsert';
+import { useHashtagSearch, clearPendingHashtag } from '../../../store/chat/hashtagSearch';
+import { useCustomEmoji } from '../../../store/media/customEmoji';
+import { getMessagePlainText, getMessageFormattedText } from '../../../utils/message/messageText';
+import { isTouchTextSelection } from '../../../utils/ui/inputModality';
+import { applyTerminalFileToMessages, isTerminalFileUpdate } from '../../../utils/message/messageFileSnapshot';
 import {
     withViewportLock,
     holdViewport,
@@ -813,7 +813,7 @@ import {
     compensateLayoutShift,
     captureViewportAnchor,
     type ViewportHold,
-} from '../../../utils/viewportLock';
+} from '../../../utils/ui/viewportLock';
 import {
     canEditMessage, editTextMessage, editCaptionMessage,
     editMessageMediaContent,
@@ -824,9 +824,9 @@ import {
     buildEditMediaContent,
     allowedEditReplaceKinds,
     resolveEditReplaceKind,
-} from '../../../utils/attachmentSend';
-import { isSavedMessagesChat } from '../../../utils/savedMessages';
-import { hasReactions } from '../../../utils/reactionHelpers';
+} from '../../../utils/media/attachmentSend';
+import { isSavedMessagesChat } from '../../../utils/chat/savedMessages';
+import { hasReactions } from '../../../utils/message/reactionHelpers';
 import {
     getInlineTranslation,
     isChatTranslating,
@@ -834,13 +834,13 @@ import {
     isTranslateInlineBlockDisplay,
     canShowChatTranslateBar,
     shouldPromptChatTranslatePremium,
-} from '../../../store/translate';
+} from '../../../store/ai/translate';
 
 import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity, textEntity$Input, file as TdFile, ReactionType } from 'tdlib-types';
-import { getViewerState, closeMediaViewer, isMediaViewerActive, openMediaViewer } from '../../../store/mediaViewer';
+import { getViewerState, closeMediaViewer, isMediaViewerActive, openMediaViewer } from '../../../store/media/mediaViewer';
 
-import { getSenderAccentColorId, getSenderProfileAccentColorId, getSenderNameParts, isDeletedChat, DELETED_ACCOUNT_LABEL, ensureUser, ensureChat, getReactiveUser, getReactiveChat } from '../../../utils/senderInfo';
-import { useColors } from '../../../store/colors';
+import { getSenderAccentColorId, getSenderProfileAccentColorId, getSenderNameParts, isDeletedChat, DELETED_ACCOUNT_LABEL, ensureUser, ensureChat, getReactiveUser, getReactiveChat } from '../../../utils/profile/senderInfo';
+import { useColors } from '../../../store/settings/colors';
 import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage, hasStatusInContent, isBubblelessMediaMessage, albumHasVisibleCaption, isFileAlbum, showChannelCommentsBar } from './composables/messageType';
 import { buildDisplayItems } from './composables/messageItems';
 import { chatWindowKey, peekChatWindow, saveChatWindow } from './composables/chatWindowCache';
@@ -900,7 +900,7 @@ import {
     getDisplayAuthorSignature as getDisplayAuthorSignatureOf,
 } from './composables/messageMeta';
 import type { RoleContext, SelfDeps } from './composables/messageMeta';
-import { canDeleteOthersMessages, canRestrictMembers, isGroupChat } from '../../../utils/groupRights';
+import { canDeleteOthersMessages, canRestrictMembers, isGroupChat } from '../../../utils/chat/groupRights';
 import ForwardPicker from '../../contextMenu/ForwardPicker.vue';
 
 // ==================== Route ====================

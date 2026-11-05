@@ -119,18 +119,18 @@ import { ChevronLeft as ChevronLeftIcon, X as XIcon } from 'lucide-vue-next';
 import Avatar from '../../components/chat/avatar.vue';
 import MessageContent from '../../components/chat/ChatDetail/MessageContent/index.vue';
 import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
-import { tdlibSend } from '../../utils/tdlib';
+import { tdlibSend } from '../../utils/session/tdlib';
 import {
   defaultEventLogFilters,
   ensureEventPeers,
   ensureLinkedChats,
   buildChatEventItem,
   type EventLogItem,
-} from '../../utils/eventLogText';
-import { isChannelChat, loadMyChatMemberStatus } from '../../utils/groupRights';
+} from '../../utils/message/eventLogText';
+import { isChannelChat, loadMyChatMemberStatus } from '../../utils/chat/groupRights';
 import { useChatWallpaper } from '../../composables/useChatWallpaper';
 import ChatBackgroundLayers from '../../components/chat/ChatBackgroundLayers.vue';
-import { accentColorStyle } from '../../store/colors';
+import { accentColorStyle } from '../../store/settings/colors';
 import type { chat, chatEvent } from 'tdlib-types';
 
 const SCROLL_PREFETCH_PX = 220;

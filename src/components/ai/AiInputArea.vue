@@ -19,9 +19,9 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import AiActivityStrip from './AiActivityStrip.vue';
 import AiConversationDialog from './AiConversationDialog.vue';
 import AiPromptBar from './AiPromptBar.vue';
-import { settings } from '../../store/settings';
-import { toast } from '../../utils/toast';
-import { aiProviders, loadAiProviders, aiProviderReady } from '../../store/aiConfig';
+import { settings } from '../../store/settings/settings';
+import { toast } from '../../utils/ui/toast';
+import { aiProviders, loadAiProviders, aiProviderReady } from '../../store/ai/aiConfig';
 import {
     aiConversations,
     activeConversation,
@@ -32,7 +32,7 @@ import {
     renameConversation,
     deleteConversation,
     type ConversationUsage,
-} from '../../store/aiConversations';
+} from '../../store/ai/aiConversations';
 import {
     beginTurn,
     clearEntries,
@@ -45,9 +45,9 @@ import {
     stopTurn,
     trackTurn,
     turnState,
-} from '../../store/aiRuntime';
-import { runAiTurn, cancelAiStream, dropHistory, AI_EFFORT_KEYS, AiTurnLimitError, type AiTurnPermissions, type AiTurnThread } from '../../utils/aiChat';
-import { historyToActivity } from '../../utils/aiChatHistory';
+} from '../../store/ai/aiRuntime';
+import { runAiTurn, cancelAiStream, dropHistory, AI_EFFORT_KEYS, AiTurnLimitError, type AiTurnPermissions, type AiTurnThread } from '../../utils/ai/aiChat';
+import { historyToActivity } from '../../utils/ai/aiChatHistory';
 import type { AiActivityEntry } from './AiActivityStrip.vue';
 
 const props = defineProps<{

@@ -46,8 +46,8 @@ import { useI18n } from 'vue-i18n';
 import { Check as CheckIcon } from 'lucide-vue-next';
 import ModalDialog from '../ui/modal/ModalDialog.vue';
 import Avatar from '../chat/avatar.vue';
-import { tdlibSend } from '../../utils/tdlib';
-import { ensureUser, getReactiveUser, isDeletedUser, DELETED_ACCOUNT_LABEL } from '../../utils/senderInfo';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { ensureUser, getReactiveUser, isDeletedUser, DELETED_ACCOUNT_LABEL } from '../../utils/profile/senderInfo';
 import type { user } from 'tdlib-types';
 import BaseButton from '../ui/button/BaseButton.vue';
 

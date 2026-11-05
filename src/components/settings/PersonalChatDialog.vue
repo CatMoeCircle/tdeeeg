@@ -38,11 +38,11 @@
 import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Ban as BanIcon, Check as CheckIcon } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import ModalDialog from '../ui/modal/ModalDialog.vue';
 import Avatar from '../chat/avatar.vue';
-import { tdlibSend } from '../../utils/tdlib';
-import { ensureChat, getReactiveChat, getChatUserNames } from '../../utils/senderInfo';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { ensureChat, getReactiveChat, getChatUserNames } from '../../utils/profile/senderInfo';
 
 const props = defineProps<{
     modelValue: boolean;

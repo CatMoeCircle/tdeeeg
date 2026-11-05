@@ -1,8 +1,8 @@
-import { tdlibSend } from "../../utils/tdlib";
-import { removeFolderChat } from "../../utils/chatFolders";
-import { toast } from "../../utils/toast";
+import { tdlibSend } from "../../utils/session/tdlib";
+import { removeFolderChat } from "../../utils/chat/chatFolders";
+import { toast } from "../../utils/ui/toast";
 import i18n from "../../i18n";
-import type { Chat } from "../../store/chat";
+import type { Chat } from "../../store/chat/chat";
 
 const t = (key: string, params?: Record<string, unknown>) =>
     i18n.global.t(key, params as any);

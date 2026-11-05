@@ -10,7 +10,7 @@
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { useAudioPlayerStore } from '../../store/audioPlayer';
+import { useAudioPlayerStore } from '../../store/media/audioPlayer';
 
 const player = useAudioPlayerStore();
 const audioRef = ref<HTMLAudioElement | null>(null);

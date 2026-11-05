@@ -1,17 +1,17 @@
 import { computed, onScopeDispose, ref, watch, type ComputedRef, type Ref } from 'vue';
 import type { ChatTheme, background, chat } from 'tdlib-types';
-import { settings } from '../store/settings';
-import { defaultBackgroundFor, emojiChatThemes } from '../store/chatBackground';
-import { isDark } from '../store/theme';
-import { onTdlibUpdate } from '../store/tdlibBus';
-import { safeDownloadFile } from '../utils/tdlib';
-import { DL_PRIORITY } from '../utils/downloadPriority';
+import { settings } from '../store/settings/settings';
+import { defaultBackgroundFor, emojiChatThemes } from '../store/chat/chatBackground';
+import { isDark } from '../store/settings/theme';
+import { onTdlibUpdate } from '../store/session/tdlibBus';
+import { safeDownloadFile } from '../utils/session/tdlib';
+import { DL_PRIORITY } from '../utils/media/downloadPriority';
 import {
   backgroundDocumentFile,
   localWallpaperRender,
   resolveChatBackground,
   type ChatBackgroundRender,
-} from '../utils/chatBackground';
+} from '../utils/chat/chatBackground';
 
 /**
  * 对话背景渲染。

@@ -60,7 +60,7 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import ModalDialog from '../../ui/modal/ModalDialog.vue';
 import Avatar from '../avatar.vue';
-import { tdlibSend } from '../../../utils/tdlib';
+import { tdlibSend } from '../../../utils/session/tdlib';
 import {
     ensureSenderLoaded,
     getSenderName,
@@ -69,7 +69,7 @@ import {
     getSenderProfileAccentColorId,
     isDeletedSender,
     DELETED_ACCOUNT_LABEL,
-} from '../../../utils/senderInfo';
+} from '../../../utils/profile/senderInfo';
 import {
     getMessageReactions,
     isReactionEmoji,
@@ -77,7 +77,7 @@ import {
     isReactionPaid,
     toReactionTypeInput,
     getReactionText,
-} from '../../../utils/reactionHelpers';
+} from '../../../utils/message/reactionHelpers';
 import type { message, MessageSender, ReactionType, addedReaction } from 'tdlib-types';
 
 const props = defineProps<{

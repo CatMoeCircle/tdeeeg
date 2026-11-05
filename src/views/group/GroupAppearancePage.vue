@@ -166,11 +166,11 @@ import {
   Smile as SmileIcon,
   Image as ImageIcon,
 } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
-import { tdlibSend } from '../../utils/tdlib';
-import { accentColorStyle, accentAvatarBackground, useColors } from '../../store/colors';
-import { loadMyChatMemberStatus, isChannelChat } from '../../utils/groupRights';
-import { loadChatBoostInfo, minCustomBackgroundLevel, minEmojiStatusLevel } from '../../utils/chatBoost';
+import { toast } from '../../utils/ui/toast';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { accentColorStyle, accentAvatarBackground, useColors } from '../../store/settings/colors';
+import { loadMyChatMemberStatus, isChannelChat } from '../../utils/chat/groupRights';
+import { loadChatBoostInfo, minCustomBackgroundLevel, minEmojiStatusLevel } from '../../utils/chat/chatBoost';
 import type { chat, chatBoostFeatures, accentColor, profileAccentColor } from 'tdlib-types';
 import BaseButton from '../../components/ui/button/BaseButton.vue';
 

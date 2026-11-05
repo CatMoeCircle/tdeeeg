@@ -253,22 +253,22 @@ import Avatar from '../../components/chat/avatar.vue';
 import EmojiDrawer from '../../components/chat/ChatDetail/stickerPanel/EmojiDrawer.vue';
 import FolderChatPickerPanel from '../../components/settings/FolderChatPickerPanel.vue';
 import FolderIconPicker from '../../components/settings/FolderIconPicker.vue';
-import { folderIconFor } from '../../utils/folderIcons';
+import { folderIconFor } from '../../utils/chat/folderIcons';
 import {
     FOLDER_TAG_COLORS,
     buildNameEntities,
     collectNameCustomEmoji,
     folderChatIdsAll,
     splitFolderChatIds,
-} from '../../utils/chatFolders';
-import { renderEntitiesHTML } from '../../utils/textFormatters';
-import { resolveCustomEmojiSrc } from '../../utils/customEmojiPreview';
-import { useChatStore } from '../../store/chat';
-import { useUserStore } from '../../store/user';
-import { tdlibSend } from '../../utils/tdlib';
-import { toast } from '../../utils/toast';
-import { tdPlural } from '../../utils/tdLang';
-import { ensureChat, getReactiveChat } from '../../utils/senderInfo';
+} from '../../utils/chat/chatFolders';
+import { renderEntitiesHTML } from '../../utils/message/textFormatters';
+import { resolveCustomEmojiSrc } from '../../utils/message/customEmojiPreview';
+import { useChatStore } from '../../store/chat/chat';
+import { useUserStore } from '../../store/session/user';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { toast } from '../../utils/ui/toast';
+import { tdPlural } from '../../utils/i18n/tdLang';
+import { ensureChat, getReactiveChat } from '../../utils/profile/senderInfo';
 
 const { t } = useI18n();
 const route = useRoute();

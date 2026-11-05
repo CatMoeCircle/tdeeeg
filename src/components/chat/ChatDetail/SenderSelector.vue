@@ -51,7 +51,7 @@ import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { MessageSender, chatMessageSender } from 'tdlib-types';
 import Avatar from '../avatar.vue';
-import { ensureSenderLoaded, getSenderName, getSenderNameParts, getSenderPhoto, getSenderAccentColorId } from '../../../utils/senderInfo';
+import { ensureSenderLoaded, getSenderName, getSenderNameParts, getSenderPhoto, getSenderAccentColorId } from '../../../utils/profile/senderInfo';
 
 const { t } = useI18n();
 

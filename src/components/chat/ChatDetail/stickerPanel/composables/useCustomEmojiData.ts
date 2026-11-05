@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import type { sticker, stickerSetInfo } from 'tdlib-types';
-import { tdlibSend } from '../../../../../utils/tdlib';
+import { tdlibSend } from '../../../../../utils/session/tdlib';
 
 /**
  * 自定义 emoji（动画表情）相关 TDLib 数据加载。

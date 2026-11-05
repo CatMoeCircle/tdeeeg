@@ -1,5 +1,5 @@
 import type { message } from 'tdlib-types';
-import { tdlibSend } from '../../../../utils/tdlib';
+import { tdlibSend } from '../../../../utils/session/tdlib';
 
 /**
  * TDLib 每条消息 id 以 2^20 递增，同一相册内的成员 id 连续。

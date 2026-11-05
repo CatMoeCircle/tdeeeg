@@ -44,12 +44,12 @@ import type {
     messageUpgradedGift,
     sticker,
 } from 'tdlib-types';
-import { useUserStore } from '../../../../../store/user';
+import { useUserStore } from '../../../../../store/session/user';
 import MessageStickerContent from './MessageStickerContent.vue';
 import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 import FormattedTextInline from '../../../FormattedTextInline.vue';
 import GiftDetailDialog from '../../../../common/GiftDetailDialog.vue';
-import { buildGiftDetailData, resolveGiftParty, type GiftDetailData, type GiftDetailParty } from '../../../../../utils/giftDetail';
+import { buildGiftDetailData, resolveGiftParty, type GiftDetailData, type GiftDetailParty } from '../../../../../utils/message/giftDetail';
 
 type GiftMessageContent = messageGift | messageUpgradedGift;
 

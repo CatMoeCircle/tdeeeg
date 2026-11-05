@@ -59,10 +59,10 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ChevronLeft as ChevronLeftIcon } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
-import { tdlibSend } from '../../utils/tdlib';
-import { loadMyChatMemberStatus } from '../../utils/groupRights';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { loadMyChatMemberStatus } from '../../utils/chat/groupRights';
 import type { chat, supergroup } from 'tdlib-types';
 import BaseButton from '../../components/ui/button/BaseButton.vue';
 

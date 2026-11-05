@@ -1,5 +1,5 @@
 import { defineComponent, h, ref, watch, type PropType } from 'vue';
-import { settings } from '../../store/settings';
+import { settings } from '../../store/settings/settings';
 import { ring2, squircle, square, reuleaux, infinity, trefoil } from 'ldrs';
 
 /**

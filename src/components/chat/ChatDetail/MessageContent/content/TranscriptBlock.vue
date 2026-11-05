@@ -20,7 +20,7 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { getTranscriptTranslation } from '../../../../../composables/speechTranscript';
-import { isTranslateReplaceDisplay } from '../../../../../store/translate';
+import { isTranslateReplaceDisplay } from '../../../../../store/ai/translate';
 
 const props = defineProps<{
     chatId?: number;

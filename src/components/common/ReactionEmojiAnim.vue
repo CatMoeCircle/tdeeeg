@@ -19,7 +19,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import TgsPlayer, { type TgsPlayerInstance } from './TgsPlayer.vue';
 import { onVisibilityChange, unobserveVisibility } from '../../composables/useSharedIntersectionObserver';
-import { useEmojiReactionAnim } from '../../store/emojiReactions';
+import { useEmojiReactionAnim } from '../../store/chat/emojiReactions';
 
 const props = withDefaults(defineProps<{
     /** reactionTypeEmoji 的 emoji 文本 */

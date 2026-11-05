@@ -1,11 +1,11 @@
 import { onBeforeUnmount, ref, type Ref } from 'vue';
 import { onVisibilityChange, unobserveVisibility } from './useSharedIntersectionObserver';
-import { enqueueViewportLoad, DEFAULT_DWELL_MS } from '../utils/viewportLoadGate';
-import { tdlibSend, isFileReady } from '../utils/tdlib';
+import { enqueueViewportLoad, DEFAULT_DWELL_MS } from '../utils/ui/viewportLoadGate';
+import { tdlibSend, isFileReady } from '../utils/session/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { isThumbnailImgRenderable } from '../utils/thumbnail';
-import { listAlbumCoverFiles } from '../utils/profileMedia';
-import { fetchItunesCoverForAudio } from '../utils/itunesCover';
+import { isThumbnailImgRenderable } from '../utils/media/thumbnail';
+import { listAlbumCoverFiles } from '../utils/profile/profileMedia';
+import { fetchItunesCoverForAudio } from '../utils/media/itunesCover';
 import i18n from '../i18n';
 import type { message, SearchMessagesFilter$Input, photo, file, LinkPreviewType, formattedText } from 'tdlib-types';
 
@@ -404,7 +404,7 @@ export function useSharedMediaCell(
             const smallest = pickSmallestPhotoFile(it.photo);
             if (smallest) {
                 try {
-                    const { downloadFileUrl } = await import('../utils/profileMedia');
+                    const { downloadFileUrl } = await import('../utils/profile/profileMedia');
                     const url = await downloadFileUrl(smallest, `shared_media_${it.messageId}_${smallest.id}.jpg`, 'avatar');
                     if (url) {
                         visibleSrc.value = url;
@@ -421,7 +421,7 @@ export function useSharedMediaCell(
             const smallest = pickSmallestPhotoFile(it.photo);
             if (smallest) {
                 try {
-                    const { downloadFileUrl } = await import('../utils/profileMedia');
+                    const { downloadFileUrl } = await import('../utils/profile/profileMedia');
                     const url = await downloadFileUrl(smallest, `shared_video_${it.messageId}_${smallest.id}.jpg`, 'avatar', { tags: ['视频封面', '缩略图'] });
                     if (url) {
                         visibleSrc.value = url;
@@ -435,7 +435,7 @@ export function useSharedMediaCell(
         // 音乐专辑封面（例外：不受图片自动下载限制；仅内嵌封面；空则 iTunes Search）
         if (it.contentType === 'messageAudio' && it.message?.content._ === 'messageAudio') {
             const audio = it.message.content.audio;
-            const { downloadFileUrl } = await import('../utils/profileMedia');
+            const { downloadFileUrl } = await import('../utils/profile/profileMedia');
             for (const coverFile of listAlbumCoverFiles(audio)) {
                 try {
                     const url = await downloadFileUrl(coverFile, `shared_music_cover_${it.messageId}_${coverFile.id}.jpg`, 'music_cover', { tags: ['音乐封面', '缩略图'] });

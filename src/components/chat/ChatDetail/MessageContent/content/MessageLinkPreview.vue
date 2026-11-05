@@ -91,7 +91,7 @@ import type { linkPreview } from 'tdlib-types';
 import FormattedTextInline from '../../../FormattedTextInline.vue';
 import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 import LinkPreviewMedia from './LinkPreviewMedia.vue';
-import { useColors, rgbToCss } from '../../../../../store/colors';
+import { useColors, rgbToCss } from '../../../../../store/settings/colors';
 
 const props = defineProps<{
     preview: linkPreview;

@@ -357,7 +357,7 @@ import {
     ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Clock as ClockIcon,
     MapPin as MapPinIcon, Megaphone as MegaphoneIcon, Phone as PhoneIcon,
 } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import Avatar from '../../components/chat/avatar.vue';
 import AvatarEditorDialog from '../../components/settings/AvatarEditorDialog.vue';
 import ChangePhoneDialog from '../../components/settings/ChangePhoneDialog.vue';
@@ -366,11 +366,11 @@ import PersonalChatDialog from '../../components/settings/PersonalChatDialog.vue
 import BusinessHoursDialog from '../../components/settings/BusinessHoursDialog.vue';
 import BusinessLocationDialog from '../../components/settings/BusinessLocationDialog.vue';
 import BusinessChatbotDialog from '../../components/settings/BusinessChatbotDialog.vue';
-import { useUserStore } from '../../store/user';
-import { useUserProfileStore } from '../../store/userProfile';
-import { tdlibSend } from '../../utils/tdlib';
-import { ensureChat, getReactiveChat, getReactiveUser, ensureUser } from '../../utils/senderInfo';
-import { formatBusinessHoursPreview } from '../../utils/businessHours';
+import { useUserStore } from '../../store/session/user';
+import { useUserProfileStore } from '../../store/profile/userProfile';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { ensureChat, getReactiveChat, getReactiveUser, ensureUser } from '../../utils/profile/senderInfo';
+import { formatBusinessHoursPreview } from '../../utils/profile/businessHours';
 import { parsePhoneNumber } from 'awesome-phonenumber';
 import { useI18n } from 'vue-i18n';
 

@@ -85,13 +85,13 @@ import { ChevronLeftIcon, Plus as PlusIcon, Trash2 as Trash2Icon, Folder as Fold
 import type { chatFolderInfo } from 'tdlib-types';
 import BaseButton from '../../components/ui/button/BaseButton.vue';
 import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
-import { useChatStore } from '../../store/chat';
-import { useUserStore } from '../../store/user';
-import { folderTagsEnabled, initFolderTags, setFolderTagsEnabled } from '../../store/folderTags';
-import { folderIconFor } from '../../utils/folderIcons';
-import { tdHtml } from '../../utils/tdLang';
-import { tdlibSend } from '../../utils/tdlib';
-import { toast } from '../../utils/toast';
+import { useChatStore } from '../../store/chat/chat';
+import { useUserStore } from '../../store/session/user';
+import { folderTagsEnabled, initFolderTags, setFolderTagsEnabled } from '../../store/chat/folderTags';
+import { folderIconFor } from '../../utils/chat/folderIcons';
+import { tdHtml } from '../../utils/i18n/tdLang';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { toast } from '../../utils/ui/toast';
 
 const { t } = useI18n();
 const router = useRouter();

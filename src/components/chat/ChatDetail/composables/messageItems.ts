@@ -1,7 +1,7 @@
 import type { message } from 'tdlib-types';
 import { isAnyAlbumMedia, isServiceMessage } from './messageType';
 import { formatDateLabel, isSameCalendarDay } from './dateLabel';
-import { getForwardOriginKey } from '../../../../utils/forwardedMessages';
+import { getForwardOriginKey } from '../../../../utils/message/forwardedMessages';
 
 /**
  * 消息列表展示条目类型定义与构建逻辑（纯数据处理）。

@@ -19,17 +19,17 @@
 <script setup lang="ts">
 import { computed, ref, watch, onMounted } from 'vue';
 import type { messageAnimatedEmoji, messageSticker } from 'tdlib-types';
-import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
-import { useDownloadStore, remoteIdOf, hasTdlibUpdate } from '../../../../../store/downloads';
-import { settings } from '../../../../../store/settings';
-import { openStickerSetDialog } from '../../../../../store/stickerSetDialog';
+import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/session/tdlib';
+import { useDownloadStore, remoteIdOf, hasTdlibUpdate } from '../../../../../store/media/downloads';
+import { settings } from '../../../../../store/settings/settings';
+import { openStickerSetDialog } from '../../../../../store/media/stickerSetDialog';
 import { useLottiePause } from '../../../../../composables/useLottiePause';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
-import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
-import type { ViewportLoadScope } from '../../../../../utils/viewportLoadGate';
+import { DL_PRIORITY } from '../../../../../utils/media/downloadPriority';
+import type { ViewportLoadScope } from '../../../../../utils/ui/viewportLoadGate';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import TgsPlayer, { type TgsPlayerInstance } from '../../../../common/TgsPlayer.vue';
-import { telegramFitzToFitzModifier } from '../../../../../utils/tlottieFitz';
+import { telegramFitzToFitzModifier } from '../../../../../utils/media/tlottieFitz';
 
 const props = withDefaults(defineProps<{
     content: messageSticker | messageAnimatedEmoji;

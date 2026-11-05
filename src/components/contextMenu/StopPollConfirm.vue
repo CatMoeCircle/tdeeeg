@@ -48,7 +48,7 @@
 import { onMounted, onUnmounted } from "vue";
 import { XIcon, CircleStopIcon } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
-import { visible, confirmStop, cancelStop } from "../../store/stopPoll";
+import { visible, confirmStop, cancelStop } from "../../store/chat/stopPoll";
 import BaseButton from "../ui/button/BaseButton.vue";
 
 const { t } = useI18n();

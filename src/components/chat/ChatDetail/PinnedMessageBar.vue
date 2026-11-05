@@ -123,18 +123,18 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { ref, watch, computed } from 'vue';
 import { PinIcon, ChevronDownIcon, ChevronRightIcon, XIcon } from 'lucide-vue-next';
-import { tdlibSend } from '../../../utils/tdlib';
+import { tdlibSend } from '../../../utils/session/tdlib';
 import type { message, formattedText, inlineKeyboardButton } from 'tdlib-types';
 import MusicPlayerEntry from '../../audio/MusicPlayerEntry.vue';
 import FormattedTextInline from '../FormattedTextInline.vue';
-import { buttonStyleClass, runInlineButtonType } from '../../../utils/inlineButton';
+import { buttonStyleClass, runInlineButtonType } from '../../../utils/message/inlineButton';
 import {
     messageContentTypeLabel,
     bracketTypePreview,
     musicBracketPreview,
     emojiContentPreview,
-} from '../../../utils/messagePreview';
-import { useAudioPlayerStore } from '../../../store/audioPlayer';
+} from '../../../utils/message/messagePreview';
+import { useAudioPlayerStore } from '../../../store/media/audioPlayer';
 
 const props = defineProps<{
     chatId: number | undefined;

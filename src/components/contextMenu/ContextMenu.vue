@@ -85,7 +85,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { CheckIcon, ChevronRightIcon } from "lucide-vue-next";
-import { visible, x, y, items, anchored, closeContextMenu, closeContextMenuDelayed } from "../../store/contextMenu";
+import { visible, x, y, items, anchored, closeContextMenu, closeContextMenuDelayed } from "../../store/chat/contextMenu";
 import { cancelAllSmoothScroll } from "../../directives/smoothWheel";
 import type { ContextMenuItem } from "./types";
 

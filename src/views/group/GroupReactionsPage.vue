@@ -58,8 +58,8 @@ import LoadingSkeleton from '../../components/common/LoadingSkeleton.vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ChevronLeft as ChevronLeftIcon } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
-import { tdlibSend } from '../../utils/tdlib';
+import { toast } from '../../utils/ui/toast';
+import { tdlibSend } from '../../utils/session/tdlib';
 import type { ReactionType } from 'tdlib-types';
 import BaseButton from '../../components/ui/button/BaseButton.vue';
 

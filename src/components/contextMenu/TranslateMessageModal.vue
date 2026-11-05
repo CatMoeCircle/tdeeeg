@@ -84,20 +84,20 @@
 import { computed, ref, watch, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { XIcon, CopyIcon, Languages as LanguagesIcon } from "lucide-vue-next";
-import { toast } from "../../utils/toast";
+import { toast } from "../../utils/ui/toast";
 import type { textEntity } from "tdlib-types";
 import {
     translateVisible, translateRequest, hideTranslateDialog,
     getTranslateTargetLang,
-} from "../../store/translate";
-import { translateViaProvider } from "../../utils/translateProvider";
-import { renderEntitiesHTML } from "../../utils/textFormatters";
-import { detectInlineEntities } from "../../utils/textEntityDetect";
+} from "../../store/ai/translate";
+import { translateViaProvider } from "../../utils/ai/translateProvider";
+import { renderEntitiesHTML } from "../../utils/message/textFormatters";
+import { detectInlineEntities } from "../../utils/message/textEntityDetect";
 import LoaderIndicator from "../common/LoaderIndicator";
 import SelectMenu from "../ui/dropdown/SelectMenu.vue";
 import {
     getTranslateLanguageOptions,
-} from "../../utils/translateLanguages";
+} from "../../utils/ai/translateLanguages";
 import BaseButton from "../ui/button/BaseButton.vue";
 
 const { t } = useI18n();

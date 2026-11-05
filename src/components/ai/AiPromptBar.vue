@@ -34,11 +34,11 @@ import {
     X as XIcon,
 } from 'lucide-vue-next';
 import { animate, motionValue, useReducedMotion, type AnimationPlaybackControls } from 'motion-v';
-import { settings } from '../../store/settings';
-import { isDark } from '../../store/theme';
-import { aiModelGroups, aiModelSeesImages, aiModelThinking, aiModelThinks, aiProviders, loadAiProviders, type AiModelGroup } from '../../store/aiConfig';
+import { settings } from '../../store/settings/settings';
+import { isDark } from '../../store/settings/theme';
+import { aiModelGroups, aiModelSeesImages, aiModelThinking, aiModelThinks, aiProviders, loadAiProviders, type AiModelGroup } from '../../store/ai/aiConfig';
 import AiContextInfo from './AiContextInfo.vue';
-import type { ConversationUsage } from '../../store/aiConversations';
+import type { ConversationUsage } from '../../store/ai/aiConversations';
 
 export interface PromptBarSource {
     key: string;

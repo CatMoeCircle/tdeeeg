@@ -17,8 +17,8 @@ import {
     resolveUserChatId,
     openChatStories,
     type ChatStoryState,
-} from "../../store/storyRing";
-import { useColors } from "../../store/colors";
+} from "../../store/profile/storyRing";
+import { useColors } from "../../store/settings/colors";
 
 /**
  * 动态（Story）渐变描边容器：包住头像（<Avatar> 或 <img>），在外圈画一圈渐变描边，

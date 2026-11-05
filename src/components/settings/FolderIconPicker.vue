@@ -26,7 +26,7 @@
 <script setup lang="ts">
 /** 分组图标选择器：只有 TDLib 的 chatFolderIcon 固定图标网格（不支持 emoji） */
 import { useI18n } from 'vue-i18n';
-import { FOLDER_ICON_NAMES, folderIconFor } from '../../utils/folderIcons';
+import { FOLDER_ICON_NAMES, folderIconFor } from '../../utils/chat/folderIcons';
 
 defineProps<{
     iconName: string;

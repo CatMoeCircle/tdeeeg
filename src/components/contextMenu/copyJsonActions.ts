@@ -1,10 +1,10 @@
 import type { Component } from "vue";
-import { toast } from "../../utils/toast";
+import { toast } from "../../utils/ui/toast";
 import { Copy as CopyIcon } from "lucide-vue-next";
 import type { ChatType } from "tdlib-types";
 import type { ContextMenuItem } from "./types";
-import { tdlibSend } from "../../utils/tdlib";
-import { getReactiveUser } from "../../utils/senderInfo";
+import { tdlibSend } from "../../utils/session/tdlib";
+import { getReactiveUser } from "../../utils/profile/senderInfo";
 
 /** 将 TDLib 对象 JSON 化并写入剪贴板（开发调试用） */
 export async function copyTdlibJson(data: unknown, label: string): Promise<void> {

@@ -214,13 +214,13 @@ import {
   MoreHorizontal as MoreHorizontalIcon,
   Trash2 as Trash2Icon,
 } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
 import Avatar from '../../components/chat/avatar.vue';
 import GroupRestrictDialog from '../../components/settings/GroupRestrictDialog.vue';
 import { RestrictKeyIcon } from '../../components/common/tgico';
-import { openContextMenu } from '../../store/contextMenu';
-import { tdlibSend } from '../../utils/tdlib';
+import { openContextMenu } from '../../store/chat/contextMenu';
+import { tdlibSend } from '../../utils/session/tdlib';
 import {
   hasActiveUsername,
   loadGroupMembers,
@@ -231,8 +231,8 @@ import {
   ensureMemberUsers,
   canRestrictMembers,
   isBasicGroupChat,
-} from '../../utils/groupRights';
-import { getReactiveUser } from '../../utils/senderInfo';
+} from '../../utils/chat/groupRights';
+import { getReactiveUser } from '../../utils/profile/senderInfo';
 import type { chat, chatMember, chatPermissions, supergroup, user } from 'tdlib-types';
 import BaseButton from '../../components/ui/button/BaseButton.vue';
 

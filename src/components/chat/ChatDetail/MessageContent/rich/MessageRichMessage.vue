@@ -332,14 +332,14 @@ import RichAudio from './RichAudio.vue';
 import LatexFormula from './LatexFormula.vue';
 import Avatar from '../../../avatar.vue';
 import { MicIcon, PlayIcon } from 'lucide-vue-next';
-import { tdlibSend } from '../../../../../utils/tdlib';
-import { openFileActionsMenu } from '../../../../../utils/fileActions';
+import { tdlibSend } from '../../../../../utils/session/tdlib';
+import { openFileActionsMenu } from '../../../../../utils/media/fileActions';
 
 const { t } = useI18n();
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { useRouter } from 'vue-router';
-import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
-import { mediaSizeStyle } from '../../../../../utils/fitMediaSize';
+import { confirmAndOpenExternalLink } from '../../../../../utils/link/openExternalLink';
+import { mediaSizeStyle } from '../../../../../utils/media/fitMediaSize';
 
 const props = defineProps<{
     blocks: PageBlock[];

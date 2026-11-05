@@ -176,21 +176,21 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { messageVoiceNote, messageVideoNote, file, message } from 'tdlib-types';
 import { useI18n } from 'vue-i18n';
-import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
+import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/session/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
-import { toast } from '../../../../../utils/toast';
+import { DL_PRIORITY } from '../../../../../utils/media/downloadPriority';
+import { toast } from '../../../../../utils/ui/toast';
 import { VideoIcon, PlayIcon, PauseIcon, DownloadIcon, EyeIcon, ArrowUpIcon, Maximize2 as Maximize2Icon, Minimize2 as Minimize2Icon, Languages as LanguagesIcon } from 'lucide-vue-next';
 import { getMessageProperties } from '../../../../../components/contextMenu/messageActions';
 import { openTranscripts, transcriptKey, getTranscriptTranslation } from '../../../../../composables/speechTranscript';
-import { isTranslateReplaceDisplay } from '../../../../../store/translate';
+import { isTranslateReplaceDisplay } from '../../../../../store/ai/translate';
 import MessageTextContent from './MessageTextContent.vue';
 import TranscriptBlock from './TranscriptBlock.vue';
 import RichMediaDownload from '../rich/RichMediaDownload.vue';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
-import { shouldAutoDownloadFiles, shouldAutoDownloadVideos } from '../../../../../utils/autoDownload';
-import { useDownloadStore } from '../../../../../store/downloads';
-import { useAudioPlayerStore } from '../../../../../store/audioPlayer';
+import { shouldAutoDownloadFiles, shouldAutoDownloadVideos } from '../../../../../utils/media/autoDownload';
+import { useDownloadStore } from '../../../../../store/media/downloads';
+import { useAudioPlayerStore } from '../../../../../store/media/audioPlayer';
 
 const props = defineProps<{
     content: messageVoiceNote | messageVideoNote;

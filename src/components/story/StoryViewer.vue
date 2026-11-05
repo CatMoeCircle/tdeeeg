@@ -278,23 +278,23 @@ const { t } = useI18n();
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import type { story, file, photo, chatPhotoInfo, profilePhoto, formattedText } from "tdlib-types";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { toast } from "../../utils/toast";
+import { toast } from "../../utils/ui/toast";
 import Avatar from "../chat/avatar.vue";
-import { tdlibSend, isFileReady, downloadingFiles } from "../../utils/tdlib";
-import { DL_PRIORITY } from "../../utils/downloadPriority";
-import { getReactiveChat, getReactiveUser, ensureChat, ensureUser } from "../../utils/senderInfo";
-import { formatStoryRelativeTime, formatStoryCount } from "../../utils/storyTime";
-import { useUserStore } from "../../store/user";
+import { tdlibSend, isFileReady, downloadingFiles } from "../../utils/session/tdlib";
+import { DL_PRIORITY } from "../../utils/media/downloadPriority";
+import { getReactiveChat, getReactiveUser, ensureChat, ensureUser } from "../../utils/profile/senderInfo";
+import { formatStoryRelativeTime, formatStoryCount } from "../../utils/profile/storyTime";
+import { useUserStore } from "../../store/session/user";
 import {
     getStoryViewerState,
     closeStoryViewer,
     isStoryViewerActive,
-} from "../../store/storyViewer";
-import { markStoriesRead } from "../../store/storyRing";
-import { settings } from "../../store/settings";
-import { useAudioPlayerStore } from "../../store/audioPlayer";
-import { openContextMenu } from "../../store/contextMenu";
-import { onTdlibUpdate } from "../../store/tdlibBus";
+} from "../../store/profile/storyViewer";
+import { markStoriesRead } from "../../store/profile/storyRing";
+import { settings } from "../../store/settings/settings";
+import { useAudioPlayerStore } from "../../store/media/audioPlayer";
+import { openContextMenu } from "../../store/chat/contextMenu";
+import { onTdlibUpdate } from "../../store/session/tdlibBus";
 import type { ContextMenuItem } from "../contextMenu/types";
 import {
     XIcon,

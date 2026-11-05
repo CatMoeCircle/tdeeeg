@@ -46,9 +46,9 @@ import { Check as CheckIcon } from 'lucide-vue-next';
 import type { chatPhotoInfo } from 'tdlib-types';
 import BaseButton from '../ui/button/BaseButton.vue';
 import Avatar from '../chat/avatar.vue';
-import { useChatStore } from '../../store/chat';
-import { tdlibSend } from '../../utils/tdlib';
-import { ensureChat, getReactiveChat } from '../../utils/senderInfo';
+import { useChatStore } from '../../store/chat/chat';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { ensureChat, getReactiveChat } from '../../utils/profile/senderInfo';
 
 /** 候选对话：只保留渲染所需的字段 */
 interface PickerChat {

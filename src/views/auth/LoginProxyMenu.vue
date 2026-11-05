@@ -346,10 +346,10 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, onMounted, onUnmounted, ref, reactive } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { toast } from "../../utils/toast";
+import { toast } from "../../utils/ui/toast";
 import { BanIcon, GlobeIcon, MonitorIcon, ServerIcon, SmartphoneIcon, XIcon, CheckIcon, PlusIcon, TrashIcon, ActivityIcon } from "lucide-vue-next";
-import { settings } from "../../store/settings";
-import { pingProxyOf } from "../../store/proxyLink";
+import { settings } from "../../store/settings/settings";
+import { pingProxyOf } from "../../store/settings/proxyLink";
 import {
     proxies,
     refreshProxies,
@@ -357,7 +357,7 @@ import {
     disableActiveProxy,
     addProxyTo,
     removeProxyById,
-} from "../../store/proxyList";
+} from "../../store/settings/proxyList";
 import type { addedProxy } from "tdlib-types";
 import BaseButton from '../../components/ui/button/BaseButton.vue';
 import BaseInput from '../../components/ui/input/BaseInput.vue';

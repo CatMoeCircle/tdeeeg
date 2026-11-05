@@ -35,17 +35,17 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
-import type { ReplyQuoteRef } from '../../../../../store/replyQuote';
+import type { ReplyQuoteRef } from '../../../../../store/chat/replyQuote';
 import { ref, computed, watch, onMounted } from 'vue';
 import type { message, MessageContent, messageReplyToMessage } from 'tdlib-types';
-import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
+import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/session/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
-import { pickSmallPhotoSize } from '../../../../../utils/photoSizes';
-import { isThumbnailImgRenderable } from '../../../../../utils/thumbnail';
-import { useColors, rgbToCss } from '../../../../../store/colors';
-import { ensureChat, ensureSenderLoaded, getReactiveChat, getSenderAccentColorId, getSenderName } from '../../../../../utils/senderInfo';
-import { messageContentTypeLabel } from '../../../../../utils/messagePreview';
+import { DL_PRIORITY } from '../../../../../utils/media/downloadPriority';
+import { pickSmallPhotoSize } from '../../../../../utils/media/photoSizes';
+import { isThumbnailImgRenderable } from '../../../../../utils/media/thumbnail';
+import { useColors, rgbToCss } from '../../../../../store/settings/colors';
+import { ensureChat, ensureSenderLoaded, getReactiveChat, getSenderAccentColorId, getSenderName } from '../../../../../utils/profile/senderInfo';
+import { messageContentTypeLabel } from '../../../../../utils/message/messagePreview';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
 import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 

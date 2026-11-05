@@ -39,7 +39,7 @@ import type { chat } from 'tdlib-types';
 import { MessageCircle as MessageCircleIcon, User as UserIcon } from 'lucide-vue-next';
 import Avatar from '../avatar.vue';
 import GlobalEmojiText from '../../common/GlobalEmojiText.vue';
-import { getChatUserNames, getChatProfileAccentColorId } from '../../../utils/senderInfo';
+import { getChatUserNames, getChatProfileAccentColorId } from '../../../utils/profile/senderInfo';
 
 /** 叠层对话信息面板。 */
 defineProps<{

@@ -40,7 +40,7 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import type { chat, ChatMemberStatus, user } from 'tdlib-types';
-import { toast } from '../../../utils/toast';
+import { toast } from '../../../utils/ui/toast';
 import {
     BarChart2Icon, FileIcon, ImageIcon, ListIcon, MusicIcon, PaperclipIcon, UserIcon,
 } from 'lucide-vue-next';
@@ -57,9 +57,9 @@ import {
     canSendPhotoRights,
     canSendPollRights,
 } from './composables/permissions';
-import { getFileSize, useAttachmentStore } from '../../../store/attachment';
-import { classifyAttachment } from '../../../utils/attachmentSend';
-import { isInAlbum } from '../../../utils/attachmentHelpers';
+import { getFileSize, useAttachmentStore } from '../../../store/media/attachment';
+import { classifyAttachment } from '../../../utils/media/attachmentSend';
+import { isInAlbum } from '../../../utils/media/attachmentHelpers';
 
 type AttachAction =
     | 'photo'

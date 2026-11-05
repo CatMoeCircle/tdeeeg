@@ -81,8 +81,8 @@ const { t } = useI18n();
 import { XIcon, FlagIcon } from "lucide-vue-next";
 import {
     visible, request, confirmReport, cancelReport,
-} from "../../store/reportMessage";
-import { tdlibSend } from "../../utils/tdlib";
+} from "../../store/chat/reportMessage";
+import { tdlibSend } from "../../utils/session/tdlib";
 import type { reportOption } from "tdlib-types";
 import BaseButton from "../ui/button/BaseButton.vue";
 

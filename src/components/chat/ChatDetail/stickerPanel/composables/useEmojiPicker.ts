@@ -1,7 +1,7 @@
 import { computed, ref, shallowRef, watch } from 'vue';
 import type { sticker } from 'tdlib-types';
-import { tdlibSend } from '../../../../../utils/tdlib';
-import { enqueueViewportLoad } from '../../../../../utils/viewportLoadGate';
+import { tdlibSend } from '../../../../../utils/session/tdlib';
+import { enqueueViewportLoad } from '../../../../../utils/ui/viewportLoadGate';
 import type { EmojiPayloadCategory } from '../data/emojiPayload';
 import { loadEmojiPayload } from '../data/emojiPayloadLoader';
 import { useLocalEmojiPrefs } from './useLocalEmojiPrefs';

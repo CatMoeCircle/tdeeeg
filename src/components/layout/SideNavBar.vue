@@ -67,11 +67,11 @@ import AccountMenu from "../AccountMenu.vue";
 import { computed, ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { useUserStore } from '../../store/user';
-import { useDownloadStore } from '../../store/downloads';
-import { useUploadStore } from '../../store/upload';
+import { useUserStore } from '../../store/session/user';
+import { useDownloadStore } from '../../store/media/downloads';
+import { useUploadStore } from '../../store/media/upload';
 import { storeToRefs } from 'pinia';
-import { settings } from '../../store/settings';
+import { settings } from '../../store/settings/settings';
 
 const isTitlebarMode = computed(() => settings.chatHeaderAvatarPosition === 'titlebar');
 const { t } = useI18n();

@@ -264,13 +264,13 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, ref, onMounted, onActivated } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { toast } from "../../utils/toast";
+import { toast } from "../../utils/ui/toast";
 import { useRouter } from 'vue-router';
 import {
     BanIcon, ChevronLeft as ChevronLeftIcon, MonitorIcon, ServerIcon, TrashIcon, RefreshCwIcon, PlusIcon, PlayIcon, Share2Icon, CheckIcon, SmartphoneIcon, ActivityIcon,
 } from "lucide-vue-next";
-import { settings } from "../../store/settings";
-import { pingProxyOf } from "../../store/proxyLink";
+import { settings } from "../../store/settings/settings";
+import { pingProxyOf } from "../../store/settings/proxyLink";
 import {
     proxies,
     proxiesLoading,
@@ -280,7 +280,7 @@ import {
     disableActiveProxy,
     removeProxyById,
     proxyShareLink,
-} from "../../store/proxyList";
+} from "../../store/settings/proxyList";
 import AddProxyDialog from "../../components/settings/AddProxyDialog.vue";
 import type { addedProxy } from "tdlib-types";
 

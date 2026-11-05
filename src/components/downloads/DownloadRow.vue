@@ -116,9 +116,9 @@ import { computed, ref, watch, onMounted, onBeforeUnmount } from "vue";
 import { useI18n } from "vue-i18n";
 import { FileIcon, ImageIcon, VideoIcon, MusicIcon, MicIcon } from "lucide-vue-next";
 import type { Component } from "vue";
-import type { DownloadFileType, DownloadItem } from "../../store/downloads";
-import { resolveItemTags, tagChipClass, tagLabel, DL_TAG, isIncompleteStreaming } from "../../utils/downloadTags";
-import { useItemMedia } from "../../utils/downloadThumb";
+import type { DownloadFileType, DownloadItem } from "../../store/media/downloads";
+import { resolveItemTags, tagChipClass, tagLabel, DL_TAG, isIncompleteStreaming } from "../../utils/media/downloadTags";
+import { useItemMedia } from "../../utils/media/downloadThumb";
 import TgsPlayer from "../common/TgsPlayer.vue";
 
 const { t } = useI18n();

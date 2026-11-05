@@ -127,9 +127,9 @@ import {
     Globe as GlobeIcon, Laptop as LaptopIcon, Smartphone as SmartphoneIcon,
     Tablet as TabletIcon, TimerReset as TimerResetIcon,
 } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import SessionTtlDialog, { ttlOptions } from '../../components/settings/SessionTtlDialog.vue';
-import { tdlibSend } from '../../utils/tdlib';
+import { tdlibSend } from '../../utils/session/tdlib';
 import LoadingSkeleton from '../../components/common/LoadingSkeleton.vue';
 import type { session, sessions } from 'tdlib-types';
 

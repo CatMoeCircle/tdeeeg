@@ -227,18 +227,18 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { useDownloadStore, type DownloadItem, FILTER_OPTIONS } from "../../store/downloads";
-import { FILTER_KEY } from "../../utils/downloadTags";
-import { useUploadStore } from "../../store/upload";
+import { useDownloadStore, type DownloadItem, FILTER_OPTIONS } from "../../store/media/downloads";
+import { FILTER_KEY } from "../../utils/media/downloadTags";
+import { useUploadStore } from "../../store/media/upload";
 import DownloadRow from "./DownloadRow.vue";
-import { openContextMenu } from "../../store/contextMenu";
+import { openContextMenu } from "../../store/chat/contextMenu";
 import type { ContextMenuItem } from "../../components/contextMenu/types";
 import { revealItemInDir, openPath } from "@tauri-apps/plugin-opener";
 import {
     MessageCircleIcon, FolderOpenIcon, TrashIcon, PauseIcon, PlayIcon, FileIcon, ImageIcon, MusicIcon,
     UploadCloudIcon, StickerIcon, UserIcon,
 } from 'lucide-vue-next';
-import { openStickerSetDialog } from "../../store/stickerSetDialog";
+import { openStickerSetDialog } from "../../store/media/stickerSetDialog";
 
 const { t } = useI18n();
 const store = useDownloadStore();

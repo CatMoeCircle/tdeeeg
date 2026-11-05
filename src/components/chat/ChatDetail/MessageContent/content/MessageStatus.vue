@@ -39,7 +39,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { MessageSendingState } from 'tdlib-types';
-import formatTime from '../../../../../utils/formatTime';
+import formatTime from '../../../../../utils/ui/formatTime';
 import {
     EyeIcon,
     Languages as LanguagesIcon,

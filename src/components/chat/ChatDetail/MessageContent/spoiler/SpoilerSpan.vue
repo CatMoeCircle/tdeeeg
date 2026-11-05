@@ -9,7 +9,7 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue';
-import { SpoilerFX, type SpoilerFXOptions } from '../../../../../utils/spoilerFX';
+import { SpoilerFX, type SpoilerFXOptions } from '../../../../../utils/message/spoilerFX';
 
 const props = defineProps<{
     /** 剧透粒子特效配置（可选，缺省用 Telegram 默认动画参数） */

@@ -421,8 +421,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, RefreshCw as RefreshCwIcon } from 'lucide-vue-next';
 import { invoke } from '@tauri-apps/api/core';
-import { toast } from '../../utils/toast';
-import { resetDeletedPresets } from '../../store/aiConfig';
+import { toast } from '../../utils/ui/toast';
+import { resetDeletedPresets } from '../../store/ai/aiConfig';
 import AiPromptBar from '../../components/ai/AiPromptBar.vue';
 import AiActivityStrip, { type AiActivityEntry, type AiApprovalLine } from '../../components/ai/AiActivityStrip.vue';
 import PreviewCard from '../../components/settings/PreviewCard.vue';
@@ -433,21 +433,21 @@ import {
     recentUpdates, clearRecentUpdates, type CachedUpdate,
     TOAST_PLACEMENTS, toastPlacement, setToastPlacement,
     toastDuration, setToastDuration, type ToastPlacement,
-} from '../../store/debug';
-import { onTdlibUpdate } from '../../store/tdlibBus';
-import { readCrashLog, clearCrashLog } from '../../utils/crashGuard';
-import { settings } from '../../store/settings';
+} from '../../store/settings/debug';
+import { onTdlibUpdate } from '../../store/session/tdlibBus';
+import { readCrashLog, clearCrashLog } from '../../utils/session/crashGuard';
+import { settings } from '../../store/settings/settings';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
-import { getTranslateTargetLang } from '../../store/translate';
-import { getTranslateLanguageLabel } from '../../utils/translateLanguages';
+import { getTranslateTargetLang } from '../../store/ai/translate';
+import { getTranslateLanguageLabel } from '../../utils/ai/translateLanguages';
 import {
     detectLanguage,
     detectLanguages,
     shouldTranslateText,
     type LanguageDetection,
     type ShouldTranslateDecision,
-} from '../../utils/languageDetect';
+} from '../../utils/ai/languageDetect';
 
 function formatUpdateTime(t: number): string {
     const d = new Date(t);
@@ -742,7 +742,7 @@ async function runExportPack(mode: 'json' | 'tdEn') {
     exportPackError.value = '';
     try {
         const { buildLanguagePackExport, languagePackExportFileName, exportToBundledTdEn } = await import(
-            '../../utils/languagePacks'
+            '../../utils/i18n/languagePacks'
         );
         const payload = await buildLanguagePackExport(packId);
 

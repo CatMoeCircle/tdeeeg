@@ -130,8 +130,8 @@ import { XIcon, TrashIcon, CheckIcon, UsersIcon, ChevronDownIcon, ChevronUpIcon 
 import { useI18n } from "vue-i18n";
 import {
     visible, request, confirmDelete, cancelDelete,
-} from "../../store/deleteMessage";
-import type { DeleteMessageResult, DeleteSenderInfo } from "../../store/deleteMessage";
+} from "../../store/chat/deleteMessage";
+import type { DeleteMessageResult, DeleteSenderInfo } from "../../store/chat/deleteMessage";
 import { searchSenderMessageCount } from "./messageActions";
 import Avatar from "../chat/avatar.vue";
 import BaseButton from "../ui/button/BaseButton.vue";

@@ -73,8 +73,8 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { useRouter } from 'vue-router';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
 import SpoilerSpan from '../spoiler/SpoilerSpan.vue';
-import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
-import { resolveInternalLink as resolveInternalLinkUtil } from '../../../../../utils/openInternalLink';
+import { confirmAndOpenExternalLink } from '../../../../../utils/link/openExternalLink';
+import { resolveInternalLink as resolveInternalLinkUtil } from '../../../../../utils/link/openInternalLink';
 import { useI18n } from 'vue-i18n';
 import CopyableText from '../../../../ui/text/CopyableText.vue';
 

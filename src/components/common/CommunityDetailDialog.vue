@@ -110,15 +110,15 @@ import type {
     formattedText,
     message,
 } from 'tdlib-types';
-import { tdlibSend } from '../../utils/tdlib';
-import { settings } from '../../store/settings';
-import { useCommunityStore } from '../../store/community';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { settings } from '../../store/settings/settings';
+import { useCommunityStore } from '../../store/session/community';
 import Avatar from '../chat/avatar.vue';
 import FormattedTextInline from '../chat/FormattedTextInline.vue';
 import GlobalEmojiText from './GlobalEmojiText.vue';
 import CommunityAvatar from './CommunityAvatar.vue';
 import CommunitySettingsDialog from './CommunitySettingsDialog.vue';
-import formatTime from '../../utils/formatTime';
+import formatTime from '../../utils/ui/formatTime';
 
 const props = defineProps<{
     open: boolean;

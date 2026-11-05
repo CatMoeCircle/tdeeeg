@@ -65,12 +65,12 @@ import { useI18n } from 'vue-i18n';
 import { Camera as CameraIcon, ChevronRight as ChevronRightIcon, Users as UsersIcon, X as XIcon } from 'lucide-vue-next';
 import { open } from '@tauri-apps/plugin-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import ModalDialog from '../ui/modal/ModalDialog.vue';
 import GroupUserPickerDialog from '../settings/GroupUserPickerDialog.vue';
-import { tdlibSend } from '../../utils/tdlib';
-import { markChatNavFromList } from '../../store/chatNav';
-import { isDeletedUser, DELETED_ACCOUNT_LABEL } from '../../utils/senderInfo';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { markChatNavFromList } from '../../store/chat/chatNav';
+import { isDeletedUser, DELETED_ACCOUNT_LABEL } from '../../utils/profile/senderInfo';
 import type { chat, createdBasicGroupChat, user } from 'tdlib-types';
 import BaseButton from '../ui/button/BaseButton.vue';
 

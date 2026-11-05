@@ -14,8 +14,8 @@
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import type { textEntity } from 'tdlib-types';
-import { detectInlineEntities } from '../../utils/textEntityDetect';
-import { openAnyLink } from '../../utils/openInternalLink';
+import { detectInlineEntities } from '../../utils/message/textEntityDetect';
+import { openAnyLink } from '../../utils/link/openInternalLink';
 
 /**
  * 可点击链接的纯文本：用于资料页简介、群组介绍等非消息场景。

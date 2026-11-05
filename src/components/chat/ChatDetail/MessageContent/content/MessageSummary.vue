@@ -43,7 +43,7 @@ import {
     getMessageSummary,
     requestMessageSummary,
     toggleMessageSummary,
-} from '../../../../../store/summary';
+} from '../../../../../store/ai/summary';
 import LoaderIndicator from '../../../../common/LoaderIndicator';
 
 const props = defineProps<{

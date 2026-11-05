@@ -206,15 +206,15 @@ import {
   Ban as BanIcon,
   Check as CheckIcon,
 } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
-import { tdlibSend } from '../../utils/tdlib';
+import { tdlibSend } from '../../utils/session/tdlib';
 import {
   hasActiveUsername,
   isChannelChat,
   loadGroupFullInfo,
   loadMyChatMemberStatus,
-} from '../../utils/groupRights';
+} from '../../utils/chat/groupRights';
 import type { chat, supergroup, basicGroup } from 'tdlib-types';
 import BaseButton from '../../components/ui/button/BaseButton.vue';
 

@@ -60,15 +60,15 @@ import type { file, message, messageInvoice, photo as TdPhoto, video as TdVideo,
 import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 import FormattedTextInline from '../../../FormattedTextInline.vue';
 import RichMediaDownload from '../rich/RichMediaDownload.vue';
-import { isFileReady, safeDownloadFile } from '../../../../../utils/tdlib';
-import { openMediaViewer } from '../../../../../store/mediaViewer';
-import { pickSmallPhotoSize, pickBigPhotoSize, pickBigPhotoDimensions } from '../../../../../utils/photoSizes';
-import { fitMediaSize } from '../../../../../utils/fitMediaSize';
-import { formatInvoiceAmount } from '../../../../../utils/money';
-import { shouldAutoDownloadPhotos } from '../../../../../utils/autoDownload';
-import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
+import { isFileReady, safeDownloadFile } from '../../../../../utils/session/tdlib';
+import { openMediaViewer } from '../../../../../store/media/mediaViewer';
+import { pickSmallPhotoSize, pickBigPhotoSize, pickBigPhotoDimensions } from '../../../../../utils/media/photoSizes';
+import { fitMediaSize } from '../../../../../utils/media/fitMediaSize';
+import { formatInvoiceAmount } from '../../../../../utils/ui/money';
+import { shouldAutoDownloadPhotos } from '../../../../../utils/media/autoDownload';
+import { DL_PRIORITY } from '../../../../../utils/media/downloadPriority';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
-import { isThumbnailVideoRenderable } from '../../../../../utils/thumbnail';
+import { isThumbnailVideoRenderable } from '../../../../../utils/media/thumbnail';
 
 const props = defineProps<{
     content: messageInvoice;

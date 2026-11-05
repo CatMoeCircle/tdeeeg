@@ -120,8 +120,8 @@
 import { computed, ref } from 'vue';
 import { SkipBackIcon, SkipForwardIcon, PlayIcon, PauseIcon, MusicIcon, XIcon } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
-import { useAudioPlayerStore, cachedSeconds } from '../../store/audioPlayer';
-import { UI_GLASS_SURFACE } from '../../utils/folderPillsTabClass';
+import { useAudioPlayerStore, cachedSeconds } from '../../store/media/audioPlayer';
+import { UI_GLASS_SURFACE } from '../../utils/ui/folderPillsTabClass';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 
 const props = defineProps<{

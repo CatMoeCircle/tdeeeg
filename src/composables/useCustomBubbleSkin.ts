@@ -1,7 +1,7 @@
 import { ref, watch } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { readFile } from '@tauri-apps/plugin-fs';
-import { settings } from '../store/settings';
+import { settings } from '../store/settings/settings';
 
 /**
  * 自定义气泡皮肤（QQ 风格图片气泡）。

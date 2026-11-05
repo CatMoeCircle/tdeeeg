@@ -61,13 +61,13 @@
 import { ref, computed, watch, nextTick, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { AtSignIcon, GhostIcon, ChevronRightIcon } from "lucide-vue-next";
-import { toast } from "../../utils/toast";
+import { toast } from "../../utils/ui/toast";
 import Avatar from "../chat/avatar.vue";
 import GlobalEmojiText from "../common/GlobalEmojiText.vue";
 import {
     visible, loading, errorMessage, username, display,
     usernameMenuPosition, closeUsernameMenu,
-} from "../../store/usernameMenu";
+} from "../../store/profile/usernameMenu";
 
 const router = useRouter();
 const rootRef = ref<HTMLElement | null>(null);

@@ -16,8 +16,8 @@ import {
     Trash2 as TrashIcon,
     X as XIcon,
 } from 'lucide-vue-next';
-import { fmtTokens } from '../../store/aiConversations';
-import type { AiConversation } from '../../store/aiConversations';
+import { fmtTokens } from '../../store/ai/aiConversations';
+import type { AiConversation } from '../../store/ai/aiConversations';
 
 const props = defineProps<{
     modelValue: boolean;

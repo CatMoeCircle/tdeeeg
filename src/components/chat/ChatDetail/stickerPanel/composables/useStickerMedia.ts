@@ -1,11 +1,11 @@
 import { ref, watch, type MaybeRef, toValue } from 'vue';
 import type { sticker, animation } from 'tdlib-types';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { telegramFitzToFitzModifier } from '../../../../../utils/tlottieFitz';
+import { telegramFitzToFitzModifier } from '../../../../../utils/media/tlottieFitz';
 import type { FitzModifier } from 'tlottie';
-import { tdlibSend, downloadingFiles, localPathIfReady } from '../../../../../utils/tdlib';
-import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
-import { useDownloadStore, remoteIdOf } from '../../../../../store/downloads';
+import { tdlibSend, downloadingFiles, localPathIfReady } from '../../../../../utils/session/tdlib';
+import { DL_PRIORITY } from '../../../../../utils/media/downloadPriority';
+import { useDownloadStore, remoteIdOf } from '../../../../../store/media/downloads';
 
 export type MediaKind = 'sticker' | 'animation';
 export type MediaFormat = 'tgs' | 'webm' | 'webp' | 'mpeg4' | 'other';

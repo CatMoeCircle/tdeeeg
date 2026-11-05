@@ -68,7 +68,7 @@ import DownloadsModule from '../../components/downloads/DownloadsModule.vue';
 import StickerSetDialog from '../../components/chat/ChatDetail/StickerSetDialog.vue';
 import { useDefaultChatBackground } from '../../composables/useChatWallpaper';
 import ChatBackgroundLayers from '../../components/chat/ChatBackgroundLayers.vue';
-import { setChatPaneVisible, setChatPaneOrigin, chatPaneOrigin } from '../../store/chatPane';
+import { setChatPaneVisible, setChatPaneOrigin, chatPaneOrigin } from '../../store/chat/chatPane';
 
 const route = useRoute();
 const { t } = useI18n();

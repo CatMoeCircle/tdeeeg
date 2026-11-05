@@ -26,10 +26,10 @@ import { computed, onBeforeUnmount, reactive, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { file } from 'tdlib-types';
 import { DownloadIcon } from 'lucide-vue-next';
-import { tdlibSend, isFileReady, downloadingFiles, reactiveDownloadingFiles } from '../../../../../utils/tdlib';
-import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
-import { useDownloadStore, remoteIdOf, type DownloadFileType } from '../../../../../store/downloads';
-import { useChatStore } from '../../../../../store/chat';
+import { tdlibSend, isFileReady, downloadingFiles, reactiveDownloadingFiles } from '../../../../../utils/session/tdlib';
+import { DL_PRIORITY } from '../../../../../utils/media/downloadPriority';
+import { useDownloadStore, remoteIdOf, type DownloadFileType } from '../../../../../store/media/downloads';
+import { useChatStore } from '../../../../../store/chat/chat';
 import LoaderIndicator from '../../../../common/LoaderIndicator';
 
 const { t } = useI18n();

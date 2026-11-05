@@ -61,10 +61,10 @@ import { MoreHorizontalIcon } from 'lucide-vue-next';
 import ModalDialog from '../../ui/modal/ModalDialog.vue';
 import MessageStickerContent from './MessageContent/content/MessageStickerContent.vue';
 import PremiumStickerBadge from '../../common/PremiumStickerBadge.vue';
-import { tdlibSend } from '../../../utils/tdlib';
-import { toast } from '../../../utils/toast';
-import { stickerSetDialogState, closeStickerSetDialog } from '../../../store/stickerSetDialog';
-import { clearViewportLoadQueue } from '../../../utils/viewportLoadGate';
+import { tdlibSend } from '../../../utils/session/tdlib';
+import { toast } from '../../../utils/ui/toast';
+import { stickerSetDialogState, closeStickerSetDialog } from '../../../store/media/stickerSetDialog';
+import { clearViewportLoadQueue } from '../../../utils/ui/viewportLoadGate';
 import type { messageSticker, sticker, stickerSet } from 'tdlib-types';
 
 const { t } = useI18n();

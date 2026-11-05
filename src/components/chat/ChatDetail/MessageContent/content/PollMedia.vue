@@ -50,9 +50,9 @@ import RichAudio from '../rich/RichAudio.vue';
 import MessageFileContent from './MessageFileContent.vue';
 import MessageStickerContent from './MessageStickerContent.vue';
 import MessageLinkPreview from './MessageLinkPreview.vue';
-import { mediaSizeStyle } from '../../../../../utils/fitMediaSize';
-import { resolveInternalLink } from '../../../../../utils/openInternalLink';
-import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
+import { mediaSizeStyle } from '../../../../../utils/media/fitMediaSize';
+import { resolveInternalLink } from '../../../../../utils/link/openInternalLink';
+import { confirmAndOpenExternalLink } from '../../../../../utils/link/openExternalLink';
 
 const props = defineProps<{
     media: PollMedia;

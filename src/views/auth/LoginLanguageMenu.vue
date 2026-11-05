@@ -163,8 +163,8 @@ import { computed, onMounted, ref } from 'vue';
 import { Globe as GlobeIcon, X as XIcon, Check as CheckIcon } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import { storeToRefs } from 'pinia';
-import { useLanguageStore } from '../../store/language';
-import { loadCachedPack, matchesSystemLanguage, type LanguageOption } from '../../utils/languagePacks';
+import { useLanguageStore } from '../../store/settings/language';
+import { loadCachedPack, matchesSystemLanguage, type LanguageOption } from '../../utils/i18n/languagePacks';
 
 withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
 

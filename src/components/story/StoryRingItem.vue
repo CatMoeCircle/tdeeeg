@@ -15,7 +15,7 @@ import {
     getChatAccentColorId,
     getChatUserNames,
     ensureChatAccentLoaded,
-} from "../../utils/senderInfo";
+} from "../../utils/profile/senderInfo";
 
 /**
  * 单个动态圆环头像（标题栏叠加 / 「更多动态」展开条共用）。

@@ -151,16 +151,16 @@ import {
   UserPlus as UserPlusIcon,
   Trash2 as Trash2Icon,
 } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import Avatar from '../../components/chat/avatar.vue';
 import GroupAdminRightsDialog from '../../components/settings/GroupAdminRightsDialog.vue';
 import GroupRestrictDialog from '../../components/settings/GroupRestrictDialog.vue';
 import GroupUserPickerDialog from '../../components/settings/GroupUserPickerDialog.vue';
 import { ShieldAdminIcon, RestrictKeyIcon } from '../../components/common/tgico';
 import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
-import { openContextMenu } from '../../store/contextMenu';
+import { openContextMenu } from '../../store/chat/contextMenu';
 import type { ContextMenuItem } from '../../components/contextMenu/types';
-import { tdlibSend } from '../../utils/tdlib';
+import { tdlibSend } from '../../utils/session/tdlib';
 import {
   ensureMemberUsers,
   isAdminStatus,
@@ -176,9 +176,9 @@ import {
   canInviteUsers,
   canChangeGroupInfo,
   loadMyChatMemberStatus,
-} from '../../utils/groupRights';
-import { getReactiveUser } from '../../utils/senderInfo';
-import formatStatus from '../../utils/status';
+} from '../../utils/chat/groupRights';
+import { getReactiveUser } from '../../utils/profile/senderInfo';
+import formatStatus from '../../utils/profile/status';
 import type { chat, chatMember, ChatMemberStatus, user } from 'tdlib-types';
 
 function canEditAdminRights(st?: ChatMemberStatus | null): boolean {

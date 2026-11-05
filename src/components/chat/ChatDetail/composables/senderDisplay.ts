@@ -1,6 +1,6 @@
 import type { chat, chatPhotoInfo, message, messageForwardInfo, profilePhoto, user } from 'tdlib-types';
-import { isSavedMessagesChat, isOutgoingAliasMessage } from '../../../../utils/savedMessages';
-import { isDeletedSender } from '../../../../utils/senderInfo';
+import { isSavedMessagesChat, isOutgoingAliasMessage } from '../../../../utils/chat/savedMessages';
+import { isDeletedSender } from '../../../../utils/profile/senderInfo';
 import { isMediaMessage, isStandaloneMessage } from './messageType';
 import i18n from "../../../../i18n";
 

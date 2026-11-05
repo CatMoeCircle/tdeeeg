@@ -10,18 +10,18 @@ import i18n from "./i18n";
 import vContextMenu from "./directives/contextMenu";
 import vSmoothWheel, { installGlobalSmoothWheel } from "./directives/smoothWheel";
 import { vBubbleSize } from "./directives/bubbleSize";
-import { closeContextMenu } from "./store/contextMenu";
+import { closeContextMenu } from "./store/chat/contextMenu";
 import { initTdlib, waitForAuthorization } from "./init";
 import { registerLoaderStyle, type LoaderStyle } from "./components/common/LoaderIndicator";
-import { settings } from "./store/settings";
-import { initTheme } from "./store/theme";
-import { debugMode } from "./store/debug";
-import { useLanguageStore } from "./store/language";
-import { initTlottie } from "./utils/tlottiePreload";
-import { installCrashGuard, showBootstrapFailure } from "./utils/crashGuard";
-import { applyTdlibSystemParams } from "./utils/tdlibParams";
-import { initStoryRing } from "./store/storyRing";
-import { isTouchTextSelection } from "./utils/inputModality";
+import { settings } from "./store/settings/settings";
+import { initTheme } from "./store/settings/theme";
+import { debugMode } from "./store/settings/debug";
+import { useLanguageStore } from "./store/settings/language";
+import { initTlottie } from "./utils/media/tlottiePreload";
+import { installCrashGuard, showBootstrapFailure } from "./utils/session/crashGuard";
+import { applyTdlibSystemParams } from "./utils/session/tdlibParams";
+import { initStoryRing } from "./store/profile/storyRing";
+import { isTouchTextSelection } from "./utils/ui/inputModality";
 
 // 尽早安装全局错误/白屏诊断（不依赖 Vue mount）
 installCrashGuard();

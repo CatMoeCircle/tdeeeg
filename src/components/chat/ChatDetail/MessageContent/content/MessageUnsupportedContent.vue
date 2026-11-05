@@ -25,8 +25,8 @@ import { useRouter } from 'vue-router';
 import { Send as SendIcon } from 'lucide-vue-next';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import type { MessageContent } from 'tdlib-types';
-import { accentColorStyle } from '../../../../../store/colors';
-import { openOfficialGroup, PROJECT_REPO_URL } from '../../../../../utils/appLinks';
+import { accentColorStyle } from '../../../../../store/settings/colors';
+import { openOfficialGroup, PROJECT_REPO_URL } from '../../../../../utils/link/appLinks';
 
 const props = defineProps<{
     content: MessageContent;

@@ -56,8 +56,8 @@
 import { ref, watch } from 'vue';
 import { CameraOff, Ban, Save, X as XIcon } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
-import { toast } from '../../utils/toast';
-import { tdlibSend } from '../../utils/tdlib';
+import { toast } from '../../utils/ui/toast';
+import { tdlibSend } from '../../utils/session/tdlib';
 import TgsPlayer from '../common/TgsPlayer.vue';
 
 /** enable=true 表示「启用分享」（has_protected_content=false），false 表示「禁用分享」 */

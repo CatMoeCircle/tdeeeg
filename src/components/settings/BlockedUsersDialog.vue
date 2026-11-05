@@ -42,16 +42,16 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { Ban as BanIcon } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import { useI18n } from 'vue-i18n';
 import Avatar from '../chat/avatar.vue';
 import ModalDialog from '../ui/modal/ModalDialog.vue';
-import { openContextMenu } from '../../store/contextMenu';
-import { tdlibSend } from '../../utils/tdlib';
+import { openContextMenu } from '../../store/chat/contextMenu';
+import { tdlibSend } from '../../utils/session/tdlib';
 import {
     ensureUser, ensureChat, getReactiveUser, getReactiveChat, getChatTitle,
     getChatProfileAccentColorId, getChatUserNames,
-} from '../../utils/senderInfo';
+} from '../../utils/profile/senderInfo';
 import type { chat as TdChat, MessageSender } from 'tdlib-types';
 import BaseButton from '../ui/button/BaseButton.vue';
 

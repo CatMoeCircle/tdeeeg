@@ -25,7 +25,7 @@ import {
     getOrderedStoryChatIds,
     getOverflowStoryChatIds,
     storiesExpanded,
-} from "../../store/storyRing";
+} from "../../store/profile/storyRing";
 
 /**
  * 标题栏右侧的动态头像叠加（最多 3 个），像回应/评论那样叠放，

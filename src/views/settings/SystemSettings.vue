@@ -275,21 +275,21 @@ import { useRouter } from 'vue-router';
 import { ChevronLeft as ChevronLeftIcon, Plus as PlusIcon } from 'lucide-vue-next';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
-import { toast } from '../../utils/toast';
-import { tdlibSend } from '../../utils/tdlib';
-import { useAccountsStore, type AccountInfo } from '../../store/accounts';
+import { toast } from '../../utils/ui/toast';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { useAccountsStore, type AccountInfo } from '../../store/session/accounts';
 import { storeToRefs } from 'pinia';
 import { useI18n } from 'vue-i18n';
 import packageInfo from '../../../package.json';
 import BaseButton from '../../components/ui/button/BaseButton.vue';
 import BaseInput from '../../components/ui/input/BaseInput.vue';
 import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
-import { settings } from '../../store/settings';
+import { settings } from '../../store/settings/settings';
 import {
     getBackgroundEfficiencyStatus,
     pushBackgroundEfficiency,
     type BackgroundEfficiencyStatus,
-} from '../../store/efficiency';
+} from '../../store/settings/efficiency';
 
 const router = useRouter();
 const { t } = useI18n();

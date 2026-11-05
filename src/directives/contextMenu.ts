@@ -1,7 +1,7 @@
 import type { Directive, DirectiveBinding } from "vue";
-import { openContextMenu } from "../store/contextMenu";
+import { openContextMenu } from "../store/chat/contextMenu";
 import type { ContextMenuItem, ContextMenuReactionRow } from "../components/contextMenu/types";
-import { isTouchTextSelection } from "../utils/inputModality";
+import { isTouchTextSelection } from "../utils/ui/inputModality";
 
 /**
  * 右键菜单指令：v-context-menu

@@ -1,5 +1,5 @@
 import type { message } from 'tdlib-types';
-import type { AccentColorStyle } from '../../../../store/colors';
+import type { AccentColorStyle } from '../../../../store/settings/colors';
 import { isStandaloneMessage, isBubblelessMediaMessage, albumHasVisibleCaption, isFileAlbum } from './messageType';
 import {
     customSkinStyle,

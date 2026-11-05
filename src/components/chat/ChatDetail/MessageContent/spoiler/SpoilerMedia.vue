@@ -9,7 +9,7 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue';
-import { SpoilerFX, type SpoilerFXOptions } from '../../../../../utils/spoilerFX';
+import { SpoilerFX, type SpoilerFXOptions } from '../../../../../utils/message/spoilerFX';
 
 const props = defineProps<{
     /** 是否显示剧透（false 时不初始化粒子） */

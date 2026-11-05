@@ -76,10 +76,10 @@ import {
     ArrowUp as ArrowUpIcon, ArrowDown as ArrowDownIcon,
     Ban as BanIcon, Check as CheckIcon,
 } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import ModalDialog from '../ui/modal/ModalDialog.vue';
-import { tdlibSend } from '../../utils/tdlib';
-import { tdHtml } from '../../utils/tdLang';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { tdHtml } from '../../utils/i18n/tdLang';
 
 import type { user as TdUser } from 'tdlib-types';
 import BaseButton from '../ui/button/BaseButton.vue';

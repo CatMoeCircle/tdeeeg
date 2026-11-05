@@ -19,7 +19,7 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import appLogo from '../../assets/logo.png';
-import type { ProfileRoleBadgeKind } from '../../utils/profileBadges';
+import type { ProfileRoleBadgeKind } from '../../utils/profile/profileBadges';
 
 const props = defineProps<{ kind: ProfileRoleBadgeKind }>();
 

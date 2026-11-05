@@ -307,8 +307,8 @@ import StickerThumb from '../../components/ai/StickerThumb.vue';
 import CustomEmojiInline from '../../components/common/CustomEmojiInline.vue';
 import SelectMenu from '../../components/ui/dropdown/SelectMenu.vue';
 import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
-import { useAccountsStore } from '../../store/accounts';
-import { aiModelGroups, aiProviders, loadAiProviders } from '../../store/aiConfig';
+import { useAccountsStore } from '../../store/session/accounts';
+import { aiModelGroups, aiProviders, loadAiProviders } from '../../store/ai/aiConfig';
 import {
     aiTakeover,
     clearStyle,
@@ -322,14 +322,14 @@ import {
     IDLE_MINUTES,
     type TakeoverChat,
     type TakeoverMode,
-} from '../../store/aiTakeover';
-import { useChatStore, type Chat } from '../../store/chat';
-import { useUserStore } from '../../store/user';
-import { compressTakeoverNow, resolveTakeoverTarget, summarizeStyleNow } from '../../utils/aiTakeover';
-import { renderAiMarkdown } from '../../utils/aiMarkdown';
-import { HISTORY_KEEP, STYLE_LIMITS } from '../../utils/aiTakeoverPrompt';
-import { ensureChat, ensureUser, getReactiveChat, getReactiveUser } from '../../utils/senderInfo';
-import { toast } from '../../utils/toast';
+} from '../../store/ai/aiTakeover';
+import { useChatStore, type Chat } from '../../store/chat/chat';
+import { useUserStore } from '../../store/session/user';
+import { compressTakeoverNow, resolveTakeoverTarget, summarizeStyleNow } from '../../utils/ai/aiTakeover';
+import { renderAiMarkdown } from '../../utils/ai/aiMarkdown';
+import { HISTORY_KEEP, STYLE_LIMITS } from '../../utils/ai/aiTakeoverPrompt';
+import { ensureChat, ensureUser, getReactiveChat, getReactiveUser } from '../../utils/profile/senderInfo';
+import { toast } from '../../utils/ui/toast';
 
 const router = useRouter();
 const { t } = useI18n();

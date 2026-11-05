@@ -32,7 +32,7 @@ import { useI18n } from 'vue-i18n';
 import type { message, MessageSender } from 'tdlib-types';
 import Avatar from '../avatar.vue';
 import { ChevronRightIcon } from 'lucide-vue-next';
-import { tdPlural } from '../../../utils/tdLang';
+import { tdPlural } from '../../../utils/i18n/tdLang';
 import {
     ensureSenderLoaded,
     getSenderName,
@@ -40,7 +40,7 @@ import {
     getSenderPhoto,
     getSenderProfileAccentColorId,
     isDeletedSender,
-} from '../../../utils/senderInfo';
+} from '../../../utils/profile/senderInfo';
 
 const { t } = useI18n();
 

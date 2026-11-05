@@ -19,7 +19,7 @@
  */
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { plainPreview, renderAiMarkdown } from '../../utils/aiMarkdown';
+import { plainPreview, renderAiMarkdown } from '../../utils/ai/aiMarkdown';
 import ThoughtLine from './ThoughtLine.vue';
 import {
     Brain as BrainIcon,
@@ -31,7 +31,7 @@ import {
     Wrench as WrenchIcon,
     X as XIcon,
 } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 
 export interface AiActivityEntry {
     id: string | number;

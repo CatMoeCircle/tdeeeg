@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue';
 import type { sticker, stickerSet, stickerSetInfo } from 'tdlib-types';
-import { tdlibSend } from '../../../../../utils/tdlib';
-import { enqueueViewportLoad } from '../../../../../utils/viewportLoadGate';
+import { tdlibSend } from '../../../../../utils/session/tdlib';
+import { enqueueViewportLoad } from '../../../../../utils/ui/viewportLoadGate';
 import i18n from "../../../../../i18n";
 
 /** 一个展示分组：已加载 stickers + 元信息 */

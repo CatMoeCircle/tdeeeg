@@ -69,9 +69,9 @@
 import { computed, ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Trash2 as Trash2Icon, LogOut as LogOutIcon, X as XIcon } from 'lucide-vue-next';
-import type { Chat } from '../../store/chat';
-import { tdlibSend } from '../../utils/tdlib';
-import { toast } from '../../utils/toast';
+import type { Chat } from '../../store/chat/chat';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { toast } from '../../utils/ui/toast';
 import BaseButton from '../ui/button/BaseButton.vue';
 
 /** 只用到 id / title：ChatDetail 里传的是 TDLib 原始 chat，不需要整份 Chat 结构 */

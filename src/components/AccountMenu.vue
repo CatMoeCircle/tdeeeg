@@ -172,13 +172,13 @@ import {
     Sun as SunIcon,
     Moon as MoonIcon,
 } from 'lucide-vue-next';
-import { toast } from '../utils/toast';
+import { toast } from '../utils/ui/toast';
 import Avatar from './chat/avatar.vue';
-import { useUserStore } from '../store/user';
-import { useAccountsStore, type AccountInfo } from '../store/accounts';
+import { useUserStore } from '../store/session/user';
+import { useAccountsStore, type AccountInfo } from '../store/session/accounts';
 import { storeToRefs } from 'pinia';
 import { useRouter } from 'vue-router';
-import { isDark as themeIsDark, revealOriginOf, setModeWithReveal } from '../store/theme';
+import { isDark as themeIsDark, revealOriginOf, setModeWithReveal } from '../store/settings/theme';
 import BaseButton from './ui/button/BaseButton.vue';
 import BaseInput from './ui/input/BaseInput.vue';
 

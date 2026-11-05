@@ -227,12 +227,12 @@ import Avatar from '../chat/avatar.vue';
 import FormattedTextInline from '../chat/FormattedTextInline.vue';
 import GlobalEmojiText from './GlobalEmojiText.vue';
 import CommunityAvatar from './CommunityAvatar.vue';
-import formatTime from '../../utils/formatTime';
-import { tdlibSend } from '../../utils/tdlib';
-import { toast } from '../../utils/toast';
-import { settings } from '../../store/settings';
-import { useCommunityStore } from '../../store/community';
-import type { Chat } from '../../store/chat';
+import formatTime from '../../utils/ui/formatTime';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { toast } from '../../utils/ui/toast';
+import { settings } from '../../store/settings/settings';
+import { useCommunityStore } from '../../store/session/community';
+import type { Chat } from '../../store/chat/chat';
 
 const props = defineProps<{
     open: boolean;

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { Minus, Square, X } from 'lucide-vue-next';
-import { useConnectionStore } from '../store/connectionState';
+import { useConnectionStore } from '../store/session/connectionState';
 import { useI18n } from 'vue-i18n';
 import { computed, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
@@ -10,9 +10,9 @@ import Avatar from './chat/avatar.vue';
 import AccountMenu from './AccountMenu.vue';
 import StoryRing from './story/StoryRing.vue';
 import StoryRingStack from './story/StoryRingStack.vue';
-import { settings } from '../store/settings';
-import { useUserStore } from '../store/user';
-import { ensureSelfStories, hasAnyStories, getSelfStoryState } from '../store/storyRing';
+import { settings } from '../store/settings/settings';
+import { useUserStore } from '../store/session/user';
+import { ensureSelfStories, hasAnyStories, getSelfStoryState } from '../store/profile/storyRing';
 
 const appWindow = getCurrentWindow();
 const connectionStore = useConnectionStore();

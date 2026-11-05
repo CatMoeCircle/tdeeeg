@@ -88,17 +88,17 @@ import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 import CustomEmojiInline from '../common/CustomEmojiInline.vue';
 import PremiumStatusIcon from '../common/PremiumStatusIcon.vue';
 import VerifiedBadge from '../common/VerifiedBadge.vue';
-import { useUserProfileStore } from '../../store/userProfile';
-import { requestInsertMention } from '../../store/mentionInsert';
-import { visible, x, y, sender, target, closeSenderCard } from '../../store/senderCard';
+import { useUserProfileStore } from '../../store/profile/userProfile';
+import { requestInsertMention } from '../../store/chat/mentionInsert';
+import { visible, x, y, sender, target, closeSenderCard } from '../../store/chat/senderCard';
 import {
     getSenderName, getSenderNameParts, getSenderPhoto, getSenderProfileAccentColorId,
     getReactiveUser, getReactiveChat, getReactiveSupergroup, getReactiveBasicGroup,
     ensureUser, ensureChat, ensureSupergroup, ensureBasicGroup,
     isDeletedSender, getChatEmojiStatus, emojiStatusCustomEmojiId,
-} from '../../utils/senderInfo';
-import formatStatus from '../../utils/status';
-import { toast } from '../../utils/toast';
+} from '../../utils/profile/senderInfo';
+import formatStatus from '../../utils/profile/status';
+import { toast } from '../../utils/ui/toast';
 
 const { t } = useI18n();
 const router = useRouter();

@@ -9,7 +9,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import LoadingSkeleton from '../../components/common/LoadingSkeleton.vue';
 import {
     ChevronLeft as ChevronLeftIcon,
@@ -19,9 +19,9 @@ import {
     Trash2 as Trash2Icon,
     X as XIcon,
 } from 'lucide-vue-next';
-import { tdlibSend } from '../../utils/tdlib';
-import { useAccountsStore } from '../../store/accounts';
-import { useChatStore } from '../../store/chat';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { useAccountsStore } from '../../store/session/accounts';
+import { useChatStore } from '../../store/chat/chat';
 import {
     deleteConversation,
     fmtTokens,
@@ -30,7 +30,7 @@ import {
     renameConversation,
     setAiConversationsAccount,
     type AiConversation,
-} from '../../store/aiConversations';
+} from '../../store/ai/aiConversations';
 
 const router = useRouter();
 const { t } = useI18n();

@@ -63,7 +63,7 @@ import MessagePollContent from './MessagePollContent.vue';
 import MessageInvoiceContent from './MessageInvoiceContent.vue';
 import MessageUnsupportedContent from './MessageUnsupportedContent.vue';
 import RichMap from '../rich/RichMap.vue';
-import { callStatusText, callTitleText } from '../../../../../utils/callMessage';
+import { callStatusText, callTitleText } from '../../../../../utils/message/callMessage';
 // GlobalEmojiInline removed - using global Apple Color Emoji font
 
 const props = defineProps<{

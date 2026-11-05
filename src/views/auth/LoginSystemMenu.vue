@@ -154,10 +154,10 @@
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { ref, watch, onMounted, onUnmounted, computed } from "vue";
-import { toast } from "../../utils/toast";
+import { toast } from "../../utils/ui/toast";
 import { Settings as SettingsIcon, X as XIcon, Info as InfoIcon } from 'lucide-vue-next';
-import { settings } from "../../store/settings";
-import { reinitTdlibWithSystemParams } from "../../utils/tdlibParams";
+import { settings } from "../../store/settings/settings";
+import { reinitTdlibWithSystemParams } from "../../utils/session/tdlibParams";
 import BaseButton from '../../components/ui/button/BaseButton.vue';
 import BaseInput from '../../components/ui/input/BaseInput.vue';
 

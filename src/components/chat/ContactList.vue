@@ -37,15 +37,15 @@
 </template>
 
 <script setup lang="ts">
-import { tdlibSend } from '../../utils/tdlib';
-import formatStatus from '../../utils/status';
+import { tdlibSend } from '../../utils/session/tdlib';
+import formatStatus from '../../utils/profile/status';
 import { ArrowLeftRightIcon } from 'lucide-vue-next';
 import { onMounted, ref } from "vue"
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
-import { chatPaneVisible } from '../../store/chatPane';
+import { chatPaneVisible } from '../../store/chat/chatPane';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 
 import type { user } from 'tdlib-types';

@@ -12,7 +12,7 @@
  */
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { fmtTokens, type ConversationUsage } from '../../store/aiConversations';
+import { fmtTokens, type ConversationUsage } from '../../store/ai/aiConversations';
 
 const props = defineProps<{
     usage: ConversationUsage;

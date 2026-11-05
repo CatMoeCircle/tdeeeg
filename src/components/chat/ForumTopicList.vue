@@ -81,7 +81,7 @@ const { t } = useI18n();
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ArrowLeftIcon, MessageCircleIcon } from 'lucide-vue-next';
-import { tdlibSend } from '../../utils/tdlib';
+import { tdlibSend } from '../../utils/session/tdlib';
 import type { chat, forumTopic, forumTopics, supergroup } from 'tdlib-types';
 import Avatar from './avatar.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
@@ -90,7 +90,7 @@ import {
     stickerBracketPreview,
     bracketTypePreview,
     musicBracketPreview,
-} from '../../utils/messagePreview';
+} from '../../utils/message/messagePreview';
 const route = useRoute();
 const router = useRouter();
 

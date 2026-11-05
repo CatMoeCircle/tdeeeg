@@ -114,9 +114,9 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import { tempDir } from '@tauri-apps/api/path';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { toast } from '../../utils/toast';
-import { tdlibSend } from '../../utils/tdlib';
-import { downloadFileUrl } from '../../utils/profileMedia';
+import { toast } from '../../utils/ui/toast';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { downloadFileUrl } from '../../utils/profile/profileMedia';
 import type { chatPhoto, file } from 'tdlib-types';
 
 const props = defineProps<{

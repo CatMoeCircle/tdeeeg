@@ -58,7 +58,7 @@ import {
     isReactionCustomEmoji,
     isReactionPaid,
     getMessageReactions,
-} from '../../../utils/reactionHelpers';
+} from '../../../utils/message/reactionHelpers';
 import {
     ensureSenderLoaded,
     getSenderName,
@@ -66,7 +66,7 @@ import {
     getSenderPhoto,
     getSenderProfileAccentColorId,
     isDeletedSender,
-} from '../../../utils/senderInfo';
+} from '../../../utils/profile/senderInfo';
 
 const { t } = useI18n();
 

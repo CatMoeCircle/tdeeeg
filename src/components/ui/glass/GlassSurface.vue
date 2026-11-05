@@ -43,7 +43,7 @@
 
 <script setup lang="ts">
 import { type CSSProperties, useTemplateRef, onMounted, computed, watch, nextTick, onUnmounted } from 'vue';
-import { isDark as themeIsDark } from '../../../store/theme';
+import { isDark as themeIsDark } from '../../../store/settings/theme';
 
 interface GlassSurfaceProps {
     width?: string | number;

@@ -120,11 +120,11 @@
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { reactive, ref, watch } from 'vue';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import { X as XIcon } from 'lucide-vue-next';
 import { invoke } from '@tauri-apps/api/core';
-import { settings } from '../../store/settings';
-import { addProxyTo } from '../../store/proxyList';
+import { settings } from '../../store/settings/settings';
+import { addProxyTo } from '../../store/settings/proxyList';
 import type { addedProxy } from 'tdlib-types';
 import BaseButton from '../ui/button/BaseButton.vue';
 

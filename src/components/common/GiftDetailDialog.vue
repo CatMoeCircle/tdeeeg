@@ -157,8 +157,8 @@ import MessageStickerContent from '../chat/ChatDetail/MessageContent/content/Mes
 import GlobalEmojiText from './GlobalEmojiText.vue';
 import FormattedTextInline from '../chat/FormattedTextInline.vue';
 import PaidReactionIcon from './PaidReactionIcon.vue';
-import { intToRgb, rgbToCss } from '../../store/colors';
-import type { GiftDetailData, GiftDetailRow } from '../../utils/giftDetail';
+import { intToRgb, rgbToCss } from '../../store/settings/colors';
+import type { GiftDetailData, GiftDetailRow } from '../../utils/message/giftDetail';
 
 const { t } = useI18n();
 

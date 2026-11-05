@@ -51,9 +51,9 @@ import { useI18n } from 'vue-i18n';
 import type { PageBlock, file, ThumbnailFormat } from 'tdlib-types';
 import { ChevronLeftIcon, ChevronRightIcon, PlayIcon } from 'lucide-vue-next';
 import RichImage from './RichImage.vue';
-import { layoutMediaGroup } from '../../../../../utils/mediaGroupLayout';
-import { mediaSizeStyle, MEDIA_MAX } from '../../../../../utils/fitMediaSize';
-import { openFileActionsMenu } from '../../../../../utils/fileActions';
+import { layoutMediaGroup } from '../../../../../utils/media/mediaGroupLayout';
+import { mediaSizeStyle, MEDIA_MAX } from '../../../../../utils/media/fitMediaSize';
+import { openFileActionsMenu } from '../../../../../utils/media/fileActions';
 
 const { t } = useI18n();
 

@@ -59,11 +59,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import type { checklistTask, formattedText, messageChecklist, textEntity } from 'tdlib-types';
-import { toast } from '../../../../../utils/toast';
+import { toast } from '../../../../../utils/ui/toast';
 import { CheckIcon, ListIcon } from 'lucide-vue-next';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
 import SpoilerSpan from '../spoiler/SpoilerSpan.vue';
-import { tdlibSend } from '../../../../../utils/tdlib';
+import { tdlibSend } from '../../../../../utils/session/tdlib';
 
 const props = defineProps<{
     content: messageChecklist;

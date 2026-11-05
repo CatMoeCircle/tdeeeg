@@ -22,7 +22,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { fillToCss, type ChatBackgroundRender } from '../../utils/chatBackground';
+import { fillToCss, type ChatBackgroundRender } from '../../utils/chat/chatBackground';
 
 const props = withDefaults(defineProps<{
     /** 解析后的背景模型；null 表示不铺（透出底层） */

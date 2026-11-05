@@ -79,8 +79,8 @@ import { XIcon, PinIcon } from "lucide-vue-next";
 import { useI18n } from "vue-i18n";
 import {
     visible, request, confirmPin, cancelPin,
-} from "../../store/pinMessage";
-import type { PinMessageResult } from "../../store/pinMessage";
+} from "../../store/chat/pinMessage";
+import type { PinMessageResult } from "../../store/chat/pinMessage";
 import BaseButton from "../ui/button/BaseButton.vue";
 
 const { t } = useI18n();

@@ -40,12 +40,12 @@ import { computed, onUnmounted, ref, watch } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { Image as ImageIcon, Play as PlayIcon } from 'lucide-vue-next';
 import type { animation, chatPhoto, file, linkPreview, linkPreviewTypeAlbum, photo, sticker, video, LinkPreviewType } from 'tdlib-types';
-import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/tdlib';
-import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
-import { isThumbnailImgRenderable, isThumbnailVideoRenderable } from '../../../../../utils/thumbnail';
-import { mediaFitStyle, fitMediaSize } from '../../../../../utils/fitMediaSize';
-import { shouldAutoDownloadPhotos } from '../../../../../utils/autoDownload';
-import { useDownloadStore } from '../../../../../store/downloads';
+import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/session/tdlib';
+import { DL_PRIORITY } from '../../../../../utils/media/downloadPriority';
+import { isThumbnailImgRenderable, isThumbnailVideoRenderable } from '../../../../../utils/media/thumbnail';
+import { mediaFitStyle, fitMediaSize } from '../../../../../utils/media/fitMediaSize';
+import { shouldAutoDownloadPhotos } from '../../../../../utils/media/autoDownload';
+import { useDownloadStore } from '../../../../../store/media/downloads';
 import RichMediaDownload from '../rich/RichMediaDownload.vue';
 
 const downloadStore = useDownloadStore();

@@ -43,8 +43,8 @@ function unobserveAvatarResize(el: Element) {
 <script setup lang="ts">
 import { computed, reactive, ref, watch, onMounted, onUnmounted } from 'vue';
 import type { chatPhotoInfo, profilePhoto } from "tdlib-types";
-import { avatarUrlOf, requestAvatar } from '../../utils/avatarLoader';
-import { useColors } from '../../store/colors';
+import { avatarUrlOf, requestAvatar } from '../../utils/media/avatarLoader';
+import { useColors } from '../../store/settings/colors';
 import { useViewportLoad } from '../../composables/useViewportLoad';
 
 const props = defineProps<{

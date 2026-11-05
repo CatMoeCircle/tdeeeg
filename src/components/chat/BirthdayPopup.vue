@@ -64,8 +64,8 @@ import { useRouter } from 'vue-router';
 import { Cake, ChevronRight, X } from 'lucide-vue-next';
 import type { UserPrivacySettingRule } from 'tdlib-types';
 import BaseButton from '../ui/button/BaseButton.vue';
-import { toast } from '../../utils/toast';
-import { useTopTipsStore } from '../../store/topTips';
+import { toast } from '../../utils/ui/toast';
+import { useTopTipsStore } from '../../store/chat/topTips';
 
 const emit = defineEmits<{ (e: 'close'): void }>();
 const { t } = useI18n();

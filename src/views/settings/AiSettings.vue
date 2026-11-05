@@ -446,7 +446,7 @@
 import { computed, onMounted, reactive, ref, type Component, type Ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import {
     Bot as BotIcon,
     Check as CheckIcon,
@@ -466,7 +466,7 @@ import {
     Wrench as WrenchIcon,
     X as XIcon,
 } from 'lucide-vue-next';
-import { settings } from '../../store/settings';
+import { settings } from '../../store/settings/settings';
 import AiPromptBar from '../../components/ai/AiPromptBar.vue';
 import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
 import SelectMenu from '../../components/ui/dropdown/SelectMenu.vue';
@@ -495,7 +495,7 @@ import {
     type AiPreset,
     type AiProvider,
     type AiThinkingLevel,
-} from '../../store/aiConfig';
+} from '../../store/ai/aiConfig';
 import type { ContextMenuItem } from '../../components/contextMenu/types';
 const router = useRouter();
 const { t, locale } = useI18n();

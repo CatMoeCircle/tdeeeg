@@ -219,18 +219,18 @@ import Avatar from "../chat/avatar.vue";
 import GlobalEmojiText from "../common/GlobalEmojiText.vue";
 import CustomEmojiInline from "../common/CustomEmojiInline.vue";
 import SlidingTabBar from "../ui/tabs/SlidingTabBar.vue";
-import { tdlibSend } from "../../utils/tdlib";
-import { toast } from "../../utils/toast";
-import { useChatStore } from "../../store/chat";
-import { useUserStore } from "../../store/user";
-import { settings } from "../../store/settings";
-import { openContextMenu } from "../../store/contextMenu";
+import { tdlibSend } from "../../utils/session/tdlib";
+import { toast } from "../../utils/ui/toast";
+import { useChatStore } from "../../store/chat/chat";
+import { useUserStore } from "../../store/session/user";
+import { settings } from "../../store/settings/settings";
+import { openContextMenu } from "../../store/chat/contextMenu";
 import type { ContextMenuItem } from "./types";
 import type { chat, message, forumTopics, chatPhotoInfo, profilePhoto } from "tdlib-types";
-import { resolveTopicMode } from "../../utils/topicDisplayMode";
-import { loadDmTopics, toDmTopicEntries, buildMessageTopicInput } from "../../utils/directMessagesTopics";
-import { isDeletedChat, getChatUserNames, getSenderNameParts, DELETED_ACCOUNT_LABEL } from "../../utils/senderInfo";
-import { folderTabClass, folderTabContainerClass } from "../../utils/folderPillsTabClass";
+import { resolveTopicMode } from "../../utils/chat/topicDisplayMode";
+import { loadDmTopics, toDmTopicEntries, buildMessageTopicInput } from "../../utils/chat/directMessagesTopics";
+import { isDeletedChat, getChatUserNames, getSenderNameParts, DELETED_ACCOUNT_LABEL } from "../../utils/profile/senderInfo";
+import { folderTabClass, folderTabContainerClass } from "../../utils/ui/folderPillsTabClass";
 
 const props = defineProps<{
     visible: boolean;

@@ -25,7 +25,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import type { inlineKeyboardButton } from 'tdlib-types';
-import { buttonStyleClass, runInlineButtonType } from '../../../../../utils/inlineButton';
+import { buttonStyleClass, runInlineButtonType } from '../../../../../utils/message/inlineButton';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
 import GlobalEmojiText from '../../../../common/GlobalEmojiText.vue';
 

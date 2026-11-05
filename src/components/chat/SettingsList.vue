@@ -112,18 +112,18 @@ import {
 import type { Component } from 'vue';
 import avatar from './avatar.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
-import { useUserStore } from '../../store/user';
+import { useUserStore } from '../../store/session/user';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import { computed, ref, onMounted } from 'vue';
 import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
-import { chatPaneVisible } from '../../store/chatPane';
-import formatStatus from '../../utils/status';
-import { tdlibSend } from '../../utils/tdlib';
-import { OFFICIAL_GROUP_USERNAME, openOfficialGroup as openOfficialGroupLink } from '../../utils/appLinks';
+import { chatPaneVisible } from '../../store/chat/chatPane';
+import formatStatus from '../../utils/profile/status';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { OFFICIAL_GROUP_USERNAME, openOfficialGroup as openOfficialGroupLink } from '../../utils/link/appLinks';
 import { getVersion } from '@tauri-apps/api/app';
 import packageInfo from '../../../package.json';
-import { debugMode, setDebugMode, setLogUpdates } from '../../store/debug';
+import { debugMode, setDebugMode, setLogUpdates } from '../../store/settings/debug';
 import { useI18n } from 'vue-i18n';
 
 const userStore = useUserStore();

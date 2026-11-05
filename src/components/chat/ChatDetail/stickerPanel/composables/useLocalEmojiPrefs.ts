@@ -1,5 +1,5 @@
 import { computed } from 'vue';
-import { settings } from '../../../../../store/settings';
+import { settings } from '../../../../../store/settings/settings';
 import type { EmojiPayloadItem } from '../data/emojiPayload';
 import { loadEmojiPayload } from '../data/emojiPayloadLoader';
 

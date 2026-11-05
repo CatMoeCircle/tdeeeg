@@ -49,11 +49,11 @@ import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import type { chat, messageContact, user as TdUser } from 'tdlib-types';
 import Avatar from '../../../avatar.vue';
-import { tdlibSend } from '../../../../../utils/tdlib';
-import { accentColorStyle, rgbToCss } from '../../../../../store/colors';
-import { useUserStore } from '../../../../../store/user';
-import { toast } from '../../../../../utils/toast';
-import { getReactiveUser } from '../../../../../utils/senderInfo';
+import { tdlibSend } from '../../../../../utils/session/tdlib';
+import { accentColorStyle, rgbToCss } from '../../../../../store/settings/colors';
+import { useUserStore } from '../../../../../store/session/user';
+import { toast } from '../../../../../utils/ui/toast';
+import { getReactiveUser } from '../../../../../utils/profile/senderInfo';
 
 const props = defineProps<{
     content: messageContact;

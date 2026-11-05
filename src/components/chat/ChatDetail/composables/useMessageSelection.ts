@@ -1,9 +1,9 @@
 import { computed, onMounted, onUnmounted, ref, type ComputedRef, type ShallowRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { message } from 'tdlib-types';
-import { toast } from '../../../../utils/toast';
+import { toast } from '../../../../utils/ui/toast';
 import { canDeleteMessage, getMessageProperties } from '../../../contextMenu/messageActions';
-import { visible as deletePopupVisible } from '../../../../store/deleteMessage';
+import { visible as deletePopupVisible } from '../../../../store/chat/deleteMessage';
 import { isServiceMessage } from './messageType';
 
 /** 多选上限：与 Telegram 官方客户端一致，单次最多选中 100 条消息 */

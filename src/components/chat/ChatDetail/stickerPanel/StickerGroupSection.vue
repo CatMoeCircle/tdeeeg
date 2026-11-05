@@ -31,7 +31,7 @@ import StickerMediaItem from './StickerMediaItem.vue';
 import type { StickerGroup } from './composables/useStickerPicker';
 import { useLocalEmojiPrefs } from './composables/useLocalEmojiPrefs';
 import { onVisibilityChange, unobserve } from './composables/useStickerVisibility';
-import { enqueueViewportLoad } from '../../../../utils/viewportLoadGate';
+import { enqueueViewportLoad } from '../../../../utils/ui/viewportLoadGate';
 import type { sticker, animation } from 'tdlib-types';
 
 const { t } = useI18n();

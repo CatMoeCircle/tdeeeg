@@ -30,12 +30,12 @@ import { useRouter } from 'vue-router';
 import { MoreHorizontal as MoreHorizontalIcon, Settings as SettingsIcon, Trash2 as Trash2Icon } from 'lucide-vue-next';
 import type { businessBotManageBar } from 'tdlib-types';
 import Avatar from '../avatar.vue';
-import { tdlibSend } from '../../../utils/tdlib';
-import { ensureUser, getReactiveUser } from '../../../utils/senderInfo';
-import { userNameOf } from '../../../utils/groupRights';
-import { openContextMenu } from '../../../store/contextMenu';
-import { openAnyLink } from '../../../utils/openInternalLink';
-import { toast } from '../../../utils/toast';
+import { tdlibSend } from '../../../utils/session/tdlib';
+import { ensureUser, getReactiveUser } from '../../../utils/profile/senderInfo';
+import { userNameOf } from '../../../utils/chat/groupRights';
+import { openContextMenu } from '../../../store/chat/contextMenu';
+import { openAnyLink } from '../../../utils/link/openInternalLink';
+import { toast } from '../../../utils/ui/toast';
 import type { ContextMenuItem } from '../../contextMenu/types';
 
 const props = defineProps<{

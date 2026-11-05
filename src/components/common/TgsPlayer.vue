@@ -24,8 +24,8 @@ import { computed, onUnmounted, ref, watch } from 'vue';
 import { LottiePlayer } from 'tlottie/vue';
 import 'tlottie/vue/style.css';
 import type { FitzModifier } from 'tlottie';
-import { acquireSticker, type BudgetHandle } from '../../utils/stickerBudget';
-import { countLottieCommand, countLottieLoad } from '../../utils/lottieStats';
+import { acquireSticker, type BudgetHandle } from '../../utils/media/stickerBudget';
+import { countLottieCommand, countLottieLoad } from '../../utils/media/lottieStats';
 
 const props = withDefaults(defineProps<{
     /**

@@ -19,10 +19,10 @@ import { computed, ref, watch } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { location, pageBlockCaption } from 'tdlib-types';
 import { MapPinIcon } from 'lucide-vue-next';
-import { ensureLocalFilePath, tdlibSend } from '../../../../../utils/tdlib';
-import { mediaSizeStyle } from '../../../../../utils/fitMediaSize';
-import { confirmAndOpenExternalLink } from '../../../../../utils/openExternalLink';
-import { bingMapsLink } from '../../../../../utils/mapLink';
+import { ensureLocalFilePath, tdlibSend } from '../../../../../utils/session/tdlib';
+import { mediaSizeStyle } from '../../../../../utils/media/fitMediaSize';
+import { confirmAndOpenExternalLink } from '../../../../../utils/link/openExternalLink';
+import { bingMapsLink } from '../../../../../utils/link/mapLink';
 import RichCaption from './RichCaption.vue';
 
 const props = withDefaults(defineProps<{

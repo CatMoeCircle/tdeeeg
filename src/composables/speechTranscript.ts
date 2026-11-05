@@ -1,7 +1,7 @@
 import { reactive } from 'vue';
 import type { message, SpeechRecognitionResult } from 'tdlib-types';
-import { translateViaProvider } from '../utils/translateProvider';
-import { getTranslateTargetLang } from '../store/translate';
+import { translateViaProvider } from '../utils/ai/translateProvider';
+import { getTranslateTargetLang } from '../store/ai/translate';
 
 /**
  * 已展开识别文本的消息（key = chatId:messageId）。

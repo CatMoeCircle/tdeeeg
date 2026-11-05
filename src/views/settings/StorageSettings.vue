@@ -190,17 +190,17 @@ import {
     MessageCircle as MessageCircleIcon, RefreshCw as RefreshCwIcon,
     Trash2 as Trash2Icon, Users as UsersIcon,
 } from 'lucide-vue-next';
-import { tdlibSend } from '../../utils/tdlib';
-import { formatSize } from '../../utils/format';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { formatSize } from '../../utils/ui/format';
 import LoadingSkeleton from '../../components/common/LoadingSkeleton.vue';
-import { toast } from '../../utils/toast';
-import { useChatStore } from '../../store/chat';
+import { toast } from '../../utils/ui/toast';
+import { useChatStore } from '../../store/chat/chat';
 import Avatar from '../../components/chat/avatar.vue';
 import ModalDialog from '../../components/ui/modal/ModalDialog.vue';
 import BaseButton from '../../components/ui/button/BaseButton.vue';
 import BaseCheckbox from '../../components/ui/checkbox/BaseCheckbox.vue';
 import type { ContextMenuItem } from '../../components/contextMenu/types';
-import { getReactiveChat, getReactiveUser } from '../../utils/senderInfo';
+import { getReactiveChat, getReactiveUser } from '../../utils/profile/senderInfo';
 
 const router = useRouter();
 const chatStore = useChatStore();

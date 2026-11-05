@@ -12,14 +12,14 @@ import {
     Flag as FlagIcon, Undo2 as Undo2Icon, CircleStop as CircleStopIcon, Pin as PinIcon, Trash as TrashIcon,
     ClipboardCopy as ClipboardCopyIcon,
 } from 'lucide-vue-next';
-import { tdlibSend, isFileReady } from '../../../../utils/tdlib';
-import { revealFileInDir, saveFileAs } from '../../../../utils/fileActions';
-import { toast } from '../../../../utils/toast';
-import { getMessagePlainText, getMessageFormattedText } from '../../../../utils/messageText';
-import { messageSenderKey } from '../../../../utils/senderInfo';
-import { settings } from '../../../../store/settings';
-import { showCopyJsonInMenus } from '../../../../store/debug';
-import { openContextMenu } from '../../../../store/contextMenu';
+import { tdlibSend, isFileReady } from '../../../../utils/session/tdlib';
+import { revealFileInDir, saveFileAs } from '../../../../utils/media/fileActions';
+import { toast } from '../../../../utils/ui/toast';
+import { getMessagePlainText, getMessageFormattedText } from '../../../../utils/message/messageText';
+import { messageSenderKey } from '../../../../utils/profile/senderInfo';
+import { settings } from '../../../../store/settings/settings';
+import { showCopyJsonInMenus } from '../../../../store/settings/debug';
+import { openContextMenu } from '../../../../store/chat/contextMenu';
 import {
     copyMessageText, copyMessageJson, copyMessageLink,
     toggleMessagePinned, pinMessage, getMessageProperties, getCachedMessageProperties,
@@ -34,17 +34,17 @@ import {
 import {
     showTranslateDialog, translateInlineMessage, getInlineTranslation,
     removeInlineTranslation, isTranslateReplaceDisplay, getTranslateTargetLang,
-} from '../../../../store/translate';
+} from '../../../../store/ai/translate';
 import {
     openTranscripts, transcriptKey, transcriptTextOf,
     getTranscriptTranslation, clearTranscriptTranslation, translateTranscript,
 } from '../../../../composables/speechTranscript';
-import { DEFAULT_TRANSLATE_TARGET } from '../../../../utils/translateLanguages';
-import { confirmDeleteMessage } from '../../../../store/deleteMessage';
-import type { DeleteMessageRequest, DeleteSenderInfo } from '../../../../store/deleteMessage';
-import { confirmPinMessage } from '../../../../store/pinMessage';
-import { confirmStopPoll } from '../../../../store/stopPoll';
-import { confirmReportMessage } from '../../../../store/reportMessage';
+import { DEFAULT_TRANSLATE_TARGET } from '../../../../utils/ai/translateLanguages';
+import { confirmDeleteMessage } from '../../../../store/chat/deleteMessage';
+import type { DeleteMessageRequest, DeleteSenderInfo } from '../../../../store/chat/deleteMessage';
+import { confirmPinMessage } from '../../../../store/chat/pinMessage';
+import { confirmStopPoll } from '../../../../store/chat/stopPoll';
+import { confirmReportMessage } from '../../../../store/chat/reportMessage';
 import { isServiceMessage } from './messageType';
 import type { ContextMenuItem, ContextMenuReactionItem, ContextMenuReactionRow } from '../../../contextMenu/types';
 

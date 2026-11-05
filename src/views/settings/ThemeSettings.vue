@@ -243,10 +243,10 @@ import {
     Monitor as MonitorIcon,
     Palette as PaletteIcon,
 } from 'lucide-vue-next';
-import { settings } from '../../store/settings';
+import { settings } from '../../store/settings/settings';
 import {
     themeApi, generateTailwindScale, isDark as themeIsDark, type ThemeMode,
-} from '../../store/theme';
+} from '../../store/settings/theme';
 import PreviewCard from '../../components/settings/PreviewCard.vue';
 import { useI18n } from 'vue-i18n';
 

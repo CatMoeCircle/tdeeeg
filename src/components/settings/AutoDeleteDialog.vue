@@ -94,11 +94,11 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 import { ChevronLeft as ChevronLeftIcon, X as XIcon } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import { useI18n } from 'vue-i18n';
 import TgsPlayer from '../common/TgsPlayer.vue';
-import { tdlibSend } from '../../utils/tdlib';
-import { tdPlural } from '../../utils/tdLang';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { tdPlural } from '../../utils/i18n/tdLang';
 
 const props = defineProps<{ modelValue: boolean }>();
 const emit = defineEmits<{

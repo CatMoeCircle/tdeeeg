@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
-import { tdlibSend } from "../../../utils/tdlib";
-import { toast } from "../../../utils/toast";
+import { tdlibSend } from "../../../utils/session/tdlib";
+import { toast } from "../../../utils/ui/toast";
 import { useI18n } from "vue-i18n";
 import { invoke } from "@tauri-apps/api/core";
-import { onTdlibUpdate } from "../../../store/tdlibBus";
+import { onTdlibUpdate } from "../../../store/session/tdlibBus";
 import TgsPlayer from "../../../components/common/TgsPlayer.vue";
 import {
     usePasswordMonkey,

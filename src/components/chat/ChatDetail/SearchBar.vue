@@ -113,11 +113,11 @@ const { t } = useI18n();
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { SearchIcon, XIcon, ChevronUpIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, UserIcon, CheckIcon } from 'lucide-vue-next';
 import type { message, chat, MessageSender, MessageSender$Input, chatMember } from 'tdlib-types';
-import { tdlibSend } from '../../../utils/tdlib';
-import { getMessagePlainText } from '../../../utils/messageText';
+import { tdlibSend } from '../../../utils/session/tdlib';
+import { getMessagePlainText } from '../../../utils/message/messageText';
 import {
     getSenderName, getSenderNameParts, getSenderPhoto, getSenderProfileAccentColorId, isDeletedSender, ensureSenderLoaded,
-} from '../../../utils/senderInfo';
+} from '../../../utils/profile/senderInfo';
 import { formatDateLabel } from './composables/dateLabel';
 import Avatar from '../avatar.vue';
 

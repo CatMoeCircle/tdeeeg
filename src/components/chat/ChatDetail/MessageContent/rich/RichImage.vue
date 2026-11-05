@@ -15,13 +15,13 @@
 <script setup lang="ts">
 import { computed, onMounted, watch, ref } from 'vue';
 import type { file, ThumbnailFormat } from 'tdlib-types';
-import { tdlibSend, isFileReady } from '../../../../../utils/tdlib';
+import { tdlibSend, isFileReady } from '../../../../../utils/session/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
-import { isThumbnailVideoRenderable } from '../../../../../utils/thumbnail';
+import { DL_PRIORITY } from '../../../../../utils/media/downloadPriority';
+import { isThumbnailVideoRenderable } from '../../../../../utils/media/thumbnail';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
-import { shouldAutoDownloadPhotos } from '../../../../../utils/autoDownload';
-import { useDownloadStore } from '../../../../../store/downloads';
+import { shouldAutoDownloadPhotos } from '../../../../../utils/media/autoDownload';
+import { useDownloadStore } from '../../../../../store/media/downloads';
 import RichMediaDownload from './RichMediaDownload.vue';
 
 const props = withDefaults(defineProps<{

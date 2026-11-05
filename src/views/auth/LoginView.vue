@@ -4,19 +4,19 @@ import { useRouter } from "vue-router";
 import QRCodeStyling from "qr-code-styling";
 import { getAsYouType, parsePhoneNumber } from "awesome-phonenumber";
 import { useI18n } from 'vue-i18n';
-import { tdlibSend } from "../../utils/tdlib";
+import { tdlibSend } from "../../utils/session/tdlib";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
-import { onTdlibUpdate } from "../../store/tdlibBus";
-import { toast } from '../../utils/toast';
+import { onTdlibUpdate } from "../../store/session/tdlibBus";
+import { toast } from '../../utils/ui/toast';
 import type { AuthorizationState, countryInfo } from "tdlib-types";
 import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 import LoginSettingsMenu from "./LoginSettingsMenu.vue";
 import BaseButton from "../../components/ui/button/BaseButton.vue";
 import LoaderIndicator from "../../components/common/LoaderIndicator";
 import { ChevronDown as ChevronDownIcon } from "lucide-vue-next";
-import { useAccountsStore } from "../../store/accounts";
-import { preparePhoneLoginAfterQr } from "../../utils/tdlibParams";
-import { setPendingPhoneLogin, takePendingPhoneLogin } from "../../utils/authPending";
+import { useAccountsStore } from "../../store/session/accounts";
+import { preparePhoneLoginAfterQr } from "../../utils/session/tdlibParams";
+import { setPendingPhoneLogin, takePendingPhoneLogin } from "../../utils/session/authPending";
 
 
 

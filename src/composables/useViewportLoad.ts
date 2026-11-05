@@ -5,7 +5,7 @@ import {
     DEFAULT_DWELL_MS,
     type ViewportLoadScope,
     type ViewportLoadHandle,
-} from '../utils/viewportLoadGate';
+} from '../utils/ui/viewportLoadGate';
 
 /**
  * 视口门控加载：元素进入视口并**停留**后才触发 load，未进入视口时保持不加载。

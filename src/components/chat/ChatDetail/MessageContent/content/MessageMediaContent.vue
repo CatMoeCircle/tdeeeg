@@ -269,29 +269,29 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { MessageContent, messageForwardInfo, MessageSendingState, chatPhotoInfo, profilePhoto, messageReplyToMessage, message } from 'tdlib-types';
 import MessageReply from './MessageReply.vue';
-import { tdlibSend, isFileReady, downloadingFiles, isFileBusy, isFileDownloading, enqueuePendingDownload, takePendingDownload, releasePendingDownloadOwner, safeDownloadFile } from '../../../../../utils/tdlib';
+import { tdlibSend, isFileReady, downloadingFiles, isFileBusy, isFileDownloading, enqueuePendingDownload, takePendingDownload, releasePendingDownloadOwner, safeDownloadFile } from '../../../../../utils/session/tdlib';
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { VideoIcon } from 'lucide-vue-next';
 import ForwardBanner from './ForwardBanner.vue';
 import MessageTextContent from './MessageTextContent.vue';
-import { getReplyQuoteFocusFor, type ReplyQuoteRef } from '../../../../../store/replyQuote';
+import { getReplyQuoteFocusFor, type ReplyQuoteRef } from '../../../../../store/chat/replyQuote';
 import SpoilerMedia from '../spoiler/SpoilerMedia.vue';
 import MessageStatus from './MessageStatus.vue';
 import LoaderIndicator from '../../../../common/LoaderIndicator';
-import { useDownloadStore, type DownloadFileType, remoteIdOf } from '../../../../../store/downloads';
-import { DL_TAG } from '../../../../../utils/downloadTags';
-import { useUploadStore } from '../../../../../store/upload';
-import { useChatStore } from '../../../../../store/chat';
+import { useDownloadStore, type DownloadFileType, remoteIdOf } from '../../../../../store/media/downloads';
+import { DL_TAG } from '../../../../../utils/media/downloadTags';
+import { useUploadStore } from '../../../../../store/media/upload';
+import { useChatStore } from '../../../../../store/chat/chat';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
-import { enqueueViewportLoad } from '../../../../../utils/viewportLoadGate';
-import { openMediaViewer, isMediaViewerActive } from '../../../../../store/mediaViewer';
-import { settings } from '../../../../../store/settings';
-import { getInlineTranslation, isTranslateReplaceDisplay } from '../../../../../store/translate';
-import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
-import { getChatCategory, shouldAutoDownloadPhotos } from '../../../../../utils/autoDownload';
-import { pickSmallPhotoSize, pickBigPhotoSize } from '../../../../../utils/photoSizes';
-import { isThumbnailImgRenderable, isThumbnailVideoRenderable } from '../../../../../utils/thumbnail';
-import { fitMediaSize, mediaSizeStyle } from '../../../../../utils/fitMediaSize';
+import { enqueueViewportLoad } from '../../../../../utils/ui/viewportLoadGate';
+import { openMediaViewer, isMediaViewerActive } from '../../../../../store/media/mediaViewer';
+import { settings } from '../../../../../store/settings/settings';
+import { getInlineTranslation, isTranslateReplaceDisplay } from '../../../../../store/ai/translate';
+import { DL_PRIORITY } from '../../../../../utils/media/downloadPriority';
+import { getChatCategory, shouldAutoDownloadPhotos } from '../../../../../utils/media/autoDownload';
+import { pickSmallPhotoSize, pickBigPhotoSize } from '../../../../../utils/media/photoSizes';
+import { isThumbnailImgRenderable, isThumbnailVideoRenderable } from '../../../../../utils/media/thumbnail';
+import { fitMediaSize, mediaSizeStyle } from '../../../../../utils/media/fitMediaSize';
 import {
     currentlyPlayingId,
     globalVideoMuted,
@@ -299,7 +299,7 @@ import {
     reportVideoVisibility,
     toggleGlobalMute,
     pauseAudioForVideo,
-} from '../../../../../store/videoPlayback';
+} from '../../../../../store/media/videoPlayback';
 
 const { t } = useI18n();
 

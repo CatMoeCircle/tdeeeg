@@ -126,9 +126,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import ModalDialog from '../ui/modal/ModalDialog.vue';
-import { tdlibSend } from '../../utils/tdlib';
+import { tdlibSend } from '../../utils/session/tdlib';
 
 import type { userFullInfo, businessOpeningHoursInterval } from 'tdlib-types';
 import BaseButton from '../ui/button/BaseButton.vue';

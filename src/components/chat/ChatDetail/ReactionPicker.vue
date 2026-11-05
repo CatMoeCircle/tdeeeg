@@ -42,10 +42,10 @@ import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
 import PaidReactionIcon from '../../common/PaidReactionIcon.vue';
 import ReactionEmojiAnim from '../../common/ReactionEmojiAnim.vue';
 import EmojiDrawer from './stickerPanel/EmojiDrawer.vue';
-import { tdlibSend } from '../../../utils/tdlib';
+import { tdlibSend } from '../../../utils/session/tdlib';
 import type { message, ReactionType, availableReaction, availableReactions } from 'tdlib-types';
-import { isReactionEmoji, isReactionCustomEmoji } from '../../../utils/reactionHelpers';
-import { prefetchEmojiReactionAnims } from '../../../store/emojiReactions';
+import { isReactionEmoji, isReactionCustomEmoji } from '../../../utils/message/reactionHelpers';
+import { prefetchEmojiReactionAnims } from '../../../store/chat/emojiReactions';
 
 const { t } = useI18n();
 

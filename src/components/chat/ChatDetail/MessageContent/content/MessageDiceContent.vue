@@ -49,10 +49,10 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { messageDice, sticker } from 'tdlib-types';
-import { ensureLocalFilePath, tdlibSend } from '../../../../../utils/tdlib';
-import { useDownloadStore, remoteIdOf } from '../../../../../store/downloads';
-import { settings } from '../../../../../store/settings';
-import { DL_PRIORITY } from '../../../../../utils/downloadPriority';
+import { ensureLocalFilePath, tdlibSend } from '../../../../../utils/session/tdlib';
+import { useDownloadStore, remoteIdOf } from '../../../../../store/media/downloads';
+import { settings } from '../../../../../store/settings/settings';
+import { DL_PRIORITY } from '../../../../../utils/media/downloadPriority';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import TgsPlayer, { type TgsPlayerInstance } from '../../../../common/TgsPlayer.vue';
 

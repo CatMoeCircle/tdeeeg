@@ -263,30 +263,30 @@ export interface PrivacyItemDef {
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
-import { onTdlibUpdate } from '../../store/tdlibBus';
+import { onTdlibUpdate } from '../../store/session/tdlibBus';
 import { Check as CheckIcon } from 'lucide-vue-next';
 import SmoothSlider from '../ui/slider/SmoothSlider.vue';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import { useI18n } from 'vue-i18n';
 import starsSvg from '../../assets/stars.svg';
 import ModalDialog from '../ui/modal/ModalDialog.vue';
 import ToggleSwitch from '../ui/toggle/ToggleSwitch.vue';
 import PrivacyExceptionBlock, { type ExceptionEntry } from './PrivacyExceptionBlock.vue';
-import { tdlibSend } from '../../utils/tdlib';
+import { tdlibSend } from '../../utils/session/tdlib';
 import {
     ensureUser, ensureChat, getReactiveUser, getReactiveChat, getChatTitle,
     getChatProfileAccentColorId, ensureBasicGroup, ensureSupergroup,
     getReactiveBasicGroup, getReactiveSupergroup, getChatUserNames,
-} from '../../utils/senderInfo';
-import formatStatus from '../../utils/status';
+} from '../../utils/profile/senderInfo';
+import formatStatus from '../../utils/profile/status';
 import {
     decodeUserPrivacyRules, encodeUserPrivacyRules, PRIVACY_PRESET_KEYS, privacyKeyForSettingType,
-} from '../../utils/profilePrivacy';
-import type { PrivacyPreset, DecodedPrivacy, PrivacyExceptionIds } from '../../utils/profilePrivacy';
+} from '../../utils/profile/profilePrivacy';
+import type { PrivacyPreset, DecodedPrivacy, PrivacyExceptionIds } from '../../utils/profile/profilePrivacy';
 import type { chat as TdChat, UserPrivacySetting$Input, userPrivacySettingRules } from 'tdlib-types';
-import { useUserStore } from '../../store/user';
+import { useUserStore } from '../../store/session/user';
 import { storeToRefs } from 'pinia';
-import { useUserProfileStore } from '../../store/userProfile';
+import { useUserProfileStore } from '../../store/profile/userProfile';
 import BaseButton from '../ui/button/BaseButton.vue';
 
 const props = defineProps<{

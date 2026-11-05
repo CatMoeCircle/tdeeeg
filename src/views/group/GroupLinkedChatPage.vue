@@ -99,12 +99,12 @@ import LoadingSkeleton from '../../components/common/LoadingSkeleton.vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Plus as PlusIcon } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import Avatar from '../../components/chat/avatar.vue';
 import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
-import { tdlibSend } from '../../utils/tdlib';
-import { ensureChat, getReactiveChat, ensureSupergroup, getReactiveSupergroup } from '../../utils/senderInfo';
-import { isChannelChat, loadGroupFullInfo, loadMyChatMemberStatus } from '../../utils/groupRights';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { ensureChat, getReactiveChat, ensureSupergroup, getReactiveSupergroup } from '../../utils/profile/senderInfo';
+import { isChannelChat, loadGroupFullInfo, loadMyChatMemberStatus } from '../../utils/chat/groupRights';
 import type { chat } from 'tdlib-types';
 
 const route = useRoute();

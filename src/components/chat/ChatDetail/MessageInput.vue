@@ -96,24 +96,24 @@ const { t } = useI18n();
 import { computed, ref, watch, onMounted, nextTick } from 'vue';
 import type { chat, ChatMemberStatus, user, textEntity, formattedText } from 'tdlib-types';
 import { CornerUpLeftIcon, SendIcon, Smile, Sparkles, XIcon, TypeIcon, Bold, Italic, Underline, Strikethrough, EyeOff, Code2, Quote, Link2, Eraser } from 'lucide-vue-next';
-import { sending } from '../../../utils/attachmentSend';
-import { useAttachmentStore } from '../../../store/attachment';
-import { resolveCustomEmojiSrc } from '../../../utils/customEmojiPreview';
-import { openContextMenu } from '../../../store/contextMenu';
+import { sending } from '../../../utils/media/attachmentSend';
+import { useAttachmentStore } from '../../../store/media/attachment';
+import { resolveCustomEmojiSrc } from '../../../utils/message/customEmojiPreview';
+import { openContextMenu } from '../../../store/chat/contextMenu';
 import type { ContextMenuItem } from '../../contextMenu/types';
 import {
     toggleFormat, clearFormats, hasFormat, shiftEntitiesAfterTextChange, insertTextShiftEntities,
     renderEntitiesHTML,
-} from '../../../utils/textFormatters';
-import type { FormatKind } from '../../../utils/textFormatters';
+} from '../../../utils/message/textFormatters';
+import type { FormatKind } from '../../../utils/message/textFormatters';
 import type { MessageSender, chatMessageSender } from 'tdlib-types';
 import AttachmentMenu from './AttachmentMenu.vue';
 import AttachmentTray from './AttachmentTray.vue';
 import LinkInputDialog from './LinkInputDialog.vue';
 import SenderSelector from './SenderSelector.vue';
-import { fetchChatBotCommands, type ChatBotCommand } from '../../../utils/chatBotCommands';
-import { getReactiveUser } from '../../../utils/senderInfo';
-import { settings } from '../../../store/settings';
+import { fetchChatBotCommands, type ChatBotCommand } from '../../../utils/chat/chatBotCommands';
+import { getReactiveUser } from '../../../utils/profile/senderInfo';
+import { settings } from '../../../store/settings/settings';
 import Avatar from '../avatar.vue';
 
 export interface ReplyTarget {

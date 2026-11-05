@@ -136,10 +136,10 @@ import { ChevronLeft as ChevronLeftIcon } from 'lucide-vue-next';
 import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
 import ModalDialog from '../../components/ui/modal/ModalDialog.vue';
 import BaseButton from '../../components/ui/button/BaseButton.vue';
-import { settings } from '../../store/settings';
-import { toast } from '../../utils/toast';
-import { TOOLS } from '../../utils/aiTools/registry.ts';
-import type { ToolKind, ToolMeta } from '../../utils/aiTools/types.ts';
+import { settings } from '../../store/settings/settings';
+import { toast } from '../../utils/ui/toast';
+import { TOOLS } from '../../utils/ai/aiTools/registry.ts';
+import type { ToolKind, ToolMeta } from '../../utils/ai/aiTools/types.ts';
 
 const router = useRouter();
 const { t } = useI18n();

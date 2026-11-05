@@ -17,10 +17,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { Check as CheckIcon } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import ModalDialog from '../ui/modal/ModalDialog.vue';
-import { tdlibSend } from '../../utils/tdlib';
-import { tdPlural } from '../../utils/tdLang';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { tdPlural } from '../../utils/i18n/tdLang';
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 const props = defineProps<{

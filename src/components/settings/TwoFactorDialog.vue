@@ -294,11 +294,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import { ChevronLeft as ChevronLeftIcon, X as XIcon, KeyRound as KeyRoundIcon, Mail as MailIcon } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import { useI18n } from 'vue-i18n';
 import TgsPlayer from '../../components/common/TgsPlayer.vue';
 import ModalDialog from '../ui/modal/ModalDialog.vue';
-import { tdlibSend } from '../../utils/tdlib';
+import { tdlibSend } from '../../utils/session/tdlib';
 import { usePasswordMonkey } from '../../composables/usePasswordMonkey';
 import type { PasswordState, RecoveryEmailAddress } from 'tdlib-types';
 

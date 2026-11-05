@@ -19,8 +19,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import StoryRingItem from "./StoryRingItem.vue";
-import { getOrderedStoryChatIds, storiesExpanded } from "../../store/storyRing";
-import { getChatTitle, getReactiveChat } from "../../utils/senderInfo";
+import { getOrderedStoryChatIds, storiesExpanded } from "../../store/profile/storyRing";
+import { getChatTitle, getReactiveChat } from "../../utils/profile/senderInfo";
 
 /** 展开时显示全部动态（自己最前）；数量多就左右滑动 */
 const ids = computed(() => (storiesExpanded.value ? getOrderedStoryChatIds() : []));

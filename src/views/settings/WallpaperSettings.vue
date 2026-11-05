@@ -126,33 +126,33 @@
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { onTdlibUpdate } from '../../store/tdlibBus';
+import { onTdlibUpdate } from '../../store/session/tdlibBus';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useRouter } from 'vue-router';
 import { ChevronLeft as ChevronLeftIcon, Share2 as ShareIcon, Trash2 as TrashIcon } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import LoadingSkeleton from '../../components/common/LoadingSkeleton.vue';
-import { tdlibSend, ensureLocalFilePath, isFileReady, safeDownloadFile } from '../../utils/tdlib';
-import { settings, type ChatWallpaperVisual } from '../../store/settings';
-import { defaultBackgroundFor, emojiChatThemes } from '../../store/chatBackground';
-import { isDark } from '../../store/theme';
-import { showCopyJsonInMenus } from '../../store/debug';
+import { tdlibSend, ensureLocalFilePath, isFileReady, safeDownloadFile } from '../../utils/session/tdlib';
+import { settings, type ChatWallpaperVisual } from '../../store/settings/settings';
+import { defaultBackgroundFor, emojiChatThemes } from '../../store/chat/chatBackground';
+import { isDark } from '../../store/settings/theme';
+import { showCopyJsonInMenus } from '../../store/settings/debug';
 import type { ContextMenuItem } from '../../components/contextMenu/types';
 import { makeCopyJsonItem } from '../../components/contextMenu/copyJsonActions';
 import PreviewCard from '../../components/settings/PreviewCard.vue';
 import ChatTypeToggle from '../../components/ui/toggle/ChatTypeToggle.vue';
 import ChatBackgroundLayers from '../../components/chat/ChatBackgroundLayers.vue';
-import { DL_PRIORITY } from '../../utils/downloadPriority';
+import { DL_PRIORITY } from '../../utils/media/downloadPriority';
 import {
     ensureJpegWallpaper,
     applySelectedWallpaper,
-} from '../../utils/wallpaper';
+} from '../../utils/media/wallpaper';
 import {
     fillBaseColor,
     localWallpaperRender,
     resolveChatBackground,
     type ChatBackgroundRender,
-} from '../../utils/chatBackground';
+} from '../../utils/chat/chatBackground';
 import type { background, backgrounds, file, httpUrl } from 'tdlib-types';
 
 const router = useRouter();

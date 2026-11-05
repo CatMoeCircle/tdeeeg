@@ -200,18 +200,18 @@ import {
     CrownIcon, StarIcon,
 } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
-import { settings } from '../../store/settings';
-import type { Chat } from '../../store/chat';
-import { useUserStore } from '../../store/user';
+import { settings } from '../../store/settings/settings';
+import type { Chat } from '../../store/chat/chat';
+import { useUserStore } from '../../store/session/user';
 import {
     getReactiveChat, ensureChat, ensureUser, getReactiveUser, isDeletedChat, getChatTitle, getChatUserNames,
-} from '../../utils/senderInfo';
-import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../utils/savedMessages';
-import { tdlibSend } from '../../utils/tdlib';
-import { toast } from '../../utils/toast';
-import { markChatNavFromList } from '../../store/chatNav';
-import { getMessagePlainText } from '../../utils/messageText';
-import { folderTabClass as sharedFolderTabClass, folderTabContainerClass } from '../../utils/folderPillsTabClass';
+} from '../../utils/profile/senderInfo';
+import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../utils/chat/savedMessages';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { toast } from '../../utils/ui/toast';
+import { markChatNavFromList } from '../../store/chat/chatNav';
+import { getMessagePlainText } from '../../utils/message/messageText';
+import { folderTabClass as sharedFolderTabClass, folderTabContainerClass } from '../../utils/ui/folderPillsTabClass';
 import Avatar from './avatar.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 import SlidingTabBar from '../ui/tabs/SlidingTabBar.vue';

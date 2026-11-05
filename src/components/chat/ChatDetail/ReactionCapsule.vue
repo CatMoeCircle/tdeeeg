@@ -35,11 +35,11 @@ import { useI18n } from 'vue-i18n';
 import PaidReactionIcon from '../../common/PaidReactionIcon.vue';
 import ReactionEmojiAnim from '../../common/ReactionEmojiAnim.vue';
 import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
-import { useUserStore } from '../../../store/user';
+import { useUserStore } from '../../../store/session/user';
 import {
     state as contextMenuState, visible as contextMenuVisible,
     reactionRow as contextMenuReactionRow, closeContextMenu as closeContextMenuStore,
-} from '../../../store/contextMenu';
+} from '../../../store/chat/contextMenu';
 import type { ContextMenuReactionItem, ContextMenuReactionRow } from '../../contextMenu/types';
 
 /**

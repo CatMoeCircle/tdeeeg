@@ -211,19 +211,19 @@ import {
     X as XIcon,
 } from 'lucide-vue-next';
 import SelectMenu from '../../components/ui/dropdown/SelectMenu.vue';
-import { settings } from '../../store/settings';
+import { settings } from '../../store/settings/settings';
 import {
     aiProviders,
     aiProviderReady,
     loadAiProviders,
     resolveAiTarget,
-} from '../../store/aiConfig';
-import { getTranslateTargetLang, clearShouldTranslateCache } from '../../store/translate';
+} from '../../store/ai/aiConfig';
+import { getTranslateTargetLang, clearShouldTranslateCache } from '../../store/ai/translate';
 import {
     getTranslateLanguageLabel,
     getTranslateLanguageOptions,
-} from '../../utils/translateLanguages';
-import type { TranslateProviderId } from '../../utils/translateProvider';
+} from '../../utils/ai/translateLanguages';
+import type { TranslateProviderId } from '../../utils/ai/translateProvider';
 
 const router = useRouter();
 const { t } = useI18n();

@@ -302,16 +302,16 @@ import StickerMediaItem from './StickerMediaItem.vue';
 import CustomEmojiInline from '../../../common/CustomEmojiInline.vue';
 import PaidReactionIcon from '../../../common/PaidReactionIcon.vue';
 import ReactionEmojiAnim from '../../../common/ReactionEmojiAnim.vue';
-import { prefetchEmojiReactionAnims } from '../../../../store/emojiReactions';
+import { prefetchEmojiReactionAnims } from '../../../../store/chat/emojiReactions';
 import { useEmojiPicker, type EmojiSearchResult } from './composables/useEmojiPicker';
 import { useLocalEmojiPrefs } from './composables/useLocalEmojiPrefs';
 import { onVisibilityChange, unobserve, setProgrammaticScroll, beginUserScroll, endUserScroll } from './composables/useStickerVisibility';
-import { enqueueViewportLoad } from '../../../../utils/viewportLoadGate';
+import { enqueueViewportLoad } from '../../../../utils/ui/viewportLoadGate';
 import { stickerPanelState } from './types';
-import { tdlibSend } from '../../../../utils/tdlib';
-import { toast } from '../../../../utils/toast';
+import { tdlibSend } from '../../../../utils/session/tdlib';
+import { toast } from '../../../../utils/ui/toast';
 import type { sticker, animation, stickerSetInfo, emojiStatus, availableReaction, ReactionType } from 'tdlib-types';
-import { isReactionEmoji, isReactionCustomEmoji } from '../../../../utils/reactionHelpers';
+import { isReactionEmoji, isReactionCustomEmoji } from '../../../../utils/message/reactionHelpers';
 
 /** Fitzpatrick 肤色选项 */
 const SKIN_TONES = [

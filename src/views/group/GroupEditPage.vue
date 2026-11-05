@@ -319,12 +319,12 @@ import {
   SmilePlus as SmilePlusIcon,
   LogOut as LogOutIcon,
 } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import Avatar from '../../components/chat/avatar.vue';
 import AvatarEditorDialog from '../../components/settings/AvatarEditorDialog.vue';
 import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
-import { tdlibSend } from '../../utils/tdlib';
-import { loadChatBoostInfo, minAutoTranslateLevel } from '../../utils/chatBoost';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { loadChatBoostInfo, minAutoTranslateLevel } from '../../utils/chat/chatBoost';
 import {
   canChangeGroupInfo,
   canInviteUsers,
@@ -336,7 +336,7 @@ import {
   loadGroupFullInfo,
   loadMyChatMemberStatus,
   isGroupChat,
-} from '../../utils/groupRights';
+} from '../../utils/chat/groupRights';
 import type { chat, ChatMemberStatus, supergroup, basicGroup } from 'tdlib-types';
 import BaseButton from '../../components/ui/button/BaseButton.vue';
 

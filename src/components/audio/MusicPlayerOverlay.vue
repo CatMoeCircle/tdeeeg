@@ -226,13 +226,13 @@ import {
     RepeatIcon, Repeat1Icon, ShuffleIcon, ListOrderedIcon,
     EyeIcon, FolderOpenIcon, DownloadIcon, BookmarkPlusIcon, Trash2Icon,
 } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { save } from '@tauri-apps/plugin-dialog';
 import { copyFile } from '@tauri-apps/plugin-fs';
-import { useAudioPlayerStore, cachedSeconds, type AudioTrack } from '../../store/audioPlayer';
-import { useUserStore } from '../../store/user';
-import { openContextMenu } from '../../store/contextMenu';
+import { useAudioPlayerStore, cachedSeconds, type AudioTrack } from '../../store/media/audioPlayer';
+import { useUserStore } from '../../store/session/user';
+import { openContextMenu } from '../../store/chat/contextMenu';
 import type { ContextMenuItem } from '../contextMenu/types';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 import SmoothSlider from '../ui/slider/SmoothSlider.vue';

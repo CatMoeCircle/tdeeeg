@@ -159,8 +159,8 @@ import {
     X as XIcon,
 } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
-import { settings } from '../../store/settings';
-import { useUserStore } from '../../store/user';
+import { settings } from '../../store/settings/settings';
+import { useUserStore } from '../../store/session/user';
 import Avatar from '../../components/chat/avatar.vue';
 import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
 import PreviewCard from '../../components/settings/PreviewCard.vue';

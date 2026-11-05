@@ -118,11 +118,11 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ChevronRight as ChevronRightIcon } from 'lucide-vue-next';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import ModalDialog from '../ui/modal/ModalDialog.vue';
 import ToggleSwitch from '../ui/toggle/ToggleSwitch.vue';
-import { tdlibSend } from '../../utils/tdlib';
-import { emptyAdminRights } from '../../utils/groupRights';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { emptyAdminRights } from '../../utils/chat/groupRights';
 import type { chatAdministratorRights, chatMember, chatPermissions, MessageSender } from 'tdlib-types';
 import BaseButton from '../ui/button/BaseButton.vue';
 

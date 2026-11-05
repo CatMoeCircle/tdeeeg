@@ -1,7 +1,7 @@
 import { watch, type ComputedRef, type Ref } from 'vue';
 import type { message } from 'tdlib-types';
-import { tdlibSend } from '../../../../utils/tdlib';
-import { buildMessageTopicInput } from '../../../../utils/directMessagesTopics';
+import { tdlibSend } from '../../../../utils/session/tdlib';
+import { buildMessageTopicInput } from '../../../../utils/chat/directMessagesTopics';
 
 /**
  * 输入框草稿：内存缓存 + localStorage 不持久化（保持原行为），同步 TDLib setChatDraftMessage。

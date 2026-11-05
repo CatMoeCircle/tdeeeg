@@ -662,8 +662,8 @@ import {
     Palette as PaletteIcon,
 } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
-import { settings } from '../../store/settings';
-import { useUserStore } from '../../store/user';
+import { settings } from '../../store/settings/settings';
+import { useUserStore } from '../../store/session/user';
 import ChatTypeToggle from '../../components/ui/toggle/ChatTypeToggle.vue';
 import Avatar from '../../components/chat/avatar.vue';
 import GlobalEmojiText from '../../components/common/GlobalEmojiText.vue';
@@ -672,7 +672,7 @@ import CollapsibleSection from '../../components/ui/collapse/CollapsibleSection.
 import PreviewCard from '../../components/settings/PreviewCard.vue';
 import LoaderIndicator from '../../components/common/LoaderIndicator';
 import SlidingTabBar from '../../components/ui/tabs/SlidingTabBar.vue';
-import { folderTabContainerClass } from '../../utils/folderPillsTabClass';
+import { folderTabContainerClass } from '../../utils/ui/folderPillsTabClass';
 import TitleBarEmojiStatus from '../../components/common/TitleBarEmojiStatus.vue';
 import stickerPreview from '../../assets/sticker.jpg';
 import { useCustomBubbleSkin, customSkinStyle } from '../../composables/useCustomBubbleSkin';

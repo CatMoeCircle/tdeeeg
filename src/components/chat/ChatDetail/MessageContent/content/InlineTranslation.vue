@@ -58,14 +58,14 @@ import {
     getInlineTranslation,
     removeInlineTranslation,
     translateInlineMessage,
-} from "../../../../../store/translate";
-import { renderEntitiesHTML } from "../../../../../utils/textFormatters";
-import { isTranslateInlineBlockDisplay } from "../../../../../store/translate";
+} from "../../../../../store/ai/translate";
+import { renderEntitiesHTML } from "../../../../../utils/message/textFormatters";
+import { isTranslateInlineBlockDisplay } from "../../../../../store/ai/translate";
 import {
     DEFAULT_TRANSLATE_TARGET,
     getTranslateLanguageLabel,
     getTranslateLanguageOptions,
-} from "../../../../../utils/translateLanguages";
+} from "../../../../../utils/ai/translateLanguages";
 import LoaderIndicator from "../../../../common/LoaderIndicator";
 import SelectMenu from "../../../../ui/dropdown/SelectMenu.vue";
 

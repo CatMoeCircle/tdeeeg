@@ -76,14 +76,14 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import ModalDialog from '../ui/modal/ModalDialog.vue';
 import ToggleSwitch from '../ui/toggle/ToggleSwitch.vue';
 import Avatar from '../chat/avatar.vue';
-import { tdlibSend } from '../../utils/tdlib';
-import { defaultMemberPermissions, userNameOf, isDeletedMember, memberUserId } from '../../utils/groupRights';
-import { getReactiveUser } from '../../utils/senderInfo';
-import formatStatus from '../../utils/status';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { defaultMemberPermissions, userNameOf, isDeletedMember, memberUserId } from '../../utils/chat/groupRights';
+import { getReactiveUser } from '../../utils/profile/senderInfo';
+import formatStatus from '../../utils/profile/status';
 import type { chatMember, chatPermissions, MessageSender, user } from 'tdlib-types';
 import BaseButton from '../ui/button/BaseButton.vue';
 

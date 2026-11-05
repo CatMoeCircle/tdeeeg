@@ -1,6 +1,6 @@
 import { ref, watch } from 'vue';
 import type { animation, chat } from 'tdlib-types';
-import { tdlibSend } from '../../../../../utils/tdlib';
+import { tdlibSend } from '../../../../../utils/session/tdlib';
 
 /** animation 对象的稳定标识（其文件 id） */
 function animId(a: animation): string {

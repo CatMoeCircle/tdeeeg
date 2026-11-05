@@ -39,14 +39,14 @@ import {
     getChatTitle,
     getReactiveChat,
     getUserDisplayName,
-} from '../../../../../utils/senderInfo';
+} from '../../../../../utils/profile/senderInfo';
 import {
     formatGramAmount,
     GRAM_SCALE,
     TON_CARD_INSET,
     TON_CARD_WIDTH,
     tonTransferStatus,
-} from '../../../../../utils/tonTransfer';
+} from '../../../../../utils/message/tonTransfer';
 
 const { t } = useI18n();
 

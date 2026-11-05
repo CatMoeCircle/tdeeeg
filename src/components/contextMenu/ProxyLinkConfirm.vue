@@ -174,7 +174,7 @@ import {
     confirmPingWarning,
     cancelPingWarning,
     pingCurrentProxy,
-} from "../../store/proxyLink";
+} from "../../store/settings/proxyLink";
 import BaseButton from "../ui/button/BaseButton.vue";
 
 const proxy = computed(() => pendingProxy.value);

@@ -51,7 +51,7 @@
 import { computed, nextTick, ref, watch } from 'vue';
 import { X as XIcon } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
-import { confirmAndOpenExternalLink } from '../../utils/openExternalLink';
+import { confirmAndOpenExternalLink } from '../../utils/link/openExternalLink';
 
 const props = defineProps<{
   visible: boolean;

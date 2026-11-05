@@ -138,8 +138,8 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { FileIcon, EyeOff as EyeOffIcon, ImageIcon, MusicIcon, VideoIcon, XIcon } from 'lucide-vue-next';
 import { VueDraggable } from 'vue-draggable-plus';
-import { useAttachmentStore } from '../../../store/attachment';
-import type { AttachmentItem, AttachmentKind } from '../../../store/attachment';
+import { useAttachmentStore } from '../../../store/media/attachment';
+import type { AttachmentItem, AttachmentKind } from '../../../store/media/attachment';
 import SpoilerMedia from './MessageContent/spoiler/SpoilerMedia.vue';
 
 const attachmentStore = useAttachmentStore();

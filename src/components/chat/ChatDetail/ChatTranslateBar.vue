@@ -93,7 +93,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Languages as LanguagesIcon, MoreHorizontal as MoreHorizontalIcon, X as XIcon } from 'lucide-vue-next';
 import type { chat } from 'tdlib-types';
-import { settings } from '../../../store/settings';
+import { settings } from '../../../store/settings/settings';
 import {
     isChatTranslating,
     setChatTranslating,
@@ -101,12 +101,12 @@ import {
     clearShouldTranslateCache,
     getTranslateTargetLang,
     canShowChatTranslateBar,
-} from '../../../store/translate';
+} from '../../../store/ai/translate';
 import {
     getTranslateLanguageLabel,
     getTranslateLanguageOptions,
-} from '../../../utils/translateLanguages';
-import { detectLanguage } from '../../../utils/languageDetect';
+} from '../../../utils/ai/translateLanguages';
+import { detectLanguage } from '../../../utils/ai/languageDetect';
 
 const props = defineProps<{
     chat: chat | undefined;

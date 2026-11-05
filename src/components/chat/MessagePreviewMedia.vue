@@ -19,9 +19,9 @@
 import { ref, watch, onMounted } from 'vue';
 import { Play as PlayIcon } from 'lucide-vue-next';
 import type { formattedText, message } from 'tdlib-types';
-import { tdlibSend, isFileReady } from '../../utils/tdlib';
+import { tdlibSend, isFileReady } from '../../utils/session/tdlib';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { isThumbnailImgRenderable } from '../../utils/thumbnail';
+import { isThumbnailImgRenderable } from '../../utils/media/thumbnail';
 import SpoilerMedia from './ChatDetail/MessageContent/spoiler/SpoilerMedia.vue';
 import { albumCaptionCache, albumCacheKey } from './albumCaptionCache';
 

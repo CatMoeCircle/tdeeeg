@@ -85,18 +85,18 @@ import LoaderIndicator from '../../../../common/LoaderIndicator';
 import MessageReply from './MessageReply.vue';
 import MessageStatus from './MessageStatus.vue';
 import MessageTextContent from './MessageTextContent.vue';
-import { tdlibSend } from '../../../../../utils/tdlib';
-import { downloadFileUrl } from '../../../../../utils/profileMedia';
-import { isThumbnailImgRenderable } from '../../../../../utils/thumbnail';
+import { tdlibSend } from '../../../../../utils/session/tdlib';
+import { downloadFileUrl } from '../../../../../utils/profile/profileMedia';
+import { isThumbnailImgRenderable } from '../../../../../utils/media/thumbnail';
 import {
     ensureChat,
     getChatProfileAccentColorId,
     getChatTitle,
     getChatUserNames,
     getReactiveChat,
-} from '../../../../../utils/senderInfo';
-import { openStoryViewer } from '../../../../../store/storyViewer';
-import type { ReplyQuoteRef } from '../../../../../store/replyQuote';
+} from '../../../../../utils/profile/senderInfo';
+import { openStoryViewer } from '../../../../../store/profile/storyViewer';
+import type { ReplyQuoteRef } from '../../../../../store/chat/replyQuote';
 
 /**
  * 转发的动态（messageStory）。内容只有 story_poster_chat_id + story_id，

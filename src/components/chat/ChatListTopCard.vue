@@ -68,14 +68,14 @@ import { useRouter } from 'vue-router';
 import { X } from 'lucide-vue-next';
 import Avatar from './avatar.vue';
 import MusicPlayerEntry from '../audio/MusicPlayerEntry.vue';
-import { toast } from '../../utils/toast';
-import { tdlibSend } from '../../utils/tdlib';
-import { UI_GLASS_SURFACE } from '../../utils/folderPillsTabClass';
-import { tdHtml, tdPlural } from '../../utils/tdLang';
-import { tdHtmlText } from '../../utils/tdMarkdown';
-import { ensureUser, getReactiveUser, getUserDisplayName } from '../../utils/senderInfo';
-import { useTopTipsStore } from '../../store/topTips';
-import { useAudioPlayerStore } from '../../store/audioPlayer';
+import { toast } from '../../utils/ui/toast';
+import { tdlibSend } from '../../utils/session/tdlib';
+import { UI_GLASS_SURFACE } from '../../utils/ui/folderPillsTabClass';
+import { tdHtml, tdPlural } from '../../utils/i18n/tdLang';
+import { tdHtmlText } from '../../utils/message/tdMarkdown';
+import { ensureUser, getReactiveUser, getUserDisplayName } from '../../utils/profile/senderInfo';
+import { useTopTipsStore } from '../../store/chat/topTips';
+import { useAudioPlayerStore } from '../../store/media/audioPlayer';
 
 const props = withDefaults(
     defineProps<{

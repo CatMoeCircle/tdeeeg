@@ -26,7 +26,7 @@ import PremiumStickerBadge from '../../../common/PremiumStickerBadge.vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useStickerMedia } from './composables/useStickerMedia';
 import { onVisibilityChange, unobserve, isProgrammaticScroll, deferLoadWhileScrolling, isWindowActive, onWindowActiveChange } from './composables/useStickerVisibility';
-import { enqueueViewportLoad } from '../../../../utils/viewportLoadGate';
+import { enqueueViewportLoad } from '../../../../utils/ui/viewportLoadGate';
 
 const props = withDefaults(defineProps<{
     /** 贴纸或动画对象（可为 null 直到加载完成） */

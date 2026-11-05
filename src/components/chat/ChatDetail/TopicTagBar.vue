@@ -94,19 +94,19 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { MessageCircleIcon } from 'lucide-vue-next';
 import type { forumTopic, forumTopics, chatPhotoInfo, profilePhoto } from 'tdlib-types';
-import { tdlibSend } from '../../../utils/tdlib';
+import { tdlibSend } from '../../../utils/session/tdlib';
 import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
 import SlidingTabBar from '../../ui/tabs/SlidingTabBar.vue';
 import Avatar from '../avatar.vue';
-import { folderTabClass, folderTabContainerClass, type FolderStyle } from '../../../utils/folderPillsTabClass';
-import { getSenderNameParts } from '../../../utils/senderInfo';
-import { settings } from '../../../store/settings';
+import { folderTabClass, folderTabContainerClass, type FolderStyle } from '../../../utils/ui/folderPillsTabClass';
+import { getSenderNameParts } from '../../../utils/profile/senderInfo';
+import { settings } from '../../../store/settings/settings';
 import {
     loadDmTopics,
     watchDmTopics,
     toDmTopicEntries,
     type DmTopicEntry,
-} from '../../../utils/directMessagesTopics';
+} from '../../../utils/chat/directMessagesTopics';
 
 export type TopicTagPosition = 'left' | 'top' | 'bottom';
 

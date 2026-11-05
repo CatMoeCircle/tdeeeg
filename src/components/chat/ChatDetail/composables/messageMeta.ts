@@ -6,7 +6,7 @@ import type {
   ChatMemberStatus,
   MessageSender,
 } from "tdlib-types";
-import { isOutgoingMessageForDisplay } from "../../../../utils/savedMessages";
+import { isOutgoingMessageForDisplay } from "../../../../utils/chat/savedMessages";
 import { getForwardAuthorSignature } from "./senderDisplay";
 import type { AlbumDisplayItem } from "./messageItems";
 import i18n from "../../../../i18n";

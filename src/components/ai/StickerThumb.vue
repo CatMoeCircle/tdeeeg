@@ -26,9 +26,9 @@ import { onMounted, ref, shallowRef } from 'vue';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import type { file } from 'tdlib-types';
 import TgsPlayer from '../common/TgsPlayer.vue';
-import { ensureLocalFilePath, localPathIfReady, metaDownloadFile, tdlibSend } from '../../utils/tdlib';
-import { DL_TAG } from '../../utils/downloadTags';
-import type { StickerKind } from '../../utils/aiTakeoverPrompt';
+import { ensureLocalFilePath, localPathIfReady, metaDownloadFile, tdlibSend } from '../../utils/session/tdlib';
+import { DL_TAG } from '../../utils/media/downloadTags';
+import type { StickerKind } from '../../utils/ai/aiTakeoverPrompt';
 
 const props = withDefaults(defineProps<{
     /** 贴纸主文件 id（十进制字符串） */

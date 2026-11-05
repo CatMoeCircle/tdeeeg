@@ -484,7 +484,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ShieldAlert, BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon, UsersIcon, MegaphoneIcon, Folders as FoldersIcon, BellOffIcon, PinIcon, ArchiveIcon, ChevronRightIcon, ArchiveRestore as ArchiveRestoreIcon, PinOff as PinOffIcon, FolderPlus as FolderPlusIcon, FolderMinus as FolderMinusIcon, BellRing as BellRingIcon, LogOut as LogOutIcon, CheckCheck as CheckCheckIcon, Trash2 as Trash2Icon, X as XIcon, Copy as CopyIcon, Plus as PlusIcon } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
-import { settings } from '../../store/settings';
+import { settings } from '../../store/settings/settings';
 import {
     getSenderName, getSenderNameParts, getSenderPhoto, ensureSenderLoaded,
     getChatProfileAccentColorId, ensureChatAccentLoaded, getChatUserNames, isDeletedChat,
@@ -492,38 +492,38 @@ import {
     getChatVerificationStatus, ensureChatVerificationLoaded,
     getChatEmojiStatus, emojiStatusCustomEmojiId, isChatPremiumUser,
     getReactiveSupergroup,
-} from '../../utils/senderInfo';
+} from '../../utils/profile/senderInfo';
 import PremiumStatusIcon from '../common/PremiumStatusIcon.vue';
 import VerifiedBadge from '../common/VerifiedBadge.vue';
-import { useChatStore } from '../../store/chat';
-import type { Chat } from '../../store/chat';
-import { useUserStore } from '../../store/user';
-import { showCopyJsonInMenus } from '../../store/debug';
+import { useChatStore } from '../../store/chat/chat';
+import type { Chat } from '../../store/chat/chat';
+import { useUserStore } from '../../store/session/user';
+import { showCopyJsonInMenus } from '../../store/settings/debug';
 import { copyTdlibJson } from '../contextMenu/copyJsonActions';
-import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../utils/savedMessages';
+import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../utils/chat/savedMessages';
 import Avatar from './avatar.vue';
 import StoryRing from '../story/StoryRing.vue';
 import StoryOverflowStrip from '../story/StoryOverflowStrip.vue';
 import type { message, forumTopic, forumTopics, formattedText, chatFolderInfo } from 'tdlib-types';
-import { tdlibSend } from '../../utils/tdlib';
+import { tdlibSend } from '../../utils/session/tdlib';
 import type { ContextMenuItem } from '../contextMenu/types';
-import { toast } from '../../utils/toast';
+import { toast } from '../../utils/ui/toast';
 import {
     isChatArchived, isChatPinned as chatIsPinned, isChatMuted as chatIsMuted,
     canLeaveChat, isChannelChat, archiveChat, unarchiveChat, toggleChatPinned, muteChat, unmuteChat,
     isChatInFolder, toggleChatInFolder,
 } from '../contextMenu/chatActions';
 import ChatListTopCard from './ChatListTopCard.vue';
-import { useTopTipsStore } from '../../store/topTips';
-import { useAudioPlayerStore } from '../../store/audioPlayer';
-import { chatPaneVisible } from '../../store/chatPane';
-import { markChatNavFromList } from '../../store/chatNav';
+import { useTopTipsStore } from '../../store/chat/topTips';
+import { useAudioPlayerStore } from '../../store/media/audioPlayer';
+import { chatPaneVisible } from '../../store/chat/chatPane';
+import { markChatNavFromList } from '../../store/chat/chatNav';
 import FormattedTextInline from './FormattedTextInline.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
-import { folderTabClass as sharedFolderTabClass, folderTabContainerClass, UI_GLASS_SURFACE } from '../../utils/folderPillsTabClass';
-import { folderIconFor } from '../../utils/folderIcons';
-import { FOLDER_TAG_COLORS } from '../../utils/chatFolders';
-import { folderTagsEnabled, initFolderTags } from '../../store/folderTags';
+import { folderTabClass as sharedFolderTabClass, folderTabContainerClass, UI_GLASS_SURFACE } from '../../utils/ui/folderPillsTabClass';
+import { folderIconFor } from '../../utils/chat/folderIcons';
+import { FOLDER_TAG_COLORS } from '../../utils/chat/chatFolders';
+import { folderTagsEnabled, initFolderTags } from '../../store/chat/folderTags';
 import MessagePreviewMedia from './MessagePreviewMedia.vue';
 import { albumCaptionCache, albumCacheKey } from './albumCaptionCache';
 import CustomEmojiInline from '../common/CustomEmojiInline.vue';
@@ -532,14 +532,14 @@ import ChatSearchPanel from './ChatSearchPanel.vue';
 import ChatListTopTips from './ChatListTopTips.vue';
 import NewChatDialog from './NewChatDialog.vue';
 import DeleteChatConfirm from './DeleteChatConfirm.vue';
-import { openContextMenu } from '../../store/contextMenu';
+import { openContextMenu } from '../../store/chat/contextMenu';
 import {
     messageContentTypeLabel,
     stickerBracketPreview,
     bracketTypePreview,
     pollOptionPreviewText,
     protectedContentTogglePreview,
-} from '../../utils/messagePreview';
+} from '../../utils/message/messagePreview';
 
 const props = defineProps<{
     isArchive?: boolean;
