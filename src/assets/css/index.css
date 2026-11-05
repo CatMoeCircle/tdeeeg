@@ -135,6 +135,10 @@ body {
 .tgico-secret::before {
   content: "\e9e2";
 }
+/* Premium 专属标记：发送身份列表的 needs_premium（tgico U+EA31 锁形，纯色，颜色由使用处控制） */
+.tgico-premium-lock::before {
+  content: "\ea31";
+}
 /* 故事点赞：未点赞 U+EA47 / 已点赞 U+EA48 */
 .tgico-favorite::before {
   content: "\ea47";

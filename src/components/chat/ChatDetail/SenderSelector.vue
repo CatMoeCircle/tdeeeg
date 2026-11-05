@@ -29,8 +29,10 @@
                                 <span class="flex-1 text-sm truncate text-gray-800 dark:text-gray-200">
                                     {{ getSenderName(item.sender) || t('chat.unknown') }}
                                 </span>
+                                <!-- Premium 专属发送身份标记：tgico U+EA31 锁形（index.css 的 .tgico-premium-lock） -->
                                 <span v-if="item.needs_premium"
-                                    class="text-yellow-500 text-xs shrink-0" :title="t('chat.needsPremium')">👑</span>
+                                    class="tgico tgico-premium-lock text-gray-400 text-[14px] leading-none shrink-0"
+                                    :title="t('chat.needsPremium')" />
                                 <svg v-if="isSelected(item.sender)" class="w-4 h-4 shrink-0 text-blue-500"
                                     viewBox="0 0 20 20" fill="currentColor">
                                     <path fill-rule="evenodd"
@@ -52,6 +54,7 @@ import { useI18n } from 'vue-i18n';
 import type { MessageSender, chatMessageSender } from 'tdlib-types';
 import Avatar from '../avatar.vue';
 import { ensureSenderLoaded, getSenderName, getSenderNameParts, getSenderPhoto, getSenderAccentColorId } from '../../../utils/profile/senderInfo';
+import { toast } from '../../../utils/ui/toast';
 
 const { t } = useI18n();
 
@@ -127,6 +130,11 @@ function isSelected(sender: MessageSender): boolean {
 }
 
 function onSelect(item: chatMessageSender) {
+    // Premium 专属身份（needs_premium）不可选中：仅提示订阅，避免出现「锁着却被打勾」的状态
+    if (item.needs_premium) {
+        toast.warning(t('lng_send_as_premium_required', { link: t('lng_send_as_premium_required_link') }));
+        return;
+    }
     if (isSelected(item.sender)) {
         open.value = false;
         return;
