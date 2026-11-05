@@ -96,8 +96,7 @@
                             <button type="button"
                                 class="w-full flex items-center justify-center gap-1.5 mt-1 py-2 rounded-lg text-sm font-medium text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
                                 @click="pickerTarget = 'include'">
-                                <PlusIcon class="w-4 h-4" /> {{ t('lng_filters_add_chats') }}
-                            </button>
+                                <PlusIcon class="w-4 h-4" /> {{ t('lng_filters_add_chats') }}</button>
                         </div>
                     </div>
                 </section>
@@ -137,8 +136,7 @@
                             <button type="button"
                                 class="w-full flex items-center justify-center gap-1.5 mt-1 py-2 rounded-lg text-sm font-medium text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
                                 @click="pickerTarget = 'exclude'">
-                                <PlusIcon class="w-4 h-4" /> {{ t('lng_filters_add_chats') }}
-                            </button>
+                                <PlusIcon class="w-4 h-4" /> {{ t('lng_filters_add_chats') }}</button>
                         </div>
                     </div>
                 </section>
@@ -214,8 +212,7 @@
                             <button type="button" :disabled="sharing"
                                 class="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors disabled:opacity-50"
                                 @click="createLink">
-                                <PlusIcon class="w-4 h-4" /> {{ t('lng_filters_link_create') }}
-                            </button>
+                                <PlusIcon class="w-4 h-4" /> {{ t('lng_filters_link_create') }}</button>
                             <p class="mt-1 text-xs text-gray-400">{{ t('lng_filters_link_cant') }}</p>
                         </div>
                     </div>

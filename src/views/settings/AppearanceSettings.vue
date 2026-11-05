@@ -147,8 +147,7 @@
                                         <div class="min-w-0">
                                             <p class="text-xs font-medium text-gray-600 dark:text-gray-300">{{
                                                 t('appearance.customBubbleSlice') }}</p>
-                                            <p class="mt-1 text-xs text-amber-500">{{ t('appearance.customBubbleLocked') }}
-                                            </p>
+                                            <p class="mt-1 text-xs text-amber-500">{{ t('appearance.customBubbleLocked') }}</p>
                                         </div>
                                         <button type="button"
                                             class="shrink-0 px-2 py-0.5 text-xs rounded-md border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"

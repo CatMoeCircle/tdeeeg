@@ -22,8 +22,7 @@
         <!-- 参与者 -->
         <div class="mt-3">
             <div class="px-3 py-2.5 text-center">
-                <div class="text-base font-medium text-gray-500 dark:text-gray-400">{{ t('lng_prizes_participants') }}
-                </div>
+                <div class="text-base font-medium text-gray-500 dark:text-gray-400">{{ t('lng_prizes_participants') }}</div>
                 <div class="text-sm text-gray-500 dark:text-gray-400">{{ participantsText }}</div>
                 <div v-if="channels.length" class="mt-2 space-y-1.5">
                     <div v-for="ch in channels" :key="ch.id"

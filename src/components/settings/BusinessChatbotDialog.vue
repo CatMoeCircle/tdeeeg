@@ -9,8 +9,7 @@
                 {{ t('editProfile.chatbotConnected', { name: chatbotText }) }}
             </p>
             <p class="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-                {{ t('editProfile.chatbotNotSupported') }}<br />{{ t('editProfile.chatbotUseOfficial') }}
-            </p>
+                {{ t('editProfile.chatbotNotSupported') }}<br />{{ t('editProfile.chatbotUseOfficial') }}</p>
             <button type="button" @click="close"
                 class="mt-2 px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors">
                 {{ t('lng_stars_rating_understood') }}

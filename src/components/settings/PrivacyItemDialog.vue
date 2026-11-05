@@ -82,14 +82,12 @@
                             {{ opt.label }}
                         </button>
                     </div>
-                    <p class="text-xs text-gray-400 mt-2 leading-relaxed">{{ t('lng_edit_privacy_lastseen_warning') }}
-                    </p>
+                    <p class="text-xs text-gray-400 mt-2 leading-relaxed">{{ t('lng_edit_privacy_lastseen_warning') }}</p>
                 </div>
 
                 <div class="border-t border-gray-200 dark:border-gray-700 pt-4 flex items-center gap-3">
                     <div class="min-w-0 flex-1">
-                        <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lng_edit_lastseen_hide_read_time') }}
-                        </p>
+                        <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lng_edit_lastseen_hide_read_time') }}</p>
                         <p class="text-xs text-gray-400 mt-0.5 leading-relaxed">
                             {{ t('lng_edit_lastseen_hide_read_time_about') }}
                         </p>
@@ -119,8 +117,7 @@
             <!-- 礼物 -->
             <template v-else-if="activeItem?.kind === 'gifts'">
                 <div>
-                    <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">{{ activeItem?.whoLabel }}
-                    </p>
+                    <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">{{ activeItem?.whoLabel }}</p>
                     <div class="flex flex-wrap gap-2">
                         <button v-for="opt in presetOptions(PRESET_ALL)" :key="opt.value" type="button"
                             class="px-3.5 py-2 rounded-xl text-sm transition-colors"
@@ -209,8 +206,7 @@
             <!-- 通用 / 标准项 -->
             <template v-else>
                 <div :class="activeItem?.premiumOnly && !isPremium ? 'opacity-50 pointer-events-none select-none' : ''">
-                    <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">{{ activeItem?.whoLabel }}
-                    </p>
+                    <p class="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">{{ activeItem?.whoLabel }}</p>
                     <div class="flex flex-wrap gap-2">
                         <button v-for="opt in presetOptions(PRESET_ALL)" :key="opt.value" type="button"
                             class="px-3.5 py-2 rounded-xl text-sm transition-colors"

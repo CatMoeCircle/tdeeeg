@@ -102,8 +102,7 @@
                     <!-- 添加账户 -->
                     <button type="button" @click="showAddDialog = true"
                         class="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-dashed border-blue-300 dark:border-blue-500/40 text-sm font-medium text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors">
-                        <PlusIcon class="w-4 h-4" /> {{ t('lng_menu_add_account') }}
-                    </button>
+                        <PlusIcon class="w-4 h-4" /> {{ t('lng_menu_add_account') }}</button>
                 </section>
 
                 <!-- 后台行为 -->

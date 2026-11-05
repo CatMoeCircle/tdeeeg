@@ -12,10 +12,8 @@
             <TonTransferCard :amount="content.amount" :address="content.peer_address" :name="peerName" :status="status"
                 :label="ribbonLabel" />
 
-            <p v-if="hasComment"
-                class="px-1 pt-1 pb-0.5 text-center text-xs leading-snug text-gray-600 dark:text-gray-300">
-                <SpoilerSpan v-if="content.is_comment_encrypted">{{ t('lng_action_gram_transfer_encrypted_comment') }}
-                </SpoilerSpan>
+            <p v-if="hasComment" class="px-1 pt-1 pb-0.5 text-center text-xs leading-snug text-gray-600 dark:text-gray-300">
+                <SpoilerSpan v-if="content.is_comment_encrypted">{{ t('lng_action_gram_transfer_encrypted_comment') }}</SpoilerSpan>
                 <template v-else>{{ content.comment }}</template>
             </p>
         </div>

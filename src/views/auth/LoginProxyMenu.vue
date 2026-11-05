@@ -64,8 +64,7 @@
                 <p class="text-xs font-medium text-gray-400">{{ t('proxy.customSection') }}</p>
                 <button type="button" @click="openAddDialog"
                     class="flex items-center gap-0.5 text-xs text-blue-500 hover:text-blue-600 transition-colors">
-                    <PlusIcon class="w-3.5 h-3.5" /> {{ t('lng_stickers_featured_add') }}
-                </button>
+                    <PlusIcon class="w-3.5 h-3.5" /> {{ t('lng_stickers_featured_add') }}</button>
             </div>
 
             <div v-if="proxies.length === 0" class="text-xs text-gray-400 px-1 py-1">
@@ -202,8 +201,7 @@
                                 <p class="text-xs font-medium text-gray-400">{{ t('proxy.customSection') }}</p>
                                 <button type="button" @click="openAddDialog"
                                     class="flex items-center gap-0.5 text-xs text-blue-500 hover:text-blue-600 transition-colors">
-                                    <PlusIcon class="w-3.5 h-3.5" /> {{ t('lng_stickers_featured_add') }}
-                                </button>
+                                    <PlusIcon class="w-3.5 h-3.5" /> {{ t('lng_stickers_featured_add') }}</button>
                             </div>
 
                             <div v-if="proxies.length === 0" class="text-xs text-gray-400 px-1 py-1">

@@ -108,8 +108,7 @@
                         <div class="border-t border-gray-100 dark:border-gray-700 pt-4">
                             <div class="flex items-center justify-between mb-3">
                                 <div>
-                                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('systemSettings.customApi') }}
-                                    </p>
+                                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ t('systemSettings.customApi') }}</p>
                                     <p class="text-xs text-gray-400 mt-0.5">{{ t('systemSettings.customApiOff') }}</p>
                                 </div>
                                 <button type="button" @click="customApiCreds = !customApiCreds"

@@ -564,8 +564,7 @@ onUnmounted(() => {
             <div class="flex-1 flex flex-col items-center text-center px-8">
                 <h1 class="text-xl font-bold mb-2 text-gray-900 dark:text-gray-100">{{ t('login.title') }}</h1>
                 <p class="text-gray-500 dark:text-gray-400 mb-6 text-sm">
-                    {{ t('login.descLine1') }}<br />{{ t('login.descLine2') }}
-                </p>
+                    {{ t('login.descLine1') }}<br />{{ t('login.descLine2') }}</p>
 
                 <div class="w-full max-w-xs mb-6 space-y-2">
                     <!-- 国家/地区：自绘可搜索下拉（原先用 TDesign t-select + t-option） -->
