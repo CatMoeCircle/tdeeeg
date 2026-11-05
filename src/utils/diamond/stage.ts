@@ -25,7 +25,7 @@ const ACTIVE_FPS = 60;
 const MAX_DELTA = 0.1;
 /** 渲染分辨率上限（设备像素）：按压放大时也不糊，同时不让软件光栅化过载 */
 const MAX_RENDER_PX = 192;
-/** 相对 CSS 尺寸的超采样倍数：42 dp 的石头用 3× 画再缩回去，边缘才不会糊 */
+/** 相对显示尺寸的超采样倍数：42 dp 的石头先用 3× 渲染，再由 copy pass 盒式缩回显示分辨率 */
 const RENDER_SUPERSAMPLE = 3;
 /** 初始化失败后的重试冷却（毫秒） */
 const INIT_RETRY_MS = 3000;
@@ -65,19 +65,45 @@ class DiamondStage {
     private raf = 0;
     private lastDraw = 0;
     private size = 0;
+    /** 每个 sprite 当前画布的像素边长；共享画布按其中的最大值开 */
+    private readonly spritePixels = new Map<DiamondSprite, number>();
 
     /** 最近一次初始化失败的原因（诊断用） */
     get lastError(): unknown {
         return this.failure;
     }
 
-    /** 渲染分辨率（设备像素，正方形）；所有气泡共用，避免反复重建离屏目标 */
+    /** 共享画布尺寸（设备像素，正方形）；内部再按 RENDER_SUPERSAMPLE 倍渲染后盒式缩回 */
     get renderSize(): number {
         if (!this.size) {
             const dpr = Math.min(typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1, 2);
-            this.size = Math.min(MAX_RENDER_PX, Math.max(48, Math.round(42 * dpr * RENDER_SUPERSAMPLE)));
+            this.size = Math.min(MAX_RENDER_PX, Math.max(48, Math.round(56 * dpr)));
         }
         return this.size;
+    }
+
+    /**
+     * 登记一块石头的画布像素尺寸，并把共享画布调到其中的最大值。
+     *
+     * 聊天气泡（静止 84px、按压放大 185px）和交易详情弹窗（104dp）共用同一个
+     * WebGL 上下文，所以画布只按当前最大的那块开：按压放大时临时变大，
+     * 松手后再缩回去，静止时仍是 1:1，不会被浏览器二次缩放。
+     */
+    trackPixels(sprite: DiamondSprite, pixels: number): void {
+        this.spritePixels.set(sprite, pixels);
+        this.applyLargestPixels();
+    }
+
+    private applyLargestPixels(): void {
+        let largest = 48;
+        for (const pixels of this.spritePixels.values()) largest = Math.max(largest, pixels);
+        if (largest === this.size) return;
+        this.size = largest;
+        if (this.canvas) {
+            // 画布尺寸一变，离屏目标会在下一帧按新尺寸重建
+            this.canvas.width = largest;
+            this.canvas.height = largest;
+        }
     }
 
     get glCanvas(): HTMLCanvasElement | null {
@@ -160,6 +186,8 @@ class DiamondStage {
             if (released) return;
             released = true;
             this.sprites.delete(sprite);
+            this.spritePixels.delete(sprite);
+            this.applyLargestPixels();
             if (this.sprites.size === 0) this.stop();
         };
     }
@@ -232,6 +260,8 @@ class DiamondStage {
         const canvas = this.canvas;
         const gl = this.gl;
         if (!scene || !canvas || !gl) return;
+        // 内部超采样，但渲染分辨率不超过 MAX_RENDER_PX（按压放大时也不让软件光栅化过载）
+        const oversample = Math.min(RENDER_SUPERSAMPLE, Math.max(1, MAX_RENDER_PX / Math.max(1, canvas.width)));
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         scene.draw({
             width: canvas.width,
@@ -241,7 +271,7 @@ class DiamondStage {
             time: motion.time,
             palette,
             dt: delta,
-            oversample: 1,
+            oversample,
         });
     }
 
@@ -253,6 +283,8 @@ class DiamondStage {
         this.gl = null;
         this.canvas = null;
         this.sprites.clear();
+        this.spritePixels.clear();
+        this.size = 0;
         this.initPromise = null;
         this.failure = null;
         this.failedAt = 0;
@@ -271,6 +303,8 @@ export interface DiamondHandle {
     invalidate(): void;
     /** 交互动画中（拖动 / 按压）提高帧率 */
     setUrgent(urgent: boolean): void;
+    /** 按压缩放倍数：画布像素随之放大，放大后依旧 1:1 显示（1 = 恢复原尺寸） */
+    setZoom(zoom: number): void;
     dispose(): void;
 }
 
@@ -297,9 +331,15 @@ export function mountDiamond(options: {
     motion.setSpinning((options.spin ?? true) && !reduced);
 
     const context = target.getContext('2d');
-    const size = diamondStage.renderSize;
-    target.width = size;
-    target.height = size;
+    // 自己的画布按「自己的显示尺寸」开；共享 GL 画布按所有石头里最大的开，
+    // 缩放放在 2D 上下文里做（浏览器缩放画布元素只会用双线性，会把超采样白扔掉）。
+    const cssSize = target.getBoundingClientRect().width || target.clientWidth;
+    const dpr = Math.min(typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1, 2);
+    const baseSize = Math.max(1, Math.round((cssSize > 0 ? cssSize : 42) * dpr));
+    target.width = baseSize;
+    target.height = baseSize;
+    /** 当前按压缩放倍数：>1 时画布跟着变大，放大后才不会糊 */
+    let zoom = 1;
 
     const sprite: DiamondSprite = {
         visible: false,
@@ -313,12 +353,15 @@ export function mountDiamond(options: {
             diamondStage.render(motion, palette, delta);
             if (context) {
                 context.clearRect(0, 0, target.width, target.height);
-                context.drawImage(canvas, 0, 0);
+                // 共享画布可能比这块大（弹窗的石头更大），按自己的尺寸贴回来
+                context.drawImage(canvas, 0, 0, target.width, target.height);
             }
             options.onFrame?.(motion);
         },
     };
 
+    // 先登记尺寸再挂载：初始化时共享画布就直接按这个尺寸开
+    diamondStage.trackPixels(sprite, baseSize);
     // add() 内部会 request()，首次 request 顺带把渲染器初始化起来
     const release = diamondStage.add(sprite);
 
@@ -333,6 +376,19 @@ export function mountDiamond(options: {
             }
         },
         invalidate() {
+            sprite.dirty = true;
+            diamondStage.request();
+        },
+        setZoom(next: number) {
+            const clamped = Math.min(Math.max(next, 1), 4);
+            if (Math.abs(clamped - zoom) < 0.01) return;
+            zoom = clamped;
+            // 画布的像素尺寸跟着放大倍数走：承载它的 CSS 仍由 transform 缩放，
+            // 所以放大多少倍就补多少像素，放大后依然按 1:1 贴图
+            const pixels = Math.max(1, Math.round(baseSize * zoom));
+            target.width = pixels;
+            target.height = pixels;
+            diamondStage.trackPixels(sprite, pixels);
             sprite.dirty = true;
             diamondStage.request();
         },

@@ -518,14 +518,18 @@ export class DiamondScene {
     }
 
     /**
-     * 把解析后的目标 1:1 贴到画布。按压放大由宿主用 CSS transform 施加，
-     * 与官方面板一致：整个元素缩放，而不是在着色器里放大图像。
+     * 把解析后的结果缩到画布。超采样时在这里做 3×3 盒式平均：
+     * 交给浏览器用双线性缩，会把 1px 的抗锯齿边整个丢掉，边缘又变回硬台阶。
+     * 按压放大仍由宿主用 CSS transform 施加（整个元素缩放，与官方一致）。
      */
     private composite(width: number, height: number, alpha: number, white: number): void {
         const gl = this.gl;
         const targets = this.targets;
         if (!targets) return;
         const program = this.programCopy.program;
+        // 渲染目标 / 显示尺寸，1 表示没有超采样
+        const taps = this.width > 0 && width > 0 ? this.width / width : 1;
+        const step = taps / 3;
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.viewport(0, 0, width, height);
         gl.disable(gl.BLEND);
@@ -536,6 +540,8 @@ export class DiamondScene {
         gl.uniform1i(this.uniforms.at(program, 'image'), 0);
         gl.uniform1f(this.uniforms.at(program, 'opacity'), alpha);
         gl.uniform1f(this.uniforms.at(program, 'white'), white);
+        gl.uniform1f(this.uniforms.at(program, 'copyTaps'), taps);
+        gl.uniform2f(this.uniforms.at(program, 'copyStep'), step / this.width, step / this.height);
         gl.bindVertexArray(this.emptyVao);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
         gl.bindVertexArray(null);
