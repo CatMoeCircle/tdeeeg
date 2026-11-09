@@ -6,54 +6,42 @@
                 @mousedown.self="cancel">
                 <div
                     class="w-90 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
-                    <!-- 标题 -->
-                    <div
-                        class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                            {{ t('link.openExternalTitle') }}
-                        </h3>
-                        <button type="button"
-                            class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
-                            @click="cancel">
-                            <XIcon class="w-4 h-4" />
-                        </button>
-                    </div>
+                    <!-- 与官方 ConfirmBox 一致：文案 + 地址 +（必要时）可疑字符说明，不设独立标题栏 -->
+                    <div class="px-5 pt-4 pb-2">
+                        <p class="text-sm text-gray-800 dark:text-gray-200">
+                            {{ t('lng_open_this_link') }}
+                        </p>
 
-                    <!-- 内容：显示点击时的原始地址（保留 IDN 原文，不显示 punycode），混用字母系统时高亮可疑字符 -->
-                    <div class="px-4 py-4">
-                        <div class="flex items-start gap-3">
-                            <div
-                                class="w-10 h-10 shrink-0 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-300">
-                                <GlobeIcon class="w-5 h-5" />
-                            </div>
-                            <div class="min-w-0">
-                                <p class="text-sm text-gray-500 dark:text-gray-400">
-                                    {{ t('link.openExternalMessage') }}
-                                </p>
-                                <!-- 显示点击时看到的原始地址（IDN 保留原文，不显示 punycode），混用字母系统时高亮可疑字符 -->
-                                <p class="text-sm font-semibold text-gray-800 dark:text-gray-200 break-all mt-0.5">
-                                    <span v-for="(part, i) in addressParts" :key="i" :class="part.suspicious
-                                        ? 'text-red-500 underline decoration-red-400 decoration-wavy dark:text-red-400'
+                        <!-- 地址：深色底框；链接可拖选，右侧图标单独负责复制 -->
+                        <div
+                            class="mt-3 flex items-start gap-2 rounded-lg border border-black/5 bg-gray-100/80 px-2.5 py-2 dark:border-white/10 dark:bg-black/25">
+                            <p class="min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-200 break-all select-text">
+                                <span v-for="(part, i) in addressParts" :key="i" :class="part.emphasis === 'marked'
+                                    ? 'font-semibold text-red-500 dark:text-red-400'
+                                    : part.emphasis === 'bold'
+                                        ? 'font-semibold'
                                         : ''">{{ part.text }}</span>
-                                </p>
-                                <!-- 与官方一致：地址混用了不同字母系统时，在高亮字符下方给出说明 -->
-                                <p v-if="hasSuspiciousChars"
-                                    class="mt-2 flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
-                                    <AlertTriangleIcon class="w-3.5 h-3.5 shrink-0 mt-px" />
-                                    <span class="leading-relaxed">{{ t('lng_open_link_suspicious_chars') }}</span>
-                                </p>
-                            </div>
+                            </p>
+                            <button type="button" :title="t('lng_context_copy_link')"
+                                class="shrink-0 w-6 h-6 flex items-center justify-center rounded-md text-gray-500 hover:bg-black/5 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-200 transition-colors"
+                                @click="copyAddress">
+                                <CopyIcon class="w-4 h-4" />
+                            </button>
                         </div>
+
+                        <!-- 官方：lng_open_link_suspicious_chars，紧跟地址下方单独一行 -->
+                        <p v-if="marked" class="mt-2 text-sm text-gray-800 dark:text-gray-200">
+                            {{ t('lng_open_link_suspicious_chars') }}
+                        </p>
                     </div>
 
-                    <!-- 底部按钮 -->
-                    <div
-                        class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
+                    <!-- 底部按钮：官方 lng_cancel / lng_open_link -->
+                    <div class="px-4 pb-3 flex items-center justify-end gap-3">
                         <BaseButton type="button" @click="cancel" variant="ghost" size="sm">
-                            {{ t('link.openExternalCancel') }}
+                            {{ t('lng_cancel') }}
                         </BaseButton>
                         <BaseButton type="button" @click="confirm" variant="primary" size="sm">
-                            {{ t('link.openExternalConfirm') }}
+                            {{ t('lng_open_link') }}
                         </BaseButton>
                     </div>
                 </div>
@@ -65,121 +53,183 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
-import { XIcon, GlobeIcon, AlertTriangle as AlertTriangleIcon } from "lucide-vue-next";
+import { Copy as CopyIcon } from "lucide-vue-next";
 import { visible, pendingUrl, confirmOpenLink, cancelExternalLink } from "../../store/session/externalLink";
 import BaseButton from "../ui/button/BaseButton.vue";
+import { toast } from "../../utils/ui/toast";
 
 const { t } = useI18n();
 
-/** 地址里出现的文字系统，仅关心与拉丁字母容易混淆的几类 */
-type LetterScript = "latin" | "cyrillic" | "greek" | "other";
+/** 与 Qt 的 QChar::script() 对齐：只区分同形字相关的几类，其余归 common / other */
+type CharScript = "latin" | "cyrillic" | "greek" | "other" | "common" | "unknown";
 
-/** 单个字符属于哪种文字系统（非字母返回 null：数字、点、连字符、端口等不参与判断） */
-function letterScript(ch: string): LetterScript | null {
-    if (!/\p{L}/u.test(ch)) return null;
+function charScript(ch: string): CharScript {
+    if (!/\p{L}/u.test(ch)) return "common";
     if (/\p{Script=Latin}/u.test(ch)) return "latin";
     if (/\p{Script=Cyrillic}/u.test(ch)) return "cyrillic";
     if (/\p{Script=Greek}/u.test(ch)) return "greek";
     return "other";
 }
 
-/**
- * 单个字符是否属于「可疑字符」：
- * - ASCII 一律正常（字母、数字、标点都是地址的其余部分）
- * - 非 ASCII 字母：只有与地址字母系统一致才正常（纯 IDN 不误报）
- * - 其余非 ASCII 字符都算可疑（别的字母表、以及 ∕ 这类同形标点）
- */
-function isSuspiciousChar(ch: string, base: LetterScript): boolean {
-    if (/^[\x00-\x7F]$/.test(ch)) return false;
-    const script = letterScript(ch);
-    return !script || script !== base;
+const isAsciiLetter = (ch: string) => /^[A-Za-z]$/.test(ch);
+const isAsciiDigitOrHyphen = (ch: string) => /^[0-9-]$/.test(ch);
+const isAscii = (text: string) => /^[\x00-\x7F]*$/.test(text);
+const isPlainAsciiLabel = (label: string) =>
+    Array.from(label).every((ch) => isAsciiLetter(ch) || isAsciiDigitOrHyphen(ch));
+
+/** 官方 DomainLabelScript：没有字母 → common；混用多种字母系统 → unknown */
+function domainLabelScript(label: string): CharScript {
+    let result: CharScript = "common";
+    for (const ch of label) {
+        if (isAsciiDigitOrHyphen(ch)) continue;
+        const script = charScript(ch);
+        if (script === "common" || script === "unknown") return "unknown";
+        if (result !== "common" && result !== script) return "unknown";
+        result = script;
+    }
+    return result;
+}
+
+/** 官方 IsVisibleCodePoint：可打印、非组合符号、非空白（零宽/格式字符属于 Cf，不可见） */
+function isVisibleCodePoint(ch: string): boolean {
+    if (/\p{C}/u.test(ch) || /\p{M}/u.test(ch) || /\s/u.test(ch)) return false;
+    return true;
+}
+
+interface TextRange {
+    start: number;
+    end: number;
 }
 
 /**
- * 找到原始地址中 host 的区间。
- * 不能用 new URL().host：它会把 IDN 转成 punycode（pаypal.com → xn--pypal-4ve.com），
- * 那样就看不到、也标不出消息里实际显示的可疑字符了。
+ * 移植官方 UrlClickHandler::SuspiciousRanges（tdesktop 7.3.5 / lib_ui c3f7343）。
+ *
+ * 官方只检查正则 `^((https?|s?ftp)://)?([^/#\:\?]+)([/#\:\?]|$)` 捕获的「域名段」，
+ * 该段遇到 ASCII 的 / # : ? 就结束。所以像
+ * https://foobar.ac.cn∕resources∕新OA使用教程@v50.zip 这种用 U+2215「∕」冒充斜杠的地址，
+ * 整串都会被当成域名段来扫，路径里的同形斜杠、中文、@ 都会被标出；普通 ASCII 斜杠地址的
+ * 路径/查询不参与判断。
  */
-function findHostRange(raw: string): { start: number; end: number } | null {
-    const url = raw.trim();
-    if (!url) return null;
-    // mailto: / tel: 没有 host
-    if (/^(?:mailto|tel):/i.test(url)) return null;
+function suspiciousRanges(url: string): TextRange[] {
+    const match = /^((?:https?|s?ftp):\/\/)?([^\/#:?]+)([\/#:?]|$)/i.exec(url);
+    if (!match) return [];
+    const domain = match[2];
+    const domainStart = match[0].length - (match[3]?.length ?? 0) - domain.length;
 
+    // TLD 是 ASCII 字母？（如 .com / .cn）
+    const latinTld = /^(.*)\.[a-zA-Z]+$/.test(domain);
+    if (!latinTld && isAscii(domain)) return [];
+
+    const tld = domain.slice(domain.lastIndexOf(".") + 1);
+    const script = latinTld ? "latin" : domainLabelScript(tld);
+    const asciiOnly = script === "latin" || script === "common" || script === "unknown";
+    const allowed = (ch: string) =>
+        isAsciiDigitOrHyphen(ch) || (asciiOnly ? isAsciiLetter(ch) : charScript(ch) === script);
+
+    const ranges: TextRange[] = [];
+    let offset = 0;
+    for (const label of domain.split(".")) {
+        const labelStart = offset;
+        offset += label.length + 1;
+        // 非拉丁 TLD 时，纯 ASCII 标签不参与判断
+        if (!asciiOnly && isPlainAsciiLabel(label)) continue;
+
+        let index = 0;
+        for (const ch of label) {
+            if (!allowed(ch)) {
+                const start = domainStart + labelStart + index;
+                const end = start + ch.length;
+                const last = ranges[ranges.length - 1];
+                if (last && last.end === start) last.end = end;
+                else ranges.push({ start, end });
+            }
+            index += ch.length;
+        }
+    }
+    return ranges;
+}
+
+/** 官方 BoldDomainInUrl：取域名区间（www. 前缀不计入加粗范围） */
+function domainRange(url: string): TextRange | null {
+    if (/^(?:mailto|tel):/i.test(url)) return null;
     const scheme = /^[a-z][a-z0-9+.-]*:\/\//i.exec(url);
     const authorityStart = scheme ? scheme[0].length : 0;
     const rest = url.slice(authorityStart);
     const stop = rest.search(/[/?#]/);
     const authority = stop === -1 ? rest : rest.slice(0, stop);
     if (!authority) return null;
-
-    // 去掉 userinfo（user:pass@host）
+    // 去掉 userinfo 与端口
     const at = authority.lastIndexOf("@");
     const hostPort = at >= 0 ? authority.slice(at + 1) : authority;
-    // IPv6 字面量不做文字系统判断
     if (hostPort.startsWith("[")) return null;
-    // 去掉端口
     const port = /:\d*$/.exec(hostPort);
     const host = port ? hostPort.slice(0, port.index) : hostPort;
     if (!host) return null;
 
-    const start = authorityStart + (at >= 0 ? at + 1 : 0);
-    return { start, end: start + host.length };
+    const www = host.startsWith("www.") ? 4 : 0;
+    const start = authorityStart + (at >= 0 ? at + 1 : 0) + www;
+    return { start, end: start + host.length - www };
 }
 
 interface AddressPart {
     text: string;
-    suspicious: boolean;
+    emphasis: "none" | "bold" | "marked";
+}
+
+function buildParts(url: string, range: TextRange | null, emphasis: AddressPart["emphasis"]): AddressPart[] {
+    if (!range) return [{ text: url, emphasis: "none" }];
+    const parts: AddressPart[] = [];
+    if (range.start > 0) parts.push({ text: url.slice(0, range.start), emphasis: "none" });
+    parts.push({ text: url.slice(range.start, range.end), emphasis });
+    if (range.end < url.length) parts.push({ text: url.slice(range.end), emphasis: "none" });
+    return parts;
 }
 
 /**
- * 地址「应该」用哪种字母系统：以 TLD 为准。
- * - `.com` / `.cn` 这类 ASCII 后缀 → 拉丁
- * - `.рф` / `.中国` 这类非 ASCII 后缀 → 该后缀的文字系统（合法 IDN 不误报）
+ * 地址渲染分段，对应官方 HiddenUrlClickHandler::Open 里的三种情况：
+ * 1. 有可疑字符且都可见 → 标红加粗这些字符（不再加粗域名）
+ * 2. 没有可疑字符 → 只加粗域名
+ * 3. 可疑字符里有不可见的（零宽/空白等）→ 改显示 percent-encoded 地址、不标注
  */
-function expectedScript(url: string): LetterScript | null {
-    const range = findHostRange(url);
-    if (!range) return null;
-    const host = url.slice(range.start, range.end);
-    const tld = host.slice(host.lastIndexOf(".") + 1);
-    if (/^[a-z]+$/i.test(tld)) return "latin";
-    for (const ch of Array.from(tld)) {
-        const script = letterScript(ch);
-        if (script) return script;
+const analyzed = computed<{ marked: boolean; parts: AddressPart[] }>(() => {
+    const raw = pendingUrl.value.trim();
+    if (!raw) return { marked: false, parts: [] };
+
+    const ranges = suspiciousRanges(raw);
+    const allVisible = ranges.every((range) =>
+        Array.from(raw.slice(range.start, range.end)).every(isVisibleCodePoint),
+    );
+
+    if (!allVisible) {
+        let encoded = raw;
+        try {
+            encoded = encodeURI(raw);
+        } catch {
+            // 编码失败时保留原文
+        }
+        return { marked: false, parts: buildParts(encoded, domainRange(encoded), "bold") };
     }
-    // IP / 无后缀：按拉丁处理
-    return "latin";
-}
-
-/**
- * 原始地址按「可疑 / 正常」切段，模板逐段渲染并标红可疑字符。
- * 与官方一致：整条地址（域名、路径、查询、锚点）都检查，ASCII 字母、数字、标点都算「地址的其余部分」，
- * 不属于该地址字母系统的非 ASCII 字母才是可疑字符
- * （如同形字 pаypal.com 里的西里尔 а、路径 /resources/新OA使用教程 里的中文）。
- */
-const addressParts = computed<AddressPart[]>(() => {
-    const url = pendingUrl.value.trim();
-    if (!url) return [];
-
-    const base = expectedScript(url);
-    if (!base) return [{ text: url, suspicious: false }];
+    if (!ranges.length) {
+        return { marked: false, parts: buildParts(raw, domainRange(raw), "bold") };
+    }
 
     const parts: AddressPart[] = [];
-    const push = (text: string, suspicious: boolean) => {
-        if (!text) return;
-        const last = parts[parts.length - 1];
-        if (last && last.suspicious === suspicious) last.text += text;
-        else parts.push({ text, suspicious });
-    };
-
-    // 整条地址都检查（含 ? / # 之后的查询与锚点）
-    for (const ch of url) {
-        push(ch, isSuspiciousChar(ch, base));
+    let position = 0;
+    for (const range of ranges) {
+        if (range.start > position) {
+            parts.push({ text: raw.slice(position, range.start), emphasis: "none" });
+        }
+        parts.push({ text: raw.slice(range.start, range.end), emphasis: "marked" });
+        position = range.end;
     }
-    return parts;
+    if (position < raw.length) {
+        parts.push({ text: raw.slice(position), emphasis: "none" });
+    }
+    return { marked: true, parts };
 });
 
-const hasSuspiciousChars = computed(() => addressParts.value.some((part) => part.suspicious));
+const addressParts = computed(() => analyzed.value.parts);
+const marked = computed(() => analyzed.value.marked);
 
 function confirm() {
     confirmOpenLink();
@@ -187,6 +237,18 @@ function confirm() {
 
 function cancel() {
     cancelExternalLink();
+}
+
+/** 复制整条链接（深色底框右侧的图标按钮） */
+async function copyAddress() {
+    const url = pendingUrl.value.trim();
+    if (!url) return;
+    try {
+        await navigator.clipboard.writeText(url);
+        await toast.success({ content: t("context.copied"), placement: "top-right" });
+    } catch (e) {
+        console.error("Copy link failed:", e);
+    }
 }
 
 function onKeydown(e: KeyboardEvent) {

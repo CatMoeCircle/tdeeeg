@@ -7,7 +7,8 @@ import { confirmExternalLink } from '../../store/session/externalLink';
  * 仅对真正的「外部链接」（http/https/mailto/tel）做确认；Telegram 内部链接（t.me / tg://）
  * 由调用方在传入前自行解析跳转，不会走到这里。
  *
- * 确认弹窗使用项目自定义样式（ExternalLinkConfirm.vue），只显示站点域名而非完整链接；
+ * 确认弹窗使用项目自定义样式（ExternalLinkConfirm.vue）：显示完整原始地址，按官方
+ * UrlClickHandler::SuspiciousRanges 的规则标出混用字母系统的可疑字符；
  * 用户确认后打开链接并 resolve；取消/关闭则 reject。
  *
  * @param url 要打开的外部链接
