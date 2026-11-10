@@ -71,7 +71,7 @@ import type { ContextMenuItem } from '../../../../components/contextMenu/types';
 import type { sticker } from 'tdlib-types';
 import type { StickerGroup } from './composables/useStickerPicker';
 
-const emit = defineEmits<{ (e: 'pickSticker', stickerId: string): void }>();
+const emit = defineEmits<{ (e: 'pickSticker', stickerId: string, sticker: sticker): void }>();
 
 /** 贴纸区滚动位置记忆：记录上次浏览位置，重新打开时恢复（模块级，跨会话面板挂载保留） */
 let savedScrollTop = 0;
@@ -227,7 +227,7 @@ function onPick(s: sticker) {
     }
     // 发送贴纸需要的是贴纸的【文件 id】(s.sticker.id)，而非贴纸对象 id (s.id)
     const fileId = s.sticker?.id ?? (s as any).id;
-    emit('pickSticker', String(fileId));
+    emit('pickSticker', String(fileId), s);
 }
 
 /**

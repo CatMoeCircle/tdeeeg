@@ -22,7 +22,11 @@
   --color-blue-950: var(--app-tw-blue-950);
 }
 
-/* ===== Apple Emoji 字体 ===== */
+/* ===== Emoji 字体 =====
+ * 说明：字体文件本身由 assets/apple.ttf 提供，必须是 Chromium/WebView2 能渲染的位图表情格式
+ * （CBDT/CBLC 或 COLR/CPAL）。Apple 官方 Color Emoji 是 sbix 的 .ttc，Chromium 不解码，
+ * 直接放进来只会渲染成空白/单色，需要先转成 CBDT 或 COLRv1 版本。
+ */
 @font-face {
   font-family: "Apple Color Emoji";
   src: url("../apple.ttf") format("truetype");

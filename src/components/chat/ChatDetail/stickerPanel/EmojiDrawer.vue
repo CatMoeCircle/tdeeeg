@@ -181,9 +181,9 @@
                         <!-- 最近自定义 emoji -->
                         <div v-if="!showDefaultEmojiStatus && recentCustomStickers.length > 0" class="mt-1">
                             <p class="sp-emoji-block-title">{{ t('emojiPanel.recentAnimated') }}</p>
-                            <div class="flex flex-wrap gap-0.5">
+                            <div class="sp-emoji-shelf">
                                 <StickerMediaItem v-for="s in recentCustomStickers" :key="s.id" :item="s"
-                                    kind="sticker" :size="36" :skin-tone="skinTone" @pick="onPickCustom($event)" />
+                                    kind="sticker" :size="26" :skin-tone="skinTone" @pick="onPickCustom($event)" />
                             </div>
                         </div>
                     </template>
@@ -336,7 +336,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     (e: 'pickEmoji', emoji: string): void;
-    (e: 'pickCustomEmoji', id: string): void;
+    /** 第二个参数是贴纸自带的 unicode emoji，作为富文本里的回退字符 */
+    (e: 'pickCustomEmoji', id: string, alt: string): void;
     (e: 'pickDefaultStatus'): void;
     /** 选择了一个可用回应（含 emoji / 自定义 / 付费） */
     (e: 'pickReaction', type: ReactionType): void;
@@ -353,7 +354,7 @@ const leftoverReactions = computed(() => availableList.value.slice(FIXED_REACTIO
  * 网格内视觉尺寸：普通 emoji 与自定义/付费媒体对齐。
  * 回应选择器整体更紧凑，再缩一档。
  */
-const GRID_EMOJI_FONT = computed(() => (props.reactionMode ? '24px' : '26px'));
+const GRID_EMOJI_FONT = computed(() => (props.reactionMode ? '20px' : '21px'));
 const GRID_MEDIA_PX = computed(() => (props.reactionMode ? 26 : 28));
 /** 顶部「可用回应」导航图标 */
 const availableNavEmoji = computed(() => {
@@ -758,7 +759,7 @@ onBeforeUnmount(() => {
 function onPickResult(r: EmojiSearchResult) {
     picker.pickEmoji(r, (key, isCustom) => {
         if (isCustom) {
-            emit('pickCustomEmoji', key);
+            emit('pickCustomEmoji', key, r.display || '🙂');
         } else {
             const final = applySkinTone(key, prefs.skinTone.value);
             picker.prefs.addRecent(final);
@@ -788,7 +789,7 @@ function onPickCustom(s: sticker | animation) {
     if (s._ !== 'sticker') return;
     const id = String(s.id);
     picker.recordRecentCustom(id);
-    emit('pickCustomEmoji', id);
+    emit('pickCustomEmoji', id, s.emoji || '🙂');
 }
 
 function updateQuery(v: string) {
@@ -868,10 +869,13 @@ defineExpose({ activate: picker.activate, deactivate: picker.deactivate });
     font-size: 26px;
 }
 
-/* 自定义包贴纸在格子内略缩进，避免铺满显得过大 */
+/* 自定义 emoji 图片自带透明留白，盒子比系统 emoji 字号略大才视觉等高；
+   emoji 本身保持方形，不加圆角 */
 .sp-emoji-shelf .sp-media-item {
-    padding: 4px;
-    box-sizing: border-box;
+    width: 25px;
+    height: 25px;
+    margin: auto;
+    border-radius: 0;
 }
 
 /* 每个 emoji 分类/区块：垂直堆叠，上下滑动浏览 */
@@ -949,7 +953,9 @@ defineExpose({ activate: picker.activate, deactivate: picker.deactivate });
 }
 
 .sp-emoji-drawer--reaction .sp-emoji-shelf .sp-media-item {
-    padding: 3px;
+    width: 24px;
+    height: 24px;
+    border-radius: 0;
 }
 
 /* 空态占满整行 */
