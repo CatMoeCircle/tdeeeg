@@ -213,7 +213,7 @@
                                     </button>
                                 </div>
                                 <div class="flex min-w-0 max-w-[70%] flex-col"
-                                    :class="isSelf(item.msg) ? 'items-end' : 'items-start'">
+                                    :class="[isSelf(item.msg) ? 'items-end' : 'items-start', isWidgetMessage(item.msg) ? 'w-full' : '']">
                                     <div :data-bubble-msg-id="item.msg.id"
                                         :data-no-bubble-anim="item.msg.content._ === 'messageVideoNote' ? '' : null" :class="[
                                         isMediaMessage(item.msg)
@@ -233,9 +233,10 @@
                                                     : '',
                                         canSummarizeBubble(item.msg) ? 'relative' : ''
                                     ]"
-                                        :style="getInlineKeyboard(item.msg) ? { ...bubbleStyle(item), width: '100%' } : bubbleStyle(item)">
+                                        :style="getInlineKeyboard(item.msg) || isFullWidthWidget(item.msg) ? { ...bubbleStyle(item), width: '100%' } : bubbleStyle(item)">
                                         <p v-if="showSenderDisplayName(item.msg) && item.isFirstInGroup"
                                             class="msg-sender-name text-xs font-semibold flex items-center gap-1.5"
+                                            :class="isMediaMessage(item.msg) ? 'px-2 pt-2 pb-0.5' : ''"
                                             :style="senderNameColor(item.msg)">
                                             <button type="button"
                                                 :class="['min-w-0 flex-1 truncate text-left', canOpenSenderProfile(item.msg) ? 'cursor-pointer' : 'cursor-default']"

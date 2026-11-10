@@ -39,14 +39,20 @@
             <slot />
         </MessageRichMessage>
 
+        <!-- HTML Widget：机器人下发的 HTML，沙箱 iframe 渲染（宽度同富文本消息） -->
+        <MessageWidgetContent v-else-if="content._ === 'messageWidget'" :content="content" :chat-id="chatId"
+            :message-id="messageId" :accent-color-id="accentColorId">
+            <slot />
+        </MessageWidgetContent>
+
         <!-- Checklist messages -->
         <MessageChecklistContent v-else-if="content._ === 'messageChecklist'" :content="content" :chat-id="chatId"
-            :message-id="messageId" :is-self="isSelf ?? false" />
+            :message-id="messageId" :message="message" :is-self="isSelf ?? false" />
 
         <!-- 转发的动态（story）：按带文案的视频消息排布，封面点击打开动态播放器 -->
         <MessageStoryContent v-else-if="content._ === 'messageStory'" :content="content" :isSelf="isSelf ?? false"
             :date="date" :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount"
-            :authorSignature="authorSignature" :chatId="chatId" :replyTo="replyTo" :messageList="messageList"
+            :authorSignature="authorSignature" :scheduled="scheduled" :chatId="chatId" :replyTo="replyTo" :messageList="messageList"
             :accentColorId="accentColorId" @jumpToMessage="onReplyJump">
             <template #reactions>
                 <slot name="reactions" />
@@ -134,6 +140,7 @@ import MessageReply from './content/MessageReply.vue';
 
 import MessageTextContent from './content/MessageTextContent.vue';
 import MessageRichMessage from './rich/MessageRichMessage.vue';
+import MessageWidgetContent from './content/MessageWidgetContent.vue';
 import MessageChecklistContent from './content/MessageChecklistContent.vue';
 import MessageMediaContent from './content/MessageMediaContent.vue';
 import MessageStickerContent from './content/MessageStickerContent.vue';

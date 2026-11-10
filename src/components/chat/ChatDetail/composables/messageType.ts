@@ -223,6 +223,28 @@ export function isInlineTimeMessage(msg: message): boolean {
 }
 
 /**
+ * 判断消息是否为 HTML Widget 消息（机器人下发的 HTML 小部件）。
+ * 与富文本消息一样走普通气泡排版，只是内容换成沙箱 iframe。
+ *
+ * @param msg - 待判断的 TDLib 消息对象
+ * @returns 是 Widget 消息返回 `true`，否则返回 `false`
+ */
+export function isWidgetMessage(msg: message): boolean {
+  return msg.content._ === "messageWidget";
+}
+
+/**
+ * Widget 未指定宽度（TDLib `width = 0` 表示占满整个气泡宽度）。
+ * 这种情况气泡需要先有确定宽度，小部件才能按 100% 铺满，因此由调用方给气泡补 `width: 100%`。
+ *
+ * @param msg - 待判断的 TDLib 消息对象
+ * @returns 需要铺满气泡宽度返回 `true`，否则返回 `false`
+ */
+export function isFullWidthWidget(msg: message): boolean {
+  return msg.content._ === "messageWidget" && !(msg.content.width > 0);
+}
+
+/**
  * 判断消息是否为服务消息（居中显示、自成一组、不占头像列）。
  *
  * @param msg - 待判断的 TDLib 消息对象

@@ -204,6 +204,10 @@ pub fn run() {
         .register_asynchronous_uri_scheme_protocol("tdstream", |context, request, responder| {
             system::media_stream::respond(context.app_handle().clone(), request, responder);
         })
+        // HTML Widget 消息：机器人下发的 HTML 由独立 origin 返回，供沙箱 iframe 渲染
+        .register_uri_scheme_protocol(system::widget_view::SCHEME, |_context, request| {
+            system::widget_view::respond(request)
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -382,6 +386,8 @@ pub fn run() {
             system::notifications::set_active_chat_for_notifications,
             system::efficiency::set_background_efficiency,
             system::efficiency::get_background_efficiency_status,
+            system::widget_view::register_widget_html,
+            system::widget_view::set_widget_emoji_font,
             ai::ai_translate::list_ai_providers,
             ai::ai_translate::save_ai_provider,
             ai::ai_translate::delete_ai_provider,
