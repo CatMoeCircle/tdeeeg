@@ -209,6 +209,11 @@ export interface SenderDisplayDeps extends SenderDisplayContext {
     accentTextColor: (id: number) => string;
     /** 是否显示发送者名称（接入 showSenderName computed） */
     showSenderName: boolean;
+    /**
+     * 媒体消息（图片/视频/动画）是否也显示发送者名称。
+     * 默认 `false`（频道/群聊靠头像识别作者）；评论线程（讨论区）需要按条署名，传 `true`。
+     */
+    showMediaSenderName?: boolean;
     /** 判断消息是否为"自己发送" */
     isSelf: (msg: message) => boolean;
 }
@@ -263,7 +268,8 @@ export function getDisplaySenderNames(
 /**
  * 判断是否显示发送者名称：有 author_signature 时显示；否则非自己消息且开启了发送者名称才显示。
  * 自己通过内联机器人发送的消息也显示名称行（用于在名称旁展示 `via @bot`）。
- * 媒体（图片/视频/动画）与独立消息（贴纸/动画 emoji/骰子）不显示名称行。
+ * 媒体（图片/视频/动画）与独立消息（贴纸/动画 emoji/骰子）默认不显示名称行；
+ * 评论线程（讨论区）逐条署名时可通过 `showMediaSenderName` 让媒体消息也显示名称。
  *
  * @param msg - 消息对象
  * @param deps - 外部依赖
@@ -274,8 +280,10 @@ export function showSenderDisplayName(
     deps: SenderDisplayDeps,
 ): boolean {
     if (!deps.showSenderName) return false;
-    // 图片/视频/gif（动画）与贴纸/动画 emoji 不显示发送者名称
-    if (isMediaMessage(msg) || isStandaloneMessage(msg)) return false;
+    // 贴纸/动画 emoji/骰子等独立消息不显示发送者名称
+    if (isStandaloneMessage(msg)) return false;
+    // 图片/视频/gif（动画）默认不显示发送者名称（评论线程除外）
+    if (isMediaMessage(msg) && !deps.showMediaSenderName) return false;
     if (msg.author_signature?.trim()) return true;
     if (deps.isSelf(msg)) {
         // 马甲身份发送的消息虽按"自己发送"处理，但顶部名称仍需保留

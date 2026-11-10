@@ -6562,6 +6562,8 @@ const senderDeps = (): SenderDisplayDeps => ({
     getSenderProfileAccentId,
     accentTextColor,
     showSenderName: showSenderName.value,
+    // 评论线程（讨论区）是逐条署名的评论流，媒体评论也要显示作者名
+    showMediaSenderName: threadMode.value,
     isSelf,
 });
 
@@ -6762,10 +6764,20 @@ async function openForwardSource(forwardInfo: messageForwardInfo) {
 /** 会话类型缓存（供权限模块使用） */
 const groupCaches = () => ({ supergroups: supergroups.value, basicGroups: basicGroups.value });
 
-const showSenderName = computed(() => showSenderNameOf(chat.value));
+/**
+ * 是否显示发送者名称：
+ * - 评论线程（讨论区）的消息实际来自讨论组，按普通群组规则始终显示；
+ * - 其余会话沿用原判定（私聊不显示名称）。
+ */
+const showSenderName = computed(() => threadMode.value || showSenderNameOf(chat.value));
 
-/** 是否显示左侧头像列（群组和开启了显示发送者的频道） */
-const showAvatarColumn = computed(() => showAvatarColumnOf(chat.value, groupCaches()));
+/**
+ * 是否显示左侧头像列：
+ * - 评论线程（讨论区）的消息实际来自讨论组（普通群组），必须按群组显示头像；
+ *   若沿用当前频道判定，未开启「显示发送者」的频道会整列隐藏，评论区就只剩气泡；
+ * - 其余会话沿用原判定（群组 / 开启了发送者显示的频道）。
+ */
+const showAvatarColumn = computed(() => threadMode.value || showAvatarColumnOf(chat.value, groupCaches()));
 
 /**
  * 群聊头像属于实际发送者；收藏中的转发消息改用原始来源头像。
