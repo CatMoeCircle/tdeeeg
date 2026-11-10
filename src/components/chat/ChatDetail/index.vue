@@ -400,9 +400,20 @@
             <ChatDetailHeader :chat="chat" :topic="isDirectMessagesChat ? undefined : topic"
                 :dm-topic="dmHeaderTopic" :showBack="showBackBtn" @back="handleBack"
                 @openInfo="handleTopClick" @search="openSearch"
-                :show-topic-tag-toggle="showTopicPanel" :topic-tag-position="topicTagPosition"
+                :show-topic-tag-toggle="showTopicPanel"
+                :topic-tag-position="topicTagPosition"
                 :show-translate-entry="canReopenChatTranslateBar" @show-translate-bar="reopenChatTranslateBar"
-                @toggle-topic-tag-position="toggleTopicTagPosition" />
+                @toggle-topic-tag-position="toggleTopicTagPosition">
+                <!-- 论坛侧边栏入口（1.8.70）：默认收起，点击从右侧滑出浮动面板 -->
+                <template #actions>
+                    <button v-if="isSidebarForum" type="button" @click="toggleTopicSidebar"
+                        class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-200/80 dark:hover:bg-white/20 hover:text-blue-500 active:scale-95 transition-[background-color,color,transform] duration-150"
+                        :title="t('lng_forum_topics_switch')" :aria-label="t('lng_forum_topics_switch')">
+                        <PanelRightClose v-if="topicSidebarOpen" class="w-5 h-5" />
+                        <PanelRightOpen v-else class="w-5 h-5" />
+                    </button>
+                </template>
+            </ChatDetailHeader>
         </div>
 
         <!-- ===== 机器人管理条（业务机器人接管当前聊天）：紧贴 Header 下方 ===== -->
@@ -411,14 +422,42 @@
             <BotManageBar :chat-id="chatId" :bar="botManageBar" />
         </div>
 
-        <!-- ===== 话题标签栏（话题模式 / 论坛群组） =====
-             right/left：图片样式侧栏；top：悬浮在 Header 与置顶栏中间；bottom：悬浮在输入条上方 -->
-        <!-- ===== 话题标签栏（tag 栏话题模式）
-             位置切换动画由 TopicTagBar 根节点 data-pos 驱动的 CSS keyframes 完成
-             （不用 Vue Transition，避免 out-in 卡死导致元素不再挂载） ===== -->
+        <!-- ===== 话题标签栏（tag 模式 / 论坛群组） =====
+             left 图片样式窄栏 / top、bottom 悬浮分组栏（位置切换动画由 TopicTagBar
+             根节点 data-pos 驱动的 CSS keyframes 完成，不用 Vue Transition，避免 out-in 卡死导致
+             元素不再挂载）；list 模式不使用本组件；sidebar 模式走下方右侧侧栏 ===== -->
         <TopicTagBar v-if="showTopicPanel && chatId !== undefined" :chat-id="chatId" :topic-id="topicId"
-            :position="topicTagPosition" :top-offset="4 + botBarSpace" :bottom-offset="76" :data-pos="topicTagPosition"
-            :is-dm="isDirectMessagesChat" @select="onTopicTagSelect" />
+            :position="topicTagPosition" :top-offset="4 + botBarSpace" :bottom-offset="76"
+            :data-pos="topicTagPosition" :is-dm="isDirectMessagesChat"
+            :allow-create-topic="botAllowsCreateTopics" @select="onTopicTagSelect" />
+
+        <!-- ===== 话题侧边栏（1.8.70）=====
+             从右侧滑出，纵向覆盖整个对话页（顶栏 / 消息 / 输入区），宽度固定 300px，默认隐藏 -->
+        <Transition name="topic-sidebar">
+            <div v-if="isSidebarForum && topicSidebarOpen && chatId !== undefined" ref="topicSidebarEl"
+                class="topic-sidebar-panel absolute top-0 bottom-0 right-0 z-30 flex flex-col overflow-hidden rounded-l-2xl border-l border-black/10 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-900"
+                :style="{ width: `${TOPIC_SIDEBAR_WIDTH}px` }">
+                <div class="flex h-16 shrink-0 items-center gap-3 border-b border-black/10 px-3 dark:border-white/10">
+                    <button type="button" :aria-label="t('lng_close')" :title="t('lng_close')"
+                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-200/80 dark:text-gray-300 dark:hover:bg-white/20"
+                        @click="toggleTopicSidebar">
+                        <PanelRightClose class="h-5 w-5" />
+                    </button>
+                    <div class="h-10 w-10 shrink-0">
+                        <Avatar :photo="chat?.photo" :title="chat?.title || ''" sizeClass="!w-10 !h-10"
+                            :accentColorId="chat?.accent_color_id" />
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <p class="truncate text-base font-semibold text-gray-900 dark:text-gray-100">
+                            <GlobalEmojiText :text="chat?.title || ''" />
+                        </p>
+                        <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ topicSidebarSubtitle }}</p>
+                    </div>
+                </div>
+                <TopicTagBar :chat-id="chatId" :topic-id="topicId" variant="sidebar" position="left"
+                    :is-dm="false" :allow-create-topic="botAllowsCreateTopics" @select="onTopicTagSelect" />
+            </div>
+        </Transition>
 
         <!-- ===== 消息搜索栏（覆盖 Header） ===== -->
         <SearchBar v-if="searchActive && chatId !== undefined" :chat-id="chatId" :topic-id="topicId" :chat="chat"
@@ -765,7 +804,11 @@ import MessageSideActions from './MessageSideActions.vue';
 import ReactionPicker from './ReactionPicker.vue';
 
 import { tdlibSend } from '../../../utils/session/tdlib';
-import { resolveTopicMode } from '../../../utils/chat/topicDisplayMode';
+import {
+    resolveTopicMode,
+    TOPIC_SIDEBAR_WIDTH,
+    TOPIC_TAG_PANEL_WIDTH,
+} from '../../../utils/chat/topicDisplayMode';
 import { buildMessageTopicInput, extractTopicNumber, ensureDmTopic, resolveDmSenderName, getSenderPhoto } from '../../../utils/chat/directMessagesTopics';
 import { sendAttachments, sending, type SendAttachmentsResult } from '../../../utils/media/attachmentSend';
 import { withParsedMarkdown } from '../../../utils/message/sendText';
@@ -773,7 +816,7 @@ import { useAttachmentStore } from '../../../store/media/attachment';
 import type { AttachmentItem } from '../../../store/media/attachment';
 import { getForwardNavigationTarget } from '../../../utils/message/forwardedMessages';
 
-import { MessageCircleIcon, XIcon, CheckIcon, Pencil as PencilIcon, Sparkles as SparklesIcon, Bot as BotIcon } from 'lucide-vue-next';
+import { MessageCircleIcon, XIcon, CheckIcon, Pencil as PencilIcon, Sparkles as SparklesIcon, Bot as BotIcon, PanelRightOpen, PanelRightClose } from 'lucide-vue-next';
 import { toast } from '../../../utils/ui/toast';
 import { useRoute, useRouter } from 'vue-router';
 import { computed, watch, ref, shallowRef, markRaw, onMounted, onBeforeUnmount, onUnmounted, nextTick } from 'vue';
@@ -839,9 +882,9 @@ import {
 import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity, textEntity$Input, file as TdFile, ReactionType } from 'tdlib-types';
 import { getViewerState, closeMediaViewer, isMediaViewerActive, openMediaViewer } from '../../../store/media/mediaViewer';
 
-import { getSenderAccentColorId, getSenderProfileAccentColorId, getSenderNameParts, isDeletedChat, DELETED_ACCOUNT_LABEL, ensureUser, ensureChat, getReactiveUser, getReactiveChat } from '../../../utils/profile/senderInfo';
+import { getSenderAccentColorId, getSenderProfileAccentColorId, getSenderNameParts, isDeletedChat, DELETED_ACCOUNT_LABEL, ensureUser, ensureChat, getReactiveUser, getReactiveChat, getUserUsername } from '../../../utils/profile/senderInfo';
 import { useColors } from '../../../store/settings/colors';
-import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage, hasStatusInContent, isBubblelessMediaMessage, albumHasVisibleCaption, isFileAlbum, showChannelCommentsBar } from './composables/messageType';
+import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage, hasStatusInContent, isBubblelessMediaMessage, albumHasVisibleCaption, isFileAlbum, showChannelCommentsBar, isWidgetMessage, isFullWidthWidget } from './composables/messageType';
 import { buildDisplayItems } from './composables/messageItems';
 import { chatWindowKey, peekChatWindow, saveChatWindow } from './composables/chatWindowCache';
 import { fetchCacheGet, fetchCacheSet } from './composables/fetchCache';
@@ -1015,8 +1058,9 @@ async function refreshThreadInfo(): Promise<void> {
 /** 论坛群组（话题模式）才显示标签栏 */
 /**
  * 话题展示模式（按群自身字段判定，非全局设置）：
- * - list：view_as_topics === true → 话题在对话列表（ChatList forumMode），对话页无标签栏
- * - tag ：view_as_topics === false 的论坛群 → 对话页左侧标签栏
+ * - list：view_as_topics === true → 话题在对话列表（ChatList forumMode），对话页无面板
+ * - sidebar：has_forum_sidebar → 对话页右侧滑出的话题侧栏（300px）
+ * - tag ：view_as_topics === false 的论坛群 → 对话页左侧/顶部标签栏
  * - none：普通群组
  */
 // ==================== Overlay State ====================
@@ -1210,22 +1254,90 @@ const chat = ref<chat | undefined>(undefined);
 
 /**
  * 话题展示模式（按群自身字段判定，非全局设置）：
- * - list：view_as_topics === true → 话题在对话列表（ChatList forumMode），对话页无标签栏
- * - tag ：view_as_topics === false 的论坛群 / 频道私聊群组 → 对话页左侧标签栏
+ * - list：view_as_topics === true → 话题在对话列表（ChatList forumMode），对话页无面板
+ * - sidebar：has_forum_sidebar → 对话页右侧滑出的话题侧栏（300px，纵向覆盖）
+ * - tag ：view_as_topics === false 的论坛群 / 频道私聊群组 → 对话页标签栏
  * - none：普通群组
  */
-const topicDisplayMode = ref<'none' | 'list' | 'tag'>('none');
+const topicDisplayMode = ref<'none' | 'list' | 'tag' | 'sidebar'>('none');
 /** 频道私聊群组：话题是与各用户的私信会话，数据/发送走 messageTopicDirectMessages */
 const isDirectMessagesChat = ref(false);
+/** 机器人话题：机器人允许用户在该对话里新建话题（userTypeBot.allows_users_to_create_topics） */
+const botAllowsCreateTopics = ref(false);
+/** 话题侧边栏浮层：默认收起，点顶栏按钮从右侧滑出（仅 has_forum_sidebar 论坛） */
+const topicSidebarOpen = ref(false);
+const isSidebarForum = computed(() => topicDisplayMode.value === 'sidebar');
+/** 侧边栏浮层根节点：用于点击外部关闭 */
+const topicSidebarEl = ref<HTMLElement | null>(null);
+function toggleTopicSidebar() {
+    topicSidebarOpen.value = !topicSidebarOpen.value;
+}
+watch(chatId, () => {
+    topicSidebarOpen.value = false;
+});
+
+/** 点侧边栏以外的任何地方都收起（捕获阶段监听，避免被子元素 stopPropagation 吞掉） */
+function onTopicSidebarPointerDown(e: PointerEvent) {
+    if (!topicSidebarOpen.value) return;
+    const el = topicSidebarEl.value;
+    if (el && e.target instanceof Node && el.contains(e.target)) return;
+    topicSidebarOpen.value = false;
+}
+function onTopicSidebarKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') topicSidebarOpen.value = false;
+}
+watch(topicSidebarOpen, (open) => {
+    if (open) {
+        document.addEventListener('pointerdown', onTopicSidebarPointerDown, true);
+        document.addEventListener('keydown', onTopicSidebarKeydown, true);
+    } else {
+        document.removeEventListener('pointerdown', onTopicSidebarPointerDown, true);
+        document.removeEventListener('keydown', onTopicSidebarKeydown, true);
+    }
+});
+onUnmounted(() => {
+    document.removeEventListener('pointerdown', onTopicSidebarPointerDown, true);
+    document.removeEventListener('keydown', onTopicSidebarKeydown, true);
+});
+
+/** 侧边栏顶部副标题：群人数（频道显示订阅数），未加载出人数时回退到群/频道 */
+const topicMemberCountFormatter = new Intl.NumberFormat();
+const topicSidebarSubtitle = computed(() => {
+    const c = chat.value;
+    if (!c) return '';
+    if (c.type._ === 'chatTypeSupergroup') {
+        const count = supergroups.value[c.type.supergroup_id]?.member_count ?? 0;
+        if (count > 0) {
+            return c.type.is_channel
+                ? t('lng_chat_status_subscribers', { count: topicMemberCountFormatter.format(count) })
+                : t('lng_chat_status_members', { count: topicMemberCountFormatter.format(count) });
+        }
+        return c.type.is_channel ? t('lng_notification_channels') : t('header.supergroup');
+    }
+    if (c.type._ === 'chatTypeBasicGroup') {
+        const count = basicGroups.value[c.type.basic_group_id]?.member_count ?? 0;
+        return count > 0
+            ? t('lng_chat_status_members', { count: topicMemberCountFormatter.format(count) })
+            : t('lng_notification_groups');
+    }
+    // 机器人话题侧栏：副标题用 @用户名（无用户名时留空）
+    if (c.type._ === 'chatTypePrivate') {
+        const username = getUserUsername(c.type.user_id);
+        return username ? `@${username}` : '';
+    }
+    return '';
+});
 watch(chat, async (c) => {
     // 切换话题时 chat 会短暂清空再填充；空档不要清成 none，否则标签栏 v-if 闪断重挂
     if (!c) return;
     const modeInfo = await resolveTopicMode(c);
     topicDisplayMode.value = modeInfo.mode;
     isDirectMessagesChat.value = modeInfo.isDirectMessages;
+    botAllowsCreateTopics.value = !!modeInfo.botAllowsCreateTopics;
+    if (modeInfo.mode !== 'sidebar') topicSidebarOpen.value = false;
 }, { immediate: true });
 
-/** 对话页话题标签栏：仅 tag 栏话题模式显示 */
+/** 对话页话题标签栏：仅 tag 模式显示（侧边栏是独立浮动面板） */
 const showTopicPanel = computed(() =>
     topicDisplayMode.value === 'tag' && chatId.value !== undefined
 );
@@ -1332,17 +1444,15 @@ watch(inputAreaRef, (el, _old, onCleanup) => {
 }, { flush: 'post' });
 /** 位置切换窗口：Header / 置顶栈 / 输入条做 padding/top 过渡 */
 const topicLayoutAnim = ref(false);
-/** 左侧标签栏宽度（图片样式窄栏 72px）；top/bottom 不占侧边 */
-const TOPIC_PANEL_WIDTH = 72;
 const tagBarSideInsetStyle = computed<Record<string, string>>(() => {
     // 始终写明确数值（0px / 72px），避免删属性导致 CSS 过渡失效、整页跳动
     const left = showTopicPanel.value && topicTagPosition.value === 'left';
-    return { paddingLeft: left ? `${TOPIC_PANEL_WIDTH}px` : '0px' };
+    return { paddingLeft: left ? `${TOPIC_TAG_PANEL_WIDTH}px` : '0px' };
 });
 const tagBarMessagePadStyle = computed<Record<string, string>>(() => {
     const left = showTopicPanel.value && topicTagPosition.value === 'left';
     return {
-        paddingLeft: left ? `${TOPIC_PANEL_WIDTH + 16}px` : '16px',
+        paddingLeft: left ? `${TOPIC_TAG_PANEL_WIDTH + 16}px` : '16px',
         paddingRight: '16px',
     };
 });
@@ -1352,7 +1462,8 @@ const topicTagTopSpace = computed(() =>
 );
 
 function onTopicTagSelect(_topicId: number | null) {
-    // 路由由 TopicTagBar 内部 push
+    // 选中话题后收起侧边栏，直接看到该话题（路由由 TopicTagBar 内部 push）
+    topicSidebarOpen.value = false;
 }
 
 const {
@@ -7353,5 +7464,17 @@ async function handleScrollToBottom() {
 .msg-list-item.msg-leaving > * {
     min-height: 0;
     overflow: hidden;
+}
+
+/* 话题侧边栏浮层：从右侧滑入 / 滑出 */
+.topic-sidebar-enter-active,
+.topic-sidebar-leave-active {
+    transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.22s ease;
+}
+
+.topic-sidebar-enter-from,
+.topic-sidebar-leave-to {
+    transform: translateX(110%);
+    opacity: 0;
 }
 </style>

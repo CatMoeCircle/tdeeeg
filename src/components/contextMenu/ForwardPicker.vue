@@ -318,7 +318,7 @@ function topicNameInitial(name: string): string {
 
 /** 该对话是否需要先选话题（论坛 / 频道私信 / tag 型话题） */
 async function resolveTopicKind(c: chat): Promise<'none' | 'forum' | 'dm'> {
-    if (c.type?._ !== 'chatTypeSupergroup') return 'none';
+    // 论坛群 / 频道私信 / 机器人话题（私聊 + userTypeBot.has_topics）都走此判定
     try {
         const info = await resolveTopicMode(c);
         if (info.mode === 'none') return 'none';

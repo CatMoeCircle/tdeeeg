@@ -1,13 +1,49 @@
 <template>
-    <!-- 话题标签栏（tag 栏话题模式）
-         - left ：图片样式窄栏 72px（ForumTopicVerticalCell）
-         - top  ：悬浮分组栏（Header 与置顶栏之间）
-         - bottom：悬浮分组栏（输入条上方）
+    <!-- 话题面板（论坛群组）
+         - sidebar：1.8.70 侧边栏浮层的内容区（图标/头像 + 名称 + 未读数），尺寸由外层容器决定
+         - tag left：图片样式窄栏 72px（ForumTopicVerticalCell）
+         - tag top/bottom：悬浮分组栏（Header 与置顶栏之间 / 输入条上方）
          列表话题模式不使用本组件（话题在对话列表中展示）。 -->
     <div :class="[rootClass, animClass]" :style="rootStyle" :data-pos="position" data-topic-tag-bar
         @animationend="onAnimEnd">
-        <!-- 分组栏样式（top / bottom）：通用 tag 栏（SlidingTabBar + folderStyle） -->
-        <template v-if="position !== 'left'">
+        <!-- 侧边栏（1.8.70）：话题项复用对话列表的展开排版（方形头像 + 标题/时间 + 发送人/预览 + 未读） -->
+        <div v-if="variant === 'sidebar'"
+            class="h-full overflow-y-auto custom-scrollbar py-2 px-2 flex flex-col gap-0.5" v-smooth-wheel>
+            <template v-for="entry in entries" :key="entry.key">
+                <ForumTopicItem v-if="entry.topic" :topic="entry.topic" :active="entry.active" :chat-id="chatId"
+                    @select="entry.onClick" />
+                <button v-else type="button"
+                    class="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition-colors select-none"
+                    :class="entry.active
+                        ? 'bg-white/85 dark:bg-gray-800/85 shadow-sm'
+                        : 'hover:bg-white/60 dark:hover:bg-gray-800/60'"
+                    :title="entry.title" @click="entry.onClick">
+                    <div class="relative w-9 h-9 shrink-0 flex items-center justify-center">
+                        <div v-if="entry.kind === 'all'"
+                            class="w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 dark:text-gray-300 bg-gray-100 dark:bg-gray-800">
+                            <MessageCircleIcon class="w-4.5 h-4.5" />
+                        </div>
+                        <div v-else-if="entry.kind === 'create'"
+                            class="w-9 h-9 rounded-xl flex items-center justify-center text-blue-500 bg-blue-500/10">
+                            <PlusIcon class="w-4.5 h-4.5" />
+                        </div>
+                        <Avatar v-else :photo="entry.photo" :title="entry.label" :first-name="entry.firstName"
+                            :last-name="entry.lastName" :deletedAccount="!!entry.deleted" sizeClass="!w-9 !h-9"
+                            class="shrink-0" />
+                    </div>
+                    <span class="min-w-0 flex-1 truncate text-sm text-gray-900 dark:text-gray-100">
+                        {{ entry.label }}
+                    </span>
+                    <span v-if="entry.unread > 0"
+                        class="shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-blue-500 text-white text-[10px] font-bold leading-5 text-center">
+                        {{ formatUnreadCount(entry.unread) }}
+                    </span>
+                </button>
+            </template>
+        </div>
+
+        <template v-else-if="position !== 'left'">
+            <!-- 分组栏样式（top / bottom）：通用 tag 栏（SlidingTabBar + folderStyle） -->
             <div class="pointer-events-auto w-full flex justify-center">
                 <SlidingTabBar :tabs="slidingTabs" :active-id="activeTabId" :variant="folderStyle"
                     :tab-class="topicTabClass" :container-class="topicTabContainerClass"
@@ -15,6 +51,9 @@
                     <template #default="{ tab, active }">
                         <span v-if="tab.kind === 'all'" class="shrink-0">
                             <MessageCircleIcon class="w-3.5 h-3.5" />
+                        </span>
+                        <span v-else-if="tab.kind === 'create'" class="shrink-0">
+                            <PlusIcon class="w-3.5 h-3.5" />
                         </span>
                         <!-- 频道私信：对方小头像（已注销显示幽灵） -->
                         <Avatar v-else-if="tab.photo !== undefined || tab.deleted || props.isDm" :photo="tab.photo"
@@ -58,6 +97,10 @@
                             class="w-11 h-11 rounded-xl flex items-center justify-center text-gray-500 dark:text-gray-300 bg-gray-100 dark:bg-gray-800">
                             <MessageCircleIcon class="w-5 h-5" />
                         </div>
+                        <div v-else-if="entry.kind === 'create'"
+                            class="w-11 h-11 rounded-xl flex items-center justify-center text-blue-500 bg-blue-500/10">
+                            <PlusIcon class="w-6 h-6" />
+                        </div>
                         <!-- 频道私信：对方头像（已注销显示幽灵） -->
                         <Avatar v-else-if="entry.photo !== undefined || entry.deleted || props.isDm"
                             :photo="entry.photo" :title="entry.label" :first-name="entry.firstName"
@@ -85,6 +128,10 @@
                 </button>
             </div>
         </template>
+
+        <!-- 机器人话题：允许用户建话题时（userTypeBot.allows_users_to_create_topics）新建 -->
+        <CreateTopicDialog v-if="allowCreateTopic" v-model="createOpen" :chat-id="chatId"
+            @created="onTopicCreated" />
     </div>
 </template>
 
@@ -92,15 +139,18 @@
 import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { MessageCircleIcon } from 'lucide-vue-next';
-import type { forumTopic, forumTopics, chatPhotoInfo, profilePhoto } from 'tdlib-types';
+import { MessageCircleIcon, PlusIcon } from 'lucide-vue-next';
+import type { forumTopic, forumTopicInfo, forumTopics, chatPhotoInfo, profilePhoto } from 'tdlib-types';
 import { tdlibSend } from '../../../utils/session/tdlib';
 import CustomEmojiInline from '../../common/CustomEmojiInline.vue';
+import ForumTopicItem from '../ForumTopicItem.vue';
+import CreateTopicDialog from './CreateTopicDialog.vue';
 import SlidingTabBar from '../../ui/tabs/SlidingTabBar.vue';
 import Avatar from '../avatar.vue';
 import { folderTabClass, folderTabContainerClass, type FolderStyle } from '../../../utils/ui/folderPillsTabClass';
 import { getSenderNameParts } from '../../../utils/profile/senderInfo';
 import { settings } from '../../../store/settings/settings';
+import { TOPIC_TAG_PANEL_WIDTH } from '../../../utils/chat/topicDisplayMode';
 import {
     loadDmTopics,
     watchDmTopics,
@@ -113,7 +163,9 @@ export type TopicTagPosition = 'left' | 'top' | 'bottom';
 const props = withDefaults(defineProps<{
     chatId: number;
     topicId?: number | null;
-    /** 标签栏位置 */
+    /** 展示形态：tag=标签栏（left/top/bottom），sidebar=右侧侧栏内容区（TDLib 1.8.70） */
+    variant?: 'tag' | 'sidebar';
+    /** 标签栏位置（sidebar 由外层容器定位，忽略该值） */
     position?: TopicTagPosition;
     /** top 模式相对 Header 底边的偏移 */
     topOffset?: number;
@@ -121,12 +173,16 @@ const props = withDefaults(defineProps<{
     bottomOffset?: number;
     /** 频道私聊群组：话题是与各用户的私信会话 */
     isDm?: boolean;
+    /** 是否展示「新建话题」入口（机器人话题 + allows_users_to_create_topics） */
+    allowCreateTopic?: boolean;
 }>(), {
     topicId: null,
+    variant: 'tag',
     position: 'left',
     topOffset: 4,
     bottomOffset: 76,
     isDm: false,
+    allowCreateTopic: false,
 });
 
 const emit = defineEmits<{
@@ -144,8 +200,14 @@ const { t } = useI18n();
 // 同步读缓存：位置切换重挂载时首帧就有数据，不会闪空
 const topics = ref<forumTopic[]>(topicsCache.get(props.chatId) ?? []);
 const dmEntries = ref<DmTopicEntry[]>(dmEntriesCache.get(props.chatId) ?? []);
+/** 新建话题对话框（仅机器人话题 + 允许用户创建时可用） */
+const createOpen = ref(false);
 
 const rootClass = computed(() => {
+    if (props.variant === 'sidebar') {
+        // 侧边栏内容：外层浮动面板负责定位/底色/圆角，这里只负责撑满并滚动
+        return 'flex min-h-0 w-full flex-1 flex-col overflow-hidden';
+    }
     if (props.position === 'left') {
         return 'absolute top-0 bottom-0 left-0 z-10 w-[72px] flex flex-col overflow-hidden';
     }
@@ -170,7 +232,10 @@ function onAnimEnd() {
 const rootStyle = computed<Record<string, string>>(() => {
     // 始终写明确数值，避免删属性导致过渡跳动
     const style: Record<string, string> = {};
-    if (props.position === 'top') {
+    if (props.variant === 'sidebar') {
+        // 浮动面板自己决定尺寸；这里不写定位，避免和外层 absolute 打架
+        return style;
+    } else if (props.position === 'top') {
         style.top = `${64 + props.topOffset}px`;
         style.bottom = 'auto';
         style.left = '0px';
@@ -191,7 +256,7 @@ const rootStyle = computed<Record<string, string>>(() => {
         style.left = '0px';
         style.right = 'auto';
         style.height = 'auto';
-        style.width = '72px';
+        style.width = `${TOPIC_TAG_PANEL_WIDTH}px`;
     }
     return style;
 });
@@ -225,7 +290,9 @@ function formatUnreadCount(count: number): string {
 
 interface TagEntry {
     key: string;
-    kind: 'all' | 'general' | 'topic';
+    kind: 'all' | 'general' | 'topic' | 'create';
+    /** 论坛话题原文（侧边栏用它渲染话题头像） */
+    topic?: forumTopic;
     label: string;
     title: string;
     color: string;
@@ -299,6 +366,7 @@ const entries = computed<TagEntry[]>(() => {
         list.push({
             key: String(topic.info.forum_topic_id),
             kind: isGeneral ? 'general' : 'topic',
+            topic,
             label: topic.info.name,
             title: topic.info.name,
             color: topicIconColor(topic.info.icon.color),
@@ -307,6 +375,20 @@ const entries = computed<TagEntry[]>(() => {
             unread: topic.unread_count || 0,
             active: props.topicId === topic.info.forum_topic_id,
             onClick: () => selectTopic(topic.info.forum_topic_id),
+        });
+    }
+    if (props.allowCreateTopic) {
+        list.push({
+            key: '__create__',
+            kind: 'create',
+            label: t('lng_forum_create_topic'),
+            title: t('lng_forum_create_topic'),
+            color: '',
+            initial: '',
+            customEmojiId: '',
+            unread: 0,
+            active: false,
+            onClick: () => { createOpen.value = true; },
         });
     }
     return list;
@@ -401,6 +483,14 @@ async function loadTopics() {
             emit('loaded', 0);
         }
     }
+}
+
+/** 新建话题成功：刷新列表并进入该话题 */
+async function onTopicCreated(info: forumTopicInfo) {
+    if (!props.chatId) return;
+    topicsCache.delete(props.chatId);
+    await loadTopics();
+    if (info?.forum_topic_id) selectTopic(info.forum_topic_id);
 }
 
 /** 刷新私信会话列表（含发送者名称） */

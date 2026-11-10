@@ -30,21 +30,14 @@
             <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
           </div>
           <div class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
-            <button type="button" class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5"
-              @click="useTabs = true">
+            <button v-for="option in layoutOptions" :key="option.value" type="button"
+              class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5"
+              @click="selectLayout(option.value)">
               <span class="w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center"
-                :class="useTabs ? 'border-blue-500' : 'border-gray-300 dark:border-gray-600'">
-                <span v-if="useTabs" class="w-2 h-2 rounded-full bg-blue-500"></span>
+                :class="layout === option.value ? 'border-blue-500' : 'border-gray-300 dark:border-gray-600'">
+                <span v-if="layout === option.value" class="w-2 h-2 rounded-full bg-blue-500"></span>
               </span>
-              <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lng_edit_topics_tabs') }}</p>
-            </button>
-            <button type="button" class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5"
-              @click="useTabs = false">
-              <span class="w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center"
-                :class="!useTabs ? 'border-blue-500' : 'border-gray-300 dark:border-gray-600'">
-                <span v-if="!useTabs" class="w-2 h-2 rounded-full bg-blue-500"></span>
-              </span>
-              <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lng_edit_topics_list') }}</p>
+              <p class="text-sm text-gray-800 dark:text-gray-100">{{ option.label }}</p>
             </button>
           </div>
           <p class="text-xs text-gray-400 mt-2">{{ t('lng_edit_topics_layout_about') }}</p>
@@ -63,6 +56,7 @@ import { toast } from '../../utils/ui/toast';
 import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
 import { tdlibSend } from '../../utils/session/tdlib';
 import { loadMyChatMemberStatus } from '../../utils/chat/groupRights';
+import { clearTopicDisplayModeCache } from '../../utils/chat/topicDisplayMode';
 import type { chat, supergroup } from 'tdlib-types';
 import BaseButton from '../../components/ui/button/BaseButton.vue';
 
@@ -75,8 +69,30 @@ const hasChatId = computed(() => Number.isFinite(chatId.value) && chatId.value !
 const chat = ref<chat | undefined>();
 const group = ref<supergroup | undefined>();
 const enabled = ref(false);
-const useTabs = ref(true);
 const saving = ref(false);
+
+/** 话题布局：标签页 / 侧边栏 / 对话列表（侧边栏为 TDLib 1.8.70 新增） */
+type TopicLayout = 'tabs' | 'sidebar' | 'list';
+const layout = ref<TopicLayout>('tabs');
+
+const layoutOptions = computed<Array<{ value: TopicLayout; label: string }>>(() => [
+  { value: 'tabs', label: t('lng_edit_topics_tabs') },
+  // 官方语言包暂无 sidebar 词条，用应用自有文案兜底
+  { value: 'sidebar', label: t('groupEdit.topicsSidebar') },
+  { value: 'list', label: t('lng_edit_topics_list') },
+]);
+
+function selectLayout(value: TopicLayout) {
+  layout.value = value;
+}
+
+/** supergroup → 布局：侧边栏优先于标签页；两者都没有时是「对话列表」 */
+function layoutOf(sg: supergroup | undefined): TopicLayout {
+  if (!sg?.is_forum) return 'tabs';
+  if (sg.has_forum_sidebar) return 'sidebar';
+  if (sg.has_forum_tabs) return 'tabs';
+  return 'list';
+}
 
 function goBack() {
   router.back();
@@ -87,6 +103,7 @@ async function reload() {
   chat.value = c;
   group.value = sg;
   enabled.value = !!sg?.is_forum;
+  layout.value = layoutOf(sg);
 }
 
 async function save() {
@@ -110,8 +127,11 @@ async function save() {
       _: 'toggleSupergroupIsForum',
       supergroup_id: target.type.supergroup_id,
       is_forum: enabled.value,
-      has_forum_tabs: useTabs.value,
+      has_forum_tabs: enabled.value && layout.value === 'tabs',
+      has_forum_sidebar: enabled.value && layout.value === 'sidebar',
     });
+    // 布局变化后清掉展示模式缓存，返回聊天页时重新判定
+    clearTopicDisplayModeCache(chatId.value);
     toast.success(t('lng_settings_save'));
     await reload();
   } catch (e: any) {

@@ -356,67 +356,10 @@
                                 <p class="text-sm">暂无话题</p>
                             </div>
                             <div v-else class="py-1">
-                                <button v-for="topic in forumTopics" :key="topic.info.forum_topic_id" type="button"
-                                    @click="selectTopic(topic.info.forum_topic_id)"
-                                    class="w-full px-3 py-2.5 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors text-left"
-                                    style="content-visibility: auto; contain-intrinsic-size: 68px">
-                                    <!-- 第一排：图标(头像)与标题同一排内联 + 时间；
-                                         图标：General 用带主题色的 #，有自定义 emoji 用透明 emoji(无背景)，否则首字母小方块 -->
-                                    <div class="flex justify-between items-baseline mb-0.5">
-                                        <h3 class="flex items-center gap-1.5 min-w-0 text-sm font-medium text-gray-900 dark:text-gray-100">
-                                            <template v-if="topic.info.is_general">
-                                                <span class="text-base font-bold leading-none shrink-0"
-                                                    :style="{ color: topicIconColor(topic.info.icon.color) }">#</span>
-                                            </template>
-                                            <CustomEmojiInline v-else-if="topicIconCustomEmojiId(topic)"
-                                                :emojiId="topicIconCustomEmojiId(topic)" :size="16" class="shrink-0" />
-                                            <span v-else
-                                                class="w-5 h-5 rounded shrink-0 inline-flex items-center justify-center text-white text-[11px] font-bold"
-                                                :style="{ backgroundColor: topicIconColor(topic.info.icon.color) }">{{
-                                                    topicNameInitial(topic.info.name) }}</span>
-                                            <span class="min-w-0 truncate">
-                                                <GlobalEmojiText :text="topic.info.name" />
-                                            </span>
-                                            <span v-if="topic.info.is_closed"
-                                                class="text-xs text-gray-400 ml-0.5 shrink-0">[已关闭]</span>
-                                        </h3>
-                                        <span class="text-xs text-gray-400 ml-1 shrink-0">{{
-                                            formatTime(topic.last_message?.date)
-                                        }}</span>
-                                    </div>
-                                    <!-- 第二排：发送人（迷你头像）+ 消息，复用对话列表的发送人标记 -->
-                                    <div class="flex items-center gap-2">
-                                        <div class="flex-1 min-w-0 flex items-center gap-1.5">
-                                            <template v-if="topicSender(topic)">
-                                                <Avatar
-                                                    v-if="settings.chatList.showSenderMiniAvatar && topicMiniAvatar(topic)"
-                                                    :photo="topicMiniAvatar(topic)" :title="topicSender(topic)"
-                                                    :first-name="getSenderNameParts(topic.last_message?.sender_id).first"
-                                                    :last-name="getSenderNameParts(topic.last_message?.sender_id).last"
-                                                    sizeClass="!w-4 !h-4" :radius="avatarRadius" class="shrink-0" />
-                                                <span class="shrink-0 text-xs text-gray-400">
-                                                    <GlobalEmojiText :text="topicSender(topic)" />：
-                                                </span>
-                                            </template>
-                                            <MessagePreviewMedia v-if="isMediaPreviewMsg(topic.last_message)"
-                                                :message="topic.last_message" :chat-id="forumChatId ?? undefined" />
-                                            <p v-if="previewCaption(topic.last_message, forumChatId ?? undefined)"
-                                                class="min-w-0 truncate text-xs text-gray-500">
-                                                <FormattedTextInline :formattedText="previewCaption(topic.last_message, forumChatId ?? undefined)!"
-                                                    :size="14" />
-                                            </p>
-                                            <p v-else-if="!isMediaPreviewMsg(topic.last_message)"
-                                                class="min-w-0 truncate text-xs text-gray-500">
-                                                <FormattedTextInline :formattedText="getTopicPreview(topic)"
-                                                    :size="14" />
-                                            </p>
-                                        </div>
-                                        <span v-if="topic.unread_count > 0"
-                                            class="shrink-0 min-w-4.5 h-4.5 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold leading-4.5 text-center">
-                                            {{ formatUnreadCount(topic.unread_count) }}
-                                        </span>
-                                    </div>
-                                </button>
+                                <ForumTopicItem v-for="topic in forumTopics" :key="topic.info.forum_topic_id"
+                                    :topic="topic" :chat-id="forumChatId ?? undefined"
+                                    style="content-visibility: auto; contain-intrinsic-size: 68px"
+                                    @select="selectTopic" />
                             </div>
                         </div>
                     </div>
@@ -502,6 +445,7 @@ import { showCopyJsonInMenus } from '../../store/settings/debug';
 import { copyTdlibJson } from '../contextMenu/copyJsonActions';
 import { isSavedMessagesChat, SAVED_MESSAGES_TITLE } from '../../utils/chat/savedMessages';
 import Avatar from './avatar.vue';
+import ForumTopicItem from './ForumTopicItem.vue';
 import StoryRing from '../story/StoryRing.vue';
 import StoryOverflowStrip from '../story/StoryOverflowStrip.vue';
 import type { message, forumTopic, forumTopics, formattedText, chatFolderInfo } from 'tdlib-types';
@@ -1337,11 +1281,23 @@ const avatarRadius = computed(() => settings.chatList.avatarCornerRadius);
 /** 话题模式群组头像未跟随全局圆角时的正方形小圆角角度（25% border-radius） */
 const FORUM_SQUARE_RADIUS = 50;
 /**
+ * 是否为论坛群组（list / tabs / sidebar 三种话题布局都算）：
+ * - list 模式看 chat.view_as_topics；
+ * - tabs / sidebar 模式看 supergroup.is_forum（响应式缓存，ensureSupergroup 拉取后自动重绘）。
+ */
+const isForumGroup = (chat: Chat): boolean => {
+    const t = chat.type;
+    if (t?._ !== 'chatTypeSupergroup') return false;
+    if ((chat as any).view_as_topics === true) return true;
+    return getReactiveSupergroup(t.supergroup_id)?.is_forum === true;
+};
+
+/**
  * 聊天列表中对话头像的圆角：
  * 话题模式群组且未开启"跟随圆角"时，按正方形+较小圆角显示；其余情况使用全局圆角
  */
 const chatAvatarRadius = (chat: Chat) =>
-    isForumChat(chat) && settings.chatList.forumAvatarFollowsRadius === false
+    isForumGroup(chat) && settings.chatList.forumAvatarFollowsRadius === false
         ? FORUM_SQUARE_RADIUS
         : avatarRadius.value;
 
@@ -1746,84 +1702,6 @@ function onListWheel(e: WheelEvent, tabId: string) {
 }
 
 // ---- Forum Topic Helpers ----
-const topicIconColors: Record<number, string> = {
-    0x6FB9F0: '#6FB9F0',
-    0xFFD67E: '#FFD67E',
-    0xCB86DB: '#CB86DB',
-    0x8EEE98: '#8EEE98',
-    0xFF93B2: '#FF93B2',
-    0xFB6F5F: '#FB6F5F',
-};
-
-function topicIconColor(color: number): string {
-    return topicIconColors[color] || '#6FB9F0';
-}
-
-function topicNameInitial(name: string): string {
-    return name.substring(0, 1).toUpperCase() || '#';
-}
-
-/** 话题图标自定义 emoji ID（无则返回空字符串；General 话题忽略） */
-function topicIconCustomEmojiId(topic: forumTopic): string {
-    if (topic.info.is_general) return '';
-    const id = topic.info.icon.custom_emoji_id;
-    return id && id !== '0' ? String(id) : '';
-}
-
-/** 话题最后消息发送者名称 */
-const topicSender = (topic: forumTopic) => getSenderName(topic.last_message?.sender_id);
-
-/** 话题最后消息发送者迷你头像 */
-const topicMiniAvatar = (topic: forumTopic) => getSenderPhoto(topic.last_message?.sender_id);
-
-function getTopicPreview(topic: forumTopic): formattedText {
-    const msg = topic.last_message;
-    if (!msg) return EMPTY_TEXT;
-
-    const content = msg.content;
-    if (!content) return EMPTY_TEXT;
-
-    if (content._ === 'messageText') {
-        return content.text;
-    }
-    // 图片/视频改为缩略图预览（MessagePreviewMedia 渲染），此处不再生成本文
-    if (content._ === 'messagePhoto' || content._ === 'messageVideo') {
-        return EMPTY_TEXT;
-    }
-    if (content._ === 'messageAnimation') {
-        return content.caption?.text ? content.caption : plainText(bracketTypePreview(messageContentTypeLabel('messageAnimation')));
-    }
-    if (content._ === 'messageDocument') {
-        return content.caption?.text
-            ? content.caption
-            : plainText(bracketTypePreview(messageContentTypeLabel('messageDocument'), content.document.file_name));
-    }
-    if (content._ === 'messageSticker') {
-        return plainText(stickerBracketPreview(content.sticker.emoji));
-    }
-    if (content._ === 'messageVoiceNote') {
-        return plainText(bracketTypePreview(messageContentTypeLabel('messageVoiceNote')));
-    }
-    if (content._ === 'messageAudio') {
-        return content.caption?.text
-            ? content.caption
-            : plainText(`🎵 ${content.audio.title || content.audio.file_name}`.trim());
-    }
-    if (content._ === 'messageVideoNote') {
-        return plainText(bracketTypePreview(messageContentTypeLabel('messageVideoNote')));
-    }
-    if (content._ === 'messageStory') {
-        return plainText(bracketTypePreview(messageContentTypeLabel('messageStory')));
-    }
-    if (content._ === 'messagePollOptionAdded' || content._ === 'messagePollOptionDeleted') {
-        const action = pollOptionPreviewText(
-            content._ === 'messagePollOptionAdded' ? 'added' : 'deleted',
-            content.text.text,
-        );
-        return plainText(bracketTypePreview(messageContentTypeLabel('messagePoll'), action));
-    }
-    return plainText(bracketTypePreview(messageContentTypeLabel('')));
-}
 </script>
 
 <style scoped>
