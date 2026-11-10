@@ -47,7 +47,8 @@
 
             <AttachmentMenu ref="attachmentMenuRef" :chat="chat" :users="users" :supergroups="supergroups"
                 :basic-groups="basicGroups" :my-id="myId" :member-status="memberStatus" :is-premium="isPremium"
-                :is-premium-available="isPremiumAvailable" @attach-photo="emit('attachPhoto')"
+                :is-premium-available="isPremiumAvailable" :editing="!!editTarget"
+                @attach-photo="emit('attachPhoto')"
                 @attach-file="emit('attachFile')" @attach-music="emit('attachMusic')"
                 @attach-checklist="emit('attachChecklist')" @attach-poll="emit('attachPoll')"
                 @attach-contact="emit('attachContact')" @attach-location="emit('attachLocation')" />

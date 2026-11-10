@@ -1706,6 +1706,15 @@
     "remove": "Remove attachment",
     "chooseCover": "Choose cover image"
   },
+  "location": {
+    "myLocation": "My Location",
+    "myLocationFailed": "Can't get your current location. Drag the map to choose a point."
+  },
+  "poll": {
+    "optionGalleryOnly": "Only photos and videos can be attached here",
+    "optionAudioOnly": "Only audio files can be attached here",
+    "reorder": "Reorder"
+  },
   "user": {
     "callsNotSupported": "Calls are not supported yet",
     "joinFailed": "Failed to join",

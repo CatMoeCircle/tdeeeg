@@ -50,9 +50,12 @@
                     :style="{ width: progressPct + '%' }" />
             </div>
             <div class="mt-1.5 text-[11px] leading-none text-gray-400 dark:text-gray-500">
-                <span>{{ doneCount }}/{{ totalCount }}</span>
+                <span>{{ completedText }}</span>
             </div>
         </div>
+
+        <!-- 回应（由 MessageContent 默认插槽传入）：跟在清单卡片内容下方 -->
+        <slot />
     </div>
 </template>
 
@@ -60,7 +63,7 @@
 import { computed, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useI18n } from 'vue-i18n';
-import type { checklistTask, formattedText, messageChecklist, textEntity } from 'tdlib-types';
+import type { checklistTask, formattedText, message, messageChecklist, textEntity } from 'tdlib-types';
 import { toast } from '../../../../../utils/ui/toast';
 import { CheckIcon, ListIcon } from 'lucide-vue-next';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
@@ -77,6 +80,8 @@ const props = defineProps<{
     content: messageChecklist;
     chatId?: number;
     messageId?: number;
+    /** 完整消息（转发消息不能勾选任务，用于给出对应提示） */
+    message?: message;
     /** 是否为当前用户发送（影响完成态文字配色） */
     isSelf?: boolean;
 }>();
@@ -87,6 +92,16 @@ const doneCount = computed(() => list.value.tasks.filter(t => isTaskDone(t)).len
 const progressPct = computed(() => {
     if (totalCount.value === 0) return 0;
     return Math.round((doneCount.value / totalCount.value) * 100);
+});
+
+/** 官方文案：0 项完成时用 completed_none，其余按数量选复数（{count} of {total} completed） */
+const completedText = computed(() => {
+    if (totalCount.value === 0) return '';
+    const count = doneCount.value;
+    const total = totalCount.value;
+    return count === 0
+        ? t('lng_todo_completed_none', { total })
+        : t('lng_todo_completed', { count, total });
 });
 
 /** 当前用户是否有权限勾选任务（受 Premium 限制，见 TDLib checklist.can_mark_tasks_as_done） */
@@ -174,7 +189,12 @@ watch(
 );
 
 async function onToggleTask(task: checklistTask) {
-    if (!canMarkDone.value || pendingTasks.value.has(task.id)) return;
+    if (pendingTasks.value.has(task.id)) return;
+    // 转发来的清单不允许勾选：官方提示「不能修改转发的清单」
+    if (!canMarkDone.value) {
+        if (props.message?.forward_info) toast.warning(t('lng_todo_mark_forwarded'));
+        return;
+    }
     // 勾选任务需要 Telegram Premium：直接给官方提示，不发注定被拒的请求
     if (!isPremium.value) {
         toast.warning(t('lng_todo_mark_premium', { link: t('lng_todo_premium_link') }));

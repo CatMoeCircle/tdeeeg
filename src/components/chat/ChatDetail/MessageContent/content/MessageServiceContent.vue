@@ -396,17 +396,21 @@ watch(
     { immediate: true },
 );
 
-/** 是否为“投票选项被添加/删除”的服务消息；关联的投票消息 id >0 时可点击跳转 */
-const pollMessageId = computed(() => {
+/**
+ * 关联消息 id：投票选项增删 → 原投票消息；清单勾选 / 新增任务 → 原清单消息。
+ * id > 0 时点击服务消息可跳转到原消息。
+ */
+const relatedMessageId = computed(() => {
     const c = props.content;
     if (c._ === 'messagePollOptionAdded' || c._ === 'messagePollOptionDeleted') return c.poll_message_id;
+    if (c._ === 'messageChecklistTasksDone' || c._ === 'messageChecklistTasksAdded') return c.checklist_message_id;
     return 0;
 });
 
-const clickable = computed(() => pollMessageId.value > 0);
+const clickable = computed(() => relatedMessageId.value > 0);
 
 function onClick() {
-    if (clickable.value) emit('jump', pollMessageId.value);
+    if (clickable.value) emit('jump', relatedMessageId.value);
 }
 
 /**

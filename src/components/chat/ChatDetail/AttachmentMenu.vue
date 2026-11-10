@@ -22,7 +22,10 @@
                                 <span class="text-[13px] font-medium text-gray-800 dark:text-gray-100">
                                     {{ item.label }}
                                 </span>
-                                <span v-if="item.hint"
+                                <!-- Premium 专属项：锁形标记 + tooltip，点击时再给出订阅提示 -->
+                                <span v-if="item.locked" class="tgico tgico-premium-lock text-[13px] leading-none text-gray-400 dark:text-gray-500 shrink-0"
+                                    :title="t('lng_premium')" />
+                                <span v-else-if="item.hint"
                                     class="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap">
                                     {{ item.hint }}
                                 </span>
@@ -42,7 +45,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import type { chat, ChatMemberStatus, user } from 'tdlib-types';
 import { toast } from '../../../utils/ui/toast';
 import {
-    BarChart2Icon, FileIcon, ImageIcon, ListIcon, MusicIcon, PaperclipIcon, UserIcon,
+    BarChart2Icon, FileIcon, ImageIcon, ListIcon, MapPinIcon, MusicIcon, PaperclipIcon, UserIcon,
 } from 'lucide-vue-next';
 import { open } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
@@ -79,6 +82,8 @@ const props = defineProps<{
     memberStatus?: ChatMemberStatus;
     isPremium?: boolean;
     isPremiumAvailable?: boolean;
+    /** 正在编辑消息：只能更换媒体 / 改描述，名片与位置这类独立消息不提供 */
+    editing?: boolean;
 }>();
 
 const emit = defineEmits([
@@ -215,10 +220,20 @@ interface AttachItem {
     key: AttachAction;
     label: string;
     hint?: string;
+    /** 需要 Premium 才能使用的项：显示锁形标记（仍可点击，由点击处理给出提示） */
+    locked?: boolean;
     icon: unknown;
     hidden: boolean;
 }
 
+/**
+ * 附件项显示规则（与 permissions.ts 保持一致）：
+ * - 聊天类型 / 群权限不允许：直接不渲染（官方同样是隐藏，不做灰置）；
+ * - 清单：非 Premium 但仍可订阅时保留入口，右侧显示锁形标记，点击给出订阅提示；
+ *   完全不可订阅 Premium 时 permissions 会返回 false，整项隐藏；
+ * - 编辑消息：投票 / 清单 / 联系人 / 位置都不渲染，只能更换媒体或改描述；
+ * - 位置与名片同受 can_send_basic_messages 控制，密聊与频道（有发言权时）均可用。
+ */
 const attachItems = computed<AttachItem[]>(() => [
     {
         key: 'photo',
@@ -241,21 +256,29 @@ const attachItems = computed<AttachItem[]>(() => [
     {
         key: 'checklist',
         label: t('lng_in_dlg_todo_list'),
-        hint: isPremium.value ? undefined : t('lng_premium'),
+        locked: !isPremium.value,
         icon: ListIcon,
-        hidden: !checklistRights.value,
+        // 编辑消息只能换媒体 / 改描述，清单属于独立新消息
+        hidden: !checklistRights.value || !!props.editing,
     },
     {
         key: 'poll',
         label: t('lng_in_dlg_poll'),
         icon: BarChart2Icon,
-        hidden: !pollRights.value,
+        hidden: !pollRights.value || !!props.editing,
     },
     {
         key: 'contact',
-        label: t('lng_contacts_header'),
+        label: t('lng_in_dlg_contact'),
         icon: UserIcon,
-        hidden: !messageRights.value,
+        hidden: !messageRights.value || !!props.editing,
+    },
+    {
+        key: 'location',
+        label: t('lng_maps_point'),
+        icon: MapPinIcon,
+        // 位置与名片同受 can_send_basic_messages 控制；密聊 / 频道均可发送
+        hidden: !messageRights.value || !!props.editing,
     },
 ]);
 

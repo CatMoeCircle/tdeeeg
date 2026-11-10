@@ -48,6 +48,13 @@ const mapSrc = ref('');
 /** 加载代次：块参数变化时丢弃过期结果，避免旧地图窜到新块上 */
 let loadSeq = 0;
 
+/**
+ * 刚发出的位置消息，地图缩略图可能还没生成完，第一次请求会拿到一个
+ * `can_be_downloaded=false` 的文件；只请求一次就会永久留白。这里做几次
+ * 短重试，覆盖「消息刚落库 / 缩略图刚生成」的瞬时状态。
+ */
+const MAP_RETRY_DELAYS_MS = [0, 250, 500, 1000, 1500];
+
 watch(
     () => [props.location.latitude, props.location.longitude, props.zoom, props.width, props.height] as const,
     async () => {
@@ -59,21 +66,31 @@ watch(
         // 乘 scale 后才够清晰；两边都压进 TDLib 的 16-1024 限制内，避免超过 1MB 上限
         const pxWidth = Math.min(1024, Math.max(16, Math.round(Math.min(props.width || 320, 432))));
         const pxHeight = Math.min(1024, Math.max(16, Math.round(pxWidth / ratio)));
-        try {
-            const file = await tdlibSend({
-                _: 'getMapThumbnailFile',
-                location: props.location,
-                zoom: Math.min(20, Math.max(13, Math.round(props.zoom || 15))),
-                width: pxWidth,
-                height: pxHeight,
-                scale,
-                chat_id: props.chatId ?? 0,
-            });
-            const path = await ensureLocalFilePath(file);
-            if (seq === loadSeq && path) mapSrc.value = convertFileSrc(path);
-        } catch (e) {
-            console.error('Load map block failed:', e);
+        let lastError: unknown;
+        for (const delay of MAP_RETRY_DELAYS_MS) {
+            if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+            if (seq !== loadSeq) return;
+            try {
+                const file = await tdlibSend({
+                    _: 'getMapThumbnailFile',
+                    location: props.location,
+                    zoom: Math.min(20, Math.max(13, Math.round(props.zoom || 15))),
+                    width: pxWidth,
+                    height: pxHeight,
+                    scale,
+                    chat_id: props.chatId ?? 0,
+                });
+                const path = await ensureLocalFilePath(file);
+                if (seq !== loadSeq) return;
+                if (path) {
+                    mapSrc.value = convertFileSrc(path);
+                    return;
+                }
+            } catch (e) {
+                lastError = e;
+            }
         }
+        if (seq === loadSeq) console.error('Load map block failed:', lastError);
     },
     { immediate: true },
 );

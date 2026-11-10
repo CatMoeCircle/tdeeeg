@@ -323,17 +323,31 @@ export function canSendStickerGifRights(
 }
 
 /**
+ * 频道直信（channel direct messages）在 TDLib 里仍表现为 supergroup，
+ * 需要看 `supergroup.is_direct_messages_group`；投票 / 清单都不允许发到这里。
+ */
+function isChannelDirectMessages(currentChat: chat, caches?: GroupCache): boolean {
+    if (currentChat.type._ !== 'chatTypeSupergroup') return false;
+    return !!caches?.supergroups[currentChat.type.supergroup_id]?.is_direct_messages_group;
+}
+
+/**
  * 投票的聊天类型是否允许（pollsAllowed）：
- * - 超群 / 基本群：直接允许；
- * - 私聊：对方是 Bot 或是"自己（Saved Messages）"。
+ * - 超群 / 基本群：直接允许（频道直信除外）；
+ * - 私聊：对方是 Bot 或是"自己（Saved Messages）"；
+ * - 密聊：不允许（TDLib 同样禁止）。
  */
 export function pollsAllowedType(
     currentChat: chat,
     peerUser: user | undefined,
     myId: number,
+    caches?: GroupCache,
 ): boolean {
     const type = currentChat.type._;
-    if (type === 'chatTypeSupergroup' || type === 'chatTypeBasicGroup') return true;
+    if (type === 'chatTypeSupergroup') {
+        return !isChannelDirectMessages(currentChat, caches);
+    }
+    if (type === 'chatTypeBasicGroup') return true;
     if (type === 'chatTypePrivate') {
         if (!peerUser) return false; // 未知用户不放行
         return peerUser.type?._ === 'userTypeBot' || peerUser.id === myId;
@@ -350,16 +364,19 @@ export function canSendPollRights(
     myId: number,
 ): boolean {
     return canSendCapability(currentChat, memberStatus, caches, 'can_send_polls')
-        && pollsAllowedType(currentChat, peerUser, myId);
+        && pollsAllowedType(currentChat, peerUser, myId, caches);
 }
 
 /**
  * 清单/待办的聊天类型是否允许（checklistsAllowed）：
- * 比投票额外要求：不能是密聊（Secret Chat）、不能是频道。
+ * 比投票额外要求：不能是密聊（Secret Chat）、不能是频道、不能是频道直信。
  */
-export function checklistsAllowedType(currentChat: chat): boolean {
+export function checklistsAllowedType(currentChat: chat, caches?: GroupCache): boolean {
     if (currentChat.type._ === 'chatTypeSecret') return false;
-    if (currentChat.type._ === 'chatTypeSupergroup' && currentChat.type.is_channel) return false;
+    if (currentChat.type._ === 'chatTypeSupergroup') {
+        if (currentChat.type.is_channel) return false;
+        if (isChannelDirectMessages(currentChat, caches)) return false;
+    }
     return true;
 }
 
@@ -376,6 +393,6 @@ export function canSendChecklistRights(
     isPremiumAvailable: boolean,
 ): boolean {
     if (!canSendCapability(currentChat, memberStatus, caches, 'can_send_polls')) return false;
-    if (!checklistsAllowedType(currentChat)) return false;
+    if (!checklistsAllowedType(currentChat, caches)) return false;
     return isPremium || isPremiumAvailable;
 }

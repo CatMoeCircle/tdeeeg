@@ -619,12 +619,19 @@
                 <MessageInput v-else-if="canSend" ref="messageInputRef" v-model="messageInput"
                     :reply-target="replyTargetInfo" :edit-target="editTargetInfo" :edit-entities="editSeedEntitiesForInput"
                     :chat="chat" :users="users" :supergroups="supergroups" :basic-groups="basicGroups" :my-id="myId"
-                    :member-status="currentMemberStatus" :is-premium="isMePremium" :custom-emojis="pendingCustomEmoji"
+                    :member-status="currentMemberStatus" :is-premium="isMePremium"
+                    :is-premium-available="isPremiumAvailable" :custom-emojis="pendingCustomEmoji"
                     :current-sender-id="chat?.message_sender_id" :available-senders="availableSenders"
                     :senders-loading="sendersLoading"
                     :placeholder="threadMode ? t('chat.commentPh') : undefined"
+                    :can-send-silent="canSendSilentHere" :schedule-mode="scheduleModeHere"
+                    :can-schedule-until-online="canSendWhenOnlineHere"
+                    :has-scheduled-messages="!!chat?.has_scheduled_messages"
                     @clear-reply="clearReply" @clear-edit="cancelEdit" @send="handleSend"
                     @change-sender="handleChangeSender" @sticker="openStickerPanel"
+                    @open-scheduled="openScheduledPage" @attach-contact="openContactPicker"
+                    @attach-poll="openPollCreator" @attach-checklist="openChecklistCreator"
+                    @attach-location="openLocationPicker"
                     @switch-ai="settings.ai.input = 'ai'" />
             </div>
 
@@ -754,6 +761,15 @@
         <StopPollConfirm />
         <!-- ===== 举报消息确认弹窗 ===== -->
         <ReportMessageConfirm />
+        <!-- ===== 选择联系人名片（附件面板 → 联系人） ===== -->
+        <ContactPickerDialog v-model="contactPickerOpen" @select="sendContact" />
+        <!-- ===== 创建投票 / 清单 / 位置（附件面板） ===== -->
+        <PollCreateDialog v-model="pollCreateOpen" :chat="chat" :supergroups="supergroups"
+            :basic-groups="basicGroups" :member-status="currentMemberStatus" :is-premium="isMePremium"
+            @submit="sendPoll" />
+        <ChecklistCreateDialog v-model="checklistCreateOpen" :chat="chat" :is-premium="isMePremium"
+            @submit="sendChecklist" />
+        <LocationPickerDialog v-model="locationPickerOpen" :chat-id="chatId" @submit="sendLocation" />
         <!-- ===== Reaction 选择器 ===== -->
         <ReactionPicker :visible="reactionPickerVisible" :msg="reactionPickerMsg" :anchorRect="reactionPickerAnchor"
             :isPremium="userProfile?.is_premium ?? false" :fullEmoji="reactionPickerFullEmoji"
@@ -794,6 +810,10 @@ import TranslateMessageModal from '../../contextMenu/TranslateMessageModal.vue';
 import PinMessageConfirm from '../../contextMenu/PinMessageConfirm.vue';
 import StopPollConfirm from '../../contextMenu/StopPollConfirm.vue';
 import ReportMessageConfirm from '../../contextMenu/ReportMessageConfirm.vue';
+import ContactPickerDialog from './ContactPickerDialog.vue';
+import PollCreateDialog from './PollCreateDialog.vue';
+import ChecklistCreateDialog from './ChecklistCreateDialog.vue';
+import LocationPickerDialog from './LocationPickerDialog.vue';
 import PinnedMessageBar from './PinnedMessageBar.vue';
 import BotManageBar from './BotManageBar.vue';
 import TopicTagBar from './TopicTagBar.vue';
@@ -5879,10 +5899,132 @@ function sendAnimation(fileId: number, _stickerId: string) {
     })();
 }
 
+// ==================== 联系人名片发送 ====================
+/**
+ * 附件面板「联系人」：先选联系人，再把名片作为 inputMessageContact 发出。
+ * 名片走普通 sendMessage（与贴纸/动图一致），会话类型、话题、回复全部由 sendMessageContent 补齐。
+ */
+const contactPickerOpen = ref(false);
+
+function openContactPicker() {
+    if (!canSend.value || chatId.value === undefined) return;
+    // 编辑消息只能换媒体 / 改描述，发名片属于新消息，编辑态不入口（保持与官方行为一致）
+    if (editTargetInfo.value) return;
+    contactPickerOpen.value = true;
+}
+
+/** 发出选中的联系人名片；失败时把 TDLib 的错误原样提示出来 */
+async function sendContact(contact: import('tdlib-types').contact) {
+    if (!chatId.value) return;
+    try {
+        await sendMessageContent({
+            _: 'inputMessageContact',
+            contact,
+        });
+        clearReply();
+    } catch (e) {
+        console.error('Failed to send contact:', e);
+        const err = e as { message?: string };
+        toast.error(err?.message || String(e));
+    }
+}
+
+// ==================== 投票 / 清单 / 位置发送 ====================
+/**
+ * 三者都是独立消息，走与名片相同的 sendMessageContent：
+ * 会话、话题、回复统一补齐；编辑消息时不提供入口（只能换媒体 / 改描述）。
+ */
+const pollCreateOpen = ref(false);
+const checklistCreateOpen = ref(false);
+const locationPickerOpen = ref(false);
+
+// 切会话时关掉创建弹窗：否则会把为上一个会话填好的内容发到新会话
+watch(() => chatId.value, () => {
+    pollCreateOpen.value = false;
+    checklistCreateOpen.value = false;
+    locationPickerOpen.value = false;
+});
+
+function canOpenComposer(): boolean {
+    return canSend.value && chatId.value !== undefined && !editTargetInfo.value;
+}
+
+function openPollCreator() {
+    if (!canOpenComposer()) return;
+    pollCreateOpen.value = true;
+}
+
+function openChecklistCreator() {
+    if (!canOpenComposer()) return;
+    // 清单是 Premium 专属；附件菜单已用锁标记拦截，这里再兜一层，避免其他入口绕过
+    if (!isMePremium.value) {
+        toast.warning(t('attachment.todoNeedsPremium'));
+        return;
+    }
+    checklistCreateOpen.value = true;
+}
+
+function openLocationPicker() {
+    if (!canOpenComposer()) return;
+    locationPickerOpen.value = true;
+}
+
+async function sendPoll(poll: import('tdlib-types').inputMessagePoll) {
+    if (!chatId.value) return;
+    try {
+        await sendMessageContent(poll);
+        clearReply();
+    } catch (e) {
+        console.error('Failed to send poll:', e);
+        const err = e as { message?: string };
+        toast.error(err?.message || String(e));
+    }
+}
+
+async function sendChecklist(checklist: import('tdlib-types').inputMessageChecklist) {
+    if (!chatId.value) return;
+    try {
+        await sendMessageContent(checklist);
+        clearReply();
+    } catch (e) {
+        console.error('Failed to send checklist:', e);
+        const err = e as { message?: string };
+        toast.error(err?.message || String(e));
+    }
+}
+
+async function sendLocation(location: import('tdlib-types').location) {
+    if (!chatId.value) return;
+    try {
+        await sendMessageContent({
+            _: 'inputMessageLocation',
+            location,
+        });
+        clearReply();
+    } catch (e) {
+        console.error('Failed to send location:', e);
+        const err = e as { message?: string };
+        toast.error(err?.message || String(e));
+    }
+}
+
 // ==================== 附件发送 ====================
 // 图片/视频选择与分类在 MessageInput 内完成（打开系统文件选择器 + 剪贴板粘贴），
 // 通过附件 store 累积；handleSend 统一处理发送。
 const isMePremium = computed(() => !!userProfile.value?.is_premium);
+/**
+ * Premium 是否可购买（TDLib 选项 is_premium_available）。
+ * 不可购买时清单等 Premium 专属入口直接隐藏；未知（尚未取到）按可购买处理，避免闪一下。
+ */
+const isPremiumAvailable = ref(true);
+void (async () => {
+    try {
+        const res = await tdlibSend({ _: 'getOption', name: 'is_premium_available' });
+        if (res._ === 'optionValueBoolean') isPremiumAvailable.value = res.value;
+    } catch {
+        // 读取失败保持默认（可购买）
+    }
+})();
 
 // ==================== 私聊 AI 接管 ====================
 

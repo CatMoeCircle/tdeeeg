@@ -1706,6 +1706,15 @@
     "remove": "移除附件",
     "chooseCover": "選擇封面圖片"
   },
+  "location": {
+    "myLocation": "我的位置",
+    "myLocationFailed": "無法取得目前位置，請拖曳地圖選擇"
+  },
+  "poll": {
+    "optionGalleryOnly": "這裡只能加入圖片或影片",
+    "optionAudioOnly": "這裡只能加入音訊檔案",
+    "reorder": "拖曳排序"
+  },
   "user": {
     "callsNotSupported": "通話功能暫未接入",
     "joinFailed": "加入失敗",
