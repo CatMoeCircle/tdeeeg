@@ -1,10 +1,10 @@
 <template>
     <div class="h-16 px-3 py-1.5 flex items-center justify-center shrink-0">
         <div
-            class="flex items-center w-full min-w-0 h-full px-2 sm:px-3 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg transition-[background-color,box-shadow] duration-200">
+            class="flex items-center gap-2 w-full min-w-0 h-full px-2 sm:px-3 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg transition-[background-color,box-shadow] duration-200">
             <!-- 返回按钮（叠层模式）：不依赖 chat 是否加载，骨架屏阶段也要可点可返回 -->
             <button v-if="showBack" type="button" @click="emit('back')"
-                class="w-9 h-9 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-300 bg-gray-100/70 dark:bg-white/10 hover:bg-gray-200/80 dark:hover:bg-white/20 active:scale-95 transition-[background-color,transform] duration-150 shrink-0 -ml-1"
+                class="w-9 h-9 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-300 bg-gray-100/70 dark:bg-white/10 hover:bg-gray-200/80 dark:hover:bg-white/20 active:scale-95 transition-[background-color,transform] duration-150 shrink-0"
                 :aria-label="t('lng_menu_back')">
                 <ArrowLeftIcon class="w-5 h-5" />
             </button>

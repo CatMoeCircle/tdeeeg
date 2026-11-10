@@ -4,13 +4,13 @@
              独立成层，避免 backdrop-filter 成为内部 fixed 元素的包含块。 -->
         <div class="absolute inset-0 chrome-translucent pointer-events-none" aria-hidden="true"></div>
         <SideNavBar class="relative z-10" />
-        <div class="flex-1 min-w-0 rounded-tl-xl rounded-sm relative overflow-hidden mr-1 mb-1 z-10"
+        <div class="flex-1 min-w-0 rounded-tl-xl rounded-tr-xl rounded-br-xl rounded-bl-sm relative overflow-hidden mr-1 mb-1 z-10"
             :style="homeBackgroundStyle">
             <!-- 全屏显示壁纸时：整块内容区共用的唯一默认背景底层（对话列表 + 聊天区）。
                  关闭后改由聊天区（ChatDetail）自己铺，避免与列表共用一层。 -->
             <ChatBackgroundLayers v-if="showContentWallpaper" :render="render" :overlay-opacity="overlayOpacity"
                 :blur-px="blurPx" />
-            <ResizableLayout class="relative z-10">
+            <ResizableLayout class="relative z-10" :sidebar-divider="!showChatSurface">
                 <template #sidebar>
                     <ChatList v-if="sidebarShowsChats" :is-archive="isArchiveSection" />
                     <ContactList v-else-if="sidebarShowsContacts" />
@@ -19,8 +19,24 @@
 
                 <template #content>
                     <div class="relative w-full h-full">
-                        <ChatDetail v-if="showActiveChat" :chat-id="activeChatId" :topic-id="activeTopicId"
-                            :thread-root-id="activeThreadRootId" @close="closeActiveChat" />
+                        <!-- 等待选择对话：与对话详情一致的圆角壁纸卡片（仅作为背景，
+                             文案仍由 router-view 里的空状态页绘制） -->
+                        <div v-if="showChatEmptyWallpaper"
+                            class="absolute inset-0 rounded-xl border-l-[3px] border-gray-200 dark:border-gray-800 overflow-hidden"
+                            aria-hidden="true">
+                            <ChatBackgroundLayers :render="render" :overlay-opacity="0" :blur-px="0" />
+                        </div>
+                        <!-- 对话详情四角统一 12px 圆角（与主面板左上角同值）。
+                             分隔线由卡片自身的左边框承担（此时侧栏不再画 border-r），
+                             这样线沿圆角收口，不会在列表滚动条一侧垂直穿过圆角缺口。
+                             3px 是为了补回迁移前的观感：旧结构是侧栏 border-r + 列表根 border-r
+                             两层 1px 叠加，现在只剩卡片这一条，需要加宽才不显细。
+                             clip-path 必须与圆角同值：底部输入区的 backdrop-filter 磨砂层
+                             不受父级 overflow-hidden 圆角裁剪，需靠 clip-path 一并切掉。 -->
+                        <ChatDetail v-if="showActiveChat"
+                            class="rounded-xl border-l-[3px] border-gray-200 dark:border-gray-800 [clip-path:inset(0_round_12px)]"
+                            :chat-id="activeChatId" :topic-id="activeTopicId" :thread-root-id="activeThreadRootId"
+                            @close="closeActiveChat" />
                         <router-view v-else v-slot="{ Component }">
                             <!-- :max 必须有：这里按 route.fullPath 作 key，访问过的设置页/用户页
                                  不设上限就永久缓存（每个被缓存的页面都是一整棵常驻 DOM）。 -->

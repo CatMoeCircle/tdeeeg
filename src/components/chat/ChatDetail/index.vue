@@ -525,11 +525,8 @@
 
         <!-- ===== Input Area（顶层，磨砂玻璃） ===== -->
         <div v-if="showAiInput" ref="inputAnchorEl"
-            class="absolute bottom-0 left-0 right-0 z-10 dark:from-gray-900/80 dark:via-gray-900/60 to-transparent"
+            class="absolute bottom-0 left-0 right-0 z-10"
             :class="topicLayoutAnim ? 'topic-chrome-anim' : ''" :style="tagBarSideInsetStyle">
-            <div aria-hidden="true"
-                class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
-            </div>
             <!-- 编辑消息横幅 -->
             <Transition name="mi-fade">
                 <div v-if="editTargetInfo"
@@ -644,10 +641,7 @@
 
         <!-- ===== 成员操作 ===== -->
         <div v-else-if="showMembershipAction"
-            class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-transparent dark:from-gray-900/80 via-transparent dark:via-gray-900/60 to-transparent">
-            <div aria-hidden="true"
-                class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
-            </div>
+            class="absolute bottom-0 left-0 right-0 z-10">
             <div ref="inputAreaRef" class="relative z-10 flex items-center justify-center p-5">
                 <button type="button" :disabled="!canJoinCurrentChat || isJoinPending || joinRequestSent"
                     class="h-12 min-w-32 px-5 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg text-sm font-medium text-blue-500 dark:text-blue-400 hover:bg-white/80 dark:hover:bg-gray-800/90 disabled:opacity-60 disabled:cursor-default transition-colors"
@@ -659,11 +653,8 @@
 
         <!-- ===== 频道私信：未选中话题提示（替代输入框） ===== -->
         <div v-else-if="showDmTopicHint"
-            class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-transparent dark:from-gray-900/80 via-transparent dark:via-gray-900/60 to-transparent"
+            class="absolute bottom-0 left-0 right-0 z-10"
             :style="tagBarSideInsetStyle">
-            <div aria-hidden="true"
-                class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
-            </div>
             <div ref="inputAreaRef" class="relative z-10 flex items-center justify-center p-5">
                 <div
                     class="min-h-12 max-w-[90%] px-5 py-3 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg flex items-center justify-center text-sm font-medium text-gray-500 dark:text-gray-400 text-center">
@@ -674,10 +665,7 @@
 
         <!-- ===== 秘密聊天状态：等待加密 / 已取消（替代输入框） ===== -->
         <div v-else-if="isSecretChat && secretChatNoticeText"
-            class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-transparent dark:from-gray-900/80 via-transparent dark:via-gray-900/60 to-transparent">
-            <div aria-hidden="true"
-                class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
-            </div>
+            class="absolute bottom-0 left-0 right-0 z-10">
             <div ref="inputAreaRef" class="relative z-10 flex items-center justify-center p-5">
                 <div
                     class="min-h-12 max-w-[90%] px-5 py-3 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg flex items-center justify-center text-sm font-medium text-gray-500 dark:text-gray-400 text-center">
@@ -689,11 +677,8 @@
         <!-- ===== 已注销账户：不能对话，底部只留「删除本聊天」 =====
              文案走 TDLib 官方语言包（lng_blocked_list_confirm_clear = "Delete this chat"） -->
         <div v-else-if="isDeletedAccountChat"
-            class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-transparent dark:from-gray-900/80 via-transparent dark:via-gray-900/60 to-transparent"
+            class="absolute bottom-0 left-0 right-0 z-10"
             :style="tagBarSideInsetStyle">
-            <div aria-hidden="true"
-                class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
-            </div>
             <div ref="inputAreaRef" class="relative z-10 flex items-center justify-center p-5">
                 <button type="button"
                     class="h-12 min-w-32 px-5 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg text-sm font-medium text-red-500 dark:text-red-400 hover:bg-white/80 dark:hover:bg-gray-800/90 transition-colors"
@@ -705,10 +690,7 @@
 
         <!-- ===== 只读 ===== -->
         <div v-else-if="showChannelActions"
-            class="absolute bottom-0 left-0 right-0 z-10 bg-linear-to-t from-transparent dark:from-gray-900/80 via-transparent dark:via-gray-900/60 to-transparent">
-            <div aria-hidden="true"
-                class="absolute inset-0 z-0 pointer-events-none backdrop-blur-md mask-[linear-gradient(to_top,black,transparent)]">
-            </div>
+            class="absolute bottom-0 left-0 right-0 z-10">
             <div ref="inputAreaRef" class="relative z-10 flex items-center justify-center gap-3 p-5">
                 <button type="button" :disabled="isNotificationTogglePending"
                     class="h-12 min-w-32 px-5 rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-lg text-sm font-medium text-blue-500 dark:text-blue-400 hover:bg-white/80 dark:hover:bg-gray-800/90 disabled:opacity-60 disabled:cursor-wait transition-colors"
@@ -5912,7 +5894,7 @@ const handleSend = async (
             _: 'inputMessageText',
             text: { _: 'formattedText', text: parsed.text, entities: parsed.entities },
             clear_draft: true,
-        });
+        }, options);
         messageInput.value = '';
         pendingCustomEmoji.value = [];
         // 发送成功后清除本地草稿与 TDLib 草稿，并清除回复状态（评论线程不触碰会话草稿）
@@ -6846,6 +6828,7 @@ const topPaddingClass = computed(() => {
     if (translateBarVisible.value) px += showTopCard.value ? 36 : 44;
     return { paddingTop: `${px}px` };
 });
+
 
 // 顶部留白在列表露出后才变（置顶栏 visibleChange / 翻译栏 / 机器人条都是异步上报）：
 // 直接改容器 paddingTop 会把内容整体顶/拽一下，且原生 scroll anchoring 不管容器自身 padding。

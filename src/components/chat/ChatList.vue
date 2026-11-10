@@ -1,6 +1,8 @@
 <template>
-    <!-- 顶部间距由搜索栏自身的 pt-1 提供，整列统一 4px 节奏 -->
-    <div class="flex flex-col h-full border-r border-gray-200 dark:border-gray-800">
+    <!-- 顶部间距由搜索栏自身的 pt-1 提供，整列统一 4px 节奏。
+         右侧分隔线由外层提供：无对话时走 ResizableLayout 的侧栏边框，
+         打开对话后改由对话详情卡片的左边框承担（避免分界线占掉列表滚动条一侧）。 -->
+    <div class="flex flex-col h-full">
         <!-- 「更多动态」展开条：搜索栏上方，标题栏右侧箭头控制展开 / 收起 -->
         <StoryOverflowStrip v-if="!forumMode && !searchMode" />
         <!-- Search Bar (forum mode 时向上滑动隐藏) -->
@@ -425,7 +427,7 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { ShieldAlert, BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon, UsersIcon, MegaphoneIcon, Folders as FoldersIcon, BellOffIcon, PinIcon, ArchiveIcon, ChevronRightIcon, ArchiveRestore as ArchiveRestoreIcon, PinOff as PinOffIcon, FolderPlus as FolderPlusIcon, FolderMinus as FolderMinusIcon, BellRing as BellRingIcon, LogOut as LogOutIcon, CheckCheck as CheckCheckIcon, Trash2 as Trash2Icon, X as XIcon, Copy as CopyIcon, Plus as PlusIcon } from 'lucide-vue-next';
+import { ShieldAlert, BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon, UsersIcon, MegaphoneIcon, Folders as FoldersIcon, BellOffIcon, PinIcon, ArchiveIcon, ChevronRightIcon, ArchiveRestore as ArchiveRestoreIcon, PinOff as PinOffIcon, FolderPlus as FolderPlusIcon, FolderMinus as FolderMinusIcon, BellRing as BellRingIcon, LogOut as LogOutIcon, CheckCheck as CheckCheckIcon, Trash2 as Trash2Icon, X as XIcon, Copy as CopyIcon, Plus as PlusIcon, MailOpen as MailOpenIcon } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
 import { settings } from '../../store/settings/settings';
 import {

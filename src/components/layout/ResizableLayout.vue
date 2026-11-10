@@ -1,15 +1,23 @@
 <template>
-    <div class="flex flex-1 h-full overflow-hidden" ref="containerRef">
-        <div class="shrink-0 h-full border-r border-gray-200 dark:border-gray-800 relative group"
+    <div class="flex flex-1 h-full overflow-hidden relative" ref="containerRef">
+        <div class="shrink-0 h-full relative group"
+            :class="{ 'border-r border-gray-200 dark:border-gray-800': sidebarDivider }"
             :style="{ width: sidebarWidth + 'px' }" ref="sidebarRef"
             style="will-change: width; contain: layout style paint">
             <slot name="sidebar"></slot>
+        </div>
 
-            <!-- Resizer Handle: 点击区域上延至标题栏 + 向右偏移 + 视觉不变 -->
-            <div class="absolute -top-1 bottom-0 -right-1.5 w-px cursor-col-resize z-10
-                        hover:bg-blue-500 transition-color
-                        opacity-0 group-hover:opacity-100 hover:opacity-100 active:opacity-100 active:bg-blue-600
-                        px-[3.5px] pt-8 bg-clip-content" @mousedown="startResize"></div>
+        <!-- Resizer Handle：按在侧栏右缘的分隔线上。
+             分隔线有两种落位：展开对话时由内容区卡片的 border-l-[3px] 承担（占 [右缘, 右缘+3]）；
+             不展开时侧栏自己画 border-r（占 [右缘-1, 右缘]）。命中区取 12px 宽并居中跨在右缘上，
+             两种落位都完整覆盖，鼠标按在看得见的线上就能拖。
+             hover 指示线固定画在 [右缘-1, 右缘+3]，把两种落位一起盖住，视觉上正好替换掉分隔线。
+             拖拽判定见 startResize：命中手柄即拖拽，不再按固定像素距离二次过滤。 -->
+        <div class="absolute -top-1 bottom-0 z-20 w-3 cursor-col-resize group/resizer"
+            :style="{ left: sidebarWidth - 6 + 'px' }" @mousedown="startResize">
+            <!-- 视觉指示线：垂直居中于命中区，hover / 拖拽时高亮（平时透明，不遮分隔线） -->
+            <div class="absolute inset-y-0 left-[5px] w-1 pt-8 bg-clip-content
+                        transition-colors bg-transparent group-hover/resizer:bg-blue-500"></div>
         </div>
         <div class="flex-1 h-full min-w-0">
             <slot name="content"></slot>
@@ -32,6 +40,11 @@ const props = defineProps({
     maxWidth: {
         type: Number,
         default: 400
+    },
+    /** 侧栏右侧分隔线：对话详情展开时由其左侧边框接管，避免分界线落在列表滚动条一侧 */
+    sidebarDivider: {
+        type: Boolean,
+        default: true
     }
 });
 
@@ -43,14 +56,8 @@ const sidebarRef = ref<HTMLElement | null>(null);
 let isDragging = false;
 
 const startResize = (e: MouseEvent) => {
-    // 检测是否在滚动条上点击：如果鼠标在侧边栏右侧的滚动条区域内则不触发
-    if (sidebarRef.value) {
-        const sidebarRect = sidebarRef.value.getBoundingClientRect();
-        const distFromSidebarRight = sidebarRect.right - e.clientX;
-        // 手柄已右移至边框处，判断宽度收窄至 4px
-        if (distFromSidebarRight > 4) return;
-    }
-
+    // 手柄是独立的绝对定位元素（横跨侧栏右缘与分隔线），命中即代表用户要拖拽，
+    // 不再需要按「距侧栏右缘多少像素」二次过滤。滚动条点击由手柄自身的 z-index/位置天然避开。
     e.preventDefault();
     isDragging = true;
 
