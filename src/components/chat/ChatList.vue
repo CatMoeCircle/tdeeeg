@@ -455,6 +455,7 @@ import { toast } from '../../utils/ui/toast';
 import {
     isChatArchived, isChatPinned as chatIsPinned, isChatMuted as chatIsMuted,
     canLeaveChat, isChannelChat, archiveChat, unarchiveChat, toggleChatPinned, muteChat, unmuteChat,
+    markChatAsRead,
     isChatInFolder, toggleChatInFolder,
 } from '../contextMenu/chatActions';
 import ChatListTopCard from './ChatListTopCard.vue';
@@ -1378,6 +1379,16 @@ const buildChatContextMenu = (chat: Chat, listKey: string): ContextMenuItem[] =>
             toggleChatPinned(chatId, !pinned, list);
         },
     });
+
+    // 标为已读：有未读消息，或被手动标记为未读时显示
+    if (chat.unread_count > 0 || chat.is_marked_as_unread) {
+        items.push({
+            key: 'read',
+            label: t('lng_context_mark_read'),
+            icon: MailOpenIcon,
+            onClick: () => { void markChatAsRead(chat); },
+        });
+    }
 
     // 加到分组 / 移出分组
     const folderChildren = buildFolderMenu(chat);

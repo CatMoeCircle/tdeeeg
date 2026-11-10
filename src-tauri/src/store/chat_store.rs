@@ -30,6 +30,9 @@ pub struct Chat {
     /// 对话 emoji 状态（超级群/频道的礼物/自定义 emoji 状态，可为空）
     #[serde(default)]
     pub emoji_status: Option<Value>,
+    /// 是否被手动标记为未读（没有未读消息也可能为 true）
+    #[serde(default)]
+    pub is_marked_as_unread: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -487,6 +490,9 @@ impl ChatStore {
             "updateChatIsMarkedAsUnread" => {
                 let chat_id = update["chat_id"].as_i64()?;
                 if let Some(chat) = self.chats.get_mut(&chat_id) {
+                    if let Some(flag) = update["is_marked_as_unread"].as_bool() {
+                        chat.is_marked_as_unread = flag;
+                    }
                     events.push((
                         "chat-update".to_string(),
                         serde_json::to_value(chat).unwrap(),

@@ -42,6 +42,8 @@ export interface Chat {
   message_sender_id?: MessageSender;
   /** 对话 emoji 状态（超级群/频道的礼物/自定义 emoji 状态） */
   emoji_status?: emojiStatus;
+  /** 是否被手动标记为未读（没有未读消息也可能为 true） */
+  is_marked_as_unread?: boolean;
 }
 
 export interface ChatListState {

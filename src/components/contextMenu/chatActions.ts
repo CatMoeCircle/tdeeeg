@@ -181,6 +181,38 @@ export async function unmuteChat(chatId: number) {
     }
 }
 
+/**
+ * 把对话的未读消息全部标为已读。
+ *
+ * TDLib 没有「整段会话已读」接口，只能走 viewMessages：把最后一条消息作为
+ * 已读线提交（force_read 保证会话未打开也生效），未读徽标随
+ * updateChatReadInbox 归零。
+ * 仅被「标为未读」、没有未读消息的会话，改调 toggleChatIsMarkedAsUnread(false)，
+ * 否则 viewMessages 不会清掉标记。
+ */
+export async function markChatAsRead(chat: Chat) {
+    const lastMessageId = chat.last_message?.id ?? 0;
+    const hasUnread = (chat.unread_count ?? 0) > 0;
+    try {
+        if (hasUnread && lastMessageId > 0) {
+            await tdlibSend({
+                _: 'viewMessages',
+                chat_id: chat.id,
+                message_ids: [lastMessageId],
+                force_read: true,
+            });
+        } else if (chat.is_marked_as_unread) {
+            await tdlibSend({
+                _: 'toggleChatIsMarkedAsUnread',
+                chat_id: chat.id,
+                is_marked_as_unread: false,
+            });
+        }
+    } catch (e: any) {
+        toast.error(e?.message || t('context.actionFailed'));
+    }
+}
+
 /** 退出群组 */
 export async function leaveChat(chatId: number) {
     try {
