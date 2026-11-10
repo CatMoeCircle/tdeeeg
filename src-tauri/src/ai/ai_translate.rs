@@ -2,11 +2,9 @@
 //!
 //! - 供应商列表 → 应用配置目录 JSON（不含 API Key）
 //! - 每个供应商的 API Key → tauri-plugin-keyring-store（系统钥匙串），账号 `ai.provider.{id}.api_key`
-//! - 翻译与模型列表走 llmsdk（OpenAI Responses / OpenAI Compatible / Anthropic）
+//! - 翻译走自研三协议客户端（crate::ai::llm）；模型列表直接请求 {endpoint}/models
 
 use std::path::PathBuf;
-use std::time::Duration;
-
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
 use tauri_plugin_keyring_store::KeyringExt;
@@ -378,68 +376,10 @@ pub async fn ai_translate_text(
         .find(|p| p.id == provider_id)
         .ok_or_else(|| "AI 供应商不存在，请在设置中重新配置".to_string())?;
     let api_key = saved_api_key(&app, &provider_id).ok_or_else(|| "未保存 API Key".to_string())?;
-    translate_via_llmsdk(&provider.endpoint, &provider.format, &api_key, &model, &text, &to_language_code).await
+    translate_via_client(&provider.endpoint, &provider.format, &api_key, &model, &text, &to_language_code).await
 }
 
-/// LLM 请求用的 HTTP 客户端：**不设总超时**。
-///
-/// llmsdk 默认的 `HttpClient` 带 `timeout(60s)`（reqwest 的**总**超时，读 body 也算在内），
-/// 流式回复超过一分钟就会被从中间掐断，前端拿到的错误是
-/// 「api call to …/responses failed: stream read failed: error decoding response body」。
-/// 这里只限连接（20s）和单次读取（120s 没有任何新数据才断），长回复 / 思考模型可以一直流。
-pub(crate) fn llm_http_client() -> Result<llmsdk::utils::HttpClient, String> {
-    let client = reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(20))
-        .read_timeout(Duration::from_secs(120))
-        .build()
-        .map_err(|e| format!("HTTP 客户端初始化失败: {e}"))?;
-    Ok(llmsdk::utils::HttpClient::from_reqwest(client))
-}
-
-/// 按接口协议构造 llmsdk 模型（翻译 / 对话共用）。endpoint、model_id 须已 trim 且非空。
-pub(crate) fn build_language_model(
-    endpoint: &str,
-    format: &str,
-    api_key: &str,
-    model_id: &str,
-) -> Result<Box<dyn llmsdk::LanguageModel>, String> {
-    use llmsdk::{anthropic::Anthropic, openai::OpenAi};
-
-    let http = llm_http_client()?;
-    let model: Box<dyn llmsdk::LanguageModel> = match format {
-        FORMAT_ANTHROPIC => {
-            let provider = Anthropic::builder()
-                .api_key(api_key)
-                .base_url(endpoint)
-                .http_client(http)
-                .build()
-                .map_err(|e| e.to_string())?;
-            Box::new(provider.messages(model_id))
-        }
-        "openai-responses" => {
-            let provider = OpenAi::builder()
-                .api_key(api_key)
-                .base_url(endpoint)
-                .http_client(http)
-                .build()
-                .map_err(|e| e.to_string())?;
-            Box::new(provider.responses(model_id))
-        }
-        // openai-compatible（默认）
-        _ => {
-            let provider = OpenAi::builder()
-                .api_key(api_key)
-                .base_url(endpoint)
-                .http_client(http)
-                .build()
-                .map_err(|e| e.to_string())?;
-            Box::new(provider.chat(model_id))
-        }
-    };
-    Ok(model)
-}
-
-async fn translate_via_llmsdk(
+async fn translate_via_client(
     endpoint: &str,
     format: &str,
     api_key: &str,
@@ -447,7 +387,7 @@ async fn translate_via_llmsdk(
     text: &str,
     to_language_code: &str,
 ) -> Result<String, String> {
-    use llmsdk::{CallOptions, Content, Message, TextPart, UserPart};
+    use crate::ai::llm::{ChatClient, ChatMessage, Format};
 
     let endpoint = endpoint.trim().trim_end_matches('/');
     let model_id = model_id.trim();
@@ -458,12 +398,8 @@ async fn translate_via_llmsdk(
         return Err("模型 ID 为空".to_string());
     }
 
-    let model = build_language_model(endpoint, format, api_key, model_id)?;
-
     let system = format!(
-        "You are a professional translation engine. Translate the user's text into the target \
-         language ({to}). Preserve line breaks, punctuation, numbers and formatting. Output ONLY \
-         the translated text — no explanations, no quotes, no prefixes.",
+        "You are a professional translation engine. Translate the user's text into the target language ({to}). Preserve line breaks, punctuation, numbers and formatting. Output ONLY the translated text — no explanations, no quotes, no prefixes.",
         to = if to_language_code.is_empty() {
             "the same language as the input"
         } else {
@@ -471,41 +407,25 @@ async fn translate_via_llmsdk(
         }
     );
 
-    let options = CallOptions {
-        prompt: vec![
-            Message::System {
-                content: system.into(),
-                provider_options: None,
-            },
-            Message::User {
-                content: vec![UserPart::Text(TextPart {
-                    text: text.to_string(),
-                    provider_options: None,
-                })],
-                provider_options: None,
-            },
-        ],
+    let messages = vec![
+        ChatMessage { role: "system".to_string(), text: system, ..Default::default() },
+        ChatMessage { role: "user".to_string(), text: text.to_string(), ..Default::default() },
+    ];
+    let client = ChatClient {
+        format: Format::of(format),
+        endpoint,
+        api_key,
+        model: model_id,
+        tools: &[],
+        effort: None,
         max_output_tokens: Some(4096),
-        ..Default::default()
+        hosted_web_search: false,
     };
-
-    let result = model
-        .do_generate(options)
-        .await
-        .map_err(|e| format!("AI 翻译失败: {e}"))?;
-
-    let out: String = result
-        .content
-        .iter()
-        .filter_map(|c| match c {
-            Content::Text(t) => Some(t.text.as_str()),
-            _ => None,
-        })
-        .collect();
-    if out.is_empty() {
+    let reply = client.generate(&messages).await?;
+    if reply.text.trim().is_empty() {
         return Err("AI 返回了空译文".to_string());
     }
-    Ok(out)
+    Ok(reply.text)
 }
 
 #[cfg(test)]

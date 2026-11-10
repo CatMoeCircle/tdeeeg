@@ -42,9 +42,8 @@ image = { version = "0.25", default-features = false, features = [
 tauri-plugin-notification = "2"
 notify-rust = "4"
 langdetect = { path = "langdetect" }
-llmsdk = { version = "0.1", features = ["openai", "anthropic", "utils"] }
 tauri-plugin-keyring-store = { version = "0.2", default-features = false }
-# 与 llmsdk 用的 reqwest 同大版本（0.13）：LLM 请求要注入自定义 client（不设总超时，见 ai_translate::llm_http_client）
+# LLM 请求自带 client（连接 / 读取超时见 crate::ai::llm::http_client），不设总超时
 reqwest = { version = "0.13", default-features = false, features = [
     "json",
     "rustls",

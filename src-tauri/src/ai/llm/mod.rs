@@ -1,8 +1,8 @@
 //! 三协议对话客户端（自研）：OpenAI Responses / OpenAI Chat Completions / Anthropic Messages。
 //!
-//! ## 为什么不用 llmsdk 的对话路径
+//! ## 为什么自己实现三协议
 //!
-//! llmsdk 0.1.1（也是 crates.io 上唯一版本，仓库 main 同样没改）的流式解析器：
+//! 早期用 llmsdk 0.1.1（crates.io 上唯一版本）发请求，但它的流式解析器：
 //! - **Responses**：只认 `response.reasoning_summary_*`；DeepSeek / MiMo 这些实现走的是
 //!   `response.reasoning_text.delta`（`summary[]` 恒为空），事件落到 `#[serde(other)] Unknown`
 //!   被静默丢掉 —— 思考链一条都到不了界面；
@@ -12,8 +12,8 @@
 //!
 //! 实测（2026-11，DeepSeek `deepseek-flash` / MiMo `mimo-v2.6-flash`，`/v1/responses`）：
 //! 两者都发 `response.reasoning_text.delta`，`usage.output_tokens_details.reasoning_tokens`
-//! 也在涨 —— 模型确实思考了，只是 SDK 不认。所以这一层自己解析，`llmsdk` 只留给
-//! 翻译 / 会话摘要这些不关心思考的路径。
+//! 也在涨 —— 模型确实思考了，只是 SDK 不认。现在**整个链路**（含翻译 / 补全 / 联网搜索）
+//! 都走这一层，llmsdk 依赖已移除。
 //!
 //! ## 对外契约
 //!
