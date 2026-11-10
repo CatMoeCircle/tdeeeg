@@ -28,6 +28,7 @@
             :quoteFocus="messageId != null ? quoteFocusFor(messageId, chatId) ?? undefined : undefined"
             :showInlineTime="inlineTime" :timeDate="date" :timeIsOutgoing="isSelf" :timeSendingState="sendingState"
             :timeIsRead="isRead" :timeViewCount="viewCount" :timeAuthorSignature="authorSignature"
+            :timeScheduled="scheduled"
             :timeColorClass="isSelf ? 'text-gray-600/70 dark:text-gray-400/70' : 'text-gray-400 dark:text-gray-500'"
             :summarizable="canSummarize" :summaryOutgoing="!!isSelf">
             <slot />
@@ -69,6 +70,7 @@
             :forwardFirstName="forwardFirstName" :forwardLastName="forwardLastName"
             :forwardTextColor="forwardTextColor" :isFirstInGroup="isFirstInGroup" :isLastInGroup="isLastInGroup"
             :sendingState="sendingState" :isRead="isRead" :viewCount="viewCount" :authorSignature="authorSignature"
+            :scheduled="scheduled"
             :chatId="chatId" :messageId="messageId" :message="message" :topicId="topicId" :senderName="senderName"
             :replyTo="replyTo" :messageList="messageList" :accentColorId="accentColorId"
             :commentsBar="commentsBar"
@@ -94,7 +96,7 @@
                     <span v-if="date && !settings.sticker.hideTimestamp"
                         class="absolute right-1.5 bottom-1.5 z-10 bg-black/60 text-white px-1.5 py-0.5 rounded-md leading-none select-none pointer-events-none flex items-center">
                         <MessageStatus :date="date" :isOutgoing="!!isSelf" :sendingState="sendingState" :isRead="isRead"
-                            :viewCount="viewCount" :authorSignature="authorSignature" overMedia />
+                            :viewCount="viewCount" :authorSignature="authorSignature" overMedia :scheduled="scheduled" />
                     </span>
                 </div>
                 <!-- ReactionsBar：贴纸下方，自己靠右、他人靠左 -->
@@ -260,6 +262,8 @@ const props = defineProps<{
     isRead?: boolean;
     viewCount?: number;
     authorSignature?: string;
+    /** 定时消息（尚未发出）：时间旁显示时钟，不显示已发送 / 已读对勾 */
+    scheduled?: boolean;
     chatId?: number;
     messageId?: number;
     /** 完整 tdlib 消息对象（传递给媒体查看器） */

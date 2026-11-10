@@ -2,7 +2,7 @@ import { ref } from 'vue';
 import { tdlibSend } from '../session/tdlib';
 import { probeImage, probeVideo } from './mediaProbe';
 import type { $Function, message, messages } from 'tdlib-types';
-import type { inputTextQuote, textEntity$Input } from 'tdlib-types';
+import type { inputTextQuote, textEntity$Input, messageSendOptions$Input } from 'tdlib-types';
 import type { AttachmentItem, AttachmentKind } from '../../store/media/attachment';
 import i18n from '../../i18n';
 import { messageContentTypeLabel } from '../message/messagePreview';
@@ -351,6 +351,8 @@ interface SendCtx {
         checklist_task_id: number;
         poll_option_id?: string;
     } | null;
+    /** 静默 / 定时等发送选项；缺省走 TDLib 默认值 */
+    options?: messageSendOptions$Input;
 }
 
 function baseParams(ctx: SendCtx) {
@@ -358,6 +360,7 @@ function baseParams(ctx: SendCtx) {
         chat_id: ctx.chatId,
         // options 字段可省略：TDLib 会使用默认发送选项（不传即用默认值）
     };
+    if (ctx.options) p.options = ctx.options;
     if (ctx.threadId) {
         p.topic_id = { _: 'messageTopicThread', message_thread_id: ctx.threadId };
     } else if (ctx.topicId) {
@@ -384,6 +387,8 @@ export interface SendAttachmentsResult {
     ok: boolean;
     /** TDLib 返回的已发送消息（相册为完整成员列表，单条为单条消息） */
     messages: message[];
+    /** 失败时的 TDLib 错误信息（供调用方提示，如定时发送被限制） */
+    errors: string[];
 }
 
 export async function sendAttachments(
@@ -391,10 +396,11 @@ export async function sendAttachments(
     ctx: SendCtx,
     description: string | formattedCaption,
 ): Promise<SendAttachmentsResult> {
-    if (!attachments.length) return { ok: false, messages: [] };
+    if (!attachments.length) return { ok: false, messages: [], errors: [] };
     let ok = true;
     /** TDLib 返回的已发送消息（相册返回完整列表，单条返回单条消息） */
     const sentMessages: message[] = [];
+    const errors: string[] = [];
 
     const hasAnyCaption = attachments.some((a) => (a.caption ?? '').length > 0);
 
@@ -435,6 +441,7 @@ export async function sendAttachments(
         } catch (e) {
             console.error('sendMessage failed', e);
             ok = false;
+            errors.push(tdErrorText(e));
         }
     };
 
@@ -456,6 +463,7 @@ export async function sendAttachments(
         } catch (e) {
             console.error('sendMessageAlbum failed', e);
             ok = false;
+            errors.push(tdErrorText(e));
         }
     };
 
@@ -488,7 +496,15 @@ export async function sendAttachments(
         await sendSingle(it);
     }
 
-    return { ok, messages: sentMessages };
+    return { ok, messages: sentMessages, errors };
+}
+
+/** TDLib 错误对象 / JS Error → 可展示的文本 */
+function tdErrorText(e: unknown): string {
+    if (e && typeof e === 'object' && 'message' in e) {
+        return String((e as { message?: unknown }).message ?? '');
+    }
+    return e instanceof Error ? e.message : String(e);
 }
 
 /** 用于 UI 展示的发送进度简要状态 */

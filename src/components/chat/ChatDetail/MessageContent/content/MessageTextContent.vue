@@ -168,7 +168,7 @@
             :class="timeColorClass">
             <MessageStatus :date="timeDate!" :isOutgoing="timeIsOutgoing === true" :sendingState="timeSendingState"
                 :isRead="timeIsRead" :viewCount="timeViewCount" :authorSignature="timeAuthorSignature"
-                :isTranslated="isShowingTranslation" />
+                :isTranslated="isShowingTranslation" :scheduled="timeScheduled" />
         </span>
     </p>
 
@@ -341,6 +341,8 @@ const props = defineProps<{
     timeIsOutgoing?: boolean;
     timeSendingState?: MessageSendingState;
     timeIsRead?: boolean;
+    /** 定时消息的内嵌时间：显示时钟而不是已发送 / 已读对勾 */
+    timeScheduled?: boolean;
     timeViewCount?: number;
     timeAuthorSignature?: string;
     /** 时间文字颜色 class（如 text-gray-400 ...），默认继承文本色 */

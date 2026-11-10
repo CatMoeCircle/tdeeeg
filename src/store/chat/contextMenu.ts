@@ -18,6 +18,12 @@ export const isPremium = ref(false);
  * （忽略鼠标坐标），用于顶栏「更多」这类按钮菜单：弹出位置固定，不跟随鼠标。
  */
 export const anchored = ref(false);
+/**
+ * 锚定方向：anchored 为 true 时生效。
+ * - false：y 是菜单顶部（按钮下方弹出）
+ * - true ：y 是菜单底部（按钮上方弹出，菜单不盖住按钮）
+ */
+export const anchorAbove = ref(false);
 
 /** 防抖定时器：让关闭在事件冒泡后执行，避免点击菜单项时被立即关闭 */
 let closeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -32,6 +38,7 @@ export const interactionLocked = ref(false);
  * @param el 触发元素
  * @param data 附加数据
  * @param anchorToEl true 时 x 为菜单右缘、y 为菜单顶部（锚定定位，忽略鼠标坐标）
+ * @param above true 且 anchorToEl 时 y 改为菜单底部（菜单在锚点上方展开）
  */
 export function openContextMenu(
     xPos: number,
@@ -42,6 +49,7 @@ export function openContextMenu(
     reactions: ContextMenuReactionRow | null = null,
     premium = false,
     anchorToEl = false,
+    above = false,
 ) {
     if (closeTimer) {
         clearTimeout(closeTimer);
@@ -55,6 +63,7 @@ export function openContextMenu(
     reactionRow.value = reactions;
     isPremium.value = premium;
     anchored.value = anchorToEl && !!el;
+    anchorAbove.value = anchorToEl && above && !!el;
     visible.value = true;
     interactionLocked.value = false;
 }
@@ -68,6 +77,7 @@ export function closeContextMenu() {
     payloadData.value = null;
     reactionRow.value = null;
     anchored.value = false;
+    anchorAbove.value = false;
 }
 
 /** 延迟关闭（用于处理点击菜单项后让事件先冒泡） */

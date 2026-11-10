@@ -85,7 +85,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { CheckIcon, ChevronRightIcon } from "lucide-vue-next";
-import { visible, x, y, items, anchored, closeContextMenu, closeContextMenuDelayed } from "../../store/chat/contextMenu";
+import { visible, x, y, items, anchored, anchorAbove, closeContextMenu, closeContextMenuDelayed } from "../../store/chat/contextMenu";
 import { cancelAllSmoothScroll } from "../../directives/smoothWheel";
 import type { ContextMenuItem } from "./types";
 
@@ -317,10 +317,11 @@ function positionMenuInViewport() {
     const h = root.offsetHeight;
     let left = x.value;
     let top = y.value;
-    // 锚定模式（如顶栏「更多」按钮）：x 为菜单右缘、y 为菜单顶部，位置固定，不跟随鼠标点击处
+    // 锚定模式（如顶栏「更多」按钮 / 发送按钮右键）：x 为菜单右缘，位置固定，不跟随鼠标点击处
     if (anchored.value) {
         left = x.value - w;
-        top = y.value;
+        // y 默认是菜单顶部；anchorAbove 时 y 是菜单底部（在按钮上方展开，避免盖住按钮）
+        top = anchorAbove.value ? y.value - h : y.value;
     }
     const margin = 8;
     // 四边夹紧，确保整段菜单位于视口内（含左/上边界）
@@ -332,7 +333,7 @@ function positionMenuInViewport() {
 }
 
 // 右键坐标、锚点或可见性变化时重定位父菜单（响应式单一样式源）
-watch([x, y, anchored, visible], () => {
+watch([x, y, anchored, anchorAbove, visible], () => {
     openSubIdx.value = null;
     if (visible.value) {
         nextTick().then(positionMenuInViewport);

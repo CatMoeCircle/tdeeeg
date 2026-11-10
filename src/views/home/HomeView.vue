@@ -147,8 +147,19 @@ const showActiveChat = computed(
         !isSettingsDetail.value &&
         !isGroupEdit.value &&
         route.name !== 'user-profile' &&
-        route.name !== 'chat-profile',
+        route.name !== 'chat-profile' &&
+        route.name !== 'chat-scheduled',
 );
+
+/** 等待选择对话的空状态页（对话列表 / 归档列表首页） */
+const isChatWaitingPage = computed(() => route.name === 'chats' || route.name === 'archived');
+/** 非全屏壁纸模式下，等待选择对话页也自己铺一层默认壁纸，视觉与对话详情一致。
+ *  设置、联系人、资料页等不走这里（保持原来的纯色内容区）。 */
+const showChatEmptyWallpaper = computed(
+    () => !showActiveChat.value && isChatWaitingPage.value && !showContentWallpaper.value && !!render.value,
+);
+/** 对话详情与等待选择对话页都渲染成「圆角壁纸卡片」：分隔线由卡片左边框承担 */
+const showChatSurface = computed(() => showActiveChat.value || showChatEmptyWallpaper.value);
 
 // 同步聊天面板的挂载状态：侧栏（对话/联系人/设置/归档列表）据此让出音乐播放器
 // 入口，避免切到设置、联系人等栏目时与对话顶部的那份重复显示。
@@ -190,6 +201,13 @@ watch(
                 profileFromSection.value = profileFromSection.value ?? 'chats';
             }
             else profileFromSection.value = 'chats';
+            return;
+        }
+
+        // 定时消息页：独立于聊天容器渲染，关闭右侧聊天（左侧仍是对话列表）。
+        if (name === 'chat-scheduled') {
+            closeActiveChat();
+            if (profileFromSection.value === null) profileFromSection.value = 'chats';
             return;
         }
 

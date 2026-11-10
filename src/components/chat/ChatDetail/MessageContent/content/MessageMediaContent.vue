@@ -217,7 +217,7 @@
                 class="absolute right-1.5 bottom-1.5 bg-black/60 text-white px-1.5 py-0.5 rounded-md leading-none select-none pointer-events-none flex items-center">
                 <MessageStatus :date="date" :isOutgoing="isSelf" :sendingState="sendingState" :isRead="isRead"
                     :viewCount="viewCount" :authorSignature="authorSignature" overMedia
-                    :isTranslated="isShowingTranslation" />
+                    :isTranslated="isShowingTranslation" :scheduled="scheduled" />
             </div>
 
             <!-- 上传进度覆盖层（发送中的图片/视频/动画） -->
@@ -258,7 +258,8 @@
         <span v-if="captionBelow && date" class="block text-right px-2 pb-1"
             :class="isSelf ? 'text-gray-700/70' : 'text-gray-400'">
             <MessageStatus :date="date" :isOutgoing="isSelf" :sendingState="sendingState" :isRead="isRead"
-                :viewCount="viewCount" :authorSignature="authorSignature" :isTranslated="isShowingTranslation" />
+                :viewCount="viewCount" :authorSignature="authorSignature" :isTranslated="isShowingTranslation"
+                :scheduled="scheduled" />
         </span>
 
     </div>
@@ -324,6 +325,8 @@ const props = defineProps<{
     isFirstInGroup?: boolean;
     isLastInGroup?: boolean;
     sendingState?: MessageSendingState;
+    /** 定时消息：时间旁显示时钟，不显示已发送 / 已读对勾 */
+    scheduled?: boolean;
     isRead?: boolean;
     viewCount?: number;
     authorSignature?: string;

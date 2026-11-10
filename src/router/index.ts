@@ -55,6 +55,12 @@ const router = createRouter({
           component: () => import("../components/chat/ChatDetail/index.vue"),
         },
         {
+          // 定时消息页：按会话列出待发送的定时消息 / 收藏夹提醒
+          path: "chat-scheduled/:id",
+          name: "chat-scheduled",
+          component: () => import("../views/chat/ChatScheduledPage.vue"),
+        },
+        {
           path: "contacts",
           name: "contacts",
           component: () => import("../views/home/HomeEmpty.vue"),

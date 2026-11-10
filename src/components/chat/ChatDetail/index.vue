@@ -890,6 +890,15 @@ import {
     resolveEditReplaceKind,
 } from '../../../utils/media/attachmentSend';
 import { isSavedMessagesChat } from '../../../utils/chat/savedMessages';
+import formatTime from '../../../utils/ui/formatTime';
+import { formatDateLabel } from './composables/dateLabel';
+import {
+    canScheduleUntilOnline,
+    canSendSilently,
+    privatePeerUserId,
+    scheduledSendModeOf,
+    type OutgoingMessageOptions,
+} from '../../../utils/chat/chatScheduling';
 import { hasReactions } from '../../../utils/message/reactionHelpers';
 import {
     getInlineTranslation,
@@ -2088,14 +2097,28 @@ function replyToInput(): ReplyToMessage | undefined {
     };
 }
 
+/** JS 发送选项 → TDLib messageSendOptions；无附加选项时返回 undefined（走 TDLib 默认值） */
+function toTdSendOptions(options?: OutgoingMessageOptions): import('tdlib-types').messageSendOptions$Input | undefined {
+    if (!options || (!options.silent && !options.schedulingState)) return undefined;
+    return {
+        _: 'messageSendOptions',
+        disable_notification: !!options.silent,
+        scheduling_state: options.schedulingState,
+    };
+}
+
 /** 统一的 sendMessage 外壳：补 chat/topic/reply，文本 / 贴纸 / 动画共用 */
-function sendMessageContent(content: sendMessage['input_message_content']) {
+function sendMessageContent(
+    content: sendMessage['input_message_content'],
+    options?: OutgoingMessageOptions,
+) {
     return tdlibSend({
         _: 'sendMessage',
         chat_id: outgoingChatId()!,
         input_message_content: content,
         reply_to: replyToInput(),
         topic_id: outgoingTopicInput(),
+        options: toTdSendOptions(options),
     } as sendMessage as $Function);
 }
 
@@ -2979,6 +3002,14 @@ const handleUpdate = async (update: Update) => {
             const msg = update.message;
             // 仅处理当前正在渲染的聊天中的消息
             if (!isReady.value) return;
+            // 定时消息同样走 updateNewMessage，但它不在会话历史里：
+            // 只刷新「有定时消息」标记，交给定时消息页展示，不 append 进消息列表。
+            if (msg.scheduling_state) {
+                if (chat.value && msg.chat_id === chat.value.id) {
+                    chat.value.has_scheduled_messages = true;
+                }
+                return;
+            }
             if (threadMode.value) {
                 // 评论线程：只接收讨论组内属于本线程的消息（含自己刚发出的评论）
                 const t = threadInfo.value;
@@ -3045,6 +3076,14 @@ const handleUpdate = async (update: Update) => {
             break;
         }
 
+        case 'updateChatHasScheduledMessages': {
+            // 定时消息的增删由 TDLib 主动同步，发送区的时钟入口据此显示 / 隐藏
+            if (chat.value && update.chat_id === chat.value.id) {
+                chat.value.has_scheduled_messages = update.has_scheduled_messages;
+            }
+            break;
+        }
+
         case 'updateFile': {
             // 文件（下载/上传）信息更新：把「本地已下载完成并带路径」等终态写回消息内嵌的
             // File 快照，让复制消息原始 JSON / 转发引用的本地状态保持一致，而不是停留在
@@ -3079,6 +3118,14 @@ const handleUpdate = async (update: Update) => {
         case 'updateMessageSendFailed': {
             if (!isReady.value) return;
             if (!isActiveChat(update.message.chat_id)) return;
+            // 定时消息入库时 TDLib 还会补一条 sendSucceeded（旧/新 id 都是定时 id）。
+            // 它同样不属于会话历史：只刷新「有定时消息」标记，等真正到点发送后再显示。
+            if (update.message.scheduling_state) {
+                if (chat.value && update.message.chat_id === chat.value.id) {
+                    chat.value.has_scheduled_messages = true;
+                }
+                return;
+            }
             const oldIndex = messages.value.findIndex(m => m.id === update.old_message_id);
             const currentIndex = messages.value.findIndex(m => m.id === update.message.id);
 
@@ -5720,7 +5767,10 @@ async function maybePrefetchHistory(el: HTMLElement) {
  * @param input 发送内容。MessageInput 现在发送的是 formattedText（含实体）；
  *              为兼容旧调用，仍接受纯字符串（此时无实体）。
  */
-const handleSend = async (input: string | { _: 'formattedText'; text: string; entities?: textEntity$Input[] }) => {
+const handleSend = async (
+    input: string | { _: 'formattedText'; text: string; entities?: textEntity$Input[] },
+    options?: OutgoingMessageOptions,
+) => {
     if (!chatId.value) return;
     const text = typeof input === 'string' ? input : input.text;
 
@@ -5820,6 +5870,8 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
                     threadId: threadMode.value ? threadInfo.value?.message_thread_id : undefined,
                     isDm: isDirectMessagesChat.value,
                     replyTo: replyToInput() ?? null,
+                    // 静默 / 定时（含收藏夹提醒）随附件一起交给 TDLib
+                    options: toTdSendOptions(options),
                 },
                 caption,
             );
@@ -5828,13 +5880,20 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
         }
         // sendMessageAlbum / sendMessage 会返回已发送消息的完整列表。
         // 立即合并进消息列表，避免仅依赖 updateNewMessage 时相册成员被丢弃或延迟，
-        // 保证一次发送的多个文件全部显示出来。
-        if (sentResult && sentResult.messages.length > 0) {
-            await fetchSenders(sentResult.messages);
-            void fetchMemberStatuses(sentResult.messages);
-            appendMessages(sentResult.messages);
+        // 保证一次发送的多个文件全部显示出来。定时消息不在会话历史里，不能合并。
+        const visibleMessages = options?.schedulingState
+            ? (sentResult?.messages ?? []).filter((m) => !m.scheduling_state)
+            : (sentResult?.messages ?? []);
+        if (visibleMessages.length > 0) {
+            await fetchSenders(visibleMessages);
+            void fetchMemberStatuses(visibleMessages);
+            appendMessages(visibleMessages);
             // 发送后贴底展示刚发出的文件（与 updateNewMessage 的发送者贴底行为保持一致）
             scrollToBottom();
+        }
+        if (sentResult?.ok) notifyScheduled(options);
+        else if (options?.schedulingState && sentResult?.errors.length) {
+            toast.error(sentResult.errors[0]);
         }
         await attachStore.clearWithCleanup();
         messageInput.value = '';
@@ -5861,8 +5920,13 @@ const handleSend = async (input: string | { _: 'formattedText'; text: string; en
             clearDraft(chatId.value, topicId.value);
         }
         clearReply();
+        notifyScheduled(options);
     } catch (e) {
         console.error("Failed to send message:", e);
+        if (options?.schedulingState) {
+            const err = e as { message?: string };
+            toast.error(err?.message || String(e));
+        }
     }
 };
 
@@ -6925,6 +6989,40 @@ const canSend = computed(() => {
 const showDmTopicHint = computed(() =>
     isDirectMessagesChat.value && topicDisplayMode.value === 'tag' && !topicId.value && !showMembershipAction.value
 );
+
+// ==================== 静默 / 定时发送能力 ====================
+/** 发送按钮右键菜单里可以出现哪些项：按会话类型决定（详见 utils/chat/chatScheduling） */
+const canSendSilentHere = computed(() => canSendSilently(chat.value, myId.value));
+const scheduleModeHere = computed(() => {
+    // 评论线程的消息实际发到讨论组，定时列表却在当前频道下：
+    // 为避免「定时成功却找不到」的死角，线程视图不提供定时（静默仍可用）。
+    if (threadMode.value) return 'none' as const;
+    return scheduledSendModeOf(chat.value, myId.value, isDirectMessagesChat.value);
+});
+/** 私聊对端用户（在线状态 / 是否机器人），用于「在线时发送」 */
+const privatePeerUser = computed(() => {
+    const uid = privatePeerUserId(chat.value);
+    return uid ? getReactiveUser(uid) : undefined;
+});
+const canSendWhenOnlineHere = computed(() =>
+    scheduleModeHere.value === 'schedule' && canScheduleUntilOnline(privatePeerUser.value)
+);
+/** 打开当前会话的定时消息页 */
+function openScheduledPage() {
+    if (chatId.value === undefined) return;
+    router.push({ name: 'chat-scheduled', params: { id: String(chatId.value) } });
+}
+
+/** 定时发送成功：标记会话有定时消息，并用官方文案提示发送时间 */
+function notifyScheduled(options?: OutgoingMessageOptions) {
+    const state = options?.schedulingState;
+    if (!state) return;
+    if (chat.value) chat.value.has_scheduled_messages = true;
+    const dateText = state._ === 'messageSchedulingStateSendAtDate'
+        ? `${formatDateLabel(state.send_date ?? 0)} ${formatTime(state.send_date ?? 0)}`
+        : t('lng_scheduled_date_until_online');
+    toast.success(t('lng_scheduled_date', { date: dateText }));
+}
 
 const showMembershipAction = computed(() =>
     showMembershipActionOf(chat.value, currentMemberStatus.value)

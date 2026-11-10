@@ -19,8 +19,11 @@
 
         <!-- Sending status for outgoing messages -->
         <span v-if="isOutgoing" class="flex items-center">
+            <!-- Scheduled: not sent yet → clock instead of delivery check -->
+            <Clock3Icon v-if="scheduled" :class="statusIconClass" />
+
             <!-- Pending (sending) -->
-            <ClockFadingIcon v-if="sendingState?._ === 'messageSendingStatePending'"
+            <ClockFadingIcon v-else-if="sendingState?._ === 'messageSendingStatePending'"
                 :class="statusIconClass" class="animate-pulse text-blue-200" />
 
             <!-- Failed -->
@@ -44,6 +47,7 @@ import {
     EyeIcon,
     Languages as LanguagesIcon,
     ClockFading as ClockFadingIcon,
+    Clock3 as Clock3Icon,
     Info as InfoIcon,
     CheckCheck as CheckCheckIcon,
     Check as CheckIcon,
@@ -66,6 +70,8 @@ const props = defineProps<{
     overMedia?: boolean;
     /** 正文已显示为译文（replace 模式原位顶替） */
     isTranslated?: boolean;
+    /** 定时消息：时间旁显示时钟，不显示已发送 / 已读对勾 */
+    scheduled?: boolean;
 }>();
 
 const containerClass = computed(() => {

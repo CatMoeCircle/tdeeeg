@@ -51,7 +51,7 @@
             <div v-if="date"
                 class="absolute right-1.5 bottom-1.5 bg-black/60 text-white px-1.5 py-0.5 rounded-md leading-none select-none pointer-events-none flex items-center">
                 <MessageStatus :date="date" :isOutgoing="isSelf" :sendingState="sendingState" :isRead="isRead"
-                    :viewCount="viewCount" :authorSignature="authorSignature" overMedia />
+                    :viewCount="viewCount" :authorSignature="authorSignature" overMedia :scheduled="scheduled" />
             </div>
         </div>
 
@@ -107,6 +107,8 @@ const props = defineProps<{
     isSelf: boolean;
     date?: number;
     sendingState?: MessageSendingState;
+    /** 定时消息：时间旁显示时钟，不显示已发送 / 已读对勾 */
+    scheduled?: boolean;
     isRead?: boolean;
     viewCount?: number;
     authorSignature?: string;

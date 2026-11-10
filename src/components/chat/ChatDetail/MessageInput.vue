@@ -79,7 +79,14 @@
                     class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">
                     <Smile class="w-5 h-5" />
                 </button>
-                <button @click="onClickSend" type="button" :aria-label="t('lng_forward_send')" :disabled="sending"
+                <!-- 定时消息入口：只在已有定时消息时出现（对齐官方客户端发送区的时钟按钮） -->
+                <button v-if="hasScheduledMessages && !editTarget" @click="emit('openScheduled')" type="button"
+                    :aria-label="t('lng_scheduled_messages')" :title="t('lng_scheduled_messages')"
+                    class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">
+                    <CalendarClock class="w-5 h-5" />
+                </button>
+                <button @click="onClickSend" @contextmenu.prevent.stop="onSendContextMenu" type="button"
+                    :aria-label="t('lng_forward_send')" :disabled="sending"
                     class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-blue-500 text-gray-500 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-default">
                     <SendIcon class="w-5 h-5" />
                 </button>
@@ -88,6 +95,10 @@
 
         <!-- 链接地址输入对话框（替代 window.prompt） -->
         <LinkInputDialog v-model="linkDialogOpen" :initial-url="linkInitialUrl" @submit="onLinkSubmit" />
+
+        <!-- 定时发送时间选择：确认后由父组件带着 scheduling_state 发出 -->
+        <ScheduleMessageDialog v-model="scheduleDialogOpen" :mode="scheduleMode === 'reminder' ? 'reminder' : 'schedule'"
+            :allow-until-online="canScheduleUntilOnline" @submit="onScheduleSubmit" />
     </div>
 </template>
 
@@ -96,7 +107,7 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, ref, watch, onMounted, nextTick } from 'vue';
 import type { chat, ChatMemberStatus, user, textEntity, formattedText } from 'tdlib-types';
-import { CornerUpLeftIcon, SendIcon, Smile, Sparkles, XIcon, TypeIcon, Bold, Italic, Underline, Strikethrough, EyeOff, Code2, Quote, Link2, Eraser } from 'lucide-vue-next';
+import { CornerUpLeftIcon, SendIcon, Smile, Sparkles, XIcon, TypeIcon, Bold, Italic, Underline, Strikethrough, EyeOff, Code2, Quote, Link2, Eraser, BellOff, CalendarClock, UserRoundCheck } from 'lucide-vue-next';
 import { sending } from '../../../utils/media/attachmentSend';
 import { useAttachmentStore } from '../../../store/media/attachment';
 import { resolveCustomEmojiSrc } from '../../../utils/message/customEmojiPreview';
@@ -111,7 +122,10 @@ import type { MessageSender, chatMessageSender } from 'tdlib-types';
 import AttachmentMenu from './AttachmentMenu.vue';
 import AttachmentTray from './AttachmentTray.vue';
 import LinkInputDialog from './LinkInputDialog.vue';
+import ScheduleMessageDialog, { type ScheduleSubmitPayload } from './ScheduleMessageDialog.vue';
 import SenderSelector from './SenderSelector.vue';
+import type { OutgoingMessageOptions, ScheduledSendMode } from '../../../utils/chat/chatScheduling';
+import { schedulingStateAt, schedulingStateWhenOnline } from '../../../utils/chat/chatScheduling';
 import { fetchChatBotCommands, type ChatBotCommand } from '../../../utils/chat/chatBotCommands';
 import { getReactiveUser } from '../../../utils/profile/senderInfo';
 import { settings } from '../../../store/settings/settings';
@@ -147,12 +161,20 @@ const props = defineProps<{
     availableSenders?: chatMessageSender[];
     /** 是否正在加载可用发送身份 */
     sendersLoading?: boolean;
+    /** 右击发送按钮的菜单：是否提供「静默发送」 */
+    canSendSilent?: boolean;
+    /** 定时发送语义：schedule=定时 / reminder=收藏夹提醒 / none=不提供 */
+    scheduleMode?: ScheduledSendMode;
+    /** 是否提供「在线时发送」（仅私聊且对方在线状态精确可见） */
+    canScheduleUntilOnline?: boolean;
+    /** 当前会话是否已有定时消息（显示发送区的「定时消息」时钟入口） */
+    hasScheduledMessages?: boolean;
 }>();
 
 const emit = defineEmits([
     'update:modelValue', 'send', 'sticker', 'language', 'attach', 'clearReply', 'clearEdit',
     'attachPhoto', 'attachFile', 'attachMusic', 'attachChecklist', 'attachPoll',
-    'attachContact', 'attachLocation', 'change-sender', 'switchAi',
+    'attachContact', 'attachLocation', 'change-sender', 'switchAi', 'openScheduled',
 ]);
 
 /** 供父组件在进入编辑后写入原始实体（在 modelValue 稳定后调用） */
@@ -394,20 +416,82 @@ function sendCommand(cmd: string) {
     lastText = '';
 }
 
-const onClickSend = () => {
+/** 当前是否有可发送内容（文本 / 附件 / 编辑中的媒体描述） */
+function hasSendableContent(): boolean {
+    return !!props.editTarget || attachmentStore.items.length > 0 || !!localValue.value.trim();
+}
+
+/** 触发发送：options 非空时带上静默 / 定时状态 */
+function submitSend(options?: OutgoingMessageOptions) {
     if (sending.value) return;
     // 编辑模式下允许空文本（媒体消息可清空描述）；非编辑模式需有内容或附件
-    if (!props.editTarget && attachmentStore.items.length === 0 && !localValue.value.trim()) return;
+    if (!hasSendableContent()) return;
     const ft: formattedText = { _: 'formattedText', text: localValue.value, entities: entities.value };
-    emit('send', ft);
+    if (options) emit('send', ft, options);
+    else emit('send', ft);
     localValue.value = '';
     entities.value = [];
     lastText = '';
-};
+}
 
-const onEnter = () => {
-    onClickSend();
-};
+const onClickSend = () => submitSend();
+
+const onEnter = () => submitSend();
+
+/* =========================================================================
+ * 右击发送按钮：静默发送 / 定时发送 / 在线时发送
+ * ========================================================================= */
+const scheduleDialogOpen = ref(false);
+
+function onScheduleSubmit(payload: ScheduleSubmitPayload) {
+    const options: OutgoingMessageOptions = payload.untilOnline
+        ? { silent: payload.silent, schedulingState: schedulingStateWhenOnline() }
+        : { silent: payload.silent, schedulingState: schedulingStateAt(payload.sendAt ?? 0) };
+    submitSend(options);
+}
+
+/**
+ * 发送按钮的右键菜单。可用项由父组件按会话类型算好：
+ * 密聊 / 收藏夹不提供静默，密聊 / 频道私聊不提供定时，收藏夹把定时显示为「设置提醒」。
+ * 与官方客户端一致，没有可发送内容时不弹菜单（避免空发送）。
+ */
+function onSendContextMenu(e: MouseEvent) {
+    if (sending.value || props.editTarget || !hasSendableContent()) return;
+    const items: ContextMenuItem[] = [];
+    if (props.canSendSilent) {
+        items.push({
+            key: 'silent-send',
+            label: t('lng_send_silent_message'),
+            icon: BellOff,
+            onClick: () => submitSend({ silent: true }),
+        });
+    }
+    if (props.scheduleMode && props.scheduleMode !== 'none') {
+        items.push({
+            key: 'schedule-send',
+            label: props.scheduleMode === 'reminder' ? t('lng_reminder_message') : t('lng_schedule_message'),
+            icon: CalendarClock,
+            onClick: () => { scheduleDialogOpen.value = true; },
+        });
+    }
+    if (props.canScheduleUntilOnline) {
+        items.push({
+            key: 'send-when-online',
+            label: t('lng_scheduled_send_until_online'),
+            icon: UserRoundCheck,
+            onClick: () => submitSend({ schedulingState: schedulingStateWhenOnline() }),
+        });
+    }
+    if (items.length === 0) return;
+    // 固定在发送按钮正上方展开（菜单底边贴着按钮上缘，不跟随鼠标、不盖住按钮）
+    const btn = (e.currentTarget as HTMLElement | null) ?? (e.target as HTMLElement | null);
+    if (btn) {
+        const rect = btn.getBoundingClientRect();
+        openContextMenu(rect.right, rect.top - 6, items, btn, null, null, false, true, true);
+    } else {
+        openContextMenu(e.clientX, e.clientY, items);
+    }
+}
 
 const onEscape = () => {
     if (props.editTarget) {
