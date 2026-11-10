@@ -1,4 +1,4 @@
-// Types for TDLib v1.8.69 (0e88653dcbf4e44c73cb655a05b58cd749a91169)
+// Types for TDLib v1.8.70 (23383aef218a3123f02b744bfa91bde21056a814)
 // Generated using tdl-install-types v0.3.1
 declare module 'tdlib-types' {
   export type error = {
@@ -254,6 +254,22 @@ declare module 'tdlib-types' {
     _: 'textEntities',
     /** List of text entities */
     entities: Array<textEntity>,
+  }
+
+  export type textRange = {
+    /** Describes a part of a text */
+    _: 'textRange',
+    /** Offset of the part, in UTF-16 code units */
+    offset: number,
+    /** Length of the part, in UTF-16 code units */
+    length: number,
+  }
+
+  export type textRanges = {
+    /** Contains a list of text parts */
+    _: 'textRanges',
+    /** List of text parts */
+    ranges: Array<textRange>,
   }
 
   export type formattedText = {
@@ -2556,6 +2572,8 @@ declare module 'tdlib-types' {
     has_main_web_app: boolean,
     /** True, if the bot has topics */
     has_topics: boolean,
+    /** True, if the bot has topics, which are shown in a sidebar */
+    has_topic_sidebar: boolean,
     /** True, if users can create and delete topics in the chat with the bot */
     allows_users_to_create_topics: boolean,
     /** True, if the bot can manage other bots */
@@ -3398,8 +3416,8 @@ declare module 'tdlib-types' {
     /** True, if the user can send polls and checklists */
     can_send_polls: boolean,
     /**
-     * True, if the user can send animations, games, stickers, and dice and use inline
-     * bots
+     * True, if the user can send animations, games, stickers, widgets, and dice and
+     * use inline bots
      */
     can_send_other_messages: boolean,
     /** True, if the user may add a link preview to their messages */
@@ -3441,8 +3459,8 @@ declare module 'tdlib-types' {
     /** True, if the user can send polls and checklists */
     readonly can_send_polls?: boolean,
     /**
-     * True, if the user can send animations, games, stickers, and dice and use inline
-     * bots
+     * True, if the user can send animations, games, stickers, widgets, and dice and
+     * use inline bots
      */
     readonly can_send_other_messages?: boolean,
     /** True, if the user may add a link preview to their messages */
@@ -5015,7 +5033,7 @@ declare module 'tdlib-types' {
      * in the smallest units of the cryptocurrency; excess amount will be returned
      * to the wallet
      */
-    gram_amount: number,
+    gram_amount: string,
   }
 
   export type upgradeGiftResult = {
@@ -6541,7 +6559,7 @@ declare module 'tdlib-types' {
     /** Public key of the wallet; may be empty if none */
     public_key: string /* base64 */,
     /** The total amount of owned TON Grams, in the smallest units of the cryptocurrency */
-    gram_amount: number,
+    gram_amount: string,
     /** True, if the wallet is being created */
     is_being_created: boolean,
     /** True, if backup for the wallet key is enabled */
@@ -6629,7 +6647,7 @@ declare module 'tdlib-types' {
      * Balance of the wallet, in the smallest units of the cryptocurrency; may be slightly
      * outdated
      */
-    gram_amount: number,
+    gram_amount: string,
     /** Stickers placed on the card */
     stickers: Array<tonWalletCardSticker>,
     /**
@@ -6677,7 +6695,7 @@ declare module 'tdlib-types' {
     /** The transaction is a deposit from an on-ramp provider */
     _: 'tonWalletTransactionTypeOnRampDeposit',
     /** The amount of received cryptocurrency, in the smallest units of the cryptocurrency */
-    amount: number,
+    amount: string,
     /** Name of the on-ramp provider */
     provider_name: string,
   }
@@ -6689,7 +6707,7 @@ declare module 'tdlib-types' {
      * The amount of received cryptocurrency, in the smallest units of the cryptocurrency;
      * negative for outgoing transactions
      */
-    amount: number,
+    amount: string,
     /** True, if the fee was paid by Telegram */
     is_gasless: boolean,
     /** Comment added to the transaction */
@@ -6759,7 +6777,7 @@ declare module 'tdlib-types' {
      * The fee amount paid for the transaction in TON Grams, in the smallest units
      * of the cryptocurrency
      */
-    fee_amount: number,
+    fee_amount: string,
     /** State of the transaction */
     state: TonWalletTransactionState,
     /** Type of the transaction */
@@ -6770,7 +6788,7 @@ declare module 'tdlib-types' {
     /** Represents a list of TON Gram transactions */
     _: 'tonWalletTransactions',
     /** The total amount of owned TON Grams, in the smallest units of the cryptocurrency */
-    gram_amount: number,
+    gram_amount: string,
     /** List of transactions */
     transactions: Array<tonWalletTransaction>,
     /** The offset for the next request. If empty, then there are no more results */
@@ -7234,6 +7252,342 @@ declare module 'tdlib-types' {
     min_channel_chat_boost_level: number,
   }
 
+  export type notificationSettingsScopePrivateChats = {
+    /**
+     * Notification settings applied to all private and secret chats when the corresponding
+     * chat setting has a default value
+     */
+    _: 'notificationSettingsScopePrivateChats',
+  }
+
+  export type notificationSettingsScopePrivateChats$Input = {
+    /**
+     * Notification settings applied to all private and secret chats when the corresponding
+     * chat setting has a default value
+     */
+    readonly _: 'notificationSettingsScopePrivateChats',
+  }
+
+  export type notificationSettingsScopeGroupChats = {
+    /**
+     * Notification settings applied to all basic group and supergroup chats when the
+     * corresponding chat setting has a default value
+     */
+    _: 'notificationSettingsScopeGroupChats',
+  }
+
+  export type notificationSettingsScopeGroupChats$Input = {
+    /**
+     * Notification settings applied to all basic group and supergroup chats when the
+     * corresponding chat setting has a default value
+     */
+    readonly _: 'notificationSettingsScopeGroupChats',
+  }
+
+  export type notificationSettingsScopeChannelChats = {
+    /**
+     * Notification settings applied to all channel chats when the corresponding chat
+     * setting has a default value
+     */
+    _: 'notificationSettingsScopeChannelChats',
+  }
+
+  export type notificationSettingsScopeChannelChats$Input = {
+    /**
+     * Notification settings applied to all channel chats when the corresponding chat
+     * setting has a default value
+     */
+    readonly _: 'notificationSettingsScopeChannelChats',
+  }
+
+  export type chatNotificationSettings = {
+    /** Contains information about notification settings for a chat or a forum topic */
+    _: 'chatNotificationSettings',
+    /**
+     * If true, the value for the topic's chat, the chat's community, or the relevant
+     * type of chat is used instead of mute_for
+     */
+    use_default_mute_for: boolean,
+    /** Time left before notifications will be unmuted, in seconds */
+    mute_for: number,
+    /**
+     * If true, the value for the topic's chat, the chat's community, or the relevant
+     * type of chat is used instead of sound_id
+     */
+    use_default_sound: boolean,
+    /**
+     * Identifier of the notification sound to be played for messages; 0 if sound is
+     * disabled
+     */
+    sound_id: string,
+    /**
+     * If true, the value for the topic's chat, the chat's community, or the relevant
+     * type of chat is used instead of show_preview
+     */
+    use_default_show_preview: boolean,
+    /** True, if message content must be displayed in notifications */
+    show_preview: boolean,
+    /**
+     * If true, the value for the chat's community or the relevant type of chat is
+     * used instead of mute_stories
+     */
+    use_default_mute_stories: boolean,
+    /** True, if story notifications are disabled for the chat */
+    mute_stories: boolean,
+    /**
+     * If true, the value for the chat's community or the relevant type of chat is
+     * used instead of story_sound_id
+     */
+    use_default_story_sound: boolean,
+    /**
+     * Identifier of the notification sound to be played for stories; 0 if sound is
+     * disabled
+     */
+    story_sound_id: string,
+    /**
+     * If true, the value for the chat's community or the relevant type of chat is
+     * used instead of show_story_poster
+     */
+    use_default_show_story_poster: boolean,
+    /** True, if the chat that posted a story must be displayed in notifications */
+    show_story_poster: boolean,
+    /**
+     * If true, the value for the topic's chat, the chat's community, or the relevant
+     * type of chat is used instead of disable_pinned_message_notifications
+     */
+    use_default_disable_pinned_message_notifications: boolean,
+    /**
+     * If true, notifications for incoming pinned messages will be created as for an
+     * ordinary unread message
+     */
+    disable_pinned_message_notifications: boolean,
+    /**
+     * If true, the value for the topic's chat, the chat's community, or the relevant
+     * type of chat is used instead of disable_mention_notifications
+     */
+    use_default_disable_mention_notifications: boolean,
+    /**
+     * If true, notifications for messages with mentions will be created as for an
+     * ordinary unread message
+     */
+    disable_mention_notifications: boolean,
+  }
+
+  export type chatNotificationSettings$Input = {
+    /** Contains information about notification settings for a chat or a forum topic */
+    readonly _: 'chatNotificationSettings',
+    /**
+     * If true, the value for the topic's chat, the chat's community, or the relevant
+     * type of chat is used instead of mute_for
+     */
+    readonly use_default_mute_for?: boolean,
+    /** Time left before notifications will be unmuted, in seconds */
+    readonly mute_for?: number,
+    /**
+     * If true, the value for the topic's chat, the chat's community, or the relevant
+     * type of chat is used instead of sound_id
+     */
+    readonly use_default_sound?: boolean,
+    /**
+     * Identifier of the notification sound to be played for messages; 0 if sound is
+     * disabled
+     */
+    readonly sound_id?: number | string,
+    /**
+     * If true, the value for the topic's chat, the chat's community, or the relevant
+     * type of chat is used instead of show_preview
+     */
+    readonly use_default_show_preview?: boolean,
+    /** True, if message content must be displayed in notifications */
+    readonly show_preview?: boolean,
+    /**
+     * If true, the value for the chat's community or the relevant type of chat is
+     * used instead of mute_stories
+     */
+    readonly use_default_mute_stories?: boolean,
+    /** True, if story notifications are disabled for the chat */
+    readonly mute_stories?: boolean,
+    /**
+     * If true, the value for the chat's community or the relevant type of chat is
+     * used instead of story_sound_id
+     */
+    readonly use_default_story_sound?: boolean,
+    /**
+     * Identifier of the notification sound to be played for stories; 0 if sound is
+     * disabled
+     */
+    readonly story_sound_id?: number | string,
+    /**
+     * If true, the value for the chat's community or the relevant type of chat is
+     * used instead of show_story_poster
+     */
+    readonly use_default_show_story_poster?: boolean,
+    /** True, if the chat that posted a story must be displayed in notifications */
+    readonly show_story_poster?: boolean,
+    /**
+     * If true, the value for the topic's chat, the chat's community, or the relevant
+     * type of chat is used instead of disable_pinned_message_notifications
+     */
+    readonly use_default_disable_pinned_message_notifications?: boolean,
+    /**
+     * If true, notifications for incoming pinned messages will be created as for an
+     * ordinary unread message
+     */
+    readonly disable_pinned_message_notifications?: boolean,
+    /**
+     * If true, the value for the topic's chat, the chat's community, or the relevant
+     * type of chat is used instead of disable_mention_notifications
+     */
+    readonly use_default_disable_mention_notifications?: boolean,
+    /**
+     * If true, notifications for messages with mentions will be created as for an
+     * ordinary unread message
+     */
+    readonly disable_mention_notifications?: boolean,
+  }
+
+  export type scopeNotificationSettings = {
+    /** Contains information about notification settings for several chats */
+    _: 'scopeNotificationSettings',
+    /** Time left before notifications will be unmuted, in seconds */
+    mute_for: number,
+    /**
+     * Identifier of the notification sound to be played; 0 if sound is disabled; pass
+     * -1 to use the app-dependent default sound
+     */
+    sound_id: string,
+    /** True, if message content must be displayed in notifications */
+    show_preview: boolean,
+    /**
+     * If true, story notifications are received only for the first 5 chats from topChatCategoryUsers
+     * regardless of the value of mute_stories
+     */
+    use_default_mute_stories: boolean,
+    /** True, if story notifications are disabled */
+    mute_stories: boolean,
+    /**
+     * Identifier of the notification sound to be played for stories; 0 if sound is
+     * disabled; pass -1 to use the app-dependent default sound
+     */
+    story_sound_id: string,
+    /** True, if the chat that posted a story must be displayed in notifications */
+    show_story_poster: boolean,
+    /**
+     * True, if notifications for incoming pinned messages will be created as for an
+     * ordinary unread message
+     */
+    disable_pinned_message_notifications: boolean,
+    /**
+     * True, if notifications for messages with mentions will be created as for an
+     * ordinary unread message
+     */
+    disable_mention_notifications: boolean,
+  }
+
+  export type scopeNotificationSettings$Input = {
+    /** Contains information about notification settings for several chats */
+    readonly _: 'scopeNotificationSettings',
+    /** Time left before notifications will be unmuted, in seconds */
+    readonly mute_for?: number,
+    /**
+     * Identifier of the notification sound to be played; 0 if sound is disabled; pass
+     * -1 to use the app-dependent default sound
+     */
+    readonly sound_id?: number | string,
+    /** True, if message content must be displayed in notifications */
+    readonly show_preview?: boolean,
+    /**
+     * If true, story notifications are received only for the first 5 chats from topChatCategoryUsers
+     * regardless of the value of mute_stories
+     */
+    readonly use_default_mute_stories?: boolean,
+    /** True, if story notifications are disabled */
+    readonly mute_stories?: boolean,
+    /**
+     * Identifier of the notification sound to be played for stories; 0 if sound is
+     * disabled; pass -1 to use the app-dependent default sound
+     */
+    readonly story_sound_id?: number | string,
+    /** True, if the chat that posted a story must be displayed in notifications */
+    readonly show_story_poster?: boolean,
+    /**
+     * True, if notifications for incoming pinned messages will be created as for an
+     * ordinary unread message
+     */
+    readonly disable_pinned_message_notifications?: boolean,
+    /**
+     * True, if notifications for messages with mentions will be created as for an
+     * ordinary unread message
+     */
+    readonly disable_mention_notifications?: boolean,
+  }
+
+  export type reactionNotificationSourceNone = {
+    /** Notifications for reactions are disabled */
+    _: 'reactionNotificationSourceNone',
+  }
+
+  export type reactionNotificationSourceNone$Input = {
+    /** Notifications for reactions are disabled */
+    readonly _: 'reactionNotificationSourceNone',
+  }
+
+  export type reactionNotificationSourceContacts = {
+    /** Notifications for reactions are shown only for reactions from contacts */
+    _: 'reactionNotificationSourceContacts',
+  }
+
+  export type reactionNotificationSourceContacts$Input = {
+    /** Notifications for reactions are shown only for reactions from contacts */
+    readonly _: 'reactionNotificationSourceContacts',
+  }
+
+  export type reactionNotificationSourceAll = {
+    /** Notifications for reactions are shown for all reactions */
+    _: 'reactionNotificationSourceAll',
+  }
+
+  export type reactionNotificationSourceAll$Input = {
+    /** Notifications for reactions are shown for all reactions */
+    readonly _: 'reactionNotificationSourceAll',
+  }
+
+  export type reactionNotificationSettings = {
+    /** Contains information about notification settings for reactions and poll votes */
+    _: 'reactionNotificationSettings',
+    /** Source of message reactions for which notifications are shown */
+    message_reaction_source: ReactionNotificationSource,
+    /** Source of story reactions for which notifications are shown */
+    story_reaction_source: ReactionNotificationSource,
+    /** Source of poll votes for which notifications are shown */
+    poll_vote_source: ReactionNotificationSource,
+    /**
+     * Identifier of the notification sound to be played; 0 if sound is disabled; pass
+     * -1 to use the app-dependent default sound
+     */
+    sound_id: string,
+    /** True, if reaction sender and emoji must be displayed in notifications */
+    show_preview: boolean,
+  }
+
+  export type reactionNotificationSettings$Input = {
+    /** Contains information about notification settings for reactions and poll votes */
+    readonly _: 'reactionNotificationSettings',
+    /** Source of message reactions for which notifications are shown */
+    readonly message_reaction_source?: ReactionNotificationSource$Input,
+    /** Source of story reactions for which notifications are shown */
+    readonly story_reaction_source?: ReactionNotificationSource$Input,
+    /** Source of poll votes for which notifications are shown */
+    readonly poll_vote_source?: ReactionNotificationSource$Input,
+    /**
+     * Identifier of the notification sound to be played; 0 if sound is disabled; pass
+     * -1 to use the app-dependent default sound
+     */
+    readonly sound_id?: number | string,
+    /** True, if reaction sender and emoji must be displayed in notifications */
+    readonly show_preview?: boolean,
+  }
+
   export type communityId = {
     /** Contains identifier of a community */
     _: 'communityId',
@@ -7343,6 +7697,11 @@ declare module 'tdlib-types' {
      * community
      */
     permissions: communityPermissions,
+    /**
+     * True, if all chats of the community are collapsed into one entry in the chat
+     * list
+     */
+    are_chats_collapsed: boolean,
   }
 
   export type communityChat = {
@@ -7381,6 +7740,60 @@ declare module 'tdlib-types' {
      * current user isn't an administrator of the community
      */
     add_chat_request_count: number,
+    /**
+     * Notification settings for the community. Default notification settings are chosen
+     * based on the type of a chat in the community
+     */
+    notification_settings: chatNotificationSettings,
+  }
+
+  export type communities = {
+    /** Represents a list of communities */
+    _: 'communities',
+    /** List of community identifiers */
+    community_ids: Array<number>,
+  }
+
+  export type communityAddChatRequest = {
+    /** Describes a request to add a chat to a community */
+    _: 'communityAddChatRequest',
+    /** Identifier of the chat to be added */
+    chat_id: number,
+    /** True, if the chat will be visible only to administrators of the community */
+    is_hidden: boolean,
+    /** Identifier of the user who sent the request */
+    sender_user_id: number,
+    /** Point in time (Unix timestamp) when the request was sent */
+    date: number,
+  }
+
+  export type communityAddChatRequests = {
+    /** Contains a list of requests to add chats to a community */
+    _: 'communityAddChatRequests',
+    /** Approximate total number of requests found */
+    total_count: number,
+    /** List of the requests */
+    requests: Array<communityAddChatRequest>,
+    /**
+     * The offset for the next getCommunityAddChatRequests request. If empty, then
+     * there are no more results
+     */
+    next_offset: string,
+  }
+
+  export type communityMemberChats = {
+    /**
+     * Contains information about chats in a community, which are joined or owned by
+     * a member of the community
+     */
+    _: 'communityMemberChats',
+    /**
+     * Identifiers of the chats owned by the member. The chats will be removed from
+     * the community if the member is banned in the community
+     */
+    owned_chat_ids: Array<number>,
+    /** Identifiers of the non-owned chats joined by the member */
+    joined_chat_ids: Array<number>,
   }
 
   export type userRating = {
@@ -8595,6 +9008,11 @@ declare module 'tdlib-types' {
      */
     has_forum_tabs: boolean,
     /**
+     * True, if the supergroup is a forum, which topics are shown in a sidebar. If
+     * true, then has_forum_tabs is false
+     */
+    has_forum_sidebar: boolean,
+    /**
      * Information about the restrictions that must be applied to the corresponding
      * supergroup or channel chat; may be null if none
      */
@@ -9488,7 +9906,8 @@ declare module 'tdlib-types' {
      * messageContact, messageDice, messageDocument, messageGame, messageGiveaway,
      * messageGiveawayWinners, messageInvoice, messageLocation, messagePaidMedia, messagePhoto,
      * messagePoll, messageStakeDice, messageSticker, messageStory, messageText (for
-     * link preview), messageVenue, messageVideo, messageVideoNote, or messageVoiceNote
+     * link preview), messageVenue, messageVideo, messageVideoNote, messageVoiceNote,
+     * or messageWidget
      */
     content?: MessageContent,
   }
@@ -10232,324 +10651,6 @@ declare module 'tdlib-types' {
     files: Array<fileDownload>,
     /** The offset for the next request. If empty, then there are no more results */
     next_offset: string,
-  }
-
-  export type notificationSettingsScopePrivateChats = {
-    /**
-     * Notification settings applied to all private and secret chats when the corresponding
-     * chat setting has a default value
-     */
-    _: 'notificationSettingsScopePrivateChats',
-  }
-
-  export type notificationSettingsScopePrivateChats$Input = {
-    /**
-     * Notification settings applied to all private and secret chats when the corresponding
-     * chat setting has a default value
-     */
-    readonly _: 'notificationSettingsScopePrivateChats',
-  }
-
-  export type notificationSettingsScopeGroupChats = {
-    /**
-     * Notification settings applied to all basic group and supergroup chats when the
-     * corresponding chat setting has a default value
-     */
-    _: 'notificationSettingsScopeGroupChats',
-  }
-
-  export type notificationSettingsScopeGroupChats$Input = {
-    /**
-     * Notification settings applied to all basic group and supergroup chats when the
-     * corresponding chat setting has a default value
-     */
-    readonly _: 'notificationSettingsScopeGroupChats',
-  }
-
-  export type notificationSettingsScopeChannelChats = {
-    /**
-     * Notification settings applied to all channel chats when the corresponding chat
-     * setting has a default value
-     */
-    _: 'notificationSettingsScopeChannelChats',
-  }
-
-  export type notificationSettingsScopeChannelChats$Input = {
-    /**
-     * Notification settings applied to all channel chats when the corresponding chat
-     * setting has a default value
-     */
-    readonly _: 'notificationSettingsScopeChannelChats',
-  }
-
-  export type chatNotificationSettings = {
-    /** Contains information about notification settings for a chat or a forum topic */
-    _: 'chatNotificationSettings',
-    /**
-     * If true, the value for the relevant type of chat or the forum chat is used instead
-     * of mute_for
-     */
-    use_default_mute_for: boolean,
-    /** Time left before notifications will be unmuted, in seconds */
-    mute_for: number,
-    /**
-     * If true, the value for the relevant type of chat or the forum chat is used instead
-     * of sound_id
-     */
-    use_default_sound: boolean,
-    /**
-     * Identifier of the notification sound to be played for messages; 0 if sound is
-     * disabled
-     */
-    sound_id: string,
-    /**
-     * If true, the value for the relevant type of chat or the forum chat is used instead
-     * of show_preview
-     */
-    use_default_show_preview: boolean,
-    /** True, if message content must be displayed in notifications */
-    show_preview: boolean,
-    /** If true, the value for the relevant type of chat is used instead of mute_stories */
-    use_default_mute_stories: boolean,
-    /** True, if story notifications are disabled for the chat */
-    mute_stories: boolean,
-    /** If true, the value for the relevant type of chat is used instead of story_sound_id */
-    use_default_story_sound: boolean,
-    /**
-     * Identifier of the notification sound to be played for stories; 0 if sound is
-     * disabled
-     */
-    story_sound_id: string,
-    /** If true, the value for the relevant type of chat is used instead of show_story_poster */
-    use_default_show_story_poster: boolean,
-    /** True, if the chat that posted a story must be displayed in notifications */
-    show_story_poster: boolean,
-    /**
-     * If true, the value for the relevant type of chat or the forum chat is used instead
-     * of disable_pinned_message_notifications
-     */
-    use_default_disable_pinned_message_notifications: boolean,
-    /**
-     * If true, notifications for incoming pinned messages will be created as for an
-     * ordinary unread message
-     */
-    disable_pinned_message_notifications: boolean,
-    /**
-     * If true, the value for the relevant type of chat or the forum chat is used instead
-     * of disable_mention_notifications
-     */
-    use_default_disable_mention_notifications: boolean,
-    /**
-     * If true, notifications for messages with mentions will be created as for an
-     * ordinary unread message
-     */
-    disable_mention_notifications: boolean,
-  }
-
-  export type chatNotificationSettings$Input = {
-    /** Contains information about notification settings for a chat or a forum topic */
-    readonly _: 'chatNotificationSettings',
-    /**
-     * If true, the value for the relevant type of chat or the forum chat is used instead
-     * of mute_for
-     */
-    readonly use_default_mute_for?: boolean,
-    /** Time left before notifications will be unmuted, in seconds */
-    readonly mute_for?: number,
-    /**
-     * If true, the value for the relevant type of chat or the forum chat is used instead
-     * of sound_id
-     */
-    readonly use_default_sound?: boolean,
-    /**
-     * Identifier of the notification sound to be played for messages; 0 if sound is
-     * disabled
-     */
-    readonly sound_id?: number | string,
-    /**
-     * If true, the value for the relevant type of chat or the forum chat is used instead
-     * of show_preview
-     */
-    readonly use_default_show_preview?: boolean,
-    /** True, if message content must be displayed in notifications */
-    readonly show_preview?: boolean,
-    /** If true, the value for the relevant type of chat is used instead of mute_stories */
-    readonly use_default_mute_stories?: boolean,
-    /** True, if story notifications are disabled for the chat */
-    readonly mute_stories?: boolean,
-    /** If true, the value for the relevant type of chat is used instead of story_sound_id */
-    readonly use_default_story_sound?: boolean,
-    /**
-     * Identifier of the notification sound to be played for stories; 0 if sound is
-     * disabled
-     */
-    readonly story_sound_id?: number | string,
-    /** If true, the value for the relevant type of chat is used instead of show_story_poster */
-    readonly use_default_show_story_poster?: boolean,
-    /** True, if the chat that posted a story must be displayed in notifications */
-    readonly show_story_poster?: boolean,
-    /**
-     * If true, the value for the relevant type of chat or the forum chat is used instead
-     * of disable_pinned_message_notifications
-     */
-    readonly use_default_disable_pinned_message_notifications?: boolean,
-    /**
-     * If true, notifications for incoming pinned messages will be created as for an
-     * ordinary unread message
-     */
-    readonly disable_pinned_message_notifications?: boolean,
-    /**
-     * If true, the value for the relevant type of chat or the forum chat is used instead
-     * of disable_mention_notifications
-     */
-    readonly use_default_disable_mention_notifications?: boolean,
-    /**
-     * If true, notifications for messages with mentions will be created as for an
-     * ordinary unread message
-     */
-    readonly disable_mention_notifications?: boolean,
-  }
-
-  export type scopeNotificationSettings = {
-    /** Contains information about notification settings for several chats */
-    _: 'scopeNotificationSettings',
-    /** Time left before notifications will be unmuted, in seconds */
-    mute_for: number,
-    /**
-     * Identifier of the notification sound to be played; 0 if sound is disabled; pass
-     * -1 to use the app-dependent default sound
-     */
-    sound_id: string,
-    /** True, if message content must be displayed in notifications */
-    show_preview: boolean,
-    /**
-     * If true, story notifications are received only for the first 5 chats from topChatCategoryUsers
-     * regardless of the value of mute_stories
-     */
-    use_default_mute_stories: boolean,
-    /** True, if story notifications are disabled */
-    mute_stories: boolean,
-    /**
-     * Identifier of the notification sound to be played for stories; 0 if sound is
-     * disabled; pass -1 to use the app-dependent default sound
-     */
-    story_sound_id: string,
-    /** True, if the chat that posted a story must be displayed in notifications */
-    show_story_poster: boolean,
-    /**
-     * True, if notifications for incoming pinned messages will be created as for an
-     * ordinary unread message
-     */
-    disable_pinned_message_notifications: boolean,
-    /**
-     * True, if notifications for messages with mentions will be created as for an
-     * ordinary unread message
-     */
-    disable_mention_notifications: boolean,
-  }
-
-  export type scopeNotificationSettings$Input = {
-    /** Contains information about notification settings for several chats */
-    readonly _: 'scopeNotificationSettings',
-    /** Time left before notifications will be unmuted, in seconds */
-    readonly mute_for?: number,
-    /**
-     * Identifier of the notification sound to be played; 0 if sound is disabled; pass
-     * -1 to use the app-dependent default sound
-     */
-    readonly sound_id?: number | string,
-    /** True, if message content must be displayed in notifications */
-    readonly show_preview?: boolean,
-    /**
-     * If true, story notifications are received only for the first 5 chats from topChatCategoryUsers
-     * regardless of the value of mute_stories
-     */
-    readonly use_default_mute_stories?: boolean,
-    /** True, if story notifications are disabled */
-    readonly mute_stories?: boolean,
-    /**
-     * Identifier of the notification sound to be played for stories; 0 if sound is
-     * disabled; pass -1 to use the app-dependent default sound
-     */
-    readonly story_sound_id?: number | string,
-    /** True, if the chat that posted a story must be displayed in notifications */
-    readonly show_story_poster?: boolean,
-    /**
-     * True, if notifications for incoming pinned messages will be created as for an
-     * ordinary unread message
-     */
-    readonly disable_pinned_message_notifications?: boolean,
-    /**
-     * True, if notifications for messages with mentions will be created as for an
-     * ordinary unread message
-     */
-    readonly disable_mention_notifications?: boolean,
-  }
-
-  export type reactionNotificationSourceNone = {
-    /** Notifications for reactions are disabled */
-    _: 'reactionNotificationSourceNone',
-  }
-
-  export type reactionNotificationSourceNone$Input = {
-    /** Notifications for reactions are disabled */
-    readonly _: 'reactionNotificationSourceNone',
-  }
-
-  export type reactionNotificationSourceContacts = {
-    /** Notifications for reactions are shown only for reactions from contacts */
-    _: 'reactionNotificationSourceContacts',
-  }
-
-  export type reactionNotificationSourceContacts$Input = {
-    /** Notifications for reactions are shown only for reactions from contacts */
-    readonly _: 'reactionNotificationSourceContacts',
-  }
-
-  export type reactionNotificationSourceAll = {
-    /** Notifications for reactions are shown for all reactions */
-    _: 'reactionNotificationSourceAll',
-  }
-
-  export type reactionNotificationSourceAll$Input = {
-    /** Notifications for reactions are shown for all reactions */
-    readonly _: 'reactionNotificationSourceAll',
-  }
-
-  export type reactionNotificationSettings = {
-    /** Contains information about notification settings for reactions and poll votes */
-    _: 'reactionNotificationSettings',
-    /** Source of message reactions for which notifications are shown */
-    message_reaction_source: ReactionNotificationSource,
-    /** Source of story reactions for which notifications are shown */
-    story_reaction_source: ReactionNotificationSource,
-    /** Source of poll votes for which notifications are shown */
-    poll_vote_source: ReactionNotificationSource,
-    /**
-     * Identifier of the notification sound to be played; 0 if sound is disabled; pass
-     * -1 to use the app-dependent default sound
-     */
-    sound_id: string,
-    /** True, if reaction sender and emoji must be displayed in notifications */
-    show_preview: boolean,
-  }
-
-  export type reactionNotificationSettings$Input = {
-    /** Contains information about notification settings for reactions and poll votes */
-    readonly _: 'reactionNotificationSettings',
-    /** Source of message reactions for which notifications are shown */
-    readonly message_reaction_source?: ReactionNotificationSource$Input,
-    /** Source of story reactions for which notifications are shown */
-    readonly story_reaction_source?: ReactionNotificationSource$Input,
-    /** Source of poll votes for which notifications are shown */
-    readonly poll_vote_source?: ReactionNotificationSource$Input,
-    /**
-     * Identifier of the notification sound to be played; 0 if sound is disabled; pass
-     * -1 to use the app-dependent default sound
-     */
-    readonly sound_id?: number | string,
-    /** True, if reaction sender and emoji must be displayed in notifications */
-    readonly show_preview?: boolean,
   }
 
   export type draftMessageContentText = {
@@ -12311,7 +12412,7 @@ declare module 'tdlib-types' {
     unread_message_count: number,
     /**
      * The messages from which the thread starts. The messages are returned in reverse
-     * chronological order (i.e., in order of decreasing message_id)
+     * chronological order (i.e., in order of decreasing message.id)
      */
     messages: Array<message>,
     /** A draft of a message in the message thread; may be null if none */
@@ -16381,6 +16482,39 @@ declare module 'tdlib-types' {
     via_mention: boolean,
   }
 
+  export type messageWidget = {
+    /** A message with an HTML widget */
+    _: 'messageWidget',
+    /**
+     * Width of the widget; 0 if the widget must occupy the whole width of the message
+     * bubble
+     */
+    width: number,
+    /** Height of the widget; 0 if the height of the widget isn't fixed */
+    height: number,
+    /** HTML code of the widget */
+    html: string,
+    /** Public data of the widget */
+    public_data: string,
+    /** Data of the widget, which is specific to the chat */
+    chat_data: string,
+    /** Identifier of the shared widget; 0 if the widget isn't shared */
+    widget_id: string,
+    /** Widget caption */
+    caption: formattedText,
+    /**
+     * True, if the caption must be shown above the widget; otherwise, the caption
+     * must be shown below the widget
+     */
+    show_caption_above_media: boolean,
+    /** True, if the message is a copy of the widget */
+    is_copy: boolean,
+    /** True, if the widget can send queries to the bot */
+    can_send_queries: boolean,
+    /** True, if the widget can send queries to the bot in the background */
+    can_send_background_queries: boolean,
+  }
+
   export type messageChecklist = {
     /** A message with a checklist */
     _: 'messageChecklist',
@@ -17099,7 +17233,7 @@ declare module 'tdlib-types' {
      * The amount of received cryptocurrency, in the smallest units of the cryptocurrency;
      * negative for outgoing transactions
      */
-    amount: number,
+    amount: string,
     /** Comment added to the transaction */
     comment: string,
     /**
@@ -17957,7 +18091,10 @@ declare module 'tdlib-types' {
      * stickers, and less than 200 KB in size
      */
     _: 'inputThumbnail',
-    /** Thumbnail file to send. Sending thumbnails by file_id is currently not supported */
+    /**
+     * Thumbnail file to send. Sending thumbnails by inputFileId or inputFileRemote
+     * is currently not supported
+     */
     thumbnail: InputFile,
     /** Thumbnail width, usually shouldn't exceed 320. Use 0 if unknown */
     width: number,
@@ -17971,7 +18108,10 @@ declare module 'tdlib-types' {
      * stickers, and less than 200 KB in size
      */
     readonly _: 'inputThumbnail',
-    /** Thumbnail file to send. Sending thumbnails by file_id is currently not supported */
+    /**
+     * Thumbnail file to send. Sending thumbnails by inputFileId or inputFileRemote
+     * is currently not supported
+     */
     readonly thumbnail?: InputFile$Input,
     /** Thumbnail width, usually shouldn't exceed 320. Use 0 if unknown */
     readonly width?: number,
@@ -19906,6 +20046,120 @@ declare module 'tdlib-types' {
     readonly checklist?: inputChecklist$Input,
   }
 
+  export type inputMessageWidget = {
+    /** A message with an HTML widget; for bots only */
+    _: 'inputMessageWidget',
+    /**
+     * Width of the widget; 0 if the widget must occupy the whole width of the message
+     * bubble
+     */
+    width: number,
+    /** Height of the widget; 0 if the height of the widget isn't fixed */
+    height: number,
+    /**
+     * HTML code of the widget; 1-32768 bytes; must not exceed 4096 bytes when compressed
+     * by zlib with the maximal compression level
+     */
+    html: string,
+    /**
+     * Public data of the widget, which will be available in copies and forwards of
+     * the message
+     */
+    public_data: string,
+    /** Data of the widget, which is specific to the chat */
+    chat_data: string,
+    /**
+     * Widget caption; pass null to use an empty caption; 0-getOption("message_caption_length_max")
+     * characters
+     */
+    caption: formattedText,
+    /**
+     * True, if the caption must be shown above the widget; otherwise, the caption
+     * must be shown below the widget
+     */
+    show_caption_above_media: boolean,
+    /** Pass true to allow the widget to send queries to the bot */
+    allow_queries: boolean,
+    /** Pass true to create a shared widget, which can be sent again by its identifier */
+    is_shared: boolean,
+  }
+
+  export type inputMessageWidget$Input = {
+    /** A message with an HTML widget; for bots only */
+    readonly _: 'inputMessageWidget',
+    /**
+     * Width of the widget; 0 if the widget must occupy the whole width of the message
+     * bubble
+     */
+    readonly width?: number,
+    /** Height of the widget; 0 if the height of the widget isn't fixed */
+    readonly height?: number,
+    /**
+     * HTML code of the widget; 1-32768 bytes; must not exceed 4096 bytes when compressed
+     * by zlib with the maximal compression level
+     */
+    readonly html?: string,
+    /**
+     * Public data of the widget, which will be available in copies and forwards of
+     * the message
+     */
+    readonly public_data?: string,
+    /** Data of the widget, which is specific to the chat */
+    readonly chat_data?: string,
+    /**
+     * Widget caption; pass null to use an empty caption; 0-getOption("message_caption_length_max")
+     * characters
+     */
+    readonly caption?: formattedText$Input,
+    /**
+     * True, if the caption must be shown above the widget; otherwise, the caption
+     * must be shown below the widget
+     */
+    readonly show_caption_above_media?: boolean,
+    /** Pass true to allow the widget to send queries to the bot */
+    readonly allow_queries?: boolean,
+    /** Pass true to create a shared widget, which can be sent again by its identifier */
+    readonly is_shared?: boolean,
+  }
+
+  export type inputMessageSharedWidget = {
+    /** A message with an existing shared widget; for bots only */
+    _: 'inputMessageSharedWidget',
+    /** Identifier of the shared widget */
+    widget_id: string,
+    /** Data of the widget, which is specific to the chat */
+    chat_data: string,
+    /**
+     * Widget caption; pass null to use an empty caption; 0-getOption("message_caption_length_max")
+     * characters
+     */
+    caption: formattedText,
+    /**
+     * True, if the caption must be shown above the widget; otherwise, the caption
+     * must be shown below the widget
+     */
+    show_caption_above_media: boolean,
+  }
+
+  export type inputMessageSharedWidget$Input = {
+    /** A message with an existing shared widget; for bots only */
+    readonly _: 'inputMessageSharedWidget',
+    /** Identifier of the shared widget */
+    readonly widget_id?: number | string,
+    /** Data of the widget, which is specific to the chat */
+    readonly chat_data?: string,
+    /**
+     * Widget caption; pass null to use an empty caption; 0-getOption("message_caption_length_max")
+     * characters
+     */
+    readonly caption?: formattedText$Input,
+    /**
+     * True, if the caption must be shown above the widget; otherwise, the caption
+     * must be shown below the widget
+     */
+    readonly show_caption_above_media?: boolean,
+  }
+
   export type inputMessageForwarded = {
     /** A forwarded message */
     _: 'inputMessageForwarded',
@@ -20801,15 +21055,6 @@ declare module 'tdlib-types' {
     readonly address?: locationAddress$Input,
   }
 
-  export type inputStoryAreaTypeFoundVenue$Input = {
-    /** An area pointing to a venue found by the bot getOption("venue_search_bot_username") */
-    readonly _: 'inputStoryAreaTypeFoundVenue',
-    /** Identifier of the inline query, used to find the venue */
-    readonly query_id?: number | string,
-    /** Identifier of the inline query result */
-    readonly result_id?: string,
-  }
-
   export type inputStoryAreaTypePreviousVenue$Input = {
     /** An area pointing to a venue already added to the story */
     readonly _: 'inputStoryAreaTypePreviousVenue',
@@ -20883,13 +21128,12 @@ declare module 'tdlib-types' {
     /** Contains a list of story areas to be added */
     readonly _: 'inputStoryAreas',
     /**
-     * List of input story areas. Currently, a story can have up to 10 inputStoryAreaTypeLocation,
-     * inputStoryAreaTypeFoundVenue, and inputStoryAreaTypePreviousVenue areas, up
-     * to getOption("story_suggested_reaction_area_count_max") inputStoryAreaTypeSuggestedReaction
-     * areas, up to 1 inputStoryAreaTypeMessage area, up to getOption("story_link_area_count_max")
-     * inputStoryAreaTypeLink areas if the current user is a Telegram Premium user,
-     * up to 3 inputStoryAreaTypeWeather areas, and up to 1 inputStoryAreaTypeUpgradedGift
-     * area
+     * List of input story areas. Currently, a story can have up to 10 inputStoryAreaTypeLocation
+     * and inputStoryAreaTypePreviousVenue areas, up to getOption("story_suggested_reaction_area_count_max")
+     * inputStoryAreaTypeSuggestedReaction areas, up to 1 inputStoryAreaTypeMessage
+     * area, up to getOption("story_link_area_count_max") inputStoryAreaTypeLink areas
+     * if the current user is a Telegram Premium user, up to 3 inputStoryAreaTypeWeather
+     * areas, and up to 1 inputStoryAreaTypeUpgradedGift area
      */
     readonly areas?: ReadonlyArray<inputStoryArea$Input>,
   }
@@ -21160,6 +21404,8 @@ declare module 'tdlib-types' {
     areas: Array<storyArea>,
     /** Caption of the story */
     caption: formattedText,
+    /** Music attached to the story; may be null if none */
+    music?: audio,
     /**
      * Identifiers of story albums to which the story is added; only for manageable
      * stories
@@ -21250,7 +21496,7 @@ declare module 'tdlib-types' {
     /**
      * A parameter used to determine order of the stories in the story list; 0 if the
      * stories don't need to be shown in the story list. Stories must be sorted by
-     * the pair (order, story_poster_chat_id) in descending order
+     * the pair (order, chat_id) in descending order
      */
     order: number,
     /**
@@ -22597,6 +22843,16 @@ declare module 'tdlib-types' {
     readonly error?: error$Input,
   }
 
+  export type speechRecognitionLanguages = {
+    /** Contains a list of probable languages of speech */
+    _: 'speechRecognitionLanguages',
+    /**
+     * IETF language tags of the languages in descending order of their probability;
+     * for example, "en-US"
+     */
+    language_codes: Array<string>,
+  }
+
   export type businessConnection = {
     /** Describes a connection of the bot with a business account */
     _: 'businessConnection',
@@ -22840,7 +23096,8 @@ declare module 'tdlib-types' {
     /**
      * The content of the message to be sent. Must be one of the following types: inputMessageText,
      * inputMessageRichMessage, inputMessageAnimation, inputMessageInvoice, inputMessageLiveLocation,
-     * inputMessageLocation, inputMessageVenue, or inputMessageContact
+     * inputMessageLocation, inputMessageVenue, inputMessageWidget, inputMessageSharedWidget,
+     * or inputMessageContact
      */
     readonly input_message_content?: InputMessageContent$Input,
   }
@@ -22870,7 +23127,7 @@ declare module 'tdlib-types' {
     /**
      * The content of the message to be sent. Must be one of the following types: inputMessageText,
      * inputMessageRichMessage, inputMessageInvoice, inputMessageLiveLocation, inputMessageLocation,
-     * inputMessageVenue, or inputMessageContact
+     * inputMessageVenue, inputMessageWidget, inputMessageSharedWidget, or inputMessageContact
      */
     readonly input_message_content?: InputMessageContent$Input,
   }
@@ -22896,7 +23153,8 @@ declare module 'tdlib-types' {
     /**
      * The content of the message to be sent. Must be one of the following types: inputMessageText,
      * inputMessageRichMessage, inputMessageAudio, inputMessageInvoice, inputMessageLiveLocation,
-     * inputMessageLocation, inputMessageVenue, or inputMessageContact
+     * inputMessageLocation, inputMessageVenue, inputMessageWidget, inputMessageSharedWidget,
+     * or inputMessageContact
      */
     readonly input_message_content?: InputMessageContent$Input,
   }
@@ -22922,7 +23180,7 @@ declare module 'tdlib-types' {
     /**
      * The content of the message to be sent. Must be one of the following types: inputMessageText,
      * inputMessageRichMessage, inputMessageInvoice, inputMessageLiveLocation, inputMessageLocation,
-     * inputMessageVenue, or inputMessageContact
+     * inputMessageVenue, inputMessageWidget, inputMessageSharedWidget, or inputMessageContact
      */
     readonly input_message_content?: InputMessageContent$Input,
   }
@@ -22957,7 +23215,8 @@ declare module 'tdlib-types' {
     /**
      * The content of the message to be sent. Must be one of the following types: inputMessageText,
      * inputMessageRichMessage, inputMessageDocument, inputMessageInvoice, inputMessageLiveLocation,
-     * inputMessageLocation, inputMessageVenue, or inputMessageContact
+     * inputMessageLocation, inputMessageVenue, inputMessageWidget, inputMessageSharedWidget,
+     * or inputMessageContact
      */
     readonly input_message_content?: InputMessageContent$Input,
   }
@@ -23004,7 +23263,7 @@ declare module 'tdlib-types' {
     /**
      * The content of the message to be sent. Must be one of the following types: inputMessageText,
      * inputMessageRichMessage, inputMessageInvoice, inputMessageLiveLocation, inputMessageLocation,
-     * inputMessageVenue, or inputMessageContact
+     * inputMessageVenue, inputMessageWidget, inputMessageSharedWidget, or inputMessageContact
      */
     readonly input_message_content?: InputMessageContent$Input,
   }
@@ -23034,7 +23293,8 @@ declare module 'tdlib-types' {
     /**
      * The content of the message to be sent. Must be one of the following types: inputMessageText,
      * inputMessageRichMessage, inputMessagePhoto, inputMessageInvoice, inputMessageLiveLocation,
-     * inputMessageLocation, inputMessageVenue, or inputMessageContact
+     * inputMessageLocation, inputMessageVenue, inputMessageWidget, inputMessageSharedWidget,
+     * or inputMessageContact
      */
     readonly input_message_content?: InputMessageContent$Input,
   }
@@ -23063,7 +23323,8 @@ declare module 'tdlib-types' {
     /**
      * The content of the message to be sent. Must be one of the following types: inputMessageText,
      * inputMessageRichMessage, inputMessageSticker, inputMessageInvoice, inputMessageLiveLocation,
-     * inputMessageLocation, inputMessageVenue, or inputMessageContact
+     * inputMessageLocation, inputMessageVenue, inputMessageWidget, inputMessageSharedWidget,
+     * or inputMessageContact
      */
     readonly input_message_content?: InputMessageContent$Input,
   }
@@ -23089,7 +23350,7 @@ declare module 'tdlib-types' {
     /**
      * The content of the message to be sent. Must be one of the following types: inputMessageText,
      * inputMessageRichMessage, inputMessageInvoice, inputMessageLiveLocation, inputMessageLocation,
-     * inputMessageVenue, or inputMessageContact
+     * inputMessageVenue, inputMessageWidget, inputMessageSharedWidget, or inputMessageContact
      */
     readonly input_message_content?: InputMessageContent$Input,
   }
@@ -23126,7 +23387,8 @@ declare module 'tdlib-types' {
     /**
      * The content of the message to be sent. Must be one of the following types: inputMessageText,
      * inputMessageRichMessage, inputMessageVideo, inputMessageInvoice, inputMessageLiveLocation,
-     * inputMessageLocation, inputMessageVenue, or inputMessageContact
+     * inputMessageLocation, inputMessageVenue, inputMessageWidget, inputMessageSharedWidget,
+     * or inputMessageContact
      */
     readonly input_message_content?: InputMessageContent$Input,
   }
@@ -23153,7 +23415,8 @@ declare module 'tdlib-types' {
     /**
      * The content of the message to be sent. Must be one of the following types: inputMessageText,
      * inputMessageRichMessage, inputMessageVoiceNote, inputMessageInvoice, inputMessageLiveLocation,
-     * inputMessageLocation, inputMessageVenue, or inputMessageContact
+     * inputMessageLocation, inputMessageVenue, inputMessageWidget, inputMessageSharedWidget,
+     * or inputMessageContact
      */
     readonly input_message_content?: InputMessageContent$Input,
   }
@@ -23449,6 +23712,116 @@ declare module 'tdlib-types' {
     show_alert: boolean,
     /** URL to be opened */
     url: string,
+  }
+
+  export type widgetQueryWallet = {
+    /** Describes a TON wallet of the user, who is used in a widget query */
+    _: 'widgetQueryWallet',
+    /** Address of the wallet */
+    address: string,
+    /** Balance of the wallet, in the smallest units of the cryptocurrency */
+    gram_amount: string,
+    /** Public key of the wallet; may be empty if unknown */
+    public_key: string /* base64 */,
+    /**
+     * Serialized StateInit of the wallet contract; must be empty if and only if public_key
+     * is empty
+     */
+    state_init: string /* base64 */,
+  }
+
+  export type widgetQueryWallet$Input = {
+    /** Describes a TON wallet of the user, who is used in a widget query */
+    readonly _: 'widgetQueryWallet',
+    /** Address of the wallet */
+    readonly address?: string,
+    /** Balance of the wallet, in the smallest units of the cryptocurrency */
+    readonly gram_amount?: number | string,
+    /** Public key of the wallet; may be empty if unknown */
+    readonly public_key?: string /* base64 */,
+    /**
+     * Serialized StateInit of the wallet contract; must be empty if and only if public_key
+     * is empty
+     */
+    readonly state_init?: string /* base64 */,
+  }
+
+  export type widgetQueryTypeData = {
+    /** The query contains data for the bot */
+    _: 'widgetQueryTypeData',
+    /**
+     * True, if the TON wallet card of the user who sends the query is sent to the
+     * bot along with the query
+     */
+    with_wallet: boolean,
+  }
+
+  export type widgetQueryTypeData$Input = {
+    /** The query contains data for the bot */
+    readonly _: 'widgetQueryTypeData',
+    /**
+     * True, if the TON wallet card of the user who sends the query is sent to the
+     * bot along with the query
+     */
+    readonly with_wallet?: boolean,
+  }
+
+  export type widgetQueryTypeSignData = {
+    /** The query contains data signed by a TON wallet of the user who sends the query */
+    _: 'widgetQueryTypeSignData',
+    /** The wallet that signed the data */
+    wallet: widgetQueryWallet,
+    /** JSON-serialized signed data */
+    sign_data: string,
+  }
+
+  export type widgetQueryTypeSignData$Input = {
+    /** The query contains data signed by a TON wallet of the user who sends the query */
+    readonly _: 'widgetQueryTypeSignData',
+    /** The wallet that signed the data */
+    readonly wallet?: widgetQueryWallet$Input,
+    /** JSON-serialized signed data */
+    readonly sign_data?: string,
+  }
+
+  export type widgetQueryTypeSentTransaction = {
+    /**
+     * The query notifies the bot about a transaction sent from a TON wallet of the
+     * user who sends the query
+     */
+    _: 'widgetQueryTypeSentTransaction',
+    /** The wallet from which the transaction was sent */
+    wallet: widgetQueryWallet,
+    /** Value of msg_hash of the transaction */
+    msg_hash: string,
+  }
+
+  export type widgetQueryTypeSentTransaction$Input = {
+    /**
+     * The query notifies the bot about a transaction sent from a TON wallet of the
+     * user who sends the query
+     */
+    readonly _: 'widgetQueryTypeSentTransaction',
+    /** The wallet from which the transaction was sent */
+    readonly wallet?: widgetQueryWallet$Input,
+    /** Value of msg_hash of the transaction */
+    readonly msg_hash?: string,
+  }
+
+  export type widgetQueryAnswer = {
+    /** Contains an answer to a widget query */
+    _: 'widgetQueryAnswer',
+    /** Data returned by the bot */
+    data: string,
+  }
+
+  export type widgetPublicData = {
+    /** Contains public data of a widget */
+    _: 'widgetPublicData',
+    /** Public data of the widget */
+    data: string,
+    /** The number of seconds after which the public data can be polled again */
+    poll_period: number,
   }
 
   export type customRequestResult = {
@@ -29130,7 +29503,7 @@ declare module 'tdlib-types' {
     /** Chosen receiver of the transfer; may be null if none */
     receiver?: TonWalletTransferReceiver,
     /** The pre-filled amount of TON Grams to send; in the smallest units of the cryptocurrency */
-    gram_amount: number,
+    gram_amount: string,
   }
 
   export type internalLinkTypeTonWalletTransfer$Input = {
@@ -29139,7 +29512,7 @@ declare module 'tdlib-types' {
     /** Chosen receiver of the transfer; may be null if none */
     readonly receiver?: TonWalletTransferReceiver$Input,
     /** The pre-filled amount of TON Grams to send; in the smallest units of the cryptocurrency */
-    readonly gram_amount?: number,
+    readonly gram_amount?: number | string,
   }
 
   export type internalLinkTypeUnknownDeepLink = {
@@ -33118,6 +33491,18 @@ declare module 'tdlib-types' {
     next_reset_date: number,
   }
 
+  export type updateSpeechRecognitionInFile = {
+    /**
+     * Speech in an audio file was partially recognized. The final result will be returned
+     * by the corresponding recognizeSpeechInFile request
+     */
+    _: 'updateSpeechRecognitionInFile',
+    /** Identifier of the speech recognition as specified in recognizeSpeechInFile */
+    recognition_id: string,
+    /** Partially recognized text */
+    partial_text: string,
+  }
+
   export type updateGroupCallMessageLevels = {
     /** The levels of live story group call messages have changed */
     _: 'updateGroupCallMessageLevels',
@@ -33343,6 +33728,77 @@ declare module 'tdlib-types' {
     chat_instance: string,
     /** Query payload */
     payload: CallbackQueryPayload,
+  }
+
+  export type updateNewWidgetQuery = {
+    /** A new incoming widget query; for bots only */
+    _: 'updateNewWidgetQuery',
+    /** Unique query identifier */
+    id: string,
+    /** Identifier of the user who sent the query */
+    sender_user_id: number,
+    /** Identifier of the chat where the query was sent */
+    chat_id: number,
+    /** Identifier of the message from which the query originated */
+    message_id: number,
+    /** Identifier that uniquely corresponds to the chat to which the message was sent */
+    chat_instance: string,
+    /** Type of the chat to which the message was sent */
+    chat_type: string,
+    /** Type of the query */
+    query_type: WidgetQueryType,
+    /** Data of the query */
+    data: string /* base64 */,
+    /**
+     * Identifier of the shared widget from which the query originated; 0 if the widget
+     * isn't shared
+     */
+    widget_id: string,
+    /** TON wallet card of the user who sent the query; may be null if none */
+    wallet_card?: tonWalletCard,
+  }
+
+  export type updateNewInlineWidgetQuery = {
+    /** A new incoming widget query from a message sent via a bot; for bots only */
+    _: 'updateNewInlineWidgetQuery',
+    /** Unique query identifier */
+    id: string,
+    /** Identifier of the user who sent the query */
+    sender_user_id: number,
+    /** Identifier of the inline message from which the query originated */
+    inline_message_id: string,
+    /** Identifier that uniquely corresponds to the chat to which the message was sent */
+    chat_instance: string,
+    /** Type of the chat to which the message was sent */
+    chat_type: string,
+    /** Type of the query */
+    query_type: WidgetQueryType,
+    /** Data of the query */
+    data: string /* base64 */,
+    /**
+     * Identifier of the shared widget from which the query originated; 0 if the widget
+     * isn't shared
+     */
+    widget_id: string,
+    /** TON wallet card of the user who sent the query; may be null if none */
+    wallet_card?: tonWalletCard,
+  }
+
+  export type updateNewWidgetCopyQuery = {
+    /** A new incoming widget query from a copy of a shared widget; for bots only */
+    _: 'updateNewWidgetCopyQuery',
+    /** Unique query identifier */
+    id: string,
+    /** Identifier of the user who sent the query */
+    sender_user_id: number,
+    /** Type of the query */
+    query_type: WidgetQueryType,
+    /** Data of the query */
+    data: string /* base64 */,
+    /** Identifier of the shared widget from which the query originated */
+    widget_id: string,
+    /** TON wallet card of the user who sent the query; may be null if none */
+    wallet_card?: tonWalletCard,
   }
 
   export type updateNewShippingQuery = {
@@ -34798,6 +35254,14 @@ declare module 'tdlib-types' {
     readonly _: 'getSuitablePersonalChats',
   }
 
+  export type getSuitableCommunityChats = {
+    /**
+     * Returns a list of supergroup and channel chats owned by the current user, which
+     * can be added to a community
+     */
+    readonly _: 'getSuitableCommunityChats',
+  }
+
   export type loadDirectMessagesChatTopics = {
     /**
      * Loads more topics in a channel direct messages chat administered by the current
@@ -34832,7 +35296,7 @@ declare module 'tdlib-types' {
     /**
      * Returns messages in the topic in a channel direct messages chat administered
      * by the current user. The messages are returned in reverse chronological order
-     * (i.e., in order of decreasing message_id)
+     * (i.e., in order of decreasing message.id)
      */
     readonly _: 'getDirectMessagesChatTopicHistory',
     /** Chat identifier of the channel direct messages chat */
@@ -34988,7 +35452,7 @@ declare module 'tdlib-types' {
   export type getSavedMessagesTopicHistory = {
     /**
      * Returns messages in a Saved Messages topic. The messages are returned in reverse
-     * chronological order (i.e., in order of decreasing message_id)
+     * chronological order (i.e., in order of decreasing message.id)
      */
     readonly _: 'getSavedMessagesTopicHistory',
     /** Identifier of Saved Messages topic which messages will be fetched */
@@ -35071,6 +35535,11 @@ declare module 'tdlib-types' {
     readonly community_id?: number,
   }
 
+  export type getJoinedCommunities = {
+    /** Returns the list of communities joined by the current user */
+    readonly _: 'getJoinedCommunities',
+  }
+
   export type createCommunity = {
     /**
      * Creates a new community for the given chat. Returns identifier of the created
@@ -35125,6 +35594,148 @@ declare module 'tdlib-types' {
     readonly permissions?: communityPermissions$Input,
   }
 
+  export type setCommunityNotificationSettings = {
+    /** Changes notification settings of a community */
+    readonly _: 'setCommunityNotificationSettings',
+    /** Identifier of the community */
+    readonly community_id?: number,
+    /** New notification settings for the community */
+    readonly notification_settings?: chatNotificationSettings$Input,
+  }
+
+  export type addCommunityChat = {
+    /**
+     * Adds a chat to a community. If the current user isn't allowed to change the
+     * list of chats in the community, then a request to add the chat is sent to administrators
+     * of the community instead and the method fails with the error "COMMUNITY_REQUEST_CREATED"
+     */
+    readonly _: 'addCommunityChat',
+    /** Identifier of the community */
+    readonly community_id?: number,
+    /**
+     * Identifier of the chat to add; only chats with owned bots and owned basic group,
+     * supergroup and channel chats are allowed; basic group chats will be automatically
+     * upgraded to supergroup chats. A community can have up to getOption("community_chat_count_max")
+     * supergroup and channel chats and up to getOption("community_bot_count_max")
+     * chats with bots; otherwise, the method fails with the error "COMMUNITY_PEERS_TOO_MUCH"
+     */
+    readonly chat_id?: number,
+    /** Pass true if the chat will be visible only to administrators of the community */
+    readonly is_hidden?: boolean,
+  }
+
+  export type removeCommunityChat = {
+    /**
+     * Removes a chat from a community. Members of the chat, which aren't members of
+     * other chats in the community, will be removed from the community. Requires owner
+     * privileges in the supergroup or channel chat, or ownership of the bot for chats
+     * with bots, or can_edit_chat_list administrator right in the community
+     */
+    readonly _: 'removeCommunityChat',
+    /** Identifier of the community */
+    readonly community_id?: number,
+    /** Identifier of the chat to remove */
+    readonly chat_id?: number,
+  }
+
+  export type getCommunityAddChatRequests = {
+    /**
+     * Returns pending requests to add chats to a community. Administrators of the
+     * community with can_edit_chat_list right receive all requests; other users receive
+     * only requests sent by them
+     */
+    readonly _: 'getCommunityAddChatRequests',
+    /** Identifier of the community */
+    readonly community_id?: number,
+    /**
+     * Offset of the first entry to return as received from the previous request; use
+     * empty string to get the first chunk of results
+     */
+    readonly offset?: string,
+    /** The maximum number of requests to return */
+    readonly limit?: number,
+  }
+
+  export type processCommunityAddChatRequest = {
+    /**
+     * Handles a pending request to add a chat to a community; requires can_edit_chat_list
+     * administrator right in the community
+     */
+    readonly _: 'processCommunityAddChatRequest',
+    /** Identifier of the community */
+    readonly community_id?: number,
+    /** Identifier of the chat from the request */
+    readonly chat_id?: number,
+    /**
+     * Pass true to approve the request and add the chat to the community; pass false
+     * to decline it. If the community already has the maximum number of chats, then
+     * approval fails with the error "COMMUNITY_PEERS_TOO_MUCH"
+     */
+    readonly approve?: boolean,
+  }
+
+  export type processCommunityAddChatRequests = {
+    /**
+     * Handles all pending requests to add chats to a community; requires can_edit_chat_list
+     * administrator right in the community
+     */
+    readonly _: 'processCommunityAddChatRequests',
+    /** Identifier of the community */
+    readonly community_id?: number,
+    /**
+     * Pass true to approve all requests and add the chats to the community; pass false
+     * to decline them
+     */
+    readonly approve?: boolean,
+  }
+
+  export type toggleCommunityAreChatsCollapsed = {
+    /**
+     * Changes whether all chats of a community are collapsed into one entry in the
+     * chat list. If the chats are expanded, then the community is removed from all
+     * chat folders
+     */
+    readonly _: 'toggleCommunityAreChatsCollapsed',
+    /** Identifier of the community */
+    readonly community_id?: number,
+    /**
+     * Pass true to collapse all chats of the community into one entry in the chat
+     * list
+     */
+    readonly are_chats_collapsed?: boolean,
+  }
+
+  export type toggleCommunityMemberIsBanned = {
+    /**
+     * Bans or unbans a member of a community; requires can_ban_members administrator
+     * right in the community. A banned member is banned in all chats of the community.
+     * Administrators of the community can be banned only by the owner of the community
+     * and administrators, which can edit administrator rights of the member. If an
+     * owner of a chat in the community is banned, then the chat is removed from the
+     * community; in this case, can_edit_chat_list administrator right is also required
+     */
+    readonly _: 'toggleCommunityMemberIsBanned',
+    /** Identifier of the community */
+    readonly community_id?: number,
+    /** Identifier of the member to ban or unban */
+    readonly member_id?: MessageSender$Input,
+    /** Pass true to ban the member; pass false to unban the member */
+    readonly is_banned?: boolean,
+  }
+
+  export type getCommunityMemberChats = {
+    /**
+     * Returns chats in a community, which were joined by a member of the community;
+     * requires can_ban_members administrator right in the community. Can be used to
+     * show chats that will be affected by the member ban
+     */
+    readonly _: 'getCommunityMemberChats',
+    /** Identifier of the community */
+    readonly community_id?: number,
+    /** Identifier of the member */
+    readonly member_id?: MessageSender$Input,
+  }
+
   export type deleteCommunity = {
     /** Deletes a community; requires owner privileges */
     readonly _: 'deleteCommunity',
@@ -35149,7 +35760,7 @@ declare module 'tdlib-types' {
   export type getChatHistory = {
     /**
      * Returns messages in a chat. The messages are returned in reverse chronological
-     * order (i.e., in order of decreasing message_id). For optimal performance, the
+     * order (i.e., in order of decreasing message.id). For optimal performance, the
      * number of returned messages is chosen by TDLib. This is an offline method if
      * only_local is true
      */
@@ -35182,7 +35793,7 @@ declare module 'tdlib-types' {
      * Returns messages in a message thread of a message. Can be used only if messageProperties.can_get_message_thread
      * == true. Message thread of a channel message is in the channel's linked supergroup.
      * The messages are returned in reverse chronological order (i.e., in order of
-     * decreasing message_id). For optimal performance, the number of returned messages
+     * decreasing message.id). For optimal performance, the number of returned messages
      * is chosen by TDLib
      */
     readonly _: 'getMessageThreadHistory',
@@ -35239,7 +35850,7 @@ declare module 'tdlib-types' {
   export type searchChatMessages = {
     /**
      * Searches for messages with given words in the chat. Returns the results in reverse
-     * chronological order, i.e. in order of decreasing message_id. Cannot be used
+     * chronological order, i.e. in order of decreasing message.id. Cannot be used
      * in secret chats with a non-empty query (searchSecretMessages must be used instead),
      * or without an enabled message database. For optimal performance, the number
      * of returned messages is chosen by TDLib and can be smaller than the specified
@@ -35286,9 +35897,9 @@ declare module 'tdlib-types' {
   export type searchMessages = {
     /**
      * Searches for messages in all chats except secret chats. Returns the results
-     * in reverse chronological order (i.e., in order of decreasing (date, chat_id,
-     * message_id)). For optimal performance, the number of returned messages is chosen
-     * by TDLib and can be smaller than the specified limit
+     * in reverse chronological order (i.e., in order of decreasing (message.date,
+     * message.chat_id, message.id)). For optimal performance, the number of returned
+     * messages is chosen by TDLib and can be smaller than the specified limit
      */
     readonly _: 'searchMessages',
     /**
@@ -35360,7 +35971,7 @@ declare module 'tdlib-types' {
     /**
      * Searches for messages tagged by the given reaction and with the given words
      * in the Saved Messages chat; for Telegram Premium users only. Returns the results
-     * in reverse chronological order, i.e. in order of decreasing message_id. For
+     * in reverse chronological order, i.e. in order of decreasing message.id. For
      * optimal performance, the number of returned messages is chosen by TDLib and
      * can be smaller than the specified limit
      */
@@ -35396,7 +36007,7 @@ declare module 'tdlib-types' {
   export type searchCallMessages = {
     /**
      * Searches for call and group call messages. Returns the results in reverse chronological
-     * order (i.e., in order of decreasing message_id). For optimal performance, the
+     * order (i.e., in order of decreasing message.id). For optimal performance, the
      * number of returned messages is chosen by TDLib
      */
     readonly _: 'searchCallMessages',
@@ -35727,7 +36338,7 @@ declare module 'tdlib-types' {
   export type getChatScheduledMessages = {
     /**
      * Returns all scheduled messages in a chat. The messages are returned in reverse
-     * chronological order (i.e., in order of decreasing message_id)
+     * chronological order (i.e., in order of decreasing message.id)
      */
     readonly _: 'getChatScheduledMessages',
     /** Chat identifier */
@@ -36192,6 +36803,30 @@ declare module 'tdlib-types' {
     readonly message?: inputRichMessage$Input,
   }
 
+  export type fixRecognizedTextWithAi = {
+    /**
+     * Fixes text received as a result of speech recognition using an AI model by correcting
+     * recognition errors and adding punctuation; must not be used in secret chats.
+     * May return an error with a message "AICOMPOSE_FLOOD_PREMIUM" if Telegram Premium
+     * is required to send further requests
+     */
+    readonly _: 'fixRecognizedTextWithAi',
+    /** The recognized text */
+    readonly text?: formattedText$Input,
+  }
+
+  export type fixRecognizedRichMessageWithAi = {
+    /**
+     * Fixes a rich message with text received as a result of speech recognition using
+     * an AI model by correcting recognition errors and adding punctuation. May return
+     * an error with a message "AICOMPOSE_FLOOD_PREMIUM" if Telegram Premium is required
+     * to send further requests
+     */
+    readonly _: 'fixRecognizedRichMessageWithAi',
+    /** The message with the recognized text */
+    readonly message?: inputRichMessage$Input,
+  }
+
   export type recognizeSpeech = {
     /** Recognizes speech in a video note or a voice note message */
     readonly _: 'recognizeSpeech',
@@ -36213,6 +36848,30 @@ declare module 'tdlib-types' {
     readonly message_id?: number,
     /** Pass true if the speech recognition is good */
     readonly is_good?: boolean,
+  }
+
+  export type recognizeSpeechInFile = {
+    /**
+     * Recognizes speech in an audio file and returns the recognized text. The file
+     * must be in OGG format with Opus codec and must have size up to 1 MB. The same
+     * rules as for recognizeSpeech apply to the Telegram Premium requirement and speech
+     * recognition trial; must not be used in secret chats
+     */
+    readonly _: 'recognizeSpeechInFile',
+    /** The audio file */
+    readonly audio_file?: InputFile$Input,
+    /**
+     * Unique identifier of the speech recognition, which will be used in updateSpeechRecognitionInFile
+     * to send partially recognized text; pass 0 if partial results aren't needed
+     */
+    readonly recognition_id?: number | string,
+  }
+
+  export type getSpeechRecognitionLanguages = {
+    /** Returns 1-3 most probable languages of speech in voice notes */
+    readonly _: 'getSpeechRecognitionLanguages',
+    /** Identifier of the chat; pass 0 if none */
+    readonly chat_id?: number,
   }
 
   export type getChatAvailableMessageSenders = {
@@ -36310,8 +36969,7 @@ declare module 'tdlib-types' {
     readonly result_id?: string,
     /**
      * Pass true to hide the bot, via which the message is sent. Can be used only for
-     * bots getOption("animation_search_bot_username"), getOption("photo_search_bot_username"),
-     * and getOption("venue_search_bot_username")
+     * bots getOption("animation_search_bot_username") and getOption("photo_search_bot_username")
      */
     readonly hide_via_bot?: boolean,
   }
@@ -36662,6 +37320,26 @@ declare module 'tdlib-types' {
     readonly reply_markup?: ReplyMarkup$Input,
   }
 
+  export type editMessageWidgetData = {
+    /** Edits data of a widget sent by the bot; for bots only */
+    readonly _: 'editMessageWidgetData',
+    /** The chat the message belongs to */
+    readonly chat_id?: number,
+    /** Identifier of the widget message */
+    readonly message_id?: number,
+    /** Pass true to edit public data of the widget */
+    readonly edit_public_data?: boolean,
+    /** New public data of the widget; ignored if edit_public_data is false */
+    readonly public_data?: string,
+    /** Pass true to edit data of the widget, which is specific to the chat */
+    readonly edit_chat_data?: boolean,
+    /**
+     * New data of the widget, which is specific to the chat; ignored if edit_chat_data
+     * is false
+     */
+    readonly chat_data?: string,
+  }
+
   export type editInlineMessageText = {
     /**
      * Edits the text of an inline text or game message sent via the bot; for bots
@@ -36743,6 +37421,38 @@ declare module 'tdlib-types' {
     readonly reply_markup?: ReplyMarkup$Input,
   }
 
+  export type editInlineMessageWidgetData = {
+    /** Edits data of a widget in an inline message sent via the bot; for bots only */
+    readonly _: 'editInlineMessageWidgetData',
+    /** Inline message identifier */
+    readonly inline_message_id?: string,
+    /** Pass true to edit public data of the widget */
+    readonly edit_public_data?: boolean,
+    /** New public data of the widget; ignored if edit_public_data is false */
+    readonly public_data?: string,
+    /** Pass true to edit data of the widget, which is specific to the chat */
+    readonly edit_chat_data?: boolean,
+    /**
+     * New data of the widget, which is specific to the chat; ignored if edit_chat_data
+     * is false
+     */
+    readonly chat_data?: string,
+  }
+
+  export type editWidgetData = {
+    /** Edits public data of a shared widget created by the bot; for bots only */
+    readonly _: 'editWidgetData',
+    /** Identifier of the shared widget */
+    readonly widget_id?: number | string,
+    /** New public data of the widget */
+    readonly public_data?: string,
+    /**
+     * Time during which the public data can be cached, in seconds; 5-3600. Pass 0
+     * to keep the current value, which is 30 by default
+     */
+    readonly cache_time?: number,
+  }
+
   export type editEphemeralMessage = {
     /**
      * Edits the text, media, or reply markup of an ephemeral message sent by the bot;
@@ -36813,7 +37523,7 @@ declare module 'tdlib-types' {
      * New content of the message. Must be one of the following types: inputMessageText,
      * inputMessageAnimation, inputMessageAudio, inputMessageDocument, inputMessagePhoto,
      * inputMessageRichMessage, inputMessageSticker, inputMessageVideo, inputMessageVideoNote,
-     * inputMessageVoiceNote
+     * inputMessageVoiceNote, inputMessageLocation, inputMessageVenue, inputMessageContact
      */
     readonly input_message_content?: InputMessageContent$Input,
   }
@@ -37322,8 +38032,7 @@ declare module 'tdlib-types' {
     readonly result_id?: string,
     /**
      * Pass true to hide the bot, via which the message is sent. Can be used only for
-     * bots getOption("animation_search_bot_username"), getOption("photo_search_bot_username"),
-     * and getOption("venue_search_bot_username")
+     * bots getOption("animation_search_bot_username") and getOption("photo_search_bot_username")
      */
     readonly hide_via_bot?: boolean,
   }
@@ -37536,7 +38245,7 @@ declare module 'tdlib-types' {
     /**
      * Returns messages in a topic in a forum supergroup chat or a chat with a bot
      * with topics. The messages are returned in reverse chronological order (i.e.,
-     * in order of decreasing message_id). For optimal performance, the number of returned
+     * in order of decreasing message.id). For optimal performance, the number of returned
      * messages is chosen by TDLib
      */
     readonly _: 'getForumTopicHistory',
@@ -37565,8 +38274,8 @@ declare module 'tdlib-types' {
 
   export type getForumTopicLink = {
     /**
-     * Returns an HTTPS link to a topic in a forum supergroup chat. This is an offline
-     * method
+     * Returns an HTTPS link to a topic in a forum supergroup chat or a chat with a
+     * bot. This is an offline method
      */
     readonly _: 'getForumTopicLink',
     /** Identifier of the chat */
@@ -38028,6 +38737,16 @@ declare module 'tdlib-types' {
      */
     readonly _: 'getTextEntities',
     /** The text in which to look for entities */
+    readonly text?: string,
+  }
+
+  export type getTextEmojiRanges = {
+    /**
+     * Returns positions of all emoji found in the text in order of their appearance.
+     * Can be called synchronously
+     */
+    readonly _: 'getTextEmojiRanges',
+    /** The text in which to look for emoji */
     readonly text?: string,
   }
 
@@ -38695,6 +39414,46 @@ declare module 'tdlib-types' {
     readonly url?: string,
     /** Time during which the result of the query can be cached, in seconds */
     readonly cache_time?: number,
+  }
+
+  export type answerWidgetQuery = {
+    /** Sets the result of a widget query; for bots only */
+    readonly _: 'answerWidgetQuery',
+    /** Identifier of the widget query */
+    readonly widget_query_id?: number | string,
+    /** Data to be returned to the widget */
+    readonly data?: string,
+  }
+
+  export type getWidgetQueryAnswer = {
+    /**
+     * Sends a widget query to a bot and returns an answer. Returns an error with code
+     * 502 if the bot fails to answer the query before the query timeout expires
+     */
+    readonly _: 'getWidgetQueryAnswer',
+    /** Identifier of the chat with the message */
+    readonly chat_id?: number,
+    /**
+     * Identifier of the widget message from which the query originated. The message
+     * must not be scheduled
+     */
+    readonly message_id?: number,
+    /** Type of the query */
+    readonly query_type?: WidgetQueryType$Input,
+    /** Data of the query */
+    readonly data?: string /* base64 */,
+  }
+
+  export type getWidgetPublicData = {
+    /**
+     * Returns the current public data of a widget. Must be called only if the widget
+     * is visible on the screen and asked to poll its public data
+     */
+    readonly _: 'getWidgetPublicData',
+    /** Identifier of the chat with the message */
+    readonly chat_id?: number,
+    /** Identifier of the widget message. The message must not be scheduled */
+    readonly message_id?: number,
   }
 
   export type answerShippingQuery = {
@@ -40247,6 +41006,11 @@ declare module 'tdlib-types' {
      */
     readonly caption?: formattedText$Input,
     /**
+     * Music to be attached to the story; pass null if none. The music can be up to
+     * 60 seconds long
+     */
+    readonly music?: inputAudio$Input,
+    /**
      * The privacy settings for the story; ignored for stories posted on behalf of
      * supergroup and channel chats
      */
@@ -40341,6 +41105,23 @@ declare module 'tdlib-types' {
     readonly cover_frame_timestamp?: number,
   }
 
+  export type editStoryMusic = {
+    /**
+     * Changes music attached to a story. Can be called only if story.can_be_edited
+     * == true and the story isn't being edited now
+     */
+    readonly _: 'editStoryMusic',
+    /** Identifier of the chat that posted the story */
+    readonly story_poster_chat_id?: number,
+    /** Identifier of the story to edit */
+    readonly story_id?: number,
+    /**
+     * The new music; pass null to remove music from the story. The music can be up
+     * to 60 seconds long
+     */
+    readonly music?: inputAudio$Input,
+  }
+
   export type setStoryPrivacySettings = {
     /**
      * Changes privacy settings of a story. The method can be called only for stories
@@ -40392,8 +41173,8 @@ declare module 'tdlib-types' {
     /**
      * Loads more active stories from a story list. The loaded stories will be sent
      * through updates. Active stories are sorted by the pair (active_stories.order,
-     * active_stories.story_poster_chat_id) in descending order. Returns a 404 error
-     * if all active stories have been loaded
+     * active_stories.chat_id) in descending order. Returns a 404 error if all active
+     * stories have been loaded
      */
     readonly _: 'loadActiveStories',
     /** The story list in which to load active stories */
@@ -40420,7 +41201,7 @@ declare module 'tdlib-types' {
     /**
      * Returns the list of stories that were posted by the given chat to its chat page.
      * If from_story_id == 0, then pinned stories are returned first. Then, stories
-     * are returned in reverse chronological order (i.e., in order of decreasing story_id).
+     * are returned in reverse chronological order (i.e., in order of decreasing story.id).
      * For optimal performance, the number of returned stories is chosen by TDLib
      */
     readonly _: 'getChatPostedToChatPageStories',
@@ -40443,7 +41224,7 @@ declare module 'tdlib-types' {
     /**
      * Returns the list of all stories posted by the given chat; requires can_edit_stories
      * administrator right in the chat. The stories are returned in reverse chronological
-     * order (i.e., in order of decreasing story_id). For optimal performance, the
+     * order (i.e., in order of decreasing story.id). For optimal performance, the
      * number of returned stories is chosen by TDLib
      */
     readonly _: 'getChatArchivedStories',
@@ -44318,6 +45099,11 @@ declare module 'tdlib-types' {
     readonly is_forum?: boolean,
     /** New value of has_forum_tabs; ignored if is_forum is false */
     readonly has_forum_tabs?: boolean,
+    /**
+     * New value of has_forum_sidebar; ignored if is_forum is false. Must be false
+     * if has_forum_tabs is true
+     */
+    readonly has_forum_sidebar?: boolean,
   }
 
   export type toggleSupergroupIsBroadcastGroup = {
@@ -44384,7 +45170,7 @@ declare module 'tdlib-types' {
      * Returns a list of service actions taken by chat members and administrators in
      * the last 48 hours. Available only in supergroups and channels. Requires administrator
      * rights. Returns results in reverse chronological order (i.e., in order of decreasing
-     * event_id)
+     * chatEvent.id)
      */
     readonly _: 'getChatEventLog',
     /** Chat identifier */
@@ -44735,9 +45521,10 @@ declare module 'tdlib-types' {
     readonly _: 'craftGift',
     /**
      * Identifier of the gifts to use for crafting. In the case of a successful craft,
-     * the resulting gift will have the number of the first gift. Consequently, the
-     * first gift must not have been withdrawn to the TON blockchain as an NFT and
-     * must have an empty gift_address
+     * the resulting gift will have the number of the first gift. Consequently, unless
+     * getOption("can_craft_from_withdrawn_first_gift") is true, the first gift must
+     * not have been withdrawn to the TON blockchain as an NFT and must have an empty
+     * gift_address
      */
     readonly received_gift_ids?: ReadonlyArray<string>,
   }
@@ -45602,7 +46389,7 @@ declare module 'tdlib-types' {
     readonly option_id?: string /* base64 */,
     /**
      * Identifiers of reported messages. Use messageProperties.can_report_chat to check
-     * whether the message can be reported
+     * whether the message can be reported. Ephemeral messages must be reported separately
      */
     readonly message_ids?: ReadonlyArray<number>,
     /**
@@ -45856,7 +46643,7 @@ declare module 'tdlib-types' {
     /** Address in the TON blockchain of the transaction peer */
     readonly address?: string,
     /** The amount of the sent cryptocurrency, in the smallest units of the cryptocurrency */
-    readonly amount?: number,
+    readonly amount?: number | string,
     /** Comment added to the transaction */
     readonly comment?: string,
     /**
@@ -47740,6 +48527,8 @@ declare module 'tdlib-types' {
 
   export type TextEntities = textEntities
 
+  export type TextRanges = textRanges
+
   export type FormattedText = formattedText
 
   export type RichMessage = richMessage
@@ -48370,6 +49159,32 @@ declare module 'tdlib-types' {
     | giveawayPrizePremium
     | giveawayPrizeStars
 
+  /** Describes the types of chats to which notification settings are relevant */
+  export type NotificationSettingsScope =
+    | notificationSettingsScopePrivateChats
+    | notificationSettingsScopeGroupChats
+    | notificationSettingsScopeChannelChats
+
+  /** Describes the types of chats to which notification settings are relevant */
+  export type NotificationSettingsScope$Input =
+    | notificationSettingsScopePrivateChats$Input
+    | notificationSettingsScopeGroupChats$Input
+    | notificationSettingsScopeChannelChats$Input
+
+  export type ScopeNotificationSettings = scopeNotificationSettings
+
+  /** Describes sources of reactions for which notifications will be shown */
+  export type ReactionNotificationSource =
+    | reactionNotificationSourceNone
+    | reactionNotificationSourceContacts
+    | reactionNotificationSourceAll
+
+  /** Describes sources of reactions for which notifications will be shown */
+  export type ReactionNotificationSource$Input =
+    | reactionNotificationSourceNone$Input
+    | reactionNotificationSourceContacts$Input
+    | reactionNotificationSourceAll$Input
+
   export type CommunityId = communityId
 
   /** Provides information about the status of a member in a community */
@@ -48381,6 +49196,12 @@ declare module 'tdlib-types' {
     | communityMemberStatusBanned
 
   export type CommunityFullInfo = communityFullInfo
+
+  export type Communities = communities
+
+  export type CommunityAddChatRequests = communityAddChatRequests
+
+  export type CommunityMemberChats = communityMemberChats
 
   /** Describes type of emoji status */
   export type EmojiStatusType =
@@ -48655,32 +49476,6 @@ declare module 'tdlib-types' {
     | reportSponsoredResultPremiumRequired
 
   export type FoundFileDownloads = foundFileDownloads
-
-  /** Describes the types of chats to which notification settings are relevant */
-  export type NotificationSettingsScope =
-    | notificationSettingsScopePrivateChats
-    | notificationSettingsScopeGroupChats
-    | notificationSettingsScopeChannelChats
-
-  /** Describes the types of chats to which notification settings are relevant */
-  export type NotificationSettingsScope$Input =
-    | notificationSettingsScopePrivateChats$Input
-    | notificationSettingsScopeGroupChats$Input
-    | notificationSettingsScopeChannelChats$Input
-
-  export type ScopeNotificationSettings = scopeNotificationSettings
-
-  /** Describes sources of reactions for which notifications will be shown */
-  export type ReactionNotificationSource =
-    | reactionNotificationSourceNone
-    | reactionNotificationSourceContacts
-    | reactionNotificationSourceAll
-
-  /** Describes sources of reactions for which notifications will be shown */
-  export type ReactionNotificationSource$Input =
-    | reactionNotificationSourceNone$Input
-    | reactionNotificationSourceContacts$Input
-    | reactionNotificationSourceAll$Input
 
   /** Content of the message draft */
   export type DraftMessageContent =
@@ -49346,6 +50141,7 @@ declare module 'tdlib-types' {
     | messagePoll
     | messageStakeDice
     | messageStory
+    | messageWidget
     | messageChecklist
     | messageInvoice
     | messageCall
@@ -49646,6 +50442,8 @@ declare module 'tdlib-types' {
     | inputMessageStakeDice
     | inputMessageStory
     | inputMessageChecklist
+    | inputMessageWidget
+    | inputMessageSharedWidget
     | inputMessageForwarded
 
   /** The content of a message to send */
@@ -49672,6 +50470,8 @@ declare module 'tdlib-types' {
     | inputMessageStakeDice$Input
     | inputMessageStory$Input
     | inputMessageChecklist$Input
+    | inputMessageWidget$Input
+    | inputMessageSharedWidget$Input
     | inputMessageForwarded$Input
 
   export type MessageProperties = messageProperties
@@ -49798,7 +50598,6 @@ declare module 'tdlib-types' {
   /** Describes type of clickable area on a story media to be added */
   export type InputStoryAreaType$Input =
     | inputStoryAreaTypeLocation$Input
-    | inputStoryAreaTypeFoundVenue$Input
     | inputStoryAreaTypePreviousVenue$Input
     | inputStoryAreaTypeSuggestedReaction$Input
     | inputStoryAreaTypeMessage$Input
@@ -50025,6 +50824,8 @@ declare module 'tdlib-types' {
     | speechRecognitionResultText$Input
     | speechRecognitionResultError$Input
 
+  export type SpeechRecognitionLanguages = speechRecognitionLanguages
+
   export type BusinessConnection = businessConnection
 
   export type AttachmentMenuBot = attachmentMenuBot
@@ -50113,6 +50914,22 @@ declare module 'tdlib-types' {
     | callbackQueryPayloadGame$Input
 
   export type CallbackQueryAnswer = callbackQueryAnswer
+
+  /** Describes type of a widget query */
+  export type WidgetQueryType =
+    | widgetQueryTypeData
+    | widgetQueryTypeSignData
+    | widgetQueryTypeSentTransaction
+
+  /** Describes type of a widget query */
+  export type WidgetQueryType$Input =
+    | widgetQueryTypeData$Input
+    | widgetQueryTypeSignData$Input
+    | widgetQueryTypeSentTransaction$Input
+
+  export type WidgetQueryAnswer = widgetQueryAnswer
+
+  export type WidgetPublicData = widgetPublicData
 
   export type CustomRequestResult = customRequestResult
 
@@ -51437,6 +52254,7 @@ declare module 'tdlib-types' {
     | updateStarRevenueStatus
     | updateGramRevenueStatus
     | updateSpeechRecognitionTrial
+    | updateSpeechRecognitionInFile
     | updateGroupCallMessageLevels
     | updateDiceEmojis
     | updateStakeDiceState
@@ -51457,6 +52275,9 @@ declare module 'tdlib-types' {
     | updateNewCallbackQuery
     | updateNewInlineCallbackQuery
     | updateNewBusinessCallbackQuery
+    | updateNewWidgetQuery
+    | updateNewInlineWidgetQuery
+    | updateNewWidgetCopyQuery
     | updateNewShippingQuery
     | updateNewPreCheckoutQuery
     | updateNewCustomEvent
@@ -51605,6 +52426,7 @@ declare module 'tdlib-types' {
     | getSuitableDiscussionChats
     | getInactiveSupergroupChats
     | getSuitablePersonalChats
+    | getSuitableCommunityChats
     | loadDirectMessagesChatTopics
     | getDirectMessagesChatTopic
     | getDirectMessagesChatTopicHistory
@@ -51624,10 +52446,20 @@ declare module 'tdlib-types' {
     | toggleSavedMessagesTopicIsPinned
     | setPinnedSavedMessagesTopics
     | getCommunityFullInfo
+    | getJoinedCommunities
     | createCommunity
     | setCommunityName
     | setCommunityPhoto
     | setCommunityPermissions
+    | setCommunityNotificationSettings
+    | addCommunityChat
+    | removeCommunityChat
+    | getCommunityAddChatRequests
+    | processCommunityAddChatRequest
+    | processCommunityAddChatRequests
+    | toggleCommunityAreChatsCollapsed
+    | toggleCommunityMemberIsBanned
+    | getCommunityMemberChats
     | deleteCommunity
     | getGroupsInCommon
     | getChatHistory
@@ -51690,8 +52522,12 @@ declare module 'tdlib-types' {
     | createRichMessageWithAi
     | fixTextWithAi
     | fixRichMessageWithAi
+    | fixRecognizedTextWithAi
+    | fixRecognizedRichMessageWithAi
     | recognizeSpeech
     | rateSpeechRecognition
+    | recognizeSpeechInFile
+    | getSpeechRecognitionLanguages
     | getChatAvailableMessageSenders
     | setChatMessageSender
     | sendMessage
@@ -51713,11 +52549,14 @@ declare module 'tdlib-types' {
     | editMessageMedia
     | editMessageCaption
     | editMessageReplyMarkup
+    | editMessageWidgetData
     | editInlineMessageText
     | editInlineMessageLiveLocation
     | editInlineMessageMedia
     | editInlineMessageCaption
     | editInlineMessageReplyMarkup
+    | editInlineMessageWidgetData
+    | editWidgetData
     | editEphemeralMessage
     | editEphemeralMessageCaption
     | replyToCallbackQueryWithEphemeralMessage
@@ -51804,6 +52643,7 @@ declare module 'tdlib-types' {
     | getMessageEffect
     | searchQuote
     | getTextEntities
+    | getTextEmojiRanges
     | parseTextEntities
     | parseMarkdown
     | getMarkdownText
@@ -51852,6 +52692,9 @@ declare module 'tdlib-types' {
     | answerChatJoinRequestQuery
     | getCallbackQueryAnswer
     | answerCallbackQuery
+    | answerWidgetQuery
+    | getWidgetQueryAnswer
+    | getWidgetPublicData
     | answerShippingQuery
     | answerPreCheckoutQuery
     | setGameScore
@@ -51977,6 +52820,7 @@ declare module 'tdlib-types' {
     | startLiveStory
     | editStory
     | editStoryCover
+    | editStoryMusic
     | setStoryPrivacySettings
     | toggleStoryIsPostedToChatPage
     | deleteStory
@@ -52683,6 +53527,7 @@ declare module 'tdlib-types' {
     getSuitableDiscussionChats: Chats,
     getInactiveSupergroupChats: Chats,
     getSuitablePersonalChats: Chats,
+    getSuitableCommunityChats: Chats,
     loadDirectMessagesChatTopics: Ok,
     getDirectMessagesChatTopic: DirectMessagesChatTopic,
     getDirectMessagesChatTopicHistory: Messages,
@@ -52702,10 +53547,20 @@ declare module 'tdlib-types' {
     toggleSavedMessagesTopicIsPinned: Ok,
     setPinnedSavedMessagesTopics: Ok,
     getCommunityFullInfo: CommunityFullInfo,
+    getJoinedCommunities: Communities,
     createCommunity: CommunityId,
     setCommunityName: Ok,
     setCommunityPhoto: Ok,
     setCommunityPermissions: Ok,
+    setCommunityNotificationSettings: Ok,
+    addCommunityChat: Ok,
+    removeCommunityChat: Ok,
+    getCommunityAddChatRequests: CommunityAddChatRequests,
+    processCommunityAddChatRequest: Ok,
+    processCommunityAddChatRequests: Ok,
+    toggleCommunityAreChatsCollapsed: Ok,
+    toggleCommunityMemberIsBanned: Ok,
+    getCommunityMemberChats: CommunityMemberChats,
     deleteCommunity: Ok,
     getGroupsInCommon: Chats,
     getChatHistory: Messages,
@@ -52768,8 +53623,12 @@ declare module 'tdlib-types' {
     createRichMessageWithAi: RichMessage,
     fixTextWithAi: FixedText,
     fixRichMessageWithAi: RichMessage,
+    fixRecognizedTextWithAi: FormattedText,
+    fixRecognizedRichMessageWithAi: RichMessage,
     recognizeSpeech: Ok,
     rateSpeechRecognition: Ok,
+    recognizeSpeechInFile: Text,
+    getSpeechRecognitionLanguages: SpeechRecognitionLanguages,
     getChatAvailableMessageSenders: ChatMessageSenders,
     setChatMessageSender: Ok,
     sendMessage: Message,
@@ -52791,11 +53650,14 @@ declare module 'tdlib-types' {
     editMessageMedia: Message,
     editMessageCaption: Message,
     editMessageReplyMarkup: Message,
+    editMessageWidgetData: Ok,
     editInlineMessageText: Ok,
     editInlineMessageLiveLocation: Ok,
     editInlineMessageMedia: Ok,
     editInlineMessageCaption: Ok,
     editInlineMessageReplyMarkup: Ok,
+    editInlineMessageWidgetData: Ok,
+    editWidgetData: Ok,
     editEphemeralMessage: Ok,
     editEphemeralMessageCaption: Ok,
     replyToCallbackQueryWithEphemeralMessage: Ok,
@@ -52882,6 +53744,7 @@ declare module 'tdlib-types' {
     getMessageEffect: MessageEffect,
     searchQuote: FoundPosition,
     getTextEntities: TextEntities,
+    getTextEmojiRanges: TextRanges,
     parseTextEntities: FormattedText,
     parseMarkdown: FormattedText,
     getMarkdownText: FormattedText,
@@ -52930,6 +53793,9 @@ declare module 'tdlib-types' {
     answerChatJoinRequestQuery: Ok,
     getCallbackQueryAnswer: CallbackQueryAnswer,
     answerCallbackQuery: Ok,
+    answerWidgetQuery: Ok,
+    getWidgetQueryAnswer: WidgetQueryAnswer,
+    getWidgetPublicData: WidgetPublicData,
     answerShippingQuery: Ok,
     answerPreCheckoutQuery: Ok,
     setGameScore: Message,
@@ -53055,6 +53921,7 @@ declare module 'tdlib-types' {
     startLiveStory: StartLiveStoryResult,
     editStory: Ok,
     editStoryCover: Ok,
+    editStoryMusic: Ok,
     setStoryPrivacySettings: Ok,
     toggleStoryIsPostedToChatPage: Ok,
     deleteStory: Ok,
@@ -53762,6 +54629,7 @@ declare module 'tdlib-types' {
     getSuitableDiscussionChats: getSuitableDiscussionChats,
     getInactiveSupergroupChats: getInactiveSupergroupChats,
     getSuitablePersonalChats: getSuitablePersonalChats,
+    getSuitableCommunityChats: getSuitableCommunityChats,
     loadDirectMessagesChatTopics: loadDirectMessagesChatTopics,
     getDirectMessagesChatTopic: getDirectMessagesChatTopic,
     getDirectMessagesChatTopicHistory: getDirectMessagesChatTopicHistory,
@@ -53781,10 +54649,20 @@ declare module 'tdlib-types' {
     toggleSavedMessagesTopicIsPinned: toggleSavedMessagesTopicIsPinned,
     setPinnedSavedMessagesTopics: setPinnedSavedMessagesTopics,
     getCommunityFullInfo: getCommunityFullInfo,
+    getJoinedCommunities: getJoinedCommunities,
     createCommunity: createCommunity,
     setCommunityName: setCommunityName,
     setCommunityPhoto: setCommunityPhoto,
     setCommunityPermissions: setCommunityPermissions,
+    setCommunityNotificationSettings: setCommunityNotificationSettings,
+    addCommunityChat: addCommunityChat,
+    removeCommunityChat: removeCommunityChat,
+    getCommunityAddChatRequests: getCommunityAddChatRequests,
+    processCommunityAddChatRequest: processCommunityAddChatRequest,
+    processCommunityAddChatRequests: processCommunityAddChatRequests,
+    toggleCommunityAreChatsCollapsed: toggleCommunityAreChatsCollapsed,
+    toggleCommunityMemberIsBanned: toggleCommunityMemberIsBanned,
+    getCommunityMemberChats: getCommunityMemberChats,
     deleteCommunity: deleteCommunity,
     getGroupsInCommon: getGroupsInCommon,
     getChatHistory: getChatHistory,
@@ -53847,8 +54725,12 @@ declare module 'tdlib-types' {
     createRichMessageWithAi: createRichMessageWithAi,
     fixTextWithAi: fixTextWithAi,
     fixRichMessageWithAi: fixRichMessageWithAi,
+    fixRecognizedTextWithAi: fixRecognizedTextWithAi,
+    fixRecognizedRichMessageWithAi: fixRecognizedRichMessageWithAi,
     recognizeSpeech: recognizeSpeech,
     rateSpeechRecognition: rateSpeechRecognition,
+    recognizeSpeechInFile: recognizeSpeechInFile,
+    getSpeechRecognitionLanguages: getSpeechRecognitionLanguages,
     getChatAvailableMessageSenders: getChatAvailableMessageSenders,
     setChatMessageSender: setChatMessageSender,
     sendMessage: sendMessage,
@@ -53870,11 +54752,14 @@ declare module 'tdlib-types' {
     editMessageMedia: editMessageMedia,
     editMessageCaption: editMessageCaption,
     editMessageReplyMarkup: editMessageReplyMarkup,
+    editMessageWidgetData: editMessageWidgetData,
     editInlineMessageText: editInlineMessageText,
     editInlineMessageLiveLocation: editInlineMessageLiveLocation,
     editInlineMessageMedia: editInlineMessageMedia,
     editInlineMessageCaption: editInlineMessageCaption,
     editInlineMessageReplyMarkup: editInlineMessageReplyMarkup,
+    editInlineMessageWidgetData: editInlineMessageWidgetData,
+    editWidgetData: editWidgetData,
     editEphemeralMessage: editEphemeralMessage,
     editEphemeralMessageCaption: editEphemeralMessageCaption,
     replyToCallbackQueryWithEphemeralMessage: replyToCallbackQueryWithEphemeralMessage,
@@ -53961,6 +54846,7 @@ declare module 'tdlib-types' {
     getMessageEffect: getMessageEffect,
     searchQuote: searchQuote,
     getTextEntities: getTextEntities,
+    getTextEmojiRanges: getTextEmojiRanges,
     parseTextEntities: parseTextEntities,
     parseMarkdown: parseMarkdown,
     getMarkdownText: getMarkdownText,
@@ -54009,6 +54895,9 @@ declare module 'tdlib-types' {
     answerChatJoinRequestQuery: answerChatJoinRequestQuery,
     getCallbackQueryAnswer: getCallbackQueryAnswer,
     answerCallbackQuery: answerCallbackQuery,
+    answerWidgetQuery: answerWidgetQuery,
+    getWidgetQueryAnswer: getWidgetQueryAnswer,
+    getWidgetPublicData: getWidgetPublicData,
     answerShippingQuery: answerShippingQuery,
     answerPreCheckoutQuery: answerPreCheckoutQuery,
     setGameScore: setGameScore,
@@ -54134,6 +55023,7 @@ declare module 'tdlib-types' {
     startLiveStory: startLiveStory,
     editStory: editStory,
     editStoryCover: editStoryCover,
+    editStoryMusic: editStoryMusic,
     setStoryPrivacySettings: setStoryPrivacySettings,
     toggleStoryIsPostedToChatPage: toggleStoryIsPostedToChatPage,
     deleteStory: deleteStory,
@@ -54750,6 +55640,7 @@ declare module 'tdlib-types' {
     | 'checkQuickReplyShortcutName'
     | 'searchQuote'
     | 'getTextEntities'
+    | 'getTextEmojiRanges'
     | 'parseTextEntities'
     | 'parseMarkdown'
     | 'getMarkdownText'
