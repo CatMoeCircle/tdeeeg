@@ -75,36 +75,136 @@ interface ProgramInfo {
     program: WebGLProgram;
 }
 
-function compileShader(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
-    const shader = gl.createShader(type);
-    if (!shader) throw new Error('diamond: createShader failed');
-    gl.shaderSource(shader, source);
-    gl.compileShader(shader);
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        const log = gl.getShaderInfoLog(shader);
-        gl.deleteShader(shader);
-        throw new Error(`${type === gl.VERTEX_SHADER ? 'vertex' : 'fragment'} shader: ${log ?? ''}`);
-    }
-    return shader;
+/**
+ * 驱动的异步编译扩展：编译 / 链接都在 GPU 进程里跑，主线程只轮询
+ * `COMPLETION_STATUS_KHR`。37 KB 的片元着色器要由驱动翻译成 HLSL 再编译，
+ * 冷启动（没有着色器磁盘缓存）时以秒计；没有这个扩展就只能同步等
+ * `COMPILE_STATUS` / `LINK_STATUS`，那一下会把整个前端钉住。
+ */
+interface ParallelShaderCompile {
+    readonly COMPLETION_STATUS_KHR: number;
 }
 
-/** 链接程序并把驱动的日志抛出来，而不是静默失败 */
-function createProgram(gl: WebGL2RenderingContext, vertexSource: string, fragmentSource: string): ProgramInfo {
-    const vertex = compileShader(gl, gl.VERTEX_SHADER, vertexSource);
-    const fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+/** 一个还在编译中的程序：着色器对象要留到取完日志再删 */
+interface PendingProgram {
+    program: WebGLProgram;
+    vertex: WebGLShader;
+    fragment: WebGLShader;
+}
+
+/** 轮询间隔：约一个显示帧，既不空转也让主线程随时能画下一帧 */
+const COMPILE_POLL_MS = 16;
+/** 编译超时：驱动彻底不响应时不要把初始化永远吊住，交给调用方退避重试 */
+const COMPILE_TIMEOUT_MS = 20000;
+
+/** 把控制权交回事件循环（宏任务），期间浏览器可以处理输入和绘制 */
+function yieldToEventLoop(delay: number): Promise<void> {
+    return new Promise((resolve) => {
+        setTimeout(resolve, delay);
+    });
+}
+
+/** 只把源码交给驱动：编译和链接都是异步的，这里不读任何状态 */
+function startProgram(
+    gl: WebGL2RenderingContext,
+    vertexSource: string,
+    fragmentSource: string,
+): PendingProgram {
+    const vertex = startShader(gl, gl.VERTEX_SHADER, vertexSource);
+    const fragment = startShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
     const program = gl.createProgram();
-    if (!program) throw new Error('diamond: createProgram failed');
+    if (!program) {
+        gl.deleteShader(vertex);
+        gl.deleteShader(fragment);
+        throw new Error('diamond: createProgram failed');
+    }
     gl.attachShader(program, vertex);
     gl.attachShader(program, fragment);
     gl.linkProgram(program);
-    gl.deleteShader(vertex);
-    gl.deleteShader(fragment);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-        const log = gl.getProgramInfoLog(program);
-        gl.deleteProgram(program);
-        throw new Error(`program link: ${log ?? ''}`);
+    return { program, vertex, fragment };
+}
+
+function startShader(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
+    const shader = gl.createShader(type);
+    if (!shader) throw new Error(`diamond: createShader(${type}) failed`);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    return shader;
+}
+
+/** 失败路径清场：重复删除 GL 对象是合法的，不用区分有没有删过 */
+function disposePending(gl: WebGL2RenderingContext, pending: readonly PendingProgram[]): void {
+    for (const entry of pending) {
+        gl.deleteProgram(entry.program);
+        gl.deleteShader(entry.vertex);
+        gl.deleteShader(entry.fragment);
     }
-    return { program };
+}
+
+/**
+ * 等一组程序编译 / 链接完成，再统一取状态，并把驱动的日志抛出来而不是静默失败。
+ *
+ * 有 `KHR_parallel_shader_compile` 时全程只轮询完成标志，主线程一次都不阻塞；
+ * 没有这个扩展（极少数驱动）就只能同步查询，但至少先让出一帧：让聊天列表先
+ * 画出来，别把「打开聊天」和「等编译」叠在同一帧里。
+ */
+async function resolvePrograms(
+    gl: WebGL2RenderingContext,
+    pending: PendingProgram[],
+    labels: readonly string[],
+): Promise<ProgramInfo[]> {
+    const ext = gl.getExtension('KHR_parallel_shader_compile') as ParallelShaderCompile | null;
+    if (ext) {
+        const deadline = performance.now() + COMPILE_TIMEOUT_MS;
+        const done = (): boolean => pending.every(
+            (entry) => Boolean(gl.getProgramParameter(entry.program, ext.COMPLETION_STATUS_KHR)),
+        );
+        while (!done()) {
+            if (gl.isContextLost()) {
+                // 编译途中上下文没了（GPU 进程崩溃 / 被回收）：轮询永远不会变 true，
+                // 立刻失败交给调用方重试，别白等满 20 秒
+                disposePending(gl, pending);
+                throw new Error('diamond: context lost during shader compile');
+            }
+            if (performance.now() > deadline) {
+                disposePending(gl, pending);
+                throw new Error('diamond: shader compile timed out');
+            }
+            await yieldToEventLoop(COMPILE_POLL_MS);
+        }
+    } else {
+        // 没有扩展就只能同步查询（唯一会卡住主线程的一步）；先让出一帧，
+        // 让聊天列表先画出来，别把「打开聊天」和「等编译」叠在同一帧里
+        if (import.meta.env.DEV) {
+            console.warn('[diamond] KHR_parallel_shader_compile unavailable, shader compile will block');
+        }
+        await yieldToEventLoop(0);
+    }
+
+    const result: ProgramInfo[] = [];
+    for (let index = 0; index < pending.length; index++) {
+        const entry = pending[index];
+        const label = labels[index] ?? `program ${index}`;
+        const vertexLog = gl.getShaderParameter(entry.vertex, gl.COMPILE_STATUS)
+            ? null
+            : gl.getShaderInfoLog(entry.vertex) ?? '';
+        const fragmentLog = gl.getShaderParameter(entry.fragment, gl.COMPILE_STATUS)
+            ? null
+            : gl.getShaderInfoLog(entry.fragment) ?? '';
+        if (vertexLog !== null || fragmentLog !== null) {
+            disposePending(gl, pending);
+            throw new Error(`${label} shader: ${vertexLog ?? fragmentLog ?? ''}`);
+        }
+        if (!gl.getProgramParameter(entry.program, gl.LINK_STATUS)) {
+            const log = gl.getProgramInfoLog(entry.program) ?? '';
+            disposePending(gl, pending);
+            throw new Error(`${label} program link: ${log}`);
+        }
+        gl.deleteShader(entry.vertex);
+        gl.deleteShader(entry.fragment);
+        result.push({ program: entry.program });
+    }
+    return result;
 }
 
 /** 把一组属性写进 VAO；着色器用 `layout(location=N)` 字面声明，故按序号绑定 */
@@ -236,22 +336,43 @@ export class DiamondScene {
     /**
      * 建好着色器与网格。
      *
+     * 着色器编译 / 链接走异步轮询（见 `resolvePrograms`），所以这个初始化
+     * 再慢也不会把主线程钉住——调用方 await 期间前端照常响应。
+     *
      * @param gl WebGL2 上下文
      * @param tables 模型表
      * @param samples 期望的 MSAA 采样数（会被驱动上限截断）
      */
-    static create(gl: WebGL2RenderingContext, tables: DiamondTables, samples = 4): DiamondScene {
+    static async create(
+        gl: WebGL2RenderingContext,
+        tables: DiamondTables,
+        samples = 4,
+    ): Promise<DiamondScene> {
         const scene = new DiamondScene(gl);
-        scene.load(tables, samples);
+        try {
+            await scene.load(tables, samples);
+        } catch (error) {
+            // 半成品也带走：着色器 / 缓冲已经挂在上下文上了，重试前先清干净
+            scene.dispose();
+            throw error;
+        }
         return scene;
     }
 
-    private load(tables: DiamondTables, maxSamples: number): void {
+    private async load(tables: DiamondTables, maxSamples: number): Promise<void> {
         const gl = this.gl;
 
-        this.programDiamond = createProgram(gl, SHADER_SOURCE.diamondVertex, SHADER_SOURCE.diamondFragment);
-        this.programSparkle = createProgram(gl, SHADER_SOURCE.sparkleVertex, SHADER_SOURCE.sparkleFragment);
-        this.programCopy = createProgram(gl, SHADER_SOURCE.fullscreenVertex, SHADER_SOURCE.copyFragment);
+        // 冷启动最贵的一步就在这里：37 KB 的片元着色器要由驱动翻译再编译，没有
+        // 着色器磁盘缓存时以秒计。resolvePrograms 把这段等待拆成主线程可以喘气的
+        // 轮询，所以 wait 期间聊天照常滚动、输入照常响应，最多只是石头晚点出现。
+        const [diamond, sparkle, copy] = await resolvePrograms(gl, [
+            startProgram(gl, SHADER_SOURCE.diamondVertex, SHADER_SOURCE.diamondFragment),
+            startProgram(gl, SHADER_SOURCE.sparkleVertex, SHADER_SOURCE.sparkleFragment),
+            startProgram(gl, SHADER_SOURCE.fullscreenVertex, SHADER_SOURCE.copyFragment),
+        ], ['diamond', 'sparkle', 'copy']);
+        this.programDiamond = diamond;
+        this.programSparkle = sparkle;
+        this.programCopy = copy;
 
         this.frames = tables.frames;
         this.planes = tables.planes;

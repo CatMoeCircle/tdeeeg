@@ -139,28 +139,54 @@ class DiamondStage {
                 powerPreference: 'low-power',
             });
             if (!gl) throw new Error('WebGL2 unavailable');
-            canvas.addEventListener('webglcontextlost', (event) => {
-                event.preventDefault();
-                this.lost = true;
-                this.scene = null;
-                this.gl = null;
-                this.canvas = null;
-                this.stop();
-            });
 
-            // 渲染器（着色器源码）单独成 chunk；模型表是 9 个本地 .bin
-            // （共 524 KB），只有真的出现 Gram 转账消息时才读取，普通聊天
-            // 不会背上这份体积；读进来直接开 Float32Array 视图，零拷贝共享。
-            const [{ DiamondScene: SceneClass }, { loadDiamondTables }] = await Promise.all([
-                import('./scene'),
-                import('./tables'),
-            ]);
-            const tables = await loadDiamondTables();
-            const scene = SceneClass.create(gl, tables, 4);
-            this.canvas = canvas;
-            this.gl = gl;
-            this.scene = scene;
-            this.failure = null;
+            try {
+                // 渲染器（着色器源码）单独成 chunk；模型表是 9 个本地 .bin
+                // （共 524 KB），只有真的出现 Gram 转账消息时才读取，普通聊天
+                // 不会背上这份体积；读进来直接开 Float32Array 视图，零拷贝共享。
+                const [{ DiamondScene: SceneClass }, { loadDiamondTables }] = await Promise.all([
+                    import('./scene'),
+                    import('./tables'),
+                ]);
+                const tables = await loadDiamondTables();
+                // 真正耗时的是这一步：37 KB 片元着色器的驱动编译。它内部走
+                // KHR_parallel_shader_compile 轮询，await 期间主线程一直在跑，
+                // 所以「没有着色器缓存」的第一次只表现为石头晚几秒出现，不会卡前端。
+                const scene = await SceneClass.create(gl, tables, 4);
+
+                // 编译期间可能有新的石头登记了更大的像素尺寸（例如用户正好按下放大），
+                // 那时画布还不存在、applyLargestPixels 改不了它，这里按最新最大值校正
+                const pixels = this.renderSize;
+                if (canvas.width !== pixels) {
+                    canvas.width = pixels;
+                    canvas.height = pixels;
+                }
+
+                // 上下文丢失只在初始化成功后才接管：失败时会主动 loseContext 回收，
+                // 那种「丢失」是人为的，不能让 lost 标志把退避重试一起关掉
+                canvas.addEventListener('webglcontextlost', (event) => {
+                    event.preventDefault();
+                    this.lost = true;
+                    this.scene = null;
+                    this.gl = null;
+                    this.canvas = null;
+                    this.stop();
+                });
+
+                this.canvas = canvas;
+                this.gl = gl;
+                this.scene = scene;
+                this.failure = null;
+                // 初始化期间 sprite 可能已经登记并请求过帧（那时 scene 还是空，
+                // tick 直接退出不再排下一帧），就绪后补一次 request，
+                // 否则要等下一次交互才会出画面
+                if (this.sprites.size > 0) this.request();
+            } catch (error) {
+                // 失败时显式丢掉上下文：WebGL 上下文有硬上限（约 16 个），
+                // 每次退避重试都新建一个迟早会把别处的 WebGL 一起拖垮
+                gl.getExtension('WEBGL_lose_context')?.loseContext();
+                throw error;
+            }
         })();
 
         this.initPromise.catch((error: unknown) => {
