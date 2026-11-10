@@ -300,6 +300,7 @@ function titleFromQuestion(text: string): string {
         <AiActivityStrip v-if="entries.length > 0 || approval"
             v-model:expanded="stripExpanded"
             :entries="entries" :approval="approval" :busy="busy"
+            :collapse-tool-calls="settings.ai.collapseToolCalls"
             @approve="onApprove" @reject="onReject" />
         <AiPromptBar ref="aiPromptRef" v-model:conversations-open="conversationsOpen"
             :chat-id="cid" :usage="usage" :on-attach="pickImages" :quote="quote"

@@ -11,6 +11,9 @@
  * - 列表里每条：AI 输出整段换行直接看（**markdown 已渲染**，可复制，见 utils/aiMarkdown）；
  *   **用户自己的提问靠右显示、气泡包裹**（跟聊天里自己发的消息一个意思）；
  *   **思考与工具调用是折叠条目**，点一下展开 —— 思考看完整内容，工具调用看输入（参数）和输出（结果）；
+ * - **工具调用过程折叠（对齐 DSH）**：这一轮还在跑时每次调用一条、实时冒出来；回答完
+ *   （busy=false）且设置开关打开时，相邻的几次调用收成一行「工具调用 ×N · 工具名…」，
+ *   点一下展开成一条条、每条仍可再点开看参数 / 结果。关掉开关就退回老样子（每次一行）。
  * - 有待审核的工具调用：最下方再冒出一行「确认工具审核」，所以折叠时是两行，
  *   上面是原来的内容（头部行），下面是审核确认。审核行在滚动区外面，长上下文也一直看得见。
  *
@@ -56,12 +59,20 @@ export interface AiApprovalLine {
     reason?: string;
 }
 
-const props = defineProps<{
-    entries: AiActivityEntry[];
-    approval?: AiApprovalLine | null;
-    /** AI 正在跑这一轮（与输入框的 busy 同一个状态源）：顶部换成「正在思考」 */
-    busy?: boolean;
-}>();
+const props = withDefaults(
+    defineProps<{
+        entries: AiActivityEntry[];
+        approval?: AiApprovalLine | null;
+        /** AI 正在跑这一轮（与输入框的 busy 同一个状态源）：顶部换成「正在思考」 */
+        busy?: boolean;
+        /**
+         * 回答完后把相邻的工具调用收成一行（设置项 settings.ai.collapseToolCalls）。
+         * 跑的时候不分组：过程要实时看得见；收起来的只是已经结束的那一段。
+         */
+        collapseToolCalls?: boolean;
+    }>(),
+    { collapseToolCalls: true },
+);
 const emit = defineEmits<{ approve: []; reject: [] }>();
 
 const { t } = useI18n();
@@ -129,6 +140,93 @@ function toggleEntry(id: string | number) {
     if (openIds.has(id)) openIds.delete(id);
     else openIds.add(id);
 }
+
+/* ===== 工具调用过程折叠（对齐 DSH） ===== */
+
+/**
+ * 什么时候「收成一组」：**这一轮已经结束**且开关打开。
+ * 跑的时候不分组 —— 用户要看它此刻在调什么工具，收起来等于把过程藏了。
+ */
+const groupTools = computed(() => props.collapseToolCalls && !props.busy);
+/** 展开着的工具调用组（key = 组里第一条的 id）：默认全收起，这正是「回答完把过程收起来」 */
+const openGroups = reactive(new Set<string>());
+
+/** 列表实际画什么：普通条目一条；一组工具 = 一个组头 +（展开时）组内每条 */
+type StripRow =
+    | { type: 'entry'; key: string | number; entry: AiActivityEntry; index: number; nested: boolean }
+    | { type: 'group'; key: string; items: AiActivityEntry[]; index: number };
+
+const rows = computed<StripRow[]>(() => {
+    const out: StripRow[] = [];
+    const list = props.entries;
+    for (let i = 0; i < list.length; i++) {
+        const e = list[i];
+        if (groupTools.value && e.kind === 'tool') {
+            // 相邻的几次工具调用算一段（中间夹了输出 / 思考就断组）
+            const items = [e];
+            let j = i + 1;
+            while (j < list.length && list[j].kind === 'tool') items.push(list[j++]);
+            const key = `g:${String(e.id)}`;
+            out.push({ type: 'group', key, items, index: i });
+            if (openGroups.has(key)) {
+                for (const item of items) {
+                    out.push({ type: 'entry', key: item.id, entry: item, index: list.indexOf(item), nested: true });
+                }
+            }
+            i = j - 1;
+            continue;
+        }
+        out.push({ type: 'entry', key: e.id, entry: e, index: i, nested: false });
+    }
+    return out;
+});
+
+const isGroupOpen = (key: string) => openGroups.has(key);
+function toggleGroup(key: string) {
+    if (openGroups.has(key)) openGroups.delete(key);
+    else openGroups.add(key);
+}
+
+/** 组头摘要：工具名去重（最多三个）—— 只写「3 次调用」看不出干了什么 */
+function groupNames(items: AiActivityEntry[]): string {
+    const names: string[] = [];
+    for (const it of items) {
+        const name = it.text.trim();
+        if (name && !names.includes(name)) names.push(name);
+    }
+    return names.slice(0, 3).join(' · ') + (names.length > 3 ? ' …' : '');
+}
+
+/** 组里失败的调用数：有失败直接在组头红字点出来，不用展开才发现 */
+const failureCount = (items: AiActivityEntry[]) => items.filter((it) => it.status === 'error').length;
+
+// 一轮开始 / 结束：组状态清空 —— 新一轮从实时视图开始，结束则一律收起。
+// 顺手把点开过的工具详情收掉，免得下次展开组时冒出上一轮的参数 / 结果。
+watch(
+    () => props.busy,
+    (busy) => {
+        openGroups.clear();
+        if (busy) return;
+        for (const id of [...openIds]) {
+            const e = props.entries.find((x) => x.id === id);
+            if (!e || e.kind === 'tool') openIds.delete(id);
+        }
+    },
+);
+
+// 换聊天 / 换会话：整份条目被替换（不是流式 push），展开状态全部作废，别让旧 key 碰巧命中新组
+watch(
+    () => props.entries,
+    () => {
+        openGroups.clear();
+        openIds.clear();
+    },
+);
+
+/** 组内条目缩进一级（组头下面要能看出从属关系） */
+const rowIndentClass = (nested: boolean) => (nested ? 'pl-6' : 'pl-3');
+/** 详情块跟着条目一起缩进（工具参数 / 结果那块） */
+const detailIndentClass = (nested: boolean) => (nested ? 'pl-[46px]' : 'pl-[34px]');
 
 /** 头部头像：模型输出用主色星标；用户提问 / 思考 / 工具用中性色 */
 const headerNeutral = computed(() => (latest.value ? latest.value.kind !== 'output' : true));
@@ -289,76 +387,98 @@ watch(
              上下文长了在这一块内部滚动（贴底跟最新一条），审核行留在滚动区外面 -->
         <div v-if="expanded" ref="listRef"
             class="custom-scrollbar max-h-60 overflow-y-auto overscroll-contain border-t border-gray-200/50 py-1 dark:border-gray-700/50">
-            <template v-for="(e, i) in entries" :key="e.id">
-                <component :is="canOpen(e) ? 'button' : 'div'" :type="canOpen(e) ? 'button' : undefined"
-                    class="group flex w-full gap-2 px-3 text-left text-[13px] text-gray-500 dark:text-gray-400"
-                    :class="[
-                        e.kind === 'tool' ? 'items-center' : 'items-start',
-                        rowPadClass(e, i),
-                        canOpen(e) ? 'cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/5' : '',
-                    ]"
-                    :aria-expanded="canOpen(e) ? isOpen(e.id) : undefined"
-                    @click="canOpen(e) && toggleEntry(e.id)">
-                    <!-- 图标位：模型输出与用户气泡都不带图标（正文 / 气泡直接占满那行）；
-                         可展开的条目鼠标移上来时，原图标换成展开 / 收起箭头 -->
-                    <span v-if="e.kind === 'thinking' || e.kind === 'tool'"
-                        class="relative grid h-3.5 w-3.5 shrink-0 place-items-center"
-                        :class="e.kind === 'tool' ? '' : 'mt-1'">
-                        <BrainIcon v-if="e.kind === 'thinking'" class="h-3.5 w-3.5" :class="iconFade(e)"
-                            :stroke-width="2" />
-                        <WrenchIcon v-else class="h-3.5 w-3.5" :class="iconFade(e)" :stroke-width="2" />
-                        <template v-if="canOpen(e)">
-                            <ChevronUpIcon v-if="isOpen(e.id)" class="absolute inset-0 h-3.5 w-3.5"
-                                :stroke-width="2" />
-                            <ChevronDownIcon v-else
-                                class="absolute inset-0 h-3.5 w-3.5 opacity-0 group-hover:opacity-100"
-                                :stroke-width="2" />
-                        </template>
+            <template v-for="row in rows" :key="row.key">
+                <!-- 工具调用组头（回答完后收起来的「过程」）：次数 + 工具名摘要 + 失败数，
+                     点一下展开成一条条调用；跑的时候不会走到这里（见 groupTools） -->
+                <button v-if="row.type === 'group'" type="button"
+                    class="group flex w-full cursor-pointer items-center gap-2 py-1.5 pl-3 pr-3 text-left text-[13px] text-gray-500 transition-colors hover:bg-black/5 dark:text-gray-400 dark:hover:bg-white/5"
+                    :aria-expanded="isGroupOpen(row.key)" @click="toggleGroup(row.key)">
+                    <span class="grid h-3.5 w-3.5 shrink-0 place-items-center">
+                        <WrenchIcon class="h-3.5 w-3.5" :stroke-width="2" />
                     </span>
-                    <!-- 用户提问：靠右的气泡（跟聊天里自己发的消息一个意思） -->
-                    <span v-if="e.kind === 'user'"
-                        class="ml-auto max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md px-2.5 py-1.5 text-gray-900 [background:color-mix(in_srgb,var(--app-brand)_14%,transparent)] dark:text-gray-100">{{ e.text }}</span>
-                    <!-- 模型输出：**跑着的时候按纯文本画**（半截 markdown 会闪，且每帧重算整段很贵），
-                         完成后再一次性渲染并缓存（见 htmlOf）；思考与工具调用本来就是纯文本 / JSON -->
-                    <template v-else-if="e.kind === 'output'">
-                        <span v-if="e.status === 'running'" class="min-w-0 flex-1 whitespace-pre-wrap break-words"
-                            :class="entryTextClass(e)">{{ e.text }}</span>
-                        <span v-else class="min-w-0 flex-1 break-words" :class="entryTextClass(e)"
-                            v-html="htmlOf(e)" />
-                        <button type="button"
-                            class="-mr-1 mt-0.5 grid h-5 w-5 shrink-0 cursor-pointer place-items-center rounded-md text-gray-400 opacity-0 transition-opacity hover:bg-black/5 hover:text-gray-600 focus-visible:opacity-100 group-hover:opacity-100 dark:hover:bg-white/5 dark:hover:text-gray-200"
-                            :aria-label="t('aiActivity.copy')" :title="t('aiActivity.copy')"
-                            @click.stop="copyEntry(e)">
-                            <CopyIcon class="h-3.5 w-3.5" :stroke-width="2" />
-                        </button>
-                    </template>
-                    <span v-else class="min-w-0 flex-1 truncate" :class="entryTextClass(e)">{{ e.text }}</span>
-                    <!-- 思考耗时：这条跑完就一直留着（落盘后重进对话也还在），不是只在顶部闪一下 -->
-                    <span v-if="e.kind === 'thinking' && e.thoughtMs"
-                        class="mt-1 shrink-0 text-[11px] tabular-nums text-gray-400 dark:text-gray-500">{{ t('aiActivity.thoughtDone') }}
-                        {{ fmtThought(e.thoughtMs) }}</span>
-                    <span v-if="e.status === 'running'" class="mt-1 shrink-0 text-[11px]">…</span>
-                </component>
+                    <span class="shrink-0">{{ t('aiActivity.toolGroup', { n: row.items.length }) }}</span>
+                    <span class="min-w-0 flex-1 truncate text-[12px] text-gray-400 dark:text-gray-500">
+                        {{ groupNames(row.items) }}</span>
+                    <span v-if="failureCount(row.items)" class="shrink-0 text-[11px] text-red-500 dark:text-red-400">
+                        {{ t('aiActivity.toolGroupFailed', { n: failureCount(row.items) }) }}</span>
+                    <ChevronUpIcon v-if="isGroupOpen(row.key)" class="h-3.5 w-3.5 shrink-0" :stroke-width="2" />
+                    <ChevronDownIcon v-else class="h-3.5 w-3.5 shrink-0" :stroke-width="2" />
+                </button>
 
-                <!-- 条目详情：思考=完整内容；工具调用=输入（参数）+ 输出（结果） -->
-                <div v-if="canOpen(e) && isOpen(e.id)" class="px-3 pb-1.5 pl-[34px] text-[12px]">
-                    <div v-if="e.kind === 'thinking'"
-                        class="whitespace-pre-wrap break-words border-l-2 border-gray-200 pl-2 leading-5 text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                        {{ e.text }}
+                <template v-else>
+                    <component :is="canOpen(row.entry) ? 'button' : 'div'" :type="canOpen(row.entry) ? 'button' : undefined"
+                        class="group flex w-full gap-2 pr-3 text-left text-[13px] text-gray-500 dark:text-gray-400"
+                        :class="[
+                            row.entry.kind === 'tool' ? 'items-center' : 'items-start',
+                            rowIndentClass(row.nested),
+                            rowPadClass(row.entry, row.index),
+                            canOpen(row.entry) ? 'cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/5' : '',
+                        ]"
+                        :aria-expanded="canOpen(row.entry) ? isOpen(row.entry.id) : undefined"
+                        @click="canOpen(row.entry) && toggleEntry(row.entry.id)">
+                        <!-- 图标位：模型输出与用户气泡都不带图标（正文 / 气泡直接占满那行）；
+                             可展开的条目鼠标移上来时，原图标换成展开 / 收起箭头 -->
+                        <span v-if="row.entry.kind === 'thinking' || row.entry.kind === 'tool'"
+                            class="relative grid h-3.5 w-3.5 shrink-0 place-items-center"
+                            :class="row.entry.kind === 'tool' ? '' : 'mt-1'">
+                            <BrainIcon v-if="row.entry.kind === 'thinking'" class="h-3.5 w-3.5"
+                                :class="iconFade(row.entry)" :stroke-width="2" />
+                            <WrenchIcon v-else class="h-3.5 w-3.5" :class="iconFade(row.entry)" :stroke-width="2" />
+                            <template v-if="canOpen(row.entry)">
+                                <ChevronUpIcon v-if="isOpen(row.entry.id)" class="absolute inset-0 h-3.5 w-3.5"
+                                    :stroke-width="2" />
+                                <ChevronDownIcon v-else
+                                    class="absolute inset-0 h-3.5 w-3.5 opacity-0 group-hover:opacity-100"
+                                    :stroke-width="2" />
+                            </template>
+                        </span>
+                        <!-- 用户提问：靠右的气泡（跟聊天里自己发的消息一个意思） -->
+                        <span v-if="row.entry.kind === 'user'"
+                            class="ml-auto max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md px-2.5 py-1.5 text-gray-900 [background:color-mix(in_srgb,var(--app-brand)_14%,transparent)] dark:text-gray-100">{{ row.entry.text }}</span>
+                        <!-- 模型输出：**跑着的时候按纯文本画**（半截 markdown 会闪，且每帧重算整段很贵），
+                             完成后再一次性渲染并缓存（见 htmlOf）；思考与工具调用本来就是纯文本 / JSON -->
+                        <template v-else-if="row.entry.kind === 'output'">
+                            <span v-if="row.entry.status === 'running'"
+                                class="min-w-0 flex-1 whitespace-pre-wrap break-words"
+                                :class="entryTextClass(row.entry)">{{ row.entry.text }}</span>
+                            <span v-else class="min-w-0 flex-1 break-words" :class="entryTextClass(row.entry)"
+                                v-html="htmlOf(row.entry)" />
+                            <button type="button"
+                                class="-mr-1 mt-0.5 grid h-5 w-5 shrink-0 cursor-pointer place-items-center rounded-md text-gray-400 opacity-0 transition-opacity hover:bg-black/5 hover:text-gray-600 focus-visible:opacity-100 group-hover:opacity-100 dark:hover:bg-white/5 dark:hover:text-gray-200"
+                                :aria-label="t('aiActivity.copy')" :title="t('aiActivity.copy')"
+                                @click.stop="copyEntry(row.entry)">
+                                <CopyIcon class="h-3.5 w-3.5" :stroke-width="2" />
+                            </button>
+                        </template>
+                        <span v-else class="min-w-0 flex-1 truncate" :class="entryTextClass(row.entry)">{{ row.entry.text }}</span>
+                        <!-- 思考耗时：这条跑完就一直留着（落盘后重进对话也还在），不是只在顶部闪一下 -->
+                        <span v-if="row.entry.kind === 'thinking' && row.entry.thoughtMs"
+                            class="mt-1 shrink-0 text-[11px] tabular-nums text-gray-400 dark:text-gray-500">{{ t('aiActivity.thoughtDone') }}
+                            {{ fmtThought(row.entry.thoughtMs) }}</span>
+                        <span v-if="row.entry.status === 'running'" class="mt-1 shrink-0 text-[11px]">…</span>
+                    </component>
+
+                    <!-- 条目详情：思考=完整内容；工具调用=输入（参数）+ 输出（结果） -->
+                    <div v-if="canOpen(row.entry) && isOpen(row.entry.id)"
+                        class="pr-3 pb-1.5 text-[12px]" :class="detailIndentClass(row.nested)">
+                        <div v-if="row.entry.kind === 'thinking'"
+                            class="whitespace-pre-wrap break-words border-l-2 border-gray-200 pl-2 leading-5 text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                            {{ row.entry.text }}
+                        </div>
+                        <template v-else>
+                            <div v-if="row.entry.input" class="mb-1">
+                                <p class="text-[11px] text-gray-400">{{ t('aiActivity.input') }}</p>
+                                <pre
+                                    class="custom-scrollbar mt-0.5 max-h-24 overflow-auto whitespace-pre-wrap break-all rounded-md bg-black/5 p-1.5 font-mono text-[11px] leading-4 text-gray-600 dark:bg-white/5 dark:text-gray-300">{{ row.entry.input }}</pre>
+                            </div>
+                            <div v-if="row.entry.output">
+                                <p class="text-[11px] text-gray-400">{{ t('aiActivity.output') }}</p>
+                                <pre
+                                    class="custom-scrollbar mt-0.5 max-h-24 overflow-auto whitespace-pre-wrap break-all rounded-md bg-black/5 p-1.5 font-mono text-[11px] leading-4 text-gray-600 dark:bg-white/5 dark:text-gray-300">{{ row.entry.output }}</pre>
+                            </div>
+                        </template>
                     </div>
-                    <template v-else>
-                        <div v-if="e.input" class="mb-1">
-                            <p class="text-[11px] text-gray-400">{{ t('aiActivity.input') }}</p>
-                            <pre
-                                class="custom-scrollbar mt-0.5 max-h-24 overflow-auto whitespace-pre-wrap break-all rounded-md bg-black/5 p-1.5 font-mono text-[11px] leading-4 text-gray-600 dark:bg-white/5 dark:text-gray-300">{{ e.input }}</pre>
-                        </div>
-                        <div v-if="e.output">
-                            <p class="text-[11px] text-gray-400">{{ t('aiActivity.output') }}</p>
-                            <pre
-                                class="custom-scrollbar mt-0.5 max-h-24 overflow-auto whitespace-pre-wrap break-all rounded-md bg-black/5 p-1.5 font-mono text-[11px] leading-4 text-gray-600 dark:bg-white/5 dark:text-gray-300">{{ e.output }}</pre>
-                        </div>
-                    </template>
-                </div>
+                </template>
             </template>
         </div>
 

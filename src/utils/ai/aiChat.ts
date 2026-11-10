@@ -138,6 +138,11 @@ interface ChatReply {
   reasoning: string;
   toolCalls: ChatToolCall[];
   usage: ChatUsage;
+  /**
+   * 思考块的供应商回传凭据（Responses 的 itemId / encryptedContent，Anthropic 的 signature）。
+   * 前端只是原样搬运：贴回 assistant 消息 → 落盘 → 下一轮 Rust 再发回去。
+   */
+  reasoningMeta?: Record<string, unknown>;
 }
 
 /** 流式增量块：只声明画界面用得到的字段（其余由 Rust 侧累积，走返回值） */
@@ -157,6 +162,8 @@ interface ModelCall {
   usage: ChatUsage;
   /** 这次调用思考了多久（毫秒，没有思考增量时没有）：落盘后列表里显示「已思考 X」 */
   thoughtMs?: number;
+  /** 思考块的回传凭据（见 ChatReply.reasoningMeta） */
+  reasoningMeta?: Record<string, unknown>;
 }
 
 /** 活动条条目 id：时间戳 + 自增，避免同毫秒内重名 */
@@ -358,7 +365,13 @@ async function callOnce(o: AiTurnOptions, messages: ChatWireMessage[], tools: un
     });
     return { call, entryId };
   });
-  return { text: reply.text, reasoning: reply.reasoning, toolCalls, usage: reply.usage };
+  return {
+    text: reply.text,
+    reasoning: reply.reasoning,
+    toolCalls,
+    usage: reply.usage,
+    reasoningMeta: reply.reasoningMeta,
+  };
 }
 
 /** 异常 → 给用户看的一句话（活动条里展示失败原因；TDLib 的报错对象也要能读出来） */
@@ -588,7 +601,14 @@ async function callModel(o: AiTurnOptions, messages: ChatWireMessage[], tools: u
     o.sink.update(entryId, { text: call.name, input: JSON.stringify(call.arguments, null, 2) });
     return { call, entryId };
   });
-  return { text: reply.text, reasoning: reply.reasoning, toolCalls, usage: reply.usage, thoughtMs };
+  return {
+    text: reply.text,
+    reasoning: reply.reasoning,
+    toolCalls,
+    usage: reply.usage,
+    thoughtMs,
+    reasoningMeta: reply.reasoningMeta,
+  };
 }
 
 /**
@@ -672,6 +692,8 @@ export async function runAiTurn(o: AiTurnOptions): Promise<string> {
       toolCalls: clientCalls.map((t) => t.call),
       // 思考耗时跟着这条回复落盘：重进对话时活动条里还显示「已思考 X」
       thoughtMs: called.thoughtMs,
+      // 思考块的凭据（签名 / 加密内容）：多轮工具调用时下一轮必须原样回传
+      providerMeta: called.reasoningMeta,
     });
     finalText = called.text;
     if (!clientCalls.length) {

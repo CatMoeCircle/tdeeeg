@@ -1,13 +1,15 @@
 //! AI 对话的一次模型调用（可带工具）。多轮 agent 循环在前端 utils/aiChat.ts，这里只管单次请求。
 //!
-//! 供应商 / 钥匙串 / 协议选择复用 ai_translate（load_all、saved_api_key、build_language_model），不抄第二份。
+//! 对话本身走**自研的三协议客户端**（[`crate::ai::llm`]，模块注释里写了为什么不用 llmsdk：
+//! 它不解析 Responses 的 `reasoning_text` / Chat 的 `reasoning_content`，思考链永远显示不出来）。
+//! 供应商 / 钥匙串 / 协议选择复用 ai_translate；`ai_complete`（私聊接管 / 摘要）仍走 llmsdk ——
+//! 那条路不需要思考链，也没必要为它重写一遍。
 
 use llmsdk::{
     AssistantPart, CallOptions, Content, FileBytes, FileData, FilePart, FunctionTool, LanguageModel,
     Message, ProviderTool, ReasoningEffort, TextPart, Tool, ToolCallPart, ToolChoice,
     ToolMessagePart, ToolResultOutput, ToolResultPart, UserPart,
 };
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tokio::sync::oneshot;
@@ -16,119 +18,24 @@ use tauri::Manager;
 
 use crate::ai::ai_conversations::load_history;
 use crate::ai::ai_translate::{build_language_model, load_all, saved_api_key, saved_search_key};
+use crate::ai::llm::{prompt, ChatClient, ChatReply, ChatStreamEvent, Format};
 use crate::tdlib::AppState;
+
+pub use crate::ai::llm::{ChatMessage, ChatToolCall, ChatUsage};
 
 /// 正在跑的流式请求：request_id → 取消信号。前端点「停止」时通过 ai_chat_cancel 触发。
 #[derive(Default)]
 pub struct AiCancelState(Mutex<HashMap<String, oneshot::Sender<()>>>);
 
-/// 前端发来的瘦身消息（形状见 utils/aiChatHistory.ts 的 ChatWireMessage）。
-/// 同时是**落盘历史**的格式（ai_conversation_history / _save_history），所以进出都要能序列化。
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
-pub struct ChatMessage {
-    /// system | user | assistant | tool
-    pub role: String,
-    /// 正文；tool 消息里即工具结果 JSON
-    #[serde(skip_serializing_if = "String::is_empty")]
-    pub text: String,
-    /// assistant 的思考过程：思考模式下工具调用轮要原样回传
-    #[serde(skip_serializing_if = "String::is_empty")]
-    pub reasoning: String,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub tool_calls: Vec<ChatToolCall>,
-    /// tool 消息：对应的调用 id / 工具名
-    #[serde(skip_serializing_if = "String::is_empty")]
-    pub tool_call_id: String,
-    #[serde(skip_serializing_if = "String::is_empty")]
-    pub tool_name: String,
-    /// user 消息里带的图片（本机绝对路径，见 utils/aiChat.ts 的 images）。
-    /// 历史里只留路径：每次请求现读现转，history.json 不会塞进 base64。
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub attachments: Vec<String>,
-    /// assistant 这一轮思考了多久（毫秒）：只给界面留「已思考 1.2s」，不参与 prompt
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub thought_ms: Option<u64>,
-}
-
-/// 工具调用（进出共用）：arguments 为 JSON 对象，与前端 parseToolCall 的 MCP 形状一致。
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ChatToolCall {
-    pub id: String,
-    pub name: String,
-    #[serde(default)]
-    pub arguments: serde_json::Value,
-    /// 供应商侧执行（如 web_search）：结果已在同一次响应里，前端不要再 dispatch，
-    /// 也不要写进历史 —— 回传时 Anthropic 要求 server_tool_use 后面紧跟结果，缺了会 400。
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub provider_executed: Option<bool>,
-}
-
-#[derive(Debug, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ChatUsage {
-    pub input_tokens: Option<u64>,
-    pub output_tokens: Option<u64>,
-    pub cached_tokens: Option<u64>,
-    pub cache_write_tokens: Option<u64>,
-}
-
-#[derive(Debug, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ChatReply {
-    pub text: String,
-    pub reasoning: String,
-    pub tool_calls: Vec<ChatToolCall>,
-    pub usage: ChatUsage,
-}
-
 fn text_part(text: String) -> TextPart {
     TextPart { text, provider_options: None }
 }
 
-/// 扩展名 → IANA 媒体类型。只认图片：llmsdk 里非 image/* 的 File 段会被供应商忽略（M3）。
-fn image_media_type(path: &str) -> Option<&'static str> {
-    let ext = std::path::Path::new(path).extension()?.to_str()?.to_ascii_lowercase();
-    Some(match ext.as_str() {
-        "png" => "image/png",
-        "jpg" | "jpeg" => "image/jpeg",
-        "gif" => "image/gif",
-        "webp" => "image/webp",
-        "bmp" => "image/bmp",
-        "heic" | "heif" => "image/heic",
-        _ => return None,
-    })
-}
-
-/// 本机图片路径 → UserPart::File。
+/// 本机图片路径 → llmsdk 的 UserPart::File（只给 ai_complete 这条老路径用）。
 /// 读不到 / 认不出类型就跳过：历史里存的是路径，文件被删或改名不该让整段对话从此报错。
-///
-/// 图片字节缓存：路径 → (mtime, 字节)。agent 每轮都重建 prompt，同一张图不再每轮重读盘。
-/// ponytail: 容量满了整表清空而不是 LRU，单会话附件很少超过几张；真占内存再上 LRU。
-static IMAGE_CACHE: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, (std::time::SystemTime, Vec<u8>)>>> =
-    std::sync::OnceLock::new();
-const IMAGE_CACHE_MAX: usize = 8;
-
-fn read_image_cached(path: &str) -> Option<Vec<u8>> {
-    let mtime = std::fs::metadata(path).ok()?.modified().ok()?;
-    let mut cache = IMAGE_CACHE.get_or_init(Default::default).lock().ok()?;
-    if let Some((t, bytes)) = cache.get(path) {
-        if *t == mtime {
-            return Some(bytes.clone());
-        }
-    }
-    let bytes = std::fs::read(path).ok()?;
-    if cache.len() >= IMAGE_CACHE_MAX {
-        cache.clear();
-    }
-    cache.insert(path.to_string(), (mtime, bytes.clone()));
-    Some(bytes)
-}
-
 fn image_part(path: &str) -> Option<UserPart> {
-    let media_type = image_media_type(path)?;
-    let bytes = read_image_cached(path)?;
+    let media_type = prompt::media_type(path)?;
+    let bytes = prompt::read_image(path)?;
     Some(UserPart::File(FilePart {
         filename: std::path::Path::new(path).file_name().map(|n| n.to_string_lossy().into_owned()),
         data: FileData::Data { data: FileBytes::Bytes(bytes) },
@@ -370,10 +277,33 @@ fn chat_reasoning(effort: Option<&str>, format: &str) -> Option<llmsdk::Provider
     Some([("openai".to_string(), openai)].into_iter().collect())
 }
 
-/// 单次对话的公共准备：找供应商 / 取钥匙串里的 Key / 建模型 / 转工具与 prompt。
-/// ai_chat（非流式）与 ai_chat_stream（流式）共用这一份，别抄第二遍。
-/// `web_search` = 前端是否要挂供应商侧的联网搜索（设置里关掉、或配了独立搜索接口时为 false）。
-#[allow(clippy::too_many_arguments, reason = "两个命令共用的一次性装配，拆参数结构反而更难读")]
+/// 一次性解析：供应商 id / 模型 id → 接口地址、协议、模型 id、API Key。
+/// 自研对话客户端与 llmsdk（ai_complete）共用，别各找一遍。
+fn resolve_provider(
+    app: &tauri::AppHandle,
+    provider_id: &str,
+    model: &str,
+) -> Result<(String, String, String, String), String> {
+    let provider = load_all(app)
+        .providers
+        .into_iter()
+        .find(|p| p.id == provider_id)
+        .ok_or_else(|| "AI 供应商不存在，请在设置中重新配置".to_string())?;
+    let api_key = saved_api_key(app, provider_id).ok_or_else(|| "未保存 API Key".to_string())?;
+    let endpoint = provider.endpoint.trim().trim_end_matches('/').to_string();
+    let model_id = model.trim().to_string();
+    if endpoint.is_empty() {
+        return Err("接口地址为空".to_string());
+    }
+    if model_id.is_empty() {
+        return Err("模型 ID 为空".to_string());
+    }
+    Ok((endpoint, provider.format, model_id, api_key))
+}
+
+/// 一次性补全 / 摘要用的旧路径（llmsdk）：找 Key / 建模型 / 转 prompt。
+/// `web_search` = 是否挂供应商侧的联网搜索（设置里关掉、或配了独立搜索接口时为 false）。
+#[allow(clippy::too_many_arguments, reason = "一次性装配，拆参数结构反而更难读")]
 fn prepare(
     app: &tauri::AppHandle,
     provider_id: &str,
@@ -384,36 +314,22 @@ fn prepare(
     max_output_tokens: Option<u32>,
     web_search: bool,
 ) -> Result<(Box<dyn LanguageModel>, CallOptions), String> {
-    let provider = load_all(app)
-        .providers
-        .into_iter()
-        .find(|p| p.id == provider_id)
-        .ok_or_else(|| "AI 供应商不存在，请在设置中重新配置".to_string())?;
-    let api_key = saved_api_key(app, provider_id).ok_or_else(|| "未保存 API Key".to_string())?;
-    let endpoint = provider.endpoint.trim().trim_end_matches('/');
-    let model_id = model.trim();
-    if endpoint.is_empty() {
-        return Err("接口地址为空".to_string());
-    }
-    if model_id.is_empty() {
-        return Err("模型 ID 为空".to_string());
-    }
-
-    let lm = build_language_model(endpoint, &provider.format, &api_key, model_id)?;
+    let (endpoint, format, model_id, api_key) = resolve_provider(app, provider_id, model)?;
+    let lm = build_language_model(&endpoint, &format, &api_key, &model_id)?;
     let mut tools = to_tools(tools)?;
     // 联网搜索由供应商执行；只对确定支持的供应商挂（见 hosted_web_search_supported）
-    if web_search && hosted_web_search_supported(endpoint, &provider.format) {
-        if let Some(search) = web_search_tool(&provider.format) {
+    if web_search && hosted_web_search_supported(&endpoint, &format) {
+        if let Some(search) = web_search_tool(&format) {
             tools.push(search);
         }
     }
     // 标准枚举走 CallOptions.reasoning（跨 provider 可移植）；认不出的值 = 设置页里的自定义档位
     let reasoning = effort.as_deref().and_then(effort_of);
     let options = CallOptions {
-        provider_options: if provider.format == "openai-responses" {
+        provider_options: if format == "openai-responses" {
             responses_reasoning(effort.as_deref())
         } else if reasoning.is_none() {
-            chat_reasoning(effort.as_deref(), &provider.format)
+            chat_reasoning(effort.as_deref(), &format)
         } else {
             None
         },
@@ -472,21 +388,20 @@ pub async fn ai_chat(
     web_search: Option<bool>,
 ) -> Result<ChatReply, String> {
     messages.extend(load_history(&app.state::<AppState>(), &account_id, chat_id, &conversation_id));
-    let (lm, options) = prepare(
-        &app,
-        &provider_id,
-        &model,
-        messages,
-        tools,
-        effort,
+    let (endpoint, format, model_id, api_key) = resolve_provider(&app, &provider_id, &model)?;
+    let hosted = web_search.unwrap_or(true) && hosted_web_search_supported(&endpoint, &format);
+    ChatClient {
+        format: Format::of(&format),
+        endpoint: &endpoint,
+        api_key: &api_key,
+        model: &model_id,
+        tools: &tools,
+        effort: effort.as_deref(),
         max_output_tokens,
-        web_search.unwrap_or(true),
-    )?;
-    let result = lm
-        .do_generate(options)
-        .await
-        .map_err(|e| format!("AI 对话失败: {e}"))?;
-    Ok(to_reply(result))
+        hosted_web_search: hosted,
+    }
+    .generate(&messages)
+    .await
 }
 
 /// 一次性补全：`messages` 就是完整 prompt（system 在最前），不带会话历史、不带工具。
@@ -519,56 +434,7 @@ pub async fn ai_complete(
     Ok(to_reply(result))
 }
 
-/// 流式累积：把 StreamPart 拼回一次完整回复（前端只看增量画界面，业务逻辑用这个结果，
-/// 这样不依赖 IPC 消息到达顺序）。
-///
-/// 工具调用只认 `ToolCall`（`ToolInput*` 是给界面看增量的），文本 / 思考累加增量。
-#[derive(Default)]
-struct StreamAcc {
-    text: String,
-    reasoning: String,
-    tool_calls: Vec<ChatToolCall>,
-    usage: ChatUsage,
-}
-
-impl StreamAcc {
-    /// 吃一块流；返回 Some(错误) = 这一块是流内错误（调用方直接当本轮失败）。
-    fn push(&mut self, part: llmsdk::StreamPart) -> Option<String> {
-        use llmsdk::StreamPart as P;
-        match part {
-            P::TextDelta { delta, .. } => self.text.push_str(&delta),
-            P::ReasoningDelta { delta, .. } => self.reasoning.push_str(&delta),
-            P::ToolCall(c) => self.tool_calls.push(ChatToolCall {
-                id: c.tool_call_id,
-                name: c.tool_name,
-                arguments: c.input,
-                provider_executed: c.provider_executed,
-            }),
-            P::Finish { usage, .. } => {
-                self.usage = ChatUsage {
-                    input_tokens: usage.input_tokens.total,
-                    output_tokens: usage.output_tokens.total,
-                    cached_tokens: usage.input_tokens.cache_read,
-                    cache_write_tokens: usage.input_tokens.cache_write,
-                };
-            }
-            P::Error { error } => return Some(error.to_string()),
-            _ => {}
-        }
-        None
-    }
-
-    fn into_reply(self) -> ChatReply {
-        ChatReply {
-            text: self.text,
-            reasoning: self.reasoning,
-            tool_calls: self.tool_calls,
-            usage: self.usage,
-        }
-    }
-}
-
-/// 流式对话：一边把 llmsdk 的 StreamPart 原样推给前端（界面逐字更新），一边在 Rust 侧拼出完整回复返回。
+/// 流式对话：一边把增量事件推给前端（界面逐字更新），一边在 Rust 侧拼出完整回复返回。
 ///
 /// 两件事都做是有意的：界面要增量，循环要确定的结果。让前端自己拼「最终文本 / 工具调用」的话，
 /// 一旦 IPC 消息比命令返回晚到，就会漏掉工具调用 —— 那种 bug 极难查。
@@ -588,49 +454,28 @@ pub async fn ai_chat_stream(
     max_output_tokens: Option<u32>,
     web_search: Option<bool>,
     request_id: String,
-    on_event: tauri::ipc::Channel<llmsdk::StreamPart>,
+    on_event: tauri::ipc::Channel<ChatStreamEvent>,
 ) -> Result<ChatReply, String> {
-    use futures_util::StreamExt;
-
     messages.extend(load_history(&app.state::<AppState>(), &account_id, chat_id, &conversation_id));
-    let (lm, options) = prepare(
-        &app,
-        &provider_id,
-        &model,
-        messages,
-        tools,
-        effort,
+    let (endpoint, format, model_id, api_key) = resolve_provider(&app, &provider_id, &model)?;
+    let hosted = web_search.unwrap_or(true) && hosted_web_search_supported(&endpoint, &format);
+    let client = ChatClient {
+        format: Format::of(&format),
+        endpoint: &endpoint,
+        api_key: &api_key,
+        model: &model_id,
+        tools: &tools,
+        effort: effort.as_deref(),
         max_output_tokens,
-        web_search.unwrap_or(true),
-    )?;
+        hosted_web_search: hosted,
+    };
     // 先登记取消信号再开流：前端一按停止（ai_chat_cancel）这里立刻就能收到
-    let (tx, mut rx) = oneshot::channel::<()>();
+    let (tx, rx) = oneshot::channel::<()>();
     state.0.lock().unwrap().insert(request_id.clone(), tx);
-    let out = async move {
-        let mut result = lm
-            .do_stream(options)
-            .await
-            .map_err(|e| format!("AI 对话失败: {e}"))?;
-        let mut acc = StreamAcc::default();
-        loop {
-            tokio::select! {
-                biased;
-                // 已停止：丢掉 stream（连接随之断开），返回空回复 —— 前端 signal 已 abort，
-                // 这一轮不会被写进历史（见 utils/aiChat.ts runAiTurn）
-                _ = &mut rx => return Ok(ChatReply::default()),
-                part = result.stream.next() => {
-                    let Some(part) = part else { break };
-                    let part = part.map_err(|e| format!("AI 对话失败: {e}"))?;
-                    if let Some(err) = acc.push(part.clone()) {
-                        return Err(format!("AI 对话失败: {err}"));
-                    }
-                    on_event.send(part).map_err(|e| format!("流式推送失败: {e}"))?;
-                }
-            }
-        }
-        Ok(acc.into_reply())
-    }
-    .await;
+    let mut emit = |ev: ChatStreamEvent| -> Result<(), String> {
+        on_event.send(ev).map_err(|e| format!("流式推送失败: {e}"))
+    };
+    let out = client.stream(&messages, rx, &mut emit).await;
     state.0.lock().unwrap().remove(&request_id);
     out
 }
@@ -821,75 +666,14 @@ mod tests {
 
     #[test]
     fn image_media_type_only_knows_images() {
-        assert_eq!(image_media_type("a/b.PNG"), Some("image/png"));
-        assert_eq!(image_media_type("a.jpeg"), Some("image/jpeg"));
-        assert_eq!(image_media_type("Heic"), None); // 没有扩展名
-        assert_eq!(image_media_type("notes.txt"), None);
+        assert_eq!(prompt::media_type("a/b.PNG"), Some("image/png"));
+        assert_eq!(prompt::media_type("a.jpeg"), Some("image/jpeg"));
+        assert_eq!(prompt::media_type("Heic"), None); // 没有扩展名
+        assert_eq!(prompt::media_type("notes.txt"), None);
     }
 
-    /// 流式累积：文本 / 思考增量拼接、工具调用认 ToolCall、usage 取 Finish
-    #[test]
-    fn stream_accumulates_text_reasoning_tools_and_usage() {
-        use llmsdk::{FinishReason, FinishReasonKind, StreamPart, ToolCallPart, Usage};
-
-        let mut acc = StreamAcc::default();
-        let parts = vec![
-            StreamPart::TextDelta { id: "t".into(), delta: "你".into(), provider_metadata: None },
-            StreamPart::ToolInputStart {
-                id: "c1".into(),
-                tool_name: "get_recent_messages".into(),
-                provider_executed: None,
-                dynamic: None,
-                title: None,
-                provider_metadata: None,
-            },
-            StreamPart::ToolInputDelta { id: "c1".into(), delta: "{\"chat".into(), provider_metadata: None },
-            StreamPart::ReasoningDelta { id: "r".into(), delta: "想想".into(), provider_metadata: None },
-            StreamPart::TextDelta { id: "t".into(), delta: "好".into(), provider_metadata: None },
-            StreamPart::ToolCall(ToolCallPart {
-                tool_call_id: "c1".into(),
-                tool_name: "get_recent_messages".into(),
-                input: serde_json::json!({ "chat_id": 1 }),
-                provider_executed: None,
-                dynamic: None,
-                provider_options: None,
-            }),
-            StreamPart::Finish {
-                usage: Usage {
-                    input_tokens: llmsdk::InputTokenUsage {
-                        total: Some(100),
-                        no_cache: None,
-                        cache_read: Some(80),
-                        cache_write: None,
-                    },
-                    output_tokens: llmsdk::OutputTokenUsage { total: Some(9), text: None, reasoning: None },
-                    raw: None,
-                },
-                finish_reason: FinishReason::new(FinishReasonKind::ToolCalls),
-                provider_metadata: None,
-            },
-            // 无关的块（起止标记、元数据等）不该影响结果
-            StreamPart::TextEnd { id: "t".into(), provider_metadata: None },
-            StreamPart::TextStart { id: "t2".into(), provider_metadata: None },
-            StreamPart::ToolInputEnd { id: "c1".into(), provider_metadata: None },
-        ];
-        for p in parts {
-            assert!(acc.push(p).is_none());
-        }
-        let reply = acc.into_reply();
-        assert_eq!(reply.text, "你好");
-        assert_eq!(reply.reasoning, "想想");
-        assert_eq!(reply.tool_calls.len(), 1);
-        assert_eq!(reply.tool_calls[0].id, "c1");
-        assert_eq!(reply.tool_calls[0].arguments, serde_json::json!({ "chat_id": 1 }));
-        assert_eq!(reply.usage.input_tokens, Some(100));
-        assert_eq!(reply.usage.cached_tokens, Some(80));
-        assert_eq!(reply.usage.output_tokens, Some(9));
-    }
-
-    /// 流内错误要能报出来（前端据此当本轮失败，而不是当成空回复）
-    /// 思考只挂在 responses 协议上：llmsdk 的 /responses 适配器只认 provider_options，
-    /// 漏了这段推理模型也一条思考都不回（活动条里没有思考条目的根因）。
+    /// 思考档位只挂在 responses 协议上：llmsdk 的 /responses 适配器只认 provider_options，
+    /// 漏了这段推理模型也一条思考都不回（ai_complete 走的还是这条老路）。
     #[test]
     fn responses_reasoning_options_request_summary() {
         let po = responses_reasoning(Some("high")).expect("high 要有思考参数");
@@ -919,13 +703,6 @@ mod tests {
         assert!(chat_reasoning(Some(""), "openai-compatible").is_none());
         assert!(chat_reasoning(None, "openai-compatible").is_none());
         assert!(chat_reasoning(Some("xhigh"), "anthropic").is_none());
-    }
-
-    #[test]
-    fn stream_error_is_reported() {
-        let mut acc = StreamAcc::default();
-        let err = acc.push(llmsdk::StreamPart::Error { error: serde_json::json!({ "message": "boom" }) });
-        assert!(err.is_some_and(|e| e.contains("boom")));
     }
 
     /// 联网搜索只挂在有服务端工具的协议上（Completions 挂上去会被接口当未知工具拒绝），

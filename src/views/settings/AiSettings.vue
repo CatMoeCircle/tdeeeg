@@ -129,6 +129,16 @@
                         </div>
                         <ChevronRightIcon class="w-4 h-4 text-gray-400 shrink-0" />
                     </button>
+
+                    <!-- 工具调用过程折叠：跑的时候实时展开，回答完收成一行（对齐 DSH） -->
+                    <div class="mt-3 flex items-center justify-between gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md">
+                        <div class="min-w-0">
+                            <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                {{ t('aiSettings.collapseToolCalls') }}</h4>
+                            <p class="text-xs text-gray-500 mt-0.5">{{ t('aiSettings.collapseToolCallsDesc') }}</p>
+                        </div>
+                        <ToggleSwitch v-model="settings.ai.collapseToolCalls" />
+                    </div>
                 </section>
 
                 <!-- ===== 私聊 AI 接管：逐个选聊天，模仿我 / AI 接管两种方式 ===== -->

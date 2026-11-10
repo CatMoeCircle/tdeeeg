@@ -28,6 +28,11 @@ export interface ChatWireMessage {
   attachments?: string[];
   /** assistant 这一轮思考了多久（毫秒）：只给界面留「已思考 X」，不发给模型 */
   thoughtMs?: number;
+  /**
+   * 思考块的供应商回传凭据（不透明）：Responses = { itemId, encryptedContent }，
+   * Anthropic = { signature }。原样进历史、下一轮原样回传，前端不解读。
+   */
+  providerMeta?: Record<string, unknown>;
 }
 
 /** 活动条的一条（与 AiActivityStrip 的 AiActivityEntry 结构兼容） */

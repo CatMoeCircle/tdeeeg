@@ -819,6 +819,8 @@ async function restoreAiPresets() {
 /**
  * 预览数据：思考、普通输出、工具调用各来几条（工具名 / 参数保持 ASCII，与 registry 一致）。
  * 思考与工具调用是折叠条目，点开能看完整思考内容与工具输入 / 输出。
+ * busy 不传 = 这一轮已结束，所以工具调用默认收成组头（跟真实对话回答完的样子一致）；
+ * 想看跑的时候的实时逐条样式，把 :busy 传成 true 即可。
  */
 const AI_STRIP_TOOL_APPROVAL = 'send_message(chat_id=…, text=…)';
 

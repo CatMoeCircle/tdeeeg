@@ -4,3 +4,5 @@ pub mod ai_chat;
 pub mod ai_conversations;
 pub mod ai_translate;
 pub mod lang_detect;
+/// 自研的三协议对话客户端（Responses / Chat Completions / Anthropic），见模块注释
+pub mod llm;

@@ -259,6 +259,12 @@ interface Settings {
      */
     skipApproval: string[];
     /**
+     * 工具调用过程折叠（对齐 DSH）：这一轮还在跑时一条条实时冒出来，
+     * 回答完就收成一行「工具调用 ×N」，点一下再看每次调用的参数与结果。
+     * 关掉 = 每次调用始终各占一行（老行为）。
+     */
+    collapseToolCalls: boolean;
+    /**
      * 联网搜索工具的独立出口：endpoint 非空 = 用这套 OpenAI 兼容 /responses 接口 + 模型执行搜索；
      * 空 = 用当前 AI 供应商的接口和 Key（由供应商自己执行 web_search）。
      * API Key 存系统钥匙串（见 ai_translate::save_ai_search_key），不放这里。
@@ -444,6 +450,7 @@ const defaultSettings: Settings = {
     switchButtonAuto: false,
     tools: {},
     skipApproval: [],
+    collapseToolCalls: true,
     search: { endpoint: "", model: "" },
   },
   chatHeaderAvatarPosition: "default",
