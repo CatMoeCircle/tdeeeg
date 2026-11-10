@@ -6,7 +6,7 @@
                 @mousedown.self="emitClose">
                 <!-- 面板本身不裁剪：石头按压放大时要能探出边界（与聊天卡片同一套手感） -->
                 <div
-                    class="relative w-80 max-w-[calc(100vw-2rem)] max-h-[90vh] flex flex-col rounded-2xl border border-black/10 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-800">
+                    class="relative w-100 max-w-[calc(100vw-2rem)] max-h-[90vh] flex flex-col rounded-2xl border border-black/10 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-800">
                     <!-- 关闭按钮压在内容之上，不随滚动区滚走 -->
                     <button type="button" :aria-label="t('lng_close')"
                         class="absolute right-2.5 top-2.5 z-10 flex h-7 w-7 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
@@ -154,6 +154,7 @@ import {
     formatGramAmount,
     formatGramDate,
     formatGramFee,
+    isNegativeGramAmount,
 } from '../../utils/message/tonTransfer';
 
 const { t } = useI18n();
@@ -186,7 +187,7 @@ const {
 
 const amount = computed(() => formatGramAmount(props.content.amount, props.outgoing === true));
 /** 收入绿色；支出保持正文默认色（不用红色） */
-const isExpense = computed(() => props.outgoing === true || props.content.amount < 0);
+const isExpense = computed(() => props.outgoing === true || isNegativeGramAmount(props.content.amount));
 const amountToneClass = computed(() => (isExpense.value
     ? ''
     : 'text-emerald-600 dark:text-emerald-400'));

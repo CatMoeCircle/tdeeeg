@@ -10,8 +10,13 @@
 
 /** 1 Gram = 1e9 最小单位 */
 export const GRAM_SCALE = 1_000_000_000;
+/** BigInt 版的 1 Gram（最小单位），用于避免大余额丢精度 */
+const GRAM_SCALE_BIG = 1_000_000_000n;
 /** 低于这个金额（0.01 Gram）时多留两位小数，否则小额会显示成 0 */
-const TWO_DECIMAL_THRESHOLD = GRAM_SCALE / 100;
+const TWO_DECIMAL_THRESHOLD_BIG = GRAM_SCALE_BIG / 100n;
+
+/** TDLib 1.8.70 起金额改为字符串（nanogram），旧版本为 number；两种都接受 */
+export type GramAmount = number | string;
 
 /**
  * 卡片尺寸
@@ -45,31 +50,63 @@ export interface FormattedGramAmount {
     fraction: string;
 }
 
-/** 去掉末尾零的定点格式化（等价于 Java 的 DecimalFormat("0.##")） */
-function trimFixed(value: number, maxDecimals: number): string {
-    const fixed = value.toFixed(maxDecimals);
-    if (!fixed.includes('.')) return fixed;
-    return fixed.replace(/0+$/, '').replace(/\.$/, '');
+/** 最小单位金额 → BigInt（兼容 1.8.69 的 number 与 1.8.70 的 string） */
+function gramAmountToBigInt(amount: GramAmount): bigint {
+    if (typeof amount === 'number') {
+        return Number.isFinite(amount) ? BigInt(Math.trunc(amount)) : 0n;
+    }
+    const text = amount.trim();
+    if (!text) return 0n;
+    try {
+        return BigInt(text);
+    } catch {
+        const value = Number(text);
+        return Number.isFinite(value) ? BigInt(Math.trunc(value)) : 0n;
+    }
+}
+
+/** 金额是否为负（1.8.70 用带符号字符串表示出账） */
+export function isNegativeGramAmount(amount: GramAmount): boolean {
+    return gramAmountToBigInt(amount) < 0n;
+}
+
+/** 金额换算成 JS number（仅用于复数选择等近似场景，不用于展示） */
+export function gramAmountToNumber(amount: GramAmount): number {
+    return Number(gramAmountToBigInt(amount));
+}
+
+/**
+ * 按小数位格式化（等价于 DecimalFormat("0.##")）。
+ * 用 BigInt 做「加半个单位再整除」实现四舍五入，避免大额余额丢精度。
+ */
+function formatGramValue(absolute: bigint, maxDecimals: number): { whole: string; fraction: string } {
+    const factor = 10n ** BigInt(maxDecimals);
+    const scaled = (absolute * factor + GRAM_SCALE_BIG / 2n) / GRAM_SCALE_BIG;
+    const whole = (scaled / factor).toString();
+    const fraction = (scaled % factor)
+        .toString()
+        .padStart(maxDecimals, '0')
+        .replace(/0+$/, '');
+    return { whole, fraction: fraction ? `.${fraction}` : '' };
 }
 
 /**
  * 格式化转账金额（`messageTonWalletTransfer.amount`）。
  *
- * @param amount 最小单位的有符号金额
+ * @param amount 最小单位的有符号金额（1.8.69 为 number，1.8.70 起为 string）
  * @param forceOutgoing 消息是自己发出时强制显示负号：TDLib 偶尔会给出正数，
  *                      但「我转给别人」在语义上一定是支出
  * @returns 符号、整数部分与小数部分
  */
-export function formatGramAmount(amount: number, forceOutgoing = false): FormattedGramAmount {
-    const absolute = Math.abs(amount);
-    const grams = absolute / GRAM_SCALE;
-    const decimals = absolute < TWO_DECIMAL_THRESHOLD ? 4 : 2;
-    const text = trimFixed(grams, decimals);
-    const point = text.indexOf('.');
+export function formatGramAmount(amount: GramAmount, forceOutgoing = false): FormattedGramAmount {
+    const nano = gramAmountToBigInt(amount);
+    const absolute = nano < 0n ? -nano : nano;
+    const decimals = absolute < TWO_DECIMAL_THRESHOLD_BIG ? 4 : 2;
+    const { whole, fraction } = formatGramValue(absolute, decimals);
     return {
-        sign: amount < 0 || forceOutgoing ? '\u2013' : '+',
-        whole: point < 0 ? text : text.slice(0, point),
-        fraction: point < 0 ? '' : text.slice(point),
+        sign: nano < 0n || forceOutgoing ? '\u2013' : '+',
+        whole,
+        fraction,
     };
 }
 
@@ -99,11 +136,12 @@ export function formatGramAddress(address: string): string {
  * @param amount 最小单位的费用（取绝对值）
  * @returns 纯数字文案，例如 `0.0055`
  */
-export function formatGramFee(amount: number): string {
-    const absolute = Math.abs(amount);
-    const grams = absolute / GRAM_SCALE;
-    const decimals = absolute < TWO_DECIMAL_THRESHOLD ? 4 : 2;
-    return trimFixed(grams, decimals);
+export function formatGramFee(amount: GramAmount): string {
+    const nano = gramAmountToBigInt(amount);
+    const absolute = nano < 0n ? -nano : nano;
+    const decimals = absolute < TWO_DECIMAL_THRESHOLD_BIG ? 4 : 2;
+    const { whole, fraction } = formatGramValue(absolute, decimals);
+    return `${whole}${fraction}`;
 }
 
 /**
@@ -144,12 +182,12 @@ export function formatGramAddressLines(address: string, groupsPerLine = 4): stri
 /**
  * 推断转账状态：出账失败 / 出账成功 / 入账。
  *
- * @param amount 最小单位的有符号金额
+ * @param amount 最小单位的有符号金额（1.8.69 为 number，1.8.70 起为 string）
  * @param isOutgoing 消息是否为自己发出
  * @param failed 发送状态是否为失败
  */
-export function tonTransferStatus(amount: number, isOutgoing: boolean, failed: boolean): TonTransferStatus {
+export function tonTransferStatus(amount: GramAmount, isOutgoing: boolean, failed: boolean): TonTransferStatus {
     if (failed) return 'failed';
-    if (isOutgoing || amount < 0) return 'sent';
+    if (isOutgoing || isNegativeGramAmount(amount)) return 'sent';
     return 'received';
 }

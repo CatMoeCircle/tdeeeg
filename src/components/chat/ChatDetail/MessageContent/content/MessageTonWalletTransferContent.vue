@@ -43,6 +43,8 @@ import {
 import {
     formatGramAmount,
     GRAM_SCALE,
+    gramAmountToNumber,
+    isNegativeGramAmount,
     TON_CARD_INSET,
     TON_CARD_WIDTH,
     tonTransferStatus,
@@ -59,10 +61,10 @@ const props = defineProps<{
     chatId?: number;
 }>();
 
-/** 出账：自己发出，或金额为负（TDLib 对出账金额取负） */
+/** 出账：自己发出，或金额为负（TDLib 对出账金额取负；1.8.70 起为带符号字符串） */
 const isOutgoing = computed(() => props.isSelf === true
     || props.message?.is_outgoing === true
-    || props.content.amount < 0);
+    || isNegativeGramAmount(props.content.amount));
 
 /** 发送失败（只有出账才可能失败） */
 const failed = computed(() => props.message?.sending_state?._ === 'messageSendingStateFailed');
@@ -81,8 +83,8 @@ const ribbonLabel = computed(() => {
     }
 });
 
-/** 金额换算成 Gram（绝对值），用于官方词条的复数选择 */
-const gramValue = computed(() => Math.abs(props.content.amount) / GRAM_SCALE);
+/** 金额换算成 Gram（绝对值），用于官方词条的复数选择；仅需近似值 */
+const gramValue = computed(() => Math.abs(gramAmountToNumber(props.content.amount)) / GRAM_SCALE);
 
 /** 纯数字文案，例如 0.15 */
 const amountNumber = computed(() => {

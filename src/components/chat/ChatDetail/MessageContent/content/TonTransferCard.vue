@@ -49,6 +49,7 @@ import {
     TON_CARD_RADIUS,
     TON_CARD_WIDTH,
     TON_RIBBON_COLORS,
+    type GramAmount,
     type TonTransferStatus,
 } from '../../../../../utils/message/tonTransfer';
 
@@ -63,8 +64,8 @@ const RIBBON_PATH = 'M46.83 24.5 L23.5 1.17 C22.75 .42 21.73 0 20.68 0 '
     + 'L45.72 47.44 C46.56 48.28 48 47.68 48 46.5 L48 27.32 C48 26.26 47.5 25.24 46.82 24.5 Z';
 
 const props = defineProps<{
-    /** 最小单位的有符号金额（负数出账） */
-    amount: number;
+    /** 最小单位的有符号金额（负数出账；1.8.70 起 TDLib 传字符串） */
+    amount: GramAmount;
     /** TON 地址（48 字符 base64url） */
     address: string;
     /** 对方显示名 */
