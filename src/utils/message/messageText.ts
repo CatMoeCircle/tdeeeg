@@ -20,6 +20,9 @@ export function getMessagePlainText(msg: message): string {
         case "messageRichMessage":
             // 富文本消息：内容位于 blocks（PageBlock 数组），本函数暂不提取
             return "";
+        case "messageWidget":
+            // HTML 小部件没有正文，复制 / 预览取 caption
+            return textOf(c.caption);
         case "messagePhoto":
             return textOf(c.caption);
         case "messageVideo":
@@ -40,6 +43,9 @@ export function getMessagePlainText(msg: message): string {
             return c.sticker.emoji ?? "";
         case "messagePoll":
             return c.poll.question.text ?? "";
+        case "messageChecklist":
+            // 清单没有正文，复制 / 预览 / AI 摘要统一取标题
+            return c.list.title.text ?? "";
         case "messagePollOptionAdded":
             return i18n.global.t("preview.pollOptionAdded", { option: c.text.text ?? "" });
         case "messagePollOptionDeleted":
@@ -80,6 +86,9 @@ export function getMessageFormattedText(msg: message): formattedText | null {
         case "messageAudio":
         case "messageDocument":
         case "messagePaidMedia":
+            return c.caption;
+        case "messageWidget":
+            // HTML 小部件：可翻译的只有 caption
             return c.caption;
         default:
             return null;

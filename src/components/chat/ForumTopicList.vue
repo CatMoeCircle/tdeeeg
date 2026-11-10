@@ -245,6 +245,9 @@ function getTopicPreview(topic: forumTopic): string {
     if (content._ === 'messageVideoNote') {
         return bracketTypePreview(messageContentTypeLabel('messageVideoNote'));
     }
+    if (content._ === 'messageWidget') {
+        return content.caption.text || bracketTypePreview(messageContentTypeLabel('messageWidget'));
+    }
     return bracketTypePreview(messageContentTypeLabel(''));
 }
 </script>

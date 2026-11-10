@@ -261,7 +261,7 @@ export function hasTranslatableText(msg: message): boolean {
         (c._ === "messageText" && !!c.text?.text?.trim()) ||
         ((c._ === "messagePhoto" || c._ === "messageVideo" || c._ === "messageAnimation"
             || c._ === "messageVoiceNote" || c._ === "messageAudio" || c._ === "messageDocument"
-            || c._ === "messagePaidMedia") && !!c.caption?.text?.trim())
+            || c._ === "messagePaidMedia" || c._ === "messageWidget") && !!c.caption?.text?.trim())
     );
 }
 

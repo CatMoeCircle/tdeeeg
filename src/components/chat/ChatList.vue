@@ -1234,12 +1234,26 @@ const getMessagePreview = (message: message | undefined, chat?: Chat): formatted
     if (content._ === 'messageStory') {
         return plainText(bracketTypePreview(messageContentTypeLabel('messageStory')));
     }
+    if (content._ === 'messageWidget') {
+        // HTML 小部件：有 caption 显示 caption，否则显示类型占位
+        return content.caption?.text
+            ? content.caption
+            : plainText(bracketTypePreview(messageContentTypeLabel('messageWidget')));
+    }
     if (content._ === 'messagePollOptionAdded' || content._ === 'messagePollOptionDeleted') {
         const action = pollOptionPreviewText(
             content._ === 'messagePollOptionAdded' ? 'added' : 'deleted',
             content.text.text,
         );
         return plainText(bracketTypePreview(messageContentTypeLabel('messagePoll'), action));
+    }
+    if (content._ === 'messageChecklist') {
+        // 清单没有正文：预览显示 [清单] 标题，与投票选项增删同一排版
+        return plainText(bracketTypePreview(messageContentTypeLabel('messageChecklist'), content.list.title.text));
+    }
+    if (content._ === 'messageChecklistTasksAdded' || content._ === 'messageChecklistTasksDone') {
+        // 勾选 / 新增任务是服务消息，列表里只显示类型占位
+        return plainText(bracketTypePreview(messageContentTypeLabel('messageChecklist')));
     }
     if (content._ === 'messageChatHasProtectedContentToggled') {
         // 频道里没有「自己」的操作视角（发送者是频道本身，不是某个用户）：

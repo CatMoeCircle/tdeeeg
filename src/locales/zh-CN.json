@@ -1496,6 +1496,7 @@
     "gif": "GIF",
     "game": "游戏",
     "message": "消息",
+    "widget": "小组件",
     "chatChangeTitle": "修改群名称",
     "pollOptionAdded": "添加了选项：{option}",
     "pollOptionDeleted": "删除了选项：{option}",

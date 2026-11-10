@@ -1496,6 +1496,7 @@
     "gif": "GIF",
     "game": "Game",
     "message": "Message",
+    "widget": "Widget",
     "chatChangeTitle": "Group name changed",
     "pollOptionAdded": "Added option: {option}",
     "pollOptionDeleted": "Removed option: {option}",

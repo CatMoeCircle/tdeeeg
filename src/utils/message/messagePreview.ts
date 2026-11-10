@@ -47,7 +47,9 @@ export function messageContentTypeLabel(contentType: string): string {
             return i18n.global.t('preview.game');
         case 'messageStory':
             return i18n.global.t('lng_in_dlg_story');
-        case 'messageTodoList':
+        case 'messageWidget':
+            return i18n.global.t('preview.widget');
+        case 'messageChecklist':
             return i18n.global.t('lng_in_dlg_todo_list');
         case 'messageChatChangeTitle':
             return i18n.global.t('preview.chatChangeTitle');

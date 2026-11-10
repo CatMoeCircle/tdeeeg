@@ -382,6 +382,8 @@ function previewText(msg: message): string {
         case 'messageLocation': return t('lng_maps_point');
         case 'messageContact': return t('lng_contacts_header');
         case 'messagePoll': return t('lng_in_dlg_poll');
+        case 'messageChecklist': return t('lng_in_dlg_todo_list');
+        case 'messageWidget': return t('preview.widget');
         case 'messageCall': return msg.content.is_video ? t('search.videoCall') : t('lng_settings_notifications_calls_title');
         default: return t('lng_contact_send_message');
     }

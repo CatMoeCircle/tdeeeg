@@ -274,6 +274,10 @@ function extractPreviewText(msg: directMessagesChatTopic['last_message']): strin
             return messageContentTypeLabel('messageVenue');
         case 'messagePoll':
             return content.poll?.question?.text || messageContentTypeLabel('messagePoll');
+        case 'messageChecklist':
+            return content.list?.title?.text || messageContentTypeLabel('messageChecklist');
+        case 'messageWidget':
+            return content.caption?.text || messageContentTypeLabel('messageWidget');
         case 'messageDice':
             return messageContentTypeLabel('messageDice');
         case 'messageChatChangeTitle':

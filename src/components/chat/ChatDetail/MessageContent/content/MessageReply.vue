@@ -287,6 +287,8 @@ async function loadReplyData() {
 
 function getMessageText(content: MessageContent): string {
     if (content._ === 'messageText') return content.text.text;
+    // 清单没有 caption：回复预览显示标题，避免整块空白
+    if (content._ === 'messageChecklist') return content.list.title.text;
     if ('caption' in content && content.caption?.text) return content.caption.text;
     return '';
 }
@@ -340,6 +342,10 @@ function getMediaInfo(content: MessageContent, _msg: message): { mediaType: stri
         if (stickerThumb && isThumbnailImgRenderable(stickerThumb.format) && isFileReady(stickerThumb.file)) {
             thumbSrc = convertFileSrc(stickerThumb.file.local.path);
         }
+    } else if (content._ === 'messageChecklist') {
+        mediaType = messageContentTypeLabel('messageChecklist');
+    } else if (content._ === 'messageWidget') {
+        mediaType = messageContentTypeLabel('messageWidget');
     }
 
     return { mediaType, thumbSrc };

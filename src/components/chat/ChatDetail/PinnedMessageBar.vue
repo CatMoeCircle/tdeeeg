@@ -434,6 +434,11 @@ function getMessagePreview(msg: message): formattedText {
                 || bracketTypePreview(messageContentTypeLabel('messageAudio')));
         case 'messagePoll':
             return plainText(bracketTypePreview(messageContentTypeLabel('messagePoll')));
+        case 'messageChecklist':
+            return plainText(bracketTypePreview(messageContentTypeLabel('messageChecklist'), c.list.title.text));
+        case 'messageWidget':
+            // HTML 小部件：caption 可带实体（自定义 emoji），没 caption 只显示类型标签
+            return captionPreview(messageContentTypeLabel('messageWidget'), c.caption);
         case 'messageLocation':
             return plainText(bracketTypePreview(messageContentTypeLabel('messageLocation')));
         case 'messageContact':

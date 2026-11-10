@@ -108,7 +108,8 @@ const REPLYABLE = new Set([
   "messageDice",
   "messageStory",
   "messagePaidMedia",
-  "messageTodoList",
+  "messageChecklist",
+  "messageWidget",
   "messageGift",
   "messageGiveaway",
   "messageGiftedPremium",
@@ -153,8 +154,10 @@ export function contentPlaceholder(contentType: string): string {
       return "[故事]";
     case "messagePaidMedia":
       return "[付费媒体]";
-    case "messageTodoList":
+    case "messageChecklist":
       return "[待办清单]";
+    case "messageWidget":
+      return "[小组件]";
     case "messageRichMessage":
       return "[富文本]";
     default:

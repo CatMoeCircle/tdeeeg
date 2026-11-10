@@ -757,6 +757,8 @@ function messagePreview(msg: message): string {
         case 'messageLocation': return t('lng_location_title');
         case 'messageContact': return t('lng_in_dlg_contact');
         case 'messagePoll': return `${t('lng_in_dlg_poll')} ${c.poll.question.text}`;
+        case 'messageChecklist': return `${t('lng_in_dlg_todo_list')} ${c.list.title.text}`;
+        case 'messageWidget': return c.caption?.text || t('preview.widget');
         default: return t('lng_message_empty');
     }
 }
