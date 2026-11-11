@@ -16,6 +16,12 @@ export interface BrowsePosition {
     /** 保存时的 last_read_inbox_message_id，用于失效判断 */
     readInboxMaxId: number;
     savedAt: number;
+    /**
+     * 离开方式为「跳转」（资料页 / 其他会话）时置 true。
+     * 返回该会话时即使用户当时正在未读区、或离开期间已读线前进，也按原位置恢复；
+     * 否则会落到未读线/底部，用户会看到位置丢失。
+     */
+    preserveOnReturn?: boolean;
 }
 
 const BROWSE_POS_STORAGE_KEY = 'tdgram-browse-pos';
@@ -98,6 +104,20 @@ export function useBrowsePosition(deps: {
     };
 
     /**
+     * 标记 / 取消「跳转离开」标记。
+     * 进入会话消费掉标记（恢复原位置）后调用 false，让之后的普通关闭
+     * 继续按已读线/未读区规则处理。
+     */
+    const setBrowsePositionReturnable = (id: number, tid: number | null | undefined, preserve: boolean) => {
+        const key = lastBrowseCacheKey(id, tid);
+        const entry = lastBrowsePositionCache.get(key);
+        if (!entry) return;
+        if (!!entry.preserveOnReturn === preserve) return;
+        lastBrowsePositionCache.set(key, { ...entry, preserveOnReturn: preserve || undefined });
+        persistBrowsePosStore(lastBrowsePositionCache);
+    };
+
+    /**
      * anchor 是否已滑进未读区（capture / 进入会话共用，避免两份判定漂移）。
      * - 有 UI 未读边界（含相册边界）→ 以边界为准
      * - 无边界（首窗不含未读，unreadBoundary 为 null）→ 兜底比较「打开时已读线」
@@ -118,6 +138,7 @@ export function useBrowsePosition(deps: {
         setBrowsePosition,
         clearLastBrowsePosition,
         bumpBrowsePosReadInboxMaxId,
+        setBrowsePositionReturnable,
         isAnchorInUnreadZone,
     };
 }

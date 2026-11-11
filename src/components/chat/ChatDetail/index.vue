@@ -976,14 +976,16 @@ const BROWSE_POS_TOLERANCE_PX = 12;
 /** 未读 separator 预留高度（my-3 上下边距 + 行高），首条未读顶对齐时垫在上方 */
 const UNREAD_SEP_RESERVE_PX = 40;
 
+// props 显式传 null（HomeView 关闭会话 / 去资料页）时不要再回落到 route.params.id：
+// 资料页路由的 id 是用户/群组 id，会被误当成聊天 id 写脏浏览位置。
 const chatId = computed(() => {
-    const id = props.chatId ?? route.params.id;
+    const id = props.chatId !== undefined ? props.chatId : route.params.id;
     return id !== undefined && id !== null && id !== '' ? Number(id) : undefined;
 });
 
 /** 话题 ID（论坛群组话题模式时存在） */
 const topicId = computed(() => {
-    const tid = props.topicId ?? route.params.topicId;
+    const tid = props.topicId !== undefined ? props.topicId : route.params.topicId;
     return tid !== undefined && tid !== null && tid !== '' ? Number(tid) : undefined;
 });
 
@@ -992,7 +994,7 @@ const topicId = computed(() => {
  * 进入后消息列表来自讨论组的 getMessageThreadHistory，发送带 messageTopicThread。
  */
 const threadRootMsgId = computed(() => {
-    const v = props.threadRootId ?? route.params.threadMsgId;
+    const v = props.threadRootId !== undefined ? props.threadRootId : route.params.threadMsgId;
     const n = v !== undefined && v !== null && v !== '' ? Number(v) : 0;
     return Number.isFinite(n) && n > 0 ? n : 0;
 });
@@ -1263,6 +1265,13 @@ function openInNewChat() {
 
 // ==================== State ====================
 const chat = ref<chat | undefined>(undefined);
+/**
+ * 最近一次真正加载的「会话 + 话题」。
+ * 去资料页时 HomeView 会先把 activeChatId 置空，props / route 已经指向资料页；
+ * 卸载时若再用 chatId.value 会拿到资料页 id，浏览位置就写到了错误的 key 上。
+ */
+const latchedChatId = ref<number | undefined>(undefined);
+const latchedTopicId = ref<number | null>(null);
 
 /**
  * 话题展示模式（按群自身字段判定，非全局设置）：
@@ -2876,10 +2885,21 @@ onBeforeUnmount(() => {
     cancelJumpSettle();
     clearJumpTargetRow();
     releaseAllViewportHolds();
-    if (chatId.value !== undefined) {
+    // 用 latched 值而不是 chatId.value：去资料页时 props/route 已经切走，
+    // chatId.value 会变成资料页 id（或 undefined）。
+    const leavingId = latchedChatId.value ?? chat.value?.id;
+    const leavingTopicId = latchedChatId.value !== undefined ? latchedTopicId.value : (topicId.value ?? null);
+    if (leavingId !== undefined) {
         // DOM 还在时把窗口存进内存缓存（关闭会话后再打开可立刻铺上）
-        saveCurrentChatWindow(chatId.value, topicId.value, threadRootMsgId.value);
-        flushScheduledBrowsePosSave(chatId.value, topicId.value);
+        saveCurrentChatWindow(leavingId, leavingTopicId, threadRootMsgId.value);
+        // 去资料页（用户 / 群组）是临时跳转，返回时必须回到离开前的位置：
+        // 即使当时在未读区、或离开期间已读线前进，也把真实位置存下来并标记为「返回恢复」。
+        const leavingToProfile = route.name === 'user-profile' || route.name === 'chat-profile';
+        flushScheduledBrowsePosSave(
+            leavingId,
+            leavingTopicId,
+            leavingToProfile ? { preserveOnReturn: true } : undefined,
+        );
     } else {
         cancelScheduledBrowsePosSave();
     }
@@ -3368,7 +3388,7 @@ const sessionUnreadBaseId = ref(0);
 // ==================== 上次浏览位置缓存 ====================
 const {
     getBrowsePosition, setBrowsePosition, clearLastBrowsePosition,
-    bumpBrowsePosReadInboxMaxId, isAnchorInUnreadZone,
+    bumpBrowsePosReadInboxMaxId, setBrowsePositionReturnable, isAnchorInUnreadZone,
 } = useBrowsePosition({ unreadBoundaryMessageId, sessionUnreadBaseId });
 
 // ==================== Pinned Messages ====================
@@ -3671,6 +3691,9 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
     oldVals,
 ) => {
     if (newChatId === undefined) return;
+    // 记录本次真正加载的会话（与后续路由变化解耦，供 onBeforeUnmount 写浏览位置）
+    latchedChatId.value = newChatId;
+    latchedTopicId.value = newTopicId ?? null;
     if (chatLoadRetryId !== newChatId) {
         chatLoadRetryId = newChatId;
         chatLoadRetryCount = 0;
@@ -3705,8 +3728,9 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
         saveCurrentChatWindow(oldChatId, oldTopicId ?? null, oldVals?.[2] ?? null);
     }
     if (switchingChat) {
-        // 切走前冲刷未写入的浏览位置（debounce 窗口内）
-        flushScheduledBrowsePosSave(oldChatId!, oldTopicId);
+        // 切走前冲刷浏览位置（含 debounce 窗口外）：返回上一个会话时要回到原位置，
+        // 包括当时停留在未读区的情况。
+        flushScheduledBrowsePosSave(oldChatId!, oldTopicId, { preserveOnReturn: true });
         // 编辑态下的输入框是被编辑消息内容，不是草稿；丢弃编辑并走本地缓存恢复，
         // 绝不能把编辑内容写成草稿，也不要把旧草稿覆盖成空。
         suppressDraftAutosave.value = true;
@@ -3742,6 +3766,11 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
 
     // 读取上次浏览位置（决定首屏加载锚点；导航带 message_id / 评论线程模式时忽略缓存）
     const savedBrowsePos = requestedMessageId || threadMode.value ? null : getBrowsePosition(currentId, topicId.value);
+    /**
+     * 从资料页 / 其他会话跳转离开过（离开时已标记）：
+     * 返回时按用户离开前的真实位置恢复，不因「锚点在未读区」或「离开期间已读线前进」而丢弃位置。
+     */
+    const restoreLastPosition = !!savedBrowsePos?.preserveOnReturn;
 
     // 上次离开时的窗口还在内存里 → 直接铺上并立刻露出，不等 TDLib/网络（后台加载随后覆盖，位置一致）。
     // 只在「能按同一位置定位」时用：有浏览位置，或会话无未读（否则会先贴底再跳到未读线）。
@@ -3879,7 +3908,7 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
         // 1) 已读线前进（当前 last_read_inbox_message_id > saved.readInboxMaxId，其它端读过/离开期间读过）
         // 2) 滑进未读：anchor 落在未读区（以 UI 未读边界为准，见下文 unreadBoundary）
         let browsePos: BrowsePosition | null = savedBrowsePos;
-        if (browsePos) {
+        if (browsePos && !restoreLastPosition) {
             const readInboxMaxId = chatData.last_read_inbox_message_id;
             const readLineChanged = readInboxMaxId > browsePos.readInboxMaxId;
             if (readLineChanged) {
@@ -3982,8 +4011,9 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
             ? firstBatch.find(message => message.media_album_id === unreadAlbumId)?.id || firstUnreadMessage.id
             : firstUnreadMessage?.id || null;
 
-        // anchor 落在未读区：即使已读线未变，也视为「滑进未读」，下次从第一条未读顶进入
-        if (browsePos && isAnchorInUnreadZone(browsePos.anchorId)) {
+        // anchor 落在未读区：即使已读线未变，也视为「滑进未读」，下次从第一条未读顶进入。
+        // 从资料页 / 其他会话返回时不适用：用户要求回到离开前的位置。
+        if (browsePos && !restoreLastPosition && isAnchorInUnreadZone(browsePos.anchorId)) {
             clearLastBrowsePosition(currentId, topicId.value);
             browsePos = null;
         }
@@ -4074,6 +4104,8 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
             scheduleFirstCalibration(() => scrollToMessage(msgId));
         }
 
+        // 本次已按「返回原位置」处理完毕：消费标记，之后普通关闭/重开继续走已读线规则
+        if (restoreLastPosition) setBrowsePositionReturnable(currentId, topicId.value, false);
         scheduleVisibleMessagesRead();
     } catch (e) {
         console.error("Error loading chat:", e);
@@ -5571,25 +5603,28 @@ function calibrateBrowseAnchor(anchorId: number, pixelFromTop: number, allowRetr
  * 计算并保存当前浏览位置。
  * 返回保存的位置；贴底 / 滑进未读 / 无锚点时清空缓存并返回 null。
  */
-function captureBrowsePosition(el: HTMLElement, id: number, tid?: number | null): BrowsePosition | null {
+function captureBrowsePosition(
+    el: HTMLElement,
+    id: number,
+    tid?: number | null,
+    options?: { preserveOnReturn?: boolean },
+): BrowsePosition | null {
     if (!el) return null;
-    // 容器自身的视口位置是常数参考点：消息 rect.top 越接近它，越靠近容器顶部（scrollTop=0 处）
+    // 容器自身的视口位置是常数参考点。
+    // 取「第一条与容器顶相交的消息」（可能有一截已被滚到顶上）而不是最接近顶边的消息：
+    // 后者会丢掉这条被截断的行，恢复时画面顶部少一截，看起来像位置没有保持。
     const refTop = el.getBoundingClientRect().top;
     let bestId = 0;
-    let bestDistance = Infinity;
     let bestPixelFromTop = 0;
     for (const node of el.querySelectorAll<HTMLElement>('[data-msg-id]')) {
         const msgId = Number(node.dataset.msgId || '0');
         if (msgId <= 0) continue;
-        // 消息元素顶部所在行（元素首行可见场景很少，用整条消息顶边即可）
-        const top = node.getBoundingClientRect().top;
-        const distance = Math.abs(top - refTop);
-        if (distance < bestDistance) {
-            bestDistance = distance;
-            bestId = msgId;
-            // 元素 top 相对容器顶的偏移（不是相对 window 视口）
-            bestPixelFromTop = top - refTop;
-        }
+        const rect = node.getBoundingClientRect();
+        if (rect.bottom <= refTop) continue;
+        bestId = msgId;
+        // 元素 top 相对容器顶的偏移（可为负；不是相对 window 视口）
+        bestPixelFromTop = rect.top - refTop;
+        break;
     }
     if (bestId <= 0) {
         clearLastBrowsePosition(id, tid);
@@ -5598,8 +5633,9 @@ function captureBrowsePosition(el: HTMLElement, id: number, tid?: number | null)
 
     // 用本地已上报与 TDLib 两侧的较大值，避免「已读回执晚于 capture」造成 readInboxMaxId 过期
     const readInboxMaxId = Math.max(chat.value?.last_read_inbox_message_id ?? 0, lastReportedReadMessageId);
-    // 滑进未读 → 删除缓存，下次进入走未读/底部（与进入会话共用 isAnchorInUnreadZone）
-    if (isAnchorInUnreadZone(bestId)) {
+    // 滑进未读 → 删除缓存，下次进入走未读/底部（与进入会话共用 isAnchorInUnreadZone）。
+    // 跳转离开（资料页 / 其他会话）例外：用户马上会返回，保留真实位置。
+    if (!options?.preserveOnReturn && isAnchorInUnreadZone(bestId)) {
         clearLastBrowsePosition(id, tid);
         return null;
     }
@@ -5609,6 +5645,7 @@ function captureBrowsePosition(el: HTMLElement, id: number, tid?: number | null)
         pixelFromTop: bestPixelFromTop,
         readInboxMaxId,
         savedAt: Date.now(),
+        preserveOnReturn: options?.preserveOnReturn || undefined,
     };
     setBrowsePosition(id, tid, pos);
     return pos;
@@ -5635,13 +5672,28 @@ function scheduleBrowsePosSave(el: HTMLElement) {
     }, 300);
 }
 
-/** 切换/卸载前冲刷 debounce 中的浏览位置（用旧 chatId 写入） */
-function flushScheduledBrowsePosSave(id: number, tid?: number | null) {
-    if (browsePosSaveTimer === null) return;
+/**
+ * 切换/卸载前冲刷浏览位置（用旧 chatId 写入）。
+ * force=true 时不依赖 debounce 计时器：跳转离开（资料页 / 其他会话）后马上会返回，
+ * 即使当前锚点落在未读区也要保留真实位置。
+ */
+function flushScheduledBrowsePosSave(
+    id: number,
+    tid?: number | null,
+    options?: { preserveOnReturn?: boolean },
+) {
+    const force = !!options?.preserveOnReturn;
+    if (browsePosSaveTimer === null && !force) return;
     cancelScheduledBrowsePosSave();
     const el = messagesContainer.value;
     if (!el || !listRevealed.value) return;
-    captureBrowsePosition(el, id, tid);
+    refreshScrollMetrics(el);
+    // 贴底 → 下次进入本来就应该在底部，不写回位置
+    if (force && isAtBottom()) {
+        clearLastBrowsePosition(id, tid);
+        return;
+    }
+    captureBrowsePosition(el, id, tid, options);
 }
 
 const onScroll = (e: Event) => {
