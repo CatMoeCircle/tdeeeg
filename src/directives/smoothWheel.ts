@@ -63,10 +63,22 @@ interface SmoothWheelState {
     lastFrameTime: number;
     /** 是否已广播过「滚动开始」 */
     began: boolean;
+    /** 连续长帧计数（用于临时交还原生滚动） */
+    jankFrames: number;
 }
 
 /** 每个容器的滚动状态（WeakMap 避免泄漏） */
 const states = new WeakMap<HTMLElement, SmoothWheelState>();
+
+/**
+ * 主线程连续掉帧时临时交还原生滚动。
+ * 自研平滑滚动的 tick 在主线程 rAF 里写 scrollTop；一轮更新/布局把帧预算打穿时，
+ * 继续自驱滚动只会让“滚动位置也卡住”。检测到连续两帧 dt 过大后，本容器在
+ * FALLBACK_MS 内不再拦截 wheel，由合成器线程原生滚动接管。
+ */
+const nativeUntil = new WeakMap<HTMLElement, number>();
+const JANK_DT_MS = 40;
+const FALLBACK_MS = 2500;
 
 /** 正在动画中的容器状态（用于一键停止，如右键菜单打开时冻结滚动） */
 const activeStates = new Set<SmoothWheelState>();
@@ -205,8 +217,21 @@ function tick(state: SmoothWheelState) {
     const el = state.el;
     const now = performance.now();
     // 首帧 / 后台恢复：用 16.7ms 作为缺省步长
-    const dt = state.lastFrameTime > 0 ? Math.min(now - state.lastFrameTime, 64) : 16.7;
+    const rawDt = state.lastFrameTime > 0 ? now - state.lastFrameTime : 16.7;
+    const dt = Math.min(rawDt, 64);
     state.lastFrameTime = now;
+
+    // 连续长帧：平滑滚动本身会放大卡顿，直接让位给原生滚动一段时间。
+    if (rawDt > JANK_DT_MS) {
+        state.jankFrames++;
+        if (state.jankFrames >= 2) {
+            nativeUntil.set(el, now + FALLBACK_MS);
+            endAnimation(state);
+            return;
+        }
+    } else {
+        state.jankFrames = 0;
+    }
 
     const diff = state.target - state.current;
     const absDiff = Math.abs(diff);
@@ -240,6 +265,7 @@ function getState(el: HTMLElement, axis: Axis): SmoothWheelState {
             lastWheelTime: 0,
             lastFrameTime: 0,
             began: false,
+            jankFrames: 0,
         };
         states.set(el, state);
     }
@@ -320,6 +346,9 @@ function onGlobalWheel(e: WheelEvent) {
         // 标记了 data-no-smooth-wheel 的容器（如消息列表）不做平滑缓冲：
         // 不 preventDefault，直接交给浏览器原生滚动，便于对比排查滚动手感问题
         if (el.dataset.noSmoothWheel !== undefined) return;
+        // 刚检测到主线程持续掉帧：本容器暂时交还原生滚动
+        const fallbackUntil = nativeUntil.get(el);
+        if (fallbackUntil !== undefined && performance.now() < fallbackUntil) return;
         if (trySmoothScroll(el, e, deltaPx)) return;
         el = findScrollableFrom(el.parentElement);
     }
