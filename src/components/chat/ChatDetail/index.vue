@@ -1398,11 +1398,29 @@ const INSET_NULL_CONFIRM_FRAMES = 6;
 /** 活动条是否展开（它说了算，见下面 measureInputInset 里的钉住逻辑） */
 const aiStripExpanded = aiRuntimeStripExpanded;const fallbackInset = () => (settings.ai.input === 'ai' ? 100 : 52);
 
+/**
+ * 话题标签栏置底时需要额外让出的高度：
+ * 标签栏固定在输入区上方（bottom: 76px、高 40px），消息列表原本只按输入区留白，
+ * 最后一条消息（以及它的已读/时间状态）会被标签栏盖住，看起来像「已读消息不刷新」。
+ * 这里按标签栏底边 + 高度 + 间距算出最小留白，取输入区留白与实际遮挡的较大值。
+ */
+const TOPIC_TAG_BOTTOM_OFFSET = 76;
+const TOPIC_TAG_BAR_HEIGHT = 40;
+const TOPIC_TAG_BOTTOM_GAP = 8;
+const topicTagBottomClearance = computed(() =>
+    showTopicPanel.value && topicTagPosition.value === 'bottom'
+        ? TOPIC_TAG_BOTTOM_OFFSET + TOPIC_TAG_BAR_HEIGHT + TOPIC_TAG_BOTTOM_GAP
+        : 0
+);
 /** 消息区底部留白：只留「被浮层盖住的部分」，不再加额外余量 ——
  *  浮层自己的内边距（输入框 px-3 py-2.5 / 只读栏 p-5）就是视觉间距，再 +8 会多出一截空。 */
-const messagesBottomPad = computed(() => `${inputInset.value ?? fallbackInset()}px`);
+const messagesBottomPad = computed(() =>
+    `${Math.max(inputInset.value ?? fallbackInset(), topicTagBottomClearance.value)}px`
+);
 /** 「回到最底部」按钮：贴在输入区上方（原来固定 7rem，会压在活动条的展开按钮上） */
-const scrollButtonBottom = computed(() => `${(inputInset.value ?? fallbackInset()) + 8}px`);
+const scrollButtonBottom = computed(() =>
+    `${Math.max((inputInset.value ?? fallbackInset()) + 8, topicTagBottomClearance.value + 8)}px`
+);
 
 /**
  * 应用新的底部留白。两种语义，别混：
@@ -1426,6 +1444,27 @@ function applyInputInset(next: number) {
         refreshScrollMetrics();
     });
 }
+
+/**
+ * 话题标签栏在左 / 上 / 下之间切换时，底部留白会变（置底要额外让出标签栏高度）：
+ * 贴底时跟着底走，否则用视口锁保持正在看的历史位置不动。
+ */
+watch(topicTagBottomClearance, (next, prev) => {
+    if (next === prev || !listRevealed.value) return;
+    const el = messagesContainer.value;
+    if (!el) return;
+    if (isAtBottom()) {
+        void nextTick().then(() => {
+            if (!messagesContainer.value) return;
+            scrollToBottomPure();
+            refreshScrollMetrics();
+        });
+        return;
+    }
+    void withViewportLock(el, () => { /* padding 由渲染管线应用 */ }, nextTick).then(() => {
+        refreshScrollMetrics();
+    });
+});
 
 function measureInputInset() {
     const list = messagesContainer.value;
