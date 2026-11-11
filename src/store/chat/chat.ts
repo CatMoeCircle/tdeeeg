@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref, shallowRef, computed, type ComputedRef } from "vue";
+import { ref, shallowReactive, computed, type ComputedRef } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { onTdlibUpdate } from "../session/tdlibBus";
@@ -60,12 +60,15 @@ export interface ListLoadState {
 }
 
 export const useChatStore = defineStore("chat", () => {
-  // 使用 shallowRef：chat/lists 对象只被整体读取，不需要 Vue 对内部字段做深层
-  // 依赖追踪。配合下面的“缓冲 + 一次性 flush”模式，能避免每个 update 事件
-  // 单独触发一次响应式写入 → computed 全量失效 → DOM 全量重建的性能雪崩。
-  const chats = shallowRef<Record<number, Chat>>({});
-  const lists = shallowRef<Record<string, number[]>>({});
+  // 使用 shallowReactive 按 key 追踪：只有真正更新的 chat.id / listKey 才会让
+  // 对应的 computed 失效。旧实现整体替换对象，任意一条 chat-update 都会让
+  // 所有分组的 getList 失效，聊天列表因此整表重渲染（性能分析中的主要掉帧源）。
+  // shallow 保证 chat 对象内部字段不被深度代理，更新仍是“整体替换该 chat”。
+  const chats = shallowReactive<Record<number, Chat>>({});
+  const lists = shallowReactive<Record<string, number[]>>({});
   const chatLists = ref<ChatListEntry[]>([]);
+  /** 数据版本号：每次 buffer flush 自增，供 UI 做节流快照而不用深度监听 chats/lists */
+  const revision = ref(0);
   /** 每个列表独立的加载状态 */
   const listStates = ref<Record<string, ListLoadState>>({});
   /** 防止重复注册事件监听器 */
@@ -79,20 +82,20 @@ export const useChatStore = defineStore("chat", () => {
   let listBuffer: Record<string, number[]> = {};
   let flushScheduled = false;
 
-  /** 把缓冲中的变更一次性应用到响应式状态（整个对象替换，只触发一次依赖） */
+  /** 把缓冲中的变更一次性应用到响应式状态（逐 key 写入，只失效受影响的列表） */
   function applyBuffers() {
-    const hasChats = Object.keys(chatBuffer).length > 0;
-    const hasLists = Object.keys(listBuffer).length > 0;
-    if (hasChats) {
-      chats.value = { ...chats.value, ...chatBuffer };
+    if (Object.keys(chatBuffer).length > 0) {
+      for (const id in chatBuffer) {
+        const key = Number(id);
+        if (Number.isFinite(key)) chats[key] = chatBuffer[id];
+      }
       chatBuffer = {};
     }
-    if (hasLists) {
-      const next = { ...lists.value };
-      for (const k in listBuffer) next[k] = listBuffer[k];
-      lists.value = next;
+    if (Object.keys(listBuffer).length > 0) {
+      for (const k in listBuffer) lists[k] = listBuffer[k];
       listBuffer = {};
     }
+    revision.value++;
   }
 
   /** 把当前宏任务内累积的变更合并到下一次 flush 统一应用 */
@@ -148,7 +151,7 @@ export const useChatStore = defineStore("chat", () => {
       // 以「最终 chat」为准做合并更新：事件通常携带完整对象，但为防御性避免
       // 丢失本地已有的字段（如缓存里更丰富的 accent/photo 等），用浅合并保留
       // 已有字段，事件数据优先。只写入缓冲，由 flush 统一应用。
-      const merged = chats.value[chat.id] ? { ...chats.value[chat.id], ...chat } : chat;
+      const merged = chats[chat.id] ? { ...chats[chat.id], ...chat } : chat;
       setChatBuffered(chat.id, merged);
     });
 
@@ -176,7 +179,7 @@ export const useChatStore = defineStore("chat", () => {
    */
   function mergePositionIntoChat(chatId: number, position: chatPosition) {
     // 优先取缓冲中的最新值，避免同一 tick 内多个列表 position 互相覆盖
-    const existing = chatBuffer[chatId] ?? chats.value[chatId];
+    const existing = chatBuffer[chatId] ?? chats[chatId];
     if (!existing) return;
     const posList = position.list as any;
     const listKey = getListKeyOf(posList);
@@ -226,18 +229,18 @@ export const useChatStore = defineStore("chat", () => {
         for (const c of res.chats) {
           if (c && c.id) {
             // 缓存数据作为兜底：如果还没有数据就填充，如果已有（来自事件）则保留事件数据
-            if (!chats.value[c.id]) {
+            if (!chats[c.id]) {
               setChatBuffered(c.id, c);
             } else {
               // 事件数据优先于缓存数据 — 缓存只是兜底，事件才是实时来源
-              setChatBuffered(c.id, { ...c, ...chats.value[c.id] });
+              setChatBuffered(c.id, { ...c, ...chats[c.id] });
             }
           }
         }
       }
 
       // 仅当该列表尚未有任何数据时才填充 ID 列表
-      if (!lists.value[key] || lists.value[key].length === 0) {
+      if (!lists[key] || lists[key].length === 0) {
         setListBuffered(key, res.chat_ids || []);
       }
     } catch (e) {
@@ -264,7 +267,7 @@ export const useChatStore = defineStore("chat", () => {
     state.pendingBatch++;
 
     // 记录请求前的列表数量，用于判断本次加载是否已接近列表末尾
-    const beforeCount = (lists.value[listKey] || []).length;
+    const beforeCount = (lists[listKey] || []).length;
     console.log(`[ChatStore] requestLoadMore for ${listKey}, beforeCount=${beforeCount}, pendingBatch=${state.pendingBatch}`);
     // 发送 loadChats 请求（异步，不 await）
     invoke("tdlib_send", {
@@ -314,7 +317,7 @@ export const useChatStore = defineStore("chat", () => {
     setTimeout(() => {
       const state = getListState(listKey);
       if (state.finished || state.loading) return;
-      const currentCount = (lists.value[listKey] || []).length;
+      const currentCount = (lists[listKey] || []).length;
       const added = currentCount - beforeCount;
       if (added < LOAD_CHAT_LIMIT) {
         requestLoadMore(listKey, chatList);
@@ -341,8 +344,8 @@ export const useChatStore = defineStore("chat", () => {
     let cached = listComputedCache.get(listKey);
     if (!cached) {
       cached = computed(() => {
-        const ids = lists.value[listKey] || [];
-        return ids.map((id) => chats.value[id] ?? createPlaceholderChat(id));
+        const ids = lists[listKey] || [];
+        return ids.map((id) => chats[id] ?? createPlaceholderChat(id));
       });
       listComputedCache.set(listKey, cached);
     }
@@ -368,9 +371,9 @@ export const useChatStore = defineStore("chat", () => {
   const fillPlaceholderChats = async () => {
     // 收集所有列表中 title === '…' 的占位 chat_id
     const allListIds = new Set<number>();
-    for (const ids of Object.values(lists.value)) {
+    for (const ids of Object.values(lists)) {
       for (const id of ids) {
-        const chat = chats.value[id];
+        const chat = chats[id];
         if (!chat || chat.title === '…') {
           allListIds.add(id);
         }
@@ -388,8 +391,8 @@ export const useChatStore = defineStore("chat", () => {
         });
         if (result && result._ !== "error" && result.id) {
           // 合并到现有数据，保留事件数据优先
-          if (chats.value[id]) {
-            setChatBuffered(id, { ...result, ...chats.value[id], id: result.id });
+          if (chats[id]) {
+            setChatBuffered(id, { ...result, ...chats[id], id: result.id });
           } else {
             setChatBuffered(id, result);
           }
@@ -403,7 +406,7 @@ export const useChatStore = defineStore("chat", () => {
     await Promise.allSettled(promises);
     // 确保缓冲已应用到响应式状态，以便下面统计 remaining 时读取的是最新结果
     applyBuffers();
-    console.log(`[ChatStore] getChat fill completed, remaining: ${Array.from(allListIds).filter(id => !chats.value[id] || chats.value[id].title === '…').length
+    console.log(`[ChatStore] getChat fill completed, remaining: ${Array.from(allListIds).filter(id => !chats[id] || chats[id].title === '…').length
       }`);
   };
 
@@ -411,6 +414,7 @@ export const useChatStore = defineStore("chat", () => {
     chats,
     lists,
     chatLists,
+    revision,
     listStates,
     initListener,
     loadChatLists,

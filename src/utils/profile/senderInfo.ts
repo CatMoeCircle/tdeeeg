@@ -1,4 +1,4 @@
-import { reactive, toRaw } from "vue";
+import { reactive, ref, toRaw } from "vue";
 import { onTdlibUpdate, type TdlibUpdate } from "../../store/session/tdlibBus";
 import type {
   MessageSender,
@@ -30,6 +30,9 @@ const pendingUsers = new Map<number, Promise<void>>();
 const pendingChats = new Map<number, Promise<void>>();
 const pendingBasicGroups = new Map<number, Promise<void>>();
 const pendingSupergroups = new Map<number, Promise<void>>();
+
+/** 发送者/群组缓存版本：每次写入自增，供列表按行 memo 时感知异步资料到达 */
+export const senderCacheRevision = ref(0);
 
 /**
  * 有上限的响应式 LRU 缓存（替代 reactive(new Map)），对外 has/get/set 不变。
@@ -66,6 +69,7 @@ class SenderCache<T extends object> {
     const raw = toRaw(this.map);
     raw.delete(id); // 先删再 set，保证新写入的条目位于 MRU 末尾
     this.map.set(id, v);
+    senderCacheRevision.value++;
     // ponytail: 基于插入序的近似 LRU（Map 首项即最久未用），够用；要精确可换成双向链表
     if (raw.size > this.limit) {
       for (const k of raw.keys()) {

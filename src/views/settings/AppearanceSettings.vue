@@ -11,7 +11,7 @@
             <div class="max-w-2xl">
                 <!-- 主题与壁纸（同一大类：主题在上，壁纸紧随其下） -->
                 <div
-                    class="mb-8 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+                    class="mb-8 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
                     <router-link to="/home/settings/theme"
                         class="flex items-center gap-3 p-4 hover:bg-black/5 dark:hover:bg-white/5 transition-colors group">
                         <div
@@ -95,7 +95,7 @@
 
                     <!-- 消息显示选项 -->
                     <div
-                        class="border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-lg overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
+                        class="border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm rounded-lg overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
                         <!-- 自定义气泡（图片皮肤） -->
                         <div class="px-4 py-3">
                             <div class="flex items-start justify-between gap-3">
@@ -337,7 +337,7 @@
                     <!-- 分组栏显示选项（属于分组文件夹样式大类） -->
                     <div class="mt-4">
                         <div
-                            class="border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-lg divide-y divide-gray-100 dark:divide-gray-800">
+                            class="border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm rounded-lg divide-y divide-gray-100 dark:divide-gray-800">
                             <div class="px-4 py-2">
                                 <ChatTypeToggle :label="t('appearance.showFolderUnread')" v-model="settings.showFolderUnread" />
                             </div>
@@ -406,7 +406,7 @@
 
                     <!-- 聊天列表选项 -->
                     <div
-                        class="border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-lg divide-y divide-gray-100 dark:divide-gray-800">
+                        class="border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm rounded-lg divide-y divide-gray-100 dark:divide-gray-800">
                         <!-- 头像圆角 -->
                         <div class="px-4 py-3">
                             <div class="flex items-center justify-between mb-2">
@@ -489,7 +489,7 @@
                                 <button v-for="opt in loaderOptions" :key="opt.value" type="button"
                                     @click="settings.loadingStyle = opt.value"
                                     class="flex flex-col items-center gap-2 py-4 rounded-xl border transition-colors"
-                                    :class="settings.loadingStyle === opt.value ? 'border-blue-500 bg-blue-100/60 dark:bg-blue-900/40 backdrop-blur-md' : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md hover:bg-black/5 dark:hover:bg-white/5'">
+                                    :class="settings.loadingStyle === opt.value ? 'border-blue-500 bg-blue-100/60 dark:bg-blue-900/40 backdrop-blur-sm' : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm hover:bg-black/5 dark:hover:bg-white/5'">
                                     <LoaderIndicator :force="opt.value" :progress="0.55" size="34" color="#3b82f6" />
                                     <span class="text-xs text-gray-500 dark:text-gray-400">{{ opt.label }}</span>
                                 </button>
@@ -619,8 +619,8 @@
                     <div class="grid grid-cols-2 gap-3">
                         <button type="button" @click="settings.chatHeaderAvatarPosition = 'default'"
                             class="flex items-center gap-3 p-3 rounded-xl border transition-colors" :class="settings.chatHeaderAvatarPosition === 'default'
-                                ? 'border-blue-500 bg-blue-100/60 dark:bg-blue-900/40 backdrop-blur-md'
-                                : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md hover:bg-black/5 dark:hover:bg-white/5'">
+                                ? 'border-blue-500 bg-blue-100/60 dark:bg-blue-900/40 backdrop-blur-sm'
+                                : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm hover:bg-black/5 dark:hover:bg-white/5'">
                             <div
                                 class="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center shrink-0">
                                 <LayoutListIcon class="w-5 h-5" />
@@ -632,8 +632,8 @@
                         </button>
                         <button type="button" @click="settings.chatHeaderAvatarPosition = 'titlebar'"
                             class="flex items-center gap-3 p-3 rounded-xl border transition-colors" :class="settings.chatHeaderAvatarPosition === 'titlebar'
-                                ? 'border-blue-500 bg-blue-100/60 dark:bg-blue-900/40 backdrop-blur-md'
-                                : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md hover:bg-black/5 dark:hover:bg-white/5'">
+                                ? 'border-blue-500 bg-blue-100/60 dark:bg-blue-900/40 backdrop-blur-sm'
+                                : 'border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm hover:bg-black/5 dark:hover:bg-white/5'">
                             <div
                                 class="w-9 h-9 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 flex items-center justify-center shrink-0">
                                 <PanelTopIcon class="w-5 h-5" />
@@ -935,7 +935,7 @@ function folderClass(_id: string, active: boolean) {
         case 'pills':
             return active
                 ? `${base} bg-blue-500 text-white rounded-full shadow-sm shadow-blue-500/50`
-                : `${base} bg-white/70 dark:bg-gray-800/70 backdrop-blur-md text-gray-600 dark:text-gray-300 rounded-full`;
+                : `${base} bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm text-gray-600 dark:text-gray-300 rounded-full`;
         case 'soft':
             // 浅蓝胶囊底由滑动指示器绘制；水平略紧，高度恢复正常
             return active

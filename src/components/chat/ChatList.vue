@@ -105,7 +105,9 @@
                             @wheel="(e: WheelEvent) => onListWheel(e, tab.id)">
                             <!-- Forum Mode: compact avatar only -->
                             <template v-if="forumMode">
-                                <div v-for="chat in tab.chats" :key="chat.id" @click="selectForumChat(chat)"
+                                <div v-for="chat in tab.chats" :key="chat.id"
+                                    v-memo="[chat, forumChatId, avatarRadius, settingsEpoch, senderEpoch]"
+                                    @click="selectForumChat(chat)"
                                     v-context-menu="() => buildChatContextMenu(chat, tab.id)"
                                     class="relative flex items-center justify-center py-2.5 cursor-pointer transition-colors hover:bg-white/70 dark:hover:bg-gray-800/70"
                                     :class="forumChatId === chat.id ? 'bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-lg' : ''"
@@ -175,7 +177,9 @@
                                         </div>
                                     </div>
 
-                                    <div v-for="chat in tab.chats" :key="chat.id" @click="selectChat(chat)"
+                                    <div v-for="chat in tab.chats" :key="chat.id"
+                                        v-memo="[chat, selectedChatId, chatSelectionMode, selectedChatIds.has(chat.id), settingsEpoch, senderEpoch, chatStore.chatLists]"
+                                        @click="selectChat(chat)"
                                         v-context-menu="() => buildChatContextMenu(chat, tab.id)"
                                         class="chat-list-item flex items-center p-2.5 mb-0.5 hover:bg-white/70 dark:hover:bg-gray-800/70 rounded-xl hover:shadow-(--box-shadow) cursor-pointer transition-colors"
                                         :class="{ 'bg-white/70 dark:bg-gray-800/70 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50': selectedChatId === chat.id, 'ring-2 ring-blue-500': chatSelectionMode && selectedChatIds.has(chat.id) }"
@@ -425,7 +429,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, shallowRef, computed, watch, watchEffect, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ShieldAlert, BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon, UsersIcon, MegaphoneIcon, Folders as FoldersIcon, BellOffIcon, PinIcon, ArchiveIcon, ChevronRightIcon, ArchiveRestore as ArchiveRestoreIcon, PinOff as PinOffIcon, FolderPlus as FolderPlusIcon, FolderMinus as FolderMinusIcon, BellRing as BellRingIcon, LogOut as LogOutIcon, CheckCheck as CheckCheckIcon, Trash2 as Trash2Icon, X as XIcon, Copy as CopyIcon, Plus as PlusIcon, MailOpen as MailOpenIcon } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
@@ -436,7 +440,7 @@ import {
     isChatGroup, isChatMuted, isChatPinned, DELETED_ACCOUNT_LABEL,
     getChatVerificationStatus, ensureChatVerificationLoaded,
     getChatEmojiStatus, emojiStatusCustomEmojiId, isChatPremiumUser,
-    getReactiveSupergroup,
+    getReactiveSupergroup, senderCacheRevision,
 } from '../../utils/profile/senderInfo';
 import PremiumStatusIcon from '../common/PremiumStatusIcon.vue';
 import VerifiedBadge from '../common/VerifiedBadge.vue';
@@ -603,6 +607,9 @@ onMounted(async () => {
 onUnmounted(() => {
     if (scrollSyncTimer !== null) window.clearTimeout(scrollSyncTimer);
     if (listScrollHoldTimer !== null) window.clearTimeout(listScrollHoldTimer);
+    if (reorderLockTimer !== null) window.clearTimeout(reorderLockTimer);
+    if (tabUnreadTimer !== null) window.clearTimeout(tabUnreadTimer);
+    if (senderEpochTimer !== null) window.clearTimeout(senderEpochTimer);
     if (listLoadMoreRaf) cancelAnimationFrame(listLoadMoreRaf);
     resetProgrammaticScroll();
     trackResizeObserver?.disconnect();
@@ -687,13 +694,11 @@ const folderContainerClass = computed(() => folderTabContainerClass(settings.fol
  * - chats（默认）：未读对话数量（有未读消息的对话个数）
  * - messages：未读消息总数（所有对话 unread_count 之和）
  */
-const tabUnread = (tabId: string): number => {
-    const chats = chatStore.getList(tabId).value;
-    if (settings.chatList.unreadCountMode === 'messages') {
-        return chats.reduce((sum, c) => sum + (c.unread_count || 0), 0);
-    }
-    return chats.filter(c => (c.unread_count || 0) > 0).length;
-};
+// 用节流快照而不是在模板里直接读 store：
+// 否则任何 chat-update 都会让整个 ChatList 组件重渲染（包括已冻结的列表区），
+// 滚动期间的“视图冻结”就失效了。
+const tabUnreadCounts = shallowRef<Record<string, number>>({});
+const tabUnread = (tabId: string): number => tabUnreadCounts.value[tabId] ?? 0;
 
 const activeTab = ref(props.isArchive ? 'chatListArchive' : 'chatListMain');
 
@@ -781,16 +786,51 @@ const tabsWithContent = computed(() => {
  * 数百毫秒，之后每个 chat-update 都要把整表 patch 一遍、TransitionGroup
  * 还要对每个子节点做 getBoundingClientRect 做 FLIP 测量。
  */
-const LIST_WINDOW_INITIAL = 30;
-const LIST_WINDOW_STEP = 50;
+// 初始窗口至少填满一屏（行高按 72px 估算，+2 行预取）；9 个分组页同时挂载时
+// 这个值直接决定每次更新要 patch 的行数，不能盲目取大。
+const LIST_WINDOW_INITIAL = Math.max(16, Math.ceil((typeof window !== 'undefined' ? window.innerHeight : 800) / 72) + 2);
+const LIST_WINDOW_STEP = 24;
 /** 各分组页各自的窗口：某个分组滚得很深，不应该顺手把别页也一起挂满 */
 const renderedLimits = ref<Record<string, number>>({});
 const renderedLimitOf = (tabId: string) => renderedLimits.value[tabId] ?? LIST_WINDOW_INITIAL;
 
-const renderedTabs = computed(() => tabsWithContent.value.map(tab => ({
-    id: tab.id,
-    chats: tab.chats.slice(0, renderedLimitOf(tab.id))
-})));
+/**
+ * 每个 tab 的渲染快照缓存：列表内容和窗口上限都没变时复用同一个数组/对象，
+ * 避免一次无关更新把 9 个分组的 slice 全部重建，也便于后续对未变化的页做跳过。
+ */
+const renderedTabCache = new Map<string, { src: Chat[]; limit: number; chats: Chat[]; obj: { id: string; chats: Chat[] } }>();
+
+type RenderedTab = { id: string; chats: Chat[] };
+
+const renderedTabsLive = computed<RenderedTab[]>(() => tabsWithContent.value.map(tab => {
+    const limit = renderedLimitOf(tab.id);
+    const cached = renderedTabCache.get(tab.id);
+    if (cached && cached.src === tab.chats && cached.limit === limit) return cached.obj;
+    const chats = tab.chats.slice(0, limit);
+    const obj = { id: tab.id, chats };
+    renderedTabCache.set(tab.id, { src: tab.chats, limit, chats, obj });
+    return obj;
+}));
+
+/**
+ * 列表实际渲染用的快照。
+ *
+ * 滚动期间冻结：TDLib 更新仍会写入 store，但不让它们插进正在滚动的帧里。
+ * 旧行为是每次 chat-update 都在滚动中重渲染列表，更新任务与 scrollTop 写入
+ * 叠加时会把主线程预算打穿（实测滚动+20Hz更新 p99 24–36ms）。
+ * 停稳 150ms 后一次性应用期间累积的最新快照。
+ */
+const renderedTabs = shallowRef<RenderedTab[]>(renderedTabsLive.value);
+
+/**
+ * 设置版本号：v-memo 不逐项列 settings 字段（容易漏），任一设置变化就整体 +1，
+ * 让所有行重新渲染一次；设置变化是低频操作，代价可接受。
+ */
+const settingsEpoch = ref(0);
+watch(settings, () => { settingsEpoch.value++; }, { deep: true });
+// 异步资料（用户/群组）写入后需要让被 v-memo 跳过的行重新渲染。
+// 用节流 + 滚动冻结：初次加载会连续写入大量 user/supergroup，不能每条都整表重渲染。
+const senderEpoch = ref(0);
 
 // ==================== 换位动画节流锁 ====================
 // tdlib 在短时间内涌入大量更新时，lists 会被多次 flush 重建，每次都触发
@@ -799,8 +839,28 @@ const renderedTabs = computed(() => tabsWithContent.value.map(tab => ({
 // 否则把 TransitionGroup 的 name 切到无动画变体（chat-list-locked），
 // 直接跳到最终位置，不再播放位移/进入过渡。
 const REORDER_ANIM_MS = 750; // 与 .chat-list-move 动画时长保持一致
-const reorderAnimName = ref<'chat-list' | 'chat-list-locked'>('chat-list');
+// 默认锁定：普通内容/未读数更新不应触发 TransitionGroup 的 FLIP 测量。
+// 只有检测到真实顺序变化时才临时切到 chat-list 播一次动画，播完立即锁回。
+const reorderAnimName = ref<'chat-list' | 'chat-list-locked'>('chat-list-locked');
 let lastReorderAnimAt = 0;
+let reorderLockTimer: number | null = null;
+
+/** 在本次 patch 应用 FLIP 后锁回无动画变体，避免后续更新重复测量所有行 */
+function setReorderLocked() {
+    if (reorderLockTimer !== null) {
+        window.clearTimeout(reorderLockTimer);
+        reorderLockTimer = null;
+    }
+    reorderAnimName.value = 'chat-list-locked';
+}
+
+function scheduleReorderLock() {
+    if (reorderLockTimer !== null) window.clearTimeout(reorderLockTimer);
+    reorderLockTimer = window.setTimeout(() => {
+        reorderLockTimer = null;
+        reorderAnimName.value = 'chat-list-locked';
+    }, 0);
+}
 /** 记录每个 tab 上一份 ID 签名，仅在实际顺序（增删/排序）变化时应用锁 */
 let prevReorderSig: Record<string, string> = {};
 
@@ -810,7 +870,7 @@ let prevReorderSig: Record<string, string> = {};
  * TransitionGroup FLIP（applyTranslation + 强制回流）与详情页挂载叠加是点聊天卡顿主因。
  */
 function lockReorderAnim() {
-    reorderAnimName.value = 'chat-list-locked';
+    setReorderLocked();
     lastReorderAnimAt = performance.now();
 }
 
@@ -833,7 +893,90 @@ function holdReorderAnimDuringListScroll() {
     }, LIST_SCROLL_REORDER_LOCK_MS);
 }
 
-watch(renderedTabs, (tabs) => {
+// 滚动中不读取 renderedTabsLive：watchEffect 在 listScrollHold=true 时提前返回，
+// 于是不再依赖 renderedTabsLive，滚动期间 store 更新不会触发 slice/快照计算；
+// 停稳后重新读取一次，把积压更新一次性应用。
+watchEffect(() => {
+    if (listScrollHold.value) return;
+    renderedTabs.value = renderedTabsLive.value;
+});
+
+// ---- 分组未读计数：120ms 节流 + 滚动期间冻结 ----
+let tabUnreadTimer: number | null = null;
+let tabUnreadDirty = false;
+
+function computeTabUnreadCounts(): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const tab of tabs.value) {
+        const chats = chatStore.getList(tab.id).value;
+        out[tab.id] = settings.chatList.unreadCountMode === 'messages'
+            ? chats.reduce((sum, c) => sum + (c.unread_count || 0), 0)
+            : chats.filter(c => (c.unread_count || 0) > 0).length;
+    }
+    return out;
+}
+
+function flushTabUnread() {
+    tabUnreadDirty = false;
+    const next = computeTabUnreadCounts();
+    const prev = tabUnreadCounts.value;
+    const keys = Object.keys(next);
+    let changed = keys.length !== Object.keys(prev).length;
+    if (!changed) {
+        for (const k of keys) {
+            if (next[k] !== prev[k]) { changed = true; break; }
+        }
+    }
+    if (changed) tabUnreadCounts.value = next;
+}
+
+function scheduleTabUnread() {
+    tabUnreadDirty = true;
+    if (listScrollHold.value || tabUnreadTimer !== null) return;
+    tabUnreadTimer = window.setTimeout(() => {
+        tabUnreadTimer = null;
+        if (tabUnreadDirty) flushTabUnread();
+    }, 120);
+}
+
+watch(() => chatStore.revision, scheduleTabUnread);
+watch(tabs, scheduleTabUnread);
+watch(() => settings.chatList.unreadCountMode, scheduleTabUnread);
+watch(listScrollHold, (holding) => {
+    if (!holding && tabUnreadDirty) flushTabUnread();
+});
+
+// ---- 异步资料版本：100ms 节流，滚动期间冻结 ----
+let senderEpochTimer: number | null = null;
+let senderEpochDirty = false;
+
+function scheduleSenderEpoch() {
+    senderEpochDirty = true;
+    if (listScrollHold.value || senderEpochTimer !== null) return;
+    senderEpochTimer = window.setTimeout(() => {
+        senderEpochTimer = null;
+        if (!senderEpochDirty || listScrollHold.value) return;
+        senderEpochDirty = false;
+        senderEpoch.value++;
+    }, 100);
+}
+
+watch(senderCacheRevision, scheduleSenderEpoch);
+watch(listScrollHold, (holding) => {
+    if (holding || !senderEpochDirty) return;
+    if (senderEpochTimer !== null) {
+        window.clearTimeout(senderEpochTimer);
+        senderEpochTimer = null;
+    }
+    senderEpochDirty = false;
+    senderEpoch.value++;
+});
+
+onMounted(() => {
+    tabUnreadCounts.value = computeTabUnreadCounts();
+});
+
+watch(renderedTabs, (tabs: RenderedTab[]) => {
     // 只关心真实顺序变化：内容/未读数更新不会触发 -move 动画，故不消耗锁额度
     let reordered = false;
     for (const tab of tabs) {
@@ -851,8 +994,13 @@ watch(renderedTabs, (tabs) => {
     if (now - lastReorderAnimAt >= REORDER_ANIM_MS) {
         lastReorderAnimAt = now;
         reorderAnimName.value = 'chat-list';
+        // 本次 patch 让 TransitionGroup 读到 chat-list 并应用 FLIP；
+        // 下一个任务立刻锁回，后续非重排更新不再测量所有子节点。
+        scheduleReorderLock();
     } else {
-        reorderAnimName.value = 'chat-list-locked';
+        // 冷却期内不播动画，但不要刷新 lastReorderAnimAt：
+        // 否则持续有新消息时会永远轮不到下一次真实重排动画。
+        setReorderLocked();
     }
 }, { flush: 'pre' });
 
@@ -1183,14 +1331,24 @@ const selectChat = async (chat: Chat) => {
     });
 };
 
+// 时间文本按「时间戳 + 当天」缓存：tick/更新时同一批行会反复渲染，
+// toLocaleDateString 虽然单次只要几微秒，但 200+ 行 × 每次更新仍是无谓开销。
+// 跨天后 key 变化，旧条目在超过上限时整体清掉。
+const timeTextCache = new Map<string, string>();
 const formatTime = (timestamp: number | undefined) => {
     if (!timestamp) return '';
+    const dayKey = Math.floor(Date.now() / 86_400_000);
+    const cacheKey = `${timestamp}:${dayKey}`;
+    const cached = timeTextCache.get(cacheKey);
+    if (cached !== undefined) return cached;
     const date = new Date(timestamp * 1000);
     const now = new Date();
-    if (date.toDateString() === now.toDateString()) {
-        return date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
-    }
-    return date.toLocaleDateString();
+    const text = date.toDateString() === now.toDateString()
+        ? date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0')
+        : date.toLocaleDateString();
+    if (timeTextCache.size > 4096) timeTextCache.clear();
+    timeTextCache.set(cacheKey, text);
+    return text;
 };
 
 const formatUnreadCount = (count: number) => count > 99 ? '99+' : count.toString();
@@ -1576,9 +1734,9 @@ function isChannelDirectMessagesChat(chat: Chat): boolean {
 // 列表变了都是整条记录替换 → renderedTabs 的值身份就变，deep 触发时机完全一样，
 // 只是每次多一次「全量对话对象图」深遍历（对话含 last_message 大对象，实测单次
 // 2ms 起，账号对话多时可达百毫秒级，是下载/更新风暴期间掉帧的主因之一）。
-watch(renderedTabs, (list) => {
+watch(renderedTabs, (list: RenderedTab[]) => {
     list.forEach(({ chats }) => {
-        chats.forEach(c => {
+        chats.forEach((c: Chat) => {
             ensureSenderLoaded(c.last_message?.sender_id);
             // 私聊需加载用户以取得 accent 色；群组/频道走 chat.accent_color_id
             ensureChatAccentLoaded(c);
