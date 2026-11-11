@@ -30,12 +30,12 @@
                     <CheckIcon v-if="isSelected(item.msgId)" class="w-3.5 h-3.5 text-white" />
                 </div>
                 <!-- thumb 垫在下层直到 media 解码完成，避免换源瞬间透出底色 -->
-                <img v-if="item.thumbSrc" :src="item.thumbSrc" decoding="async"
+                <img v-if="item.thumbSrc" :src="item.thumbSrc" loading="lazy" decoding="async"
                     class="absolute inset-0 w-full h-full object-cover"
                     :class="item.thumbIsBlur ? 'blur-sm scale-105' : ''" />
-                <img v-if="item.mediaSrc && !item.isVideo && !item.isGif" :src="item.mediaSrc" decoding="async"
+                <img v-if="item.mediaSrc && !item.isVideo && !item.isGif" :src="item.mediaSrc" loading="lazy" decoding="async"
                     class="absolute inset-0 w-full h-full object-cover" />
-                <video v-if="item.mediaSrc && item.isGif" :src="item.mediaSrc" autoplay loop muted playsinline
+                <video v-if="item.mediaSrc && item.isGif && albumEntered" :src="item.mediaSrc" autoplay loop muted playsinline
                     class="absolute inset-0 w-full h-full object-cover" />
                 <!-- 加载指示器：与普通图片一致，主文件下载中且尚未出主图时显示 -->
                 <div v-if="tileLoader(item.msgId).show"

@@ -21,13 +21,15 @@
             data-no-smooth-wheel
             :style="[topPaddingClass, tagBarMessagePadStyle, messagesContainerStyle, { paddingBottom: messagesBottomPad }]"
             @scroll.passive="onScroll"
+            @wheel.passive="markMessageInteraction"
+            @touchmove.passive="markMessageInteraction"
             @pointerdown="onMessagesPointerDown"
             @contextmenu.capture="onMessagesContextMenuCapture"
             @click.capture="onMessagesClickCapture">
 
             <!-- 消息列表容器：mt-auto 将消息推到底部 -->
             <div class="mt-auto flex flex-col">
-                <template v-for="item in messageItems" :key="item.key">
+                <template v-for="item in renderedMessageItems" :key="item.key">
                     <!-- Date separator -->
                     <div v-if="item.type === 'date'" class="msg-list-item flex justify-center my-2" :data-sticky-key="item.key">
                         <span
@@ -169,7 +171,9 @@
 
                     <!-- Single message -->
                     <template v-else-if="item.type === 'single'">
-                        <div :data-msg-id="item.msg.id" class="msg-list-item" :class="{
+                        <div :data-msg-id="item.msg.id" class="msg-list-item"
+                            v-memo="[item.msg, item.isFirstInGroup, item.isLastInGroup, item.showAvatar, messageRowEpoch, chatId]"
+                            :class="{
                             'animate-message-in': isNewMessage(item.msg.id),
                             'msg-leaving': leavingMessageIds.has(item.msg.id),
                             'animate-flash-highlight': highlightedMessageId === item.msg.id,
@@ -389,7 +393,7 @@
         </div>
         <!-- 向更旧方向加载指示器：浮层，不进滚动流。
              若作为滚动内容首个子节点，出现/消失会改 scrollHeight，贴顶时把内容顶起再落下。 -->
-        <div v-if="isLoadingMore && loadingDirection === 'older'"
+        <div v-if="showOlderLoading"
             data-loading-older
             class="absolute left-0 right-0 z-20 text-center text-gray-400 text-sm py-3 pointer-events-none"
             :style="[topPaddingClass, tagBarMessagePadStyle]">
@@ -894,10 +898,11 @@ import {
 import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity, textEntity$Input, file as TdFile, ReactionType } from 'tdlib-types';
 import { getViewerState, closeMediaViewer, isMediaViewerActive, openMediaViewer } from '../../../store/media/mediaViewer';
 
-import { getSenderAccentColorId, getSenderProfileAccentColorId, getSenderNameParts, isDeletedChat, DELETED_ACCOUNT_LABEL, ensureUser, ensureChat, getReactiveUser, getReactiveChat, getUserUsername } from '../../../utils/profile/senderInfo';
+import { getSenderAccentColorId, getSenderProfileAccentColorId, getSenderNameParts, isDeletedChat, DELETED_ACCOUNT_LABEL, ensureUser, ensureChat, getReactiveUser, getReactiveChat, getUserUsername, senderCacheRevision } from '../../../utils/profile/senderInfo';
 import { useColors } from '../../../store/settings/colors';
 import { isMediaMessage, isStandaloneMessage, isServiceMessage, isInlineTimeMessage, hasStatusInContent, isBubblelessMediaMessage, albumHasVisibleCaption, isFileAlbum, showChannelCommentsBar, isWidgetMessage, isFullWidthWidget } from './composables/messageType';
 import { buildDisplayItems } from './composables/messageItems';
+import { messageScrollActive, markMessageScrollActive } from './composables/messageScrollState';
 import { chatWindowKey, peekChatWindow, saveChatWindow } from './composables/chatWindowCache';
 import { fetchCacheGet, fetchCacheSet } from './composables/fetchCache';
 import { completeAlbumMembers, hasIncompleteAlbum } from './composables/albumHistory';
@@ -1561,6 +1566,21 @@ const MAX_MESSAGE_WINDOW = 180;
  * 先把新历史藏起来，再按块揭示，把挂载成本摊到多帧。
  */
 const hiddenOlderIds = ref<Set<number>>(new Set());
+/**
+ * 当前真正挂载到 DOM 的展示条目边界（DisplayItem.key）。
+ * 空字符串表示该侧不限制；数据窗口 messages 仍是完整事实来源，DOM 只是视口切片。
+ */
+const renderStartKey = ref('');
+const renderEndKey = ref('');
+/**
+ * 当前渲染切片是否已经覆盖数据窗口的最后一条。
+ * 切片只挂视口 ±2 屏时，切到历史中间也会物理贴底（scrollTop + clientHeight == scrollHeight），
+ * 不能据此认为「用户到底了」——否则阅读位置会被误清、跳底按钮也不出现。
+ */
+const renderEndsAtDataEnd = ref(true);
+/** 切片暂停到什么时候（跳转/恢复阅读位置/刚展开边缘时不要立刻又切掉） */
+let slicePausedUntil = 0;
+let sliceTimer: number | null = null;
 /** 揭示任务代际：切聊天/新加载时 +1，旧的分批揭示循环据此退出 */
 let olderRevealGen = 0;
 /**
@@ -1600,6 +1620,7 @@ const FIRST_PAINT_TAIL = 12;
  * 相册不能被切开，保留区间会扩展到相册首条。
  */
 function hideMessagesOutsideFirstPaint(anchorId: number): number[] {
+    clearRenderBounds();
     const list = messages.value;
     if (list.length === 0) return [];
     let keepStart = list.length - FIRST_PAINT_TAIL;
@@ -1618,12 +1639,170 @@ function hideMessagesOutsideFirstPaint(anchorId: number): number[] {
     return hidden;
 }
 
-/** 露出后逐帧揭示首屏藏起来的历史（复用上滚加载那套视口钉扎，不挪视口） */
-function startFirstPaintReveal(ids: number[]) {
-    if (ids.length === 0) return;
-    const hold = acquireViewportHold();
-    void revealOlderMessagesInChunks(ids, olderRevealGen, hold);
+// ==================== 视口渲染切片 ====================
+/**
+ * 数据层 messages 保留完整窗口，但 DOM 只挂视口 ± 2 屏（官方 Web K 的 sliceViewport 思路）。
+ * 切片只改变“渲染哪些条目”，不改变 messageItems / 跳转 / 阅读位置的数据语义。
+ */
+function hasRenderBounds(): boolean {
+    return !!(renderStartKey.value || renderEndKey.value);
 }
+
+function clearRenderBounds() {
+    if (sliceTimer !== null) {
+        window.clearTimeout(sliceTimer);
+        sliceTimer = null;
+    }
+    renderStartKey.value = '';
+    renderEndKey.value = '';
+}
+
+/** 记录视口内第一条消息及其相对容器顶的偏移，切片前后用它恢复 scrollTop */
+function captureSliceAnchor(el: HTMLElement): { id: number; offset: number } | null {
+    const containerTop = el.getBoundingClientRect().top;
+    let best: { id: number; top: number } | null = null;
+    for (const node of el.querySelectorAll<HTMLElement>('[data-msg-id]')) {
+        const id = Number(node.dataset.msgId || 0);
+        if (id <= 0) continue;
+        const rect = node.getBoundingClientRect();
+        // 只取仍然可见（底边没完全滚出上沿）的第一条
+        if (rect.bottom <= containerTop + 1) continue;
+        if (!best || rect.top < best.top) best = { id, top: rect.top };
+    }
+    return best ? { id: best.id, offset: best.top - containerTop } : null;
+}
+
+function restoreSliceAnchor(el: HTMLElement, anchor: { id: number; offset: number } | null) {
+    if (!anchor) return;
+    const node = el.querySelector<HTMLElement>(`[data-msg-id="${anchor.id}"]`);
+    if (!node) return;
+    const containerTop = el.getBoundingClientRect().top;
+    const currentOffset = node.getBoundingClientRect().top - containerTop;
+    el.scrollTop += currentOffset - anchor.offset;
+}
+
+/** 边缘需要更多数据时按一屏多的步长扩展渲染切片，而不是一次挂回完整 180 条 */
+async function expandRenderSlice(direction: 'top' | 'bottom') {
+    if (!hasRenderBounds()) return;
+    if (direction === 'top') isExpandingOlder.value = true;
+    const el = messagesContainer.value;
+    if (!el) {
+        isExpandingOlder.value = false;
+        clearRenderBounds();
+        return;
+    }
+    const items = messageItems.value;
+    const currentKey = direction === 'top' ? renderStartKey.value : renderEndKey.value;
+    const currentIdx = currentKey ? items.findIndex(item => item.key === currentKey) : -1;
+    if (currentIdx < 0) {
+        isExpandingOlder.value = false;
+        clearRenderBounds();
+        return;
+    }
+    const STEP = 20;
+    const nextIdx = direction === 'top'
+        ? Math.max(0, currentIdx - STEP)
+        : Math.min(items.length - 1, currentIdx + STEP);
+    if (nextIdx === currentIdx) {
+        if (direction === 'top') isExpandingOlder.value = false;
+        return;
+    }
+
+    const anchor = captureSliceAnchor(el);
+    beginManualAnchor(el);
+    try {
+        if (direction === 'top') renderStartKey.value = items[nextIdx].key;
+        else renderEndKey.value = items[nextIdx].key;
+        await nextTick();
+        restoreSliceAnchor(el, anchor);
+        lastStickyScrollTop = el.scrollTop;
+    } finally {
+        refreshScrollMetrics(el);
+        endManualAnchor(el);
+        if (direction === 'top') isExpandingOlder.value = false;
+    }
+    // 刚展开边缘，给用户一点滚动时间，不要立刻又切回去
+    slicePausedUntil = Date.now() + 900;
+}
+
+function canSliceViewport(): boolean {
+    return !!listRevealed.value
+        && !messageScrollActive.value
+        && hiddenOlderIds.value.size === 0
+        && !olderRevealRunning
+        && !isLoadingMore.value
+        && !jumpSettleCleanup
+        && Date.now() >= scrollLoadSuppressedUntil
+        && Date.now() >= slicePausedUntil;
+}
+
+function scheduleViewportSlice(delay = 700) {
+    if (sliceTimer !== null) window.clearTimeout(sliceTimer);
+    sliceTimer = window.setTimeout(() => {
+        sliceTimer = null;
+        void sliceViewportToBuffer();
+    }, delay);
+}
+
+/** 滚动停稳后把 DOM 切到视口 ± 2 屏；锚点恢复，视觉上不跳 */
+async function sliceViewportToBuffer() {
+    if (!canSliceViewport()) return;
+    const el = messagesContainer.value;
+    if (!el) return;
+    const items = messageItems.value;
+    if (items.length < 80) return;
+
+    const idToIndex = new Map<number, number>();
+    items.forEach((item, idx) => {
+        if (item.type === 'single') idToIndex.set(item.msg.id, idx);
+        else if (item.type === 'album' && item.messages.length > 0) {
+            idToIndex.set(item.messages[0].id, idx);
+        }
+    });
+
+    const buffer = Math.max(700, el.clientHeight) * 2;
+    const containerTop = el.getBoundingClientRect().top;
+    const topLimit = containerTop - buffer;
+    const bottomLimit = containerTop + el.clientHeight + buffer;
+    let firstIdx = items.length;
+    let lastIdx = -1;
+    for (const node of el.querySelectorAll<HTMLElement>('[data-msg-id]')) {
+        const id = Number(node.dataset.msgId || 0);
+        const idx = idToIndex.get(id);
+        if (idx === undefined) continue;
+        const rect = node.getBoundingClientRect();
+        if (rect.bottom >= topLimit && rect.top <= bottomLimit) {
+            if (idx < firstIdx) firstIdx = idx;
+            if (idx > lastIdx) lastIdx = idx;
+        }
+    }
+    if (firstIdx === items.length || lastIdx < 0) return;
+
+    // 再各留 5 个条目，避免日期分隔/相册在边界被切
+    const startIdx = Math.max(0, firstIdx - 5);
+    const endIdx = Math.min(items.length - 1, lastIdx + 5);
+    const startKey = items[startIdx].key;
+    const endKey = items[endIdx].key;
+    if (startKey === renderStartKey.value && endKey === renderEndKey.value) return;
+    if (startIdx === 0 && endIdx === items.length - 1) {
+        clearRenderBounds();
+        return;
+    }
+
+    const anchor = captureSliceAnchor(el);
+    beginManualAnchor(el);
+    try {
+        renderStartKey.value = startKey;
+        renderEndKey.value = endKey;
+        await nextTick();
+        restoreSliceAnchor(el, anchor);
+        lastStickyScrollTop = el.scrollTop;
+    } finally {
+        refreshScrollMetrics(el);
+        endManualAnchor(el);
+    }
+}
+
 const messagesContainer = ref<HTMLElement | null>(null);
 
 /**
@@ -2229,6 +2408,7 @@ function resolveRowMsgIds(x: number, y: number): number[] {
  * 且从「已选中」的行起手时才算区间选择（touch-action 在 CSS 里配合）。
  */
 function onMessagesPointerDown(e: PointerEvent) {
+    markMessageInteraction();
     dragPointerId = null;
     dragActive = false;
     dragStartMsgId = null;
@@ -2616,6 +2796,14 @@ watch(pendingHashtag, (tag) => {
 });
 
 const isLoadingMore = ref(false);
+/** 历史已拉到、但仍在分批挂载/边缘扩展的条数；用它显示加载骨架，避免网络结束后长时间空白 */
+const revealTaskCount = ref(0);
+const isExpandingOlder = ref(false);
+const showOlderLoading = computed(() =>
+    (isLoadingMore.value && loadingDirection.value === 'older')
+    || revealTaskCount.value > 0
+    || isExpandingOlder.value
+);
 /** 当前边缘加载方向：'older' 时才显示顶部指示器，避免底部加载引起布局跳动 */
 const loadingDirection = ref<'older' | 'newer' | 'bottom' | null>(null);
 /** 程序化滚动/跳底后短暂抑制 onScroll 触发历史加载 */
@@ -3753,6 +3941,7 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
     // 取消进行中的历史分批揭示，清空隐藏集，避免旧聊天的消息串进新聊天
     olderRevealGen++;
     hiddenOlderIds.value = new Set();
+    clearRenderBounds();
 
     // 通知 TDLib 关闭旧聊天（停收推送更新等）
     if (chat.value) {
@@ -3866,7 +4055,7 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
         // 后面的正常流程照旧（首屏数据到达后覆盖列表，再按同一锚点定位，位置不变）。
         if (cachedWindow) {
             // 首帧同样只挂视口附近：整窗一次挂载会把缓存省下的时间又还回去
-            const cachedFirstPaintHidden = hideMessagesOutsideFirstPaint(savedBrowsePos?.anchorId ?? 0);
+            hideMessagesOutsideFirstPaint(savedBrowsePos?.anchorId ?? 0);
             await nextTick();
             if (!isGenerationValid(gen) || chatId.value !== currentId) return;
             if (savedBrowsePos && savedBrowsePos.anchorId > 0 && messages.value.some(m => m.id === savedBrowsePos.anchorId)) {
@@ -3877,7 +4066,7 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
             // 已读上报与历史预取都由 isReady 挡住（此时仍为 false），等正式首屏数据到达后按原逻辑跑
             disarmSkeleton();
             listRevealed.value = true;
-            startFirstPaintReveal(cachedFirstPaintHidden);
+            // 不立即揭示：等用户滚到顶部/上滚时按需挂载（见 revealHiddenOnScroll）
         }
 
         const chatData = await chatPromise;
@@ -4068,9 +4257,9 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
         applyMessages(firstBatch);
         // 首帧只挂视口附近：锚点（或尾部）以上的旧消息先藏起来，露出后逐帧揭示。
         // 缓存窗口已经铺过的会话不再重藏，避免两轮揭示循环打架。
-        const firstPaintHidden = cachedWindow
-            ? []
-            : hideMessagesOutsideFirstPaint(browsePos?.anchorId ?? unreadBoundaryMessageId.value ?? 0);
+        if (!cachedWindow) {
+            hideMessagesOutsideFirstPaint(browsePos?.anchorId ?? unreadBoundaryMessageId.value ?? 0);
+        }
         // from_message_id=0 或已包含 last_message → 窗口贴真实底部
         if (lastReadId === 0 && !earlyMessages) {
             windowReachesLatest.value = firstBatch.length > 0;
@@ -4119,11 +4308,20 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
         await nextTick();
         const anchorAfterFill = positionAtAnchor();
 
+        // ensureViewportFilled 可能又补进几十条：露面前重新按锚点收窄首帧，
+        // 否则补齐的媒体行会一次性挂载，打开媒体密集会话仍会卡。
+        // 被藏的行由 revealHiddenOnScroll 在用户上滚时再挂。
+        if (!cachedWindow) {
+            hideMessagesOutsideFirstPaint(anchorAfterFill > 0 ? anchorAfterFill : 0);
+            // 藏掉锚点以上的行会改变 scrollHeight，重新按锚点定位一次，避免露出后位置偏。
+            positionAtAnchor();
+        }
+
         // 定位与补齐都完成后才露出，避免「先显示再跳到已读/未读」
         listRevealed.value = true;
         isReady.value = true;
         // 首帧只挂了视口附近：剩下的历史逐帧揭示（视口钉扎，用户看不到跳动）
-        startFirstPaintReveal(firstPaintHidden);
+        // 不立即揭示：媒体密集会话先只挂视口附近，剩余历史按需揭示
 
         // 校准一律延后到揭示收敛后（揭示中抢 scrollTo 会与视口锁互抢 = 上下抖动）：
         // 揭示已结束 → 250ms 后校准（媒体落位）；揭示仍在跑 → 挂起，清空时由 watch 触发。
@@ -4431,13 +4629,51 @@ async function loadJumpWindow(chatIdNum: number, targetMessageId: number, gen: n
  * 块间才让出 rAF。外层 hold 保证 content-visibility 等高度回流也不挪视口。
  * 顺序：id 从大到小（先揭靠近视口接缝的一侧）。
  */
+/**
+ * 首屏只保留视口附近，其余历史不再“打开后立刻逐帧挂完”，而是等用户滚到顶部
+ * 或再次上滚时按需揭示。媒体密集会话打开时只挂少量行，避免首帧一次性解码/布局
+ * 几十条相册/视频。
+ */
+function revealHiddenOnScroll() {
+    if (olderRevealRunning || !listRevealed.value || hiddenOlderIds.value.size === 0) return;
+    const hold = acquireViewportHold();
+    void revealOlderMessagesInChunks([...hiddenOlderIds.value], olderRevealGen, hold);
+}
+
+/** 最近一次用户主动滚动/触摸时间：揭示历史时如果用户还在滚，先不挂 DOM，避免滚动中掉帧 */
+/** 是否发生过用户主动滚动/点击；首屏定位阶段为 false，避免把程序化 scroll 当成上滚 */
+let hasUserInteracted = false;
+function markMessageInteraction() {
+    hasUserInteracted = true;
+    markMessageScrollActive();
+    const el = messagesContainer.value;
+    if (el && el.scrollTop <= SCROLL_PREFETCH_PX && hiddenOlderIds.value.size > 0) {
+        revealHiddenOnScroll();
+    }
+}
+
+let olderRevealRunning = false;
+
 async function revealOlderMessagesInChunks(ids: number[], gen: number, hold?: ViewportHold) {
-    // 大频道单条 DOM 极重（长文+几十个链接），每帧只挂 1 条，保证不出现 50ms 长任务
-    const REVEAL_CHUNK = 1;
+    if (olderRevealRunning) {
+        hold?.release();
+        return;
+    }
+    olderRevealRunning = true;
+    revealTaskCount.value++;
+    // 停稳后用户不再滚动，可以一次多挂几条，缩短“等了好久”的观感；
+    // 滚动中仍然会先等待 userScrollHold 解除。
+    const REVEAL_CHUNK = 4;
     const sorted = [...ids].sort((a, b) => b - a);
     try {
         for (let i = 0; i < sorted.length; i += REVEAL_CHUNK) {
             if (gen !== olderRevealGen) return;
+            // 用户仍在滚动/触摸：把 DOM 挂载推迟到停稳后，避免揭示历史和滚动抢同一帧。
+            // 停在顶部持续滚轮时也靠这里拦住（scroll 事件此时不会持续触发）。
+            while (gen === olderRevealGen && messageScrollActive.value) {
+                await new Promise<void>(r => requestAnimationFrame(() => r()));
+                if (gen !== olderRevealGen) return;
+            }
             const chunk = sorted.slice(i, i + REVEAL_CHUNK).filter(id => hiddenOlderIds.value.has(id));
             if (chunk.length === 0) continue;
 
@@ -4449,12 +4685,20 @@ async function revealOlderMessagesInChunks(ids: number[], gen: number, hold?: Vi
                 const next = new Set(hiddenOlderIds.value);
                 for (const id of chunk) next.delete(id);
                 hiddenOlderIds.value = next;
+                // 正在揭示更旧历史：把切片起点跟着新数据首条往下带，保证揭示出来的行真的挂上
+                if (renderStartKey.value) {
+                    const firstKey = messageItems.value[0]?.key;
+                    if (firstKey) renderStartKey.value = firstKey;
+                }
             }, nextTick);
             if (gen !== olderRevealGen) return;
         }
     } finally {
+        olderRevealRunning = false;
+        revealTaskCount.value = Math.max(0, revealTaskCount.value - 1);
         // 揭示结束后再钉几帧，吞掉 content-visibility 估算→真实高度的回流
         hold?.releaseAfterStable(4);
+        scheduleViewportSlice(1200);
     }
 }
 
@@ -4981,13 +5225,18 @@ async function markVisibleMessagesAsRead() {
     }
 }
 
-/** 检测是否在底部附近（优先用缓存的 scrollHeight/clientHeight，减少滚动路径布局读） */
+/**
+ * 检测是否在「真正」的底部附近。
+ * 除了物理贴底，还要求渲染切片已到数据末尾、且数据窗口连到会话最新：
+ * 视口切片/跳转窗口在历史中间也会物理贴底，只看 scrollHeight 会把阅读位置误判成贴底。
+ */
 const isAtBottom = (threshold = 150): boolean => {
     const el = messagesContainer.value;
     if (!el) return true;
     const h = scrollMetrics.h || el.scrollHeight;
     const c = scrollMetrics.c || el.clientHeight;
-    return el.scrollTop + c >= h - threshold;
+    if (el.scrollTop + c < h - threshold) return false;
+    return renderEndsAtDataEnd.value && windowReachesLatest.value;
 };
 
 /** 滚动到底部（标准 flex-col：scrollTop = scrollHeight - clientHeight） */
@@ -4995,6 +5244,7 @@ const scrollToBottom = () => {
     cancelJumpSettle();
     showScrollButton.value = false;
     stickyDateHidden.value = true;
+    clearRenderBounds();
     nextTick(() => {
         const el = messagesContainer.value;
         if (!el) return;
@@ -5069,6 +5319,31 @@ function computeBrowseScrollTop(el: HTMLElement, anchorId: number, pixelFromTop:
     const desired = el.scrollTop + delta - pixelFromTop;
     const max = Math.max(0, el.scrollHeight - el.clientHeight);
     return Math.max(0, Math.min(Math.round(desired), max));
+}
+
+/**
+ * 同步多轮校准跳转落点：写 scrollTop → 读目标真实位置 → 修正，整个过程在同一个任务内完成。
+ * content-visibility 会让目标上方/下方的行在滚动后从估算高度变成真实高度，首次计算的
+ * 落点可能偏；多轮校准把这几百毫秒内的漂移在绘制前吃掉，避免用户看到「越过去再拉回」。
+ * 最多 4 轮，每次重新读取布局；已足够收敛，不会持续抢滚动。
+ */
+function stabilizeJumpScroll(el: HTMLElement, compute: () => number | null): boolean {
+    let target = compute();
+    if (target === null) return false;
+    for (let i = 0; i < 4; i++) {
+        el.scrollTop = target;
+        // 读取目标位置前必须让上面的写入生效；compute 内部的 rect 读取会强制布局，
+        // 这样下一轮拿到的是 content-visibility 更新后的真实位置。
+        const next = compute();
+        if (next === null) return true;
+        if (Math.abs(next - target) <= 1) {
+            el.scrollTop = next;
+            return true;
+        }
+        target = next;
+    }
+    el.scrollTop = target;
+    return true;
 }
 
 // ==================== 跳转滚动动画 ====================
@@ -5183,14 +5458,15 @@ function animateScrollTop(
  * 同步滚动到指定消息（调用方需已 await nextTick，DOM 已更新）。
  * 程序化瞬时定位一律先取消动画（瞬时优先），目标计算见 computeMessageScrollTop。
  */
-function scrollToMessageImmediate(messageId: number): boolean {
+function scrollToMessageImmediate(
+    messageId: number,
+    compute: (() => number | null) = () => computeMessageScrollTop(messageId),
+): boolean {
     cancelScrollAnim();
     const el = messagesContainer.value;
     if (!el) return false;
-    const next = computeMessageScrollTop(messageId);
-    if (next === null) return false;
-    el.scrollTop = next;
-    lastStickyScrollTop = next;
+    if (!stabilizeJumpScroll(el, compute)) return false;
+    lastStickyScrollTop = el.scrollTop;
     return true;
 }
 
@@ -5217,12 +5493,28 @@ async function scrollToMessageAnimated(
     const focusChatId = chatId.value;
     const activeFocus = getReplyQuoteFocusFor(messageId, focusChatId);
     const compute = () => (activeFocus ? computeQuoteFocusScrollTop(messageId) : null) ?? base();
-    if (compute() === null) {
+    const initial = compute();
+    if (initial === null) {
         // 布局未稳定：rAF 重试一次再退瞬时
         await new Promise<void>(r => requestAnimationFrame(() => r()));
         if (compute() === null) return 'missing';
     }
-    return (await animateScrollTop(el, compute)) ? 'done' : 'cancelled';
+    // 远距离跳转：动画过程中 content-visibility/媒体高度持续变化，落点必然要回拉。
+    // 直接做同帧多轮校准的瞬时定位，用户看不到「越界再纠正」的中间态。
+    const first = compute();
+    if (first !== null && Math.abs(first - el.scrollTop) > el.clientHeight * 1.5) {
+        if (!stabilizeJumpScroll(el, compute)) return 'missing';
+        lastStickyScrollTop = el.scrollTop;
+        return 'done';
+    }
+    const done = await animateScrollTop(el, compute);
+    if (done) {
+        // 动画收敛后再做一次同帧校准，吞掉最后一帧的估算高度差
+        stabilizeJumpScroll(el, compute);
+        lastStickyScrollTop = el.scrollTop;
+        return 'done';
+    }
+    return 'cancelled';
 }
 
 /** 跳转落点校准：取消进行中的校准定时器并执行清理钩子 */
@@ -5323,7 +5615,9 @@ function scrollToBottomImmediate() {
         cancelScheduledBrowsePosSave();
         clearLastBrowsePosition(chatId.value, topicId.value);
     }
-    scrollToBottomPure();
+    // 切片可能把底部行切掉；先恢复全量，等渲染后再按真实 scrollHeight 贴底
+    clearRenderBounds();
+    void nextTick(() => scrollToBottomPure());
 }
 
 /** 用户主动回到底部：与消息跳转共用方向感知动画，且随内容高度变化持续追踪底部。 */
@@ -5333,6 +5627,8 @@ async function scrollToBottomAnimated() {
         cancelScheduledBrowsePosSave();
         clearLastBrowsePosition(chatId.value, topicId.value);
     }
+    clearRenderBounds();
+    await nextTick();
     const el = messagesContainer.value;
     if (!el) return;
     showScrollButton.value = false;
@@ -5403,6 +5699,7 @@ async function jumpToMessageInternal(
         beginManualAnchor(anchorEl);
         scrollLoadSuppressedUntil = Date.now() + 1000;
     }
+    clearRenderBounds();
     try {
         applyMessages(windowMessages);
         historyMode.value = 'jump';
@@ -5768,7 +6065,10 @@ const onScroll = (e: Event) => {
     const H = scrollMetrics.h;
     const C = scrollMetrics.c;
     const T = nextTop;
-    const atBottom = T + C >= H - SCROLL_PREFETCH_PX;
+    // 切片/跳转窗口在历史中间也会物理贴底，必须用逻辑底部判断
+    const atBottom = T + C >= H - SCROLL_PREFETCH_PX
+        && renderEndsAtDataEnd.value
+        && windowReachesLatest.value;
 
     // 记录当前浏览位置（用户手动滚动时 debounce 写入顶部可见消息）
     // 贴底时立即清空缓存位置（下次进入直接到底部，能自动看到新消息）
@@ -5798,6 +6098,7 @@ const onScroll = (e: Event) => {
         if (maxId > latestUnreadSeenId.value) latestUnreadSeenId.value = maxId;
     }
     scheduleVisibleMessagesRead();
+    scheduleViewportSlice();
 
     if (!chatId.value || !isReady.value) return;
 
@@ -5836,8 +6137,26 @@ async function maybePrefetchHistory(el: HTMLElement) {
     if (messages.value.length === 0) return;
 
     // jump / normal 共用同一套两端扩展；exhausted 标志按模式读取
+    if (atTop && hiddenOlderIds.value.size > 0) {
+        // 只响应用户主动上滚：首屏定位/scrollToBottom 过程中也会短暂 atTop，
+        // 若在这里揭示，会把刚藏起来的首批媒体行立刻挂回去。
+        if (hasUserInteracted) revealHiddenOnScroll();
+        return;
+    }
+    // 切片边界不是数据边界：先按步长扩展切片，让用户继续看到已加载数据；
+    // 只有切片边界已经等于数据窗口边界时，才触发网络加载。
+    const dataFirstKey = messageItems.value[0]?.key ?? '';
+    const dataLastKey = messageItems.value[messageItems.value.length - 1]?.key ?? '';
+    if (atTop && renderStartKey.value && renderStartKey.value !== dataFirstKey) {
+        await expandRenderSlice('top');
+        return;
+    }
     if (atTop && !isOlderExhausted()) {
         await loadHistoryOlder(loadChat, scrollGen);
+        return;
+    }
+    if (nearBottom && renderEndKey.value && renderEndKey.value !== dataLastKey) {
+        await expandRenderSlice('bottom');
         return;
     }
     if (nearBottom && !isNewerDirectionExhausted()) {
@@ -6963,6 +7282,58 @@ async function jumpToPinnedMessage(messageId: number) {
  */
 let messageItemsCache: { list: message[]; unread: number; items: DisplayItem[] } | null = null;
 
+// 行级 v-memo 的全局依赖：这些状态变化时所有行都应重渲染；
+// 历史消息逐条揭示时它们不变，未变化的行可以跳过整行 patch。
+const settingsEpoch = ref(0);
+watch(settings, () => { settingsEpoch.value++; }, { deep: true });
+
+// 发送者资料异步到达：120ms 节流；历史揭示期间（hiddenOlderIds 非空）完全冻结，
+// 揭示结束后统一刷新一次，避免每加载一个 user 就整表重渲染。
+const senderEpoch = ref(0);
+let senderEpochTimer: number | null = null;
+let senderEpochDirty = false;
+function scheduleSenderEpoch() {
+    senderEpochDirty = true;
+    if (hiddenOlderIds.value.size > 0 || senderEpochTimer !== null) return;
+    senderEpochTimer = window.setTimeout(() => {
+        senderEpochTimer = null;
+        if (!senderEpochDirty || hiddenOlderIds.value.size > 0) return;
+        senderEpochDirty = false;
+        senderEpoch.value++;
+    }, 120);
+}
+watch(senderCacheRevision, scheduleSenderEpoch);
+watch(hiddenOlderIds, (ids) => {
+    if (ids.size !== 0 || !senderEpochDirty) return;
+    if (senderEpochTimer !== null) {
+        window.clearTimeout(senderEpochTimer);
+        senderEpochTimer = null;
+    }
+    senderEpochDirty = false;
+    senderEpoch.value++;
+});
+onUnmounted(() => {
+    if (senderEpochTimer !== null) window.clearTimeout(senderEpochTimer);
+});
+
+const messageRowEpoch = computed(() => [
+    chatId.value,
+    selectionMode.value ? 1 : 0,
+    selectedMsgIds.value.length,
+    highlightedMessageId.value ?? 0,
+    quoteBoxRowId.value ?? 0,
+    jumpTargetRowId.value ?? 0,
+    leavingMessageIds.value.size,
+    newMessageIds.value.size,
+    chat.value?.last_read_inbox_message_id ?? 0,
+    // 发出消息的「已读」对勾看 last_read_outbox_message_id；v-memo 漏掉它时，
+    // updateChatReadOutbox 已写入新值但行被跳过 patch，表现为「已读消息不刷新」。
+    chat.value?.last_read_outbox_message_id ?? 0,
+    threadMode.value ? 1 : 0,
+    settingsEpoch.value,
+    senderEpoch.value,
+].join('|'));
+
 const messageItems = computed<DisplayItem[]>(() => {
     const hidden = hiddenOlderIds.value;
     const list = hidden.size > 0
@@ -6989,10 +7360,37 @@ const messageItems = computed<DisplayItem[]>(() => {
     return items;
 });
 
+/**
+ * 真正喂给模板的展示条目：按 renderStartKey/renderEndKey 切出视口附近的 DOM。
+ * 数据层 messageItems 仍是完整的（含尚未挂载的历史），跳转/定位需要时会清空边界恢复全量。
+ */
+const renderedMessageItems = computed<DisplayItem[]>(() => {
+    const items = messageItems.value;
+    const startKey = renderStartKey.value;
+    const endKey = renderEndKey.value;
+    if (!startKey && !endKey) return items;
+    let start = startKey ? items.findIndex(item => item.key === startKey) : 0;
+    let end = endKey ? items.findIndex(item => item.key === endKey) : items.length - 1;
+    if (start < 0) start = 0;
+    if (end < 0 || end < start) end = items.length - 1;
+    // 顶部的日期/未读分隔不能被切掉，否则吸顶日期和未读线会错位
+    while (start > 0 && (items[start - 1].type === 'date' || items[start - 1].type === 'unread')) {
+        start--;
+    }
+    return items.slice(start, end + 1);
+});
+
+watch([messageItems, renderEndKey], () => {
+    const items = messageItems.value;
+    renderEndsAtDataEnd.value = !renderEndKey.value
+        || items.length === 0
+        || renderEndKey.value === items[items.length - 1].key;
+}, { immediate: true });
+
 // 列表结构 / 顶栏高度 / 露出后 DOM 变化时重算吸顶日期
 // 用 flush:'post' 确保 DOM（日期分隔、消息节点）已更新后再测量
 watch(
-    () => [messageItems.value, showTopCard.value, listRevealed.value] as const,
+    () => [messageItems.value, renderedMessageItems.value, showTopCard.value, listRevealed.value] as const,
     () => {
         void nextTick(() => updateStickyDate());
     },

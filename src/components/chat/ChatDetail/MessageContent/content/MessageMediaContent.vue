@@ -26,11 +26,11 @@
                 :class="[borderRadiusClass, { 'msg-spoiler-media': hasSpoiler }]" :style="photoSizeStyle"
                 @click="openViewer">
                 <!-- 渐进占位：minithumbnail 高斯模糊 → Small 清晰图；Big 解码完成前一直垫在下层，避免闪空白 -->
-                <img v-if="thumbSrc && !imageLoaded" :src="thumbSrc" decoding="async"
+                <img v-if="thumbSrc && !imageLoaded" :src="thumbSrc" loading="lazy" decoding="async"
                     class="absolute inset-0 w-full h-full object-cover"
                     :class="thumbIsBlur ? 'blur-sm scale-105' : ''" />
                 <!-- Full image (object-cover fills area) -->
-                <img v-if="mediaSrc" ref="photoImgEl" :src="mediaSrc" decoding="async"
+                <img v-if="photoDisplaySrc" ref="photoImgEl" :src="photoDisplaySrc" loading="lazy" decoding="async"
                     class="w-full h-full object-cover select-none"
                     :class="{ 'opacity-0': !imageLoaded }" @load="onImageLoad" @error="onImageError" />
                 <!-- Placeholder -->
@@ -75,10 +75,10 @@
                   视频本体就绪（videoShowMedia）→ 直接渲染 <video>，不用 mini/封面盖住。
                   仅当视频不可用时才用封面/mini 占位；高清封面优先，mini 兜底。
                 -->
-                <img v-if="!videoShowMedia && videoThumbSrc && !videoThumbIsVideo" :src="videoThumbSrc" decoding="async"
+                <img v-if="!videoShowMedia && videoThumbSrc && !videoThumbIsVideo" :src="videoThumbSrc" loading="lazy" decoding="async"
                     class="absolute inset-0 w-full h-full object-cover"
                     :class="isMiniThumbSrc(videoThumbSrc) ? 'blur-sm scale-105' : ''" />
-                <video v-else-if="!videoShowMedia && videoThumbSrc && videoThumbIsVideo" :src="videoThumbSrc" autoplay
+                <video v-else-if="!videoShowMedia && videoThumbSrc && videoThumbIsVideo && mediaViewportEntered" :src="videoThumbSrc" autoplay
                     loop muted playsinline class="absolute inset-0 w-full h-full object-cover" />
                 <div v-else-if="!videoShowMedia" class="absolute inset-0 flex items-center justify-center">
                     <VideoIcon class="w-8 h-8 text-gray-400" />
@@ -176,12 +176,12 @@
                 :class="borderRadiusClass" :style="animSizeStyle" @click="openViewer">
                 <!-- Thumbnail: 静态位图用 <img>，MPEG4/WEBM 动态图用 <video> -->
                 <!-- GIF 封面垫底到 mediaSrc 解码完成前，避免换源瞬间闪空白 -->
-                <img v-if="animThumbSrc && !animThumbIsVideo && !animMediaReady" :src="animThumbSrc" decoding="async"
+                <img v-if="animThumbSrc && !animThumbIsVideo && !animMediaReady" :src="animThumbSrc" loading="lazy" decoding="async"
                     class="absolute inset-0 w-full h-full object-cover" />
-                <video v-else-if="animThumbSrc && animThumbIsVideo && !mediaSrc" :src="animThumbSrc" autoplay loop muted
+                <video v-else-if="animThumbSrc && animThumbIsVideo && !mediaSrc && mediaViewportEntered" :src="animThumbSrc" autoplay loop muted
                     playsinline class="absolute inset-0 w-full h-full object-cover" />
                 <!-- Full GIF (animation) -->
-                <video v-if="mediaSrc" :src="mediaSrc" autoplay loop muted playsinline
+                <video v-if="mediaSrc && mediaViewportEntered" :src="mediaSrc" autoplay loop muted playsinline
                     class="w-full h-full object-cover"
                     :class="{ 'opacity-0': !animMediaReady }" @loadeddata="animMediaReady = true"
                     @canplay="animMediaReady = true" />
@@ -418,6 +418,19 @@ const animDownloading = ref(false);
 // ---- 就绪态（只信消息内嵌 content，不 getFile）----
 /** 本组件下载意图 owner：卸载时释放 pending，不暂停已发起的 TDLib 下载 */
 const downloadOwner = Symbol('msg-media');
+
+/**
+ * 内联预览优先使用 Small：聊天里的展示宽度通常只有 300–500px，解码 Big（常见 1280–2560px）
+ * 在快速滚动/相册首次进入视口时会把主线程拖到几十毫秒。Big 只给全屏查看器用，
+ * 查看器自己按 message.content 解析原图，不依赖这里的 mediaSrc。
+ */
+const photoDisplaySrc = computed(() => {
+    // 聊天内优先 Big，保证大屏/高 DPI 下不糊；Big 未就绪时才用 Small 占位，
+    // 全屏查看器仍从 message.content 解析原图。
+    if (mediaSrc.value) return mediaSrc.value;
+    const small = photoSmallPath.value;
+    return small ? convertFileSrc(small) : undefined;
+});
 
 const photoBigFile = computed(() =>
     props.content._ === 'messagePhoto' ? pickBigPhotoSize(props.content.photo) : undefined);
