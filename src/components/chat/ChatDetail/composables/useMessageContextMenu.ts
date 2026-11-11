@@ -100,8 +100,13 @@ export function useMessageContextMenu(deps: {
     /** 缓存最近一次构建的回应栏（供 v-context-menu 指令读取） */
     let pendingReactionRow: ContextMenuReactionRow | null = null;
 
-    /** 获取当前文档选中文本中属于「该消息气泡」的片段（无选中返回 null） */
-    function getSelectedQuoteForMessage(msg: message): string | null {
+    /**
+     * 获取当前文档选中文本中属于「该消息气泡」的片段（无选中返回 null）。
+     *
+     * 必须由调用方在右键瞬间取好再传下去：菜单项构建要等权限预取/阅读状态，
+     * 这期间选区可能已经被后续点击清掉；引用回复和「只复制选中文本」都依赖它。
+     */
+    function getSelectedTextForMessage(msg: message): string | null {
         const sel = window.getSelection?.();
         if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
         const range = sel.getRangeAt(0);
@@ -112,7 +117,7 @@ export function useMessageContextMenu(deps: {
         const bubble = el?.closest(`[data-bubble-msg-id="${msg.id}"]`);
         if (!bubble) return null;
         const text = sel.toString();
-        return text.trim() ? text.trim() : null;
+        return text.trim() ? text : null;
     }
 
     // ===== 单条消息动作 =====
@@ -618,11 +623,13 @@ export function useMessageContextMenu(deps: {
     function makeMsgMenu(msg: message) {
         return {
             items: async (_e: MouseEvent, _data?: any): Promise<ContextMenuItem[]> => {
+                // 右键瞬间的选区：构建菜单要等异步预取，之后选区可能已失效
+                const selectedText = getSelectedTextForMessage(msg);
                 const cid = msg.chat_id || chatId.value;
                 if (cid !== undefined) await getMessageProperties(cid, msg.id);
                 pendingReadDateLabel = await fetchReadDateLabel(msg);
                 pendingReactionRow = await buildReactionRow(msg);
-                return buildMessageContextMenu(msg);
+                return buildMessageContextMenu(msg, selectedText);
             },
             get reactionRow() { return pendingReactionRow; },
         };
@@ -632,6 +639,7 @@ export function useMessageContextMenu(deps: {
     async function openMessageContextMenu(msg: message, x: number, y: number) {
         if (selectionMode.value) return;
         currentMenuMsg = msg;
+        const selectedText = getSelectedTextForMessage(msg);
         const cid = msg.chat_id || chatId.value;
         if (cid !== undefined) await getMessageProperties(cid, msg.id);
         const [readLabel, reactionRow] = await Promise.all([
@@ -640,7 +648,7 @@ export function useMessageContextMenu(deps: {
         ]);
         pendingReadDateLabel = readLabel;
         if (currentMenuMsg !== msg) return;
-        openContextMenu(x, y, buildMessageContextMenu(msg), null, null, reactionRow);
+        openContextMenu(x, y, buildMessageContextMenu(msg, selectedText), null, null, reactionRow);
     }
 
     /** 相册中某块媒体被右键：以该条消息 + 坐标打开菜单 */
@@ -649,8 +657,11 @@ export function useMessageContextMenu(deps: {
         void openMessageContextMenu(msg, x, y);
     }
 
-    /** 构建消息右键菜单项（开发环境附带“复制消息原始 JSON”） */
-    function buildMessageContextMenu(msg: message): ContextMenuItem[] {
+    /**
+     * 构建消息右键菜单项（开发环境附带“复制消息原始 JSON”）。
+     * selectedText：右键瞬间该消息气泡内的选中文本，null 表示没有选中。
+     */
+    function buildMessageContextMenu(msg: message, selectedText: string | null = null): ContextMenuItem[] {
         const items: ContextMenuItem[] = [];
         const isService = isServiceMessage(msg);
         // 评论线程中的消息归属讨论组，能力查询用消息自身 chat_id
@@ -673,7 +684,7 @@ export function useMessageContextMenu(deps: {
         }
 
         // —— 引用回复（仅当用户已拖动选中了该消息内容的一段文本时出现）——
-        const quotedText = getSelectedQuoteForMessage(msg);
+        const quotedText = selectedText?.trim() || null;
         if (!isService && quotedText && canReplyMessage(msg, cid)) {
             items.push({
                 key: 'quote-reply',
@@ -705,11 +716,12 @@ export function useMessageContextMenu(deps: {
 
         // —— 复制文本 / 媒体描述 ——
         if (canCopyMessage(msg, cid)) {
+            // 选中了该消息正文的一段文字时只复制选中部分，否则复制整条消息文本
             items.push({
                 key: 'copy-text',
                 label: t('lng_context_copy_text'),
                 icon: CopyPlusIcon,
-                onClick: () => copyMessageText(msg),
+                onClick: () => copyMessageText(msg, selectedText ?? undefined),
             });
         }
 

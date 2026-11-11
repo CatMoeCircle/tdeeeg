@@ -745,9 +745,13 @@ export async function searchSenderMessageCount(
   }
 }
 
-/** 复制消息文本 */
-export async function copyMessageText(msg: message) {
-  const text = getMessagePlainText(msg);
+/**
+ * 复制消息文本。
+ * selectedText 非空时只复制该选中片段（用户在消息正文里框选了一部分文字），
+ * 否则复制整条消息的文本。
+ */
+export async function copyMessageText(msg: message, selectedText?: string) {
+  const text = selectedText && selectedText.trim() ? selectedText : getMessagePlainText(msg);
   if (!text.trim()) {
     toast.warning(t("context.noCopyableText"));
     return;
