@@ -2994,9 +2994,16 @@ function syncEmbeddedFileSnapshot(file: TdFile): void {
 const handleUpdate = async (update: Update) => {
     switch (update._) {
         case 'updateChatReadInbox': {
-            // 未读数实时跟随（进入会话、已读、新消息都会推送）；评论线程用 pendingNewIds 计数
+            // 未读数与已读线都要实时跟随：只更新 unread_count 会让消息行/已读分隔
+            // 继续用旧的 last_read_inbox_message_id 渲染，出现「已读消息不刷新」。
             if (!chat.value || threadMode.value || update.chat_id !== chat.value.id) break;
             chat.value.unread_count = update.unread_count;
+            if (typeof update.last_read_inbox_message_id === 'number') {
+                chat.value.last_read_inbox_message_id = update.last_read_inbox_message_id;
+                if (update.last_read_inbox_message_id > lastReportedReadMessageId) {
+                    lastReportedReadMessageId = update.last_read_inbox_message_id;
+                }
+            }
             break;
         }
 
@@ -4861,7 +4868,11 @@ function scheduleVisibleMessagesRead() {
 }
 
 async function markVisibleMessagesAsRead() {
+    // 组件可能在 await 期间被卸载（跳资料页 / 切会话）：先把归属上下文固定下来，
+    // 否则后续读到的 topicId/threadMode 已指向新路由，会把已读线写进错误的浏览位置 key。
     const currentChatId = chatId.value;
+    const currentTopicId = topicId.value;
+    const currentIsThread = threadMode.value;
     const container = messagesContainer.value;
     if (!currentChatId || !container) return;
 
@@ -4907,12 +4918,12 @@ async function markVisibleMessagesAsRead() {
         await tdlibSend({
             _: 'viewMessages',
             // 评论线程：消息实体在讨论组，需用讨论组 chat_id 标记已读（推进线程已读线）
-            chat_id: threadMode.value && threadInfo.value ? threadInfo.value.chat_id : currentChatId,
+            chat_id: currentIsThread && threadInfo.value ? threadInfo.value.chat_id : currentChatId,
             message_ids: messageIds,
             force_read: true,
-            source: threadMode.value
+            source: currentIsThread
                 ? ({ _: 'messageSourceMessageThreadHistory' } as const)
-                : topicId.value
+                : currentTopicId
                     ? (isDirectMessagesChat.value
                         ? { _: 'messageSourceDirectMessagesChatTopicHistory' } as const
                         : { _: 'messageSourceForumTopicHistory' } as const)
@@ -4920,8 +4931,8 @@ async function markVisibleMessagesAsRead() {
         });
         // 已读线前进：同步缓存里的 readInboxMaxId，避免退出再进时被「已读线变化」误失效
         // 评论线程不写浏览位置缓存（与主聊天共用 key，会互相污染）
-        if (!threadMode.value) {
-            bumpBrowsePosReadInboxMaxId(currentChatId, topicId.value, latestVisibleId);
+        if (!currentIsThread) {
+            bumpBrowsePosReadInboxMaxId(currentChatId, currentTopicId, latestVisibleId);
         }
     } catch (e) {
         if (chatId.value === currentChatId && lastReportedReadMessageId === latestVisibleId) {
