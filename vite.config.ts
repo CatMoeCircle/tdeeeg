@@ -30,6 +30,15 @@ export default defineConfig(async (): Promise<UserConfig> => ({
   },
   // 单入口：主应用 index.html
   build: {
+    // 需要运行时 fetch 的本地资源必须保持为独立文件（钻石模型表的 9 个 .bin，
+    // 见 src/utils/diamond/tables.ts；以及小体积的 .tgs 动画）。
+    // 默认 assetsInlineLimit 会把小于 4 KB 的资源内联成 data: URL，而打包后的
+    // CSP（tauri.conf.json）connect-src 只有 'self' / blob: / asset: 等，不含
+    // data:，于是 fetch('data:…') 被 WebView 直接拒绝：钻石那边 Promise.all
+    // 整体失败，石头永远不出现。开发环境不套 CSP，所以只在打包后才复现。
+    // 这里让这两类一律产出真实文件，仍按 'self' 从资源协议读取。
+    assetsInlineLimit: (filePath: string) =>
+      /\.(bin|tgs)$/.test(filePath) ? false : undefined,
     rolldownOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
