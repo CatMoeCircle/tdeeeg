@@ -1,7 +1,8 @@
 <template>
     <figure ref="rootEl" class="my-1.5">
-        <div class="relative flex w-full min-w-0 items-center gap-2.5 overflow-hidden rounded-lg"
-            :class="plain ? 'p-0' : 'bg-black/5 dark:bg-white/10 p-2'">
+        <!-- 音乐卡片最小宽度：避免极短标题把卡片压成细条；plain（投票卡片内）由外层定宽，不加 -->
+        <div class="relative flex w-full items-center gap-2.5 overflow-hidden rounded-lg"
+            :class="plain ? 'min-w-0 p-0' : 'min-w-56 bg-black/5 dark:bg-white/10 p-2'">
             <!-- 封面 + 播放按钮 -->
             <div class="relative h-12 w-12 shrink-0">
                 <div class="group relative h-full w-full overflow-hidden rounded-xl bg-blue-100 dark:bg-blue-950">

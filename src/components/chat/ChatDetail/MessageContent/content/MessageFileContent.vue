@@ -47,9 +47,9 @@
 </div>
 </div>
 
-<!-- Audio -->
+<!-- Audio：最小宽度避免极短标题/时长的曲目把卡片压成细长条 -->
 <div v-else-if="content._ === 'messageAudio'"
-    class="relative flex w-full max-w-full min-w-0 items-center gap-3 overflow-hidden rounded-lg">
+    class="relative flex w-full min-w-56 max-w-full items-center gap-3 overflow-hidden rounded-lg">
     <div class="relative h-12 w-12 shrink-0">
         <div class="group relative h-full w-full overflow-hidden rounded-xl bg-blue-100 dark:bg-blue-950">
             <img v-if="coverSrc" :src="coverSrc" :alt="content.audio.title || content.audio.file_name"
