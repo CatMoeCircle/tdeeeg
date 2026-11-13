@@ -7722,9 +7722,13 @@ async function handleScrollToBottom() {
         return;
     }
 
+    // 只有「还有未读」时才按未读边界定位：读完后 unread_count 归零，
+    // 但本次打开期间生成的未读边界不会自动清空；若继续按它定位，用户向上翻动后
+    // 再点「到底」会被拉回已经读过的未读位置，而不是真正到底。
     const unreadId = unreadBoundaryMessageId.value;
+    const hasUnread = (chat.value?.unread_count ?? 0) > 0;
     const viewportAnchor = messagesContainer.value ? captureViewportAnchor(messagesContainer.value) : null;
-    if (unreadId && unreadId > 0 && viewportAnchor && viewportAnchor.msgId > 0 && viewportAnchor.msgId < unreadId) {
+    if (hasUnread && unreadId && unreadId > 0 && viewportAnchor && viewportAnchor.msgId > 0 && viewportAnchor.msgId < unreadId) {
         cancelScrollAnim();
         cancelHistoryPrefetch();
         historyWindowGeneration++;
