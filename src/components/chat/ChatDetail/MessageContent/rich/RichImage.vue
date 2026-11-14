@@ -61,7 +61,7 @@ const imgClass = computed(() => (props.fill || props.square ? '' : 'h-auto'));
 
 const wrapperStyle = computed(() => {
     if (props.fill) return { width: '100%', height: '100%' };
-    // square：填满外层 mediaSizeStyle 容器（已限 432/96 并带 aspect-ratio）
+    // square：填满外层 mediaSizeStyle 容器（已限 430/100 并带 aspect-ratio）
     if (props.square) return { width: '100%', height: '100%' };
     return undefined;
 });

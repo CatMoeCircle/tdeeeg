@@ -99,6 +99,11 @@ interface Settings {
     fontSize: number;
     /** 消息整体比例缩放（0.8 ~ 1.2） */
     scale: number;
+    /**
+     * 媒体尺寸系数（0.6 ~ 1）：乘在图片/视频/GIF/音乐卡片官方上限上的比例。
+     * 官方常量（430 / 320 / 200 / 268）按大窗口设定，窄窗口下偏大，这里整体收一档。
+     */
+    mediaScale: number;
     /** 点击 bot 命令（如 /start）时：true=添加到输入框（而非直接发送） */
     botCommandInsert: boolean;
     /** 自定义气泡皮肤图片路径（QQ 风格图片气泡；空 = 使用默认气泡，启用后圆角与缩放不可调） */
@@ -355,6 +360,7 @@ const defaultSettings: Settings = {
     cornerRadiusSymmetrical: false,
     fontSize: 14,
     scale: 1,
+    mediaScale: 0.85,
     botCommandInsert: false,
     customBubbleImage: "",
     customBubbleSlice: null,

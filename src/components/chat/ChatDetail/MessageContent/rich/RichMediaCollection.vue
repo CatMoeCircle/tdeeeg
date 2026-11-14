@@ -52,7 +52,13 @@ import type { PageBlock, file, ThumbnailFormat } from 'tdlib-types';
 import { ChevronLeftIcon, ChevronRightIcon, PlayIcon } from 'lucide-vue-next';
 import RichImage from './RichImage.vue';
 import { layoutMediaGroup } from '../../../../../utils/media/mediaGroupLayout';
-import { mediaSizeStyle, MEDIA_MAX } from '../../../../../utils/media/fitMediaSize';
+import {
+    MEDIA_MAX,
+    ALBUM_MIN_WIDTH,
+    measureBubbleMedia,
+    bubbleMediaStyle,
+} from '../../../../../utils/media/fitMediaSize';
+import { settings } from '../../../../../store/settings/settings';
 import { openFileActionsMenu } from '../../../../../utils/media/fileActions';
 
 const { t } = useI18n();
@@ -137,6 +143,7 @@ const items = computed<MediaItem[]>(() => {
     const layout = layoutMediaGroup(
         result.map((item) => ({ width: item.width, height: item.height })),
         MEDIA_MAX,
+        ALBUM_MIN_WIDTH,
     );
     return result.map((item, index) => {
         const rect = layout.items[index];
@@ -176,19 +183,26 @@ function onContainerContextMenu(e: MouseEvent) {
 
 const containerStyle = computed(() => {
     if (!items.value.length) return {};
+    // 富文本宫格与消息相册一致：官方 430 上限再乘外观设置的媒体尺寸系数
+    const scale = settings.message.mediaScale;
+    const gridWidth = Math.round(MEDIA_MAX * scale);
     if (props.mode === 'grid') {
         const layout = layoutMediaGroup(
             items.value.map((item) => ({ width: item.width, height: item.height })),
-            MEDIA_MAX,
+            gridWidth,
+            ALBUM_MIN_WIDTH,
         );
         return {
-            width: `${MEDIA_MAX}px`,
+            width: `${gridWidth}px`,
             maxWidth: '100%',
             aspectRatio: `${layout.width} / ${layout.height}`,
         };
     }
-    // 单图轮播：与 messagePhoto/video 一致，432/96 等比约束
+    // 单图轮播：与 messagePhoto/video 一致，官方盒模型 + 尺寸系数
     const item = currentItem.value;
-    return mediaSizeStyle(item.width, item.height);
+    return bubbleMediaStyle(measureBubbleMedia(item.width, item.height, {
+        maxSize: MEDIA_MAX,
+        scale,
+    }));
 });
 </script>

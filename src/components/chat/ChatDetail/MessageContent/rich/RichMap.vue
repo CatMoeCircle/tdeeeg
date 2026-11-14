@@ -21,6 +21,7 @@ import type { location, pageBlockCaption } from 'tdlib-types';
 import { MapPinIcon } from 'lucide-vue-next';
 import { ensureLocalFilePath, tdlibSend } from '../../../../../utils/session/tdlib';
 import { mediaSizeStyle } from '../../../../../utils/media/fitMediaSize';
+import { settings } from '../../../../../store/settings/settings';
 import { confirmAndOpenExternalLink } from '../../../../../utils/link/openExternalLink';
 import { bingMapsLink } from '../../../../../utils/link/mapLink';
 import RichCaption from './RichCaption.vue';
@@ -40,8 +41,10 @@ const props = withDefaults(defineProps<{
     height: 200,
 });
 
-/** 卡片尺寸：等比 + 最大 432 + 可随气泡收缩（与图片/视频块一致） */
-const boxStyle = computed(() => mediaSizeStyle(props.width || 320, props.height || 200));
+/** 卡片尺寸：等比 + 最大 430（再乘媒体尺寸系数）+ 可随气泡收缩（与图片/视频块一致） */
+const boxStyle = computed(() => mediaSizeStyle(props.width || 320, props.height || 200, {
+    scale: settings.message.mediaScale,
+}));
 
 const mapSrc = ref('');
 
@@ -62,9 +65,9 @@ watch(
         mapSrc.value = '';
         const ratio = (props.width || 320) / (props.height || 200);
         const scale = Math.min(3, Math.max(1, Math.round(window.devicePixelRatio || 1)));
-        // TDLib 的 width/height 是「应用 scale 之前」的像素：按显示宽度（最大 432）请求，
+        // TDLib 的 width/height 是「应用 scale 之前」的像素：按显示宽度（最大 430）请求，
         // 乘 scale 后才够清晰；两边都压进 TDLib 的 16-1024 限制内，避免超过 1MB 上限
-        const pxWidth = Math.min(1024, Math.max(16, Math.round(Math.min(props.width || 320, 432))));
+        const pxWidth = Math.min(1024, Math.max(16, Math.round(Math.min(props.width || 320, 430))));
         const pxHeight = Math.min(1024, Math.max(16, Math.round(pxWidth / ratio)));
         let lastError: unknown;
         for (const delay of MAP_RETRY_DELAYS_MS) {

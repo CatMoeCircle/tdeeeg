@@ -101,6 +101,7 @@ import AlbumFooter from './AlbumFooter.vue';
 import { useAlbumContent } from '../../composables/useAlbumContent';
 import { isFileAlbum as isFileAlbumMessages } from '../../composables/messageType';
 import { layoutMediaGroup, type MediaGroupSize } from '../../../../../utils/media/mediaGroupLayout';
+import { ALBUM_MAX_WIDTH, ALBUM_MIN_WIDTH } from '../../../../../utils/media/fitMediaSize';
 import { openMediaViewer } from '../../../../../store/media/mediaViewer';
 import { useDownloadStore, remoteIdOf } from '../../../../../store/media/downloads';
 import { DL_TAG } from '../../../../../utils/media/downloadTags';
@@ -454,11 +455,12 @@ function getMediaSize(msg: message): MediaGroupSize {
     return { width: 1, height: 1 };
 }
 
-const ALBUM_W = 340;
+/** 相册宫格宽度：对齐官方 historyGroupWidthMax = maxMediaSize = 430，再乘外观设置的媒体尺寸系数 */
+const albumWidth = computed(() => Math.round(ALBUM_MAX_WIDTH * settings.message.mediaScale));
 
 // ---- Refs ----
 const layoutItems = ref<LayoutItem[]>([]);
-const layoutSize = ref({ width: ALBUM_W, height: ALBUM_W });
+const layoutSize = ref({ width: ALBUM_MAX_WIDTH, height: ALBUM_MAX_WIDTH });
 
 // ---- Build layout ----
 function rebuildLayout() {
@@ -472,7 +474,7 @@ function rebuildLayout() {
     const aspects = sizes.map(size => size.width / Math.max(1, size.height));
     const isVideos = msgs.map(m => m.content._ === 'messageVideo');
     const durations = msgs.map(m => m.content._ === 'messageVideo' ? m.content.video.duration : 0);
-    const layout = layoutMediaGroup(sizes, ALBUM_W);
+    const layout = layoutMediaGroup(sizes, albumWidth.value, ALBUM_MIN_WIDTH);
     layoutSize.value = { width: layout.width, height: layout.height };
 
     const result: LayoutItem[] = [];
@@ -505,7 +507,7 @@ function rebuildLayout() {
 const containerStyle = computed(() => {
     if (layoutItems.value.length === 0) return {};
     return {
-        width: `${ALBUM_W}px`,
+        width: `${albumWidth.value}px`,
         maxWidth: '100%',
         aspectRatio: `${layoutSize.value.width} / ${layoutSize.value.height}`,
     };
@@ -643,6 +645,11 @@ onMounted(() => {
     if (applyAlbumReadyFromContent()) rebuildLayout();
     startThumbViewportLoad();
     startViewportLoad();
+});
+
+// 外观设置里的媒体尺寸系数变化：按新宽度重排宫格（无需重新下载）
+watch(() => settings.message.mediaScale, () => {
+    rebuildLayout();
 });
 
 /**

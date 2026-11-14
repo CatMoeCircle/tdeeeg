@@ -339,7 +339,8 @@ const { t } = useI18n();
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { useRouter } from 'vue-router';
 import { confirmAndOpenExternalLink } from '../../../../../utils/link/openExternalLink';
-import { mediaSizeStyle } from '../../../../../utils/media/fitMediaSize';
+import { measureBubbleMedia, bubbleMediaStyle } from '../../../../../utils/media/fitMediaSize';
+import { settings } from '../../../../../store/settings/settings';
 
 const props = defineProps<{
     blocks: PageBlock[];
@@ -388,10 +389,12 @@ function photoFile(photo?: { sizes?: photoSize[] } | null): photoSize | undefine
     return photo.sizes[photo.sizes.length - 1];
 }
 
-/** 与 messagePhoto/video 一致：432×432 / 96×96 等比约束，窄窗口随气泡收缩 */
+/** 与 messagePhoto/video 一致：官方盒模型 + 外观设置里的媒体尺寸系数 */
 function blockMediaStyle(width: number, height: number): Record<string, string> {
     if (!width || !height) return { width: '100%' };
-    return mediaSizeStyle(width, height);
+    return bubbleMediaStyle(measureBubbleMedia(width, height, {
+        scale: settings.message.mediaScale,
+    }));
 }
 
 function photoBoxStyle(photo?: { sizes?: photoSize[] } | null): Record<string, string> {

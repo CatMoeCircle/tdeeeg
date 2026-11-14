@@ -44,6 +44,7 @@ import { tdlibSend, isFileReady, downloadingFiles } from '../../../../../utils/s
 import { DL_PRIORITY } from '../../../../../utils/media/downloadPriority';
 import { isThumbnailImgRenderable, isThumbnailVideoRenderable } from '../../../../../utils/media/thumbnail';
 import { mediaFitStyle, fitMediaSize } from '../../../../../utils/media/fitMediaSize';
+import { settings } from '../../../../../store/settings/settings';
 import { shouldAutoDownloadPhotos } from '../../../../../utils/media/autoDownload';
 import { useDownloadStore } from '../../../../../store/media/downloads';
 import RichMediaDownload from '../rich/RichMediaDownload.vue';
@@ -287,11 +288,11 @@ watch(
 );
 onUnmounted(stopPoll);
 
-/** 大图布局：按媒体宽高比等比缩放，最大 432×432；窄气泡下随宽度收缩 */
+/** 大图布局：按媒体宽高比等比缩放，最大 430（再乘媒体尺寸系数）；窄气泡下随宽度收缩 */
 const largeStyle = computed(() => {
     const p = plan.value;
     if (!p || !p.width || !p.height) return undefined;
-    return mediaFitStyle(p.width, p.height);
+    return mediaFitStyle(p.width, p.height, { scale: settings.message.mediaScale });
 });
 
 /** contain 模式：完整展示图片（不裁剪），居中；默认 cover 裁剪填充 */
@@ -303,7 +304,7 @@ const largeWrapStyle = computed(() => {
     if (props.contain) {
         if (!p || !p.width || !p.height) return undefined;
         // contain：用 fit 尺寸约束外框，窄窗口下同样收缩
-        const s = fitMediaSize(p.width, p.height);
+        const s = fitMediaSize(p.width, p.height, { scale: settings.message.mediaScale });
         return {
             width: '100%',
             maxWidth: `${s.width}px`,

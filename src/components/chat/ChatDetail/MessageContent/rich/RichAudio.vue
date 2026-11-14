@@ -1,11 +1,10 @@
 <template>
     <figure ref="rootEl" class="my-1.5">
-        <!-- 音乐卡片最小宽度：避免极短标题把卡片压成细条；plain（投票卡片内）由外层定宽，不加 -->
-        <div class="relative flex w-full items-center gap-2.5 overflow-hidden rounded-lg"
-            :class="plain ? 'min-w-0 p-0' : 'min-w-56 bg-black/5 dark:bg-white/10 p-2'">
-            <!-- 封面 + 播放按钮 -->
-            <div class="relative h-12 w-12 shrink-0">
-                <div class="group relative h-full w-full overflow-hidden rounded-xl bg-blue-100 dark:bg-blue-950">
+        <div class="relative flex w-full min-w-0 items-center gap-2.5 overflow-hidden rounded-lg"
+            :class="plain ? 'p-0' : 'bg-black/5 dark:bg-white/10 p-2'">
+            <!-- 封面 + 播放按钮（官方 44px 圆形封面） -->
+            <div class="relative h-11 w-11 shrink-0">
+                <div class="group relative h-full w-full overflow-hidden rounded-full bg-blue-100 dark:bg-blue-950">
                     <img v-if="coverSrc" :src="coverSrc" :alt="audioTitle"
                         class="h-full w-full select-none object-cover" @error="coverSrc = undefined" />
                     <div v-else class="flex h-full w-full items-center justify-center">
@@ -35,8 +34,9 @@
                     @update:model-value="onProgressUpdate" @change="onProgressCommit" />
                 <span v-else class="truncate py-[3px] text-xs text-gray-500 dark:text-gray-400">{{ audio?.performer ||
                     t('content.unknownArtist') }}</span>
-                <div class="mt-1 text-[10px] leading-none tabular-nums text-gray-400 dark:text-gray-500">
-                    {{ formatDuration(progressValue) }} / {{ formatDuration(displayDuration) }}
+                <!-- 副行文案对齐官方 File::setStatusSize：播放中「已播 / 总时长」，否则「时长, 大小」 -->
+                <div class="mt-1 truncate text-[10px] leading-none tabular-nums text-gray-400 dark:text-gray-500">
+                    {{ audioStatusText }}
                 </div>
             </div>
         </div>
@@ -150,9 +150,32 @@ async function togglePlayback() {
 
 function formatDuration(seconds: number) {
     const safeSeconds = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
-    const minutes = Math.floor(safeSeconds / 60);
-    return `${String(minutes).padStart(2, '0')}:${String(safeSeconds % 60).padStart(2, '0')}`;
+    const hours = Math.floor(safeSeconds / 3600);
+    const minutes = Math.floor((safeSeconds % 3600) / 60);
+    const rest = safeSeconds % 60;
+    const head = hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}` : String(minutes).padStart(2, '0');
+    return `${head}:${String(rest).padStart(2, '0')}`;
 }
+
+function formatSize(size: number) {
+    if (!size || size < 1024) return (size || 0) + ' B';
+    if (size < 1024 * 1024) return (size / 1024).toFixed(1) + ' KB';
+    return (size / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+/** 副行文案对齐官方 File::setStatusSize：播放中「已播 / 总时长」，否则「时长, 大小」 */
+const audioStatusText = computed(() => {
+    if (isCurrentTrack.value) {
+        return t('content.durationPlayed', {
+            played: formatDuration(progressValue.value),
+            duration: formatDuration(displayDuration.value),
+        });
+    }
+    return t('content.durationAndSize', {
+        duration: formatDuration(displayDuration.value),
+        size: formatSize(props.audio?.audio?.size || 0),
+    });
+});
 
 /** 加载代次：audio 变化时自增，丢弃过期异步封面写回，避免封面窜到另一首音频 */
 let coverLoadSeq = 0;

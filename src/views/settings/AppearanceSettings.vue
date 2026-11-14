@@ -255,6 +255,23 @@
                             <p class="mt-1 text-xs text-gray-400">{{ t('appearance.messageScaleDesc') }}</p>
                         </div>
 
+                        <!-- 媒体尺寸系数：图片/视频/GIF/音乐卡片/相册的统一缩放 -->
+                        <div class="px-4 py-3">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm text-gray-600 dark:text-gray-400">{{ t('appearance.mediaScale') }}</span>
+                                <span class="flex items-center gap-1">
+                                    <EditableNumber :value="Math.round(settings.message.mediaScale * 100)" unit="%"
+                                        :min="60" :max="120" @update:value="settings.message.mediaScale = $event / 100" />
+                                    <span v-if="Math.round(settings.message.mediaScale * 100) === DEFAULT_MEDIA_SCALE_PERCENT"
+                                        class="text-xs font-normal text-gray-400">{{ t('appearance.defaultSuffix') }}</span>
+                                </span>
+                            </div>
+                            <input type="range" min="60" max="120" step="1"
+                                :value="Math.round(settings.message.mediaScale * 100)"
+                                @input="onMediaScaleInput" class="w-full accent-blue-500" />
+                            <p class="mt-1 text-xs text-gray-400">{{ t('appearance.mediaScaleDesc') }}</p>
+                        </div>
+
                         <!-- 贴纸大小 -->
                         <div class="px-4 py-3">
                             <div class="flex items-center justify-between mb-2">
@@ -689,6 +706,8 @@ function goBack() {
 
 /** 消息显示/贴纸设置默认值（用于显示“(默认)”标记，与 settings.ts 默认值一致） */
 const DEFAULT_MESSAGE = { cornerRadius: 12, fontSize: 14, stickerSize: 160 };
+/** 媒体尺寸系数默认 85%（官方常量按大窗口设定，窄窗口下整体收一档） */
+const DEFAULT_MEDIA_SCALE_PERCENT = 85;
 
 /** 自定义气泡皮肤（分析完成后可渲染；null = 未启用或分析中） */
 const customSkin = useCustomBubbleSkin();
@@ -995,6 +1014,12 @@ const previewStickerWrapStyle = computed<Record<string, string>>(() => ({
 function onScaleInput(event: Event) {
     const target = event.target as HTMLInputElement;
     settings.message.scale = Number(target.value) / 100;
+}
+
+/** 媒体尺寸系数滑动条 input 事件（百分比转小数） */
+function onMediaScaleInput(event: Event) {
+    const target = event.target as HTMLInputElement;
+    settings.message.mediaScale = Number(target.value) / 100;
 }
 </script>
 

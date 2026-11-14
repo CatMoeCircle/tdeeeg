@@ -47,11 +47,12 @@
 </div>
 </div>
 
-<!-- Audio：最小宽度避免极短标题/时长的曲目把卡片压成细长条 -->
+<!-- Audio：卡片宽度对齐官方 msgFileMinWidth 268 / msgMaxWidth 430（扣除气泡 px-2 的 16px） -->
 <div v-else-if="content._ === 'messageAudio'"
-    class="relative flex w-full min-w-56 max-w-full items-center gap-3 overflow-hidden rounded-lg">
-    <div class="relative h-12 w-12 shrink-0">
-        <div class="group relative h-full w-full overflow-hidden rounded-xl bg-blue-100 dark:bg-blue-950">
+    class="relative flex w-full min-w-0 items-center gap-3 overflow-hidden rounded-lg" :style="audioCardStyle">
+    <div class="relative h-11 w-11 shrink-0">
+        <!-- 官方 DrawThumbnailAsSongCover：44px 圆形封面 -->
+        <div class="group relative h-full w-full overflow-hidden rounded-full bg-blue-100 dark:bg-blue-950">
             <img v-if="coverSrc" :src="coverSrc" :alt="content.audio.title || content.audio.file_name"
                 class="h-full w-full select-none object-cover" @error="coverSrc = undefined" />
             <div v-else class="flex h-full w-full items-center justify-center">
@@ -98,8 +99,10 @@
                 {{ content.audio.performer || t('content.unknownArtist') }}
             </template>
         </span>
-        <div class="mt-1 text-[10px] leading-none tabular-nums text-gray-400 dark:text-gray-500">
-            {{ formatDuration(progressValue) }} / {{ formatDuration(displayDuration) }}
+        <!-- 副行文案对齐官方 File::setStatusSize：
+             未播放 = 「时长, 大小」；播放中 = 「已播 / 总时长」 -->
+        <div class="mt-1 truncate text-[10px] leading-none tabular-nums text-gray-400 dark:text-gray-500">
+            {{ audioStatusText }}
         </div>
     </div>
 </div>
@@ -248,6 +251,21 @@ const uploading = ref(false);
 
 const uploadStore = useUploadStore();
 const audioPlayer = useAudioPlayerStore();
+
+/** 音频卡片宽度，对齐官方 msgFileMinWidth 268 / msgMaxWidth 430，再乘外观设置的媒体尺寸系数 */
+const AUDIO_CARD_BASE_MIN = 268;
+const AUDIO_CARD_BASE_MAX = 430;
+/** 气泡左右 padding（px-2 = 8+8），卡片宽度需扣掉才能让气泡整体等于官方值 */
+const BUBBLE_SIDE_PADDING = 16;
+const audioCardStyle = computed(() => {
+    const scale = settings.message.mediaScale;
+    const min = Math.round(AUDIO_CARD_BASE_MIN * scale) - BUBBLE_SIDE_PADDING;
+    const max = Math.round(AUDIO_CARD_BASE_MAX * scale) - BUBBLE_SIDE_PADDING;
+    return {
+        minWidth: `min(${Math.max(120, min)}px, 100%)`,
+        maxWidth: `${max}px`,
+    };
+});
 
 /** 当前消息是否为全局播放器中正在播放的曲目 */
 const isCurrentTrack = computed(() => {
@@ -892,8 +910,11 @@ async function togglePlayback() {
 
 function formatDuration(seconds: number) {
     const safeSeconds = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
-    const minutes = Math.floor(safeSeconds / 60);
-    return `${String(minutes).padStart(2, '0')}:${String(safeSeconds % 60).padStart(2, '0')}`;
+    const hours = Math.floor(safeSeconds / 3600);
+    const minutes = Math.floor((safeSeconds % 3600) / 60);
+    const rest = safeSeconds % 60;
+    const head = hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}` : String(minutes).padStart(2, '0');
+    return `${head}:${String(rest).padStart(2, '0')}`;
 }
 
 const formatSize = (size: number) => {
@@ -901,6 +922,26 @@ const formatSize = (size: number) => {
     if (size < 1024 * 1024) return (size / 1024).toFixed(1) + ' KB';
     return (size / (1024 * 1024)).toFixed(1) + ' MB';
 };
+
+/**
+ * 副行文案对齐官方 File::setStatusSize：
+ * 播放中 = FormatPlayedText「已播 / 总时长」，否则 = FormatDurationAndSizeText「时长, 大小」。
+ */
+const audioStatusText = computed(() => {
+    if (uploading.value) return '';
+    if (isCurrentTrack.value) {
+        return t('content.durationPlayed', {
+            played: formatDuration(progressValue.value),
+            duration: formatDuration(displayDuration.value),
+        });
+    }
+    const audio = props.content._ === 'messageAudio' ? props.content.audio : undefined;
+    if (!audio) return '';
+    return t('content.durationAndSize', {
+        duration: formatDuration(displayDuration.value),
+        size: formatSize(audio.audio.size || 0),
+    });
+});
 
 /** 立即设置 base64 缩略图/封面预览（不下载），供离屏消息显示占位。 */
 function setFilePreview() {

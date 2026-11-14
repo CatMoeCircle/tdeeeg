@@ -25,14 +25,19 @@
                 class="relative overflow-hidden bg-gray-200 dark:bg-gray-700 cursor-pointer group"
                 :class="[borderRadiusClass, { 'msg-spoiler-media': hasSpoiler }]" :style="photoSizeStyle"
                 @click="openViewer">
+                <!-- contain 兜底：官方用模糊背景填满留边（DecideFrameResize 判定不裁切时） -->
+                <img v-if="thumbSrc && photoBox?.fill === 'contain'" :src="thumbSrc" aria-hidden="true"
+                    loading="lazy" decoding="async"
+                    class="absolute inset-0 w-full h-full object-cover blur-lg scale-110 opacity-70" />
                 <!-- 渐进占位：minithumbnail 高斯模糊 → Small 清晰图；Big 解码完成前一直垫在下层，避免闪空白 -->
-                <img v-if="thumbSrc && !imageLoaded" :src="thumbSrc" loading="lazy" decoding="async"
-                    class="absolute inset-0 w-full h-full object-cover"
+                <img v-if="thumbSrc && !imageLoaded && photoBox?.fill !== 'contain'" :src="thumbSrc" loading="lazy"
+                    decoding="async" class="absolute inset-0 w-full h-full object-cover"
                     :class="thumbIsBlur ? 'blur-sm scale-105' : ''" />
-                <!-- Full image (object-cover fills area) -->
+                <!-- Full image：官方 DecideFrameResize —— 能裁满就 cover，否则 contain 留边 -->
                 <img v-if="photoDisplaySrc" ref="photoImgEl" :src="photoDisplaySrc" loading="lazy" decoding="async"
-                    class="w-full h-full object-cover select-none"
-                    :class="{ 'opacity-0': !imageLoaded }" @load="onImageLoad" @error="onImageError" />
+                    class="w-full h-full select-none"
+                    :class="[photoFillClass, { 'opacity-0': !imageLoaded }]" @load="onImageLoad"
+                    @error="onImageError" />
                 <!-- Placeholder -->
                 <div v-if="!mediaSrc && !thumbSrc" class="flex items-center justify-center w-full h-full">
                     <svg class="w-8 h-8 text-gray-400 animate-pulse" viewBox="0 0 24 24" fill="none"
@@ -75,11 +80,15 @@
                   视频本体就绪（videoShowMedia）→ 直接渲染 <video>，不用 mini/封面盖住。
                   仅当视频不可用时才用封面/mini 占位；高清封面优先，mini 兜底。
                 -->
+                <!-- contain 兜底：官方用模糊背景填满留边（封面优先，避开动态缩略图源） -->
+                <img v-if="videoBox?.fill === 'contain' && (videoPosterSrc || (videoThumbSrc && !videoThumbIsVideo))"
+                    :src="videoPosterSrc || videoThumbSrc" aria-hidden="true" loading="lazy" decoding="async"
+                    class="absolute inset-0 w-full h-full object-cover blur-lg scale-110 opacity-70" />
                 <img v-if="!videoShowMedia && videoThumbSrc && !videoThumbIsVideo" :src="videoThumbSrc" loading="lazy" decoding="async"
-                    class="absolute inset-0 w-full h-full object-cover"
-                    :class="isMiniThumbSrc(videoThumbSrc) ? 'blur-sm scale-105' : ''" />
+                    class="absolute inset-0 w-full h-full"
+                    :class="[videoFillClass, isMiniThumbSrc(videoThumbSrc) ? 'blur-sm scale-105' : '']" />
                 <video v-else-if="!videoShowMedia && videoThumbSrc && videoThumbIsVideo && mediaViewportEntered" :src="videoThumbSrc" autoplay
-                    loop muted playsinline class="absolute inset-0 w-full h-full object-cover" />
+                    loop muted playsinline class="absolute inset-0 w-full h-full" :class="videoFillClass" />
                 <div v-else-if="!videoShowMedia" class="absolute inset-0 flex items-center justify-center">
                     <VideoIcon class="w-8 h-8 text-gray-400" />
                 </div>
@@ -92,7 +101,7 @@
                   poster 只用高清封面（绝不用 mini）。播放仍由 IO 控制（同屏只播一个）。
                 -->
                 <video v-if="videoShowMedia" ref="videoElRef" :src="mediaSrc"
-                    class="absolute inset-0 w-full h-full object-cover"
+                    class="absolute inset-0 w-full h-full" :class="videoFillClass"
                     :muted="videoMuted" loop playsinline preload="metadata"
                     :poster="videoPosterSrc"
                     :data-video-msg-id="messageId"
@@ -175,15 +184,19 @@
                 class="relative overflow-hidden bg-gray-200 dark:bg-gray-700 cursor-pointer group select-none"
                 :class="borderRadiusClass" :style="animSizeStyle" @click="openViewer">
                 <!-- Thumbnail: 静态位图用 <img>，MPEG4/WEBM 动态图用 <video> -->
+                <!-- contain 兜底：官方用模糊背景填满留边 -->
+                <img v-if="animBox?.fill === 'contain' && animThumbSrc && !animThumbIsVideo" :src="animThumbSrc"
+                    aria-hidden="true" loading="lazy" decoding="async"
+                    class="absolute inset-0 w-full h-full object-cover blur-lg scale-110 opacity-70" />
                 <!-- GIF 封面垫底到 mediaSrc 解码完成前，避免换源瞬间闪空白 -->
                 <img v-if="animThumbSrc && !animThumbIsVideo && !animMediaReady" :src="animThumbSrc" loading="lazy" decoding="async"
-                    class="absolute inset-0 w-full h-full object-cover" />
+                    class="absolute inset-0 w-full h-full" :class="animFillClass" />
                 <video v-else-if="animThumbSrc && animThumbIsVideo && !mediaSrc && mediaViewportEntered" :src="animThumbSrc" autoplay loop muted
-                    playsinline class="absolute inset-0 w-full h-full object-cover" />
+                    playsinline class="absolute inset-0 w-full h-full" :class="animFillClass" />
                 <!-- Full GIF (animation) -->
                 <video v-if="mediaSrc && mediaViewportEntered" :src="mediaSrc" autoplay loop muted playsinline
-                    class="w-full h-full object-cover"
-                    :class="{ 'opacity-0': !animMediaReady }" @loadeddata="animMediaReady = true"
+                    class="w-full h-full"
+                    :class="[animFillClass, { 'opacity-0': !animMediaReady }]" @loadeddata="animMediaReady = true"
                     @canplay="animMediaReady = true" />
 
                 <!-- GIF 胶囊（左上角，始终显示） -->
@@ -292,7 +305,13 @@ import { DL_PRIORITY } from '../../../../../utils/media/downloadPriority';
 import { getChatCategory, shouldAutoDownloadPhotos } from '../../../../../utils/media/autoDownload';
 import { pickSmallPhotoSize, pickBigPhotoSize } from '../../../../../utils/media/photoSizes';
 import { isThumbnailImgRenderable, isThumbnailVideoRenderable } from '../../../../../utils/media/thumbnail';
-import { fitMediaSize, mediaSizeStyle } from '../../../../../utils/media/fitMediaSize';
+import {
+    MEDIA_MAX,
+    GIF_MAX,
+    measureBubbleMedia,
+    bubbleMediaStyle,
+    type MediaFillMode,
+} from '../../../../../utils/media/fitMediaSize';
 import {
     currentlyPlayingId,
     globalVideoMuted,
@@ -926,25 +945,53 @@ function getOriginalDims(): { width: number; height: number } {
     return { width: 1, height: 1 };
 }
 
-/** 按原始比例等比缩放，限制在 432×432 / 96×96；窄窗口下随气泡收缩 */
-const mediaDisplaySize = computed(() => {
+/**
+ * 气泡内媒体盒子：对齐官方 Photo/Gif 的 countCurrentSize。
+ * 图片/视频上限 430，动图（GIF）上限 320；宽度至少 200、高度至少 100，
+ * 裁切不超过约 1/4 时盒子会被拉高填满，否则 contain 保留完整画面。
+ * 再乘上外观设置里的媒体尺寸系数（默认 0.85），窗口窄时不会显得过大。
+ */
+function measureBox(maxSize: number) {
     const { width, height } = getOriginalDims();
-    return fitMediaSize(width, height);
-});
+    return measureBubbleMedia(width, height, {
+        maxSize,
+        scale: settings.message.mediaScale,
+    });
+}
+
+const photoBox = computed(() => (props.content._ === 'messagePhoto' ? measureBox(MEDIA_MAX) : null));
+const videoBox = computed(() => (props.content._ === 'messageVideo' ? measureBox(MEDIA_MAX) : null));
+const animBox = computed(() => (props.content._ === 'messageAnimation' ? measureBox(GIF_MAX) : null));
+
+/** 媒体在盒子里的填充方式：能裁满就用 cover，否则 contain（留下模糊背景） */
+function fillClass(fill: MediaFillMode | undefined): string {
+    return fill === 'contain' ? 'object-contain' : 'object-cover';
+}
 
 const photoSizeStyle = computed(() => {
-    const { width, height } = getOriginalDims();
-    // maxWidth:100% + aspect-ratio：窗口变窄时等比收缩，不被固定像素裁切
-    return mediaSizeStyle(width, height);
+    const box = photoBox.value;
+    return box ? bubbleMediaStyle(box) : {};
 });
 
-const videoSizeStyle = computed(() => photoSizeStyle.value);
-const animSizeStyle = computed(() => photoSizeStyle.value);
+const videoSizeStyle = computed(() => {
+    const box = videoBox.value;
+    return box ? bubbleMediaStyle(box) : {};
+});
+
+const animSizeStyle = computed(() => {
+    const box = animBox.value;
+    return box ? bubbleMediaStyle(box) : {};
+});
+
+const photoFillClass = computed(() => fillClass(photoBox.value?.fill));
+const videoFillClass = computed(() => fillClass(videoBox.value?.fill));
+const animFillClass = computed(() => fillClass(animBox.value?.fill));
 
 /** 外层容器宽度 = 媒体宽度，使图片+文字+时间共享统一宽度；同样允许收缩 */
 const mediaContainerStyle = computed(() => {
+    const box = photoBox.value ?? videoBox.value ?? animBox.value;
     return {
-        width: `${mediaDisplaySize.value.width}px`,
+        width: `${box?.width ?? MEDIA_MAX}px`,
         maxWidth: '100%',
     };
 });

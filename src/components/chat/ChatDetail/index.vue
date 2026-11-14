@@ -85,7 +85,7 @@
                                 </div>
                                 <div class="flex min-w-0 max-w-[70%] flex-col"
                                     :class="isSelfAlbum(item) ? 'items-end' : 'items-start'">
-                                    <!-- 文件相册与图片宫格保持相近的固定宽度（MessageAlbum 的 ALBUM_W = 340） -->
+                                    <!-- 文件相册固定列宽（图片宫格走 MessageAlbum 的 mediaScale 缩放宽度） -->
                                     <div :class="[
                                         isFileAlbumItem(item) ? 'w-[340px] min-w-30' : 'w-min',
                                         'max-w-full overflow-hidden',
