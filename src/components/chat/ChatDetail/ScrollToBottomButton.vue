@@ -1,7 +1,8 @@
 <template>
     <button
-        class="absolute right-4 z-20 w-10 h-10 bg-white dark:bg-gray-700 rounded-full shadow-lg flex items-center justify-center text-gray-500 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
-        :style="{ bottom }" @click="emit('click')" :title="t('chat.scrollToBottom')">
+        class="absolute right-4 z-20 w-10 h-10 bg-white dark:bg-gray-700 rounded-full shadow-lg flex items-center justify-center text-gray-500 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors disabled:cursor-wait disabled:opacity-80"
+        :style="{ bottom }" @click="!loading && emit('click')" :disabled="loading"
+        :title="t('chat.scrollToBottom')" :aria-busy="loading">
         <span v-if="count > 0"
             class="absolute -top-1 -right-1 min-w-4.5 h-4.5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1 leading-none">
             <template v-if="count > 99">99+</template>
@@ -13,7 +14,8 @@
                 <span class="sr-only">{{ count }}</span>
             </template>
         </span>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+        <LoaderIndicator v-if="loading" size="20" color="currentColor" />
+        <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
             <path fill-rule="evenodd"
                 d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
                 clip-rule="evenodd" />
@@ -24,9 +26,10 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import Counter from '../../ui/counter/Counter.vue';
+import { LoaderIndicator } from '../../common/LoaderIndicator';
 
 /** 回到最底部按钮：贴在输入区上方，带未读新消息徽标。 */
-defineProps<{ bottom: string; count: number; places: (number | '.')[] }>();
+defineProps<{ bottom: string; count: number; places: (number | '.')[]; loading?: boolean }>();
 const emit = defineEmits<{ click: [] }>();
 const { t } = useI18n();
 </script>

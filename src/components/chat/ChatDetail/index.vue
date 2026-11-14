@@ -723,9 +723,9 @@
 
         <!-- ===== Floating scroll-to-bottom button ===== -->
         <Transition name="fade">
-            <ScrollToBottomButton v-if="showScrollButton || jumpReturnTarget"
+            <ScrollToBottomButton v-if="showScrollButton || jumpReturnTarget || isGoingBottom"
                 :bottom="scrollButtonBottom" :count="newMessageCount" :places="newMessageCountPlaces"
-                @click="handleScrollToBottom" />
+                :loading="bottomLoading" @click="handleScrollToBottom" />
         </Transition>
 
         <!-- ===== 全局媒体查看器 ===== -->
@@ -1682,12 +1682,15 @@ function restoreSliceAnchor(el: HTMLElement, anchor: { id: number; offset: numbe
 }
 
 /** 边缘需要更多数据时按一屏多的步长扩展渲染切片，而不是一次挂回完整 180 条 */
+let renderExpanding = false;
 async function expandRenderSlice(direction: 'top' | 'bottom') {
-    if (!hasRenderBounds()) return;
+    if (renderExpanding || !hasRenderBounds()) return;
+    renderExpanding = true;
     if (direction === 'top') isExpandingOlder.value = true;
     const el = messagesContainer.value;
     if (!el) {
         isExpandingOlder.value = false;
+        renderExpanding = false;
         clearRenderBounds();
         return;
     }
@@ -1696,6 +1699,7 @@ async function expandRenderSlice(direction: 'top' | 'bottom') {
     const currentIdx = currentKey ? items.findIndex(item => item.key === currentKey) : -1;
     if (currentIdx < 0) {
         isExpandingOlder.value = false;
+        renderExpanding = false;
         clearRenderBounds();
         return;
     }
@@ -1705,6 +1709,7 @@ async function expandRenderSlice(direction: 'top' | 'bottom') {
         : Math.min(items.length - 1, currentIdx + STEP);
     if (nextIdx === currentIdx) {
         if (direction === 'top') isExpandingOlder.value = false;
+        renderExpanding = false;
         return;
     }
 
@@ -1720,6 +1725,7 @@ async function expandRenderSlice(direction: 'top' | 'bottom') {
         refreshScrollMetrics(el);
         endManualAnchor(el);
         if (direction === 'top') isExpandingOlder.value = false;
+        renderExpanding = false;
     }
     // 刚展开边缘，给用户一点滚动时间，不要立刻又切回去
     slicePausedUntil = Date.now() + 900;
@@ -2873,6 +2879,11 @@ const newMessageCountPlaces = computed<(number | '.')[]>(() => {
 /** 正在播放删除消失动画的消息 id：动画结束后才真正从列表移除 */
 const leavingMessageIds = ref<Set<number>>(new Set());
 const showScrollButton = ref(false);
+/** 「置底」按钮触发中：按钮原位显示加载指示器，加载完成前不滚动/不跳转 */
+const isGoingBottom = ref(false);
+/** 只有“正在取底部数据/展开”时为 true；数据就绪、开始滚动前置回 false，按钮先停止转圈 */
+const bottomLoading = ref(false);
+const pendingBottomIntent = ref(false);
 const jumpReturnTarget = ref<{ anchorId: number; pixelFromTop: number } | null>(null);
 /** 进行中的跳转滚动动画；新的动画/程序化定位/用户输入都会取消它 */
 let scrollAnimRaf = 0;
@@ -3941,6 +3952,9 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
     // 取消进行中的历史分批揭示，清空隐藏集，避免旧聊天的消息串进新聊天
     olderRevealGen++;
     hiddenOlderIds.value = new Set();
+    pendingBottomIntent.value = false;
+    isGoingBottom.value = false;
+    bottomLoading.value = false;
     clearRenderBounds();
 
     // 通知 TDLib 关闭旧聊天（停收推送更新等）
@@ -4062,6 +4076,9 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
                 scrollToBrowseAnchor(savedBrowsePos.anchorId, savedBrowsePos.pixelFromTop);
             } else {
                 scrollToBottomPure();
+                // 置底先展开附近几条，避免只剩一屏底部消息、没有上滑空间
+                await revealNearbyAtBottom(gen);
+                if (!isGenerationValid(gen) || chatId.value !== currentId) return;
             }
             // 已读上报与历史预取都由 isReady 挡住（此时仍为 false），等正式首屏数据到达后按原逻辑跑
             disarmSkeleton();
@@ -4315,6 +4332,11 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
             hideMessagesOutsideFirstPaint(anchorAfterFill > 0 ? anchorAfterFill : 0);
             // 藏掉锚点以上的行会改变 scrollHeight，重新按锚点定位一次，避免露出后位置偏。
             positionAtAnchor();
+            if (anchorAfterFill === 0) {
+                // 置底：先展开附近几条，补足上滑空间后再露出
+                await revealNearbyAtBottom(gen);
+                if (!isGenerationValid(gen) || chatId.value !== currentId) return;
+            }
         }
 
         // 定位与补齐都完成后才露出，避免「先显示再跳到已读/未读」
@@ -4640,16 +4662,69 @@ function revealHiddenOnScroll() {
     void revealOlderMessagesInChunks([...hiddenOlderIds.value], olderRevealGen, hold);
 }
 
+/**
+ * 置底首屏：先揭示紧邻底部的若干条，补到约 1.5 屏内容再露出。
+ * 只揭示“附近”的条数（最多 32 条），远处历史仍等用户上滚时再挂。
+ */
+async function revealNearbyAtBottom(gen: number) {
+    const el = messagesContainer.value;
+    if (!el || hiddenOlderIds.value.size === 0) return;
+    const sorted = [...hiddenOlderIds.value].sort((a, b) => b - a); // 靠近底部的先
+    let next = new Set(hiddenOlderIds.value);
+    let revealed = 0;
+    while (next.size > 0 && revealed < 32 && el.scrollHeight < el.clientHeight * 1.5) {
+        for (let i = 0; i < 8 && sorted.length > 0; i++) {
+            next.delete(sorted.shift()!);
+            revealed++;
+        }
+        hiddenOlderIds.value = next;
+        await nextTick();
+        if (!isGenerationValid(gen)) return;
+        scrollToBottomPure();
+    }
+}
+
 /** 最近一次用户主动滚动/触摸时间：揭示历史时如果用户还在滚，先不挂 DOM，避免滚动中掉帧 */
 /** 是否发生过用户主动滚动/点击；首屏定位阶段为 false，避免把程序化 scroll 当成上滚 */
 let hasUserInteracted = false;
+/** 列表短到没有滚动条时，滚轮停在边缘不会产生 scroll 事件；必须在交互里主动扩切片/拉历史 */
+function handleScrollEdgeOnInteraction() {
+    const el = messagesContainer.value;
+    if (!el || !listRevealed.value || !chatId.value || !isReady.value) return;
+    if (Date.now() < scrollLoadSuppressedUntil || isLoadingMore.value) return;
+
+    const atTop = el.scrollTop <= SCROLL_PREFETCH_PX;
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - SCROLL_PREFETCH_PX;
+
+    if (atTop) {
+        if (hiddenOlderIds.value.size > 0) {
+            revealHiddenOnScroll();
+            return;
+        }
+        const dataFirstKey = messageItems.value[0]?.key ?? '';
+        if (renderStartKey.value && renderStartKey.value !== dataFirstKey) {
+            void expandRenderSlice('top');
+            return;
+        }
+        if (!isOlderExhausted()) {
+            void loadHistoryOlder(chatId.value, loadGeneration);
+        }
+    } else if (atBottom) {
+        const dataLastKey = messageItems.value[messageItems.value.length - 1]?.key ?? '';
+        if (renderEndKey.value && renderEndKey.value !== dataLastKey) {
+            void expandRenderSlice('bottom');
+            return;
+        }
+        if (!isNewerDirectionExhausted()) {
+            void loadHistoryNewer(chatId.value, loadGeneration);
+        }
+    }
+}
+
 function markMessageInteraction() {
     hasUserInteracted = true;
     markMessageScrollActive();
-    const el = messagesContainer.value;
-    if (el && el.scrollTop <= SCROLL_PREFETCH_PX && hiddenOlderIds.value.size > 0) {
-        revealHiddenOnScroll();
-    }
+    handleScrollEdgeOnInteraction();
 }
 
 let olderRevealRunning = false;
@@ -4818,7 +4893,22 @@ async function loadHistoryNewer(loadChatId: number, gen: number): Promise<boolea
             return false;
         }
 
-        appendMessages(unique);
+        // 分块追加：一次挂 30 条新消息会和新行布局/图片解码抢同一帧。
+        // 每帧只追加一小块，已有行的 v-memo 会跳过，新增行分批进入。
+        const CHUNK = 8;
+        for (let i = 0; i < unique.length; i += CHUNK) {
+            if (!isGenerationValid(gen) || chatId.value !== loadChatId) return false;
+            appendMessages(unique.slice(i, i + CHUNK));
+            await nextTick();
+            if (i + CHUNK < unique.length) {
+                await new Promise<void>(r => requestAnimationFrame(() => r()));
+            }
+        }
+        // 切片底部同步到新的数据末条：否则下一次滚轮又要逐段扩切片，形成连续重排
+        if (renderEndKey.value) {
+            const lastKey = messageItems.value[messageItems.value.length - 1]?.key ?? '';
+            if (lastKey) renderEndKey.value = lastKey;
+        }
         refreshWindowReachesLatest();
         await nextTick();
         refreshScrollMetrics();
@@ -7705,13 +7795,54 @@ function refreshKeyboardLock(messageId: number) {
  * 使用 function 声明以便 updateNewMessage 在 TDZ 外安全引用。
  */
 async function handleScrollToBottom() {
+    if (isGoingBottom.value) return;
+    // 首屏定位/补齐还没完成时先只记下意图，等 isReady 后再执行，避免被浏览位置/未读锚点拽回去
+    if (!isReady.value || !listRevealed.value) {
+        pendingBottomIntent.value = true;
+        isGoingBottom.value = true;
+        bottomLoading.value = true;
+        window.setTimeout(() => {
+            if (!pendingBottomIntent.value) return;
+            pendingBottomIntent.value = false;
+            isGoingBottom.value = false;
+            bottomLoading.value = false;
+        }, 5000);
+        return;
+    }
+    pendingBottomIntent.value = false;
+    isGoingBottom.value = true;
+    bottomLoading.value = true;
+    try {
+        await handleScrollToBottomInner();
+    } finally {
+        isGoingBottom.value = false;
+        bottomLoading.value = false;
+    }
+}
+
+watch(isReady, (ready) => {
+    if (!ready || !pendingBottomIntent.value) return;
+    pendingBottomIntent.value = false;
+    isGoingBottom.value = false;
+    bottomLoading.value = false;
+    void handleScrollToBottom();
+});
+
+async function handleScrollToBottomInner() {
+    clearFirstCalibration();
+    if (chatId.value !== undefined) {
+        cancelScheduledBrowsePosSave();
+        clearLastBrowsePosition(chatId.value, topicId.value);
+    }
     cancelJumpSettle();
+    cancelScrollAnim();
     const returnTarget = jumpReturnTarget.value;
     if (returnTarget) {
         jumpReturnTarget.value = null;
         clearMessageHighlight();
         cancelScrollAnim();
         showScrollButton.value = false;
+        bottomLoading.value = false;
         const el = messagesContainer.value;
         if (el && findRenderedMsgEl(el, returnTarget.anchorId)) {
             await animateScrollTop(el, () => computeBrowseScrollTop(el, returnTarget.anchorId, returnTarget.pixelFromTop));
@@ -7752,6 +7883,7 @@ async function handleScrollToBottom() {
     const gen = loadGeneration;
     const loadChat = chatId.value;
     if (!loadChat) {
+        bottomLoading.value = false;
         scrollToBottom();
         return;
     }
@@ -7771,6 +7903,7 @@ async function handleScrollToBottom() {
             refreshWindowReachesLatest();
             isLoadingMore.value = false;
             loadingDirection.value = null;
+            bottomLoading.value = false;
             await nextTick();
             await scrollToBottomAnimated();
             return;
@@ -7856,6 +7989,8 @@ async function handleScrollToBottom() {
         loadingDirection.value = null;
     }
     await nextTick();
+    // 数据已就绪：先停止按钮转圈，再执行滚动
+    bottomLoading.value = false;
     // 整窗替换后旧 scrollTop 已不再代表用户原来的视觉位置，强行从新窗口顶部播放
     // 会制造错误方向的滚动。只有列表连续保留时才做平滑滚动。
     if (replacedWindow) scrollToBottomImmediate();
