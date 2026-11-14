@@ -1601,7 +1601,9 @@
     "unblockFailed": "Не удалось разблокировать",
     "deleteContactFailed": "Не удалось удалить контакт",
     "unblockConfirm": "Разблокировать «{name}»?",
-    "privateChatUnavailable": "Личный чат недоступен"
+    "privateChatUnavailable": "Личный чат недоступен",
+    "addedToChat": "Бот добавлен в «{group}»",
+    "addBotFailed": "Не удалось добавить бота"
   },
   "debug": {
     "copyJson": "Копировать JSON",

@@ -1,8 +1,8 @@
 <template>
-  <ModalDialog :model-value="modelValue" :title="t('lng_rights_edit_admin')" @update:model-value="close">
+  <ModalDialog :model-value="modelValue" :title="dialogTitle" @update:model-value="close">
     <div class="space-y-4">
-      <!-- 头衔（群组，频道隐藏 — EditRank） -->
-      <div v-if="!isChannel">
+      <!-- 头衔（群组，频道隐藏 — EditRank；添加机器人时还没有头衔） -->
+      <div v-if="!isChannel && !addingBot">
         <label class="text-xs text-gray-400">{{ t('lng_rights_edit_admin_rank_name') }}</label>
         <input v-model="customTitle" type="text" maxlength="16"
           :placeholder="isCreatorSelf ? t('lng_rights_group_anonymous') : t('lng_admin_log_admin_change_info')"
@@ -13,7 +13,16 @@
 
       <p v-if="!canEdit" class="text-xs text-amber-600">{{ t('lng_rights_about_admin_cant_edit') }}</p>
 
-      <div v-if="true" class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800"
+      <!-- 添加机器人：群组可选择「以普通成员身份加入」（对齐官方客户端 EditAdminBox） -->
+      <div v-if="addingBot && botCanChooseMember"
+        class="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-4 py-3">
+        <div class="min-w-0 flex-1">
+          <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lng_bot_as_admin_check') }}</p>
+        </div>
+        <ToggleSwitch v-model="addAsAdmin" />
+      </div>
+
+      <div v-if="showAdminRights" class="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 overflow-hidden divide-y divide-gray-100 dark:divide-gray-800"
         :class="!canEdit ? 'opacity-60 pointer-events-none' : ''">
         <!-- 修改资料 -->
         <div class="flex items-center gap-3 px-4 py-2.5" :class="lockChangeInfo ? 'opacity-50' : ''">
@@ -108,7 +117,7 @@
       <BaseButton type="button" variant="ghost"
         @click="close">{{ t('lng_cancel') }}</BaseButton>
       <BaseButton v-if="canEdit" type="button" @click="save" :disabled="saving" variant="primary">
-        {{ saving ? t('lng_context_seen_loading') : t('lng_settings_save') }}
+        {{ saving ? t('lng_context_seen_loading') : saveLabel }}
       </BaseButton>
     </template>
   </ModalDialog>
@@ -123,6 +132,7 @@ import ModalDialog from '../ui/modal/ModalDialog.vue';
 import ToggleSwitch from '../ui/toggle/ToggleSwitch.vue';
 import { tdlibSend } from '../../utils/session/tdlib';
 import { emptyAdminRights } from '../../utils/chat/groupRights';
+import { getReactiveChat } from '../../utils/profile/senderInfo';
 import type { chatAdministratorRights, chatMember, chatPermissions, MessageSender } from 'tdlib-types';
 import BaseButton from '../ui/button/BaseButton.vue';
 
@@ -138,10 +148,25 @@ const props = defineProps<{
   myRights?: chatAdministratorRights | null;
   /** 默认成员权限：已对全员开启的项不可单独关闭（IsEnabled 逻辑） */
   defaultPermissions?: chatPermissions | null;
+  /**
+   * 添加机器人场景（对齐官方客户端 EditAdminBox 的添加模式）：
+   * - 标题改为「添加机器人」，按钮为「以管理员/成员身份添加机器人」
+   * - 频道恒为管理员；群组可通过开关改为普通成员加入
+   */
+  addBot?: {
+    userId: number;
+    /** 机器人请求的默认管理员权限（按频道/群组区分，可为空） */
+    rights?: chatAdministratorRights | null;
+    /** 群组：是否允许「作为普通成员加入」 */
+    allowMember?: boolean;
+    /** 打开时是否默认勾选「管理员权限」（频道恒为 true） */
+    startAsAdmin?: boolean;
+  } | null;
 }>();
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
   changed: [];
+  added: [];
 }>();
 
 const { t } = useI18n();
@@ -150,10 +175,29 @@ const customTitle = ref('');
 const rights = reactive<chatAdministratorRights>(emptyAdminRights());
 const msgExpanded = ref(false);
 const storyExpanded = ref(false);
+/** 添加机器人：是否以管理员身份加入（机器人有申请时默认开，否则默认关闭、由用户决定） */
+const addAsAdmin = ref(true);
+
+const addingBot = computed(() => !!props.addBot);
+/** 仅群组可切换为普通成员；频道里的机器人只能作为管理员 */
+const botCanChooseMember = computed(() => !!props.addBot?.allowMember && !props.isChannel);
+const showAdminRights = computed(
+  () => !addingBot.value || !botCanChooseMember.value || addAsAdmin.value,
+);
+const dialogTitle = computed(() =>
+  addingBot.value ? t('lng_bot_add_title') : t('lng_rights_edit_admin'),
+);
+const saveLabel = computed(() => {
+  if (!addingBot.value) return t('lng_settings_save');
+  return addAsAdmin.value && showAdminRights.value
+    ? t('lng_bot_add_as_admin')
+    : t('lng_bot_add_as_member');
+});
 
 const isCreatorSelf = computed(() => props.member?.status?._ === 'chatMemberStatusCreator');
-/** canBeEdited：创建者=自己，或管理员 can_be_edited；新成员可编辑 */
+/** canBeEdited：创建者=自己，或管理员 can_be_edited；新成员/机器人可编辑 */
 const canEdit = computed(() => {
+  if (addingBot.value) return true;
   const st = props.member?.status;
   if (!st) return true;
   if (st._ === 'chatMemberStatusCreator') return isCreatorSelf.value;
@@ -254,51 +298,79 @@ watch(
   () => props.modelValue,
   (open) => {
     if (!open) return;
+    if (addingBot.value) {
+      // 添加机器人：预填机器人向 BotFather 申请的管理员权限
+      addAsAdmin.value = props.addBot?.startAsAdmin ?? true;
+      customTitle.value = '';
+      resetRights(props.addBot?.rights);
+      return;
+    }
     customTitle.value = props.member?.tag ?? '';
     const st = props.member?.status;
-    Object.assign(rights, emptyAdminRights(), st?._ === 'chatMemberStatusAdministrator' ? st.rights : {});
+    resetRights(st?._ === 'chatMemberStatusAdministrator' ? st.rights : null);
     if (st?._ === 'chatMemberStatusCreator') {
       customTitle.value = props.member?.tag ?? '';
     }
   },
 );
 
+/** 重置权限面板：先清零上一次打开残留的字段，再套用默认权限 + 传入权限 */
+function resetRights(source?: chatAdministratorRights | null) {
+  const target = rights as unknown as Record<string, unknown>;
+  for (const key of Object.keys(target)) {
+    if (key !== '_') target[key] = false;
+  }
+  const fresh = { ...emptyAdminRights(), ...(source ?? {}) };
+  Object.assign(rights, fresh);
+}
+
 function close() {
   emit('update:modelValue', false);
 }
 
+/** 保存时按频道/群组掩码（频道不支持群组权限，群组不支持频道权限） */
+function maskedRights(): chatAdministratorRights {
+  return {
+    ...rights,
+    can_post_messages: props.isChannel ? rights.can_post_messages : false,
+    can_edit_messages: props.isChannel ? rights.can_edit_messages : false,
+    can_manage_direct_messages: props.isChannel ? rights.can_manage_direct_messages : false,
+    can_pin_messages: props.isChannel ? false : rights.can_pin_messages,
+    can_manage_topics: props.isForum ? rights.can_manage_topics : false,
+    is_anonymous: props.isChannel ? false : rights.is_anonymous,
+  };
+}
+
+/** 是否有任何实质管理员权限（无权限时管理员身份没有意义） */
+function meaningfulRights(): boolean {
+  return rights.can_change_info
+    || rights.can_delete_messages
+    || rights.can_invite_users
+    || rights.can_restrict_members
+    || rights.can_promote_members
+    || rights.can_post_messages
+    || rights.can_edit_messages
+    || rights.can_post_stories
+    || rights.can_edit_stories
+    || rights.can_delete_stories
+    || rights.can_manage_video_chats
+    || rights.can_manage_topics
+    || rights.can_manage_direct_messages;
+}
+
 async function save() {
+  if (addingBot.value) {
+    await saveAddBot();
+    return;
+  }
   if (!props.member) return;
   const userId = (props.member.member_id as MessageSender & { user_id?: number }).user_id;
   if (!userId) return;
   saving.value = true;
   try {
-    const meaningful = rights.can_change_info
-      || rights.can_delete_messages
-      || rights.can_invite_users
-      || rights.can_restrict_members
-      || rights.can_promote_members
-      || rights.can_post_messages
-      || rights.can_edit_messages
-      || rights.can_post_stories
-      || rights.can_edit_stories
-      || rights.can_delete_stories
-      || rights.can_manage_video_chats
-      || rights.can_manage_topics
-      || rights.can_manage_direct_messages;
-    // 保存时按频道/群组掩码
-    const masked: chatAdministratorRights = {
-      ...rights,
-      can_post_messages: props.isChannel ? rights.can_post_messages : false,
-      can_edit_messages: props.isChannel ? rights.can_edit_messages : false,
-      can_manage_direct_messages: props.isChannel ? rights.can_manage_direct_messages : false,
-      can_pin_messages: props.isChannel ? false : rights.can_pin_messages,
-      can_manage_video_chats: rights.can_manage_video_chats,
-      can_manage_topics: props.isForum ? rights.can_manage_topics : false,
-      is_anonymous: props.isChannel ? false : rights.is_anonymous,
-    };
+    const meaningful = meaningfulRights();
     const status = meaningful
-      ? { _: 'chatMemberStatusAdministrator' as const, can_be_edited: true, rights: masked }
+      ? { _: 'chatMemberStatusAdministrator' as const, can_be_edited: true, rights: maskedRights() }
       : { _: 'chatMemberStatusMember' as const, member_until_date: 0 };
     await tdlibSend({
       _: 'setChatMemberStatus',
@@ -326,5 +398,62 @@ async function save() {
   } finally {
     saving.value = false;
   }
+}
+
+/**
+ * 添加机器人：
+ * - 管理员：setChatMemberStatus(administrator) 一步完成「加入 + 设为管理员」
+ *   （TDLib 对非成员会先 add_chat_participant / channels.editAdmin，官方客户端同样走这里）
+ * - 普通成员：addChatMember
+ */
+async function saveAddBot() {
+  const bot = props.addBot;
+  if (!bot?.userId) return;
+  saving.value = true;
+  try {
+    const asAdmin = addAsAdmin.value && showAdminRights.value;
+    if (asAdmin) {
+      const finalRights = grantableMask(maskedRights());
+      await tdlibSend({
+        _: 'setChatMemberStatus',
+        chat_id: props.chatId,
+        member_id: { _: 'messageSenderUser', user_id: bot.userId },
+        status: {
+          _: 'chatMemberStatusAdministrator' as const,
+          can_be_edited: true,
+          rights: finalRights,
+        },
+      } as any);
+    } else {
+      await tdlibSend({
+        _: 'addChatMember',
+        chat_id: props.chatId,
+        user_id: bot.userId,
+      } as any);
+    }
+    const title = getReactiveChat(props.chatId)?.title ?? '';
+    toast.success(t('user.addedToChat', { group: title }));
+    emit('added');
+    close();
+  } catch (e: any) {
+    toast.error(e?.message || t('user.addBotFailed'));
+  } finally {
+    saving.value = false;
+  }
+}
+
+/**
+ * 非群主只能授予自己拥有的权限：机器人在 BotFather 申请的权限可能超出我的可授予范围，
+ * 保存前按官方客户端（EditAdminBox 的 myEditableRights 掩码）取交集，避免服务端报权限不足。
+ */
+function grantableMask(source: chatAdministratorRights): chatAdministratorRights {
+  if (props.isOwner || !props.myRights) return source;
+  const mine = props.myRights as unknown as Record<string, unknown>;
+  const out = { ...source } as unknown as Record<string, unknown>;
+  for (const key of Object.keys(out)) {
+    if (key === '_') continue;
+    if (out[key] === true && mine[key] !== true) out[key] = false;
+  }
+  return out as unknown as chatAdministratorRights;
 }
 </script>

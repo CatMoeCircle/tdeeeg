@@ -1730,7 +1730,9 @@
     "unblockFailed": "Failed to unblock",
     "deleteContactFailed": "Failed to delete contact",
     "unblockConfirm": "Unblock \"{name}\"?",
-    "privateChatUnavailable": "Private chat unavailable"
+    "privateChatUnavailable": "Private chat unavailable",
+    "addedToChat": "Bot added to «{group}»",
+    "addBotFailed": "Failed to add the bot"
   },
   "debug": {
     "copyJson": "Copy JSON",

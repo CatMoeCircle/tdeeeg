@@ -83,14 +83,6 @@
               </p>
             </div>
 
-            <!-- bot 主 Mini App 入口（有主 Web App 的 bot 才显示；文案优先 bot 菜单按钮文字） -->
-            <button v-if="canOpenMiniApp" type="button"
-              class="mt-4 flex w-full max-w-72 items-center justify-center gap-2 rounded-xl bg-[var(--app-brand)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--app-brand-hover)]"
-              @click="openBotMiniApp">
-              <AppWindowIcon class="w-4 h-4 shrink-0" />
-              <span class="truncate">{{ miniAppButtonLabel }}</span>
-            </button>
-
             <!-- 操作按钮区：消息 / 通话 / 通知 / 搜索 / 更多（等大方块，单排，灰色半透明） -->
             <div v-if="!isSelf" class="mt-5 flex items-center justify-center gap-2">
               <!-- 消息 -->
@@ -609,11 +601,31 @@
 
             <!-- 机器人资料（如为机器人） -->
             <div v-if="isBot" class="p-3.5">
-              <div class="flex items-center gap-2 mb-1">
-                <Bot class="w-5 h-5 text-gray-400" />
+              <div class="flex items-center gap-2">
+                <Bot class="w-5 h-5 text-gray-400 shrink-0" />
                 <span class="text-sm font-medium">{{ t('lng_status_bot') }}</span>
               </div>
-              <p v-if="botDescription" class="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
+
+              <!-- bot 动作区（对齐官方客户端：放在资料详情区、简介/命令上方） -->
+              <div v-if="canOpenMiniApp || botInviteLabel" class="mt-3 space-y-2">
+                <!-- bot 主 Mini App 入口（有主 Web App 的 bot 才显示；文案优先 bot 菜单按钮文字） -->
+                <button v-if="canOpenMiniApp" type="button"
+                  class="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--app-brand)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--app-brand-hover)]"
+                  @click="openBotMiniApp">
+                  <AppWindowIcon class="w-4 h-4 shrink-0" />
+                  <span class="truncate">{{ miniAppButtonLabel }}</span>
+                </button>
+
+                <!-- bot「添加到群组/频道」入口 -->
+                <button v-if="botInviteLabel" type="button"
+                  class="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-400/15 px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-500/25 dark:text-gray-200"
+                  @click="openAddBotDialog">
+                  <UserPlus class="w-4 h-4 shrink-0" />
+                  <span class="truncate">{{ botInviteLabel }}</span>
+                </button>
+              </div>
+
+              <p v-if="botDescription" class="mt-3 text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
                 {{ botDescription }}
               </p>
               <div v-if="botInfo?.commands && botInfo.commands.length > 0" class="mt-2 space-y-1">
@@ -1289,6 +1301,14 @@
       :default-permissions="chatObj?.permissions" @changed="onMemberActionChanged" />
     <GroupRestrictDialog v-model="memberRestrictVisible" :chat-id="chatId ?? 0" :member="memberMenuTarget"
       :default-permissions="chatObj?.permissions" @changed="onMemberActionChanged" />
+
+    <!-- bot：添加到群组/频道（选择器 → 需要时进入管理员权限设置） -->
+    <AddBotToChatDialog v-model="addBotVisible" :bot-user-id="userId"
+      :can-join-groups="!!botUserType?.can_join_groups" @admin-flow="openBotAdminFlow"
+      @done="onBotAddedToChat" />
+    <GroupAdminRightsDialog v-model="botAdminVisible" :chat-id="botAdminChatId" :is-channel="botAdminIsChannel"
+      :is-forum="botAdminIsForum" :is-owner="botAdminIsOwner" :my-rights="botAdminMyRights"
+      :default-permissions="botAdminDefaultPermissions" :add-bot="botAddContext" @added="onBotAdminAdded" />
   </div>
 </template>
 
@@ -1297,7 +1317,7 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, ref, watch, nextTick, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, giftCollection, MessageSender, messageSticker, sticker, receivedGift, story, storyAlbum, chat, audio as TdAudio, birthdate, file, message, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo, secretChat, SearchMessagesFilter$Input, emojiStatus, emojiStatus$Input, BlockList$Input, chatMember, ChatMemberStatus } from "tdlib-types";
+import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, giftCollection, MessageSender, messageSticker, sticker, receivedGift, story, storyAlbum, chat, audio as TdAudio, birthdate, file, message, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo, secretChat, SearchMessagesFilter$Input, emojiStatus, emojiStatus$Input, BlockList$Input, chatMember, ChatMemberStatus, chatAdministratorRights, chatPermissions } from "tdlib-types";
 import Avatar from "../../components/chat/avatar.vue";
 import CustomEmojiInline from "../../components/common/CustomEmojiInline.vue";
 import GlobalEmojiText from "../../components/common/GlobalEmojiText.vue";
@@ -1338,6 +1358,8 @@ import {
   isBasicGroupChat,
   canPromoteMembers,
   canRestrictMembers,
+  loadMyChatMemberStatus,
+  isChannelChat,
 } from "../../utils/chat/groupRights";
 import { useAudioPlayerStore, type AudioTrack } from "../../store/media/audioPlayer";
 import formatTime from "../../utils/ui/formatTime";
@@ -1365,6 +1387,7 @@ import { requestCustomEmoji } from "../../store/media/customEmoji";
 import EncryptionKeyDialog from "../../components/user/EncryptionKeyDialog.vue";
 import GroupAdminRightsDialog from "../../components/settings/GroupAdminRightsDialog.vue";
 import GroupRestrictDialog from "../../components/settings/GroupRestrictDialog.vue";
+import AddBotToChatDialog from "../../components/user/AddBotToChatDialog.vue";
 import { ShieldAdminIcon, RestrictKeyIcon } from "../../components/common/tgico";
 import { tdPlural } from "../../utils/i18n/tdLang";
 import ProfileRoleBadge from "../../components/common/ProfileRoleBadge.vue";
@@ -2907,6 +2930,105 @@ const isBot = computed(() => user.value?.type?._ === 'userTypeBot');
 const botInfo = computed(() => fullInfo.value?.bot_info);
 const botDescription = computed(() => botInfo.value?.short_description || botInfo.value?.description || '');
 
+// ===== 机器人：添加到群组/频道（对齐官方桌面版 AddBotToGroupBoxController）=====
+/** 官方桌面版不提供「添加到群组」的特殊机器人（回复机器人 / 验证码机器人） */
+const BOT_INVITE_EXCLUDED_IDS = new Set([1271266957, 489000]);
+
+/** 管理员权限对象里是否有任一权限（null = 机器人未向 BotFather 申请管理员权限） */
+function hasAnyAdminRight(rights?: chatAdministratorRights | null): boolean {
+  if (!rights) return false;
+  const flags = rights as unknown as Record<string, unknown>;
+  return Object.keys(flags).some((key) => key !== '_' && flags[key] === true);
+}
+
+/** 机器人类型信息（can_join_groups 等） */
+const botUserType = computed(() =>
+  user.value?.type?._ === 'userTypeBot' ? user.value.type : undefined,
+);
+/** 机器人请求的群组管理员权限（决定是否进入「设置管理员权限」步骤） */
+const botGroupAdminRequested = computed(() =>
+  hasAnyAdminRight(botInfo.value?.default_group_administrator_rights),
+);
+/** 机器人请求的频道管理员权限（频道里的机器人只能以管理员身份加入） */
+const botChannelAdminRequested = computed(() =>
+  hasAnyAdminRight(botInfo.value?.default_channel_administrator_rights),
+);
+/** 资料页入口文案（加入群组或频道 / 仅频道；与官方客户端 add-bot 入口一致） */
+const botInviteLabel = computed(() => {
+  if (!isBot.value || !user.value || user.value.is_support) return '';
+  if (BOT_INVITE_EXCLUDED_IDS.has(user.value.id)) return '';
+  // 可加入群组：选择器同时提供群组与（我管理的）频道
+  if (botUserType.value?.can_join_groups) return t('lng_profile_add_bot_as_admin');
+  return botChannelAdminRequested.value ? t('lng_profile_invite_to_channel') : '';
+});
+
+const addBotVisible = ref(false);
+const botAdminVisible = ref(false);
+const botAdminChatId = ref(0);
+const botAdminIsChannel = ref(false);
+const botAdminIsForum = ref(false);
+const botAdminIsOwner = ref(false);
+const botAdminMyRights = ref<chatAdministratorRights | null>(null);
+const botAdminDefaultPermissions = ref<chatPermissions | null>(null);
+/** 目标对话类型对应的机器人默认管理员权限（权限弹窗打开时预填） */
+const botAdminRequestedRights = ref<chatAdministratorRights | null>(null);
+/** 打开权限弹窗时是否默认勾选「管理员权限」（机器人有申请时默认开，否则用户可手动开启） */
+const botAdminStartAsAdmin = ref(true);
+
+/** 权限弹窗的「添加机器人」上下文（关闭时置空，避免普通编辑管理员误入添加分支） */
+const botAddContext = computed(() =>
+  botAdminVisible.value
+    ? {
+      userId: userId.value,
+      rights: botAdminRequestedRights.value,
+      allowMember: !botAdminIsChannel.value,
+      startAsAdmin: botAdminStartAsAdmin.value,
+    }
+    : null,
+);
+
+function openAddBotDialog() {
+  if (!botInviteLabel.value) return;
+  addBotVisible.value = true;
+}
+
+/** 进入管理员权限设置：读取目标对话里我的成员状态，以及机器人申请的管理员权限 */
+async function openBotAdminFlow(targetChatId: number) {
+  const { chat, status, supergroup } = await loadMyChatMemberStatus(targetChatId);
+  if (!chat) {
+    toast.error(t('user.addBotFailed'));
+    return;
+  }
+  const channel = isChannelChat(chat);
+  botAdminChatId.value = targetChatId;
+  botAdminIsChannel.value = channel;
+  botAdminIsForum.value = !!supergroup?.is_forum;
+  botAdminIsOwner.value = isCreatorStatus(status);
+  botAdminMyRights.value = isAdminStatus(status) ? status.rights : null;
+  botAdminDefaultPermissions.value = chat.permissions;
+  botAdminRequestedRights.value = (channel
+    ? botInfo.value?.default_channel_administrator_rights
+    : botInfo.value?.default_group_administrator_rights) ?? null;
+  // 频道恒为管理员；群组默认跟随机器人申请，未申请时由用户在弹窗里手动开启
+  botAdminStartAsAdmin.value = channel || botGroupAdminRequested.value;
+  botAdminVisible.value = true;
+}
+
+/** 添加成功：关闭选择器并打开目标对话（对齐官方客户端） */
+function onBotAddedToChat(targetChatId: number) {
+  addBotVisible.value = false;
+  if (!targetChatId) return;
+  router.push({ name: 'chat-detail', params: { id: String(targetChatId) } });
+}
+
+/** 以管理员身份添加成功（目标对话 id 在打开权限弹窗时已记录） */
+function onBotAdminAdded() {
+  const targetChatId = botAdminChatId.value;
+  botAdminVisible.value = false;
+  if (!targetChatId) return;
+  router.push({ name: 'chat-detail', params: { id: String(targetChatId) } });
+}
+
 const profileAudio = computed<TdAudio | undefined>(() => fullInfo.value?.first_profile_audio);
 const profileAudioTitle = computed(() => profileAudio.value?.title || profileAudio.value?.file_name || t('lng_all_music'));
 const profileAudioPerformer = computed(() => profileAudio.value?.performer || t('lng_sr_message_column_artist'));
@@ -3636,7 +3758,20 @@ async function toggleNotifications() {
 /** 打开「更多」菜单 */
 function openMoreMenu(e: MouseEvent) {
   const isContact = !!user.value?.is_contact;
-  const menuItems: ContextMenuItem[] = [
+  const menuItems: ContextMenuItem[] = [];
+  // bot：添加到群组/频道（与资料页入口、官方客户端 ⋮ 菜单一致）
+  if (botInviteLabel.value) {
+    menuItems.push(
+      {
+        key: 'add-to-group',
+        label: botInviteLabel.value,
+        icon: UserPlus,
+        onClick: () => { openAddBotDialog(); },
+      },
+      { key: 'divider-bot', label: '', divider: true },
+    );
+  }
+  menuItems.push(
     {
       key: 'call',
       label: t('lng_menu_calls'),
@@ -3664,7 +3799,7 @@ function openMoreMenu(e: MouseEvent) {
       danger: !fullInfo.value?.block_list,
       onClick: () => { onToggleBlock(); },
     },
-  ];
+  );
   // 只有联系人才显示「编辑联系人 / 删除联系人」
   if (isContact) {
     menuItems.push(

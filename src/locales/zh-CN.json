@@ -1730,7 +1730,9 @@
     "unblockFailed": "解除拉黑失败",
     "deleteContactFailed": "删除联系人失败",
     "unblockConfirm": "解除拉黑“{name}”？",
-    "privateChatUnavailable": "私聊不可用"
+    "privateChatUnavailable": "私聊不可用",
+    "addedToChat": "已添加机器人到“{group}”",
+    "addBotFailed": "添加机器人失败"
   },
   "debug": {
     "copyJson": "复制 JSON",
