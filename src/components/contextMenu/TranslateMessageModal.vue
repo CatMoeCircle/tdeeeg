@@ -26,7 +26,7 @@
                         <div class="flex flex-wrap items-center gap-2 text-sm">
                             <span class="text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ t('lng_translate_menu_to')
                                 }}</span>
-                            <SelectMenu class="z-999 w-55" size="sm" filterable :model-value="targetLang"
+                            <SelectMenu class="w-55" size="sm" filterable :model-value="targetLang"
                                 :options="targetOptions" :placeholder="t('lng_translate_menu_to')"
                                 @update:model-value="(v: string) => (targetLang = v)" />
                         </div>

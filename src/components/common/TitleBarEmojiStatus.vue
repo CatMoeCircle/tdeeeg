@@ -8,7 +8,7 @@
       <PremiumStatusIcon v-else class="text-[22px]" />
     </button>
     <Teleport to="body">
-      <div v-if="pickerOpen" class="fixed inset-0 z-200" @mousedown="onBackdrop">
+      <div v-if="pickerOpen" class="fixed inset-0 z-9998" @mousedown="onBackdrop">
         <div
           class="fixed w-70 h-80 rounded-2xl bg-white dark:bg-gray-900 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden"
           :style="panelStyle" @mousedown.stop>

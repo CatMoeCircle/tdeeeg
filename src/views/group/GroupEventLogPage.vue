@@ -75,7 +75,7 @@
 
     <!-- 筛选 -->
     <Teleport to="body">
-      <div v-if="filterVisible" class="fixed inset-0 z-200 flex items-center justify-center p-4"
+      <div v-if="filterVisible" class="fixed inset-0 z-9998 flex items-center justify-center p-4"
         @mousedown.self="filterVisible = false">
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
         <div

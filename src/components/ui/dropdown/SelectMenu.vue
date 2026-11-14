@@ -18,9 +18,9 @@
         <!-- 选项面板：Teleport 到 body + fixed 定位，避免被卡片的 overflow / 滚动容器裁掉 -->
         <Teleport to="body">
             <Transition name="select-menu">
-                <div v-if="open" ref="panelEl" class="fixed z-[9999] p-1 overflow-y-auto custom-scrollbar rounded-xl border border-gray-200/80 dark:border-gray-700/80 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl shadow-xl shadow-black/10 dark:shadow-black/40"
+                <div v-if="open" ref="panelEl" class="fixed p-1 overflow-y-auto custom-scrollbar rounded-xl border border-gray-200/80 dark:border-gray-700/80 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl shadow-xl shadow-black/10 dark:shadow-black/40"
                     role="listbox" :style="panelStyle" @keydown="onPanelKeydown">
-                    <!-- 可搜索：输入即过滤（原 TDesign filterable 的替代） -->
+                    <!-- 可搜索：输入即过滤 -->
                     <div v-if="filterable" class="sticky top-0 z-1 -m-1 mb-1 p-1 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl">
                         <input ref="searchEl" v-model="query" type="text" spellcheck="false" :placeholder="placeholder"
                             class="w-full px-2 py-1 rounded-lg text-xs border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-400"
@@ -79,8 +79,14 @@ const props = withDefaults(
         size?: 'sm' | 'md';
         /** 面板顶部带搜索框，输入即过滤（语言 / 供应商这类长列表用） */
         filterable?: boolean;
+        /**
+         * 选项面板的层级。面板 Teleport 到 body，脱离触发器的 stacking context，
+         * 因此必须显式高过承载它的弹窗：默认 10000，用于 ModalDialog 一档（z-9998）。
+         * 若放在更高一档的浮层里（ContextMenu / Reaction 等），由调用方传更大值。
+         */
+        panelZIndex?: number;
     }>(),
-    { placeholder: '—', disabled: false, size: 'md', filterable: false },
+    { placeholder: '—', disabled: false, size: 'md', filterable: false, panelZIndex: 10000 },
 );
 
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
@@ -123,6 +129,7 @@ const panelStyle = computed(() => ({
     left: `${anchor.value.left}px`,
     width: `${anchor.value.width}px`,
     maxHeight: `${anchor.value.height}px`,
+    zIndex: props.panelZIndex,
 }));
 
 /** 下拉面板高度上限：可搜索时过滤后条目变少，面板跟着收（但保留一行空提示的空间） */

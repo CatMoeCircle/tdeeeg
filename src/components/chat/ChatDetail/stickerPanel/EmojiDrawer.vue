@@ -271,7 +271,7 @@
 
         <!-- 肤色选择 popup -->
         <Teleport to="body">
-            <div v-if="skinToneTarget" class="fixed inset-0 z-200 flex items-center justify-center"
+            <div v-if="skinToneTarget" class="fixed inset-0 z-9998 flex items-center justify-center"
                 @click.self="closeSkinTone()">
                 <div
                     class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-4 border border-black/10 dark:border-white/10">

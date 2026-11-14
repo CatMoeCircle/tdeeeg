@@ -4,7 +4,7 @@
         class="mt-1.5 pt-2 border-t border-black/10 dark:border-white/10">
         <!-- 语言选择 + 关闭（非 compact）：与紧凑徽标同布局（左标签、右关闭），下拉缩至徽标级 -->
         <div v-if="!compact" class="flex items-center justify-between gap-2 mb-1">
-            <SelectMenu class="inline-lang-select z-999" size="sm" filterable :model-value="targetLang"
+            <SelectMenu class="inline-lang-select" size="sm" filterable :model-value="targetLang"
                 :options="targetOptions" :placeholder="t('lng_translate_menu_to')"
                 @update:model-value="(v: string) => (targetLang = v)" />
             <button type="button" class="text-gray-400 hover:text-red-500 transition-colors"

@@ -1,6 +1,6 @@
 <template>
     <Teleport to="body">
-        <div v-if="modelValue" class="fixed inset-0 z-200" @mousedown="close">
+        <div v-if="modelValue" class="fixed inset-0 z-9998" @mousedown="close">
             <div class="fixed flex flex-col rounded-2xl bg-white dark:bg-gray-900 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden"
                 :style="panelStyle" @mousedown.stop>
                 <slot />

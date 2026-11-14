@@ -1,7 +1,7 @@
 <template>
     <Teleport to="body">
         <Transition name="md-fade">
-            <div v-show="modelValue" class="fixed inset-0 z-200 flex items-center justify-center p-4"
+            <div v-show="modelValue" class="fixed inset-0 z-9998 flex items-center justify-center p-4"
                 @mousedown.self="close">
                 <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
                 <div

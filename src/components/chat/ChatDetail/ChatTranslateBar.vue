@@ -56,7 +56,7 @@
         </div>
 
         <!-- 目标语言选择 -->
-        <div v-if="langPickerOpen" class="fixed inset-0 z-998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+        <div v-if="langPickerOpen" class="fixed inset-0 z-999 flex items-center justify-center bg-black/40 backdrop-blur-sm"
             @mousedown.self="langPickerOpen = false">
             <div
                 class="w-80 max-w-[90vw] max-h-[70vh] flex flex-col rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">

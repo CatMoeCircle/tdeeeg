@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+    <div v-if="visible" class="fixed inset-0 z-9998 flex items-center justify-center p-4"
       @mousedown.self="onClose">
       <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
       <div

@@ -94,7 +94,7 @@ const close = () => appWindow.close();
         </div>
         <AccountMenu v-model:visible="accountMenuOpen" />
         <Teleport to="body">
-            <div class="fixed top-0 right-0 flex h-8 z-9999">
+            <div class="fixed top-0 right-0 flex h-8 z-[999999999]">
                 <button @click="minimize"
                     class="w-12 h-full flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors focus:outline-none">
                     <Minus :size="18" />

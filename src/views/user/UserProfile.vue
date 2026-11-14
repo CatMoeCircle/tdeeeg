@@ -1272,7 +1272,7 @@
     </div>
 
     <Teleport to="body">
-      <div v-if="emojiStatusPickerOpen" class="fixed inset-0 z-200" @mousedown="onEmojiStatusBackdrop">
+      <div v-if="emojiStatusPickerOpen" class="fixed inset-0 z-9998" @mousedown="onEmojiStatusBackdrop">
         <div ref="emojiStatusPanel"
           class="fixed w-70 h-80 -translate-x-1/2 rounded-2xl bg-white dark:bg-gray-900 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden"
           :style="emojiStatusPanelStyle" @mousedown.stop>

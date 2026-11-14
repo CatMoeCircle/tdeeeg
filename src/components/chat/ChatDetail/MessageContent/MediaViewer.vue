@@ -2,7 +2,7 @@
     <!-- ========== VIDEO MODE ========== -->
     <Teleport to="body">
         <Transition name="viewer-zoom">
-            <div v-if="visible && isVideo" class="fixed inset-0 z-999 flex items-center justify-center"
+            <div v-if="visible && isVideo" class="fixed inset-0 z-9999 flex items-center justify-center"
                 @click.self="close" @keydown="onKeydown" tabindex="0" ref="containerRef">
                 <!-- Video card -->
                 <div ref="videoContainerRef" class="video-card relative flex flex-col overflow-hidden bg-black/70"
