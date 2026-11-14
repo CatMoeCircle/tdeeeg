@@ -7,16 +7,18 @@
             <slot name="sidebar"></slot>
         </div>
 
-        <!-- Resizer Handle：按在侧栏右缘的分隔线上。
-             分隔线有两种落位：展开对话时由内容区卡片的 border-l-[3px] 承担（占 [右缘, 右缘+3]）；
-             不展开时侧栏自己画 border-r（占 [右缘-1, 右缘]）。命中区取 12px 宽并居中跨在右缘上，
-             两种落位都完整覆盖，鼠标按在看得见的线上就能拖。
-             hover 指示线固定画在 [右缘-1, 右缘+3]，把两种落位一起盖住，视觉上正好替换掉分隔线。
+        <!-- Resizer Handle：命中区整体落在侧栏右缘外侧（内容区一侧），绝不压住侧栏的滚动条。
+             分隔线有两种 1px 落位：展开对话时由内容区卡片的 border-l 承担（占 [右缘, 右缘+1]）；
+             不展开时侧栏自己画 border-r（占 [右缘-1, 右缘]）。
+             命中区取 [右缘, 右缘+10]：侧栏最右侧那 4px 滚动条完全留给鼠标，随时能点选/拖动；
+             若把命中区跨在右缘上（旧实现居中 12px），滚动条会被整条吃掉，变成只能拖分栏。
+             hover 指示线 2px，画在 [右缘-1, 右缘+1]，把两种落位一起盖住，视觉上正好替换掉分隔线；
+             它 pointer-events-none，往侧栏里伸出的 1px 只负责显示，不参与命中。
              拖拽判定见 startResize：命中手柄即拖拽，不再按固定像素距离二次过滤。 -->
-        <div class="absolute -top-1 bottom-0 z-20 w-3 cursor-col-resize group/resizer"
-            :style="{ left: sidebarWidth - 6 + 'px' }" @mousedown="startResize">
-            <!-- 视觉指示线：垂直居中于命中区，hover / 拖拽时高亮（平时透明，不遮分隔线） -->
-            <div class="absolute inset-y-0 left-[5px] w-1 pt-8 bg-clip-content
+        <div class="absolute -top-1 bottom-0 z-20 w-2.5 cursor-col-resize group/resizer"
+            :style="{ left: sidebarWidth + 'px' }" @mousedown="startResize">
+            <!-- 视觉指示线：hover / 拖拽时高亮，平时透明，不遮分隔线 -->
+            <div class="pointer-events-none absolute inset-y-0 -left-px w-0.5 pt-8 bg-clip-content
                         transition-colors bg-transparent group-hover/resizer:bg-blue-500"></div>
         </div>
         <div class="flex-1 h-full min-w-0">
@@ -56,8 +58,8 @@ const sidebarRef = ref<HTMLElement | null>(null);
 let isDragging = false;
 
 const startResize = (e: MouseEvent) => {
-    // 手柄是独立的绝对定位元素（横跨侧栏右缘与分隔线），命中即代表用户要拖拽，
-    // 不再需要按「距侧栏右缘多少像素」二次过滤。滚动条点击由手柄自身的 z-index/位置天然避开。
+    // 手柄只覆盖侧栏右缘右侧（内容区 10px），侧栏内的滚动条不会被它拦住，
+    // 因此命中手柄即代表用户要拖拽，无需再按「距侧栏右缘多少像素」二次过滤。
     e.preventDefault();
     isDragging = true;
 

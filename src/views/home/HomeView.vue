@@ -22,19 +22,18 @@
                         <!-- 等待选择对话：与对话详情一致的圆角壁纸卡片（仅作为背景，
                              文案仍由 router-view 里的空状态页绘制） -->
                         <div v-if="showChatEmptyWallpaper"
-                            class="absolute inset-0 rounded-xl border-l-[3px] border-gray-200 dark:border-gray-800 overflow-hidden"
+                            class="absolute inset-0 rounded-xl border-l border-gray-200 dark:border-gray-800 overflow-hidden"
                             aria-hidden="true">
                             <ChatBackgroundLayers :render="render" :overlay-opacity="0" :blur-px="0" />
                         </div>
                         <!-- 对话详情四角统一 12px 圆角（与主面板左上角同值）。
-                             分隔线由卡片自身的左边框承担（此时侧栏不再画 border-r），
+                             分隔线由卡片自身的 1px 左边框承担（此时侧栏不再画 border-r），
                              这样线沿圆角收口，不会在列表滚动条一侧垂直穿过圆角缺口。
-                             3px 是为了补回迁移前的观感：旧结构是侧栏 border-r + 列表根 border-r
-                             两层 1px 叠加，现在只剩卡片这一条，需要加宽才不显细。
+                             宽度与侧栏 border-r 一致（1px），两种落位切换时观感不跳。
                              clip-path 必须与圆角同值：底部输入区的 backdrop-filter 磨砂层
                              不受父级 overflow-hidden 圆角裁剪，需靠 clip-path 一并切掉。 -->
                         <ChatDetail v-if="showActiveChat"
-                            class="rounded-xl border-l-[3px] border-gray-200 dark:border-gray-800 [clip-path:inset(0_round_12px)]"
+                            class="rounded-xl border-l border-gray-200 dark:border-gray-800 [clip-path:inset(0_round_12px)]"
                             :chat-id="activeChatId" :topic-id="activeTopicId" :thread-root-id="activeThreadRootId"
                             @close="closeActiveChat" />
                         <router-view v-else v-slot="{ Component }">
