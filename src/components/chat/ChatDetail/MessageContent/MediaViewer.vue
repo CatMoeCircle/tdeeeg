@@ -443,6 +443,8 @@ import { pickBigPhotoSize, pickSmallPhotoSize } from '../../../../utils/media/ph
 import { isThumbnailImgRenderable, isThumbnailVideoRenderable } from '../../../../utils/media/thumbnail';
 import { shouldAutoDownloadPhotos, shouldAutoDownloadVideos } from '../../../../utils/media/autoDownload';
 import MessageTextContent from './content/MessageTextContent.vue';
+import { isDangerousFile, isLockdownRuleOn, requireLockdown } from '../../../../utils/security/lockdown';
+import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import LoaderIndicator from '../../../common/LoaderIndicator';
 
 export interface MediaViewerVideoQuality {
@@ -1419,6 +1421,16 @@ function handleForwardItem() {
 async function handleOpenWith() {
     const p = currentLocalPath.value;
     if (!p) return;
+    const name = p.split(/[\\/]/).pop() ?? '';
+    // 安全模式：可执行 / 伪装文件一律不交给系统打开，只能在文件夹里定位
+    if (isLockdownRuleOn('files')) {
+        if (isDangerousFile(name)) {
+            await revealItemInDir([p]).catch(() => { });
+            toast.info(t('lockdown.fileRevealedOnly'));
+            return;
+        }
+        if (!(await requireLockdown('files', name))) return;
+    }
     try {
         await invoke('open_with_dialog', { path: p });
     } catch (e) {

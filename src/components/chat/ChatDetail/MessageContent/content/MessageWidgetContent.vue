@@ -20,10 +20,21 @@
             <iframe v-if="frameSrc" ref="iframeEl" class="block h-full w-full border-0 bg-transparent"
                 :src="frameSrc" :title="t('preview.widget')" sandbox="allow-scripts" referrerpolicy="no-referrer"
                 loading="lazy" @load="onFrameLoad" />
-            <!-- 文档还没注册好：留空占位；HTML 为空才算真的不支持 -->
+            <!-- HTML 为空才算真的不支持 -->
             <div v-else-if="htmlEmpty"
                 class="flex h-full w-full items-center justify-center px-3 text-center text-xs text-gray-400">
                 {{ t('content.unsupportedContent') }}
+            </div>
+            <!-- 安全模式：文档还没注册（register 根本没调），点一下再确认加载 -->
+            <div v-else-if="locked"
+                class="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center">
+                <LockIcon class="w-5 h-5 text-gray-400" />
+                <p class="text-xs text-gray-400">{{ t('lockdown.widgetHidden') }}</p>
+                <button type="button"
+                    class="rounded-lg bg-[var(--app-brand,#2aabee)] px-3 py-1 text-xs font-medium text-white hover:opacity-90 transition-opacity"
+                    @click="revealWidget">
+                    {{ t('lockdown.loadWidget') }}
+                </button>
             </div>
         </div>
 
@@ -42,12 +53,14 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { invoke } from '@tauri-apps/api/core';
+import { Lock as LockIcon } from 'lucide-vue-next';
 import type { formattedText, messageWidget } from 'tdlib-types';
 import MessageTextContent from './MessageTextContent.vue';
 import { useColors } from '../../../../../store/settings/colors';
 import { settings } from '../../../../../store/settings/settings';
 import { useUserStore } from '../../../../../store/session/user';
 import { handleWidgetCall, widgetViewer, type WidgetCallPayload } from '../../../../../utils/widget/widgetHost';
+import { isLockdownRuleOn, requireLockdown } from '../../../../../utils/security/lockdown';
 import emojiFontUrl from '../../../../../assets/apple.ttf?url';
 
 const { t } = useI18n();
@@ -81,6 +94,23 @@ const frameSrc = ref('');
 /** 小部件回报的内容高度（0 = 还没量到） */
 const measuredHeight = ref(0);
 let registerSeq = 0;
+
+/**
+ * 安全模式下是否仍处于"未加载"状态。
+ *
+ * 这里刻意不是盖一层遮罩：`register()` 在锁定期间直接不调用 Rust 侧的
+ * `register_widget_html`，机器人下发的 HTML 连 WebView 都不进——
+ * 比"加载后再藏起来"彻底。
+ */
+const unlockedByUser = ref(false);
+const locked = computed(() => isLockdownRuleOn('widgets') && !unlockedByUser.value);
+
+/** 用户点击占位条：确认后注册文档 */
+async function revealWidget() {
+    if (!(await requireLockdown('widgets'))) return;
+    unlockedByUser.value = true;
+    await register();
+}
 
 const captionFormatted = computed<formattedText>(() => props.content.caption ?? EMPTY_TEXT);
 const hasCaption = computed(() => !!captionFormatted.value.text);
@@ -203,7 +233,7 @@ function currentTheme(): WidgetTheme {
     const brand = vars['--app-brand'] || accent.value.color || link;
 
     // 字体栈直接取主文档 body 的计算值：全局字体（含 emoji）改一处，小部件跟着变
-    vars['--td-font-family'] = getComputedStyle(document.body).fontFamily || APP_FONT_STACK;
+    vars['--app-widget-font-family'] = getComputedStyle(document.body).fontFamily || APP_FONT_STACK;
 
     vars['--tg-theme-bg-color'] = surface;
     vars['--tg-theme-text-color'] = textColor;
@@ -296,7 +326,7 @@ const BASE_CSS = [
     // 根字体必须 !important：小部件常写 `html,body{…font-family:inherit}`，
     // 而根元素的 inherit 会掉回浏览器默认字体（WebView2 上是 Noto Sans SC），
     // 一并把我们注入的 emoji 字体也丢掉。
-    'html{font-family:var(--td-font-family,system-ui,sans-serif)!important;}',
+    'html{font-family:var(--app-widget-font-family,system-ui,sans-serif)!important;}',
     'html,body{margin:0;padding:0;background:transparent;}',
     'body{font-family:inherit;font-size:inherit;line-height:1.4;-webkit-font-smoothing:antialiased;',
     'overflow-wrap:break-word;color:inherit;}',
@@ -498,6 +528,10 @@ async function register() {
         frameSrc.value = '';
         return;
     }
+    if (locked.value) {
+        frameSrc.value = '';
+        return;
+    }
     try {
         // 字体地址与 viewer 资料都不阻塞首次渲染太久：并行拿，失败也照常渲染
         const [fontSrc] = await Promise.all([emojiFontSrc(), ensureViewer()]);
@@ -608,10 +642,27 @@ onBeforeUnmount(() => {
     window.removeEventListener('message', onWindowMessage);
 });
 
-// 内容变化（机器人编辑小部件）才重新注册；主题变化只推变量，不重载
+// 内容变化（机器人编辑小部件）才重新注册；主题变化只推变量，不重载。
+// 内容一变就退回"未解锁"：确认过的旧内容不代表新内容也安全。
 watch(
     [() => props.content.html, autoHeight],
-    () => { void register(); },
+    () => {
+        unlockedByUser.value = false;
+        void register();
+    },
+);
+
+// 安全模式开关变化：开启时立刻收回已渲染的小部件并重新要求确认；关闭时补一次注册
+watch(
+    () => isLockdownRuleOn('widgets'),
+    (on) => {
+        unlockedByUser.value = false;
+        if (on) {
+            frameSrc.value = '';
+            return;
+        }
+        void register();
+    },
 );
 
 // 机器人改了 chat_data（例如点了「打个招呼」之后计数变化）→ 通知小部件

@@ -152,6 +152,67 @@
                         </div>
                     </div>
                 </section>
+
+                <!-- 安全模式 -->
+                <section class="border-t border-gray-200 dark:border-gray-700 pt-8">
+                    <div class="flex items-center gap-3 mb-1">
+                        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{
+                            t('lockdown.title') }}
+                        </h3>
+                        <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+                    </div>
+                    <p class="mt-3 text-xs text-gray-400">{{ t('lockdown.about') }}</p>
+                    <div class="mt-4 space-y-3">
+                        <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-3 flex items-center gap-3">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lockdown.enable') }}</p>
+                                <p class="text-xs text-gray-400 mt-0.5">{{ t('lockdown.aboutShort') }}</p>
+                            </div>
+                            <ToggleSwitch :model-value="settings.lockdown.enabled"
+                                @update:model-value="onToggleLockdown" />
+                        </div>
+
+                        <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-3 flex items-center gap-3"
+                            :class="!settings.lockdown.enabled ? 'opacity-60' : ''">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lockdown.nonContacts') }}</p>
+                                <p class="text-xs text-gray-400 mt-0.5">{{ t('lockdown.nonContactsDesc') }}</p>
+                            </div>
+                            <ToggleSwitch v-model="settings.lockdown.confirmNonContacts"
+                                :disabled="!settings.lockdown.enabled" />
+                        </div>
+
+                        <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-3 flex items-center gap-3"
+                            :class="!settings.lockdown.enabled ? 'opacity-60' : ''">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lockdown.widgets') }}</p>
+                                <p class="text-xs text-gray-400 mt-0.5">{{ t('lockdown.widgetsDesc') }}</p>
+                            </div>
+                            <ToggleSwitch v-model="settings.lockdown.confirmWidgets"
+                                :disabled="!settings.lockdown.enabled" />
+                        </div>
+
+                        <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-3 flex items-center gap-3"
+                            :class="!settings.lockdown.enabled ? 'opacity-60' : ''">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lockdown.miniApps') }}</p>
+                                <p class="text-xs text-gray-400 mt-0.5">{{ t('lockdown.miniAppsDesc') }}</p>
+                            </div>
+                            <ToggleSwitch v-model="settings.lockdown.confirmMiniApps"
+                                :disabled="!settings.lockdown.enabled" />
+                        </div>
+
+                        <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-3 flex items-center gap-3"
+                            :class="!settings.lockdown.enabled ? 'opacity-60' : ''">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm text-gray-800 dark:text-gray-100">{{ t('lockdown.files') }}</p>
+                                <p class="text-xs text-gray-400 mt-0.5">{{ t('lockdown.filesDesc') }}</p>
+                            </div>
+                            <ToggleSwitch v-model="settings.lockdown.warnFiles"
+                                :disabled="!settings.lockdown.enabled" />
+                        </div>
+                    </div>
+                </section>
             </div>
         </div>
         <!-- 拉黑用户列表弹窗 -->
@@ -191,6 +252,8 @@ import PrivacyItemDialog from '../../components/settings/PrivacyItemDialog.vue';
 import type { PrivacyItemDef } from '../../components/settings/PrivacyItemDialog.vue';
 import AccountTtlDialog from '../../components/settings/AccountTtlDialog.vue';
 import ToggleSwitch from '../../components/ui/toggle/ToggleSwitch.vue';
+import { settings } from '../../store/settings/settings';
+import { confirmLockdown } from '../../store/session/lockdownConfirm';
 import { tdlibSend } from '../../utils/session/tdlib';
 import { tdPlural } from '../../utils/i18n/tdLang';
 import { decodeUserPrivacyRules, PRIVACY_PRESET_KEYS, privacyKeyForSettingType } from '../../utils/profile/profilePrivacy';
@@ -202,6 +265,27 @@ const { t } = useI18n();
 
 function goBack() {
     router.back();
+}
+
+// =====================================================================
+// 安全模式（Lockdown Mode）
+// =====================================================================
+/**
+ * 主开关前后都确认：它改变的是"本来会自动发生"的一整套行为，
+ * 官方也是启用 / 停用各问一次，这里保持一致。
+ */
+async function onToggleLockdown(next: boolean) {
+    try {
+        await confirmLockdown({
+            title: next ? t('lockdown.enableTitle') : t('lockdown.disableTitle'),
+            description: next ? t('lockdown.enableDesc') : t('lockdown.disableDesc'),
+            confirmLabel: next ? t('lockdown.enableConfirm') : t('lockdown.disableConfirm'),
+        });
+    } catch {
+        return;
+    }
+    settings.lockdown.enabled = next;
+    toast.success(next ? t('lockdown.enabledToast') : t('lockdown.disabledToast'));
 }
 
 // =====================================================================

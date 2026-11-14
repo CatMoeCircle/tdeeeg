@@ -333,6 +333,27 @@ interface Settings {
     /** 控件密度：compact=紧凑，default=标准，large=宽松 */
     density: "compact" | "default" | "large";
   };
+
+  /**
+   * HTML 组件安全模式：默认关闭的**客户端**内容防护。
+   *
+   * 主线只有一条——机器人下发的 HTML 组件不自动加载；Mini App / 风险文件 /
+   * 陌生会话是同一次开关下的可选扩展，文案上必须写明作用域，不要写成
+   * "账号级安全模式"（它不改 TDLib 设置，也不影响服务端）。
+   * 所有闸门走 `utils/security/lockdown` 的统一确认器。
+   */
+  lockdown: {
+    /** 总开关；关闭时下方分项全部不生效 */
+    enabled: boolean;
+    /** 打开非联系人私聊前确认 */
+    confirmNonContacts: boolean;
+    /** HTML 组件不自动加载，点击并确认后才注册文档 */
+    confirmWidgets: boolean;
+    /** 每次启动 Mini App 前确认 */
+    confirmMiniApps: boolean;
+    /** 打开可执行 / 伪装类文件前警告，且不允许直接打开 */
+    warnFiles: boolean;
+  };
 }
 
 const defaultSettings: Settings = {
@@ -462,6 +483,15 @@ const defaultSettings: Settings = {
   chatHeaderAvatarPosition: "default",
   topicTagBar: {
     position: "left",
+  },
+
+  lockdown: {
+    // 默认关闭：这是"极端保护"，开启前会二次确认
+    enabled: false,
+    confirmNonContacts: true,
+    confirmWidgets: true,
+    confirmMiniApps: true,
+    warnFiles: true,
   },
 
   notifications: {

@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { onTdlibUpdate } from "./tdlibBus";
 import { buildMiniAppThemeParameters } from "../../utils/link/miniappTheme";
+import { requireLockdown } from "../../utils/security/lockdown";
 
 /**
  * Mini App 会话状态：原生载体（Rust tdlib/miniapp.rs）以独立窗口加载 app，
@@ -36,6 +37,8 @@ export const useMiniAppStore = defineStore("miniapp", () => {
 
     async function open(url: string, session: Omit<MiniAppSession, "url">) {
         await init();
+        // 安全模式：每次启动都要确认，且不认 updateTrustedMiniAppBots 的免警告名单
+        if (!(await requireLockdown("miniApps", session.title))) return;
         await invoke("open_mini_app", {
             request: {
                 url,

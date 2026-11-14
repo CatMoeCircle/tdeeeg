@@ -234,6 +234,8 @@ import DownloadRow from "./DownloadRow.vue";
 import { openContextMenu } from "../../store/chat/contextMenu";
 import type { ContextMenuItem } from "../../components/contextMenu/types";
 import { revealItemInDir, openPath } from "@tauri-apps/plugin-opener";
+import { isDangerousFile, isLockdownRuleOn, requireLockdown } from "../../utils/security/lockdown";
+import { toast } from "../../utils/ui/toast";
 import {
     MessageCircleIcon, FolderOpenIcon, TrashIcon, PauseIcon, PlayIcon, FileIcon, ImageIcon, MusicIcon,
     UploadCloudIcon, StickerIcon, UserIcon,
@@ -436,6 +438,16 @@ async function revealFile(item: DownloadItem) {
 async function openFile(item: DownloadItem) {
     const localPath = item.local_path;
     if (!localPath) return;
+    // 安全模式：可执行 / 伪装文件不直接打开，只定位到文件夹
+    if (isLockdownRuleOn('files')) {
+        const name = item.file_name || localPath.split(/[\\/]/).pop() || '';
+        if (isDangerousFile(name)) {
+            await revealFile(item);
+            toast.info(t('lockdown.fileRevealedOnly'));
+            return;
+        }
+        if (!(await requireLockdown('files', name))) return;
+    }
     try {
         await openPath(localPath);
     } catch (e) {

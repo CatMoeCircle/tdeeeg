@@ -4,6 +4,7 @@ import ContextMenu from "./components/contextMenu/ContextMenu.vue";
 import ExternalLinkConfirm from "./components/contextMenu/ExternalLinkConfirm.vue";
 import ProxyLinkConfirm from "./components/contextMenu/ProxyLinkConfirm.vue";
 import LanguagePackConfirm from "./components/settings/LanguagePackConfirm.vue";
+import LockdownConfirm from "./components/settings/LockdownConfirm.vue";
 import StoryViewer from "./components/story/StoryViewer.vue";
 import ToastHost from "./components/ui/toast/ToastHost.vue";
 
@@ -38,6 +39,8 @@ import ToastHost from "./components/ui/toast/ToastHost.vue";
     <ProxyLinkConfirm />
     <!-- 从 t.me/setlanguage 链接添加语言包弹窗（Teleport 到 body） -->
     <LanguagePackConfirm />
+    <!-- 安全模式（Lockdown Mode）统一确认弹窗（Teleport 到 body） -->
+    <LockdownConfirm />
     <!-- 全局 Toast（SwipeToast，位置见设置 → 开发者选项） -->
     <ToastHost />
     <!-- 故事播放器（Teleport 到 body） -->

@@ -1,4 +1,6 @@
 import { createRouter, createWebHashHistory } from "vue-router";
+import { pendingNonContactChat } from "../utils/security/nonContactChat";
+import { isLockdownRuleOn, requireLockdown } from "../utils/security/lockdown";
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -272,6 +274,28 @@ const router = createRouter({
       redirect: "/",
     },
   ],
+});
+
+/**
+ * 安全模式：打开非联系人私聊前确认。
+ *
+ * 会话打开散在十几处 `router.push('/home/chat/…')`（聊天列表、回复、链接、资料页…），
+ * 逐个加判断既容易漏又难维护，所以在路由层收口。确认后直接放行本次导航，
+ * 不额外记令牌——返回 `true` 就是"继续"，不会二次触发守卫。
+ */
+const CHAT_ROUTE_NAMES = new Set(["chat-detail", "chat-topic-detail", "chat-thread-detail"]);
+
+router.beforeEach(async (to) => {
+    if (!isLockdownRuleOn("nonContacts")) return true;
+    if (!CHAT_ROUTE_NAMES.has(String(to.name))) return true;
+
+    const chatId = Number(to.params.id);
+    if (!Number.isFinite(chatId) || chatId <= 0) return true;
+
+    const title = await pendingNonContactChat(chatId);
+    if (!title) return true;
+
+    return requireLockdown("nonContacts", title);
 });
 
 export default router;
