@@ -97,7 +97,7 @@ const selectedCountryFlag = computed(() => {
     return countryFlag(c);
 });
 
-// ─── 国家/地区下拉（自绘，替代 TDesign t-select） ───────────────────
+// ─── 国家/地区下拉 ───────────────────
 const countryDropdownOpen = ref(false);
 const countryQuery = ref("");
 const countryDropdownRef = ref<HTMLElement | null>(null);
@@ -567,7 +567,7 @@ onUnmounted(() => {
                     {{ t('login.descLine1') }}<br />{{ t('login.descLine2') }}</p>
 
                 <div class="w-full max-w-xs mb-6 space-y-2">
-                    <!-- 国家/地区：自绘可搜索下拉（原先用 TDesign t-select + t-option） -->
+                    <!-- 国家/地区：自绘可搜索下拉 -->
                     <div ref="countryDropdownRef" class="relative">
                         <button type="button" :disabled="loginPending" :aria-expanded="countryDropdownOpen"
                             aria-haspopup="listbox" @click="toggleCountryDropdown"

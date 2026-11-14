@@ -70,7 +70,7 @@ body {
 
 /*
  * 登录页「下一步」/ 国家选择器：与手机号输入同一套紧凑规格
- * 高度 40px / 圆角 10px / 字号 14px（控件本体已改用 BaseButton 与原生按钮，不再依赖 TDesign 类名）
+ * 高度 40px / 圆角 10px / 字号 14px
  */
 .login-next-btn {
   display: inline-flex;
@@ -84,7 +84,7 @@ body {
   margin-top: 0.25rem;
 }
 
-/* 登录页国家/地区下拉（原 TDesign 弹层样式已随组件一起移除） */
+/* 登录页国家/地区下拉 */
 .country-menu-enter-active,
 .country-menu-leave-active {
   transition: opacity 0.12s ease, transform 0.12s ease;

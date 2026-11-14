@@ -268,7 +268,7 @@ export function setShowAiStripPreview(enabled: boolean): void {
 
 // ─── Toast（SwipeToast）调试项 ─────────────────
 
-/** Toast 显示位置；沿用原 TDesign Message 的七种 placement 命名 */
+/** Toast 显示位置；七种 placement 命名 */
 export const TOAST_PLACEMENTS = [
     "top-left",
     "top",

@@ -309,7 +309,7 @@ import {
     SendIcon,
     EyeIcon,
     ShareIcon,
-    // 右键菜单项图标（原先来自 tdesign-icons-vue-next）
+    // 右键菜单项图标
     CopyIcon,
     Link2 as LinkIcon,
     Volume2 as SoundIcon,

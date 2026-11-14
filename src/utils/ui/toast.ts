@@ -50,7 +50,7 @@ function push(type: ToastType, arg: ToastArg): Promise<void> {
   };
   const next = [...toastQueue.value, item];
   toastQueue.value = next.length > MAX_VISIBLE ? next.slice(next.length - MAX_VISIBLE) : next;
-  // 保持「await toast.xxx()」的调用形态可用，但不再像 TDesign 那样阻塞到消失
+  // 保持「await toast.xxx()」的调用形态可用，但不会阻塞到消失
   return Promise.resolve();
 }
 

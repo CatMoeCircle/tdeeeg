@@ -6,7 +6,7 @@ import { settings } from "./settings";
 /**
  * 主题系统：明暗模式 + 主题色 + 圆角/阴影/密度。
  *
- * 全部输出为 --app-* 变量（已在 component 层脱离 TDesign）：
+ * 全部输出为 --app-* 变量：
  * - Tailwind：html.dark 切换 dark: 变体；@theme inline 将 blue-* 映射到 brand 色阶
  * - 主题 CSS：:root[theme-mode='dark'] 与 html.dark 同时生效，--app-brand / --app-radius-* /
  *   --app-shadow-* / --app-control-height-* 由这里在运行时写入

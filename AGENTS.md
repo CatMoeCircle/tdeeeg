@@ -105,7 +105,6 @@ Prefer the existing layer: put logic in `composables/` or `store/`, UI in `compo
 ### TypeScript / Vue
 
 - Strict TS; avoid `any` unless unavoidable at a TDLib boundary.
-- Vite auto-imports TDesign components and APIs — generated types live in `src/auto-imports.d.ts` and `src/components.d.ts`. Do not hand-edit those files.
 - Custom Vite quirks that must stay:
   - `.tgs` is included via `assetsInclude`
   - `tlottie` is excluded from dep pre-bundling

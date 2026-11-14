@@ -14,10 +14,10 @@
 
 <script setup lang="ts">
 /**
- * 蓝色认证标（替代 tdesign-icons-vue-next 的 VerifiedFilledIcon / 旧圆形蓝 V）。
+ * 蓝色认证标。
  *
  * - 几何取自 src/assets/Verified.svg（印章外轮廓 + 对勾描边），内联以保证对勾能独立填白；
- * - 印章颜色走主题变量 --app-blue-verified（浅/深色各一档），不依赖 TDesign 的双色 fill/stroke 接口；
+ * - 印章颜色走主题变量 --app-blue-verified（浅/深色各一档）；
  * - 尺寸由外部 class 控制（w-4 h-4 / text-lg 都会见效：width/height 跟随 1em 兜底）。
  */
 </script>
