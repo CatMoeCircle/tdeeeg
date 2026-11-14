@@ -32,6 +32,12 @@ interface ChatStoryEntry {
   count: number;
   /** 排序权重：越大越靠前（chatActiveStories.order） */
   order: number;
+  /**
+   * 是否真正属于动态列表（主/归档）。
+   * 个人资料页按需拉取的公开动态 list 为空、order 为 0，只用于该页圆环，
+   * 不能进标题栏（与 Unigram StoryListViewModel.UpdateChatOrder 的 inList 过滤一致）。
+   */
+  inStoryList: boolean;
   /** 已读到的动态 id（服务端） */
   maxReadId: number;
   /** 本地已整段查看过：圆环立即变灰，直到服务端推送新状态覆盖 */
@@ -52,6 +58,9 @@ function setActiveStories(a: chatActiveStories, userId?: number) {
   const prev = byChat.get(a.chat_id);
   const infos = a.stories ?? [];
   const maxReadId = a.max_read_story_id ?? 0;
+  // TDLib 用 list / order 标记「这些动态是否需要在动态列表里展示」：
+  // list 为空或 order 为 0 表示不展示（如查看非联系人主页时按需拉到的公开动态）。
+  const inStoryList = !!a.list && (a.order ?? 0) !== 0;
 
   let unread = false;
   for (const s of infos) {
@@ -68,6 +77,7 @@ function setActiveStories(a: chatActiveStories, userId?: number) {
     live: infos.some((s) => s.is_live),
     count: infos.length,
     order: a.order ?? 0,
+    inStoryList,
     maxReadId,
     localRead: prev?.localRead ?? false,
     viewedIds: prev?.viewedIds ?? new Set<number>(),
@@ -147,16 +157,19 @@ export function getChatStoryState(chatId: number | undefined | null): ChatStoryS
  * 看完不摘除、只变灰，所以这里不能按 unread 过滤。
  */
 export function getActiveStoryChatIds(): number[] {
-  return [...byChat.keys()].sort((a, b) => {
-    const ea = byChat.get(a)!;
-    const eb = byChat.get(b)!;
-    return eb.order - ea.order || b - a;
-  });
+  return [...byChat.entries()]
+    .filter(([, e]) => e.inStoryList)
+    .map(([chatId]) => chatId)
+    .sort((a, b) => {
+      const ea = byChat.get(a)!;
+      const eb = byChat.get(b)!;
+      return eb.order - ea.order || b - a;
+    });
 }
 
-/** 是否存在活跃动态（标题栏叠加是否显示） */
+/** 是否存在活跃动态（标题栏叠加是否显示；个人资料页临时拉取的动态不算） */
 export function hasAnyStories(): boolean {
-  return byChat.size > 0;
+  return getOrderedStoryChatIds().length > 0;
 }
 
 /** 标题栏最多叠加显示几个动态；超出部分折叠到「更多动态」展开条 */
