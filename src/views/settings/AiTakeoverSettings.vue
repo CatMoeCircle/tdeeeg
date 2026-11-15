@@ -9,7 +9,7 @@
         </div>
 
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
-            <div class="max-w-2xl">
+            <div class="w-full">
 
                 <!-- ===== 总开关 + 边界说明：只接管私聊，且必须逐个授权 ===== -->
                 <section class="mb-8">

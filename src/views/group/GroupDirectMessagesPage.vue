@@ -11,7 +11,7 @@
     </div>
 
     <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
-      <div class="max-w-2xl space-y-6">
+      <div class="w-full space-y-6">
         <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
           <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-4 py-3 flex items-center gap-3">
             <div class="min-w-0 flex-1">

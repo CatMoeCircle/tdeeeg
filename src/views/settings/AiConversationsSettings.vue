@@ -192,7 +192,7 @@ watch(
         </div>
 
         <div class="custom-scrollbar flex-1 overflow-y-auto p-6" v-smooth-wheel>
-            <div class="mx-auto max-w-3xl">
+            <div class="w-full">
                 <LoadingSkeleton v-if="loading" class="py-2" :rows="5" :label="t('aiConversations.loading')" />
                 <p v-else-if="!groups.length" class="py-8 text-center text-sm text-gray-400">
                     {{ t('aiConversations.allEmpty') }}</p>

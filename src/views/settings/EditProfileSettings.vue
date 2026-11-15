@@ -14,7 +14,7 @@
 
         <!-- 首次进入（本机还没缓存到该用户资料）：先铺与真实表单同形的骨架屏，数据到位后再换成可编辑表单 -->
         <div v-if="loading" class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
-            <div class="max-w-2xl space-y-6" role="status" :aria-label="t('lng_context_seen_loading')">
+            <div class="w-full space-y-6" role="status" :aria-label="t('lng_context_seen_loading')">
                 <div class="animate-pulse select-none" aria-hidden="true">
                     <!-- 头像 + 姓名 -->
                     <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
@@ -68,7 +68,7 @@
         </div>
 
         <div v-else class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
-            <div class="max-w-2xl space-y-6">
+            <div class="w-full space-y-6">
                 <!-- 头像 + 姓名 -->
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <div class="flex items-center gap-3 mb-1">

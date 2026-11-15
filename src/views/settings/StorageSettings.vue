@@ -12,7 +12,7 @@
         </div>
 
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
-            <div class="max-w-2xl">
+            <div class="w-full">
                 <div v-if="error" class="text-xs text-red-500 mb-4">{{ t('storage.loadFailed', { error }) }}</div>
 
                 <div v-if="!stats">

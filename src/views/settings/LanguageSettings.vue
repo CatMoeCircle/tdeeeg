@@ -15,7 +15,7 @@
         </div>
 
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
-            <div class="max-w-2xl space-y-4">
+            <div class="w-full space-y-4">
                 <p class="text-xs text-gray-400 leading-5">
                     {{ t('language.desc') }}
                 </p>

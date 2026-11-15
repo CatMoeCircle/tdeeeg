@@ -8,7 +8,7 @@
         </div>
 
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
-            <div class="max-w-2xl space-y-8">
+            <div class="w-full space-y-8">
 
                 <!-- ===== 显示方式 ===== -->
                 <section>

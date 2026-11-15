@@ -8,7 +8,7 @@
         </div>
 
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
-            <div class="max-w-2xl space-y-8">
+            <div class="w-full space-y-8">
 
                 <!-- ===== 实时预览（Toast 风格） ===== -->
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">

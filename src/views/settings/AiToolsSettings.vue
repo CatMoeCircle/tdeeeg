@@ -8,7 +8,7 @@
         </div>
 
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
-            <div class="max-w-2xl">
+            <div class="w-full">
 
                 <!-- ===== 搜索工具：接口地址 / 模型 / Key 都可以单独配 ===== -->
                 <section class="mb-8">

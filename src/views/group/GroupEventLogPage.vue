@@ -24,7 +24,7 @@
     <!-- 聊天式时间线：最新在底部，向上滚动加载更早（EventLog） -->
     <div ref="scrollEl" class="relative z-10 flex-1 min-h-0 overflow-y-auto custom-scrollbar" v-smooth-wheel
       @scroll="onScroll">
-      <div class="mx-auto max-w-3xl px-4 py-4 space-y-1">
+      <div class="w-full px-4 py-4 space-y-1">
         <div v-if="loadingMore" class="py-2 text-center text-xs text-gray-500 dark:text-gray-400">
           {{ t('lng_context_seen_loading') }}
         </div>

@@ -8,7 +8,7 @@
             <h2 class="text-lg font-semibold">{{ t('wallpaper.title') }}</h2>
         </div>
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
-            <div class="max-w-2xl space-y-6">
+            <div class="w-full space-y-6">
                 <section class="border-b border-gray-200 dark:border-gray-700 pb-8">
                     <div class="flex items-center gap-3 mb-1">
                         <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{{

@@ -8,7 +8,7 @@
         </div>
 
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
-            <div class="max-w-2xl">
+            <div class="w-full">
 
                 <!-- 代理模式选择 -->
                 <div class="mb-8 border-b border-gray-200 dark:border-gray-700 pb-8">

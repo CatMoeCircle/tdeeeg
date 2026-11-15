@@ -2,7 +2,7 @@
   <div class="h-full flex flex-col text-gray-900 dark:text-gray-100 overflow-hidden">
     <!-- 内容区 -->
     <div ref="profileScrollEl" class="flex-1 overflow-y-auto custom-scrollbar" v-smooth-wheel>
-      <div class="max-w-2xl mx-auto pb-8" v-if="chatMode || user || chatObj || chatLoading || chatError">
+      <div class="w-full pb-8" v-if="chatMode || user || chatObj || chatLoading || chatError">
         <!-- ===== 第一部分：顶部青绿色头部区域 ===== -->
         <div class="relative profile-hero overflow-hidden">
           <!-- 返回导航 -->
@@ -1257,7 +1257,7 @@
       </div>
 
       <!-- 资料尚未就绪（直接打开 user/:id，本地还没有这个用户）：先铺骨架，不要留白 -->
-      <div v-else class="max-w-2xl mx-auto pb-8 animate-pulse" aria-hidden="true">
+      <div v-else class="w-full pb-8 animate-pulse" aria-hidden="true">
         <div class="relative profile-hero overflow-hidden">
           <div class="flex flex-col items-center pt-10 pb-3 px-4">
             <div class="w-24 h-24 rounded-full bg-black/10 dark:bg-white/10"></div>

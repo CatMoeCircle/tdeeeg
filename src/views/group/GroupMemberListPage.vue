@@ -65,7 +65,7 @@
     </div>
 
     <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
-      <div class="max-w-2xl space-y-4">
+      <div class="w-full space-y-4">
         <!-- 成员/订阅者：联系人 → 机器人 → 其他（ChatMemberGroupedCollection） -->
         <template v-if="mode === 'members' && !query.trim() && sections.length">
           <div v-for="sec in sections" :key="sec.key">

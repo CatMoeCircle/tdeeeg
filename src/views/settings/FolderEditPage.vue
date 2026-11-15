@@ -14,16 +14,16 @@
         </div>
 
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
-            <LoadingSkeleton v-if="loading" variant="form" class="max-w-2xl" :rows="4"
+            <LoadingSkeleton v-if="loading" variant="form" class="w-full" :rows="4"
                 :label="t('lng_context_seen_loading')" />
 
             <!-- 选对话：页内面板，不弹窗 -->
-            <div v-else-if="pickerTarget" class="max-w-2xl">
+            <div v-else-if="pickerTarget" class="w-full">
                 <FolderChatPickerPanel :exclude-ids="pickerExcludeIds" @select="onPicked"
                     @cancel="pickerTarget = null" />
             </div>
 
-            <div v-else class="max-w-2xl space-y-6">
+            <div v-else class="w-full space-y-6">
                 <!-- 名称：左边是分组图标（点击悬浮选择器），右边是单独的 emoji 选择器（插入到名称文本） -->
                 <section>
                     <label class="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">

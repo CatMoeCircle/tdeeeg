@@ -7,7 +7,7 @@
             <h2 class="text-lg font-semibold">{{ t('lng_settings_data_storage') }}</h2>
         </div>
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
-            <div class="max-w-2xl">
+            <div class="w-full">
 
                 <!-- ===== 自动下载区域 ===== -->
                 <div class="space-y-6">

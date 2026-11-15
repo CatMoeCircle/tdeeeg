@@ -8,7 +8,7 @@
                 }}</h2>
         </div>
         <div class="flex-1 overflow-y-auto custom-scrollbar p-6" v-smooth-wheel>
-            <div class="max-w-2xl">
+            <div class="w-full">
                 <!-- 主题与壁纸（同一大类：主题在上，壁纸紧随其下） -->
                 <div
                     class="mb-8 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm overflow-hidden divide-y divide-gray-100 dark:divide-gray-800">
