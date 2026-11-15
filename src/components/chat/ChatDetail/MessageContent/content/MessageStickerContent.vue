@@ -4,11 +4,12 @@
         <!-- WEBP static sticker -->
         <img v-if="format === 'webp' && mediaSrc" :src="mediaSrc" class="w-full h-full object-contain" />
         <!-- TGS animated sticker (tlottie) -->
-        <TgsPlayer v-else-if="format === 'tgs' && tgsSrc" ref="playerRef" :src="tgsSrc" :loop="!isAnimatedEmoji"
-            :autoplay="true" :size="tgsSize" :fitz-modifier="fitzModifier" @load="onAnimLoad" @error="onAnimError" />
+        <TgsPlayer v-else-if="format === 'tgs' && tgsSrc" ref="playerRef" :src="tgsSrc"
+            :loop="static ? false : !isAnimatedEmoji" :autoplay="!static" :initial-frame="static ? 0 : null"
+            :size="tgsSize" :fitz-modifier="fitzModifier" @load="onAnimLoad" @error="onAnimError" />
         <!-- WEBM video sticker -->
-        <video v-else-if="format === 'webm' && mediaSrc" ref="videoRef" :src="mediaSrc" autoplay loop muted playsinline
-            class="w-full h-full object-contain" />
+        <video v-else-if="format === 'webm' && mediaSrc" ref="videoRef" :src="mediaSrc" :autoplay="!static"
+            :loop="!static" muted playsinline preload="metadata" class="w-full h-full object-contain" />
         <!-- Thumbnail placeholder (sticker's own thumbnail) -->
         <img v-else-if="thumbSrc" :src="thumbSrc" class="w-full h-full object-contain" />
         <!-- Fallback: gray background -->
@@ -38,7 +39,9 @@ const props = withDefaults(defineProps<{
     loadScope?: ViewportLoadScope;
     /** 点击打开所属贴纸包信息弹窗：仅对话消息内容开启（资料页/礼物墙/贴纸包弹窗等场景不开启） */
     clickable?: boolean;
-}>(), { loadScope: 'chat', clickable: false });
+    /** 静态展示：TGS/WEBM 停在第一帧，仅用于钱包卡等静态场景 */
+    static?: boolean;
+}>(), { loadScope: 'chat', clickable: false, static: false });
 
 const rootEl = ref<HTMLElement | null>(null);
 const playerRef = ref<TgsPlayerInstance | null>(null);
@@ -169,14 +172,19 @@ function onAnimError(e: unknown) {
     console.error('[MessageStickerContent] TGS error', e, tgsSrc.value);
 }
 
-/** TgsPlayer 加载完成回调：把实例注册进暂停/恢复控制器 */
+/** TgsPlayer 加载完成回调：把实例注册进暂停/恢复控制器；静态模式停在第 0 帧 */
 function onAnimLoad() {
+    if (props.static) {
+        playerRef.value?.pause();
+        playerRef.value?.seek(0);
+        return;
+    }
     registerAnim(playerRef.value);
 }
 
 // WEBM/GIF 视频：等 DOM 渲染出 <video> 后注册进窗口/视口暂停门控
 watch([format, mediaSrc, () => props.content], () => {
-    registerVideo(format.value === 'webm' && mediaSrc.value ? videoRef.value : null);
+    registerVideo(!props.static && format.value === 'webm' && mediaSrc.value ? videoRef.value : null);
 }, { flush: 'post' });
 
 /**
@@ -185,6 +193,11 @@ watch([format, mediaSrc, () => props.content], () => {
  * - clickable（仅对话消息内容）：再打开所属贴纸 / 表情包信息弹窗
  */
 function onContentClick() {
+    if (props.static) {
+        if (!props.clickable) return;
+        openStickerSetDialog(sticker.value?.set_id);
+        return;
+    }
     const anim = getAnim();
     // 若因窗口失焦/离开视口被暂停，重播不受影响
     if (isAnimatedEmoji.value && anim) {

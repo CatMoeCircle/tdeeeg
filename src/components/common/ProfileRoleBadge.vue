@@ -1,8 +1,8 @@
 <template>
-  <span class="relative inline-flex shrink-0" :title="label" @click.stop="pinned = !pinned"
-    @mouseenter="hovering = true" @mouseleave="hovering = false">
+  <span class="relative inline-flex shrink-0" @click.stop="pinned = !pinned" @mouseenter="hovering = true"
+    @mouseleave="hovering = false">
     <span
-      class="w-[18px] h-[18px] rounded-full overflow-hidden bg-white dark:bg-gray-800 ring-1 ring-gray-300/80 dark:ring-gray-500/80 flex items-center justify-center">
+      class="w-4.5 h-4.5 rounded-full overflow-hidden bg-white dark:bg-gray-800 ring-1 ring-gray-300/80 dark:ring-gray-500/80 flex items-center justify-center">
       <img :src="appLogo" alt="" class="w-full h-full object-cover" draggable="false" />
     </span>
     <!-- 上方常驻悬浮提示：悬停或点按出现，停留至移开/再次点按 -->

@@ -111,6 +111,27 @@ export function formatGramAmount(amount: GramAmount, forceOutgoing = false): For
 }
 
 /**
+ * 格式化钱包卡片余额（`tonWalletCard.gram_amount`，无符号最小单位）。
+ *
+ * 卡片是「钱」的展示面，固定保留两位小数（0.10 而不是 0.1），
+ * 与官方钱包的金额排版一致；卡面宽度有限，不做千分位。
+ *
+ * @param amount 最小单位余额
+ * @returns 整数部分与两位小数（fraction 含前导小数点）
+ */
+export function formatGramBalance(amount: GramAmount): FormattedGramAmount {
+    const nano = gramAmountToBigInt(amount);
+    const absolute = nano < 0n ? -nano : nano;
+    // 四舍五入到 0.01 Gram，再用整数除法拆出整数位与小数位
+    const cents = (absolute * 100n + GRAM_SCALE_BIG / 2n) / GRAM_SCALE_BIG;
+    return {
+        sign: '',
+        whole: (cents / 100n).toString(),
+        fraction: `.${(cents % 100n).toString().padStart(2, '0')}`,
+    };
+}
+
+/**
  * 地址排版：转大写 → 每 4 字符一组 → 从中间折成两行。
  *
  * @param address TON 地址（48 字符 base64url）

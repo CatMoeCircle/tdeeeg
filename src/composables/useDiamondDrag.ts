@@ -29,6 +29,8 @@ export interface DiamondDragOptions {
     viewportGate?: boolean;
     /** 按住是否放大（默认开；交易详情弹窗只要拖拽，不要放大） */
     pressZoom?: boolean;
+    /** 是否自转（默认开；钱包卡片要静态的石头，传 false） */
+    spin?: boolean;
     /**
      * 按下时的放大倍数，必须与组件样式里 `.is-diamond-pressed` 的 `scale()` 一致：
      * 画布会按这个倍数补像素，否则放大后就是位图拉伸、发糊。
@@ -49,7 +51,7 @@ export interface DiamondDragHandle {
 }
 
 export function useDiamondDrag(options: DiamondDragOptions): DiamondDragHandle {
-    const { canvas, palette, viewportGate = false, pressZoom = true, pressScale = 2.2 } = options;
+    const { canvas, palette, viewportGate = false, pressZoom = true, pressScale = 2.2, spin } = options;
 
     let diamond: DiamondHandle | null = null;
     let releaseVisibility: (() => void) | null = null;
@@ -69,7 +71,7 @@ export function useDiamondDrag(options: DiamondDragOptions): DiamondDragHandle {
         if (!el || diamond) return;
         // 复用的画布可能残留上一次的按下态
         el.classList.remove(DIAMOND_PRESSED_CLASS);
-        diamond = mountDiamond({ target: el, palette });
+        diamond = mountDiamond({ target: el, palette, spin });
         if (viewportGate) {
             releaseVisibility = onVisibilityChange(
                 el,

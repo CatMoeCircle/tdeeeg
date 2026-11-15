@@ -278,38 +278,79 @@
 
         <!-- ===== 第二部分：音乐卡片 + 频道订阅卡片（仅用户模式） ===== -->
         <div v-if="!chatMode" class="px-4">
-          <!-- 音乐卡片：标题在卡片外，方形封面/名称/作者在卡片内 -->
-          <template v-if="profileAudio">
-            <!-- 区域标题（卡片外部） -->
-            <p class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">{{
+          <!-- 音乐卡片 + Gram 钱包卡片：同一排，钱包卡片在右；没有余额时只显示音乐 -->
+          <div v-if="profileAudio || showTonWalletCard" class="mb-4">
+            <!-- 区域标题（卡片外部，只有音乐时显示） -->
+            <p v-if="profileAudio" class="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">{{
               t('lng_settings_saved_music_privacy') }}</p>
-            <!-- 卡片：音乐入口行 -->
-            <div
-              class="rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden mb-4">
-              <button type="button" @click="openUserMusicPlayer"
-                class="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                <!-- 方形封面（播放/暂停按钮叠加在封面上） -->
+            <div class="flex items-end gap-3">
+              <div v-if="profileAudio" class="min-w-0 flex-1">
+                <!-- 卡片：音乐入口行 -->
                 <div
-                  class="relative w-14 h-14 rounded-lg shrink-0 overflow-hidden flex items-center justify-center bg-gray-100 dark:bg-gray-800">
-                  <template v-if="profileMusicCover">
-                    <!-- 高清封面就绪后替换；仅在高清下载过程中对低清 minithumbnail 做过渡模糊 -->
-                    <img :src="profileMusicCover" class="w-full h-full object-cover"
-                      :class="profileMusicCoverShowTransition ? 'scale-125 blur-[2px]' : ''" />
-                  </template>
-                  <Music v-else class="w-6 h-6 text-gray-400" />
-                  <span class="absolute inset-0 flex items-center justify-center bg-black/30 text-white">
-                    <Pause v-if="isUserMusicPlaying" class="w-5 h-5" fill="currentColor" />
-                    <Play v-else class="w-5 h-5" fill="currentColor" />
-                  </span>
+                  class="rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden">
+                  <button type="button" @click="openUserMusicPlayer"
+                    class="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                    <!-- 方形封面（播放/暂停按钮叠加在封面上） -->
+                    <div
+                      class="relative w-14 h-14 rounded-lg shrink-0 overflow-hidden flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+                      <template v-if="profileMusicCover">
+                        <!-- 高清封面就绪后替换；仅在高清下载过程中对低清 minithumbnail 做过渡模糊 -->
+                        <img :src="profileMusicCover" class="w-full h-full object-cover"
+                          :class="profileMusicCoverShowTransition ? 'scale-125 blur-[2px]' : ''" />
+                      </template>
+                      <Music v-else class="w-6 h-6 text-gray-400" />
+                      <span class="absolute inset-0 flex items-center justify-center bg-black/30 text-white">
+                        <Pause v-if="isUserMusicPlaying" class="w-5 h-5" fill="currentColor" />
+                        <Play v-else class="w-5 h-5" fill="currentColor" />
+                      </span>
+                    </div>
+                    <!-- 名称 + 作者 -->
+                    <div class="min-w-0 flex-1">
+                      <p class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{{ profileAudioTitle }}</p>
+                      <p class="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{{ profileAudioPerformer }}</p>
+                    </div>
+                  </button>
                 </div>
-                <!-- 名称 + 作者 -->
-                <div class="min-w-0 flex-1">
-                  <p class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{{ profileAudioTitle }}</p>
-                  <p class="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{{ profileAudioPerformer }}</p>
-                </div>
+              </div>
+
+              <!-- Gram 钱包：左边是缩略卡片，点击展开大卡片 -->
+              <button v-if="showTonWalletCard" type="button" @click="openWalletExpanded"
+                class="flex-1 min-w-0 h-[76px] rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden px-3.5 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                <span ref="walletMiniEl" class="shrink-0 overflow-hidden rounded-lg shadow-sm"
+                  :class="{ 'opacity-0': walletExpanded }">
+                  <TonWalletCardMini :address="tonWalletCard?.address ?? ''"
+                    :balance="tonWalletCard?.gram_amount ?? '0'" :name="userName" :width="84" />
+                </span>
+                <span class="min-w-0 text-base font-semibold text-gray-900 dark:text-gray-100 truncate">
+                  {{ walletBalanceText }} GRAM
+                </span>
               </button>
             </div>
-          </template>
+          </div>
+
+          <!-- Gram 钱包大卡片：从小卡片放大到屏幕中间 → 贴纸落下 → 再挂 3D 钻石 -->
+          <Teleport to="body">
+            <div v-if="walletExpanded && showTonWalletCard"
+              class="fixed inset-0 z-[120] flex flex-col items-center justify-center gap-5 p-6">
+              <div class="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300"
+                :class="walletClosing ? 'opacity-0' : 'opacity-100'" />
+              <div ref="walletModalCardEl" class="relative will-change-transform" @click.stop>
+                <TonWalletCard :address="tonWalletCard?.address ?? ''"
+                  :balance="tonWalletCard?.gram_amount ?? '0'" :name="userName" :stickers="tonWalletStickers"
+                  :palette="tonWalletPalette" :width="walletExpandedWidth"
+                  :stickers-visible="walletStage !== 'expand' && !walletClosing"
+                  :reveal-stickers="walletStage === 'stickers'"
+                  :tiltable="walletStage === 'ready'" />
+              </div>
+
+              <!-- 关闭：卡片下方的横向胶囊；关闭瞬间隐藏，但保留占位避免卡片重心跳变 -->
+              <button type="button" @click.stop="closeWalletExpanded"
+                class="relative h-10 w-28 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center transition-colors backdrop-blur"
+                :class="{ 'invisible pointer-events-none': walletClosing }">
+                <ChevronDown class="w-5 h-5" />
+              </button>
+            </div>
+          </Teleport>
 
           <!-- 频道订阅卡片 -->
           <div v-if="personalChatId"
@@ -1315,7 +1356,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
-import { computed, ref, watch, nextTick, onUnmounted } from "vue";
+import { computed, ref, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import type { user as TdUser, userFullInfo, profilePhoto, chatPhoto, giftCollection, MessageSender, messageSticker, sticker, receivedGift, story, storyAlbum, chat, audio as TdAudio, birthdate, file, message, supergroup, basicGroup, supergroupFullInfo, basicGroupFullInfo, chatPhotoInfo, secretChat, SearchMessagesFilter$Input, emojiStatus, emojiStatus$Input, BlockList$Input, chatMember, ChatMemberStatus, chatAdministratorRights, chatPermissions } from "tdlib-types";
 import Avatar from "../../components/chat/avatar.vue";
@@ -1327,6 +1368,10 @@ import GiftDisplay from "../../components/common/GiftDisplay.vue";
 import MessageStickerContent from "../../components/chat/ChatDetail/MessageContent/content/MessageStickerContent.vue";
 import GiftDetailDialog from "../../components/common/GiftDetailDialog.vue";
 import CommunityEntryCard from "../../components/common/CommunityEntryCard.vue";
+import TonWalletCard from "../../components/common/TonWalletCard.vue";
+import TonWalletCardMini from "../../components/common/TonWalletCardMini.vue";
+import { formatGramBalance } from "../../utils/message/tonTransfer";
+import { walletCardPaletteFromCard, walletCardStickerViews } from "../../utils/wallet/walletCard";
 import { buildGiftDetailData, type GiftDetailData } from "../../utils/message/giftDetail";
 import MediaViewer from "../../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
 import type { MediaViewerItem } from "../../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
@@ -1870,6 +1915,110 @@ const user = computed<TdUser | undefined>(() => profileStore.users.get(userId.va
 /** 使用集中缓存的用户对象（优先 profileStore，其次 senderInfo） */
 const fullInfo = computed<userFullInfo | undefined>(() => profileStore.fullInfos.get(userId.value));
 const photosList = computed<chatPhoto[]>(() => profileStore.photos.get(userId.value) ?? []);
+
+// ---------- Gram 钱包卡片（userFullInfo.ton_wallet_card） ----------
+const tonWalletCard = computed(() => fullInfo.value?.ton_wallet_card ?? null);
+const tonWalletStickers = computed(() => (tonWalletCard.value ? walletCardStickerViews(tonWalletCard.value) : []));
+const tonWalletPalette = computed(() => (tonWalletCard.value ? walletCardPaletteFromCard(tonWalletCard.value) : null));
+/** 没有钱包卡片或余额低于 0.01 Gram 时不展示（官方资料页同样规则） */
+const showTonWalletCard = computed(() => {
+  const card = tonWalletCard.value;
+  if (!card?.address) return false;
+  try {
+    return BigInt(card.gram_amount || '0') >= 10_000_000n;
+  } catch {
+    return false;
+  }
+});
+
+/** 小卡片只展示余额；点击后从缩略图放大到屏幕中间的大卡片 */
+const walletExpanded = ref(false);
+const walletClosing = ref(false);
+const walletStage = ref<'expand' | 'stickers' | 'ready'>('expand');
+const walletMiniEl = ref<HTMLElement | null>(null);
+const walletModalCardEl = ref<HTMLElement | null>(null);
+let walletTimers: number[] = [];
+const walletBalanceText = computed(() => {
+  const formatted = formatGramBalance(tonWalletCard.value?.gram_amount ?? '0');
+  return `${formatted.whole}${formatted.fraction}`;
+});
+const walletExpandedWidth = ref(460);
+function updateWalletExpandedWidth() {
+  walletExpandedWidth.value = Math.round(Math.max(300, Math.min(470, window.innerWidth - 140)));
+}
+
+function clearWalletTimers() {
+  walletTimers.forEach((timer) => window.clearTimeout(timer));
+  walletTimers = [];
+}
+
+/** 从小卡片缩略图的位置/尺寸放大到屏幕中间的大卡片 */
+function openWalletExpanded() {
+  if (!showTonWalletCard.value) return;
+  clearWalletTimers();
+  walletClosing.value = false;
+  walletExpanded.value = true;
+  walletStage.value = 'expand';
+  nextTick(() => {
+    const origin = walletMiniEl.value?.getBoundingClientRect();
+    const element = walletModalCardEl.value;
+    if (!origin || !element) return;
+    const target = element.getBoundingClientRect();
+    if (!target.width || !target.height) return;
+    const scale = origin.width / target.width;
+    element.style.transition = 'none';
+    element.style.transformOrigin = 'top left';
+    element.style.transform = `translate(${origin.left - target.left}px, ${origin.top - target.top}px) scale(${scale})`;
+    requestAnimationFrame(() => {
+      element.style.transition = 'transform 460ms cubic-bezier(0.2, 0.8, 0.2, 1)';
+      element.style.transform = 'none';
+    });
+  });
+  // 放大完成 → 贴纸逐枚从上方落下 → 全部落位后再挂 3D 钻石
+  walletTimers.push(window.setTimeout(() => { walletStage.value = 'stickers'; }, 460));
+  const stickerCount = tonWalletStickers.value.length;
+  walletTimers.push(window.setTimeout(() => {
+    walletStage.value = 'ready';
+  }, 460 + stickerCount * 190 + 800));
+}
+
+/** 关闭：大卡片缩回小卡片的位置，遮罩同时淡出 */
+function closeWalletExpanded() {
+  if (!walletExpanded.value || walletClosing.value) return;
+  clearWalletTimers();
+  walletClosing.value = true;
+  const origin = walletMiniEl.value?.getBoundingClientRect();
+  const element = walletModalCardEl.value;
+  if (origin && element) {
+    const target = element.getBoundingClientRect();
+    if (target.width && target.height) {
+      const scale = origin.width / target.width;
+      element.style.transition = 'transform 320ms cubic-bezier(0.4, 0, 0.6, 1)';
+      element.style.transformOrigin = 'top left';
+      element.style.transform = `translate(${origin.left - target.left}px, ${origin.top - target.top}px) scale(${scale})`;
+    }
+  }
+  walletTimers.push(window.setTimeout(() => {
+    // 保持贴回后的 transform 直接卸载，不能在移除前清空样式，否则会先跳回屏幕中间
+    walletExpanded.value = false;
+    walletClosing.value = false;
+    walletStage.value = 'expand';
+  }, 330));
+}
+
+function onWalletKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && walletExpanded.value) closeWalletExpanded();
+}
+onMounted(() => {
+  updateWalletExpandedWidth();
+  window.addEventListener('resize', updateWalletExpandedWidth);
+  window.addEventListener('keydown', onWalletKeydown);
+});
+onUnmounted(() => {
+  clearWalletTimers();
+  window.removeEventListener('resize', updateWalletExpandedWidth);
+  window.removeEventListener('keydown', onWalletKeydown);
+});
 /** 当前选中的礼物收藏夹（0 = 全部礼物） */
 const selectedGiftCollectionId = ref(0);
 /** 礼物持有者：普通用户资料页为对方用户，频道/群组资料页为该聊天 */
