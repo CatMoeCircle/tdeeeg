@@ -434,6 +434,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { ShieldAlert, BookmarkIcon, SearchIcon, ArrowLeftIcon, MessageCircleIcon, UsersIcon, MegaphoneIcon, Folders as FoldersIcon, BellOffIcon, PinIcon, ArchiveIcon, ChevronRightIcon, ArchiveRestore as ArchiveRestoreIcon, PinOff as PinOffIcon, FolderPlus as FolderPlusIcon, FolderMinus as FolderMinusIcon, BellRing as BellRingIcon, LogOut as LogOutIcon, CheckCheck as CheckCheckIcon, Trash2 as Trash2Icon, X as XIcon, Copy as CopyIcon, Plus as PlusIcon, MailOpen as MailOpenIcon } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
 import { settings } from '../../store/settings/settings';
+import { formatUnreadCount } from '../../utils/ui/unreadCount';
 import {
     getSenderName, getSenderNameParts, getSenderPhoto, ensureSenderLoaded,
     getChatProfileAccentColorId, ensureChatAccentLoaded, getChatUserNames, isDeletedChat,
@@ -1350,8 +1351,6 @@ const formatTime = (timestamp: number | undefined) => {
     timeTextCache.set(cacheKey, text);
     return text;
 };
-
-const formatUnreadCount = (count: number) => count > 99 ? '99+' : count.toString();
 
 /** 构造仅含纯文本的 formattedText */
 const plainText = (text: string): formattedText => ({ _: 'formattedText', text, entities: [] });

@@ -342,8 +342,7 @@
                                             :class="{ open: settings.showFolderUnread && (active || settings.folderStyle === 'soft') }">
                                             <span
                                                 class="min-w-4 h-4 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold leading-4 text-center inline-flex items-center justify-center">
-                                                {{ settings.chatList.unreadCountMode === 'messages' ? '99+' :
-                                                    tab.unread }}
+                                                {{ tab.unread }}
                                             </span>
                                         </span>
                                     </template>
@@ -401,7 +400,7 @@
                                     <div class="flex items-center gap-2">
                                         <div class="flex-1 min-w-0 flex items-center gap-1.5">
                                             <span v-if="showPreviewLeftBadge"
-                                                class="shrink-0 text-xs font-semibold leading-5 text-blue-500">[3]</span>
+                                                class="shrink-0 text-xs font-semibold leading-5 text-blue-500">[{{ previewUnreadCount }}]</span>
                                             <template v-if="settings.chatList.showSenderMiniAvatar">
                                                 <Avatar :photo="userPhoto" :title="userName" :first-name="userProfile?.first_name"
                                             :last-name="userProfile?.last_name"
@@ -414,7 +413,7 @@
                                             <span class="min-w-0 truncate text-xs text-gray-500">{{ t('appearance.previewMessage') }}</span>
                                         </div>
                                         <span v-if="!showPreviewLeftBadge"
-                                            class="shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-blue-500 text-white text-[11px] font-semibold leading-5 text-center">3</span>
+                                            class="shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-blue-500 text-white text-[11px] font-semibold leading-5 text-center">{{ previewUnreadCount }}</span>
                                     </div>
                                 </div>
                             </div>
@@ -463,6 +462,13 @@
                                 class="mt-2 ml-7 border-l-2 border-gray-200 dark:border-gray-700 pl-3">
                                 <ChatTypeToggle :label="t('appearance.badgeOnLeftMutedOnly')" v-model="settings.chatList.badgeOnLeftMutedOnly" />
                             </div>
+                        </div>
+
+                        <!-- 未读数 99+ 收敛显示（默认关闭，显示真实未读数） -->
+                        <div class="px-4 py-2">
+                            <ChatTypeToggle :label="t('appearance.unread99Plus')"
+                                v-model="settings.chatList.unreadCount99Plus" />
+                            <p class="mt-1 text-xs text-gray-400">{{ t('appearance.unread99PlusDesc') }}</p>
                         </div>
 
                         <!-- 归档位置 -->
@@ -912,6 +918,9 @@ const previewOverlayOpacity = computed(() =>
     settings.chatWallpaperFullScreen ? settings.chatWallpaperOverlayOpacity : 0
 );
 const previewBlurPx = computed(() => (settings.chatWallpaperFullScreen ? settings.chatWallpaperBlur : 0));
+
+/** 预览卡片里模拟的未读数：用五位数直观展示真实未读数（而非 99+） */
+const previewUnreadCount = 12345;
 
 /** 预览中是否显示左侧未读角标（开启且未限定仅静音；预览对话视为非静音） */
 const showPreviewLeftBadge = computed(

@@ -286,6 +286,8 @@
     "senderMiniAvatar": "最后消息前显示发送者迷你头像",
     "badgeOnLeft": "未读消息图标显示在左边",
     "badgeOnLeftMutedOnly": "只对静音消息生效",
+    "unread99Plus": "未读数显示为 99+",
+    "unread99PlusDesc": "开启后未读数超过 99 收敛显示为 99+；关闭则显示真实未读数（默认）。",
     "archivePosition": "归档位置",
     "archiveTop": "全部对话",
     "archiveSidebar": "侧边栏导航",

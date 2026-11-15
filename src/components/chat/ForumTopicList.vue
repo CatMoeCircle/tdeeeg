@@ -85,6 +85,7 @@ import { tdlibSend } from '../../utils/session/tdlib';
 import type { chat, forumTopic, forumTopics, supergroup } from 'tdlib-types';
 import Avatar from './avatar.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
+import { formatUnreadCount } from '../../utils/ui/unreadCount';
 import {
     messageContentTypeLabel,
     stickerBracketPreview,
@@ -203,10 +204,6 @@ function formatTime(timestamp: number | undefined): string {
         return date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
     }
     return date.toLocaleDateString();
-}
-
-function formatUnreadCount(count: number): string {
-    return count > 99 ? '99+' : count.toString();
 }
 
 function getTopicPreview(topic: forumTopic): string {

@@ -86,6 +86,8 @@ interface Settings {
     badgeOnLeftMutedOnly: boolean;
     /** 分组栏未读计数模式：chats=未读对话数量（默认），messages=未读消息总数 */
     unreadCountMode: "chats" | "messages";
+    /** 未读数超过 99 时是否收敛显示为 99+；默认关闭（显示真实未读数） */
+    unreadCount99Plus: boolean;
     /** 归档位置：top=全部对话顶部，sidebar=侧边栏导航，hidden=隐藏 */
     archivePosition: "top" | "sidebar" | "hidden";
   };
@@ -374,6 +376,7 @@ const defaultSettings: Settings = {
     badgeOnLeft: false,
     badgeOnLeftMutedOnly: false,
     unreadCountMode: "chats",
+    unreadCount99Plus: false,
     archivePosition: "sidebar",
   },
   message: {

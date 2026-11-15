@@ -286,6 +286,8 @@
     "senderMiniAvatar": "最後訊息前顯示傳送者迷你頭像",
     "badgeOnLeft": "未讀訊息圖示顯示在左邊",
     "badgeOnLeftMutedOnly": "只對靜音訊息生效",
+    "unread99Plus": "未讀數顯示為 99+",
+    "unread99PlusDesc": "開啟後未讀數超過 99 收斂顯示為 99+；關閉則顯示真實未讀數（預設）。",
     "archivePosition": "封存位置",
     "archiveTop": "全部對話",
     "archiveSidebar": "側邊欄導航",

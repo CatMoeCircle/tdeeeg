@@ -286,6 +286,8 @@
     "senderMiniAvatar": "Show sender mini avatar before last message",
     "badgeOnLeft": "Show unread badge on the left",
     "badgeOnLeftMutedOnly": "Muted chats only",
+    "unread99Plus": "99+ unread badge",
+    "unread99PlusDesc": "When on, unread counts above 99 collapse to 99+; when off, the exact number is shown (default).",
     "archivePosition": "Archive position",
     "archiveTop": "All chats",
     "archiveSidebar": "Sidebar",

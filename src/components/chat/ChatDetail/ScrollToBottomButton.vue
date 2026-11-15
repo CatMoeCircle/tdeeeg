@@ -5,7 +5,7 @@
         :title="t('chat.scrollToBottom')" :aria-busy="loading">
         <span v-if="count > 0"
             class="absolute -top-1 -right-1 min-w-4.5 h-4.5 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1 leading-none">
-            <template v-if="count > 99">99+</template>
+            <template v-if="showPlus">99+</template>
             <template v-else>
                 <Counter :value="count" :places="places" :font-size="10" :padding="2" :gap="0"
                     :border-radius="0" :horizontal-padding="0" text-color="#ffffff" :font-weight="700"
@@ -24,12 +24,17 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Counter from '../../ui/counter/Counter.vue';
 import { LoaderIndicator } from '../../common/LoaderIndicator';
+import { settings } from '../../../store/settings/settings';
 
 /** 回到最底部按钮：贴在输入区上方，带未读新消息徽标。 */
-defineProps<{ bottom: string; count: number; places: (number | '.')[]; loading?: boolean }>();
+const props = defineProps<{ bottom: string; count: number; places: (number | '.')[]; loading?: boolean }>();
 const emit = defineEmits<{ click: [] }>();
 const { t } = useI18n();
+
+/** 超过 99 是否收敛显示 99+（跟随「聊天列表 → 99+ 未读数」开关，默认关闭） */
+const showPlus = computed(() => props.count > 99 && settings.chatList.unreadCount99Plus);
 </script>

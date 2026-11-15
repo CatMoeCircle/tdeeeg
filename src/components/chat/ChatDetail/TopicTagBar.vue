@@ -150,6 +150,7 @@ import Avatar from '../avatar.vue';
 import { folderTabClass, folderTabContainerClass, type FolderStyle } from '../../../utils/ui/folderPillsTabClass';
 import { getSenderNameParts } from '../../../utils/profile/senderInfo';
 import { settings } from '../../../store/settings/settings';
+import { formatUnreadCount } from '../../../utils/ui/unreadCount';
 import { TOPIC_TAG_PANEL_WIDTH } from '../../../utils/chat/topicDisplayMode';
 import {
     loadDmTopics,
@@ -282,10 +283,6 @@ function topicIconCustomEmojiId(topic: forumTopic): string {
     if (topic.info.is_general) return '';
     const id = topic.info.icon.custom_emoji_id;
     return id && id !== '0' ? String(id) : '';
-}
-
-function formatUnreadCount(count: number): string {
-    return count > 99 ? '99+' : String(count);
 }
 
 interface TagEntry {

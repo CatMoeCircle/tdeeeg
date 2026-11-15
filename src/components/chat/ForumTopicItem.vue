@@ -26,7 +26,7 @@
                 </div>
                 <span v-if="topic.unread_count > 0"
                     class="shrink-0 min-w-4.5 h-4.5 px-1 rounded-full bg-blue-500 text-center text-[10px] font-bold leading-4.5 text-white">
-                    {{ topic.unread_count > 99 ? '99+' : topic.unread_count }}
+                    {{ formatUnreadCount(topic.unread_count) }}
                 </span>
             </div>
         </div>
@@ -40,6 +40,7 @@ import Avatar from './avatar.vue';
 import ForumTopicAvatar from './ForumTopicAvatar.vue';
 import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 import formatTime from '../../utils/ui/formatTime';
+import { formatUnreadCount } from '../../utils/ui/unreadCount';
 import { getSenderName, getSenderNameParts, getSenderPhoto } from '../../utils/profile/senderInfo';
 import { messageContentTypeLabel } from '../../utils/message/messagePreview';
 
