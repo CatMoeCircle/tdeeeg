@@ -895,7 +895,7 @@ import {
     shouldPromptChatTranslatePremium,
 } from '../../../store/ai/translate';
 
-import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, inputTextQuote, sendMessage, $Function, textEntity, textEntity$Input, file as TdFile, ReactionType } from 'tdlib-types';
+import type { chat, message, user, chatPhotoInfo, profilePhoto, Update, supergroup, basicGroup, messageForwardInfo, replyMarkupInlineKeyboard, ChatMemberStatus, ChatMember, forumTopic, directMessagesChatTopic, inputTextQuote, sendMessage, $Function, textEntity, textEntity$Input, file as TdFile, ReactionType } from 'tdlib-types';
 import { getViewerState, closeMediaViewer, isMediaViewerActive, openMediaViewer } from '../../../store/media/mediaViewer';
 
 import { getSenderAccentColorId, getSenderProfileAccentColorId, getSenderNameParts, isDeletedChat, DELETED_ACCOUNT_LABEL, ensureUser, ensureChat, getReactiveUser, getReactiveChat, getUserUsername, senderCacheRevision } from '../../../utils/profile/senderInfo';
@@ -1545,6 +1545,98 @@ const overlayChatTitle = computed(() => {
 });
 /** 当前话题信息（话题模式时存在） */
 const topic = ref<forumTopic | undefined>(undefined);
+/** 频道私信话题信息（私信话题模式时存在；未读 / 已读线 / 最新消息口径与论坛话题一致） */
+const dmTopic = ref<directMessagesChatTopic | undefined>(undefined);
+/**
+ * 话题未读本地计数。
+ * 论坛群的 chat.unread_count 是「整群」口径（含其它话题），而 TDLib 的 updateForumTopic
+ * 只带已读线、不带 unread_count，所以话题未读只能在 getForumTopic 时取一次快照：
+ * 之后「读一条减一条、来一条加一条」维护，收到话题变更时再取快照对账。
+ */
+const topicUnread = ref(0);
+/** 当前视图（会话 / 论坛话题 / 频道私信话题）的未读口径：与未读相关的判定一律走这里 */
+const viewUnreadCount = computed(() => {
+    if (threadMode.value) return 0;
+    if (!topicId.value) return chat.value?.unread_count ?? 0;
+    return isDirectMessagesChat.value ? (dmTopic.value?.unread_count ?? 0) : topicUnread.value;
+});
+/** 当前视图的已读线：话题视图取话题自己的 last_read_inbox_message_id（整群已读线会越过话题内更早的未读） */
+const viewReadInboxId = computed(() => {
+    if (threadMode.value) return 0;
+    if (!topicId.value) return chat.value?.last_read_inbox_message_id ?? 0;
+    return isDirectMessagesChat.value
+        ? (dmTopic.value?.last_read_inbox_message_id ?? 0)
+        : (topic.value?.last_read_inbox_message_id ?? 0);
+});
+/** 当前视图的最新消息 id：话题视图取话题自己的 last_message（整群 last_message 常落在别的话题里） */
+const viewLastMessageId = computed(() => {
+    if (topicId.value && !threadMode.value) {
+        return isDirectMessagesChat.value
+            ? (dmTopic.value?.last_message?.id ?? 0)
+            : (topic.value?.last_message?.id ?? 0);
+    }
+    return chat.value?.last_message?.id ?? 0;
+});
+/** 记录当前视图（会话 / 话题）的最新消息，供贴底判定与「窗口是否连到最新」使用 */
+function rememberViewLastMessage(msg: message) {
+    if (threadMode.value) return;
+    const id = msg.id || 0;
+    if (!topicId.value) {
+        if (chat.value?.last_message && id >= (chat.value.last_message.id || 0)) chat.value.last_message = msg;
+        return;
+    }
+    if (isDirectMessagesChat.value) {
+        const t = dmTopic.value;
+        if (t && id >= (t.last_message?.id ?? 0)) t.last_message = msg;
+        return;
+    }
+    const t = topic.value;
+    if (t && id >= (t.last_message?.id ?? 0)) t.last_message = msg;
+}
+/** 话题未读 +1（离开底部期间收到他人新消息；整群 unread_count 不区分话题） */
+function bumpTopicUnread() {
+    if (threadMode.value || !topicId.value) return;
+    topicUnread.value += 1;
+}
+/** 话题未读 -n（已把 n 条未读上报为已读） */
+function dropTopicUnread(n: number) {
+    if (threadMode.value || !topicId.value || n <= 0) return;
+    topicUnread.value = Math.max(0, topicUnread.value - n);
+}
+let topicStateRefreshTimer: number | null = null;
+/** 话题已读线/未读数对账（updateForumTopic 不带 unread_count）：合并成一次 getForumTopic，只读本地库 */
+function scheduleTopicStateRefresh(delay = 400) {
+    if (threadMode.value || !topicId.value || chatId.value === undefined) return;
+    if (topicStateRefreshTimer !== null) window.clearTimeout(topicStateRefreshTimer);
+    topicStateRefreshTimer = window.setTimeout(() => {
+        topicStateRefreshTimer = null;
+        void refreshTopicState();
+    }, delay);
+}
+async function refreshTopicState() {
+    if (disposed) return;
+    const cid = chatId.value;
+    const tid = topicId.value;
+    // 私信话题由 updateDirectMessagesChatTopic 直接推送完整对象（含 unread_count），无需再查
+    if (cid === undefined || !tid || threadMode.value || isDirectMessagesChat.value) return;
+    try {
+        const t = await tdlibSend({ _: 'getForumTopic', chat_id: cid, forum_topic_id: tid }) as forumTopic;
+        if (threadMode.value || chatId.value !== cid || topicId.value !== tid) return;
+        if (t && t._ === 'forumTopic') {
+            // 快照可能比本地还旧（请求与 update 交错）：已读线/未读数只进不退，
+            // 否则刚清掉的角标会被旧快照加回去。
+            const known = Math.max(topic.value?.last_read_inbox_message_id ?? 0, lastReportedReadMessageId);
+            if ((t.last_read_inbox_message_id ?? 0) >= known) {
+                topic.value = t;
+                topicUnread.value = t.unread_count ?? 0;
+            } else {
+                topic.value = { ...t, last_read_inbox_message_id: known, unread_count: topicUnread.value };
+            }
+        }
+    } catch (e) {
+        console.error('Failed to refresh topic state:', e);
+    }
+}
 /** 频道私信话题的头部展示（对方头像/名称） */
 const dmHeaderTopic = ref<{ name: string; photo?: import('tdlib-types').chatPhotoInfo | import('tdlib-types').profilePhoto; firstName?: string; lastName?: string } | undefined>(undefined);
 const messageInput = ref('');
@@ -2862,16 +2954,17 @@ const latestUnreadSeenId = ref(0);
 const newMessageIds = ref<Set<number>>(new Set());
 /** 离开底部期间收到的他人新消息 id（不依赖窗口/入场动画，窗口未连到底部时也计数） */
 const pendingNewIds = ref<Set<number>>(new Set());
-/** 跳底按钮徽标：未读新消息实时数（id 超过已看到的底部上界即计入） */
+/** 跳底按钮徽标：会话/话题取各自未读数；评论线程按离开底部后的新消息实时计数 */
 const newMessageCount = computed(() => {
-    if (!threadMode.value && chat.value) return chat.value.unread_count;
+    // 话题视图必须取话题自己的未读：整群 unread_count 含其它话题，角标会停在整群数字上
+    if (!threadMode.value) return viewUnreadCount.value;
     let n = 0;
     for (const id of pendingNewIds.value) {
         if (id > latestUnreadSeenId.value) n++;
     }
     return n;
 });
-/** 未读角标计数器位数：按未读数长度生成（≤99 走滚动数字，>99 仍显示 99+） */
+/** 未读角标计数器位数：按未读数长度生成（>99 时是否收敛 99+ 由聊天列表设置决定） */
 const newMessageCountPlaces = computed<(number | '.')[]>(() => {
     const digits = Math.max(1, String(newMessageCount.value).length);
     return Array.from({ length: digits }, (_, i) => 10 ** (digits - 1 - i));
@@ -3167,6 +3260,10 @@ onUnmounted(() => {
     disarmSkeleton();
     if (readVisibilityTimer !== null) window.clearTimeout(readVisibilityTimer);
     if (chatLoadRetryTimer !== null) window.clearTimeout(chatLoadRetryTimer);
+    if (topicStateRefreshTimer !== null) {
+        window.clearTimeout(topicStateRefreshTimer);
+        topicStateRefreshTimer = null;
+    }
     cancelLocalDraftTimer();
     // 编辑中卸载：编辑文本不是草稿，不要写入；直接冲刷先前已保存的 TDLib 草稿
     // 加载中途关掉面板时，输入框可能还不属于这个对话（同上：别拿空输入删草稿）
@@ -3234,13 +3331,46 @@ const handleUpdate = async (update: Update) => {
         case 'updateChatReadInbox': {
             // 未读数与已读线都要实时跟随：只更新 unread_count 会让消息行/已读分隔
             // 继续用旧的 last_read_inbox_message_id 渲染，出现「已读消息不刷新」。
-            if (!chat.value || threadMode.value || update.chat_id !== chat.value.id) break;
+            if (!chat.value || update.chat_id !== chat.value.id) break;
             chat.value.unread_count = update.unread_count;
             if (typeof update.last_read_inbox_message_id === 'number') {
                 chat.value.last_read_inbox_message_id = update.last_read_inbox_message_id;
-                if (update.last_read_inbox_message_id > lastReportedReadMessageId) {
+                // 话题视图的已读线以话题自己的为准：整群已读线常落在别的话题里，
+                // 会越过本话题更早的未读，把未读误判成已读（评论线程的已读线属讨论组，同样不能借用）。
+                if (!threadMode.value && !topicId.value && update.last_read_inbox_message_id > lastReportedReadMessageId) {
                     lastReportedReadMessageId = update.last_read_inbox_message_id;
                 }
+            }
+            // 话题视图：整群未读变化可能来自本话题的已读，重新取一次话题快照对账
+            if (topicId.value && !threadMode.value) scheduleTopicStateRefresh(600);
+            break;
+        }
+
+        case 'updateForumTopic': {
+            // 话题已读线 / 置顶变化。该 update 不带 unread_count，只能先同步已读线，再取一次快照。
+            if (threadMode.value || !topicId.value) break;
+            if (update.chat_id !== chatId.value || update.forum_topic_id !== topicId.value) break;
+            if (topic.value) {
+                if (typeof update.last_read_inbox_message_id === 'number') {
+                    topic.value.last_read_inbox_message_id = update.last_read_inbox_message_id;
+                }
+                topic.value.is_pinned = update.is_pinned;
+            }
+            if (update.last_read_inbox_message_id > lastReportedReadMessageId) {
+                lastReportedReadMessageId = update.last_read_inbox_message_id;
+            }
+            scheduleTopicStateRefresh();
+            break;
+        }
+
+        case 'updateDirectMessagesChatTopic': {
+            // 私信话题的 update 带完整话题对象（含 unread_count），直接覆盖即可
+            if (threadMode.value || !topicId.value) break;
+            const dmUpdate = update.topic;
+            if (!dmUpdate || dmUpdate.chat_id !== chatId.value || dmUpdate.id !== topicId.value) break;
+            dmTopic.value = dmUpdate;
+            if (dmUpdate.last_read_inbox_message_id > lastReportedReadMessageId) {
+                lastReportedReadMessageId = dmUpdate.last_read_inbox_message_id;
             }
             break;
         }
@@ -3288,9 +3418,7 @@ const handleUpdate = async (update: Update) => {
                 if (senderIsMe) {
                     // 自己发送：切到真实底部连续窗口，保证发送结果可见且列表连续
                     // 评论线程的 message 属讨论组，不得回写频道会话的 last_message
-                    if (!threadMode.value && chat.value?.last_message && msg.id >= (chat.value.last_message.id || 0)) {
-                        chat.value.last_message = msg;
-                    }
+                    rememberViewLastMessage(msg);
                     void handleScrollToBottom();
                     break;
                 }
@@ -3298,6 +3426,7 @@ const handleUpdate = async (update: Update) => {
                     showScrollButton.value = true;
                     newMessageIds.value.add(msg.id);
                     pendingNewIds.value.add(msg.id);
+                    bumpTopicUnread();
                 }
                 break;
             }
@@ -3311,14 +3440,13 @@ const handleUpdate = async (update: Update) => {
             newMessageIds.value.add(msg.id);
             if (senderIsMe || atBottom) {
                 showScrollButton.value = false;
-                if (!threadMode.value && chat.value?.last_message && msg.id >= (chat.value.last_message.id || 0)) {
-                    chat.value.last_message = msg;
-                }
+                rememberViewLastMessage(msg);
                 windowReachesLatest.value = true;
                 scrollToBottom();
             } else {
                 showScrollButton.value = true;
                 pendingNewIds.value.add(msg.id);
+                bumpTopicUnread();
             }
             break;
         }
@@ -3709,9 +3837,9 @@ function isNewerDirectionExhausted(): boolean {
     return historyMode.value === 'jump' ? jumpNewerExhausted.value : isNewerExhausted.value;
 }
 
-/** 依据当前列表末端与 chat.last_message，判断窗口是否已贴到真实最新 */
+/** 依据当前列表末端与当前视图（会话 / 话题）的最新消息，判断窗口是否已贴到真实最新 */
 function refreshWindowReachesLatest() {
-    const lastId = chat.value?.last_message?.id ?? 0;
+    const lastId = viewLastMessageId.value;
     const newestId = messagesMaxId();
     if (lastId <= 0 || newestId <= 0) {
         // 无 last_message 时，若更新方向已耗尽也可视为贴底
@@ -4099,6 +4227,7 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
         // 评论线程模式：加载 getMessageThread（讨论组、线程 id、根消息、评论计数）
         if (threadMode.value) {
             topic.value = undefined;
+            dmTopic.value = undefined;
             dmHeaderTopic.value = undefined;
             threadInfo.value = undefined;
             threadReplyInfo.value = undefined;
@@ -4118,6 +4247,8 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
             }
         } else if (topicId.value) {
             topic.value = undefined;
+            dmTopic.value = undefined;
+            topicUnread.value = 0;
             dmHeaderTopic.value = undefined;
             threadInfo.value = undefined;
             threadReplyInfo.value = undefined;
@@ -4128,40 +4259,49 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
                     // 私信话题：解析对方名称/头像供 Header 展示
                     const dm = t as Awaited<ReturnType<typeof ensureDmTopic>>;
                     if (dm) {
+                        dmTopic.value = dm;
                         const name = await resolveDmSenderName(dm.sender_id);
                         const dmNames = getSenderNameParts(dm.sender_id);
                         dmHeaderTopic.value = { name, photo: getSenderPhoto(dm.sender_id), firstName: dmNames.first, lastName: dmNames.last };
                     }
                 } else {
                     topic.value = t as forumTopic;
+                    // 话题未读从话题快照起算（论坛群的 chat.unread_count 是整群口径，含其它话题）
+                    topicUnread.value = (t as forumTopic).unread_count ?? 0;
                 }
             } catch (e) {
                 console.error('Failed to load topic:', e);
             }
         } else {
             topic.value = undefined;
+            dmTopic.value = undefined;
+            topicUnread.value = 0;
             dmHeaderTopic.value = undefined;
             threadInfo.value = undefined;
             threadReplyInfo.value = undefined;
         }
 
-        // 有未读消息时，以最后一条已读收件箱消息作为历史定位锚点
+        // 有未读消息时，以最后一条已读消息作为历史定位锚点
         // 评论线程：不使用会话未读线（属另一会话），首屏固定从线程最新向历史拉、贴底打开
+        // 话题视图：用话题自己的未读/已读线 —— 整群口径会把已读完的话题拽到历史中间，
+        // 也算不出正确的「第一条未读」，还会让置底按钮一直认为没到底。
+        const viewUnread = viewUnreadCount.value;
+        const viewReadId = viewReadInboxId.value;
         const lastReadId = threadMode.value
             ? 0
-            : chatData.unread_count > 0
-                ? chatData.last_read_inbox_message_id
+            : viewUnread > 0
+                ? viewReadId
                 : 0;
-        lastReportedReadMessageId = threadMode.value ? 0 : chatData.last_read_inbox_message_id;
+        lastReportedReadMessageId = threadMode.value ? 0 : viewReadId;
         // 记住打开时的已读线，供「滑进未读」兜底比较（不随 markVisible 前进）
-        sessionUnreadBaseId.value = threadMode.value ? 0 : chatData.last_read_inbox_message_id;
+        sessionUnreadBaseId.value = threadMode.value ? 0 : viewReadId;
 
         // 浏览位置失效判定（任一命中则删除缓存，改走未读/底部）：
         // 1) 已读线前进（当前 last_read_inbox_message_id > saved.readInboxMaxId，其它端读过/离开期间读过）
         // 2) 滑进未读：anchor 落在未读区（以 UI 未读边界为准，见下文 unreadBoundary）
         let browsePos: BrowsePosition | null = savedBrowsePos;
         if (browsePos && !restoreLastPosition) {
-            const readInboxMaxId = chatData.last_read_inbox_message_id;
+            const readInboxMaxId = viewReadId;
             const readLineChanged = readInboxMaxId > browsePos.readInboxMaxId;
             if (readLineChanged) {
                 clearLastBrowsePosition(currentId, topicId.value);
@@ -4255,7 +4395,8 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
         }
 
         // 评论线程不按会话未读锚定（未读线属另一会话），始终贴线程底部打开
-        const firstUnreadMessage = !threadMode.value && chatData.unread_count > 0
+        // 话题视图按话题自己的未读数判断：别的话题有未读时，不会在已读完的话题里插分隔线
+        const firstUnreadMessage = !threadMode.value && viewUnread > 0
             ? firstBatch.find(message => !message.is_outgoing && (lastReadId === 0 || message.id > lastReadId))
             : undefined;
         const unreadAlbumId = firstUnreadMessage?.media_album_id;
@@ -4277,11 +4418,13 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
         if (!cachedWindow) {
             hideMessagesOutsideFirstPaint(browsePos?.anchorId ?? unreadBoundaryMessageId.value ?? 0);
         }
-        // from_message_id=0 或已包含 last_message → 窗口贴真实底部
+        // from_message_id=0 或已包含当前视图（会话 / 话题）的最新消息 → 窗口贴真实底部
         if (lastReadId === 0 && !earlyMessages) {
             windowReachesLatest.value = firstBatch.length > 0;
         } else {
-            const lastMessageId = chatData.last_message?.id ?? 0;
+            // 话题视图必须和话题自己的 last_message 比：整群 last_message 往往落在别的话题里，
+            // 永远比不过 → 窗口一直算「没到底」，置底按钮常驻、角标也清不掉。
+            const lastMessageId = viewLastMessageId.value;
             const newestInBatch = firstBatch[firstBatch.length - 1]?.id ?? 0;
             windowReachesLatest.value = lastMessageId > 0 && newestInBatch >= lastMessageId;
         }
@@ -4289,7 +4432,7 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
         // 仅首屏意图贴最新（from_message_id=0）时触发；历史 browsePos / 未读锚点窗口
         // 本就不要求含最新，否则会白做桥接甚至拉大半段历史。评论线程不适用（桥接拉的是会话历史）。
         if (!earlyMessages && lastReadId === 0 && !threadMode.value) {
-            void alignLatestMessagesInBackground(currentId, chatData, gen);
+            void alignLatestMessagesInBackground(currentId, gen);
         }
         chatLoadRetryCount = 0;
         // 评论线程不读写会话草稿（草稿 key 与主聊天相同，会互相覆盖）
@@ -4555,9 +4698,10 @@ async function fetchMessagesPreferLocal(
  * gap 过大时复用 bridge（BRIDGE_MAX_PAGES），失败就放弃，不替换、不清列表。
  * 不阻塞 listRevealed，不占用 isLoadingMore（避免与滚动加载互斥打架）。
  */
-async function alignLatestMessagesInBackground(currentId: number, chatData: chat, gen: number): Promise<void> {
+async function alignLatestMessagesInBackground(currentId: number, gen: number): Promise<void> {
     const windowGen = historyWindowGeneration;
-    const lastMessageId = chatData.last_message?.id ?? 0;
+    // 话题视图取话题自己的最新消息（整群 last_message 可能属于别的话题，永远补不齐）
+    const lastMessageId = viewLastMessageId.value;
     if (lastMessageId <= 0) return;
     // 已含最新：无需补全
     if (messagesMaxId() >= lastMessageId) return;
@@ -5307,6 +5451,12 @@ async function markVisibleMessagesAsRead() {
         if (!currentIsThread) {
             bumpBrowsePosReadInboxMaxId(currentChatId, currentTopicId, latestVisibleId);
         }
+        // 话题未读：整群 unread_count 不区分话题，先按本次上报的条数本地扣减；
+        // 等 TDLib 处理完这次已读（updateChatReadInbox / updateForumTopic）再取快照对账，
+        // 这里不能立刻查，否则可能读到还没应用本次已读的旧快照，把角标又加回去。
+        if (!currentIsThread && currentTopicId && chatId.value === currentChatId && topicId.value === currentTopicId) {
+            dropTopicUnread(messageIds.length);
+        }
     } catch (e) {
         if (chatId.value === currentChatId && lastReportedReadMessageId === latestVisibleId) {
             lastReportedReadMessageId = previousReportedId;
@@ -5798,7 +5948,8 @@ async function jumpToMessageInternal(
         isHistoryExhausted.value = false;
         isNewerExhausted.value = false;
 
-        const lastMessageId = chat.value?.last_message?.id ?? 0;
+        // 话题视图按话题自己的最新消息判断是否贴到真实最新（整群 last_message 常落在别的话题里）
+        const lastMessageId = viewLastMessageId.value;
         windowReachesLatest.value = lastMessageId > 0
             && windowMessages.some(m => m.id === lastMessageId);
 
@@ -6068,8 +6219,9 @@ function captureBrowsePosition(
         return null;
     }
 
-    // 用本地已上报与 TDLib 两侧的较大值，避免「已读回执晚于 capture」造成 readInboxMaxId 过期
-    const readInboxMaxId = Math.max(chat.value?.last_read_inbox_message_id ?? 0, lastReportedReadMessageId);
+    // 用本地已上报与当前视图（会话 / 话题）已读线的较大值，避免「已读回执晚于 capture」造成过期；
+    // 话题视图不能用整群已读线，否则回到话题时会被判成「已读线前进」而丢掉浏览位置。
+    const readInboxMaxId = Math.max(viewReadInboxId.value, lastReportedReadMessageId);
     // 滑进未读 → 删除缓存，下次进入走未读/底部（与进入会话共用 isAnchorInUnreadZone）。
     // 跳转离开（资料页 / 其他会话）例外：用户马上会返回，保留真实位置。
     if (!options?.preserveOnReturn && isAnchorInUnreadZone(bestId)) {
@@ -6663,6 +6815,8 @@ function resetState() {
     unreadBoundaryMessageId.value = null;
     jumpReturnTarget.value = null;
     latestUnreadSeenId.value = 0;
+    topicUnread.value = 0;
+    dmTopic.value = undefined;
     showScrollButton.value = false;
     newMessageIds.value = new Set();
     pendingNewIds.value = new Set();
@@ -7415,7 +7569,8 @@ const messageRowEpoch = computed(() => [
     jumpTargetRowId.value ?? 0,
     leavingMessageIds.value.size,
     newMessageIds.value.size,
-    chat.value?.last_read_inbox_message_id ?? 0,
+    // 话题视图的已读线在话题上：整群已读线不动时，行也必须跟着话题已读线重绘
+    viewReadInboxId.value,
     // 发出消息的「已读」对勾看 last_read_outbox_message_id；v-memo 漏掉它时，
     // updateChatReadOutbox 已写入新值但行被跳过 patch，表现为「已读消息不刷新」。
     chat.value?.last_read_outbox_message_id ?? 0,
@@ -7857,7 +8012,8 @@ async function handleScrollToBottomInner() {
     // 但本次打开期间生成的未读边界不会自动清空；若继续按它定位，用户向上翻动后
     // 再点「到底」会被拉回已经读过的未读位置，而不是真正到底。
     const unreadId = unreadBoundaryMessageId.value;
-    const hasUnread = (chat.value?.unread_count ?? 0) > 0;
+    // 话题视图按话题自己的未读判断：别的话题的未读不该把「到底」变成「跳到未读线」
+    const hasUnread = viewUnreadCount.value > 0;
     const viewportAnchor = messagesContainer.value ? captureViewportAnchor(messagesContainer.value) : null;
     if (hasUnread && unreadId && unreadId > 0 && viewportAnchor && viewportAnchor.msgId > 0 && viewportAnchor.msgId < unreadId) {
         cancelScrollAnim();
@@ -7975,15 +8131,9 @@ async function handleScrollToBottomInner() {
         // 已贴真实底部：更新方向历史视为耗尽，禁止 loadHistoryNewer 空转
         isNewerExhausted.value = true;
         newerFetchFailStreak = 0;
-        if (chat.value?.last_message) {
-            const lastId = chat.value.last_message.id || 0;
-            const inList = messages.value.find(m => m.id === batchNewestId);
-            if (inList) chat.value.last_message = inList;
-            else if (lastId > 0) {
-                const last = messages.value.find(m => m.id === lastId);
-                if (last) chat.value.last_message = last;
-            }
-        }
+        // 记下当前视图（会话 / 话题）的最新消息：话题视图不能把话题消息写回整群 last_message
+        const newestInList = messages.value.find(m => m.id === batchNewestId);
+        if (newestInList) rememberViewLastMessage(newestInList);
     } finally {
         isLoadingMore.value = false;
         loadingDirection.value = null;
