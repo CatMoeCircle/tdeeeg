@@ -619,6 +619,8 @@
                     :chat-id="chatId ?? null" :thread="aiTurnThread" :perms="aiTurnPermissions"
                     :read-only="!canSend" v-model:quote="aiQuote"                    @jump-quote="jumpToAiQuote" @switch-message="settings.ai.input = 'message'" />
                 <MessageInput v-else-if="canSend" ref="messageInputRef" v-model="messageInput"
+                    :inline-chat-id="outgoingChatId()" :inline-topic="outgoingTopicInput()"
+                    :inline-reply-message-id="replyTargetMsg?.id"
                     :reply-target="replyTargetInfo" :edit-target="editTargetInfo" :edit-entities="editSeedEntitiesForInput"
                     :chat="chat" :users="users" :supergroups="supergroups" :basic-groups="basicGroups" :my-id="myId"
                     :member-status="currentMemberStatus" :is-premium="isMePremium"

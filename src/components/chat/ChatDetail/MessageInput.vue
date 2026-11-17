@@ -40,7 +40,11 @@
         </Transition>
 
         <div
-            class="flex items-end gap-3 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-2 rounded-4xl shadow-lg border border-gray-200/50 dark:border-gray-700/50">
+            class="relative flex items-end gap-3 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md px-2 rounded-4xl shadow-lg border border-gray-200/50 dark:border-gray-700/50">
+            <!-- 内联机器人结果面板：绝对定位在输入行上方，键盘导航由本组件驱动 -->
+            <InlineResultsPanel v-if="inlinePanel" ref="inlinePanelRef" :chat-id="inlineSendChatId"
+                :bot-username="inlinePanel.username" :query="inlinePanel.query" :anchor-el="textareaRef"
+                @pick="pickInlineResult" @close="closeInlinePanel" />
             <SenderSelector v-if="showSenderSelector" :current-sender-id="currentSenderId"
                 :available-senders="availableSenders || []" :loading="sendersLoading"
                 @select="emit('change-sender', $event)" />
@@ -65,6 +69,8 @@
                 <textarea ref="textareaRef" v-model="localValue" :placeholder="inputPlaceholder"
                     :class="['input-scrollbar input-textarea flex-1 min-w-0 bg-transparent resize-none focus:outline-none text-sm leading-5 text-gray-800 dark:text-gray-200 px-2 py-2 min-h-9 max-h-40 overflow-y-auto field-sizing-content']"
                     rows="1" @input="onInput" @keydown.enter.exact.prevent="onEnter" @keydown.enter.shift.stop
+                    @keydown.up="onInlineArrow($event, -1)" @keydown.down="onInlineArrow($event, 1)"
+                    @keydown.tab="onInlineTab"
                     @keydown.escape="onEscape" @paste="onPaste" @scroll="syncPreviewScroll"
                     @contextmenu.prevent.stop="onContextMenu"></textarea>
             </div>
@@ -105,8 +111,8 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
-import { computed, ref, watch, onMounted, nextTick } from 'vue';
-import type { chat, ChatMemberStatus, user, textEntity, formattedText } from 'tdlib-types';
+import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import type { chat, ChatMemberStatus, user, textEntity, formattedText, MessageTopic$Input, InputMessageReplyTo$Input } from 'tdlib-types';
 import { CornerUpLeftIcon, SendIcon, Smile, Sparkles, XIcon, TypeIcon, Bold, Italic, Underline, Strikethrough, EyeOff, Code2, Quote, Link2, Eraser, BellOff, CalendarClock, UserRoundCheck } from 'lucide-vue-next';
 import { sending } from '../../../utils/media/attachmentSend';
 import { useAttachmentStore } from '../../../store/media/attachment';
@@ -120,6 +126,7 @@ import {
 import type { FormatKind } from '../../../utils/message/textFormatters';
 import type { MessageSender, chatMessageSender } from 'tdlib-types';
 import AttachmentMenu from './AttachmentMenu.vue';
+import InlineResultsPanel from './InlineResultsPanel.vue';
 import AttachmentTray from './AttachmentTray.vue';
 import LinkInputDialog from './LinkInputDialog.vue';
 import ScheduleMessageDialog, { type ScheduleSubmitPayload } from './ScheduleMessageDialog.vue';
@@ -127,6 +134,8 @@ import SenderSelector from './SenderSelector.vue';
 import type { OutgoingMessageOptions, ScheduledSendMode } from '../../../utils/chat/chatScheduling';
 import { schedulingStateAt, schedulingStateWhenOnline } from '../../../utils/chat/chatScheduling';
 import { fetchChatBotCommands, type ChatBotCommand } from '../../../utils/chat/chatBotCommands';
+import { parseInlineBotQuery, sendInlineQueryResult, inlineBotErrorText, type InlineBotQuery, type InlineResultModel } from '../../../utils/chat/inlineBot';
+import { toast } from '../../../utils/ui/toast';
 import { getReactiveUser } from '../../../utils/profile/senderInfo';
 import { settings } from '../../../store/settings/settings';
 import Avatar from '../avatar.vue';
@@ -169,6 +178,12 @@ const props = defineProps<{
     canScheduleUntilOnline?: boolean;
     /** 当前会话是否已有定时消息（显示发送区的「定时消息」时钟入口） */
     hasScheduledMessages?: boolean;
+    /** 内联机器人结果发送的目标会话（缺省用当前 chat；评论线程模式建议传讨论组 chat id） */
+    inlineChatId?: number;
+    /** 内联机器人结果发送的话题（论坛话题 / 频道私信 / 评论线程） */
+    inlineTopic?: MessageTopic$Input;
+    /** 当前回复目标的消息 id（父组件传 replyTargetMsg?.id；内联结果据此按回复发送，并在成功后清回复态） */
+    inlineReplyMessageId?: number;
 }>();
 
 const emit = defineEmits([
@@ -436,7 +451,116 @@ function submitSend(options?: OutgoingMessageOptions) {
 
 const onClickSend = () => submitSend();
 
-const onEnter = () => submitSend();
+const onEnter = () => {
+    if (inlinePanel.value || inlinePending.value) {
+        // 面板可见（含结果还没加载 / 为 0 条）或防抖窗口内 Enter 只用于发送选中结果：
+        // 无可选项时直接吞掉，绝不能让字面的 "@机器人 查询词" 当普通消息发出去。
+        // Esc 显式关闭后 inlinePending 为 false，此时 Enter 恢复普通发送。
+        const picked = inlinePanelRef.value?.selectCurrent();
+        if (picked) void pickInlineResult(picked);
+        return;
+    }
+    submitSend();
+};
+
+/* =========================================================================
+ * 内联机器人（inline bot）：输入 "@机器人 查询词" 时在输入框上方弹出结果面板。
+ * 解析 / 机器人解析 / 分页 / 发送逻辑在 utils/chat/inlineBot，这里只做最小接线：
+ * 防抖触发、键盘导航、选中后发送并清空输入框。
+ * ========================================================================= */
+const inlinePanelRef = ref<InstanceType<typeof InlineResultsPanel> | null>(null);
+/** 输入框文本能否识别为内联查询（编辑消息时不触发） */
+const inlineQuery = computed(() => (props.editTarget ? null : parseInlineBotQuery(localValue.value)));
+/** 防抖判重 key：机器人用户名（小写）+ 查询词 */
+const inlineQueryKey = computed(() => (inlineQuery.value
+    ? inlineQuery.value.username.toLowerCase() + '|' + inlineQuery.value.query
+    : ''));
+/** 防抖后的查询（面板据此请求）；null 表示面板不显示 */
+const debouncedInlineQuery = ref<InlineBotQuery | null>(null);
+/** 被 Esc 关闭时记录的 key：同一 key 下不再自动弹回，文本再变才恢复 */
+const inlineDismissedKey = ref('');
+/** 内联结果发送中：避免连按 Enter 重复发送 */
+const inlineSending = ref(false);
+const inlinePanel = computed(() => debouncedInlineQuery.value);
+/** 已识别为内联查询但面板尚未弹出（300ms 防抖窗口）或请求中：此时也不能按普通消息发送 */
+const inlinePending = computed(() => !!inlineQuery.value && inlineDismissedKey.value !== inlineQueryKey.value);
+/** 发送目标会话：默认当前聊天；评论线程模式由父组件传讨论组 chat id */
+const inlineSendChatId = computed(() => props.inlineChatId ?? props.chat?.id);
+/** 内联结果的回复目标：与普通发送共用同一个回复目标，保证结果确实是回复且回复条可清理 */
+const inlineReplyToInput = computed<InputMessageReplyTo$Input | undefined>(() => {
+    const messageId = props.inlineReplyMessageId;
+    if (!messageId) return undefined;
+    return {
+        _: 'inputMessageReplyToMessage',
+        message_id: messageId,
+        checklist_task_id: 0,
+        poll_option_id: '',
+    };
+});
+
+let inlineTimer: ReturnType<typeof setTimeout> | null = null;
+watch(inlineQueryKey, (key) => {
+    if (inlineTimer) { clearTimeout(inlineTimer); inlineTimer = null; }
+    if (!key) { debouncedInlineQuery.value = null; inlineDismissedKey.value = ''; return; }
+    // 文本变了 → 解除 Esc 关闭状态；同一查询被关闭过则保持关闭
+    if (inlineDismissedKey.value && inlineDismissedKey.value !== key) inlineDismissedKey.value = '';
+    if (inlineDismissedKey.value === key) { debouncedInlineQuery.value = null; return; }
+    inlineTimer = setTimeout(() => {
+        inlineTimer = null;
+        debouncedInlineQuery.value = inlineQuery.value;
+    }, 300);
+}, { immediate: true });
+
+/** 关闭面板（Esc / 点击面板外）：记录当前 key，避免同一查询立即重新弹出 */
+function closeInlinePanel() {
+    inlineDismissedKey.value = inlineQueryKey.value;
+    debouncedInlineQuery.value = null;
+    textareaRef.value?.focus();
+}
+
+/** 上下键：面板有结果时切换选中项，否则交给 textarea 默认的光标移动 */
+function onInlineArrow(e: KeyboardEvent, delta: number) {
+    if (!inlinePanel.value || !inlinePanelRef.value?.hasResults()) return;
+    e.preventDefault();
+    inlinePanelRef.value.moveSelection(delta);
+}
+
+/** Tab：发送当前选中项（与官方客户端一致） */
+function onInlineTab(e: KeyboardEvent) {
+    // 面板可见 / 防抖窗口内 Tab 不移动焦点；有选中项则发送，无结果时什么也不做
+    if (!inlinePanel.value && !inlinePending.value) return;
+    e.preventDefault();
+    const picked = inlinePanelRef.value?.selectCurrent();
+    if (picked) void pickInlineResult(picked);
+}
+
+/** 发送选中的内联结果：清空输入框并闭合面板（消息由 TDLib 更新流回填到列表） */
+async function pickInlineResult(result: InlineResultModel) {
+    const chatId = inlineSendChatId.value;
+    if (chatId === undefined || inlineSending.value) return;
+    inlineSending.value = true;
+    try {
+        await sendInlineQueryResult({
+            chatId,
+            queryId: result.queryId,
+            resultId: result.id,
+            topicId: props.inlineTopic,
+            replyTo: inlineReplyToInput.value,
+        });
+        localValue.value = '';
+        entities.value = [];
+        lastText = '';
+        // 回复信息已随内联消息带出：清掉输入框的回复态，避免下一条消息误回复。
+        // （父组件未传 inlineReplyMessageId 时保留回复条，避免静默丢失用户的回复意图）
+        if (inlineReplyToInput.value) emit('clearReply');
+    } catch (e) {
+        toast.error({ content: t('inlineBots.sendFailed', { error: inlineBotErrorText(e) }) });
+    } finally {
+        inlineSending.value = false;
+    }
+}
+
+onBeforeUnmount(() => { if (inlineTimer) clearTimeout(inlineTimer); });
 
 /* =========================================================================
  * 右击发送按钮：静默发送 / 定时发送 / 在线时发送
@@ -494,6 +618,11 @@ function onSendContextMenu(e: MouseEvent) {
 }
 
 const onEscape = () => {
+    // Esc 优先关闭内联机器人结果面板
+    if (inlinePanel.value) {
+        closeInlinePanel();
+        return;
+    }
     if (props.editTarget) {
         emit('clearEdit');
     }
