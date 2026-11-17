@@ -1,0 +1,10 @@
+{
+  "walletNav": {
+    "stars": "Мои звёзды",
+    "starsSubtitle": "Баланс, транзакции и вывод",
+    "gramRevenue": "Доход в Gram",
+    "gramRevenueSubtitle": "Доход каналов и ботов",
+    "wallet": "Кошелёк",
+    "walletSubtitle": "Баланс, переводы и коллекции"
+  }
+}

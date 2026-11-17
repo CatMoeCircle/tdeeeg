@@ -758,7 +758,7 @@
       "is_paid_reaction_anonymous": "TDLib 1.8.36–1.8.44。為 true 時，新增的付費回應預設匿名；為 false 時不匿名。",
       "language_pack_database_path": "用於儲存語言包字串的資料庫路徑，可在不同帳號間共用。預設語言包字串僅存於記憶體。修改此選項後需重啟 TDLib 才生效，應在呼叫 setTdlibParameters 之前設定。",
       "language_pack_id": "目前 localization target 下正在使用的語言包識別碼。",
-      "localization_target": "目前本地化目標名稱（例如 android、android_x、ios、macos、tdesktop、unigram、web、webz）。",
+      "localization_target": "目前本地化目標名稱（例如 android、android_x、ios、macos、tdesktop、web、webz）。",
       "message_unload_delay": "訊息在記憶體中保留的最長時間（秒），範圍 60–86400。使用者預設 60，機器人預設 1800。",
       "notification_group_count_max": "同時顯示的通知分組最大數量，0–25。",
       "notification_group_size_max": "單個分組內同時顯示的通知最大數量，1–25。預設 10。",
@@ -1634,6 +1634,7 @@
     "animationUnavailable": "動畫不可用",
     "voiceUnavailable": "語音不可用",
     "unsupportedContent": "[不支援的內容]",
+    "widgetUnavailable": "小工具暫時無法使用",
     "audioFallback": "音訊",
     "prevImage": "上一張",
     "nextImage": "下一張",
@@ -1813,5 +1814,10 @@
     "fileDesc": "該檔案類型可在你的裝置上執行程式碼。僅在信任傳送者時開啟。",
     "openFile": "開啟",
     "fileRevealedOnly": "可執行檔只能在資料夾中定位"
+  },
+  "walletReceive": {
+    "copyAddress": "複製地址",
+    "addressCopied": "地址已複製",
+    "about": "分享您的地址或此 QR 碼以接收 GRAM。"
   }
 }

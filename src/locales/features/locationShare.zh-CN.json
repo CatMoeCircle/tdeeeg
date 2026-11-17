@@ -1,0 +1,15 @@
+{
+  "locationShare": {
+    "liveTitle": "实时位置",
+    "liveOff": "静态位置",
+    "live15m": "15 分钟",
+    "live1h": "1 小时",
+    "live8h": "8 小时",
+    "liveHint": "位置将在 {period}内持续更新",
+    "liveNeedsGeolocation": "当前环境无法获取设备定位，实时位置不会持续更新，只会分享所选位置。",
+    "geoUnavailableHint": "当前环境无法获取设备位置，请拖动地图或点击选择位置。",
+    "liveRemainingMinutes": "实时位置 · 剩余 {minutes} 分钟",
+    "liveRemainingHours": "实时位置 · 剩余 {hours} 小时",
+    "liveEnded": "实时位置已结束"
+  }
+}

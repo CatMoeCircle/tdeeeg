@@ -13,6 +13,48 @@ const messages = {
   ru,
 };
 
+/**
+ * 功能分片文案：src/locales/features/<功能>.<语言>.json
+ *
+ * 每个功能只维护自己的分片文件，避免多人同时编辑主语言包产生冲突；启动时按语言深合并。
+ * 合并只补缺失键、不覆盖主包已有文案，主包始终可覆盖分片。
+ */
+const FEATURE_LANGS = ["en", "zh-CN", "zh-TW", "ru"] as const;
+
+type FeatureLang = (typeof FEATURE_LANGS)[number];
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function mergeMessageBag(target: Record<string, unknown>, source: Record<string, unknown>): void {
+  for (const [key, value] of Object.entries(source)) {
+    const existing = target[key];
+    if (isPlainObject(existing) && isPlainObject(value)) {
+      mergeMessageBag(existing, value);
+    } else if (existing === undefined) {
+      target[key] = value;
+    }
+  }
+}
+
+const featureModules = import.meta.glob("./locales/features/*.json", { eager: true }) as Record<
+  string,
+  { default?: unknown }
+>;
+const messageBags = messages as unknown as Record<string, Record<string, unknown>>;
+
+for (const [path, module] of Object.entries(featureModules)) {
+  const fileName = path.split("/").pop() ?? "";
+  // 文件名格式：<命名空间>.<语言>.json → 取扩展名前一段作为语言
+  const lang = fileName.split(".").slice(-2, -1)[0] as FeatureLang | undefined;
+  if (!lang || !FEATURE_LANGS.includes(lang)) continue;
+  if (!isPlainObject(module.default)) continue;
+  mergeMessageBag(messageBags[lang], module.default);
+  // 兼容 generic `zh` 别名：与 zh-CN 共用同一份文案对象
+  if (lang === "zh-CN") mergeMessageBag(messageBags.zh, module.default);
+}
+
 /** vue-i18n 复数选择器：choice 为数量，返回管道消息下标 */
 type PluralRule = (choice: number, choicesLength: number) => number;
 

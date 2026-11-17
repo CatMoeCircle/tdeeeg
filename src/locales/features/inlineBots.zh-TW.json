@@ -1,0 +1,17 @@
+{
+  "inlineBots": {
+    "loading": "搜尋中…",
+    "empty": "沒有結果",
+    "loadFailed": "載入結果失敗",
+    "retry": "重試",
+    "sendFailed": "傳送失敗：{error}",
+    "botNotFound": "找不到機器人 @{username}",
+    "notInlineBot": "@{username} 不支援內嵌查詢",
+    "loadMore": "載入更多",
+    "loadingMore": "載入中…",
+    "results": "{count} 項結果",
+    "escHint": "Esc 關閉",
+    "close": "關閉",
+    "untitled": "無標題"
+  }
+}

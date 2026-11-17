@@ -758,7 +758,7 @@
       "is_paid_reaction_anonymous": "TDLib 1.8.36-1.8.44. If true, added paid reactions are anonymous by default. If false, they are non-anonymous.",
       "language_pack_database_path": "Path to a database for storing language pack strings, so that this database can be shared between different accounts. By default, language pack strings are stored only in memory. Changes of value of this option are applied only after TDLib restart, so it should be set before call to setTdlibParameters.",
       "language_pack_id": "Identifier of the currently used language pack from the current localization target.",
-      "localization_target": "Name for the current localization target (for example, \"android\", \"android_x\", \"ios\", \"macos\", \"tdesktop\", \"unigram\", \"web\", \"webz\").",
+      "localization_target": "Name for the current localization target (for example, \"android\", \"android_x\", \"ios\", \"macos\", \"tdesktop\", \"web\", \"webz\").",
       "message_unload_delay": "The maximum time messages are stored in memory before they are unloaded, 60-86400 seconds. Defaults to 60 for users and 1800 for bots.",
       "notification_group_count_max": "The maximum number of notification groups to be shown simultaneously, 0-25.",
       "notification_group_size_max": "The maximum number of simultaneously shown notifications in a group, 1-25. Defaults to 10.",
@@ -1634,6 +1634,7 @@
     "animationUnavailable": "Animation unavailable",
     "voiceUnavailable": "Voice unavailable",
     "unsupportedContent": "[Unsupported content]",
+    "widgetUnavailable": "Widget unavailable",
     "audioFallback": "Audio",
     "prevImage": "Previous image",
     "nextImage": "Next image",
@@ -1813,5 +1814,10 @@
     "fileDesc": "This file type can run code on your device. Open it only if you trust the sender.",
     "openFile": "Open",
     "fileRevealedOnly": "Executable files can only be revealed in the folder"
+  },
+  "walletReceive": {
+    "copyAddress": "Copy address",
+    "addressCopied": "Address copied",
+    "about": "Share your address or this QR code to receive GRAM."
   }
 }

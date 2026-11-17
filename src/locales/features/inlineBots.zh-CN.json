@@ -1,0 +1,17 @@
+{
+  "inlineBots": {
+    "loading": "搜索中…",
+    "empty": "没有结果",
+    "loadFailed": "加载结果失败",
+    "retry": "重试",
+    "sendFailed": "发送失败：{error}",
+    "botNotFound": "找不到机器人 @{username}",
+    "notInlineBot": "@{username} 不支持内联查询",
+    "loadMore": "加载更多",
+    "loadingMore": "加载中…",
+    "results": "{count} 条结果",
+    "escHint": "Esc 关闭",
+    "close": "关闭",
+    "untitled": "无标题"
+  }
+}

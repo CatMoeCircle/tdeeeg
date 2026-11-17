@@ -1,0 +1,17 @@
+{
+  "inlineBots": {
+    "loading": "Поиск…",
+    "empty": "Нет результатов",
+    "loadFailed": "Не удалось загрузить результаты",
+    "retry": "Повторить",
+    "sendFailed": "Не удалось отправить: {error}",
+    "botNotFound": "Бот @{username} не найден",
+    "notInlineBot": "@{username} не поддерживает инлайн-запросы",
+    "loadMore": "Загрузить ещё",
+    "loadingMore": "Загрузка…",
+    "results": "Результатов: {count}",
+    "escHint": "Esc — закрыть",
+    "close": "Закрыть",
+    "untitled": "Без названия"
+  }
+}

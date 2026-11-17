@@ -1,0 +1,10 @@
+{
+  "walletNav": {
+    "stars": "My Stars",
+    "starsSubtitle": "Balance, transactions and withdrawal",
+    "gramRevenue": "Gram earnings",
+    "gramRevenueSubtitle": "Channel and bot revenue",
+    "wallet": "Wallet",
+    "walletSubtitle": "Balance, transfers and collectibles"
+  }
+}

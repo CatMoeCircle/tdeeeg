@@ -1,0 +1,15 @@
+{
+  "locationShare": {
+    "liveTitle": "Live location",
+    "liveOff": "Static",
+    "live15m": "15 minutes",
+    "live1h": "1 hour",
+    "live8h": "8 hours",
+    "liveHint": "Your location will keep updating for {period}",
+    "liveNeedsGeolocation": "Device location is unavailable, so live updates can't be sent; only the selected point will be shared.",
+    "geoUnavailableHint": "Device location isn't available here. Drag the map or click to pick a point.",
+    "liveRemainingMinutes": "Live location · {minutes} min left",
+    "liveRemainingHours": "Live location · {hours} h left",
+    "liveEnded": "Live location ended"
+  }
+}

@@ -706,7 +706,7 @@
       "is_paid_reaction_anonymous": "TDLib 1.8.36-1.8.44. Если true, added paid reactions are anonymous by default. Если false, they are non-anonymous.",
       "language_pack_database_path": "Путь к database for storing language pack strings, so that this database can be shared between different accounts. By default, language pack strings are stored only in memory. Изменения значения применяются только после перезапуска TDLib, поэтому его следует задать до вызова setTdlibParameters.",
       "language_pack_id": "Идентификатор используемого языкового пакета текущей цели локализации.",
-      "localization_target": "Имя текущей цели локализации (напр. «android», «android_x», «ios», «macos», «tdesktop», «unigram», «web», «webz»).",
+      "localization_target": "Имя текущей цели локализации (напр. «android», «android_x», «ios», «macos», «tdesktop», «web», «webz»).",
       "message_unload_delay": "Максимальное время хранения сообщений in memory before they are unloaded, 60-86400 seconds.. По умолчанию 60 for users and 1800 for bots.",
       "notification_group_count_max": "Максимальное число групп уведомлений, показываемых одновременно, 0–25.",
       "notification_group_size_max": "Максимальное число одновременно показываемых уведомлений в группе, 1–25.. По умолчанию 10.",
@@ -1502,6 +1502,7 @@
     "animationUnavailable": "Анимация недоступна",
     "voiceUnavailable": "Голосовое недоступно",
     "unsupportedContent": "[Неподдерживаемое содержимое]",
+    "widgetUnavailable": "Виджет недоступен",
     "audioFallback": "Аудио",
     "prevImage": "Предыдущее изображение",
     "nextImage": "Следующее изображение",
@@ -1810,5 +1811,10 @@
     "fileDesc": "Этот тип файла может выполнить код на вашем устройстве. Открывайте, только если доверяете отправителю.",
     "openFile": "Открыть",
     "fileRevealedOnly": "Режим блокировки: исполняемые файлы можно только показать в папке"
+  },
+  "walletReceive": {
+    "copyAddress": "Копировать адрес",
+    "addressCopied": "Адрес скопирован",
+    "about": "Поделитесь адресом или этим QR-кодом, чтобы получить GRAM."
   }
 }

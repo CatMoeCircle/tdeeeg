@@ -1,0 +1,17 @@
+{
+  "inlineBots": {
+    "loading": "Searching…",
+    "empty": "No results",
+    "loadFailed": "Couldn't load results",
+    "retry": "Retry",
+    "sendFailed": "Send failed: {error}",
+    "botNotFound": "Bot @{username} not found",
+    "notInlineBot": "@{username} doesn't support inline queries",
+    "loadMore": "Load more",
+    "loadingMore": "Loading…",
+    "results": "{count} results",
+    "escHint": "Esc to close",
+    "close": "Close",
+    "untitled": "Untitled"
+  }
+}

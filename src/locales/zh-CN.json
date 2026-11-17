@@ -758,7 +758,7 @@
       "is_paid_reaction_anonymous": "TDLib 1.8.36–1.8.44。为 true 时，添加的付费回应默认匿名；为 false 时不匿名。",
       "language_pack_database_path": "用于存储语言包字符串的数据库路径，可在不同账号间共享。默认语言包字符串仅存于内存。修改此选项后需重启 TDLib 才生效，应在调用 setTdlibParameters 之前设置。",
       "language_pack_id": "当前 localization target 下正在使用的语言包标识符。",
-      "localization_target": "当前本地化目标名称（例如 android、android_x、ios、macos、tdesktop、unigram、web、webz）。",
+      "localization_target": "当前本地化目标名称（例如 android、android_x、ios、macos、tdesktop、web、webz）。",
       "message_unload_delay": "消息在内存中保留的最长时间（秒），范围 60–86400。用户默认 60，机器人默认 1800。",
       "notification_group_count_max": "同时显示的通知分组最大数量，0–25。",
       "notification_group_size_max": "单个分组内同时显示的通知最大数量，1–25。默认 10。",
@@ -1634,6 +1634,7 @@
     "animationUnavailable": "动画不可用",
     "voiceUnavailable": "语音不可用",
     "unsupportedContent": "[不支持的内容]",
+    "widgetUnavailable": "小组件暂不可用",
     "audioFallback": "音频",
     "prevImage": "上一张",
     "nextImage": "下一张",
@@ -1813,5 +1814,10 @@
     "fileDesc": "该文件类型可在你的设备上执行代码。仅在信任发送者时打开。",
     "openFile": "打开",
     "fileRevealedOnly": "可执行文件只能在文件夹中定位"
+  },
+  "walletReceive": {
+    "copyAddress": "复制地址",
+    "addressCopied": "地址已复制",
+    "about": "分享您的地址或此二维码以接收 GRAM。"
   }
 }
