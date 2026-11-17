@@ -15,7 +15,7 @@ import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import type { textEntity } from 'tdlib-types';
 import { detectInlineEntities } from '../../utils/message/textEntityDetect';
-import { openAnyLink } from '../../utils/link/openInternalLink';
+import { openAnyLink, normalizeLinkHref } from '../../utils/link/openInternalLink';
 
 /**
  * 可点击链接的纯文本：用于资料页简介、群组介绍等非消息场景。
@@ -41,16 +41,9 @@ type Segment = { text: string; href?: string };
 /**
  * 补齐协议：TDLib 的 url 实体文本常是裸域名（`t.me/xxx`、`example.com`、`www.a.com`），
  * 没有协议就无法判断该内部跳转还是外部打开，必须先归一化成 http(s) 链接。
+ * 统一复用链接层的 normalizeLinkHref，避免这里和消息正文各写一套规则。
  */
-function normalizeHref(raw: string): string {
-  const href = raw.trim();
-  if (!href) return '';
-  // 已带协议（http/https/tg/mailto/tel/…）
-  if (/^(?:https?|tg|mailto|tel|ftp):/i.test(href)) return href;
-  // 裸域名 / www / t.me 之类的相对域名
-  if (/^(?:[\w-]+\.)+[\w-]{2,}(?::\d+)?(?:[/?#]|$)/i.test(href)) return `https://${href}`;
-  return href;
-}
+const normalizeHref = normalizeLinkHref;
 
 /** 实体 → 可打开的 href；不支持的实体返回 undefined（保持普通文字） */
 function entityHref(entity: textEntity, slice: string): string | undefined {

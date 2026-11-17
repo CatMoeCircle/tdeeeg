@@ -51,8 +51,7 @@ import MessageFileContent from './MessageFileContent.vue';
 import MessageStickerContent from './MessageStickerContent.vue';
 import MessageLinkPreview from './MessageLinkPreview.vue';
 import { mediaSizeStyle } from '../../../../../utils/media/fitMediaSize';
-import { resolveInternalLink } from '../../../../../utils/link/openInternalLink';
-import { confirmAndOpenExternalLink } from '../../../../../utils/link/openExternalLink';
+import { openLink as openLinkUtil } from '../../../../../utils/link/openInternalLink';
 
 const props = defineProps<{
     media: PollMedia;
@@ -134,16 +133,8 @@ const locationText = computed(() => {
     return '';
 });
 
-/** 与消息正文一致的通用链接处理：内部链接解析跳转，外部链接先确认 */
+/** 与消息正文一致的统一链接出口：内部链接解析跳转，外部链接先确认 */
 async function openLink(href: string) {
-    if (href.startsWith('https://t.me/') || href.startsWith('https://proxy.t.me/') || href.startsWith('tg://')) {
-        await resolveInternalLink(href, router, { chatId: props.chatId });
-    } else if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:')) {
-        try {
-            await confirmAndOpenExternalLink(href);
-        } catch {
-            /* 用户取消，不跳转 */
-        }
-    }
+    await openLinkUtil(href, router, { chatId: props.chatId });
 }
 </script>

@@ -163,9 +163,8 @@ const { t } = useI18n();
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { messageDocument, messageAudio, formattedText, textEntity, thumbnail } from 'tdlib-types';
 import { tdlibSend, isFileReady, downloadingFiles, reactiveDownloadingFiles } from '../../../../../utils/session/tdlib';
-import { resolveInternalLink } from '../../../../../utils/link/openInternalLink';
+import { openLink as openLinkUtil } from '../../../../../utils/link/openInternalLink';
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { openUrl } from '@tauri-apps/plugin-opener';
 import { FileIcon, DownloadIcon, MusicIcon, PauseIcon, PlayIcon } from 'lucide-vue-next';
 import { useRouter } from 'vue-router';
 import { toast } from '../../../../../utils/ui/toast';
@@ -184,7 +183,6 @@ import { openUsernameMenu, openUserMenuById } from '../../../../../store/profile
 import { openContextMenu } from '../../../../../store/chat/contextMenu';
 import { getChatCategory } from '../../../../../utils/media/autoDownload';
 import { useAudioPlayerStore, cachedSeconds } from '../../../../../store/media/audioPlayer';
-import { confirmAndOpenExternalLink } from '../../../../../utils/link/openExternalLink';
 import { isThumbnailImgRenderable, thumbnailToImgSrc } from '../../../../../utils/media/thumbnail';
 import { fetchItunesCoverForAudio } from '../../../../../utils/media/itunesCover';
 import { useViewportLoad } from '../../../../../composables/useViewportLoad';
@@ -542,27 +540,14 @@ function handleCaptionSegmentContextMenu(e: MouseEvent, segment: CaptionSegment)
     openUsernameMenu(segment.text, e.clientX, e.clientY);
 }
 
+/**
+ * 媒体说明里的链接点击：与正文同一条统一出口 —— 先补全协议，再让 TDLib 判断
+ * 是否内部链接（裸域名 `t.me/monk` 也能正确走内部解析），外部链接才弹确认框。
+ */
 async function openCaptionLink(href: string) {
-    if (href.startsWith('https://t.me/') || href.startsWith('tg://')) {
-        await resolveCaptionLink(href);
-    } else if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:')) {
-        // 外部链接：先询问用户是否跳转外部
-        try {
-            await confirmAndOpenExternalLink(href);
-        } catch (error) {
-            /* 用户取消 */
-        }
-    }
-}
-
-async function resolveCaptionLink(href: string) {
     captionLoadingLinks.value = new Set(captionLoadingLinks.value).add(href);
     try {
-        // 复用统一内部链接解析（含 bot start 深链接等，解析失败会自动回退外部打开）
-        await resolveInternalLink(href, router, { chatId: props.chatId });
-    } catch (e) {
-        console.warn('Failed to resolve internal link, opening externally:', e);
-        openUrl(href);
+        await openLinkUtil(href, router, { chatId: props.chatId });
     } finally {
         const next = new Set(captionLoadingLinks.value);
         next.delete(href);

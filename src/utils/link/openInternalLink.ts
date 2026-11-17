@@ -1,6 +1,5 @@
 import type { InternalLinkType, proxy, chat, story, stories, stickerSet } from "tdlib-types";
 import { tdlibSend } from "../session/tdlib";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "../ui/toast";
 import { showProxyLinkDialog } from "../../store/settings/proxyLink";
 import { refreshProxies } from "../../store/settings/proxyList";
@@ -12,6 +11,41 @@ import type { Router } from "vue-router";
 import i18n from "../../i18n";
 import { confirmAndOpenExternalLink } from "./openExternalLink";
 import { openMainMiniAppLink, openWebAppLink, type MiniAppLinkContext } from "./miniappLaunch";
+
+/** 已带协议的链接：http(s) / tg / mailto / tel 等，判定依据是「有 scheme」而非固定白名单 */
+const HAS_SCHEME_RE = /^[a-z][a-z0-9+.\-]*:/i;
+/** 裸域名（t.me/monk、example.com、www.a.com…），含可选端口与路径 */
+const BARE_DOMAIN_RE = /^(?:[\w-]+\.)+[\w-]{2,}(?::\d+)?(?:[/?#]|$)/i;
+
+/**
+ * 链接归一化：把「文本里的链接」补成带协议的完整 URL。
+ *
+ * TDLib 的 `textEntityTypeUrl` 只给区间，切片出来的文本常是裸域名
+ * （`t.me/monk`、`example.com/x`）：这类文本既不是 `https://t.me/…`
+ * 也不是 `http(s)://…`，任何按前缀分支的调用方都会把它漏掉，
+ * 最终落到「不处理」或「外部浏览器」。所以统一在这里补全，且只补一次。
+ *
+ * @param raw 原始链接（可能是裸域名、`www.` 开头、或已带协议）
+ * @returns 归一化后的链接；空串 / 非链接文本返回空串
+ */
+export function normalizeLinkHref(raw: string): string {
+    const href = raw.trim();
+    if (!href) return "";
+    // 已带协议（含 tg:、mailto:、tel: 等自定义 scheme）原样返回
+    if (HAS_SCHEME_RE.test(href)) return href;
+    // 协议相对写法 //t.me/x 按 https 处理
+    if (href.startsWith("//")) return `https:${href}`;
+    // 裸域名：补 https，交给 TDLib 判断是否为 Telegram 内部链接
+    if (BARE_DOMAIN_RE.test(href)) return `https://${href}`;
+    return href;
+}
+
+/** 是否为 Telegram 内部链接（t.me / proxy.t.me / tg://）。
+ *  仅作「快速判断」，不是分发的唯一依据：openLink 对任何 http(s) 链接都会先问 TDLib。 */
+export function isTelegramInternalUrl(href: string): boolean {
+    const url = normalizeLinkHref(href);
+    return url.startsWith("https://t.me/") || url.startsWith("https://proxy.t.me/") || url.startsWith("tg://");
+}
 
 /** tg://user?id=N：消息里的「名字提及」（textEntityTypeMentionName）指向用户 id。
  *  TDLib 的 getInternalLinkType 不认这种深链接（会落到「未知深链接」并被丢给外部浏览器），
@@ -71,8 +105,15 @@ async function dispatchInternalLink(
             return true;
         }
         case "internalLinkTypePublicChat": {
-            const chat = await tdlibSend({ _: "searchPublicChat", username: linkType.chat_username });
-            await router.push(`/home/chat/${chat.id}`);
+            // 用户名解析失败（不存在 / 被限制 / 临时网络错误）：给提示即可。
+            // 这里不能把错误抛给外层，否则「t.me/某个不存在的号」会变成外部浏览器弹窗。
+            try {
+                const chat = await tdlibSend({ _: "searchPublicChat", username: linkType.chat_username });
+                await router.push(`/home/chat/${chat.id}`);
+            } catch (e) {
+                console.warn("searchPublicChat for link failed:", e);
+                await toast.warning({ content: i18n.global.t("preview.userOrChatNotFound"), placement: "top-right" });
+            }
             return true;
         }
         case "internalLinkTypeDirectMessagesChat": {
@@ -265,7 +306,10 @@ async function dispatchInternalLink(
             return true;
         }
         default: {
-            openUrl(href);
+            // 已知类型的内部链接但没有本地实现（邀请链接/主题/未知深链接…）：
+            // 仍先弹「打开外部链接」确认，用户同意后再交给系统浏览器 —— 不能让一次点击
+            // 静默把用户甩出应用，这正是 t.me 链接「莫名跳浏览器」的来源之一。
+            await confirmAndOpenExternalLink(href).catch(() => { });
             return true;
         }
     }
@@ -274,7 +318,7 @@ async function dispatchInternalLink(
 /**
  * 解析 Telegram 内部链接（t.me / tg://）并跳转。
  *
- * 此工具与「消息中点击 @ 用户名 / 链接」使用完全一致的逻辑（详见 MessageTextContent）：
+ * 先做归一化（裸域名补 https），再问 TDLib 这是不是内部链接：
  *   - internalLinkTypeMessage    → getMessageLinkInfo 解析出 chat（话题链接再解析出 forum topic，
  *                                  跳转 chat-topic-detail），带 ?message= 定位到具体消息
  *   - internalLinkTypePublicChat → searchPublicChat 解析用户名，跳转 /home/chat/{id}
@@ -287,47 +331,51 @@ async function dispatchInternalLink(
  *   - internalLinkTypeWebApp  → searchPublicChat + searchWebApp + getWebAppLinkUrl，
  *                              打开链接指定的 Mini App（t.me/wallet/start?startapp=… 属于此类）
  *   - tg://user?id=N             → 用户资料页（消息中的「名字提及」）
- *   - 其他 / 解析失败            → 外部浏览器打开（openUrl）
+ *   - 非内部链接（TDLib 返回 404）→ 外部链接：先弹确认框，确认后交给系统浏览器
  *
  * **同聊天优化**：若链接目标消息所在 chat 与当前打开的聊天一致（params.id 匹配），
  * 不走 router.push（会触发整个 ChatDetail 重建/缓存恢复），而是分发轻量 CustomEvent
  * `tdgram:jump-to-message-in-chat`，由 ChatDetail 监听并直接 jumpToMessage，
  * 零路由变更、零重渲染。
  *
- * @param href   t.me / tg:// 链接
+ * @param href   t.me / tg:// 链接（可传裸域名，内部会补全协议）
  * @param router 当前组件路由实例（配合 returnType 在 setup 中传入）
  * @param ctx    点击发生的聊天（Mini App 链接需要它绑定「当前聊天」，可省略）
- * @returns      是否已被内部处理（true 表示已内部跳转/已弹出代理框，无需再外部打开）
- *
- * 注意：调用方组件负责自己的加载态（如 MessageTextContent 的 loadingLinks），本函数只负责解析与跳转。
+ * @returns      是否已被内部处理（true 表示已内部跳转/已弹出确认框）
  */
 export async function resolveInternalLink(
     href: string,
     router: Router,
     ctx: MiniAppLinkContext = {},
 ): Promise<boolean> {
-    const mentionUserId = mentionUserIdFromLink(href);
+    const url = normalizeLinkHref(href);
+    if (!url) return true;
+
+    const mentionUserId = mentionUserIdFromLink(url);
     if (mentionUserId) {
         await router.push({ name: "user-profile", params: { id: mentionUserId } });
         return true;
     }
     try {
-        const linkType = await tdlibSend({ _: "getInternalLinkType", link: href }) as InternalLinkType;
-        await dispatchInternalLink(href, linkType, router, ctx);
-        return true;
+        const linkType = await tdlibSend({ _: "getInternalLinkType", link: url }) as InternalLinkType;
+        return await dispatchInternalLink(url, linkType, router, ctx);
     } catch (e) {
-        console.warn("Failed to resolve internal link, opening externally:", e);
-        openUrl(href);
+        // 走到这里说明「已确认是 t.me/tg:// 内部链接，但解析/跳转失败」（被限制、目标被删、
+        // TDLib 报错）。此时不该弹「打开外部链接」把用户甩去浏览器 —— 静默记录即可，
+        // 由各分支自己给的 toast 说明原因。
+        console.warn("Failed to resolve internal link:", e);
         return true;
     }
 }
 
 /**
- * 通用链接入口（简介、群组介绍等纯文本场景）：先问 TDLib「这是不是内部链接」——
- * getInternalLinkType 对非内部链接返回 404，只有这时才按外部链接弹确认框。
- * 调用方无需硬编码 t.me / tg:// / http(s) 前缀。
+ * 通用链接入口：消息正文、标题栏、简介、按钮等所有「点链接」的地方都走这里。
  *
- * @param href   已补全协议的链接（裸域名需先补 https://）
+ * 先补全协议（裸域名 `t.me/monk` → `https://t.me/monk`），再问 TDLib 是不是内部链接：
+ * 是就走应用内跳转，不是才弹「打开外部链接」确认框，确认后交系统浏览器。
+ * 调用方无需硬编码 t.me / tg:// / http(s) 前缀，也不该再自行判断。
+ *
+ * @param href   原始链接（裸域名亦可）
  * @param router 当前组件路由实例
  * @param ctx    点击发生的聊天（Mini App 链接需要它绑定「当前聊天」，可省略）
  */
@@ -336,7 +384,22 @@ export async function openAnyLink(
     router: Router,
     ctx: MiniAppLinkContext = {},
 ): Promise<void> {
-    const mentionUserId = mentionUserIdFromLink(href);
+    await openLink(href, router, ctx);
+}
+
+/**
+ * 链接点击的统一出口（推荐入口）。等价于 openAnyLink，保留一个语义更直白的名字
+ * 供消息正文 / 媒体说明使用。
+ */
+export async function openLink(
+    href: string,
+    router: Router,
+    ctx: MiniAppLinkContext = {},
+): Promise<void> {
+    const url = normalizeLinkHref(href);
+    if (!url) return;
+
+    const mentionUserId = mentionUserIdFromLink(url);
     if (mentionUserId) {
         await router.push({ name: "user-profile", params: { id: mentionUserId } });
         return;
@@ -344,7 +407,7 @@ export async function openAnyLink(
 
     let linkType: InternalLinkType | null = null;
     try {
-        linkType = await tdlibSend({ _: "getInternalLinkType", link: href }) as InternalLinkType;
+        linkType = await tdlibSend({ _: "getInternalLinkType", link: url }) as InternalLinkType;
     } catch {
         // 404：不是内部链接，按外部链接处理
         linkType = null;
@@ -352,15 +415,15 @@ export async function openAnyLink(
 
     if (linkType) {
         try {
-            await dispatchInternalLink(href, linkType, router, ctx);
+            await dispatchInternalLink(url, linkType, router, ctx);
         } catch (e) {
             console.warn("Failed to resolve internal link, opening externally:", e);
-            await confirmAndOpenExternalLink(href).catch(() => { });
+            await confirmAndOpenExternalLink(url).catch(() => { });
         }
         return;
     }
 
     // 外部链接：仅处理系统能打开的协议
-    if (!/^(?:https?|mailto|tel):/i.test(href)) return;
-    await confirmAndOpenExternalLink(href).catch(() => { });
+    if (!/^(?:https?|mailto|tel|ftp):/i.test(url)) return;
+    await confirmAndOpenExternalLink(url).catch(() => { });
 }

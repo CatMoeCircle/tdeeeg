@@ -300,14 +300,13 @@ import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
 import { computed, onUnmounted, reactive, ref } from 'vue';
 import type { formattedText, textEntity, linkPreview as LinkPreview } from 'tdlib-types';
-import { resolveInternalLink as resolveInternalLinkUtil } from '../../../../../utils/link/openInternalLink';
+import { openLink as openLinkUtil } from '../../../../../utils/link/openInternalLink';
 import { useRouter } from 'vue-router';
 import { toast } from '../../../../../utils/ui/toast';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
 
 import SpoilerSpan from '../spoiler/SpoilerSpan.vue';
 import { useColors, rgbToCss } from '../../../../../store/settings/colors';
-import { confirmAndOpenExternalLink } from '../../../../../utils/link/openExternalLink';
 import { requestInsertCommand } from '../../../../../store/chat/commandInsert';
 import { requestHashtagSearch } from '../../../../../store/chat/hashtagSearch';
 import { openUsernameMenu, openUserMenuById } from '../../../../../store/profile/usernameMenu';
@@ -785,23 +784,15 @@ function handleSegmentContextMenu(e: MouseEvent, segment: Segment) {
     openUsernameMenu(segment.text, e.clientX, e.clientY);
 }
 
+/**
+ * 链接点击：统一走 openLink —— 先补全协议（`t.me/monk` 这类裸域名补成 https），
+ * 再让 TDLib 判断是否内部链接：内部链接应用内跳转，外部链接弹确认框后交系统浏览器。
+ * 不再按前缀各自判断，避免裸域名链接被漏判成「不处理」或直接甩去外部浏览器。
+ */
 async function openLink(href: string) {
-    if (href.startsWith('https://t.me/') || href.startsWith('https://proxy.t.me/') || href.startsWith('tg://')) {
-        await resolveInternalLink(href);
-    } else if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:')) {
-        // 外部链接：先询问用户是否跳转外部
-        try {
-            await confirmAndOpenExternalLink(href);
-        } catch (e) {
-            /* 用户取消，不跳转 */
-        }
-    }
-}
-
-async function resolveInternalLink(href: string) {
     loadingLinks.value = new Set(loadingLinks.value).add(href);
     try {
-        await resolveInternalLinkUtil(href, router, { chatId: props.chatId });
+        await openLinkUtil(href, router, { chatId: props.chatId });
     } finally {
         const next = new Set(loadingLinks.value);
         next.delete(href);

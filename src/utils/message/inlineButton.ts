@@ -1,14 +1,15 @@
 import type { ButtonStyle, InlineKeyboardButtonType, LoginUrlInfo } from 'tdlib-types';
-import { openUrl } from '@tauri-apps/plugin-opener';
 import i18n from '../../i18n';
 import router from '../../router/index';
 import { tdlibSend, ensureLocalFilePath } from '../session/tdlib';
 import { toast } from '../ui/toast';
 import { confirmExternalLink } from '../../store/session/externalLink';
-import { resolveInternalLink } from '../link/openInternalLink';
-import { confirmAndOpenExternalLink } from '../link/openExternalLink';
+import { openLink, isTelegramInternalUrl } from '../link/openInternalLink';
 import { buildWebAppOpenParameters } from '../link/miniappTheme';
 import { useChatStore } from '../../store/chat/chat';
+
+/** 复用链接层的判定（t.me / tg:// 视为内部链接），供按钮角标等 UI 判断使用 */
+export { isTelegramInternalUrl };
 
 /**
  * 按钮点击的公共实现：行内键盘（inlineKeyboardButton）与富文本消息里的按钮
@@ -23,28 +24,10 @@ export interface InlineButtonContext {
     buttonText?: string;
 }
 
-/** Telegram 内部链接（t.me / tg://）：在应用内跳转，不会被当作外部链接打开 */
-export function isTelegramInternalUrl(url: string): boolean {
-    return url.startsWith('https://t.me/') || url.startsWith('https://proxy.t.me/') || url.startsWith('tg://');
-}
-
-/** 打开按钮 URL：Telegram 内部链接走应用内跳转，外部链接先确认 */
+/** 打开按钮 URL：统一出口，先补全协议再由 TDLib 判定内部/外部 */
 export async function openButtonUrl(url: string, ctx: InlineButtonContext = {}): Promise<void> {
-    try {
-        // Telegram 内部链接（t.me / tg://）先在应用内解析跳转
-        if (isTelegramInternalUrl(url)) {
-            await resolveInternalLink(url, router, { chatId: ctx.chatId });
-            return;
-        }
-        // 外部链接：先询问用户是否跳转外部，确认后再用系统浏览器打开
-        if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('mailto:') || url.startsWith('tel:')) {
-            await confirmAndOpenExternalLink(url).catch(() => { /* 用户取消，不跳转 */ });
-            return;
-        }
-        await openUrl(url);
-    } catch (e) {
-        console.error('Open inline button URL failed:', e);
-    }
+    // 裸域名（t.me/monk）在这里也补全协议：按钮 url 不保证带 scheme
+    await openLink(url, router, { chatId: ctx.chatId });
 }
 
 /**

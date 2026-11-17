@@ -69,12 +69,10 @@ import { computed } from 'vue';
 import type { RichText, inlineButton } from 'tdlib-types';
 import LatexFormula from './LatexFormula.vue';
 import RichInlineButton from './RichInlineButton.vue';
-import { openUrl } from '@tauri-apps/plugin-opener';
 import { useRouter } from 'vue-router';
 import CustomEmojiInline from '../../../../common/CustomEmojiInline.vue';
 import SpoilerSpan from '../spoiler/SpoilerSpan.vue';
-import { confirmAndOpenExternalLink } from '../../../../../utils/link/openExternalLink';
-import { resolveInternalLink as resolveInternalLinkUtil } from '../../../../../utils/link/openInternalLink';
+import { openLink as openLinkUtil } from '../../../../../utils/link/openInternalLink';
 import { useI18n } from 'vue-i18n';
 import CopyableText from '../../../../ui/text/CopyableText.vue';
 
@@ -161,13 +159,8 @@ function handleClick(_event: MouseEvent, node: RichNode) {
         copyPlainText(node.text);
         return;
     }
-    const href = node.href!;
-    if (href.startsWith('https://t.me/') || href.startsWith('tg://')) {
-        resolveInternalLink(href);
-    } else if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:')) {
-        // 外部链接：先询问用户是否跳转外部
-        confirmAndOpenExternalLink(href).catch(() => { /* 用户取消 */ });
-    }
+    // 统一出口：补全协议后由 TDLib 判定内部/外部，裸域名链接也能正确内部跳转
+    void openLinkUtil(node.href!, router);
 }
 
 function copyPlainText(rt?: RichText): void {
@@ -188,15 +181,6 @@ function extractText(rt?: RichText): string {
         default:
             if ('text' in rt && rt.text) return extractText(rt.text as RichText);
             return '';
-    }
-}
-
-async function resolveInternalLink(href: string) {
-    try {
-        await resolveInternalLinkUtil(href, router);
-    } catch (e) {
-        console.warn('Failed to resolve internal link, opening externally:', e);
-        openUrl(href);
     }
 }
 </script>
