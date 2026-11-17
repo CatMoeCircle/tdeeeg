@@ -9,6 +9,10 @@
 //! - **隐藏到托盘 60s**：界面根本看不到，先把 WebView2 controller 设为不可见，
 //!   再 `TrySuspend` 挂起渲染进程，由系统回收渲染进程占用的内存；重新显示时
 //!   `Resume` 并恢复 Normal。挂起期间 TDLib、通知、托盘都不受影响。
+//!   `TrySuspend` 只是「尝试」：失败时退回 Low 档并在 30s 后重试，
+//!   不会一次失败就让 60s 档永久失效。
+//!   挂起期间宿主进程仍保持 EcoQoS（要回退成「挂起时不降频宿主」只需改
+//!   `apply_level` 的 `Level::Suspended` 分支）。
 //!
 //! 两档都避开音视频播放：播放期间不降频、不挂起，否则音频缓冲会卡顿。
 //!
@@ -70,6 +74,13 @@ static CLOCK_BASE: OnceLock<Instant> = OnceLock::new();
 /// 事件循环消息，避免轮询线程在这个缝隙里又把刚恢复的 WebView 挂起。
 #[cfg(target_os = "windows")]
 static RESUME_HOLD_UNTIL_MS: AtomicU64 = AtomicU64::new(0);
+/// `TrySuspend` 失败后的重试时间点（单调毫秒）。失败期间退回 Low 档，
+/// 到点再试，避免 60s 档只尝试一次就永久失效。
+#[cfg(target_os = "windows")]
+static SUSPEND_RETRY_AFTER_MS: AtomicU64 = AtomicU64::new(0);
+/// `TrySuspend` 失败后的退避时长：太短会在页面忙时反复空转。
+#[cfg(target_os = "windows")]
+const SUSPEND_RETRY_BACKOFF_MS: u64 = 30_000;
 
 /// 平台是否支持效率模式（Windows 10 1709+）。写失败后永久降级为不支持。
 pub fn is_supported() -> bool {
@@ -84,6 +95,7 @@ pub fn is_active() -> bool {
 /// 设置用户偏好，并按当前窗口状态立即生效或撤销
 pub fn set_preference(enabled: bool) {
     PREF_ENABLED.store(enabled, Ordering::SeqCst);
+    eprintln!("[efficiency] preference={enabled}");
     #[cfg(target_os = "windows")]
     wake();
 }
@@ -222,6 +234,10 @@ fn watch_loop(app: tauri::AppHandle, rx: Receiver<()>) {
         if effective != state {
             state = effective;
             since = Instant::now();
+            // 离开隐藏态后清掉挂起重试退避，下次隐藏重新计时
+            if effective != BgState::Hidden {
+                SUSPEND_RETRY_AFTER_MS.store(0, Ordering::SeqCst);
+            }
         }
 
         // prepare_show 之后短暂保持前台，避开 show() 消息尚未处理完的缝隙
@@ -250,7 +266,14 @@ fn desired_level(state: BgState, elapsed: Duration) -> Level {
     match state {
         BgState::Foreground => Level::Normal,
         BgState::Minimized if elapsed >= MINIMIZED_DELAY => Level::Throttled,
-        BgState::Hidden if elapsed >= HIDDEN_DELAY => Level::Suspended,
+        BgState::Hidden if elapsed >= HIDDEN_DELAY => {
+            // 上一次 TrySuspend 失败还没到重试时间：先停在 Low 档，别每拍都重试
+            if now_ms() < SUSPEND_RETRY_AFTER_MS.load(Ordering::SeqCst) {
+                Level::Throttled
+            } else {
+                Level::Suspended
+            }
+        }
         _ => Level::Normal,
     }
 }
@@ -260,30 +283,58 @@ fn desired_level(state: BgState, elapsed: Duration) -> Level {
 fn apply_level(app: &tauri::AppHandle, target: Level) {
     let observed = window_state(app).unwrap_or(BgState::Foreground);
     let target = match target {
-        Level::Throttled if observed != BgState::Minimized => Level::Normal,
+        // 效率模式对「最小化」与「托盘隐藏」都适用：隐藏期间宿主进程照常收发，
+        // 但也该省电；挂起失败退避期间也靠它兜底。
+        Level::Throttled if !matches!(observed, BgState::Minimized | BgState::Hidden) => {
+            Level::Normal
+        }
         Level::Suspended if observed != BgState::Hidden => Level::Normal,
         other => other,
     };
 
-    if APPLIED_LEVEL.swap(target as u8, Ordering::SeqCst) == target as u8 {
+    let previous = APPLIED_LEVEL.swap(target as u8, Ordering::SeqCst);
+    if previous == target as u8 {
         return;
     }
+    eprintln!(
+        "[efficiency] level {} -> {} (window={observed:?})",
+        level_name(previous),
+        level_name(target as u8)
+    );
 
-    match target {
+    let dispatched = match target {
         Level::Normal => {
             set_eco_qos(false);
-            webview2::apply(app, webview2::Mode::Normal);
+            webview2::apply(app, webview2::Mode::Normal)
         }
         Level::Throttled => {
-            webview2::apply(app, webview2::Mode::Low);
+            let ok = webview2::apply(app, webview2::Mode::Low);
             set_eco_qos(true);
+            ok
         }
         Level::Suspended => {
-            // 挂起只冻结界面进程；宿主进程（TDLib 收发、通知、下载）不套 EcoQoS，
-            // 避免后台消息处理和传输被降频。
-            set_eco_qos(false);
-            webview2::apply(app, webview2::Mode::Suspend);
+            // 挂起只冻结界面进程；宿主进程（TDLib 收发、通知、下载）照常运行，
+            // 但也进入 EcoQoS——否则「关到托盘」这种最常见的后台形态完全不省电。
+            // 若后台同步 / 下载明显变慢，把这里改回 set_eco_qos(false) 即可回退。
+            set_eco_qos(true);
+            webview2::apply(app, webview2::Mode::Suspend)
         }
+    };
+
+    if !dispatched {
+        // WebView2 调用没能投递出去：回滚记录，让主循环下一拍重试
+        APPLIED_LEVEL.store(previous, Ordering::SeqCst);
+    }
+}
+
+/// 日志用：级别名字
+#[cfg(target_os = "windows")]
+fn level_name(level: u8) -> &'static str {
+    match level {
+        0 => "normal",
+        1 => "throttled",
+        2 => "suspended",
+        _ => "unknown",
     }
 }
 
@@ -331,6 +382,8 @@ fn window_state(app: &tauri::AppHandle) -> Option<BgState> {
 /// WebView2 侧的内存策略：低内存目标与挂起 / 恢复。
 #[cfg(target_os = "windows")]
 mod webview2 {
+    use std::sync::atomic::Ordering;
+
     use tauri::Manager;
     use webview2_com::Microsoft::Web::WebView2::Win32::{
         ICoreWebView2, ICoreWebView2_19, ICoreWebView2_3,
@@ -349,12 +402,13 @@ mod webview2 {
         Suspend,
     }
 
-    pub fn apply(app: &tauri::AppHandle, mode: Mode) {
+    /// 返回是否成功投递到 UI 线程；投递失败时调用方要把级别记录回滚，下一拍重试。
+    pub fn apply(app: &tauri::AppHandle, mode: Mode) -> bool {
         let Some(window) = app.get_webview_window("main") else {
-            return;
+            return false;
         };
         // with_webview 在 UI 线程执行 COM；从轮询线程调用时由 Tauri 投递过去。
-        let _ = window.with_webview(move |platform| {
+        let dispatched = window.with_webview(move |platform| {
             let controller = platform.controller();
             let Ok(core) = (|| unsafe { controller.CoreWebView2() })() else {
                 return;
@@ -406,17 +460,30 @@ mod webview2 {
                                 eprintln!(
                                     "[efficiency] TrySuspend failed: {error:?} success={successful}"
                                 );
-                                // 挂起失败（例如页面还在跑脚本）时退回低内存档，别让窗口
-                                // 停在「controller 不可见但没挂起」的空白状态。若期间已经
-                                // 恢复前台，APPLIED_LEVEL 会先变回 Normal，这里就不动。
-                                if super::APPLIED_LEVEL.load(std::sync::atomic::Ordering::SeqCst)
+                                // 挂起失败（页面还在跑脚本 / 正在导航都会导致）时退回低内存档，
+                                // 别让窗口停在「controller 不可见但没挂起」的空白状态；若期间
+                                // 已经恢复前台，APPLIED_LEVEL 会先变回 Normal，这里就不动。
+                                // TrySuspend 只是「尝试」，失败要安排退避重试，否则长隐藏期间
+                                // 60s 档试一次就永久失效。
+                                if super::APPLIED_LEVEL.load(Ordering::SeqCst)
                                     == super::Level::Suspended as u8
                                 {
                                     unsafe {
                                         let _ = controller_for_cb.SetIsVisible(true);
                                         set_target_level(&core_for_cb, true);
                                     }
+                                    super::SUSPEND_RETRY_AFTER_MS.store(
+                                        super::now_ms()
+                                            .saturating_add(super::SUSPEND_RETRY_BACKOFF_MS),
+                                        Ordering::SeqCst,
+                                    );
+                                    // 记成 Throttled：主循环据此把 WebView 停在低内存档，
+                                    // 退避结束后再尝试挂起。
+                                    super::APPLIED_LEVEL
+                                        .store(super::Level::Throttled as u8, Ordering::SeqCst);
                                 }
+                            } else {
+                                eprintln!("[efficiency] webview suspended");
                             }
                             Ok(())
                         }));
@@ -431,6 +498,13 @@ mod webview2 {
                 }
             }
         });
+        match dispatched {
+            Ok(()) => true,
+            Err(e) => {
+                eprintln!("[efficiency] webview2 dispatch failed: {e}");
+                false
+            }
+        }
     }
 
     /// `ICoreWebView2_19::SetMemoryUsageTargetLevel`，旧运行时没有该接口时静默跳过。
