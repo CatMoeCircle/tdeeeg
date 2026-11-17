@@ -1,7 +1,7 @@
 /**
  * TON 钻石渲染（WebGL2）。
  *
- * 逐条移植自 Telegram 的 `DiamondRenderer` 与 Unigram 的 `DiamondScene`：
+ * 逐条移植自 Telegram 的 `DiamondRenderer` 与 Telegram Desktop 的 `DiamondScene`：
  * 三遍管线（主体带深度 + 背面剔除 → 预乘 alpha 闪光层 → 全屏 copy 做整体淡入），
  * 轮廓样条与水平压缩校正都按原实现保留，否则转动时石头会塌成纸片。
  *

@@ -131,7 +131,7 @@ const noResultsText = computed(() =>
 /**
  * 分组顺序对齐官方客户端：我管理的频道 → 我管理的群组 → 群组。
  * - 频道只列出我有「添加管理员」权限的（机器人加入频道只能作为管理员）：
- *   与 Telegram Android / Unigram 一致，频道不要求机器人预先申请管理员权限。
+ *   与 Telegram Android / Telegram Desktop 一致，频道不要求机器人预先申请管理员权限。
  * - 群组：能加管理员的放在「我管理的群组」（进入权限设置），其余按普通成员加入。
  */
 const channelSection = computed(() => candidates.value.filter((c) => c.isChannel));

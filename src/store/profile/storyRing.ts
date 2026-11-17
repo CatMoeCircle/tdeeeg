@@ -35,7 +35,7 @@ interface ChatStoryEntry {
   /**
    * 是否真正属于动态列表（主/归档）。
    * 个人资料页按需拉取的公开动态 list 为空、order 为 0，只用于该页圆环，
-   * 不能进标题栏（与 Unigram StoryListViewModel.UpdateChatOrder 的 inList 过滤一致）。
+   * 不能进标题栏（与 Telegram Desktop StoryListViewModel.UpdateChatOrder 的 inList 过滤一致）。
    */
   inStoryList: boolean;
   /** 已读到的动态 id（服务端） */

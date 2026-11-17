@@ -1,7 +1,7 @@
 /**
  * 钻石的手势与时钟模型。
  *
- * 逐条移植自 Unigram `Telegram.Native/Graphics/Scene3DRenderer.cpp` 感谢 Unigram 提供的原型,注释非常的完善
+ * 逐条移植自 Telegram Desktop `Telegram.Native/Graphics/Scene3DRenderer.cpp` 感谢 Telegram Desktop 提供的原型,注释非常的完善
  *
  * - 自转一圈 10.54 s、线性；出场先正对停留 0.22 s（等于淡入时长）
  * - 拖拽 0.8°/px（yaw）、0.15°/px（pitch）：pitch 远小于 yaw，否则一碰就翻

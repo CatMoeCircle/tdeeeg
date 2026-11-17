@@ -112,7 +112,7 @@ export function useDiamondDrag(options: DiamondDragOptions): DiamondDragHandle {
 
     function onPointerMove(event: PointerEvent) {
         if (pointerId === null || event.pointerId !== pointerId || !diamond) return;
-        // DOM 报的就是 CSS 像素，与 Unigram 传入的逻辑像素同一量纲
+        // DOM 报的就是 CSS 像素，与 Telegram Desktop 传入的逻辑像素同一量纲
         diamond.motion.drag(event.clientX - lastX, event.clientY - lastY);
         lastX = event.clientX;
         lastY = event.clientY;

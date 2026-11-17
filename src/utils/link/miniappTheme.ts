@@ -62,7 +62,7 @@ export function buildMiniAppThemeParameters(): themeParameters$Input {
   };
 }
 
-/** 构建 openWebApp / getWebAppUrl 的 parameters（桌面端跟随 Unigram 用 fullsize） */
+/** 构建 openWebApp / getWebAppUrl 的 parameters（桌面端跟随 Telegram Desktop 用 fullsize） */
 export function buildWebAppOpenParameters(
   mode?: webAppOpenParameters$Input["mode"],
 ): webAppOpenParameters$Input {

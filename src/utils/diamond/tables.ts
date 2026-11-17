@@ -1,7 +1,7 @@
 /**
  * TON 钻石模型表。
  *
- * 9 张 `.bin` 是 Telegram 官方烘焙好的几何 / 光照数据（Unigram
+ * 9 张 `.bin` 是 Telegram 官方烘焙好的几何 / 光照数据（Telegram Desktop
  * `Telegram/Assets/Models/Diamond/`，GPL-3.0，与本项目一致），共约 524 KB。
  *
  * 读取方式：这 9 个文件随前端一起打包，**从本地读**——生产包里它们被内嵌进
