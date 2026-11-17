@@ -86,6 +86,7 @@ async fn tools_search(base: &str, key: &str, query: &str) -> Result<String, Stri
     let url = format!("{base}/tools/search");
     let resp = reqwest::Client::new()
         .post(&url)
+        .header(reqwest::header::USER_AGENT, super::user_agent())
         .bearer_auth(key)
         .json(&serde_json::json!({ "query": query }))
         .send()

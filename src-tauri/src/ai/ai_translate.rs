@@ -293,6 +293,7 @@ async fn fetch_models(endpoint: &str, format: &str, api_key: &str) -> Result<Vec
     let base = endpoint.trim().trim_end_matches('/');
     let url = format!("{base}/models");
     let client = reqwest::Client::builder()
+        .user_agent(super::user_agent())
         .build()
         .map_err(|e| e.to_string())?;
     let mut req = client.get(&url);

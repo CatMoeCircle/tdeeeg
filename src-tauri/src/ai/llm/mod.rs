@@ -315,6 +315,7 @@ fn http_client() -> Result<&'static reqwest::Client, String> {
     CLIENT
         .get_or_init(|| {
             reqwest::Client::builder()
+                .user_agent(super::user_agent())
                 .connect_timeout(Duration::from_secs(20))
                 .read_timeout(Duration::from_secs(120))
                 .build()
