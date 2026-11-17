@@ -388,6 +388,8 @@ pub fn run() {
             system::efficiency::get_background_efficiency_status,
             system::widget_view::register_widget_html,
             system::widget_view::set_widget_emoji_font,
+            system::diamond_placeholder::load_diamond_placeholder,
+            system::diamond_placeholder::save_diamond_placeholder,
             ai::ai_translate::list_ai_providers,
             ai::ai_translate::save_ai_provider,
             ai::ai_translate::delete_ai_provider,

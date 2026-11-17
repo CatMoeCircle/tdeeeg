@@ -135,16 +135,30 @@ export function renderCardBackground(
     return canvas.toDataURL('image/png');
 }
 
-let cachedUrl: string | null = null;
+/** 已生成的底图：按尺寸缓存，不同尺寸（聊天卡 440×296 / 钱包卡 800×486）各一份 */
+const cachedUrls = new Map<string, string>();
+/** 尺寸缓存上限：正常只会有两三种尺寸，超过就丢最旧的，防止异常调用无限涨 */
+const MAX_CACHED_SIZES = 4;
 
 /**
- * 全进程只生成一次卡片底色（所有转账气泡共用同一张图）。
+ * 取卡片底色（同一尺寸全进程只生成一次，所有转账气泡共用同一张图）。
+ *
+ * 之前是单槽缓存：钱包卡的尺寸会把聊天卡的缓存挤掉，之后每张聊天卡都要重新
+ * 跑一遍 81 系数 × 13 万像素的采样 + toDataURL（10–80 ms），全在主线程上。
  *
  * @param width 目标像素宽
  * @param height 目标像素高
  * @returns PNG data URL，可作 CSS `background-image`
  */
 export function getCardBackgroundUrl(width: number, height: number): string {
-    if (!cachedUrl) cachedUrl = renderCardBackground(width, height);
-    return cachedUrl;
+    const key = `${Math.max(1, Math.round(width))}x${Math.max(1, Math.round(height))}`;
+    const hit = cachedUrls.get(key);
+    if (hit) return hit;
+    const url = renderCardBackground(width, height);
+    if (cachedUrls.size >= MAX_CACHED_SIZES) {
+        const oldest = cachedUrls.keys().next().value;
+        if (oldest !== undefined) cachedUrls.delete(oldest);
+    }
+    cachedUrls.set(key, url);
+    return url;
 }

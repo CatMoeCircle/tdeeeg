@@ -3,6 +3,7 @@
 
 pub mod data_loc;
 pub mod device_info;
+pub mod diamond_placeholder;
 pub mod efficiency;
 pub mod media_stream;
 pub mod notifications;

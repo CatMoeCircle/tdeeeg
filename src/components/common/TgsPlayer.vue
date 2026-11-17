@@ -86,6 +86,9 @@ const emit = defineEmits<{
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const innerRef = ref<any>(null);
+/** 首帧计时起点：挂载或换源时重置（诊断用，devtools __lottieStats()） */
+let pendingAt = performance.now();
+watch([() => props.src, () => props.data], () => { pendingAt = performance.now(); });
 let frameListener: ((payload: any) => void) | null = null;
 
 function engine() {
@@ -176,8 +179,8 @@ const className = computed(() => props.class || undefined);
 watch(effectiveLoop, () => applyLoop());
 
 function onLoad(payload: unknown) {
-    // 装载计数（诊断对照实验：见 utils/lottieStats）
-    countLottieLoad(budgetKey());
+    // 装载计数 + 首帧耗时（诊断对照实验：见 utils/lottieStats）
+    countLottieLoad(budgetKey(), performance.now() - pendingAt);
     // load 后显式 setLoop：构造时配置偶发未落到 Worker 引擎（默认 false → 只播一次）
     applyLoop();
     // 新引擎：重置指令缓存与帧率估算，按当前意图同步播放状态并登记负载

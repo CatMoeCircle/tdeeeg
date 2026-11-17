@@ -17,7 +17,8 @@ import { settings } from "./store/settings/settings";
 import { initTheme } from "./store/settings/theme";
 import { debugMode } from "./store/settings/debug";
 import { useLanguageStore } from "./store/settings/language";
-import { initTlottie } from "./utils/media/tlottiePreload";
+import { initTlottie, warmTlottiePool } from "./utils/media/tlottiePreload";
+import { scheduleDiamondPrewarm } from "./utils/diamond/preload";
 import { installCrashGuard, showBootstrapFailure } from "./utils/session/crashGuard";
 import { applyTdlibSystemParams } from "./utils/session/tdlibParams";
 import { initStoryRing } from "./store/profile/storyRing";
@@ -209,6 +210,9 @@ async function bootstrap() {
         // 所有初始化完成，显示窗口（之前通过 tauri.conf.json visible:false 隐藏）
         step = "window.show";
         await getCurrentWebviewWindow().show();
+
+        // 窗口显示后再做空闲预热（贴纸 worker 池 / 钻石 WebGL 着色器）
+        if (authState === "ready") scheduleWarmups();
     } catch (e) {
         // 任一关键步骤失败：窗口可能已可见（例如 location.reload 后），
         // 若不处理会表现为「纯白屏 + 无元素」。这里用不依赖 Vue 的浮层暴露原因。
@@ -219,6 +223,31 @@ async function bootstrap() {
             // ignore
         }
     }
+}
+
+/**
+ * 启动后的空闲期预热。两件事都只是"把第一次要付的钱提前付掉"：
+ *
+ * - TGS 贴纸：tlottie 默认只有 1 个渲染 worker，所有动画的 gzip 解压 / wasm
+ *   解析 / 渲染都排在同一条线程上；空闲期把池扩到 2–4 个，面板或聊天里多张
+ *   贴纸才能同时出画面，而不是一张张排队。
+ * - 钻石：拉 9 张模型表 + 建 WebGL 上下文 + 编译 37 KB 片元着色器（冷启动
+ *   以秒计），并产出三种配色的首帧占位图（落盘，供下次启动即时显示）。
+ *
+ * 延迟到窗口显示之后并走 requestIdleCallback，避开启动高峰；失败都只 warn。
+ */
+function scheduleWarmups(): void {
+    setTimeout(() => {
+        const run = () => {
+            void warmTlottiePool().catch((e) => console.warn("[bootstrap] tlottie 扩池失败:", e));
+            scheduleDiamondPrewarm();
+        };
+        const idle = (window as unknown as {
+            requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number;
+        }).requestIdleCallback;
+        if (typeof idle === "function") idle(run, { timeout: 4000 });
+        else run();
+    }, 800);
 }
 
 function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {

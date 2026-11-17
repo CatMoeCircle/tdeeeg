@@ -15,7 +15,8 @@
 
 import type { DiamondScene } from './scene';
 import { DiamondMotion, DIAMOND_MOTION } from './motion';
-import { PALETTE_COOL } from './palette';
+import { PALETTE_BLUE, PALETTE_COOL, PALETTE_ICE } from './palette';
+import { captureDiamondPlaceholder, drawDiamondPlaceholder, hasDiamondPlaceholder } from './placeholder';
 
 /** 空闲帧率：42 dp 的小石头没必要跑满 60 */
 const IDLE_FPS = 30;
@@ -29,6 +30,24 @@ const MAX_RENDER_PX = 192;
 const RENDER_SUPERSAMPLE = 3;
 /** 初始化失败后的重试冷却（毫秒） */
 const INIT_RETRY_MS = 3000;
+
+/** 首帧耗时诊断（performance.now 时间戳）：devtools 里 `__diamondStats()` 查看 */
+const timing = { initStart: 0, ready: 0, firstPaint: 0 };
+
+export interface DiamondTimingSnapshot {
+    /** 初始化（拉表 + 建上下文 + 编译着色器）耗时 ms；未完成时 null */
+    initMs: number | null;
+    /** 从初始化开始到第一帧真正画出来的耗时 ms */
+    firstPaintMs: number | null;
+}
+
+/** 读首帧耗时诊断快照（配合「预热后是否还慢」的对照实验） */
+export function diamondStats(): DiamondTimingSnapshot {
+    return {
+        initMs: timing.ready ? Math.round(timing.ready - timing.initStart) : null,
+        firstPaintMs: timing.firstPaint ? Math.round(timing.firstPaint - timing.initStart) : null,
+    };
+}
 
 /** 一个气泡里的钻石需要实现的东西 */
 interface DiamondSprite {
@@ -71,6 +90,11 @@ class DiamondStage {
     /** 最近一次初始化失败的原因（诊断用） */
     get lastError(): unknown {
         return this.failure;
+    }
+
+    /** 渲染器是否已就绪（占位图据此判断要不要先顶上） */
+    get ready(): boolean {
+        return this.scene !== null;
     }
 
     /** 共享画布尺寸（设备像素，正方形）；内部再按 RENDER_SUPERSAMPLE 倍渲染后盒式缩回 */
@@ -125,6 +149,7 @@ class DiamondStage {
             return Promise.reject(this.failure);
         }
 
+        if (!timing.initStart) timing.initStart = performance.now();
         this.initPromise = (async () => {
             const canvas = document.createElement('canvas');
             const size = this.renderSize;
@@ -177,6 +202,7 @@ class DiamondStage {
                 this.gl = gl;
                 this.scene = scene;
                 this.failure = null;
+                if (!timing.ready) timing.ready = performance.now();
                 // 初始化期间 sprite 可能已经登记并请求过帧（那时 scene 还是空，
                 // tick 直接退出不再排下一帧），就绪后补一次 request，
                 // 否则要等下一次交互才会出画面
@@ -320,6 +346,30 @@ class DiamondStage {
 
 export const diamondStage = new DiamondStage();
 
+/**
+ * 预热：把拉表、建 WebGL 上下文、编译着色器整套提前跑完，并产出三种配色的
+ * 首帧占位图（本次运行内抓帧 + 落盘，供下次启动直接读）。
+ *
+ * 只能由空闲期调用（见 utils/diamond/preload.ts）：冷启动时这套成本是秒级，
+ * 提前付掉之后首现只剩一帧绘制。失败由 stage 自己的退避重试兜底。
+ */
+export async function prewarmDiamondStage(): Promise<void> {
+    await diamondStage.init();
+    const canvas = diamondStage.glCanvas;
+    if (!canvas) return;
+    const motion = new DiamondMotion(DIAMOND_MOTION);
+    for (const palette of [PALETTE_BLUE, PALETTE_ICE, PALETTE_COOL]) {
+        if (hasDiamondPlaceholder(palette)) continue;
+        diamondStage.render(motion, palette, 0);
+        captureDiamondPlaceholder(palette, canvas);
+    }
+}
+
+// 诊断入口：devtools 里 `__diamondStats()` 看初始化 / 首帧耗时
+if (typeof window !== 'undefined') {
+    (window as unknown as { __diamondStats?: typeof diamondStats }).__diamondStats = diamondStats;
+}
+
 export interface DiamondHandle {
     /** 姿态模型，供交互层读取 */
     motion: DiamondMotion;
@@ -364,6 +414,9 @@ export function mountDiamond(options: {
     const baseSize = Math.max(1, Math.round((cssSize > 0 ? cssSize : 42) * dpr));
     target.width = baseSize;
     target.height = baseSize;
+    // 渲染器没就绪（冷启动要编译着色器，可能几秒）先用首帧截图顶上，
+    // 观感等于一次图片解码；等 GL 画出第一帧后自然覆盖。
+    drawDiamondPlaceholder(context, palette, target.width, target.height);
     /** 当前按压缩放倍数：>1 时画布跟着变大，放大后才不会糊 */
     let zoom = 1;
 
@@ -382,6 +435,9 @@ export function mountDiamond(options: {
                 // 共享画布可能比这块大（弹窗的石头更大），按自己的尺寸贴回来
                 context.drawImage(canvas, 0, 0, target.width, target.height);
             }
+            if (!timing.firstPaint) timing.firstPaint = performance.now();
+            // 抓到真实首帧就存下来：本次会话后续的石头 / 下次启动都能即时出画面
+            if (!hasDiamondPlaceholder(palette)) captureDiamondPlaceholder(palette, canvas);
             options.onFrame?.(motion);
         },
     };
@@ -398,6 +454,9 @@ export function mountDiamond(options: {
             sprite.visible = visible;
             if (visible) {
                 sprite.dirty = true;
+                if (!diamondStage.ready) {
+                    drawDiamondPlaceholder(context, palette, target.width, target.height);
+                }
                 diamondStage.request();
             }
         },
@@ -416,6 +475,9 @@ export function mountDiamond(options: {
             target.height = pixels;
             diamondStage.trackPixels(sprite, pixels);
             sprite.dirty = true;
+            if (!diamondStage.ready) {
+                drawDiamondPlaceholder(context, palette, target.width, target.height);
+            }
             diamondStage.request();
         },
         setUrgent(urgent: boolean) {
