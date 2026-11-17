@@ -211,6 +211,16 @@
                 <ChevronRightIcon class="w-4 h-4 text-gray-400 shrink-0" />
               </button>
 
+              <!-- 统计（频道 / 超级群） -->
+              <button v-if="showStats" type="button" @click="go('group-stats')"
+                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                <ChartColumnIcon class="w-5 h-5 text-gray-400 shrink-0" />
+                <p class="min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">
+                  {{ t('statsPage.title') }}
+                </p>
+                <ChevronRightIcon class="w-4 h-4 text-gray-400 shrink-0" />
+              </button>
+
               <!-- 被移除用户 -->
               <button v-if="showBlacklist" type="button" @click="go('group-blacklist')"
                 class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
@@ -219,6 +229,16 @@
                   {{ t('lng_manage_peer_banned_users') }}
                 </p>
                 <span class="text-xs text-gray-400 shrink-0">{{ bannedCount }}</span>
+                <ChevronRightIcon class="w-4 h-4 text-gray-400 shrink-0" />
+              </button>
+
+              <!-- 助推（频道 / 超级群） -->
+              <button v-if="showBoost" type="button" @click="go('group-boost')"
+                class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                <TgBoostIcon class="w-5 h-5 text-gray-400 shrink-0" />
+                <p class="min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-100 truncate">
+                  {{ t('boostPage.title') }}
+                </p>
                 <ChevronRightIcon class="w-4 h-4 text-gray-400 shrink-0" />
               </button>
 
@@ -263,32 +283,34 @@
 
     <!-- 删除 / 退出确认 -->
     <Teleport to="body">
-      <div v-if="deleteVisible || leaveVisible" class="fixed inset-0 z-9998 flex items-center justify-center p-4"
-        @mousedown.self="deleteVisible = leaveVisible = false">
-        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
-        <div class="relative w-full max-w-sm rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div class="px-5 py-4">
-            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">
-              {{ deleteVisible ? deleteLabel : leaveLabel }}
-            </h3>
-            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400 whitespace-pre-line">
-              {{ deleteVisible
-                ? (isChannel ? t('lng_sure_delete_channel') : t('lng_sure_delete_group'))
-                : (isChannel ? t('lng_sure_leave_channel') : t('lng_sure_leave_group')) }}
-            </p>
-          </div>
-          <div class="px-5 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-2">
-            <BaseButton type="button" variant="ghost"
-              @click="deleteVisible = leaveVisible = false">{{ t('lng_cancel') }}</BaseButton>
-            <button v-if="deleteVisible" type="button" class="px-4 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
-              @click="doLeave">{{ t('lng_profile_delete_and_exit') }}</button>
-            <button type="button" class="px-4 py-2 rounded-lg text-sm bg-red-500 text-white hover:bg-red-600"
-              @click="deleteVisible ? doDelete() : doLeave()">
-              {{ deleteVisible ? deleteLabel : leaveLabel }}
-            </button>
+      <Transition name="dialog-pop">
+        <div v-if="deleteVisible || leaveVisible" class="fixed inset-0 z-9998 flex items-center justify-center p-4"
+          @mousedown.self="deleteVisible = leaveVisible = false">
+          <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
+          <div class="dialog-pop-panel relative w-full max-w-sm rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div class="px-5 py-4">
+              <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">
+                {{ deleteVisible ? deleteLabel : leaveLabel }}
+              </h3>
+              <p class="mt-2 text-sm text-gray-500 dark:text-gray-400 whitespace-pre-line">
+                {{ deleteVisible
+                  ? (isChannel ? t('lng_sure_delete_channel') : t('lng_sure_delete_group'))
+                  : (isChannel ? t('lng_sure_leave_channel') : t('lng_sure_leave_group')) }}
+              </p>
+            </div>
+            <div class="px-5 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-2">
+              <BaseButton type="button" variant="ghost"
+                @click="deleteVisible = leaveVisible = false">{{ t('lng_cancel') }}</BaseButton>
+              <button v-if="deleteVisible" type="button" class="px-4 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+                @click="doLeave">{{ t('lng_profile_delete_and_exit') }}</button>
+              <button type="button" class="px-4 py-2 rounded-lg text-sm bg-red-500 text-white hover:bg-red-600"
+                @click="deleteVisible ? doDelete() : doLeave()">
+                {{ deleteVisible ? deleteLabel : leaveLabel }}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </Transition>
     </Teleport>
   </div>
 </template>
@@ -318,7 +340,9 @@ import {
   Link as LinkIcon,
   SmilePlus as SmilePlusIcon,
   LogOut as LogOutIcon,
+  ChartColumn as ChartColumnIcon,
 } from 'lucide-vue-next';
+import { TgBoostIcon } from '../../components/common/telegramIconComponents';
 import { toast } from '../../utils/ui/toast';
 import Avatar from '../../components/chat/avatar.vue';
 import AvatarEditorDialog from '../../components/settings/AvatarEditorDialog.vue';
@@ -434,6 +458,9 @@ const showPermissions = computed(() => {
 const showBlacklist = computed(() => !isBasicGroupChat(chat.value) && canRestrictMembers(status.value));
 // 超级群 EventLog 恒显示（进入编辑页即可）
 const showEventLog = computed(() => !isBasicGroupChat(chat.value));
+// 助推 / 统计：与近期操作一致，仅超级群 / 频道（基本群不显示）
+const showBoost = computed(() => !isBasicGroupChat(chat.value));
+const showStats = computed(() => !isBasicGroupChat(chat.value));
 // 外观：仅群主/频道主（创建者）可设
 const showAppearance = computed(() => isCreator.value);
 const showAutoTranslate = computed(() => isChannel.value && canChangeInfo.value);

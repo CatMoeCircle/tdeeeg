@@ -280,6 +280,18 @@ const router = createRouter({
           component: () => import("../views/group/GroupInviteLinksPage.vue"),
         },
         {
+          // 频道 / 群助推状态：等级、剩余助推、可用助推位与助推列表
+          path: "chat-edit/:id/boost",
+          name: "group-boost",
+          component: () => import("../views/group/GroupBoostPage.vue"),
+        },
+        {
+          // 频道 / 群统计：成员、消息、增长与互动数据
+          path: "chat-edit/:id/stats",
+          name: "group-stats",
+          component: () => import("../views/group/GroupStatsPage.vue"),
+        },
+        {
           path: "chat-edit/:id/reactions",
           name: "group-reactions",
           component: () => import("../views/group/GroupReactionsPage.vue"),
