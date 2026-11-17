@@ -8,10 +8,14 @@
                 :class="dragging ? 'cursor-grabbing' : 'cursor-grab'" @pointerdown="onPointerDown"
                 @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerCancel"
                 @lostpointercapture="onPointerCancel" @dragstart.prevent>
-                <!-- 地图图：按容器宽度等比缩放（512 宽的缩略图），拖动只改 translate，松手才换图 -->
+                <!--
+                    地图图：请求 2 倍图并按 200% 渲染，视口四周各留半屏余量。
+                    这样拖动（只改 translate）时不会立刻拖出空白网格；DPI 与缩放换算
+                    仍以 1 倍图的 512 宽为基准，见 displayScale()。
+                -->
                 <img v-if="mapSrc" :src="mapSrc" alt="" draggable="false"
-                    class="pointer-events-none absolute inset-0 h-full w-full max-w-none object-cover"
-                    :style="imageStyle" @error="onMapImageError" />
+                    class="pointer-events-none absolute max-w-none object-cover" :style="imageStyle"
+                    @error="onMapImageError" />
 
                 <!-- 拉图进度：加载中叠一个转圈，加载失败时只剩网格底 -->
                 <div v-if="loading" class="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -63,6 +67,33 @@
                     </span>
                 </BaseButton>
             </div>
+
+            <!-- 设备定位不可用（WebView2 / 未授权）时的降级提示：拖地图照样能选点发送 -->
+            <p v-if="geoUnavailable" class="text-[11px] text-amber-600 dark:text-amber-400">
+                {{ t('locationShare.geoUnavailableHint') }}
+            </p>
+
+            <!-- 实时位置：只在聊天发送入口启用（投票选项等场景不传 allow-live） -->
+            <div v-if="allowLive" class="space-y-2">
+                <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('locationShare.liveTitle') }}</p>
+                <div class="flex flex-wrap gap-2" role="radiogroup" :aria-label="t('locationShare.liveTitle')">
+                    <button v-for="opt in liveOptions" :key="opt.value" type="button" role="radio"
+                        :aria-checked="livePeriod === opt.value"
+                        class="rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
+                        :class="livePeriod === opt.value
+                            ? 'border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-300'
+                            : 'border-gray-200 text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700'"
+                        @click="livePeriod = opt.value">
+                        {{ opt.label }}
+                    </button>
+                </div>
+                <p v-if="livePeriod > 0" class="text-[11px] text-gray-400 dark:text-gray-500">
+                    {{ t('locationShare.liveHint', { period: livePeriodLabel }) }}
+                </p>
+                <p v-if="livePeriod > 0 && geoUnavailable" class="text-[11px] text-amber-600 dark:text-amber-400">
+                    {{ t('locationShare.liveNeedsGeolocation') }}
+                </p>
+            </div>
         </div>
 
         <template #footer>
@@ -86,6 +117,7 @@ import {
     DEFAULT_GEO_POINT,
     DRAG_THRESHOLD_PX,
     LAST_LOCATION_STORAGE_KEY,
+    LIVE_LOCATION_PERIODS,
     MAP_ZOOM_DEFAULT,
     MAP_ZOOM_MAX,
     MAP_ZOOM_MIN,
@@ -93,32 +125,55 @@ import {
     clampZoom,
     formatCoordinate,
     normalizeGeoPoint,
+    normalizeLivePeriod,
     panCenterByPixels,
     parseStoredGeoPoint,
     serializeGeoPoint,
     type GeoPoint,
 } from '../../../utils/chat/locationPicker';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
     modelValue: boolean;
     /** 用于 getMapThumbnailFile 的 chat_id（TDLib 用它生成对应场景的地图，未知传 0） */
     chatId?: number;
-}>();
+    /** 是否显示「实时位置」单选（聊天发送入口启用；投票选项等场景保持静态位置） */
+    allowLive?: boolean;
+}>(), {
+    chatId: 0,
+    allowLive: false,
+});
 
 const emit = defineEmits<{
     (e: 'update:modelValue', v: boolean): void;
-    /** 用户确认的位置，父组件负责 inputMessageLocation 发送 */
-    (e: 'submit', location: location): void;
+    /** 用户确认的位置与直播时长（秒，0 = 普通位置），父组件负责发送 */
+    (e: 'submit', location: location, livePeriod: number): void;
 }>();
 
 const { t } = useI18n();
 
-/** 向 TDLib 请求的地图像素尺寸（限制 16-1024）；显示时按容器宽度等比缩放 */
-const MAP_THUMB_WIDTH = 512;
-const MAP_THUMB_HEIGHT = 384;
+/**
+ * 坐标换算基准：视口宽度对应 512 个「1 倍图」地图像素。
+ * 实际请求 2 倍图（1024 宽）并渲染成 200%，1 CSS px 仍是 1/scale 个基准地图像素，
+ * 所以拖动 / 缩放数学完全不变，只是图像四周多了半屏余量。
+ */
+const MAP_VIEW_REFERENCE_WIDTH = 512;
+const MAP_VIEW_REFERENCE_HEIGHT = 384;
+const MAP_SOURCE_SCALE = 2;
+/** 向 TDLib 请求的地图像素尺寸（限制 16-1024；1024 = 512 基准宽 × 2 倍余量） */
+const MAP_THUMB_WIDTH = MAP_VIEW_REFERENCE_WIDTH * MAP_SOURCE_SCALE;
+const MAP_THUMB_HEIGHT = MAP_VIEW_REFERENCE_HEIGHT * MAP_SOURCE_SCALE;
 
 /** 定位参数：不自动请求权限，只在点「我的位置」时调一次 */
 const GEO_OPTIONS: PositionOptions = { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 };
+
+/**
+ * 地图缩略图重试间隔：刚请求的地图可能还没生成完，第一次会拿到
+ * can_be_downloaded=false 的文件；只请求一次会永久留白，所以做几次短重试。
+ */
+const MAP_RETRY_DELAYS_MS = [0, 300, 700, 1500];
+
+/** GeolocationPositionError.TIMEOUT（超时可重试；权限 / 不可用才判定为环境不支持） */
+const GEO_TIMEOUT_CODE = 3;
 
 const mapEl = ref<HTMLDivElement | null>(null);
 const mapSrc = ref('');
@@ -133,9 +188,15 @@ const loading = ref(false);
 const locating = ref(false);
 /** 松手 / 缩放 / 定位后正在请求的目标中心；加载完成前它就是「当前选择」 */
 const pendingCenter = ref<GeoPoint | null>(null);
+/** 实时位置时长（秒）；0 = 普通位置 */
+const livePeriod = ref(0);
+/** 设备定位是否不可用（WebView2 无定位服务 / 权限被拒）：只影响「我的位置」与实时回写 */
+const geoUnavailable = ref(false);
 
 /** 请求代次：拖动松手、缩放、定位都可能连发，只让最后一次的结果落地 */
 let loadSeq = 0;
+/** 定位请求代次：关闭 / 重新打开弹窗后，旧的 getCurrentPosition 回调不能改动新会话中心 */
+let geoSeq = 0;
 
 /**
  * 当前选中的位置：请求中的目标优先，其次是「已提交中心 + 进行中的拖动位移」。
@@ -150,17 +211,35 @@ const currentLocation = computed<GeoPoint>(() => {
 const latitudeText = computed(() => formatCoordinate(currentLocation.value.latitude));
 const longitudeText = computed(() => formatCoordinate(currentLocation.value.longitude));
 
-const imageStyle = computed(() => ({ transform: `translate(${offsetX.value}px, ${offsetY.value}px)` }));
+/** 2 倍图居中铺满，再叠加拖动位移 */
+const imageStyle = computed(() => ({
+    width: `${MAP_SOURCE_SCALE * 100}%`,
+    height: `${MAP_SOURCE_SCALE * 100}%`,
+    left: `${-50 * (MAP_SOURCE_SCALE - 1)}%`,
+    top: `${-50 * (MAP_SOURCE_SCALE - 1)}%`,
+    transform: `translate(${offsetX.value}px, ${offsetY.value}px)`,
+}));
+
+/** 实时位置单选：关闭 / 15 分钟 / 1 小时 / 8 小时 */
+const liveOptions = computed<{ value: number; label: string }[]>(() => [
+    { value: 0, label: t('locationShare.liveOff') },
+    { value: LIVE_LOCATION_PERIODS[0], label: t('locationShare.live15m') },
+    { value: LIVE_LOCATION_PERIODS[1], label: t('locationShare.live1h') },
+    { value: LIVE_LOCATION_PERIODS[2], label: t('locationShare.live8h') },
+]);
+const livePeriodLabel = computed(
+    () => liveOptions.value.find((opt) => opt.value === livePeriod.value)?.label ?? '',
+);
 
 /**
- * 屏幕像素 → 地图像素的比例。
- * TDLib 返回的是 MAP_THUMB_WIDTH 宽的图，这里按容器宽度等比渲染（4:3 正好铺满），
- * 所以 1 CSS px 对应 1/scale 个地图像素；Mercator 换算必须用折算后的像素数，
- * 否则窄窗口下拖同样距离会飞得更远。
+ * 屏幕像素 → 基准地图像素的比例。
+ * 基准 512 宽的地图铺满容器宽度，所以 1 CSS px 对应 1/scale 个基准地图像素；
+ * Mercator 换算必须用折算后的像素数，否则窄窗口下拖同样距离会飞得更远。
+ * （2 倍图按 200% 渲染，这个比例不变。）
  */
 function displayScale(): number {
     const width = mapEl.value?.clientWidth ?? 0;
-    return width > 0 ? width / MAP_THUMB_WIDTH : 1;
+    return width > 0 ? width / MAP_VIEW_REFERENCE_WIDTH : 1;
 }
 
 /** 两点是否几乎重合（误差小于 1e-7 度约 1 厘米，用来跳过无意义的地图重拉） */
@@ -188,29 +267,42 @@ function writeLastLocation(point: GeoPoint) {
 /**
  * 拉取以 target 为中心的地图缩略图。
  * 只在松手 / 缩放 / 定位后各调一次：拖动过程中只做 CSS translate，不发请求。
+ * 缩略图刚生成时可能还不可下载，这里按 MAP_RETRY_DELAYS_MS 重试几次。
  */
 async function loadMap(target: GeoPoint) {
     const seq = ++loadSeq;
     loading.value = true;
     try {
-        const file = await tdlibSend({
-            _: 'getMapThumbnailFile',
-            location: {
-                _: 'location',
-                latitude: target.latitude,
-                longitude: target.longitude,
-                horizontal_accuracy: 0,
-            },
-            zoom: clampZoom(zoom.value),
-            width: MAP_THUMB_WIDTH,
-            height: MAP_THUMB_HEIGHT,
-            // 高分屏请求 2x / 3x 位图，TDLib 的 scale 只允许 1-3
-            scale: Math.min(3, Math.max(1, Math.round(window.devicePixelRatio || 1))),
-            chat_id: props.chatId ?? 0,
-        });
-        const path = await ensureLocalFilePath(file);
+        let path: string | null = null;
+        let lastError: unknown = null;
+        for (const delay of MAP_RETRY_DELAYS_MS) {
+            if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+            if (seq !== loadSeq) return; // 过期请求直接丢
+            try {
+                const file = await tdlibSend({
+                    _: 'getMapThumbnailFile',
+                    location: {
+                        _: 'location',
+                        latitude: target.latitude,
+                        longitude: target.longitude,
+                        horizontal_accuracy: 0,
+                    },
+                    zoom: clampZoom(zoom.value),
+                    width: MAP_THUMB_WIDTH,
+                    height: MAP_THUMB_HEIGHT,
+                    // TDLib 只允许下载小于 1MB 的地图缩略图：源图已经是 2 倍尺寸，
+                    // 再乘 scale 会明显超过上限（1024*2 的 PNG 通常 >1MB），这里固定 1
+                    scale: 1,
+                    chat_id: props.chatId ?? 0,
+                });
+                path = await ensureLocalFilePath(file);
+                if (path) break;
+            } catch (e) {
+                lastError = e;
+            }
+        }
         if (seq !== loadSeq) return; // 过期响应直接丢
-        if (!path) throw new Error('map thumbnail is not available locally');
+        if (!path) throw lastError ?? new Error('map thumbnail is not available locally');
         mapSrc.value = convertFileSrc(path);
         // 新图到位后才归零位移：此刻旧图「已拖动」的显示位置正好等价于新图居中
         center.value = target;
@@ -239,6 +331,11 @@ function openPicker() {
     offsetY.value = 0;
     pendingCenter.value = null;
     mapSrc.value = '';
+    livePeriod.value = 0;
+    // WebView2 等环境没有 navigator.geolocation：提前给出降级提示，不等到用户点按钮
+    geoUnavailable.value = typeof navigator === 'undefined' || !navigator.geolocation;
+    locating.value = false;
+    geoSeq++; // 作废上一次打开遗留的定位回调
     loadSeq++; // 作废上一次打开遗留的请求
     loading.value = false;
     void loadMap(center.value);
@@ -254,8 +351,12 @@ watch(
 
 function close() {
     loadSeq++; // 关掉后不再接受遗留响应
+    geoSeq++; // 作废飞行中的定位回调
+    locating.value = false;
     loading.value = false;
-    dragging.value = false;
+    // 按住拖拽时被关闭（Esc / 路由切换）：必须清掉手势状态，否则下次打开时 pointerId
+    // 还是旧值，onPointerDown 会一直早退，地图再也拖不动
+    endGesture();
     emit('update:modelValue', false);
 }
 
@@ -274,7 +375,11 @@ watch(
     },
 );
 
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, true));
+onBeforeUnmount(() => {
+    window.removeEventListener('keydown', onKeydown, true);
+    // 组件卸载时清掉可能残留的拖拽手势
+    endGesture();
+});
 
 let pointerId: number | null = null;
 let startX = 0;
@@ -370,18 +475,22 @@ function changeZoom(delta: number) {
     void loadMap(pendingCenter.value);
 }
 
-/** 我的位置：只在用户点击时请求权限；失败 / 不支持时提示拖动地图 */
+/** 我的位置：只在用户点击时请求权限；失败 / 不支持时提示拖地图选择 */
 function useMyLocation() {
     if (locating.value) return;
     const geo = typeof navigator !== 'undefined' ? navigator.geolocation : undefined;
     if (!geo) {
-        toast.warning(t('location.myLocationFailed'));
+        geoUnavailable.value = true;
+        toast.warning(t('locationShare.geoUnavailableHint'));
         return;
     }
     locating.value = true;
+    const seq = geoSeq;
     geo.getCurrentPosition(
         (pos) => {
+            if (seq !== geoSeq) return; // 弹窗已关闭 / 重新打开：旧回调作废
             locating.value = false;
+            geoUnavailable.value = false;
             const target = normalizeGeoPoint({
                 latitude: pos.coords.latitude,
                 longitude: pos.coords.longitude,
@@ -390,9 +499,12 @@ function useMyLocation() {
             void loadMap(target);
         },
         (err) => {
+            if (seq !== geoSeq) return; // 弹窗已关闭 / 重新打开：旧回调作废
             locating.value = false;
             console.warn('Location unavailable:', err.message);
-            toast.warning(t('location.myLocationFailed'));
+            // 超时可能只是暂时没定位到，不算环境不支持；权限 / 定位服务不可用才给出降级提示
+            if (err.code !== GEO_TIMEOUT_CODE) geoUnavailable.value = true;
+            toast.warning(t('locationShare.geoUnavailableHint'));
         },
         GEO_OPTIONS,
     );
@@ -411,7 +523,7 @@ function submit() {
         latitude: point.latitude,
         longitude: point.longitude,
         horizontal_accuracy: 0,
-    });
+    }, normalizeLivePeriod(livePeriod.value));
     close();
 }
 </script>

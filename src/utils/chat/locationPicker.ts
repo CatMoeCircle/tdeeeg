@@ -148,3 +148,19 @@ export function centerOnOffsetPoint(center: GeoPoint, offsetX: number, offsetY: 
 export function formatCoordinate(value: number): string {
     return Number.isFinite(value) ? value.toFixed(6) : '0.000000';
 }
+
+/** 「实时位置」可选的直播时长（秒）：15 分钟 / 1 小时 / 8 小时 */
+export const LIVE_LOCATION_PERIODS = [900, 3600, 28800] as const;
+
+/** TDLib inputMessageLiveLocation 允许的 live_period 区间：60-86400 秒 */
+export const LIVE_LOCATION_MIN_PERIOD = 60;
+export const LIVE_LOCATION_MAX_PERIOD = 86400;
+
+/**
+ * 把用户选择的直播时长收敛到 TDLib 允许范围。
+ * 0 表示普通（静态）位置：不传 live_period，走 inputMessageLocation。
+ */
+export function normalizeLivePeriod(seconds: number): number {
+    if (!Number.isFinite(seconds) || seconds <= 0) return 0;
+    return Math.round(clampNumber(seconds, LIVE_LOCATION_MIN_PERIOD, LIVE_LOCATION_MAX_PERIOD));
+}

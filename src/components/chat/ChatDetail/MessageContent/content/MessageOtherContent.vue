@@ -6,6 +6,16 @@
             <RichMap :location="content.location" :zoom="14" :chat-id="chatId" />
         </div>
 
+        <!-- Live location：TDLib 用 messageLiveLocation 下发（liveLocation 里再包一层 location），
+             地图复用 RichMap，下面补一行剩余时间，避免落到「未适配消息」卡片里 -->
+        <div v-else-if="content._ === 'messageLiveLocation'" class="w-80 max-w-full">
+            <RichMap :location="content.location.location" :zoom="14" :chat-id="chatId" />
+            <p class="mt-1 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                <span class="h-2 w-2 shrink-0 rounded-full bg-[#4fa54f]" aria-hidden="true"></span>
+                {{ liveLocationText }}
+            </p>
+        </div>
+
         <!-- Venue -->
         <div v-else-if="content._ === 'messageVenue'" class="flex flex-col gap-1 text-sm">
             <div class="flex items-center gap-2">
@@ -56,7 +66,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { MessageContent, message } from 'tdlib-types';
 import { MapPinIcon, ArrowUpRight, ArrowDownLeft } from 'lucide-vue-next';
 import MessagePollContent from './MessagePollContent.vue';
@@ -74,6 +85,45 @@ const props = defineProps<{
     topicId?: number;
     senderName?: string;
 }>();
+
+const { t } = useI18n();
+
+/** 当前时间（秒）：实时位置剩余时间要跟着走，30s 刷新一次 */
+const nowSeconds = ref(Math.floor(Date.now() / 1000));
+let liveClockTimer: ReturnType<typeof setInterval> | null = null;
+
+/** 只有实时位置消息才需要走时钟，普通消息不额外起定时器 */
+function syncLiveClock() {
+    if (props.content._ !== 'messageLiveLocation') {
+        if (liveClockTimer !== null) {
+            clearInterval(liveClockTimer);
+            liveClockTimer = null;
+        }
+        return;
+    }
+    if (liveClockTimer !== null) return;
+    nowSeconds.value = Math.floor(Date.now() / 1000);
+    liveClockTimer = setInterval(() => {
+        nowSeconds.value = Math.floor(Date.now() / 1000);
+    }, 30_000);
+}
+
+watch(() => props.content._, syncLiveClock, { immediate: true });
+onUnmounted(() => {
+    if (liveClockTimer !== null) clearInterval(liveClockTimer);
+});
+
+/** 实时位置剩余时间：TDLib 的 live_period 是相对消息发送时间的秒数 */
+const liveLocationText = computed(() => {
+    const c = props.content;
+    if (c._ !== 'messageLiveLocation') return '';
+    const sentAt = props.message?.date ?? nowSeconds.value;
+    const remainingSeconds = Math.max(0, sentAt + c.location.live_period - nowSeconds.value);
+    if (remainingSeconds <= 0) return t('locationShare.liveEnded');
+    const totalMinutes = Math.max(1, Math.ceil(remainingSeconds / 60));
+    if (totalMinutes >= 60) return t('locationShare.liveRemainingHours', { hours: Math.floor(totalMinutes / 60) });
+    return t('locationShare.liveRemainingMinutes', { minutes: totalMinutes });
+});
 
 /** 通话类型文案：拨出未接通「通话已取消」、来电未接通「未接来电」、来电被拒「拒接」 */
 const callTitle = computed(() =>

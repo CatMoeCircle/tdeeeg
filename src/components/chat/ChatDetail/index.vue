@@ -756,7 +756,7 @@
             @submit="sendPoll" />
         <ChecklistCreateDialog v-model="checklistCreateOpen" :chat="chat" :is-premium="isMePremium"
             @submit="sendChecklist" />
-        <LocationPickerDialog v-model="locationPickerOpen" :chat-id="chatId" @submit="sendLocation" />
+        <LocationPickerDialog v-model="locationPickerOpen" :chat-id="chatId" allow-live @submit="sendLocation" />
         <!-- ===== Reaction 选择器 ===== -->
         <ReactionPicker :visible="reactionPickerVisible" :msg="reactionPickerMsg" :anchorRect="reactionPickerAnchor"
             :isPremium="userProfile?.is_premium ?? false" :fullEmoji="reactionPickerFullEmoji"
@@ -817,6 +817,7 @@ import {
     TOPIC_TAG_PANEL_WIDTH,
 } from '../../../utils/chat/topicDisplayMode';
 import { buildMessageTopicInput, extractTopicNumber, ensureDmTopic, resolveDmSenderName, getSenderPhoto } from '../../../utils/chat/directMessagesTopics';
+import { startLiveLocationUpdates } from '../../../utils/chat/liveLocation';
 import { sendAttachments, sending, type SendAttachmentsResult } from '../../../utils/media/attachmentSend';
 import { withParsedMarkdown } from '../../../utils/message/sendText';
 import { useAttachmentStore } from '../../../store/media/attachment';
@@ -6831,13 +6832,34 @@ async function sendChecklist(checklist: import('tdlib-types').inputMessageCheckl
     }
 }
 
-async function sendLocation(location: import('tdlib-types').location) {
+async function sendLocation(location: import('tdlib-types').location, livePeriod = 0) {
     if (!chatId.value) return;
     try {
-        await sendMessageContent({
-            _: 'inputMessageLocation',
-            location,
-        });
+        if (livePeriod > 0) {
+            // 实时位置必须走 inputMessageLiveLocation；live_period 是相对发送时间的秒数（TDLib 允许 60-86400）
+            const sent = (await sendMessageContent({
+                _: 'inputMessageLiveLocation',
+                location: {
+                    _: 'liveLocation',
+                    location,
+                    live_period: livePeriod,
+                    heading: 0,
+                    proximity_alert_radius: 0,
+                },
+            })) as import('tdlib-types').message;
+            // 发送成功后再开始按设备定位回写；WebView2 没有定位服务时 util 内部直接跳过
+            startLiveLocationUpdates({
+                chatId: sent.chat_id,
+                messageId: sent.id,
+                livePeriod,
+                initial: location,
+            });
+        } else {
+            await sendMessageContent({
+                _: 'inputMessageLocation',
+                location,
+            });
+        }
         clearReply();
     } catch (e) {
         console.error('Failed to send location:', e);
