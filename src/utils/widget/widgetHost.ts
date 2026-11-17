@@ -127,6 +127,21 @@ function safeLink(raw: string): string | null {
 }
 
 /**
+ * 判断这份 HTML 是不是 Telegram 下发的「小组件已停用」占位文档。
+ *
+ * 停用期间 Telegram 会把消息里的 widget HTML 换成一份 120px 高的占位页，正文只有一行
+ * `Widget unavailable`，机器人原本的内容已经拿不到。调用方据此展示本地化提示，
+ * 不必再起一个 iframe 渲染这份英文占位。
+ */
+export function isWidgetUnavailableHtml(html: string): boolean {
+    const body = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i)?.[1];
+    if (!body) return false;
+    // 占位页只有纯文本：带任何可交互 / 媒体标签都按真实小组件处理
+    if (/<(script|a|button|input|img|svg|video|canvas|iframe|audio)\b/i.test(body)) return false;
+    return body.replace(/<[^>]*>/g, '').trim() === 'Widget unavailable';
+}
+
+/**
  * 处理一条小部件调用，返回给小部件的结果（会包进 `tdgramWidgetReply`）。
  *
  * @param ctx  - 宿主上下文（会话 / 消息 / 权限 / 路由）

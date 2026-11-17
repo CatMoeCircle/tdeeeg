@@ -25,6 +25,11 @@
                 class="flex h-full w-full items-center justify-center px-3 text-center text-xs text-gray-400">
                 {{ t('content.unsupportedContent') }}
             </div>
+            <!-- Telegram 停用小组件期间下发的是英文占位页：改成本地化提示，不再起 iframe -->
+            <div v-else-if="widgetUnavailable"
+                class="flex h-full w-full items-center justify-center px-3 text-center text-xs text-gray-400">
+                {{ t('content.widgetUnavailable') }}
+            </div>
             <!-- 安全模式：文档还没注册（register 根本没调），点一下再确认加载 -->
             <div v-else-if="locked"
                 class="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center">
@@ -59,7 +64,7 @@ import MessageTextContent from './MessageTextContent.vue';
 import { useColors } from '../../../../../store/settings/colors';
 import { settings } from '../../../../../store/settings/settings';
 import { useUserStore } from '../../../../../store/session/user';
-import { handleWidgetCall, widgetViewer, type WidgetCallPayload } from '../../../../../utils/widget/widgetHost';
+import { handleWidgetCall, isWidgetUnavailableHtml, widgetViewer, type WidgetCallPayload } from '../../../../../utils/widget/widgetHost';
 import { isLockdownRuleOn, requireLockdown } from '../../../../../utils/security/lockdown';
 import emojiFontUrl from '../../../../../assets/apple.ttf?url';
 
@@ -116,6 +121,8 @@ const captionFormatted = computed<formattedText>(() => props.content.caption ?? 
 const hasCaption = computed(() => !!captionFormatted.value.text);
 const showCaptionAbove = computed(() => !!props.content.show_caption_above_media);
 const htmlEmpty = computed(() => !(props.content.html ?? '').trim());
+/** Telegram 停用小组件期间下发的占位文档（正文只有 "Widget unavailable"） */
+const widgetUnavailable = computed(() => isWidgetUnavailableHtml(props.content.html ?? ''));
 /** TDLib：width = 0 表示小部件占满消息气泡宽度 */
 const fillWidth = computed(() => !(props.content.width > 0));
 /** TDLib：height = 0 表示高度不固定，由小部件回报 */
@@ -525,6 +532,11 @@ async function register() {
     const html = props.content.html ?? '';
     const seq = ++registerSeq;
     if (!html.trim()) {
+        frameSrc.value = '';
+        return;
+    }
+    // 占位文档没有可执行内容：模板已显示本地化提示，不必注册
+    if (widgetUnavailable.value) {
         frameSrc.value = '';
         return;
     }
