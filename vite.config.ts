@@ -36,9 +36,10 @@ export default defineConfig(async (): Promise<UserConfig> => ({
     // CSP（tauri.conf.json）connect-src 只有 'self' / blob: / asset: 等，不含
     // data:，于是 fetch('data:…') 被 WebView 直接拒绝：钻石那边 Promise.all
     // 整体失败，石头永远不出现。开发环境不套 CSP，所以只在打包后才复现。
-    // 这里让这两类一律产出真实文件，仍按 'self' 从资源协议读取。
+    // 这里让这三类一律产出真实文件，仍按 'self' 从资源协议读取：
+    // .svg 还用于界面图标（img / CSS mask），内联成 data: 后打包版会加载不出来。
     assetsInlineLimit: (filePath: string) =>
-      /\.(bin|tgs)$/.test(filePath) ? false : undefined,
+      /\.(bin|tgs|svg)$/.test(filePath) ? false : undefined,
     rolldownOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
