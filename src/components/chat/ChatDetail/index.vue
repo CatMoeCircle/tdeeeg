@@ -1682,6 +1682,18 @@ let olderRevealGen = 0;
  */
 let pendingFirstCalibration: (() => void) | null = null;
 let firstCalibrationTimer: number | null = null;
+/**
+ * 未读分隔线落点收敛的句柄。
+ * 必须早于切换会话的 immediate watch 声明：那个 watch 在 setup 阶段就会调用取消，
+ * 放到文件后面会踩到 let 的 TDZ，导致整份会话加载中断。
+ */
+let unreadSettleRaf = 0;
+function cancelUnreadSettle() {
+    if (unreadSettleRaf) {
+        cancelAnimationFrame(unreadSettleRaf);
+        unreadSettleRaf = 0;
+    }
+}
 function clearFirstCalibration() {
     pendingFirstCalibration = null;
     if (firstCalibrationTimer !== null) {
@@ -1702,7 +1714,7 @@ watch(hiddenOlderIds, (ids) => {
 });
 /**
  * 首屏只挂视口附近：无锚点时保留最新这么多条，其余先藏起来逐帧揭示。
- * 单条消息 DOM 很重，首帧成本应只跟视口条数有关（Unigram 靠 ListView 虚拟化做到这点）。
+ * 单条消息 DOM 很重，首帧成本应只跟视口条数有关（Telegram Desktop 靠 ListView 虚拟化做到这点）。
  */
 const FIRST_PAINT_TAIL = 12;
 
@@ -1715,6 +1727,14 @@ function hideMessagesOutsideFirstPaint(anchorId: number): number[] {
     clearRenderBounds();
     const list = messages.value;
     if (list.length === 0) return [];
+    // 评论线程从评论区开头看：首帧保留头部若干条，其余都是往下的新评论，
+    // 不能按「保留尾部」处理，否则首帧就只剩最新几条、上面的讨论全被藏掉。
+    if (threadMode.value && anchorId <= 0) {
+        const hiddenFromHead = list.slice(FIRST_PAINT_TAIL).map(m => m.id);
+        if (hiddenFromHead.length === 0) return [];
+        hiddenOlderIds.value = new Set(hiddenFromHead);
+        return hiddenFromHead;
+    }
     let keepStart = list.length - FIRST_PAINT_TAIL;
     if (anchorId > 0) {
         const idx = list.findIndex(m => m.id === anchorId);
@@ -4080,6 +4100,7 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
     // 取消进行中的历史分批揭示，清空隐藏集，避免旧聊天的消息串进新聊天
     olderRevealGen++;
     hiddenOlderIds.value = new Set();
+    cancelUnreadSettle();
     pendingBottomIntent.value = false;
     isGoingBottom.value = false;
     bottomLoading.value = false;
@@ -4211,7 +4232,11 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
             // 已读上报与历史预取都由 isReady 挡住（此时仍为 false），等正式首屏数据到达后按原逻辑跑
             disarmSkeleton();
             listRevealed.value = true;
-            // 不立即揭示：等用户滚到顶部/上滚时按需挂载（见 revealHiddenOnScroll）
+            // 缓存窗口同样在露出后逐帧补齐被藏的历史，避免上滚看到空洞
+            if (hiddenOlderIds.value.size > 0) {
+                olderRevealGen++;
+                void revealOlderMessagesInChunks([...hiddenOlderIds.value], olderRevealGen, acquireViewportHold());
+            }
         }
 
         const chatData = await chatPromise;
@@ -4448,6 +4473,9 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
                 scrollToBrowseAnchor(browsePos.anchorId, browsePos.pixelFromTop);
                 return browsePos.anchorId;
             }
+            // 评论线程：从评论区开头顶对齐（根帖 / 最早一条已加载评论），
+            // 让用户顺着讨论往下读；贴底打开会直接落在最新评论上。
+            if (threadMode.value) return scrollToThreadStart();
             const unreadBoundary = unreadBoundaryMessageId.value;
             if (unreadBoundary != null && unreadBoundary > 0 && messages.value.some(m => m.id === unreadBoundary)) {
                 scrollToUnreadAnchor(unreadBoundary);
@@ -4475,7 +4503,8 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
             hideMessagesOutsideFirstPaint(anchorAfterFill > 0 ? anchorAfterFill : 0);
             // 藏掉锚点以上的行会改变 scrollHeight，重新按锚点定位一次，避免露出后位置偏。
             positionAtAnchor();
-            if (anchorAfterFill === 0) {
+            // 评论线程是从评论区开头读的，不能走「置底就近补屏」这条路径
+            if (anchorAfterFill === 0 && !threadMode.value) {
                 // 置底：先展开附近几条，补足上滑空间后再露出
                 await revealNearbyAtBottom(gen);
                 if (!isGenerationValid(gen) || chatId.value !== currentId) return;
@@ -4485,8 +4514,13 @@ watch([chatId, topicId, threadRootMsgId, chatLoadRetryToken, forwardedTargetMess
         // 定位与补齐都完成后才露出，避免「先显示再跳到已读/未读」
         listRevealed.value = true;
         isReady.value = true;
-        // 首帧只挂了视口附近：剩下的历史逐帧揭示（视口钉扎，用户看不到跳动）
-        // 不立即揭示：媒体密集会话先只挂视口附近，剩余历史按需揭示
+        // 露出后紧接着把首帧没挂的历史逐帧补齐（每块 4 条 + 视口钉扎，用户看不到跳动）。
+        // 不能等用户上滚才揭示：那样一上滚先是空洞、消息再一条条冒出来，
+        // 观感就是「只加载了一条消息、后面的迟迟不出现」。
+        if (hiddenOlderIds.value.size > 0) {
+            olderRevealGen++;
+            void revealOlderMessagesInChunks([...hiddenOlderIds.value], olderRevealGen, acquireViewportHold());
+        }
 
         // 校准一律延后到揭示收敛后（揭示中抢 scrollTo 会与视口锁互抢 = 上下抖动）：
         // 揭示已结束 → 250ms 后校准（媒体落位）；揭示仍在跑 → 挂起，清空时由 watch 触发。
@@ -4867,6 +4901,8 @@ function handleScrollEdgeOnInteraction() {
 
 function markMessageInteraction() {
     hasUserInteracted = true;
+    // 用户接管滚动：未读分隔线的自动收敛立刻让位
+    cancelUnreadSettle();
     markMessageScrollActive();
     handleScrollEdgeOnInteraction();
 }
@@ -4883,13 +4919,17 @@ async function revealOlderMessagesInChunks(ids: number[], gen: number, hold?: Vi
     // 停稳后用户不再滚动，可以一次多挂几条，缩短“等了好久”的观感；
     // 滚动中仍然会先等待 userScrollHold 解除。
     const REVEAL_CHUNK = 4;
+    /** 用户正滚动时最多让出这么多帧就把本块挂上：无限等待会让上滚看到一段空洞 */
+    const REVEAL_SCROLL_WAIT_FRAMES = 6;
     const sorted = [...ids].sort((a, b) => b - a);
     try {
         for (let i = 0; i < sorted.length; i += REVEAL_CHUNK) {
             if (gen !== olderRevealGen) return;
             // 用户仍在滚动/触摸：把 DOM 挂载推迟到停稳后，避免揭示历史和滚动抢同一帧。
             // 停在顶部持续滚轮时也靠这里拦住（scroll 事件此时不会持续触发）。
-            while (gen === olderRevealGen && messageScrollActive.value) {
+            let scrollWaits = 0;
+            while (gen === olderRevealGen && messageScrollActive.value && scrollWaits < REVEAL_SCROLL_WAIT_FRAMES) {
+                scrollWaits++;
                 await new Promise<void>(r => requestAnimationFrame(() => r()));
                 if (gen !== olderRevealGen) return;
             }
@@ -5556,7 +5596,9 @@ function computeBrowseScrollTop(el: HTMLElement, anchorId: number, pixelFromTop:
     if (!msgEl) return null;
     const refTop = el.getBoundingClientRect().top;
     const delta = msgEl.getBoundingClientRect().top - refTop;
-    const desired = el.scrollTop + delta - pixelFromTop;
+    // 与 scrollToBrowseAnchor 一致：anchor 不得落进顶部栈底下
+    const pixelTarget = Math.max(pixelFromTop, Math.min(topInsetPx(el), delta));
+    const desired = el.scrollTop + delta - pixelTarget;
     const max = Math.max(0, el.scrollHeight - el.clientHeight);
     return Math.max(0, Math.min(Math.round(desired), max));
 }
@@ -5584,6 +5626,16 @@ function stabilizeJumpScroll(el: HTMLElement, compute: () => number | null): boo
     }
     el.scrollTop = target;
     return true;
+}
+
+/**
+ * 顶部栈实际占掉的高度（Header + 置顶/播放器/翻译/话题标签/机器人条）。
+ * 消息容器用 paddingTop 把它们让出来，所以「内容顶边」= 容器顶 + paddingTop。
+ * 所有按「顶对齐」定位的滚动都必须扣掉这段，否则目标会被顶栏盖住。
+ * 顶部区域是动态的（置顶栏显隐、翻译栏出现、话题标签切换位置…），必须实时读计算值。
+ */
+function topInsetPx(el: HTMLElement): number {
+    return parseFloat(getComputedStyle(el).paddingTop) || 0;
 }
 
 // ==================== 跳转滚动动画 ====================
@@ -5847,6 +5899,21 @@ function scrollToBottomPure() {
     const top = Math.max(0, el.scrollHeight - el.clientHeight);
     el.scrollTop = top;
     lastStickyScrollTop = top;
+}
+
+/**
+ * 评论线程首屏定位：滚到评论区开头（根帖 / 最早一条已加载评论），
+ * 打开后顺着讨论往下读。贴底打开只能看到最新几条，找不回上下文。
+ */
+function scrollToThreadStart(): number {
+    cancelScrollAnim();
+    const el = messagesContainer.value;
+    if (!el) return 0;
+    // 列表是 mt-auto 的列容器，scrollTop=0 即内容顶部（根帖 / 首条评论）
+    el.scrollTop = 0;
+    lastStickyScrollTop = 0;
+    stickyDateHidden.value = false;
+    return 0;
 }
 
 /** 同步滚到底部（用户贴底意图：清掉浏览位置缓存，下次进入直接到底部） */
@@ -6131,8 +6198,11 @@ function scrollToBrowseAnchor(anchorId: number, pixelFromTop: number): boolean {
     if (!msgEl) return false;
     const refTop = el.getBoundingClientRect().top;
     const msgTop = msgEl.getBoundingClientRect().top;
+    // pixelFromTop 可能小于当前顶部栈高度（保存时置顶栏还没显示 / 收起过），
+    // 照搬会把 anchor 顶到顶栏底下；此时改为贴住顶部栈下沿。
     const delta = msgTop - refTop;
-    const desired = el.scrollTop + delta - pixelFromTop;
+    const pixelTarget = Math.max(pixelFromTop, Math.min(topInsetPx(el), delta));
+    const desired = el.scrollTop + delta - pixelTarget;
     const max = Math.max(0, el.scrollHeight - el.clientHeight);
     const next = Math.max(0, Math.min(Math.round(desired), max));
     el.scrollTop = next;
@@ -6157,13 +6227,68 @@ function scrollToUnreadAnchor(messageId: number): boolean {
     const reserve = sep
         ? sep.getBoundingClientRect().height + 24
         : UNREAD_SEP_RESERVE_PX;
+    // 顶部栈浮在列表之上：分隔线要停在它的下沿。只留 reserve 会把分隔线放到
+    // 容器 padding 区里（paddingTop 正是被顶栏占掉的高度），于是每次都被遮住。
+    // 正确落点是「首条未读 = 内容顶边 + reserve」，即连同 paddingTop 一起让。
     const delta = msgTop - refTop;
-    const desired = el.scrollTop + delta - reserve;
+    const desired = el.scrollTop + delta - reserve - topInsetPx(el);
     const max = Math.max(0, el.scrollHeight - el.clientHeight);
     const next = Math.max(0, Math.min(Math.round(desired), max));
     el.scrollTop = next;
     lastStickyScrollTop = next;
+    settleUnreadAnchor(messageId, reserve);
     return true;
+}
+
+/**
+ * 未读分隔线的落点收敛。
+ * 消息行是 content-visibility:auto 的，上方离屏行只有 88px 估算高度；
+ * 首次定位后这些行在滚入视野时变成真实高度，内容整体变高，分隔线会被推走。
+ * 这里在随后的若干帧里持续纠正，直到位置稳定或用户主动接管。
+ */
+function settleUnreadAnchor(messageId: number, reserve: number) {
+    cancelUnreadSettle();
+    // 揭示循环期间内容会持续变高（上方离屏行从 88px 估算变真实高度），
+    // 而且揭示用的是「视口钉扎」（hold），会把内容顶回原位置——两者会直接互抢，
+    // 所以在 hiddenOlderIds 清空、钉扎结束之前不做收敛，只等；之后再连续稳定几帧才收工。
+    const STABLE_FRAMES_REQUIRED = 8;
+    const MAX_SETTLE_MS = 6000;
+    const startedAt = performance.now();
+    let stableFrames = 0;
+    const step = () => {
+        unreadSettleRaf = 0;
+        if (!listRevealed.value || chatId.value === undefined) return;
+        if (performance.now() - startedAt > MAX_SETTLE_MS) return;
+        const el = messagesContainer.value;
+        if (!el) return;
+        // 揭示/钉扎还在跑：先让出，避免与 hold 的补偿互相拉扯
+        if (hiddenOlderIds.value.size > 0) {
+            unreadSettleRaf = requestAnimationFrame(step);
+            return;
+        }
+        const msgEl = findRenderedMsgEl(el, messageId);
+        if (!msgEl) {
+            unreadSettleRaf = requestAnimationFrame(step);
+            return;
+        }
+        const refTop = el.getBoundingClientRect().top;
+        const wanted = topInsetPx(el) + reserve;
+        const current = msgEl.getBoundingClientRect().top - refTop;
+        const error = current - wanted;
+        if (Math.abs(error) <= 1) {
+            if (++stableFrames >= STABLE_FRAMES_REQUIRED) return;
+        } else {
+            stableFrames = 0;
+            const max = Math.max(0, el.scrollHeight - el.clientHeight);
+            const next = Math.max(0, Math.min(Math.round(el.scrollTop + error), max));
+            if (next !== el.scrollTop) {
+                el.scrollTop = next;
+                lastStickyScrollTop = next;
+            }
+        }
+        unreadSettleRaf = requestAnimationFrame(step);
+    };
+    unreadSettleRaf = requestAnimationFrame(step);
 }
 
 /**
@@ -6178,7 +6303,10 @@ function calibrateBrowseAnchor(anchorId: number, pixelFromTop: number, allowRetr
     const refTop = el.getBoundingClientRect().top;
     const msgTop = msgEl.getBoundingClientRect().top;
     const current = msgTop - refTop;
-    const error = Math.abs(current - pixelFromTop);
+    // 与 scrollToBrowseAnchor 用同一套下限：目标已被顶部栈抬起时，
+    // 拿原始 pixelFromTop 比较会一直判为「有误差」而反复纠偏
+    const target = Math.max(pixelFromTop, Math.min(topInsetPx(el), current));
+    const error = Math.abs(current - target);
     if (error <= BROWSE_POS_TOLERANCE_PX) return;
     if (!allowRetry) return;
     scrollToBrowseAnchor(anchorId, pixelFromTop);
@@ -7498,11 +7626,39 @@ const topPaddingClass = computed(() => {
 // 顶部留白在列表露出后才变（置顶栏 visibleChange / 翻译栏 / 机器人条都是异步上报）：
 // 直接改容器 paddingTop 会把内容整体顶/拽一下，且原生 scroll anchoring 不管容器自身 padding。
 // flush:'pre' 在渲染前进入视口锁，捕获旧锚点 → 渲染 → nextTick 同帧补偿，用户看不到位移。
-watch(() => topPaddingClass.value.paddingTop, () => {
+/**
+ * 顶部栈尺寸变化后，把被它盖住的未读分隔线 / 浏览锚点重新拉出来。
+ * 视口补偿只保证「画面不动」，挡不住顶栏变高后正好压住分隔线的情况。
+ */
+function revealCoveredAnchor(el: HTMLElement, inset: number) {
+    const elTop = el.getBoundingClientRect().top;
+    // 优先纠正未读分隔线（用户最在意的那条分界）；没有则取视口顶第一条消息
+    const sep = el.querySelector<HTMLElement>('[data-unread-sep]');
+    let node: HTMLElement | null = sep;
+    if (!node) {
+        for (const candidate of el.querySelectorAll<HTMLElement>('[data-msg-id]')) {
+            if (candidate.getBoundingClientRect().bottom > elTop) { node = candidate; break; }
+        }
+    }
+    if (!node) return;
+    const top = node.getBoundingClientRect().top - elTop;
+    // 已被滚出顶部（用户主动上滚过）或仍完整露在顶部栈下面：不干预
+    if (top < 0 || top >= inset - 1) return;
+    el.scrollTop = Math.max(0, el.scrollTop - (inset - top));
+    lastStickyScrollTop = el.scrollTop;
+}
+
+watch(() => topPaddingClass.value.paddingTop, (next, prev) => {
     if (!listRevealed.value) return;
     const el = messagesContainer.value;
     if (!el) return;
     void withViewportLock(el, () => { /* padding 由渲染管线应用 */ }, nextTick);
+    const after = parseFloat(next) || 0;
+    if (Math.abs(after - (parseFloat(prev) || 0)) < 1) return;
+    // 等 padding 真正生效后再量被遮挡的元素
+    void nextTick().then(() => {
+        if (el.isConnected && listRevealed.value) revealCoveredAnchor(el, topInsetPx(el));
+    });
 }, { flush: 'pre' });
 
 /**
