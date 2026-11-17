@@ -1,12 +1,16 @@
 <template>
-    <div ref="rootEl" :class="content._ === 'messageAnimatedEmoji' ? 'w-24 h-24 cursor-pointer' : ''"
+    <div ref="rootEl" :class="content._ === 'messageAnimatedEmoji' ? 'relative w-24 h-24 cursor-pointer' : 'relative'"
         :style="content._ !== 'messageAnimatedEmoji' ? stickerSizeStyle : undefined" @click="onContentClick">
         <!-- WEBP static sticker -->
         <img v-if="format === 'webp' && mediaSrc" :src="mediaSrc" class="w-full h-full object-contain" />
-        <!-- TGS animated sticker (tlottie) -->
-        <TgsPlayer v-else-if="format === 'tgs' && tgsSrc" ref="playerRef" :src="tgsSrc"
-            :loop="static ? false : !isAnimatedEmoji" :autoplay="!static" :initial-frame="static ? 0 : null"
-            :size="tgsSize" :fitz-modifier="fitzModifier" @load="onAnimLoad" @error="onAnimError" />
+        <!-- TGS animated sticker (tlottie)：解析/首帧期间用缩略图垫底，避免闪白 -->
+        <template v-else-if="format === 'tgs' && tgsSrc">
+            <img v-if="thumbSrc && !tgsReady" :src="thumbSrc"
+                class="absolute inset-0 w-full h-full object-contain" />
+            <TgsPlayer ref="playerRef" :src="tgsSrc"
+                :loop="static ? false : !isAnimatedEmoji" :autoplay="!static" :initial-frame="static ? 0 : null"
+                :size="tgsSize" :fitz-modifier="fitzModifier" @load="onAnimLoad" @error="onAnimError" />
+        </template>
         <!-- WEBM video sticker -->
         <video v-else-if="format === 'webm' && mediaSrc" ref="videoRef" :src="mediaSrc" :autoplay="!static"
             :loop="!static" muted playsinline preload="metadata" class="w-full h-full object-contain" />
@@ -31,6 +35,7 @@ import type { ViewportLoadScope } from '../../../../../utils/ui/viewportLoadGate
 import { convertFileSrc } from "@tauri-apps/api/core";
 import TgsPlayer, { type TgsPlayerInstance } from '../../../../common/TgsPlayer.vue';
 import { telegramFitzToFitzModifier } from '../../../../../utils/media/tlottieFitz';
+import { ensureStickerThumb, readyStickerThumb } from '../../../../../utils/media/stickerThumb';
 
 const props = withDefaults(defineProps<{
     content: messageSticker | messageAnimatedEmoji;
@@ -53,6 +58,8 @@ const isDownloading = ref(false);
 let loadSeq = 0;
 /** TGS 本地文件 URL（convertFileSrc → tlottie fetch） */
 const tgsSrc = ref<string | null>(null);
+/** TGS 首帧是否已经上屏（用于撤掉垫底的缩略图） */
+const tgsReady = ref(false);
 /** Telegram fitzpatrick → tlottie FitzModifier */
 const fitzModifier = computed(() => {
     const fitzType = props.content._ === 'messageAnimatedEmoji'
@@ -80,16 +87,25 @@ const sticker = computed(() => props.content._ === 'messageSticker'
     ? props.content.sticker
     : props.content.animated_emoji.sticker);
 
-/** 贴纸自带缩略图（已下载时可直接显示，作为加载前的占位） */
-const thumbSrc = computed(() => {
-    const s = sticker.value;
-    if (!s?.thumbnail?.file) return undefined;
-    const f = s.thumbnail.file;
-    if (f.local.is_downloading_completed && f.local.path) {
-        return convertFileSrc(f.local.path);
-    }
-    return undefined;
-});
+/** 贴纸自带缩略图（本地已就绪时同步可用） */
+const localThumbSrc = computed(() => readyStickerThumb(sticker.value?.thumbnail));
+/** 进入视口后主动拉下来的缩略图（TGS 首帧/下载完成前先顶上） */
+const fetchedThumbSrc = ref<string | null>(null);
+const thumbSrc = computed(() => localThumbSrc.value ?? fetchedThumbSrc.value ?? undefined);
+
+/**
+ * 拉缩略图：TDLib 给每张贴纸带一张几 KB 的 webp 小图。
+ * 以前只有它"恰好已下载"时才显示，否则整段等待都是灰块——即使 TGS 只差几十
+ * 毫秒，用户看到的也是"没加载"。这里用缩略图优先级提前拉，TGS 首帧到达后覆盖。
+ */
+function loadThumbnail() {
+    const thumb = sticker.value?.thumbnail;
+    if (!thumb?.file) return;
+    if (readyStickerThumb(thumb)) return;
+    void ensureStickerThumb(thumb).then((url) => {
+        if (url) fetchedThumbSrc.value = url;
+    });
+}
 
 /** 检测贴纸格式 */
 const format = computed(() => sticker.value?.format._ === 'stickerFormatTgs' ? 'tgs'
@@ -101,6 +117,8 @@ const getFile = () => sticker.value?.sticker;
 const loadMedia = async () => {
     const f = getFile();
     if (!f) return;
+    // 先起缩略图（几 KB、有缓存），别让贴纸位置空着等 TGS 解析
+    loadThumbnail();
     const seq = loadSeq;
 
     if (isFileReady(f)) {
@@ -161,11 +179,10 @@ async function loadSticker(filePath: string, seq = loadSeq) {
 
 /** 加载 TGS：本地路径 → asset URL，tlottie 以 src fetch + Worker 内解压 */
 function loadTgs(filePath: string, seq = loadSeq) {
-    tgsSrc.value = null;
-    requestAnimationFrame(() => {
-        if (seq !== loadSeq) return;
-        tgsSrc.value = convertFileSrc(filePath);
-    });
+    if (seq !== loadSeq) return;
+    // 直接赋值：tlottie 的 vue 层在 src 变化时自己 destroy + nextTick 重建，
+    // 之前多等的那一帧 rAF 只是白白延后首帧（约 16–33 ms）。
+    tgsSrc.value = convertFileSrc(filePath);
 }
 
 function onAnimError(e: unknown) {
@@ -174,6 +191,7 @@ function onAnimError(e: unknown) {
 
 /** TgsPlayer 加载完成回调：把实例注册进暂停/恢复控制器；静态模式停在第 0 帧 */
 function onAnimLoad() {
+    tgsReady.value = true;
     if (props.static) {
         playerRef.value?.pause();
         playerRef.value?.seek(0);
@@ -237,6 +255,10 @@ const { start: startViewportLoad, entered: stickerEntered, requeue: requeueLoad 
     return loadMedia();
 }, {
     scope: props.loadScope,
+    // 聊天贴纸的默认 500 ms 停留纯粹是"可见后才开始"的延迟；这里收到 120 ms，
+    // 且本机已有文件时直接跳过（没有下载风暴风险）。
+    dwellMs: 120,
+    skipDwellWhen: () => isFileReady(getFile()),
     onDrop: props.loadScope === 'stickerDetail'
         ? () => { void dropQueuedDownloadRow(); }
         : undefined,
@@ -265,6 +287,8 @@ watch(() => props.content, (content) => {
     isDownloading.value = false;
     mediaSrc.value = undefined;
     tgsSrc.value = null;
+    tgsReady.value = false;
+    fetchedThumbSrc.value = null;
     registerAnim(null);
     // 已进入视口（此前无内容/已触发过）时新内容到达需补下载。
     // 这里用直连（内容被替换属罕见路径，且旧任务已被 loadSeq 作废）。

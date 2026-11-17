@@ -1,9 +1,13 @@
 <template>
     <div ref="rootEl" class="sp-media-item w-full aspect-square" @click="onClick"
         @contextmenu.prevent.stop="onContextMenu">
-        <!-- TGS 动画贴纸（tlottie） -->
-        <TgsPlayer v-if="format === 'tgs' && tgsSrc" ref="playerRef" :src="tgsSrc" :fitz-modifier="fitzModifier"
-            :loop="true" :autoplay="false" @load="syncPlayback" @error="onError" />
+        <!-- TGS 动画贴纸（tlottie）：首帧前用缩略图垫底，避免格子先白一下 -->
+        <template v-if="format === 'tgs' && tgsSrc">
+            <img v-if="thumbSrc && !tgsReady" :src="thumbSrc" :alt="alt" draggable="false" :style="imgStyle"
+                class="absolute inset-0" />
+            <TgsPlayer ref="playerRef" :src="tgsSrc" :fitz-modifier="fitzModifier"
+                :loop="true" :autoplay="false" @load="onPlayerLoad" @error="onError" />
+        </template>
         <!-- WEBP / MPEG4 / GIF：<img> 或 <video>（100% 铺满 + object-fit: cover） -->
         <img v-else-if="format === 'webp' && src" :src="src" :alt="alt" draggable="false" :style="imgStyle"
             loading="lazy" />
@@ -23,7 +27,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { sticker, animation } from 'tdlib-types';
 import TgsPlayer, { type TgsPlayerInstance } from '../../../common/TgsPlayer.vue';
 import PremiumStickerBadge from '../../../common/PremiumStickerBadge.vue';
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { localPathIfReady } from '../../../../utils/session/tdlib';
+import { readyStickerThumb } from '../../../../utils/media/stickerThumb';
 import { useStickerMedia } from './composables/useStickerMedia';
 import { onVisibilityChange, unobserve, isProgrammaticScroll, deferLoadWhileScrolling, isWindowActive, onWindowActiveChange } from './composables/useStickerVisibility';
 import { enqueueViewportLoad } from '../../../../utils/ui/viewportLoadGate';
@@ -57,6 +62,8 @@ const emit = defineEmits<{
 
 const rootEl = ref<HTMLElement | null>(null);
 const playerRef = ref<TgsPlayerInstance | null>(null);
+/** TGS 首帧是否已上屏（用于撤掉垫底的缩略图） */
+const tgsReady = ref(false);
 /** GIF / webm / mp4 视频元素（用于暂停/恢复） */
 const videoRef = ref<HTMLVideoElement | null>(null);
 
@@ -87,19 +94,20 @@ const isPremiumOnly = computed(() => {
         && o.full_type?._ === 'stickerFullTypeRegular' && !!o.full_type.premium_animation;
 });
 
-/** 贴纸自带缩略图（已下载时可直接显示，作为加载前的占位） */
-const thumbSrc = computed(() => {
+/** 贴纸自带缩略图（本地已就绪时同步可用；面板打开时先顶上，别空着等本体） */
+const localThumbSrc = computed(() => readyStickerThumb(
+    (props.item as { thumbnail?: any } | undefined)?.thumbnail,
+));
+/** 本体缩略图优先，其次 store 里拉下来的那张 */
+const thumbSrc = computed(() => media.thumbSrc.value ?? localThumbSrc.value ?? undefined);
+
+/** 贴纸文件是否已经在本机（在的话没必要再等防抖） */
+function localFileReady(): boolean {
     const o = props.item;
-    if (!o) return undefined;
-    // sticker 类型有 thumbnail；animation 类型无 thumbnail
-    if ('thumbnail' in o && o.thumbnail?.file) {
-        const f = o.thumbnail.file;
-        if (f.local.is_downloading_completed && f.local.path) {
-            return convertFileSrc(f.local.path);
-        }
-    }
-    return undefined;
-});
+    if (!o) return false;
+    const f = o._ === 'sticker' ? o.sticker : (o as animation).animation;
+    return !!localPathIfReady(f);
+}
 
 /** 触发过首次加载调度（本地已就绪时 download() 只读路径，不发 downloadFile） */
 let downloadStarted = false;
@@ -186,6 +194,12 @@ function syncPlayback() {
     applyPlayback();
 }
 
+/** TGS 首帧上屏：撤掉缩略图垫层并同步播放门控 */
+function onPlayerLoad() {
+    tgsReady.value = true;
+    syncPlayback();
+}
+
 let unsubscribeWindow: (() => void) | null = null;
 
 onMounted(() => {
@@ -194,7 +208,10 @@ onMounted(() => {
         () => {
             inView = true;
             if (!downloadStarted) {
-                if (isProgrammaticScroll()) {
+                if (localFileReady()) {
+                    // 本机已有文件：没有下载风暴风险，不等 120 ms 防抖，直接出图
+                    startDownload();
+                } else if (isProgrammaticScroll()) {
                     // 程序化跳转途中：暂不下载（避免沿途把路过的 emoji 全拉下来），
                     // 等跳转结束若仍在预取带再补下。
                     deferLoadWhileScrolling(() => {
@@ -217,6 +234,11 @@ onMounted(() => {
     );
     // 窗口失焦/隐藏 → 整体暂停；聚焦/回到窗口 → 恢复仍在可视区的项
     unsubscribeWindow = onWindowActiveChange(() => applyPlayback());
+});
+
+// 贴纸内容换了（v-for 复用同名 key 以外的情况）：复位垫层状态
+watch(() => props.item, () => {
+    tgsReady.value = false;
 });
 
 // 源就绪 / 格式确定后（如首次下载完成）若当前在可视区则补一次播放。

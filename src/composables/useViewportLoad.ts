@@ -43,6 +43,11 @@ export function useViewportLoad(
         dwellMs?: number;
         /** 界面分池，默认 chat */
         scope?: ViewportLoadScope;
+        /**
+         * 跳过停留防抖：返回 true 时进入视口立即加载。
+         * 用于「文件已在本机」的情况——不存在下载风暴风险，没必要再等。
+         */
+        skipDwellWhen?: () => boolean;
         /** false：停留结束后直接执行 load，不进并发队列（缩略图/Small） */
         enqueue?: boolean;
         /**
@@ -52,7 +57,7 @@ export function useViewportLoad(
         onDrop?: () => void;
     } = {}
 ) {
-    const { once = true, dwellMs = DEFAULT_DWELL_MS, scope = 'chat', enqueue = true, onDrop } = options;
+    const { once = true, dwellMs = DEFAULT_DWELL_MS, scope = 'chat', enqueue = true, onDrop, skipDwellWhen } = options;
     const entered = ref(false);
     const inView = ref(false);
     /** 已排队或正在执行 load（供组件避免绕过队列重复加载） */
@@ -132,7 +137,8 @@ export function useViewportLoad(
                 inView.value = true;
                 if (loaded) return;
                 clearDwell();
-                if (dwellMs <= 0) {
+                // 本机已就绪的文件没有下载风暴风险，直接加载，省掉纯等待
+                if (dwellMs <= 0 || skipDwellWhen?.()) {
                     fireLoad();
                     return;
                 }

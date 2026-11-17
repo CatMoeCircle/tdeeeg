@@ -88,11 +88,9 @@ function onAnimLoad() {
 watch([() => state.value.ready, () => state.value.filePath, emojiFormat],
   async ([ready, filePath, fmt]) => {
     if (ready && filePath && fmt === 'tgs') {
-      // 下一帧赋值，确保 LottiePlayer 在 src 变化时干净重建
-      tgsSrc.value = null;
-      requestAnimationFrame(() => {
-        tgsSrc.value = filePath;
-      });
+      // 直接赋值：tlottie 的 vue 层在 src 变化时自己 destroy + nextTick 重建，
+      // 多等一帧 rAF 只是把首帧推迟 16 ms 以上。
+      tgsSrc.value = filePath;
     } else {
       tgsSrc.value = null;
       registerAnim(null);
@@ -107,7 +105,7 @@ watch([emojiFormat, () => state.value.ready], () => {
 // 视口门控：进入预取带才拉取/下载自定义 emoji；本地已就绪时 requestCustomEmoji 直接跳过 downloadFile
 const { start: startViewportLoad, entered } = useViewportLoad(rootEl, () => {
   requestCustomEmoji(props.emojiId);
-}, { dwellMs: 200 });
+}, { dwellMs: 60 });
 
 // emojiId 变化（v-for index key 复用组件实例）时重绑 state，
 // 否则 state 永远指向首个 id 的缓存条目 → 迷你图窜到别的位置。

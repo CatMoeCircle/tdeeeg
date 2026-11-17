@@ -6,6 +6,7 @@ import type { FitzModifier } from 'tlottie';
 import { tdlibSend, downloadingFiles, localPathIfReady } from '../../../../../utils/session/tdlib';
 import { DL_PRIORITY } from '../../../../../utils/media/downloadPriority';
 import { useDownloadStore, remoteIdOf } from '../../../../../store/media/downloads';
+import { ensureStickerThumb, readyStickerThumb } from '../../../../../utils/media/stickerThumb';
 
 export type MediaKind = 'sticker' | 'animation';
 export type MediaFormat = 'tgs' | 'webm' | 'webp' | 'mpeg4' | 'other';
@@ -67,6 +68,8 @@ export function useStickerMedia(
   const src = ref<string | null>(null);
   /** TGS：本地 asset URL（tlottie 以 src fetch） */
   const tgsSrc = ref<string | null>(null);
+  /** 贴纸缩略图 URL：本体下载/解码前先顶上（TGS 尤其需要） */
+  const thumbSrc = ref<string | null>(null);
   /** TGS 肤色（parse-time） */
   const fitzModifier = ref<FitzModifier>(telegramFitzToFitzModifier(toValue(options.skinTone) ?? 0));
   const format = ref<MediaFormat>('other');
@@ -79,7 +82,28 @@ export function useStickerMedia(
     obj.value = o;
     if (!o) return;
     file.value = fileOf(kind, o);
+    // 只读本地已就绪的缩略图，不发请求（见 refreshThumb 注释）
+    refreshThumb();
   };
+
+  /**
+   * 缩略图：本地已就绪直接给 URL；只有 `allowDownload` 时才发 downloadFile。
+   *
+   * 面板会把所有贴纸都挂进 DOM，setup 阶段绝不能触发下载（否则一打开面板就是
+   * 几百个 TDLib 请求）；下载只由「进入视口」的 download() 触发。
+   */
+  function refreshThumb(allowDownload = false) {
+    const thumb = (obj.value as { thumbnail?: any } | undefined)?.thumbnail;
+    const ready = readyStickerThumb(thumb);
+    if (ready) {
+      thumbSrc.value = ready;
+      return;
+    }
+    if (!allowDownload || !thumb?.file) return;
+    void ensureStickerThumb(thumb).then((url) => {
+      if (url) thumbSrc.value = url;
+    });
+  }
   refresh();
 
   watch(obj, (o) => {
@@ -99,6 +123,8 @@ export function useStickerMedia(
   /** 根据对象重算并触发（供 list 项在滚动进可视区时调用） */
   async function download() {
     refresh();
+    // 缩略图与本体的下载互不阻塞：几 KB 的小图通常先到，先有画面
+    refreshThumb(true);
     const f = file.value;
     const o = obj.value;
     if (!f || !o) return;
@@ -171,5 +197,5 @@ export function useStickerMedia(
     }
   }
 
-  return { src, tgsSrc, fitzModifier, format, ready, downloading, download };
+  return { src, tgsSrc, thumbSrc, fitzModifier, format, ready, downloading, download };
 }
