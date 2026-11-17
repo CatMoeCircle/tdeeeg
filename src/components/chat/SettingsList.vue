@@ -45,12 +45,14 @@
                     <router-link v-if="item.to" :to="item.to"
                         class="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-white/80 dark:hover:bg-gray-800/80"
                         :class="isItemActive(item.to) ? 'bg-blue-50/70 dark:bg-blue-500/10' : ''">
-                        <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors"
+                        <div v-if="item.tile"
+                            class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors"
                             :class="isItemActive(item.to)
                                 ? 'bg-blue-500 text-white shadow-sm shadow-blue-500/30'
                                 : item.tile">
                             <component :is="item.icon" class="w-[18px] h-[18px]" />
                         </div>
+                        <component v-else-if="item.icon" :is="item.icon" class="w-5 h-5 shrink-0 text-gray-400 dark:text-gray-500" />
                         <div class="flex-1 min-w-0">
                             <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                                 {{ item.title }}
@@ -60,16 +62,23 @@
                                 {{ item.subtitle }}
                             </p>
                         </div>
-                        <ChevronRightIcon class="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                        <span v-if="item.balance"
+                            class="text-sm text-gray-500 dark:text-gray-400 shrink-0 tabular-nums">
+                            {{ item.balance }}
+                        </span>
+                        <ChevronRightIcon v-if="item.chevron !== false"
+                            class="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
                     </router-link>
                     <!-- 动作项（无路由） -->
                     <div v-else
                         class="flex items-center gap-3 px-3 py-2.5 transition-colors cursor-pointer hover:bg-white/80 dark:hover:bg-gray-800/80"
                         @click="item.onClick">
-                        <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors"
+                        <div v-if="item.tile"
+                            class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors"
                             :class="item.tile">
                             <component :is="item.icon" class="w-[18px] h-[18px]" />
                         </div>
+                        <component v-else-if="item.icon" :is="item.icon" class="w-5 h-5 shrink-0 text-gray-400 dark:text-gray-500" />
                         <div class="flex-1 min-w-0">
                             <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                                 {{ item.title }}
@@ -79,7 +88,8 @@
                                 {{ item.subtitle }}
                             </p>
                         </div>
-                        <ChevronRightIcon class="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                        <ChevronRightIcon v-if="item.chevron !== false"
+                            class="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
                     </div>
                 </template>
             </div>
@@ -115,7 +125,7 @@ import GlobalEmojiText from '../common/GlobalEmojiText.vue';
 import { useUserStore } from '../../store/session/user';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, onMounted, watch } from 'vue';
 import MusicPlayerEntry from './../audio/MusicPlayerEntry.vue';
 import { chatPaneVisible } from '../../store/chat/chatPane';
 import formatStatus from '../../utils/profile/status';
@@ -125,12 +135,16 @@ import { getVersion } from '@tauri-apps/api/app';
 import packageInfo from '../../../package.json';
 import { debugMode, setDebugMode, setLogUpdates } from '../../store/settings/debug';
 import { useI18n } from 'vue-i18n';
+import { formatGram, parseNanogramAmount } from '../../utils/wallet/gramRevenue';
+import { formatStars, starAmountValue } from '../../utils/wallet/starTransactions';
+import type { getStarTransactions as GetStarTransactionsRequest } from 'tdlib-types';
+import { TgGramColoredIcon, TgGramEarningsIcon, TgStarColoredIcon } from '../common/telegramIconComponents';
 
 const userStore = useUserStore();
 const { userProfile } = storeToRefs(userStore);
 const router = useRouter();
 const route = useRoute();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 /** 点击自己的头像/名字 → 打开自己的个人资料页 */
 function openMyProfile() {
@@ -186,9 +200,67 @@ async function loadTdlibVersion() {
     }
 }
 
+/** 钱包相关入口右侧余额文案：空串表示不显示（余额为 0 / 拉取失败都不展示） */
+const balances = ref({ stars: '', gramRevenue: '', wallet: '' });
+
+/** Stars 余额：getStarTransactions 的 star_amount（整数星 + 纳星） */
+async function loadStarsBalance() {
+    const userId = userProfile.value?.id;
+    if (!userId) return;
+    try {
+        // 类型文件把 direction 标成可选，但 TDLib 侧必填；null 表示全部方向
+        const request = {
+            _: 'getStarTransactions',
+            owner_id: { _: 'messageSenderUser', user_id: userId },
+            subscription_id: '',
+            direction: null,
+            offset: '',
+            limit: 1,
+        } as unknown as GetStarTransactionsRequest;
+        const res = await tdlibSend(request);
+        const count = starAmountValue(res.star_amount);
+        balances.value.stars = count > 0 ? formatStars(count, locale.value) : '';
+    } catch {
+        balances.value.stars = '';
+    }
+}
+
+/** Gram 收入余额（TDLib 返回纳克，1 Gram = 1e9 纳克） */
+async function loadGramRevenueBalance() {
+    try {
+        const res = await tdlibSend({ _: 'getGramRevenueStatistics', is_dark: false });
+        const nanograms = parseNanogramAmount(res.status?.balance_amount);
+        balances.value.gramRevenue = nanograms > 0 ? formatGram(nanograms, locale.value) : '';
+    } catch {
+        balances.value.gramRevenue = '';
+    }
+}
+
+/** Gram 钱包余额：getTonWalletTransactions 直接带 gram_amount（最小单位 1e9） */
+async function loadWalletBalance() {
+    try {
+        const res = await tdlibSend({ _: 'getTonWalletTransactions', offset: '', limit: 1 });
+        const units = Number(res.gram_amount ?? 0);
+        balances.value.wallet = units > 0 ? formatGram(units, locale.value) : '';
+    } catch {
+        balances.value.wallet = '';
+    }
+}
+
+function loadBalances() {
+    void loadStarsBalance();
+    void loadGramRevenueBalance();
+    void loadWalletBalance();
+}
 onMounted(() => {
     loadAppVersion();
     loadTdlibVersion();
+    loadBalances();
+});
+
+// 从 Stars / Gram / 钱包子页返回时刷新余额
+watch(() => route.path, (path) => {
+    if (path.startsWith('/home/settings')) loadBalances();
 });
 
 /** 连点版本号 5 次打开/关闭开发者选项（防止误触，2s 窗口内不连点则归零） */
@@ -223,11 +295,16 @@ interface SettingsMenuItem {
     key: string;
     to?: string;
     onClick?: () => void;
-    icon: Component;
-    /** 图标瓷片底色（未激活态） */
-    tile: string;
+    /** 图标组件；不传时只渲染标题行（整行卡片高亮） */
+    icon?: Component;
+    /** 图标瓷片底色（未激活态），仅 icon 存在时使用 */
+    tile?: string;
     title: string;
     subtitle?: string;
+    /** 右侧余额文案；空值不渲染（余额为 0 时也不传） */
+    balance?: string;
+    /** 是否显示右侧箭头，默认显示；纯余额行可关掉 */
+    chevron?: boolean;
 }
 
 interface SettingsMenuGroup {
@@ -241,6 +318,20 @@ interface SettingsMenuGroup {
  */
 const menuGroups = computed<SettingsMenuGroup[]>(() => {
     const groups: SettingsMenuGroup[] = [
+        {
+            // 顶部只留钱包入口：左侧小图标 + 名称，右侧余额（为 0 不显示）
+            key: 'wallet',
+            items: [
+                {
+                    key: 'wallet',
+                    to: '/home/settings/wallet',
+                    icon: TgGramColoredIcon,
+                    title: t('walletNav.wallet'),
+                    balance: balances.value.wallet,
+                    chevron: false,
+                },
+            ],
+        },
         {
             key: 'account',
             items: [{
@@ -352,6 +443,28 @@ const menuGroups = computed<SettingsMenuGroup[]>(() => {
                     tile: 'bg-slate-100 text-slate-600 dark:bg-slate-500/15 dark:text-slate-400',
                     title: t('lng_settings_advanced'),
                     subtitle: t('settingsList.systemSubtitle'),
+                },
+            ],
+        },
+        {
+            // 高级设置下方：Stars / Gram 收入（与顶部钱包同一套「小图标 + 名称 + 余额」行样式）
+            key: 'wallet-details',
+            items: [
+                {
+                    key: 'stars',
+                    to: '/home/settings/stars',
+                    icon: TgStarColoredIcon,
+                    title: t('walletNav.stars'),
+                    balance: balances.value.stars,
+                    chevron: false,
+                },
+                {
+                    key: 'gram-revenue',
+                    to: '/home/settings/gram-revenue',
+                    icon: TgGramEarningsIcon,
+                    title: t('walletNav.gramRevenue'),
+                    balance: balances.value.gramRevenue,
+                    chevron: false,
                 },
             ],
         },

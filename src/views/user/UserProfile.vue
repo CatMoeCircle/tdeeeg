@@ -50,8 +50,7 @@
                 <GlobalEmojiText :text="userName" />
               </span>
               <!-- ① 认证/诈骗/虚假标识 -->
-              <VerifiedBadge
-                v-if="!isDeletedProfile && userVerification?.is_verified && !customVerifyEmojiId"
+              <VerifiedBadge v-if="!isDeletedProfile && userVerification?.is_verified && !customVerifyEmojiId"
                 class="text-lg" :title="t('profileBadges.verified')" />
               <span v-if="!isDeletedProfile && userVerification?.is_scam"
                 class="inline-flex items-center shrink-0 px-1.5 rounded-sm border border-red-500 text-xs font-semibold leading-5 text-red-500 whitespace-nowrap"
@@ -69,14 +68,16 @@
               <!-- 他人资料：有 emoji 状态显示状态；纯会员（无状态）显示 ⭐ -->
               <template v-if="!isDeletedProfile && !isSelf && user?.is_premium">
                 <CustomEmojiInline v-if="emojiStatusDisplayId" :emojiId="emojiStatusDisplayId" :size="22" />
-                <span v-else class="tgico tgico-emoji-status text-[20px] shrink-0" :title="t('lng_premium_summary_title')" />
+                <span v-else class="tgico tgico-emoji-status text-[20px] shrink-0"
+                  :title="t('lng_premium_summary_title')" />
               </template>
               <!-- ③ 开发者/贡献者标识（硬编码） -->
               <ProfileRoleBadge v-if="!isDeletedProfile && userRoleBadge" :kind="userRoleBadge" />
             </h1>
 
             <!-- 评级徽章 + 在线状态：评级在状态左侧 -->
-            <div class="mt-1 flex items-center justify-center gap-1.5 max-w-full text-sm text-gray-500 dark:text-gray-400">
+            <div
+              class="mt-1 flex items-center justify-center gap-1.5 max-w-full text-sm text-gray-500 dark:text-gray-400">
               <ProfileRatingBadge v-if="userRatingLevel !== null" :level="userRatingLevel" />
               <p class="truncate">
                 {{ statusText }}
@@ -138,21 +139,22 @@
           <div v-else-if="chatObj" class="flex flex-col items-center pt-10 pb-3 px-4 text-gray-900 dark:text-gray-100">
             <!-- 头像：秘密聊天显示用户头像，其他显示聊天头像（带动态渐变圆环） -->
             <div class="w-24 h-24">
-              <StoryRing v-if="isSecretChat && secretChatUser" :user-id="secretChatUser.id" :size="96"
-                :diameter="96" class="inline-flex shrink-0">
+              <StoryRing v-if="isSecretChat && secretChatUser" :user-id="secretChatUser.id" :size="96" :diameter="96"
+                class="inline-flex shrink-0">
                 <Avatar :photo="secretChatUser.profile_photo"
                   :title="`${secretChatUser.first_name} ${secretChatUser.last_name}`"
                   :first-name="secretChatUser.first_name" :last-name="secretChatUser.last_name"
-                  :accentColorId="avatarColorId(secretChatUser.profile_accent_color_id, secretChatUser.accent_color_id)" no-background />
+                  :accentColorId="avatarColorId(secretChatUser.profile_accent_color_id, secretChatUser.accent_color_id)"
+                  no-background />
               </StoryRing>
               <Avatar v-else-if="isSecretChat && secretChatUser" :photo="secretChatUser.profile_photo"
                 :title="`${secretChatUser.first_name} ${secretChatUser.last_name}`"
                 :first-name="secretChatUser.first_name" :last-name="secretChatUser.last_name"
-                :accentColorId="avatarColorId(secretChatUser.profile_accent_color_id, secretChatUser.accent_color_id)" sizeClass="!w-24 !h-24" no-background />
+                :accentColorId="avatarColorId(secretChatUser.profile_accent_color_id, secretChatUser.accent_color_id)"
+                sizeClass="!w-24 !h-24" no-background />
               <StoryRing v-else :chat-id="chatObj.id" :size="96" :diameter="96" class="inline-flex shrink-0">
-                <Avatar :photo="chatPhotoInfo" :title="chatTitle"
-                  :first-name="getChatUserNames(chatObj).first" :last-name="getChatUserNames(chatObj).last"
-                  :accentColorId="chatAccentColorId" no-background />
+                <Avatar :photo="chatPhotoInfo" :title="chatTitle" :first-name="getChatUserNames(chatObj).first"
+                  :last-name="getChatUserNames(chatObj).last" :accentColorId="chatAccentColorId" no-background />
               </StoryRing>
             </div>
 
@@ -166,8 +168,8 @@
                 <GlobalEmojiText
                   :text="isSecretChat && secretChatUser ? `${secretChatUser.first_name} ${secretChatUser.last_name}`.trim() || t('secretChat.label') : chatTitle" />
               </span>
-              <VerifiedBadge v-if="chatVerification?.is_verified && !chatCustomVerifyEmojiId"
-                class="text-lg" :title="t('profileBadges.verified')" />
+              <VerifiedBadge v-if="chatVerification?.is_verified && !chatCustomVerifyEmojiId" class="text-lg"
+                :title="t('profileBadges.verified')" />
               <span v-if="chatVerification?.is_scam"
                 class="inline-flex items-center shrink-0 px-1.5 rounded-sm border border-red-500 text-xs font-semibold leading-5 text-red-500 whitespace-nowrap"
                 :title="t('lng_scam_badge')">{{ t('lng_scam_badge') }}</span>
@@ -306,8 +308,10 @@
                     </div>
                     <!-- 名称 + 作者 -->
                     <div class="min-w-0 flex-1">
-                      <p class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{{ profileAudioTitle }}</p>
-                      <p class="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{{ profileAudioPerformer }}</p>
+                      <p class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{{ profileAudioTitle }}
+                      </p>
+                      <p class="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{{ profileAudioPerformer }}
+                      </p>
                     </div>
                   </button>
                 </div>
@@ -315,11 +319,12 @@
 
               <!-- Gram 钱包：左边是缩略卡片，点击展开大卡片 -->
               <button v-if="showTonWalletCard" type="button" @click="openWalletExpanded"
-                class="flex-1 min-w-0 h-[76px] rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden px-3.5 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                class="flex-1 min-w-0 h-19 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md overflow-hidden px-3.5 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                 <span ref="walletMiniEl" class="shrink-0 overflow-hidden rounded-lg shadow-sm"
                   :class="{ 'opacity-0': walletExpanded }">
                   <TonWalletCardMini :address="tonWalletCard?.address ?? ''"
-                    :balance="tonWalletCard?.gram_amount ?? '0'" :name="userName" :width="84" />
+                    :balance="tonWalletCard?.gram_amount ?? '0'" :name="userName" :width="84"
+                    :palette="tonWalletPalette" />
                 </span>
                 <span class="min-w-0 text-base font-semibold text-gray-900 dark:text-gray-100 truncate">
                   {{ walletBalanceText }} GRAM
@@ -331,24 +336,32 @@
           <!-- Gram 钱包大卡片：从小卡片放大到屏幕中间 → 贴纸落下 → 再挂 3D 钻石 -->
           <Teleport to="body">
             <div v-if="walletExpanded && showTonWalletCard"
-              class="fixed inset-0 z-[120] flex flex-col items-center justify-center gap-5 p-6">
+              class="fixed inset-0 z-120 flex flex-col items-center justify-center gap-5 p-6">
               <div class="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300"
                 :class="walletClosing ? 'opacity-0' : 'opacity-100'" />
               <div ref="walletModalCardEl" class="relative will-change-transform" @click.stop>
-                <TonWalletCard :address="tonWalletCard?.address ?? ''"
-                  :balance="tonWalletCard?.gram_amount ?? '0'" :name="userName" :stickers="tonWalletStickers"
-                  :palette="tonWalletPalette" :width="walletExpandedWidth"
-                  :stickers-visible="walletStage !== 'expand' && !walletClosing"
-                  :reveal-stickers="walletStage === 'stickers'"
-                  :tiltable="walletStage === 'ready'" />
+                <TonWalletCard :address="tonWalletCard?.address ?? ''" :balance="tonWalletCard?.gram_amount ?? '0'"
+                  :name="userName" :stickers="tonWalletStickers" :palette="tonWalletPalette"
+                  :symbol-sticker="tonWalletPatternSticker"
+                  :width="walletExpandedWidth" :stickers-visible="walletStage !== 'expand' && !walletClosing"
+                  :reveal-stickers="walletStage === 'stickers'" :tiltable="walletStage === 'ready'"
+                  :actionable="walletStage === 'ready'" :qr-label="t('walletReceive.copyAddress')"
+                  @qr-click="openWalletReceive" />
               </div>
 
-              <!-- 关闭：卡片下方的横向胶囊；关闭瞬间隐藏，但保留占位避免卡片重心跳变 -->
-              <button type="button" @click.stop="closeWalletExpanded"
-                class="relative h-10 w-28 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center transition-colors backdrop-blur"
+              <!-- 关闭 / 管理钱包：卡片下方的横向胶囊；关闭瞬间隐藏，但保留占位避免卡片重心跳变 -->
+              <div class="relative flex items-center gap-3 transition-opacity"
                 :class="{ 'invisible pointer-events-none': walletClosing }">
-                <ChevronDown class="w-5 h-5" />
-              </button>
+                <button type="button" @click.stop="closeWalletExpanded"
+                  class="h-10 w-28 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center transition-colors backdrop-blur">
+                  <ChevronDown class="w-5 h-5" />
+                </button>
+                <button v-if="isSelf" type="button" @click.stop="openWalletSettings"
+                  class="h-10 px-4 rounded-full bg-white/15 hover:bg-white/25 text-white text-sm font-medium flex items-center justify-center gap-2 transition-colors backdrop-blur">
+                  <Wallet class="w-4 h-4" />
+                  {{ t('walletPage.title') }}
+                </button>
+              </div>
             </div>
           </Teleport>
 
@@ -378,8 +391,7 @@
               <div class="w-10 h-10 shrink-0">
                 <Avatar :photo="personalChatPhoto" :title="personalChatTitle"
                   :first-name="getChatUserNames(personalChat).first" :last-name="getChatUserNames(personalChat).last"
-                  :accentColorId="personalChatAccent"
-                  sizeClass="!w-10 !h-10" />
+                  :accentColorId="personalChatAccent" sizeClass="!w-10 !h-10" />
               </div>
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2">
@@ -651,7 +663,7 @@
               <div v-if="canOpenMiniApp || botInviteLabel" class="mt-3 space-y-2">
                 <!-- bot 主 Mini App 入口（有主 Web App 的 bot 才显示；文案优先 bot 菜单按钮文字） -->
                 <button v-if="canOpenMiniApp" type="button"
-                  class="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--app-brand)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--app-brand-hover)]"
+                  class="flex w-full items-center justify-center gap-2 rounded-xl bg-(--app-brand) px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-(--app-brand-hover)"
                   @click="openBotMiniApp">
                   <AppWindowIcon class="w-4 h-4 shrink-0" />
                   <span class="truncate">{{ miniAppButtonLabel }}</span>
@@ -687,8 +699,7 @@
              滚动时粘性置顶；下方内容区保证足够高度，切换标签时标签栏稳定贴顶、内容不闪空 -->
         <div v-if="hasBottomContent" ref="profileTabsEl" class="px-4 mt-5 sticky top-0 z-10 py-2 scroll-mt-0">
           <SlidingTabBar :active-id="activeTab" :tabs="profileTabItems" :variant="settings.folderStyle"
-            :tab-class="profileTabClass"
-            :container-class="folderTabContainerClass(settings.folderStyle)"
+            :tab-class="profileTabClass" :container-class="folderTabContainerClass(settings.folderStyle)"
             :show-indicator="settings.folderStyle === 'tabs' || settings.folderStyle === 'soft'"
             @select="onProfileTabSelect">
             <template #default="{ tab, active }">
@@ -717,7 +728,8 @@
             <div v-if="storyAlbumsList.length > 0 || canAddStoryAlbum"
               class="mb-3 flex flex-wrap items-center justify-center gap-1.5">
               <button v-for="tab in storyAlbumTabs" :key="tab.id" type="button"
-                class="inline-flex max-w-40 min-w-0 items-center gap-1.5 rounded-xl px-3 py-1 text-sm font-medium transition-colors" :class="selectedStoryAlbumId === tab.id
+                class="inline-flex max-w-40 min-w-0 items-center gap-1.5 rounded-xl px-3 py-1 text-sm font-medium transition-colors"
+                :class="selectedStoryAlbumId === tab.id
                   ? 'bg-gray-200 text-gray-900 dark:bg-white/15 dark:text-white'
                   : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10'"
                 @click="selectStoryAlbum(tab.id)">
@@ -772,12 +784,12 @@
           </div>
 
           <!-- 礼物区（仅普通用户）：容器进入视口停留后才拉取列表（视口 + profile 池并发闸门 + store 去重） -->
-          <div v-else-if="activeTab === 'gifts'" ref="giftsSectionEl"
-            class="py-6 text-center text-sm text-gray-400">
+          <div v-else-if="activeTab === 'gifts'" ref="giftsSectionEl" class="py-6 text-center text-sm text-gray-400">
             <!-- 收藏夹导航：居中胶囊式，第一项为「全部礼物」；无收藏夹时退回普通标题 -->
             <div v-if="giftCollectionsList.length > 0" class="mb-3 flex flex-wrap items-center justify-center gap-1.5">
               <button v-for="tab in giftCollectionTabs" :key="tab.id" type="button"
-                class="inline-flex max-w-40 min-w-0 items-center gap-1.5 rounded-xl px-3 py-1 text-sm font-medium transition-colors" :class="selectedGiftCollectionId === tab.id
+                class="inline-flex max-w-40 min-w-0 items-center gap-1.5 rounded-xl px-3 py-1 text-sm font-medium transition-colors"
+                :class="selectedGiftCollectionId === tab.id
                   ? 'bg-gray-200 text-gray-900 dark:bg-white/15 dark:text-white'
                   : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10'"
                 @click="selectGiftCollection(tab.id)">
@@ -874,7 +886,9 @@
               </button>
               <!-- 成员分页哨兵：滚动到底部自动加载下一页 -->
               <div ref="membersSentinel" class="h-1" />
-              <div v-if="membersLoadingMore" class="text-center text-sm text-gray-400 py-3">{{ t('lng_contacts_loading') }}</div>
+              <div v-if="membersLoadingMore" class="text-center text-sm text-gray-400 py-3">{{ t('lng_contacts_loading')
+                }}
+              </div>
             </div>
             <p v-else class="text-center text-sm text-gray-400 py-6">{{ chatMemberCountText }}</p>
           </div>
@@ -1140,147 +1154,156 @@
           :initial-index="sharedMediaViewerIndex" :source-rect="null" @close="sharedMediaViewerVisible = false" />
 
         <!-- ===== 自动删除设置弹窗 ===== -->
-        <div v-if="autoDeleteVisible"
-          class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          @mousedown.self="closeAutoDelete">
-          <div
-            class="w-90 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
-            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-              <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">{{ t('lng_manage_messages_ttl_menu') }}</h3>
-              <button type="button"
-                class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
-                @click="closeAutoDelete">
-                <XIcon class="w-4 h-4" />
-              </button>
+        <Transition name="dialog-pop">
+          <div v-if="autoDeleteVisible"
+            class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            @mousedown.self="closeAutoDelete">
+            <div
+              class="dialog-pop-panel w-90 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
+              <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">{{ t('lng_manage_messages_ttl_menu') }}
+                </h3>
+                <button type="button"
+                  class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+                  @click="closeAutoDelete">
+                  <XIcon class="w-4 h-4" />
+                </button>
+              </div>
+              <div class="px-4 py-3">
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('lng_ttl_edit_about', { user: userName }) }}
+                </p>
+                <div class="space-y-1">
+                  <button v-for="opt in autoDeleteOptions" :key="opt.value" type="button"
+                    class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    :class="autoDeleteTime === opt.value ? 'text-teal-600 dark:text-teal-400 font-semibold' : 'text-gray-700 dark:text-gray-200'"
+                    @click="applyAutoDelete(opt.value)">
+                    <span>{{ opt.label }}</span>
+                    <span v-if="autoDeleteTime === opt.value" class="text-teal-500">✓</span>
+                  </button>
+                </div>
+              </div>
             </div>
-            <div class="px-4 py-3">
-              <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ t('lng_ttl_edit_about', { user: userName }) }}
-              </p>
-              <div class="space-y-1">
-                <button v-for="opt in autoDeleteOptions" :key="opt.value" type="button"
-                  class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  :class="autoDeleteTime === opt.value ? 'text-teal-600 dark:text-teal-400 font-semibold' : 'text-gray-700 dark:text-gray-200'"
-                  @click="applyAutoDelete(opt.value)">
-                  <span>{{ opt.label }}</span>
-                  <span v-if="autoDeleteTime === opt.value" class="text-teal-500">✓</span>
+          </div>
+        </Transition>
+
+        <!-- ===== 编辑联系人弹窗 ===== -->
+        <Transition name="dialog-pop">
+          <div v-if="editContactVisible"
+            class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            @mousedown.self="closeEditContact">
+            <div
+              class="dialog-pop-panel w-90 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
+              <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">{{ t('lng_info_edit_contact') }}</h3>
+                <button type="button"
+                  class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+                  @click="closeEditContact">
+                  <XIcon class="w-4 h-4" />
+                </button>
+              </div>
+              <div class="px-4 py-4 space-y-3">
+                <div>
+                  <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t("lng_signup_firstname")
+                  }}</label>
+                  <input v-model="contactFirstName" type="text" maxlength="64"
+                    class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    :placeholder="t('lng_settings_name_label')" />
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('lng_signup_lastname')
+                  }}</label>
+                  <input v-model="contactLastName" type="text" maxlength="64"
+                    class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    :placeholder="t('lng_signup_lastname')" />
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('lng_contact_add_notes')
+                  }}</label>
+                  <textarea v-model="contactNote" rows="3"
+                    class="input-scrollbar w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none overflow-y-auto"
+                    :placeholder="t('lng_contact_add_notes')"></textarea>
+                </div>
+                <p class="text-xs text-gray-500">{{ t('lng_contact_add_notes_about') }}</p>
+              </div>
+              <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
+                <BaseButton type="button" @click="closeEditContact" variant="ghost" size="sm">
+                  {{ t('lng_cancel') }}
+                </BaseButton>
+                <BaseButton type="button" @click="saveContact" variant="primary" size="sm">
+                  {{ t('lng_settings_save') }}
+                </BaseButton>
+              </div>
+            </div>
+          </div>
+        </Transition>
+
+        <!-- ===== 拉黑 / 删除联系人 二级确认弹窗 ===== -->
+        <Transition name="dialog-pop">
+          <div v-if="confirmDialog.visible"
+            class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            @mousedown.self="cancelConfirmDialog">
+            <div
+              class="dialog-pop-panel w-90 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
+              <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">{{ confirmDialog.title }}</h3>
+                <button type="button"
+                  class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+                  @click="cancelConfirmDialog">
+                  <XIcon class="w-4 h-4" />
+                </button>
+              </div>
+              <div class="px-4 py-4">
+                <p class="text-sm text-gray-600 dark:text-gray-400">{{ confirmDialog.message }}</p>
+              </div>
+              <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
+                <BaseButton type="button" @click="cancelConfirmDialog" variant="ghost" size="sm">
+                  {{ t('lng_cancel') }}
+                </BaseButton>
+                <button type="button" @click="confirmDialog.onConfirm"
+                  class="px-4 py-1.5 rounded-lg text-sm bg-red-500 text-white hover:bg-red-600">
+                  {{ confirmDialog.confirmText }}
                 </button>
               </div>
             </div>
           </div>
-        </div>
-
-        <!-- ===== 编辑联系人弹窗 ===== -->
-        <div v-if="editContactVisible"
-          class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          @mousedown.self="closeEditContact">
-          <div
-            class="w-90 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
-            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-              <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">{{ t('lng_info_edit_contact') }}</h3>
-              <button type="button"
-                class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
-                @click="closeEditContact">
-                <XIcon class="w-4 h-4" />
-              </button>
-            </div>
-            <div class="px-4 py-4 space-y-3">
-              <div>
-                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t("lng_signup_firstname")
-                }}</label>
-                <input v-model="contactFirstName" type="text" maxlength="64"
-                  class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  :placeholder="t('lng_settings_name_label')" />
-              </div>
-              <div>
-                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('lng_signup_lastname')
-                }}</label>
-                <input v-model="contactLastName" type="text" maxlength="64"
-                  class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  :placeholder="t('lng_signup_lastname')" />
-              </div>
-              <div>
-                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">{{ t('lng_contact_add_notes')
-                }}</label>
-                <textarea v-model="contactNote" rows="3"
-                  class="input-scrollbar w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none overflow-y-auto"
-                  :placeholder="t('lng_contact_add_notes')"></textarea>
-              </div>
-              <p class="text-xs text-gray-500">{{ t('lng_contact_add_notes_about') }}</p>
-            </div>
-            <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
-              <BaseButton type="button" @click="closeEditContact" variant="ghost" size="sm">
-                {{ t('lng_cancel') }}
-              </BaseButton>
-              <BaseButton type="button" @click="saveContact" variant="primary" size="sm">
-                {{ t('lng_settings_save') }}
-              </BaseButton>
-            </div>
-          </div>
-        </div>
-
-        <!-- ===== 拉黑 / 删除联系人 二级确认弹窗 ===== -->
-        <div v-if="confirmDialog.visible"
-          class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          @mousedown.self="cancelConfirmDialog">
-          <div
-            class="w-90 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
-            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-              <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">{{ confirmDialog.title }}</h3>
-              <button type="button"
-                class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
-                @click="cancelConfirmDialog">
-                <XIcon class="w-4 h-4" />
-              </button>
-            </div>
-            <div class="px-4 py-4">
-              <p class="text-sm text-gray-600 dark:text-gray-400">{{ confirmDialog.message }}</p>
-            </div>
-            <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
-              <BaseButton type="button" @click="cancelConfirmDialog" variant="ghost" size="sm">
-                {{ t('lng_cancel') }}
-              </BaseButton>
-              <button type="button" @click="confirmDialog.onConfirm"
-                class="px-4 py-1.5 rounded-lg text-sm bg-red-500 text-white hover:bg-red-600">
-                {{ confirmDialog.confirmText }}
-              </button>
-            </div>
-          </div>
-        </div>
+        </Transition>
 
         <!-- ===== 新建动态相册弹窗 ===== -->
-        <div v-if="storyAlbumDialog.visible"
-          class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          @mousedown.self="closeCreateStoryAlbum">
-          <div
-            class="w-90 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
-            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-              <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">{{ t('lng_stories_album_new_title') }}</h3>
-              <button type="button"
-                class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
-                @click="closeCreateStoryAlbum">
-                <XIcon class="w-4 h-4" />
-              </button>
-            </div>
-            <div class="px-4 py-4 space-y-3">
-              <p class="text-sm text-gray-600 dark:text-gray-400">{{ t('lng_stories_album_new_text') }}</p>
-              <input v-model="storyAlbumDialog.name" type="text" maxlength="12"
-                :placeholder="t('lng_stories_album_new_ph')"
-                class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent px-3 py-2 text-sm outline-none focus:border-teal-500"
-                @keydown.enter="submitCreateStoryAlbum" />
-            </div>
-            <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
-              <BaseButton type="button" @click="closeCreateStoryAlbum" variant="ghost" size="sm">
-                {{ t('lng_cancel') }}
-              </BaseButton>
-              <button type="button"
-                :disabled="!storyAlbumDialog.name.trim() || storyAlbumDialog.creating"
-                class="px-4 py-1.5 rounded-lg text-sm bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                @click="submitCreateStoryAlbum">
-                {{ t('lng_stories_album_new_create') }}
-              </button>
+        <Transition name="dialog-pop">
+          <div v-if="storyAlbumDialog.visible"
+            class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            @mousedown.self="closeCreateStoryAlbum">
+            <div
+              class="dialog-pop-panel w-90 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
+              <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">{{ t('lng_stories_album_new_title') }}
+                </h3>
+                <button type="button"
+                  class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+                  @click="closeCreateStoryAlbum">
+                  <XIcon class="w-4 h-4" />
+                </button>
+              </div>
+              <div class="px-4 py-4 space-y-3">
+                <p class="text-sm text-gray-600 dark:text-gray-400">{{ t('lng_stories_album_new_text') }}</p>
+                <input v-model="storyAlbumDialog.name" type="text" maxlength="12"
+                  :placeholder="t('lng_stories_album_new_ph')"
+                  class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-transparent px-3 py-2 text-sm outline-none focus:border-teal-500"
+                  @keydown.enter="submitCreateStoryAlbum" />
+              </div>
+              <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
+                <BaseButton type="button" @click="closeCreateStoryAlbum" variant="ghost" size="sm">
+                  {{ t('lng_cancel') }}
+                </BaseButton>
+                <button type="button" :disabled="!storyAlbumDialog.name.trim() || storyAlbumDialog.creating"
+                  class="px-4 py-1.5 rounded-lg text-sm bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  @click="submitCreateStoryAlbum">
+                  {{ t('lng_stories_album_new_create') }}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </Transition>
       </div>
 
       <!-- 用户模式未找到 -->
@@ -1336,6 +1359,10 @@
     <!-- 礼物详情弹窗（普通 / NFT 共用） -->
     <GiftDetailDialog :open="giftDetailOpen" :data="giftDetailData" @close="closeGiftDetail" />
 
+    <!-- Gram 收款弹窗：点钱包卡片上的 QR 芯片打开，二维码边缘的地址带绕着转圈 -->
+    <GramReceiveDialog :open="walletReceiveOpen" :address="tonWalletCard?.address ?? ''"
+      @close="walletReceiveOpen = false" />
+
     <!-- 成员右键菜单：设置为管理员 / 限制 / 移除（与 GroupMemberListPage 同一套弹窗） -->
     <GroupAdminRightsDialog v-model="memberAdminVisible" :chat-id="chatId ?? 0" :member="memberMenuTarget"
       :is-channel="isChatChannel" :is-forum="isChatForum" :is-owner="memberIsOwner" :my-rights="memberMyAdminRights"
@@ -1344,9 +1371,11 @@
       :default-permissions="chatObj?.permissions" @changed="onMemberActionChanged" />
 
     <!-- bot：添加到群组/频道（选择器 → 需要时进入管理员权限设置） -->
-    <AddBotToChatDialog v-model="addBotVisible" :bot-user-id="userId"
-      :can-join-groups="!!botUserType?.can_join_groups" @admin-flow="openBotAdminFlow"
-      @done="onBotAddedToChat" />
+    <AddBotToChatDialog v-model="addBotVisible" :bot-user-id="userId" :can-join-groups="!!botUserType?.can_join_groups"
+      @admin-flow="openBotAdminFlow" @done="onBotAddedToChat" />
+
+    <!-- 私密聊天创建：由 ⋮ 菜单的「开始私密聊天」打开 -->
+    <StartSecretChatDialog v-model="secretChatStore.startDialogVisible" :user="secretChatStore.startDialogUser" />
     <GroupAdminRightsDialog v-model="botAdminVisible" :chat-id="botAdminChatId" :is-channel="botAdminIsChannel"
       :is-forum="botAdminIsForum" :is-owner="botAdminIsOwner" :my-rights="botAdminMyRights"
       :default-permissions="botAdminDefaultPermissions" :add-bot="botAddContext" @added="onBotAdminAdded" />
@@ -1370,8 +1399,9 @@ import GiftDetailDialog from "../../components/common/GiftDetailDialog.vue";
 import CommunityEntryCard from "../../components/common/CommunityEntryCard.vue";
 import TonWalletCard from "../../components/common/TonWalletCard.vue";
 import TonWalletCardMini from "../../components/common/TonWalletCardMini.vue";
+import GramReceiveDialog from "../../components/common/GramReceiveDialog.vue";
 import { formatGramBalance } from "../../utils/message/tonTransfer";
-import { walletCardPaletteFromCard, walletCardStickerViews } from "../../utils/wallet/walletCard";
+import { walletCardPaletteFromCard, walletCardPatternSticker, walletCardStickerViews } from "../../utils/wallet/walletCard";
 import { buildGiftDetailData, type GiftDetailData } from "../../utils/message/giftDetail";
 import MediaViewer from "../../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
 import type { MediaViewerItem } from "../../components/chat/ChatDetail/MessageContent/MediaViewer.vue";
@@ -1433,6 +1463,8 @@ import EncryptionKeyDialog from "../../components/user/EncryptionKeyDialog.vue";
 import GroupAdminRightsDialog from "../../components/settings/GroupAdminRightsDialog.vue";
 import GroupRestrictDialog from "../../components/settings/GroupRestrictDialog.vue";
 import AddBotToChatDialog from "../../components/user/AddBotToChatDialog.vue";
+import StartSecretChatDialog from "../../components/user/StartSecretChatDialog.vue";
+import { useSecretChatStore } from "../../store/chat/secretChat";
 import { ShieldAdminIcon, RestrictKeyIcon } from "../../components/common/tgico";
 import { tdPlural } from "../../utils/i18n/tdLang";
 import ProfileRoleBadge from "../../components/common/ProfileRoleBadge.vue";
@@ -1451,6 +1483,7 @@ import {
   Calendar as CalendarIcon, IdCard as IdCardIcon,
   Plus as PlusIcon, Trash2 as Trash2Icon,
   AppWindow as AppWindowIcon,
+  Lock, Wallet,
 } from "lucide-vue-next";
 import VerifiedBadge from "../../components/common/VerifiedBadge.vue";
 import BaseButton from '../../components/ui/button/BaseButton.vue';
@@ -1460,6 +1493,7 @@ const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 const profileStore = useUserProfileStore();
+const secretChatStore = useSecretChatStore();
 const audioPlayer = useAudioPlayerStore();
 
 /** 资料页纵向滚动容器 / 粘性标签栏（用于切换标签后保持标签栏置顶） */
@@ -1920,6 +1954,7 @@ const photosList = computed<chatPhoto[]>(() => profileStore.photos.get(userId.va
 const tonWalletCard = computed(() => fullInfo.value?.ton_wallet_card ?? null);
 const tonWalletStickers = computed(() => (tonWalletCard.value ? walletCardStickerViews(tonWalletCard.value) : []));
 const tonWalletPalette = computed(() => (tonWalletCard.value ? walletCardPaletteFromCard(tonWalletCard.value) : null));
+const tonWalletPatternSticker = computed(() => (tonWalletCard.value ? walletCardPatternSticker(tonWalletCard.value) : null));
 /** 没有钱包卡片或余额低于 0.01 Gram 时不展示（官方资料页同样规则） */
 const showTonWalletCard = computed(() => {
   const card = tonWalletCard.value;
@@ -2006,8 +2041,23 @@ function closeWalletExpanded() {
   }, 330));
 }
 
+/** 点钱包卡片上的 QR 芯片：打开收款二维码弹窗（卡片保持展开，弹窗盖在上面） */
+const walletReceiveOpen = ref(false);
+/** 管理钱包：先收起放大层，再进入设置里的 Gram 钱包页 */
+function openWalletSettings() {
+  closeWalletExpanded();
+  void router.push({ name: 'settings-wallet' });
+}
+
+function openWalletReceive() {
+  walletReceiveOpen.value = true;
+}
+
 function onWalletKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape' && walletExpanded.value) closeWalletExpanded();
+  // 收款弹窗盖在卡片之上：它自己消费过的 Esc（defaultPrevented）不再往上关卡片，
+  // 这样同一个按键只关一层，且不依赖两个 window 监听器谁先注册
+  if (event.key !== 'Escape' || event.defaultPrevented || walletReceiveOpen.value) return;
+  if (walletExpanded.value) closeWalletExpanded();
 }
 onMounted(() => {
   updateWalletExpandedWidth();
@@ -3822,7 +3872,7 @@ const miniAppButtonLabel = computed(() => botInfo.value?.menu_button?.text || t(
 
 /**
  * 打开 bot 主 Mini App：getMainWebApp 返回完整 URL（无 launch_id，
- * 不走 openWebApp 生命周期）；传参与 Unigram 对齐（chat_id=0、start_parameter 空、
+ * 不走 openWebApp 生命周期）；传参与 Telegram Desktop 对齐（chat_id=0、start_parameter 空、
  * theme + application_name + fullsize mode）。
  */
 async function openBotMiniApp() {
@@ -3838,8 +3888,8 @@ async function openBotMiniApp() {
     });
     if (!res.url?.url) throw new Error('getMainWebApp 返回空 URL');
     const avatarPath = user.value?.profile_photo?.small
-        ? await ensureLocalFilePath(user.value.profile_photo.small).catch(() => null)
-        : null;
+      ? await ensureLocalFilePath(user.value.profile_photo.small).catch(() => null)
+      : null;
     const { useMiniAppStore } = await import('../../store/session/miniapp');
     await useMiniAppStore().open(res.url.url, {
       launchId: '0',
@@ -3908,6 +3958,21 @@ async function toggleNotifications() {
 function openMoreMenu(e: MouseEvent) {
   const isContact = !!user.value?.is_contact;
   const menuItems: ContextMenuItem[] = [];
+  // 私密聊天：仅普通用户可发起（排除自己 / 已是加密会话）
+  if (!isSelf.value && !isSecretChat.value && user.value?.type?._ === 'userTypeRegular') {
+    menuItems.push(
+      {
+        key: 'start-secret-chat',
+        label: t('secretChatCreate.title'),
+        icon: Lock,
+        onClick: () => {
+          const target = user.value;
+          if (target) secretChatStore.openStartDialog(target);
+        },
+      },
+      { key: 'divider-secret', label: '', divider: true },
+    );
+  }
   // bot：添加到群组/频道（与资料页入口、官方客户端 ⋮ 菜单一致）
   if (botInviteLabel.value) {
     menuItems.push(

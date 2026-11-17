@@ -21,12 +21,27 @@
                             <feMergeNode in="SourceGraphic" />
                         </feMerge>
                     </filter>
+                    <!-- 符号图案的着色：用 flood 填色再按 alpha 合成，保留贴纸轮廓与透明度 -->
+                    <filter :id="patternTintId" x="-5%" y="-5%" width="110%" height="110%"
+                        color-interpolation-filters="sRGB">
+                        <feFlood :flood-color="material.pattern" result="twc-pattern-fill" />
+                        <feComposite in="twc-pattern-fill" in2="SourceAlpha" operator="in" />
+                    </filter>
                 </defs>
             </svg>
 
             <div class="twc-face">
                 <div class="twc-surface" :class="{ 'is-sheen': !palette }" :style="surfaceStyle" />
-                <!-- 蓝色光晕：跟着拖拽方向旋转、游走 -->
+                <!-- 背景礼物的符号图案：铺在材质之上、贴纸与文字之下（Telegram Desktop 的 PatternLayer） -->
+                <div v-if="patternItems.length" class="twc-pattern"
+                    :style="{ filter: 'url(#' + patternTintId + ')', opacity: material.patternOpacity }">
+                    <div v-for="(item, index) in patternItems" :key="index" class="twc-pattern-symbol"
+                        :style="item.style">
+                        <MessageStickerContent v-if="patternMessage" :content="patternMessage" :size="item.size"
+                            static />
+                    </div>
+                </div>
+                <!-- 彩色光晕：跟着拖拽方向旋转、游走 -->
                 <div class="twc-aurora" />
                 <!-- 黑胶波纹 + 镜面反光，随 3D 倾斜移动 -->
                 <div class="twc-vinyl" />
@@ -61,7 +76,7 @@
                 <!-- 信息层 -->
                 <div class="twc-content">
                     <!-- 钻石：预置渲染（PALETTE_ICE 冰白）；加载完成前留空，不用平面兜底 -->
-                    <canvas ref="stoneEl" class="twc-stone" :style="stoneStyle" />
+                    <canvas ref="stoneEl" class="twc-stone mr-2" :style="stoneStyle" />
 
                     <div class="twc-balance" :style="balanceStyle">
                         <span class="twc-amount"><span class="twc-amount-int">{{ balance.whole }}</span><span
@@ -85,7 +100,11 @@
             </div>
 
             <!-- 白色金属 QR 芯片：凹进卡面（贴面 translateZ + 内阴影做出槽口），倾斜时为凹槽内壁吃光 -->
-            <div class="twc-chip" :style="chipStyle">
+            <!-- 点芯片 = 打开收款二维码弹窗：按下仍然拖卡片做 3D，只有没拖动的 click 才算点击 -->
+            <div class="twc-chip" :class="{ 'is-actionable': actionable }" :style="chipStyle"
+                :role="actionable ? 'button' : undefined" :tabindex="actionable ? 0 : undefined"
+                :aria-label="actionable ? qrLabel : undefined" @click.stop="onChipClick"
+                @keydown.enter.prevent="onChipClick" @keydown.space.prevent="onChipClick">
                 <svg class="twc-chip-glyph" viewBox="0 0 24 24" aria-hidden="true">
                     <rect x="2.2" y="2.2" width="7.4" height="7.4" rx="1.6" fill="none" stroke="#5B6168"
                         stroke-width="1.9" />
@@ -105,13 +124,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, useId } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
 import { Gift } from 'lucide-vue-next';
-import type { messageSticker } from 'tdlib-types';
+import type { messageSticker, sticker } from 'tdlib-types';
 import TgsPlayer from './TgsPlayer.vue';
 import { useDiamondDrag } from '../../composables/useDiamondDrag';
 import { getCardBackgroundUrl } from '../../utils/diamond/cardBackground';
 import { PALETTE_ICE } from '../../utils/diamond/palette';
+import { isFileReady, tdlibSend } from '../../utils/session/tdlib';
+import { walletCardMaterialFromPalette } from '../../utils/wallet/walletCardMaterials';
+import { walletCardPatternSlots } from '../../utils/wallet/walletCardPattern';
 import MessageStickerContent from '../chat/ChatDetail/MessageContent/content/MessageStickerContent.vue';
 import {
     formatGramBalance,
@@ -147,6 +169,8 @@ const props = withDefaults(defineProps<{
     stickers?: WalletCardStickerView[];
     /** 礼物配色；不传时用官方 Gram 品牌蓝 */
     palette?: WalletCardPalette | null;
+    /** 背景礼物的符号贴纸：有它就铺一层卡面小图标（特殊卡） */
+    symbolSticker?: sticker | null;
     fiat?: string;
     width?: number;
     editable?: boolean;
@@ -160,10 +184,15 @@ const props = withDefaults(defineProps<{
     diamondEnabled?: boolean;
     selected?: number;
     ariaLabel?: string;
+    /** QR 芯片是否可点（点开后弹出收款二维码） */
+    actionable?: boolean;
+    /** 芯片的无障碍名称 */
+    qrLabel?: string;
 }>(), {
     name: '',
     stickers: () => [],
     palette: null,
+    symbolSticker: null,
     fiat: '',
     width: WALLET_CARD_WIDTH,
     editable: false,
@@ -173,10 +202,13 @@ const props = withDefaults(defineProps<{
     diamondEnabled: true,
     selected: -1,
     ariaLabel: '',
+    actionable: false,
+    qrLabel: 'QR',
 });
 
 const emit = defineEmits<{
     (e: 'sticker-pointerdown', index: number, event: PointerEvent): void;
+    (e: 'qr-click'): void;
 }>();
 
 const rootEl = ref<HTMLElement | null>(null);
@@ -196,6 +228,13 @@ const tilting = ref(false);
 let tilt: { pointerId: number; startX: number; startY: number; rect: DOMRect; active: boolean } | null = null;
 /** 按下后移动超过这个距离才算拖拽，否则当成一次点击（点礼物不该让卡片歪一下） */
 const TILT_DEAD_ZONE = 4;
+/**
+ * 本次按压是否真的拖成了倾斜。
+ *
+ * 浏览器在 pointerup 之后照样补一个 click：从 QR 芯片上开始拖卡片，
+ * 松手时就会「顺带」点开收款弹窗。所以拖拽结束时记一笔，交给 click 消费掉。
+ */
+let dragMoved = false;
 
 function prefersReducedMotion(): boolean {
     return typeof window !== 'undefined'
@@ -214,6 +253,8 @@ function isStickerPress(event: PointerEvent): boolean {
 }
 
 function onTiltDown(event: PointerEvent) {
+    // 每次新的按压都重置：上一次拖拽留下的标记不能跨到这一次点击上
+    dragMoved = false;
     if (!props.tiltable || event.button !== 0 || prefersReducedMotion()) return;
     // 编辑态下按在礼物上是拖动礼物，不是拖卡片；展示态照样可以从礼物上拖卡片
     if (props.editable && isStickerPress(event)) return;
@@ -239,6 +280,7 @@ function onTiltMove(event: PointerEvent) {
         // 死区内只算点击：卡片保持平放，不进入倾斜态
         if (Math.hypot(event.clientX - state.startX, event.clientY - state.startY) < TILT_DEAD_ZONE) return;
         state.active = true;
+        dragMoved = true;
         tilting.value = true;
     }
     // 触控/鼠标统一：灵敏度放大，半个卡宽/高为最大拖拽量，横向 ±34°、纵向 ±26°
@@ -293,6 +335,46 @@ const height = computed(() => Math.round(props.width * (WALLET_CARD_HEIGHT / WAL
 const balance = computed(() => formatGramBalance(props.balance));
 const displayName = computed(() => props.name.trim().toUpperCase());
 
+/** 3D 材质：蓝卡沿用原来的冷色，礼物卡按 backdrop 的色相重新拟合 */
+const material = computed(() => walletCardMaterialFromPalette(props.palette));
+
+/** 符号图案：背景礼物的 symbol 贴纸，按六边形点阵铺在卡面上 */
+const patternMessage = computed<messageSticker | null>(() => (props.symbolSticker
+    ? { _: 'messageSticker', sticker: props.symbolSticker, is_premium: false }
+    : null));
+
+/**
+ * 先把这个符号文件下一次，再铺 22 个实例。
+ * 每个 MessageStickerContent 只会在自己发起下载时收到结果；同时挂 22 个的话，
+ * 只有第一个能拿到文件，其余会一直空着。
+ */
+const patternReady = ref(false);
+let patternSeq = 0;
+watch(() => props.symbolSticker, async (symbol) => {
+    const seq = ++patternSeq;
+    patternReady.value = false;
+    const file = symbol?.sticker;
+    if (!file) return;
+    if (isFileReady(file)) {
+        patternReady.value = true;
+        return;
+    }
+    if (!file.local.can_be_downloaded) return;
+    try {
+        const downloaded = await tdlibSend({
+            _: 'downloadFile',
+            file_id: file.id,
+            priority: 16,
+            offset: 0,
+            limit: 0,
+            synchronous: true,
+        });
+        if (seq === patternSeq && isFileReady(downloaded as any)) patternReady.value = true;
+    } catch {
+        // 离线 / 下载失败：不铺图案，卡片颜色与 3D 仍然可用
+    }
+}, { immediate: true });
+
 function px(value: number): string {
     return (value * scale.value).toFixed(2) + 'px';
 }
@@ -304,15 +386,51 @@ const sceneStyle = computed(() => ({
 
 /** 贴纸白描边的滤镜 id：同页可能有多张卡，id 必须唯一 */
 const stickerOutlineId = 'twc-sticker-outline-' + useId();
+/** 符号图案着色滤镜 id：同样需要唯一 */
+const patternTintId = 'twc-pattern-tint-' + useId();
+
+const patternItems = computed(() => {
+    if (!patternReady.value || !patternMessage.value) return [];
+    return walletCardPatternSlots(props.width, height.value).map((slot) => ({
+        size: Math.max(1, Math.round(slot.size * 100) / 100),
+        style: {
+            left: (slot.x - slot.size / 2).toFixed(2) + 'px',
+            top: (slot.y - slot.size / 2).toFixed(2) + 'px',
+            width: slot.size.toFixed(2) + 'px',
+            height: slot.size.toFixed(2) + 'px',
+            opacity: slot.alpha.toFixed(3),
+        } as Record<string, string>,
+    }));
+});
 
 const rootStyle = computed<Record<string, string>>(() => ({
     width: '100%',
     height: '100%',
     borderRadius: WALLET_CARD_RADIUS * scale.value + 'px',
     '--twc-radius': WALLET_CARD_RADIUS * scale.value + 'px',
-    '--twc-accent': (props.palette ?? DEFAULT_WALLET_CARD_PALETTE).accent,
+    '--twc-accent': material.value.accent,
     '--twc-text': (props.palette ?? DEFAULT_WALLET_CARD_PALETTE).text,
     '--twc-sticker-outline': 'url(#' + stickerOutlineId + ')',
+    '--twc-bg': material.value.background,
+    '--twc-sheen': material.value.sheen,
+    '--twc-edge-1': material.value.layers.edgeTop,
+    '--twc-edge-2': material.value.layers.edgeBottom,
+    '--twc-aurora-core': material.value.layers.auroraCore,
+    '--twc-aurora-mid': material.value.layers.auroraMid,
+    '--twc-rim-core': material.value.layers.rimCore,
+    '--twc-rim-mid': material.value.layers.rimMid,
+    '--twc-rim-bevel': material.value.layers.rimBevel,
+    '--twc-sheen-a': material.value.layers.sheenA,
+    '--twc-sheen-b': material.value.layers.sheenB,
+    '--twc-sheen-c': material.value.layers.sheenC,
+    '--twc-chip-tint': material.value.layers.chipTint,
+    '--twc-shadow': material.value.layers.shadow,
+    '--twc-glow': material.value.layers.glow,
+    '--twc-spark': material.value.layers.spark,
+    '--twc-fiat': material.value.layers.fiat,
+    '--twc-unit-shadow': material.value.layers.unitShadow,
+    '--twc-address': material.value.layers.address,
+    '--twc-stone-shadow': material.value.layers.stoneShadow,
 }));
 
 /**
@@ -355,6 +473,12 @@ const fiatStyle = computed(() => ({
     fontSize: px(18),
 }));
 
+/** 芯片反射的卡面光场：礼物卡用礼物颜色，否则用品牌蓝的程序化光场 */
+const cardLightField = computed(() => (props.palette
+    ? 'radial-gradient(120% 150% at 34% 42%, ' + props.palette.center
+    + ' 0%, ' + props.palette.edge + ' 100%)'
+    : 'url(' + getCardBackgroundUrl(props.width * 2, height.value * 2) + ')'));
+
 const chipStyle = computed(() => ({
     left: px(289),
     top: px(88),
@@ -364,10 +488,10 @@ const chipStyle = computed(() => ({
     transform: 'translateZ(' + (0.2 * scale.value).toFixed(2) + 'px)',
     // 银色芯片 + 卡片同一张光场（soft-light），让主卡的光晕在银色表面反出来；
     // 明暗竖向翻转（上暗下亮），配合内阴影读作“陷在槽底”而不是凸起
-    backgroundImage: 'url(' + getCardBackgroundUrl(props.width * 2, height.value * 2) + '), '
+    backgroundImage: cardLightField.value + ', '
         + 'linear-gradient(180deg, #dde2e8 0%, #e7ebf0 32%, #f2f5f8 62%, #f9fbfc 82%, #e6eaef 100%)',
-    backgroundSize: '260% 260%, 100% 100%',
-    backgroundPosition: '46% 42%, center',
+    backgroundSize: props.palette ? '100% 100%, 100% 100%' : '260% 260%, 100% 100%',
+    backgroundPosition: props.palette ? 'center, center' : '46% 42%, center',
     backgroundBlendMode: 'soft-light, normal',
 }));
 
@@ -426,6 +550,17 @@ function stickerContent(item: WalletCardStickerView): messageSticker | null {
     return { _: 'messageSticker', sticker: item.sticker, is_premium: false };
 }
 
+/** 点 QR 芯片：只在卡片可操作时响应；拖拽倾斜由 pointermove 判定，不会误触 */
+function onChipClick() {
+    // 拖动过卡片：这个 click 是松手补发的，不算点击芯片
+    if (dragMoved) {
+        dragMoved = false;
+        return;
+    }
+    if (!props.actionable) return;
+    emit('qr-click');
+}
+
 function onStickerPointerDown(index: number, event: PointerEvent) {
     // 只有编辑态才由礼物消费按下（拖动礼物改位置）；
     // 展示态让事件继续冒泡，按在礼物上也能拖动卡片做 3D 倾斜
@@ -471,12 +606,13 @@ defineExpose({ getElement: () => rootEl.value });
     pointer-events: none;
 }
 
-/* 厚度：同形状的深蓝层沿 Z 轴向后叠，倾斜时露出的就是卡片侧边 */
+/* 厚度：同形状的暗色层沿 Z 轴向后叠，倾斜时露出的就是卡片侧边；
+   颜色来自卡片材质，粉 / 橙 / 黑卡不会再露出一圈蓝边 */
 .twc-edge {
     position: absolute;
     inset: 0;
     border-radius: var(--twc-radius, 15px);
-    background: linear-gradient(180deg, #0a4d90 0%, #052f5c 100%);
+    background: linear-gradient(180deg, var(--twc-edge-1, #0a4d90) 0%, var(--twc-edge-2, #052f5c) 100%);
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.05);
     backface-visibility: hidden;
 }
@@ -486,25 +622,25 @@ defineExpose({ getElement: () => rootEl.value });
     inset: 0;
     overflow: hidden;
     border-radius: var(--twc-radius, 15px);
-    background: #0479e6;
+    background: var(--twc-bg, #0479e6);
     isolation: isolate;
     box-shadow:
-        0 24px 48px -20px rgb(0 38 74 / 0.5),
+        0 24px 48px -20px var(--twc-shadow, rgb(0 38 74 / 0.5)),
         0 2px 6px rgb(0 30 60 / 0.14),
         inset 0 1px 0 rgb(255 255 255 / 0.22);
     transition: box-shadow 260ms ease-out;
 }
 
-/* 倾斜时整卡泛出一层冷光，卡片像从底面上立起来 */
+/* 倾斜时整卡泛出一层与卡片同色相的光，卡片像从底面上立起来 */
 .twc.is-tilting .twc-face {
     box-shadow:
-        0 24px 48px -20px rgb(0 38 74 / 0.5),
+        0 24px 48px -20px var(--twc-shadow, rgb(0 38 74 / 0.5)),
         0 2px 6px rgb(0 30 60 / 0.14),
         inset 0 1px 0 rgb(255 255 255 / 0.22),
-        0 0 28px 2px rgb(92 198 255 / 0.32);
+        0 0 28px 2px var(--twc-glow, rgb(92 198 255 / 0.32));
 }
 
-/* 蓝色光晕：圆心与角度都跟着拖拽走，倾斜时卡面底色像在转动 */
+/* 彩色光晕：圆心与角度都跟着拖拽走，倾斜时卡面底色像在转动 */
 .twc-aurora {
     position: absolute;
     inset: -34%;
@@ -512,9 +648,9 @@ defineExpose({ getElement: () => rootEl.value });
     mix-blend-mode: screen;
     opacity: 0.72;
     background: radial-gradient(42% 46% at var(--aurora-x, 34%) var(--aurora-y, 42%),
-            rgb(150 235 255 / 0.34) 0%,
-            rgb(52 168 255 / 0.2) 36%,
-            rgb(0 60 140 / 0) 72%);
+            var(--twc-aurora-core, rgb(150 235 255 / 0.34)) 0%,
+            var(--twc-aurora-mid, rgb(52 168 255 / 0.2)) 36%,
+            transparent 72%);
     transform: rotate(var(--aurora-rotate, 0deg));
     transition: transform 340ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -529,10 +665,10 @@ defineExpose({ getElement: () => rootEl.value });
     pointer-events: none;
     opacity: 0;
     background: radial-gradient(58% 70% at var(--rim-x, 50%) var(--rim-y, 50%),
-            rgb(255 255 255 / 0.95) 0%,
-            rgb(170 238 255 / 0.62) 30%,
-            rgb(90 200 255 / 0.16) 62%,
-            rgb(90 200 255 / 0) 80%);
+            var(--twc-rim-core, rgb(255 255 255 / 0.95)) 0%,
+            var(--twc-rim-mid, rgb(170 238 255 / 0.62)) 30%,
+            var(--twc-rim-bevel, rgb(90 200 255 / 0.16)) 62%,
+            transparent 80%);
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite: xor;
@@ -550,8 +686,25 @@ defineExpose({ getElement: () => rootEl.value });
         -webkit-mask: none;
         mask: none;
         background: none;
-        box-shadow: inset 0 0 0 1.5px rgb(170 238 255 / 0.5);
+        box-shadow: inset 0 0 0 1.5px var(--twc-rim-mid, rgb(170 238 255 / 0.5));
     }
+}
+
+/* 背景符号层：在卡面材质之上、贴纸与文字之下（Telegram Desktop 的 PatternLayer） */
+.twc-pattern {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+.twc-pattern-symbol {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .twc-surface {
@@ -588,13 +741,13 @@ defineExpose({ getElement: () => rootEl.value });
     mix-blend-mode: screen;
     background: conic-gradient(from calc(205deg + var(--vinyl-rotate, 0deg)) at 50% 50%,
             transparent 0deg,
-            rgb(140 230 255 / 0.18) 24deg,
+            var(--twc-sheen-a, rgb(140 230 255 / 0.18)) 24deg,
             transparent 58deg,
-            rgb(255 255 255 / 0.16) 114deg,
+            var(--twc-sheen-b, rgb(255 255 255 / 0.16)) 114deg,
             transparent 162deg,
-            rgb(140 230 255 / 0.14) 212deg,
+            var(--twc-sheen-c, rgb(140 230 255 / 0.14)) 212deg,
             transparent 270deg,
-            rgb(255 255 255 / 0.12) 316deg,
+            var(--twc-sheen-b, rgb(255 255 255 / 0.12)) 316deg,
             transparent 360deg);
     transition: background 340ms ease-out;
 }
@@ -621,6 +774,10 @@ defineExpose({ getElement: () => rootEl.value });
     width: 100%;
     height: 100%;
     display: block;
+}
+
+.twc-sparkle svg path {
+    fill: var(--twc-spark, #ffffff);
 }
 
 .twc-stickers {
@@ -725,7 +882,7 @@ defineExpose({ getElement: () => rootEl.value });
     cursor: default;
     touch-action: none;
     user-select: none;
-    filter: drop-shadow(0 3px 7px rgb(0 50 100 / 0.28));
+    filter: drop-shadow(0 3px 7px var(--twc-stone-shadow, rgb(0 50 100 / 0.28)));
 }
 
 .twc-balance {
@@ -741,6 +898,8 @@ defineExpose({ getElement: () => rootEl.value });
     letter-spacing: 0.035em;
     font-variant-numeric: tabular-nums;
     color: var(--twc-text, #fff);
+    /* 余额压在卡面上：一层很浅的向下投影，跟着卡面的材质走，但不抢镜面高光 */
+    text-shadow: 0 1px 3px var(--twc-unit-shadow, rgb(0 40 85 / 0.3));
 }
 
 /* 小数点后的位数小一号 */
@@ -759,16 +918,27 @@ defineExpose({ getElement: () => rootEl.value });
     transform: scaleX(0.9);
     transform-origin: left center;
     color: var(--twc-accent, #6cdbff);
+    /* GRAM 比白字亮，阴影深一档才立得住；和余额共用同一束投影方向 */
+    text-shadow: 0 1px 3px var(--twc-unit-shadow, rgb(0 40 85 / 0.34));
 }
 
 .twc-fiat {
     position: absolute;
     transform: scaleX(0.8);
     transform-origin: left center;
-    color: rgb(168 240 255 / 0.95);
+    color: var(--twc-fiat, rgb(168 240 255 / 0.95));
     font-weight: 500;
     letter-spacing: 0.01em;
-    text-shadow: 0 1px 4px rgb(0 50 100 / 0.2);
+    text-shadow: 0 1px 4px var(--twc-unit-shadow, rgb(0 50 100 / 0.2));
+}
+
+.twc-chip.is-actionable {
+    cursor: pointer;
+}
+
+.twc-chip.is-actionable:focus-visible {
+    outline: 2px solid rgb(255 255 255 / 0.85);
+    outline-offset: 2px;
 }
 
 .twc-chip {
@@ -819,8 +989,8 @@ defineExpose({ getElement: () => rootEl.value });
     pointer-events: none;
     background: radial-gradient(54% 60% at var(--chip-shine-x, 42%) var(--chip-shine-y, 30%),
             rgb(255 255 255 / 0.6) 0%,
-            rgb(214 240 255 / 0.2) 46%,
-            rgb(214 240 255 / 0) 74%);
+            var(--twc-chip-tint, rgb(214 240 255 / 0.2)) 46%,
+            transparent 74%);
     mix-blend-mode: screen;
 }
 
@@ -845,8 +1015,8 @@ defineExpose({ getElement: () => rootEl.value });
     font-weight: 700;
     letter-spacing: -0.03em;
     text-transform: uppercase;
-    color: #ffffff;
-    text-shadow: 0 2px 8px rgb(0 50 100 / 0.25);
+    color: var(--twc-text, #ffffff);
+    text-shadow: 0 2px 8px var(--twc-stone-shadow, rgb(0 50 100 / 0.25));
 }
 
 .twc-address {
@@ -864,7 +1034,7 @@ defineExpose({ getElement: () => rootEl.value });
     font-variant-numeric: tabular-nums;
     /* 与 Gram 转账卡片的地址同一套做法：官方先用 6% 白在同位置描一遍再叠正文，
        这里用同向 1px 阴影代替，字才有压在卡面上的立体感 */
-    color: rgb(0 69 208 / 0.85);
+    color: var(--twc-address, rgb(0 69 208 / 0.85));
     text-shadow: 0 1px 0 rgb(255 255 255 / 0.16);
     text-transform: uppercase;
 }

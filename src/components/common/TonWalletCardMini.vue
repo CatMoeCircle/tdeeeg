@@ -31,6 +31,8 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { getCardBackgroundUrl } from '../../utils/diamond/cardBackground';
 import { PALETTE_ICE } from '../../utils/diamond/palette';
+import { walletCardMaterialFromPalette, withAlpha } from '../../utils/wallet/walletCardMaterials';
+import type { WalletCardPalette } from '../../utils/wallet/walletCard';
 import { mountDiamond, type DiamondHandle } from '../../utils/diamond/stage';
 import { formatGramAddress, formatGramBalance, type GramAmount } from '../../utils/message/tonTransfer';
 
@@ -40,25 +42,39 @@ const props = withDefaults(defineProps<{
     name?: string;
     /** 缩略图宽度，高度按 400:243 计算 */
     width?: number;
+    /** 礼物配色；不传时用官方 Gram 品牌蓝 */
+    palette?: WalletCardPalette | null;
 }>(), {
     name: '',
     width: 72,
+    palette: null,
 });
 
 /** 统一按 400 宽的设计稿缩放 */
 const scale = computed(() => props.width / 400);
 const height = computed(() => Math.round(243 * scale.value));
 
+const material = computed(() => walletCardMaterialFromPalette(props.palette));
+
 const rootStyle = computed(() => ({
     width: props.width + 'px',
     height: height.value + 'px',
     borderRadius: 15 * scale.value + 'px',
+    '--wcm-bg': material.value.background,
+    '--wcm-shadow': withAlpha(material.value.edgeColor, 0.35),
+    '--wcm-text': props.palette?.text ?? '#ffffff',
+    '--wcm-accent': material.value.accent,
 }));
 
-const surfaceStyle = computed(() => ({
-    backgroundImage: 'url(' + getCardBackgroundUrl(props.width * 2, height.value * 2) + ')',
-    backgroundSize: '100% 100%',
-}));
+const surfaceStyle = computed(() => (props.palette
+    ? {
+        background: 'radial-gradient(120% 150% at 34% 42%, ' + props.palette.center
+            + ' 0%, ' + props.palette.edge + ' 100%)',
+    }
+    : {
+        backgroundImage: 'url(' + getCardBackgroundUrl(props.width * 2, height.value * 2) + ')',
+        backgroundSize: '100% 100%',
+    }));
 
 const formatted = computed(() => formatGramBalance(props.balance));
 
@@ -124,9 +140,9 @@ function addressColStyle(index: number) {
     position: relative;
     overflow: hidden;
     flex: none;
-    background: #0a72d8;
+    background: var(--wcm-bg, #0a72d8);
     box-shadow:
-        0 2px 6px rgb(0 30 60 / 0.35),
+        0 2px 6px var(--wcm-shadow, rgb(0 30 60 / 0.35)),
         inset 0 1px 0 rgb(255 255 255 / 0.2);
     user-select: none;
 }
@@ -146,7 +162,7 @@ function addressColStyle(index: number) {
     display: flex;
     align-items: baseline;
     gap: 0.18em;
-    color: #fff;
+    color: var(--wcm-text, #fff);
     font-weight: 700;
     line-height: 1;
     white-space: nowrap;
@@ -159,14 +175,14 @@ function addressColStyle(index: number) {
 .wcm-unit {
     font-size: 0.9em;
     font-weight: 500;
-    color: #b9f2ff;
+    color: var(--wcm-accent, #b9f2ff);
     transform: scaleX(0.88);
     transform-origin: left center;
 }
 
 .wcm-name {
     position: absolute;
-    color: #fff;
+    color: var(--wcm-text, #fff);
     font-weight: 700;
     line-height: 1;
     white-space: nowrap;

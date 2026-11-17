@@ -7,7 +7,7 @@
  * - `stickers`：收藏礼物（NFT）贴纸，位置是 TDLib 的 `areaPosition` 百分比；
  * - `background_nft_address`：用哪一枚贴纸的礼物配色作为卡片背景。
  *
- * 几何规则参考 Unigram / Telegram Desktop 的 `wallet_card_space`：X/Y 是贴纸中心相对卡片宽/高的百分比，
+ * 几何规则参考 Telegram Desktop / Telegram Desktop 的 `wallet_card_space`：X/Y 是贴纸中心相对卡片宽/高的百分比，
  * 宽/高同样是百分比，旋转围绕贴纸中心顺时针，圆角按卡片宽度取百分比。
  * 贴纸保持正方形：height% 必须等于 width% × (卡片宽 / 卡片高)。
  */
@@ -15,6 +15,7 @@ import type {
     areaPosition,
     sticker,
     tonWalletCard,
+    upgradedGift,
     upgradedGiftBackdropColors,
 } from 'tdlib-types';
 import { intToRgb, rgbToCss } from '../../store/settings/colors';
@@ -35,6 +36,14 @@ export interface WalletCardPalette {
     edge: string;
     accent: string;
     text: string;
+    /**
+     * TDLib 原始 RGB 整数。3D 材质（侧面 / 极光 / 边缘光）需要从礼物的
+     * center / edge 重新拟合色相，只有 CSS 字符串不够。
+     */
+    centerColor?: number;
+    edgeColor?: number;
+    symbolColor?: number;
+    textColor?: number;
 }
 
 /** 默认的 Gram 品牌蓝（未设置 `background_nft_address` 时使用） */
@@ -87,6 +96,10 @@ export function walletCardPaletteFromBackdrop(
         edge: rgbToCss(intToRgb(colors.edge_color)),
         accent: rgbToCss(intToRgb(colors.symbol_color)),
         text: rgbToCss(intToRgb(colors.text_color)),
+        centerColor: colors.center_color,
+        edgeColor: colors.edge_color,
+        symbolColor: colors.symbol_color,
+        textColor: colors.text_color,
     };
 }
 
@@ -95,10 +108,23 @@ export function walletCardPaletteFromBackdrop(
  * 用它的 upgradedGift.backdrop.colors 上色；没有匹配时返回 null（用品牌蓝）。
  */
 export function walletCardPaletteFromCard(card: tonWalletCard): WalletCardPalette | null {
+    return walletCardPaletteFromBackdrop(walletCardBackgroundGift(card)?.backdrop?.colors);
+}
+
+/**
+ * 背景礼物：`background_nft_address` 指向的那枚贴纸的 NFT。
+ * 它的 backdrop 决定卡片颜色，symbol 贴纸决定卡面上的小图标图案。
+ */
+export function walletCardBackgroundGift(card: tonWalletCard): upgradedGift | null {
     const address = card.background_nft_address.trim();
     if (!address) return null;
     const source = card.stickers.find((item) => item.nft.address === address);
-    return walletCardPaletteFromBackdrop(source?.nft.gift?.backdrop?.colors);
+    return source?.nft.gift ?? null;
+}
+
+/** 卡面符号图案用的贴纸：礼物 backdrop 的 symbol，没有时返回 null */
+export function walletCardPatternSticker(card: tonWalletCard): sticker | null {
+    return walletCardBackgroundGift(card)?.symbol?.sticker ?? null;
 }
 
 /**

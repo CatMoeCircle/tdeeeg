@@ -190,6 +190,24 @@ const router = createRouter({
           component: () => import("../views/settings/DevicesSettings.vue"),
         },
         {
+          // Stars 余额：数量、最近交易与提现入口
+          path: "settings/stars",
+          name: "settings-stars",
+          component: () => import("../views/settings/StarsSettings.vue"),
+        },
+        {
+          // Gram 收入：频道 / 机器人收益统计
+          path: "settings/gram-revenue",
+          name: "settings-gram-revenue",
+          component: () => import("../views/settings/GramRevenueSettings.vue"),
+        },
+        {
+          // Gram 钱包：余额、收款、转账、交易记录与收藏品
+          path: "settings/wallet",
+          name: "settings-wallet",
+          component: () => import("../views/settings/WalletSettings.vue"),
+        },
+        {
           path: "user/:id",
           name: "user-profile",
           component: () => import("../views/user/UserProfile.vue"),
