@@ -421,19 +421,22 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 外观与右击菜单（ContextMenu 的 .cm-menu）保持一致 */
 .csc-card {
     width: 280px;
     max-width: calc(100vw - 16px);
     border-radius: 16px;
-    background: #fff;
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
     color: #111827;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.18);
     overflow: hidden;
 }
 
 :global(html.dark .csc-card) {
-    background: #1f2937;
+    background: rgba(34, 34, 34, 0.82);
     color: #f3f4f6;
     border-color: rgba(255, 255, 255, 0.1);
 }
@@ -668,6 +671,7 @@ onUnmounted(() => {
     min-width: 0;
     color: #4b5563;
     display: -webkit-box;
+    line-clamp: 3;
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
