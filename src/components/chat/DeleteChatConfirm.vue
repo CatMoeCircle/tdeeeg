@@ -1,72 +1,74 @@
 <template>
     <Teleport to="body">
-        <div class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-            @mousedown.self="emit('close')">
-            <div class="w-100 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
-                <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
-                    <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
-                        <LogOutIcon v-if="isLeave" class="w-4 h-4 text-red-500" />
-                        <Trash2Icon v-else class="w-4 h-4 text-red-500" />
-                        {{ titleText }}
-                    </h3>
-                    <button type="button"
-                        class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
-                        @click="emit('close')">
-                        <XIcon class="w-4 h-4" />
-                    </button>
-                </div>
+        <Transition name="dialog-pop" appear>
+            <div v-if="shown" class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+                @mousedown.self="close">
+                <div class="dialog-pop-panel w-100 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
+                    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                        <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                            <LogOutIcon v-if="isLeave" class="w-4 h-4 text-red-500" />
+                            <Trash2Icon v-else class="w-4 h-4 text-red-500" />
+                            {{ titleText }}
+                        </h3>
+                        <button type="button"
+                            class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+                            @click="close">
+                            <XIcon class="w-4 h-4" />
+                        </button>
+                    </div>
 
-                <div class="px-4 py-4 space-y-2">
-                    <p class="text-sm text-gray-600 dark:text-gray-300">
-                        {{ askText }}
-                    </p>
+                    <div class="px-4 py-4 space-y-2">
+                        <p class="text-sm text-gray-600 dark:text-gray-300">
+                            {{ askText }}
+                        </p>
 
-                    <template v-if="ready">
-                        <label v-if="peerCanRevoke" class="flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors"
-                            :class="deleteForPeer ? 'border-red-400 bg-red-50 dark:bg-red-900/20' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40'">
-                            <input v-model="deleteForPeer" type="checkbox" class="w-4 h-4 accent-red-500 shrink-0" />
-                            <div class="min-w-0 flex-1">
-                                <p class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ t('lng_delete_for_everyone_check') }}</p>
-                                <p class="text-xs text-gray-400 dark:text-gray-500">{{ t('lng_delete_for_everyone_hint') }}</p>
-                            </div>
-                        </label>
+                        <template v-if="ready">
+                            <label v-if="peerCanRevoke" class="flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors"
+                                :class="deleteForPeer ? 'border-red-400 bg-red-50 dark:bg-red-900/20' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40'">
+                                <input v-model="deleteForPeer" type="checkbox" class="w-4 h-4 accent-red-500 shrink-0" />
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ t('lng_delete_for_everyone_check') }}</p>
+                                    <p class="text-xs text-gray-400 dark:text-gray-500">{{ t('lng_delete_for_everyone_hint') }}</p>
+                                </div>
+                            </label>
 
-                        <label v-if="ownerCanDeleteForAll" class="flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors"
-                            :class="deleteForAll ? 'border-red-400 bg-red-50 dark:bg-red-900/20' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40'">
-                            <input v-model="deleteForAll" type="checkbox" class="w-4 h-4 accent-red-500 shrink-0" />
-                            <div class="min-w-0 flex-1">
-                                <p class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ t('lng_delete_for_everyone_check') }}</p>
-                                <p class="text-xs text-gray-400 dark:text-gray-500">{{ t('lng_delete_for_everyone_hint') }}</p>
-                            </div>
-                        </label>
+                            <label v-if="ownerCanDeleteForAll" class="flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors"
+                                :class="deleteForAll ? 'border-red-400 bg-red-50 dark:bg-red-900/20' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40'">
+                                <input v-model="deleteForAll" type="checkbox" class="w-4 h-4 accent-red-500 shrink-0" />
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ t('lng_delete_for_everyone_check') }}</p>
+                                    <p class="text-xs text-gray-400 dark:text-gray-500">{{ t('lng_delete_for_everyone_hint') }}</p>
+                                </div>
+                            </label>
 
-                        <label v-if="isBot" class="flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors"
-                            :class="blockBot ? 'border-red-400 bg-red-50 dark:bg-red-900/20' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40'">
-                            <input v-model="blockBot" type="checkbox" class="w-4 h-4 accent-red-500 shrink-0" />
-                            <div class="min-w-0 flex-1">
-                                <p class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ t('lng_profile_block_bot') }}</p>
-                            </div>
-                        </label>
-                    </template>
-                </div>
+                            <label v-if="isBot" class="flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors"
+                                :class="blockBot ? 'border-red-400 bg-red-50 dark:bg-red-900/20' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40'">
+                                <input v-model="blockBot" type="checkbox" class="w-4 h-4 accent-red-500 shrink-0" />
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ t('lng_profile_block_bot') }}</p>
+                                </div>
+                            </label>
+                        </template>
+                    </div>
 
-                <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
-                    <BaseButton type="button" @click="emit('close')" variant="ghost" size="sm">
-                        {{ t('lng_cancel') }}
-                    </BaseButton>
-                    <button type="button" @click="confirm" :disabled="!ready || busy"
-                        class="px-4 py-1.5 rounded-lg text-sm bg-red-500 text-white hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed">
-                        {{ confirmLabel }}
-                    </button>
+                    <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3">
+                        <BaseButton type="button" @click="close" variant="ghost" size="sm">
+                            {{ t('lng_cancel') }}
+                        </BaseButton>
+                        <button type="button" @click="confirm" :disabled="!ready || busy"
+                            class="px-4 py-1.5 rounded-lg text-sm bg-red-500 text-white hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed">
+                            {{ confirmLabel }}
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
+        </Transition>
     </Teleport>
 </template>
 
 <script setup lang="ts">
 // ponytail: 权限判断只看 TDLib 返回的 status / can_be_deleted_for_all_users，不做本地推断
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, onBeforeUnmount, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Trash2 as Trash2Icon, LogOut as LogOutIcon, X as XIcon } from 'lucide-vue-next';
 import type { Chat } from '../../store/chat/chat';
@@ -90,6 +92,16 @@ const isOwner = ref(false);
 const deleteForPeer = ref(false);
 const deleteForAll = ref(false);
 const blockBot = ref(false);
+
+/** 关闭先播放退场动画：面板收回后再通知父组件卸载 */
+const shown = ref(true);
+let closeTimer: number | undefined;
+
+function close() {
+    if (!shown.value) return;
+    shown.value = false;
+    closeTimer = window.setTimeout(() => emit('close'), 180);
+}
 
 /** TDLib 完整 chat：类型与删除权限标记以此为准（store 的 Chat 不含这些字段） */
 const full = ref<any>(null);
@@ -169,10 +181,14 @@ async function confirm() {
         toast.success(isLeave.value ? t('context.leftChat') : t('context.deleted'));
         // 先通知删除完成（调用方据此关闭对话面板），再走统一的 close
         emit('deleted');
-        emit('close');
+        close();
     } catch (e: any) {
         toast.error(e?.message || t('context.deleteFailed'));
         busy.value = false;
     }
 }
+
+onBeforeUnmount(() => {
+    if (closeTimer) window.clearTimeout(closeTimer);
+});
 </script>

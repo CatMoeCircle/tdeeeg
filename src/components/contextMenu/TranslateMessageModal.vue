@@ -1,11 +1,11 @@
 <template>
     <Teleport to="body">
-        <Transition name="tm-fade">
+        <Transition name="dialog-pop">
             <div v-if="visible"
                 class="fixed inset-0 z-998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
                 @mousedown.self="close">
                 <div
-                    class="w-130 max-w-[92vw] max-h-[85vh] flex flex-col rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
+                    class="dialog-pop-panel w-130 max-w-[92vw] max-h-[85vh] flex flex-col rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
                     <!-- 标题 -->
                     <div
                         class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
@@ -202,15 +202,3 @@ function onKeydown(e: KeyboardEvent) {
 onMounted(() => window.addEventListener("keydown", onKeydown));
 onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 </script>
-
-<style scoped>
-.tm-fade-enter-active,
-.tm-fade-leave-active {
-    transition: opacity 0.18s ease;
-}
-
-.tm-fade-enter-from,
-.tm-fade-leave-to {
-    opacity: 0;
-}
-</style>

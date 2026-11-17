@@ -1,11 +1,11 @@
 <template>
     <Teleport to="body">
-        <Transition name="apc-fade">
+        <Transition name="dialog-pop">
             <div v-if="modelValue"
                 class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
                 @mousedown.self="close">
                 <div
-                    class="w-100 max-w-[92vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
+                    class="dialog-pop-panel w-100 max-w-[92vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
                     <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
                         <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">{{ t('lng_proxy_add') }}</h3>
                         <button type="button"
@@ -249,15 +249,3 @@ async function submitAdd() {
     }
 }
 </script>
-
-<style scoped>
-.apc-fade-enter-active,
-.apc-fade-leave-active {
-    transition: opacity 0.18s ease;
-}
-
-.apc-fade-enter-from,
-.apc-fade-leave-to {
-    opacity: 0;
-}
-</style>

@@ -1,11 +1,11 @@
 <template>
     <Teleport to="body">
-        <Transition name="rmc-fade">
+        <Transition name="dialog-pop">
             <div v-if="visible"
                 class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
                 @mousedown.self="cancel">
                 <div
-                    class="w-96 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
+                    class="dialog-pop-panel w-96 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
                     <!-- 标题 -->
                     <div
                         class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
@@ -209,15 +209,3 @@ function cancel() {
     cancelReport();
 }
 </script>
-
-<style scoped>
-.rmc-fade-enter-active,
-.rmc-fade-leave-active {
-    transition: opacity 0.2s ease;
-}
-
-.rmc-fade-enter-from,
-.rmc-fade-leave-to {
-    opacity: 0;
-}
-</style>

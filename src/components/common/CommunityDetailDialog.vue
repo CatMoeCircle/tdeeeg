@@ -1,10 +1,10 @@
 <template>
     <Teleport to="body">
-        <Transition name="community-dialog">
+        <Transition name="dialog-pop">
             <div v-if="open" class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
                 role="dialog" aria-modal="true" aria-labelledby="community-dialog-title" @mousedown.self="close">
                 <div @keydown.esc.stop="close"
-                    class="flex max-h-[90vh] w-105 max-w-full flex-col overflow-hidden rounded-2xl border border-black/10 bg-gray-100 shadow-2xl dark:border-white/10 dark:bg-gray-900">
+                    class="dialog-pop-panel flex max-h-[90vh] w-105 max-w-full flex-col overflow-hidden rounded-2xl border border-black/10 bg-gray-100 shadow-2xl dark:border-white/10 dark:bg-gray-900">
                     <!-- 头部：小头像 + 社区名；右侧设置（仅管理员）和关闭 -->
                     <div class="flex shrink-0 items-center gap-3 px-5 pb-3 pt-4">
                         <CommunityAvatar :photo="photo" :title="name" size-class="w-10 h-10" />
@@ -270,15 +270,3 @@ watch(
     { immediate: true },
 );
 </script>
-
-<style scoped>
-.community-dialog-enter-active,
-.community-dialog-leave-active {
-    transition: opacity 0.2s ease;
-}
-
-.community-dialog-enter-from,
-.community-dialog-leave-to {
-    opacity: 0;
-}
-</style>

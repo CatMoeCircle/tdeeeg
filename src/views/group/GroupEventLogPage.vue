@@ -75,37 +75,39 @@
 
     <!-- 筛选 -->
     <Teleport to="body">
-      <div v-if="filterVisible" class="fixed inset-0 z-9998 flex items-center justify-center p-4"
-        @mousedown.self="filterVisible = false">
-        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
-        <div
-          class="relative w-full max-w-md max-h-[85vh] flex flex-col rounded-2xl bg-white dark:bg-[#1f2937] shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ t('lng_admin_log_filter_title') }}</h3>
-            <button type="button"
-              class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
-              @click="filterVisible = false">
-              <XIcon class="w-4 h-4 text-gray-500" />
-            </button>
-          </div>
-          <div class="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-2">
-            <div class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              {{ t('lng_admin_log_filter_actions_type_subtitle') }}
+      <Transition name="dialog-pop">
+        <div v-if="filterVisible" class="fixed inset-0 z-9998 flex items-center justify-center p-4"
+          @mousedown.self="filterVisible = false">
+          <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
+          <div
+            class="dialog-pop-panel relative w-full max-w-md max-h-[85vh] flex flex-col rounded-2xl bg-white dark:bg-[#1f2937] shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ t('lng_admin_log_filter_title') }}</h3>
+              <button type="button"
+                class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                @click="filterVisible = false">
+                <XIcon class="w-4 h-4 text-gray-500" />
+              </button>
             </div>
-            <label v-for="row in filterRows" :key="row.key"
-              class="flex items-center gap-3 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
-              <div class="min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-100">{{ row.label }}</div>
-              <ToggleSwitch v-model="(filters as any)[row.key]" />
-            </label>
-          </div>
-          <div class="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
-            <button type="button" class="px-4 py-2 rounded-lg text-sm bg-blue-500 text-white hover:bg-blue-600"
-              @click="applyFilters">
-              {{ t('lng_settings_save') }}
-            </button>
+            <div class="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-2">
+              <div class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ t('lng_admin_log_filter_actions_type_subtitle') }}
+              </div>
+              <label v-for="row in filterRows" :key="row.key"
+                class="flex items-center gap-3 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                <div class="min-w-0 flex-1 text-sm text-gray-800 dark:text-gray-100">{{ row.label }}</div>
+                <ToggleSwitch v-model="(filters as any)[row.key]" />
+              </label>
+            </div>
+            <div class="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
+              <button type="button" class="px-4 py-2 rounded-lg text-sm bg-blue-500 text-white hover:bg-blue-600"
+                @click="applyFilters">
+                {{ t('lng_settings_save') }}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </Transition>
     </Teleport>
   </div>
 </template>

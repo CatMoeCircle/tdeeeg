@@ -1,0 +1,62 @@
+/*
+ * 弹窗统一出入场动画。
+ *
+ * 用法：
+ *   <Transition name="dialog-pop">
+ *     <div class="fixed inset-0 ...">        遮罩层：负责淡入淡出
+ *       <div class="dialog-pop-panel ...">   内容面板：负责放大弹出 / 缩小收回
+ *
+ * 进入：遮罩淡入，面板从 92% 放大并轻微上移归位；
+ * 离开：遮罩淡出，面板略微缩小收回。
+ * 离开时长（160ms）不长于遮罩，避免面板还在动时整棵节点已被 Transition 移除。
+ */
+
+.dialog-pop-enter-active,
+.dialog-pop-leave-active {
+    transition: opacity 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dialog-pop-enter-from,
+.dialog-pop-leave-to {
+    opacity: 0;
+}
+
+.dialog-pop-panel {
+    transform-origin: center center;
+}
+
+.dialog-pop-enter-active .dialog-pop-panel {
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dialog-pop-enter-from .dialog-pop-panel {
+    transform: scale(0.92) translateY(10px);
+}
+
+.dialog-pop-leave-active {
+    transition-duration: 0.16s;
+}
+
+.dialog-pop-leave-active .dialog-pop-panel {
+    transition: transform 0.16s cubic-bezier(0.4, 0, 1, 1);
+}
+
+.dialog-pop-leave-to .dialog-pop-panel {
+    transform: scale(0.96) translateY(4px);
+}
+
+/* 系统要求减少动态效果时只保留极短的淡入淡出，不做缩放 */
+@media (prefers-reduced-motion: reduce) {
+
+    .dialog-pop-enter-active,
+    .dialog-pop-leave-active,
+    .dialog-pop-enter-active .dialog-pop-panel,
+    .dialog-pop-leave-active .dialog-pop-panel {
+        transition-duration: 0.01ms;
+    }
+
+    .dialog-pop-enter-from .dialog-pop-panel,
+    .dialog-pop-leave-to .dialog-pop-panel {
+        transform: none;
+    }
+}

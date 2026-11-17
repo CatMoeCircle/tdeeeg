@@ -1,12 +1,12 @@
 <template>
     <Teleport to="body">
-        <Transition name="tfa-fade">
+        <Transition name="dialog-pop">
             <div v-if="modelValue" class="fixed inset-0 z-9998 flex items-center justify-center p-4"
                 @mousedown.self="onClose">
                 <div class="absolute inset-0 bg-black/40" :class="disableConfirmVisible ? '' : 'backdrop-blur-sm'">
                 </div>
                 <div
-                    class="relative w-full max-w-md max-h-[min(520px,82vh)] flex flex-col rounded-2xl bg-white dark:bg-[#1f2937] shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    class="dialog-pop-panel relative w-full max-w-md max-h-[min(520px,82vh)] flex flex-col rounded-2xl bg-white dark:bg-[#1f2937] shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                     <!-- 顶部：返回 / 标题 / 关闭 -->
                     <div
                         class="flex items-center gap-2 px-4 py-2.5 border-b border-gray-200 dark:border-gray-700 shrink-0">
@@ -735,15 +735,3 @@ onUnmounted(() => {
     if (resendTimer) clearInterval(resendTimer);
 });
 </script>
-
-<style scoped>
-.tfa-fade-enter-active,
-.tfa-fade-leave-active {
-    transition: opacity 0.15s ease;
-}
-
-.tfa-fade-enter-from,
-.tfa-fade-leave-to {
-    opacity: 0;
-}
-</style>

@@ -1,11 +1,11 @@
 <template>
     <Teleport to="body">
-        <Transition name="elc-fade">
+        <Transition name="dialog-pop">
             <div v-if="visible"
                 class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
                 @mousedown.self="cancel">
                 <div
-                    class="w-100 max-w-[92vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
+                    class="dialog-pop-panel w-100 max-w-[92vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
                     <div
                         class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
                         <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200">

@@ -229,11 +229,11 @@
 
         <!-- 迁移提示弹窗（纯文本，无进度条） -->
         <Teleport to="body">
-            <Transition name="elc-fade">
+            <Transition name="dialog-pop">
                 <div v-if="migrating"
                     class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm">
                     <div
-                        class="w-105 max-w-[92vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden p-5 flex flex-col items-center">
+                        class="dialog-pop-panel w-105 max-w-[92vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden p-5 flex flex-col items-center">
                         <FolderSyncIcon class="w-10 h-10 text-blue-500 animate-pulse mb-3" />
                         <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">{{ t('download.migratingTitle') }}</h3>
                         <p class="text-xs text-gray-500 dark:text-gray-400 text-center">{{ progressMessage }}</p>
@@ -404,4 +404,4 @@ onUnmounted(() => {
 });
 </script>
 
-<style scoped></style>
+

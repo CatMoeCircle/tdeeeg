@@ -1,12 +1,12 @@
 <template>
     <Teleport to="body">
         <!-- 添加代理弹窗 -->
-        <Transition name="elc-fade">
+        <Transition name="dialog-pop">
             <div v-if="visible"
                 class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
                 @mousedown.self="cancel">
                 <div
-                    class="w-100 max-w-[92vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
+                    class="dialog-pop-panel w-100 max-w-[92vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
                     <!-- 标题 -->
                     <div
                         class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
@@ -112,12 +112,12 @@
         </Transition>
 
         <!-- ping IP 暴露警告弹窗 -->
-        <Transition name="elc-fade">
+        <Transition name="dialog-pop">
             <div v-if="pingWarningVisible"
                 class="fixed inset-0 z-9999 flex items-center justify-center bg-black/40 backdrop-blur-sm"
                 @mousedown.self="cancelWarning">
                 <div
-                    class="w-90 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
+                    class="dialog-pop-panel w-90 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
                     <!-- 标题 -->
                     <div
                         class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
@@ -227,15 +227,3 @@ onUnmounted(() => {
     window.removeEventListener("keydown", onKeydown);
 });
 </script>
-
-<style scoped>
-.elc-fade-enter-active,
-.elc-fade-leave-active {
-    transition: opacity 0.18s ease;
-}
-
-.elc-fade-enter-from,
-.elc-fade-leave-to {
-    opacity: 0;
-}
-</style>

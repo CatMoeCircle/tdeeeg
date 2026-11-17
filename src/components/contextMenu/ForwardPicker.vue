@@ -1,11 +1,11 @@
 <template>
     <Teleport to="body">
-        <Transition name="fp-fade">
+        <Transition name="dialog-pop">
             <div v-if="visible"
                 class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
                 @mousedown.self="close" @keydown.esc="onEsc">
                 <div
-                    class="w-110 max-w-[92vw] max-h-[78vh] flex flex-col rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
+                    class="dialog-pop-panel w-110 max-w-[92vw] max-h-[78vh] flex flex-col rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
                     <!-- 标题 -->
                     <div
                         class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 shrink-0">
@@ -760,15 +760,3 @@ async function forwardNow() {
     }
 }
 </script>
-
-<style scoped>
-.fp-fade-enter-active,
-.fp-fade-leave-active {
-    transition: opacity 0.18s ease;
-}
-
-.fp-fade-enter-from,
-.fp-fade-leave-to {
-    opacity: 0;
-}
-</style>

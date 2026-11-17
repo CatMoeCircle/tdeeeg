@@ -1,11 +1,11 @@
 <template>
     <Teleport to="body">
-        <Transition name="md-fade">
+        <Transition name="dialog-pop">
             <div v-show="modelValue" class="fixed inset-0 z-9998 flex items-center justify-center p-4"
                 @mousedown.self="close">
                 <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
                 <div
-                    class="relative w-full max-w-md max-h-[85vh] flex flex-col rounded-2xl bg-white dark:bg-[#1f2937] shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    class="dialog-pop-panel relative w-full max-w-md max-h-[85vh] flex flex-col rounded-2xl bg-white dark:bg-[#1f2937] shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
                     <div
                         class="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
                         <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ t('avatar.change') }}</h3>
@@ -422,15 +422,3 @@ onUnmounted(() => {
     resetUpload();
 });
 </script>
-
-<style scoped>
-.md-fade-enter-active,
-.md-fade-leave-active {
-    transition: opacity 0.18s ease;
-}
-
-.md-fade-enter-from,
-.md-fade-leave-to {
-    opacity: 0;
-}
-</style>

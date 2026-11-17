@@ -58,12 +58,12 @@
     </div>
 
     <Teleport to="body">
-        <Transition name="giveaway-dialog">
+        <Transition name="dialog-pop">
             <div v-if="detailsOpen"
                 class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
                 role="dialog" aria-modal="true" aria-labelledby="giveaway-dialog-title" @mousedown.self="closeDetails">
                 <div
-                    class="w-105 max-w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xl dark:border-white/10 dark:bg-[#1d1d1d]">
+                    class="dialog-pop-panel w-105 max-w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xl dark:border-white/10 dark:bg-[#1d1d1d]">
                     <div class="relative px-6 pb-5 pt-5">
                         <button type="button" :aria-label="t('lng_close')"
                             class="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10"
@@ -279,15 +279,3 @@ watch(() => props.content, loadChannels, { immediate: true });
 onMounted(() => window.addEventListener('keydown', onKeydown));
 onUnmounted(() => window.removeEventListener('keydown', onKeydown));
 </script>
-
-<style scoped>
-.giveaway-dialog-enter-active,
-.giveaway-dialog-leave-active {
-    transition: opacity 0.16s ease;
-}
-
-.giveaway-dialog-enter-from,
-.giveaway-dialog-leave-to {
-    opacity: 0;
-}
-</style>

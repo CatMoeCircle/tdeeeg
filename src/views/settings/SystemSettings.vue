@@ -184,86 +184,88 @@
 
     <!-- 添加账户确认弹窗 -->
     <Teleport to="body">
-        <div v-if="showAddDialog"
-            class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-            @mousedown.self="showAddDialog = false" @keydown.esc="showAddDialog = false">
-            <div
-                class="w-90 max-w-[calc(100vw-2rem)] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
-                <!-- 内置 API 确认（未达上限） -->
-                <template v-if="!limitReached">
-                    <div class="px-4 pt-5 pb-3 text-center">
-                        <div
-                            class="mx-auto w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-500 flex items-center justify-center mb-3">
-                            <PlusIcon class="w-6 h-6" />
-                        </div>
-                        <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">
-                            {{ t('lng_menu_add_account') }}</h3>
-                        <p class="mt-1.5 text-sm text-gray-500 dark:text-gray-400 leading-5">
-                            {{ t('systemSettings.addDialogDesc') }}
-                        </p>
-                    </div>
-                    <div class="px-4 pb-4 flex items-center justify-end gap-3">
-                        <BaseButton type="button" @click="showAddDialog = false" variant="ghost">
-                            {{ t('lng_cancel') }}
-                        </BaseButton>
-                        <button type="button" @click="confirmAdd" :disabled="adding"
-                            class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:cursor-wait">
-                            {{ adding ? t('systemSettings.creating') : t('lng_continue') }}
-                        </button>
-                    </div>
-                </template>
-
-                <!-- 自定义 API 表单（达到上限） -->
-                <template v-else>
-                    <div class="px-4 pt-5 pb-3">
-                        <div class="flex items-center gap-2 mb-3">
+        <Transition name="dialog-pop">
+            <div v-if="showAddDialog"
+                class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+                @mousedown.self="showAddDialog = false" @keydown.esc="showAddDialog = false">
+                <div
+                    class="dialog-pop-panel w-90 max-w-[calc(100vw-2rem)] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
+                    <!-- 内置 API 确认（未达上限） -->
+                    <template v-if="!limitReached">
+                        <div class="px-4 pt-5 pb-3 text-center">
                             <div
-                                class="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
-                                <span class="text-lg">⚠️</span>
+                                class="mx-auto w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-500 flex items-center justify-center mb-3">
+                                <PlusIcon class="w-6 h-6" />
                             </div>
-                            <div>
-                                <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">
-                                    {{ t('systemSettings.needCustomApi') }}</h3>
-                                <p class="text-xs text-gray-400">
-                                    {{ t('systemSettings.limitReached', { count: limitInfo?.limit ?? 5 }) }}
-                                </p>
+                            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">
+                                {{ t('lng_menu_add_account') }}</h3>
+                            <p class="mt-1.5 text-sm text-gray-500 dark:text-gray-400 leading-5">
+                                {{ t('systemSettings.addDialogDesc') }}
+                            </p>
+                        </div>
+                        <div class="px-4 pb-4 flex items-center justify-end gap-3">
+                            <BaseButton type="button" @click="showAddDialog = false" variant="ghost">
+                                {{ t('lng_cancel') }}
+                            </BaseButton>
+                            <button type="button" @click="confirmAdd" :disabled="adding"
+                                class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:cursor-wait">
+                                {{ adding ? t('systemSettings.creating') : t('lng_continue') }}
+                            </button>
+                        </div>
+                    </template>
+
+                    <!-- 自定义 API 表单（达到上限） -->
+                    <template v-else>
+                        <div class="px-4 pt-5 pb-3">
+                            <div class="flex items-center gap-2 mb-3">
+                                <div
+                                    class="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
+                                    <span class="text-lg">⚠️</span>
+                                </div>
+                                <div>
+                                    <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">
+                                        {{ t('systemSettings.needCustomApi') }}</h3>
+                                    <p class="text-xs text-gray-400">
+                                        {{ t('systemSettings.limitReached', { count: limitInfo?.limit ?? 5 }) }}
+                                    </p>
+                                </div>
+                            </div>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 leading-5 mb-4">
+                                <i18n-t keypath="systemSettings.getApiHint" tag="span">
+                                    <template #link>
+                                        <a href="https://my.telegram.org" target="_blank" rel="noopener"
+                                            class="text-blue-500 hover:underline">my.telegram.org</a>
+                                    </template>
+                                </i18n-t>
+                            </p>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API
+                                        ID</label>
+                                    <BaseInput v-model="customApiId" type="text" inputmode="numeric"
+                                        :placeholder="t('systemSettings.apiIdPlaceholder')" spellcheck="false" />
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API
+                                        Hash</label>
+                                    <BaseInput v-model="customApiHash" type="text"
+                                        :placeholder="t('systemSettings.apiHashPlaceholder')" spellcheck="false" />
+                                </div>
                             </div>
                         </div>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 leading-5 mb-4">
-                            <i18n-t keypath="systemSettings.getApiHint" tag="span">
-                                <template #link>
-                                    <a href="https://my.telegram.org" target="_blank" rel="noopener"
-                                        class="text-blue-500 hover:underline">my.telegram.org</a>
-                                </template>
-                            </i18n-t>
-                        </p>
-                        <div class="space-y-3">
-                            <div>
-                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API
-                                    ID</label>
-                                <BaseInput v-model="customApiId" type="text" inputmode="numeric"
-                                    :placeholder="t('systemSettings.apiIdPlaceholder')" spellcheck="false" />
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">API
-                                    Hash</label>
-                                <BaseInput v-model="customApiHash" type="text"
-                                    :placeholder="t('systemSettings.apiHashPlaceholder')" spellcheck="false" />
-                            </div>
+                        <div class="px-4 pb-4 flex items-center justify-end gap-3">
+                            <BaseButton type="button" @click="showAddDialog = false" variant="ghost">
+                                {{ t('lng_cancel') }}
+                            </BaseButton>
+                            <button type="button" @click="confirmAddCustom" :disabled="adding"
+                                class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:cursor-wait">
+                                {{ adding ? t('systemSettings.creating') : t('systemSettings.loginWithCustomApi') }}
+                            </button>
                         </div>
-                    </div>
-                    <div class="px-4 pb-4 flex items-center justify-end gap-3">
-                        <BaseButton type="button" @click="showAddDialog = false" variant="ghost">
-                            {{ t('lng_cancel') }}
-                        </BaseButton>
-                        <button type="button" @click="confirmAddCustom" :disabled="adding"
-                            class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 transition-colors disabled:opacity-60 disabled:cursor-wait">
-                            {{ adding ? t('systemSettings.creating') : t('systemSettings.loginWithCustomApi') }}
-                        </button>
-                    </div>
-                </template>
+                    </template>
+                </div>
             </div>
-        </div>
+        </Transition>
     </Teleport>
 </template>
 

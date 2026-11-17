@@ -1,12 +1,12 @@
 <template>
     <Teleport to="body">
-        <Transition name="ton-detail">
+        <Transition name="dialog-pop">
             <div v-if="open" class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
                 role="dialog" aria-modal="true" aria-labelledby="ton-transfer-detail-amount"
                 @mousedown.self="emitClose">
                 <!-- 面板本身不裁剪：石头按压放大时要能探出边界（与聊天卡片同一套手感） -->
                 <div
-                    class="relative w-100 max-w-[calc(100vw-2rem)] max-h-[90vh] flex flex-col rounded-2xl border border-black/10 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-800">
+                    class="dialog-pop-panel relative w-100 max-w-[calc(100vw-2rem)] max-h-[90vh] flex flex-col rounded-2xl border border-black/10 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-800">
                     <!-- 关闭按钮压在内容之上，不随滚动区滚走 -->
                     <button type="button" :aria-label="t('lng_close')"
                         class="absolute right-2.5 top-2.5 z-10 flex h-7 w-7 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
@@ -388,15 +388,5 @@ onBeforeUnmount(() => {
     text-align: left;
     box-shadow: 0 4px 16px rgb(0 0 0 / 0.24);
     pointer-events: none;
-}
-
-.ton-detail-enter-active,
-.ton-detail-leave-active {
-    transition: opacity 0.16s ease;
-}
-
-.ton-detail-enter-from,
-.ton-detail-leave-to {
-    opacity: 0;
 }
 </style>

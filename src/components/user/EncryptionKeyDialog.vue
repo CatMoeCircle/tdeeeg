@@ -1,49 +1,51 @@
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="fixed inset-0 z-9998 flex items-center justify-center p-4"
-      @mousedown.self="onClose">
-      <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
-      <div
-        class="relative w-full max-w-sm max-h-[min(720px,90vh)] flex flex-col rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
-        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 shrink-0">
-          <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">
-            {{ t('secretChat.encryptionKeyTitle') }}
-          </h3>
-          <button type="button" :aria-label="t('lng_close')"
-            class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
-            @click="onClose">
-            <XIcon class="w-4 h-4" />
-          </button>
-        </div>
-
-        <div class="flex-1 overflow-y-auto custom-scrollbar px-5 py-4">
-          <div class="flex flex-col items-center">
-            <canvas ref="canvasEl" width="192" height="192"
-              class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white"
-              style="image-rendering: pixelated" />
-
-            <!-- 密钥 hex：32 字节，4 行 × 8 组，行中留空隙 -->
-            <div class="mt-4 w-full font-mono text-[13px] leading-5 text-gray-800 dark:text-gray-100 select-all">
-              <div v-for="(row, i) in hexRows" :key="i" class="flex justify-center gap-x-4">
-                <span v-for="(group, j) in row" :key="j" class="tracking-wide">{{ group }}</span>
-              </div>
-            </div>
-
-            <p class="mt-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed text-center">
-              {{ t('secretChat.encryptionKeyDesc', { name: partnerName }) }}
-            </p>
-            <p class="mt-3 text-sm text-gray-700 dark:text-gray-300 leading-relaxed text-center">
-              {{ t('secretChat.encryptionKeyHint', { name: partnerName }) }}
-            </p>
-            <button type="button"
-              class="mt-4 text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
-              @click="openLearnMore">
-              {{ t('secretChat.encryptionKeyLearnMore') }}
+    <Transition name="dialog-pop">
+      <div v-if="visible" class="fixed inset-0 z-9998 flex items-center justify-center p-4"
+        @mousedown.self="onClose">
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
+        <div
+          class="dialog-pop-panel relative w-full max-w-sm max-h-[min(720px,90vh)] flex flex-col rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 shrink-0">
+            <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">
+              {{ t('secretChat.encryptionKeyTitle') }}
+            </h3>
+            <button type="button" :aria-label="t('lng_close')"
+              class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500"
+              @click="onClose">
+              <XIcon class="w-4 h-4" />
             </button>
+          </div>
+
+          <div class="flex-1 overflow-y-auto custom-scrollbar px-5 py-4">
+            <div class="flex flex-col items-center">
+              <canvas ref="canvasEl" width="192" height="192"
+                class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white"
+                style="image-rendering: pixelated" />
+
+              <!-- 密钥 hex：32 字节，4 行 × 8 组，行中留空隙 -->
+              <div class="mt-4 w-full font-mono text-[13px] leading-5 text-gray-800 dark:text-gray-100 select-all">
+                <div v-for="(row, i) in hexRows" :key="i" class="flex justify-center gap-x-4">
+                  <span v-for="(group, j) in row" :key="j" class="tracking-wide">{{ group }}</span>
+                </div>
+              </div>
+
+              <p class="mt-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed text-center">
+                {{ t('secretChat.encryptionKeyDesc', { name: partnerName }) }}
+              </p>
+              <p class="mt-3 text-sm text-gray-700 dark:text-gray-300 leading-relaxed text-center">
+                {{ t('secretChat.encryptionKeyHint', { name: partnerName }) }}
+              </p>
+              <button type="button"
+                class="mt-4 text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
+                @click="openLearnMore">
+                {{ t('secretChat.encryptionKeyLearnMore') }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>
 

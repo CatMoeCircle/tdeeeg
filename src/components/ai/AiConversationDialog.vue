@@ -95,12 +95,12 @@ const when = (ms: number) => (ms ? new Date(ms).toLocaleString() : '');
 
 <template>
     <Teleport to="body">
-        <Transition name="conv-dialog">
+        <Transition name="dialog-pop">
             <div v-if="modelValue"
                 class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
                 role="dialog" aria-modal="true" aria-labelledby="ai-conv-title" @mousedown.self="close">
                 <div @keydown.esc.stop="close"
-                    class="w-120 max-w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-800">
+                    class="dialog-pop-panel w-120 max-w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-800">
                     <!-- 头部：标题 + 新建 -->
                     <div class="relative px-6 pt-5 pb-3">
                         <button type="button" :aria-label="t('lng_close')"
@@ -181,15 +181,3 @@ const when = (ms: number) => (ms ? new Date(ms).toLocaleString() : '');
         </Transition>
     </Teleport>
 </template>
-
-<style scoped>
-.conv-dialog-enter-active,
-.conv-dialog-leave-active {
-    transition: opacity 160ms ease;
-}
-
-.conv-dialog-enter-from,
-.conv-dialog-leave-to {
-    opacity: 0;
-}
-</style>

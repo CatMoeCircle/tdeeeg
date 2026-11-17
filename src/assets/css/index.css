@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./theme.css";
+@import "./dialog-motion.css";
 
 /* 明暗模式走 html.dark class（由 store/theme.ts 切换），而非系统 media */
 @custom-variant dark (&:where(.dark, .dark *));

@@ -1,10 +1,10 @@
 <template>
     <Teleport to="body">
-        <Transition name="gift-dialog">
+        <Transition name="dialog-pop">
             <div v-if="open" class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
                 role="dialog" aria-modal="true" aria-labelledby="gift-detail-title" @mousedown.self="emitClose">
                 <div
-                    class="w-90 max-w-[calc(100vw-2rem)] max-h-[90vh] overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-800 flex flex-col">
+                    class="dialog-pop-panel w-90 max-w-[calc(100vw-2rem)] max-h-[90vh] overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-800 flex flex-col">
                     <!-- NFT 头部：渐变底 + 符号图案 + 标题 -->
                     <div v-if="isUpgraded" class="relative shrink-0 overflow-hidden px-5 pb-3.5 pt-3 text-center"
                         :style="headerBackdropStyle">
@@ -309,15 +309,5 @@ const patternItems = computed(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-}
-
-.gift-dialog-enter-active,
-.gift-dialog-leave-active {
-    transition: opacity 0.16s ease;
-}
-
-.gift-dialog-enter-from,
-.gift-dialog-leave-to {
-    opacity: 0;
 }
 </style>

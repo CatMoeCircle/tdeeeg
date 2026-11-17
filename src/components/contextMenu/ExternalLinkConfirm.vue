@@ -1,11 +1,11 @@
 <template>
     <Teleport to="body">
-        <Transition name="elc-fade">
+        <Transition name="dialog-pop">
             <div v-if="visible"
                 class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 backdrop-blur-sm"
                 @mousedown.self="cancel">
                 <div
-                    class="w-90 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
+                    class="dialog-pop-panel w-90 max-w-[90vw] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden">
                     <!-- 与官方 ConfirmBox 一致：文案 + 地址 +（必要时）可疑字符说明，不设独立标题栏 -->
                     <div class="px-5 pt-4 pb-2">
                         <p class="text-sm text-gray-800 dark:text-gray-200">
@@ -265,15 +265,3 @@ onUnmounted(() => {
     window.removeEventListener("keydown", onKeydown);
 });
 </script>
-
-<style scoped>
-.elc-fade-enter-active,
-.elc-fade-leave-active {
-    transition: opacity 0.18s ease;
-}
-
-.elc-fade-enter-from,
-.elc-fade-leave-to {
-    opacity: 0;
-}
-</style>

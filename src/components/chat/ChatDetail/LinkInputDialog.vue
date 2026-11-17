@@ -1,10 +1,10 @@
 <template>
     <Teleport to="body">
-        <Transition name="link-dialog">
+        <Transition name="dialog-pop">
             <div v-if="modelValue" class="fixed inset-0 z-9998 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
                 role="dialog" aria-modal="true" aria-labelledby="link-dialog-title" @mousedown.self="close">
                 <div @keydown.esc.stop="close"
-                    class="w-105 max-w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-800">
+                    class="dialog-pop-panel w-105 max-w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-2xl dark:border-white/10 dark:bg-gray-800">
                     <div class="relative px-6 pb-2 pt-5">
                         <button type="button" :aria-label="t('lng_close')"
                             class="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
@@ -88,14 +88,3 @@ function submit() {
     emit('update:modelValue', false);
 }
 </script>
-
-<style>
-.link-dialog-enter-active,
-.link-dialog-leave-active {
-    transition: opacity 0.2s ease;
-}
-.link-dialog-enter-from,
-.link-dialog-leave-to {
-    opacity: 0;
-}
-</style>
