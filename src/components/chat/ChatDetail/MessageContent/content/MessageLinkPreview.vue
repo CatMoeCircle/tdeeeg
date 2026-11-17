@@ -143,6 +143,7 @@ const accentTextStyle = computed(() => ({ color: accent.value.text }));
     display: -webkit-box;
     overflow: hidden;
     -webkit-box-orient: vertical;
+    line-clamp: 8;
     -webkit-line-clamp: 8;
 }
 </style>
