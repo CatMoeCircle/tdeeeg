@@ -4949,7 +4949,7 @@ dependencies = [
 
 [[package]]
 name = "tdeeeg"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "arboard",
  "base64 0.22.1",
