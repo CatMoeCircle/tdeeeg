@@ -100,7 +100,7 @@
                     :class="debugMode ? 'text-blue-500/80 dark:text-blue-400/80' : ''"
                     :title="debugMode ? t('settingsList.devOnHint') : t('settingsList.devOffHint')"
                     @click="onVersionClick">
-                    {{ appName }} v{{ appVersion }}
+                    {{ appName }} v{{ appVersion }} · {{ appArch }}
                 </p>
                 <span class="text-gray-300 dark:text-gray-600 text-[11px]">|</span>
                 <p class="text-[11px] text-gray-400 dark:text-gray-500 leading-5 select-text whitespace-nowrap">
@@ -132,6 +132,7 @@ import formatStatus from '../../utils/profile/status';
 import { tdlibSend } from '../../utils/session/tdlib';
 import { OFFICIAL_GROUP_USERNAME, openOfficialGroup as openOfficialGroupLink } from '../../utils/link/appLinks';
 import { getVersion } from '@tauri-apps/api/app';
+import { appArch } from '../../utils/app/arch';
 import packageInfo from '../../../package.json';
 import { debugMode, setDebugMode, setLogUpdates } from '../../store/settings/debug';
 import { useI18n } from 'vue-i18n';

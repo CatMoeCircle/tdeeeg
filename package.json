@@ -1,12 +1,13 @@
 {
   "name": "tdeeeg",
   "private": true,
-  "version": "0.2.5",
+  "version": "0.2.6",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
+    "version:set": "node scripts/set-version.mjs",
     "tauri": "tauri",
     "tauri:compile": "tauri build --no-bundle",
     "tauri:bundle:default": "tauri bundle --config src-tauri/tauri.conf.json --no-sign",

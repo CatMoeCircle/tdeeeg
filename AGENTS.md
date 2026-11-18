@@ -34,6 +34,7 @@ bun run build
 cd src-tauri && cargo check
 
 # Production packaging
+bun run version:set v0.2.6   # 版本号跟随 git tag，写进 package.json / tauri.conf.json / Cargo.toml / Cargo.lock
 bun run tauri:compile
 bun run tauri:build:all   # default + offline WebView2 packages
 ```

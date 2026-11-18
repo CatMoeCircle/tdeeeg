@@ -9,6 +9,20 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 const host = process.env.TAURI_DEV_HOST;
 
+// 编译目标架构：tauri build / tauri dev 时 Tauri 注入 TAURI_ENV_ARCH（x86_64、aarch64…），
+// 直接 vite build 时退回 Node 的 process.arch。统一成展示用的短名。
+const rawArch = process.env.TAURI_ENV_ARCH || process.arch;
+const appArch =
+  rawArch === "x86_64" || rawArch === "x64" || rawArch === "amd64"
+    ? "x64"
+    : rawArch === "aarch64" || rawArch === "arm64"
+      ? "arm64"
+      : rawArch === "i686" || rawArch === "ia32" || rawArch === "x86"
+        ? "x86"
+        : rawArch === "arm" || rawArch === "armv7l"
+          ? "arm"
+          : rawArch;
+
 // https://vite.dev/config/
 export default defineConfig(async (): Promise<UserConfig> => ({
   plugins: [
@@ -20,6 +34,10 @@ export default defineConfig(async (): Promise<UserConfig> => ({
   // new URL('...party.tgs', import.meta.url) 在打包时不会被 Vite 处理/产出，
   // 生产环境 URL 指向不存在的文件而加载不出来。
   assetsInclude: ["**/*.tgs"],
+  // 版本信息行展示的构建架构（x64 / arm64），见 src/utils/app/arch.ts
+  define: {
+    __APP_ARCH__: JSON.stringify(appArch),
+  },
   // tlottie 用 new URL('assets/tlottie.worker-*.js', import.meta.url) 创建 Worker。
   // 依赖预构建会把相对 Worker 路径改写到 .vite/deps 下导致 404，必须排除。
   optimizeDeps: {

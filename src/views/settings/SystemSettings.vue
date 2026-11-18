@@ -146,7 +146,7 @@
                     <div
                         class="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/70 backdrop-blur-md py-6">
                         <div class="flex items-center justify-center gap-6 text-sm text-gray-600 dark:text-gray-300">
-                            <span>{{ appName }} v{{ appVersion }}</span>
+                            <span>{{ appName }} v{{ appVersion }} · {{ appArch }}</span>
                             <span class="text-gray-300 dark:text-gray-600">|</span>
                             <span>TDLib {{ tdlibVersion }}</span>
                         </div>
@@ -276,6 +276,7 @@ import { useRouter } from 'vue-router';
 import { ChevronLeft as ChevronLeftIcon, Plus as PlusIcon } from 'lucide-vue-next';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
+import { appArch } from '../../utils/app/arch';
 import { toast } from '../../utils/ui/toast';
 import { tdlibSend } from '../../utils/session/tdlib';
 import { useAccountsStore, type AccountInfo } from '../../store/session/accounts';

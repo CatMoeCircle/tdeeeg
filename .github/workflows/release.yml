@@ -1,23 +1,23 @@
 name: Release
 
+# 版本号的唯一来源是 git tag：推 v* tag 即发布，手动触发时也只填 tag 名。
+# 构建前由 scripts/set-version.mjs 把 tag 写进 package.json / tauri.conf.json /
+# Cargo.toml / Cargo.lock，因此应用内版本、NSIS 安装包名
+# tdeeeg_<version>_<arch>-setup.exe 与 updater 的 latest.json 都与 tag 保持一致。
+# tag 带 "-"（如 v0.3.0-beta.1）自动标记为 prerelease。
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
     inputs:
-      version:
-        description: "版本号 (例如: 1.0.0)"
+      tag:
+        description: "要发布的 tag，例如 v0.2.6"
         required: true
         type: string
-      release_type:
-        description: "发布类型"
-        required: true
-        type: choice
-        default: "stable"
-        options:
-          - stable
-          - prerelease
       tdlib_commit_hash:
-        description: "TDlib commit hash"
-        required: true
+        description: "TDlib commit hash（留空则用仓库变量 TDLIB_COMMIT_HASH）"
+        required: false
         type: string
 
 permissions:
@@ -39,35 +39,51 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Get version
+      - name: Resolve tag and version
         id: version
         run: |
-          $VERSION = "${{ github.event.inputs.version }}"
-          echo "version=$VERSION" >> $env:GITHUB_OUTPUT
-          echo "tag=v$VERSION" >> $env:GITHUB_OUTPUT
+          if ("${{ github.event_name }}" -eq "push") {
+            $tag = "${{ github.ref_name }}"
+          } else {
+            $tag = "${{ inputs.tag }}"
+          }
+          $tag = $tag.Trim()
+          if ($tag -notmatch '^v\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') {
+            Write-Host "tag 必须形如 v0.2.6 或 v0.3.0-beta.1，当前: '$tag'" -ForegroundColor Red
+            exit 1
+          }
+          $version = $tag.Substring(1)
+          $prerelease = if ($tag -match '-') { "true" } else { "false" }
+          Write-Host "tag=$tag version=$version prerelease=$prerelease"
+          echo "tag=$tag" >> $env:GITHUB_OUTPUT
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "prerelease=$prerelease" >> $env:GITHUB_OUTPUT
         shell: pwsh
 
-      - name: Get release type
-        id: release_type
+      - name: Resolve TDlib commit
+        id: tdlib
         run: |
-          $TYPE = "${{ github.event.inputs.release_type }}"
-          echo "type=$TYPE" >> $env:GITHUB_OUTPUT
-          if ($TYPE -eq "prerelease") {
-            echo "prerelease=true" >> $env:GITHUB_OUTPUT
-          } else {
-            echo "prerelease=false" >> $env:GITHUB_OUTPUT
+          $hash = "${{ inputs.tdlib_commit_hash }}".Trim()
+          if (-not $hash) { $hash = "${{ vars.TDLIB_COMMIT_HASH }}".Trim() }
+          if (-not $hash) {
+            Write-Host "缺少 TDlib commit：请在仓库 Variables 里设置 TDLIB_COMMIT_HASH，或手动触发时填写 tdlib_commit_hash" -ForegroundColor Red
+            exit 1
           }
+          echo "hash=$hash" >> $env:GITHUB_OUTPUT
         shell: pwsh
 
       - name: Generate changelog
         id: changelog
         run: |
-          $newTag = "v${{ github.event.inputs.version }}"
+          $tag = "${{ steps.version.outputs.tag }}"
+          $version = "${{ steps.version.outputs.version }}"
+          $tdlibHash = "${{ steps.tdlib.outputs.hash }}"
 
-          # 获取所有 tag 并按版本号排序（排除新 tag 如果已存在）
-          $tags = git tag --list "v*" | Where-Object { $_ -ne $newTag } | Sort-Object -Property { [version]($_ -replace '^v','') } -Descending
-
-          $prevTag = $tags | Select-Object -First 1
+          # 上一个 tag：预发布 tag 先截掉 -suffix 再按数值排序
+          $prevTag = git tag --list "v*" |
+            Where-Object { $_ -ne $tag -and $_ -match '^v\d+\.\d+\.\d+' } |
+            Sort-Object -Property { [version]($_ -replace '^v', '' -replace '-.*$', '') } -Descending |
+            Select-Object -First 1
 
           if ($prevTag) {
             Write-Host "上一个 tag: $prevTag"
@@ -77,10 +93,10 @@ jobs:
             $commits = git log --pretty=format:"- %s (%h)" HEAD
           }
 
-          # 构建 release body
-          $tdlibHash = "${{ github.event.inputs.tdlib_commit_hash }}"
-          $body = "## TDEEEG v${{ github.event.inputs.version }}`n`n"
+          $body = "## TDEEEG $tag`n`n"
           $body += "### 构建信息`n`n"
+          $body += "- 版本: ``$version``（跟随 tag）`n"
+          $body += "- 架构: Windows ${{ runner.arch }}（安装包名带架构，如 ``tdeeeg_${version}_x64-setup.exe``）`n"
           $body += "- TDLib commit: ``$tdlibHash```n"
           $body += "- WebView2: 默认包在线安装 / ``-webview`` 包离线安装`n`n"
           if ($commits) {
@@ -92,7 +108,6 @@ jobs:
           Write-Host "--- Release Body ---"
           Write-Host $body
 
-          # 写入临时文件，供后续步骤读取
           Set-Content -Path "RELEASE_BODY.md" -Value $body -NoNewline
         shell: pwsh
 
@@ -110,7 +125,7 @@ jobs:
         run: |
           git clone https://github.com/tdlib/td.git
           cd td
-          git checkout ${{ github.event.inputs.tdlib_commit_hash }}
+          git checkout ${{ steps.tdlib.outputs.hash }}
         shell: pwsh
 
       # 缓存 TDlib 构建目录和安装目录（按 commit hash + OS + arch）
@@ -121,10 +136,10 @@ jobs:
           path: |
             td/build
             td/tdlib
-          key: tdlib-${{ github.event.inputs.tdlib_commit_hash }}-${{ runner.os }}-${{ runner.arch }}
+          key: tdlib-${{ steps.tdlib.outputs.hash }}-${{ runner.os }}-${{ runner.arch }}
           restore-keys: |
-            tdlib-${{ github.event.inputs.tdlib_commit_hash }}-${{ runner.os }}-
-            tdlib-${{ github.event.inputs.tdlib_commit_hash }}-
+            tdlib-${{ steps.tdlib.outputs.hash }}-${{ runner.os }}-
+            tdlib-${{ steps.tdlib.outputs.hash }}-
 
       # 如果缓存未命中，则执行完整的 TDlib 构建
       - name: Setup vcpkg (if cache miss)
@@ -194,6 +209,12 @@ jobs:
           }
         shell: pwsh
 
+      - name: Apply version from tag
+        run: |
+          node scripts/set-version.mjs ${{ steps.version.outputs.tag }}
+          git --no-pager diff --stat
+        shell: pwsh
+
       - name: Build and release (default)
         id: tauri_build
         uses: tauri-apps/tauri-action@v1
@@ -204,11 +225,11 @@ jobs:
           TG_API_ID: ${{ secrets.TG_API_ID }}
           TG_API_HASH: ${{ secrets.TG_API_HASH }}
         with:
-          tagName: v${{ steps.version.outputs.version }}
-          releaseName: "TDEEEG v${{ steps.version.outputs.version }}"
+          tagName: ${{ steps.version.outputs.tag }}
+          releaseName: "TDEEEG ${{ steps.version.outputs.tag }}"
           releaseBody: "${{ steps.changelog_read.outputs.body }}"
           releaseDraft: false
-          prerelease: ${{ steps.release_type.outputs.prerelease }}
+          prerelease: ${{ steps.version.outputs.prerelease }}
           # 不把 .sig 挂到 Release 资产（不影响 latest.json 生成）
           uploadUpdaterSignatures: false
 
@@ -242,10 +263,29 @@ jobs:
           $files | Format-Table Name, @{N = "SizeMB"; E = { [math]::Round($_.Length / 1MB, 2) } } -AutoSize
         shell: pwsh
 
+      - name: Verify artifact naming (tag version + arch)
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $pattern = '^tdeeeg_' + [regex]::Escape($version) + '_(x64|arm64|i686)(-webview)?-setup\.exe$'
+          $files = @(Get-ChildItem "src-tauri/target/release/bundle/nsis" -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Extension -eq ".exe" -and $_.Name -like "tdeeeg_*" })
+          if ($files.Count -eq 0) {
+            Write-Host "bundle/nsis 下没有安装包，构建可能失败" -ForegroundColor Red
+            exit 1
+          }
+          $bad = @($files | Where-Object { $_.Name -notmatch $pattern })
+          if ($bad.Count -gt 0) {
+            Write-Host "安装包名未跟随 tag 版本 $version（期望 tdeeeg_${version}_<arch>-setup.exe）：" -ForegroundColor Red
+            $bad | ForEach-Object { Write-Host "  $($_.Name)" }
+            exit 1
+          }
+          $files | Sort-Object Name | Format-Table Name, @{N = "SizeMB"; E = { [math]::Round($_.Length / 1MB, 2) } } -AutoSize
+        shell: pwsh
+
       - name: Upload webview artifacts to release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.version.outputs.tag }}
           fail_on_unmatched_files: true
           files: |
             src-tauri/target/release/bundle/nsis/*webview*
